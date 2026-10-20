@@ -20,19 +20,20 @@ from interact_support import (
     hold_status_read,
     page_state,
     printed,
+    read_record,
     record_claim,
     said,
     serving,
     spawn_probe,
     wait_for,
     woken,
+    write_record,
     yaml_document,
 )
 from leaf import cli as cli_model
 from leaf import codex as codex_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
-from leaf import files as files_model
 from leaf import harness as harness_model
 from leaf import leases as leases_model
 from leaf import service as service_model
@@ -58,10 +59,10 @@ def test_receipt_uses_an_immutable_delivery_and_advances_monotonically(page_dir)
         cli_model.cli, ["wait", str(page_dir), "--ack", newer["id"]]
     )
     assert combined.exit_code == 2
-    assert files_model.read_json(page_dir / "cursor.json") is None
+    assert read_record(page_dir / "cursor.json") is None
     for payload in (newer, newer, older):
         assert delivery_model.receive_delivery(payload["id"]) == [page_dir]
-        assert files_model.read_json(page_dir / "cursor.json") == {"seq": 2}
+        assert read_record(page_dir / "cursor.json") == {"seq": 2}
     pickups = [
         event
         for event in events_model.read_events(page_dir)
@@ -85,10 +86,10 @@ def test_interrupted_pickup_leaves_the_delivery_unreceived(page_dir, monkeypatch
         patch.setattr(delivery_model, "record_pickup", failed_pickup)
         with pytest.raises(OSError, match="pickup write interrupted"):
             delivery_model.receive_delivery(payload["id"])
-    assert files_model.read_json(page_dir / "cursor.json") is None
+    assert read_record(page_dir / "cursor.json") is None
     assert page_state(page_dir)["pending"] == 1
     delivery_model.receive_delivery(payload["id"])
-    assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
+    assert read_record(page_dir / "cursor.json") == {"seq": 1}
     [pickup] = [
         event
         for event in events_model.read_events(page_dir)
@@ -113,7 +114,7 @@ def test_receipt_refuses_a_delivery_from_a_replaced_log(page_dir):
     assert replacement["seq"] == payload["batches"][0]["through_seq"]
     with pytest.raises(delivery_model.ReceiptRefused):
         delivery_model.receive_delivery(payload["id"])
-    assert files_model.read_json(page_dir / "cursor.json") is None
+    assert read_record(page_dir / "cursor.json") is None
     assert events_model.read_events(page_dir) == [replacement]
 
 
@@ -136,7 +137,7 @@ def test_receiving_a_delivery_keeps_each_pages_response_obligation(page_dir, tmp
     )
     assert delivery_model.receive_delivery(payload["id"]) == [page_dir, other]
     for page in (page_dir, other):
-        assert files_model.read_json(page / "cursor.json") == {"seq": 1}
+        assert read_record(page / "cursor.json") == {"seq": 1}
         obligations = page_state(page)["activity"]["obligations"]
         assert obligations[0]["stage"] == "picked_up"
     assert page_state(other)["pending"] == 1
@@ -209,7 +210,7 @@ delivery.receive_delivery(os.environ["DELIVERY"])
     for page in pages:
         assert service_model.page_claim(page)["turn_closed"] is None
     for page in pages[:2]:
-        assert files_model.read_json(page / "cursor.json") == {"seq": 1}
+        assert read_record(page / "cursor.json") == {"seq": 1}
         [pickup] = [
             event
             for event in events_model.read_events(page)
@@ -217,7 +218,7 @@ delivery.receive_delivery(os.environ["DELIVERY"])
         ]
         assert pickup["phase"] == "opened"
         assert page_state(page)["activity"]["obligations"][0]["stage"] == "picked_up"
-    assert files_model.read_json(silent / "cursor.json") is None
+    assert read_record(silent / "cursor.json") is None
 
 
 def test_receipt_checks_the_owner_after_acquiring_the_page_lock(
@@ -249,13 +250,13 @@ delivery.receive_delivery(os.environ["DELIVERY"])
     out, err = receiving.communicate(timeout=STATED_TIMEOUT)
     assert receiving.returncode == 1, out + err
     assert "delivery no longer owns its page" in err
-    assert files_model.read_json(page_dir / "cursor.json") is None
+    assert read_record(page_dir / "cursor.json") is None
     assert not any(
         item["kind"] == "pickup" for item in events_model.read_events(page_dir)
     )
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "successor")
     assert delivery_model.receive_delivery(payload["id"]) == [page_dir]
-    assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
+    assert read_record(page_dir / "cursor.json") == {"seq": 1}
 
 
 def test_a_cursor_past_the_log_holds_nothing_in_the_log_that_replaced_it(page_dir):
@@ -263,7 +264,7 @@ def test_a_cursor_past_the_log_holds_nothing_in_the_log_that_replaced_it(page_di
     gone leaves the file naming a seq the new log has not reached, and reading it
     as acknowledgement would swallow every event that log will ever hold."""
     serving(page_dir, 1)
-    cleanup_model.write_json(page_dir / "cursor.json", {"seq": 47})
+    write_record(page_dir / "cursor.json", {"seq": 47})
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
     )
@@ -279,7 +280,7 @@ def test_a_cursor_past_the_log_holds_nothing_in_the_log_that_replaced_it(page_di
 
     # Confirming the delivered batch replaces the stale position, so the next
     # read is an ordinary one.
-    assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
+    assert read_record(page_dir / "cursor.json") == {"seq": 1}
     assert page_state(page_dir)["cursor"] == 1
     assert page_state(page_dir)["pending"] == 0
 
@@ -310,7 +311,7 @@ def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(
         failure="the acknowledgement neither rearmed the wait nor exited",
     )
 
-    assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
+    assert read_record(page_dir / "cursor.json") == {"seq": 1}
     assert leases_model.lock_is_held(lease_path), (
         "acknowledgement returned without holding the next wait"
     )
@@ -326,7 +327,7 @@ def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(
     _, header, [event] = printed(out)
     assert header["page"] == str(page_dir)
     assert (event["id"], event["seq"], event["text"]) == ("c2", 3, "two")
-    assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
+    assert read_record(page_dir / "cursor.json") == {"seq": 1}
     assert (page_dir / "status.json").read_bytes() == status_before_delivery
 
 
@@ -350,7 +351,7 @@ def test_ack_success_outlives_a_refused_rearm(page_dir, snapshot):
 
     assert result.exit_code == 2, result.output
     assert "another `leaf wait` is already active" in result.output
-    assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
+    assert read_record(page_dir / "cursor.json") == {"seq": 1}
 
     snapshot.check(
         yaml_document(
@@ -379,7 +380,7 @@ def test_ack_rearm_does_not_reclaim_a_page_from_its_successor(page_dir, snapshot
 
     assert result.exit_code == 1, result.output
     assert "delivery no longer owns its page" in result.output
-    assert files_model.read_json(page_dir / "cursor.json") is None
+    assert read_record(page_dir / "cursor.json") is None
     assert service_model.page_claim(page_dir)["id"] == "successor"
 
     snapshot.check(
@@ -433,7 +434,7 @@ def test_ack_rearm_keeps_the_other_pages_when_its_batch_page_transfers(
     writer = fifo_writer(status_path, "the rearm never selected its batch page")
     identity = harness_model.session_harness()
     lease_path = leases_model.waiter_lease_path(page_dir, identity.session)
-    assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
+    assert read_record(page_dir / "cursor.json") == {"seq": 1}
     assert leases_model.lock_is_held(lease_path)
     assert acknowledging.poll() is None
 
@@ -452,7 +453,7 @@ def test_ack_rearm_keeps_the_other_pages_when_its_batch_page_transfers(
     _, header, [event] = printed(out)
     assert header["page"] == str(other)
     assert (event["id"], event["text"]) == ("second", "two")
-    assert files_model.read_json(other / "cursor.json") is None
+    assert read_record(other / "cursor.json") is None
     assert service_model.page_claim(page_dir)["id"] == "successor"
 
 
@@ -486,7 +487,7 @@ def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
     writer = fifo_writer(status_path, "the rearm never selected its batch page")
     identity = harness_model.session_harness()
     lease_path = leases_model.waiter_lease_path(page_dir, identity.session)
-    assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
+    assert read_record(page_dir / "cursor.json") == {"seq": 1}
     assert leases_model.lock_is_held(lease_path)
     assert acknowledging.poll() is None
 

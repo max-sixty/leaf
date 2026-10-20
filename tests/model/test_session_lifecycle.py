@@ -18,9 +18,11 @@ from interact_support import (
     PLUGIN_ROOT,
     STATED_TIMEOUT,
     append_carried_log_record,
+    read_record,
     record_claim,
     serving,
     wait_for,
+    write_record,
 )
 from leaf import codex as codex_model
 from leaf import event_log as events_model
@@ -29,6 +31,7 @@ from leaf import harness as harness_model
 from leaf import hook_transport as hook_transport_model
 from leaf import hooks as hooks_model
 from leaf import hosting as hosting_model
+from leaf import leases as leases_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
@@ -64,12 +67,45 @@ def test_session_end_releases_the_page_and_its_session_server_retires(claimed):
         lambda running: not running,
         failure="the unclaimed session server stayed up after session end",
     )
-    assert files_model.read_json(claimed / "status.json")["state"] == "waiting"
-    assert files_model.read_json(claimed / "service.json")["enabled"] is True
+    assert read_record(claimed / "status.json")["state"] == "waiting"
+    assert read_record(claimed / "service.json")["enabled"] is True
     claim = service_model.page_claim(claimed)
     assert claim is not None
     assert not service_model.claim_is_active(claim)
     assert service_model.owned_pages("s1") == []
+
+
+def test_a_session_keeps_its_files_only_while_something_can_read_them(page_dir):
+    """A session's files in the state home go once nothing can read them
+    (`session-lifetime.md`, "A session's files"). A session that never used Leaf,
+    as most sessions of a harness Leaf is installed in, ends without a file. An
+    ended session keeps its lifecycle while its claim stands, since the page shows
+    its turn from it, and the transfer of that claim retires the rest, except a
+    lease another process still holds. A live session's transfer retires nothing."""
+
+    def files(session):
+        key = cleanup_model.session_file(session, cleanup_model.SESSION_SUFFIX).stem
+        return sorted(
+            path.name.removeprefix(f"{key}.")
+            for path in cleanup_model.session_file(session, "").parent.glob(f"{key}.*")
+        )
+
+    cleanup_model.end_harness_instance("never-used-leaf")
+    assert files("never-used-leaf") == []
+
+    record_claim(page_dir, id="ended")
+    leases_model.mark_hooks("ended")
+    held = leases_model.take_lease(leases_model.waiter_lease_path(None, "ended"))
+    cleanup_model.end_harness_instance("ended")
+    assert files("ended") == ["delivery.lock", "lifecycle", "wait"]
+    assert service_model.page_claim(page_dir)["turn_closed"] is not None
+
+    record_claim(page_dir, id="live")
+    assert files("ended") == ["wait"]
+    leases_model.release_lease(held)
+
+    record_claim(page_dir, id="successor")
+    assert files("live") == ["delivery.lock", "lifecycle"]
 
 
 def test_desktop_codex_unloading_keeps_the_chat_page_owned(page_dir, native_codex_chat):
@@ -131,7 +167,7 @@ def test_resumed_session_is_told_once_to_reconnect_its_retired_leaf(
 def test_concurrent_resume_hooks_emit_one_reconnect_notice(page_dir, harness):
     """Independent hook processes reserve the same durable outage only once."""
     record_claim(page_dir, harness=harness)
-    cleanup_model.write_json(
+    write_record(
         page_dir / "service.json",
         {
             "host": "127.0.0.1",
@@ -184,7 +220,7 @@ def test_reconnect_publication_and_task_activity_writer_cannot_lock_each_other_o
     for page in (first, second):
         record_claim(page, harness="codex")
         session_model.cmd_waiting(page, "Watching the current turn")
-        cleanup_model.write_json(
+        write_record(
             page / "service.json",
             {
                 "host": "127.0.0.1",
@@ -279,7 +315,7 @@ hooks.cmd_hook("codex", {"hook_event_name": "SessionStart", "session_id": "s1", 
     for page in (first, second):
         assert f"leaf server start {shlex.quote(str(page))}" in context
         assert (
-            files_model.read_json(page / "status.json")["stream"]["activity"]["detail"]
+            read_record(page / "status.json")["stream"]["activity"]["detail"]
             == "Both pages updated"
         )
 
@@ -293,7 +329,7 @@ def test_a_stale_hook_cannot_consume_the_resumed_turns_reconnect_notice(
     from leaf import reconnect as reconnect_model
 
     record_claim(page_dir, harness=harness)
-    cleanup_model.write_json(
+    write_record(
         page_dir / "service.json",
         {
             "host": "127.0.0.1",
@@ -350,9 +386,9 @@ def test_prompt_combines_reconnect_notice_and_pending_user_delivery(claimed, cap
     """The outage reminder cannot replace the user's input or emit a second JSON."""
     serving(claimed, 41000, "session")
     # A held lease for an older server does not prove the desired one is serving.
-    cleanup_model.write_json(
+    write_record(
         claimed / "service.json",
-        {**files_model.read_json(claimed / "service.json"), "server_id": "replacement"},
+        {**read_record(claimed / "service.json"), "server_id": "replacement"},
     )
     asked = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Keep this input"}
@@ -435,18 +471,18 @@ def test_reconnect_notices_respect_intent_and_the_exact_page_owner(page_dir, cap
     ):
         sid = f"reconnect-{case}"
         record_claim(page_dir, id=sid)
-        cleanup_model.write_json(page_dir / "service.json", service)
+        write_record(page_dir / "service.json", service)
         claim_path = service_model.claim_path(page_dir)
         raw = files_model.read_json(claim_path)
         events = (page_dir / "events.jsonl").read_bytes()
         if case == "stop":
             assert not hosting_model.cmd_stop(page_dir)
         elif case == "persistent":
-            cleanup_model.write_json(
+            write_record(
                 page_dir / "service.json", {**service, "lifetime": "persistent"}
             )
         elif case == "preview":
-            cleanup_model.write_json(page_dir / "preview.json", {})
+            write_record(page_dir / "preview.json", {})
         elif case == "transferred":
             record_claim(page_dir, id="successor")
         elif case == "foreign-harness":
@@ -457,7 +493,10 @@ def test_reconnect_notices_respect_intent_and_the_exact_page_owner(page_dir, cap
                 {key: value for key, value in raw.items() if key != "generation"},
             )
         elif case == "obsolete-service":
-            cleanup_model.write_json(page_dir / "service.json", {"enabled": True})
+            cleanup_model.write_json(
+                page_dir / "service.json",
+                server_model.SERVICE.stored({"enabled": True}),
+            )
         elif case == "missing-service":
             (page_dir / "service.json").unlink()
         elif case == "uninitialized-page":
@@ -475,7 +514,7 @@ def test_reconnect_notices_respect_intent_and_the_exact_page_owner(page_dir, cap
     # An eligible outage is the positive control, but a fresh startup still has
     # no resumed page to reconnect; the following resume sees it once.
     record_claim(page_dir, id="reconnect-control")
-    cleanup_model.write_json(page_dir / "service.json", service)
+    write_record(page_dir / "service.json", service)
     hooks_model.cmd_hook(
         "claude-code",
         {
@@ -511,11 +550,8 @@ def test_session_end_cannot_release_a_page_claimed_by_its_successor(page_dir):
     )
     assert service_model.page_claim(page_dir)["id"] == "successor"
     assert service_model.claim_is_active(service_model.page_claim(page_dir))
-    assert files_model.read_json(page_dir / "service.json")["enabled"] is True
-    assert (
-        files_model.read_json(page_dir / "status.json")["detail"]
-        == "successor is reviewing"
-    )
+    assert read_record(page_dir / "service.json")["enabled"] is True
+    assert read_record(page_dir / "status.json")["detail"] == "successor is reviewing"
     assert server_model.running_server(page_dir)
 
 

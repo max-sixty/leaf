@@ -56,6 +56,7 @@ from interact_support import (
     publish,
     record_claim,
     wait_for,
+    write_record,
 )
 from leaf import cli as cli_model
 from leaf import files as files_model
@@ -64,7 +65,6 @@ from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
-from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf.findings import Finding, placed
 from leaf.render_checks import one_frame, rendered, wait_until_ready
@@ -648,7 +648,7 @@ def serve(tmp_path, monkeypatch, initialized_page, request):
                 },
             )
         if preview is not None:
-            cleanup_model.write_json(d / schema_model.PREVIEW_FILE, preview)
+            write_record(d / schema_model.PREVIEW_FILE, preview)
         server = hosting_model.TemporaryPageServer(
             d,
             token=TOKEN,

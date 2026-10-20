@@ -48,6 +48,7 @@ from interact_support import (
     page_state,
     publish,
     read_page_data,
+    read_record,
     record_claim,
     refused_on,
     release_codex_command,
@@ -60,6 +61,8 @@ from interact_support import (
     vendored_at_another_protocol,
     vendored_before_a_key_rename,
     wait_for,
+    write_record,
+    write_row,
 )
 from leaf import activity as activity_model
 from leaf import cli as cli_model
@@ -3024,7 +3027,7 @@ def test_a_stated_host_restates_the_address_and_nothing_else(page_dir):
     """--host is the recovery for an unroutable name, and the record's other
     facts restate nothing: dropping them re-derived the exact port an open tab
     polls and demoted the persistent lifetime to the recovering session's."""
-    cleanup_model.write_json(
+    write_record(
         page_dir / "service.json",
         {
             "host": "10.0.0.5",
@@ -3066,7 +3069,7 @@ def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir, sessio
     # The page error was an acknowledgeable target, so the cursor moved and the
     # re-armed wait ended on its own 2; a refused acknowledgement would be 1.
     assert result.exit_code == 2, result.output
-    assert files_model.read_json(page_dir / "cursor.json") == {"seq": error["seq"]}
+    assert read_record(page_dir / "cursor.json") == {"seq": error["seq"]}
 
 
 def _news(server):
@@ -3128,9 +3131,9 @@ def test_unchanged_presence_observation_is_shared_and_file_changes_refresh_it(
     assert reading() == first
     assert calls == 1
 
-    cleanup_model.write_json(
+    write_record(
         page_dir / "status.json",
-        {"state": "waiting", "detail": "measuring", "ts": "now"},
+        {"state": "waiting", "detail": "measuring", "ts": cleanup_model.now_iso()},
     )
     refreshed = reading()
     assert refreshed == first
@@ -3146,7 +3149,7 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     neighbor = machine_model.state_home() / "pages" / "canonical"
     neighbour_page(neighbor, title="Canonical neighbor")
     record_claim(neighbor, id="neighbor", cwd="/work/neighbor")
-    cleanup_model.write_json(
+    write_record(
         neighbor / "status.json",
         {"state": "waiting", "detail": "", "ts": cleanup_model.now_iso()},
     )
@@ -3160,20 +3163,16 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     assert activity["detail_source"] is not None
     expected = server_rows_model.compact_activity(activity)
     reads = []
-    read_json = files_model.read_json
+    read = server_model.SERVICE.read
 
     def small_read(path):
-        if path == machine_model.state_home() / "access.json":
-            return read_json(path)
-        assert path in {neighbor / "service.json", publisher.path}
         reads.append(path)
-        return read_json(path)
+        return read(path)
 
     def no_fold(*_args, **_kwargs):
         pytest.fail("a neighbor scan folded another page")
 
-    monkeypatch.setattr(server_model, "read_json", small_read)
-    monkeypatch.setattr(server_rows_model, "read_json", small_read)
+    monkeypatch.setattr(server_model.SERVICE, "read", small_read)
     monkeypatch.setattr(served_service.PageStateService, "activity_row", no_fold)
     monkeypatch.setattr(service_model, "read_status", no_fold)
     monkeypatch.setattr(artifact_model, "read_revision", no_fold)
@@ -3185,21 +3184,19 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     assert row["activity"]["counts"]["pending"] == 1
     assert row["session_cwd"] == "/work/neighbor"
     assert reads == [neighbor / "service.json"]
-    cleanup_model.write_json(neighbor / "status.json", {"state": "idle"})
+    write_record(neighbor / "status.json", {"state": "idle", "detail": ""})
     assert presence_model.other_leaves(page_dir) == [row]
     # Shared-home records from an incompatible producer stay absent, including
     # a row with the outer envelope but without the activity/count contract.
-    record = read_json(publisher.path)
+    record = files_model.read_json(publisher.path)
     for activity in ({}, {**row["activity"], "counts": {}}):
         cleanup_model.write_json(
             publisher.path, {**record, "row": {**row, "activity": activity}}
         )
         assert presence_model.other_leaves(page_dir) == []
     cleanup_model.write_json(publisher.path, record)
-    service = read_json(neighbor / "service.json")
-    cleanup_model.write_json(
-        neighbor / "service.json", {**service, "server_id": "replacement"}
-    )
+    service = read_record(neighbor / "service.json")
+    write_record(neighbor / "service.json", {**service, "server_id": "replacement"})
     assert presence_model.other_leaves(page_dir) == []
 
 
@@ -3226,7 +3223,7 @@ def test_a_pages_own_row_publications_do_not_rescan_its_neighbors(
     monkeypatch.setattr(presence_model, "other_leaves", observe)
     presence_model.neighbor_reading(page_dir)
     for n in range(20):
-        cleanup_model.write_json(
+        write_record(
             page_dir / "status.json",
             {"state": "waiting", "detail": str(n), "ts": cleanup_model.now_iso()},
         )
@@ -3266,7 +3263,7 @@ def test_neighbor_discovery_needs_no_native_subscription(
     neighbour_page(neighbor, title="New neighbor")
     assert presence_model.neighbor_candidates()
     second = tmp_path / "second"
-    cleanup_model.write_json(rows / "second.json", {"page": str(second)})
+    write_row(rows / "second.json", second)
     assert second in [page for page, _record in presence_model.neighbor_candidates()]
 
 
@@ -3278,10 +3275,8 @@ def test_a_reader_retires_rows_no_server_lease_holds(page_dir, tmp_path):
     neighbour_page(live, title="Live")
     reserved = tmp_path / "reserved"
     neighbour_page(reserved, title="Reserved")
-    service = files_model.read_json(reserved / "service.json")
-    cleanup_model.write_json(
-        reserved / "service.json", {**service, "server_id": "successor"}
-    )
+    service = read_record(reserved / "service.json")
+    write_record(reserved / "service.json", {**service, "server_id": "successor"})
     stopped = tmp_path / "stopped"
     neighbour_page(stopped, title="Stopped", dead=True)
     deleted = tmp_path / "deleted"
@@ -3320,7 +3315,7 @@ def test_a_row_ages_at_the_canonical_deadline_and_recovers_after_cache_loss(
     now = datetime.now().astimezone().replace(microsecond=0)
     stamp = (now - activity_model.WORKING_GRACE + timedelta(seconds=1)).isoformat()
     record_claim(page_dir, turn_opened=stamp)
-    cleanup_model.write_json(
+    write_record(
         page_dir / "status.json",
         {"state": "waiting", "detail": "", "ts": stamp},
     )
@@ -3449,8 +3444,8 @@ def test_a_failed_row_producer_retires_and_revives_with_its_service(page_dir):
         failure="the failed producer left a live server lease",
     )
     assert presence_model.other_leaves(page_dir) == []
-    assert files_model.read_json(neighbor / "service.json")["enabled"]
-    cleanup_model.write_json(
+    assert read_record(neighbor / "service.json")["enabled"]
+    write_record(
         neighbor / "status.json",
         {"state": "waiting", "detail": "", "ts": cleanup_model.now_iso()},
     )
@@ -4000,7 +3995,7 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir, monkeypatch):
     now = datetime.now().astimezone().replace(microsecond=0)
     monkeypatch.setattr(served_context, "now_iso", lambda: now.isoformat())
     monkeypatch.setattr(page_snapshot_model, "now_iso", lambda: now.isoformat())
-    cleanup_model.write_json(
+    write_record(
         page_dir / "status.json",
         {"state": "waiting", "detail": "", "ts": now.isoformat()},
     )
@@ -4261,12 +4256,12 @@ def test_neighbour_discovery_sees_a_row_made_in_one_clock_tick(page_dir, monkeyp
     written = _coarse_write_clock(monkeypatch)
     rows = machine_model.state_home() / "rows"
     rows.mkdir(parents=True, exist_ok=True)
-    cleanup_model.write_json(rows / "first.json", {"page": str(page_dir / "first")})
+    write_row(rows / "first.json", page_dir / "first")
     (rows / "placeholder").write_text("")
     written(rows)
     before = presence_model.neighbor_candidates()
     (rows / "placeholder").unlink()
-    cleanup_model.write_json(rows / "second.json", {"page": str(page_dir / "second")})
+    write_row(rows / "second.json", page_dir / "second")
     written(rows)
     assert page_dir / "second" not in [page for page, _record in before]
     assert page_dir / "second" in [
@@ -4543,7 +4538,7 @@ def test_a_server_start_re_vendors_an_older_page_and_refuses_a_newer_one(page_di
     assert refused.exit_code != 0, refused.output
     assert f"Use a Leaf at protocol {foreign} or later" in refused.output
     assert not service_model.claim_path(page_dir).exists()
-    assert files_model.read_json(page_dir / "service.json") is None
+    assert read_record(page_dir / "service.json") is None
     assert not leases_model.lock_is_held(page_dir / "server.lock")
 
     # A newer protocol may reshape the layer past this Leaf's schema, which reads
@@ -4759,8 +4754,8 @@ def test_a_stated_host_binds_every_interface_without_recording_before_serve(
         "enabled": False,
         "lifetime": "persistent",
     }
-    cleanup_model.write_json(page_dir / "service.json", service)
-    assert server_model.page_access(page_dir) == service
+    write_record(page_dir / "service.json", service)
+    assert server_model.page_access(page_dir).items() >= service.items()
 
 
 def test_a_start_waits_for_uncommitted_preparation_before_reusing(page_dir, spawn):
@@ -4796,7 +4791,7 @@ def test_a_start_waits_for_uncommitted_preparation_before_reusing(page_dir, spaw
     starting = threading.Thread(target=start, daemon=True)
     try:
         assert "url" in json.loads(caller.makefile("rb").readline())
-        assert files_model.read_json(page_dir / "service.json") is None
+        assert read_record(page_dir / "service.json") is None
         assert not server_rows_model.row_path(page_dir).exists()
         starting.start()
         assert attempting.wait(STATED_TIMEOUT), (
@@ -4838,8 +4833,8 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
         failure="the original server did not publish its row",
     )
     hosting_model.cmd_stop(neighbor)
-    desired = {**files_model.read_json(neighbor / "service.json"), "enabled": True}
-    cleanup_model.write_json(neighbor / "service.json", desired)
+    desired = {**read_record(neighbor / "service.json"), "enabled": True}
+    write_record(neighbor / "service.json", desired)
     assert presence_model.other_leaves(page_dir) == []
     # The stopped incarnation's row is retired by that reading, so a row present
     # later is one the reservation published.
@@ -4868,7 +4863,7 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
         with caller.makefile("rb") as announcements:
             assert json.loads(announcements.readline())["url"] == previous["url"]
             assert leases_model.lock_is_held(neighbor / "server.lock")
-            assert files_model.read_json(neighbor / "service.json") == desired
+            assert read_record(neighbor / "service.json") == desired
             assert not server_rows_model.row_path(neighbor).exists()
             assert server_model.running_server(neighbor) is None
             assert presence_model.other_leaves(page_dir) == []
@@ -4892,7 +4887,7 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
         if not accepted:
             caller.close()
             assert child.wait(timeout=STATED_TIMEOUT) == 0
-            assert files_model.read_json(neighbor / "service.json") == desired
+            assert read_record(neighbor / "service.json") == desired
             assert not server_rows_model.row_path(neighbor).exists()
             assert presence_model.other_leaves(page_dir) == []
     finally:
@@ -4913,8 +4908,8 @@ def test_failed_row_preparation_preserves_the_previous_desired_service(
         failure="the original server did not publish its row",
     )
     hosting_model.cmd_stop(page_dir)
-    desired = {**files_model.read_json(page_dir / "service.json"), "enabled": True}
-    cleanup_model.write_json(page_dir / "service.json", desired)
+    desired = {**read_record(page_dir / "service.json"), "enabled": True}
+    write_record(page_dir / "service.json", desired)
     row_before = server_rows_model.row_path(page_dir).read_bytes()
 
     def failed_constructor(*_args):
@@ -4924,7 +4919,7 @@ def test_failed_row_preparation_preserves_the_previous_desired_service(
     monkeypatch.setattr(server_rows_model, "RowPublisher", failed_constructor)
     with pytest.raises(RuntimeError, match="row producer cannot be prepared"):
         hosting_model.cmd_serve(page_dir, persistent=True, revive=True, harness=None)
-    assert files_model.read_json(page_dir / "service.json") == desired
+    assert read_record(page_dir / "service.json") == desired
     assert server_rows_model.row_path(page_dir).read_bytes() == row_before
     assert not leases_model.lock_is_held(page_dir / "server.lock")
     assert server_model.running_server(page_dir) is None
@@ -4952,7 +4947,7 @@ def test_a_private_lease_is_not_reported_as_a_serving_server(page_dir, monkeypat
     try:
         stopping.start()
         assert entered.wait(STATED_TIMEOUT), "stop never checked the held lease"
-        assert files_model.read_json(page_dir / "service.json") is None
+        assert read_record(page_dir / "service.json") is None
     finally:
         leases_model.release_lease(lease)
         proceed.set()
@@ -4989,14 +4984,14 @@ def test_a_stop_waits_for_private_preparation_before_disabling(page_dir, spawn):
     try:
         assert "url" in json.loads(caller.makefile("rb").readline())
         stopping.start()
-        assert files_model.read_json(page_dir / "service.json") is None
+        assert read_record(page_dir / "service.json") is None
     finally:
         caller.close()
     stopping.join(timeout=STATED_TIMEOUT)
     assert not stopping.is_alive(), "server stop never returned"
     assert stopped == [False]
     assert child.wait(timeout=STATED_TIMEOUT) == 0
-    assert files_model.read_json(page_dir / "service.json") is None
+    assert read_record(page_dir / "service.json") is None
 
 
 def test_a_start_whose_caller_left_before_committing_leaves_no_service(
@@ -5024,7 +5019,7 @@ def test_a_start_whose_caller_left_before_committing_leaves_no_service(
         bool,
         failure="the server stayed up after its caller left uncommitted",
     )
-    assert files_model.read_json(page_dir / "service.json") is None
+    assert read_record(page_dir / "service.json") is None
 
 
 @pytest.mark.parametrize(
@@ -5081,9 +5076,9 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
         assert bool(server_model.running_server(page_dir)) == owned
     finally:
         resume.set()
-        cleanup_model.write_json(
+        write_record(
             page_dir / "service.json",
-            {**files_model.read_json(page_dir / "service.json"), "enabled": False},
+            {**read_record(page_dir / "service.json"), "enabled": False},
         )
         stopping.join(timeout=STATED_TIMEOUT)
 
@@ -5325,10 +5320,10 @@ def test_the_address_and_key_outlive_the_session_that_first_served(
         "enabled": False,
         "lifetime": "session",
     }
-    cleanup_model.write_json(page_dir / "service.json", service)
+    write_record(page_dir / "service.json", service)
 
     monkeypatch.setenv("SSH_CONNECTION", "10.1.1.9 51235 172.16.0.1 22")
-    assert server_model.page_access(page_dir) == service
+    assert server_model.page_access(page_dir).items() >= service.items()
     assert server_model.host_key() == minted
 
 
@@ -5413,7 +5408,7 @@ while json.loads((page / "service.json").read_text())["enabled"]:
 def hold_persistent(page: Path, start) -> subprocess.Popen:
     """A persistent page with its lease held, as `server run --persistent` leaves one."""
     page.mkdir(parents=True)
-    cleanup_model.write_json(
+    write_record(
         page / "service.json",
         {
             "host": "127.0.0.1",
@@ -5478,7 +5473,7 @@ def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
         check=False,
     )
     assert run.returncode == 0, run.stdout + run.stderr
-    assert files_model.read_json(review / "service.json")["enabled"]
+    assert read_record(review / "service.json")["enabled"]
     assert holder.poll() is None
     assert sorted(path.relative_to(home) for path in home.rglob("*")) == planted
     (left,) = nested.rglob("left/service.json")

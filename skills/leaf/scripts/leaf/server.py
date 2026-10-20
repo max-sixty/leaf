@@ -20,29 +20,44 @@ from .schema import (
     SERVICE_FILE,
 )
 from .service import PageTransaction, claim_is_active, page_claim
-from .state import json_bytes
+from .state import STRING, Record, json_bytes, object_schema
 
-# What a service record needs for this version to act on it, and the lifetimes it serves.
-SERVICE_KEYS = ("host", "bind", "port", "enabled", "lifetime")
-LIFETIMES = ("session", "persistent")
+# The page's desired service (`hosting.py` writes it).
+SERVICE = Record(
+    "service",
+    object_schema(
+        {
+            # The address a URL names, and the one the server binds.
+            "host": STRING,
+            "bind": STRING,
+            "port": {"type": "integer"},
+            "enabled": {"type": "boolean"},
+            "lifetime": {"enum": ["session", "persistent"]},
+            # The Leaf that served it (`hosting.payload_provenance`).
+            "runtime": {"type": "object"},
+            # The serving incarnation the server lease names.
+            "server_id": STRING,
+        },
+        # The mark `page init` leaves while it holds a served page down to
+        # re-vendor it (`hosting.restarting_server`).
+        {"restart": STRING},
+    ),
+)
+# What a developer preview shows in browser chrome, as `leaf-dev preview` writes it.
+# The page receives it whole, so the served state declares its shape
+# (`served_state/state.schema.json`, `preview`).
+PREVIEW = Record("preview", {"type": "object"})
 
 
 def read_service(page_dir: Path) -> dict | None:
     """The page's desired service (`service.json`), or None where there is none this
-    version can read.
+    version can read."""
+    return SERVICE.read(page_dir / SERVICE_FILE)
 
-    A record lacking a field above, or naming a lifetime this version does not serve
-    (an older Leaf wrote `"standing"` for `"persistent"`), describes nothing this
-    version could keep, so it reads as absent rather than as some other lifetime
-    (root AGENTS.md, "Stage"). Every reader of the record goes through here."""
-    service = read_json(page_dir / SERVICE_FILE)
-    if (
-        not isinstance(service, dict)
-        or not all(key in service for key in SERVICE_KEYS)
-        or service["lifetime"] not in LIFETIMES
-    ):
-        return None
-    return service
+
+def write_service(page_dir: Path, service: dict) -> None:
+    """The one writer of the page's desired service."""
+    SERVICE.write(page_dir / SERVICE_FILE, service)
 
 
 def running_server(page_dir: Path):
@@ -57,14 +72,11 @@ def running_server(page_dir: Path):
     service = read_service(page_dir)
     if not service or not service["enabled"]:
         return None
-    incarnation = service.get("server_id")
-    if not isinstance(incarnation, str) or not incarnation:
-        return None
     try:
         held_incarnation = (page_dir / SERVER_LOCK).read_bytes()
     except FileNotFoundError:
         return None
-    if held_incarnation != incarnation.encode():
+    if held_incarnation != service["server_id"].encode():
         return None
     return {
         **service,
@@ -76,7 +88,7 @@ def preview_metadata(page_dir: Path) -> dict | None:
     """The identity a developer preview shows in browser chrome, as
     `leaf-dev preview` wrote it, or None for a page that is not a preview.
     The script writes only what the chrome shows."""
-    return read_json(page_dir / PREVIEW_FILE)
+    return PREVIEW.read(page_dir / PREVIEW_FILE)
 
 
 def served_lifetime(page_dir: Path) -> str:
@@ -92,9 +104,8 @@ def served_lifetime(page_dir: Path) -> str:
     Read from service.json, the one place a lifetime is written down. The record
     lands before the URL is printed and survives an explicit stop, so a restart
     restores the same lifetime as well as the same URL."""
-    if (read_service(page_dir) or {}).get("lifetime") == "persistent":
-        return "persistent"
-    return "session"
+    service = read_service(page_dir)
+    return service["lifetime"] if service else "session"
 
 
 def loopback_only(page_dir: Path) -> bool:
@@ -112,9 +123,11 @@ def loopback_only(page_dir: Path) -> bool:
     record is what the server bound: a restart re-serving a loopback record says
     the same thing in an environment that would derive something else. A stated
     host binds the wildcard, which is not loopback, and says nothing."""
-    bind = (read_service(page_dir) or {}).get("bind")
+    service = read_service(page_dir)
+    if service is None:
+        return False
     try:
-        return ipaddress.ip_address(bind).is_loopback
+        return ipaddress.ip_address(service["bind"]).is_loopback
     except ValueError:
         return False
 

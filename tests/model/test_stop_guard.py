@@ -36,6 +36,7 @@ from interact_support import (
     page_state,
     publish,
     queue_board_registry,
+    read_record,
     receive_through,
     record_claim,
     response_reference,
@@ -44,6 +45,7 @@ from interact_support import (
     state_json,
     woken,
     working,
+    write_record,
     yaml_document,
 )
 from leaf import activity as activity_model
@@ -330,7 +332,7 @@ def test_a_preview_owes_no_watcher_but_still_carries_its_user(claimed, capsys):
     hooks_model.cmd_hook("codex", {"hook_event_name": "Stop", "session_id": "s1"})
     assert "no delivery adapter" in json.loads(capsys.readouterr().out)["reason"]
 
-    cleanup_model.write_json(
+    write_record(
         claimed / schema_model.PREVIEW_FILE,
         {
             "kind": "example",
@@ -812,7 +814,7 @@ cli_model.cli()
     out, err = process.communicate(timeout=STATED_TIMEOUT)
     assert process.returncode == 1, f"{out}{err}"
     assert "1 event nobody has picked up" in err
-    assert files_model.read_json(page_dir / "status.json")["state"] == "waiting"
+    assert read_record(page_dir / "status.json")["state"] == "waiting"
 
 
 def test_a_reaction_holds_no_turn_as_an_unanswered_item(claimed, capsys):
@@ -1064,7 +1066,7 @@ def test_a_stop_keeps_the_turn_going_only_for_owed_input(claimed, capsys):
         event["id"]
         for event in service_model.unacknowledged(
             events_model.read_events(claimed),
-            files_model.read_json(claimed / "cursor.json")["seq"],
+            read_record(claimed / "cursor.json")["seq"],
         )
     ] == [resolve["id"]]
 

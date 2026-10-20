@@ -11,13 +11,7 @@ that validates nothing."""
 
 from functools import cache
 
-from leaf.files import read_json
-from leaf.schema import ASSETS
-
-
-@cache
-def _kernel() -> dict:
-    return read_json(ASSETS / "registry.json")
+from leaf.state import kernel_registry as _kernel
 
 
 def _kernel_events() -> dict:
@@ -39,16 +33,9 @@ def kernel_event_kinds() -> dict:
 def kernel_protocol() -> int:
     """The number of the contract between a page and the Leaf serving it, which a
     page records by carrying the `$events` it was vendored with
-    (`layer.incompatible_layer`)."""
+    (`layer.incompatible_layer`). It versions the records Leaf keeps outside a page
+    too (`state.Record`)."""
     return _kernel_events()["protocol"]
-
-
-def record_format(kind: str) -> str:
-    """The `format` a record that each installed Leaf may read carries: its kind and the
-    protocol of the Leaf that wrote it. A Leaf at another protocol leaves the record
-    alone, as it refuses a page vendored at one, so one number versions pages and
-    records alike (`AGENTS.md`, "Pages across Leaf updates")."""
-    return f"leaf-{kind}/{kernel_protocol()}"
 
 
 def kernel_event_ownership() -> dict:

@@ -2480,7 +2480,11 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
     assert read_page_data(page_dir) == first
 
     # Any process may rewrite the value file, so a reading judges what it finds.
-    stored.write_text('{"api": "ready"}')
+    stored.write_bytes(
+        data_model.PUBLICATION.encode(
+            {"run": "2" * 32, "updated": cleanup_model.now_iso(), "value": "ready"}
+        )
+    )
     [error] = state_json(page_dir)["data"]["errors"]
     assert "deployments" in error
     broken = read_page_data(page_dir)["sources"]["deployments"]
@@ -2846,34 +2850,14 @@ def test_data_set_wraps_an_unproductive_recursive_schema(page_dir):
         data_model.cmd_data_set(page_dir, "loop", {})
 
     # A value another process wrote is judged on reading by the same validator.
-    (page_dir / "data.json").write_text('{"sources":{"loop":{"contract":"loop"}}}')
-    (page_dir / "data").mkdir(exist_ok=True)
-    data_model.source_file(page_dir, "loop").write_text(
-        json.dumps(
-            {
-                "run": "1" * 32,
-                "updated": "2026-01-01T00:00:00Z",
-                "value": {},
-            }
-        )
+    data_model.write_data(
+        page_dir,
+        {"loop": "loop"},
+        {"loop": {"run": "1" * 32, "updated": "2026-01-01T00:00:00Z", "value": {}}},
     )
     assert read_page_data(page_dir)["sources"]["loop"]["error"] == (
         "source 'loop' contract 'loop' could not validate its value: "
         "a recursive reference did not terminate"
-    )
-
-
-def test_a_value_an_earlier_leaf_wrote_reads_as_that_sources_error(page_dir):
-    """A Leaf before publications wrote the bare value, so a page it fed names the
-    rewrite rather than reading that value as a publication."""
-    declare_data_input(page_dir, "builds", {"type": "array"}, contract="build-map")
-    data_model.cmd_data_set(page_dir, "builds", [])
-    data_model.source_file(page_dir, "builds").write_bytes(b"[]")
-
-    source = read_page_data(page_dir)["sources"]["builds"]
-    assert "value" not in source
-    assert source["error"] == (
-        "source 'builds' holds no publication; write it again with leaf data set"
     )
 
 

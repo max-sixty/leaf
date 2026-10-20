@@ -10,6 +10,7 @@ from interact_support import (
     append_carried_log_record,
     record_claim,
     wait_for,
+    write_record,
 )
 from leaf import event_log as events_model
 from leaf import hosting as hosting_model
@@ -2196,7 +2197,7 @@ def test_leaves_keep_focus_through_reordering_and_stay_in_the_list_on_removal(
         "focusedLeaf === document.activeElement && focusedLeaf.isConnected"
     )
 
-    cleanup_model.write_json(
+    write_record(
         other_dir / "status.json",
         {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
     )

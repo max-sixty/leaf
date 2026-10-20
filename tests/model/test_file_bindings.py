@@ -18,6 +18,7 @@ from interact_support import (
 )
 from leaf.cli import cli
 from leaf.file_bindings import (
+    BINDINGS,
     MAX_FILE_BYTES,
     FileBindingError,
     StaleFileError,
@@ -37,7 +38,7 @@ def test_explicit_cli_binding_and_lossless_save(page_dir, tmp_path):
         cli, ["file", "bind", str(page_dir), "notes", str(target)]
     )
     assert result.exit_code == 0, result.output
-    assert json.loads((page_dir / "files.json").read_text()) == {
+    assert BINDINGS.read(page_dir / "files.json") == {
         "bindings": {"notes": str(target.resolve())}
     }
     original = read_file(page_dir, "notes")

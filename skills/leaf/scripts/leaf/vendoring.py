@@ -15,6 +15,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import NamedTuple
 
+from .event_log import start_log
 from .files import read_json, replace_files
 from .findings import Finding, note
 from .harness import Harness, session_harness
@@ -486,4 +487,4 @@ def _commit_layer(page_dir: Path, plan: _PagePlan) -> None:
         # so the acknowledgement position goes with the log it named. Re-vendoring
         # an existing page keeps both.
         (page_dir / CURSOR_FILE).unlink(missing_ok=True)
-        replace_files([(page_dir / EVENTS_FILE, b"", False)])
+        start_log(page_dir)

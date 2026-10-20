@@ -34,6 +34,7 @@ from interact_support import (
     page_state,
     printed,
     publish,
+    read_record,
     receive_through,
     record_claim,
     said,
@@ -42,12 +43,12 @@ from interact_support import (
     wait_for,
     woken,
     working,
+    write_record,
     yaml_document,
 )
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
-from leaf import files as files_model
 from leaf import harness as harness_model
 from leaf import hooks as hooks_model
 from leaf import hosting as hosting_model
@@ -94,7 +95,7 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(
     assert shown[1]["detail"]["value"] == "y"
     # Printing is not acknowledgement: a detached Codex command can finish without
     # putting its output in the model's context, so wait leaves both events pending.
-    assert files_model.read_json(page_dir / "cursor.json") is None
+    assert read_record(page_dir / "cursor.json") is None
     assert page_state(page_dir)["pending"] == 2
 
     # An event posted between wait and acknowledgement is beyond the highest sequence
@@ -108,7 +109,7 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(
     )
     delivery_model.receive_delivery(payload["id"])
     delivery_model.receive_delivery(payload["id"])  # retries are harmless
-    assert files_model.read_json(page_dir / "cursor.json")["seq"] == delivered_through
+    assert read_record(page_dir / "cursor.json")["seq"] == delivered_through
     assert page_state(page_dir)["pending"] == 1
 
     assert session_model.cmd_wait(page_dir) == 0
@@ -157,7 +158,7 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(
     _, _, shown = printed(capsys.readouterr().out)
     assert [(e["kind"], e.get("agent")) for e in shown] == [("report", "Indexer")]
     receive_through(page_dir, shown[-1]["seq"])
-    assert files_model.read_json(page_dir / "cursor.json")["seq"] == shown[-1]["seq"]
+    assert read_record(page_dir / "cursor.json")["seq"] == shown[-1]["seq"]
 
 
 def test_wait_repeats_a_stable_transport_neutral_batch_until_ack(page_dir, sessionless):
@@ -173,7 +174,7 @@ def test_wait_repeats_a_stable_transport_neutral_batch_until_ack(page_dir, sessi
     first_payload, header, [event] = printed(first.output)
     assert header["page"] == str(page_dir)
     assert (event["id"], event["seq"], event["text"]) == ("c1", 1, "hi")
-    assert files_model.read_json(page_dir / "cursor.json") is None
+    assert read_record(page_dir / "cursor.json") is None
 
     reread = CliRunner().invoke(
         cli_model.cli, ["delivery", "read", first_payload["id"]]
@@ -267,7 +268,7 @@ def test_a_wait_watches_a_stopped_server_until_its_page_ends(
     A wait used to read a disabled service as a page it had lost, and end, so
     every restart, which disables the service as a stop does, had to say it was
     not a stop."""
-    cleanup_model.write_json(
+    write_record(
         page_dir / "service.json",
         {
             "host": "127.0.0.1",
@@ -311,7 +312,7 @@ def test_a_revival_that_does_not_hold_ends_the_wait(
     """An enabled service whose process died gets one revival. When that does not
     bring it back, refused or dead again once it did, nothing else will, so the
     wait ends and wakes the agent with the command that serves the page."""
-    cleanup_model.write_json(
+    write_record(
         page_dir / "service.json",
         {
             "host": "127.0.0.1",
@@ -420,7 +421,7 @@ def test_a_wait_on_a_page_never_served_ends_at_once(page_dir, capsys, wait):
 
 
 def test_a_delayed_revival_cannot_cross_an_explicit_stop(page_dir, monkeypatch):
-    cleanup_model.write_json(
+    write_record(
         page_dir / "service.json",
         {
             "host": "127.0.0.1",
@@ -466,7 +467,7 @@ def test_a_delayed_revival_cannot_cross_an_explicit_stop(page_dir, monkeypatch):
     assert readings[0].watch_state == "watching"
     assert readings[0].lost is False
     assert readings[0].restarted is None
-    assert files_model.read_json(page_dir / "service.json")["enabled"] is False
+    assert read_record(page_dir / "service.json")["enabled"] is False
     assert not leases_model.lock_is_held(page_dir / "server.lock")
 
 
@@ -477,7 +478,7 @@ def test_wait_restarts_a_server_that_died_under_it(
     else — so `leaf wait`, the one thing positioned to notice, brings it back
     rather than exiting and leaving the discovery to the user."""
 
-    cleanup_model.write_json(
+    write_record(
         page_dir / "service.json",
         {
             "host": "127.0.0.1",
@@ -516,7 +517,7 @@ def test_wait_restarts_a_server_that_died_under_it(
     # This session explicitly claimed the page, so what the wait revives is its
     # session's server and dies with that session. Here the session is the
     # worker (conftest), which is what keeps a killed run from stranding this.
-    assert files_model.read_json(page_dir / "service.json")["lifetime"] == "session"
+    assert read_record(page_dir / "service.json")["lifetime"] == "session"
 
 
 def test_wait_does_not_revive_a_page_another_leaf_vendored(page_dir, capsys):
@@ -524,7 +525,7 @@ def test_wait_does_not_revive_a_page_another_leaf_vendored(page_dir, capsys):
     stays down: the wait's revival is a start like any other, served by the Leaf
     running the wait. The page reads as lost, and the refusal reaches the agent
     reading the wait with the re-vendor that brings it back."""
-    cleanup_model.write_json(
+    write_record(
         page_dir / "service.json",
         {
             "host": "127.0.0.1",
@@ -616,7 +617,7 @@ def test_session_end_cannot_be_overtaken_by_wait_revival(claimed, spawn):
     read must not let that wait put a session server back up.
     """
     page = claimed
-    cleanup_model.write_json(
+    write_record(
         page / "service.json",
         {
             "host": "127.0.0.1",
@@ -643,7 +644,7 @@ def test_session_end_cannot_be_overtaken_by_wait_revival(claimed, spawn):
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "SessionEnd", "session_id": "s1"}
     )
-    assert files_model.read_json(page / "service.json")["enabled"] is True
+    assert read_record(page / "service.json")["enabled"] is True
     assert server_model.running_server(page) is None
 
     os.write(
@@ -678,7 +679,7 @@ def test_a_revived_server_keeps_the_lifetime_it_was_serving_under(
     ends one. Read off the launch instead, a session that happened to notice the
     server was down would inherit a dashboard somebody left up for weeks, and
     take it down when it ended."""
-    cleanup_model.write_json(
+    write_record(
         claimed / "service.json",
         {
             "host": "127.0.0.1",
@@ -694,7 +695,7 @@ def test_a_revived_server_keeps_the_lifetime_it_was_serving_under(
     # launch would have said "session" — the claim is what the persistent
     # record has to outrank.
     assert service_model.page_claim(claimed)["id"] == "s1"
-    assert files_model.read_json(claimed / "service.json")["lifetime"] == "persistent"
+    assert read_record(claimed / "service.json")["lifetime"] == "persistent"
 
 
 def test_wait_ends_when_the_leaf_does(page_dir, capsys, snapshot):
@@ -767,8 +768,8 @@ def test_one_wait_watches_every_page_the_session_holds(
     assert batch["page"] == str(second)
     assert [event["text"] for event in shown] == ["hi"]
     # The page that spoke records exact pickup; neither page's status is rewritten.
-    assert files_model.read_json(second / "status.json")["state"] == "waiting"
-    assert files_model.read_json(page_dir / "status.json")["state"] == "waiting"
+    assert read_record(second / "status.json")["state"] == "waiting"
+    assert read_record(page_dir / "status.json")["state"] == "waiting"
     assert events_model.read_events(second)[-1]["kind"] == "pickup"
     assert all(e["kind"] != "pickup" for e in events_model.read_events(page_dir))
 
@@ -1359,7 +1360,7 @@ def test_a_bare_shell_receipt_rearms_every_page_in_its_delivery(
     assert event["id"] == later["id"]
     for page in (page_dir, other):
         assert service_model.page_claim(page) is None
-        assert files_model.read_json(page / "cursor.json") == {"seq": 1}
+        assert read_record(page / "cursor.json") == {"seq": 1}
 
 
 def test_an_unnamed_bare_shell_wait_has_no_watch_set(page_dir, sessionless, capsys):
@@ -1478,7 +1479,7 @@ def test_a_codex_watcher_task_takes_the_parent_watch_obligation(
     _, header, [event] = printed(out)
     assert header["page"] == str(page)
     assert event["text"] == "hi"
-    assert files_model.read_json(page / "cursor.json") is None
+    assert read_record(page / "cursor.json") is None
 
 
 def test_a_superseded_waiter_cannot_deliver_the_new_owners_batch(

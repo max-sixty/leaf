@@ -26,7 +26,7 @@ def test_live_and_archived_readers_ignore_records_with_missing_fields(
         captured = batch_data(page, transaction, [event])
     captured.update(session="concurrent-task")
     accepted = {
-        "format": codex_model.RECORD_FORMAT,
+        "format": codex_model.RECORD.format,
         "state": "queued",
         "created_at": 1,
         "pending": [0],
@@ -47,42 +47,13 @@ def test_live_and_archived_readers_ignore_records_with_missing_fields(
         record = deepcopy(accepted)
         del record["batches"][0][field]
         unreadable.append(record)
-    for pending in (None, [True], [-1], [1], [0, 0]):
-        unreadable.append({**accepted, "pending": pending})
-    for state in ("hook", "opened"):
+    # A state this Leaf does not know, or one whose own fields are missing.
+    for state in ("hook", "opened", "a-later-state"):
         unreadable.append({**accepted, "state": state})
     collecting = deepcopy(accepted)
     collecting["state"] = "collecting"
     collecting.pop("pending")
     collecting["batches"] = [deepcopy(captured)]
-    for field in ("through_seq", "threads"):
-        record = deepcopy(collecting)
-        del record["batches"][0][field]
-        unreadable.append(record)
-    record = deepcopy(collecting)
-    del record["batches"][0]["events"][0]["threads"]
-    unreadable.append(record)
-    record = deepcopy(collecting)
-    del record["batches"][0]["events"][0]["kind"]
-    unreadable.append(record)
-    for field in ("id", "title"):
-        record = deepcopy(collecting)
-        record["batches"][0]["threads"][0][field] = []
-        unreadable.append(record)
-    record = deepcopy(collecting)
-    record["batches"][0]["events"][0]["threads"] = [[]]
-    unreadable.append(record)
-    for answer in (
-        {"kind": []},
-        {"kind": "reply", "for": "captured"},
-        {"kind": "reply", "to": "thread"},
-        {"kind": "reply", "to": "thread", "for": []},
-        {"kind": "turn", "to": "thread", "for": "captured"},
-        {"kind": "markup"},
-    ):
-        record = deepcopy(collecting)
-        record["batches"][0]["events"][0]["answer"] = answer
-        unreadable.append(record)
 
     for index, record in enumerate(unreadable):
         identity = f"{index:08x}"

@@ -18,19 +18,20 @@ from interact_support import (
     end_work,
     owed,
     page_state,
+    read_record,
     record_claim,
     response_reference,
     said,
     serving,
     state_json,
     working,
+    write_record,
     yaml_document,
 )
 from leaf import activity as activity_model
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
-from leaf import files as files_model
 from leaf import harness as harness_model
 from leaf import hooks as hooks_model
 from leaf import leases as leases_model
@@ -70,7 +71,7 @@ def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
     renewed it for the working grace: its opening, or a status written during it."""
     now = datetime.now().astimezone()
     for page in (claimed, codex_claimed_page):
-        cleanup_model.write_json(
+        write_record(
             page / "status.json",
             {"state": "waiting", "detail": "", "ts": now.isoformat()},
         )
@@ -95,7 +96,7 @@ def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
     # showing Listening past the point the turn can plausibly still be running.
     opened = (now - timedelta(minutes=1)).replace(microsecond=0)
     record_claim(claimed, **{**claim, "turn_opened": opened.isoformat()})
-    cleanup_model.write_json(
+    write_record(
         claimed / "status.json",
         {"state": "waiting", "detail": "", "ts": "2020-01-01T00:00:00+00:00"},
     )
@@ -121,7 +122,7 @@ def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
     record_claim(
         claimed, **{**claim, "turn_opened": opened.isoformat(timespec="seconds")}
     )
-    cleanup_model.write_json(
+    write_record(
         claimed / "status.json",
         {"state": "waiting", "detail": "", "ts": opened.isoformat()},
     )
@@ -130,7 +131,7 @@ def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
     assert stale["activity"]["kind"] == "away"
 
     # A status the turn writes renews it: the agent is there to have written it.
-    cleanup_model.write_json(
+    write_record(
         claimed / "status.json",
         {"state": "waiting", "detail": "", "ts": now.isoformat()},
     )
@@ -564,7 +565,7 @@ def test_stream_activity_writes_only_new_readings(claimed, monkeypatch):
         )
     changed = (claimed / "status.json").read_bytes()
     assert changed != unchanged
-    observed = files_model.read_json(claimed / "status.json")["stream"]["activity"]
+    observed = read_record(claimed / "status.json")["stream"]["activity"]
     assert observed["detail"] == "Reviewing the result"
 
     renewed_at = (
@@ -579,8 +580,7 @@ def test_stream_activity_writes_only_new_readings(claimed, monkeypatch):
                 {"kind": "thinking", "detail": "Reviewing the result"},
             )
     assert (
-        files_model.read_json(claimed / "status.json")["stream"]["activity"]["ts"]
-        == renewed_at
+        read_record(claimed / "status.json")["stream"]["activity"]["ts"] == renewed_at
     )
 
 
@@ -684,7 +684,7 @@ def test_a_malformed_old_stream_record_is_ignored(claimed):
             "after": 0,
         }
     }
-    cleanup_model.write_json(claimed / "status.json", status)
+    write_record(claimed / "status.json", status)
 
     activity = page_state(claimed)["activity"]
     assert (activity["kind"], activity["detail"]) == (
@@ -719,13 +719,13 @@ def test_stream_work_is_scoped_to_the_live_session_and_freshness(claimed):
 
     status = service_model.read_status(claimed)
     activity = status["stream"]["activity"]
-    cleanup_model.write_json(
+    write_record(
         claimed / "status.json",
         {**status, "stream": {"activity": {**activity, "session": "other"}}},
     )
     assert page_state(claimed)["activity"]["observed_kind"] is None
 
-    cleanup_model.write_json(
+    write_record(
         claimed / "status.json",
         {
             **status,
@@ -766,7 +766,7 @@ def test_unheld_activity_drops_interaction_claims_from_the_same_reading(
         for workflow in page_state(page_dir)["workflows"]
     ] == [(comment["id"], "working"), (followup["id"], "sent")]
     status = service_model.read_status(page_dir)
-    cleanup_model.write_json(
+    write_record(
         page_dir / "status.json",
         {
             **status,
@@ -807,7 +807,7 @@ def test_idle_activity_refreshes_when_its_interaction_ownership_expires(
     )
     started = datetime.now().astimezone()
     declare_work(page_dir, "reading it", item=comment["id"], ts=started.isoformat())
-    cleanup_model.write_json(
+    write_record(
         page_dir / "status.json",
         {"state": "idle", "detail": "", "ts": started.isoformat()},
     )
@@ -1036,7 +1036,7 @@ def test_the_activity_a_claim_its_turn_and_their_silence_come_to(page_dir, dead_
             )
         else:
             service_model.claim_path(d).unlink(missing_ok=True)
-        cleanup_model.write_json(d / "status.json", status)
+        write_record(d / "status.json", status)
         if state == "working":
             declare_work(
                 d,

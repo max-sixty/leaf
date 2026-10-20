@@ -658,6 +658,45 @@ def test_a_reply_names_the_threads_a_save_already_moved(page_dir):
     ]
 
 
+def test_page_check_names_no_move_of_a_withdrawn_reaction(page_dir):
+    """A reaction the user took back opens no thread, so a save that moved it
+    before the undo leaves `page check` nothing to name."""
+    from leaf.revisioning import activate_source
+
+    original = PAGE.replace(
+        "<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha and Gamma</p>'
+    )
+    (page_dir / "index.html").write_text(original)
+    publish(page_dir)
+    root = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "token": "shorten",
+            "anchor": {"section": "wording"},
+        },
+    )
+    (page_dir / "index.html").write_text(
+        original.replace('<p id="wording">Alpha and Gamma</p>', "")
+    )
+    assert activate_source(page_dir).created
+    assert [
+        e["thread"]
+        for e in events_model.read_events(page_dir)
+        if e["kind"] == "reanchor"
+    ] == [root["id"]]
+    append_carried_log_record(
+        page_dir, {"kind": "undo", "author": "user", "undoes": root["id"]}
+    )
+    result = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
+    assert result.exit_code == 0, result.output
+    assert "relocated-anchor" not in {
+        finding["code"] for finding in json.loads(result.stdout)["findings"]
+    }
+
+
 def test_a_stamp_preserves_threads_its_restatement_reopens(page_dir):
     from leaf.events import build_threads
 

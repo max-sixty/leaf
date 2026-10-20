@@ -259,8 +259,8 @@ def moved_threads(
     The server activates a valid save before anyone checks it, writing a `reanchor`
     event for each thread the revision moved, so the moves are read from the log;
     the moves activating `checked` would make (`checked.advice`) take their
-    thread's place. A reply that has since placed the thread itself, or resolving
-    it, leaves the move out. `page check` asks for the moves at the active revision,
+    thread's place. A reply that has since placed the thread itself, resolving it,
+    or taking back the reaction that opened it leaves the move out. `page check` asks for the moves at the active revision,
     and the first reply on a revision (`thread._revision_advice`) for those since
     the agent's last reply."""
     from leaf.events import build_threads
@@ -288,6 +288,7 @@ def moved_threads(
         if event["kind"] == "reanchor"
         and event["revision"] > after
         and thread not in pending
+        and thread in threads
         and not threads[thread]["resolved"]
     ]
     return [*recorded, *pending.values()]

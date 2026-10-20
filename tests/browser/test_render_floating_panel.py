@@ -371,9 +371,11 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     expect(page.locator(".lf-fp-head .lf-fp-title")).not_to_have_text(first)
     expect(thread).to_be_visible()
     expect(thread).to_be_focused()
-    expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute("data-says", "notice")
+    expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
+        "data-says", "notice"
+    )
     expect(page.locator(".lf-fp-row")).to_contain_text("Resolved the thread")
-    second =page.locator(".lf-fp-head .lf-fp-title").inner_text()
+    second = page.locator(".lf-fp-head .lf-fp-title").inner_text()
     # Taking the first resolve back leaves the user on the thread they moved on to.
     with sending(page, "the undo"):
         page.keyboard.press("z")

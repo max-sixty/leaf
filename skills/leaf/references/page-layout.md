@@ -128,7 +128,7 @@ chips under the lede for the page's state.
 `<main class="layout-workspace">` fills the window above Leaf's panel, and the reader
 works in its regions rather than scrolling the page. The `header` and `footer` take
 their content's height and the body takes the rest. Keep the header to one row: the
-title, `.tag` chips for the page's state, and an `lf-tally` for the items left. Put what
+title, `.tag` chips for the page's state, and an `lf-tally` for the obligations left. Put what
 a lede would say at the top of the region it is about.
 
 The body is one `lf-pane`, a widget that lays out its own regions, or the page's own
@@ -171,7 +171,7 @@ takes it, and so can a dense table on a column page.
 
 For a queue of items decided one at a time, such as tickets or findings, make the body
 one `lf-tabs list="side"` with an `lf-tab` per item, and put an `lf-tally` with `next`
-in the header. The list marks each tab's open items and the tally counts what is left,
+in the header. The list marks each tab's open obligations and the tally counts what is left,
 so write no script or count of your own. The `lf-tab` and `lf-tally` entries cover
 grouping and counting.
 
@@ -236,7 +236,7 @@ comment there shows as a pin on its block.
 
 By default Leaf draws comment markers, passage highlights and threads over the page.
 `data-annotations="page"` on `body` turns these off for a page that shows comments in
-its own layout; comments, On me items, Undo and live revisions still work, and comments open
+its own layout; comments, On me obligations, Undo and live revisions still work, and comments open
 in the Leaf panel. To show conversations in the page's own layout, register a
 presentation as `module-annotations.md`, "Page annotation presentation", describes,
 rather than rebuilding the event log in page code.
@@ -262,9 +262,9 @@ Leaf's panel, thread cards and markers draw over everything in `main`, whatever 
 with `showModal()`, or an element with `popover`.
 
 `conversation-loop.md`, "The On lists", says what belongs in the On lists. A
-package can lay out conversations and items itself with the APIs in
+package can lay out conversations and obligations itself with the APIs in
 `module-annotations.md`, "Owning the primary conversation presentation", and
-`module-reading.md`, "Reading items and obligation queues".
+`module-reading.md`, "Reading obligations and the On lists".
 
 ## Activity from several contributors
 

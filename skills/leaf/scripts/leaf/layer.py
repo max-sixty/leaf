@@ -586,7 +586,7 @@ def incompatible_revision(revision: int, registry: dict) -> Finding | None:
     so its live revision is one of these only where the source no longer saves.
     A revision whose vocabulary uses a retired key is refused for the reason the
     layer is: this Leaf would read the key's new name there, find nothing, and draw
-    the revision without what it declares, such as a framed item's prompt.
+    the revision without what it declares, such as a framed obligation's prompt.
     """
     if (saved := _foreign_protocol(registry)) is not None:
         return Finding(

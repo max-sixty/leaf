@@ -4,10 +4,10 @@ import pytest
 from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    ITEM_PAGE,
+    OBLIGATION_PAGE,
 )
 from render_harness import (
-    expect_items_answered,
+    expect_obligations_answered,
     open_page,
     round_trip,
     sending,
@@ -21,8 +21,8 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve):
     """The empty route borrows Add's seat, then both actions keep stable seats."""
-    page = open_page(browser, serve(ITEM_PAGE))
-    # The second item carries the card presentation, which is where the row's trailing
+    page = open_page(browser, serve(OBLIGATION_PAGE))
+    # The second obligation carries the card presentation, which is where the row's trailing
     # room is contested: its options wear their binding badges at the corner, so the
     # draft's badge is the one that had the edge.
     page.keyboard.press("m")
@@ -70,7 +70,7 @@ def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve
     expected_right = shown["centerX"] + add_box["width"] / 2
 
     page.close()
-    page = open_page(browser, serve(ITEM_PAGE))
+    page = open_page(browser, serve(OBLIGATION_PAGE))
     gaps = {}
     for group in ("#jobs", "#bracket"):
         row = page.locator(f"{group} > .lf-another")
@@ -112,7 +112,7 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
     later ordinary pick and a reload keep the option, and each undo takes back one
     gesture: the later pick, then the option's pick, then the option itself.
     """
-    url = serve(ITEM_PAGE)
+    url = serve(OBLIGATION_PAGE)
     page = open_page(browser, url)
     d = serve.page_dir
 
@@ -134,7 +134,7 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
     expect(added.locator(".lf-compose-submit")).to_have_attribute(
         "aria-disabled", "true"
     )
-    expect_items_answered(page, "0/3")
+    expect_obligations_answered(page, "0/3")
 
     new_option = page.locator("#jobs > lf-option[data-lf-added]")
     assert new_option.count() == 1, (

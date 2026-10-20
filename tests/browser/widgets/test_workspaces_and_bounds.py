@@ -12,7 +12,7 @@ from render_cases_interaction import live_url
 from render_harness import (
     ROOT,
     displayed,
-    expect_items_answered,
+    expect_obligations_answered,
     fills_the_window,
     leaf_page,
     open_page,
@@ -329,8 +329,8 @@ SECTIONED_PANE_PAGE = leaf_page(
 )
 
 
-THREE_PART_ITEM_PAGE = leaf_page(
-    "a three-part item as the workspace",
+THREE_PART_OBLIGATION_PAGE = leaf_page(
+    "a three-part obligation as the workspace",
     """
   <lf-ask id="workspace-ask">
     <h2>Which release should go out?</h2>
@@ -504,7 +504,7 @@ def test_an_lf_ask_gives_its_answer_what_its_context_leaves(browser, serve):
     taller than the window the options keep theirs, nothing is drawn over them, and the
     body scrolls. A playground below a premise fits itself to what is left, its controls
     scrolling within the window."""
-    page = open_page(browser, serve(THREE_PART_ITEM_PAGE))
+    page = open_page(browser, serve(THREE_PART_OBLIGATION_PAGE))
     resized(page, 1280, 720)
     geometry = page.evaluate(
         """() => ({
@@ -922,10 +922,10 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
     """Replaceable log evidence does not become the authority for release state.
 
     The release escape path is a question the operator answers: the page lists it
-    among its items, and the pick reaches the agent as an action naming the option."""
+    among its obligations, and the pick reaches the agent as an action naming the option."""
     example = ROOT / "examples" / "live-progress.html"
     page = open_page(browser, live_url(serve(example)))
-    expect_items_answered(page, "0/1")
+    expect_obligations_answered(page, "0/1")
     with sending(page, "the rollback pick"):
         page.locator("#lp-rollback-now").click()
     pick = events_model.read_events(serve.page_dir)[-1]
@@ -935,7 +935,7 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
         "choose",
     )
     assert pick["detail"] == {"value": ["lp-rollback-now"]}
-    expect_items_answered(page, "1/1")
+    expect_obligations_answered(page, "1/1")
 
     log = page.locator("#lp-live-log")
     listing = log.locator("pre")

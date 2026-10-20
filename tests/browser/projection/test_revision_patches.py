@@ -7,7 +7,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import LIVE_V1, LIVE_V2, LIVE_V3, live_url
 from render_harness import (
     EXAMPLE_PACKAGES,
-    expect_items_answered,
+    expect_obligations_answered,
     leaf_page,
     open_page,
     panel_menu,
@@ -995,8 +995,10 @@ def test_a_live_revision_preserves_an_unchanged_authored_editor(browser, serve):
     expect(editor).to_have_attribute("placeholder", "New instruction")
 
 
-def test_a_live_revision_reorders_the_page_and_item_inventory_together(browser, serve):
-    """Retained item descriptors follow the incoming document's order, and plain
+def test_a_live_revision_reorders_the_page_and_obligation_inventory_together(
+    browser, serve
+):
+    """Retained obligation descriptors follow the incoming document's order, and plain
     declared elements a revision removes leave the semantic document with their upgraded
     owner."""
 
@@ -1020,7 +1022,7 @@ def test_a_live_revision_reorders_the_page_and_item_inventory_together(browser, 
         "<p>The third decision is gone.</p>",
     )
     page = open_page(browser, live_url(serve(first)))
-    expect_items_answered(page, "0/3")
+    expect_obligations_answered(page, "0/3")
     page.locator(".lf-fp-on-user").click()
     panel_settled(page, view="queue")
     cards = '.lf-fp-view[data-view="queue"]:not([data-leaving]) .lf-fp-on-item'

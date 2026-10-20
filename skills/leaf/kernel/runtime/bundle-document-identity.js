@@ -65,8 +65,6 @@ import {
   importWidgets,
   isPageWidgetWorkflow,
   isWorkflowProgress,
-  itemHolding,
-  itemPlace,
   keepRefusedWords,
   listWalkPosition,
   loadDraft,
@@ -78,6 +76,8 @@ import {
   messageText,
   mountFirstMessage,
   newsNotice,
+  obligationHolding,
+  obligationPlace,
   openMessageEditIn,
   openingPassage,
   pageCommand,
@@ -97,7 +97,7 @@ import {
   prepareAuthoredMessage,
   prepareDeclaredMarkdown,
   rawOffsetFits,
-  readItems,
+  readObligations,
   readThreads,
   readingReturn,
   registerWritingDestination,
@@ -401,8 +401,8 @@ import {
   foldWidgetStates,
   isMessageEvent,
   isThreadEvent,
-  itemValue,
   moved,
+  obligationValue,
   outsideReading,
   projectionOrigins,
   reactionsAt,
@@ -820,7 +820,7 @@ function sentDrawing(drawing) {
 }
 
 // runtime/protocol.js
-var recordFormat = (kind) => `leaf-${kind}/10`;
+var recordFormat = (kind) => `leaf-${kind}/12`;
 
 // runtime/composing/text-field.js
 import {
@@ -2945,8 +2945,8 @@ function applyDiff(doc, baseAuthored, baseVersion, baseReading2) {
         }
         continue;
       }
-      const { value } = itemValue(now, verb, true);
-      if (JSON.stringify(value) === JSON.stringify(itemValue(before, verb, true).value))
+      const { value } = obligationValue(now, verb, true);
+      if (JSON.stringify(value) === JSON.stringify(obligationValue(before, verb, true).value))
         continue;
       const ids = (
         /** @type {string[]} */
@@ -3173,8 +3173,8 @@ function createVersionController({
   syncLayout,
   captureRetainedStanding = () => null,
   restoreRetainedStanding = () => false,
-  captureItemStanding = () => null,
-  restoreItemStanding = () => {
+  captureObligationStanding = () => null,
+  restoreObligationStanding = () => {
   },
   // The chrome's Versions, which `g V` opens or puts away (floating-panel.js, `doors`).
   versions
@@ -3345,9 +3345,9 @@ function createVersionController({
       // A replaced reply box takes focus back either way, but is brought into view only
       // where it marked the user's place (user-place.js, `focusedInView`).
       replyInView: focusedInView() !== null,
-      // Item standing is the fallback for unnamed controls. An exact editor already
-      // has a replacement identity, so its parent item does not also own focus.
-      itemStanding: draftEditing ? null : captureItemStanding()
+      // Obligation standing is the fallback for unnamed controls. An exact editor already
+      // has a replacement identity, so its parent obligation does not also own focus.
+      obligationStanding: draftEditing ? null : captureObligationStanding()
     };
   }
   async function landContinuity(land) {
@@ -3359,8 +3359,8 @@ function createVersionController({
   }
   async function restoreEditingContinuity(continuity, currentIntent) {
     if (!currentIntent()) return;
-    const { draftEditing, replyThread, replyInView, itemStanding } = continuity;
-    restoreItemStanding(itemStanding);
+    const { draftEditing, replyThread, replyInView, obligationStanding } = continuity;
+    restoreObligationStanding(obligationStanding);
     const mayRestore = restrictUserIntent(
       currentIntent,
       () => draftEditingStands(draftEditing)
@@ -4090,16 +4090,16 @@ function regionLabel(node) {
 // runtime/annotation-inventory.js
 var annotationSelection = (root) => ({
   projection: root.effective.projection,
-  items: root.effective.items,
+  obligations: root.effective.obligations,
   workflows: root.effective.workflows,
   revision: root.document.revision,
   todos: root.authoritative?.browser.todos ?? null
 });
 function createAnnotationInventory({
-  readItems: readItems2,
+  readObligations: readObligations2,
   placedAt,
   openThread,
-  goToItem,
+  goToObligation,
   scrollToElement
 }) {
   const humanized = (value) => String(value ?? "").replace(/[-_]+/g, " ").trim();
@@ -4281,25 +4281,25 @@ function createAnnotationInventory({
         pointed
       );
     }
-    for (const item of readItems2().user) {
+    for (const item of readObligations2().user) {
       const id = item.id;
-      const target = itemPlace(item).node;
+      const target = obligationPlace(item).node;
       if (!target) continue;
       add(groups, target, {
         kind: "on-me",
         id: `on-me:${id}`,
-        // The group this row stands in already names the item; the row says why it is
-        // there, since these are the items the user owes.
+        // The group this row stands in already names the obligation; the row says why it is
+        // there, since these are the obligations the user owes.
         text: "Waiting on me",
         // The marker's own label is the question, which says more than the kind its
         // glyph already shows.
         label: addressableLabel(target) || null,
         activate: () => {
-          const items = readItems2().user.filter(
+          const items = readObligations2().user.filter(
             (item2) => item2.source.kind === "widget"
           );
           const next = items.find((candidate) => candidate.id === id);
-          if (next) goToItem(next, items);
+          if (next) goToObligation(next, items);
         }
       });
     }
@@ -7058,7 +7058,7 @@ function semanticNewsReading(root) {
   if (!view) throw new Error("The shown page has no browser reading");
   const state = root.authoritative;
   return {
-    items: view.items,
+    obligations: view.obligations,
     thread: view.thread,
     workflows: state.workflows,
     activity: state.activity
@@ -7104,7 +7104,7 @@ function responseFailures(workflows) {
 var agentAvailable = (activity) => activity.held && ["listening", "working"].includes(activity.kind);
 function observeSemanticNews(prior, reading) {
   const content = unreadContent(reading.thread);
-  const obligations = userObligations(reading.items);
+  const obligations = userObligations(reading.obligations);
   const failures = responseFailures(reading.workflows);
   const available = agentAvailable(reading.activity);
   const first = prior === null;
@@ -7163,7 +7163,7 @@ function observeSemanticNews(prior, reading) {
 }
 function currentSemanticNews(news, reading, observed) {
   const versions = new Set(unreadContent(reading.thread).map(({ version }) => version));
-  const obligations = userObligations(reading.items);
+  const obligations = userObligations(reading.obligations);
   const failures = responseFailures(reading.workflows);
   return news.flatMap((item) => {
     switch (item.kind) {
@@ -7395,7 +7395,7 @@ function mountApplication(dependencies) {
         )
       ]),
       whenApplicationRegionsPresented(
-        ["projection:chrome", "thread", "items"],
+        ["projection:chrome", "thread", "obligations"],
         stillCurrent
       )
     ]);
@@ -7492,10 +7492,10 @@ function mountApplication(dependencies) {
     composition: dependencies.compositionSurface
   };
   const annotations = createAnnotationInventory({
-    readItems,
+    readObligations,
     placedAt: dependencies.anchorPlacement.placedAt,
     openThread: openPageThread,
-    goToItem: dependencies.annotationCommands.goToItem,
+    goToObligation: dependencies.annotationCommands.goToObligation,
     scrollToElement: dependencies.anchorTravel.scrollToElement
   });
   const inlineContributions = createInlineContributions(annotations);
@@ -7795,8 +7795,8 @@ function mountApplication(dependencies) {
     threadActions: threadActions2,
     queueActions: queueActions2,
     settlement: settlementView,
-    openItem(id) {
-      const item = readItems().all.find((item2) => item2.id === id);
+    openObligation(id) {
+      const item = readObligations().all.find((item2) => item2.id === id);
       if (!item) return Promise.resolve(false);
       if (item.source.kind === "approval")
         return queueActions2.open(JSON.stringify(["approval", item.id]));
@@ -7806,10 +7806,13 @@ function mountApplication(dependencies) {
           part: "message"
         });
       }
-      return dependencies.annotationCommands.goToItem(item, readItems().all);
+      return dependencies.annotationCommands.goToObligation(
+        item,
+        readObligations().all
+      );
     },
     // The On me walk within one region (queue-walk.js), the walk an `lf-tally` steps.
-    nextItem: (options) => dependencies.nextItemWithin(options),
+    nextObligation: (options) => dependencies.nextObligationWithin(options),
     startFeed: feed.startFeed,
     wireInput: dependencies.wireInput
   };
@@ -7833,9 +7836,9 @@ var threadActions = Object.freeze({
   reopen: (...args) => app().threadActions.reopen(...args),
   setReaction: (...args) => app().threadActions.setReaction(...args)
 });
-var itemActions = Object.freeze({
-  open: (...args) => app().openItem(...args),
-  next: (...args) => app().nextItem(...args)
+var obligationActions = Object.freeze({
+  open: (...args) => app().openObligation(...args),
+  next: (...args) => app().nextObligation(...args)
 });
 var queueActions = Object.freeze({
   open: (...args) => app().queueActions.open(...args),
@@ -7978,24 +7981,24 @@ function queueTitle(item) {
   const thread = readThreads().threads.find((thread2) => thread2.id === item.thread);
   const own = elementById(item.subject.id);
   const topic = thread ? threadName(thread) : "";
-  const title = item.title ?? item.item?.prompt.text;
+  const title = item.todo?.title ?? item.obligation?.prompt.text;
   if (title) return title;
   if (item.kind === "work" && item.detail) return item.detail;
   const sent = item.answer?.message && thread?.msgs.find((message) => message.id === item.answer.message);
   if (sent) return sent.body.text.trim() || topic;
   if (item.subject.kind === "widget") {
-    const record = own && itemHolding(readItems().all, own);
-    return record && addressableLabel(itemPlace(record).context) || addressableLabel(own) || topic || item.id;
+    const record = own && obligationHolding(readObligations().all, own);
+    return record && addressableLabel(obligationPlace(record).context) || addressableLabel(own) || topic || item.id;
   }
   return topic || item.id;
 }
 
-// runtime/items/answer.js
-function ownedItemControl(source, commandSource) {
+// runtime/obligations/answer.js
+function ownedObligationControl(source, commandSource) {
   const selector = tagsDeclaring((entry) => entry["x-awaits"]).join(",");
   return !selector || closestAcross(commandSource, selector) === source;
 }
-function itemWord(item) {
+function obligationWord(item) {
   if (item.source.kind === "approval") return "Approval";
   const word2 = widgetWord(item.source.tag, elementById(item.source.id));
   return word2.charAt(0).toUpperCase() + word2.slice(1);
@@ -8012,7 +8015,7 @@ function answerWords(item) {
   );
   return String(source && formatter ? formatter(item.answer.value, source) : "").replace(/\s+/g, " ").trim();
 }
-function itemEnding(item) {
+function obligationEnding(item) {
   if (item.status === "withdrawn") return "Withdrawn";
   if (item.status === "answered_elsewhere") return "Answered elsewhere";
   const words2 = answerWords(item);
@@ -8207,7 +8210,7 @@ export {
   consumeAnnotations,
   registerThreadPresentation,
   threadActions,
-  itemActions,
+  obligationActions,
   queueActions,
   wireInput,
   threadInput,
@@ -8216,10 +8219,10 @@ export {
   createThreadLanding,
   declareThreadKeys,
   queueTitle,
-  ownedItemControl,
-  itemWord,
+  ownedObligationControl,
+  obligationWord,
   answerWords,
-  itemEnding,
+  obligationEnding,
   acceptData,
   notifyDataSubscribers,
   dataReader,

@@ -17,7 +17,7 @@
   },
   "lf-ask": {
     "description": "A question for the user. Around decision widgets it gives their heading and context, each widget answered separately; with no widget inside, it is a question the user answers in words.",
-    "x-instructions": "Around decision widgets, give it a heading that states the shared question or context without leaning on the prose around it, with any eyebrow beside it in an `<hgroup>`. Include the evidence the user needs to answer. Each widget inside that asks for input stays its own item with its own answer, and the frame asks nothing itself. With no widget inside, it is a question answered in words: in a reply's markup, by the user's next message in that thread; on the page, by their comment on it. Write the question itself as its content, with no heading needed. Wrap the context in a `section` when the document needs a section landmark.",
+    "x-instructions": "Around decision widgets, give it a heading that states the shared question or context without leaning on the prose around it, with any eyebrow beside it in an `<hgroup>`. Include the evidence the user needs to answer. Each widget inside that asks for input stays its own obligation with its own answer, and the frame asks nothing itself. With no widget inside, it is a question answered in words: in a reply's markup, by the user's next message in that thread; on the page, by their comment on it. Write the question itself as its content, with no heading needed. Wrap the context in a `section` when the document needs a section landmark.",
     "type": "object",
     "properties": {
       "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
@@ -493,8 +493,8 @@
     "x-example": "<lf-tabs id=\"views\">\n  <lf-tab id=\"tab-implementation\" label=\"Implementation\">\n    <p id=\"rollout-plan\">Wire the first site this week.</p>\n  </lf-tab>\n  <lf-tab id=\"tab-vision\" label=\"Vision\">\n    <p id=\"product-vision\">Keep the original outcome and constraints in reach.</p>\n  </lf-tab>\n</lf-tabs>"
   },
   "lf-tally": {
-    "description": "A count of the open items in one region, such as the decisions left in a queue, with an optional control that goes to the next one.",
-    "x-instructions": "Write it empty with a stable id, and set `for` to the region whose items it counts, such as a side-list `lf-tabs` queue. Place it where the reader looks for the queue's state, such as a workspace header beside its `.tag` chips. Add `next` for a Next on me control that steps through the items waiting on the user. Don't also state the count in prose or chips; the tally keeps it current.",
+    "description": "A count of the open obligations in one region, such as the decisions left in a queue, with an optional control that goes to the next one.",
+    "x-instructions": "Write it empty with a stable id, and set `for` to the region whose obligations it counts, such as a side-list `lf-tabs` queue. Place it where the reader looks for the queue's state, such as a workspace header beside its `.tag` chips. Add `next` for a Next on me control that steps through the obligations waiting on the user. Don't also state the count in prose or chips; the tally keeps it current.",
     "type": "object",
     "properties": {
       "id": {

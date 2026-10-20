@@ -116,12 +116,16 @@
   /* The panel's own controls share one face. What Leaf's reader draws in a view's
      outlet, a thread's messages or an ask On shows as one, keeps the face its own
      controls give it (controls.css): this face once reached a message's reaction
-     trigger there, under the aim floor, and took the fill off a chosen reaction. */
-  :where(.lf-floating-panel) :is(button, input, textarea):where(:not(.lf-fp-outlet *)) {
+     trigger there, under the aim floor, and took the fill off a chosen reaction. So
+     does an attachment shelf, whose pictures and removal marks every composer shares
+     (response.css): the document layers that sheet, and this one is unlayered, so a
+     rule here, however plain its selector, would win over the shelf's own. */
+  :where(.lf-floating-panel)
+    :is(button, input, textarea):where(:not(.lf-fp-outlet *, .lf-composer-media *)) {
     font: inherit;
     color: inherit;
   }
-  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *)) {
+  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *, .lf-composer-media *)) {
     background: none;
     border: 0;
     border-radius: 6px;
@@ -138,32 +142,37 @@
      rows already keep around their presses. Sideways a press is itself as wide as the
      floor, since a reach there would lie over its neighbour's. The field's presses are
      its editor's, which sizes and places them itself (response.css). */
-  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *, .lf-fp-field *)) {
+  :where(.lf-floating-panel)
+    button:where(:not(.lf-fp-outlet *, .lf-fp-field *, .lf-composer-media *)) {
     position: relative;
   }
   :where(.lf-floating-panel)
-    button:where(:not(.lf-fp-outlet *, .lf-fp-field *))::after {
+    button:where(:not(.lf-fp-outlet *, .lf-fp-field *, .lf-composer-media *))::after {
     content: "";
     position: absolute;
     inset: min(0px, (100% - var(--aim-floor)) / 2) 0;
   }
-  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *)):hover {
+  :where(.lf-floating-panel)
+    button:where(:not(.lf-fp-outlet *, .lf-composer-media *)):hover {
     background: var(--lf-fp-hover);
   }
   :where(.lf-floating-panel)
-    button:where(:not(.lf-fp-outlet *)):is(:disabled, [aria-disabled="true"]) {
+    button:where(:not(.lf-fp-outlet *, .lf-composer-media *)):is(
+      :disabled,
+      [aria-disabled="true"]
+    ) {
     color: var(--lf-fp-muted);
     cursor: default;
     background: none;
   }
   :where(.lf-floating-panel)
     :is(button, input, textarea, a, .lf-fp-on-item):where(
-      :not(.lf-fp-outlet *)
+      :not(.lf-fp-outlet *, .lf-composer-media *)
     ):focus-visible {
     outline: var(--focus-ring);
     outline-offset: -2px;
   }
-  .lf-floating-panel .lf-action-icon {
+  .lf-floating-panel .lf-action-icon:not(.lf-composer-media *) {
     width: 16px;
     height: 16px;
   }
@@ -295,91 +304,18 @@
      which kept the box whole but made each picture a chip. */
   .lf-fp-field {
     anchor-name: --lf-fp-field;
+    --lf-media-ground: var(--lf-fp-surface);
+    --lf-media-ring: var(--lf-fp-ring);
   }
+  /* The shelf's padding holds its pictures' shadows and removal reach (response.css),
+     so the offsets take that padding back. */
   .lf-fp-field .lf-composer-media:not([hidden]) {
     position: fixed;
-    /* The shelf scrolls sideways when its images outrun the field, and a scroller cuts
-       what it holds at its padding box, so its padding holds each image's shadow and
-       the reach of its removal, which also keeps one image's removal off the next;
-       the offsets take that padding back. An image lies at --raise-1, whose shadow
-       reaches its drop and blur below it. */
-    --lf-fp-shelf-room: max(
-      calc(var(--raise-1-drop) + var(--raise-1-blur)),
-      calc(var(--aim-floor) / 2 - 3px)
-    );
-    bottom: calc(anchor(--lf-fp-panel top) + 8px - var(--lf-fp-shelf-room));
-    left: calc(anchor(--lf-fp-field left) - var(--lf-fp-shelf-room));
+    bottom: calc(anchor(--lf-fp-panel top) + 8px - var(--lf-media-room));
+    left: calc(anchor(--lf-fp-field left) - var(--lf-media-room));
     width: max-content;
-    max-width: calc(anchor-size(--lf-fp-field width) + 2 * var(--lf-fp-shelf-room));
-    gap: var(--lf-fp-shelf-room);
-    padding: var(--lf-fp-shelf-room);
-  }
-  /* Each image is its picture alone, at the shelf's height in its own proportions,
-     and its removal a mark on its corner, there under a finger and shown to a pointer
-     over the image or a key on it. The user asked for this on 19 October over each
-     image boxed on a shared ground with its removal a press the image's height. */
-  .lf-fp-field .lf-composer-media-item {
-    position: relative;
-    border: 0;
-    background: none;
-    overflow: visible;
-  }
-  .lf-fp-field .lf-composer-media-open {
-    width: auto;
-    height: 56px;
-    min-height: 0;
-    padding: 0;
-    background: none;
-    border-radius: 8px;
-    box-shadow:
-      0 0 0 1px var(--lf-fp-ring),
-      var(--raise-1);
-  }
-  .lf-fp-field .lf-composer-media-open img {
-    width: auto;
-    min-width: 40px;
-    max-width: 104px;
-    border-radius: inherit;
-  }
-  .lf-fp-field .lf-composer-media-item > button:not(.lf-media-open) {
-    position: absolute;
-    top: -6px;
-    right: -6px;
-    inline-size: 18px;
-    min-block-size: 0;
-    block-size: 18px;
-    padding: 0;
-    border: 0;
-    border-radius: 50%;
-    background: color-mix(in srgb, var(--ink) 72%, var(--lf-fp-surface));
-    color: var(--lf-fp-surface);
-    box-shadow: 0 0 0 2px var(--lf-fp-surface);
-  }
-  .lf-fp-field .lf-composer-media-item > button:not(.lf-media-open)::before {
-    content: "";
-    position: absolute;
-    inset: calc((18px - var(--aim-floor)) / 2);
-  }
-  .lf-fp-field .lf-composer-media-item > button:not(.lf-media-open):hover {
-    background: var(--ink);
-    color: var(--lf-fp-surface);
-  }
-  .lf-fp-field .lf-composer-media-item > button:not(.lf-media-open)[data-lf-focus] {
-    outline-offset: 2px;
-  }
-  .lf-fp-field .lf-composer-media-item > button:not(.lf-media-open) > svg {
-    inline-size: 10px;
-    block-size: 10px;
-  }
-  @media (hover: hover) {
-    .lf-fp-field
-      .lf-composer-media-item:not(:hover, :focus-within)
-      > button:not(.lf-media-open) {
-      opacity: 0;
-    }
-    .lf-fp-field .lf-composer-media-item > button:not(.lf-media-open) {
-      transition: opacity 120ms;
-    }
+    max-width: calc(anchor-size(--lf-fp-field width) + 2 * var(--lf-media-room));
+    margin: 0;
   }
   /* The anchored comment box on a page drawing its own annotations, standing in the
      field's place while its composer is open and no view is open above the row
@@ -1221,8 +1157,9 @@
   }
   /* The quote here only says what the thread is about: "On the page" in the head is the
      way to the words, so it takes no press, no aim's room and no title naming a jump; a
-     detached quote's title still says where its words went. */
-  .lf-fp-quote {
+     detached quote's title still says where its words went. The head names it, so the
+     rule outranks a card's `.lf-quote` (chrome.css), which this file comes ahead of. */
+  .lf-fp-quote-head > .lf-fp-quote {
     margin: 0;
     min-width: 0;
     min-height: 0;
@@ -1369,14 +1306,12 @@
   }
 
   /* An item reads as the thread it belongs to, its words in the page's serif, and the
-     answers it takes, answered here. */
+     answers it takes, answered here. The serif heading each item and the space between
+     them set items apart, so no rule runs between them. */
   .lf-fp-on-item {
     padding: 10px 8px 12px;
   }
-  .lf-fp-on-item + .lf-fp-on-item {
-    border-top: 1px solid var(--lf-fp-faint);
-  }
-  /* What left the list in view, under it. */
+  /* What left the list in view, under it: a section of its own, so a rule opens it. */
   .lf-fp-on-done {
     margin: 0 8px;
     padding-top: 10px;
@@ -1431,8 +1366,16 @@
     font-size: 12px;
     margin-right: 4px;
   }
+  /* The thread's messages, one part each, read as a card's transcript: a message's
+     words stand 16px over the next one's author, the parts' 4px insets included, and
+     the first author 16px under the quote, the quote head's 12px included. */
   .lf-fp-messages {
+    display: grid;
+    gap: 8px;
     padding: 0 8px;
+  }
+  .lf-fp-messages > .lf-primary-part > .lf-msg {
+    margin-top: 0;
   }
   /* A rewrite in a thread's view is the reply box of the field below it, at the field's
      height, frame included: its words keep the message's face, set in the field's
@@ -1588,14 +1531,13 @@
     width: min(360px, calc(100vw - 32px));
   }
   /* A list in the menu's place: its head, the way back, over its rows as the state
-     stands over the menu's. */
+     stands over the menu's. Its bold name and a space set it apart, as a view's crumb
+     stands over the view, so it hovers as any row does. */
   .lf-fp-menu-page {
     display: grid;
   }
   .lf-fp-menu-back {
-    margin-bottom: 4px;
-    border-bottom: 1px solid var(--lf-fp-faint);
-    border-radius: 6px 6px 0 0;
+    margin-bottom: 6px;
   }
   .lf-fp-menu-back .lf-fp-label {
     display: flex;
@@ -1617,8 +1559,7 @@
     display: grid;
     gap: 1px;
     padding: 6px 8px 8px;
-    margin-bottom: 4px;
-    border-bottom: 1px solid var(--lf-fp-faint);
+    margin-bottom: 6px;
     color: var(--lf-fp-muted);
     font-size: 12px;
   }

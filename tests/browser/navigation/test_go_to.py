@@ -7,7 +7,7 @@ import pytest
 from leaf import event_log as events_model
 from leaf.render_checks import one_frame, rendered
 from playwright.sync_api import expect
-from render_cases_interaction import ITEMS_PAGE
+from render_cases_interaction import OBLIGATIONS_PAGE
 from render_cases_navigation import (
     ADDRESSED_PAGE,
     CHIPS,
@@ -712,8 +712,8 @@ def test_global_destinations_switch_from_a_covering_workspace(
 ):
     """An open view keeps the global Go-to addresses that can replace it."""
     live_leaf("second", "A second leaf")
-    url = serve(ITEMS_PAGE, comments=1)
-    _publish(serve.page_dir, 2, ITEMS_PAGE, "two")
+    url = serve(OBLIGATIONS_PAGE, comments=1)
+    _publish(serve.page_dir, 2, OBLIGATIONS_PAGE, "two")
     page = open_page(browser, url)
     resized(page, 420, 800)
 

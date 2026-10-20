@@ -6,7 +6,7 @@ import re
 import pytest
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
-from render_cases_interaction import ITEM_PAGE, PANEL_PAGE, answered_comment
+from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, answered_comment
 from render_harness import (
     FOLLOWER_MARK,
     SUBJECT_MARK,
@@ -20,8 +20,8 @@ from render_harness import (
 )
 
 from browser.margin import (
-    ACTION_ON_ITEM,
-    COMMENT_ON_ITEM,
+    ACTION_ON_OBLIGATION,
+    COMMENT_ON_OBLIGATION,
     PANE_PIN_PAGE,
     _comment_on,
 )
@@ -32,7 +32,8 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def test_the_margin_keeps_its_page_coordinate_while_the_user_scrolls(browser, serve):
     """Runtime chrome and authored content share one document-space coordinate."""
     page = open_page(
-        browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM])
+        browser,
+        serve(OBLIGATION_PAGE, events=[ACTION_ON_OBLIGATION, COMMENT_ON_OBLIGATION]),
     )
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
@@ -50,9 +51,9 @@ def test_the_margin_keeps_its_page_coordinate_while_the_user_scrolls(browser, se
 
 
 def test_a_keyboard_arrival_brings_its_card_once_its_row_is_shown(browser, serve):
-    """`m` to an item below a pane's fold scrolls it into view while its row is still
+    """`m` to an obligation below a pane's fold scrolls it into view while its row is still
     withheld, so there is nothing yet to hang its card from. The card of the thread the
-    user leaves goes at once, and the item's comes once the margin shows its row, as it
+    user leaves goes at once, and the obligation's comes once the margin shows its row, as it
     would for an arrival whose row was already there."""
     item = (
         '<lf-ask id="work"><h2>Choose</h2><lf-options id="options" choose>'
@@ -370,8 +371,8 @@ SEATED_PANE_PAGE = leaf_page(
 def test_a_pin_in_a_pane_takes_one_seat_at_every_scroll(browser, serve):
     """A pin whose corner covers words is seated beside its target, and in a pane that
     seat is found in the pane's whole content, not the part it shows: seated against the
-    shown part and the pane header's controls, the same item's pin stood 28px above its
-    heading at one scroll and 55px down inside the item at another. Seated outside its
+    shown part and the pane header's controls, the same obligation's pin stood 28px above its
+    heading at one scroll and 55px down inside the obligation at another. Seated outside its
     target, a pin can leave the pane while its target is still in view, so it is
     withheld by where it stands rather than by where its target does."""
     page = open_page(browser, serve(SEATED_PANE_PAGE))
@@ -382,7 +383,7 @@ def test_a_pin_in_a_pane_takes_one_seat_at_every_scroll(browser, serve):
     expect(row).to_have_attribute("data-lf-place", "pin")
 
     def seat_at(gap):
-        """The pin's offset from its item, laid out with the item `gap` below the pane's
+        """The pin's offset from its obligation, laid out with the obligation `gap` below the pane's
         top, and where the pin's top stands against that top."""
         body.evaluate(
             """(body, gap) => {
@@ -416,7 +417,7 @@ def test_a_pin_in_a_pane_takes_one_seat_at_every_scroll(browser, serve):
     assert not far["withheld"], far
     near = seat_at(40)
     assert (near["dx"], near["dy"]) == (far["dx"], far["dy"]), (far, near)
-    # Scrolled to the pane's top, the item's heading is in view, and the pin either
+    # Scrolled to the pane's top, the obligation's heading is in view, and the pin either
     # stands inside the pane at its seat or is withheld; it never stands above the pane.
     top = seat_at(2)
     assert top["withheld"] or (

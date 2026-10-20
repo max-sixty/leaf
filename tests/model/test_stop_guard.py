@@ -29,9 +29,9 @@ from interact_support import (
     delivered_ref,
     delivery_through,
     end_work,
-    items_on_user,
     last_deliverable_seq,
     let_a_pick_settle_a_thread,
+    obligations_on_user,
     owed,
     page_state,
     publish,
@@ -289,12 +289,10 @@ def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
 
     assert str(claimed) in reason and str(second) in reason
     assert reason.count("acknowledged user update with no answer") == 2
-    assert reason.count(schema_model.ANSWER_ITEM_INSTRUCTION) == 1
+    assert reason.count(schema_model.ANSWER_INSTRUCTION) == 1
     # The lines stand together, so the user reaches every page before the
     # first protocol rather than one page per protocol.
-    assert reason.index(str(second)) < reason.index(
-        schema_model.ANSWER_ITEM_INSTRUCTION
-    )
+    assert reason.index(str(second)) < reason.index(schema_model.ANSWER_INSTRUCTION)
     for identity, label in deliveries.items():
         reason = reason.replace(identity, label)
     snapshot.check(
@@ -476,7 +474,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     # An id is all this can name, to a session that may no longer hold a word of
     # what was said under it, so the instruction that reaches it has to carry the
     # reading that recovers the exchange.
-    assert schema_model.ANSWER_ITEM_INSTRUCTION in continued(answer)
+    assert schema_model.ANSWER_INSTRUCTION in continued(answer)
     # The receipt recorded the delivery's reference, so the reminder names the
     # complete command rather than a placeholder nothing on hand fills.
     assert f"`leaf response reply {delivered_ref(claimed, asked['id'])}`" in continued(
@@ -817,7 +815,7 @@ cli_model.cli()
     assert read_record(page_dir / "status.json")["state"] == "waiting"
 
 
-def test_a_reaction_holds_no_turn_as_an_unanswered_item(claimed, capsys):
+def test_a_reaction_holds_no_turn_as_an_unanswered_obligation(claimed, capsys):
     """A reaction is a mark, not a question: the agent answers it by acting, so an
     acknowledged one nobody replied to does not hold the turn the way a comment
     does. Nor does an `ok` the user put on the agent's answer hand the thread back
@@ -982,7 +980,7 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, capsys):
 
 
 def test_each_owed_move_in_a_thread_takes_a_start_of_its_own(claimed, capsys):
-    """A thread's messages share one reply, but a move on an item frozen in one of its
+    """A thread's messages share one reply, but a move on an obligation frozen in one of its
     messages owes an answer of its own, so each is started on its own id. Once their
     replies settle them, a later move in the thread is offered no start in place of
     its answer."""
@@ -1182,7 +1180,7 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
 
 
 def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys):
-    """A pick on a page item is owed a version that writes it in. The delivery says
+    """A pick on a page obligation is owed a version that writes it in. The delivery says
     so, the Stop hook and `idle` hold the agent to it, and the stamped version whose
     markup records the pick settles it — one rule, read by every consumer. An edit
     to a draft that asks nothing is carried by the log and owes nothing: it keeps a
@@ -1348,12 +1346,12 @@ def test_done_hands_over_a_pick_the_markup_must_still_record(claimed):
 
 @pytest.mark.parametrize("declared", ["shipped", "done-only"])
 def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared):
-    """A multiple-choice item finishes with Done. Until then a tick is the user's
+    """A multiple-choice obligation finishes with Done. Until then a tick is the user's
     own unfinished answer: it is not agent work, the panel does not count it as an
     update waiting, no delivery is prepared, and Stop does not
-    hold the turn. Done hands the item over, and the answer it owes is a version.
+    hold the turn. Done hands the obligation over, and the answer it owes is a version.
 
-    The tick is held because it is a move on a widget whose item stands open, not
+    The tick is held because it is a move on a widget whose obligation stands open, not
     because `choose` happens to answer some other group: a layer answering the
     group only by its Done holds the tick the same way."""
     if declared == "done-only":
@@ -1376,7 +1374,7 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared
         },
     )
     ticked = state_json(claimed)
-    assert [item["widget"] for item in items_on_user(ticked)] == ["choice"]
+    assert [item["widget"] for item in obligations_on_user(ticked)] == ["choice"]
     assert ticked["workflows"] == []
     assert ticked["activity"]["counts"]["total"] == 0
     assert ticked["activity"]["counts"]["pending"] == 0
@@ -1396,7 +1394,7 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared
         },
     )
     finished = state_json(claimed)
-    assert items_on_user(finished) == []
+    assert obligations_on_user(finished) == []
     [workflow] = owed(finished)
     assert workflow["answer"] == {"kind": "markup", "action": done["id"]}
     delivery = delivery_through(claimed, done["seq"])
@@ -1454,7 +1452,7 @@ def test_a_finished_queue_owes_every_card_the_user_moved(page_dir):
 
 
 def test_a_queue_in_a_thread_owes_nothing_until_it_is_finished(page_dir):
-    """A move leaving cards queued keeps the thread's item on the user."""
+    """A move leaving cards queued keeps the thread's obligation on the user."""
     (page_dir / "registry.json").write_text(
         json.dumps(
             queue_board_registry(json.loads((page_dir / "registry.json").read_text()))
@@ -1496,11 +1494,11 @@ def test_a_queue_in_a_thread_owes_nothing_until_it_is_finished(page_dir):
     sort("card-a", "i")
     sorting = state_json(page_dir)
     assert sorting["workflows"] == []
-    assert [item["widget"] for item in items_on_user(sorting)] == ["triage"]
+    assert [item["widget"] for item in obligations_on_user(sorting)] == ["triage"]
 
     sort("card-b", "r")
     finished = state_json(page_dir)
-    assert items_on_user(finished) == []
+    assert obligations_on_user(finished) == []
     assert sorted(item["coordinate"][1] for item in owed(finished)) == [
         "card-a",
         "card-b",

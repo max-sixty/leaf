@@ -2595,8 +2595,8 @@ def test_the_leaf_s_menu_marks_what_opens_a_list_and_leaves_key_conveniences_out
     """The row holds the leaf, the field and the two counts, and the leaf's menu holds
     the rest. A menu row that opens a list of its own ends in a chevron. Navigate lists
     where a reader goes from a menu; the keyboard's conveniences for where they stand
-    (Page Map, Resume writing, Restore selection, Align current item at top) keep their
-    keys, and the menu leaves them out."""
+    (Page Map beside the margin's rail, Resume writing, Restore selection, Align current
+    item at top) keep their keys, and the menu leaves them out."""
     page = floating(browser, serve(LONG_PAGE, comments=1))
     expect(page.locator(".lf-fp-quick button")).to_have_count(2)
     page.locator(".lf-fp-leaf").click()

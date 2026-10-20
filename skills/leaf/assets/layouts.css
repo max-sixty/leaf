@@ -819,6 +819,36 @@
     border-radius: 0;
     box-shadow: 0 0 0 1px var(--rule);
   }
+  /* Where the window is too small to be the screen, the workspace flows and the page
+   * scrolls, and the header sticks at the window's top, so the page's status and its
+   * tally stay in view as they do on the screen: a Next pressed in the tally leaves the
+   * tally under the finger. The header covers its gutters as it sticks. What it stands
+   * over adds its height to the sticky-header slot (`--lf-top`, theme.css), so a
+   * landing and a sticky box below clear it; no CSS reads a box's height, so the
+   * runtime writes it (prepaint.js, `--lf-layout-head-h`). The workspace passes its own
+   * slot down as `--lf-workspace-top` rather than `--lf-top-outer`, which a tab set in
+   * the body names for its own strip. The body is a stacking
+   * context of its own, so nothing it lifts paints over the header. */
+  @media screen and ((width < 720px) or (height < 480px)) {
+    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace {
+      --lf-workspace-top: var(--lf-top);
+      padding-block-start: 0;
+    }
+    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
+      > header {
+      position: sticky;
+      top: var(--lf-top);
+      z-index: 1;
+      margin-inline: -12px;
+      padding: var(--sp-2) 12px;
+      background: var(--paper);
+    }
+    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
+      > :not(header) {
+      --lf-top: calc(var(--lf-workspace-top) + var(--lf-layout-head-h, 0px));
+      isolation: isolate;
+    }
+  }
   @media screen and (min-width: 720px) and (min-height: 480px) {
     :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace {
       --lf-full-height: 1;

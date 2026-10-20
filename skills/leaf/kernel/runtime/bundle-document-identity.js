@@ -5307,9 +5307,9 @@ function createCommandDispatch() {
       return null;
     }
     afterEnqueue(entry);
-    return entry.answer;
+    return entry;
   };
-  const post2 = (event) => startPost(event) ?? Promise.resolve(null);
+  const post2 = (event) => startPost(event)?.answer ?? Promise.resolve(null);
   const dispatchWidget2 = (descriptor, command) => {
     const { withdraw } = current();
     const reading = applicationState.selectWidget(descriptor).read();
@@ -5327,7 +5327,10 @@ function createCommandDispatch() {
         `<${descriptor.tag} id="${descriptor.id}"> cannot dispatch ${JSON.stringify(command.verb)}; its user verbs are: ${Object.keys(reading.actions).join(", ") || "none"}`
       );
     if (!action.available) return null;
-    return startPost(actionForWidget(descriptor, command, revision));
+    const entry = startPost(actionForWidget(descriptor, command, revision));
+    if (!entry) return null;
+    if (command.says) current().named(entry, command.says);
+    return entry.answer;
   };
   return Object.freeze({
     ledger,
@@ -5502,19 +5505,24 @@ var words = {
   todo_end: "Put the to-do back on me"
 };
 function createUndo({ post: post2, stateApplying, unaccountedGesture }) {
-  const reversals = /* @__PURE__ */ new Map();
-  function retainReversal(attempt, reverse) {
+  const gestures = /* @__PURE__ */ new Map();
+  function retainGesture(attempt, facts) {
     const { effective, unresolved } = readApplication();
     if (effective.view) {
       const liveAttempts = /* @__PURE__ */ new Set([
         ...effective.view.undo.map(({ event }) => event.attempt),
         ...unresolved.map((entry) => entry.event.attempt)
       ]);
-      for (const kept of reversals.keys())
-        if (!liveAttempts.has(kept)) reversals.delete(kept);
+      for (const kept of gestures.keys())
+        if (!liveAttempts.has(kept)) gestures.delete(kept);
     }
-    reversals.set(attempt, reverse);
+    gestures.set(attempt, { ...gestures.get(attempt), ...facts });
   }
+  const undone = (event) => {
+    if (event.token) return `Undid the ${event.token} reaction`;
+    const says = gestures.get(event.attempt)?.says;
+    return says ? `Undid: ${says}` : words[event.kind];
+  };
   function undoable() {
     if (stateApplying()) return null;
     const head = runtime.undo[0];
@@ -5531,19 +5539,19 @@ function createUndo({ post: post2, stateApplying, unaccountedGesture }) {
       raiseError(WAIT);
       return null;
     }
-    const reverse = reversals.get(event.attempt);
+    const reverse = gestures.get(event.attempt)?.reverse;
+    const said = undone(event);
     const mayLand = retainUserIntent();
     const answer = post2({ kind: "undo", undoes: event.id }).then((accepted) => {
-      if (accepted)
-        notice(
-          `${event.token ? `Undid the ${event.token} reaction` : words[event.kind]} \u2014 sent`
-        );
+      if (accepted) {
+        notice(`${said} \u2014 sent`);
+        gestures.delete(event.attempt);
+      }
       return accepted;
     });
     if (reverse)
       void answer.then(async (accepted) => {
         if (!accepted) return;
-        reversals.delete(event.attempt);
         await whenDocumentPresented();
         await reverse(mayLand);
       }).catch(() => {
@@ -5562,7 +5570,10 @@ function createUndo({ post: post2, stateApplying, unaccountedGesture }) {
     id: "history.undo",
     ready: savedReadingSettled,
     keys: ["z"],
-    description: () => undoSentence(undoable),
+    description: () => {
+      const says = gestures.get(undoable()?.attempt)?.says;
+      return says ? `Undo: ${says}` : undoSentence(undoable);
+    },
     title: "undo",
     touch: "Undo",
     menu: "page",
@@ -5573,7 +5584,7 @@ function createUndo({ post: post2, stateApplying, unaccountedGesture }) {
     run: (...args) => undoLast(...args)
   });
   return {
-    retainReversal,
+    retainGesture,
     undoable,
     undoLast,
     withdraw
@@ -7449,6 +7460,14 @@ function mountApplication(dependencies) {
   }
   commandDispatch.mount({
     afterEnqueue,
+    // A widget's gesture is acknowledged by the name the widget gave it, the name its
+    // undo is announced by too.
+    named: (entry, says) => {
+      undo.retainGesture(entry.event.attempt, { says });
+      void entry.answer.then((admitted) => {
+        if (admitted) notice(`${says} \u2014 sent`);
+      });
+    },
     withdraw: (candidate) => undo.withdraw(candidate),
     onCollision: (attempt) => raiseError(`Couldn't send \u2014 attempt ${attempt} is already in use`)
   });
@@ -7491,7 +7510,7 @@ function mountApplication(dependencies) {
   const settlementView = {
     pendingEntries: ledger.snapshot,
     actions: threadActions2,
-    retainReversal: undo.retainReversal
+    retainGesture: undo.retainGesture
   };
   const reactionView = {
     registerSurface: dependencies.registerReactSurface,

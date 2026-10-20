@@ -5476,7 +5476,7 @@ async function settleThread({
   prepareLanding,
   pendingEntries,
   actions,
-  retainReversal
+  retainGesture
 }) {
   if (pendingSettlement(pendingEntries(), parent())) return;
   const landing = prepareLanding?.();
@@ -5484,7 +5484,7 @@ async function settleThread({
   const answer = resolved2 ? actions.reopen(key, { attempt }) : actions.resolve(key, { attempt });
   if (!answer) return;
   notice(resolved2 ? "Reopened the thread" : "Resolved the thread");
-  if (landing) retainReversal(attempt, landing.reverse);
+  if (landing) retainGesture(attempt, { reverse: landing.reverse });
   await landGesture({
     landing,
     answer,

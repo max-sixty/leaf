@@ -25,7 +25,6 @@ from .leases import (
     waiter_lease_path,
 )
 from .locations import path_location, paths_same
-from .machine import state_home
 from .presence import nudge_unwatched
 from .refusals import Refused
 from .registry.kernel import kinds_declaring
@@ -38,7 +37,7 @@ from .service import (
     read_status,
     unacknowledged,
 )
-from .state import SESSION_SUFFIX, session_claims, session_file, still_named
+from .state import SESSION_SUFFIX, session_claims, session_file, state_home, still_named
 
 # How often a watch rechecks a live page's server. It is also the longest a watch goes
 # without a pass on a page whose files have not moved: nothing else a pass reads

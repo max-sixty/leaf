@@ -273,9 +273,9 @@ export const labelOf = (row) => {
   if (label !== undefined && label !== null) return label;
   return bindings(row).map(spell).join(" / ");
 };
-// Whether a row is live right now, asked through one predicate by the dispatcher, the line
-// and the overlay alike, so no surface can promise a press the dispatcher refuses. A guard
-// inside `run` instead is a liveness no surface can see. A declared visible control's
+// Whether a row is live right now, asked through one predicate by the dispatcher and
+// every surface that names a press, so none can promise a press the dispatcher refuses.
+// A guard inside `run` instead is a liveness no surface can see. A declared visible control's
 // native or ARIA disabled state constrains associated controls; an executable command
 // owns its button's disabled fields as output rather than reading them back.
 // Native and contribution painters identify their derived fields here. Availability

@@ -870,6 +870,25 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
     assert keys["x-says"]  # the rest of the shipped members stand
 
 
+@pytest.mark.parametrize("fact", ["$state", "$awaits"])
+def test_the_field_docs_hold_to_the_fields_their_schema_admits(fact):
+    """`$state` documents the fields of an x-state verb and `$awaits` those of
+    x-awaits, held to their schemas as `$keys` is to the x- keys: a field the schema
+    admits with no member is one an author reads the registry for and finds unsaid."""
+    kernel = json.loads((schema_model.ASSETS / "registry.json").read_text())
+    registry_layer.validate_layer_declarations(kernel, "kernel")
+    documented = deepcopy(kernel)
+    field = min(registry_layer.DOCUMENTED_KEYS[fact]["properties"])
+    del documented[fact][field]
+    documented[fact]["nope"] = "?"
+    refused = registry_refusal(
+        lambda: registry_layer.validate_layer_declarations(documented, "kernel")
+    )
+    assert found(
+        [refused], "keys-documentation", fact=fact, missing=[field], unadmitted=["nope"]
+    )
+
+
 @pytest.mark.parametrize("key", ["kinds", "ownership", "protocol"])
 def test_the_kernel_event_contract_is_not_a_layer_extension(page_dir, tmp_path, key):
     """A layer cannot change the event kinds, their ownership, or the protocol

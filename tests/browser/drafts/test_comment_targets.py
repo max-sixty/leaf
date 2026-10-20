@@ -155,7 +155,7 @@ def test_observed_selection_offers_comment_without_replacing_the_editor(
     expect(action).to_be_hidden()
     select_in_browser()
 
-    # Both routes activate the same native banner control and its captured passage.
+    # Both routes activate the same native panel control and its captured passage.
     if touch:
         action.tap()
     else:

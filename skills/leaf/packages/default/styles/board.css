@@ -106,7 +106,7 @@
 /* Where sharing the board between columns would leave none of them readable, one column
    takes the width and the next stays visible as the cue that the board continues
    sideways. The floor still wins inside a narrower frame. The board asks its own box, so
-   a board beside an open drawer answers for the room it has rather than for the room the
+   a board in a workspace pane answers for the room it has rather than for the room the
    window has; snapping needs no condition of its own, since proximity snapping does
    nothing until a column offers a snap position. */
 @media screen {

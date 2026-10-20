@@ -2,8 +2,9 @@
 
    One Floating UI driver follows this card across conversation changes and stops
    when the card closes. Each selected conversation owns its originating control,
-   reading region, held edge and pending placement/focus. Replacing it retires that
-   work before margin preparation can synchronously render again.
+   reading region, held edge, pending placement/focus, and growth out of the comment
+   box Send replaced (`growOut`). Replacing it retires that work before margin
+   preparation can synchronously render again.
    A retained refresh preserves the selection's reading and draft continuity.
    Margin disclosure remains the margin's; selection records only whether a walk
    opened a cluster so its end can return that disclosure.
@@ -59,6 +60,7 @@ import { move } from "../dom-move.js";
 import { effectiveScroller, registerReadingRegion } from "../reading-regions.js";
 import { declareOffFlowSurface } from "../off-flow.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
+import { reducedMotion } from "../motion.js";
 import { closestAcross } from "../passages.js";
 import { threadIdNamed } from "../thread/state.js";
 import { turns } from "../thread/model.js";
@@ -91,6 +93,13 @@ import { writingIn } from "../thread/replies.js";
 
 // A margin card's reply box.
 const REPLY_BOX = `.lf-thread-reply ${TEXT_FIELD}`;
+// Where a reading region cuts the card, inward from each of its edges.
+const CUT_EDGES = [
+  "--lf-cut-top",
+  "--lf-cut-right",
+  "--lf-cut-bottom",
+  "--lf-cut-left",
+];
 
 export function createThreadPreview({
   inventory,
@@ -302,6 +311,7 @@ export function createThreadPreview({
     carry.placed();
     const session = previewSession;
     if (!session) return;
+    keeps(preview, "data-lf-grows", null);
     session.positionResult?.resolve(false);
     cancelRender(session.positionFrame);
     placementDriver.supersede();
@@ -584,18 +594,22 @@ export function createThreadPreview({
         // Leaving with what it is about, the card passes under the chrome, which stacks
         // over it, and a reading region it stands in cuts it at the region's edge as it
         // cuts the words. An edge further out than the card paints cuts nothing, and
-        // stands at that reach, so a scroll that moves it there writes nothing.
+        // stands at that reach, so a scroll that moves it there writes nothing. Each
+        // edge's cut is its own property, which the card's clip and its growth out of
+        // the comment box both read (annotation-chrome.css).
         const region = boundary.inRegion;
-        if (region) {
-          const reach = -paintReach(preview);
-          const inset = [
-            (region.top - card.top) / scale.y,
-            (card.right - region.right) / scale.x,
-            (card.bottom - region.bottom) / scale.y,
-            (region.left - card.left) / scale.x,
-          ].map((cut) => Math.max(cut, reach));
-          preview.style.clipPath = `inset(${inset.map(layoutPx).join(" ")})`;
-        } else preview.style.removeProperty("clip-path");
+        const cuts = region
+          ? [
+              (region.top - card.top) / scale.y,
+              (card.right - region.right) / scale.x,
+              (card.bottom - region.bottom) / scale.y,
+              (region.left - card.left) / scale.x,
+            ].map((cut) => layoutPx(Math.max(cut, -paintReach(preview))))
+          : [];
+        CUT_EDGES.forEach((edge, i) => {
+          if (region) preview.style.setProperty(edge, cuts[i]);
+          else preview.style.removeProperty(edge);
+        });
         keeps(preview, "data-lf-thread-placement", THREAD_SIDES[side]);
         keepThreadLanding(previewList.querySelector(".lf-page-thread"));
         session.positionResult?.resolve(true);
@@ -884,8 +898,22 @@ export function createThreadPreview({
     }
     keepsHidden(preview, false);
     buildThreadCard(entry, selected.id);
-    return placedThreadPreview();
+    const positioned = placedThreadPreview();
+    return session.sent ? growOut(session, positioned) : positioned;
   }
+
+  // A card Send opened grows out of the comment box it replaces, once it stands
+  // (`data-lf-grows`, annotation-chrome.css).
+  function growOut(session, positioned) {
+    return positioned.then((placed) => {
+      if (placed && previewSession === session && !reducedMotion())
+        keeps(preview, "data-lf-grows", "");
+      return placed;
+    });
+  }
+  preview.addEventListener("animationend", (event) => {
+    if (event.target === preview) keeps(preview, "data-lf-grows", null);
+  });
 
   function refresh(entry, control, carry = focused() === previewSession?.control) {
     if (!previewSession || previewSession.preparing) return;
@@ -900,7 +928,7 @@ export function createThreadPreview({
     retirePreviewSession();
     placementDriver.stop();
     delete preview.dataset.lfThreadPlacement;
-    preview.style.removeProperty("clip-path");
+    for (const edge of CUT_EDGES) preview.style.removeProperty(edge);
     keepsHidden(preview, true);
     onClose(closed);
   }

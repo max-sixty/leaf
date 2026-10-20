@@ -21,6 +21,7 @@ from leaf import harness as harness_model
 from leaf import layer as layer_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
+from leaf import state as cleanup_model
 from leaf.render_gate import browser as browser_model
 from leaf_dev import LEAF_COMMAND as SOURCE_LEAF_COMMAND
 from leaf_dev.browser import shell_executable, use_linux_fonts
@@ -552,7 +553,7 @@ def isolated_session(tmp_path_factory, monkeypatch):
     # them, supplying capability evidence to hook transport and turn activity.
     for session in HOOKED_SESSIONS:
         leases_model.mark_hooks(session)
-    return machine_model.state_home()
+    return cleanup_model.state_home()
 
 
 @pytest.fixture

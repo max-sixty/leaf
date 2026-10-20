@@ -1097,7 +1097,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
         f"live Go to commands missing from the complete reference: "
         f"{sorted(live_commands - reference_commands)}"
     )
-    assert "navigation.drawer.leaves" not in reference_commands
+    assert "navigation.panel.leaves" not in reference_commands
     expect(page.locator(CHIPS).first).to_be_visible()
     # The chips are the eye's copy of the Go-to sequence; a user who cannot see them is
     # told the window opened and what it holds.
@@ -1346,7 +1346,7 @@ def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
     page.keyboard.press("g")
     expect(
         page.locator(
-            '.lf-go-to-hints [data-lf-go-to-command="navigation.drawer.leaves"]'
+            '.lf-go-to-hints [data-lf-go-to-command="navigation.panel.leaves"]'
         )
     ).to_have_count(0)
     # A live page arriving while the sequence stands keeps its destination operable.

@@ -5895,7 +5895,7 @@ registerPageControl({
   rank: PAGE_CONTROL_RANK.leaves,
   label: "All pages",
   value: () => String(listedPages(runtime.state).length),
-  shortcut: () => commandSteps("navigation.drawer.leaves"),
+  shortcut: () => commandSteps("navigation.panel.leaves"),
   offered: leavesOffered,
   group: "navigate"
 });
@@ -9799,7 +9799,7 @@ function createGoToSequence({
       when: () => true
     },
     {
-      id: "navigation.drawer.queue",
+      id: "navigation.panel.queue",
       keys: ["Shift+m"],
       // Its door is On me's, so where the On view shows the agent's list it turns to
       // the user's rather than closing.
@@ -9809,7 +9809,7 @@ function createGoToSequence({
       when: () => true
     },
     {
-      id: "navigation.drawer.leaves",
+      id: "navigation.panel.leaves",
       keys: ["Shift+l"],
       description: () => doors.leaves.shows() ? "Close All pages" : "Go to All pages",
       title: () => doors.leaves.shows() ? "close All pages" : "All pages",
@@ -9827,8 +9827,8 @@ function createGoToSequence({
   ];
   const DOOR_STANDS = /* @__PURE__ */ new Map([
     ["navigation.panel.threads", () => doors.threads.shows()],
-    ["navigation.drawer.queue", () => doors.queue.shows()],
-    ["navigation.drawer.leaves", () => doors.leaves.shows()]
+    ["navigation.panel.queue", () => doors.queue.shows()],
+    ["navigation.panel.leaves", () => doors.leaves.shows()]
   ]);
   function press(control) {
     scrollToElement(control, void 0, "nearest");
@@ -10245,7 +10245,7 @@ function standingOn(name2, title, sel, rows) {
     },
     // Across the declared shadow roots, where the addresses stop at the document: a row on
     // a staged disclosure names a key the browser does not answer, so a scope that could
-    // not see one would leave the line promising a press nothing makes.
+    // not see one would leave the reference promising a press nothing makes.
     when: () => pageQueryAll(sel).some((el2) => !inChrome(el2)),
     rows
   });

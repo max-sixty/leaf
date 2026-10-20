@@ -51,7 +51,6 @@ from xml.etree import ElementTree
 from .event_log import jsonl_line
 from .files import read_json
 from .harness import session_harness
-from .machine import state_home
 from .refusals import Refused
 from .registry.kernel import record_format, verb_writers
 from .schema import CURSOR_FILE
@@ -66,6 +65,7 @@ from .state import (
     open_session_turn,
     session_lock_path,
     session_record,
+    state_home,
     write_json,
 )
 

@@ -97,7 +97,6 @@ from .leases import (
     step_hook_ran,
     take_lease,
 )
-from .machine import state_home
 from .refusals import Refused
 from .service import (
     claim_page,
@@ -109,6 +108,7 @@ from .state import (
     flocked,
     session_record,
     start_session_turn,
+    state_home,
 )
 from .thread import delivery_reply_reserved
 

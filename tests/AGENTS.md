@@ -237,11 +237,12 @@ reported by its arguments, and the cases after it still run.
 
 Keep a `parametrize` axis for each difference that needs a page of its own: the browser
 engine, something the whole document declares, such as `dir` or its layout class, or a
-case that writes the page's log, publishes a revision, or leaves the composer, panel,
-focus or a draft as the next case would find it. A sensor that reports a problem once
-per page, such as the write watch, also needs a page per case. Give each case its own
-part of the page, such as its own ids, holder or contribution key, or undo what it
-changed, and order the cases so that none moves content the shift watch reads.
+case that writes the page's log, publishes a revision, or changes something the page
+holds once, such as the composer, the panel or a draft, in a way the next case would
+inherit. A case that consumes a finding of its own, as a write-watch test does, needs
+its own page too, since a sensor reports one finding once per page. Give each case its
+own part of the page, such as its own ids, holder, editor or contribution key, or undo
+what it changed, and order the cases so that none moves content the shift watch reads.
 `suite_profile` judges a test with subtests against its budget per case.
 
 ### Processes and servers

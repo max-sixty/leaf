@@ -1489,7 +1489,9 @@ def test_native_attachment_measures_solver_and_scroll_origin_together(
                     await window.__lfOverlayApi();
                   const ui = await floatingUi();
                   const paragraph = document.querySelector('#quote');
-                  window.placedBox?.remove();
+                  // The case before leaves its box and the owner placing it.
+                  window.placed?.owner.stop();
+                  window.placed?.box.remove();
                   paragraph.scrollTop = 0;
                   scrollTo(0, 0);
                   const node = paragraph.childNodes[4];
@@ -1497,8 +1499,9 @@ def test_native_attachment_measures_solver_and_scroll_origin_together(
                   range.setStart(node, 0); range.setEnd(node, 12);
                   const box = document.createElement('div');
                   box.style = 'position:fixed;width:100px;height:60px;background:white';
+                  // Named for its case, so replacing the last case's box is a change.
+                  box.dataset.case = `${source} ${read} ${existing}`;
                   document.querySelector('.lf-chrome').append(box);
-                  window.placedBox = box;
                   const captured = range.getBoundingClientRect();
                   const reference = {
                     contextNode: node, contextElement: paragraph,
@@ -1508,6 +1511,7 @@ def test_native_attachment_measures_solver_and_scroll_origin_together(
                       ? captured : range.getBoundingClientRect(),
                   };
                   const owner = floatingPlacement({floating: box, update: () => {}});
+                  window.placed = {box, owner};
                   if (existing) {
                     owner.begin();
                     const answer = await owner.position(ui.computePosition, reference,

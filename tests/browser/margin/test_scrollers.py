@@ -790,6 +790,8 @@ def test_a_constrained_target_carries_its_row_through_scroll(browser, serve, sub
     # target, which also lengthens the document, goes last.
     for position in ("sticky", "sticky-ancestor", "fixed"):
         with subtests.test(position=position):
+            # Away from where the last case left it, over the target's place.
+            page.mouse.move(0, 0)
             page.evaluate(
                 """async (position) => {
                   const {contributionEntry, registerContribution} =

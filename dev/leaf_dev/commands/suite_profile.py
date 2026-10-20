@@ -226,7 +226,9 @@ def suite_profile(directory: Path, rate: float | None, top: int) -> None:
 def read_cases(report: Path) -> list[dict]:
     """Each test case's file, seconds, profile, and whether it passed. A failed call
     whose teardown also failed is reported as two cases, the profile on the second;
-    they are one test here. A case without a profile, a collection error, has none."""
+    they are one test here. A case without a profile, a collection error, has none.
+    A profiled test's seconds are its phases': junit adds each subtest's duration to
+    the test's time, though the call phase already holds it."""
     cases = {}
     for case in ET.parse(report).iter("testcase"):
         key = (case.get("classname", ""), case.get("name", ""))
@@ -248,6 +250,9 @@ def read_cases(report: Path) -> list[dict]:
             entry["passed"] = False
         if (prop := case.find("properties/property[@name='profile']")) is not None:
             entry["profile"] = json.loads(prop.get("value"))
+    for entry in cases.values():
+        if entry["profile"]:
+            entry["seconds"] = sum(entry["profile"].get(p, 0) for p in PHASES)
     return list(cases.values())
 
 
@@ -338,8 +343,8 @@ def report_budgets(cases: list[dict]) -> None:
     get faster, and every journey within the browser budget, which could run on each
     push to main instead (`tests/AGENTS.md`, "Run what the change needs"). Only a
     test that passed has a time that says what it costs. A test that runs its cases
-    as subtests on one page is judged by its seconds per case, the cost each case
-    would have as a test of its own."""
+    as subtests on one page holds that many tests' coverage, so it is judged by its
+    seconds per case."""
     over, under = [], []
     for case in cases:
         parts = Path(case["file"]).parts

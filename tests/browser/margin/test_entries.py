@@ -481,6 +481,21 @@ def test_the_obligation_the_user_stands_in_selects_its_marker(browser, serve):
     )
 
 
+LABEL_CLEARANCE = """control => {
+  const label = control.querySelector('.lf-margin-entry-label');
+  const box = label.getBoundingClientRect();
+  const overlap = (left, right) => left.left < right.right &&
+    left.right > right.left && left.top < right.bottom &&
+    left.bottom > right.top;
+  const neighbors = [...document.querySelectorAll('.lf-margin-entry')]
+    .filter(candidate => candidate !== control && candidate.checkVisibility())
+    .map(candidate => candidate.getBoundingClientRect());
+  return {inside: box.left >= 4 && box.right <= innerWidth - 4 &&
+    box.top >= 4 && box.bottom <= innerHeight - 4,
+    overlaps: neighbors.filter(neighbor => overlap(box, neighbor)).length};
+}"""
+
+
 def test_dense_suggestion_labels_cover_no_neighboring_margin_entry(
     browser, serve, subtests
 ):
@@ -503,21 +518,6 @@ def test_dense_suggestion_labels_cover_no_neighboring_margin_entry(
                     )
                     reading = button.evaluate(LABEL_CLEARANCE)
                     assert reading == {"inside": True, "overlaps": 0}
-
-
-LABEL_CLEARANCE = """control => {
-  const label = control.querySelector('.lf-margin-entry-label');
-  const box = label.getBoundingClientRect();
-  const overlap = (left, right) => left.left < right.right &&
-    left.right > right.left && left.top < right.bottom &&
-    left.bottom > right.top;
-  const neighbors = [...document.querySelectorAll('.lf-margin-entry')]
-    .filter(candidate => candidate !== control && candidate.checkVisibility())
-    .map(candidate => candidate.getBoundingClientRect());
-  return {inside: box.left >= 4 && box.right <= innerWidth - 4 &&
-    box.top >= 4 && box.bottom <= innerHeight - 4,
-    overlaps: neighbors.filter(neighbor => overlap(box, neighbor)).length};
-}"""
 
 
 def test_an_unchanged_repaint_cannot_cancel_a_margin_entry_press(browser, serve):

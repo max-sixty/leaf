@@ -1674,6 +1674,67 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </lf-ask>
           </section>
 
+          <section id="bg-ask-pictured">
+            <p class="eyebrow bg-feature-elements">lf-ask · lf-options · lf-option</p>
+            <h2>
+              <strong>Options that hold their pictures</strong
+              ><span class="bg-feature-detail">: each drawing over its own pick</span>
+            </h2>
+            <p id="bg-ask-pictured-guide">
+              Each option below holds the drawing of what choosing it gives, today's in
+              the option that keeps it. The cards stand side by side across the group's
+              wide width, so the two drawings compare in one row at the size they were
+              drawn, each above its own pick; narrow the window and the cards stack.
+            </p>
+            <lf-ask id="bg-pictured-ask">
+              <h3>Should the sample queue group its tickets by owner?</h3>
+              <lf-options id="bg-pictured-choice" choose data-width="wide">
+                <lf-option id="bg-pictured-group">
+                  <strong>Group by owner</strong> A heading over each owner's tickets.
+                  <figure id="bg-pictured-group-figure">
+                    <svg
+                      class="drawing"
+                      viewBox="0 0 420 150"
+                      width="420"
+                      height="150"
+                      role="img"
+                      aria-labelledby="bg-pictured-group-t"
+                    >
+                      <title id="bg-pictured-group-t">
+                        Two owner headings, each over two ticket rows
+                      </title>
+                      <text class="strong" x="12" y="22">Ana</text>
+                      <rect class="box" x="24" y="32" width="384" height="22" rx="3" />
+                      <rect class="box" x="24" y="58" width="384" height="22" rx="3" />
+                      <text class="strong" x="12" y="104">Ben</text>
+                      <rect class="box" x="24" y="114" width="384" height="22" rx="3" />
+                    </svg>
+                  </figure>
+                </lf-option>
+                <lf-option id="bg-pictured-flat">
+                  <strong>Keep one list</strong> Tickets in arrival order, as today.
+                  <figure id="bg-pictured-flat-figure">
+                    <svg
+                      class="drawing"
+                      viewBox="0 0 420 150"
+                      width="420"
+                      height="150"
+                      role="img"
+                      aria-labelledby="bg-pictured-flat-t"
+                    >
+                      <title id="bg-pictured-flat-t">
+                        Three ticket rows in one list
+                      </title>
+                      <rect class="box" x="12" y="14" width="396" height="22" rx="3" />
+                      <rect class="box" x="12" y="40" width="396" height="22" rx="3" />
+                      <rect class="box" x="12" y="66" width="396" height="22" rx="3" />
+                    </svg>
+                  </figure>
+                </lf-option>
+              </lf-options>
+            </lf-ask>
+          </section>
+
           <section id="bg-side-list">
             <p class="eyebrow bg-feature-elements">lf-tabs · lf-tally</p>
             <h2><strong>A queue beside the item it opens</strong></h2>

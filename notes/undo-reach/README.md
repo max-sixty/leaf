@@ -36,7 +36,10 @@ settlement is undone, in the same tab only.
 The remaining problem: on a page the user left three weeks ago, the first `z`
 reopens a thread they resolved then, possibly below the fold, and the command
 reference and notice name only the gesture's kind (`undoSentence` and the per-kind words
-in `undo.js`), not which thread or how old.
+in `undo.js`), not which thread or how old. Since #3271 a widget's gesture is announced
+by the words its acknowledgement used ("Undid: Chose “Fast” — sent"), but only in the
+tab that made it; after a reload the undo is announced by its kind again, and no undo
+says its age.
 
 Undo is one-way. Nothing puts back what an undo took:
 
@@ -85,7 +88,8 @@ Ctrl-R" (newest + name + redo), "Show, then take, with redo", and "Changes panel
   the arbitrary limit the user wants to avoid.
 - **This visit only.** `undo.js` records the undo candidates present at the
   first reading, and `undoable()` refuses a head among them. Browser only.
-- **Say what `z` takes.** `document.py` adds each candidate's words from
+- **Say what `z` takes.** #3271 covers a widget's gesture in the tab that made it.
+  The rest: `document.py` adds each candidate's words from
   `GestureWords.says` (`skills/leaf/scripts/leaf/gesture_words.py`). Today
   `served_state/browser.py` builds those words only for a page
   that shows history, so every state read would pay for them. `undoSentence` and

@@ -897,7 +897,10 @@
     const running = animations.some(
       ({ playState, timeline }) =>
         playState === "running" &&
-        !(typeof window.ScrollTimeline === "function" && timeline instanceof ScrollTimeline),
+        !(
+          typeof window.ScrollTimeline === "function" &&
+          timeline instanceof ScrollTimeline
+        ),
     );
     if (writes.takeRecords().length) unread = fresh = true;
     // A child frame reads completely on every frame, since its embedding page can

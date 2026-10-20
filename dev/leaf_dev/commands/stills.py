@@ -1067,14 +1067,14 @@ STATES = (
         "native-code",
         "developer/feature-gallery",
         native_code,
-        region="#bg-plain-code, #bg-javascript-code",
+        region="#bg-javascript-code",
     ),
     State(
         "native-code-dark",
         "developer/feature-gallery",
         native_code,
         scheme="dark",
-        region="#bg-plain-code, #bg-javascript-code",
+        region="#bg-javascript-code",
     ),
     State(
         "markdown-preview-scrolled",

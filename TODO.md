@@ -309,11 +309,25 @@ Boxes that still move without input, which the "Stability" rule in
 `skills/leaf/assets/AGENTS.md` forbids. `tests/known_widget_findings.py` lists each widget
 that changes size after first paint, with its cause.
 
-- **Size text documents at first paint.** `lf-text-document` draws its bound source's
-  value after the first state answer. Check whether the document can be laid out from
-  a synchronous source reading, or whether a summary can serve the reader who came
-  to read it. The activity feed now opens log-sized rows deliberately and holds later
-  growth with `HeldReading`.
+- **Size text documents at first paint.** An `lf-text-document` without `preview` is
+  as tall as its source's value wrapped at the column's width. `leaf data set` writes
+  that value to the page directory, and the browser reads it from `/api/state` (on
+  leaf.page, from the build's static state answer); only an export inlines it in the
+  document (`exporting.py`). A page that opens with a 20-line document first paints
+  before its state answer arrives, at about 200 ms against 300 ms in `leaf-dev probe`,
+  so the document draws later and pushes the paragraph below it down 470px at 1440px
+  wide and 850px at 390px (a 0.06 layout shift at each). A `preview` document's
+  height doesn't depend on its value (caption, tab strip and a `--lf-bound`
+  viewport), so an initial renderer can paint it final under any of the fixes below.
+  Choosing one is Max's decision:
+  - serve each value the document binds inside the document, as an export already
+    does, and draw it unhighlighted in Pierre's line geometry from an initial
+    renderer, so the box is final before highlighting loads;
+  - have the author state `data-height`, as `lf-diff` does (`x-height: true`), though
+    the stated height goes stale whenever the data or the width changes;
+  - give every text document a fixed height that scrolls inside, as a `preview`
+    document already has, or open it closed behind a one-line summary, as the
+    activity feed opens on a gesture and holds later growth with `HeldReading`.
 - **Draw the contents map's spine in its first frame.** `lf-toc`'s initial drawing
   (`initial/lf-toc.js`) gives it its final box and rows, but in the margin its
   disclosure stays closed until the module opens it, so the spine and its markers

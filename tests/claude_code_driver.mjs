@@ -12,9 +12,8 @@
 // read meanwhile. Every prompt the module submits prints as `{"submitted":
 // <text>}`, or as `{"dropped": <text>}` once an Escape (a `turn.complete` that
 // `isAborted`) has stopped the session, since Claude Code drops a plugin's prompt
-// until the user next types, which this driver's user never does. Every row it
-// appends prints as `{"appended": <text>}`, and every watch it starts as
-// `{"watching": <its payload>}`. Once a watch has exited and what its exit set
+// until the user next types, which this driver's user never does. Every watch it
+// starts prints as `{"watching": <its payload>}`. Once a watch has exited and what its exit set
 // going in the module has run as far as it can without waiting on anything
 // outside, `{"watched": <its payload>}` prints. The first line printed is
 // `{"pid", "events"}`: the process the module's processes see as their parent,
@@ -31,7 +30,6 @@ const print = (line) => process.stdout.write(`${JSON.stringify(line)}\n`);
 const watches = new Set();
 let submissions = 0;
 let stopped = false;
-let appends = 0;
 
 function start(argv, env, input) {
   const child = spawn(argv[0], argv.slice(1), {
@@ -114,10 +112,6 @@ const $ = {
   plugin: { name: "leaf", root: options.pluginRoot ?? ROOT },
   session: {
     id: async () => session,
-    append: async ({ message }) => {
-      ++appends;
-      print({ appended: message.content[0].text });
-    },
   },
   prompt: {
     // Claude Code refuses a plugin's prompt that would run a slash command.
@@ -163,7 +157,7 @@ for await (const line of readline.createInterface({ input: process.stdin })) {
   const { emit, e, answer, hold, release: releasing, flush } = JSON.parse(line);
   if (flush) {
     await new Promise(setImmediate);
-    print({ submissions, appends });
+    print({ submissions });
     continue;
   }
   if (releasing) {

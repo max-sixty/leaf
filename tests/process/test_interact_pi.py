@@ -173,6 +173,20 @@ def test_the_pi_extension_keeps_a_run_going_for_input_that_arrives_in_it(
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
 
 
+def test_input_arriving_as_a_tui_run_ends_waits_for_a_run_of_its_own(page_dir, pi):
+    """In the TUI a watch follows each run, so the Stop hook hands no input over
+    and the run settles on the answer it wrote; the watch then starts a run that
+    takes the input (`hook_transport`)."""
+    pi.emit("before_agent_start")
+    pi.emit("agent_start")
+    comment = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "one more"}
+    )
+    assert pi.emit("agent_before_settle") is None
+    pi.emit("agent_settled", idle=True)
+    assert comment["id"] in pi.delivered(comment["id"])
+
+
 def test_an_escape_leaves_input_handed_to_the_run_for_the_next_prompt(page_dir, pi):
     """Input handed to a run the user then stops with Escape is not handed to a
     new run of its own (`session.watch_between_turns`). The Escape settles the

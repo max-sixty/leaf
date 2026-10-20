@@ -787,7 +787,7 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     wakes the session only when it exits 2, so that hook is the session's watch
     between turns, and the model keeps no `leaf wait` alive. It wakes for input,
     holds input that was already pending as the turn ended until the Stop hook
-    beside it has answered, and ends silently where it has nothing to do."""
+    beside it has closed the turn, and ends silently where it has nothing to do."""
     leases_model.mark_hooks("s1")  # its harness runs Leaf's hooks
     serving(claimed, 1)
     session_model.cmd_waiting(claimed, "")
@@ -831,8 +831,9 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
         assert leases_model.wait_is_live(claimed, "s1")
         return watch
 
-    # Input pending as the turn ends is the other Stop hook's to hand to the turn
-    # it continues; once that hook lets the turn end over it, the watch wakes.
+    # Input pending as the turn ends waits for the other Stop hook, which may still
+    # continue the turn over what it owes; once that hook closes the turn, the
+    # watch wakes and gives the input a turn of its own.
     # Date it before the watch's startup millisecond: input within that millisecond
     # deliberately wakes immediately, regardless of which call ran first.
     append_carried_log_record(

@@ -794,16 +794,19 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   unwatched, the hook keeps the turn going and tells the agent why;
                   Claude Code shows this as context from the Stop hook, not as an error.
                   Each reason is given once. When the agent ends the turn again, it
-                  ends, unless a new update that needs an answer has arrived, which the
-                  hook hands into the turn. An update that needs no answer waits for the
+                  ends. A new update that arrives as the turn ends opens a turn of its
+                  own once this one ends, so this turn's last message stays its answer;
+                  only where nothing watches after the turn, as under Claude Code's
+                  plain <code>--print</code>, does the hook hand an update that needs an
+                  answer into the turn. An update that needs no answer waits for the
                   next turn.
                 </p>
                 <lf-diagram id="turn-end-check" data-height="834" parts="all">
                   <pre>
     flowchart TD
       accTitle: Checks before an agent turn ends
-      accDescr: New input is handed into the turn. Otherwise Leaf checks whether it already extended the turn, whether a delivered update remains unanswered, and whether a watcher runs or the page is closed; it either lets the turn end or reminds the agent to continue.
-      Stop(["the agent ends its turn"]) --&gt; New(["an update that needs an answer arrived?"])
+      accDescr: Where nothing watches after the turn, new input is handed into it. Otherwise Leaf checks whether it already extended the turn, whether a delivered update remains unanswered, and whether a watcher runs or the page is closed; it either lets the turn end or reminds the agent to continue.
+      Stop(["the agent ends its turn"]) --&gt; New(["an update that needs an answer arrived, and nothing watches after the turn?"])
       New -- yes --&gt; Hand["Leaf hands it into this turn"]
       New -- no --&gt; Again(["Leaf kept this turn going already?"])
       Again -- yes --&gt; Ends["the turn ends"]
@@ -1252,9 +1255,10 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   <td>Picked up</td>
                   <td>
                     <p>
-                      <strong>Claude Code and Pi.</strong> The prompt or Stop hook put
-                      the delivery in the agent's turn, or the agent confirmed the
-                      complete pointer reading with <code>leaf delivery ack</code>.
+                      <strong>Claude Code and Pi.</strong> The prompt hook, or a hook
+                      between the agent's steps, put the delivery in the agent's turn,
+                      or the agent confirmed the complete pointer reading with
+                      <code>leaf delivery ack</code>.
                     </p>
                     <p>
                       <strong>A <code>leaf wait</code> loop.</strong> The agent's next

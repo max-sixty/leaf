@@ -65,20 +65,26 @@ def titling_app_server(app_server, answer: str | None) -> tuple[str, list[dict]]
                 socket.send(
                     json.dumps({"id": message["id"], "result": {"turn": {"id": "t"}}})
                 )
-                completed = {"id": "t", "status": "completed"}
+                completed = {"id": "t", "items": [], "status": "completed"}
                 if answer is None:
                     completed = {
                         "id": "t",
+                        "items": [],
                         "status": "failed",
                         "error": UNAVAILABLE_MODEL,
                     }
                 else:
-                    item = {"type": "agentMessage", "text": answer}
+                    item = {"id": "title", "type": "agentMessage", "text": answer}
                     socket.send(
                         json.dumps(
                             {
                                 "method": "item/completed",
-                                "params": {"threadId": "title-thread", "item": item},
+                                "params": {
+                                    "threadId": "title-thread",
+                                    "turnId": "t",
+                                    "item": item,
+                                    "completedAtMs": 0,
+                                },
                             }
                         )
                     )

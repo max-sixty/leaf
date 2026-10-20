@@ -626,7 +626,14 @@ def test_a_turns_opening_posts_as_progress_where_it_was_said(page_dir):
     # it as the turn's last item, so nothing says yet that it is complete.
     fold.restore_turn({"id": "author-turn", "items": [opening]})
     assert not fold.said_opening()
-    tool = {"id": "tool", "type": "commandExecution", "command": "ls"}
+    tool = {
+        "id": "tool",
+        "type": "commandExecution",
+        "command": "ls",
+        "commandActions": [],
+        "cwd": "/work",
+        "status": "inProgress",
+    }
     assert told("item/started", tool, startedAtMs=2)
     assert not told("item/completed", opening, completedAtMs=3)
     asked = append_command(

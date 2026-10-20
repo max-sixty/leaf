@@ -208,7 +208,11 @@ def test_notifications_before_start_response_reach_the_turn_follower(
                     "method": "turn/completed",
                     "params": {
                         "threadId": "hosted-thread",
-                        "turn": {"id": "initial-turn", "status": "completed"},
+                        "turn": {
+                            "id": "initial-turn",
+                            "status": "completed",
+                            "items": [],
+                        },
                     },
                 }
             ),
@@ -267,7 +271,7 @@ def test_notifications_before_start_response_reach_the_turn_follower(
         (
             page_dir,
             "hosted-thread",
-            {"id": "initial-turn", "status": "completed"},
+            {"id": "initial-turn", "status": "completed", "items": []},
         )
     ]
     assert socket.closed
@@ -342,6 +346,9 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
                             "id": "command-1",
                             "type": "commandExecution",
                             "command": "leaf page check .",
+                            "commandActions": [],
+                            "cwd": "/work",
+                            "status": "inProgress",
                         },
                     },
                 }
@@ -359,6 +366,8 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
                             "command": "leaf page check .",
                             "status": "completed",
                             "exitCode": 0,
+                            "commandActions": [],
+                            "cwd": "/work",
                         },
                     },
                 }

@@ -324,7 +324,7 @@ const selectionOf = (node) => {
 // body, then the ends of a selection they drew, its focus before its anchor, a caret a
 // click left included, since a selection names where a reader is as surely as focus
 // does. Each reader takes these by its own rule: the first that is a place on the page
-// (`standingPlace`, standing-target.js), or any that lies in a node (`standsOn`).
+// (`standingOrigin`, standing-target.js), or any that lies in a node (`standsOn`).
 export function standingNodes() {
   const at = focused();
   const selection = getSelection();

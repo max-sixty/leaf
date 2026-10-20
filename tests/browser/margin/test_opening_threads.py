@@ -353,7 +353,9 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(marker).to_have_attribute("aria-expanded", "true")
     expect(preview).to_be_visible()
     expect(marker.locator(".lf-margin-entry-label")).to_be_hidden()
-    expect(page.locator('.lf-target-trace[data-for="bracket"]')).to_be_visible()
+    # The thread the user now stands in marks its element; no trace doubles it.
+    expect(page.locator(".lf-visual-mark-here")).to_be_visible()
+    expect(page.locator('.lf-target-trace[data-for="bracket"]')).to_be_hidden()
     preview_box = preview.bounding_box()
     assert preview_box["x"] >= page.evaluate(WORDS_RIGHT) + 7.5
     assert preview_box["x"] >= 0

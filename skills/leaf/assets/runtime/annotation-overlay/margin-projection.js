@@ -125,7 +125,7 @@ import { visualAt } from "../anchor-resolution.js";
 import { paintTrace } from "../target-paint.js";
 
 import { threadNamed } from "../thread/state.js";
-import { carryingThreadPlace } from "../thread/focus.js";
+import { carryingThreadPlace, standingThreadId } from "../thread/focus.js";
 
 import { claimed, revealHeld } from "../thread/surfaces.js";
 
@@ -149,6 +149,7 @@ export function createMarginProjection({
   scrollThreadIntoView,
   renderMarginThread,
   placedAt,
+  marksFor,
   scrollToElement,
 }) {
   const {
@@ -1149,9 +1150,9 @@ export function createMarginProjection({
     // trace would paint over the one mark that says where they stand.
     const onTarget =
       previewOpen() && active && active === targetFor(card.selection()?.entry);
+    const marker = pointerHost ?? focusedHost;
     const source =
-      pointerHost ??
-      focusedHost ??
+      marker ??
       ((renderedUnder(active, preview) || previewOpen()) && !onTarget
         ? hosts.get(card.selection()?.entry?.key)
         : null);
@@ -1166,7 +1167,22 @@ export function createMarginProjection({
         (item) =>
           item.kind === "comment" && Boolean(sourceItem(item).thread?.root.drawing),
       );
-    highlight(drawingOnly ? null : (targetFor(entry) ?? null));
+    // So does the thread the user stands in, where anchor paint marks it: its words lit,
+    // or its element's contour (anchor-paint.js, `paintStanding`). A card whose thread
+    // the user stands in draws no box round its block. One the user stepped out of while
+    // it stays open, into the floating panel or with a press on the block, keeps the
+    // trace as its only mark, as does one on a thread anchor paint leaves unmarked, such
+    // as a resolved thread whose reply is still being written. A marker under the
+    // pointer or the keyboard still traces its block.
+    const standing = standingThreadId();
+    const standingShown =
+      !marker &&
+      entry &&
+      marksFor(standing).length > 0 &&
+      threadReading(entry)?.items.some(
+        (item) => sourceItem(item).thread.id === standing,
+      );
+    highlight(drawingOnly || standingShown ? null : (targetFor(entry) ?? null));
   }
 
   function previewChanged() {
@@ -1477,6 +1493,9 @@ export function createMarginProjection({
   // visible marker and which is an unfolded option, then paint one shared state on the
   // compact projection. An open disclosure continues to use aria-expanded instead.
   function paintSelectedMarginEntries(selections) {
+    // The trace reads standing as drawn too (`refreshHighlight`), which a press's end
+    // moves with no focus change to say so.
+    refreshHighlight();
     const selected = new Set();
     // A target's own row and each pointed thread's row (groupFor) are all about it.
     for (const selection of selections)

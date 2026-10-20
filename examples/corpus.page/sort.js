@@ -617,23 +617,26 @@ const CLAUSES = [
 // clauses stand beside the run stack wherever their verdicts fit, and a clause breaks
 // to fit its column, first after its `<=` and then before its `+`. The verdicts fit in
 // the stage of a 720px window, the narrowest that sets the page's panes side by side,
-// so there the stage grows only by the clauses' broken lines and the film fits a
-// 900px-tall window. In a narrower stage, where the panes stack and the page scrolls,
-// the clauses stand under the stack at the full width.
+// even where a classic scrollbar takes 17px of it. There the stage grows only by the
+// clauses' broken lines, and the film fits a 900px-tall window. In a narrower stage,
+// where the panes stack and the page scrolls, the clauses stand under the stack at the
+// full width.
 const TYPE = 12;
 const LINE = 14;
 // A monospace glyph's advance, in ems, which is what a line of code is measured by.
 const MONO_EM = 0.6;
 const monoWidth = (chars) => chars * TYPE * MONO_EM;
 const X0 = 20;
-const GAP = 20;
+// Wide enough that the comment targets of the stack and of a clause, each reaching
+// 6px past its drawing, don't meet.
+const GAP = 14;
 const STACK_W = 124;
 const STACK_ROWS = 4;
 const ROW_H = 26;
-// The longest verdict a clause could print under itself, "true → merge   12 <= 11 + 10"
+// The longest verdict a clause could print under itself, "true → merge  12 <= 11 + 10"
 // (the runs hold 40 elements in all). It is wider than any line of a clause broken at
 // both of its operators, and than `runs[n-1].start == 0`, the one clause with no `<=`.
-const VERDICT_CHARS = 28;
+const VERDICT_CHARS = 27;
 
 // A clause's lines within `width`: whole, or broken after its comparison, with the
 // right side broken again before its `+` where it is still too wide.
@@ -1151,7 +1154,7 @@ export class Painter {
         ? step.checks
           ? `not checked: needs ${clause.needs} runs`
           : "·"
-        : `${c.evaluated ? (c.fires ? "true → merge" : "false") : "not reached"}   ${c.detail}`;
+        : `${c.evaluated ? (c.fires ? "true → merge" : "false") : "not reached"}  ${c.detail}`;
       reconcileChildren(this.checkEls[clause.key], cg);
     });
   }

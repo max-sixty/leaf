@@ -1,8 +1,12 @@
 /* Whether an isolated sample can be seen and admits reading.
  * The containing page supplies admission (tab visibility, inertness and modal reach),
  * never cached geometry. An implicit-root native observer answers whether this
- * document intersects all containing viewports, including cross-origin ones. Exact
- * message exposure asks each containing geometry owner for a fresh band. */
+ * document's viewport intersects all containing viewports, including cross-origin
+ * ones. It observes a box fixed over that viewport rather than the root element,
+ * because a live page's root box is one viewport tall (theme.css,
+ * `html[data-lf-live]`) and leaves the viewport once a window sample's page scrolls
+ * past its first screen. Exact message exposure asks each containing geometry owner
+ * for a fresh band. */
 const child = document.documentElement.lfSample;
 let visibility = child ? { visible: false } : null;
 let admitted = false;
@@ -64,7 +68,12 @@ if (child) {
     // makes the first painted pixel a delivery rather than leaving visibility stale.
     { threshold: [0, Number.EPSILON] },
   );
-  seen.observe(document.documentElement);
+  const screen = document.createElement("div");
+  screen.dataset.lfRuntime = "";
+  screen.style.cssText =
+    "all:initial;position:fixed;inset:0;visibility:hidden;contain:strict;pointer-events:none";
+  document.documentElement.append(screen);
+  seen.observe(screen);
   // A persisted pagehide is the containing page's, and its page cache brings this
   // document back still standing where it stood (bootstrap.js).
   addEventListener("pagehide", (event) => {

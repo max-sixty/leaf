@@ -10,7 +10,12 @@ from pathlib import Path
 
 import pytest
 import watchfiles.main
-from interact_support import STATED_TIMEOUT, append_carried_log_record, record_claim
+from interact_support import (
+    STATED_TIMEOUT,
+    append_carried_log_record,
+    record_claim,
+    write_record,
+)
 from leaf import event_log as events_model
 from leaf import harness as harness_model
 from leaf import service as service_model
@@ -138,7 +143,7 @@ def test_a_page_reading_moves_on_exactly_the_writes_its_watchers_wake_on(
         return changes.wait(mark, timeout), page_reading(page) != reading
 
     assert classified(
-        lambda: cleanup_model.write_json(page_dir / "viewed.json", {"t": 1.0}),
+        lambda: write_record(page_dir / "viewed.json", {"t": 1.0}),
         DIAGNOSTIC_QUIET_WINDOW_S,
     ) == (False, False)
     assert classified(
@@ -253,7 +258,7 @@ def test_native_watch_follows_a_prepared_claim_until_ownership_commits(
     assert watch.acquire()
     commit_entered = threading.Event()
     allow_commit = threading.Event()
-    write_json = service_model.write_json
+    write = service_model.CLAIM.write
 
     def held_commit(path, value):
         if path == service_model.claim_path(page_dir):
@@ -261,12 +266,12 @@ def test_native_watch_follows_a_prepared_claim_until_ownership_commits(
             assert allow_commit.wait(STATED_TIMEOUT), (
                 "ownership commit was not released"
             )
-        return write_json(path, value)
+        return write(path, value)
 
     try:
         list(watch.tick())
         with monkeypatch.context() as publication:
-            publication.setattr(service_model, "write_json", held_commit)
+            publication.setattr(service_model.CLAIM, "write", held_commit)
             with ThreadPoolExecutor(max_workers=1) as executor:
                 try:
 

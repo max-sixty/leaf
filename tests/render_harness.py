@@ -56,6 +56,7 @@ from interact_support import (
     publish,
     record_claim,
     wait_for,
+    write_record,
 )
 from leaf import cli as cli_model
 from leaf import files as files_model
@@ -647,7 +648,7 @@ def serve(tmp_path, monkeypatch, initialized_page, request):
                 },
             )
         if preview is not None:
-            cleanup_model.write_json(d / schema_model.PREVIEW_FILE, preview)
+            write_record(d / schema_model.PREVIEW_FILE, preview)
         server = hosting_model.TemporaryPageServer(
             d,
             token=TOKEN,

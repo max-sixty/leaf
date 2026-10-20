@@ -102,8 +102,9 @@ verdict and file list stay beside the code. The region kept in view is the `asid
 </main>
 ```
 
-The body and `aside` sit side by side, two thirds and one third, down to about 870px,
-and stack in source order below that or when the body's content needs the whole width.
+The body and `aside` sit side by side, two thirds and one third, while the page has
+room for both, and stack in source order when it hasn't or when the body's content needs
+the whole width.
 Write the `aside` first when the reader of the stacked page reads it first, such as a
 verdict; it then sits on the left. Write it after the body when it follows the work,
 such as a dashboard's log; it then sits on the right. Stack the regions inside the body

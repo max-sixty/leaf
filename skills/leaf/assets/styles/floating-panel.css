@@ -1369,14 +1369,12 @@
   }
 
   /* An item reads as the thread it belongs to, its words in the page's serif, and the
-     answers it takes, answered here. */
+     answers it takes, answered here. The serif heading each item and the space between
+     them set items apart, so no rule runs between them. */
   .lf-fp-on-item {
     padding: 10px 8px 12px;
   }
-  .lf-fp-on-item + .lf-fp-on-item {
-    border-top: 1px solid var(--lf-fp-faint);
-  }
-  /* What left the list in view, under it. */
+  /* What left the list in view, under it: a section of its own, so a rule opens it. */
   .lf-fp-on-done {
     margin: 0 8px;
     padding-top: 10px;

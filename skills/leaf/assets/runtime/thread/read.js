@@ -21,8 +21,9 @@
    painted text range. They never change semantic state or delay presentation.
 
    The first unread destination belongs to this reading too. Its Go-to route (`g u`)
-   and the panel's visible control share the same exact-message arrival. Ordinary
-   `u` remains paired with `d` in whichever reading region the user stands in. */
+   and Next unread at the head of the floating panel's view of a thread, which goes to
+   that thread's first, share the same exact-message arrival. Ordinary `u` remains
+   paired with `d` in whichever reading region the user stands in. */
 import { nextRender, sizeObserver } from "../rendering.js";
 import { signal } from "/vendor/browser-runtime.js";
 import {
@@ -125,6 +126,8 @@ export function createReadTracking({ markRead, openThread }) {
   let presentationGeneration = 0;
   let visitGeneration = 0;
   let scheduled = false;
+  // What waits for the next pass over the presented threads (`afterPass`).
+  let passWaiters = [];
 
   function resetExposure() {
     visitGeneration++;
@@ -151,11 +154,14 @@ export function createReadTracking({ markRead, openThread }) {
     return unreadIn(committedThreads.value).filter(({ item }) => live.has(keyOf(item)));
   };
 
-  function firstUnread() {
-    const target = actionableUnread().sort(
-      (a, b) => moved(a.message).seq - moved(b.message).seq,
-    )[0];
-    if (target) void openThread(target.item.message, { part: "message" });
+  // The first unread message on the page, or in the thread keyed `thread`.
+  function firstUnread(thread = null) {
+    const target = actionableUnread()
+      .filter((each) => thread === null || each.thread.key === thread)
+      .sort((a, b) => moved(a.message).seq - moved(b.message).seq)[0];
+    return target
+      ? openThread(target.item.message, { part: "message" })
+      : Promise.resolve();
   }
 
   const firstUnreadCommand = {
@@ -166,7 +172,7 @@ export function createReadTracking({ markRead, openThread }) {
     title: "first unread",
     touch: false,
     when: () => actionableUnread().length > 0,
-    run: firstUnread,
+    run: () => void firstUnread(),
   };
 
   function scan(sampleBand) {
@@ -244,6 +250,18 @@ export function createReadTracking({ markRead, openThread }) {
           for (const item of items) refusedThisVisit.add(keyOf(item));
       });
     }
+    if (!threadsPresented) return;
+    const waiting = passWaiters;
+    passWaiters = [];
+    for (const then of waiting) then();
+  }
+
+  // Runs `then` after the next pass over the presented threads, once what that pass
+  // read counts as read in `readThreads()`: what still stands unread then is what the
+  // page has not shown whole, as the floating panel's Next unread asks.
+  function afterPass(then) {
+    passWaiters.push(then);
+    scheduleScan();
   }
 
   let exposureGeneration = 0;
@@ -373,6 +391,8 @@ export function createReadTracking({ markRead, openThread }) {
     present,
     observeMessage,
     observeFeedback,
+    firstUnread,
+    afterPass,
     firstUnreadCommand,
   };
 }

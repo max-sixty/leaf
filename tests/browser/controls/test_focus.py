@@ -474,58 +474,127 @@ def test_a_control_tab_skips_leaves_a_scrolling_box_its_own_stop(browser, serve)
     expect(inside).not_to_have_attribute("tabindex", "0")
 
 
-EDGES_PAGE = leaf_page(
-    "controls at scrollers' edges",
-    '<h1 id="t">Edges</h1>\n<ul id="log" data-bound="start">'
-    + "".join(f'<li><a href="#log-{i}">Entry {i}</a></li>' for i in range(30))
-    + '<li><label><input type="radio" name="pick" checked> Pick</label></li>'
-    + "".join(f'<li><a href="#log-{i}">Entry {i}</a></li>' for i in range(30, 60))
-    + '</ul>\n<table id="wide"><tbody><tr>'
-    + "".join(
-        f'<td><a href="#cell-{i}">Cell&nbsp;link&nbsp;{i}</a></td>' for i in range(30)
+# Controls to Tab onto at a scroller's edge. Each wears its ring on a different box:
+# the radio on itself, a playground choice on its face, a joined option group's pick on
+# its row.
+EDGE_CONTROLS = {
+    "radio": '<p><label><input id="at" type="radio" name="r" checked> Pick</label></p>',
+    "playground": (
+        '<lf-playground id="pg"><lf-playground-control name="tone" label="Tone" kind="choice"'
+        ' value="quiet"><lf-playground-choice value="quiet" label="Quiet">'
+        '</lf-playground-choice><lf-playground-choice value="bold" label="Bold">'
+        "</lf-playground-choice></lf-playground-control><lf-playground-preview>"
+        "<p>Preview</p></lf-playground-preview><lf-playground-output>Use"
+        ' <lf-playground-value for="tone"></lf-playground-value></lf-playground-output>'
+        "</lf-playground>"
+    ),
+    "options": (
+        '<lf-options id="op" choose><lf-option id="op-a">Alpha</lf-option>'
+        '<lf-option id="op-b">Beta, the second choice</lf-option></lf-options>'
+    ),
+}
+EDGE_TARGETS = {
+    "radio": "#at",
+    "playground": "#pg input:checked",
+    "options": "#op-b .lf-pick",
+    "table": "#wide td:nth-child(11) a",
+}
+
+
+def edges_page(control):
+    entries = [f'<p><a href="#log-{i}">Entry {i}</a></p>' for i in range(60)]
+    return leaf_page(
+        "controls at scrollers' edges",
+        '<h1 id="t">Edges</h1>\n<div id="log" data-bound="start">'
+        + "".join(entries[:30])
+        + EDGE_CONTROLS.get(control, "")
+        + "".join(entries[30:])
+        + '</div>\n<table id="wide"><tbody><tr>'
+        + "".join(
+            f'<td><a href="#cell-{i}">Cell&nbsp;link&nbsp;{i}</a></td>'
+            for i in range(30)
+        )
+        + "</tr></tbody></table>",
     )
-    + "</tr></tbody></table>",
-)
 
 
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 @pytest.mark.parametrize(
-    ("target", "side"),
-    [("#log input", "bottom"), ("#wide td:nth-child(11) a", "right")],
-    ids=["foot", "inline-end"],
+    ("control", "past", "key", "engine"),
+    [
+        *(
+            pytest.param(
+                control, past, key, engine, id=f"{control}-{name}-{key}-{engine}"
+            )
+            for control, past, name, key in [
+                ("radio", 6, "past", "Tab"),
+                ("radio", -2, "inside", "Tab"),
+                ("options", 6, "past", "Tab"),
+                ("options", 6, "past", "End"),
+                ("table", 6, "past", "Tab"),
+            ]
+            for engine in ["browser", "firefox_browser"]
+        ),
+        # Firefox logs a warning of its own on any playground page.
+        pytest.param(
+            "playground", 6, "Tab", "browser", id="playground-past-Tab-browser"
+        ),
+    ],
 )
-def test_tab_onto_a_control_partly_past_a_scrollers_edge_brings_it_in(
-    request, serve, engine, target, side
+def test_a_key_onto_a_control_at_a_scrollers_edge_shows_its_ring(
+    request, serve, control, past, key, engine
 ):
-    """The browser reveals a Tab's arrival only when it counts it out of view: Firefox
-    when less than about a line of it shows, Chromium across only when none of it does.
-    A radio 6px past a bounded log's foot stayed cut in Firefox, as a playground's
-    radio did at its controls pane's foot, and a link 6px past a wide table's end
-    stayed cut in both. Each now comes in with its focus ring's room at that edge."""
-    page = open_page(request.getfixturevalue(engine), serve(EDGES_PAGE))
+    """The browser reveals a Tab's arrival only when it counts it out of view, Firefox
+    when less than about a line of it shows and Chromium across only when none of it
+    does, and neither it nor Leaf's landing knew a box that wears the control's ring.
+    So a radio 6px past a bounded log's foot stayed cut in Firefox, and one 2px inside
+    it kept its ring cut; a link 6px past a wide table's end stayed cut in both
+    engines; and a joined option group's row and a playground choice's face, each
+    wearing its control's ring, stayed cut in both, the face once its radio stood 7px
+    inside, the row whether Tab or End reached it. `past` is how far beyond the edge
+    the box wearing the ring stood before the key; each now shows its ring."""
+    page = open_page(request.getfixturevalue(engine), serve(edges_page(control)))
     resized(page, 1280, 560)
+    side = "right" if control == "table" else "bottom"
+    target = page.locator(EDGE_TARGETS[control])
+    # Which box wears the ring is the paint's answer: the nearest box out from the
+    # control whose outline is the ring.
+    target.evaluate("el => el.focus({preventScroll: true})")
+    rendered(page)
+    target.evaluate(
+        """(el) => {
+          const w = getComputedStyle(el).getPropertyValue('--focus-ring-w').trim();
+          for (let n = el; n; n = n.parentElement) {
+            const cs = getComputedStyle(n);
+            if (cs.outlineStyle === 'solid' && cs.outlineWidth === w)
+              return void (window.ringed = n);
+          }
+        }"""
+    )
+    if key == "Tab":
+        page.keyboard.press("Shift+Tab")
+    else:
+        page.locator("#op-a .lf-pick").evaluate("el => el.focus({preventScroll: true})")
     page.evaluate(
-        """([selector, side]) => {
-          const el = document.querySelector(selector);
-          const box = el.closest(side === 'bottom' ? '#log' : '#wide');
-          const before = [...document.querySelectorAll('#log a, #log input, #wide a')];
-          before[before.indexOf(el) - 1].focus({preventScroll: true});
+        """([side, past]) => {
+          const box = window.ringed.closest(side === 'bottom' ? '#log' : '#wide');
           const port = box.getBoundingClientRect();
+          const at = window.ringed.getBoundingClientRect();
           if (side === 'bottom')
-            box.scrollTop += el.getBoundingClientRect().bottom
-              - (port.top + box.clientTop + box.clientHeight) - 6;
+            box.scrollTop += at.bottom - (port.top + box.clientTop + box.clientHeight)
+              - past;
           else
-            box.scrollLeft += el.getBoundingClientRect().right
-              - (port.left + box.clientLeft + box.clientWidth) - 6;
+            box.scrollLeft += at.right - (port.left + box.clientLeft + box.clientWidth)
+              - past;
         }""",
-        [target, side],
+        [side, past],
     )
     scroll_settled(page)
-    page.keyboard.press("Tab")
-    expect(page.locator(target)).to_be_focused()
+    page.keyboard.press(key)
+    expect(target).to_be_focused()
     rendered(page)
-    read = page.locator(target).evaluate(
-        """(el, side) => {
+    read = page.evaluate(
+        """(side) => {
+          const el = window.ringed;
           const box = el.closest(side === 'bottom' ? '#log' : '#wide');
           const port = box.getBoundingClientRect();
           const at = el.getBoundingClientRect();
@@ -733,85 +802,93 @@ def test_a_reference_command_finishes_its_gesture_before_a_newer_control(
     assert page.evaluate("scrollY") == before
 
 
-@pytest.mark.parametrize("native_move", [True, False])
-@pytest.mark.parametrize("renderer", ["children", "lit"])
-def test_retained_moves_keep_native_editor_and_frame_state(
-    browser, serve, native_move, renderer
-):
+def test_retained_moves_keep_native_editor_and_frame_state(browser, serve, subtests):
     """A reorder or a move to another parent keeps the user typing in the moved row,
     with no focus hold of the caller's, whether or not the browser has `moveBefore`;
-    a native move also keeps the row's iframe document."""
+    a native move also keeps the row's iframe document.
+
+    Each case paints its own rows into its own pair of parents on one page. The cases
+    without `moveBefore` delete it from the page, so they come last."""
+    cases = [
+        (native_move, renderer)
+        for native_move in (True, False)
+        for renderer in ("children", "lit")
+    ]
+    parents = "".join(
+        f'<div id="rows-{index}"></div><div id="other-{index}"></div>'
+        for index in range(len(cases))
+    )
     page = open_page(
         browser,
-        serve(
-            leaf_page(
-                "Retained rows",
-                '<h1>Retained rows</h1><div id="rows"></div><div id="other"></div>',
-            )
-        ),
+        serve(leaf_page("Retained rows", f"<h1>Retained rows</h1>{parents}")),
     )
-    page.evaluate(
-        """async ([nativeMove, renderer]) => {
-      const {render, repeat} = await window.__lfWidgetApi();
-      const {setChildren: orderChildren} = await window.__lfWidgetApi();
-      const {move} = await window.__lfWidgetApi();
-      const rows = document.querySelector('#rows');
-      if (!nativeMove) Element.prototype.moveBefore = undefined;
-      const nodes = ['a', 'b', 'c'].map(id => {
-        const row = document.createElement('div');
-        row.dataset.row = id;
-        row.innerHTML = `<input aria-label="${id}">
-          <iframe title="${id}" srcdoc="<p>Retained frame</p>"></iframe>`;
-        return row;
-      });
-      const paint = nodes => renderer === 'lit'
-        ? render(repeat(nodes, node => node.dataset.row, node => node), rows)
-        : orderChildren(rows, nodes);
-      paint(nodes);
-      const editor = rows.querySelector('[data-row=c] input');
-      window.blurs = 0;
-      editor.addEventListener('blur', () => window.blurs++);
-      editor.addEventListener('keydown', event => {
-        if (event.key === 'ArrowUp' && event.altKey) {
-          event.preventDefault();
-          paint([nodes[2], nodes[0], nodes[1]]);
-        } else if (event.key === 'ArrowDown' && event.altKey) {
-          event.preventDefault();
-          const other = document.querySelector('#other');
-          if (renderer === 'lit') render(nodes[2], other);
-          else move(other, nodes[2], null);
-        }
-      });
-    }""",
-        [native_move, renderer],
-    )
-    editor = page.get_by_role("textbox", name="c", exact=True)
-    editor.fill("unfinished words")
-    editor.evaluate("node => node.setSelectionRange(3, 9, 'backward')")
-    frame = page.locator("[data-row=c] iframe")
-    expect(page.frame_locator("[data-row=c] iframe").locator("p")).to_have_text(
-        "Retained frame"
-    )
-    frame.evaluate("node => window.heldDocument = node.contentDocument")
-    for key, parent in [("Alt+ArrowUp", "#rows"), ("Alt+ArrowDown", "#other")]:
-        page.keyboard.press(key)
-        expect(page.locator(f"{parent} > [data-row=c]")).to_have_count(1)
-        if key == "Alt+ArrowUp":
-            expect(page.locator("#rows > [data-row]").first).to_have_attribute(
-                "data-row", "c"
+    for index, (native_move, renderer) in enumerate(cases):
+        with subtests.test(native_move=native_move, renderer=renderer):
+            page.evaluate(
+                """async ([index, nativeMove, renderer]) => {
+              const {render, repeat, setChildren: orderChildren, move} =
+                await window.__lfWidgetApi();
+              const rows = document.querySelector(`#rows-${index}`);
+              if (!nativeMove) Element.prototype.moveBefore = undefined;
+              const nodes = ['a', 'b', 'c'].map(id => {
+                const row = document.createElement('div');
+                row.dataset.row = id;
+                row.innerHTML = `<input aria-label="${id}-${index}">
+                  <iframe title="${id}-${index}" srcdoc="<p>Retained frame</p>"></iframe>`;
+                return row;
+              });
+              const paint = nodes => renderer === 'lit'
+                ? render(repeat(nodes, node => node.dataset.row, node => node), rows)
+                : orderChildren(rows, nodes);
+              paint(nodes);
+              const editor = rows.querySelector('[data-row=c] input');
+              editor.addEventListener('blur', () => window.blurs++);
+              editor.addEventListener('keydown', event => {
+                if (event.key === 'ArrowUp' && event.altKey) {
+                  event.preventDefault();
+                  paint([nodes[2], nodes[0], nodes[1]]);
+                } else if (event.key === 'ArrowDown' && event.altKey) {
+                  event.preventDefault();
+                  const other = document.querySelector(`#other-${index}`);
+                  if (renderer === 'lit') render(nodes[2], other);
+                  else move(other, nodes[2], null);
+                }
+              });
+            }""",
+                [index, native_move, renderer],
             )
-        expect(editor).to_be_focused()
-        expect(editor).to_have_value("unfinished words")
-        assert editor.evaluate(
-            "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
-        ) == [3, 9, "backward"]
-        if native_move:
-            assert page.evaluate("window.blurs") == 0
-            assert frame.evaluate(
-                "node => node.contentDocument === window.heldDocument"
-            )
-        else:
-            assert page.evaluate("window.blurs") > 0
+            editor = page.get_by_role("textbox", name=f"c-{index}", exact=True)
+            editor.fill("unfinished words")
+            editor.evaluate("node => node.setSelectionRange(3, 9, 'backward')")
+            # Counted from here, once the last case's editor has given up the focus.
+            page.evaluate("window.blurs = 0")
+            frame = page.locator(f'iframe[title="c-{index}"]')
+            expect(
+                page.frame_locator(f'iframe[title="c-{index}"]').locator("p")
+            ).to_have_text("Retained frame")
+            frame.evaluate("node => window.heldDocument = node.contentDocument")
+            for key, parent in [
+                ("Alt+ArrowUp", f"#rows-{index}"),
+                ("Alt+ArrowDown", f"#other-{index}"),
+            ]:
+                page.keyboard.press(key)
+                expect(page.locator(f"{parent} > [data-row=c]")).to_have_count(1)
+                if key == "Alt+ArrowUp":
+                    expect(
+                        page.locator(f"#rows-{index} > [data-row]").first
+                    ).to_have_attribute("data-row", "c")
+                expect(editor).to_be_focused()
+                expect(editor).to_have_value("unfinished words")
+                assert editor.evaluate(
+                    "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
+                ) == [3, 9, "backward"]
+                if native_move:
+                    assert page.evaluate("window.blurs") == 0
+                    assert frame.evaluate(
+                        "node => node.contentDocument === window.heldDocument"
+                    )
+                else:
+                    assert page.evaluate("window.blurs") > 0
 
 
 def test_unfocused_editor_move_leaves_later_selection_alone(browser, serve):

@@ -666,3 +666,44 @@ def test_unavailable_optional_user_view_checks_create_no_agent_work(browser, ser
         if event["kind"] == "error"
     ]
     assert not page.lf_errors
+
+
+def test_a_firefox_departure_reports_none_of_the_loads_it_aborts(
+    firefox_browser, serve
+):
+    """Firefox aborts a document's loads as a navigation lets it go, and keeps the
+    document running until the destination answers (prepaint.js, the document's
+    lifetime). A widget module that fails that way is the departure's, not a startup
+    fault the page reports or posts to the log."""
+    page = firefox_browser.new_page()
+    # Neither request is answered: the module stays in flight, and the departing
+    # document stays shown and running while its destination is awaited.
+    for held in ("**/widgets/lf-options.js", "**/elsewhere"):
+        page.route(held, lambda route: None)
+    with page.expect_request("**/widgets/lf-options.js"):
+        page.goto(
+            serve(
+                leaf_page(
+                    "Departing",
+                    '<lf-options id="ship" choose><lf-option id="now">Now</lf-option>'
+                    '<lf-option id="later">Later</lf-option></lf-options>',
+                )
+            ),
+            wait_until="commit",
+        )
+    with page.expect_event(
+        "requestfailed",
+        predicate=lambda request: request.url.endswith("/widgets/lf-options.js"),
+    ):
+        page.evaluate("location.href = 'elsewhere'")
+    # The import's rejection settles startup within the task that delivers it.
+    page.evaluate("() => new Promise(done => setTimeout(() => setTimeout(done)))")
+    assert page.evaluate("document.documentElement.dataset.lfStartupError") is None
+    # Firefox's own word on the aborted request is all the console holds.
+    consume_browser_errors(page, "Loading failed for the module")
+    assert not page.lf_errors
+    assert not [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "error"
+    ]

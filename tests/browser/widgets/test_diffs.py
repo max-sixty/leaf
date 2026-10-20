@@ -1159,44 +1159,54 @@ _RING_WITHIN = """(el, frame) => {
 
 
 @pytest.mark.parametrize(
-    "engine, wide_host",
-    [("browser", True), ("webkit_browser", False), ("webkit_browser", True)],
-    ids=["chromium-outer-reader", "webkit-code", "webkit-outer-reader"],
+    "engine, hosts",
+    [("browser", ("wide",)), ("webkit_browser", ("narrow", "wide"))],
+    ids=["chromium", "webkit"],
 )
-def test_horizontal_wheel_reaches_the_diff_reader(request, serve, engine, wide_host):
-    """A fitting code box lets horizontal input reach its enclosing reader in WebKit too."""
-    source = leaf_page(
-        "Nested patch reader",
-        '<h1>Review</h1><div id="reader" data-bound="start">'
-        '<lf-diff id="patch"><pre>'
+def test_horizontal_wheel_reaches_the_diff_reader(
+    request, serve, subtests, engine, hosts
+):
+    """A fitting code box lets horizontal input reach its enclosing reader in WebKit too.
+    A narrow host scrolls its own code; a wide one fits it, so its reader scrolls."""
+    patch = (
         "diff --git a/reading.py b/reading.py\n"
         "--- a/reading.py\n+++ b/reading.py\n@@ -1 +1 @@\n"
         '-return "The previous release remains available for inspection."\n'
         '+return "The current release remains available for inspection."\n'
-        "</pre></lf-diff></div>",
-        head="<style>#reader { width: 500px; }"
-        f"#patch {{ width: {1000 if wide_host else 300}px; }}</style>",
     )
-    driver = request.getfixturevalue(engine)
-    url = serve(source)
-    page = open_page(driver, url)
+    source = leaf_page(
+        "Nested patch reader",
+        "<h1>Review</h1>"
+        + "".join(
+            f'<div id="reader-{host}" class="reader" data-bound="start">'
+            f'<lf-diff id="patch-{host}"><pre>{patch}</pre></lf-diff></div>'
+            for host in hosts
+        ),
+        head="<style>.reader { width: 500px; }"
+        "#patch-wide { width: 1000px; } #patch-narrow { width: 300px; }</style>",
+    )
+    page = open_page(request.getfixturevalue(engine), serve(source))
     resized(page, 1000, 900)
-    code = page.locator("#patch code[data-code]")
-    reader = page.locator("#reader") if wide_host else code
-    assert reader.evaluate("el => el.scrollWidth > el.clientWidth")
-    if wide_host:
-        assert code.evaluate("el => el.scrollWidth === el.clientWidth")
-    box = code.bounding_box()
-    assert box is not None
-    page.mouse.move(box["x"] + 120, box["y"] + 25)
-    page.mouse.wheel(200, 0)
-    page.wait_for_function(
-        "wide => { const host = document.querySelector('#patch'); "
-        "const box = wide ? document.querySelector('#reader') : "
-        "host.shadowRoot.querySelector('code[data-code]'); return box.scrollLeft > 0; }",
-        arg=wide_host,
-    )
-    assert reader.evaluate("el => el.scrollLeft") > 0
+    for host in hosts:
+        with subtests.test(host=host):
+            wide_host = host == "wide"
+            code = page.locator(f"#patch-{host} code[data-code]")
+            reader = page.locator(f"#reader-{host}") if wide_host else code
+            reader.scroll_into_view_if_needed()
+            assert reader.evaluate("el => el.scrollWidth > el.clientWidth")
+            if wide_host:
+                assert code.evaluate("el => el.scrollWidth === el.clientWidth")
+            box = code.bounding_box()
+            assert box is not None
+            page.mouse.move(box["x"] + 120, box["y"] + 25)
+            page.mouse.wheel(200, 0)
+            page.wait_for_function(
+                """host => { const patch = document.querySelector(`#patch-${host}`);
+                const box = host === 'wide' ? document.querySelector('#reader-wide') :
+                patch.shadowRoot.querySelector('code[data-code]'); return box.scrollLeft > 0; }""",
+                arg=host,
+            )
+            assert reader.evaluate("el => el.scrollLeft") > 0
 
 
 def test_a_diff_hunk_landing_preserves_sideways_reading_outside_its_shadow_tree(

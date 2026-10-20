@@ -259,12 +259,111 @@ def test_a_refused_selection_comment_reopens_its_words_while_the_send_owns_inten
                 "final": True,
             },
         )
-    expect(page.locator(".lf-fab-input")).to_be_focused()
-    expect(page.locator(".lf-fab-input")).to_have_js_property("value", words)
+    box = page.locator(".lf-fab-input")
+    expect(box).to_be_focused()
+    expect(box).to_have_js_property("value", words)
     # The box is back with the words, so the refusal names no address for them. It is
-    # about the passage's box, which the panel's field does not speak for, so it waits
-    # in the leaf's menu.
+    # about the passage's box, so it stands there over the words, which send nothing
+    # until the user's first key or press there, and the leaf's dot waits for it.
+    cover = page.locator(".lf-fab-bar .lf-compose-error")
+    expect(cover).to_have_text("Couldn't send — refused before append")
+    expect(page.locator(".lf-fp-error-dot")).to_be_hidden()
+    # The first Enter only lifts the cover, with the caret at the words' end, so the
+    # words are never sent unseen; the error waits in the leaf's menu.
+    page.keyboard.press("Enter")
+    expect(cover).to_be_hidden()
+    expect(box).to_be_focused()
+    assert box.evaluate("box => [box.selectionStart, box.selectionEnd]") == [
+        len(words),
+        len(words),
+    ]
+    assert held == [], "the covered words were sent"
+    # The next Enter sends them.
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the comment sent again")
+    assert held[0].request.post_data_json["text"] == words
+    held.pop(0).continue_()
     expect_error_waits_in_menu(page, "Couldn't send — refused before append")
+    consume_browser_errors(page, http_error_console(400))
+
+
+# The share of a cover's words past its last whole line: zero when it clips whole.
+COVER_LINE_REMAINDER = """cover => {
+  const words = cover.firstElementChild;
+  const line = parseFloat(getComputedStyle(words).lineHeight);
+  const lines = words.getBoundingClientRect().height / line;
+  return lines - Math.round(lines);
+}"""
+
+
+def refuse(page, held):
+    """Answer the held send with a final refusal."""
+    attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held.pop(0).fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+
+
+def test_a_refusals_error_leaves_with_the_words_it_stood_over(held_events, serve):
+    """The error stands over the refused words, not over the box: one comment box
+    serves every passage, so once Escape puts the words away the error waits in the
+    leaf's menu, and the box opened on another passage is free of it. The words over
+    them stop at the box's last whole line."""
+    browser, held = held_events
+    page = open_page(browser, serve(LONG_PAGE))
+    words = "The selection comment the server will refuse."
+    compose(page, "#p3", words)
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the selection comment")
+    refuse(page, held)
+    box = page.locator(".lf-fab-input")
+    cover = page.locator(".lf-fab-bar .lf-compose-error")
+    dot = page.locator(".lf-fp-error-dot")
+    expect(cover).to_have_text("Couldn't send — refused before append")
+    expect(dot).to_be_hidden()
+    assert cover.evaluate(COVER_LINE_REMAINDER) == pytest.approx(0, abs=0.01)
+
+    page.keyboard.press("Escape")
+    expect(box).to_be_hidden()
+    expect(dot).to_be_visible()
+    compose(page, "#p9")
+    expect(box).to_have_js_property("value", "")
+    expect(cover).to_be_hidden()
+    expect_error_waits_in_menu(page, "Couldn't send — refused before append")
+    consume_browser_errors(page, http_error_console(400))
+
+
+def test_resume_writing_comes_back_to_refused_words_at_their_end(held_events, serve):
+    """Words a refusal hands back to a box still on screen are where Resume writing
+    goes, and it lands at their end, where Enter sends them, wherever the caret stood
+    when they were sent."""
+    browser, held = held_events
+    page = open_page(browser, serve(LONG_PAGE))
+    box = page_comment(page)
+    words = "The comment sent with the caret at its start."
+    write(box, words)
+    page.keyboard.press("ArrowUp")
+    assert box.evaluate("box => box.selectionStart") == 0
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the general send")
+    refuse(page, held)
+    expect(box).to_have_js_property("value", words)
+    page.keyboard.press("Escape")
+    page.locator("body").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(box).to_be_focused()
+    assert box.evaluate("box => [box.selectionStart, box.selectionEnd]") == [
+        len(words),
+        len(words),
+    ]
     consume_browser_errors(page, http_error_console(400))
 
 
@@ -375,27 +474,30 @@ def test_a_reply_under_a_refused_parent_comes_back_with_it(
         == reply
     )
 
-    # Resume writing leads to the comment, the one place that brings the reply back.
+    # The refusal covers the words it gave back until the user comes back to them.
+    cover = page.locator(".lf-fp-field .lf-compose-error")
+    expect(cover).to_contain_text("Couldn't send — refused before append")
+    # Resume writing leads to the comment, the one place that brings the reply back,
+    # and is the user coming back to its words: the error goes to the leaf's menu and
+    # the caret stands at the words' end, where Enter sends them.
     page.keyboard.press("Escape")
     expect(box).not_to_be_focused()
     page.keyboard.press("g")
     page.keyboard.press("i")
     expect(box).to_be_focused()
     expect(box).to_have_js_property("value", parent)
-    # The refusal covers the words it gave back until the user's first edit or press
-    # there, and the field sends nothing meanwhile; a press brings them back.
-    cover = page.locator(".lf-fp-error-cover")
-    expect(cover).to_contain_text("Couldn't send — refused before append")
-    cover.click()
     expect(cover).to_be_hidden()
-    expect(box).to_be_focused()
+    expect(page.locator(".lf-fp-error-dot")).to_be_visible()
+    assert box.evaluate("box => [box.selectionStart, box.selectionEnd]") == [
+        len(parent),
+        len(parent),
+    ]
     text = parent
     if edited:
-        page.keyboard.press("ControlOrMeta+End")
         page.keyboard.type(" Edited.")
         text = parent + " Edited."
 
-    page.locator(FIELD_SEND).click()
+    page.keyboard.press("Enter")
     holding(page, held, 1, "the parent sent again")
     assert (held[0].request.post_data_json["attempt"] == attempt) is not edited
     held.pop(0).continue_()

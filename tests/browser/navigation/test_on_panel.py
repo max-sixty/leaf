@@ -359,8 +359,8 @@ def test_a_todo_on_you_ends_at_its_done_where_m_lands_and_in_the_panel(browser, 
 
 
 def test_a_finger_ends_a_todo_on_you_from_the_panel_s_row(browser, serve):
-    """Under a finger, `x` is a step in the panel's row while the user stands on a
-    task Done ends, as an On card's Show leaves them."""
+    """Under a finger, the to-do an On card's Show leaves the user on ends from that
+    card's own Done; the panel's row offers no step for it, so it keeps its counts."""
     url = serve(QUEUE_PAGE)
     task = append_carried_log_record(
         serve.page_dir,
@@ -378,57 +378,19 @@ def test_a_finger_ends_a_todo_on_you_from_the_panel_s_row(browser, serve):
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
     )
     page = open_page(browser, url, context=context)
-    done = page.locator(".lf-fp-step", has_text="Done")
-    expect(done).to_have_count(0)
     page.locator(".lf-fp-on-user").tap()
     panel_settled(page, view="queue")
-    page.locator(".lf-fp-on-item", has_text="Check the notes").get_by_role(
-        "button", name="Show", exact=True
-    ).tap()
+    card = page.locator(".lf-fp-on-item", has_text="Check the notes")
+    card.get_by_role("button", name="Show", exact=True).tap()
     expect(page.locator("#notes")).to_be_focused()
-    expect(done).to_be_visible()
-    with sending(page, "the Done step"):
-        done.tap()
+    expect(page.locator(".lf-fp-step")).to_have_count(0)
+    expect(page.locator(".lf-fp-on-user")).to_be_visible()
+    page.locator(".lf-fp-on-user").tap()
+    panel_settled(page, view="queue")
+    with sending(page, "the card's Done"):
+        card.get_by_role("button", name="Done", exact=True).tap()
     expect_on_me(page, 1)
     assert events_model.read_events(serve.page_dir)[-1]["todo"] == task["id"]
-    expect(done).to_have_count(0)
-
-
-def test_a_keyboard_reaches_the_panel_s_done_step_under_a_finger(browser, serve):
-    """A tablet with a keyboard has the panel's Done step and Tab both. Tab onto the
-    step takes focus into Leaf's chrome, where the user stands on nothing, and the step
-    stays for the task `m` landed on; Enter on it ends that task."""
-    url = serve(NESTED_TODOS_PAGE)
-    task = append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "todo",
-            "author": "agent",
-            "agent": "Agent",
-            "session": "queue-done",
-            "owner": "user",
-            "subject": {"kind": "element", "id": "plan"},
-            "title": "Check the plan",
-        },
-    )
-    context = browser.new_context(
-        viewport={"width": 1024, "height": 768}, has_touch=True, is_mobile=True
-    )
-    page = open_page(browser, url, context=context)
-    done = page.locator(".lf-fp-step", has_text="Done")
-    page.keyboard.press("m")
-    expect(page.locator("#plan")).to_be_focused()
-    expect(done).to_be_visible()
-    for _ in range(12):
-        page.keyboard.press("Shift+Tab")
-        expect(done).to_be_visible()
-        if done.evaluate("el => el === document.activeElement"):
-            break
-    expect(done).to_be_focused()
-    with sending(page, "the Done step from the keyboard"):
-        page.keyboard.press("Enter")
-    assert events_model.read_events(serve.page_dir)[-1]["todo"] == task["id"]
-    expect(done).to_have_count(0)
 
 
 NESTED_TODOS_PAGE = leaf_page(

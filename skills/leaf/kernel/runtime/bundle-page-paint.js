@@ -2343,8 +2343,8 @@ var shownExtent = (el2) => union(shownParts(el2).map((part) => part.getBoundingC
 function shownRect(item, clips) {
   return clippedRect(shownBox(item), item, clips);
 }
-function seenRect(item, clips) {
-  const shown = shownRect(item, clips);
+function seenRect(item, clips, box = shownBox(item)) {
+  const shown = clippedRect(box, item, clips);
   if (!shown) return null;
   const room = shownWindow({ within: shown, item });
   return room.width > 0 && room.height > 0 ? { left: shown.left, top: room.top, right: shown.right, bottom: room.bottom } : null;
@@ -3083,6 +3083,11 @@ function passErrors(ids) {
       )
     );
 }
+function passErrorsAt(subject) {
+  passErrors(
+    errors.filter((entry) => entry.subject === subject).map((entry) => entry.id)
+  );
+}
 function seeErrors() {
   if (errors.some((entry) => !entry.seen))
     publish(
@@ -3305,19 +3310,20 @@ var reportedReasons = /* @__PURE__ */ new WeakSet();
 var reportedPrimitives = /* @__PURE__ */ new Set();
 var reportedErrors = /* @__PURE__ */ new Set();
 function reportPageError(reason, context = "") {
-  if (!document.documentElement.lfDocumentLifetime.active) return;
   if (typeof reason === "object" && reason !== null) reportedReasons.add(reason);
   else reportedPrimitives.add(String(reason));
   const text = exceptionText(reason, context);
-  console.error(`leaf: ${text}`);
-  if (offlineInteractive) return;
-  if (reportedErrors.has(text) || reportedErrors.size >= 20) return;
-  reportedErrors.add(text);
-  postEvent({
-    kind: "error",
-    text,
-    ...runtime.currentRevision != null && { revision: runtime.currentRevision }
-  }).catch(() => {
+  document.documentElement.lfDocumentLifetime.whenActive(`report ${text}`, () => {
+    console.error(`leaf: ${text}`);
+    if (offlineInteractive) return;
+    if (reportedErrors.has(text) || reportedErrors.size >= 20) return;
+    reportedErrors.add(text);
+    postEvent({
+      kind: "error",
+      text,
+      ...runtime.currentRevision != null && { revision: runtime.currentRevision }
+    }).catch(() => {
+    });
   });
 }
 function reportCarried(reason, context = "") {
@@ -3380,6 +3386,7 @@ export {
   pressIsKeyboardActivation,
   plainPress,
   restorePointer,
+  parsed,
   spell,
   submitBindings,
   submitLabel,
@@ -3564,6 +3571,7 @@ export {
   registerErrorPresentation,
   raiseError,
   passErrors,
+  passErrorsAt,
   seeErrors,
   dismissError,
   holdingError,

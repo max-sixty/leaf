@@ -65,7 +65,7 @@ const read = (value) => (typeof value === "function" ? value() : value);
  *   key: string,
  *   rank: number,
  *   label: string | (() => string),
- *   group: string,
+ *   group: string | (() => string),
  *   value?: string | (() => string),
  *   shortcut?: readonly string[] | (() => readonly string[]),
  *   copies?: string | (() => string),
@@ -78,14 +78,9 @@ const read = (value) => (typeof value === "function" ? value() : value);
  * }} row
  */
 export function registerPageControl(row) {
-  if (
-    !row.key ||
-    !Number.isFinite(row.rank) ||
-    !row.label ||
-    !GROUPS.includes(row.group)
-  )
+  if (!row.key || !Number.isFinite(row.rank) || !row.label || !row.group)
     throw new TypeError(
-      `Page control ${row.key} needs a key, a numeric rank, a label and one of the groups ${GROUPS.join(", ")}`,
+      `Page control ${row.key} needs a key, a numeric rank, a label and a group`,
     );
   if (rows.has(row.key)) throw new TypeError(`Page control ${row.key} is registered`);
   rows.set(row.key, Object.freeze({ ...row, sequence: sequence++ }));
@@ -97,21 +92,26 @@ export function pageControls() {
   return [...rows.values()]
     .sort((a, b) => a.rank - b.rank || a.sequence - b.sequence)
     .filter((row) => read(row.offered) ?? true)
-    .map((row) =>
-      Object.freeze({
+    .map((row) => {
+      const group = read(row.group);
+      if (!GROUPS.includes(group))
+        throw new TypeError(
+          `Page control ${row.key} is in group ${group}, not one of ${GROUPS.join(", ")}`,
+        );
+      return Object.freeze({
         key: row.key,
         label: read(row.label),
         value: read(row.value) ?? "",
         shortcut: read(row.shortcut) ?? EMPTY,
-        group: row.group,
+        group,
         copies: read(row.copies) ?? "",
         urgent: read(row.urgent) ?? null,
         gesture: Boolean(row.gesture),
         exit: Boolean(row.exit),
         disabled: Boolean(read(row.disabled)),
         press: row.press ?? null,
-      }),
-    );
+      });
+    });
 }
 
 /** Say that a row's answer moved outside the page's readings. Several in one script are

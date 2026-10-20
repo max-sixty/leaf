@@ -375,8 +375,14 @@ def test_the_add_field_says_why_it_will_not_take_a_pasted_image(browser, serve):
     pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
     field.evaluate(PASTE_IMAGE, base64.b64encode(pixels).decode())
 
-    # The error is about the add field, which the panel's field does not speak for, so
-    # it waits in the leaf's menu, the leaf's dot saying there is one.
+    # The error is about the add field, so it stands over that field until the user's
+    # first key or press there, and then waits in the leaf's menu.
+    cover = form.locator(".lf-compose-error")
+    expect(cover).to_have_text("Images can be added to comments, not options")
+    expect(page.locator(".lf-fp-error-dot")).to_be_hidden()
+    cover.click()
+    expect(cover).to_be_hidden()
+    expect(field).to_be_focused()
     expect_error_waits_in_menu(page, "Images can be added to comments, not options")
     expect(form.locator(".lf-composer-media")).to_be_hidden()
     expect(form.locator(".lf-composer-media img")).to_have_count(0)

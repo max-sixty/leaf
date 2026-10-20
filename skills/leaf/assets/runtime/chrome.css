@@ -208,6 +208,7 @@
     outline: var(--focus-ring);
     outline-offset: 0;
     border-radius: var(--r);
+    --lf-wears-ring: 1;
   }
   :is(.lf-fp-field, .lf-fp-response) {
     anchor-name: --lf-fp-field;
@@ -289,18 +290,14 @@
     color: var(--danger-ink);
     font-weight: 500;
   }
-  .lf-fp-error-cover {
-    position: absolute;
-    inset: 0;
-    margin: 0;
+  .lf-fp-field .lf-compose-error {
     padding: calc((var(--lf-fp-line) - 22px) / 2) 6px;
     background: var(--lf-fp-surface);
-    color: var(--danger-ink);
     font: 500 14px / 22px var(--sans);
     white-space: nowrap;
-    overflow: hidden;
+  }
+  .lf-fp-field .lf-compose-error > span {
     text-overflow: ellipsis;
-    cursor: text;
   }
   @media (prefers-reduced-motion: no-preference) {
     .lf-floating-panel[data-tone=working]:not([data-asks]) .lf-fp-field leaf-text[data-says=status]::part(placeholder) {
@@ -715,13 +712,23 @@
     gap: 4px;
   }
   .lf-fp-face:not([data-shown]),
-  .lf-fp-quiet[data-unoffered] {
+  :is(.lf-fp-quiet, .lf-fp-next-unread)[data-unoffered] {
     visibility: hidden;
   }
   .lf-fp-settle:hover {
     color: var(--ink);
   }
   .lf-fp-settle .lf-action-icon {
+    width: 14px;
+    height: 14px;
+  }
+  .lf-fp-next-unread {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--accent);
+  }
+  .lf-fp-next-unread .lf-action-icon {
     width: 14px;
     height: 14px;
   }
@@ -1131,16 +1138,11 @@
     margin-right: 4px;
   }
   .lf-fp-messages {
-    display: grid;
-    gap: 8px;
     padding-inline-end: 8px;
   }
   .lf-fp-messages > .lf-primary-part {
     --lf-thread-text-inset: var(--lf-fp-inset);
-    padding-inline-start: var(--lf-thread-text-inset);
-  }
-  .lf-fp-messages > .lf-primary-part > .lf-msg {
-    margin-top: 0;
+    padding-inline-start: 0;
   }
   .lf-fp-messages .lf-msg-editor {
     margin-inline-start: calc(-1 * var(--lf-thread-text-inset));

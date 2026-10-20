@@ -98,8 +98,8 @@ def test_a_refusal_names_a_ref_only_while_its_owner_holds_the_page(
 ):
     """A refusal on an owed message names the exact `answer.ref` its receipt
     recorded. Once another session claims the page the reply writer refuses that
-    reference, so the refusal stops naming it and names the message instead: the
-    message was delivered, so `leaf wait` would not hand it out again."""
+    reference, so the refusal stops naming it and names the `leaf wait` that hands
+    the message to the new owner with a reference of its own."""
     asked = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "why B?"}
     )
@@ -116,10 +116,7 @@ def test_a_refusal_names_a_ref_only_while_its_owner_holds_the_page(
     refused = CliRunner().invoke(cli_model.cli, reply)
     assert refused.exit_code == 1
     assert ref not in refused.output
-    assert (
-        f"`leaf response reply <answer.ref>` for {asked['id']} answers it"
-        in refused.output
-    )
+    assert f"`leaf wait {claimed}` delivers for {asked['id']}" in refused.output
 
     # A delivery captured under the new claim gives it a ref of its own, which a
     # late receipt of the earlier owner's delivery neither hides nor records again.

@@ -141,6 +141,7 @@ import {
   obligationsIn,
   onReadingInterrupted,
   pageCommand,
+  pageDoor,
   pageRung,
   pageScope,
   pageScopes,
@@ -377,6 +378,7 @@ import {
   pageUpgraded,
   paintKeys,
   paintKeysWithin,
+  parsed,
   passErrors,
   pointerAt,
   pressIsKeyboardActivation,
@@ -6942,6 +6944,8 @@ function createFloatingPanel({
       ${entry.value ? html`<p class="lf-fp-copy-note">${entry.value}</p>` : nothing}
     </div>`;
   }
+  const versionKey = (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`;
+  const showVersion = (entry) => putAwayThen(() => versionPicker.activate(entry));
   function versionsList() {
     const { rows: versions, picker, selection, latest } = versionsReading();
     const approval = approvalReading();
@@ -6953,12 +6957,17 @@ function createFloatingPanel({
             </div>` : nothing}
       ${repeat(
       versions,
-      (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`,
-      (entry) => html`<div class="lf-fp-version" role="none" ?data-current=${entry.current}>
+      versionKey,
+      (entry) => html`<div
+            class="lf-fp-version"
+            role="none"
+            ?data-current=${entry.current}
+            data-key=${versionKey(entry)}
+          >
             ${menuItem(
         html`${entry.name}${entry.note ? html`<span class="lf-fp-note">${entry.note}</span>` : nothing}`,
         entry.current ? html`<span class="lf-fp-value">Showing</span>` : nothing,
-        () => putAwayThen(() => versionPicker.activate(entry)),
+        () => showVersion(entry),
         { title: entry.note }
       )}${entry.comparable ? html`<button
                     type="button"
@@ -7513,6 +7522,14 @@ function createFloatingPanel({
         </button>`;
   })}
     </div>`;
+  function findThreads() {
+    if (!searching) {
+      searching = true;
+      query = "";
+      paint();
+    }
+    focusDestination(head.querySelector(".lf-fp-search"), "move");
+  }
   function headTemplate(top) {
     const parent = trail.at(-2);
     const thread = top.view === "thread" ? threadByKey(top.thread) : null;
@@ -7537,11 +7554,13 @@ function createFloatingPanel({
           aria-label="Find a thread or message"
           aria-pressed=${String(searching)}
           @click=${() => {
-        searching = !searching;
+        if (!searching) {
+          findThreads();
+          return;
+        }
+        searching = false;
         query = "";
         paint();
-        if (searching)
-          focusDestination(head.querySelector(".lf-fp-search"), "move");
       }}
         >
           ${iconTemplate("search", "lf-action-icon")}
@@ -8104,6 +8123,59 @@ function createFloatingPanel({
         }
       }))
     )
+  );
+  keys(
+    opened,
+    "In the floating panel",
+    [
+      {
+        id: "panel.floating.threads.find",
+        keys: ["/"],
+        description: "Find a thread or message in Threads",
+        title: "find a thread",
+        run: findThreads
+      }
+    ],
+    () => trail.at(-1)?.view === "threads"
+  );
+  const versionsShown = () => menuOpen && menuAt?.view === "versions";
+  const numbered = () => versionsReading().rows.filter(({ version: version2 }) => version2 !== null && version2 <= 9).toSorted((a, b) => a.version - b.version);
+  const versionAt = () => {
+    const key = focused()?.closest?.(".lf-fp-version")?.dataset.key;
+    return versionsReading().rows.find((entry) => versionKey(entry) === key) ?? null;
+  };
+  keys(
+    menu,
+    "In the floating panel",
+    [
+      {
+        id: "panel.floating.versions.pick",
+        keys: () => numbered().map(({ version: version2 }) => String(version2)),
+        label: () => {
+          const top = numbered().at(-1)?.version;
+          return top > 1 ? `1\u2013${top}` : "1";
+        },
+        description: "Show the version with that number",
+        title: "show version",
+        when: () => numbered().length > 0,
+        run: (binding) => showVersion(numbered().find(({ version: version2 }) => String(version2) === binding))
+      },
+      {
+        id: "panel.floating.versions.show",
+        keys: ["v"],
+        description: "Show the version you are on in Versions",
+        title: "show this version",
+        when: () => versionAt() !== null,
+        run: () => showVersion(versionAt())
+      }
+    ],
+    {
+      when: versionsShown,
+      claims: (binding) => {
+        const { key, mods } = parsed(binding);
+        return key.length === 1 && key !== " " && mods.every((mod) => mod === "Shift") && !pageDoor(binding);
+      }
+    }
   );
   keys(field, "In the comment field", [
     {

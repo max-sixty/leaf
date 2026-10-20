@@ -3910,6 +3910,7 @@ var ELEMENTS = /* @__PURE__ */ Symbol("the scopes of the focused element");
 var PAGE = /* @__PURE__ */ Symbol("the page's own keys");
 var RUNGS = /* @__PURE__ */ Symbol("Escape's fallback ladder");
 var COMMAND_REFERENCE = "command.reference.open";
+var GO_TO = "navigation.go-to.open";
 var STACK = [
   "command reference",
   "page map",
@@ -3977,7 +3978,7 @@ var PAGE_COMMANDS = [
   "history.undo",
   // Below the walks that reach one list at a time, because `g` opens a door to all of
   // them: a second way to somewhere the user can already get to.
-  "navigation.go-to.open",
+  GO_TO,
   "draw.mode.enter",
   "capture.region.open",
   "design.mode.enter",
@@ -4110,6 +4111,9 @@ function stances() {
 var universalCommandReference = () => offlineInteractive ? void 0 : commands.get(COMMAND_REFERENCE);
 var textEntryScope = () => scopes.get("text entry")?.[0];
 var allButCommandReference = (binding) => !bindings(universalCommandReference()).includes(binding);
+var pageDoor = (binding) => [COMMAND_REFERENCE, GO_TO].some(
+  (id) => commands.has(id) && bindings(commands.get(id)).includes(binding)
+);
 
 // runtime/composing/capture.js
 var selectionAnchor = (sel) => anchorForRange(pageRange(sel));
@@ -7373,6 +7377,7 @@ export {
   universalCommandReference,
   textEntryScope,
   allButCommandReference,
+  pageDoor,
   selectionAnchor,
   pageSelection,
   createPassageSelection,

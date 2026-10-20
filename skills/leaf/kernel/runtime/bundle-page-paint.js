@@ -3380,6 +3380,7 @@ export {
   pressIsKeyboardActivation,
   plainPress,
   restorePointer,
+  parsed,
   spell,
   submitBindings,
   submitLabel,

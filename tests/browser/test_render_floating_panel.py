@@ -24,7 +24,7 @@ from leaf import interaction_log as interaction_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import one_frame, wait_until_ready
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import LIVE_V1, LIVE_V2, live_url, panel_comment
@@ -36,6 +36,7 @@ from render_harness import (
     holding,
     http_error_console,
     open_page,
+    resized,
     round_trip,
     select_words,
     sending,
@@ -1062,6 +1063,34 @@ def test_threads_search_finds_a_thread_by_the_words_it_quotes(browser, serve):
     expect(rows).to_have_count(3)
     page.get_by_role("button", name="Find a thread or message").click()
     page.locator("input.lf-fp-search").fill("schedule leaves")
+    expect(rows.locator(".lf-fp-label")).to_have_text(["Is lunch provided?"])
+
+
+def test_keys_in_threads_act_on_threads(browser, serve):
+    """In Threads, `/` opens Threads' own search, where it opened the page's search
+    over the list, and d and u page the list rather than the page under it."""
+    url = serve(AGENDA_PAGE)
+    agenda_threads(serve.page_dir)
+    for n in range(12):
+        panel_comment(serve.page_dir, f"Question {n} about the room")
+    page = floating(browser, url)
+    resized(page, 1440, 500)
+    rows = threads_rows(page)
+    view = page.locator(".lf-fp-view[data-view=threads]")
+    expect(view).to_be_focused()
+    assert view.evaluate("box => box.scrollHeight > box.clientHeight")
+    document = "() => document.scrollingElement.scrollTop"
+    before = page.evaluate(document)
+    page.keyboard.press("d")
+    page.wait_for_function("box => box.scrollTop > 0", arg=view.element_handle())
+    page.keyboard.press("u")
+    page.wait_for_function("box => box.scrollTop === 0", arg=view.element_handle())
+    assert page.evaluate(document) == before
+
+    page.keyboard.press("/")
+    expect(page.locator("input.lf-fp-search")).to_be_focused()
+    expect(page.locator(".lf-page-search")).to_be_hidden()
+    page.keyboard.type("schedule leaves")
     expect(rows.locator(".lf-fp-label")).to_have_text(["Is lunch provided?"])
 
 
@@ -2367,6 +2396,56 @@ def test_versions_travel_and_approval_open_in_the_panel(browser, serve):
     number = re.search(r"v\d+", other.inner_text()).group(0)
     other.click()
     expect(page).to_have_url(re.compile(rf"/versions/{number}\b"))
+
+
+def test_versions_rests_the_page_s_keys_and_takes_a_version_s_number(browser, serve):
+    """While Versions holds focus the page's keys rest, where d and j scrolled the page
+    under it and c left it for the field. A version's number shows that version, not
+    the row in that place, and `v` shows the version the user is on; `?` lists both
+    among the panel's keys."""
+    url = serve(SIGN_OFF)
+    for words, note in (("Paragraph zero.", "two"), ("Paragraph nought.", "three")):
+        stamp_page(serve.page_dir, SIGN_OFF.replace("Paragraph 0.", words), note)
+    page = floating(browser, url)
+    view = page.locator(".lf-fp-menu[data-level=versions]")
+
+    def open_versions():
+        page.locator("body").focus()
+        page.keyboard.press("g")
+        page.keyboard.press("Shift+V")
+        expect(view.locator(".lf-fp-version")).to_have_count(3)
+
+    open_versions()
+    document = "() => document.scrollingElement.scrollTop"
+    before = page.evaluate(document)
+    for key in "djc":
+        page.keyboard.press(key)
+    one_frame(page)
+    assert page.evaluate(document) == before
+    expect(view.locator(".lf-fp-version .lf-fp-item").first).to_be_focused()
+
+    page.keyboard.press("?")
+    reference = page.locator(".lf-command-reference")
+    for command, keys in (
+        ("panel.floating.versions.pick", "1–3"),
+        ("panel.floating.versions.show", "v"),
+    ):
+        expect(reference.locator(f'tr[data-lf-command="{command}"] kbd')).to_have_text(
+            [keys]
+        )
+    page.keyboard.press("Escape")
+    expect(reference).to_be_hidden()
+
+    open_versions()
+    # v1 is the last row: the number names the version.
+    page.keyboard.press("1")
+    expect(page).to_have_url(re.compile(r"/versions/v1\b"))
+
+    wait_until_ready(page)
+    open_versions()
+    view.locator(".lf-fp-version", has_text="v2").locator(".lf-fp-item").focus()
+    page.keyboard.press("v")
+    expect(page).to_have_url(re.compile(r"/versions/v2\b"))
 
 
 def test_an_older_version_says_so_in_the_row_and_one_press_opens_the_latest(

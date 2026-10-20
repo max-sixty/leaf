@@ -60,11 +60,10 @@ import { cycledRow, savedReadingSettled } from "./keyboard/bindings.js";
 import { pageCommand, pageScope } from "./keyboard/register.js";
 import { paintKeys } from "./keyboard/scopes.js";
 import { focused, onStanding } from "./focus.js";
-import { coarsePointer } from "./pointer.js";
 import { obligationHolding, placeOf, stepFrom, walkOrigin } from "./standing-target.js";
 import { seenRect } from "./geometry.js";
 import { elementById, inChrome, pageDocument } from "./passages.js";
-import { byRenderedOrder, inUi, under } from "./shadow.js";
+import { byRenderedOrder, under } from "./shadow.js";
 import { obligationWord } from "./obligations/answer.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
 import { obligationsIn, obligationPlace } from "./obligations/place.js";
@@ -304,30 +303,8 @@ export function createQueueWalk({
         ) ?? null)
       : null;
 
-  // The to-do Done ends now. Under a finger with a keyboard beside it, as on a tablet,
-  // Tab onto the floating panel's Done step takes focus through Leaf's own controls and the
-  // page's body, where the user stands on no item, so while focus is there and no
-  // caret or selection stands on the page the step keeps the to-do it was shown for,
-  // if it is still on the user; anywhere else, the to-do the user stands on.
-  let shownFor = null;
-  function doneTodo() {
-    const stop = standingStop(stops());
-    const focus = focused(document);
-    if (
-      stop ||
-      !coarsePointer.matches ||
-      (focus && focus !== document.body && !inUi(focus) && !inChrome(focus)) ||
-      placeOf(getSelection()?.focusNode)
-    ) {
-      shownFor = doneAt(stop);
-      return shownFor;
-    }
-    shownFor =
-      readQueues().on_user.find(
-        (item) => item.id === shownFor?.id && item.offers.done,
-      ) ?? null;
-    return shownFor;
-  }
+  // The to-do Done ends now: the one the user stands on.
+  const doneTodo = () => doneAt(standingStop(stops()));
 
   // The user's Done on a to-do on them: their `todo_end`, through the one append door.
   // The to-do leaves On me in the turn they press it (`application.ts`).
@@ -382,8 +359,8 @@ export function createQueueWalk({
     run: (binding) => walk(binding === "m" ? 1 : -1),
   });
 
-  // Where `m` lands on a to-do the user ends with Done, Done is a key, and a step on the
-  // floating panel's row under a finger. Its row in On me carries the same Done.
+  // Where `m` lands on a to-do the user ends with Done, Done is a key. A finger presses
+  // the same Done on the to-do's row in On me, so the panel's row offers no step for it.
   pageScope("todo", {
     title: "On a to-do waiting on me",
     ready: savedReadingSettled,
@@ -394,7 +371,7 @@ export function createQueueWalk({
         keys: ["x"],
         title: "done",
         description: "Mark this to-do done",
-        touch: "Done",
+        touch: false,
         when: () => Boolean(doneTodo()),
         run: () => {
           const todo = doneTodo();

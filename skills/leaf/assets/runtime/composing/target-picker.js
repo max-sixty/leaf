@@ -119,8 +119,9 @@ const searchCount = (position, total) => `${position} of ${total}`;
 // Admission and clipping stay with key-badge-placement.js.
 //
 // `/` opens a real search input over the whole page reading, either directly from the
-// page or from the visible target hints. Tab walks repeated occurrences and Enter makes a
-// native browser Selection from the active match. Once the prompt closes, n repeats that
+// page or from the visible target hints. Tab walks repeated occurrences, as the box's
+// arrows do, and Enter or a press on the active match makes a native browser Selection
+// from it. Once the prompt closes, n repeats that
 // accepted search and N reverses it. Escape returns to the surface that opened search:
 // the page after a direct `/`, or the visible hints after `s` then `/`. The interaction keeps
 // `?` available and claims the rest of the page's keyboard while it stands.
@@ -718,7 +719,8 @@ export function createTargetPicker({
         keys: ["Enter"],
         description: "Select the current search match",
         title: "select match",
-        touch: "Select",
+        // A finger presses the marked match itself (`pressMatch`).
+        touch: false,
         when: () => matches.length > 0,
         run: chooseMatch,
       },
@@ -753,8 +755,28 @@ export function createTargetPicker({
   const openTargetPicker = () => setTargetPicker(true);
   const closeTargetPicker = () => setTargetPicker(false);
 
+  // A press on the marked match selects it, as Enter does: the match is what the user is
+  // looking at, and a phone's keyboard may offer no Enter. The press is the match's alone,
+  // taken at capture: its mousedown starts no selection of the browser's own, and its
+  // click follows no link the words stand in.
+  function pressMatch(ev) {
+    if (!pageSearchOpen || ev.button !== 0) return;
+    const segments = matches[active];
+    if (!segments) return;
+    const { clientX: x, clientY: y } = ev;
+    const pressed = [...rangeOf(segments).getClientRects()].some(
+      (rect) => x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom,
+    );
+    if (!pressed) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (ev.type === "click") chooseMatch();
+  }
+
   function mount() {
     pageSearchInput.addEventListener("input", search);
+    for (const type of ["mousedown", "click"])
+      document.addEventListener(type, pressMatch, true);
     hints.mount();
     addEventListener("resize", () => {
       if (pageSearchOpen) repaint();

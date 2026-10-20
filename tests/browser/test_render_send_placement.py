@@ -1129,7 +1129,12 @@ def test_a_sent_card_grows_inside_its_reading_region(browser, serve):
     def insets(clip):
         # inset()'s edges before `round`, its shorthand spread to top, right, bottom, left.
         edges = [float(v) for v in re.findall(r"-?[\d.]+", clip.split("round")[0])]
-        return [edges[i] for i in ((0, 0, 0, 0), (0, 1, 0, 1), (0, 1, 2, 1), (0, 1, 2, 3))[len(edges) - 1]]
+        return [
+            edges[i]
+            for i in ((0, 0, 0, 0), (0, 1, 0, 1), (0, 1, 2, 1), (0, 1, 2, 3))[
+                len(edges) - 1
+            ]
+        ]
 
     cut = insets(rest)
     assert len(cut) == 4 and max(cut) > -48, ("the pane cuts nothing", rest)

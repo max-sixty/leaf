@@ -94,7 +94,12 @@ import { writingIn } from "../thread/replies.js";
 // A margin card's reply box.
 const REPLY_BOX = `.lf-thread-reply ${TEXT_FIELD}`;
 // Where a reading region cuts the card, inward from each of its edges.
-const CUT_EDGES = ["--lf-cut-top", "--lf-cut-right", "--lf-cut-bottom", "--lf-cut-left"];
+const CUT_EDGES = [
+  "--lf-cut-top",
+  "--lf-cut-right",
+  "--lf-cut-bottom",
+  "--lf-cut-left",
+];
 
 export function createThreadPreview({
   inventory,

@@ -292,7 +292,12 @@ function surfaceGrip({ surface, bounds, dropped }) {
 
 // runtime/annotation-overlay/thread-preview.js
 var REPLY_BOX = `.lf-thread-reply ${TEXT_FIELD}`;
-var CUT_EDGES = ["--lf-cut-top", "--lf-cut-right", "--lf-cut-bottom", "--lf-cut-left"];
+var CUT_EDGES = [
+  "--lf-cut-top",
+  "--lf-cut-right",
+  "--lf-cut-bottom",
+  "--lf-cut-left"
+];
 function createThreadPreview({
   inventory,
   renderMarginThread,

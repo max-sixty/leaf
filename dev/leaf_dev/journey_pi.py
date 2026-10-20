@@ -121,9 +121,11 @@ class Pi(Terminal):
             self.closed_watches += 1
         elif kind == "agent_start":
             self.running = True
+            self.trace.append({"type": "turn_start", "received_at": now()})
         elif kind == "agent_settled":
             self.running = False
             self.settled += 1
+            self.trace.append({"type": "turn_end", "received_at": now()})
         elif kind == "tool_execution_start":
             if record["toolName"] == "bash":
                 self.running_commands[record["toolCallId"]] = record["args"]["command"]

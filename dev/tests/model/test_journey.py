@@ -317,6 +317,7 @@ def test_claude_codes_transcript_gives_tool_and_turn_records(tmp_path):
     path.write_text("".join(json.dumps(line) + "\n" for line in lines))
     native = journey_claude_code.native_records(tmp_path, session)
     assert claude_code_records(native) == [
+        {"type": "turn_start", "received_at": at(1)},
         {
             "type": "user",
             "message": {"content": [{"type": "text", "text": "Serve it."}]},
@@ -396,6 +397,7 @@ def test_a_reply_taken_while_working_splits_into_leaf_share_and_model_calls():
         return {"type": "model_response", "received_at": at(seconds)}
 
     records = [
+        {"type": "turn_start", "received_at": at(0.2)},
         use(0.5, "s", "sleep 4"),
         result(5, "s"),
         use(7, "a", "leaf task start . c1"),
@@ -420,6 +422,7 @@ def test_a_reply_taken_while_working_splits_into_leaf_share_and_model_calls():
         "leafCommandsMs": 1700,
         "otherToolsMs": 100,
         "modelMs": 5500,
+        "idleMs": 0,
         "modelCalls": [
             {"ms": 1800, "calls": ["leaf task start . c1", "cat index.html"]},
             {"ms": 1700, "calls": ["Edit", "/x/bin/leaf page check ."]},
@@ -464,13 +467,20 @@ def test_pis_events_give_the_turn_phases(monkeypatch):
         pi._hear(event)
     assert pi.commands == ["sleep 1"] and pi.running_commands == {}
     assert (pi.settled, pi.closed_watches, pi.idle()) == (1, 1, True)
-    assert pi.records()[-1] == {"type": "model_response", "received_at": at(5)}
-    phases = turn_phases(pi.records(), at(0), at(2), at(6))
+    assert [record["type"] for record in pi.records()] == [
+        "turn_start",
+        "assistant",
+        "user",
+        "model_response",
+        "turn_end",
+    ]
+    phases = turn_phases(pi.records(), at(0), at(2), at(8))
     assert phases == [
         {"phase": "delivery", "startMs": 0, "ms": 2000},
-        {"phase": "model", "startMs": 2000, "ms": 1000},
-        {"phase": "tool", "startMs": 3000, "ms": 1000, "calls": ["sleep 1"]},
-        {"phase": "model", "startMs": 4000, "ms": 2000},
+        {"phase": "model", "startMs": 2000, "ms": 2000},
+        {"phase": "tool", "startMs": 4000, "ms": 1000, "calls": ["sleep 1"]},
+        {"phase": "model", "startMs": 5000, "ms": 2000},
+        {"phase": "idle", "startMs": 7000, "ms": 1000},
     ]
 
 

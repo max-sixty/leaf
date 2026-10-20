@@ -4,29 +4,32 @@ log and the harness's record of the session.
 A reply is timed from the comment's admission to the reply's, both on the page
 server's clock. The harness's record splits that span into phases (`turn_phases`):
 
-- `busy`: the harness was on other work, a turn already running, until the first
-  tool boundary after the admission, where its hook takes the comment. Only a
-  comment that arrives while the harness works has it;
+- `busy`: the harness was in a turn at the admission, on other work, until that
+  turn's first tool boundary or its end, where the harness can take the comment.
+  Only a comment that arrives while the harness works has it;
 - `delivery`: Leaf handing the comment over, until the harness records it in the
   agent's context (its opened pickup), whether that opened a turn or entered a
-  running one. Where the agent works between the boundary and the pickup, the
-  boundary handed it a pointer that it read and acknowledged itself, as on Codex
-  App Server, so delivery ends at the boundary and that work is the agent's;
-- then alternating `model`, from the last tool result to the next tool call, and
-  `tool`, from that call until every call it started has returned, each naming its
-  calls.
+  running one. Where the agent runs tools before that pickup, the harness handed it
+  a pointer that it read and acknowledged itself, as on Codex App Server, so
+  delivery ends at the boundary where the harness took it (the busy turn's tool
+  boundary, or the start of the turn that took it) and that work is the agent's;
+- then `model`, from a turn's start or the last tool result to the next tool call
+  or the turn's end; `tool`, from that call until every call it started has
+  returned, each naming its calls; and `idle`, from a turn's end to the next turn's
+  start, as where the agent waits on a background task before replying.
 
 `reply_breakdown` sums them into the two numbers a reply budget reads: the whole
 reply, and Leaf's share of it, delivery plus the tool phases that ran a `leaf`
-command. The rest is the harness's other work, the model, and the agent's own reads
-and edits. It also groups the model phases into the model calls the harness made,
-each with the calls it issued, since a model call is the unit a shorter reply would
-have to save.
+command. The rest is the harness's other work, the model, the agent's own reads and
+edits, and idle time. It also groups the model phases into the model calls the
+harness made, each with the calls it issued, since a model call is the unit a
+shorter reply would have to save.
 
-The records are the journey's normalized form: `assistant` and `user` records whose
-content holds `tool_use` and `tool_result` parts, and a `model_response` record where
-each model response ended, at its last tool call or after the calls it started
-returned, as the harness reports it, each stamped `received_at`. A harness that streams its
+The records are the journey's normalized form, each stamped `received_at`:
+`assistant` and `user` records whose content holds `tool_use` and `tool_result`
+parts; a `model_response` where each model response ended, at its last tool call or
+after the calls it started returned, as the harness reports it; and `turn_start` and
+`turn_end` where the harness began and finished a turn. A harness that streams its
 session stamps a record when the journey hears it; Claude Code's transcript stamps
 each record itself (`claude_code_records`).
 """
@@ -77,32 +80,50 @@ def _phases(
         (instant(record["received_at"]), record)
         for record in records
         if instant(record["received_at"]) <= end
-        and record["type"] in ("assistant", "user")
     ]
-    phases: list[tuple[str, float, float, list[str]]] = []
 
     def holds(record: dict, kind: str) -> bool:
-        return any(part["type"] == kind for part in record["message"]["content"])
+        return record["type"] in ("assistant", "user") and any(
+            part["type"] == kind for part in record["message"]["content"]
+        )
 
-    boundary = min(
-        (
-            at
-            for at, record in timed
-            if start < at <= began and holds(record, "tool_result")
-        ),
-        default=start,
-    )
-    if boundary > start and any(
-        boundary < at < began and holds(record, "tool_use") for at, record in timed
-    ):
-        began = boundary
-    if boundary > start:
-        phases.append(("busy", start, boundary, []))
-    phases.append(("delivery", boundary, began, []))
+    def first(after: float, until: float, *kinds: str) -> float | None:
+        return next(
+            (
+                at
+                for at, record in timed
+                if after < at <= until
+                and (record["type"] in kinds or any(holds(record, k) for k in kinds))
+            ),
+            None,
+        )
+
+    turns = [
+        record["type"]
+        for at, record in timed
+        if at <= start and record["type"] in ("turn_start", "turn_end")
+    ]
+    phases: list[tuple[str, float, float, list[str]]] = []
+    boundary = start
+    if turns[-1:] == ["turn_start"]:
+        boundary = first(start, began, "tool_result", "turn_end") or start
+        if boundary > start:
+            phases.append(("busy", start, boundary, []))
+        took = boundary if boundary > start else None
+    else:
+        took = first(start, began, "turn_start")
+    if took is not None and first(took, began, "tool_use") is not None:
+        # The agent worked before its pickup, so it had the comment from where the
+        # harness took it.
+        if took > boundary:
+            phases.append(("delivery", boundary, took, []))
+        began = took
+    else:
+        phases.append(("delivery", boundary, began, []))
     # The calls still out when the comment was picked up.
     out: dict[str, str] = {}
     for at, record in timed:
-        if at > began:
+        if at > began or record["type"] not in ("assistant", "user"):
             continue
         for part in record["message"]["content"]:
             if part["type"] == "tool_use":
@@ -114,10 +135,18 @@ def _phases(
     for at, record in timed:
         if at <= began:
             continue
+        if record["type"] == "turn_end" and phase != "idle":
+            phases.append((phase, since, at, calls if phase == "tool" else []))
+            phase, since, pending = "idle", at, set()
+        elif record["type"] == "turn_start" and phase == "idle":
+            phases.append(("idle", since, at, []))
+            phase, since = "model", at
+        if record["type"] not in ("assistant", "user"):
+            continue
         for part in record["message"]["content"]:
             if part["type"] == "tool_use":
-                if phase == "model":
-                    phases.append(("model", since, at, []))
+                if phase != "tool":
+                    phases.append((phase, since, at, []))
                     phase, since, calls = "tool", at, []
                 pending.add(part["id"])
                 calls.append(call_label(part))
@@ -206,6 +235,7 @@ def reply_breakdown(
         "leafCommandsMs": leaf_commands,
         "otherToolsMs": total("tool", leaf=False),
         "modelMs": total("model"),
+        "idleMs": total("idle"),
         "modelCalls": model_calls,
         "phases": turn_phases(records, admitted, picked_up, replied),
     }
@@ -226,24 +256,29 @@ def claude_code_records(native: list[dict]) -> list[dict]:
     """Claude Code's transcript records (`native`) as tool and turn records stamped
     `received_at` with the time Claude Code wrote on each, and a `model_response`
     where each response's last record was written: Claude Code writes a response's
-    content blocks as records of their own, sharing its message id."""
+    content blocks as records of their own, sharing its message id. A turn starts
+    with input that is no tool's result and ends with a response that stops on
+    `end_turn`."""
     records = []
     responses: dict[str, str] = {}
     for record in native:
         if record.get("type") not in ("user", "assistant") or "message" not in record:
             continue
-        content = record["message"]["content"]
+        message, at = record["message"], record["timestamp"]
+        content = message["content"]
         if isinstance(content, str):
             content = [{"type": "text", "text": content}]
+        if record["type"] == "user" and not any(
+            part["type"] == "tool_result" for part in content
+        ):
+            records.append({"type": "turn_start", "received_at": at})
         records.append(
-            {
-                "type": record["type"],
-                "message": {"content": content},
-                "received_at": record["timestamp"],
-            }
+            {"type": record["type"], "message": {"content": content}, "received_at": at}
         )
-        if record["type"] == "assistant" and "id" in record["message"]:
-            responses[record["message"]["id"]] = record["timestamp"]
+        if record["type"] == "assistant" and "id" in message:
+            responses[message["id"]] = at
+        if message.get("stop_reason") == "end_turn":
+            records.append({"type": "turn_end", "received_at": at})
     records.extend(
         {"type": "model_response", "received_at": at} for at in responses.values()
     )

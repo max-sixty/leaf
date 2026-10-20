@@ -117,12 +117,18 @@ class Codex(Terminal):
         self.commands = self.task.commands
 
     def record(self, message: dict) -> None:
-        """Keep a notification of the task's thread as records, and each model
-        response's end, which App Server reports with the response's token usage."""
+        """Keep a notification of the task's thread as records, with where each turn
+        starts and ends and each model response's end, which App Server reports with
+        the response's token usage."""
         if self.task.thread and self.task.owns(message):
             normalized = records_for(message, self.task.thread, "")
-            if message.get("method") == "thread/tokenUsage/updated":
-                normalized.append({"type": "model_response"})
+            marker = {
+                "turn/started": "turn_start",
+                "turn/completed": "turn_end",
+                "thread/tokenUsage/updated": "model_response",
+            }.get(message.get("method"))
+            if marker is not None:
+                normalized.append({"type": marker})
             self.trace.extend({**record, "received_at": now()} for record in normalized)
 
     def hear(self, seconds: float) -> None:

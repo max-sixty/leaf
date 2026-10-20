@@ -65,12 +65,10 @@ def hold_mode(path: Path, mode: int) -> None:
         path.chmod(mode)
 
 
-# A session's files that end with it: hook capability and turn observations,
-# and its page servers' log of the thread titles they asked for.
+# A session's files that end with it: hook capability and turn observations.
 HOOKS_SUFFIX = "hooks"
 STEP_HOOK_SUFFIX = "step-hook"
 SESSION_SUFFIX = "lifecycle"
-TITLES_SUFFIX = "titles.log"
 
 
 def session_file(session_id: str, suffix: str) -> Path:
@@ -642,7 +640,7 @@ def _retire(session_id: str) -> None:
     a file removed under it. Directories, such as a Codex task's delivery records,
     are their owner's to retire."""
     if holds_claims(session_id):
-        for suffix in (HOOKS_SUFFIX, STEP_HOOK_SUFFIX, TITLES_SUFFIX):
+        for suffix in (HOOKS_SUFFIX, STEP_HOOK_SUFFIX):
             session_file(session_id, suffix).unlink(missing_ok=True)
         return
     kept = {session_file(session_id, SESSION_SUFFIX), session_lock_path(session_id)}

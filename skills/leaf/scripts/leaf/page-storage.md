@@ -76,7 +76,7 @@ read, such as one an earlier Leaf wrote before that change, reads as absent
   Diagnostic queries read raw events using the current application rules.
 
 - `observations.jsonl` — private, best-effort diagnostic JSON-lines trace of
-  server requests, browser observations and developer run context. It never enters
+  server requests and title requests, browser observations and developer run context. It never enters
   page state or acknowledgement and is never served as an asset. The semantic
   `events.jsonl` remains the durable record of accepted decisions.
 
@@ -88,7 +88,9 @@ read, such as one an earlier Leaf wrote before that change, reads as absent
   adds session identity and the scoped root-relative page address. Descendant sample
   activity stays in the containing page's trace after a sample is released.
   Server request rows have type `request`, method, path without query, status and
-  duration; successful news looks and resource-byte delivery are excluded.
+  duration; successful news looks and resource-byte delivery are excluded. A page
+  server's thread-title requests add rows of types `thread_title_generated`,
+  `thread_title_failed` and `thread_title_skipped` (`thread_titles`).
 
   `leaf page interactions` combines raw event records and private observations,
   orders by host time and keeps the first copy of each

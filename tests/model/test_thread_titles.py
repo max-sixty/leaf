@@ -28,7 +28,7 @@ from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
 from leaf import harness as harness_model
 from leaf import hooks as hooks_model
-from leaf import leases as leases_model
+from leaf import interaction_log as interaction_model
 from leaf import state as state_model
 from leaf import thread_titles
 
@@ -40,6 +40,16 @@ UNAVAILABLE_MODEL = {
     ),
     "codexErrorInfo": "other",
 }
+
+
+def title_records(page_dir: Path) -> list[dict]:
+    """What the page server recorded of each title it asked for, in the page's
+    diagnostics."""
+    return [
+        row
+        for row in interaction_model.read_interactions(page_dir)
+        if row["source"] == "server" and row["type"].startswith("thread_title")
+    ]
 
 
 def titling_app_server(app_server, answer: str | None) -> tuple[str, list[dict]]:
@@ -321,21 +331,13 @@ def test_a_comment_on_a_claude_code_page_is_named_as_it_arrives(
     assert call["env"]["MAX_THINKING_TOKENS"] == "0"
     assert call["env"]["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] == "1"
 
-    # The page server's output goes nowhere, so the session's log says what the
-    # request did, until the session ends.
-    log = leases_model.titles_log("s1")
-    [line] = wait_for(
-        lambda: log.read_text().splitlines() if log.exists() else [],
-        bool,
-        failure="the request was never logged",
+    # The page server's output goes nowhere, so the page's diagnostics say what the
+    # request did.
+    [logged] = wait_for(
+        lambda: title_records(claimed), bool, failure="the request was never logged"
     )
-    logged = json.loads(line)
-    assert logged["event"] == "thread_title_generated"
+    assert logged["type"] == "thread_title_generated"
     assert logged["apiDurationMs"] == 900
-    hooks_model.cmd_hook(
-        "claude-code", {"hook_event_name": "SessionEnd", "session_id": "s1"}
-    )
-    assert not log.exists()
 
 
 def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
@@ -426,9 +428,8 @@ def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
     )
     turns = [m for m in received if m.get("method") == "turn/start"]
     assert "Can the import run in parallel?" in turns[-1]["params"]["input"][0]["text"]
-    log = leases_model.titles_log("codex-thread")
     records = wait_for(
-        lambda: [json.loads(line) for line in log.read_text().splitlines()],
+        lambda: title_records(page_dir),
         lambda records: len(records) == 2,
         failure="the second title was never logged",
     )
@@ -492,9 +493,8 @@ def test_a_codex_title_server_that_fails_to_start_leaves_the_title_to_a_new_one(
         bool,
         failure="the thread was never named",
     )
-    log = leases_model.titles_log("codex-thread")
     [record] = wait_for(
-        lambda: [json.loads(line) for line in log.read_text().splitlines()],
+        lambda: title_records(page_dir),
         bool,
         failure="the title was never logged",
     )
@@ -709,21 +709,17 @@ def test_a_comment_on_a_pi_page_is_named_as_it_arrives(page_dir, tmp_path, monke
     # Pi adds an APPEND_SYSTEM.md to the system prompt unless one is given.
     assert argv[argv.index("--append-system-prompt") + 1] == ""
 
-    log = leases_model.titles_log("pi-session")
-    [line] = wait_for(
-        lambda: log.read_text().splitlines() if log.exists() else [],
-        bool,
-        failure="the request was never logged",
+    [logged] = wait_for(
+        lambda: title_records(page_dir), bool, failure="the request was never logged"
     )
-    logged = json.loads(line)
-    assert logged["event"] == "thread_title_generated"
+    assert logged["type"] == "thread_title_generated"
     assert (logged["model"], logged["costUsd"]) == ("openai-codex/gpt-6.1-sol", 0.00048)
 
 
-def test_a_title_request_that_outlives_its_session_leaves_no_log(claimed):
-    """SessionEnd removes the session's titles log, and a request still waiting on
-    the model when it runs finishes after that; it writes neither the title nor a
-    new log."""
+def test_a_title_request_that_outlives_its_session_writes_no_title(claimed):
+    """A request still waiting on the model when its session ends finishes after
+    that, as a session no longer holding the page: it writes no title, and the
+    page's diagnostics say so."""
     comment = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Tighten the intro"}
     )
@@ -742,7 +738,8 @@ def test_a_title_request_that_outlives_its_session_leaves_no_log(claimed):
         if worker.name == "leaf-thread-title":
             worker.join(timeout=STATED_TIMEOUT)
 
-    assert not leases_model.titles_log("s1").exists()
+    [logged] = title_records(claimed)
+    assert (logged["type"], logged["written"]) == ("thread_title_generated", False)
     kinds = [e["kind"] for e in events_model.read_events(claimed)]
     assert "thread_title" not in kinds
 

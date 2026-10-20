@@ -491,7 +491,7 @@ import {
   typesText,
   under,
   upFrom
-} from "./runtime/bundle-sample-visibility.js";
+} from "./runtime/bundle-frame-visibility.js";
 import {
   LitElement,
   bareReaction,
@@ -6541,10 +6541,10 @@ function createFloatingPanel({
         queueMicrotask(paint);
         const route = { view: "thread", thread: handle.attempt };
         open(route, { replace: true });
-        const untouched = retainUserIntent();
+        const untouched = retainUserIntent({ source: host });
         void Promise.resolve(flight).then((sent) => {
           if (sent || trail.length && trail.at(-1) !== route) return;
-          caretToField = standingIn(host) || untouched();
+          caretToField = untouched();
           paint();
         });
       }

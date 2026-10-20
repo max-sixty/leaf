@@ -52,7 +52,7 @@ def test_sample_admission_follows_parent_inertness_and_native_modal(browser, ser
     )
     child.evaluate("""async () => {
       const module = await window.__lfCheckApi();
-      window.sampleIsVisible = () => module.sampleVisibility().visible;
+      window.sampleIsVisible = () => module.frameVisibility().visible;
       window.sampleCurrentReading = module.readSampleVisibility;
     }""")
     child.wait_for_function("sampleIsVisible()")

@@ -29,7 +29,7 @@ import {
   layoutPx,
   move,
   nextRender
-} from "./bundle-sample-visibility.js";
+} from "./bundle-frame-visibility.js";
 import {
   __export
 } from "./bundle-__export.js";

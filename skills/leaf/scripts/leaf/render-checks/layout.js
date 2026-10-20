@@ -6,6 +6,7 @@ import {
   renderedParent,
   shownBand,
   shownRegionBounds,
+  skipped,
   uiInside,
   userScrollport,
 } from "/runtime/check-api.js";
@@ -85,14 +86,17 @@ export function geometryReading(open) {
 // members, since a pane's or a tab's content is the page's; a widget's own box is the
 // widget's business and is not read, and nothing Leaf generates is. Each box comes back
 // with its place under `main`, a selector another load of the same page resolves to the
-// same box, and the name every finding uses (locate.js).
-export function arrangedBoxes(open) {
+// same box, and the name every finding uses (locate.js). With `shown`, the walk keeps
+// to what the browser draws, leaving out skipped content such as a tab not chosen: a
+// reading of the view the user has asks nothing of it, and asking would make the
+// browser style and lay out each such subtree first (runtime/geometry.js, `skipped`).
+export function arrangedBoxes(open, { shown = false } = {}) {
   const main = pageDocument();
   if (!main) return [];
   const opens = new Set(open);
   const boxes = [];
   const walk = (el, path) => {
-    if (el.matches(".lf-ui, [data-lf-gen]")) return;
+    if (el.matches(".lf-ui, [data-lf-gen]") || (shown && skipped(el))) return;
     const widget = el.localName.includes("-");
     if (widget && !opens.has(el.localName)) return;
     if (!widget) boxes.push([el, path]);

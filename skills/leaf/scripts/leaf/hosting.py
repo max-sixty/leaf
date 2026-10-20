@@ -624,6 +624,8 @@ def cmd_serve(
                 announced = _announce_server(page_dir, url)
         if httpd is None or not announced:
             return
+        if claimed:
+            harness.prepare_titles(page_dir)
         threading.Thread(target=rows.run, daemon=True).start()
         threading.Thread(
             target=stop_when_service_ends,

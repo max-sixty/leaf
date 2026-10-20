@@ -14,7 +14,7 @@ const runtimePrimitives = [
   "shadow-tree.js",
   "keeps.js",
   "rendering.js",
-  "sample-visibility.js",
+  "frame-visibility.js",
   "queued-work.js",
   "repaint.js",
   "root-state.js",

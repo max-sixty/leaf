@@ -369,6 +369,7 @@ import {
   drawn,
   focusDestination,
   focused,
+  frameVisibility,
   handBack,
   holdFocus,
   inputCount,
@@ -378,7 +379,7 @@ import {
   nextAnimation,
   nextFrame,
   nextRender,
-  onSampleVisibility,
+  onFrameVisibility,
   onStanding,
   onUserInput,
   openLayer,
@@ -388,7 +389,6 @@ import {
   renderedOrder,
   renderedUnder,
   renderingState,
-  sampleVisibility,
   shadowHost,
   sizeObserver,
   takesLetters,
@@ -396,7 +396,7 @@ import {
   under,
   upFrom,
   whenLeft
-} from "./bundle-sample-visibility.js";
+} from "./bundle-frame-visibility.js";
 import {
   M,
   PENDING,
@@ -6981,9 +6981,13 @@ function createReadTracking({ markRead, openThread }) {
     scheduled = true;
     nextRender(() => {
       scheduled = false;
-      if (!sampleVisibility()) return scan();
+      const asked = readSampleVisibility();
+      if (!asked) {
+        if (frameVisibility()?.visible !== false) scan();
+        return;
+      }
       const generation = exposureGeneration;
-      void readSampleVisibility().then((reading) => {
+      void asked.then((reading) => {
         if (generation === exposureGeneration) scan(reading);
       }, reportError);
     });
@@ -6998,8 +7002,8 @@ function createReadTracking({ markRead, openThread }) {
     addEventListener("blur", resetExposure);
     addEventListener("load", scheduleScan, true);
     frameWatches.push(
-      onSampleVisibility(() => {
-        if (sampleVisibility()?.visible) scheduleScan();
+      onFrameVisibility((visibility) => {
+        if (visibility.visible) scheduleScan();
         else resetExposure();
       })
     );

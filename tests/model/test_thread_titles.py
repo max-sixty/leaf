@@ -293,8 +293,10 @@ def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
     through an App Server that starts the next turn only once the running one ends;
     either way its page server names the thread as the comment arrives, through an
     App Server of its own that runs none of the user's hooks or MCP servers and
-    carries none of the session's identity."""
-    record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
+    carries none of the session's identity. That server and its thread start before
+    the comment arrives, as the page server starts serving and again once each title
+    is answered, since starting them is most of a title's time."""
+    claim = record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
     assert stamp(page_dir, "first").exit_code == 0
     endpoint, received = titling_app_server(app_server, '{"title": "Export speed"}')
     servers = []
@@ -305,7 +307,14 @@ def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
         yield endpoint
 
     monkeypatch.setattr(thread_titles, "private_app_server", title_server)
+    monkeypatch.setattr(thread_titles, "_next_codex_titles", {})
     monkeypatch.setenv("CODEX_THREAD_ID", "codex-thread")
+    harness_model.claim_harness(claim).prepare_titles(page_dir)
+    wait_for(
+        lambda: [m for m in received if m.get("method") == "thread/start"],
+        bool,
+        failure="the title thread was never started",
+    )
 
     status, body = endpoint_model.accept_event(
         page_dir,
@@ -329,12 +338,12 @@ def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
         "Codex",
         "codex-thread",
     )
-    [(executable, env, arguments)] = servers
+    (executable, env, arguments), *_ = servers
     assert executable == shutil.which("codex")
     assert "CODEX_THREAD_ID" not in env
     # A server with plugins on syncs every marketplace the user configured.
     assert arguments == ("--disable", "plugins")
-    [start] = [m for m in received if m.get("method") == "thread/start"]
+    start, *_ = [m for m in received if m.get("method") == "thread/start"]
     assert start["params"]["config"]["features"]["hooks"] is False
     assert start["params"]["config"]["mcp_servers"] == {"docs": {"enabled": False}}
     assert "model" not in start["params"]
@@ -365,6 +374,75 @@ def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
     )
     turns = [m for m in received if m.get("method") == "turn/start"]
     assert "Can the import run in parallel?" in turns[-1]["params"]["input"][0]["text"]
+    log = leases_model.titles_log("codex-thread")
+    records = wait_for(
+        lambda: [json.loads(line) for line in log.read_text().splitlines()],
+        lambda records: len(records) == 2,
+        failure="the second title was never logged",
+    )
+    assert [record["prepared"] for record in records] == [True, True]
+    wait_for(
+        lambda: len(servers),
+        lambda count: count == 3,
+        failure="the next title's server was never started",
+    )
+
+
+def test_a_codex_title_server_that_fails_to_start_leaves_the_title_to_a_new_one(
+    page_dir, app_server, monkeypatch
+):
+    """A title server started ahead of the comment that then fails to start,
+    whether before the comment or while the comment waits on it, asked nothing, so
+    the title is asked on a server started then."""
+    claim = record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
+    assert stamp(page_dir, "first").exit_code == 0
+    endpoint, _ = titling_app_server(app_server, '{"title": "Export speed"}')
+    starts = []
+    released = threading.Event()
+
+    @contextlib.contextmanager
+    def title_server(executable, *, env, arguments):
+        starts.append(executable)
+        if len(starts) == 1:
+            released.wait()
+            raise codex_model.Refused("Codex App Server exited before it was ready")
+        yield endpoint
+
+    monkeypatch.setattr(thread_titles, "private_app_server", title_server)
+    monkeypatch.setattr(thread_titles, "_next_codex_titles", {})
+    harness_model.claim_harness(claim).prepare_titles(page_dir)
+
+    status, body = endpoint_model.accept_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "revision": 1,
+            "text": "Why does the export take a minute?",
+        },
+        dict,
+    )
+    assert status == 200, body
+    # The comment's request has taken the server still starting.
+    wait_for(
+        lambda: thread_titles._next_codex_titles,
+        lambda prepared: not prepared,
+        failure="the comment never took the prepared server",
+    )
+    released.set()
+    wait_for(
+        lambda: [
+            e for e in events_model.read_events(page_dir) if e["kind"] == "thread_title"
+        ],
+        bool,
+        failure="the thread was never named",
+    )
+    log = leases_model.titles_log("codex-thread")
+    [record] = wait_for(
+        lambda: [json.loads(line) for line in log.read_text().splitlines()],
+        bool,
+        failure="the title was never logged",
+    )
+    assert record["prepared"] is False
 
 
 # Pi's records in `--mode json`: a run that failed and that Pi retries, then the

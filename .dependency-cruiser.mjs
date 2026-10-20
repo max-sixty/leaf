@@ -88,7 +88,7 @@ const exactClosures = {
     "event-kinds.js",
     "names.js",
     "rendering.js",
-    "sample-visibility.js",
+    "frame-visibility.js",
     "repaint.js",
     "shadow.js",
     "arrivals.js",

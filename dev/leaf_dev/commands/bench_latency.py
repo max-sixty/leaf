@@ -28,7 +28,9 @@ script owner, with the style and layout each forced. Requests and bytes, the
 primary comparison, are the resource entries the page started from then until it has
 stayed quiet for SETTLE_MS, or the whole new document after a reload; request bodies
 carry no entry. Completed finite freshness reads do, while an open SSE connection does
-not; `results.json` lists each request's URL, initiator and bytes. Compare the numbers with the objectives in
+not; `results.json` lists each request's URL, initiator, bytes, and when it
+started and ended beside the transition's `start`, which splits the server's time
+from the page's. Compare the numbers with the objectives in
 `notes/user-feedback-responsiveness.md`, and read the spread and load average before
 a median. `leaf-dev profile` drives the same transitions (`served`) under a profiler.
 """
@@ -258,6 +260,7 @@ class Session:
             "page": self.source,
             "arm": self.arm,
             "transition": transition,
+            "start": start,
             **{goal["name"]: goal["at"] - start for goal in watch["goals"]},
             **({"answered": answered - start} if answered else {}),
             **main_thread(frames, start, end),

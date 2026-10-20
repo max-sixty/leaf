@@ -70,7 +70,7 @@ test("a primitive reason stands for itself by its text", () => {
   );
 });
 
-test("document faults end at swap and resume when the same realm is shown", (t) => {
+test("document faults end at departure and resume when the document stays or returns", (t) => {
   const root = document.documentElement;
   const errors = [];
   const faults = [];
@@ -86,16 +86,26 @@ test("document faults end at swap and resume when the same realm is shown", (t) 
   });
   const startupFault = (reason) =>
     window.dispatchEvent(new CustomEvent("lf-startup-failed", { detail: { reason } }));
-  // A canceled beforeunload never swaps the document: ordinary faults remain live.
-  const leave = new Event("beforeunload", { cancelable: true });
-  leave.preventDefault();
-  window.dispatchEvent(leave);
+  // A canceled beforeunload never lets the document go: ordinary faults remain live.
+  const stay = new Event("beforeunload", { cancelable: true });
+  stay.preventDefault();
+  window.dispatchEvent(stay);
   reportPageError(new Error("still active"));
   assert.match(errors[0], /still active/);
+  // One nothing cancels starts the departure, whose aborted loads Firefox rejects
+  // before any swap. Input shows the document stayed, as after a download.
+  window.dispatchEvent(new Event("beforeunload", { cancelable: true }));
+  reportPageError(new Error("navigation aborted the load"));
+  startupFault("navigation aborted startup");
+  assert.equal(errors.length, 1);
+  assert.deepEqual(faults, []);
+  window.dispatchEvent(new Event("keydown"));
+  reportPageError(new Error("fault after staying"));
+  assert.match(errors[1], /fault after staying/);
   window.dispatchEvent(new Event("pageswap"));
   reportPageError(new Error("departing fetch canceled"));
   startupFault("departing startup canceled");
-  assert.equal(errors.length, 1);
+  assert.equal(errors.length, 2);
   assert.deepEqual(faults, []);
   assert.equal(root.hasAttribute("data-lf-startup-error"), false);
   // Pagehide is also the retirement boundary on engines without pageswap.
@@ -103,13 +113,13 @@ test("document faults end at swap and resume when the same realm is shown", (t) 
   window.dispatchEvent(new Event("pagehide"));
   reportPageError(new Error("hidden document canceled"));
   startupFault("hidden startup canceled");
-  assert.equal(errors.length, 1);
+  assert.equal(errors.length, 2);
   assert.deepEqual(faults, []);
   // BFCache restores this realm, including its original error listeners.
   window.dispatchEvent(new Event("pageshow"));
   reportPageError(new Error("restored real fault"));
   startupFault("restored startup fault");
-  assert.match(errors[1], /restored real fault/);
+  assert.match(errors[2], /restored real fault/);
   assert.deepEqual(faults, ["restored startup fault"]);
   assert.equal(root.dataset.lfStartupError, "restored startup fault");
 });

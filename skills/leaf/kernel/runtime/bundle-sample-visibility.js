@@ -61,7 +61,9 @@ if (child) {
     { threshold: [0, Number.EPSILON] }
   );
   seen.observe(document.documentElement);
-  addEventListener("pagehide", () => seen.disconnect(), { once: true });
+  addEventListener("pagehide", (event) => {
+    if (!event.persisted) seen.disconnect();
+  });
 }
 
 // runtime/rendering.js

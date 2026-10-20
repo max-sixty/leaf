@@ -10,22 +10,36 @@
   /** @template {keyof Allocations} A @param {A} name @returns {Allocations[A] | null} */
   const pageAllocation = (name) =>
     /** @type {any} */ (document.body.getAttribute(name));
-  // A cross-document swap commits departure before Chrome rejects its aborted
-  // fetches. Those rejections belong to the old document, not its replacement.
-  // beforeunload is cancelable and therefore cannot end this lifetime; pageshow
-  // reopens it when the browser restores the same realm from its page cache.
-  let documentActive = true;
+  // A document reports faults only until it departs. A navigation away aborts the
+  // document's requests, and those failures are the navigation's, not the page's.
+  // Chrome fires `pageswap` and `pagehide` before it rejects the aborted requests.
+  // Firefox has no `pageswap`, and it aborts the requests as soon as an uncanceled
+  // `beforeunload` lets the navigation start, while the document stays shown and
+  // running until the destination answers. So the lifetime ends at whichever of
+  // these comes first. A `beforeunload` a listener cancels keeps the document, so it
+  // ends nothing. A navigation can also start and still leave the document in place,
+  // as a link answered with a download does, so the user's next input reopens the
+  // lifetime. `pageshow` reopens it when the browser restores the same document from
+  // its page cache.
+  let swapped = false;
+  /** @type {Event | null} */
+  let leaving = null;
+  const documentActive = () => !swapped && !(leaving && !leaving.defaultPrevented);
   root.lfDocumentLifetime = Object.freeze({
     get active() {
-      return documentActive;
+      return documentActive();
     },
+  });
+  window.addEventListener("beforeunload", (event) => {
+    leaving = event;
   });
   for (const type of ["pageswap", "pagehide"])
     window.addEventListener(type, () => {
-      documentActive = false;
+      swapped = true;
     });
   window.addEventListener("pageshow", () => {
-    documentActive = true;
+    swapped = false;
+    leaving = null;
   });
   // The runtime will run here and upgrade the page's widgets, so the themes give each
   // widget the box its module will draw it at (`html[data-lf-interactive]`). A reading
@@ -49,7 +63,9 @@
     },
   };
   const input = (event) => {
-    if (event.type === "blur" && event.target !== window) return;
+    if (event.type === "blur") {
+      if (event.target !== window) return;
+    } else leaving = null;
     inputs++;
     for (const read of inputReaders) read(event);
   };
@@ -74,7 +90,7 @@
   // mark off where it is incomplete. The first is the earliest evidence and a later one
   // is often its consequence; the bootstrap's report keeps the first as well.
   const fault = (reason, incomplete, error = null, page = false) => {
-    if (!documentActive) return;
+    if (!documentActive()) return;
     if (incomplete) root.toggleAttribute("data-lf-interactive", false);
     if (root.hasAttribute("data-lf-startup-error")) return;
     root.dataset.lfStartupError = reason;

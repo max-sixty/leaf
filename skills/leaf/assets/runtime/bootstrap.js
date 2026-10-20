@@ -115,7 +115,12 @@
         root.lfInitial.setRuntimeRootAttribute(root, "data-lf-sample-connecting", "");
       window.addEventListener("message", connect);
       window.parent.postMessage({ type: "leaf-sample-connect", sample, nonce }, "*");
-      window.addEventListener("pagehide", () => send({ type: "departed" }));
+      // A frame's own navigation never keeps its document in the page cache, so a
+      // persisted pagehide is the containing page's, which takes this document and
+      // its port along and brings both back together (sample.js keeps the host then).
+      window.addEventListener("pagehide", (event) => {
+        if (!event.persisted) send({ type: "departed" });
+      });
     }
     window.addEventListener("lf-startup-failed", () => {
       if (!root.lfDocumentLifetime.active) return;

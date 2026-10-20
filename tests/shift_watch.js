@@ -112,6 +112,19 @@
 // announces its change by that write. A change to this gate runs the suite with
 // VERIFY = 1, which checks every frame.
 //
+// Unpresented frames. Until the runtime stamps `data-lf-presented`, movement without
+// input is exempt (Scope: the page before it presents). While such a page is still
+// changing, with nothing focused and no input's rendering retained, a frame takes no
+// complete reading and leaves its changes unread. The first frame in which the page
+// rests reads them, and so does a trusted input before any of the page's handlers
+// run; focus, an input's rendering or the stamp then ends the deferral. So
+// verification and the poses an input's verdicts look back to are read as before,
+// with one known exception: on a page that never rests, a script that scrolls and
+// focuses in one task moves an anchored field before the watch first sees it, and
+// that scroll goes uncredited if typing follows within a frame. A page still
+// upgrading changes in nearly every frame, and each of those readings forced a style
+// and layout pass of its own.
+//
 // Movement findings retain the exact comparison and credits that decided them,
 // alongside the sampled scroll/attachment/animation inputs. Only admitted failures
 // serialize that evidence; healthy frames emit nothing. Passive chains keep their
@@ -339,8 +352,13 @@
   // complete one (the header's "Unchanged frames"). Each source sets it in the same
   // task as the change it announces, so it is set before the next frame's reading.
   let unread = true;
+  // Whether anything was announced since the last frame's reading, which tells a frame
+  // where the page is still changing from one where it has come to rest.
+  let fresh = true;
+  // Whether a frame has left changes unread before the page presented.
+  let deferring = false;
   const announce = () => {
-    unread = true;
+    unread = fresh = true;
   };
   const writes = new MutationObserver(announce);
   // Input, scrolling, loads and native element state, heard in each tree they are
@@ -873,17 +891,18 @@
     // or leaves the set settles the last of them.
     const animations = allAnimations();
     const running = animations.some(({ playState }) => playState === "running");
-    if (writes.takeRecords().length) unread = true;
+    if (writes.takeRecords().length) unread = fresh = true;
     // An embedding page can hide this document's frame without telling it.
     const drawn = drawing();
-    const announced =
-      unread ||
-      window !== top ||
+    const active =
+      fresh ||
       drawn !== wasDrawn ||
       running ||
       wasRunning ||
       animations.length !== seenAnimations.length ||
       animations.some((animation, i) => animation !== seenAnimations[i]);
+    if (frame) fresh = false;
+    const announced = unread || window !== top || active;
     // Native anchoring follows its scroller one frame late, so the frame after the
     // one that reads an announced change reads completely too.
     const changing = announced || (frame && owed > 0);
@@ -892,8 +911,12 @@
     wasRunning = running;
     wasDrawn = drawn;
     seenAnimations = animations;
-    const verifying = !changing && frame && ++quiet % VERIFY === 0;
-    if (!changing && !verifying) {
+    // A page still changing before it presents leaves its changes unread for the
+    // first frame where it rests ("Unpresented frames" above).
+    const deferred = frame && active && unpresented();
+    if (deferred) unread = deferring = true;
+    const verifying = !deferred && !changing && frame && ++quiet % VERIFY === 0;
+    if (deferred || (!changing && !verifying)) {
       if (frame)
         frames.push({
           at,
@@ -905,7 +928,7 @@
         });
       return at;
     }
-    unread = false;
+    unread = deferring = false;
     if (changing) quiet = 0;
     const misses = [];
     const nodes = everything();
@@ -1132,7 +1155,7 @@
     if (entry) entry.written = written;
     // A page that wrote while it was read, as a reading that patches the DOM API
     // does, announced its own change.
-    if (writes.takeRecords().length) unread = true;
+    if (writes.takeRecords().length) unread = fresh = true;
     else if (misses.length) missed(misses);
     return at;
   };
@@ -1404,6 +1427,25 @@
     );
     if (event.type === "click") presses.delete(event.pointerId);
   };
+  // An input's credits look back to the poses it began from, so where frames left
+  // changes unread, read them before any handler of the page's can move anything.
+  for (const type of [
+    "keydown",
+    "pointerdown",
+    "pointermove",
+    "pointerup",
+    "click",
+    "wheel",
+  ])
+    listen(
+      window,
+      type,
+      (event) => {
+        if (deferring && event.isTrusted && (type !== "pointermove" || event.buttons))
+          read(nativePerformance.now(), false);
+      },
+      true,
+    );
   for (let view = window; ; view = view.parent) {
     let held;
     try {
@@ -1490,6 +1532,11 @@
     (presented === null ||
       startTime < presented ||
       returns.some(({ start, through }) => startTime >= start && startTime <= through));
+  const unpresented = () =>
+    presented === null &&
+    renderings.length === 0 &&
+    (document.activeElement ?? document.body) === document.body &&
+    document.querySelector("script[data-lf-entry]") !== null;
   const permittedReflow = ({ node, previousRect, currentRect }, around) => {
     const element = node?.nodeType === Node.TEXT_NODE ? up(node) : node;
     if (around.length !== 3) return false;

@@ -1728,11 +1728,10 @@ def panel_control(page, key, at=None):
     (`approval`) stands under Versions. Every other row is the menu's, by its key:
     `versions`, `leaves` (All pages, under `navigate` where other pages are live),
     `latest`, `blanket:accept`, `command:<id>` for a page command such as
-    `command:history.undo` or `command:draw.mode.enter` (under `annotate`). A gesture's
-    next step stands in the marks' place as a `.lf-fp-step` chip named by its words, the
-    way out of the stance the user stands in is the `.lf-fp-exit` ✕ named by its
-    `aria-label`, and the page comment is `page_comment`'s, offering selected words
-    as `selection_field`'s."""
+    `command:history.undo` or `command:draw.mode.enter` (under `annotate`). The way out
+    of the stance the user stands in is the `.lf-fp-exit` ✕ named by its `aria-label`,
+    and the page comment is `page_comment`'s, offering selected words as
+    `selection_field`'s."""
     if key in PANEL_ROW_CONTROLS:
         control = page.locator(PANEL_ROW_CONTROLS[key])
     elif key == "approval":

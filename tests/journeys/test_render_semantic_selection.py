@@ -25,9 +25,8 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     """Undo, Draw mode, Design mode and search have no key under a finger, so the leaf's
-    menu holds each, read off the command's own row. What a finger does inside one
-    stands as a step in the panel's row, in the marks' place, while it holds, and the
-    way out of each is one ✕ at the row's end. Words a finger selects, in a mode too,
+    menu holds each, read off the command's own row. Inside one, the panel's row keeps
+    its marks, and the way out of each is one ✕ at the row's end. Words a finger selects, in a mode too,
     are quoted in the panel's field, a tap on which comments on them. Design mode
     leaves Leaf's own chrome working, that ✕ included."""
     context = browser.new_context(
@@ -37,9 +36,6 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     host = page.locator(PANEL)
     row = page.locator(".lf-fp-row")
     marks = page.locator(".lf-fp-threads")
-
-    def step(name):
-        return row.locator(".lf-fp-step").filter(has_text=name)
 
     def leave(name):
         return row.locator(f'.lf-fp-exit[aria-label="{name}"]')
@@ -70,7 +66,6 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
         panel_control(page, entry, at="annotate").tap()
         expect(page.locator(root)).to_have_attribute(mode, "")
         expect(leave(exit_name)).to_be_visible()
-        expect(row.locator(".lf-fp-step")).to_have_count(0)
         expect(marks).to_be_visible()
         leave(exit_name).tap()
         expect(page.locator(root)).not_to_have_attribute(mode, "")
@@ -171,7 +166,7 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     panel_control(page, "command:page.search.open", at="navigate").tap()
     expect(next_match).to_be_visible()
     expect(exit_draw).to_have_count(0)
-    expect(row.locator(".lf-fp-step:visible")).to_have_count(0)
+    expect(marks).to_be_visible()
     leave("Close search").tap()
     exit_draw.tap()
     expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")

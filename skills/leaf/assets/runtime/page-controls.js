@@ -12,15 +12,14 @@
  * presentation held when the user opened it (history.js, `readPlace`). A row that is a
  * view of the panel's own, such as Threads, has no press: the panel opens the view.
  *
- * A `gesture` row is the next step of something the user is doing right now, such as
- * selecting a search's match or undoing a stroke in Draw mode, which the innermost
- * active scope supplies (keyboard/touch-controls.js). It stands in the panel's row while
- * that gesture holds it. An `exit` row is the way out of the stance the user stands in,
- * which stands at the row's end beside whatever else does.
+ * An `exit` row is the way out of the stance the user stands in, such as page search or
+ * Draw mode (keyboard/touch-controls.js), which stands at the row's end beside its
+ * counts. No other row stands in the panel's row: what a gesture does next, a finger
+ * does on what the gesture acts on (keyboard/AGENTS.md, "Touch routes").
  *
  * Each field may be a value or a function read when the rows are read, so a paint that
  * reads them through `watchProjection` (projection-watch.js) follows what they read.
- * A row whose answer moves outside the page's readings, such as a mode's steps, says
+ * A row whose answer moves outside the page's readings, such as a stance's way out, says
  * so with `pageControlsChanged`, and `watchPageControls` hears it. */
 import { afterScript } from "./rendering.js";
 
@@ -41,8 +40,8 @@ export const PAGE_CONTROL_RANK = Object.freeze({
   blanket: 80,
   versions: 90,
   keyboard: 95,
-  // The next steps in the mode or picker the user stands in, and its way out.
-  steps: 120,
+  // The way out of the stance the user stands in.
+  exit: 120,
 });
 
 // What a row is about, which decides where a menu built from rows puts it: on the menu
@@ -72,7 +71,6 @@ const read = (value) => (typeof value === "function" ? value() : value);
  *   offered?: boolean | (() => boolean),
  *   urgent?: string | null | (() => string | null),
  *   disabled?: boolean | (() => boolean),
- *   gesture?: boolean,
  *   exit?: boolean,
  *   press?: (held?: any) => void,
  * }} row
@@ -106,7 +104,6 @@ export function pageControls() {
         group,
         copies: read(row.copies) ?? "",
         urgent: read(row.urgent) ?? null,
-        gesture: Boolean(row.gesture),
         exit: Boolean(row.exit),
         disabled: Boolean(read(row.disabled)),
         press: row.press ?? null,

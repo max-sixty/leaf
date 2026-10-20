@@ -30,7 +30,12 @@ import {
 export { ContainerProxy } from "@cloudflare/containers";
 import { type DurableObject } from "cloudflare:workers";
 import * as z from "zod/mini";
-import type { Event, ServedState } from "../../build/browser/contract.js";
+import type {
+  Event,
+  ServedEventAnswer,
+  ServedSampleAnswer,
+  ServedState,
+} from "../../build/browser/contract.js";
 import {
   CHUNK_BYTES,
   PageStore,
@@ -405,7 +410,9 @@ async function acceptedEvent(
     const posted = (await postedRequest.json()) as { attempt?: unknown };
     if (typeof posted.attempt !== "string") return null;
     // An accepted event's answer carries the page's state (`event_endpoint.accept_event`).
-    const { state } = (await response.clone().json()) as { state: ServedState };
+    const answer = (await response.clone().json()) as ServedEventAnswer;
+    if (answer.ok !== true) return null;
+    const { state } = answer;
     const event = state.events.find(
       (candidate) => candidate.attempt === posted.attempt,
     );
@@ -731,7 +738,7 @@ export default {
     }
     let body: BodyInit | null = response.body;
     if (request.method === "POST" && route.inside === "api/samples" && response.ok) {
-      const answer = (await response.json()) as { url: string; page: string };
+      const answer = (await response.json()) as ServedSampleAnswer;
       const allocated = new URL(answer.url, request.url);
       const objectId = env.PAGES.idFromName(privateContainer).toString();
       allocated.pathname = `${allocated.pathname.slice(0, -1)}~${objectId}/`;

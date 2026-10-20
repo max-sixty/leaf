@@ -168,11 +168,14 @@ export async function requestJson(url, init, what) {
       throw failed(`${what}: HTTP ${response.status}`, error);
     }
   // `said` is the server's own words for the refusal, where it gave any.
-  if (!response.ok)
-    throw Object.assign(failed(answer?.error ?? `${what}: HTTP ${response.status}`), {
-      current: answer?.current,
-      said: answer?.error,
+  if (!response.ok) {
+    /** @type {import("../../../../build/browser/contract.js").ServedRefusal | import("../../../../build/browser/contract.js").ServedStaleFile | null} */
+    const refusal = answer;
+    throw Object.assign(failed(refusal?.error ?? `${what}: HTTP ${response.status}`), {
+      current: refusal && "current" in refusal ? refusal.current : undefined,
+      said: refusal?.error,
     });
+  }
   return answer;
 }
 
@@ -308,6 +311,7 @@ export const uploadMedia = async (file) => {
     throw new Error("no agent or server is available in an interactive export");
   await layerReady;
   countTraffic("sends");
+  /** @type {import("../../../../build/browser/contract.js").ServedMediaAnswer} */
   let answer;
   try {
     answer = await requestJson(

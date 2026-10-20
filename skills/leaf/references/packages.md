@@ -183,8 +183,8 @@ colours with the page's status.
 
 An element declaration is a JSON Schema over the element's attributes, plus `x-` keys
 that say how Leaf treats the tag, such as whether a module upgrades it, its action verbs
-and whether it puts an item on On me. The merged registry's `$keys` entry defines each
-key; `$state` defines the members of `x-state`, and `$awaits` an item's answer. Every
+and whether it puts an obligation on On me. The merged registry's `$keys` entry defines each
+key; `$state` defines the members of `x-state`, and `$awaits` an obligation's answer. Every
 declaration has a `description` saying what the widget is for and when to use it, and a
 valid `x-example`. The optional `x-instructions` gives the choices and obligations of
 using it.

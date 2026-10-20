@@ -28,7 +28,7 @@ that reply, which itself needs read evidence. Neither is something the user read
 order to keep up, so neither pulls them back to the thread. An edit to other content
 is a new version needing fresh evidence. An explicit summary
 does not mark read what it covers. Unread is independent of turn-taking and of the
-user's outstanding work: reading never answers an item, and answering one does
+user's outstanding work: reading never answers an obligation, and answering one does
 mark it read.
 """
 

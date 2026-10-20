@@ -85,9 +85,9 @@ import {
 import { createFloatingPanel } from "./runtime/floating-panel.js";
 import { standingThreadId } from "./runtime/thread/focus.js";
 import { createPageMapDialog } from "./runtime/page-map-dialog.js";
-import { createItemView } from "./runtime/items/view.js";
+import { createObligationView } from "./runtime/obligations/view.js";
 import { createQueueWalk } from "./runtime/queue-walk.js";
-import { ITEM_CONTROL } from "./runtime/items/view-elements.js";
+import { OBLIGATION_CONTROL } from "./runtime/obligations/view-elements.js";
 import {
   commandHintLayer,
   createCommandHints,
@@ -336,8 +336,8 @@ const version = createVersionController({
     const panelShown = floatingPanel.restoreStanding(panel);
     return (app?.overlay?.restoreStanding(margin) ?? false) || panelShown;
   },
-  captureItemStanding: () => items.captureStanding(),
-  restoreItemStanding: (standing) => items.restoreStanding(standing),
+  captureObligationStanding: () => items.captureStanding(),
+  restoreObligationStanding: (standing) => items.restoreStanding(standing),
   versions: { press: () => floatingPanel.doors.versions.press() },
 });
 
@@ -348,7 +348,7 @@ const inputs = createCompositionInputs({
 
 app = mountApplication({
   arriveAtQueueItem: (item) => queueWalk.arriveAtItem(item),
-  nextItemWithin: (options) => queueWalk.nextWithin(options),
+  nextObligationWithin: (options) => queueWalk.nextWithin(options),
   threadAvailable: !offlineInteractive,
   createEngagement,
   targetPickerOpen: () => targets.targetPickerOpen(),
@@ -392,7 +392,7 @@ app = mountApplication({
     pageMapDialogContains: (...args) => pageMapDialog.pageMapDialogContains(...args),
     renderPageMapDialog: (...args) => pageMapDialog.renderPageMapDialog(...args),
     scrollThreadIntoView,
-    goToItem: (...args) => items.goToItem(...args),
+    goToObligation: (...args) => items.goToObligation(...args),
   },
   state: {
     prepareActivation: (state) => version.prepareActivation(state),
@@ -428,8 +428,8 @@ pageMapDialog = createPageMapDialog({
   annotationFocus: app.overlay?.mapFocusTarget,
 });
 
-// The item view is constructed below by its owner factory; all accesses above are inert closures.
-items = createItemView({
+// The obligation view is constructed below by its owner factory; all accesses above are inert closures.
+items = createObligationView({
   focusForNavigation,
   presentedControl: app.overlay?.presentedControl,
   prepareTrip: anchorTravel.prepareTrip,
@@ -454,7 +454,7 @@ const commandHints = createCommandHints({
 });
 
 const standingTarget = createStandingTarget({
-  isItemControl: (node) => node?.matches?.(ITEM_CONTROL),
+  isObligationControl: (node) => node?.matches?.(OBLIGATION_CONTROL),
   standingIn: items.standingIn,
 });
 
@@ -463,9 +463,9 @@ floatingPanel = createFloatingPanel({
   observeFeedback: app.read.observeFeedback,
   threadActions: app.threadActions,
   registerChromeThreadPresentation: app.registerChromeThreadPresentation,
-  items: {
+  obligations: {
     choicesOf: items.choicesOf,
-    open: (id) => app.openItem(id),
+    open: (id) => app.openObligation(id),
   },
   queueActions: app.queueActions,
   withdraw: app.withdraw,
@@ -833,7 +833,7 @@ async function startPage() {
   if (!offlineInteractive) {
     layout.syncLayout();
     items.buildBulkAnswers();
-    items.syncItems();
+    items.syncObligations();
   }
   await settlePageInterface();
   landFragment();

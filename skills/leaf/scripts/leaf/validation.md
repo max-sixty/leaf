@@ -222,7 +222,7 @@ readings live on its one `RevisionReading` (`revision_artifact.read_revision`); 
 candidate's live on the one `SourceReading` its check takes, which the revision
 activation writes from it adopts. A `SourceDocument` builds its element index (ids,
 lf-* records, live samples) as it is read, and everything else on first use of
-`SourceDocument.authoring`. The revision inventory scans (ids, item registrations,
+`SourceDocument.authoring`. The revision inventory scans (ids, obligation registrations,
 data consumers) read only the index of each revision, so they never build the rest;
 a reader that names a historical revision's elements, such as gesture naming,
 builds it for that revision. Each logged markup fragment is parsed once

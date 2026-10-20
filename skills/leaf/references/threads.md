@@ -131,8 +131,8 @@ Every answer declares what it leaves the thread with:
 - `--todo "<what you owe>"`: it promises work it does not deliver, and opens that
   to-do on the thread under the reply's id until `leaf task end <page> <reply-id>`
   ([Long-running work](conversation-loop.md#long-running-work)).
-- A question back: put it in an `lf-ask` in `--markup`. It is an item on the user's
-  On me list, `widget:<its id>` in `page state`'s `items`, until their next message in
+- A question back: put it in an `lf-ask` in `--markup`. It is an obligation on the user's
+  On me list, `widget:<its id>` in `page state`'s `obligations`, until their next message in
   the thread answers it or you end it
   ([The On lists](conversation-loop.md#the-on-lists)). An answer that asks this way
   needs no flag.

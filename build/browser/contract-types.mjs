@@ -13,6 +13,9 @@
  * `Served<Name>`. An object
  * closed with `unevaluatedProperties` reads as closed, as one with
  * `additionalProperties: false` does.
+ *
+ * `protocolSchemas` reads those schemas, with each `state.Record`'s, as one value: the
+ * types are generated from it, and `protocol.mjs` compares it with the baseline.
  */
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
@@ -20,15 +23,24 @@ import { fileURLToPath } from "node:url";
 
 const ANNOTATIONS = new Set(["description", "title", "$schema", "$id", "$comment"]);
 
-function reference(ref) {
+/** What a served-state reference names: one of its own definitions (`own`), the
+ * x-state verb (`verb`), or an event record (`event`, its kind or null for any kind,
+ * with `field`, one property of it, or null). */
+export function schemaReference(ref) {
   const own = /^#\/\$defs\/([A-Za-z]+)$/.exec(ref);
-  if (own) return `Served${own[1]}`;
-  if (ref === "leaf:verb") return "ServedVerb";
+  if (own) return { own: own[1] };
+  if (ref === "leaf:verb") return { verb: true };
   const event = /^leaf:event(?:\/([a-z_]+))?(?:#\/properties\/([a-z_]+))?$/.exec(ref);
   if (!event) throw new Error(`Unsupported schema reference: ${ref}`);
-  const [, kind, field] = event;
-  if (!kind) return "Event";
-  const record = `EventMap[${JSON.stringify(kind)}]`;
+  return { event: event[1] ?? null, field: event[2] ?? null };
+}
+
+function reference(ref) {
+  const { own, verb, event, field } = schemaReference(ref);
+  if (own) return `Served${own}`;
+  if (verb) return "ServedVerb";
+  if (!event) return "Event";
+  const record = `EventMap[${JSON.stringify(event)}]`;
   return field ? `Exclude<${record}[${JSON.stringify(field)}], undefined>` : record;
 }
 
@@ -180,27 +192,52 @@ function servedTypes(schema, verb) {
   return `${definitions.join("\n")}\nexport type ServedState = ${typeOf(state)};\n`;
 }
 
-// The x-state verb's schema, whose home is Python's layer schema (`schema.VERB_SCHEMA`),
-// built there from the name patterns the rest of the layer schema shares.
-function verbSchema(root) {
+// The schemas whose home is Python: the x-state verb's (`schema.VERB_SCHEMA`), built
+// there from the name patterns the rest of the layer schema shares, and each
+// `state.Record`'s, read once every module declaring one is imported.
+function pythonSchemas(root) {
+  const program = `
+import importlib, json, pkgutil
+import leaf, leaf_website
+from leaf.schema import VERB_SCHEMA
+from leaf.state import RECORDS
+for package in (leaf, leaf_website):
+    for module in pkgutil.walk_packages(package.__path__, package.__name__ + "."):
+        if not module.name.endswith(".__main__"):
+            importlib.import_module(module.name)
+records = {
+    kind: {"since": record.since, "schema": record.schema}
+    for kind, record in sorted(RECORDS.items())
+}
+print(json.dumps({"verb": VERB_SCHEMA, "records": records}))
+`;
   return JSON.parse(
-    execFileSync(
-      "uv",
-      [
-        "run",
-        "--quiet",
-        "python",
-        "-c",
-        "import json; from leaf.schema import VERB_SCHEMA; print(json.dumps(VERB_SCHEMA))",
-      ],
-      { cwd: fileURLToPath(root), encoding: "utf8" },
-    ),
+    execFileSync("uv", ["run", "--quiet", "python", "-c", program], {
+      cwd: fileURLToPath(root),
+      encoding: "utf8",
+    }),
   );
 }
 
-export async function contractTypes(root) {
+/** Every schema the page protocol holds and every record's (`protocol.mjs`): the kernel
+ * event records and browser commands (`$events`), the served state and the x-state
+ * verb it carries, and each `state.Record` with the protocol its shape was set at. */
+export async function protocolSchemas(root) {
   const read = async (file) => JSON.parse(await readFile(new URL(file, root)));
-  const registry = await read("skills/leaf/assets/registry.json");
-  const served = await read("skills/leaf/scripts/leaf/served_state/state.schema.json");
-  return `/* @noformat Generated from registry.json, state.schema.json and schema.VERB_SCHEMA by build/browser/contract-types.mjs. */\n${eventTypes(registry)}${authoredTypes(registry)}${servedTypes(served, verbSchema(root))}`;
+  const { $events } = await read("skills/leaf/assets/registry.json");
+  const { verb, records } = pythonSchemas(root);
+  return {
+    protocol: $events.protocol,
+    events: { ownership: $events.ownership, kinds: $events.kinds },
+    served: await read("skills/leaf/scripts/leaf/served_state/state.schema.json"),
+    verb,
+    records,
+  };
+}
+
+export async function contractTypes(root, { events, served, verb }) {
+  const registry = JSON.parse(
+    await readFile(new URL("skills/leaf/assets/registry.json", root)),
+  );
+  return `/* @noformat Generated from registry.json, state.schema.json and schema.VERB_SCHEMA by build/browser/contract-types.mjs. */\n${eventTypes({ $events: events })}${authoredTypes(registry)}${servedTypes(served, verb)}`;
 }

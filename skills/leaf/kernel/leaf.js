@@ -9215,15 +9215,18 @@ function createQueueWalk({
     touch: false,
     keys: ["m", "Shift+m"],
     routes: [
+      // The whole page's list, which a tally's Next on me, walking one region, is not.
       {
         id: "queue.next",
         binding: "m",
-        title: "Next on me"
+        title: "Next on me",
+        description: "Go to the next of everything waiting on me, anywhere on the page"
       },
       {
         id: "queue.previous",
         binding: "Shift+m",
-        title: "Previous on me"
+        title: "Previous on me",
+        description: "Go to the previous of everything waiting on me, anywhere on the page"
       }
     ],
     title: "On me",
@@ -11482,11 +11485,12 @@ async function startPage() {
   app.startFeed(presentPage, initialStateRead);
 }
 startPage().catch((error) => {
-  if (!document.documentElement.lfDocumentLifetime.active) return;
   const reason = `page failed to start: ${error?.message ?? error}`;
-  window.dispatchEvent(
-    new CustomEvent("lf-startup-failed", { detail: { reason, error } })
-  );
-  reportPageError(error, "page failed to start");
-  applicationState.setReach("broken");
+  document.documentElement.lfDocumentLifetime.whenActive(`start ${reason}`, () => {
+    window.dispatchEvent(
+      new CustomEvent("lf-startup-failed", { detail: { reason, error } })
+    );
+    reportPageError(error, "page failed to start");
+    applicationState.setReach("broken");
+  });
 });

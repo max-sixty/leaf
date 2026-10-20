@@ -16,6 +16,7 @@ import {
 import {
   nextFrame,
   nextRender,
+  sizeObserver,
   under,
   upFrom
 } from "./bundle-sample-visibility.js";
@@ -34,8 +35,19 @@ function residencyPass(time) {
   residencyRead = time;
   readResidency();
 }
+var headSizes = null;
+var watchedHead = null;
+function watchHead() {
+  const header = document.documentElement.lfInitial.layoutBox()?.querySelector(":scope > header") ?? null;
+  if (header === watchedHead) return;
+  headSizes ??= sizeObserver(() => scheduleResidency());
+  if (watchedHead) headSizes.unobserve(watchedHead);
+  if (header) headSizes.observe(header);
+  watchedHead = header;
+}
 function readResidency() {
   const { changed } = document.documentElement.lfInitial.residency();
+  watchHead();
   if (changed) layoutChanged(pageDocument());
   readFinished?.(changed);
   if (changed) repaintPage();

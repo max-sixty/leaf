@@ -80,6 +80,21 @@ def captured_source(page: Page) -> None:
     page.locator("#bg-source-captures").scroll_into_view_if_needed()
 
 
+def recorded_video(page: Page) -> None:
+    """The gallery's recording at rest under its play bar, beside the audio player."""
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Page & layout", exact=True
+    ).click()
+    page.locator("#bg-recorded-media").scroll_into_view_if_needed()
+
+
+def recorded_video_by_keyboard(page: Page) -> None:
+    """The recording the keyboard stands on, where Space and the arrows reach it."""
+    recorded_video(page)
+    page.keyboard.press("Tab")
+    page.locator("#bg-recording").focus()
+
+
 def markdown_preview_scrolled(page: Page) -> None:
     """A Markdown code example scrolled under the preview's focused viewport edge."""
     page.locator("#bg-gallery-tabs").get_by_role(
@@ -434,11 +449,11 @@ def composer_resting(page: Page) -> None:
     page.mouse.down()
     page.mouse.move(box["x"] + 200, y, steps=8)
     page.mouse.up()
-    # Under a finger a selection offers Comment in the floating panel's row rather than
-    # a field. It arrives on a later frame, so the pointer decides, not whether it is
-    # there yet.
+    # Under a finger a selection is offered in the floating panel's field, which quotes
+    # it, rather than raising a field beside it. It arrives on a later frame, so the
+    # pointer decides, not whether it is there yet.
     if page.evaluate("matchMedia('(pointer: coarse)').matches"):
-        page.get_by_role("button", name="Comment on selection").click()
+        page.locator('.lf-fp-field leaf-text[data-says="selection"]').click()
 
 
 def composer_empty(page: Page) -> None:
@@ -1053,6 +1068,25 @@ STATES = (
         "developer/feature-gallery",
         captured_source,
         region="#bg-source-captures",
+    ),
+    State(
+        "recorded-video",
+        "developer/feature-gallery",
+        recorded_video,
+        region="#bg-recorded-media",
+    ),
+    State(
+        "recorded-video-dark",
+        "developer/feature-gallery",
+        recorded_video,
+        scheme="dark",
+        region="#bg-recorded-media",
+    ),
+    State(
+        "recorded-video-keyboard",
+        "developer/feature-gallery",
+        recorded_video_by_keyboard,
+        region="#bg-recorded-media",
     ),
     State(
         "panel-leaf",

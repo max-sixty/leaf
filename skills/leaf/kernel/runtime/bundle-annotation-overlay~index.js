@@ -2121,6 +2121,7 @@ function createMarginProjection({
     rows: [
       {
         id: "margin.back",
+        touch: false,
         keys: ["Escape"],
         description: () => pageMapRung(false)?.description,
         title: () => pageMapRung(false)?.title,
@@ -3132,7 +3133,6 @@ function createFloatingResponsePlacement({
     release: () => {
       editingAttachment = null;
       windowPosture = false;
-      selectedPassage = null;
       fabWithheld = false;
       fabBar.removeAttribute("data-lf-withheld");
       fabWithheldFocus = null;

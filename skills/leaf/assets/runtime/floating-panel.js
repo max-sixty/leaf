@@ -26,7 +26,12 @@
  *   doing or wants, in the status's words
  *   (`statusReading`), or what a passing notice says, where a placeholder would say
  *   "Comment"; in a stance, such as Draw mode, it names the stance, whose way out is a ✕
- *   at the row's end; in a thread it says whose turn it is. A status that reports reads dimmer
+ *   at the row's end; in a thread it says whose turn it is. While words stand selected
+ *   on the page, the page's field quotes them, inside a stance too, and a press there
+ *   comments on them (`selectedWords`), the one route a finger has to them; the user
+ *   chose that on 19 October over a worded step standing in the marks' place, which
+ *   took a stance's steps away while it stood, accepting that a press on the field
+ *   addresses selected words whenever they stand. A status that reports reads dimmer
  *   than anything written, and while the agent works it carries the one sheen that marks
  *   work under way; one that asks the user to act reads in its tone's ink. Pointing at
  *   the leaf or the empty field says the status, or the field's error, in full in the
@@ -117,7 +122,8 @@ import {
 import { el, reveal } from "./widget-elements.js";
 import { iconElement, iconTemplate } from "./icons.js";
 import { copyControl } from "./copy-control.js";
-import { keeps, keepsHidden, keepsText } from "./keeps.js";
+import { keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";
+import { setRuntimeRootStyle } from "./root-state.js";
 import {
   approvalReading,
   approve,
@@ -133,7 +139,7 @@ import { pageControls, watchPageControls } from "./page-controls.js";
 import { readPlace } from "./history.js";
 import { readThreads } from "./thread/state.js";
 import { watchProjection } from "./projection-watch.js";
-import { threadAttention, workflowLabel } from "./thread/workflow.js";
+import { threadAttention, workflowStep } from "./thread/workflow.js";
 import { messageReading, threadName } from "./thread/messages.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { declareThreadParts } from "./thread/focus.js";
@@ -157,6 +163,7 @@ import { retainUserIntent } from "./user-intent.js";
 import { settleThread } from "./thread/folding.js";
 import { queueItemKey, readPlan, readQueues } from "./queue-api.js";
 import { queueTitle } from "./queue-title.js";
+import { queueStop } from "./queue-walk.js";
 import { carriesObligation, itemOutcome } from "./queues.js";
 import { shortAgo } from "./presence.js";
 import { obligationEnding } from "./obligations/answer.js";
@@ -194,6 +201,7 @@ import {
   standingIn,
 } from "./focus.js";
 import { rowWalk } from "./walk-position.js";
+import { excerptWords } from "./words.js";
 import { nextRender, sizeObserver } from "./rendering.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { moveScrollerBy, SCROLL_SLACK, scrollLimit, scrollToEnd } from "./scrolling.js";
@@ -237,11 +245,9 @@ const OWN_VIEWS = Object.freeze(["leaves", "versions"]);
 const FOLD = "panel.floating.fold";
 const HELD_ELSEWHERE = Object.freeze(["keyboard", `command:${FOLD}`]);
 const PICK = "command:target.picker.open";
-// A row the menu or a group lists: neither held elsewhere, nor the next step of a
-// gesture, which stands in the counts' place instead, nor a stance's way out, at the
+// A row the menu or a group lists: neither held elsewhere nor a stance's way out, at the
 // row's end.
 const listed = (entry) =>
-  !entry.gesture &&
   !entry.exit &&
   !HELD_ELSEWHERE.includes(entry.key) &&
   !(entry.key === PICK && advertisesKeys());
@@ -293,6 +299,8 @@ export function createFloatingPanel({
   afterReadingPass,
   obligations: obligationView,
   queueActions,
+  arrivesAt,
+  inWalkOrder,
   withdraw,
   settlement,
   placedAt,
@@ -385,7 +393,8 @@ export function createFloatingPanel({
   // The row stands over the window's foot, so what the page reveals stands clear of it.
   // A view opened above it is itself read, and stands over the page only while it is
   // used, so it leaves the page's room alone; but what it stands over is hidden while it
-  // does (`declareOccluder`).
+  // does (`declareOccluder`), and a landing stands clear of it (`--lf-panel-reach`,
+  // `followBox`).
   declareWindowChrome(() => {
     const box = row.getBoundingClientRect();
     return box.width > 0 && box.height > 0 ? [box] : [];
@@ -441,19 +450,20 @@ export function createFloatingPanel({
   lengthWatch.observe(field);
   const rowNoticeSeat = el("div", "lf-fp-row-notice");
   const quick = el("div", "lf-fp-quick");
-  // The way out of the stance the user stands in, at the row's end beside the counts or
-  // a gesture's steps, and there while the user types (touch-controls.js, `stance`).
+  // The way out of the stance the user stands in, at the row's end beside the counts,
+  // and there while the user types (touch-controls.js, `stance`).
   const exitSeat = el("div", "lf-fp-exit-seat");
   // The anchored comment box's home on a page that draws its own annotations
   // (`data-annotations="page"`), where the page gives the box no seat of its own
   // (composing/surface.js, `responseHome`). While its composer is open it stands in the
   // field's place, as each destination's own editor does there: its words go to a new
   // thread on the passage it quotes, which the box says. The field comes back when the
-  // box closes, and while a view is open above the row, whose field it is. Which of the
-  // two shows is the stylesheet's reading of the composer's own open state
-  // (floating-panel.css), so the box seated in the page, or put away, moves nothing
-  // here. Rejected: a view of its own above the row, which stood a second field over
-  // the panel's own.
+  // box closes, while a view is open above the row, whose field it is, and while the
+  // field quotes words selected on the page, which a press there comments on. Which of
+  // the two shows is the stylesheet's reading of the composer's own open state and the
+  // row's `data-offers` (floating-panel.css), so the box seated in the page, or put
+  // away, moves nothing here. Rejected: a view of its own above the row, which stood a
+  // second field over the panel's own.
   const responseSeat = el("div", "lf-fp-response");
   row.append(leaf, field, responseSeat, rowNoticeSeat, quick, exitSeat);
 
@@ -528,19 +538,29 @@ export function createFloatingPanel({
     if (!input?.isConnected || draftOf(input) !== "") return [];
     return errorsReading().filter((error) => !error.passed && error.subject === null);
   }
+  // The words selected on the page that a press on the page's field comments on, as
+  // the response surface offers them (composing/surface.js, `offerSelection`): their
+  // `quote`, and the `comment` that opens the comment on them. Null while none stand.
+  let selectedWords = null;
   // What the empty field says, and whose reading it is (`says`): the newest error it
-  // can say; once the caret is in a field that takes words, where they go; a passing
-  // notice while one stands; a resolved thread's way back; else on the page what the
-  // agent is doing or wants, in the status's words, and in a thread whose turn it is.
-  // On the page, the stance the user stands in, such as Draw mode, heads a passing
-  // notice and takes the status's place (keyboard/status-context.js); the leaf keeps
-  // the status's colour.
+  // can say; once the caret is in a field that takes words, where they go; on the page,
+  // the selected words a press there comments on; a passing notice while one stands; a
+  // resolved thread's way back; else on the page what the agent is doing or wants, in
+  // the status's words, and in a thread whose turn it is. On the page, the stance the
+  // user stands in, such as Draw mode, heads a passing notice and takes the status's
+  // place (keyboard/status-context.js); the leaf keeps the status's colour.
   function fieldReading(key, input) {
     const [error] = sayable();
     if (error) return { says: "error", words: error.message };
     const thread = key ? threadByKey(key) : null;
     if (input === focused() && !thread?.resolved)
       return { says: "destination", words: whereTo(key) };
+    // The words alone, in quotation marks: a 320px phone's row leaves the field room
+    // for about a dozen characters, so "Comment on" before them would leave none, and
+    // the field's own name says what a press does (`pageEditor`). The field's ellipsis
+    // cuts them to its room, which the excerpt's cap only bounds.
+    if (!key && selectedWords)
+      return { says: "selection", words: `“${excerptWords(selectedWords.quote, 60)}”` };
     const stance = key ? null : statusContextReading().stance;
     const notice = passing();
     if (notice.visible)
@@ -593,7 +613,12 @@ export function createFloatingPanel({
           ? statusParts(parts)
           : null;
       },
-      accessibleName: "Comment on the page",
+      // Named for what a press there does, as the field's reading says it, once the
+      // editor this builds is the one the reading reads.
+      accessibleName: () =>
+        general && fieldReading(null, input).says === "selection"
+          ? "Comment on the selection"
+          : "Comment on the page",
       sends: "send",
       sendBtn: send,
       save: (text) => {
@@ -617,16 +642,15 @@ export function createFloatingPanel({
         const route = { view: "thread", thread: handle.attempt };
         open(route, { replace: true });
         // A refusal takes back the thread the send drew, which the server never held,
-        // and hands the words back to the page's draft (drafts.js, `standGesture`). Its
-        // view goes with it, where it still stands, so the field stands for the page
-        // again holding them, with the caret in them where the user still stands in the
-        // panel or has done nothing since the send.
+        // and its view goes with it (`paintPanel`); the words go back to the page's
+        // draft (drafts.js, `standGesture`). Unless the user has opened another view
+        // since, the field stands for the page again holding them, with the caret in
+        // them where the user still stands in the panel or has done nothing since.
         const untouched = retainUserIntent();
         void Promise.resolve(flight).then((sent) => {
-          if (sent || trail.at(-1) !== route) return;
+          if (sent || (trail.length && trail.at(-1) !== route)) return;
           caretToField = standingIn(host) || untouched();
-          trail = [];
-          transition(route, { focus: false });
+          paint();
         });
       },
     });
@@ -695,6 +719,45 @@ export function createFloatingPanel({
     if (Boolean(draftOf(fieldInput()).trim()) !== typing) paint();
   }
   field.addEventListener("input", retype);
+  // A press on the page's editor while words stand selected on the page comments on
+  // them, as its placeholder says, rather than writing on the page (`selectedWords`).
+  // The words are the ones the field quotes as the press begins, so the press does what
+  // the field says (an error the field says instead hides the words, and the press
+  // writes on the page). The press's mousedown is cancelled, so the editor never takes
+  // focus, a phone raises no keyboard for it, and the page's selection stands until the
+  // comment takes it. The comment opens as the press completes, since that mousedown
+  // still reaches the page, which puts away whatever comment box it finds open
+  // (composing/surface.js, `standDown`). A Tab through the row, or the runtime putting
+  // the caret there, writes on the page.
+  let pressedWords = null;
+  const quotedWords = () =>
+    general &&
+    fieldInput() === general.input &&
+    fieldReading(null, general.input).says === "selection"
+      ? selectedWords
+      : null;
+  field.addEventListener(
+    "pointerdown",
+    (event) => {
+      pressedWords =
+        event.isPrimary && event.composedPath().includes(general?.input)
+          ? quotedWords()
+          : null;
+    },
+    true,
+  );
+  field.addEventListener(
+    "mousedown",
+    (event) => {
+      if (pressedWords) event.preventDefault();
+    },
+    true,
+  );
+  field.addEventListener("click", (event) => {
+    const words = pressedWords;
+    pressedWords = null;
+    if (words && event.composedPath().includes(general?.input)) words.comment();
+  });
   // The user's first edit in the field passes every error it could say to the menu's
   // list, read before the edit changes what it could say. The user chose this on 17
   // October.
@@ -997,6 +1060,16 @@ export function createFloatingPanel({
     )
       return;
     outline = next;
+    // How far the box reaches up from the window's foot, which the root's
+    // `scroll-padding-bottom` keeps every landing clear of (theme.css), so `m`, `t`, a
+    // Go-to or an On me row's Show lands what it reaches above an open view rather than
+    // under it. The browser's own reveals read the same padding. CSS can't size the
+    // root's padding from a fixed box in the chrome's shadow tree, so the box states it.
+    setRuntimeRootStyle(
+      document.documentElement,
+      "--lf-panel-reach",
+      layoutPx(rect.height > 0 ? room.bottom - rect.top : 0),
+    );
     const duration = performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
     // The ground is cut too, to the outline grown by its shadow's reach (`--raise-2`'s
     // blur dropped by its drop, theme.css), so it stands over nothing else in the window:
@@ -2194,9 +2267,9 @@ export function createFloatingPanel({
   }
 
   function threadView(key) {
+    // A thread the reading let go of takes its view away before the view draws.
     const thread = threadByKey(key);
-    if (!thread)
-      return html`<p class="lf-fp-empty">This thread is not on the page.</p>`;
+    if (!thread) return nothing;
     return html`${quoteHead(thread)}
       <div class="lf-fp-messages lf-fp-outlet" data-lf-reflow="append"></div>
       ${
@@ -2248,13 +2321,17 @@ export function createFloatingPanel({
     if (turned && trail.at(-1)?.view === "queue") paint();
     else open({ view: "queue" });
   }
+  // Each list in the `m` walk's order (queue-walk.js, `inWalkOrder`), so the cards the
+  // walk outlines (`walkedStop`) follow one another down the list.
   const queueLists = () => {
     const reading = readQueues();
     if (reading.phase !== "ready") return { you: [], agent: [], done: [] };
     return {
-      you: reading.on_user,
-      agent: reading.on_agent,
-      done: reading.done.filter((item) => item.owner === QUEUE_TABS[queueTab]),
+      you: inWalkOrder(reading.on_user),
+      agent: inWalkOrder(reading.on_agent),
+      done: inWalkOrder(
+        reading.done.filter((item) => item.owner === QUEUE_TABS[queueTab]),
+      ),
     };
   };
 
@@ -2270,6 +2347,23 @@ export function createFloatingPanel({
   };
   const tabLabel = (tab) =>
     tab === "plan" ? "Plan" : tab === "agent" ? `On ${agentName()}` : "On me";
+  // The stop the `m` walk stands on while the field says its position
+  // (keyboard/status-context.js): its card in On me wears the ring a focused card
+  // wears, and the list brings it into view as the walk reaches it (`landWalked`), so
+  // the list follows the walk rather than standing where it was.
+  const walkedStop = () => {
+    const { walk } = statusContextReading();
+    return walk?.shown && walk.kind === "queue" ? walk.target : null;
+  };
+  let walkedLanded = null;
+  function landWalked() {
+    const key = trail.at(-1)?.view === "queue" ? walkedStop() : null;
+    if (key === walkedLanded) return;
+    walkedLanded = key;
+    const view = shownView();
+    const card = key && view?.querySelector(".lf-fp-on-item[data-walked]");
+    if (card) scrollIntoView(card, { block: "nearest", within: view });
+  }
 
   // ---------- the plan ----------
   // What each state reads as to assistive tech, which hears no mark.
@@ -2399,26 +2493,32 @@ export function createFloatingPanel({
           Discuss
         </button>`
       : nothing;
-    const arrive = html`<button
-      type="button"
-      class="lf-fp-quiet"
-      @click=${() => {
-        close();
-        void (record
-          ? obligationView.open(record.id)
-          : queueActions.open(queueItemKey(item)));
-      }}
-    >
-      Show
-    </button>`;
+    // Show takes the user to the item where `m` would, by the walk's own arrival
+    // (queue-walk.js, `arriveAtItem`), wherever that leads anywhere but this card. It
+    // stands at the end of the answers' line, where an answer replacing the choices
+    // before it moves it nowhere.
+    const show = arrivesAt(item)
+      ? html`<button
+          type="button"
+          class="lf-fp-quiet lf-fp-show"
+          @click=${() => {
+            close();
+            void queueActions.open(queueItemKey(item));
+          }}
+        >
+          Show
+        </button>`
+      : nothing;
     let answers;
     if (list === "done" && !record)
       answers = html`<span class="lf-fp-said"
           >${[itemOutcome(item), shortAgo(item.ended)].filter(Boolean).join(" ")}</span
         >${thread ? discuss : nothing}`;
+    // What the agent is doing about it: the line its last step wrote, as the status
+    // says it of the whole page, else the stage it stands at.
     else if (list !== "you" && !answered)
       answers = html`<span class="lf-fp-said"
-          >${item.todo?.running?.text ?? workflowLabel(item.workflow) ?? ""}</span
+          >${item.todo?.running?.text ?? workflowStep(item.workflow)}</span
         >${thread ? discuss : nothing}`;
     else if (answered)
       answers = html`<span class="lf-fp-said">${obligationEnding(record)}</span>${
@@ -2465,7 +2565,7 @@ export function createFloatingPanel({
           @click=${() => queueActions.done(queueItemKey(item))}
         >
           Done</button
-        >${discuss}${arrive}`;
+        >${discuss}`;
     else if (inWords && thread)
       answers = html`<button
         type="button"
@@ -2474,22 +2574,27 @@ export function createFloatingPanel({
       >
         Reply
       </button>`;
-    else answers = html`${arrive}${discuss}`;
+    else answers = discuss;
     const key = queueItemKey(item);
     const approval = record?.source.kind === "approval";
-    // An item the plan names says where it stands in it, so the user answers it
-    // knowing which run it unblocks, and keeps saying so once answered, so the
-    // answer moves nothing.
-    const place = queueTab === "you" ? planPlace(item.id) : null;
+    const stop = queueStop(item);
+    // What waits on the user says what it is, in the walk's word for it, so a
+    // suggestion says Insertion, Deletion or Rewrite as the field does after `m`. An
+    // item the plan names says where it stands in it after that, so the user answers
+    // it knowing which run it unblocks. Both stay once it is answered, so the answer
+    // moves nothing.
+    const about =
+      queueTab === "you" ? [stop.noun, planPlace(item.id)].filter(Boolean) : [];
     return html`<section
       class="lf-fp-on-item"
       data-list=${list}
       data-key=${key}
       data-obligation=${record?.id ?? nothing}
       ?data-approval=${approval}
+      ?data-walked=${queueTab === "you" && walkedStop() === stop.key}
       style=${seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
     >
-      ${place ? html`<p class="lf-fp-plan-place">${place}</p>` : nothing}${
+      ${about.length ? html`<p class="lf-fp-on-kind">${about.join(" · ")}</p>` : nothing}${
         message
           ? html`${title ? html`<h3 class="lf-fp-on-title">${title}</h3>` : nothing}
               <div
@@ -2502,7 +2607,7 @@ export function createFloatingPanel({
                 <p class="lf-fp-prompt">${prompt}</p>`
             : html`<p class="lf-fp-prompt">${title}</p>`
       }
-      <div class="lf-fp-answers">${answers}</div>
+      <div class="lf-fp-answers">${answers}${show}</div>
     </section>`;
   }
 
@@ -2552,15 +2657,18 @@ export function createFloatingPanel({
     const all = [...lists.you, ...lists.agent, ...lists.done];
     const byKey = new Map(all.map((item) => [queueItemKey(item), item]));
     const current = lists[queueTab].map(queueItemKey);
-    // The seats this opening of the view holds: those it showed, still in the reading
-    // wherever they now stand, then any that joined this list since.
+    // The cards this opening of the view holds: those it showed, still in the reading
+    // wherever they now stand, so an answered one stays, and any that joined this list
+    // since. They stand in the walk's order, a card joining included, so `m` reaches
+    // them down the list; a card joining above the one being read moves nothing on
+    // screen, since the view's scroll anchoring holds the card in view where it was.
     seated = [
       ...(seated ?? []).filter((key) => byKey.has(key)),
       ...current.filter((key) => !(seated ?? []).includes(key)),
     ];
     const listOf = (item) =>
       lists.you.includes(item) ? "you" : lists.agent.includes(item) ? "agent" : "done";
-    const items = seated.map((key) => byKey.get(key));
+    const items = inWalkOrder(seated.map((key) => byKey.get(key)));
     const finished = lists.done.filter((item) => !seated.includes(queueItemKey(item)));
     return html`${
       items.length
@@ -2877,6 +2985,11 @@ export function createFloatingPanel({
   function paintPanel() {
     painting = true;
     try {
+      // A thread's view draws a thread of the reading. One the reading no longer holds,
+      // as a refused send's or an undone comment's, leaves it nothing to draw, so it goes
+      // with its thread, as a card does (margin-projection.js), whoever opened it.
+      const top = trail.at(-1);
+      if (top?.view === "thread" && !threadByKey(top.thread)) close();
       paintNow();
       if ([holdRoom(), holdMenu()].some(Boolean)) paintNow();
     } finally {
@@ -2889,6 +3002,7 @@ export function createFloatingPanel({
     }
     landReader();
     seatOnItems();
+    landWalked();
   }
   // A card's seat is the height it first stands at once its message is drawn; a card
   // whose message Leaf's reader has not drawn yet asks it to (`nominate`), once, and
@@ -3089,6 +3203,9 @@ export function createFloatingPanel({
     // so pointing at the field says it in full in the leaf's peek (`paintPeek`), while
     // the field shows it: not while the user writes there or words hide it.
     const reading = fieldReading(replying ? top.thread : null, input);
+    // The field quoting selected words stands in an open comment box's place
+    // (floating-panel.css, `data-offers`).
+    keeps(host, "data-offers", reading.says === "selection" ? "" : null);
     keeps(host, "data-tone", status().tone || null);
     keeps(host, "data-asks", status().asks ? "" : null);
     fieldSays =
@@ -3099,18 +3216,27 @@ export function createFloatingPanel({
           : reading.says === "error"
             ? reading.words
             : null;
-    // The line over the field says the passing notice the field cannot, while words
-    // hide its placeholder with the caret elsewhere and no view is open. While the
-    // caret is in the field nothing passing is said there: an error, the one thing
-    // the user must not miss while writing, stands in the field itself.
+    // The line over the field says what the field cannot while words hide its
+    // placeholder with the caret elsewhere and no view is open: the selected words a
+    // press there comments on, else the passing notice. While the caret is in the
+    // field nothing passing is said there: an error, the one thing the user must not
+    // miss while writing, stands in the field itself.
     const notice = passing();
-    const said =
-      notice.visible &&
+    const hidden =
       !top &&
       reading.says !== "destination" &&
       reading.says !== "error" &&
       draftOf(input) !== "";
-    keepsText(contextWords, said ? notice.message : "");
+    keepsText(
+      contextWords,
+      !hidden
+        ? ""
+        : reading.says === "selection"
+          ? reading.words
+          : notice.visible
+            ? notice.message
+            : "",
+    );
     keepsHidden(context, !contextWords.textContent);
     paintPeek();
 
@@ -3118,10 +3244,7 @@ export function createFloatingPanel({
     keepsHidden(rowNoticeSeat, !standing);
     render(standing ? rowNoticeTemplate(standing) : nothing, rowNoticeSeat);
 
-    // The next step of what the user is doing now, such as selecting a search's match or
-    // commenting on the words a finger selected, stands in the counts' place while that
-    // gesture holds it (page-controls.js, `gesture`).
-    const steps = rows().filter((entry) => entry.gesture);
+    // The way out of the stance the user stands in, beside the counts.
     const exit = rows().find((entry) => entry.exit);
     render(
       exit
@@ -3140,27 +3263,6 @@ export function createFloatingPanel({
       exitSeat,
     );
     keepsHidden(exitSeat, !exit);
-    keeps(quick, "data-steps", steps.length ? "" : null);
-    if (steps.length) {
-      render(
-        html`${repeat(
-          steps,
-          (entry) => entry.key,
-          (entry) =>
-            html`<button
-              type="button"
-              class="lf-fp-chip lf-fp-step"
-              ?disabled=${entry.disabled}
-              @mousedown=${(event) => event.preventDefault()}
-              @click=${() => entry.press()}
-            >
-              ${entry.label}
-            </button>`,
-        )}`,
-        quick,
-      );
-      return;
-    }
     // Each mark keeps its room whether or not it has a number, so a count arriving or
     // leaving moves nothing beside it.
     // A mark's name is its tooltip too, as an icon control's title is elsewhere in Leaf.
@@ -3689,7 +3791,8 @@ export function createFloatingPanel({
   }
 
   // The page's comment box in this chrome, as `c` and Resume writing find it
-  // (composing/surface.js, `commentDestination`).
+  // (composing/surface.js, `commentDestination`), and the selected words a press on it
+  // comments on (`offer`, `selectedWords`).
   const pageComment = Object.freeze({
     get box() {
       return pageEditor().input;
@@ -3697,6 +3800,11 @@ export function createFloatingPanel({
     open: writeOnPage,
     close: () => {},
     sync: () => pageEditor().sync(),
+    offer(passage) {
+      const moved = passage?.quote !== selectedWords?.quote;
+      selectedWords = passage;
+      if (moved) paint();
+    },
   });
 
   // Where Leaf's controls begin in this chrome, as the page's Skip to Leaf controls finds

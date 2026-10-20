@@ -386,12 +386,6 @@ height and where a switch lands wait on the workspace decision under Layout.
 Keep the optional Leaf timeline alongside Playwright's viewer, as Max chose
 on 2026-10-07.
 
-- **Start videos without a flash or oversized play animation.** Provide shared,
-  quiet video controls with compact play/pause and a timeline, keeping the image
-  stable during startup. Firefox's native controls expand the initial play button
-  to three times its size while fading it out over 400 ms; rewinding and replaying
-  skips that effect. Verify first play and replay, including keyboard and touch
-  access ([Firefox implementation](https://github.com/mozilla-firefox/firefox/blob/main/toolkit/content/widgets/videocontrols.js)).
 - **Explore DOM selection in the imported timeline.** The optional `playwright`
   package imports native actions, checkpoint images, captured frames and saved
   accessibility elements; following their comments restores the moment. Reuse
@@ -420,6 +414,21 @@ on 2026-10-07.
   that turn's answer as its reply to the comment. The
   [Codex brief](notes/codex-integration.md#delivery-start-race) holds the
   measurements, the reproduction and the two options.
+- **Decide how a Claude Code hook delivery is confirmed.** `hook_transport` records a
+  pickup when the prompt hook returns, but Escape while any UserPromptSubmit hook is
+  still running drops the whole prompt, Leaf's output included. Measured on Claude
+  Code 2.1.304 with a second hook sleeping 6 s: the comment never reached the
+  transcript, nothing woke for it because it read as received, and it waited until
+  the user typed; an update that owes no reply (a resolve) never surfaced again.
+  #3272's re-offer covers only updates the owner holds no ref for. With Leaf's hook
+  alone the window is about 25–35 ms; another plugin's slow prompt hook widens it to
+  that hook's run. PostToolBatch likely shares the window (read from Claude Code's
+  source, not run); Pi commits the output itself and is safe. No hook event confirms
+  Claude Code accepted the output, so the options are: the agent confirms with
+  `leaf delivery ack`, as on Codex (a tool call, and Picked up waits for the model);
+  confirm at the turn's next hook and re-offer if the turn dies first (a "handed, not
+  confirmed" record); or keep it and document Escape beside the session-end case in
+  `hook_transport.py`'s header.
 
 - **Measure how often agents produce bad pages.** Write `evals/` cases in which agents
   author ordinary pages, and have a judge read each result at wide, middle and phone

@@ -76,6 +76,7 @@ from render_harness import (
     resized,
     root_overflow,
     round_trip,
+    selection_field,
     sending,
     stamp_page,
     ticked,
@@ -238,7 +239,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         )
     )
     assert selected == "└─ if request.token"
-    expect(page.get_by_role("button", name="Comment on selection")).to_be_visible()
+    expect(selection_field(page)).to_be_visible()
 
     updated = call_diff(
         capture["trees"][0]["tree"],
@@ -263,7 +264,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     )
     assert lines.nth(2).evaluate("el => el.__callIdentity") is True
     assert page.evaluate("() => getSelection().toString()") == selected
-    page.get_by_role("button", name="Comment on selection").click()
+    selection_field(page).click()
     expect(page.locator("#lf-composer-quote")).to_contain_text(f"“{selected}”")
     expect(page.locator(".lf-fab-input")).to_be_focused()
 

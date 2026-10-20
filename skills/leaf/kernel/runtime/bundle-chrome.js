@@ -1524,6 +1524,7 @@ export {
   localScrollBy,
   anchorReading,
   nameAnchor,
+  nameable,
   anchorElement,
   anchorReaches,
   scrollsWith,

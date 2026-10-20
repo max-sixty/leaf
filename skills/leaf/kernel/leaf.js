@@ -88,7 +88,6 @@ import {
   onSampleNotice,
   registerSampleCommand,
   sampleNotice,
-  standing,
   userIn
 } from "./runtime/bundle-sample-child.js";
 import {
@@ -179,7 +178,7 @@ import {
   walkOrigin,
   walkPosition,
   walkPositionLabel,
-  workflowLabel
+  workflowStep
 } from "./runtime/bundle-user-intent.js";
 import "./runtime/bundle-widget-upgrade.js";
 import {
@@ -1004,10 +1003,10 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
     let uploading = false;
     const canSend = () => !sending && !uploading && !held() && hasContent(draftValue());
     const paint = (contextualHint) => {
-      const standing2 = focused() === ta;
+      const standing = focused() === ta;
       const advertising = advertisesKeys();
       const sendKeys = advertising ? submitLabel() : "";
-      const suffix = !advertising ? "" : standing2 ? sendKeys : contextualHint?.box === ta ? contextualHint.label : "";
+      const suffix = !advertising ? "" : standing ? sendKeys : contextualHint?.box === ta ? contextualHint.label : "";
       const status = dictationStatus();
       const word2 = status || label2();
       const placeholder = suffix && !status ? `${word2} ${suffix}` : word2;
@@ -2049,6 +2048,7 @@ pageScope("command reference", {
   rows: [
     {
       id: "command.reference.command.next",
+      touch: false,
       keys: ["ArrowDown"],
       description: "Choose the next command",
       title: "choose next",
@@ -2062,6 +2062,7 @@ pageScope("command reference", {
     },
     {
       id: "command.reference.command.previous",
+      touch: false,
       keys: ["ArrowUp"],
       description: "Choose the previous command",
       title: "choose previous",
@@ -2073,6 +2074,7 @@ pageScope("command reference", {
     },
     {
       id: "command.reference.command.activate",
+      touch: false,
       keys: ["Enter"],
       description: "Activate the chosen command",
       title: "activate",
@@ -2083,6 +2085,7 @@ pageScope("command reference", {
     },
     {
       id: "command.reference.close",
+      touch: false,
       keys: ["Escape"],
       description: "Close the command reference",
       title: "close command reference",
@@ -2408,12 +2411,19 @@ function createResponseSurface({
     const anchor = selection ? selectionAnchor(selection) : null;
     return hasQuote(anchor);
   };
-  let selectionOffered = false;
+  let offeredSelection = null;
   const offerSelection = (anchor) => {
-    if (selectionOffered === Boolean(anchor)) return;
-    selectionOffered = Boolean(anchor);
-    pageControlsChanged();
+    if (anchor === offeredSelection) return;
+    offeredSelection = anchor;
+    pageComment.offer(
+      anchor ? { quote: anchor.quote, comment: () => commentOnOfferedSelection(anchor) } : null
+    );
   };
+  function commentOnOfferedSelection(settled = offeredSelection) {
+    const selection = anchoringIsReady() ? pageSelection() : null;
+    const standing = selection ? selectionAnchor(selection) : null;
+    commentOnSelection(hasQuote(standing) ? standing : settled);
+  }
   const commentOnSelection = (anchor) => {
     offerSelection(null);
     if (!hasQuote(anchor)) return;
@@ -2421,19 +2431,6 @@ function createResponseSurface({
     selectionUpdate = null;
     openComment(anchor, "");
   };
-  const commentOnOfferedSelection = () => {
-    const selection = anchoringIsReady() ? pageSelection() : null;
-    commentOnSelection(selection ? selectionAnchor(selection) : null);
-  };
-  registerPageControl({
-    key: "comment-selection",
-    rank: PAGE_CONTROL_RANK.commentSelection,
-    gesture: true,
-    label: "Comment on selection",
-    group: "annotate",
-    offered: () => selectionOffered,
-    press: commentOnOfferedSelection
-  });
   function observeSelection() {
     const selection = anchoringIsReady() ? pageSelection() : null;
     const anchor = selection ? selectionAnchor(selection) : null;
@@ -2567,7 +2564,7 @@ function createResponseSurface({
     const releasePress = () => setTimeout(() => {
       actionPress = false;
     });
-    if (selectionOffered && inChrome(ev.composedPath()[0])) {
+    if (offeredSelection && inChrome(ev.composedPath()[0])) {
       primaryPointerPressed = false;
       pointerSelecting = false;
       selectionGestureClaimed = false;
@@ -2647,7 +2644,7 @@ function createResponseSurface({
         const selection = pointerSelecting ? stood : null;
         if (selection && pageRange(selection).intersectsNode(target))
           rememberPointerSelection();
-        actionPress = selectionOffered && inChrome(target) || Boolean(
+        actionPress = offeredSelection && inChrome(target) || Boolean(
           /** @type {Partial<Element>} */
           target.closest?.(
             ".lf-react-surface, .lf-composer"
@@ -2768,7 +2765,7 @@ function createResponseSurface({
     title: `comment on the ${word2}`
   });
   function commentDestination() {
-    if (selectionOffered)
+    if (offeredSelection)
       return {
         ...commenting("selection"),
         box: null,
@@ -2868,6 +2865,7 @@ function createResponseSurface({
     rows: [
       {
         id: "composer.close",
+        touch: false,
         keys: ["Escape"],
         description: () => composer.composerHolds() ? "Close the comment box, keeping the draft" : "Close the comment box",
         title: () => composer.composerHolds() ? "close \u2014 draft kept" : "close",
@@ -4082,6 +4080,7 @@ function createHintSession({
     return [
       {
         id: `${id}.walk`,
+        touch: false,
         keys: ["Tab", "Shift+Tab"],
         routes: [
           { id: `${id}.next`, binding: "Tab", title: "Hear the next visible target" },
@@ -4098,6 +4097,7 @@ function createHintSession({
       },
       {
         id: `${id}.choose`,
+        touch: false,
         keys: ["Enter"],
         description: choose.description,
         title: choose.title,
@@ -4606,7 +4606,7 @@ ${searchCount(maximum, maximum)}`
     setTargetPicker(false);
     selectMatch(segments);
     announce(
-      `Selected match: ${quote}. ${coarsePointer.matches || !bindingEnabled("c") ? "Comment on selection comments on it." : "Press n for next, Shift+n for previous, or c to comment."}`
+      `Selected match: ${quote}. ${coarsePointer.matches || !bindingEnabled("c") ? "A press on the comment field comments on it." : "Press n for next, Shift+n for previous, or c to comment."}`
     );
   }
   function selectMatch(segments) {
@@ -4767,6 +4767,7 @@ ${searchCount(maximum, maximum)}`
   const targetingClaims = (binding) => allButCommandReference(binding) && !bindings(PAGE_SEARCH).includes(binding);
   const TARGET_HINT_TYPE = {
     id: "target.picker.hint.type",
+    touch: false,
     keys: HINT_KEYS,
     label: "a\u2013z",
     description: "Type the hint for a target",
@@ -5303,9 +5304,9 @@ function createAnchorControls({
               return;
             }
             record.surface = context2.surface ?? null;
-            const standing2 = focused2();
+            const standing = focused2();
             setReactionRemoval(record, record.expanded === root.id ? null : root.id, {
-              focus: context2.input === "keyboard" && context2.origin === standing2,
+              focus: context2.input === "keyboard" && context2.origin === standing,
               surface: record.surface
             });
           }
@@ -6008,6 +6009,247 @@ registerPageControl({
   group: "navigate"
 });
 
+// runtime/queue-walk.js
+var QUALIFIER = "waiting on me";
+var WITHIN = "waiting on me here";
+var NOUNS = Object.freeze({
+  thread: "Thread",
+  widget: "Update",
+  page: "To-do",
+  approval: "Approval"
+});
+var nounOf = (item, stop) => carriesObligation(item) && stop.kind !== "approval" ? obligationWord(item.obligation) : stop.kind === "widget" && itemNoun(item) === "todo" ? "To-do" : NOUNS[stop.kind];
+var stopOf = (item) => item.kind === "approval" ? { kind: "approval", id: item.id, thread: null } : item.kind === "widget" && !(item.thread !== null && answeredInWords(item.obligation)) ? {
+  kind: "obligation",
+  id: item.id,
+  thread: item.thread,
+  obligation: item.obligation
+} : item.thread !== null ? { kind: "thread", id: item.thread, thread: item.thread } : item.subject.kind === "page" ? { kind: "page", id: "page", thread: null } : { kind: "widget", id: item.subject.id, thread: null };
+var sameStop = (a, b) => a.kind === b.kind && a.id === b.id;
+function queueStop(item) {
+  const stop = stopOf(item);
+  return { ...stop, key: `${stop.kind}:${stop.id}`, noun: nounOf(item, stop) };
+}
+var pageHead = () => [...document.querySelectorAll("h1")].find((heading) => !inChrome(heading)) ?? pageDocument() ?? document.body.firstElementChild;
+function createQueueWalk({
+  arriveAtRecord,
+  arriveAtThread: arriveAtThread2,
+  threadHere,
+  threadPlace,
+  prepareTrip,
+  arrive,
+  readableDestination,
+  announce: announce2,
+  actions
+}) {
+  const stopElement = (stop) => stop.kind === "approval" ? approvalTarget() : stop.kind === "obligation" ? stop.thread !== null ? threadPlace(stop.thread) : obligationPlace(stop.obligation).node : stop.kind === "page" ? pageHead() : stop.thread !== null ? threadPlace(stop.thread) : elementById(stop.id);
+  const pagePlace = (stop) => {
+    const at = stopElement(stop);
+    return at?.isConnected && !inChrome(at) ? at : null;
+  };
+  const inWalkOrder = (items2) => byRenderedOrder(items2, (item) => pagePlace(queueStop(item)));
+  function stops() {
+    const list = [];
+    const listed2 = /* @__PURE__ */ new Set();
+    for (const item of inWalkOrder(readQueues().on_user)) {
+      const stop = queueStop(item);
+      if (listed2.has(stop.key)) continue;
+      listed2.add(stop.key);
+      list.push({ ...stop, place: pagePlace(stop) });
+    }
+    return list;
+  }
+  function stopsWithin(region) {
+    const held = new Set(obligationsIn(region).map((item) => item.id));
+    return stops().filter((stop) => stop.kind === "obligation" && held.has(stop.id));
+  }
+  const stopsOf = (region) => region ? stopsWithin(region) : stops();
+  function standingStop(list, { place: here, kind } = walkOrigin()) {
+    if (kind !== "standing") return null;
+    if (focused(document) === approvalTarget())
+      return list.find((stop) => stop.kind === "approval") ?? null;
+    const held = threadHere();
+    const thread = drawnThreadId(held);
+    if (thread) {
+      const stop = list.find(
+        (candidate) => candidate.kind === "thread" && candidate.id === thread
+      );
+      if (stop) return stop;
+    }
+    if (!here) return null;
+    const item = obligationHolding(readObligations().all, placeOf(here));
+    if (item) {
+      const stop = list.find(
+        (candidate) => candidate.kind === "obligation" && candidate.id === item.id
+      );
+      if (stop) return stop;
+    }
+    return list.findLast((stop) => {
+      if (stop.kind === "page") return stopElement(stop) === here;
+      if (stop.kind !== "widget") return false;
+      const at = stopElement(stop);
+      return at && (at === here || under(here, at));
+    }) ?? null;
+  }
+  function step(list, dir, region, origin) {
+    if (region && !under(origin.place, region)) return cycledRow(list, null, dir);
+    const standing = standingStop(list, origin);
+    if (standing) return cycledRow(list, standing, dir);
+    return stepFrom(list, origin, dir, (stop) => stop.place);
+  }
+  function arriveAtElement(find) {
+    const intent = retainUserIntent({ available: () => Boolean(find()) });
+    const where = find();
+    if (!where) return Promise.resolve(false);
+    const departure = prepareTrip({ landing: find, intent });
+    departure.plan(where);
+    return arrive(
+      () => {
+        const at = find();
+        return at && {
+          where: at,
+          focus: at,
+          scroll: [{ at, when: () => !readableDestination(at) }]
+        };
+      },
+      { intent, departure }
+    );
+  }
+  function arriveAt(stop) {
+    if (stop.kind === "obligation") {
+      const record = readObligations().all.find((item) => item.id === stop.id);
+      return record ? arriveAtRecord(record) : Promise.resolve(false);
+    }
+    if (stop.kind === "thread") return arriveAtThread2(stop.id);
+    if (stop.kind === "approval" && presentedApproval())
+      return presentedApproval().arrive();
+    return arriveAtElement(() => stopElement(stop));
+  }
+  function position(region) {
+    const list = stopsOf(region);
+    const here = standingStop(list);
+    const at = listWalkPosition(list, here, { identity: (stop) => stop.key });
+    return at && { ...at, qualifier: `${region ? WITHIN : QUALIFIER} \xB7 ${here.noun}` };
+  }
+  function walk(dir, region = null, origin = walkOrigin()) {
+    const list = stopsOf(region);
+    if (!list.length) return Promise.resolve(false);
+    const { row: next, wrapped } = step(list, dir, region, origin);
+    const ready = arriveAt(next).then((arrived) => {
+      if (!arrived) return false;
+      announce2(
+        beginWalk("queue", null, () => position(region), wrapped) ?? walkPositionLabel(
+          null,
+          list.indexOf(next) + 1,
+          list.length,
+          `${region ? WITHIN : QUALIFIER} \xB7 ${next.noun}`
+        )
+      );
+      return true;
+    });
+    void ready.catch(() => {
+    });
+    return ready;
+  }
+  const doneAt = (stop) => stop ? readQueues().on_user.find(
+    (item) => item.offers.done && sameStop(stopOf(item), stop)
+  ) ?? null : null;
+  const doneTodo = () => doneAt(standingStop(stops()));
+  function endTodo(id) {
+    return actions.done(queueItemKey({ kind: "todo", id }));
+  }
+  const offered = () => readQueues().on_user.length > 0;
+  const doneable = () => readQueues().on_user.filter((item) => item.offers.done).map((item) => item.id).join(" ");
+  let wasOffered = false;
+  let wasDoneable = "";
+  let watching = null;
+  function mount() {
+    watching ??= watchProjection(document.body, () => {
+      if (offered() === wasOffered && doneable() === wasDoneable) return;
+      wasOffered = offered();
+      wasDoneable = doneable();
+      paintKeys();
+    });
+  }
+  pageCommand({
+    id: "queue.walk",
+    ready: savedReadingSettled,
+    touch: false,
+    keys: ["m", "Shift+m"],
+    routes: [
+      // The whole page's list, which a tally's Next on me, walking one region, is not.
+      {
+        id: "queue.next",
+        binding: "m",
+        title: "Next on me",
+        description: "Go to the next of everything waiting on me, anywhere on the page"
+      },
+      {
+        id: "queue.previous",
+        binding: "Shift+m",
+        title: "Previous on me",
+        description: "Go to the previous of everything waiting on me, anywhere on the page"
+      }
+    ],
+    title: "On me",
+    when: offered,
+    repeat: true,
+    // The same shape as the thread walk: it moves the user from item to item rather than
+    // down a level, so the standing scope lets go of whichever one they end on. An item
+    // reached through the panel leaves the panel a level of its own on the way out,
+    // whether this walk opened it or the user already had it.
+    run: (binding) => walk(binding === "m" ? 1 : -1)
+  });
+  pageScope("todo", {
+    title: "On a to-do waiting on me",
+    ready: savedReadingSettled,
+    at: () => Boolean(doneTodo()),
+    rows: [
+      {
+        id: "queue.todo.done",
+        keys: ["x"],
+        title: "done",
+        description: "Mark this to-do done",
+        touch: false,
+        when: () => Boolean(doneTodo()),
+        run: () => {
+          const todo = doneTodo();
+          if (todo) endTodo(todo.id);
+        }
+      }
+    ]
+  });
+  const arriveAtItem = (item) => arriveAt(stopOf(item));
+  const arrivesAt = (item) => {
+    const stop = stopOf(item);
+    return Boolean(pagePlace(stop)) || stop.kind === "obligation" && stop.thread !== null;
+  };
+  let wentTo = null;
+  onStanding((node, cause) => {
+    if (cause === "step") return;
+    const place3 = node && placeOf(node);
+    wentTo = (place3 && obligationHolding(readObligations().all, place3)?.id) ?? null;
+  });
+  function nextWithin({ within, dir = 1 }) {
+    if (!(within instanceof Element))
+      throw new TypeError("leaf: obligationActions.next needs an element `within`");
+    const here = walkOrigin();
+    const items2 = obligationsIn(within);
+    const kept = items2.find((item) => item.id === wentTo);
+    const toward = dir < 0 ? -1 : 1;
+    if (under(here.place, within)) return walk(toward, within, here);
+    if (kept)
+      return walk(toward, within, {
+        place: obligationPlace(kept).source,
+        kind: "standing"
+      });
+    const clips = /* @__PURE__ */ new Map();
+    const shown = items2.map((item) => obligationPlace(item).node).find((node) => node && seenRect(node, clips));
+    return shown ? walk(toward, within, { place: shown, kind: "at" }) : walk(toward, within, here);
+  }
+  return { mount, arriveAtItem, arrivesAt, inWalkOrder, nextWithin };
+}
+
 // runtime/keyboard/status-context.js
 var EMPTY = Object.freeze({ goTo: null, walk: null, stance: null });
 var context = EMPTY;
@@ -6018,13 +6260,14 @@ function registerStatusContextPresentation(invalidate) {
   presenters.add(invalidate);
 }
 var shownWalk = ({ walk }) => walk?.shown ? walk : null;
-var same2 = (a, b) => a.goTo === b.goTo && a.stance === b.stance && shownWalk(a)?.text === shownWalk(b)?.text && shownWalk(a)?.boundary === shownWalk(b)?.boundary;
+var same2 = (a, b) => a.goTo === b.goTo && a.stance === b.stance && shownWalk(a)?.text === shownWalk(b)?.text && shownWalk(a)?.target === shownWalk(b)?.target && shownWalk(a)?.boundary === shownWalk(b)?.boundary;
 function paintStatusContext(goToStatus) {
   const position = walkPosition();
   const goTo = goToStatus();
   if (position)
     lastWalk = Object.freeze({
       kind: position.kind,
+      target: position.target,
       text: position.text,
       boundary: position.boundary
     });
@@ -6054,7 +6297,7 @@ var OWN_VIEWS = Object.freeze(["leaves", "versions"]);
 var FOLD = "panel.floating.fold";
 var HELD_ELSEWHERE = Object.freeze(["keyboard", `command:${FOLD}`]);
 var PICK = "command:target.picker.open";
-var listed = (entry) => !entry.gesture && !entry.exit && !HELD_ELSEWHERE.includes(entry.key) && !(entry.key === PICK && advertisesKeys());
+var listed = (entry) => !entry.exit && !HELD_ELSEWHERE.includes(entry.key) && !(entry.key === PICK && advertisesKeys());
 var copyRefused = false;
 var canCopy = () => !copyRefused && Boolean(navigator.clipboard?.writeText);
 var groupOf = (entry) => entry.group === "keys" && !advertisesKeys() ? "navigate" : entry.copies && !canCopy() ? "about" : entry.group;
@@ -6080,6 +6323,8 @@ function createFloatingPanel({
   afterReadingPass,
   obligations: obligationView,
   queueActions,
+  arrivesAt,
+  inWalkOrder,
   withdraw,
   settlement,
   placedAt,
@@ -6230,12 +6475,15 @@ function createFloatingPanel({
     if (!input?.isConnected || draftOf(input) !== "") return [];
     return errorsReading().filter((error) => !error.passed && error.subject === null);
   }
+  let selectedWords = null;
   function fieldReading(key, input) {
     const [error] = sayable();
     if (error) return { says: "error", words: error.message };
     const thread = key ? threadByKey(key) : null;
     if (input === focused() && !thread?.resolved)
       return { says: "destination", words: whereTo(key) };
+    if (!key && selectedWords)
+      return { says: "selection", words: `\u201C${excerptWords(selectedWords.quote, 60)}\u201D` };
     const stance2 = key ? null : statusContextReading().stance;
     const notice2 = passing();
     if (notice2.visible)
@@ -6274,7 +6522,9 @@ function createFloatingPanel({
         const parts = status().summaryParts;
         return fieldReading(null, input).says === "status" && parts?.some((part) => part.source) ? statusParts(parts) : null;
       },
-      accessibleName: "Comment on the page",
+      // Named for what a press there does, as the field's reading says it, once the
+      // editor this builds is the one the reading reads.
+      accessibleName: () => general && fieldReading(null, input).says === "selection" ? "Comment on the selection" : "Comment on the page",
       sends: "send",
       sendBtn: send,
       save: (text) => {
@@ -6295,10 +6545,9 @@ function createFloatingPanel({
         open(route, { replace: true });
         const untouched = retainUserIntent();
         void Promise.resolve(flight).then((sent) => {
-          if (sent || trail.at(-1) !== route) return;
+          if (sent || trail.length && trail.at(-1) !== route) return;
           caretToField = standingIn(host) || untouched();
-          trail = [];
-          transition(route, { focus: false });
+          paint();
         });
       }
     });
@@ -6345,6 +6594,27 @@ function createFloatingPanel({
     if (Boolean(draftOf(fieldInput()).trim()) !== typing) paint();
   }
   field.addEventListener("input", retype);
+  let pressedWords = null;
+  const quotedWords = () => general && fieldInput() === general.input && fieldReading(null, general.input).says === "selection" ? selectedWords : null;
+  field.addEventListener(
+    "pointerdown",
+    (event) => {
+      pressedWords = event.isPrimary && event.composedPath().includes(general?.input) ? quotedWords() : null;
+    },
+    true
+  );
+  field.addEventListener(
+    "mousedown",
+    (event) => {
+      if (pressedWords) event.preventDefault();
+    },
+    true
+  );
+  field.addEventListener("click", (event) => {
+    const words = pressedWords;
+    pressedWords = null;
+    if (words && event.composedPath().includes(general?.input)) words.comment();
+  });
   field.addEventListener(
     "beforeinput",
     () => passErrors(sayable().map((error) => error.id)),
@@ -6565,6 +6835,11 @@ function createFloatingPanel({
     ))
       return;
     outline = next;
+    setRuntimeRootStyle(
+      document.documentElement,
+      "--lf-panel-reach",
+      layoutPx(rect2.height > 0 ? room.bottom - rect2.top : 0)
+    );
     const duration = performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
     const lift = getComputedStyle(ground);
     const shadowReach = ["--raise-2-drop", "--raise-2-blur"].map((token) => Number.parseFloat(lift.getPropertyValue(token))).reduce((reach2, part) => reach2 + part);
@@ -7367,8 +7642,7 @@ function createFloatingPanel({
   }
   function threadView(key) {
     const thread = threadByKey(key);
-    if (!thread)
-      return html`<p class="lf-fp-empty">This thread is not on the page.</p>`;
+    if (!thread) return nothing;
     return html`${quoteHead(thread)}
       <div class="lf-fp-messages lf-fp-outlet" data-lf-reflow="append"></div>
       ${waiting?.key === key ? html`<div class="lf-fp-foot">
@@ -7398,9 +7672,11 @@ function createFloatingPanel({
     const reading = readQueues();
     if (reading.phase !== "ready") return { you: [], agent: [], done: [] };
     return {
-      you: reading.on_user,
-      agent: reading.on_agent,
-      done: reading.done.filter((item) => item.owner === QUEUE_TABS[queueTab])
+      you: inWalkOrder(reading.on_user),
+      agent: inWalkOrder(reading.on_agent),
+      done: inWalkOrder(
+        reading.done.filter((item) => item.owner === QUEUE_TABS[queueTab])
+      )
     };
   };
   const answerGesture = (item) => {
@@ -7412,6 +7688,19 @@ function createFloatingPanel({
     return entry?.event ?? null;
   };
   const tabLabel = (tab) => tab === "plan" ? "Plan" : tab === "agent" ? `On ${agentName()}` : "On me";
+  const walkedStop = () => {
+    const { walk } = statusContextReading();
+    return walk?.shown && walk.kind === "queue" ? walk.target : null;
+  };
+  let walkedLanded = null;
+  function landWalked() {
+    const key = trail.at(-1)?.view === "queue" ? walkedStop() : null;
+    if (key === walkedLanded) return;
+    walkedLanded = key;
+    const view = shownView();
+    const card2 = key && view?.querySelector(".lf-fp-on-item[data-walked]");
+    if (card2) scrollIntoView(card2, { block: "nearest", within: view });
+  }
   const PLAN_STATES = Object.freeze({
     open: "Not started",
     working: "Under way",
@@ -7494,16 +7783,16 @@ function createFloatingPanel({
         >
           Discuss
         </button>` : nothing;
-    const arrive = html`<button
-      type="button"
-      class="lf-fp-quiet"
-      @click=${() => {
+    const show = arrivesAt(item) ? html`<button
+          type="button"
+          class="lf-fp-quiet lf-fp-show"
+          @click=${() => {
       close();
-      void (record ? obligationView.open(record.id) : queueActions.open(queueItemKey(item)));
+      void queueActions.open(queueItemKey(item));
     }}
-    >
-      Show
-    </button>`;
+        >
+          Show
+        </button>` : nothing;
     let answers;
     if (list === "done" && !record)
       answers = html`<span class="lf-fp-said"
@@ -7511,7 +7800,7 @@ function createFloatingPanel({
         >${thread ? discuss : nothing}`;
     else if (list !== "you" && !answered)
       answers = html`<span class="lf-fp-said"
-          >${item.todo?.running?.text ?? workflowLabel(item.workflow) ?? ""}</span
+          >${item.todo?.running?.text ?? workflowStep(item.workflow)}</span
         >${thread ? discuss : nothing}`;
     else if (answered)
       answers = html`<span class="lf-fp-said">${obligationEnding(record)}</span>${gesture ? html`<button
@@ -7553,7 +7842,7 @@ function createFloatingPanel({
           @click=${() => queueActions.done(queueItemKey(item))}
         >
           Done</button
-        >${discuss}${arrive}`;
+        >${discuss}`;
     else if (inWords && thread)
       answers = html`<button
         type="button"
@@ -7562,26 +7851,28 @@ function createFloatingPanel({
       >
         Reply
       </button>`;
-    else answers = html`${arrive}${discuss}`;
+    else answers = discuss;
     const key = queueItemKey(item);
     const approval = record?.source.kind === "approval";
-    const place3 = queueTab === "you" ? planPlace(item.id) : null;
+    const stop = queueStop(item);
+    const about = queueTab === "you" ? [stop.noun, planPlace(item.id)].filter(Boolean) : [];
     return html`<section
       class="lf-fp-on-item"
       data-list=${list}
       data-key=${key}
       data-obligation=${record?.id ?? nothing}
       ?data-approval=${approval}
+      ?data-walked=${queueTab === "you" && walkedStop() === stop.key}
       style=${seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
     >
-      ${place3 ? html`<p class="lf-fp-plan-place">${place3}</p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${title}</h3>` : nothing}
+      ${about.length ? html`<p class="lf-fp-on-kind">${about.join(" \xB7 ")}</p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${title}</h3>` : nothing}
               <div
                 class="lf-fp-asked lf-fp-outlet"
                 data-thread=${thread.key}
                 data-message=${message.key}
               ></div>` : prompt ? html`<h3 class="lf-fp-on-title">${title}</h3>
                 <p class="lf-fp-prompt">${prompt}</p>` : html`<p class="lf-fp-prompt">${title}</p>`}
-      <div class="lf-fp-answers">${answers}</div>
+      <div class="lf-fp-answers">${answers}${show}</div>
     </section>`;
   }
   declareSide((node) => {
@@ -7620,7 +7911,7 @@ function createFloatingPanel({
       ...current.filter((key) => !(seated ?? []).includes(key))
     ];
     const listOf = (item) => lists.you.includes(item) ? "you" : lists.agent.includes(item) ? "agent" : "done";
-    const items2 = seated.map((key) => byKey.get(key));
+    const items2 = inWalkOrder(seated.map((key) => byKey.get(key)));
     const finished = lists.done.filter((item) => !seated.includes(queueItemKey(item)));
     return html`${items2.length ? repeat(items2, queueItemKey, (item) => onItemCard(item, listOf(item))) : html`<p class="lf-fp-empty">
             Nothing waiting on ${queueTab === "you" ? "me" : agentName()}.
@@ -7850,6 +8141,8 @@ function createFloatingPanel({
   function paintPanel() {
     painting = true;
     try {
+      const top = trail.at(-1);
+      if (top?.view === "thread" && !threadByKey(top.thread)) close();
       paintNow();
       if ([holdRoom(), holdMenu()].some(Boolean)) paintNow();
     } finally {
@@ -7862,6 +8155,7 @@ function createFloatingPanel({
     }
     landReader();
     seatOnItems();
+    landWalked();
   }
   const asked = /* @__PURE__ */ new WeakSet();
   function seatOnItems() {
@@ -8005,18 +8299,21 @@ function createFloatingPanel({
     keeps(expand, "title", expanded ? "Less room to write" : "More room to write");
     render(iconTemplate(expanded ? "fit" : "expand", "lf-action-icon"), expand);
     const reading = fieldReading(replying ? top.thread : null, input);
+    keeps(host, "data-offers", reading.says === "selection" ? "" : null);
     keeps(host, "data-tone", status().tone || null);
     keeps(host, "data-asks", status().asks ? "" : null);
     fieldSays = writing || draftOf(input) !== "" ? null : reading.says === "status" ? STATUS : reading.says === "error" ? reading.words : null;
     const notice2 = passing();
-    const said = notice2.visible && !top && reading.says !== "destination" && reading.says !== "error" && draftOf(input) !== "";
-    keepsText(contextWords, said ? notice2.message : "");
+    const hidden = !top && reading.says !== "destination" && reading.says !== "error" && draftOf(input) !== "";
+    keepsText(
+      contextWords,
+      !hidden ? "" : reading.says === "selection" ? reading.words : notice2.visible ? notice2.message : ""
+    );
     keepsHidden(context2, !contextWords.textContent);
     paintPeek();
-    const standing2 = rowNotice();
-    keepsHidden(rowNoticeSeat, !standing2);
-    render(standing2 ? rowNoticeTemplate(standing2) : nothing, rowNoticeSeat);
-    const steps = rows().filter((entry) => entry.gesture);
+    const standing = rowNotice();
+    keepsHidden(rowNoticeSeat, !standing);
+    render(standing ? rowNoticeTemplate(standing) : nothing, rowNoticeSeat);
     const exit = rows().find((entry) => entry.exit);
     render(
       exit ? html`<button
@@ -8033,26 +8330,6 @@ function createFloatingPanel({
       exitSeat
     );
     keepsHidden(exitSeat, !exit);
-    keeps(quick, "data-steps", steps.length ? "" : null);
-    if (steps.length) {
-      render(
-        html`${repeat(
-          steps,
-          (entry) => entry.key,
-          (entry) => html`<button
-              type="button"
-              class="lf-fp-chip lf-fp-step"
-              ?disabled=${entry.disabled}
-              @mousedown=${(event) => event.preventDefault()}
-              @click=${() => entry.press()}
-            >
-              ${entry.label}
-            </button>`
-        )}`,
-        quick
-      );
-      return;
-    }
     const threadsOpen = top?.view === "threads" || top?.view === "thread";
     const onUserName = onUser ? `On me: ${onUser}` : "On me";
     const threadsName = inventoried() ? `Threads, ${openCount()} open${news ? `, ${news} with news` : ""}` : "Threads";
@@ -8436,15 +8713,15 @@ function createFloatingPanel({
       scroll: view.scrollTop
     };
   }
-  function restoreStanding(standing2) {
-    const thread = standing2 && threadByKey(standing2.thread);
+  function restoreStanding(standing) {
+    const thread = standing && threadByKey(standing.thread);
     if (!thread) return false;
     open({ view: "thread", thread: thread.key }, { reopen: true, focus: false });
     landAtEnd = null;
     void present({ release: true }).then(() => {
       const view = openView();
       if (view && trail.at(-1)?.thread === thread.key)
-        moveScrollerBy(view, standing2.scroll - view.scrollTop);
+        moveScrollerBy(view, standing.scroll - view.scrollTop);
     });
     return true;
   }
@@ -8455,7 +8732,12 @@ function createFloatingPanel({
     open: writeOnPage,
     close: () => {
     },
-    sync: () => pageEditor().sync()
+    sync: () => pageEditor().sync(),
+    offer(passage) {
+      const moved = passage?.quote !== selectedWords?.quote;
+      selectedWords = passage;
+      if (moved) paint();
+    }
   });
   function enter() {
     const input = prefs().rest !== "mark" ? fieldInput() : null;
@@ -9113,9 +9395,9 @@ function createObligationView({
     if (target) focusForNavigation2(target, "return");
   }
   const HEADING = "h1,h2,h3,h4,h5,h6";
-  function arrivalRegion(item, context2, standing2) {
+  function arrivalRegion(item, context2, standing) {
     const declared = context2 && registry[context2.localName]?.["x-awaits"]?.encloses;
-    if (declared && context2 === standing2) return context2;
+    if (declared && context2 === standing) return context2;
     const fits = (region) => {
       if (!region) return false;
       const start = shownBox(region);
@@ -9249,240 +9531,6 @@ function createObligationView({
     goToObligation,
     choicesOf
   };
-}
-
-// runtime/queue-walk.js
-var QUALIFIER = "waiting on me";
-var WITHIN = "waiting on me here";
-var NOUNS = Object.freeze({
-  thread: "Thread",
-  widget: "Update",
-  page: "To-do",
-  approval: "Approval"
-});
-var nounOf = (item, stop) => carriesObligation(item) && stop.kind !== "approval" ? obligationWord(item.obligation) : stop.kind === "widget" && itemNoun(item) === "todo" ? "To-do" : NOUNS[stop.kind];
-var stopOf = (item) => item.kind === "approval" ? { kind: "approval", id: item.id, thread: null } : item.kind === "widget" && !(item.thread !== null && answeredInWords(item.obligation)) ? {
-  kind: "obligation",
-  id: item.id,
-  thread: item.thread,
-  obligation: item.obligation
-} : item.thread !== null ? { kind: "thread", id: item.thread, thread: item.thread } : item.subject.kind === "page" ? { kind: "page", id: "page", thread: null } : { kind: "widget", id: item.subject.id, thread: null };
-var sameStop = (a, b) => a.kind === b.kind && a.id === b.id;
-var pageHead = () => [...document.querySelectorAll("h1")].find((heading) => !inChrome(heading)) ?? pageDocument() ?? document.body.firstElementChild;
-function createQueueWalk({
-  arriveAtRecord,
-  arriveAtThread: arriveAtThread2,
-  threadHere,
-  threadPlace,
-  prepareTrip,
-  arrive,
-  readableDestination,
-  announce: announce2,
-  actions
-}) {
-  const stopElement = (stop) => stop.kind === "approval" ? approvalTarget() : stop.kind === "obligation" ? stop.thread !== null ? threadPlace(stop.thread) : obligationPlace(stop.obligation).node : stop.kind === "page" ? pageHead() : stop.thread !== null ? threadPlace(stop.thread) : elementById(stop.id);
-  function stops() {
-    const list = [];
-    const listed2 = /* @__PURE__ */ new Set();
-    for (const item of readQueues().on_user) {
-      const stop = stopOf(item);
-      if (listed2.has(`${stop.kind}:${stop.id}`)) continue;
-      listed2.add(`${stop.kind}:${stop.id}`);
-      const at = stopElement(stop);
-      list.push({
-        ...stop,
-        key: `${stop.kind}:${stop.id}`,
-        noun: nounOf(item, stop),
-        place: at?.isConnected && !inChrome(at) ? at : null
-      });
-    }
-    return byRenderedOrder(list, (stop) => stop.place);
-  }
-  function stopsWithin(region) {
-    const held = new Set(obligationsIn(region).map((item) => item.id));
-    return stops().filter((stop) => stop.kind === "obligation" && held.has(stop.id));
-  }
-  const stopsOf = (region) => region ? stopsWithin(region) : stops();
-  function standingStop(list, { place: here, kind } = walkOrigin()) {
-    if (kind !== "standing") return null;
-    if (focused(document) === approvalTarget())
-      return list.find((stop) => stop.kind === "approval") ?? null;
-    const held = threadHere();
-    const thread = drawnThreadId(held);
-    if (thread) {
-      const stop = list.find(
-        (candidate) => candidate.kind === "thread" && candidate.id === thread
-      );
-      if (stop) return stop;
-    }
-    if (!here) return null;
-    const item = obligationHolding(readObligations().all, placeOf(here));
-    if (item) {
-      const stop = list.find(
-        (candidate) => candidate.kind === "obligation" && candidate.id === item.id
-      );
-      if (stop) return stop;
-    }
-    return list.findLast((stop) => {
-      if (stop.kind === "page") return stopElement(stop) === here;
-      if (stop.kind !== "widget") return false;
-      const at = stopElement(stop);
-      return at && (at === here || under(here, at));
-    }) ?? null;
-  }
-  function step(list, dir, region, origin) {
-    if (region && !under(origin.place, region)) return cycledRow(list, null, dir);
-    const standing2 = standingStop(list, origin);
-    if (standing2) return cycledRow(list, standing2, dir);
-    return stepFrom(list, origin, dir, (stop) => stop.place);
-  }
-  function arriveAtElement(find) {
-    const intent = retainUserIntent({ available: () => Boolean(find()) });
-    const where = find();
-    if (!where) return Promise.resolve(false);
-    const departure = prepareTrip({ landing: find, intent });
-    departure.plan(where);
-    return arrive(
-      () => {
-        const at = find();
-        return at && {
-          where: at,
-          focus: at,
-          scroll: [{ at, when: () => !readableDestination(at) }]
-        };
-      },
-      { intent, departure }
-    );
-  }
-  function arriveAt(stop) {
-    if (stop.kind === "obligation") {
-      const record = readObligations().all.find((item) => item.id === stop.id);
-      return record ? arriveAtRecord(record) : Promise.resolve(false);
-    }
-    if (stop.kind === "thread") return arriveAtThread2(stop.id);
-    if (stop.kind === "approval" && presentedApproval())
-      return presentedApproval().arrive();
-    return arriveAtElement(() => stopElement(stop));
-  }
-  function position(region) {
-    const list = stopsOf(region);
-    const here = standingStop(list);
-    const at = listWalkPosition(list, here, { identity: (stop) => stop.key });
-    return at && { ...at, qualifier: `${region ? WITHIN : QUALIFIER} \xB7 ${here.noun}` };
-  }
-  function walk(dir, region = null, origin = walkOrigin()) {
-    const list = stopsOf(region);
-    if (!list.length) return Promise.resolve(false);
-    const { row: next, wrapped } = step(list, dir, region, origin);
-    const ready = arriveAt(next).then((arrived) => {
-      if (!arrived) return false;
-      announce2(
-        beginWalk("queue", null, () => position(region), wrapped) ?? walkPositionLabel(
-          null,
-          list.indexOf(next) + 1,
-          list.length,
-          `${region ? WITHIN : QUALIFIER} \xB7 ${next.noun}`
-        )
-      );
-      return true;
-    });
-    void ready.catch(() => {
-    });
-    return ready;
-  }
-  const doneAt = (stop) => stop ? readQueues().on_user.find(
-    (item) => item.offers.done && sameStop(stopOf(item), stop)
-  ) ?? null : null;
-  const doneTodo = () => doneAt(standingStop(stops()));
-  function endTodo(id) {
-    return actions.done(queueItemKey({ kind: "todo", id }));
-  }
-  const offered = () => readQueues().on_user.length > 0;
-  const doneable = () => readQueues().on_user.filter((item) => item.offers.done).map((item) => item.id).join(" ");
-  let wasOffered = false;
-  let wasDoneable = "";
-  let watching = null;
-  function mount() {
-    watching ??= watchProjection(document.body, () => {
-      if (offered() === wasOffered && doneable() === wasDoneable) return;
-      wasOffered = offered();
-      wasDoneable = doneable();
-      paintKeys();
-    });
-  }
-  pageCommand({
-    id: "queue.walk",
-    ready: savedReadingSettled,
-    touch: false,
-    keys: ["m", "Shift+m"],
-    routes: [
-      // The whole page's list, which a tally's Next on me, walking one region, is not.
-      {
-        id: "queue.next",
-        binding: "m",
-        title: "Next on me",
-        description: "Go to the next of everything waiting on me, anywhere on the page"
-      },
-      {
-        id: "queue.previous",
-        binding: "Shift+m",
-        title: "Previous on me",
-        description: "Go to the previous of everything waiting on me, anywhere on the page"
-      }
-    ],
-    title: "On me",
-    when: offered,
-    repeat: true,
-    // The same shape as the thread walk: it moves the user from item to item rather than
-    // down a level, so the standing scope lets go of whichever one they end on. An item
-    // reached through the panel leaves the panel a level of its own on the way out,
-    // whether this walk opened it or the user already had it.
-    run: (binding) => walk(binding === "m" ? 1 : -1)
-  });
-  pageScope("todo", {
-    title: "On a to-do waiting on me",
-    ready: savedReadingSettled,
-    at: () => Boolean(doneTodo()),
-    rows: [
-      {
-        id: "queue.todo.done",
-        keys: ["x"],
-        title: "done",
-        description: "Mark this to-do done",
-        touch: false,
-        when: () => Boolean(doneTodo()),
-        run: () => {
-          const todo = doneTodo();
-          if (todo) endTodo(todo.id);
-        }
-      }
-    ]
-  });
-  const arriveAtItem = (item) => arriveAt(stopOf(item));
-  let wentTo = null;
-  onStanding((node, cause) => {
-    if (cause === "step") return;
-    const place3 = node && placeOf(node);
-    wentTo = (place3 && obligationHolding(readObligations().all, place3)?.id) ?? null;
-  });
-  function nextWithin({ within, dir = 1 }) {
-    if (!(within instanceof Element))
-      throw new TypeError("leaf: obligationActions.next needs an element `within`");
-    const here = walkOrigin();
-    const items2 = obligationsIn(within);
-    const kept = items2.find((item) => item.id === wentTo);
-    const toward = dir < 0 ? -1 : 1;
-    if (under(here.place, within)) return walk(toward, within, here);
-    if (kept)
-      return walk(toward, within, {
-        place: obligationPlace(kept).source,
-        kind: "standing"
-      });
-    const clips = /* @__PURE__ */ new Map();
-    const shown = items2.map((item) => obligationPlace(item).node).find((node) => node && seenRect(node, clips));
-    return shown ? walk(toward, within, { place: shown, kind: "at" }) : walk(toward, within, here);
-  }
-  return { mount, arriveAtItem, nextWithin };
 }
 
 // runtime/keyboard/command-hints.js
@@ -10423,6 +10471,7 @@ function createGoToSequence({
     return [
       {
         id: "navigation.thread.edge",
+        touch: false,
         // A focused thread is one place, so its two placements complete the sequence
         // without naming a list or taking a digit. This is the thread-local counterpart
         // to the page edges below: k/j place the card inside its panel rather than moving
@@ -10453,6 +10502,7 @@ function createGoToSequence({
       },
       {
         id: "navigation.page.focus",
+        touch: false,
         // This changes focus without unwinding an open surface.
         keys: PAGE_RETURN_KEYS,
         description: "Focus the page",
@@ -10465,6 +10515,7 @@ function createGoToSequence({
       },
       {
         id: "navigation.target",
+        touch: false,
         runFromCommandReference: false,
         // Every alphabet key is claimed while the map stands. If a scene refresh retired
         // a remembered route, that old letter must report the miss rather than falling
@@ -10489,6 +10540,7 @@ function createGoToSequence({
       },
       {
         id: "navigation.target.filter",
+        touch: false,
         keys: FILTER_KEYS,
         routes: TARGET_FILTERS.map(({ id, key, word: word2 }) => ({
           id: `navigation.target.filter.${id}`,
@@ -10528,6 +10580,7 @@ function createGoToSequence({
       })),
       {
         id: "navigation.page.edge",
+        touch: false,
         keys: PAGE_EDGE_KEYS,
         routes: [
           {
@@ -10551,6 +10604,7 @@ function createGoToSequence({
       },
       {
         id: "navigation.go-to.back",
+        touch: false,
         keys: ["Escape"],
         sequenceControl: true,
         description: () => hints.prefix() ? "Remove the last hint letter" : targetFilter ? "Show all visible targets" : "Cancel the sequence",
@@ -10614,11 +10668,12 @@ function standingOn(name2, title, sel, rows) {
   });
 }
 standingOn("link", "On a link", LINK, [
-  { id: "link.follow", keys: ["Enter"], title: "Follow" }
+  { id: "link.follow", keys: ["Enter"], title: "Follow", touch: false }
 ]);
 standingOn("disclosure", "On a disclosure", DISCLOSURE_SELECTOR, [
   {
     id: "disclosure.toggle",
+    touch: false,
     keys: () => DISCLOSE(focused()),
     description: "Open or close it",
     // Read where it is painted rather than named once for both branches, the way a diff's
@@ -10666,6 +10721,7 @@ function declareStanding({ pageState }) {
     rows: [
       {
         id: "navigation.release",
+        touch: false,
         keys: ["Escape"],
         description: "Let go of the current item",
         title: "let go",
@@ -10760,15 +10816,14 @@ function mountKeyboard({
 // runtime/keyboard/touch-controls.js
 var presses = /* @__PURE__ */ new Map();
 var faces = /* @__PURE__ */ new Map();
-function place2(press, gesture) {
+function place2(press) {
   const known = presses.has(press.id);
   presses.set(press.id, press);
   if (known) return press.id;
   const face = () => faces.get(press.id);
   registerPageControl({
     key: `command:${press.id}`,
-    rank: gesture ? PAGE_CONTROL_RANK.steps : PAGE_CONTROL_RANK.commands,
-    gesture,
+    rank: PAGE_CONTROL_RANK.commands,
     label: () => face()?.label ?? "",
     shortcut: () => face()?.shortcut ?? [],
     // A page command says which of a menu's groups it belongs with (`menu`).
@@ -10791,7 +10846,7 @@ function placeStanceExit() {
   stanceRegistered = true;
   registerPageControl({
     key: "stance:exit",
-    rank: PAGE_CONTROL_RANK.steps,
+    rank: PAGE_CONTROL_RANK.exit,
     exit: true,
     label: () => stance?.label ?? "",
     group: "page",
@@ -10805,14 +10860,7 @@ function placeStanceExit() {
 var sameStance = (a, b) => a?.label === b?.label && a?.disabled === b?.disabled;
 var same3 = (a, b) => a?.label === b?.label && a?.disabled === b?.disabled && a?.shortcut.join(" ") === b?.shortcut.join(" ");
 function paintTouchControls() {
-  const { commands, steps } = touchPresses();
-  for (const { presses: scoped } of steps)
-    for (const press of scoped) place2(press, true);
-  const innermost = steps.find(({ scope }) => standing(scope));
-  const shown = /* @__PURE__ */ new Set([
-    ...commands.map((press) => place2(press, false)),
-    ...innermost?.presses.map((press) => press.id) ?? []
-  ]);
+  const shown = new Set(touchPresses().map(place2));
   let changed = false;
   const held = innermostStance();
   if (held) placeStanceExit();
@@ -11241,7 +11289,7 @@ var version = createVersionController({
     return (app?.overlay?.restoreStanding(margin) ?? false) || panelShown;
   },
   captureObligationStanding: () => items.captureStanding(),
-  restoreObligationStanding: (standing2) => items.restoreStanding(standing2),
+  restoreObligationStanding: (standing) => items.restoreStanding(standing),
   versions: { press: () => floatingPanel.doors.versions.press() }
 });
 var inputs = createCompositionInputs({
@@ -11347,11 +11395,10 @@ floatingPanel = createFloatingPanel({
   afterReadingPass: app.read.afterPass,
   threadActions: app.threadActions,
   registerChromeThreadPresentation: app.registerChromeThreadPresentation,
-  obligations: {
-    choicesOf: items.choicesOf,
-    open: (id) => app.openObligation(id)
-  },
+  obligations: { choicesOf: items.choicesOf },
   queueActions: app.queueActions,
+  arrivesAt: (item) => queueWalk.arrivesAt(item),
+  inWalkOrder: (items2) => queueWalk.inWalkOrder(items2),
   withdraw: app.withdraw,
   settlement: app.settlement,
   placedAt: anchorPlacement.placedAt,

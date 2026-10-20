@@ -868,7 +868,7 @@ def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
     """Page search's box stands just over the panel's row, where its ✕ stands, rather
     than at the window's head. The box walks its own matches: its up and down arrows
     move the count beside them and leave the query's field focused, so the next letter
-    still edits it, and the panel's row holds no step of search's. A press on the
+    still edits it, and the panel's row keeps its counts. A press on the
     marked match selects it."""
     page = floating(browser, serve(LONG_PAGE))
     page.locator("body").focus()
@@ -887,7 +887,7 @@ def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
     page.keyboard.type("Paragraph 1")
     count = search.locator(".lf-page-search-status")
     expect(count).to_have_text("1 of 11")
-    expect(page.locator(".lf-fp-step")).to_have_count(0)
+    expect(page.locator(".lf-fp-threads")).to_be_visible()
     following.click()
     expect(count).to_have_text("2 of 11")
     previous.click()
@@ -2744,8 +2744,8 @@ def test_the_plan_has_its_own_tab_and_an_item_says_its_place_in_it(browser, serv
     """While the agent has a plan, the On view adds a Plan tab beside the two lists,
     drawing the goal with its steps in order, and a step waiting on the user is a way
     to On me. On me keeps every item it lists, and one the plan names says its goal
-    and step over its question, counted as the goal counts, without dropped steps, and
-    still says it once answered."""
+    and step after its kind, over its question, counted as the goal counts, without
+    dropped steps, and still says it once answered."""
     url = serve(OBLIGATION_PAGE)
     steps = [
         {"depth": 0, "title": "Ship the migration", "state": "working"},
@@ -2762,17 +2762,17 @@ def test_the_plan_has_its_own_tab_and_an_item_says_its_place_in_it(browser, serv
     page.locator(".lf-fp-on-user").click()
     cards = page.locator(".lf-fp-view[data-view=queue] .lf-fp-on-item")
     expect(cards).to_have_count(2)
-    expect(cards.first.locator(".lf-fp-plan-place")).to_have_text(
-        "Ship the migration · step 2 of 3"
+    expect(cards.first.locator(".lf-fp-on-kind")).to_have_text(
+        "Options · Ship the migration · step 2 of 3"
     )
-    expect(cards.nth(1).locator(".lf-fp-plan-place")).to_have_count(0)
+    expect(cards.nth(1).locator(".lf-fp-on-kind")).to_have_text("Options")
     settled(page)
     answers = cards.first.locator(".lf-fp-answers").bounding_box()
     with sending(page, "the answer"):
         cards.first.locator(".lf-fp-answer", has_text="Shim").click()
     expect(cards.first.locator(".lf-fp-said")).to_have_text(re.compile("^Answered"))
-    expect(cards.first.locator(".lf-fp-plan-place")).to_have_text(
-        "Ship the migration · step 2 of 3"
+    expect(cards.first.locator(".lf-fp-on-kind")).to_have_text(
+        "Options · Ship the migration · step 2 of 3"
     )
     assert cards.first.locator(".lf-fp-answers").bounding_box()["y"] == answers["y"]
     with sending(page, "the undo"):
@@ -3083,10 +3083,10 @@ def test_the_approval_is_arrived_at_in_sight_below_many_obligations(browser, ser
 
 
 def test_a_mode_entered_from_the_panel_offers_its_way_out_in_the_row(browser, serve):
-    """Annotations, a row of the leaf's menu, opens a list whose Draw mode, while it
-    holds the gesture seat, stands its steps in the row in the counts' place and its ✕
-    at the row's end; the ✕ leaves the mode and the counts return. Picking an element is left to the page,
-    where selecting words or pressing `s` starts it, so Annotations doesn't list it."""
+    """Annotations, a row of the leaf's menu, opens a list whose Draw mode stands its ✕ at
+    the row's end, beside the counts, and names the mode in the field; the ✕ leaves the
+    mode. Picking an element is left to the page, where selecting words or pressing `s`
+    starts it, so Annotations doesn't list it."""
     page = floating(browser, serve(LONG_PAGE, comments=1))
     page.locator(".lf-fp-leaf").click()
     page.locator(".lf-fp-menu .lf-fp-item", has_text="Annotations").click()
@@ -3095,12 +3095,11 @@ def test_a_mode_entered_from_the_panel_offers_its_way_out_in_the_row(browser, se
     page.locator(".lf-fp-item", has_text="Draw mode").click()
     exit_step = page.locator('.lf-fp-exit[aria-label="Exit Draw mode"]')
     expect(exit_step).to_be_visible()
-    expect(page.locator(".lf-fp-on-user")).to_have_count(0)
+    expect(page.locator(".lf-fp-on-user")).to_be_visible()
     # The field names the mode in the status's place.
     expect(field(page)).to_have_attribute("data-says", "stance")
     expect(field(page)).to_have_attribute("placeholder", re.compile("^In Draw mode"))
     exit_step.click()
-    expect(page.locator(".lf-fp-step")).to_have_count(0)
     expect(exit_step).to_have_count(0)
     expect(field(page)).to_have_attribute("data-says", "status")
     expect(page.locator(".lf-fp-on-user")).to_be_visible()

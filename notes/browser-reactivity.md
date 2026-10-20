@@ -139,6 +139,52 @@ against 539. Three earlier paired runs at load 14–52 read 95–107 ms against 
 forced recalculations left are the thread marks' geometry reads (`targetParts`, about
 4 ms each).
 
-The server's reading still takes longer than 100 ms. The POST answers in about 80 ms
-on a loaded host, and applying the reading repaints the threads, the annotations and
-every atlas worker, since each comment changes the obligations `readWork` reads.
+## What the server's reading of a comment costs
+
+The server's reading reaches the screen after two waits: the POST's answer, then
+applying that answer. Each `leaf-dev profile` run's `.trace.json` times the first by
+the POST's `ResourceSendRequest` and `ResourceReceiveResponse` events, and the task
+after the response is the second. Three causes held the reading back:
+
+- Every claim on a region a report waits for makes `reportsReady` false until the
+  region commits, and a `LeafElement` that read it drew again on each move. A comment
+  moved it seven times, so each `lf-atlas-worker` rendered four times, recomputing
+  `readWork` each time, though every one of those renders ran after the proof had
+  risen again and drew what it already showed. A `LeafElement` now draws again only
+  when the proof rises (`leaf-element.js`).
+- `readWork` read the whole obligation inventory, which a comment changes, so every
+  worker drew again on the answer. It now selects the widget obligations that wait on
+  the user, which a comment leaves alone (`work.js`).
+- `postEvent` awaited the layer's settled promise, which put the POST behind every
+  microtask queued before it, among them the presentation the comment's own
+  publication claimed: the request left 28–41 ms after the key, profiled. It now goes
+  out in the press, 7–10 ms after the key, once the layer is known (`layer-client.js`).
+
+`uv run leaf-dev bench-latency --page corpus --transition comment` after all three,
+fifteen paired runs over three invocations at load 10–17 (18 cores): the server's
+reading reached the screen in 177 ms (interquartile 169–191) against the merge base's
+203 (191–216), the POST answered in 61 ms against 89, and the comment painted in 94
+against 105. A card move's reading fell from 151–154 ms to 116–121 in two five-run
+invocations. A fourth comment invocation, at load 17–26, could not tell the arms
+apart.
+
+What remains, from `leaf-dev profile corpus comment` and the server's own timing:
+
+- **The POST's answer.** In one timed comment the server spent 70 ms on the event
+  while fifteen of the corpus page's sample children asked for news beside it. Each
+  `lf-sample` child asks `/api/news` every 250 ms (`LOOK_MS`, `state-feed.js`), each
+  behind a CORS preflight; a news answer takes 3–8 ms of Python alone and 12–40 ms in
+  that burst. The burst came as the press's long task ended, which suggests that
+  task held all the children's timers, so they fire together and share the
+  interpreter with the event; that is not yet confirmed. Admission also reads the
+  page's obligations three times: before and after the append, to decide whether the
+  event needs attention (`event_contracts.admitted_event`), and again for the state
+  the answer carries. In a cProfile of one comment, `page_obligation_readings` took
+  37 of 62 ms.
+- **Applying the answer**, about 70 ms profiled. The thread presentation reads its
+  targets twice, before and after preparation (`readTargets`,
+  `thread/presentation.js`), and the second read forces layout in `targetParts`
+  (11 ms). The margin's annotations render twice: once when the thread presentation
+  commits and once from their own watcher, since the comment moved the obligations
+  and workflows that watcher reads (8 and 12 ms). Adopting and publishing the
+  reading takes 12 ms, and `lf-activity` renders its new row's Markdown in 5 ms.

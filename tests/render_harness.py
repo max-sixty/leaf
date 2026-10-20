@@ -1679,12 +1679,15 @@ def panel_settled(page, open=True, view=None):
         """([open, view]) => {
           const host = document.querySelector('.lf-floating-panel');
           const ground = document.querySelector('.lf-fp-ground');
-          const moving = [host, ground].flatMap((n) => n.getAnimations({subtree: true}));
+          // A working indicator may keep animating while the panel has settled.
+          const finite = (n) => n.getAnimations({subtree: true}).filter((move) =>
+            Number.isFinite(move.effect?.getComputedTiming().endTime));
+          const moving = [host, ground].flatMap(finite);
           for (const move of moving) move.finish();
           const shown = host.dataset.open ?? null;
           return (open ? shown !== null && (!view || shown === view) : shown === null)
             && !host.querySelector('.lf-fp-view[data-leaving]')
-            && [host, ground].every((n) => !n.getAnimations({subtree: true}).length);
+            && [host, ground].every((n) => !finite(n).length);
         }""",
         arg=[open, view],
         polling=render_checks_model.PROBE_POLL_MS,
@@ -1728,10 +1731,10 @@ def panel_control(page, key, at=None):
     (`approval`) stands under Versions. Every other row is the menu's, by its key:
     `versions`, `leaves` (All pages, under `navigate` where other pages are live),
     `latest`, `blanket:accept`, `command:<id>` for a page command such as
-    `command:history.undo` or `command:draw.mode.enter` (under `annotate`). A gesture's
-    next step stands in the marks' place as a `.lf-fp-step` chip named by its words, the
-    way out of the stance the user stands in is the `.lf-fp-exit` ✕ named by its
-    `aria-label`, and the page comment is `page_comment`'s."""
+    `command:history.undo` or `command:draw.mode.enter` (under `annotate`). The way out
+    of the stance the user stands in is the `.lf-fp-exit` ✕ named by its `aria-label`,
+    and the page comment is `page_comment`'s, offering selected words as
+    `selection_field`'s."""
     if key in PANEL_ROW_CONTROLS:
         control = page.locator(PANEL_ROW_CONTROLS[key])
     elif key == "approval":
@@ -1753,6 +1756,14 @@ def expect_panel_offers(page, key, *, offered=True, at=None):
     expect(row).to_have_count(1 if offered else 0)
     page.locator(".lf-fp-leaf").click()
     expect(page.locator(PANEL)).not_to_have_attribute("data-menu", "")
+
+
+def selection_field(page):
+    """Return the page comment's box in the panel's field while it offers the words
+    selected on the page: its placeholder quotes them, and a press on it comments on
+    them (floating-panel.js, `selectedWords`). Nothing matches while no words are
+    offered, so the locator reads as hidden then."""
+    return page.locator('.lf-fp-field leaf-text[name="comment"][data-says="selection"]')
 
 
 def page_comment(page):
@@ -2766,9 +2777,13 @@ REST_SECONDS = 5
 
 
 def left_alone(page):
-    """Prepare a still_page and its Leaf frames for their reading: rendered, arrival
-    notices retired, and the pointer off its controls. Advance its controlled timer
-    clock through every due callback while Date.now stays fixed.
+    """Prepare a still_page and its Leaf frames for their reading: rendered, the focus
+    released and the pointer off its controls, and arrival notices retired. Advance its
+    controlled timer clock through every due callback while Date.now stays fixed.
+
+    The leaf's peek also shows while the pointer rests on the leaf or the panel's
+    field, or the focus on the leaf, as after a press on the panel, so both leave
+    before the notices are waited out.
     """
 
     def prepare_children(parent):
@@ -2782,6 +2797,8 @@ def left_alone(page):
 
     rendered(page)
     prepare_children(page.main_frame)
+    page.evaluate(RELEASE_FOCUS)
+    page.mouse.move(2, 300)
     deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
     # A passing notice stands in the panel's empty field, in the line over it once the
     # field is written in, or in the leaf's peek (notifications.js).
@@ -2794,7 +2811,6 @@ def left_alone(page):
         # still_page fixes Date.now but its timer clock otherwise runs in real time.
         # Run every callback until the notice retires; fast_forward would skip ticks.
         page.clock.run_for(100)
-    page.mouse.move(2, 300)
     rendered(page)
 
 

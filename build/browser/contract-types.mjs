@@ -26,7 +26,7 @@ const ANNOTATIONS = new Set(["description", "title", "$schema", "$id", "$comment
 /** What a served-state reference names: one of its own definitions (`own`), the
  * x-state verb (`verb`), or an event record (`event`, its kind or null for any kind,
  * with `field`, one property of it, or null). */
-export function schemaReference(ref) {
+function schemaReference(ref) {
   const own = /^#\/\$defs\/([A-Za-z]+)$/.exec(ref);
   if (own) return { own: own[1] };
   if (ref === "leaf:verb") return { verb: true };

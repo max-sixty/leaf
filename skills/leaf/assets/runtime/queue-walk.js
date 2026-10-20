@@ -15,8 +15,10 @@
    lands; a page widget action, or a to-do on an element or the page, by travel's `arrive`,
    onto the widget the action was made on, the element, or the page's head; the
    version's approval by the floating panel's own arrival (page-status.js,
-   `registerApprovalPresentation`). An On me row arrives through the same function
-   (`arriveAtItem`), for an item on either list or one that is done.
+   `registerApprovalPresentation`). An On me card's Show arrives through the same
+   function (`arriveAtItem`), for an item on either list or one that is done, and
+   offers itself where that arrival goes anywhere (`arrivesAt`); the card names its
+   item as the walk does (`queueStop`).
 
    A walk starts from the user's place, in this order:
 
@@ -29,7 +31,7 @@
    the chrome is a binding badge, not a page position, so its controls do not become the
    walk's origin. The user stands on an obligation when they stand in its widget, in its thread
    (`threadHere`), or in its widget or element, and the press steps off it. Standing on
-   a to-do Done ends, `x` is that Done, a step in the panel's row under a finger
+   a to-do Done ends, `x` is that Done, as is the Done on its On me row
    (`queue-api.js`, `done`): the user's `todo_end`, which leaves On me in the turn it is
    pressed.
 
@@ -39,6 +41,8 @@
    page. An item with no place on the page, a general thread or one whose passage is
    gone, comes after every placed one in the list's own order, as the t/T walk reaches
    such threads from its list's ends. A step past either end comes round to the other.
+   On me lists its items in this order too (`inWalkOrder`), so successive presses
+   reach successive cards.
 
    The walk can also step within one region of the page (`obligationActions.next`, as an
    `lf-tally`'s Next on me presses it): its stops are then the obligations waiting on the user
@@ -115,6 +119,14 @@ const stopOf = (item) =>
           : { kind: "widget", id: item.subject.id, thread: null };
 const sameStop = (a, b) => a.kind === b.kind && a.id === b.id;
 
+// An item as the walk reads it: where it is arrived at, the key the walk's position
+// names that stop by, and what the walk calls it. An On me card reads the same, so it
+// names its kind as the field does after `m` and knows when the walk stands on it.
+export function queueStop(item) {
+  const stop = stopOf(item);
+  return { ...stop, key: `${stop.kind}:${stop.id}`, noun: nounOf(item, stop) };
+}
+
 // The page's head, where a to-do on the page as a whole is arrived at: its first
 // top-level heading, or its first element.
 const pageHead = () =>
@@ -147,24 +159,29 @@ export function createQueueWalk({
             ? threadPlace(stop.thread)
             : elementById(stop.id);
 
+  // Where a stop stands on the page, if anywhere.
+  const pagePlace = (stop) => {
+    const at = stopElement(stop);
+    return at?.isConnected && !inChrome(at) ? at : null;
+  };
+
+  // Items of any list in the walk's order: by where each is arrived at on the page, and
+  // those with no place there after, in the list's own order.
+  const inWalkOrder = (items) =>
+    byRenderedOrder(items, (item) => pagePlace(queueStop(item)));
+
   function stops() {
     const list = [];
     const listed = new Set();
-    for (const item of readQueues().on_user) {
-      const stop = stopOf(item);
+    for (const item of inWalkOrder(readQueues().on_user)) {
+      const stop = queueStop(item);
       // Two items arrived at in one place, such as two to-dos on one thread, are one
       // stop.
-      if (listed.has(`${stop.kind}:${stop.id}`)) continue;
-      listed.add(`${stop.kind}:${stop.id}`);
-      const at = stopElement(stop);
-      list.push({
-        ...stop,
-        key: `${stop.kind}:${stop.id}`,
-        noun: nounOf(item, stop),
-        place: at?.isConnected && !inChrome(at) ? at : null,
-      });
+      if (listed.has(stop.key)) continue;
+      listed.add(stop.key);
+      list.push({ ...stop, place: pagePlace(stop) });
     }
-    return byRenderedOrder(list, (stop) => stop.place);
+    return list;
   }
 
   // The stops of a walk within `region`: the obligations waiting on the user it holds.
@@ -387,6 +404,17 @@ export function createQueueWalk({
 
   // An On me row arrives where the walk would, whichever list its obligation is on.
   const arriveAtItem = (item) => arriveAt(stopOf(item));
+  // Whether the walk takes the user somewhere for an item that its card does not already
+  // offer: its place on the page, or a widget in a thread the page draws no passage for,
+  // which the panel opens with the user on the widget. A thread with no place opens in
+  // the panel as the card's Discuss opens it, and the version's approval stands in On me
+  // (`stopElement`), so neither goes anywhere further.
+  const arrivesAt = (item) => {
+    const stop = stopOf(item);
+    return (
+      Boolean(pagePlace(stop)) || (stop.kind === "obligation" && stop.thread !== null)
+    );
+  };
 
   // The id of the obligation the user last went to, for a walk within a region pressed from
   // outside it. Sequential navigation passes over what it crosses, so it keeps the obligation.
@@ -423,5 +451,5 @@ export function createQueueWalk({
       : walk(toward, within, here);
   }
 
-  return { mount, arriveAtItem, nextWithin };
+  return { mount, arriveAtItem, arrivesAt, inWalkOrder, nextWithin };
 }

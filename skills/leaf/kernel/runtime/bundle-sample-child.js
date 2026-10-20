@@ -481,7 +481,6 @@ export {
   registerSampleCommand,
   sampleNotice,
   userIn,
-  standing,
   innermostStance,
   stack,
   keyReady,

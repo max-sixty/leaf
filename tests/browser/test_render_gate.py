@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 
 import pytest
 import tinycss2
+from browser_sources import browser_function
 from click.testing import CliRunner
 from interact_support import (
     COMMAND_HUB_PACKAGE,
@@ -78,7 +79,6 @@ from render_harness import (
     EXAMPLE_PACKAGES,
     INLINE_PAGE,
     LONG_PAGE,
-    RELEASE_FOCUS,
     TOKEN,
     _traffic,
     _until,
@@ -2519,7 +2519,6 @@ def surface_findings(page):
         for surface, (_, door) in SURFACES.items()
     }
     left_alone(page)
-    page.evaluate(RELEASE_FOCUS)
 
     def press(keys):
         for key in keys:
@@ -2730,7 +2729,6 @@ def typed_box_findings(page):
     findings = []
     for box, route in TYPED_BOXES.items():
         left_alone(page)
-        page.evaluate(RELEASE_FOCUS)
         keys = route(page)
         if not keys:
             continue
@@ -3198,35 +3196,7 @@ def aim_selectors():
     return " ".join(tinycss2.serialize(rules[0].prelude).split())
 
 
-AIM_BOXES = """(selectors) => {
-  const floor = parseFloat(
-    getComputedStyle(document.documentElement).getPropertyValue("--aim-floor")
-  );
-  const short = [];
-  let seen = 0;
-  const sweep = (root) => {
-    for (const el of root.querySelectorAll(selectors)) {
-      const box = el.getBoundingClientRect();
-      // A box and not checkVisibility(): the corpus renders much of itself inside
-      // content-visibility sections, which this browser answers no for, and a control
-      // laid out inside one is a control a user reaches by scrolling to it.
-      if (!box.width || !box.height) continue;
-      const shown = getComputedStyle(el);
-      // Hidden, or standing there for a pointer a finger is not: the diff's line
-      // comment is transparent and takes no presses until its row is hovered, and a
-      // finger never hovers it.
-      if (shown.visibility === "hidden") continue;
-      if (shown.opacity === "0" || shown.pointerEvents === "none") continue;
-      seen += 1;
-      if (Math.min(box.width, box.height) < floor - 0.5)
-        short.push(`${Math.round(box.width)}x${Math.round(box.height)} ${el.className}`);
-    }
-    for (const el of root.querySelectorAll("*"))
-      if (el.shadowRoot) sweep(el.shadowRoot);
-  };
-  sweep(document);
-  return {floor, seen, short};
-}"""
+AIM_BOXES = browser_function("aims.js", "flooredAims")
 
 
 # Everything an injected control still draws once the medium has taken the press away.
@@ -3339,7 +3309,8 @@ def short_aim_findings(page):
     rule that states a minimum of its own for one of these outranks it — and a package's
     38px button or the chrome's 28px step is shorter than a finger. Those fold the floor
     in with max(), and this sweep is what says they did: it reads the layer's selector
-    list, then measures every visible control under an emulated finger."""
+    list, then measures every visible control, with any reach it hangs past its box,
+    under an emulated finger."""
     cdp = page.context.new_cdp_session(page)
     cdp.send("Emulation.setTouchEmulationEnabled", {"enabled": True})
     try:
@@ -3381,7 +3352,7 @@ def pressable_paper_findings(page):
     mean anything: a corpus whose controls were bare and whose disclosures were open
     everywhere would pass the assertions below while proving nothing about the medium.
     """
-    page.get_by_role("tab", name="Command", exact=True).click()
+    page.locator('[role="tab"][aria-controls="corpus-command-hub"]').click()
     expect(page.locator("#corpus-command-hub")).to_be_visible()
     on_screen = page.evaluate(PRINTED_OFFERS)
     assert sum(1 for offer in on_screen if offer["pressable"]) > 20, (

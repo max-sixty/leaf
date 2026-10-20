@@ -2,6 +2,7 @@
  * imports, and initial presentation. */
 import { paintDeclaredWords, watchExternalLinks } from "./declared-words.js";
 import { watchCodeBlocks } from "./code-copy.js";
+import { watchVideos } from "./video-controls.js";
 import { reachScrollers } from "./reach.js";
 import { adoptRegistry, registry, tagsDeclaring } from "./registry.js";
 import { loadShadowRules } from "./shadow.js";
@@ -205,6 +206,7 @@ async function installDocument(scope) {
     commitWidgetDescriptors(descriptors);
     watchExternalLinks();
     watchCodeBlocks();
+    watchVideos();
     await importWidgets(scope);
     await settle(presentation, scope, [scope], whenApplicationPresented);
   } finally {

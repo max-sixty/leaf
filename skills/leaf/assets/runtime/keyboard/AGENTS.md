@@ -79,18 +79,21 @@ representative, core forwards only the widget's declared `contextKeys`; widgets 
 Every page capability that a key reaches and no direct gesture does has a row among
 the page's controls (`page-controls.js`), for a finger and a mouse alike. The row names
 that control in `touch`, and `touch-controls.js` builds it from the same row the key
-uses: a page command's control is a row of the floating panel's menu, and a page-scope
-row's control stands in the panel's row as a gesture's step while its scope is the
-innermost one offering steps. A stance a finger can enter, such as page search, the
-target picker or Draw mode, marks its way out `exit` instead of giving it words: while
-it is the innermost stance standing, the panel says the scope's title and offers that
-row as one ✕ at the row's end, beside the counts or the steps. The ✕ runs that row,
-which leaves the stance, even where Escape would first close something inside it; the
-picker's, while a typed hint prefix stands, takes back a letter, as its title says. The
-register refuses a page command without `touch`; `false` says a finger reaches the
-result directly, as it does for walks and Go-to by scrolling and tapping, or through
-the row's own `control` beside what it changes, as page search's arrows walk its
-matches from its box.
+uses: a page command's control is a row of the floating panel's menu. A page scope's
+rows take no words. What a gesture does next, a finger does on what the gesture acts
+on: a search's arrows walk its matches from its box and a press on the marked match
+selects it, a drawing's composer undoes its stroke, lifting a capture's drag attaches
+it, and the page's field comments on selected words. So each row of a page scope that
+runs a press says `touch: false`, or is its stance's way out. A stance a finger can
+enter, such as page search, the target picker or Draw mode, marks its way out `exit`:
+while it is the innermost stance standing, the panel says the scope's title and offers
+that row as one ✕ at the row's end, beside the counts. The ✕ runs that row, which leaves the stance,
+even where Escape would first close something inside it; the picker's, while a typed
+hint prefix stands, takes back a letter, as its title says. The register refuses a
+page command without `touch` and a scope row with a `run` that is neither `exit` nor
+`touch: false`; `false` says a finger reaches the result directly, as it does for
+walks and Go-to by scrolling and tapping, or through a control of the row's own beside
+what it changes.
 
 The comment field has one primary action, Dictate while empty and Send once it has
 words; Suggest and reactions open by Tab from the field. The field deliberately has no

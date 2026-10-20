@@ -366,8 +366,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-dot.offline {
     background: var(--danger);
   }
-  /* Approval and Threads each hold the widest words they can show (data-lf-room), so
-     either can change without moving the other. */
   @layer lf-reset {
     .lf-thread-action {
       font: inherit;

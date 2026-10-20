@@ -2774,9 +2774,13 @@ REST_SECONDS = 5
 
 
 def left_alone(page):
-    """Prepare a still_page and its Leaf frames for their reading: rendered, arrival
-    notices retired, and the pointer off its controls. Advance its controlled timer
-    clock through every due callback while Date.now stays fixed.
+    """Prepare a still_page and its Leaf frames for their reading: rendered, the focus
+    released and the pointer off its controls, and arrival notices retired. Advance its
+    controlled timer clock through every due callback while Date.now stays fixed.
+
+    The leaf's peek also shows while the pointer rests on the leaf or the panel's
+    field, or the focus on the leaf, as after a press on the panel, so both leave
+    before the notices are waited out.
     """
 
     def prepare_children(parent):
@@ -2790,6 +2794,8 @@ def left_alone(page):
 
     rendered(page)
     prepare_children(page.main_frame)
+    page.evaluate(RELEASE_FOCUS)
+    page.mouse.move(2, 300)
     deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
     # A passing notice stands in the panel's empty field, in the line over it once the
     # field is written in, or in the leaf's peek (notifications.js).
@@ -2802,7 +2808,6 @@ def left_alone(page):
         # still_page fixes Date.now but its timer clock otherwise runs in real time.
         # Run every callback until the notice retires; fast_forward would skip ticks.
         page.clock.run_for(100)
-    page.mouse.move(2, 300)
     rendered(page)
 
 

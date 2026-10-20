@@ -1,5 +1,5 @@
-"""How each margin entry is drawn, labelled and kept through repaints, and the bounded
-work a repaint does."""
+"""How each margin entry is drawn, labelled and kept through repaints. The bounds on a
+repaint's work are held on the corpus (`journeys/test_render_gate.py`)."""
 
 import re
 
@@ -11,7 +11,6 @@ from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, live_url
 from render_cases_layout import token_colour
 from render_harness import (
-    EXAMPLES,
     FEATURE_GALLERY,
     draft_control,
     leaf_page,
@@ -28,134 +27,6 @@ from browser.margin import (
 )
 
 pytestmark = pytest.mark.shifts_unsurveyed
-
-
-def open_still_corpus(browser, serve):
-    corpus = next(example for example in EXAMPLES if example.stem == "corpus")
-    return open_page(
-        browser, serve(corpus), context=browser.new_context(reduced_motion="reduce")
-    )
-
-
-def test_unchanged_margin_passes_over_the_corpus_do_bounded_work_and_write_nothing(
-    browser, serve
-):
-    """The corpus is the widest margin the examples draw, most of it withheld at this
-    viewport. Passes that change nothing write nothing to it and cost the browser work
-    bounded by their count, not by the rows they place."""
-    page = open_still_corpus(browser, serve)
-    resized(page, 1440, 900)
-    margins_laid_out(page)
-    # The placement event precedes deferred Reach and chrome work. A measurement
-    # starting here used to include whatever that previous invalidation still owed.
-    rendered(page)
-    # The refresh count is read first, on the page as it presents: on CI's runner it
-    # read 73 layouts for five refreshes when it followed the other two passes.
-    _refreshes_force_layout_by_refresh_count(page)
-    _refreshes_restate_no_margin_name(page, {".lf-margin-cluster": 15})
-    _layout_passes_batch_without_refolding_controls(page)
-
-
-def _layout_passes_batch_without_refolding_controls(page):
-    """Layout work is bounded by phases, not the number of contributed controls.
-
-    The corpus used to force 26 layouts and 44 style recalculations per unchanged
-    pass (about 45 ms in local Chrome). Count the browser's work rather than time;
-    the contributor's primary/overflow state must also remain untouched.
-    """
-    # A placement delivery precedes deferred Reach and chrome paints. Finish the
-    # warmup invalidation before recording the work of the five passes below.
-    margins_laid_out(page)
-    rendered(page)
-    session = page.context.new_cdp_session(page)
-    session.send("Performance.enable")
-    before = {
-        metric["name"]: metric["value"]
-        for metric in session.send("Performance.getMetrics")["metrics"]
-    }
-    page.evaluate(
-        """async () => {
-          const {layoutChanged} = await window.__lfWidgetApi();
-          const rows = [...document.querySelectorAll('.lf-margin-cluster')];
-          const boxes = () => rows.map(row => {
-            const {x, y, width, height} = row.getBoundingClientRect();
-            return {x, y, width, height};
-          });
-          const before = boxes();
-          // Collected from the callback rather than by `takeRecords` alone: letting a
-          // frame settle passes a microtask checkpoint, which delivers the records to
-          // the callback and empties the queue a bare `takeRecords` would read.
-          const seen = [];
-          const observer = new MutationObserver(list => seen.push(...list));
-          observer.observe(document.body, {subtree: true, attributes: true,
-            attributeFilter: ['data-lf-margin-entry-primary', 'data-lf-margin-entry-overflow']});
-          window.__lfFinishMarginPasses = () => {
-            const mutations = seen.length + observer.takeRecords().length;
-            observer.disconnect();
-            delete window.__lfFinishMarginPasses;
-            return {before, after: boxes(), mutations};
-          };
-          for (let i = 0; i < 5; i++) await new Promise(done => {
-            document.addEventListener('lf-margin-layout', done, {once: true});
-            layoutChanged(document.body);
-          });
-        }"""
-    )
-    rendered(page)
-    reading = page.evaluate("window.__lfFinishMarginPasses()")
-    after = {
-        metric["name"]: metric["value"]
-        for metric in session.send("Performance.getMetrics")["metrics"]
-    }
-    session.detach()
-    assert reading["mutations"] == 0
-    assert reading["after"] == reading["before"]
-    work = {
-        name: after[name] - before[name] for name in ("LayoutCount", "RecalcStyleCount")
-    }
-    # The current corpus takes 32 style recalculations across five passes with
-    # playback stopped; this bound still excludes work proportional to its rows.
-    assert all(count <= 35 for count in work.values()), work
-
-
-def _refreshes_force_layout_by_refresh_count(page):
-    """A viewport refresh cannot force layout once per Page Map location."""
-    session = page.context.new_cdp_session(page)
-    session.send("Performance.enable")
-    before = {
-        metric["name"]: metric["value"]
-        for metric in session.send("Performance.getMetrics")["metrics"]
-    }
-    refreshes = 5
-    page.evaluate(
-        """async refreshes => {
-          const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
-          for (let i = 0; i < refreshes; i++) {
-            window.dispatchEvent(new Event('resize'));
-            await frame();
-          }
-        }""",
-        refreshes,
-    )
-    # A frame callback is before ResizeObserver delivery and the rereads it queues.
-    # Include the complete work caused by these refreshes before reading the count.
-    rendered(page)
-    after = {
-        metric["name"]: metric["value"]
-        for metric in session.send("Performance.getMetrics")["metrics"]
-    }
-    session.detach()
-    work = {
-        name: after[name] - before[name]
-        for name in (
-            "LayoutCount",
-            "RecalcStyleCount",
-        )
-    }
-    # These bounds include the browser's viewport bookkeeping while refusing work that
-    # scales with every Page Map location.
-    assert work["LayoutCount"] <= refreshes * 8, work
-    assert work["RecalcStyleCount"] <= refreshes * 30, work
 
 
 def _refreshes_restate_no_margin_name(page, population):

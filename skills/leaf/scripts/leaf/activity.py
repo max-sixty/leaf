@@ -54,17 +54,22 @@ def _dropped(ts: str | None, ended: datetime | None, now: datetime) -> bool:
 def canonical_stream_reply(
     present: dict, now_iso: str, reply: dict | None
 ) -> dict | None:
-    """Project one provisional reply against its session lease and age."""
+    """Project one provisional reply against its session lease and age. A withheld
+    draft is written once and never renewed, so only its lease ages it."""
     if reply is None:
         return None
     result = dict(reply)
-    if result.get("state") == "active" and (
+    state = result.get("state")
+    if state in {"active", "withheld"} and (
         result.get("session") != present.get("claim_session")
         or not present["listening"]
-        or _quiet(
-            result.get("updated_at") or result.get("ts"),
-            datetime.fromisoformat(now_iso),
-            WORKING_GRACE,
+        or (
+            state == "active"
+            and _quiet(
+                result.get("updated_at") or result.get("ts"),
+                datetime.fromisoformat(now_iso),
+                WORKING_GRACE,
+            )
         )
     ):
         result["state"] = "disconnected"
@@ -206,19 +211,24 @@ def unanswered(obligations: list[dict], page_dir: Path, of: str = "") -> str:
 
 
 def _turn_wrote(obligation: dict, state: dict) -> bool:
-    """Whether the claimant's open turn finished the reply it owes this update.
+    """Whether the claimant's open turn is done with the reply it owes this update.
 
     A provider-owned reply is written by the claimant's own turn, and the App Server
     client commits it once the turn ends, after the agent's last command. So the
     update is answered now when the turn's final message is complete, with text, in
-    the reply draft bound to it."""
+    the reply draft bound to it. A draft the client `withheld`, because a user
+    message shares the turn, leaves the update to the correction the client offers
+    as the turn ends (`codex.carries_user_message`)."""
     draft = obligation.get("response") or {}
-    return bool(
-        obligation["answer"].get("writer") == "turn"
-        and draft.get("state") == "active"
+    if (
+        obligation["answer"].get("writer") != "turn"
+        or draft.get("turn") != state["claim_turn"]
+    ):
+        return False
+    return draft.get("state") == "withheld" or bool(
+        draft.get("state") == "active"
         and draft.get("settles")
         and draft.get("has_text")
-        and draft.get("turn") == state["claim_turn"]
     )
 
 

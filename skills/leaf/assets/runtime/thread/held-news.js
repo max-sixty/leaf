@@ -44,7 +44,7 @@
    interrupts (thread-card.js, `newsMoves`). A reply the agent is still streaming at the thread's end is such an
    appended message, its words joining it as they come and its answer completing it
    in place, so it streams into an idle open card and a held one counts it once as a
-   new reply. So is an answer folding the progress before it into Previous updates
+   new reply. So is an answer folding the progress before it into its disclosure
    where that progress is the run at the thread's end, as the agent's acknowledgement
    is, unless the user stands on a message the fold puts away, by focus or by a
    selection reaching into it (`standsOn`, focus.js). The progress itself is no reply:
@@ -53,9 +53,12 @@
    working message's arrival, its departure, and a new step whose words wrap to
    another height change the thread's height, so a seat holds any change of its words
    behind its control-row notice when that growth would move the reader. The notice
-   counts each held progress message as it counts a held reply, "1 new update" (the
-   user's choice, 2026-10-14), unless a held reply folds it, and says "Work in
-   progress" or "Work updated" only where the working message changed with none.
+   counts each held progress message as it counts a held reply (the user's choice,
+   2026-10-14), as "1 new message", unless a held reply folds it, and says "Work in
+   progress" or "Work changed" only where the working message changed with none.
+   Rejected: "1 new update", since "update" names only the user's input (glossary);
+   and "1 new progress message", which at about 126px cut in a phone seat's head row
+   and a primary reader's 5rem notice, and squeezed a margin card's heads.
    A run on screen stays open where
    it stood, its group's border drawn around it (components/surfaces.css), so the fold
    moves none of its words; a run off screen folds away. Changes to other existing
@@ -139,7 +142,7 @@
    it is scrolled, so nothing tells the reader a row is cut off. */
 import { growthAfterIsSeen, growthIsSeen, whenNone } from "../geometry.js";
 import { offer } from "../widget-elements.js";
-import { keeps, keepsText, layoutPx } from "../keeps.js";
+import { keeps, layoutPx } from "../keeps.js";
 import { keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { focusThread } from "./focus.js";
@@ -236,7 +239,7 @@ function difference(was, now, { progressOpen = false } = {}) {
         ? null
         : now.working?.live
           ? "Work in progress"
-          : "Work updated",
+          : "Work changed",
     progress: 0,
     replies: 0,
     messages: 0,
@@ -403,12 +406,12 @@ const counted = (count, one, many) => count && `${count} ${count === 1 ? one : m
  *   summaries?: number,
  *   threads?: number,
  * }} news */
-const newsLabel = ({
+const newsParts = ({
   settled,
   working,
-  progress,
-  replies,
-  messages,
+  progress = 0,
+  replies = 0,
+  messages = 0,
   edits,
   reactions,
   summaries,
@@ -419,28 +422,37 @@ const newsLabel = ({
     ![settled, progress, replies, messages, edits, reactions, summaries, threads].some(
       Boolean,
     ) && working,
-    // A reply arriving with progress before it folds that progress, so it says both.
-    !replies && counted(progress, "new update", "new updates"),
     counted(replies, "new reply", "new replies"),
-    counted(messages, "new message", "new messages"),
+    // A progress message is no reply, so it counts with the user's messages from
+    // elsewhere; a reply arriving after it folds it, and says it.
+    counted(messages + (replies ? 0 : progress), "new message", "new messages"),
     counted(edits, "message edited", "messages edited"),
     counted(reactions, "reaction changed", "reactions changed"),
     counted(summaries, "summary changed", "summaries changed"),
     counted(threads, "new thread", "new threads"),
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  ].filter(Boolean);
+
+// What a notice says: each fact of the news, most telling first and each after the
+// first led by its separator, and the line they make.
+const said = (news) => {
+  const parts = newsParts(news).map((part, index) => (index ? ` · ${part}` : part));
+  return { parts, label: parts.join("") };
+};
 
 /** The control that says what a row holds and shows it. `set(news)` gives it the
- *  reading's `news` ({label, reopened, open}); `open` returns the thread to land a
+ *  reading's `news` ({parts, label, reopened, open}); `open` returns the thread to land a
  *  keyboard on, since the notice goes with what it held. A held reopening's notice stands
  *  where Reopen did, with the same compact face as other news, and is the thread's
  *  reopen control (`lf-reopen`), so the thread's Enter and `r` keep their meaning and
  *  press it to show the thread reopened. A `header` notice stands in a resolved panel
  *  card's title as a node of its own, since the notice in the card's rows may have
  *  stood elsewhere a moment before. The words have a span of their own, so a card that
- *  holds the notice's room (`data-lf-room`, controls.css) cuts later, longer news at
- *  that width; the title and the accessible name keep it whole. */
+ *  holds the notice's room (`data-lf-room`, controls.css) keeps it at the width of the
+ *  news it first said. Each fact of the news has a span in it, and a fact that would
+ *  pass the notice's width drops whole rather than cutting the facts before it, so
+ *  "1 new reply" with a message arriving after it still reads "1 new reply", where a cut
+ *  read "1 new re…" (components/surfaces.css); the title and the accessible name keep
+ *  every fact. */
 export function newsNotice(header = false) {
   const node = offer(
     "button",
@@ -469,7 +481,14 @@ export function newsNotice(header = false) {
   return {
     node,
     set(news) {
-      keepsText(words, news.label);
+      if (words.textContent !== news.label)
+        words.replaceChildren(
+          ...news.parts.map((part) => {
+            const fact = document.createElement("span");
+            fact.textContent = part;
+            return fact;
+          }),
+        );
       keeps(node, "title", news.label);
       node.classList.toggle("lf-reopen", news.reopened);
       open = news.open;
@@ -653,7 +672,7 @@ export class HeldNews {
     for (const thread of threads) {
       if (thread.news)
         thread.news = {
-          label: newsLabel(thread.news),
+          ...said(thread.news),
           reopened: thread.news.settled === "Reopened",
           open: () => {
             const node = this.#view(thread.key)?.node ?? null;
@@ -668,7 +687,7 @@ export class HeldNews {
     const news =
       waiting && !host
         ? {
-            label: newsLabel({ threads: waiting }),
+            ...said({ threads: waiting }),
             reopened: false,
             open: () => this.#open(null, true),
           }

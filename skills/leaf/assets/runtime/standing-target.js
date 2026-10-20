@@ -5,10 +5,14 @@
    answered or not, wherever it is drawn: an obligation frozen into a reply is where a user
    working it is, never the page obligation its thread is about. A presentation can stand at the
    source target it shows in authored flow or chrome, as its owner declares (`declareSide`): the margin for its
-   cluster controls and the thread card; the details shelf for the elements that name its notes. A side's answer
-   drawn in the chrome itself, such as a margin control on a widget frozen into a reply,
-   stands only where an obligation holds it. Chrome no side
-   claims — the floating panel's own controls — stands nowhere, and a
+   cluster controls and the thread card; the details shelf for the elements that name its notes; the
+   floating panel for a thread's view, at what the thread is about, open or resolved, and an On
+   card, at its obligation. A side's answer drawn in the chrome itself, such as a margin
+   control's widget frozen into a reply, is where the user stands only where an obligation
+   holds it; else the user stands where that answer does, by the same reading, so a control
+   on a widget in a reply the panel or a card shows stands at what the thread is about,
+   whichever side is asked first. Chrome no side
+   claims — the floating panel's row, menu and lists — stands nowhere, and a
    press made from it means the page whole.
 
    Each feature takes what it needs from that place by its own rule: the obligation view the
@@ -40,6 +44,8 @@ import { pageReadingBlock } from "./reading-place.js";
 const sides = new Set();
 
 // A presentation owner's reading of the source target one of its nodes shows, or null.
+// A side is asked of the node the user stands on, inside any shadow tree it is in, so
+// each climbs across shadow roots to its own surface.
 export function declareSide(bridge) {
   sides.add(bridge);
   return () => sides.delete(bridge);
@@ -64,20 +70,12 @@ export function obligationHolding(items, node) {
   return held?.item ?? null;
 }
 
-// The source target a presentation node shows, by its owner's declaration, or null
-// for a node no side claims. A side is asked of the node the user stands on, inside any
-// shadow tree it is in, so each climbs across shadow roots to its own surface.
-export function sideOf(node) {
-  for (const side of sides) {
-    const place = side(node);
-    if (place) return place;
-  }
-  return null;
-}
+export const placeOf = (node) => placeFrom(node, new Set());
 
-export function placeOf(node) {
+function placeFrom(node, visited) {
   const at = node?.nodeType === 1 ? node : node?.parentElement;
-  if (!at || at === document.body) return null;
+  if (!at || at === document.body || visited.has(at)) return null;
+  visited.add(at);
   // An obligation is the user's current action wherever it is rendered. A source-linked
   // presentation may otherwise stand in authored flow as well as fixed chrome.
   if (obligationHolding(readObligations().all, at)) return at;
@@ -85,7 +83,7 @@ export function placeOf(node) {
     const place = side(at);
     if (place)
       return inChrome(place) && !obligationHolding(readObligations().all, place)
-        ? null
+        ? placeFrom(place, visited)
         : place;
   }
   return inChrome(at) ? null : at;

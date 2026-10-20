@@ -1072,21 +1072,16 @@ function obligationHolding(items, node) {
   }
   return held?.item ?? null;
 }
-function sideOf(node) {
-  for (const side of sides) {
-    const place2 = side(node);
-    if (place2) return place2;
-  }
-  return null;
-}
-function placeOf(node) {
+var placeOf = (node) => placeFrom(node, /* @__PURE__ */ new Set());
+function placeFrom(node, visited) {
   const at = node?.nodeType === 1 ? node : node?.parentElement;
-  if (!at || at === document.body) return null;
+  if (!at || at === document.body || visited.has(at)) return null;
+  visited.add(at);
   if (obligationHolding(readObligations().all, at)) return at;
   for (const side of sides) {
     const place2 = side(at);
     if (place2)
-      return inChrome(place2) && !obligationHolding(readObligations().all, place2) ? null : place2;
+      return inChrome(place2) && !obligationHolding(readObligations().all, place2) ? placeFrom(place2, visited) : place2;
   }
   return inChrome(at) ? null : at;
 }
@@ -7367,7 +7362,6 @@ export {
   obligationsIn,
   declareSide,
   obligationHolding,
-  sideOf,
   placeOf,
   walkOrigin,
   stepFrom,

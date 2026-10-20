@@ -1001,8 +1001,10 @@ def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
     reply's obligation is standing there whether or not it is answered: the thread leads to
     its page obligation only from a node inside no obligation, so a user back on the answered option
     does not have the page obligation's ring and digits. A contributed control for a widget in
-    the reply stands nowhere, since its widget is chrome in no obligation, so `m` from it
-    starts where the reader is rather than behind every obligation on the page."""
+    the reply stands where that widget does: in no obligation, it stands where the thread's
+    view does, at the page obligation the thread is about, which wears the ring and takes
+    the digits, and `m` from it steps on from that obligation to the question in the reply
+    rather than from behind every obligation on the page."""
     url = serve(
         OBLIGATION_THREAD_PAGE,
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
@@ -1049,8 +1051,15 @@ def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
     )
     expect(contributed).to_be_visible()
     contributed.focus()
+    assert (
+        contributed.evaluate(
+            "async (control) => (await window.__lfCheckApi()).placeOf(control)?.id"
+        )
+        == "cache-ask"
+    ), "a control on a widget in a reply does not stand where its thread is about"
+    expect(page.locator("#cache-ask")).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("m")
-    expect(page.locator("#cache-ask")).to_be_focused()
+    expect(page.locator("#follow-ask")).to_be_focused()
     option = page.locator("#follow-yes")
     option.click()
     expect(option).to_have_attribute("chosen", "")
@@ -1062,6 +1071,17 @@ def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
     page.keyboard.press("1")
     round_trip(page)
     expect(page.locator("#cache-disk")).not_to_have_attribute("chosen", "")
+
+    # From the control on the reply's widget, which stands at the page lf-ask, its digit
+    # answers it, and the answered obligation keeps its ring there: the control is a
+    # review route to it, as an On card is.
+    contributed.focus()
+    expect(page.locator("#cache-ask")).to_have_attribute("data-lf-obligation", "1")
+    page.keyboard.press("1")
+    round_trip(page)
+    expect(page.locator("#cache-disk")).to_have_attribute("chosen", "")
+    expect(contributed).to_be_focused()
+    expect(page.locator("#cache-ask")).to_have_attribute("data-lf-obligation", "1")
 
 
 OBLIGATION_IN_A_PANE_PAGE = leaf_page(

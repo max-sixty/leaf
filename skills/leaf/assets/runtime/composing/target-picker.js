@@ -756,10 +756,10 @@ export function createTargetPicker({
   const closeTargetPicker = () => setTargetPicker(false);
 
   // A press on the marked match selects it, as Enter does: the match is what the user is
-  // looking at, and a phone's keyboard may offer no Enter. The press is the match's alone,
-  // as an aimed press is the aim's (aim.js): claimed at its pointerdown and taken at
-  // capture to its click, so no selection gesture of the page's or the browser's starts
-  // from it and no link the words stand in is followed. A press lands on the match only
+  // looking at, and a phone's keyboard may offer no Enter. The press is the match's alone:
+  // claimed at its pointerdown and taken at capture to its click, so no selection gesture
+  // of the page's or the browser's starts from it and no link the words stand in is
+  // followed. A press lands on the match only
   // through the block holding its words, so a control painted over them keeps its own.
   let pressOnMatch = false;
   function onMarkedMatch(ev) {
@@ -785,9 +785,17 @@ export function createTargetPicker({
 
   function mount() {
     pageSearchInput.addEventListener("input", search);
-    for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup", "click"])
-      document.addEventListener(type, pressMatch, true);
-    document.addEventListener("pointercancel", pressMatch, true);
+    // On the window, ahead of the document's own capture listeners, so the page's
+    // selection gesture (surface.js) sees none of the press rather than its start alone.
+    for (const type of [
+      "pointerdown",
+      "mousedown",
+      "pointerup",
+      "mouseup",
+      "click",
+      "pointercancel",
+    ])
+      addEventListener(type, pressMatch, true);
     hints.mount();
     addEventListener("resize", () => {
       if (pageSearchOpen) repaint();

@@ -4801,9 +4801,15 @@ ${searchCount(maximum, maximum)}`
   }
   function mount() {
     pageSearchInput.addEventListener("input", search);
-    for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup", "click"])
-      document.addEventListener(type, pressMatch, true);
-    document.addEventListener("pointercancel", pressMatch, true);
+    for (const type of [
+      "pointerdown",
+      "mousedown",
+      "pointerup",
+      "mouseup",
+      "click",
+      "pointercancel"
+    ])
+      addEventListener(type, pressMatch, true);
     hints.mount();
     addEventListener("resize", () => {
       if (pageSearchOpen) repaint();

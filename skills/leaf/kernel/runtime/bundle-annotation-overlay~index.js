@@ -1234,6 +1234,7 @@ function createMarginProjection({
   scrollThreadIntoView,
   renderMarginThread,
   placedAt,
+  marksFor,
   scrollToElement
 }) {
   const {
@@ -1981,7 +1982,7 @@ function createMarginProjection({
       (item) => item.kind === "comment" && Boolean(sourceItem(item).thread?.root.drawing)
     );
     const standing = standingThreadId();
-    const standingShown = !marker && entry && threadReading(entry)?.items.some(
+    const standingShown = !marker && entry && marksFor(standing).length > 0 && threadReading(entry)?.items.some(
       (item) => sourceItem(item).thread.id === standing
     );
     highlight(drawingOnly || standingShown ? null : targetFor(entry) ?? null);

@@ -149,6 +149,7 @@ export function createMarginProjection({
   scrollThreadIntoView,
   renderMarginThread,
   placedAt,
+  marksFor,
   scrollToElement,
 }) {
   const {
@@ -1166,15 +1167,18 @@ export function createMarginProjection({
         (item) =>
           item.kind === "comment" && Boolean(sourceItem(item).thread?.root.drawing),
       );
-    // So does the thread the user stands in: its words lit, or its element's contour
-    // (anchor-paint.js, `paintStanding`). A card whose thread the user stands in draws
-    // no box round its block; one the user stepped out of while it stays open, into the
-    // floating panel or with a press on the block, keeps the trace as its only mark. A
-    // marker under the pointer or the keyboard still traces its block.
+    // So does the thread the user stands in, where anchor paint marks it: its words lit,
+    // or its element's contour (anchor-paint.js, `paintStanding`). A card whose thread
+    // the user stands in draws no box round its block. One the user stepped out of while
+    // it stays open, into the floating panel or with a press on the block, keeps the
+    // trace as its only mark, as does one on a thread anchor paint leaves unmarked, such
+    // as a resolved thread whose reply is still being written. A marker under the
+    // pointer or the keyboard still traces its block.
     const standing = standingThreadId();
     const standingShown =
       !marker &&
       entry &&
+      marksFor(standing).length > 0 &&
       threadReading(entry)?.items.some(
         (item) => sourceItem(item).thread.id === standing,
       );

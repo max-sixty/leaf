@@ -7551,6 +7551,7 @@ function mountApplication(dependencies) {
     scrollThreadIntoView: dependencies.annotationCommands.scrollThreadIntoView,
     renderMarginThread: (host, thread, controls) => renderMarginThread(host, thread, inlineView, controls),
     placedAt: dependencies.anchorPlacement.placedAt,
+    marksFor: (id) => dependencies.anchorPaint?.marksFor(id) ?? [],
     scrollToElement: dependencies.anchorTravel.scrollToElement
   });
   const threadDestinations = createThreadDestinations({

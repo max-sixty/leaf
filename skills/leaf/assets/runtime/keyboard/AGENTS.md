@@ -85,8 +85,10 @@ innermost one offering steps. A stance a finger can enter, such as page search, 
 target picker or Draw mode, marks its way out `exit` instead of giving it words: while
 it is the innermost stance standing, the panel says the scope's title and offers that
 row as one ✕ at the row's end, beside the counts or the steps. The ✕ runs that row,
-which leaves the stance, even where Escape would first close something inside it. The register refuses a page command without `touch`; `false` says a finger
-reaches the result directly, as it does for walks and Go-to by scrolling and tapping.
+which leaves the stance, even where Escape would first close something inside it; the
+picker's, while a typed hint prefix stands, takes back a letter, as its title says. The
+register refuses a page command without `touch`; `false` says a finger reaches the
+result directly, as it does for walks and Go-to by scrolling and tapping.
 
 The comment field has one primary action, Dictate while empty and Send once it has
 words; Suggest and reactions open by Tab from the field. The field deliberately has no

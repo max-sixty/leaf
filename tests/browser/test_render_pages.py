@@ -1761,6 +1761,34 @@ def test_a_capture_in_an_outer_column_keeps_its_frame(browser, serve, direction)
     assert at["table"][1] - right >= 8 - 0.5, at
 
 
+@pytest.mark.parametrize("direction", ["ltr", "rtl"])
+def test_a_tables_outer_words_stand_on_the_prose_edges(browser, serve, direction):
+    """A table's outer columns keep no gutter on its outer sides, so a table as wide as
+    the column starts and ends its words where the prose does, in either direction. A
+    right-to-left table kept the left-to-right gutter on its first column's right."""
+    words = "Each column holds enough words to fill its share of the measure. "
+    body = (
+        f"<h1>Columns</h1><p id='prose'>{words * 4}</p>"
+        f'<table id="columns"><tr><td>{words}</td><td>{words}</td><td>{words}</td></tr>'
+        "</table>"
+    )
+    source = leaf_page("Columns", body).replace(
+        '<html lang="en">', f'<html lang="en" dir="{direction}">', 1
+    )
+    page = open_page(browser, serve(source))
+    at = page.evaluate("""() => {
+      const content = cell => {
+        const r = cell.getBoundingClientRect(), cs = getComputedStyle(cell);
+        return [r.left + parseFloat(cs.paddingLeft), r.right - parseFloat(cs.paddingRight)];
+      };
+      const prose = document.getElementById('prose').getBoundingClientRect();
+      const cells = [...document.querySelectorAll('#columns td')].map(content);
+      return {prose: [prose.left, prose.right],
+        words: [Math.min(...cells.map(c => c[0])), Math.max(...cells.map(c => c[1]))]};
+    }""")
+    assert at["words"] == pytest.approx(at["prose"], abs=0.5), at
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
 def test_a_table_of_prose_wraps_inside_its_box_in_every_engine(request, serve, engine):
     """A table whose cells hold sentences wraps them inside the box it stands in, and

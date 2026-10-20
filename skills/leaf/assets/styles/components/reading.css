@@ -224,12 +224,14 @@
 }
 /* The padding is a gutter, and the columns at the two ends have no neighbour to
    keep away from: 10px of it there set every table's first word 10px right of
-   the prose above it, and stopped the last column short of the same edge. */
+   the prose above it, and stopped the last column short of the same edge. The ends are
+   the table's start and end, so a right-to-left table's first column stands on the
+   right edge with the prose. */
 :where(:root, .lf-thread-transcript) tr > :first-child {
-  padding-left: 0;
+  padding-inline-start: 0;
 }
 :where(:root, .lf-thread-transcript) tr > :last-child {
-  padding-right: 0;
+  padding-inline-end: 0;
 }
 /* A cell the user stands on, as a thread's target once its card closes, wears the ring
  * inside its own box. The table scrolls its columns, so it clips to its own edges, and
@@ -396,6 +398,5 @@ leaf-text.lf-fab-input,
   padding: 0;
   margin: 0;
   font: inherit;
-  line-height: inherit;
   overflow: visible;
 }

@@ -668,10 +668,10 @@ button.lf-thread-notice[data-lf-focus] {
   }
 }
 :where(:root, .lf-thread-transcript) tr > :first-child {
-  padding-left: 0;
+  padding-inline-start: 0;
 }
 :where(:root, .lf-thread-transcript) tr > :last-child {
-  padding-right: 0;
+  padding-inline-end: 0;
 }
 :where(:root, .lf-thread-transcript) :where(th, td)[data-lf-focus] {
   outline-offset: calc(-1 * var(--focus-ring-w));
@@ -777,7 +777,6 @@ leaf-text.lf-fab-input,
   padding: 0;
   margin: 0;
   font: inherit;
-  line-height: inherit;
   overflow: visible;
 }
 

@@ -211,9 +211,10 @@ What holds the main thread:
   the thread region and the margin drew a third time to show nothing new. An
   accepted gesture other than an action now leaves the ledger in the publication
   that adopts the reading logging it, and the publisher keeps its thread gestured
-  until the next reading is adopted (`settled`, `build/browser/application.ts`). A
-  later reading that changes nothing else then moves `gestured` and costs one thread
-  pass off the critical path. An action still waits for the pass and its release,
+  until it adopts a reading after a pass has drawn that one (`settled`,
+  `build/browser/application.ts`), so a failed pass's retry still reads it. A later
+  reading that changes nothing else then moves `gestured` and costs one thread pass
+  off the critical path. An action still waits for the pass and its release,
   since a deferred widget can hold its reading past the pass, so a card move still
   publishes after its pass. Fifteen paired runs over three invocations at load
   6–10 (18 cores): applying the answer took about 54 ms of script against 62, and

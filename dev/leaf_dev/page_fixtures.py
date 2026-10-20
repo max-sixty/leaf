@@ -210,7 +210,7 @@ def import_referenced_media(
         """Index the selected asset tree only when a missing reference needs it."""
         directory = assets if assets is not None else pinned_assets(lock.parent)
         return {
-            media_name(candidate.read_bytes(), candidate.suffix): candidate
+            media_name(candidate.read_bytes(), candidate.name): candidate
             for candidate in sorted(directory.rglob("*"))
             if candidate.is_file() and candidate.suffix.lower() in MEDIA_TYPES
         }

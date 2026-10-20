@@ -40,7 +40,7 @@ from PIL import Image, ImageDraw
 
 from leaf_dev import ROOT
 from leaf_dev.arms import base_ref, build_arm, run_directory, serving_source
-from leaf_dev.browser import headless_shell, load, tab, use_linux_fonts
+from leaf_dev.browser import CAPTURE_SCALE, headless_shell, load, tab, use_linux_fonts
 
 OUT = ROOT / ".tmp" / "pins"
 # The report every run rewrites, so a preview of it follows each run as a revision of
@@ -51,9 +51,6 @@ REPORT = OUT / "report"
 REACH = 12
 # How far a pin may reach into a box before it counts as over it.
 SLIVER = 2
-# Device pixels captured per CSS pixel, so a phone's crop stays sharp when the report's
-# column draws it wider than the phone.
-SCALE = 2
 
 # Each viewport's size and whether a finger, rather than a mouse, drives it.
 VIEWPORTS = {"desktop": ((1280, 800), False), "phone": ((390, 844), True)}
@@ -546,7 +543,7 @@ def frame(readings: list[dict]) -> tuple[int, int, int, int]:
 
 def crop(seen: dict, rect: tuple[int, int, int, int], out: Path) -> Path:
     """Crop one arm's screenshot of a case to `rect`, in CSS pixels, outlining its
-    targets, and write it to `out` at the capture's SCALE."""
+    targets, and write it to `out` at the capture's CAPTURE_SCALE."""
     reading = seen["reading"]
     image = Image.open(seen["shot"]).convert("RGB")
     draw = ImageDraw.Draw(image)
@@ -554,7 +551,7 @@ def crop(seen: dict, rect: tuple[int, int, int, int], out: Path) -> Path:
         for part in target["parts"]:
             draw.rectangle(
                 tuple(
-                    SCALE * edge
+                    CAPTURE_SCALE * edge
                     for edge in (
                         part["left"],
                         part["top"],
@@ -563,9 +560,9 @@ def crop(seen: dict, rect: tuple[int, int, int, int], out: Path) -> Path:
                     )
                 ),
                 outline=(40, 110, 230),
-                width=SCALE,
+                width=CAPTURE_SCALE,
             )
-    image.crop(tuple(SCALE * edge for edge in rect)).save(out)
+    image.crop(tuple(CAPTURE_SCALE * edge for edge in rect)).save(out)
     return out
 
 
@@ -574,7 +571,7 @@ def capture(browser, address: str, out: Path) -> dict:
     `{case: {viewport: {"faults", "unaccepted", "reading", "shot"}}}`."""
     result = {case.name: {} for case in CASES}
     for viewport, (size, touch) in VIEWPORTS.items():
-        with tab(browser, size, touch=touch, scale=SCALE) as page:
+        with tab(browser, size, touch=touch, scale=CAPTURE_SCALE) as page:
             load(page, address)
             for case in CASES:
                 reading = read(page, case)
@@ -590,8 +587,10 @@ def capture(browser, address: str, out: Path) -> dict:
 
 
 def _media(page_media: Path, image: Path) -> str:
+    # Crops carry no density mark, so the report draws a phone's crop at twice its
+    # width, sharp, where the column has the room.
     data = image.read_bytes()
-    name = media_name(data, ".png")
+    name = media_name(data, image.name)
     (page_media / name).write_bytes(data)
     return f"/media/{name}"
 

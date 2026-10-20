@@ -189,7 +189,7 @@ def test_fixture_media_follows_versions_draft_assets_and_live_edits(
         path.write_bytes(path.stem.encode())
 
     def markup(path, kind=kind):
-        address = f"/media/{media_name(path.read_bytes(), path.suffix)}"
+        address = f"/media/{media_name(path.read_bytes(), path.name)}"
         head = ""
         body = f'<img src="{address}" alt="Example">'
         if kind == "css":
@@ -228,13 +228,13 @@ def test_fixture_media_follows_versions_draft_assets_and_live_edits(
 
     prepare_page(page, read_fixture(source), run_leaf, assets=assets, final_status=None)
     expected = {
-        media_name(path.read_bytes(), path.suffix) for path in (previous, current)
+        media_name(path.read_bytes(), path.name) for path in (previous, current)
     }
     assert {path.name for path in (page / "media").iterdir()} == expected
     source.write_text(markup(revised, kind="inline"))
     monkeypatch.setattr(page_fixtures, "pinned_assets", lambda root: assets)
     preview.refresh_media(source, page, run_leaf)
-    expected.add(media_name(revised.read_bytes(), revised.suffix))
+    expected.add(media_name(revised.read_bytes(), revised.name))
     assert {path.name for path in (page / "media").iterdir()} == expected
 
 

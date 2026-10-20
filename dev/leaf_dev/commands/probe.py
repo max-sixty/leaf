@@ -26,7 +26,9 @@ from playwright.sync_api import Error as PlaywrightError
 from leaf_dev import ROOT
 from leaf_dev.arms import base_ref, build_arm, serving_source
 from leaf_dev.browser import (
+    CAPTURE_SCALE,
     DESKTOP,
+    capture_name,
     headless_firefox,
     headless_shell,
     load,
@@ -186,6 +188,9 @@ def probe(
       drive:NAME    a `leaf-dev stills` state's input, e.g. card-by-keyboard
 
     Focus rings draw whenever a control holds focus, by click or keyboard arrival.
+    The page draws at 2 device pixels per CSS pixel, so a screenshot stays sharp on
+    the screens pages are read on; name one a journey saves NAME@2x.png, as --shot
+    does, so a Leaf page draws it at the size it had on screen.
     --base takes an optional ref, so put
     SOURCE before it or give it one (--base=REF).
 
@@ -248,7 +253,14 @@ def probe(
                             if isinstance(source, str)
                             else serving_source(arm_dir, source, scratch / arm)
                         ) as address,
-                        tab(browser, size, scheme, touch, motion=motion) as page,
+                        tab(
+                            browser,
+                            size,
+                            scheme,
+                            touch,
+                            motion=motion,
+                            scale=CAPTURE_SCALE,
+                        ) as page,
                         (
                             recording(
                                 page,
@@ -284,7 +296,7 @@ def probe(
                             doing = "js"
                             reading["result"] = page.evaluate(expression)
                         if shot:
-                            reading["shot"] = str(shot / f"{arm}.png")
+                            reading["shot"] = str(shot / capture_name(arm))
                             page.screenshot(path=reading["shot"])
                 except click.ClickException as error:
                     reading["failed"] = f"{doing}: {error.format_message()}"

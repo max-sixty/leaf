@@ -7,11 +7,11 @@ its file signature before both paths meet at the same content-addressed writer.
 """
 
 import hashlib
-from pathlib import Path
+from pathlib import Path, PurePath
 
 from leaf.files import replace_files
 from leaf.refusals import Refused
-from leaf.schema import MEDIA_DIGEST, MEDIA_DIR, MEDIA_TYPES
+from leaf.schema import MEDIA_DENSITY, MEDIA_DIGEST, MEDIA_DIR, MEDIA_TYPES
 from leaf.service import PageTransaction
 
 MAX_MEDIA_UPLOAD_BYTES = 10 * 1024 * 1024
@@ -34,18 +34,24 @@ _UPLOAD_TYPES = {
 }
 
 
-def media_name(data: bytes, suffix: str) -> str:
+def media_name(data: bytes, source: str) -> str:
     """The one name a page's media directory gives these bytes (`schema.MEDIA_DIGEST`).
 
     A caller that needs media's public path before the page holds it — the site
     build naming a social image it has already published — derives it here rather
-    than restating the digest rule. `suffix` is the source file's, in any case.
+    than restating the digest rule. `source` is the source file's name, whose
+    extension, in any case, and density mark (`schema.MEDIA_DENSITY`) carry over.
     """
-    return hashlib.sha256(data).hexdigest()[:MEDIA_DIGEST] + suffix.lower()
+    density = MEDIA_DENSITY.search(source)
+    return (
+        hashlib.sha256(data).hexdigest()[:MEDIA_DIGEST]
+        + (density.group(0) if density else "")
+        + PurePath(source).suffix.lower()
+    )
 
 
-def _store_media(page_dir: Path, data: bytes, suffix: str) -> str:
-    name = media_name(data, suffix)
+def _store_media(page_dir: Path, data: bytes, source: str) -> str:
+    name = media_name(data, source)
     media_dir = page_dir / MEDIA_DIR
     target = media_dir / name
     # The short digest is the public format already carried by page histories. Serialize
@@ -75,7 +81,7 @@ def store_uploaded_media(page_dir: Path, data: bytes, content_type: str) -> str:
     suffix, matches = declared
     if not matches(data):
         raise MediaUploadError(f"image bytes do not match {media_type}")
-    return _store_media(page_dir, data, suffix)
+    return _store_media(page_dir, data, f"upload{suffix}")
 
 
 def cmd_media(page_dir: Path, files: list) -> list:
@@ -95,6 +101,6 @@ def cmd_media(page_dir: Path, files: list) -> list:
                 f"{src}: not a media type leaf serves — {', '.join(sorted(MEDIA_TYPES))}"
             )
         data = src.read_bytes()
-        path = _store_media(page_dir, data, src.suffix)
+        path = _store_media(page_dir, data, src.name)
         out.append((str(src), path))
     return out

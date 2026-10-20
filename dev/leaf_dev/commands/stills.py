@@ -27,10 +27,11 @@ Whether a state changed, and where, is `lf-shot`'s reading of its two stills, fr
 module that owns the rule (`runtime/image-difference.js`), loaded into the browser.
 Each invocation allocates a run directory under `.tmp/stills/`. Each state's
 directory within it holds `base.png` and `head.png`, and for a
-change `base-crop.png` and `head-crop.png` cropped to the union of its regions (or
-whole, when the reading names none), ready to hand off as an `lf-shot` pair, and
-`diff.png` outlining the head's own regions, a change in red and a move in blue. The
-crops cover both stills' regions.
+change `base-crop@2x.png` and `head-crop@2x.png` cropped to the union of its regions
+(or whole, when the reading names none), ready to hand off as an `lf-shot` pair, and
+`diff@2x.png` outlining the head's own regions, a change in red and a move in blue. The
+crops cover both stills' regions. Every still is taken at `CAPTURE_SCALE`, and the
+crops a page shows carry its density mark.
 
 Capture and comparison failures are reported per state, with tracebacks in its
 directory; the remaining states still run. Only complete pairs enter the
@@ -50,7 +51,16 @@ from playwright.sync_api import Page, expect
 
 from leaf_dev import ROOT
 from leaf_dev.arms import build_pair, copy_committed, run_directory, serving_source
-from leaf_dev.browser import BESIDE, DESKTOP, headless_shell, load, settle, tab
+from leaf_dev.browser import (
+    BESIDE,
+    CAPTURE_SCALE,
+    DESKTOP,
+    capture_name,
+    headless_shell,
+    load,
+    settle,
+    tab,
+)
 
 OUT = ROOT / ".tmp" / "stills"
 CROP_MARGIN = 32
@@ -1634,7 +1644,7 @@ def capture(browser, address: str, state: State, path: Path) -> dict | None:
     """Bring a fresh tab to `state` and screenshot its viewport to `path`, at the
     density of the displays its pairs are read on, so a crop shows text and hairlines
     as the reader's screen draws them."""
-    scale = 2
+    scale = CAPTURE_SCALE
     with tab(browser, state.viewport, state.scheme, state.touch, scale=scale) as page:
         load(page, address)
         state.drive(page)
@@ -1724,8 +1734,8 @@ def crop(
         if framing
         else (0, 0, head.width, head.height)
     )
-    base.crop(box).save(folder / "base-crop.png")
-    head.crop(box).save(folder / "head-crop.png")
+    base.crop(box).save(folder / capture_name("base-crop"))
+    head.crop(box).save(folder / capture_name("head-crop"))
     faded = Image.blend(head, Image.new("RGB", head.size, "white"), 0.6)
     draw = ImageDraw.Draw(faded)
     for r in (r for r in regions if r["side"] == "after"):
@@ -1734,7 +1744,7 @@ def crop(
             outline=(220, 0, 0) if r["kind"] == "changed" else (40, 110, 230),
             width=2,
         )
-    faded.crop(box).save(folder / "diff.png")
+    faded.crop(box).save(folder / capture_name("diff"))
 
 
 @click.command()

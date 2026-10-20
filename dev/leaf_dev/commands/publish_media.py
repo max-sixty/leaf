@@ -30,7 +30,7 @@ def publish_media(files: tuple[str, ...]) -> None:
             raise click.BadParameter(
                 f"{path}: not a media type leaf serves — {', '.join(sorted(MEDIA_TYPES))}"
             )
-    named = {media_name(path.read_bytes(), path.suffix): path for path in paths}
+    named = {media_name(path.read_bytes(), path.name): path for path in paths}
     with tempfile.TemporaryDirectory(prefix="leaf-assets-") as raw:
         checkout = clone(Path(raw))
         target = checkout.path / directory

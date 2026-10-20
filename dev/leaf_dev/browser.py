@@ -16,6 +16,9 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from leaf_dev import ROOT
 
 DESKTOP = (1440, 900)
+# Device pixels per CSS pixel in a capture made for a person: the density of the
+# screens Leaf pages are read on, so its text and hairlines stay sharp there.
+CAPTURE_SCALE = 2
 # The width of a window beside an editor.
 BESIDE = (900, 900)
 
@@ -139,6 +142,12 @@ def shell_executable() -> str:
             "chromium --only-shell`"
         )
     return executable
+
+
+def capture_name(stem: str) -> str:
+    """The file name for a capture at CAPTURE_SCALE, marked as page media reads its
+    density (`schema.MEDIA_DENSITY`), so a page draws it at the size it had on screen."""
+    return f"{stem}@{CAPTURE_SCALE}x.png"
 
 
 @contextmanager

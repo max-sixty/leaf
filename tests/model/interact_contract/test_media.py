@@ -29,9 +29,15 @@ def test_media_names_a_file_by_its_bytes_and_serves_it(page_dir, tmp_path, serve
     loud.write_bytes(shot.read_bytes())
     assert media_model.cmd_media(page_dir, [loud])[0][1] == url
     assert len(list((page_dir / "media").iterdir())) == 1
+    # A capture's density mark is part of what the file is, so its name keeps it.
+    sharp = tmp_path / "nav@2x.png"
+    sharp.write_bytes(shot.read_bytes())
+    (twice,) = [u for _, u in media_model.cmd_media(page_dir, [sharp])]
+    assert twice == url.replace(".png", "@2x.png")
 
-    status, body = fetch(server + url)
-    assert (status, body) == (200, shot.read_bytes())
+    for served in (url, twice):
+        status, body = fetch(server + served)
+        assert (status, body) == (200, shot.read_bytes())
     # And nothing else out of the directory: the log is not a served path.
     assert fetch(server + "/events.jsonl")[0] == 404
 

@@ -264,7 +264,10 @@ touches; each target's module header lists its steps and the promises it checks:
   or what a `leaf` command needs from outside its page directory.
 - `codex-app-server` and `codex-queue` (`journey_codex.py`): both, after a change to
   `codex.py`, `codex_adapter.py`, `hooks.py`, `hook_transport.py`, or the claim's turn
-  in `service.py`; add `--preview` for a change to preview startup or lifetime.
+  in `service.py`; add `--preview` for a change to preview startup or lifetime, and
+  `--sandbox` for a change to `codex_tool.py`, the MCP server in
+  `.codex-plugin/plugin.json`, or what a `leaf` command needs from outside its page
+  directory.
 - `pi` (`journey_pi.py`): after a change to `hooks/pi.ts`, `PiHarness`, `hooks.py`, or
   the watch between turns in `session.py`.
 

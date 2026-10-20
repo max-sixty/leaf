@@ -32,6 +32,7 @@ from leaf import hook_transport as hook_transport_model
 from leaf import hooks as hooks_model
 from leaf import hosting as hosting_model
 from leaf import leases as leases_model
+from leaf import reconnect as reconnect_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
@@ -79,8 +80,9 @@ def test_a_session_keeps_its_files_only_while_something_can_read_them(page_dir):
     """A session's end removes the files nothing will read again
     (`session-lifetime.md`, "A session's files"). A session that never used Leaf,
     as most sessions of a harness Leaf is installed in, ends without a file. Every
-    ended session keeps its lifecycle and lock, since a claim can name it again.
-    One that holds no claim keeps besides only a lease another process holds."""
+    ended session keeps its lifecycle, lock and reconnect notices, since a claim can
+    name it again. One that holds no claim keeps besides only a lease another
+    process holds."""
 
     def files(session):
         key = cleanup_model.session_file(session, cleanup_model.SESSION_SUFFIX).stem
@@ -94,14 +96,19 @@ def test_a_session_keeps_its_files_only_while_something_can_read_them(page_dir):
 
     record_claim(page_dir, id="released")
     leases_model.mark_hooks("released")
+    reconnect_model.NOTICES.write(
+        cleanup_model.session_file("released", "claude-code.reconnect"),
+        {"pages": [str(page_dir)]},
+    )
     held = leases_model.take_lease(leases_model.waiter_lease_path(None, "released"))
     record_claim(page_dir, id="holder")
     leases_model.mark_hooks("holder")
     cleanup_model.end_harness_instance("released")
-    assert files("released") == ["delivery.lock", "lifecycle", "wait"]
+    kept = ["claude-code.reconnect", "delivery.lock", "lifecycle"]
+    assert files("released") == [*kept, "wait"]
     leases_model.release_lease(held)
     cleanup_model.end_harness_instance("released")
-    assert files("released") == ["delivery.lock", "lifecycle"]
+    assert files("released") == kept
 
     cleanup_model.end_harness_instance("holder")
     assert files("holder") == ["delivery.lock", "lifecycle"]

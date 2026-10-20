@@ -219,18 +219,19 @@ function statusWords({
 // The page's status from the server's latest answer: `state` is the reading the page
 // adopted, and `reach` how the latest read was answered (the publication's `reach`):
 // with that reading, with nothing (`unreachable`, or `refused` where the server refused
-// this tab's key rather than going away), or with a reading the page could not apply
-// (`broken`). The answer is the status's reading before the queues join it
-// (`statusModel`): its `kind`, the dot's `tone`, the row's `summary`, the disclosure's
-// `explanation`, what that explanation `adds` to the summary for a seat that shows both
-// (the floating panel's menu), whether it `asks` the user to act, such as to nudge the
-// agent, answer what it declared it waits for, approve in its own session, or reload,
-// which a seat can draw louder than a status that only reports, and the
-// `actionableWork` whose change is announced. Each reading the user acts on differently
+// this tab's key rather than going away), with an error of its own (`faulted`, whose
+// words are `fault`), or with a reading the page could not apply (`broken`). The
+// answer is the status's reading before the queues join it (`statusModel`): its
+// `kind`, the dot's `tone`, the row's `summary`, the disclosure's `explanation`, what
+// that explanation `adds` to the summary for a seat that shows both (the floating
+// panel's menu), whether it `asks` the user to act, such as to nudge the agent, answer
+// what it declared it waits for, approve in its own session, or reload, which a seat
+// can draw louder than a status that only reports, and the `actionableWork` whose
+// change is announced. Each reading the user acts on differently
 // has its own `kind`, since a change of kind is what the status announces
 // (page-status.js): a server that went away and then starts refusing this tab's key
 // asks something new of the user.
-export function pageStatus(state, { reach = "reached" } = {}) {
+export function pageStatus(state, { reach = "reached", fault = null } = {}) {
   if (reach === "broken")
     return {
       kind: "broken",
@@ -249,6 +250,19 @@ export function pageStatus(state, { reach = "reached" } = {}) {
       adds: "Keep this tab open so pending changes can send.",
       asks: true,
     };
+  // A server answering with an error of its own is up and failing, which nothing the
+  // user does here repairs: the page asks again on its clock, and the server's words say
+  // what failed.
+  if (reach === "faulted") {
+    const said = fault.replace(/\.$/, "");
+    return {
+      kind: "faulted",
+      tone: "blocked",
+      summary: "Server error — retrying",
+      explanation: `The server answered with an error: ${said}. Retrying.`,
+      adds: `It answered: ${said}. Retrying.`,
+    };
+  }
   // An unreachable server is reported, not asked about: the page retries on its own, the
   // words being written are kept as drafts, and a change the user sends meanwhile says
   // itself that it is waiting (delivery.js). With no current reading of the agent, the
@@ -363,7 +377,13 @@ function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {
     items.length ? `Waiting on ${whom}: ${queueKinds(items).join(", ")}.` : "";
   return [named(onUser, "me"), named(onAgent, agent)].filter(Boolean).join(" ");
 }
-const WITHOUT_QUEUES = new Set(["broken", "refused", "unreachable", "publication"]);
+const WITHOUT_QUEUES = new Set([
+  "broken",
+  "refused",
+  "faulted",
+  "unreachable",
+  "publication",
+]);
 
 // What the chrome shows for a status (`pageStatus`, or a reading of startup's own),
 // beside the page's `queues` (`readQueues`) and the `agent` they wait on: the leaf's

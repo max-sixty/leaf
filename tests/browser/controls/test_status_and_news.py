@@ -110,9 +110,16 @@ def test_a_status_kind_change_is_announced_in_the_status_s_own_words(browser, se
         page.route("**/api/state*", lambda route: route.fulfill(status=401, body="{}"))
         expect(live).to_contain_text("no longer accepts this tab's key")
         expect(page.locator(".lf-fp-leaf .lf-dot.blocked")).to_be_visible()
-        # The refused reads recur on the page's clock until it closes.
+        # A server that answers with an error of its own is up and failing, which is
+        # neither offline nor a key to replace: the status says its words.
+        page.route(
+            "**/api/state*",
+            lambda route: route.fulfill(status=500, json={"error": "projection failed"}),
+        )
+        expect(live).to_contain_text("The server answered with an error: projection failed")
+        # The refused and failed reads recur on the page's clock until it closes.
         page.close()
-        consume_browser_errors(page, http_error_console(401))
+        consume_browser_errors(page, http_error_console(401), http_error_console(500))
     finally:
         if not page.is_closed():
             page.unroute("**/api/**")

@@ -47,6 +47,7 @@ const LOADING = Object.freeze({
 // Before any answer the status says nothing until upgrade has opened the page, and then
 // that saved state is loading.
 const reach = readPart((root) => root.reach);
+const fault = readPart((root) => root.fault);
 let upgraded = false;
 // The status with its words (`statusModel`), or null before there is one to say. It is
 // derived where it is read, so a presentation of it says the same words in the same tone
@@ -55,7 +56,9 @@ function currentStatus() {
   const answer = reach();
   if (answer === "waiting" && !upgraded) return null;
   const status =
-    answer === "waiting" ? LOADING : pageStatus(runtime.state, { reach: answer });
+    answer === "waiting"
+      ? LOADING
+      : pageStatus(runtime.state, { reach: answer, fault: fault() });
   return { status, model: statusModel(status, readQueues(), agentName()) };
 }
 export const statusReading = () => currentStatus()?.model ?? null;

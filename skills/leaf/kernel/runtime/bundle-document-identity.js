@@ -5017,7 +5017,7 @@ function createQueueActions({ post: post2, arrive }) {
 async function readState(bound) {
   countTraffic("asked");
   try {
-    if (offlineInteractive) return offlineState();
+    if (offlineInteractive) return { state: offlineState(), fault: null };
     const signal = globalThis.AbortSignal.timeout(bound);
     const held = runtime.data;
     let res;
@@ -5029,18 +5029,18 @@ async function readState(bound) {
         signal
       });
     } catch {
-      return null;
+      return NOTHING;
     }
-    if (!admitResponse(res)) return null;
+    if (!admitResponse(res)) return NOTHING;
     if (!res.ok) {
-      if (res.status === 401 || NO_SERVER_BEHIND.has(res.status)) return null;
+      if (res.status === 401 || NO_SERVER_BEHIND.has(res.status)) return NOTHING;
       const answer = await res.json().catch(() => null);
-      throw new Error(answer?.error ?? `state read: HTTP ${res.status}`);
+      return { state: null, fault: answer?.error ?? `HTTP ${res.status}` };
     }
     try {
-      return completeData(await res.json(), held);
+      return { state: completeData(await res.json(), held), fault: null };
     } catch (error) {
-      if (signal.aborted) return null;
+      if (signal.aborted) return NOTHING;
       throw error;
     }
   } finally {
@@ -5048,10 +5048,7 @@ async function readState(bound) {
   }
 }
 function buffer(bound) {
-  return readState(bound).then(
-    (state) => ({ state }),
-    (error) => ({ error })
-  );
+  return readState(bound).catch((error) => ({ error }));
 }
 function beginRead() {
   return buffer(FIRST_READ_TIMEOUT_MS);
@@ -5074,19 +5071,20 @@ function createStateFeed({
     if (stateApplying()) return;
     document.dispatchEvent(new Event("lf-tick"));
   }
-  async function readNothing() {
+  async function readNothing(fault = null) {
     readAnswered = false;
     if (runtime.statePhase === "waiting") applicationState.setPhase("offline");
-    applicationState.setReach(runtime.keyRefused ? "refused" : "unreachable");
+    if (fault !== null) applicationState.setReach("faulted", fault);
+    else applicationState.setReach(runtime.keyRefused ? "refused" : "unreachable");
     await invalidateDom2();
     await tick();
   }
   async function readAndApply(read2 = buffer(STATE_READ_TIMEOUT_MS)) {
     const answer = await read2;
     if ("error" in answer) throw answer.error;
-    const { state } = answer;
+    const { state, fault } = answer;
     if (!state) {
-      await readNothing();
+      await readNothing(fault);
       return;
     }
     await receiveState(state);
@@ -5134,7 +5132,7 @@ function createStateFeed({
     const askOnce = async () => {
       const returned = readingReturn();
       try {
-        const state = await readState(STATE_READ_TIMEOUT_MS);
+        const { state, fault } = await readState(STATE_READ_TIMEOUT_MS);
         if (state) {
           applyingReads += 1;
           void receiveState(state).then(
@@ -5154,7 +5152,7 @@ function createStateFeed({
             applyingReads -= 1;
           });
         } else {
-          void readNothing().then(async () => {
+          void readNothing(fault).then(async () => {
             await present();
             if (!applyingReads && !stateApplying()) completeReadingReturn(returned);
           }).catch(failed);
@@ -5254,6 +5252,7 @@ var TICK_MS = 2e3;
 var LOOK_MS = 250;
 var FIRST_READ_TIMEOUT_MS = 12e4;
 var STATE_READ_TIMEOUT_MS = 1e4;
+var NOTHING = Object.freeze({ state: null, fault: null });
 var NO_SERVER_BEHIND = /* @__PURE__ */ new Set([502, 503, 504]);
 
 // runtime/pending/state.js

@@ -388,29 +388,29 @@ def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
     )
 
 
-def test_a_codex_title_server_that_failed_to_start_leaves_the_next_title_to_try(
+def test_a_codex_title_server_that_fails_to_start_leaves_the_title_to_a_new_one(
     page_dir, app_server, monkeypatch
 ):
-    """A title server that failed to start as the page server started, perhaps
-    hours before, says nothing of Codex when the comment arrives, so the title is
-    asked on a server started then."""
+    """A title server started ahead of the comment that then fails to start,
+    whether before the comment or while the comment waits on it, asked nothing, so
+    the title is asked on a server started then."""
     claim = record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
     assert stamp(page_dir, "first").exit_code == 0
     endpoint, _ = titling_app_server(app_server, '{"title": "Export speed"}')
     starts = []
+    released = threading.Event()
 
     @contextlib.contextmanager
     def title_server(executable, *, env, arguments):
         starts.append(executable)
         if len(starts) == 1:
+            released.wait()
             raise codex_model.Refused("Codex App Server exited before it was ready")
         yield endpoint
 
     monkeypatch.setattr(thread_titles, "private_app_server", title_server)
     monkeypatch.setattr(thread_titles, "_next_codex_titles", {})
     harness_model.claim_harness(claim).prepare_titles(page_dir)
-    [failed] = thread_titles._next_codex_titles.values()
-    wait_for(lambda: failed.failed, bool, failure="the first start never failed")
 
     status, body = endpoint_model.accept_event(
         page_dir,
@@ -422,6 +422,13 @@ def test_a_codex_title_server_that_failed_to_start_leaves_the_next_title_to_try(
         dict,
     )
     assert status == 200, body
+    # The comment's request has taken the server still starting.
+    wait_for(
+        lambda: thread_titles._next_codex_titles,
+        lambda prepared: not prepared,
+        failure="the comment never took the prepared server",
+    )
+    released.set()
     wait_for(
         lambda: [
             e for e in events_model.read_events(page_dir) if e["kind"] == "thread_title"

@@ -61,6 +61,7 @@ that fails or finds no words leaves the thread untitled for the agent's reply to
 name, and tells the caller's `record`.
 """
 
+import contextlib
 import json
 import os
 import queue
@@ -468,6 +469,10 @@ def app_server_title(endpoint: str, model: str | None) -> Generate:
     return generate
 
 
+class TitleThreadUnopened(Exception):
+    """A Codex title's server or thread failed to start, so nothing was asked."""
+
+
 class CodexTitleThread:
     """One Codex title's App Server and thread, started from the `codex` on PATH on
     the user's own login and configuration before the request they answer, and
@@ -479,8 +484,6 @@ class CodexTitleThread:
     def __init__(self, page_dir: Path) -> None:
         self._request: queue.SimpleQueue = queue.SimpleQueue()
         self._answer: queue.SimpleQueue = queue.SimpleQueue()
-        # Whether the server or thread failed to start, or the request failed.
-        self.failed = False
         threading.Thread(
             target=self._serve,
             args=(page_dir,),
@@ -489,6 +492,7 @@ class CodexTitleThread:
         ).start()
 
     def _serve(self, page_dir: Path) -> None:
+        opened = False
         try:
             executable = shutil.which("codex")
             if executable is None:
@@ -504,6 +508,7 @@ class CodexTitleThread:
                 socket = app_server_connect(endpoint)
                 try:
                     thread_id = open_title_thread(socket, None, page_dir)
+                    opened = True
                     request, deadline = self._request.get()
                     self._answer.put(ask_title(socket, thread_id, request, deadline))
                 finally:
@@ -511,7 +516,10 @@ class CodexTitleThread:
         # Every class, since `ask` raises it in the request's own thread, which
         # reports it (`_name_thread`).
         except Exception as error:  # noqa: BLE001 - raised by `ask`
-            self.failed = True
+            if not opened:
+                unopened = TitleThreadUnopened(f"{type(error).__name__}: {error}")
+                unopened.__cause__ = error
+                error = unopened
             self._answer.put(error)
 
     def ask(self, request: str, deadline: float) -> dict:
@@ -541,24 +549,28 @@ def prepare_codex_title(page_dir: Path) -> None:
 
 def codex_title(request: str, page_dir: Path) -> dict:
     """Ask Codex for a title on the thread started for it (`prepare_codex_title`),
-    or on one started now where there is none, and start the next title's once
-    this one is answered."""
+    or on one started now where there is none or it failed to start, and start the
+    next title's once this one is answered."""
     started = time.monotonic()
+    deadline = started + TIMEOUT
     with _next_codex_titles_lock:
         prepared = _next_codex_titles.pop(page_dir, None)
-    # A start that failed, perhaps hours ago, is no reading of Codex now.
-    if prepared is not None and prepared.failed:
-        prepared = None
     try:
-        reading = (prepared or CodexTitleThread(page_dir)).ask(
-            request, started + TIMEOUT
-        )
+        reading = None
+        if prepared is not None:
+            # A start that failed, perhaps hours before the comment, says nothing
+            # of whether one would start now.
+            with contextlib.suppress(TitleThreadUnopened):
+                reading = prepared.ask(request, deadline)
+        asked_prepared = reading is not None
+        if reading is None:
+            reading = CodexTitleThread(page_dir).ask(request, deadline)
     finally:
         prepare_codex_title(page_dir)
     return {
         **reading,
         "durationMs": round((time.monotonic() - started) * 1000),
-        "prepared": prepared is not None,
+        "prepared": asked_prepared,
     }
 
 

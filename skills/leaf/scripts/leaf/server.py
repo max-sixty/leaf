@@ -22,8 +22,8 @@ from .service import PageTransaction, claim_is_active, page_claim
 from .state import (
     STRING,
     Record,
+    flocked,
     hold_mode,
-    json_bytes,
     object_schema,
     state_home,
 )
@@ -48,7 +48,10 @@ SERVICE = Record(
         # re-vendor it (`hosting.restarting_server`).
         {"restart": STRING},
     ),
+    since=13,
 )
+# The key every page this machine serves is read with (`host_key`).
+ACCESS = Record("access", object_schema({"token": STRING}), since=13)
 # What a developer preview shows in browser chrome, as `leaf-dev preview` writes it.
 # The page receives it whole, so its shape is the served state's `preview`.
 PREVIEW = Record(
@@ -56,6 +59,7 @@ PREVIEW = Record(
     read_json(Path(__file__).with_name("served_state") / "state.schema.json")["$defs"][
         "Reading"
     ]["properties"]["preview"],
+    since=13,
 )
 
 
@@ -282,24 +286,19 @@ def host_key() -> str:
     it, so the added cost is that same-host servers keep receiving the key for
     that long after the last handover, rather than until the browser quits.
 
-    Linked into place rather than written over, so two first serves racing on a
-    fresh machine agree on whichever won. Each keeping its own would have their
-    servers overwrite the one shared cookie in turn, for as long as both ran."""
+    Minted under a lock, so two first serves racing on a fresh machine agree on
+    whichever won. Each keeping its own would have their servers overwrite the one
+    shared cookie in turn, for as long as both ran. A file holding a record this
+    Leaf doesn't read, at another `ACCESS` format, is replaced, which signs out the
+    tabs that held its key."""
     path = state_home() / "access.json"
-    if not path.exists():
-        staged = path.with_name(f".{secrets.token_hex(8)}.tmp")
-        try:
-            staged.write_bytes(json_bytes({"token": secrets.token_urlsafe(16)}))
-            hold_mode(staged, 0o600)
-            try:
-                os.link(staged, path)
-            except FileExistsError:
-                pass  # someone minted first; theirs is the key, read below
-        finally:
-            staged.unlink(missing_ok=True)
+    if (access := ACCESS.read(path)) is None:
+        with flocked(path.with_name("access.lock")):
+            if (access := ACCESS.read(path)) is None:
+                access = ACCESS.write(path, {"token": secrets.token_urlsafe(16)})
     # Whoever made the file, only the user reads the key.
     hold_mode(path, 0o600)
-    return read_json(path)["token"]
+    return access["token"]
 
 
 def page_url(host: str, port: int, token: str) -> str:

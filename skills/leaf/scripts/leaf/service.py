@@ -89,6 +89,7 @@ CLAIM = Record(
         # (`note_messaged`).
         {"messaged_ending": STRING},
     ),
+    since=13,
 )
 
 
@@ -779,6 +780,7 @@ STATUS = Record(
         # carries none.
         {"ts": TIME},
     ),
+    since=13,
 )
 
 

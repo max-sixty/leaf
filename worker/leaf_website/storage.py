@@ -291,7 +291,9 @@ def _responses(
 
 # The page reading a page's last publication was made from (`record_reading`), so
 # an unchanged page is not published again.
-PUBLISHED = Record("website-publication", object_schema({"fingerprint": STRING}))
+PUBLISHED = Record(
+    "website-publication", object_schema({"fingerprint": STRING}), since=13
+)
 
 
 def publish(page: PageTransaction) -> None:

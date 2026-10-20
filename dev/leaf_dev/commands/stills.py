@@ -80,6 +80,21 @@ def captured_source(page: Page) -> None:
     page.locator("#bg-source-captures").scroll_into_view_if_needed()
 
 
+def recorded_video(page: Page) -> None:
+    """The gallery's recording at rest under its play bar, beside the audio player."""
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Page & layout", exact=True
+    ).click()
+    page.locator("#bg-recorded-media").scroll_into_view_if_needed()
+
+
+def recorded_video_by_keyboard(page: Page) -> None:
+    """The recording the keyboard stands on, where Space and the arrows reach it."""
+    recorded_video(page)
+    page.keyboard.press("Tab")
+    page.locator("#bg-recording").focus()
+
+
 def markdown_preview_scrolled(page: Page) -> None:
     """A Markdown code example scrolled under the preview's focused viewport edge."""
     page.locator("#bg-gallery-tabs").get_by_role(
@@ -1053,6 +1068,25 @@ STATES = (
         "developer/feature-gallery",
         captured_source,
         region="#bg-source-captures",
+    ),
+    State(
+        "recorded-video",
+        "developer/feature-gallery",
+        recorded_video,
+        region="#bg-recorded-media",
+    ),
+    State(
+        "recorded-video-dark",
+        "developer/feature-gallery",
+        recorded_video,
+        scheme="dark",
+        region="#bg-recorded-media",
+    ),
+    State(
+        "recorded-video-keyboard",
+        "developer/feature-gallery",
+        recorded_video_by_keyboard,
+        region="#bg-recorded-media",
     ),
     State(
         "panel-leaf",

@@ -419,12 +419,13 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
         for text in ("Reading the banner's styles.", "Trying a lighter weight.")
     ]
     page = open_page(browser, url)
-    # The comment's card on the agent's list says the agent is at work on it.
+    # The comment's card on the agent's list says the agent's last step on it, as the
+    # page's status does, rather than only that it is working.
     page.locator(".lf-fp-on-user").click()
     panel_settled(page, view="queue")
     page.locator(".lf-fp-filters button").filter(has_text="On Codex").click()
     card = page.locator('.lf-fp-on-item[data-list="agent"]')
-    expect(card.locator(".lf-fp-said")).to_have_text("Working")
+    expect(card.locator(".lf-fp-said")).to_have_text("Trying a lighter weight.")
     # Nothing counts unread.
     expect(thread_row(page, root)).not_to_have_attribute("data-unread", "")
     page.locator(".lf-fp-close").click()

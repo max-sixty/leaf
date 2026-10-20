@@ -1679,12 +1679,15 @@ def panel_settled(page, open=True, view=None):
         """([open, view]) => {
           const host = document.querySelector('.lf-floating-panel');
           const ground = document.querySelector('.lf-fp-ground');
-          const moving = [host, ground].flatMap((n) => n.getAnimations({subtree: true}));
+          // A working indicator may keep animating while the panel has settled.
+          const finite = (n) => n.getAnimations({subtree: true}).filter((move) =>
+            Number.isFinite(move.effect?.getComputedTiming().endTime));
+          const moving = [host, ground].flatMap(finite);
           for (const move of moving) move.finish();
           const shown = host.dataset.open ?? null;
           return (open ? shown !== null && (!view || shown === view) : shown === null)
             && !host.querySelector('.lf-fp-view[data-leaving]')
-            && [host, ground].every((n) => !n.getAnimations({subtree: true}).length);
+            && [host, ground].every((n) => !finite(n).length);
         }""",
         arg=[open, view],
         polling=render_checks_model.PROBE_POLL_MS,

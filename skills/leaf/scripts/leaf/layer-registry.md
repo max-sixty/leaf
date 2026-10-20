@@ -103,10 +103,11 @@ field, or tightens a constraint, such as a narrower type, enum or constant, a ch
 pattern or a lower maximum, until the change takes what it took or the number moves.
 The served state runs the other way, since a page's older runtime reads what this Leaf
 serves: the check fails a change that stops serving a field or loosens a constraint,
-such as one that makes a field nullable, raises a maximum or adds an event kind the
-state carries. An event record the page is also served holds both ways. The check
-compares patterns and conditional clauses only for equality, so changing one fails even
-where it loosens.
+such as one that makes a field nullable, raises a maximum or adds an event kind. An
+event record holds both ways, since the state carries every kind. The check lays each
+schema beside its baseline keyword by keyword, comparing a reference by its text and
+its target where it is declared, and compares patterns and conditional clauses only
+for equality, so changing one fails even where it loosens.
 
 The promise runs one way: an older Leaf serving a page a newer one vendored may refuse
 a field it does not know. Every page vendored before a bump, and one vendored before the number was

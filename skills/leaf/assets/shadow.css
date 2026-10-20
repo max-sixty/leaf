@@ -118,6 +118,9 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   outline: var(--focus-ring);
   outline-offset: var(--focus-ring-gap);
 }
+:where(*) {
+  scroll-margin-top: max(0px, var(--lf-top) - var(--lf-top-covered, var(--lf-top)));
+}
 :where(:focus, [data-lf-focus]) {
   scroll-margin-block: var(--focus-ring-landing);
 }

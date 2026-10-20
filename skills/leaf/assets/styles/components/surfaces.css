@@ -315,6 +315,17 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   outline: var(--focus-ring);
   outline-offset: var(--focus-ring-gap);
 }
+/* A landing clears the sticky headers stacked over what it lands on. Its scroller's
+   `scroll-padding` clears those over the whole scroller (the head room, a page tab
+   strip); this margin clears the rest, those over part of it, such as a framed tab
+   set's strip or a diff's file header: the slot (`--lf-top`, theme.css) less what the
+   band covers whole (`--lf-top-covered`). Content the band covers past, beside a page
+   tab strip rather than under it, keeps no margin. The browser's own scroll to a
+   target reads it, and so does the runtime's landing (landing-scroll.js), as one
+   reading of the same clearance. */
+:where(*) {
+  scroll-margin-top: max(0px, var(--lf-top) - var(--lf-top-covered, var(--lf-top)));
+}
 /* Where the user stands wears a ring outside its box, so a scroll that brings the focus
    into view, the browser's or a landing's (anchor-travel.js reads it), keeps the ring's
    room at the scroller's edge: an item landed at the top of a scrolling pane stood flush

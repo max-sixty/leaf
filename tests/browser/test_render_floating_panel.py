@@ -1592,6 +1592,41 @@ def test_a_folded_status_keeps_its_reading_until_the_next_exposure(
     expect(peek).to_have_text("Saved for later")
 
 
+def test_pointing_at_the_row_s_leaf_or_field_says_the_status_in_full(browser, serve):
+    """In the row, pointing at the leaf or at the empty field shows the leaf's peek, the
+    box the folded leaf shows, at once and over the row, with the status the field cuts
+    short in full; the field keeps no browser tooltip of its own. The peek stands down
+    while the leaf's menu, which says the status itself, stands, and over a field the
+    user writes in or whose words hide the status."""
+    page = floating(browser, serve(LONG_PAGE))
+    peek = page.locator(".lf-fp-peek")
+    leaf = page.locator(".lf-fp-leaf")
+    seat = page.locator(".lf-fp-field")
+    shown = "peek => peek.hasAttribute('data-shown')"
+    expect(field(page)).to_have_attribute("placeholder", re.compile(r" away\b"))
+    assert seat.get_attribute("title") is None
+    row = page.locator(".lf-fp-row").bounding_box()
+    for asker in (leaf, seat):
+        page.mouse.move(5, 5)
+        expect(peek).to_be_hidden()
+        asker.hover()
+        assert peek.evaluate(shown)
+        expect(peek).to_have_text(re.compile(r"isn't watching right now\."))
+        box = peek.bounding_box()
+        assert box["y"] + box["height"] <= row["y"], (box, row)
+
+    leaf.click()
+    expect(page.locator(".lf-fp-menu")).to_be_visible()
+    expect(peek).to_be_hidden()
+    field(page).click()
+    expect(page.locator(".lf-fp-menu")).to_be_hidden()
+    expect(peek).to_be_hidden()
+    write(field(page), "Could the rollback cover the weekend?")
+    page.mouse.click(5, 5)
+    seat.hover()
+    expect(peek).to_be_hidden()
+
+
 def test_floating_menu_tracks_stalled_detail_hidden_by_a_draft(browser, serve, request):
     """The stalled summary carries no authored detail; its menu's Last said words do.
     A draft keeps the row's placeholder hidden, so that menu is their first exposure.

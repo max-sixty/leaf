@@ -40,10 +40,11 @@
     --lf-breakout: 1;
   }
 }
-/* An lf-ask whose evidence includes a figure (a chart, image, table or shot) before its
- * option list, or in its options, outruns a window when its options stack: the cards
- * land one under another, below the figure they turn on or each as tall as its own
- * picture. It asks its option list to lay them across instead (`--lf-options-across`,
+/* An lf-ask whose evidence includes a figure before its option list, or in its options,
+ * outruns a window when its options stack: the cards land one under another, below the
+ * figure they turn on or each as tall as its own picture. A figure is an image, drawing or
+ * table, or a widget whose entry says it draws a picture (`x-visual`, painted
+ * `data-lf-visual`), so any package's chart counts without this rule naming it. It asks its option list to lay them across instead (`--lf-options-across`,
  * said on the lf-ask and read by its own children; options.css), so as many cards as the
  * lf-ask's width holds stand side by side, and they stack where only one fits. Options
  * that each hold what choosing them gives then read as one comparison, each picture
@@ -61,8 +62,8 @@
  * empty, and the reading column was too narrow for it, so every such lf-ask had to ask
  * for the wide measure. */
 :scope:is(lf-ask):has(
-    > :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options,
-    > lf-options > lf-option :is(figure, img, svg, table, lf-chart, lf-shot)
+    > :is(figure, img, svg, table, [data-lf-visual]) ~ lf-options,
+    > lf-options > lf-option :is(figure, img, svg, table, [data-lf-visual])
   ) {
   --lf-options-across: 1;
 }

@@ -1,5 +1,6 @@
 """Render, shot, and browser-gate command tests."""
 
+import hashlib
 import json
 import os
 import shutil
@@ -707,6 +708,44 @@ def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path, headless_shell):
         assert "/widgets/lf-diagram.js:" not in error
         assert "leaf-unsupported" not in error
         assert "Ada,Review,3" not in error
+
+
+def test_plain_check_runs_a_page_whose_widget_reads_media(serve, headless_shell):
+    """A screenshot pair shot at two viewports is refused only by lf-shot's module, once
+    it has decoded both images; the static check proves the files exist and never
+    opens them. A page with no code of its own and no data widget otherwise takes
+    plain `page check` without a browser, so the refusal first reached the user, as an
+    error box where the pair should have been. Media an upgraded widget names sends
+    the check to the browser, and the same page passes once the pair shares a width."""
+    narrow = solid_png(500, 300, (235, 215, 205))
+    narrow_src = f"/media/{hashlib.sha256(narrow).hexdigest()[:16]}.png"
+    serve(
+        SHOT_PAGE.replace(SHOT_SRC["after"], narrow_src),
+        media={SHOT_SRC["before"]: SHOTS["before"], narrow_src: narrow},
+    )
+    d = serve.page_dir
+
+    def check(status):
+        ran = subprocess.run(
+            [*LEAF_COMMAND, "page", "check", str(d)],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": headless_shell},
+        )
+        assert ran.returncode == status, ran.stdout + ran.stderr
+        report = json.loads(ran.stdout)
+        assert report["browser"]["ran"] == ["page code"], report
+        return [f["text"] for f in report["findings"] if f["severity"] == "error"]
+
+    [error] = check(1)
+    refusal = '<lf-shot id="shot-nav"> failed: before is 600px wide and after is 500px'
+    assert refusal in error
+
+    (d / "index.html").write_text(SHOT_PAGE)
+    for name, data in SHOTS.items():
+        (d / SHOT_SRC[name].lstrip("/")).write_bytes(data)
+    assert check(0) == []
 
 
 def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(

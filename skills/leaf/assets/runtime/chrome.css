@@ -929,6 +929,9 @@
   .lf-fp-thread[data-resolved] .lf-fp-label {
     color: var(--lf-fp-muted);
   }
+  .lf-fp-thread.lf-mark-hover {
+    background: var(--mark-hover);
+  }
   .lf-fp-quote-head {
     display: grid;
     justify-items: start;

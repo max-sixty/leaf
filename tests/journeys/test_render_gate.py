@@ -8,9 +8,12 @@ from interact_support import (
     add_test_widget,
 )
 from leaf import render_checks as render_checks_model
+from leaf.files import latest_revision
 from leaf.findings import Finding
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
+from leaf.render_gate.preview import preview_server
+from leaf.revision_artifact import read_revision
 from playwright.sync_api import expect
 from render_cases_interaction import (
     CHANGE_SHAPES_PAGE,
@@ -46,6 +49,7 @@ from render_harness import (
     LONG_PAGE,
     at_rest,
     leaf_page,
+    margins_laid_out,
     names,
     open_page,
     panel_settled,
@@ -59,6 +63,7 @@ from render_harness import (
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
+from browser.margin.test_entries import _refreshes_restate_no_margin_name
 from browser.test_render_gate import (
     BOUNDED_WORKSPACE_PAGE,
     COMPARE_NOTE_PAGE,
@@ -82,18 +87,23 @@ from browser.test_render_gate import (
 )
 
 
-def test_the_layer_holds_its_whole_page_rules_on_the_corpus(browser, serve):
+def test_the_layer_holds_its_whole_page_rules_on_the_corpus(browser, serve, subtests):
     """The corpus is the page that holds every widget and idiom at once, so the layer's
-    whole-page rules are read on it, on one page, in turn: the adopted sheet decides
-    nothing by standing last (`adopted_sheet_findings`), every aim takes a finger
-    (`short_aim_findings`), and paper takes the press off everything it cannot press
-    (`pressable_paper_findings`). The touch emulation and print media are each put back
-    before the next reading.
+    whole-page rules are read on it, on one page, in turn.
 
-    First, composition preserves markup, not another page's durable versions: the
-    gallery's durable-embedding scenario stays hidden and unloaded in the corpus,
+    First, at 1440px, where the corpus draws the widest margin the examples draw, most
+    of it withheld, margin passes that change nothing write nothing and cost the
+    browser work bounded by their count, not by the rows they place. The refresh count
+    is read first, on the page as it presents: on CI's runner it read 73 layouts for
+    five refreshes when it followed the other two passes.
+
+    Back at 1200px, composition preserves markup, not another page's durable versions:
+    the gallery's durable-embedding scenario stays hidden and unloaded in the corpus,
     which has no version 2 to embed. The corpus then goes back to its first tab, where
-    the aims are measured."""
+    the adopted sheet decides nothing by standing last (`adopted_sheet_findings`),
+    every aim takes a finger (`short_aim_findings`), and paper takes the press off
+    everything it cannot press (`pressable_paper_findings`). The touch emulation and
+    print media are each put back before the next reading."""
     # The corpus's sort film otherwise repaints SVG values while the sheets move.
     page = open_page(
         browser,
@@ -102,6 +112,20 @@ def test_the_layer_holds_its_whole_page_rules_on_the_corpus(browser, serve):
             viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
         ),
     )
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    # The placement event precedes deferred Reach and chrome work. A measurement
+    # starting here used to include whatever that previous invalidation still owed.
+    rendered(page)
+    # Each a subtest, so a failing margin reading leaves the later readings to report.
+    with subtests.test(reading="margin refresh count"):
+        _refreshes_force_layout_by_refresh_count(page)
+    with subtests.test(reading="margin names"):
+        _refreshes_restate_no_margin_name(page, {".lf-margin-cluster": 15})
+    with subtests.test(reading="margin passes"):
+        _layout_passes_batch_without_refolding_controls(page)
+    resized(page, 1200, 900)
+
     page.locator('[role="tab"][aria-controls="corpus-feature-gallery"]').click()
     page.locator('[role="tab"][aria-controls="bg-view-page"]').click()
     expect(page.locator("#bg-durable-embedding")).to_have_attribute("hidden", "")
@@ -118,6 +142,108 @@ def test_the_layer_holds_its_whole_page_rules_on_the_corpus(browser, serve):
     assert failed == {}, "\n\n".join(
         f"{reading}:\n" + "\n".join(found) for reading, found in failed.items()
     )
+
+
+def _layout_passes_batch_without_refolding_controls(page):
+    """Layout work is bounded by phases, not the number of contributed controls.
+
+    The corpus used to force 26 layouts and 44 style recalculations per unchanged
+    pass (about 45 ms in local Chrome). Count the browser's work rather than time;
+    the contributor's primary/overflow state must also remain untouched.
+    """
+    # A placement delivery precedes deferred Reach and chrome paints. Finish the
+    # warmup invalidation before recording the work of the five passes below.
+    margins_laid_out(page)
+    rendered(page)
+    session = page.context.new_cdp_session(page)
+    session.send("Performance.enable")
+    before = {
+        metric["name"]: metric["value"]
+        for metric in session.send("Performance.getMetrics")["metrics"]
+    }
+    page.evaluate(
+        """async () => {
+          const {layoutChanged} = await window.__lfWidgetApi();
+          const rows = [...document.querySelectorAll('.lf-margin-cluster')];
+          const boxes = () => rows.map(row => {
+            const {x, y, width, height} = row.getBoundingClientRect();
+            return {x, y, width, height};
+          });
+          const before = boxes();
+          // Collected from the callback rather than by `takeRecords` alone: letting a
+          // frame settle passes a microtask checkpoint, which delivers the records to
+          // the callback and empties the queue a bare `takeRecords` would read.
+          const seen = [];
+          const observer = new MutationObserver(list => seen.push(...list));
+          observer.observe(document.body, {subtree: true, attributes: true,
+            attributeFilter: ['data-lf-margin-entry-primary', 'data-lf-margin-entry-overflow']});
+          window.__lfFinishMarginPasses = () => {
+            const mutations = seen.length + observer.takeRecords().length;
+            observer.disconnect();
+            delete window.__lfFinishMarginPasses;
+            return {before, after: boxes(), mutations};
+          };
+          for (let i = 0; i < 5; i++) await new Promise(done => {
+            document.addEventListener('lf-margin-layout', done, {once: true});
+            layoutChanged(document.body);
+          });
+        }"""
+    )
+    rendered(page)
+    reading = page.evaluate("window.__lfFinishMarginPasses()")
+    after = {
+        metric["name"]: metric["value"]
+        for metric in session.send("Performance.getMetrics")["metrics"]
+    }
+    session.detach()
+    assert reading["mutations"] == 0
+    assert reading["after"] == reading["before"]
+    work = {
+        name: after[name] - before[name] for name in ("LayoutCount", "RecalcStyleCount")
+    }
+    # The current corpus takes 32 style recalculations across five passes with
+    # playback stopped; this bound still excludes work proportional to its rows.
+    assert all(count <= 35 for count in work.values()), work
+
+
+def _refreshes_force_layout_by_refresh_count(page):
+    """A viewport refresh cannot force layout once per Page Map location."""
+    session = page.context.new_cdp_session(page)
+    session.send("Performance.enable")
+    before = {
+        metric["name"]: metric["value"]
+        for metric in session.send("Performance.getMetrics")["metrics"]
+    }
+    refreshes = 5
+    page.evaluate(
+        """async refreshes => {
+          const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
+          for (let i = 0; i < refreshes; i++) {
+            window.dispatchEvent(new Event('resize'));
+            await frame();
+          }
+        }""",
+        refreshes,
+    )
+    # A frame callback is before ResizeObserver delivery and the rereads it queues.
+    # Include the complete work caused by these refreshes before reading the count.
+    rendered(page)
+    after = {
+        metric["name"]: metric["value"]
+        for metric in session.send("Performance.getMetrics")["metrics"]
+    }
+    session.detach()
+    work = {
+        name: after[name] - before[name]
+        for name in (
+            "LayoutCount",
+            "RecalcStyleCount",
+        )
+    }
+    # These bounds include the browser's viewport bookkeeping while refusing work that
+    # scales with every Page Map location.
+    assert work["LayoutCount"] <= refreshes * 8, work
+    assert work["RecalcStyleCount"] <= refreshes * 30, work
 
 
 def test_a_drawing_fitted_until_its_labels_are_unreadable_gets_advice_and_still_passes(
@@ -406,13 +532,12 @@ def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
     """A page put back the way the user left it is simply there, and does not assemble
     itself in front of them.
 
-    Opening a drawer is a gesture and gestures move: the drawer slides in over a fifth
-    of a second and the document steps aside to make the room. Coming back to a drawer
-    that was already open is not a gesture — nothing was just decided, and a page
-    that replays the decisions on arrival would be showing the user a fifth of a
-    second of furniture instead of what they came back to read. The auxiliary-surface
-    owner passes arrival separately from a gesture, so even a drawer whose first paint
-    waits for presentation appears without an opening slide.
+    Turning on design mode or hiding the annotations is a gesture, and gestures may
+    move. Coming back to a page where it was already done is not a gesture — nothing
+    was just decided, and a page that replays the decisions on arrival would be showing
+    the user furniture instead of what they came back to read. The runtime puts the
+    arrangement back before the page is presented (`restoreUserView`,
+    restore-state.js), so it appears without the motion its gesture plays.
 
     What is read is every motion the browser reports, which it does through the
     inspector's animation agent as it reports a request or a response: nothing is
@@ -439,7 +564,7 @@ def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
     restore is put back, and waiting in it is strictly more than catching it.
 
     What the user left open is the restore case the runtime declares, all of them
-    in turn, so a fourth remembered surface is covered the day it starts remembering.
+    in turn, so another remembered surface is covered the day it starts remembering.
     """
     url = serve(CHANGE_SHAPES_PAGE)
     page = open_page(browser, url)
@@ -698,7 +823,8 @@ def test_page_fixture_renders(browser, serve, source):
     still_page of it comes back from every journey as it was.
 
     The gate (render_gate.version.render_version) is the pass `page check --render`
-    runs on agent-authored pages, so this sweep also proves the gate a user's page
+    runs on agent-authored pages, served as that command serves it, from a read-only
+    capture (`preview_server`), so this sweep also proves the gate a user's page
     goes through: in both color schemes, no fail-soft error box, no console warning or
     error, every visible widget occupies real space, no sideways scroll, no unmarkable
     elements or undeclared text nodes under widget chrome. A widget that upgrades into
@@ -733,7 +859,11 @@ def test_page_fixture_renders(browser, serve, source):
     starting narrow needs a page that first painted narrow, so that journey gets a
     page of its own."""
     url = serve(source)
-    gate = render_gate_model.render_version(browser, url).failures
+    revision = latest_revision(serve.page_dir)
+    with preview_server(
+        serve.page_dir, read_revision(serve.page_dir, revision).document, revision
+    ) as preview:
+        gate = render_gate_model.render_version(browser, preview).failures
     # Reduced motion, which the still_page asks for, also holds the sort film still
     # while the scroll pass measures its writes.
     page = still_page(browser, url, width=RESIZE_PATH[0])
@@ -945,7 +1075,7 @@ def test_scrollbar_clearance_reads_generic_content_and_open_shadow_words(
 def test_a_table_keeps_its_columns_natural_width_wherever_it_stands(browser, serve):
     """A table's rows are as wide as its columns hold wherever it stands: bare in the
     column, in a panel, in a figure granted the page's room, granted the room itself,
-    which is a limit rather than a size, and in an item, even an item inside the granted
+    which is a limit rather than a size, and in an obligation, even an obligation inside the granted
     figure. Spreading the columns over a frame worked in Chrome alone, since Firefox
     never widens a table's grid to its caption. One granted room stands where the prose
     starts. A table too wide for the panel still scrolls inside it.

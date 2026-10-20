@@ -3,6 +3,7 @@
 import ast
 import contextlib
 import inspect
+import json
 import os
 import re
 import shutil
@@ -21,6 +22,8 @@ from leaf import harness as harness_model
 from leaf import layer as layer_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
+from leaf import state as cleanup_model
+from leaf.registry.schema import schema_error
 from leaf.render_gate import browser as browser_model
 from leaf_dev import LEAF_COMMAND as SOURCE_LEAF_COMMAND
 from leaf_dev.browser import shell_executable, use_linux_fonts
@@ -497,12 +500,12 @@ HOOKED_SESSIONS = (f"pytest-{os.getpid()}", "s1")
 
 @pytest.fixture(scope="session", autouse=True)
 def failing_harness_programs(tmp_path_factory):
-    """Put a `claude` and a `codex` that fail at once ahead of the developer's own on
-    PATH, for the entire worker lifetime, before any fixture starts a server.
+    """Put a `claude`, a `codex` and a `pi` that fail at once ahead of the developer's
+    own on PATH, for the entire worker lifetime, before any fixture starts a server.
     Page servers ask the claimant's harness to name user threads (`thread_titles`);
     a test about titling puts its own program first."""
     programs = tmp_path_factory.mktemp("harness-programs")
-    for name in ("claude", "codex"):
+    for name in ("claude", "codex", "pi"):
         program = programs / name
         program.write_text("#!/bin/sh\nexit 1\n")
         program.chmod(0o755)
@@ -540,7 +543,7 @@ def isolated_session(tmp_path_factory, monkeypatch):
     monkeypatch.setenv("CODEX_HOME", str(tmp_path_factory.mktemp("codex")))
     monkeypatch.delenv(codex_model.APP_SERVER_ENV, raising=False)
     monkeypatch.delenv("LEAF_HOST_LAUNCHER", raising=False)
-    for name in (*harness_model.IDENTITY_VARIABLES, *machine_model.SANDBOX_VARIABLES):
+    for name in (*harness_model.IDENTITY_VARIABLES, *machine_model.SANDBOX_REMEDIES):
         monkeypatch.delenv(name, raising=False)
     # Claude Code's session registry, where a live turn is read
     # (`harness.claude_code_session_records`): empty, so no session of the developer's
@@ -552,7 +555,29 @@ def isolated_session(tmp_path_factory, monkeypatch):
     # them, supplying capability evidence to hook transport and turn activity.
     for session in HOOKED_SESSIONS:
         leases_model.mark_hooks(session)
-    return machine_model.state_home()
+    return cleanup_model.state_home()
+
+
+@pytest.fixture(autouse=True)
+def declared_records(monkeypatch):
+    """Every record a test writes in process holds the schema its kind declares.
+
+    Nothing checks a record while Leaf runs (`state.Record`), so the suite checks
+    each one its writers produce, as `model_folds.served_reading` checks the served
+    state."""
+    encode = cleanup_model.Record.encode
+
+    def checked(record, value):
+        written = encode(record, value)
+        stored = json.loads(written)
+        del stored["format"]
+        if error := schema_error(record.schema, stored):
+            raise AssertionError(
+                f"a {record.kind} record that fails its schema: {error}"
+            )
+        return written
+
+    monkeypatch.setattr(cleanup_model.Record, "encode", checked)
 
 
 @pytest.fixture

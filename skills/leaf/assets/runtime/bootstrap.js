@@ -115,18 +115,25 @@
         root.lfInitial.setRuntimeRootAttribute(root, "data-lf-sample-connecting", "");
       window.addEventListener("message", connect);
       window.parent.postMessage({ type: "leaf-sample-connect", sample, nonce }, "*");
-      window.addEventListener("pagehide", () => send({ type: "departed" }));
-    }
-    window.addEventListener("lf-startup-failed", () => {
-      if (!root.lfDocumentLifetime.active) return;
-      root.lfSample.send({
-        type: "error",
-        detail: root.lfStartupException ?? {
-          message:
-            document.documentElement.dataset.lfStartupError || "Sample could not start",
-        },
+      // A frame's own navigation never keeps its document in the page cache, so a
+      // persisted pagehide is the containing page's, which takes this document and
+      // its port along and brings both back together (sample.js keeps the host then).
+      window.addEventListener("pagehide", (event) => {
+        if (!event.persisted) send({ type: "departed" });
       });
-    });
+    }
+    window.addEventListener("lf-startup-failed", () =>
+      root.lfDocumentLifetime.whenActive("sample error", () =>
+        root.lfSample.send({
+          type: "error",
+          detail: root.lfStartupException ?? {
+            message:
+              document.documentElement.dataset.lfStartupError ||
+              "Sample could not start",
+          },
+        }),
+      ),
+    );
   }
   // A served page draws the live chrome, the floating panel, so the theme reserves its room from the first paint (`html[data-lf-live]`). An export runs the
   // runtime without them (prepaint.js).

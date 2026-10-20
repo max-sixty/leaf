@@ -46,10 +46,11 @@ import { dressFor, registerSampleDress } from "./dress.js";
 import { widgetDescriptor } from "./widget-descriptors.js";
 import { frameView, layoutWindow, presented, watchRoom } from "./geometry.js";
 import {
-  sampleVisibility,
-  onSampleVisibility,
+  frameVisibility,
+  onFrameVisibility,
   readSampleVisibility,
-} from "./sample-visibility.js";
+  watchFrame,
+} from "./frame-visibility.js";
 import { keeps } from "./keeps.js";
 import { move } from "./dom-move.js";
 import { nextRender, sizeObserver } from "./rendering.js";
@@ -178,11 +179,14 @@ export function mountSample(frame, { template, window: asWindow = false }) {
   );
   frame.toggleAttribute("data-lf-contained", true);
 
+  // Whether the user can see the frame and read what it shows: the frame on screen
+  // (frame-visibility.js) and admitted by this page, which itself shows.
   function admitted() {
     return (
       document.visibilityState === "visible" &&
       presented(frame) &&
-      sampleVisibility()?.visible !== false
+      seen.shown() &&
+      frameVisibility()?.visible !== false
     );
   }
   function visibility() {
@@ -382,23 +386,13 @@ export function mountSample(frame, { template, window: asWindow = false }) {
   frame.addEventListener("load", loaded);
   const room = watchRoom(visibility);
   document.addEventListener("visibilitychange", visibility);
-  const seen = new IntersectionObserver(visibility, { threshold: [0, 1] });
-  seen.observe(frame);
+  const seen = watchFrame(frame, visibility);
   const size = sizeObserver(visibility);
   size.observe(frame);
-  const admission = new MutationObserver((records) => {
-    if (records.some(({ target }) => target === frame || target.contains(frame)))
-      visibility();
-  });
-  admission.observe(document, {
-    subtree: true,
-    attributes: true,
-    attributeFilter: ["inert", "open", "hidden", "aria-hidden", "class", "style"],
-  });
   const nativeTransition = () => nextRender(visibility);
   for (const type of ["beforetoggle"])
     document.addEventListener(type, nativeTransition, true);
-  const unwatch = onSampleVisibility(visibility);
+  const unwatch = onFrameVisibility(visibility);
   const undress = registerSampleDress(frame, (dress) =>
     channel?.postMessage({ type: "dress", detail: dress }),
   );
@@ -538,9 +532,8 @@ export function mountSample(frame, { template, window: asWindow = false }) {
       window.removeEventListener("pagehide", departing);
       room();
       document.removeEventListener("visibilitychange", visibility);
-      seen.disconnect();
+      seen.stop();
       size.disconnect();
-      admission.disconnect();
       for (const type of ["beforetoggle"])
         document.removeEventListener(type, nativeTransition, true);
       lifetime.disconnect();

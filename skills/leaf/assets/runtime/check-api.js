@@ -25,6 +25,7 @@ export {
 export {
   shownBand,
   shownBox,
+  skipped,
   shownRect,
   visibleBand,
   landingBand,
@@ -76,7 +77,7 @@ export { selectionAnchor } from "./composing/capture.js";
 export { TEXT_BLOCK } from "./passage-facts.js";
 export { renderingState } from "./rendering.js";
 export { readingBlock, blocksOnScreen } from "./reading-place.js";
-export { walkOrigin, heldItem, placeOf } from "./standing-target.js";
+export { walkOrigin, heldObligation, placeOf } from "./standing-target.js";
 export { walkPosition } from "./walk-position.js";
 export { nativeLayers } from "./keyboard/layer-stack.js";
 export { scrollAxes, elementFrame } from "./element-frame.js";
@@ -92,7 +93,11 @@ export {
 export { surfaceFocusTarget, claimed } from "./thread/surfaces.js";
 export { runtimeRootState } from "./root-state.js";
 export { tabStore, draftStore, userStore, PAGE_SCOPE } from "./storage.js";
-export { sampleVisibility, readSampleVisibility } from "./sample-visibility.js";
+export {
+  frameVisibility,
+  onFrameVisibility,
+  readSampleVisibility,
+} from "./frame-visibility.js";
 export { observeQueuedWork, bindQueuedWork } from "./queued-work.js";
 export { createPresentationSchedule } from "/vendor/browser-runtime.js";
 export { reachScrollers, releaseReachStop } from "./reach.js";

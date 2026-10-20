@@ -17,7 +17,7 @@ export const tokenEntry = (name) => registry.$reactions.tokens[name];
 
 // Ordinary keys are the authoring vocabulary: exact custom-element names and CSS
 // selectors. Only exact names are widget declarations; `lf-options.selected` is
-// an idiom selector. This is Python's schema.WIDGET_NAME grammar. Every widget
+// an idiom selector, by the `$names.widget` grammar Python reads too. Every widget
 // traversal goes through this owner rather than treating all vocabulary as widgets.
 export const elementDeclarations = () =>
   Object.entries(registry).filter(([tag]) => isElementName(tag));

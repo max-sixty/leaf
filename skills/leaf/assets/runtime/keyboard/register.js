@@ -15,7 +15,6 @@
  * of a page destination before the fallback ladder.
  */
 import {
-  answersTouch,
   bindings,
   checked,
   declareCommandReadiness,
@@ -41,6 +40,7 @@ const RUNGS = Symbol("Escape's fallback ladder");
 // The universal route out of a native layer's keyboard boundary, named here because the
 // boundary is the dispatcher's rather than a presentation's.
 const COMMAND_REFERENCE = "command.reference.open";
+const GO_TO = "navigation.go-to.open";
 
 const STACK = [
   "command reference",
@@ -70,7 +70,7 @@ const STACK = [
   "draw mode",
   "design mode",
   PAGE,
-  // Outermost, so a page command still ranks ahead of the way out on the line.
+  // Outermost, so a page command still ranks ahead of the way out.
   RUNGS,
 ];
 
@@ -101,23 +101,21 @@ const PAGE_COMMANDS = [
   "reading.align.top",
   "thread.unread.first",
   "navigation.panel.threads",
-  "navigation.drawer.queue",
-  "navigation.drawer.leaves",
+  "navigation.panel.queue",
+  "navigation.panel.leaves",
   "navigation.page-map",
   "version.open",
   "history.undo",
   // Below the walks that reach one list at a time, because `g` opens a door to all of
-  // them: on a narrow window the sequence hides a second way to somewhere the user can
-  // already get to, where a walk it crowded out would be the only one.
-  "navigation.go-to.open",
+  // them: a second way to somewhere the user can already get to.
+  GO_TO,
   "draw.mode.enter",
   "capture.region.open",
   "design.mode.enter",
   "annotations.toggle",
   "panel.floating.fold",
   COMMAND_REFERENCE,
-  // A real key the browser owns, and one gesture that is not a key at all. Neither says a
-  // word for the line, so neither is ever promised as the next press.
+  // A real key the browser owns, and one gesture that is not a key at all.
   "browser.caret",
   "aim.comment",
 ];
@@ -202,10 +200,10 @@ function rung() {
   const holds = (step) => renderedUnder(step.root ?? document, surface);
   return (surface && steps.find(holds)) ?? steps[0] ?? null;
 }
-// The page's own Escape, said and run off that one object: each rung states the act, the
-// word the line paints over it, and the sentence the reference lists. The sentence is the
-// rung's for the reason `c`'s is the destination's — the user can see which branch they
-// are in, so a word covering all of them tells them nothing.
+// The page's own Escape, said and run off that one object: each rung states the act, its
+// word, and the sentence the reference lists. The sentence is the rung's for the reason
+// `c`'s is the destination's — the user can see which branch they are in, so a word
+// covering all of them tells them nothing.
 const BACK_OUT = {
   id: "navigation.back",
   keys: ["Escape"],
@@ -219,12 +217,23 @@ function assemble() {
   const rows = PAGE_COMMANDS.flatMap((id) =>
     commands.has(id) ? [commands.get(id)] : [],
   );
-  // Every page command answers whether a finger needs a stand-in for its keys (AGENTS.md,
-  // "Touch routes"), so a new one meets the question where it is declared.
-  const unanswered = rows.filter((row) => !answersTouch(row)).map((row) => row.id);
+  // Every page command answers whether a finger needs a row of the menu for its keys,
+  // and every row of a page scope that makes a press how a finger reaches its result
+  // without one: it is its stance's way out, which the panel's ✕ runs, or `touch:
+  // false`, where a finger acts on what the row acts on (AGENTS.md, "Touch routes"). So
+  // a new one meets the question where it is declared, whatever keys it has now.
+  const unanswered = rows.filter((row) => row.touch === undefined).map((row) => row.id);
   if (unanswered.length)
     throw new Error(
       `leaf: ${unanswered.join(", ")} must declare \`touch\`: its words under a finger, or false where a finger reaches it directly`,
+    );
+  const scopeRows = [...scopes.values()].flat().flatMap((scope) => scope.rows);
+  const unreached = scopeRows
+    .filter((row) => row.run && !row.exit && row.touch !== false)
+    .map((row) => row.id);
+  if (unreached.length)
+    throw new Error(
+      `leaf: ${unreached.join(", ")} must be its stance's \`exit\` or declare \`touch: false\`: only a page command takes a finger's words`,
     );
   return STACK.flatMap((name) => {
     if (name === PAGE) return { rows };
@@ -254,25 +263,24 @@ export function pageScopes() {
   }
   return resolved;
 }
-// The presses a finger reaches through a row of the page's controls rather than a key (AGENTS.md,
-// "Touch routes"): each a page command declares, in line order, and each a page scope's
-// rows declare, scope by scope in STACK order, so the first that stands is the one the
-// user is innermost in. Read from the live register, since a scope may join or leave it.
+const namedScopes = () =>
+  STACK.flatMap((name) => (typeof name === "string" ? (scopes.get(name) ?? []) : []));
+const exitOf = (scope) => scope.rows.find((row) => row.exit) ?? null;
+// The presses a finger reaches through a row of the page's menu rather than a key
+// (AGENTS.md, "Touch routes"): each a page command declares, in line order.
 export function touchPresses() {
   pageScopes();
-  return {
-    commands: PAGE_COMMANDS.flatMap((id) =>
-      commands.has(id) ? pressesOf(commands.get(id)) : [],
-    ),
-    steps: STACK.flatMap((name) =>
-      typeof name === "string"
-        ? (scopes.get(name) ?? []).map((scope) => ({
-            scope,
-            presses: scope.rows.flatMap(pressesOf),
-          }))
-        : [],
-    ).filter(({ presses }) => presses.length),
-  };
+  return PAGE_COMMANDS.flatMap((id) =>
+    commands.has(id) ? pressesOf(commands.get(id)) : [],
+  );
+}
+// The stances, innermost first: each scope with a row marked `exit`, its way out.
+export function stances() {
+  pageScopes();
+  return namedScopes().flatMap((scope) => {
+    const exit = exitOf(scope);
+    return exit ? [{ scope, exit }] : [];
+  });
 }
 export const universalCommandReference = () =>
   offlineInteractive ? undefined : commands.get(COMMAND_REFERENCE);
@@ -282,3 +290,9 @@ export const textEntryScope = () => scopes.get("text entry")?.[0];
 // binding cannot correct it.
 export const allButCommandReference = (binding) =>
   !bindings(universalCommandReference()).includes(binding);
+// What a surface resting the page's keys still lets through: the reference, and Go-to,
+// whose doors open a surface or put it away from inside it.
+export const pageDoor = (binding) =>
+  [COMMAND_REFERENCE, GO_TO].some(
+    (id) => commands.has(id) && bindings(commands.get(id)).includes(binding),
+  );

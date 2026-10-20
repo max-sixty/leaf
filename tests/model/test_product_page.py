@@ -32,8 +32,10 @@ def test_kernel_event_contracts_declare_closed_records():
     assert events
     envelope = {"id", "ts", "author", "kind", "seq"}
     for kind, contract in events.items():
-        for schema in contract.values():
-            check_schema(schema)
+        # A contract's other members classify the kind (`$events.description`).
+        for member in ("record", "browser"):
+            if member in contract:
+                check_schema(contract[member])
         record = contract["record"]
         properties = record["properties"]
         assert record["type"] == "object"

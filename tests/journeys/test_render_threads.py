@@ -19,9 +19,6 @@ from render_cases_interaction import (
     THREAD_DIFF_PAGE,
     panel_comment,
 )
-from render_cases_layout import (
-    button_radius,
-)
 from render_harness import (
     EXAMPLES,
     LONG_PAGE,
@@ -134,9 +131,16 @@ def test_a_diff_outlet_keeps_the_shared_attachment_controls(browser, serve):
     image_open = bar.get_by_role("button", name="View attached image 1", exact=True)
     remove = bar.get_by_role("button", name="Remove attached image 1", exact=True)
     expect(image_open.locator("img")).to_be_visible()
-    expect(bar.locator(".lf-composer-media-item")).to_have_css(
-        "border-radius", button_radius(page)
-    )
+    # The shelf takes a line above the field rather than the field's width, and its
+    # removal stays inside the box rather than over the file row above.
+    picture, words = image_open.bounding_box(), field.bounding_box()
+    assert picture["y"] + picture["height"] <= words["y"], (picture, words)
+    assert remove.bounding_box()["y"] >= bar.bounding_box()["y"]
+    assert abs(words["width"] - bar.bounding_box()["width"]) < 1
+    # The shelf's face, its picture alone with a round removal on its corner, reaches
+    # the widget's tree too (response.css).
+    expect(image_open).to_have_css("border-radius", "8px")
+    expect(remove).to_have_css("border-radius", "50%")
     expect(image_open).to_have_css("cursor", "zoom-in")
     assert remove.evaluate("""button => {
       const box = button.getBoundingClientRect();
@@ -273,7 +277,7 @@ def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
     expect(draft_image).to_be_visible()
     expect(draft_image).to_have_attribute("src", "/media/051bee487bfb5d13.png")
     remove = page.locator(".lf-fp-card .lf-composer-media-remove")
-    expect(remove.locator("..")).to_have_css("border-radius", button_radius(page))
+    expect(remove).to_have_css("border-radius", "50%")
     expect(field.get_by_role("button", name="Send", exact=True)).to_have_attribute(
         "aria-disabled", "false"
     )
@@ -811,20 +815,9 @@ def test_a_region_capture_keeps_scrolled_shadow_pixels_and_its_comment_anchor(
     surface = open_capture_area(page)
     page.mouse.move(left, top)
     page.mouse.down()
-    page.mouse.move(left + 360, top + 170, steps=5)
-    page.mouse.up()
-    selection = surface.locator(".lf-region-selection")
-    expect(selection).to_be_visible()
-    page.keyboard.press("ArrowRight")
-    page.keyboard.press("Shift+ArrowDown")
-    selected = selection.bounding_box()
-    assert selected["x"] == pytest.approx(left + 10)
-    assert selected["y"] == pytest.approx(top)
-    assert selected["width"] == pytest.approx(360)
-    assert selected["height"] == pytest.approx(180)
-
+    page.mouse.move(left + 360, top + 180, steps=5)
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
-        page.keyboard.press("Enter")
+        page.mouse.up()
     expect(surface).to_be_hidden()
     attachment = page.locator(".lf-composer-media-item img")
     expect(attachment).to_be_visible()
@@ -884,9 +877,8 @@ def test_a_region_capture_draws_live_samples_and_survives_removed_links(browser,
     page.mouse.move(
         int(frame["x"] + frame["width"]) - 1, int(frame["y"]) + 260, steps=5
     )
-    page.mouse.up()
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
-        page.keyboard.press("Enter")
+        page.mouse.up()
     expect(surface).to_be_hidden()
     media_url = page.locator(".lf-composer-media-item img").get_attribute("src")
     image = Image.open(

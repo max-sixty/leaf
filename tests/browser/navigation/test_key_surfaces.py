@@ -8,7 +8,7 @@ import pytest
 from interact_support import append_carried_log_record
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
-from render_cases_interaction import ITEMS_PAGE, live_url
+from render_cases_interaction import OBLIGATIONS_PAGE, live_url
 from render_cases_navigation import NOTED_PAGE
 from render_harness import (
     INLINE_PAGE,
@@ -120,7 +120,7 @@ def test_overlapping_identical_live_announcements_are_fresh_changes(browser, ser
 
 def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve):
     """The same declarations that paint help expose their active keys through ARIA."""
-    page = open_page(browser, serve(ITEMS_PAGE))
+    page = open_page(browser, serve(OBLIGATIONS_PAGE))
 
     expect(page_comment(page)).to_have_attribute(
         "aria-keyshortcuts", "Enter Meta+Enter Control+Enter"
@@ -143,13 +143,13 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
     expect(
         page.locator(
             ".lf-command-reference tr",
-            has_text="Next item waiting on me",
+            has_text="Next on me",
         ).locator("kbd")
     ).to_have_text("m")
     expect(
         page.locator(
             ".lf-command-reference tr",
-            has_text="Previous item waiting on me",
+            has_text="Previous on me",
         ).locator("kbd")
     ).to_have_text("M")
     expect(
@@ -294,11 +294,11 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
 
 def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, serve):
     """A phone names no keys but keeps passing words and the walk's position, and the
-    page's room stays whole: item hints still find what the page shows."""
+    page's room stays whole: obligation hints still find what the page shows."""
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True
     )
-    page = open_page(browser, serve(ITEMS_PAGE), context=context)
+    page = open_page(browser, serve(OBLIGATIONS_PAGE), context=context)
     assert page.evaluate("() => matchMedia('(pointer: coarse)').matches"), (
         "the touch fixture never reached Leaf's coarse-pointer rules"
     )
@@ -314,7 +314,7 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
 
     # And the page is still whole underneath. Everything that asks how far down the
     # page reaches asks it of the chrome's box, and one with no box answers 0 — the top
-    # of the window — which reads as "all of it is covered". Item hints and the search's
+    # of the window — which reads as "all of it is covered". Obligation hints and the search's
     # own highlight are drawn for boxes above that answer, so a tablet got `s` naming
     # nothing and `/` painting no match, with the page itself intact and nothing on
     # screen saying why.

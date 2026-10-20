@@ -35,7 +35,9 @@ import {
   followingItsEnd,
   headerLevels,
   localScrollBy,
+  marks,
   nameAnchor,
+  nameable,
   refreshAnchorView,
   resolveAnchor,
   scrollAxes,
@@ -109,7 +111,6 @@ import {
   admitResponse,
   adoptRegistry,
   announce,
-  answersTouch,
   bindings,
   checked,
   clampedRow,
@@ -127,6 +128,7 @@ import {
   growthIsSeen,
   headerInset,
   holdStatus,
+  iconElement,
   iconTemplate,
   inUi,
   inWindowChrome,
@@ -139,6 +141,7 @@ import {
   offer,
   pagePresented,
   paintKeys,
+  passErrorsAt,
   placeBox,
   placeHolder,
   plainPress,
@@ -191,6 +194,7 @@ import {
   cancelRender,
   caretAtKey,
   carriedFrom,
+  deepFocus,
   drawn,
   focusDestination,
   focused,
@@ -199,7 +203,6 @@ import {
   inputCount,
   keeps,
   keepsHidden,
-  keepsText,
   layoutPx,
   move,
   nextFrame,
@@ -211,6 +214,7 @@ import {
   renderedOrder,
   renderedParent,
   renderedUnder,
+  ringBox,
   selectsAll,
   sizeObserver,
   standingIn,
@@ -219,7 +223,7 @@ import {
   takesLetters,
   under,
   upFrom
-} from "./bundle-sample-visibility.js";
+} from "./bundle-frame-visibility.js";
 import {
   M,
   PENDING,
@@ -475,21 +479,40 @@ var land = (box, by, behavior) => {
   if (behavior !== "instant") chooseScroll(box);
   box.scrollBy({ ...by, behavior });
 };
-var scrollMargin = (where, side = "Top") => where instanceof Range ? 0 : Number.parseFloat(getComputedStyle(where)[`scrollMargin${side}`]) || 0;
-var readingTop = (where, box) => visibleBand(box, placeHolder(where))?.top ?? landingBand(box).top;
-function topMargin(where, box) {
-  const band = landingBand(box);
-  return Math.max(scrollMargin(where), readingTop(where, box) - band.top);
+function scrollMargin(where, side = "Top") {
+  if (!(where instanceof Range))
+    return Number.parseFloat(getComputedStyle(where)[`scrollMargin${side}`]) || 0;
+  const edges = [
+    where.startContainer.childNodes[where.startOffset],
+    where.endContainer.childNodes[where.endOffset - 1]
+  ].filter((edge) => edge instanceof Element);
+  return edges.length ? Math.max(...edges.map((edge) => scrollMargin(edge, side))) : 0;
 }
-function landingRoom(where, until = where) {
-  const regions = [...scrollersOf(placeHolder(where))];
+function shownFor(where) {
+  const ring = ringBox(where);
+  if (ring === where) return where;
+  const box = placeBox(ring);
+  const room = roomAround(ring, where);
+  return box.height <= room.height && box.width <= room.width ? ring : where;
+}
+var destinationBox = (where) => placeBox(shownFor(where));
+var holderOf = (where) => placeHolder(shownFor(where));
+var readingTop = (holder, box) => visibleBand(box, holder)?.top ?? landingBand(box).top;
+function topMargin(where, box, holder = holderOf(where)) {
+  const band = landingBand(box);
+  return Math.max(scrollMargin(where), readingTop(holder, box) - band.top);
+}
+var landingRoom = (where, until = where) => roomAround(shownFor(where), where, until);
+function roomAround(shown, where, until = where) {
+  const holder = placeHolder(shown);
+  const regions = [...scrollersOf(holder)];
   let { width, height } = shownWindow();
-  for (let box = renderedParent(where); box instanceof Element; box = renderedParent(box)) {
+  for (let box = shown instanceof Range ? holder : renderedParent(shown); box instanceof Element; box = renderedParent(box)) {
     const band = (until === where || renderedUnder(until, box)) && landingBand(box);
     if (band) {
       const axes = box === pageScroller ? { x: true, y: true } : clippingAxes(getComputedStyle(box));
       const at = regions.indexOf(box);
-      const clearance = at === 0 ? topMargin(where, box) + scrollMargin(until, "Bottom") : at > 0 ? Math.max(0, readingTop(regions[at - 1], box) - band.top) : 0;
+      const clearance = at === 0 ? topMargin(where, box, holder) + scrollMargin(until, "Bottom") : at > 0 ? Math.max(0, readingTop(regions[at - 1], box) - band.top) : 0;
       if (axes.x) width = Math.min(width, band.right - band.left);
       if (axes.y) height = Math.min(height, band.bottom - band.top - clearance);
     }
@@ -498,19 +521,38 @@ function landingRoom(where, until = where) {
   return { width, height };
 }
 function fitsWhole(where) {
-  const box = shownBox(where);
+  const box = destinationBox(where);
   const room = landingRoom(where);
   return box.height <= room.height && box.width <= room.width;
 }
-function alreadyShown(where) {
-  const seen = seenRect(where, /* @__PURE__ */ new Map());
+function seesWhole(where, box, out) {
+  const seen = seenRect(shownFor(where), /* @__PURE__ */ new Map(), out);
   if (!seen) return false;
-  const box = shownBox(where);
   const room = landingRoom(where);
-  return (box.height > room.height || seen.top <= box.top && seen.bottom >= box.bottom) && (box.width > room.width || seen.left <= box.left && seen.right >= box.right);
+  return (box.height > room.height || seen.top <= out.top && seen.bottom >= out.bottom) && (box.width > room.width || seen.left <= out.left && seen.right >= out.right);
+}
+function alreadyShown(where) {
+  const box = destinationBox(where);
+  return seesWhole(where, box, box);
+}
+function ringShown(where) {
+  const box = destinationBox(where);
+  const [top, right, bottom, left] = ["Top", "Right", "Bottom", "Left"].map(
+    (side) => scrollMargin(where, side)
+  );
+  return seesWhole(
+    where,
+    box,
+    new DOMRect(
+      box.left - left,
+      box.top - top,
+      box.width + left + right,
+      box.height + top + bottom
+    )
+  );
 }
 function placementBy(where, block, box, margin) {
-  const rect = placeBox(where);
+  const rect = destinationBox(where);
   const band = landingBand(box);
   const room = band.bottom - band.top;
   const place2 = block === "start" ? margin : block === "end" ? room - rect.height - scrollMargin(where, "Bottom") : Math.max((room - rect.height) / 2, margin);
@@ -530,7 +572,7 @@ function verticalTravel(box, movement) {
 function scrollIntoReadingBand(where, holder, block, behavior) {
   const [box, ...around] = scrollersOf(holder);
   if (!box) return;
-  const rect = placeBox(where);
+  const rect = destinationBox(where);
   const margin = topMargin(where, box);
   let { top, bottom } = rect;
   if (block === "start") {
@@ -559,18 +601,24 @@ function scrollIntoReadingBand(where, holder, block, behavior) {
 }
 function scrollIntoView(where, { alignment = where, behavior = "auto", block = "start", within: within2 = null } = {}) {
   if (!where) return;
-  const holder = placeHolder(alignment);
+  const holder = holderOf(alignment);
   if (!holder) return;
   const targetScroller = within2 ? null : scrollersOf(holder).next().value;
   let inside = true;
-  for (let box = placeHolder(where); box instanceof Element; box = renderedParent(box)) {
+  const start = holderOf(where);
+  for (let box = start; box instanceof Element; box = renderedParent(box)) {
     if (box === targetScroller) inside = false;
     const band = landingBand(box);
     if (band) {
-      const { left, right, top, bottom } = band;
-      const destination = where.getBoundingClientRect();
-      const byX = nearestScrollBy(destination.left, destination.right, left, right);
-      const byY = inside ? nearestScrollBy(destination.top, destination.bottom, top, bottom) : 0;
+      const { left, right } = band;
+      const destination = destinationBox(where);
+      const byX = nearestScrollBy(
+        destination.left - scrollMargin(where, "Left"),
+        destination.right + scrollMargin(where, "Right"),
+        left,
+        right
+      );
+      const byY = inside ? placementBy(where, "nearest", box, topMargin(where, box, start)) : 0;
       if (byX || byY) land(box, localScrollBy(box, { x: byX, y: byY }), "instant");
     }
     if (box === within2 || box === pageScroller || getComputedStyle(box).position === "fixed")
@@ -578,6 +626,19 @@ function scrollIntoView(where, { alignment = where, behavior = "auto", block = "
   }
   if (targetScroller) scrollIntoReadingBand(alignment, holder, block, behavior);
 }
+onStanding((node, cause) => {
+  if (cause !== "step" || !node) return;
+  nextRender(() => {
+    if (deepFocus() !== node) return;
+    if (!ringShown(node)) scrollIntoView(node, { block: "nearest" });
+    for (let box = node; box instanceof Element; box = renderedParent(box)) {
+      if (!box.matches("[data-lf-obligation]")) continue;
+      if (getComputedStyle(box).outlineStyle === "none") continue;
+      if (!ringShown(box)) scrollIntoView(box, { block: "nearest" });
+      break;
+    }
+  });
+});
 
 // runtime/reading-place.js
 var FOCUSED_PLACE = /* @__PURE__ */ Symbol("live focused place");
@@ -979,19 +1040,19 @@ function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
   placeKept(box, ...standing2 ? scrollersOf(standing2) : []);
 }
 
-// runtime/items/model.js
-var readItems = readPart((root) => root.effective.items);
-var itemEntry = (item) => registry[item?.source.tag]?.["x-awaits"];
-var answeredInWords = (item) => Boolean(itemEntry(item)?.reply);
-var approvalBlockingItems = readPart((root) => {
-  const { items, view } = root.effective;
-  if (items.phase !== "ready" || !view) return null;
+// runtime/obligations/model.js
+var readObligations = readPart((root) => root.effective.obligations);
+var obligationEntry = (obligation) => registry[obligation?.source.tag]?.["x-awaits"];
+var answeredInWords = (obligation) => Boolean(obligationEntry(obligation)?.reply);
+var approvalBlockingObligations = readPart((root) => {
+  const { obligations, view } = root.effective;
+  if (obligations.phase !== "ready" || !view) return null;
   const held = new Set(view.approval_blocking);
-  return items.all.filter((item) => held.has(item.id));
+  return obligations.all.filter((obligation) => held.has(obligation.id));
 });
 
-// runtime/items/place.js
-function itemPlace(item, items = readItems().all) {
+// runtime/obligations/place.js
+function obligationPlace(item, items = readObligations().all) {
   if (!item || item.source.kind !== "widget")
     return { source: null, context: null, node: null };
   const source = elementById(item.source.id);
@@ -1001,7 +1062,7 @@ function itemPlace(item, items = readItems().all) {
   );
   return { source, context, node: shared ? source : context };
 }
-function itemsIn(region, items = readItems().all) {
+function obligationsIn(region, items = readObligations().all) {
   return items.filter((item) => {
     if (item.source.kind !== "widget" || item.status === "withdrawn") return false;
     const source = elementById(item.source.id);
@@ -1010,35 +1071,35 @@ function itemsIn(region, items = readItems().all) {
 }
 
 // runtime/standing-target.js
-var sides = /* @__PURE__ */ new Set();
-function declareSide(bridge) {
-  sides.add(bridge);
+var sides = /* @__PURE__ */ new Map();
+function declareSide(bridge, { beside = false } = {}) {
+  sides.set(bridge, beside);
   return () => sides.delete(bridge);
 }
-function itemHolding(items, node) {
+function obligationHolding(items, node) {
   if (!node) return null;
-  const places = items.filter((item) => item.source.kind === "widget").map((item) => ({ item, ...itemPlace(item, items) }));
-  const holds = (element) => element && (element === node || under(node, element));
-  const source = places.findLast((place2) => holds(place2.source));
-  if (source) return source.item;
-  const contexts = places.filter((place2) => holds(place2.node));
-  return contexts.length === 1 ? contexts[0].item : null;
-}
-function sideOf(node) {
-  for (const side of sides) {
-    const place2 = side(node);
-    if (place2) return place2;
+  const holds = (element) => element && under(node, element);
+  let held = null;
+  for (const item of items) {
+    if (item.source.kind !== "widget") continue;
+    const { source, node: stands } = obligationPlace(item, items);
+    const at = holds(source) ? source : holds(stands) ? stands : null;
+    if (at && (!held || under(at, held.at))) held = { item, at };
   }
-  return null;
+  return held?.item ?? null;
 }
-function placeOf(node) {
+var placeOf = (node) => placeFrom(node, /* @__PURE__ */ new Set(), true);
+var arrivalOf = (node) => placeFrom(node, /* @__PURE__ */ new Set(), false);
+function placeFrom(node, visited, countBeside) {
   const at = node?.nodeType === 1 ? node : node?.parentElement;
-  if (!at || at === document.body) return null;
-  if (itemHolding(readItems().all, at)) return at;
-  for (const side of sides) {
+  if (!at || at === document.body || visited.has(at)) return null;
+  visited.add(at);
+  if (obligationHolding(readObligations().all, at)) return at;
+  for (const [side, beside] of sides) {
     const place2 = side(at);
+    if (place2 && beside && !countBeside) return null;
     if (place2)
-      return inChrome(place2) && !itemHolding(readItems().all, place2) ? null : place2;
+      return inChrome(place2) && !obligationHolding(readObligations().all, place2) ? placeFrom(place2, visited, countBeside) : place2;
   }
   return inChrome(at) ? null : at;
 }
@@ -1070,9 +1131,9 @@ function stepFrom(list, { place: here, kind }, dir, placeOfItem) {
   const row = dir > 0 ? reach[0] : reach.at(-1);
   return row ? { row, wrapped: false } : { row: dir > 0 ? list[0] : list.at(-1), wrapped: true };
 }
-function heldItem(node = focused()) {
-  const item = itemHolding(readItems().all, placeOf(node));
-  return itemPlace(item).node;
+function heldObligation(node = focused()) {
+  const item = obligationHolding(readObligations().all, placeOf(node));
+  return obligationPlace(item).node;
 }
 
 // runtime/syntax-languages.js
@@ -1186,7 +1247,7 @@ async function highlightBlocks(root) {
 
 // runtime/declared-words.js
 var PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
-var isPagePaint = (name) => PAGE_PAINT_ATTRIBUTES.has(name) || Object.values(registry.$marks).some((mark) => mark.paint === name);
+var isPagePaint = (name) => PAGE_PAINT_ATTRIBUTES.has(name) || Object.values(marks).some((mark) => mark.paint === name);
 function quietWord(el2, word) {
   const title = el2.querySelector(":scope > strong");
   const seat = title ? title.nextSibling : el2.firstChild;
@@ -1316,19 +1377,19 @@ function* elementsIn(root, selector) {
   yield* root.querySelectorAll(selector);
 }
 function markDeclared(root) {
-  for (const [key, mark] of Object.entries(registry.$marks)) {
-    const { paint, authored, message } = mark;
+  for (const [key, mark] of Object.entries(marks)) {
+    const { paint: paint2, authored, message } = mark;
     if (!message) continue;
     const tags = tagsDeclaring((entry) => entry[key]);
     for (const tag of tags) {
       const declared = registry[tag][key];
       for (const el2 of elementsIn(root, tag))
-        keeps(el2, paint, declared === true || mark.presence ? "" : declared);
+        keeps(el2, paint2, declared === true || mark.presence ? "" : declared);
     }
     if (authored) {
       for (const el2 of elementsIn(root, `[${authored}]`))
         if (mark.authored_on !== "declared" || tags.includes(el2.localName))
-          keeps(el2, paint, el2.getAttribute(authored));
+          keeps(el2, paint2, el2.getAttribute(authored));
     }
   }
 }
@@ -1406,15 +1467,13 @@ function copyControl(className, { label = "", success, error }) {
   return copy;
 }
 
-// runtime/code-copy.js
-var controls = /* @__PURE__ */ new WeakMap();
-var wired = /* @__PURE__ */ new WeakMap();
-var documentCopies = document.createElement("div");
-documentCopies.className = "lf-code-copy-home";
+// runtime/block-controls.js
+var home = document.createElement("div");
+home.className = "lf-block-controls";
 var cuts = /* @__PURE__ */ new WeakMap();
 var makeCut = () => {
   const frame = document.createElement("div");
-  frame.className = "lf-code-copy-cut";
+  frame.className = "lf-block-control-cut";
   return frame;
 };
 var placed = /* @__PURE__ */ new Map();
@@ -1422,34 +1481,83 @@ var resized = 0;
 addEventListener("resize", () => {
   resized ||= nextRender(() => {
     resized = 0;
-    const read = [...placed].map(([copy, pre]) => [copy, pre, headerLevels(pre)]);
-    for (const [copy, pre, levels] of read) standUnderHeaders(copy, pre, levels);
+    const read = [...placed].map(([control, block]) => [
+      control,
+      block,
+      headerLevels(block)
+    ]);
+    for (const [control, block, levels] of read) standInChrome(control, block, levels);
   });
 });
-function standUnderHeaders(copy, pre, levels) {
-  const frames = cutFrames(levels, cuts.get(copy) ?? [], makeCut);
-  cuts.set(copy, frames);
-  placed.set(copy, pre);
-  if (documentCopies.parentNode !== chromeRoot) move(chromeRoot, documentCopies, null);
-  if (frames[0] && frames[0].parentNode !== documentCopies)
-    move(documentCopies, frames[0], null);
-  const home = frames.at(-1) ?? documentCopies;
-  if (copy.parentNode !== home) move(home, copy, null);
+function standInChrome(control, block, levels) {
+  const frames = cutFrames(levels, cuts.get(control) ?? [], makeCut);
+  cuts.set(control, frames);
+  placed.set(control, block);
+  if (home.parentNode !== chromeRoot) move(chromeRoot, home, null);
+  if (frames[0] && frames[0].parentNode !== home) move(home, frames[0], null);
+  const frame = frames.at(-1) ?? home;
+  if (control.parentNode !== frame) move(frame, control, null);
 }
-var revealed = (pre, copy) => {
-  if (cuts.has(copy)) standUnderHeaders(copy, pre, headerLevels(pre));
-  const box = pre.getBoundingClientRect();
-  const at = anchorBox(pre);
-  for (const [property, length] of [
-    ["--lf-code-copy-dx", box.left - at.left],
-    ["--lf-code-copy-dy", box.top - at.top]
-  ]) {
+function anchorControl(control, block) {
+  const place2 = () => control.classList.toggle(
+    "lf-block-control-away",
+    !anchorView(control, block, place2)
+  );
+  return {
+    control,
+    near: anchorView(control, block, place2),
+    anchor: anchorReading(block)
+  };
+}
+function aimControl({ control, near, anchor }) {
+  control.classList.toggle("lf-block-control-away", !near);
+  const name = nameAnchor(anchor);
+  if (control.style.positionAnchor !== name) control.style.positionAnchor = name;
+  return control;
+}
+function readInsets(block) {
+  const box = block.getBoundingClientRect();
+  const at = anchorBox(block);
+  return { dx: box.left - at.left, dy: box.top - at.top };
+}
+function writeInsets(control, { dx, dy }) {
+  for (
+    const [property, length] of
+    /** @type {[string, number][]} */
+    [
+      ["--lf-block-control-dx", dx],
+      ["--lf-block-control-dy", dy]
+    ]
+  ) {
     const value = length ? layoutPx(length) : "";
-    if (copy.style.getPropertyValue(property) !== value)
-      copy.style.setProperty(property, value);
+    if (control.style.getPropertyValue(property) !== value)
+      control.style.setProperty(property, value);
   }
-  refreshAnchorView(copy);
-};
+}
+function revealControl(control, block) {
+  if (cuts.has(control)) standInChrome(control, block, headerLevels(block));
+  writeInsets(control, readInsets(block));
+  refreshAnchorView(control);
+}
+function tabFromBlock(control, block, signal) {
+  control.addEventListener(
+    "keydown",
+    (event) => {
+      if (event.key === "Tab") focusDestination(block, "step");
+    },
+    { signal }
+  );
+}
+function releaseControl(control) {
+  control.remove();
+  cuts.get(control)?.[0]?.remove();
+  cuts.delete(control);
+  placed.delete(control);
+}
+
+// runtime/code-copy.js
+var controls = /* @__PURE__ */ new WeakMap();
+var wired = /* @__PURE__ */ new WeakMap();
 var COPY_SCOPE = /* @__PURE__ */ Symbol("code copy");
 var pressedPath = /* @__PURE__ */ new WeakSet();
 addEventListener(
@@ -1462,7 +1570,7 @@ addEventListener(
 onStanding((node) => {
   for (let at = node; at; at = upFrom(at)) {
     const copy = controls.get(at);
-    if (copy) return revealed(at, copy);
+    if (copy) return revealControl(copy, at);
   }
 });
 function prepareCodeBlock(pre, source, noun) {
@@ -1487,18 +1595,10 @@ function prepareCodeBlock(pre, source, noun) {
       if (event.pointerType === "touch" && copy.isConnected)
         focusDestination(pre, "move");
     });
-    pre.addEventListener("pointerenter", () => revealed(pre, copy));
+    pre.addEventListener("pointerenter", () => revealControl(copy, pre));
     controls.set(pre, copy);
   }
-  const place2 = () => copy.classList.toggle("lf-code-copy-away", !anchorView(copy, pre, place2));
-  const near = anchorView(copy, pre, place2);
-  return { copy, near, anchor: anchorReading(pre) };
-}
-function positionCodeBlock({ copy, near, anchor }) {
-  copy.classList.toggle("lf-code-copy-away", !near);
-  const name = nameAnchor(anchor);
-  if (copy.style.positionAnchor !== name) copy.style.positionAnchor = name;
-  return copy;
+  return anchorControl(copy, pre);
 }
 function declareCopy(pre, copy, noun) {
   projectCommandScope(
@@ -1516,7 +1616,7 @@ function declareCopy(pre, copy, noun) {
   );
 }
 function copyBlock(block, source, noun) {
-  const copy = positionCodeBlock(prepareCodeBlock(block, source, noun));
+  const copy = aimControl(prepareCodeBlock(block, source, noun));
   declareCopy(block, copy, noun);
   return copy;
 }
@@ -1538,8 +1638,8 @@ function watchCodeBlocks() {
         )
       );
       for (const [pre, pending, levels] of prepared) {
-        const copy = positionCodeBlock(pending);
-        standUnderHeaders(copy, pre, levels);
+        const copy = aimControl(pending);
+        standInChrome(copy, pre, levels);
         copy.tabIndex = -1;
         claimReachStop(pre);
         if (!wired.has(pre)) {
@@ -1547,13 +1647,7 @@ function watchCodeBlocks() {
           wired.set(pre, events);
           declareCopy(pre, copy, "code");
           const options = { signal: events.signal };
-          copy.addEventListener(
-            "keydown",
-            (event) => {
-              if (event.key === "Tab") focusDestination(pre, "step");
-            },
-            options
-          );
+          tabFromBlock(copy, pre, events.signal);
           pre.addEventListener(
             "pointerenter",
             () => copy.classList.add("lf-code-copy-hover"),
@@ -1583,10 +1677,7 @@ function watchCodeBlocks() {
       const copy = controls.get(pre);
       if (copy?.matches(".lf-code-copy-hover, .lf-code-copy-focused"))
         copy.classList.remove("lf-code-copy-hover", "lf-code-copy-focused");
-      copy?.remove();
-      cuts.get(copy)?.[0]?.remove();
-      cuts.delete(copy);
-      placed.delete(copy);
+      if (copy) releaseControl(copy);
       releaseReachStop(pre);
       projectCommandScope(pre, COPY_SCOPE, null);
     }
@@ -2083,6 +2174,184 @@ function loadMarkdown(onError = null) {
   });
 }
 
+// runtime/video-controls.js
+var PLAYER = PAGE_PAINT_ATTRIBUTE.player;
+var SCOPE = /* @__PURE__ */ Symbol("recording");
+var STEP_SECONDS = 5;
+var players = /* @__PURE__ */ new Map();
+var clock = (seconds) => {
+  const whole = Math.floor(seconds);
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
+};
+var duration = (video) => Number.isFinite(video.duration) ? video.duration : 0;
+function toggle(video) {
+  if (!video.paused) return video.pause();
+  video.play().catch((error) => {
+    if (error.name !== "AbortError") throw error;
+  });
+}
+function paintTime({ video, time }) {
+  const at = String(video.currentTime);
+  if (time.value !== at) time.value = at;
+  keeps(
+    time,
+    "aria-valuetext",
+    `${clock(video.currentTime)} of ${clock(duration(video))}`
+  );
+}
+function paint(player) {
+  const { video, bar, play, time } = player;
+  const playing = !video.paused;
+  bar.classList.toggle("lf-video-playing", playing);
+  keeps(play, "aria-label", playing ? "Pause recording" : "Play recording");
+  keeps(time, "max", String(duration(video)));
+  keeps(time, "disabled", duration(video) ? null : "");
+  paintTime(player);
+}
+function prepare(video) {
+  const bar = offer("div", "lf-video-controls");
+  const play = offer("button", "lf-video-play");
+  play.tabIndex = -1;
+  play.append(
+    iconElement("play", "lf-video-icon"),
+    iconElement("pause", "lf-video-icon")
+  );
+  const time = offer("input", "lf-video-time", void 0, "range");
+  time.tabIndex = -1;
+  time.min = "0";
+  time.step = "any";
+  keeps(time, "aria-label", "Recording position");
+  bar.append(play, time);
+  keeps(bar, "role", "group");
+  keeps(bar, "aria-label", video.getAttribute("aria-label") || "Recording");
+  const player = {
+    video,
+    bar,
+    play,
+    time,
+    authoredTabindex: video.getAttribute("tabindex"),
+    events: new AbortController(),
+    /** @type {ReturnType<typeof commandScope> | null} */
+    scope: null
+  };
+  const { signal } = player.events;
+  const on = (target, type, listener) => target.addEventListener(type, listener, { signal });
+  for (const type of ["play", "pause", "ended", "loadedmetadata", "durationchange"])
+    on(video, type, () => paint(player));
+  on(video, "seeked", () => paintTime(player));
+  on(video, "timeupdate", () => paintTime(player));
+  let frame = 0;
+  const followFrames = () => {
+    paintTime(player);
+    frame = video.paused || signal.aborted ? 0 : video.requestVideoFrameCallback(followFrames);
+  };
+  on(video, "playing", () => {
+    if (frame) video.cancelVideoFrameCallback(frame);
+    frame = video.requestVideoFrameCallback(followFrames);
+  });
+  on(video, "click", (event) => {
+    if (plainPress(event)) toggle(video);
+  });
+  on(time, "input", () => video.currentTime = Number(time.value));
+  const show = (flag, force) => {
+    if (force) revealControl(bar, video);
+    bar.classList.toggle(flag, force);
+  };
+  on(video, "pointerenter", () => show("lf-video-hover", true));
+  on(video, "pointerleave", () => show("lf-video-hover", false));
+  on(video, "focus", () => show("lf-video-keyed", video.matches(":focus-visible")));
+  on(video, "blur", () => show("lf-video-keyed", false));
+  tabFromBlock(bar, video, signal);
+  player.scope = commandScope("On a recording", [
+    {
+      id: "recording.play",
+      keys: [" "],
+      title: () => video.paused ? "play recording" : "pause recording",
+      // The register runs the command when its control is pressed.
+      control: play,
+      run: () => {
+        if (focused() === video) show("lf-video-keyed", true);
+        toggle(video);
+      }
+    },
+    {
+      id: "recording.step",
+      keys: ["ArrowLeft", "ArrowRight"],
+      routes: [
+        {
+          id: "recording.back",
+          binding: "ArrowLeft",
+          title: `back ${STEP_SECONDS} seconds`
+        },
+        {
+          id: "recording.forward",
+          binding: "ArrowRight",
+          title: `forward ${STEP_SECONDS} seconds`
+        }
+      ],
+      title: `back / forward ${STEP_SECONDS} seconds`,
+      repeat: true,
+      run: (binding) => {
+        show("lf-video-keyed", true);
+        const step = binding === "ArrowLeft" ? -STEP_SECONDS : STEP_SECONDS;
+        video.currentTime = Math.min(
+          duration(video),
+          Math.max(0, video.currentTime + step)
+        );
+      }
+    }
+  ]);
+  players.set(video, player);
+  return player;
+}
+function trade(player) {
+  const { video, scope } = player;
+  projectCommandScope(video, SCOPE, scope);
+  keeps(video, PLAYER, "");
+  keeps(video, "controls", null);
+  if (player.authoredTabindex === null) keeps(video, "tabindex", "0");
+  paint(player);
+}
+function giveBack(video) {
+  const player = players.get(video);
+  if (!player) return;
+  players.delete(video);
+  player.events.abort();
+  releaseControl(player.bar);
+  projectCommandScope(video, SCOPE, null);
+  keeps(video, "tabindex", player.authoredTabindex);
+  keeps(video, "controls", "");
+  keeps(video, PLAYER, null);
+}
+function watchVideos() {
+  const root = document.documentElement;
+  const fallenBack = () => !root.hasAttribute("data-lf-interactive");
+  new MutationObserver(() => {
+    if (fallenBack()) for (const video of [...players.keys()]) giveBack(video);
+  }).observe(root, { attributes: true, attributeFilter: ["data-lf-interactive"] });
+  watchArrivals(`video[controls], video[${PLAYER}]`, [], {
+    arriveBatch(videos) {
+      if (fallenBack()) return;
+      const read = videos.filter(nameable).map((video) => {
+        const player = players.get(video) ?? prepare(video);
+        return {
+          player,
+          reading: anchorControl(player.bar, video),
+          levels: headerLevels(video),
+          insets: readInsets(video)
+        };
+      });
+      for (const { player, reading, levels, insets } of read) {
+        aimControl(reading);
+        writeInsets(player.bar, insets);
+        standInChrome(player.bar, player.video, levels);
+        trade(player);
+      }
+    },
+    leave: giveBack
+  });
+}
+
 // runtime/widget-imports.js
 function registeredTags(scope, registry3) {
   const tags = /* @__PURE__ */ new Set([
@@ -2208,6 +2477,7 @@ async function installDocument(scope) {
     commitWidgetDescriptors(descriptors);
     watchExternalLinks();
     watchCodeBlocks();
+    watchVideos();
     await importWidgets(scope);
     await settle(presentation, scope, [scope], whenApplicationPresented);
   } finally {
@@ -2524,6 +2794,10 @@ function forgetWritingPlace(ctx) {
   storeWritingPlace();
 }
 function keepRefusedWords(attempts) {
+  const atEnd = (ctx) => {
+    const end = (activeDraftRecord(ctx)?.text ?? "").length;
+    return [end, end];
+  };
   let held = 0;
   for (const attempt of attempts) {
     const from = openedFrom.get(attempt);
@@ -2534,7 +2808,11 @@ function keepRefusedWords(attempts) {
     const resumed = writingPlace?.context === under2;
     clearDraft(under2);
     if (resumed)
-      keepWritingPlace({ context: from, selection: [0, 0], generation: randomId() });
+      keepWritingPlace({
+        context: from,
+        selection: atEnd(from),
+        generation: randomId()
+      });
     if (box.text) held += 1;
   }
   const returned = attempts.flatMap((attempt) => {
@@ -2545,9 +2823,12 @@ function keepRefusedWords(attempts) {
   });
   const shownIn = (ctx) => [...draftEditors].filter((view) => view.ctx === ctx).map((view) => editorInput(view)).find((input) => input?.isConnected && input.checkVisibility()) ?? null;
   const hidden = returned.filter((ctx) => !shownIn(ctx));
+  const resumes = returned.find((ctx) => ctx === writingPlace?.context);
+  if (resumes !== void 0)
+    keepWritingPlace({ ...writingPlace, selection: atEnd(resumes) });
   for (const ctx of hidden.toReversed())
     if (writingPlace?.context !== ctx)
-      keepWritingPlace({ context: ctx, selection: [0, 0], generation: randomId() });
+      keepWritingPlace({ context: ctx, selection: atEnd(ctx), generation: randomId() });
   const sentences = [
     hidden.length && "Draft kept \u2014 g i resumes writing",
     held && "Reply kept \u2014 it returns when its comment sends"
@@ -2627,7 +2908,10 @@ function createWritingResume({
       (view) => view.ctx === place2.context && editorInput(view) === input
     );
     if (matchesEditor && input?.isConnected && input.checkVisibility() && !input.readOnly && !input.disabled) {
-      intent.handoff(() => focusDestination(input, "move", { caret: place2.selection }));
+      intent.handoff(() => {
+        passErrorsAt(input);
+        focusDestination(input, "move", { caret: place2.selection });
+      });
       return;
     }
     if (runtime.showsActive && !holdsBox(place2.context) && moveToPage(place2.context)) {
@@ -3023,8 +3307,7 @@ function holdToRead() {
   document.addEventListener(
     "click",
     (event) => {
-      if (!released || !event.isTrusted || pressIsKeyboardActivation(event) || !holderIn(event))
-        return;
+      if (!released || !event.isTrusted || pressIsKeyboardActivation(event)) return;
       released = null;
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -3078,9 +3361,9 @@ function threadRewrites({
   thread,
   views: views3,
   send,
-  paint,
+  paint: paint2,
   box,
-  home,
+  home: home2,
   opening = () => {
   },
   landInThread,
@@ -3096,16 +3379,27 @@ function threadRewrites({
   };
   return {
     edit: {
-      paint,
+      paint: paint2,
       send,
       // The rung above a rewrite is the thread's reply box, where ↑ came from, while it
       // is in view; a thread showing none, as a resolved one or a margin card not
       // replying, or one whose box is off screen, hands the user on as a sent reply
-      // does, which moves nothing.
+      // does, which moves nothing. A save in a resolved thread reopens it, so the box
+      // its presentation draws then takes the caret, as Reopen's landing gives it
+      // (#46, the user's decision, 2026-10-07).
       land: (message) => {
-        const input = box();
-        if (input && seenRect(input, /* @__PURE__ */ new Map())) landInThread(input);
-        else landSent(home(message));
+        const shown = () => {
+          const input2 = box();
+          return input2 && seenRect(input2, /* @__PURE__ */ new Map()) ? input2 : null;
+        };
+        const input = shown();
+        if (input) return landInThread(input);
+        landSent(home2(message));
+        const mayLand = retainUserIntent();
+        void whenDocumentPresented().then(() => {
+          const drawn3 = shown();
+          if (drawn3 && mayLand()) landInThread(drawn3);
+        });
       },
       previous: (id) => lastEditable(id),
       // A rewrite of message `id` opens in `view`. It starts from the words as they
@@ -3136,13 +3430,13 @@ var MessageEditor = class {
   #reveal;
   #settling = null;
   #follow;
-  constructor(id, view, { wireInput, said, base: currentBase, send, land: land2, paint, previous, reveal }) {
+  constructor(id, view, { wireInput, said: said2, base: currentBase, send, land: land2, paint: paint2, previous, reveal }) {
     const ctx = rewriteContext(id);
     let base = currentBase();
     const keptOver = loadDraftPayload(ctx)?.over;
     if (keptOver && keptOver !== base && !keptOver.startsWith(PENDING))
       raiseError(
-        `This message changed since this edit began. It now says: \u201C${said()}\u201D`
+        `This message changed since this edit began. It now says: \u201C${said2()}\u201D`
       );
     this.#reveal = reveal;
     this.node = offer("div", "lf-msg-editor lf-comment-box");
@@ -3158,23 +3452,23 @@ var MessageEditor = class {
     this.foot = document.createElement("span");
     this.foot.className = "lf-msg-edit-foot";
     this.node.append(this.input, this.foot, actions);
-    this.input.value = loadDraft(ctx) || said();
+    this.input.value = loadDraft(ctx) || said2();
     let opened = this.input.value;
     this.#follow = () => {
       if (base === currentBase() || draftHasContent(ctx) || this.input.value !== opened)
         return;
       base = currentBase();
-      this.input.value = opened = said();
+      this.input.value = opened = said2();
     };
     const unchanged = () => {
       const words = this.input.value;
-      return !words.trim() || words === said();
+      return !words.trim() || words === said2();
     };
     const leave = (discard, { landing = true, says = null, painting = true } = {}) => {
       if (landing) land2();
       this.#stop();
       closeMessageEdit(id, { discard });
-      if (painting) paint();
+      if (painting) paint2();
       if (says) announce(says);
     };
     const close = () => leave(true, {
@@ -3183,12 +3477,12 @@ var MessageEditor = class {
     const putAside = () => {
       if (!unchanged()) return;
       leave(true, { landing: false, painting: false });
-      afterScript(paint);
+      afterScript(paint2);
     };
     this.#putAside = putAside;
     const sync = wireInput(this.input, {
       hint: "Edit message",
-      accessibleName: () => `Edit message: ${said().slice(0, 60)}`,
+      accessibleName: () => `Edit message: ${said2().slice(0, 60)}`,
       sends: "save",
       icon: null,
       sendBtn: save,
@@ -3209,7 +3503,7 @@ var MessageEditor = class {
           sending.delete(id);
         }
         if (sent) forgetWritingPlace(ctx);
-        paint();
+        paint2();
       },
       rows: [
         {
@@ -3252,7 +3546,7 @@ var MessageEditor = class {
     );
     cancel.addEventListener("mousedown", (event) => event.preventDefault());
     cancel.addEventListener("click", () => close());
-    this.#stop = mirrorDraft(this.input, sync, ctx, { retained: true, blank: said });
+    this.#stop = mirrorDraft(this.input, sync, ctx, { retained: true, blank: said2 });
   }
   // Put the user on the words with the caret after them, where a rewrite usually starts,
   // and bring the editor into view, its last line, where the caret stands, at least. A
@@ -3318,8 +3612,10 @@ var workflowTitle = (workflow) => {
 };
 var progressFace = (workflow) => !workflow || workflow.condition ? null : workflow.stage === "picked_up" ? "picked_up" : ["working", "replying"].includes(workflow.stage) ? "working" : null;
 var isWorkflowProgress = (workflow) => progressFace(workflow) !== null;
+var workflowStep = (workflow) => progressFace(workflow) === "working" && workflow.detail || workflowLabel(workflow);
 var isPageWidgetWorkflow = (workflow, revision) => workflow.subject.kind === "widget" && workflow.thread === null && workflow.revision <= revision;
-var tier = (workflow) => (workflow.next_actor === "user" ? 0 : 2) + Number(workflow.stage === "sending");
+var handedBack = (workflow) => workflow.stage === "answered" || workflow.stage === "sending" && workflow.condition?.kind === "failed";
+var tier = (workflow) => (handedBack(workflow) ? 0 : 2) + Number(workflow.stage === "sending");
 function strongestWorkflow(workflows) {
   let strongest = null;
   for (const candidate of workflows)
@@ -3335,9 +3631,12 @@ function threadAttention(thread) {
   if (thread.attention?.kind === "needs_user") {
     const answering = thread.attention.reason === "widget";
     const nextMove = answering ? "answer" : workflow?.subject.kind === "thread" ? "resend" : "retry";
+    const owed = new Set(
+      (thread.obligations ?? []).filter((item) => item.source.kind === "update" && item.next_actor === "agent").map((item) => item.id)
+    );
     const secondary = strongestWorkflow(
       thread.workflows.filter(
-        (candidate) => candidate.next_actor === "agent" && candidate.holds_thread && candidate.id !== workflow?.id
+        (candidate) => owed.has(candidate.obligation) && candidate.id !== workflow?.id
       )
     );
     return Object.freeze({
@@ -3859,6 +4158,7 @@ var ELEMENTS = /* @__PURE__ */ Symbol("the scopes of the focused element");
 var PAGE = /* @__PURE__ */ Symbol("the page's own keys");
 var RUNGS = /* @__PURE__ */ Symbol("Escape's fallback ladder");
 var COMMAND_REFERENCE = "command.reference.open";
+var GO_TO = "navigation.go-to.open";
 var STACK = [
   "command reference",
   "page map",
@@ -3887,7 +4187,7 @@ var STACK = [
   "draw mode",
   "design mode",
   PAGE,
-  // Outermost, so a page command still ranks ahead of the way out on the line.
+  // Outermost, so a page command still ranks ahead of the way out.
   RUNGS
 ];
 var RUNG_LADDER = [
@@ -3919,23 +4219,21 @@ var PAGE_COMMANDS = [
   "reading.align.top",
   "thread.unread.first",
   "navigation.panel.threads",
-  "navigation.drawer.queue",
-  "navigation.drawer.leaves",
+  "navigation.panel.queue",
+  "navigation.panel.leaves",
   "navigation.page-map",
   "version.open",
   "history.undo",
   // Below the walks that reach one list at a time, because `g` opens a door to all of
-  // them: on a narrow window the sequence hides a second way to somewhere the user can
-  // already get to, where a walk it crowded out would be the only one.
-  "navigation.go-to.open",
+  // them: a second way to somewhere the user can already get to.
+  GO_TO,
   "draw.mode.enter",
   "capture.region.open",
   "design.mode.enter",
   "annotations.toggle",
   "panel.floating.fold",
   COMMAND_REFERENCE,
-  // A real key the browser owns, and one gesture that is not a key at all. Neither says a
-  // word for the line, so neither is ever promised as the next press.
+  // A real key the browser owns, and one gesture that is not a key at all.
   "browser.caret",
   "aim.comment"
 ];
@@ -4016,10 +4314,16 @@ function assemble() {
   const rows = PAGE_COMMANDS.flatMap(
     (id) => commands.has(id) ? [commands.get(id)] : []
   );
-  const unanswered = rows.filter((row) => !answersTouch(row)).map((row) => row.id);
+  const unanswered = rows.filter((row) => row.touch === void 0).map((row) => row.id);
   if (unanswered.length)
     throw new Error(
       `leaf: ${unanswered.join(", ")} must declare \`touch\`: its words under a finger, or false where a finger reaches it directly`
+    );
+  const scopeRows = [...scopes.values()].flat().flatMap((scope) => scope.rows);
+  const unreached = scopeRows.filter((row) => row.run && !row.exit && row.touch !== false).map((row) => row.id);
+  if (unreached.length)
+    throw new Error(
+      `leaf: ${unreached.join(", ")} must be its stance's \`exit\` or declare \`touch: false\`: only a page command takes a finger's words`
     );
   return STACK.flatMap((name) => {
     if (name === PAGE) return { rows };
@@ -4040,23 +4344,27 @@ function pageScopes() {
   }
   return resolved;
 }
+var namedScopes = () => STACK.flatMap((name) => typeof name === "string" ? scopes.get(name) ?? [] : []);
+var exitOf = (scope) => scope.rows.find((row) => row.exit) ?? null;
 function touchPresses2() {
   pageScopes();
-  return {
-    commands: PAGE_COMMANDS.flatMap(
-      (id) => commands.has(id) ? touchPresses(commands.get(id)) : []
-    ),
-    steps: STACK.flatMap(
-      (name) => typeof name === "string" ? (scopes.get(name) ?? []).map((scope) => ({
-        scope,
-        presses: scope.rows.flatMap(touchPresses)
-      })) : []
-    ).filter(({ presses }) => presses.length)
-  };
+  return PAGE_COMMANDS.flatMap(
+    (id) => commands.has(id) ? touchPresses(commands.get(id)) : []
+  );
+}
+function stances() {
+  pageScopes();
+  return namedScopes().flatMap((scope) => {
+    const exit = exitOf(scope);
+    return exit ? [{ scope, exit }] : [];
+  });
 }
 var universalCommandReference = () => offlineInteractive ? void 0 : commands.get(COMMAND_REFERENCE);
 var textEntryScope = () => scopes.get("text entry")?.[0];
 var allButCommandReference = (binding) => !bindings(universalCommandReference()).includes(binding);
+var pageDoor = (binding) => [COMMAND_REFERENCE, GO_TO].some(
+  (id) => commands.has(id) && bindings(commands.get(id)).includes(binding)
+);
 
 // runtime/composing/capture.js
 var selectionAnchor = (sel) => anchorForRange(pageRange(sel));
@@ -4256,6 +4564,7 @@ function walkPosition() {
   return {
     boundary: walking.boundary,
     kind: walking.key,
+    target: position.target,
     text: walkPositionLabel(
       walking.noun,
       position.position,
@@ -4276,7 +4585,7 @@ function rowWalk({
   landed,
   scroll = true
 }) {
-  const [up, down, home, end] = steps;
+  const [up, down, home2, end] = steps;
   const route = (binding, step) => ({
     id: `${id}.${step}`,
     binding,
@@ -4305,8 +4614,8 @@ function rowWalk({
     {
       id: `${id}.edge`,
       keys: ["Home", "End"],
-      routes: [route("Home", home), route("End", end)],
-      title: `${home} / ${end}`,
+      routes: [route("Home", home2), route("End", end)],
+      title: `${home2} / ${end}`,
       run: (binding) => land2((list) => binding === "Home" ? list[0] : list.at(-1))
     }
   ];
@@ -4760,7 +5069,7 @@ async function threadDestination(id, open2, may) {
 }
 var carried = /* @__PURE__ */ new WeakSet();
 var carrying = null;
-var carryingThreadPlace = (node) => Boolean(node) && carrying?.node === node && carrying.may();
+var carryingThreadPlace = (node) => Boolean(node) && carrying?.node === node && (carrying.reply ? carrying.may() : carrying.intent() && allThreads().some((thread) => thread.id === carrying.id && !thread.resolved));
 function holdThreadPlace(open2, { threadAt, seated }) {
   carrying = null;
   const held = holdStanding();
@@ -4776,7 +5085,7 @@ function holdThreadPlace(open2, { threadAt, seated }) {
     intent,
     () => allThreads().some((each) => each.id === id && !each.resolved) && seated(id)
   );
-  const carry2 = { node, may };
+  const carry2 = { node, id, intent, may, reply: Boolean(destination) };
   carrying = carry2;
   return async () => {
     try {
@@ -4849,7 +5158,7 @@ function difference(was, now, { progressOpen = false } = {}) {
   const settled = Boolean(was.resolved) === Boolean(now.resolved) ? null : now.resolved ? "Resolved" : "Reopened";
   const news = {
     settled,
-    working: was.working?.words === now.working?.words ? null : now.working?.live ? "Work in progress" : "Work updated",
+    working: was.working?.words === now.working?.words ? null : now.working?.live ? "Work in progress" : "Work changed",
     progress: 0,
     replies: 0,
     messages: 0,
@@ -4961,12 +5270,12 @@ function withheld(was, now) {
   });
 }
 var counted = (count, one, many) => count && `${count} ${count === 1 ? one : many}`;
-var newsLabel = ({
+var newsParts = ({
   settled,
   working,
-  progress,
-  replies,
-  messages,
+  progress = 0,
+  replies = 0,
+  messages = 0,
   edits,
   reactions,
   summaries,
@@ -4976,15 +5285,19 @@ var newsLabel = ({
   ![settled, progress, replies, messages, edits, reactions, summaries, threads].some(
     Boolean
   ) && working,
-  // A reply arriving with progress before it folds that progress, so it says both.
-  !replies && counted(progress, "new update", "new updates"),
   counted(replies, "new reply", "new replies"),
-  counted(messages, "new message", "new messages"),
+  // A progress message is no reply, so it counts with the user's messages from
+  // elsewhere; a reply arriving after it folds it, and says it.
+  counted(messages + (replies ? 0 : progress), "new message", "new messages"),
   counted(edits, "message edited", "messages edited"),
   counted(reactions, "reaction changed", "reactions changed"),
   counted(summaries, "summary changed", "summaries changed"),
   counted(threads, "new thread", "new threads")
-].filter(Boolean).join(" \xB7 ");
+].filter(Boolean);
+var said = (news) => {
+  const parts = newsParts(news).map((part, index) => index ? ` \xB7 ${part}` : part);
+  return { parts, label: parts.join("") };
+};
 function newsNotice(header = false) {
   const node = offer(
     "button",
@@ -5011,7 +5324,14 @@ function newsNotice(header = false) {
   return {
     node,
     set(news) {
-      keepsText(words, news.label);
+      if (words.textContent !== news.label)
+        words.replaceChildren(
+          ...news.parts.map((part) => {
+            const fact = document.createElement("span");
+            fact.textContent = part;
+            return fact;
+          })
+        );
       keeps(node, "title", news.label);
       node.classList.toggle("lf-reopen", news.reopened);
       open2 = news.open;
@@ -5151,7 +5471,7 @@ var HeldNews = class {
     for (const thread of threads) {
       if (thread.news)
         thread.news = {
-          label: newsLabel(thread.news),
+          ...said(thread.news),
           reopened: thread.news.settled === "Reopened",
           open: () => {
             const node = this.#view(thread.key)?.node ?? null;
@@ -5162,7 +5482,7 @@ var HeldNews = class {
         };
     }
     const news = waiting && !host ? {
-      label: newsLabel({ threads: waiting }),
+      ...said({ threads: waiting }),
       reopened: false,
       open: () => this.#open(null, true)
     } : null;
@@ -5412,14 +5732,15 @@ async function settleThread({
   prepareLanding,
   pendingEntries,
   actions,
-  retainReversal
+  retainGesture
 }) {
   if (pendingSettlement(pendingEntries(), parent())) return;
   const landing = prepareLanding?.();
   const attempt = randomId();
   const answer = resolved2 ? actions.reopen(key, { attempt }) : actions.resolve(key, { attempt });
   if (!answer) return;
-  if (landing) retainReversal(attempt, landing.reverse);
+  notice(resolved2 ? "Reopened the thread" : "Resolved the thread");
+  if (landing) retainGesture(attempt, { reverse: landing.reverse });
   await landGesture({
     landing,
     answer,
@@ -5451,76 +5772,6 @@ async function landGesture({ landing, answer, pending }) {
   } finally {
     paintKeys();
   }
-}
-
-// runtime/thread/summary-ranges.js
-function summaryRanges(messages, summaries = []) {
-  const index = new Map(messages.map((message, at) => [message.id, at]));
-  const byStart = /* @__PURE__ */ new Map();
-  const covered2 = /* @__PURE__ */ new Set();
-  for (const summary of summaries) {
-    const visible = summary.covers.filter((id) => index.has(id));
-    if (!visible.length) continue;
-    byStart.set(index.get(visible[0]), summary);
-    for (const id of visible) covered2.add(id);
-  }
-  const ranges = [];
-  for (let at = 0; at < messages.length; at += 1) {
-    const summary = byStart.get(at);
-    if (summary) {
-      ranges.push(
-        Object.freeze({
-          kind: "summary",
-          summary,
-          messages: Object.freeze(
-            summary.covers.filter((id) => index.has(id)).map((id) => messages[index.get(id)])
-          )
-        })
-      );
-      at += ranges.at(-1).messages.length - 1;
-    } else if (!covered2.has(messages[at].id)) {
-      ranges.push(
-        Object.freeze({
-          kind: "message",
-          message: messages[at]
-        })
-      );
-    }
-  }
-  return Object.freeze(ranges);
-}
-function withPendingProgress(ranges) {
-  const gathered = [];
-  for (const range of ranges) {
-    const progress = range.kind === "message" && range.message.progress;
-    const run = gathered.at(-1);
-    if (progress && run?.summary?.pending) {
-      run.summary.covers.push(range.message.id);
-      run.messages.push(range.message);
-    } else if (progress)
-      gathered.push({
-        kind: "summary",
-        summary: {
-          id: `progress:${range.message.id}`,
-          covers: [range.message.id],
-          pending: true
-        },
-        messages: [range.message]
-      });
-    else gathered.push(range);
-  }
-  return Object.freeze(
-    gathered.map(
-      (range) => range.summary?.pending ? Object.freeze({
-        ...range,
-        summary: Object.freeze({
-          ...range.summary,
-          covers: Object.freeze(range.summary.covers)
-        }),
-        messages: Object.freeze(range.messages)
-      }) : range
-    )
-  );
 }
 
 // runtime/thread/reply-continuity.js
@@ -5687,6 +5938,403 @@ var ReplyContinuity = class {
   }
 };
 
+// runtime/thread/summary-ranges.js
+function summaryRanges(messages, summaries = []) {
+  const index = new Map(messages.map((message, at) => [message.id, at]));
+  const byStart = /* @__PURE__ */ new Map();
+  const covered2 = /* @__PURE__ */ new Set();
+  for (const summary of summaries) {
+    const visible = summary.covers.filter((id) => index.has(id));
+    if (!visible.length) continue;
+    byStart.set(index.get(visible[0]), summary);
+    for (const id of visible) covered2.add(id);
+  }
+  const ranges = [];
+  for (let at = 0; at < messages.length; at += 1) {
+    const summary = byStart.get(at);
+    if (summary) {
+      ranges.push(
+        Object.freeze({
+          kind: "summary",
+          summary,
+          messages: Object.freeze(
+            summary.covers.filter((id) => index.has(id)).map((id) => messages[index.get(id)])
+          )
+        })
+      );
+      at += ranges.at(-1).messages.length - 1;
+    } else if (!covered2.has(messages[at].id)) {
+      ranges.push(
+        Object.freeze({
+          kind: "message",
+          message: messages[at]
+        })
+      );
+    }
+  }
+  return Object.freeze(ranges);
+}
+function withPendingProgress(ranges) {
+  const gathered = [];
+  for (const range of ranges) {
+    const progress = range.kind === "message" && range.message.progress;
+    const run = gathered.at(-1);
+    if (progress && run?.summary?.pending) {
+      run.summary.covers.push(range.message.id);
+      run.messages.push(range.message);
+    } else if (progress)
+      gathered.push({
+        kind: "summary",
+        summary: {
+          id: `progress:${range.message.id}`,
+          covers: [range.message.id],
+          pending: true
+        },
+        messages: [range.message]
+      });
+    else gathered.push(range);
+  }
+  return Object.freeze(
+    gathered.map(
+      (range) => range.summary?.pending ? Object.freeze({
+        ...range,
+        summary: Object.freeze({
+          ...range.summary,
+          covers: Object.freeze(range.summary.covers)
+        }),
+        messages: Object.freeze(range.messages)
+      }) : range
+    )
+  );
+}
+
+// runtime/thread/transcript.js
+function workingView(working) {
+  return html`<div class="lf-thread-working-head">
+      ${working.who ? html`<b>${working.who}</b>` : nothing}
+      ${working.timestamp || working.condition ? html`<span class="lf-msg-meta"
+              >${working.timestamp ? html`<time datetime=${working.timestamp}>${working.age}</time>` : nothing}
+              ${working.condition}</span
+            >` : nothing}
+    </div>
+    <div class="lf-thread-working-words">${working.words}</div>`;
+}
+var nextTranscriptId = 0;
+var Transcript = class {
+  #commands;
+  #messageCommands;
+  #repaint;
+  #home;
+  #model = null;
+  #messages = /* @__PURE__ */ new Map();
+  #working = document.createElement("div");
+  #stopWorkingExposure = null;
+  // Each pending progress range's covered message ids, as last drawn, so a fold that
+  // takes the range over can take its disclosure state with it.
+  #pendingCovers = /* @__PURE__ */ new Map();
+  #pendingOpen = false;
+  #checkpoints = /* @__PURE__ */ new Map();
+  #expandedSummaries = /* @__PURE__ */ new Set();
+  #id = ++nextTranscriptId;
+  /**
+   * @param {object} options
+   * @param {any} options.commands The reader's commands; `read` observes the working
+   *   message's words.
+   * @param {any} options.messageCommands What each MessageView acts through.
+   * @param {() => void} options.repaint Draws the reader around the transcript again,
+   *   as a disclosure opens or closes.
+   * @param {() => HTMLElement} options.home The drawing of the thread a disclosure
+   *   press keeps in view.
+   */
+  constructor({ commands: commands2, messageCommands, repaint: repaint2, home: home2 }) {
+    this.#commands = commands2;
+    this.#messageCommands = messageCommands;
+    this.#repaint = repaint2;
+    this.#home = home2;
+    this.node = document.createElement("div");
+    this.node.className = "lf-thread-transcript";
+    this.#working.className = "lf-thread-working";
+    this.#working.dataset.lfAppendTail = "";
+    this.#working.setAttribute("aria-live", "polite");
+    this.node.addEventListener("lf-reveal", (event) => {
+      const message = event.detail?.target?.closest?.(".lf-msg[data-lf-summary]");
+      const id = message?.dataset.lfSummary;
+      if (!id || this.#expandedSummaries.has(id)) return;
+      this.#expandedSummaries.add(id);
+      this.#repaint();
+    });
+  }
+  // Each message's view, in the thread's order: what its rewrites walk.
+  get views() {
+    return (this.#model?.messages ?? []).flatMap(
+      ({ key }) => this.#messages.get(key) ?? []
+    );
+  }
+  // The node a message stands in.
+  messageNode(key) {
+    return this.#messages.get(key)?.node ?? null;
+  }
+  // The checkpoint a summary stands in.
+  summaryNode(id) {
+    return this.#checkpoints.get(id)?.node ?? null;
+  }
+  // The last node the transcript shows, which is the working message while one stands.
+  // Progress behind the working message and originals behind a closed checkpoint stand
+  // in the transcript unrendered, so the last message alone may have no box.
+  get foot() {
+    return [...this.node.children].findLast((node) => node.checkVisibility()) ?? null;
+  }
+  // Whether the progress behind the working message stood open when last drawn, opened by
+  // the reader or by a search matching it, so each step that joins it shows: held news
+  // counts those steps as news here (held-news.js).
+  get progressOpen() {
+    return this.#pendingOpen;
+  }
+  // Whether held news (held-news.js) would move what the reader sees of the
+  // transcript: a message it changes, or the transcript's end it adds to, with growth
+  // after it in sight, unless that end is `followed`, as by a reply pinned below it; or
+  // a fold that comes or goes over what is in sight.
+  newsMoves({ news, changed: changed2, folds }, { followed = null } = {}) {
+    return [
+      ...[...changed2].map((key) => this.messageNode(key)),
+      (news.appended || news.settled || news.working) && this.foot
+    ].some((node) => node && node !== followed && growthAfterIsSeen(node)) || [
+      ...folds.messages.map((key) => this.messageNode(key)),
+      ...folds.summaries.map((id) => this.summaryNode(id))
+    ].some((node) => node && growthIsSeen(node));
+  }
+  // Opens the fold holding a message, as a rewrite of it opens to be seen.
+  expandAround(id) {
+    const folded = this.#model?.summaries.find(({ covers }) => covers.includes(id));
+    if (folded) this.#expandedSummaries.add(folded.id);
+  }
+  /**
+   * Draws `model`, a thread's reading (thread-card.js, `threadReading`). `appends`
+   * declares that it grows at its end inside the scroller holding it, as a margin
+   * card's does (`data-lf-reflow`, tests/shift_watch.js). `notice` is a node the reader
+   * stands at the head of the transcript's first message in sight, as a primary
+   * reader's thread notice (primary-reader.js). Returns the disclosure that took over
+   * the one the user stood on, where this draw replaced it, as the answer's head takes
+   * progress over from the working message.
+   * @returns {HTMLElement | null}
+   */
+  present(model, { arrived = false, appends = false, notice: notice2 = null } = {}) {
+    const prior = this.#model;
+    const standing2 = focused();
+    const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);
+    if (prior && model.summaries.some(({ id }) => !priorSummaries.has(id))) {
+      const heldMessage = prior.messages.find(
+        ({ key }) => this.#messages.get(key)?.node.contains(standing2)
+      )?.id;
+      const clips = /* @__PURE__ */ new Map();
+      const beingRead = new Set(
+        prior.messages.filter(({ key }) => {
+          const node = this.#messages.get(key)?.node;
+          return node?.isConnected && seenRect(node, clips);
+        }).map(({ id }) => id)
+      );
+      for (const summary of model.summaries) {
+        if (priorSummaries.has(summary.id)) continue;
+        if (summary.covers.includes(heldMessage) || summary.covers.some((id) => beingRead.has(id)))
+          this.#expandedSummaries.add(summary.id);
+      }
+    }
+    this.#model = model;
+    const wanted = new Set(model.messages.map((message) => message.key));
+    for (const [key, view] of this.#messages) if (!wanted.has(key)) view.retire();
+    const summarized = summaryRanges(model.messages, model.summaries);
+    const describedRanges = model.resolved ? summarized : withPendingProgress(summarized);
+    const summaries = new Set(
+      describedRanges.flatMap((range) => range.summary ? [range.summary.id] : [])
+    );
+    const successors = /* @__PURE__ */ new Map();
+    for (const [id, covers] of this.#pendingCovers)
+      successors.set(
+        id,
+        describedRanges.filter(
+          (range) => range.summary?.covers.some((covered2) => covers.includes(covered2))
+        )
+      );
+    for (const id of [...this.#expandedSummaries])
+      for (const range of successors.get(id) ?? [])
+        this.#expandedSummaries.add(range.summary.id);
+    for (const id of this.#expandedSummaries)
+      if (!summaries.has(id)) this.#expandedSummaries.delete(id);
+    this.#pendingCovers = new Map(
+      describedRanges.filter((range) => range.summary?.pending).map((range) => [range.summary.id, range.summary.covers])
+    );
+    const standingToggle = this.node.querySelector(".lf-summary-expand:focus");
+    const rangeState = describedRanges.map((range) => {
+      if (range.kind === "message") return range;
+      const forced = Boolean(range.summary.protected?.length);
+      return {
+        ...range,
+        expanded: forced || this.#expandedSummaries.has(range.summary.id),
+        forced,
+        requiredText: "Messages kept open \xB7 current work"
+      };
+    });
+    const pendingRanges = rangeState.filter((range) => range.summary?.pending);
+    this.#pendingOpen = pendingRanges.some((range) => range.expanded);
+    const progressByReply = /* @__PURE__ */ new Map();
+    const streaming = model.messages.at(-1);
+    if (streaming?.provisional && pendingRanges.length)
+      progressByReply.set(streaming.id, pendingRanges);
+    for (const range of rangeState) {
+      if (range.kind !== "summary" || !range.summary.trigger || range.forced) continue;
+      const trigger = range.summary.trigger;
+      if (!progressByReply.has(trigger)) progressByReply.set(trigger, []);
+      progressByReply.get(trigger).push(range);
+    }
+    const lead = rangeState.find((range) => range.kind === "message")?.message ?? model.messages[0];
+    for (const message of model.messages) {
+      let view = this.#messages.get(message.key);
+      if (!view)
+        this.#messages.set(
+          message.key,
+          view = new MessageView(this.#messageCommands)
+        );
+      const toggle2 = progressByReply.has(message.id) ? this.#summaryToggle(progressByReply.get(message.id), true) : nothing;
+      view.present(message, {
+        arrived,
+        headerControls: notice2 && message === lead ? html`${notice2}${toggle2}` : toggle2
+      });
+      keeps(
+        view.node,
+        "data-lf-append-tail",
+        message.provisional && message === model.messages.at(-1) ? "" : null
+      );
+    }
+    const placed2 = (key, summary) => {
+      const node = this.#messages.get(key).node;
+      keeps(node, "data-lf-summary", summary);
+      return [node];
+    };
+    const checkpoints = /* @__PURE__ */ new Map();
+    const transcript = [];
+    const transcriptLists = [[this.node, transcript]];
+    for (const range of rangeState) {
+      if (range.kind === "message") {
+        transcript.push(...placed2(range.message.key, null));
+        continue;
+      }
+      const id = range.summary.id;
+      const checkpoint = this.#checkpoints.get(id) ?? this.#checkpoint(id);
+      checkpoints.set(id, checkpoint);
+      this.#paintCheckpoint(checkpoint, range);
+      transcript.push(checkpoint.node);
+      transcriptLists.push([
+        checkpoint.originals,
+        range.messages.flatMap((message) => placed2(message.key, id))
+      ]);
+    }
+    if (model.working) {
+      keeps(this.#working, "data-lf-live", model.working.live ? "" : null);
+      render(workingView(model.working), this.#working);
+      transcript.push(this.#working);
+    }
+    this.#stopWorkingExposure?.();
+    this.#stopWorkingExposure = model.working?.feedback ? this.#commands.read.observeFeedback(
+      this.#working.querySelector(".lf-thread-working-words"),
+      {
+        ...model.working.feedback,
+        presentation_kind: "working_words",
+        surface: model.surface
+      }
+    ) : null;
+    this.#checkpoints = checkpoints;
+    keeps(this.node, "data-lf-reflow", appends ? "append" : null);
+    setChildLists(transcriptLists);
+    if (!standingToggle || standingToggle.isConnected) return null;
+    const toggleFor = (id) => this.node.querySelector(
+      `.lf-summary-expand[data-summary-toggle="${CSS.escape(id)}"]`
+    );
+    const succeeded = standingToggle.dataset.summaryToggle;
+    return [succeeded, ...(successors.get(succeeded) ?? []).map(({ summary }) => summary.id)].map(toggleFor).find(Boolean) ?? null;
+  }
+  // A summary's checkpoint: a retained section whose head the template draws, and
+  // whose originals hold the retained messages the summary covers.
+  #checkpoint(id) {
+    const node = document.createElement("section");
+    node.className = "lf-thread-checkpoint";
+    node.dataset.summaryId = id;
+    const originals = document.createElement("div");
+    originals.id = `lf-summary-originals-${this.#id}-${id}`;
+    originals.className = "lf-summary-originals";
+    node.append(originals);
+    return { node, originals };
+  }
+  #paintCheckpoint({ node, originals }, range) {
+    const progress = Boolean(range.summary.trigger || range.summary.pending);
+    keeps(node, "data-expanded", range.expanded);
+    keepsHidden(node, progress && !range.expanded);
+    keepsHidden(originals, !range.expanded);
+    render(
+      html`${progress ? nothing : html`<div class="lf-summary-checkpoint">
+              <div class="lf-summary-header">
+                <div class="lf-summary-label">${range.summary.label}</div>
+                ${range.forced ? nothing : this.#summaryToggle([range])}
+              </div>
+              ${range.summary.text ? html`<div
+                      class="lf-summary-text"
+                      .innerHTML=${renderMarkdown(range.summary.text)}
+                    ></div>` : nothing}
+              ${range.forced ? html`<div class="lf-summary-required">${range.requiredText}</div>` : nothing}
+            </div>`}
+      ${progress && range.forced ? html`<div class="lf-summary-required">${range.requiredText}</div>` : nothing}`,
+      node,
+      { renderBefore: originals }
+    );
+  }
+  #summaryToggle(ranges, progress = false) {
+    const ids = ranges.map((range) => range.summary.id);
+    const expanded = ranges.every((range) => range.expanded);
+    const count = ranges.reduce((total, range) => total + range.messages.length, 0);
+    const subject = `${count} ${progress ? "progress" : "earlier"} message${count === 1 ? "" : "s"}`;
+    const label = `${expanded ? progress ? "Hide" : "Collapse" : "Show"} ${subject}`;
+    return html`<button
+      type="button"
+      class="lf-thread-disclosure lf-summary-expand ${progress ? "lf-progress-expand" : ""}"
+      data-lf-room=${progress ? `Show ${subject}` : nothing}
+      data-summary-toggle=${ids[0]}
+      aria-expanded=${String(expanded)}
+      aria-controls=${ids.map((id) => `lf-summary-originals-${this.#id}-${id}`).join(" ")}
+      @click=${() => this.#setSummaryExpanded(ids, !expanded)}
+    >
+      ${progress ? html`<span>${label}</span>` : label}
+    </button>`;
+  }
+  #setSummaryExpanded(ids, expanded) {
+    for (const id of ids) {
+      if (expanded) this.#expandedSummaries.add(id);
+      else this.#expandedSummaries.delete(id);
+    }
+    this.#repaint();
+    const toggle2 = this.node.querySelector(
+      `.lf-summary-expand[data-summary-toggle="${CSS.escape(ids[0])}"]`
+    );
+    if (toggle2) {
+      focusDestination(toggle2, "return");
+      scrollThreadIntoView(this.#home(), toggle2, "instant");
+    }
+  }
+  commit() {
+    const wanted = new Set(this.#model.messages.map((message) => message.key));
+    for (const [key, view] of this.#messages) {
+      if (wanted.has(key)) view.commit();
+      else {
+        view.retire();
+        this.#messages.delete(key);
+      }
+    }
+  }
+  retire() {
+    this.#stopWorkingExposure?.();
+    this.#stopWorkingExposure = null;
+    for (const view of this.#messages.values()) view.retire();
+  }
+};
+
 // runtime/thread/thread-card.js
 function quoteReading(thread, anchors) {
   const placement = anchors.placedAt(thread.id);
@@ -5719,7 +6367,7 @@ function workingMessage(thread, attention, messages) {
   const pending = messages.filter(
     (message) => message.progress && !covered2.has(message.id)
   );
-  const said = pending.at(-1)?.body.plainText ?? "";
+  const said2 = pending.at(-1)?.body.plainText ?? "";
   const workflows = thread.workflows ?? [];
   const running = workflows.find(
     (workflow) => !workflow.condition && ["working", "replying"].includes(workflow.stage)
@@ -5728,7 +6376,7 @@ function workingMessage(thread, attention, messages) {
     (workflow) => STOPPED.has(workflow.condition?.kind) && workflow.detail
   );
   const todo = thread.todos.find((open2) => open2.running);
-  const [words, live, condition, agent] = running ? [running.detail || said, true, null, running.agent] : todo ? [todo.running.text, true, null, null] : stopped ? [stopped.detail, false, workflowLabel(stopped), stopped.agent] : [said, false, null, null];
+  const [words, live, condition, agent] = running ? [running.detail || said2, true, null, running.agent] : todo ? [todo.running.text, true, null, null] : stopped ? [stopped.detail, false, workflowLabel(stopped), stopped.agent] : [said2, false, null, null];
   if (!words || !pending.length && !live && !condition) return null;
   const agentMessage = messages.findLast((message) => message.author === "agent");
   const work = running?.detail ? running : !running && !todo ? stopped : null;
@@ -5761,7 +6409,7 @@ function threadReading(thread, surface, commands2) {
   const label = resolved2 ? word : "Resolve thread";
   const attention = threadAttention(thread);
   const asking = new Set(
-    thread.items.filter((item) => item.next_actor === "user" && answeredInWords(item)).map((item) => item.message)
+    thread.obligations.filter((item) => item.next_actor === "user" && answeredInWords(item)).map((item) => item.message)
   );
   const openTodos = new Set(thread.todos.map(({ id }) => id));
   const leaves = (message) => asking.has(message.id) ? "Waiting on me" : message.todo && openTodos.has(message.id) ? "To-do open" : null;
@@ -5816,17 +6464,6 @@ function threadReading(thread, surface, commands2) {
     reread: (held) => threadReading(held, surface, commands2)
   });
 }
-function workingView(working) {
-  return html`<div class="lf-thread-working-head">
-      ${working.who ? html`<b>${working.who}</b>` : nothing}
-      ${working.timestamp || working.condition ? html`<span class="lf-msg-meta"
-              >${working.timestamp ? html`<time datetime=${working.timestamp}>${working.age}</time>` : nothing}
-              ${working.condition}</span
-            >` : nothing}
-    </div>
-    <div class="lf-thread-working-words">${working.words}</div>`;
-}
-var nextViewId = 0;
 var ThreadView = class {
   #commands;
   #messageCommands;
@@ -5840,24 +6477,14 @@ var ThreadView = class {
   set #model(model) {
     this.#shown.value = model;
   }
-  #messages = /* @__PURE__ */ new Map();
+  #transcript;
   #reply = null;
   #replyShown = false;
   #draftFrame = 0;
   #settlements = /* @__PURE__ */ new Map();
   #settlesAt = null;
   #actions = document.createElement("span");
-  #transcript = document.createElement("div");
-  #working = document.createElement("div");
-  #stopWorkingExposure = null;
-  // Each pending progress range's covered message ids, as last drawn, so a fold that
-  // takes the range over can take its disclosure state with it.
-  #pendingCovers = /* @__PURE__ */ new Map();
-  #pendingOpen = false;
-  #checkpoints = /* @__PURE__ */ new Map();
-  #expandedSummaries = /* @__PURE__ */ new Set();
   #marginControls = null;
-  #viewId = ++nextViewId;
   // What a thread in the page's flow holds back says so in its control row (held-news.js).
   #news = newsNotice();
   #continuity = null;
@@ -5869,9 +6496,7 @@ var ThreadView = class {
     this.#commands = commands2;
     this.#rewrites = threadRewrites({
       thread: () => this.#model.key,
-      views: () => (this.#model?.messages ?? []).flatMap(
-        ({ key }) => this.#messages.get(key) ?? []
-      ),
+      views: () => this.#transcript.views,
       paint: () => this.repaint(),
       send: (id, text, options) => commands2.reply.actions.edit(this.#model.key, id, text, options),
       box: () => this.node.querySelector(SAY_BOX),
@@ -5880,8 +6505,7 @@ var ThreadView = class {
       // summary holding the message, since it opens to be seen.
       opening: (id) => {
         this.#showNews();
-        const folded = this.#model?.summaries.find(({ covers }) => covers.includes(id));
-        if (folded) this.#expandedSummaries.add(folded.id);
+        this.#transcript.expandAround(id);
       },
       landInThread: commands2.reply.landInThread,
       landSent: commands2.reply.landSent
@@ -5892,6 +6516,12 @@ var ThreadView = class {
       edit: this.#rewrites.edit
     };
     this.node = document.createElement("div");
+    this.#transcript = new Transcript({
+      commands: commands2,
+      messageCommands: this.#messageCommands,
+      repaint: () => this.repaint(),
+      home: () => this.node
+    });
     this.#continuity = new ReplyContinuity(this.node);
     this.node.tabIndex = -1;
     this.node.classList.add("lf-page-thread", "lf-ui");
@@ -5899,17 +6529,6 @@ var ThreadView = class {
     this.node.dataset.lfGen = "1";
     this.node.dataset.lfOffer = "";
     this.#actions.className = "lf-thread-meta-actions";
-    this.#transcript.className = "lf-thread-transcript";
-    this.#working.className = "lf-thread-working";
-    this.#working.dataset.lfAppendTail = "";
-    this.#working.setAttribute("aria-live", "polite");
-    this.node.addEventListener("lf-reveal", (event) => {
-      const message = event.detail?.target?.closest?.(".lf-msg[data-lf-summary]");
-      const id = message?.dataset.lfSummary;
-      if (!id || this.#expandedSummaries.has(id)) return;
-      this.#expandedSummaries.add(id);
-      this.repaint();
-    });
   }
   setMarginControls(controls2) {
     this.#marginControls = controls2;
@@ -5936,14 +6555,10 @@ var ThreadView = class {
     this.#settlesAt = place2;
   }
   // The last of the thread a reader can see, after which its news grows: the last
-  // node its transcript shows, which is the working message while one stands, and none
-  // while the thread is folded. Progress behind the working message and originals
-  // behind a closed checkpoint stand in the transcript unrendered, so the last message
-  // alone may have no box to grow after. A card folded in its seat's Resolved
-  // disclosure draws nothing at all.
+  // node its transcript shows (transcript.js, `foot`), and none while the thread is
+  // folded. A card folded in its seat's Resolved disclosure draws nothing at all.
   get #foot() {
-    if (this.#fold) return null;
-    return [...this.#transcript.children].findLast((node) => node.checkVisibility()) ?? null;
+    return this.#fold ? null : this.#transcript.foot;
   }
   // What the thread draws after its messages that its settlement swaps: the reply box
   // while it stands open; none while the thread is folded, where it does not show. A
@@ -5955,14 +6570,7 @@ var ThreadView = class {
   // The node a message the thread draws stands in, after which a change to it grows;
   // none while the thread is folded, where no message shows.
   #messageNode(key) {
-    if (this.#fold) return null;
-    return this.#messages.get(key)?.node ?? null;
-  }
-  // The checkpoint a summary the thread draws stands in; none while the thread is
-  // folded.
-  #summaryNode(id) {
-    if (this.#fold) return null;
-    return this.#checkpoints.get(id)?.node ?? null;
+    return this.#fold ? null : this.#transcript.messageNode(key);
   }
   ownsMessage(id) {
     return this.#model?.id === id || this.#model?.messages.some((message) => message.id === id);
@@ -6009,7 +6617,7 @@ var ThreadView = class {
     if (this.#model?.surface === "margin") {
       if (news.settled) return false;
       const last = this.#model.messages.at(-1);
-      const list = this.#transcript;
+      const list = this.#transcript.node;
       const follows = list.scrollHeight > list.clientHeight + 0.5 && atScrollEnd(list);
       const atEnd = (!news.appended || appendedAtEnd) && !news.summaries && [...changed2].every(
         (key) => key === last?.key && (last.provisional || follows)
@@ -6022,13 +6630,7 @@ var ThreadView = class {
       return growthIsSeen(this.node) && (!atEnd || writing || this.#marginControls?.heldEdge(turn) === "foot");
     }
     const followed = pinned && !news.settled ? this.#foot : null;
-    return [
-      ...[...changed2].map((message) => this.#messageNode(message)),
-      (news.appended || news.settled || news.working) && this.#foot
-    ].some((node) => node && node !== followed && growthAfterIsSeen(node)) || [
-      ...folds.messages.map((message) => this.#messageNode(message)),
-      ...folds.summaries.map((summary) => this.#summaryNode(summary))
-    ].some((node) => node && growthIsSeen(node)) || Boolean(news.settled && this.#settlementRow && growthIsSeen(this.#settlementRow));
+    return this.#transcript.newsMoves({ news, changed: changed2, folds }, { followed }) || Boolean(news.settled && this.#settlementRow && growthIsSeen(this.#settlementRow));
   }
   // What a card draws from beyond its reading: whether a reply to it is being written
   // and whether it holds a draft.
@@ -6065,28 +6667,9 @@ var ThreadView = class {
     this.#drawnWith = this.#outside(model);
     const prior = this.#model;
     if (model.news && !prior?.news) this.#retainHeaderSlot({ observe: false });
-    const rewritten2 = [...this.#messages.values()].filter((view) => view.editing).map(({ node }) => node);
+    const rewritten2 = this.#transcript.views.filter((view) => view.editing).map(({ node }) => node);
     const bodyPlace = published ? this.#continuity?.before(rewritten2) : null;
     const restoreFocus = holdFocus(this.node);
-    const standing2 = focused();
-    const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);
-    if (prior && model.summaries.some(({ id }) => !priorSummaries.has(id))) {
-      const heldMessage = prior.messages.find(
-        ({ key }) => this.#messages.get(key)?.node.contains(standing2)
-      )?.id;
-      const clips = /* @__PURE__ */ new Map();
-      const beingRead = new Set(
-        prior.messages.filter(({ key }) => {
-          const node = this.#messages.get(key)?.node;
-          return node?.isConnected && seenRect(node, clips);
-        }).map(({ id }) => id)
-      );
-      for (const summary of model.summaries) {
-        if (priorSummaries.has(summary.id)) continue;
-        if (summary.covers.includes(heldMessage) || summary.covers.some((id) => beingRead.has(id)))
-          this.#expandedSummaries.add(summary.id);
-      }
-    }
     this.#model = model;
     const reply = model.reply || replyIsEditing(model.key);
     this.#replyShown = reply;
@@ -6100,8 +6683,6 @@ var ThreadView = class {
     keeps(this.node, "data-attempt", model.attempt || null);
     keeps(this.node, "role", "group");
     keeps(this.node, "aria-label", `Thread, ${model.summary.topic}`);
-    const wanted = new Set(model.messages.map((message) => message.key));
-    for (const [key, view] of this.#messages) if (!wanted.has(key)) view.retire();
     const settlement = model.settlement ? this.#settlement(model, settlementPlace) : null;
     const actions = marginControls ? [
       model.news ? notice2.node : null,
@@ -6111,120 +6692,17 @@ var ThreadView = class {
     ].filter(Boolean) : [settlement].filter(Boolean);
     setChildren(this.#actions, actions);
     const threadActions = actions.length || model.news ? this.#actions : null;
-    const summarized = summaryRanges(model.messages, model.summaries);
-    const describedRanges = model.resolved ? summarized : withPendingProgress(summarized);
-    const summaries = new Set(
-      describedRanges.flatMap((range) => range.summary ? [range.summary.id] : [])
-    );
-    const successors = /* @__PURE__ */ new Map();
-    for (const [id, covers] of this.#pendingCovers)
-      successors.set(
-        id,
-        describedRanges.filter(
-          (range) => range.summary?.covers.some((covered2) => covers.includes(covered2))
-        )
-      );
-    for (const id of [...this.#expandedSummaries])
-      for (const range of successors.get(id) ?? [])
-        this.#expandedSummaries.add(range.summary.id);
-    for (const id of this.#expandedSummaries)
-      if (!summaries.has(id)) this.#expandedSummaries.delete(id);
-    this.#pendingCovers = new Map(
-      describedRanges.filter((range) => range.summary?.pending).map((range) => [range.summary.id, range.summary.covers])
-    );
-    const standingToggle = this.node.querySelector(".lf-summary-expand:focus");
-    const rangeState = describedRanges.map((range) => {
-      if (range.kind === "message") return range;
-      const forced = Boolean(range.summary.protected?.length);
-      return {
-        ...range,
-        expanded: forced || this.#expandedSummaries.has(range.summary.id),
-        forced,
-        requiredText: "Messages kept open \xB7 current work"
-      };
+    const handedOn = this.#transcript.present(model, {
+      arrived: Boolean(prior),
+      appends: model.surface === "margin"
     });
-    const pendingRanges = rangeState.filter((range) => range.summary?.pending);
-    this.#pendingOpen = pendingRanges.some((range) => range.expanded);
-    const progressByReply = /* @__PURE__ */ new Map();
-    const streaming = model.messages.at(-1);
-    if (streaming?.provisional && pendingRanges.length)
-      progressByReply.set(streaming.id, pendingRanges);
-    for (const range of rangeState) {
-      if (range.kind !== "summary" || !range.summary.trigger || range.forced) continue;
-      const trigger = range.summary.trigger;
-      if (!progressByReply.has(trigger)) progressByReply.set(trigger, []);
-      progressByReply.get(trigger).push(range);
-    }
-    const messages = model.messages.map((message) => {
-      let view = this.#messages.get(message.key);
-      if (!view)
-        this.#messages.set(
-          message.key,
-          view = new MessageView(this.#messageCommands)
-        );
-      view.present(message, {
-        arrived: Boolean(prior),
-        headerControls: progressByReply.has(message.id) ? this.#summaryToggle(progressByReply.get(message.id), true) : nothing
-      });
-      keeps(
-        view.node,
-        "data-lf-append-tail",
-        message.provisional && message === model.messages.at(-1) ? "" : null
-      );
-      return { key: message.key, node: view.node };
-    });
-    const messageNodes = new Map(messages.map(({ key, node }) => [key, node]));
-    const placed2 = (key, summary) => {
-      const node = messageNodes.get(key);
-      keeps(node, "data-lf-summary", summary);
-      return [node];
-    };
-    const checkpoints = /* @__PURE__ */ new Map();
-    const transcript = [];
-    const transcriptLists = [[this.#transcript, transcript]];
-    for (const range of rangeState) {
-      if (range.kind === "message") {
-        transcript.push(...placed2(range.message.key, null));
-        continue;
-      }
-      const id = range.summary.id;
-      const checkpoint = this.#checkpoints.get(id) ?? this.#checkpoint(id);
-      checkpoints.set(id, checkpoint);
-      this.#paintCheckpoint(checkpoint, range);
-      transcript.push(checkpoint.node);
-      transcriptLists.push([
-        checkpoint.originals,
-        range.messages.flatMap((message) => placed2(message.key, id))
-      ]);
-    }
-    if (model.working) {
-      keeps(this.#working, "data-lf-live", model.working.live ? "" : null);
-      render(workingView(model.working), this.#working);
-      transcript.push(this.#working);
-    }
-    this.#stopWorkingExposure?.();
-    this.#stopWorkingExposure = model.working?.feedback ? this.#commands.read.observeFeedback(
-      this.#working.querySelector(".lf-thread-working-words"),
-      {
-        ...model.working.feedback,
-        presentation_kind: "working_words",
-        surface: model.surface
-      }
-    ) : null;
-    this.#checkpoints = checkpoints;
-    keeps(
-      this.#transcript,
-      "data-lf-reflow",
-      model.surface === "margin" ? "append" : null
-    );
     if (reply && !this.#reply) this.#reply = this.#createReply(model);
     const body = html`
-      ${this.#transcript}
+      ${this.#transcript.node}
       ${threadActions ? marginControls ? html`<div class="lf-margin-thread-controls">${threadActions}</div>` : html`<div class="lf-thread-controls" data-lf-reflow="text">
                 ${news}${threadActions}
               </div>` : nothing}
     `;
-    setChildLists(transcriptLists);
     render(
       html`
         ${model.surface === "margin" ? body : html`<div class="lf-thread-content">${body}</div>`}
@@ -6237,16 +6715,8 @@ var ThreadView = class {
       measure(this.node, () => this.#retainHeaderSlot());
     else this.#releaseHeaderSlot();
     this.#continuity?.after(bodyPlace);
-    const toggleFor = (id) => this.node.querySelector(
-      `.lf-summary-expand[data-summary-toggle="${CSS.escape(id)}"]`
-    );
-    const succeeded = standingToggle?.dataset.summaryToggle;
-    const toggleHandedOn = standingToggle && !standingToggle.isConnected ? [
-      succeeded,
-      ...(successors.get(succeeded) ?? []).map(({ summary }) => summary.id)
-    ].map(toggleFor).find(Boolean) ?? null : null;
     restoreFocus?.(
-      toggleHandedOn ? () => (focusDestination(toggleHandedOn, "return"), true) : () => this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node)
+      handedOn ? () => (focusDestination(handedOn, "return"), true) : () => this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node)
     );
     return this.node;
   }
@@ -6353,77 +6823,10 @@ var ThreadView = class {
         );
     } else this.#news.node.removeAttribute("data-lf-room");
   }
-  // A summary's checkpoint: a retained section whose head the template draws, and
-  // whose originals hold the retained messages the summary covers.
-  #checkpoint(id) {
-    const node = document.createElement("section");
-    node.className = "lf-thread-checkpoint";
-    node.dataset.summaryId = id;
-    const originals = document.createElement("div");
-    originals.id = `lf-summary-originals-${this.#viewId}-${id}`;
-    originals.className = "lf-summary-originals";
-    node.append(originals);
-    return { node, originals };
-  }
-  #paintCheckpoint({ node, originals }, range) {
-    const progress = Boolean(range.summary.trigger || range.summary.pending);
-    keeps(node, "data-expanded", range.expanded);
-    keepsHidden(node, progress && !range.expanded);
-    keepsHidden(originals, !range.expanded);
-    render(
-      html`${progress ? nothing : html`<div class="lf-summary-checkpoint">
-              <div class="lf-summary-header">
-                <div class="lf-summary-label">${range.summary.label}</div>
-                ${range.forced ? nothing : this.#summaryToggle([range])}
-              </div>
-              ${range.summary.text ? html`<div
-                      class="lf-summary-text"
-                      .innerHTML=${renderMarkdown(range.summary.text)}
-                    ></div>` : nothing}
-              ${range.forced ? html`<div class="lf-summary-required">${range.requiredText}</div>` : nothing}
-            </div>`}
-      ${progress && range.forced ? html`<div class="lf-summary-required">${range.requiredText}</div>` : nothing}`,
-      node,
-      { renderBefore: originals }
-    );
-  }
-  // Whether the progress behind the working message stood open when last drawn, opened by
-  // the reader or by a search matching it, so each step that joins it shows: held news
-  // counts those steps as news here (held-news.js).
+  // Whether the progress behind the working message stood open when last drawn
+  // (transcript.js, `progressOpen`).
   get progressOpen() {
-    return this.#pendingOpen;
-  }
-  #summaryToggle(ranges, progress = false) {
-    const ids = ranges.map((range) => range.summary.id);
-    const expanded = ranges.every((range) => range.expanded);
-    const count = ranges.reduce((total, range) => total + range.messages.length, 0);
-    const subject = `${count} ${progress ? "progress" : "earlier"} message${count === 1 ? "" : "s"}`;
-    const label = `${expanded ? progress ? "Hide" : "Collapse" : "Show"} ${subject}`;
-    return html`<button
-      type="button"
-      class="lf-thread-disclosure lf-summary-expand ${progress ? "lf-progress-expand" : ""}"
-      data-lf-room=${progress ? `Show ${subject}` : nothing}
-      data-summary-toggle=${ids[0]}
-      aria-expanded=${String(expanded)}
-      aria-controls=${ids.map((id) => `lf-summary-originals-${this.#viewId}-${id}`).join(" ")}
-      @click=${() => this.#setSummaryExpanded(ids, !expanded)}
-    >
-      ${progress ? html`<span>${label}</span>` : label}
-    </button>`;
-  }
-  #setSummaryExpanded(ids, expanded) {
-    for (const id of ids) {
-      if (expanded) this.#expandedSummaries.add(id);
-      else this.#expandedSummaries.delete(id);
-    }
-    this.repaint();
-    const toggle = this.node.querySelector(
-      `.lf-summary-expand[data-summary-toggle="${CSS.escape(ids[0])}"]`
-    );
-    if (toggle) {
-      focusDestination(toggle, "return");
-      scrollThreadIntoView(this.node, toggle, "instant");
-    }
+    return this.#transcript.progressOpen;
   }
   // A thread shows Reopen or the completed check in Resolve's place.
   #settlement(model, place2) {
@@ -6519,14 +6922,7 @@ var ThreadView = class {
     });
   }
   commit() {
-    const wanted = new Set(this.#model.messages.map((message) => message.key));
-    for (const [key, view] of this.#messages) {
-      if (wanted.has(key)) view.commit();
-      else {
-        view.retire();
-        this.#messages.delete(key);
-      }
-    }
+    this.#transcript.commit();
     if (!this.#replyShown && this.#reply) {
       this.#reply.dispose();
       this.#reply = null;
@@ -6538,10 +6934,8 @@ var ThreadView = class {
     this.#reply?.claim(shown);
   }
   retire() {
-    this.#stopWorkingExposure?.();
-    this.#stopWorkingExposure = null;
     this.#reply?.cancelDictation();
-    for (const view of this.#messages.values()) view.retire();
+    this.#transcript.retire();
   }
   dispose() {
     this.#sizes.disconnect();
@@ -6960,11 +7354,11 @@ function renderSurfaces(collection, placements, commands2) {
   };
   const activeComposition = commands2.composition.active();
   let prepared = null;
-  const completion = prepare().then((plans) => {
+  const completion = prepare2().then((plans) => {
     prepared = plans;
   });
   return { completion, cancel, commit };
-  async function prepare() {
+  async function prepare2() {
     const plans = [];
     const ordered = [...registrations.values()].sort(
       (a, b) => Number(a.kind === "page") - Number(b.kind === "page")
@@ -7191,19 +7585,19 @@ export {
   hasLandmark,
   rawOffsetFits,
   restorePlace,
-  readItems,
-  itemEntry,
+  readObligations,
+  obligationEntry,
   answeredInWords,
-  approvalBlockingItems,
-  itemPlace,
-  itemsIn,
+  approvalBlockingObligations,
+  obligationPlace,
+  obligationsIn,
   declareSide,
-  itemHolding,
-  sideOf,
+  obligationHolding,
   placeOf,
+  arrivalOf,
   walkOrigin,
   stepFrom,
-  heldItem,
+  heldObligation,
   ensureSyntaxLanguage,
   syntax,
   synNodes,
@@ -7281,6 +7675,7 @@ export {
   workflowLabel,
   progressFace,
   isWorkflowProgress,
+  workflowStep,
   isPageWidgetWorkflow,
   strongestWorkflow,
   todoLabel,
@@ -7304,9 +7699,11 @@ export {
   pageRung,
   pageScopes,
   touchPresses2 as touchPresses,
+  stances,
   universalCommandReference,
   textEntryScope,
   allButCommandReference,
+  pageDoor,
   selectionAnchor,
   pageSelection,
   createPassageSelection,
@@ -7359,6 +7756,7 @@ export {
   HeldNews,
   HeldReading,
   heldGrowth,
+  Transcript,
   quoteReading,
   threadReading,
   ThreadView,

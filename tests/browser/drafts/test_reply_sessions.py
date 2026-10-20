@@ -274,7 +274,7 @@ def test_reply_admission_finishes_or_restores_its_native_session(
         # nothing until the user's first edit or press there brings them back. The
         # press is one in the reply's row, so the resolved thread keeps its editor
         # once the press has finished painting.
-        cover = page.locator(".lf-fp-error-cover")
+        cover = page.locator(".lf-fp-field .lf-compose-error")
         expect(cover).to_contain_text("Please retry.")
         cover.click()
         rendered(page)

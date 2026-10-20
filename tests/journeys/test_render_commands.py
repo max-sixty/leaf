@@ -1,5 +1,6 @@
 """Render, shot, and browser-gate command tests."""
 
+import hashlib
 import json
 import os
 import shutil
@@ -212,9 +213,9 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
     assert report["status"] == 1
     assert report["browser"]["asked"] == report["browser"]["ran"] == ["render check"]
     assert report["browser"]["browser"] == "Chrome"
-    scrolls = [f for f in report["findings"] if f["code"] == "page-scrolls"]
-    assert {f["scheme"] for f in scrolls} == {"light", "dark"}, report
-    assert all(f["severity"] == "error" and f["values"]["past"] > 0 for f in scrolls)
+    [scrolls] = [f for f in report["findings"] if f["code"] == "page-scrolls"]
+    assert scrolls["widths"] == [360, 1920], report
+    assert scrolls["severity"] == "error" and scrolls["values"]["past"] > 0, scrolls
 
 
 def test_a_passing_render_check_saves_the_screens_the_author_reads(
@@ -224,9 +225,9 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     bottom at the desktop viewport and on a phone, and one screen at each width where
     the page's own arrangement is at its tightest before it changes. A sidebar page with
     four tiles in its body changes twice there: its tiles wrap before its track stacks.
-    Each open item, a suggestion as much as an lf-ask, gets the window `m` brings it
+    Each open obligation, a suggestion as much as an lf-ask, gets the window `m` brings it
     into, as the user working the page meets it, including those `m` reaches past a
-    page widget move handed back to the user, which is a stop of its own and no item."""
+    page widget move handed back to the user, which is a stop of its own and no obligation."""
     tiles = "".join(
         f"<dl id='m{i}'><dt>metric {i}</dt><dd>{i}</dd></dl>" for i in range(4)
     )
@@ -253,8 +254,8 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
             layout="sidebar",
         )
     )
-    # The first item is answered, and the host gave up on picking the answer up, which
-    # hands the move back: the walk's first stop is that widget, ahead of every item.
+    # The first obligation is answered, and the host gave up on picking the answer up, which
+    # hands the move back: the walk's first stop is that widget, ahead of every obligation.
     moved = append_command(
         serve.page_dir,
         {
@@ -296,11 +297,11 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     assert set(shows) <= set(names)
     assert {"1200px-1.png", "1920px-1.png", "390px-1.png"} <= set(names)
     assert {
-        "1200px-item-1.png",
-        "1200px-item-2.png",
-        "1200px-item-3.png",
+        "1200px-obligation-1.png",
+        "1200px-obligation-2.png",
+        "1200px-obligation-3.png",
     } <= set(names)
-    assert "1200px-item-4.png" not in names
+    assert "1200px-obligation-4.png" not in names
     assert any("each press of `m`" in label for label in shows.values())
     assert '"Pre-handover review"' in screens["next"]
     assert any("<main> 1+2 → 1+1+1" in label for label in shows.values())
@@ -698,15 +699,53 @@ def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path, headless_shell):
         )
         assert run.returncode == 1, run.stdout + run.stderr
         # "needs Playwright" here would mean the shim dispatched the plain `uv run`.
-        # The report names the widget and gives the renderer's reason.
+        # The report names the widget, gives Pele's reason and locates its call site.
         report = json.loads(run.stdout)
         assert report["browser"]["ran"] == ["page code"]
         [error] = [f["text"] for f in report["findings"] if f["severity"] == "error"]
         assert '<lf-diagram id="d-broken"> failed:' in error
         assert "No diagram type detected" in error
-        assert "/widgets/lf-diagram.js:" not in error
+        assert "/widgets/lf-diagram.js:" in error
         assert "leaf-unsupported" not in error
         assert "Ada,Review,3" not in error
+
+
+def test_plain_check_runs_a_page_whose_widget_reads_media(serve, headless_shell):
+    """A screenshot pair shot at two viewports is refused only by lf-shot's module, once
+    it has decoded both images; the static check proves the files exist and never
+    opens them. A page with no code of its own and no data widget otherwise takes
+    plain `page check` without a browser, so the refusal first reached the user, as an
+    error box where the pair should have been. Media an upgraded widget names sends
+    the check to the browser, and the same page passes once the pair shares a width."""
+    narrow = solid_png(500, 300, (235, 215, 205))
+    narrow_src = f"/media/{hashlib.sha256(narrow).hexdigest()[:16]}.png"
+    serve(
+        SHOT_PAGE.replace(SHOT_SRC["after"], narrow_src),
+        media={SHOT_SRC["before"]: SHOTS["before"], narrow_src: narrow},
+    )
+    d = serve.page_dir
+
+    def check(status):
+        ran = subprocess.run(
+            [*LEAF_COMMAND, "page", "check", str(d)],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": headless_shell},
+        )
+        assert ran.returncode == status, ran.stdout + ran.stderr
+        report = json.loads(ran.stdout)
+        assert report["browser"]["ran"] == ["page code"], report
+        return [f["text"] for f in report["findings"] if f["severity"] == "error"]
+
+    [error] = check(1)
+    refusal = '<lf-shot id="shot-nav"> failed: before is 600px wide and after is 500px'
+    assert refusal in error
+
+    (d / "index.html").write_text(SHOT_PAGE)
+    for name, data in SHOTS.items():
+        (d / SHOT_SRC[name].lstrip("/")).write_bytes(data)
+    assert check(0) == []
 
 
 def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(

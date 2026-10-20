@@ -1,0 +1,28 @@
+# Precision control for conversation-loop.md's plan paragraph (#3195): a request of
+# two small edits finished in one turn, with nothing waiting on the user, needs no
+# plan beside its to-do. Claude Code passed 5 of 5 runs across both versions of the
+# plan paragraph; it guards against a reword that makes every request a plan.
+description: plan-skips-quick-work
+metadata:
+  purpose:
+    "Conversation loop: quick work finished in the turn it was asked for, with nothing
+    waiting on the user, gets no plan."
+  tags:
+    - wait-loop
+vars:
+  prompt: |
+    You are a Claude Code session driving a live Leaf page at
+    ~/.local/state/leaf/pages/rollout, served with `leaf server start`. The page shows
+    the rate limiter's rollout: a latency table and a schedule. In the terminal the
+    user just wrote: "Two quick fixes on the rollout page: the lede should say
+    token bucket, not leaky bucket, and make the us-east p99 205 ms."
+
+    Read whatever instructions you need. Only Skill and Read run here, so write out,
+    in order, each command you would run on the page for this request.
+assert:
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Pass only if the commands make both edits and hand the page back without writing
+      a plan: no `leaf task plan` command appears. Opening and ending a to-do for the
+      work is fine. Fail if any command writes a plan.

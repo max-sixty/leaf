@@ -13,6 +13,7 @@ from interact_support import (
     end_work,
     record_claim,
     working,
+    write_record,
 )
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
@@ -572,9 +573,9 @@ def test_the_tab_wears_what_the_leaf_says(browser, serve, tmp_path, dead_pid):
             )
 
     def declare(state, **status):
-        cleanup_model.write_json(
+        write_record(
             d / "status.json",
-            {"state": state, "ts": cleanup_model.now_iso(), **status},
+            {"state": state, "detail": "", "ts": cleanup_model.now_iso(), **status},
         )
         told(page)
 

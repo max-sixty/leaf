@@ -7,16 +7,15 @@ from ..events import UndoReading
 from ..files import stamped_version
 from ..gesture_words import GestureWords, RevisionReader
 from ..history import history, wants_history
-from ..items import approval_blocking, collection
+from ..obligations import approval_blocking
 from ..passages import SourceReading
 from ..projection import (
     FrozenThreadReading,
     canonical_reports,
     page_reading,
 )
-from ..schema import WIDGET_KINDS
+from ..registry.kernel import verb_writers
 from ..thread_context import thread_memberships
-from ..work_reading import WorkReading
 from .context import PageRead
 from .document import browser_document, browser_undo_candidates
 from .queues import queues
@@ -38,29 +37,42 @@ class BrowserReading(NamedTuple):
 
 
 def _thread_attention(
-    thread: dict, owed: bool, candidates: list[dict], todos: list[dict]
+    thread: dict, records: list[dict], candidates: list[dict], todos: list[dict]
 ) -> dict | None:
-    """Whose turn one thread is: `needs_user` while an item in it is the user's
-    (`owed`), or for an update the user must send again (`resend`); `waiting` while a
-    workflow holds the thread with the agent, which covers every input
-    `events.unanswered_turns` holds, or while a to-do the agent opened on it stands;
-    else None, as for every resolved thread. `candidates` are the thread's
-    `served_workflows`, strongest first, so the first that qualifies is the one the
-    thread waits on, and a workflow speaks before a to-do. `todos` are the agent's
-    open to-dos, each stamped with its `thread`; the browser reads the one it waits on
-    from the served `todos` itself, and `todo` here names it for `page state`."""
+    """Whose turn one thread is, read from the open obligation records in it
+    (`records`): `needs_user` while one is the user's, a widget's (`widget`) ahead of an
+    update handed back to them to send again (`resend`); else `waiting` while one is
+    the agent's, or while a to-do the agent opened on it stands; else None, as for
+    every resolved thread.
+
+    `candidates` are the thread's `served_workflows`, strongest first, so the first
+    serving the record that decides is the one the thread waits on, and names its
+    stage. A widget's record turns the agent's only while the thread's newest
+    unanswered turn publishes an update record (`queues`), so a waiting thread always
+    has a workflow to name. `todos` are the agent's open to-dos, each stamped with its
+    `thread`, and `todo` names the one the thread waits on by id."""
     if thread["resolved"]:
         return None
-    if owed:
+
+    def serving(kept) -> dict | None:
+        held = {record["id"] for record in records if kept(record)}
+        return next(
+            (workflow for workflow in candidates if workflow["obligation"] in held),
+            None,
+        )
+
+    if any(
+        record["next_actor"] == "user" and record["source"]["kind"] != "update"
+        for record in records
+    ):
         return {"kind": "needs_user", "reason": "widget", "workflow": None}
-    if resend := next(
-        (workflow for workflow in candidates if workflow["next_actor"] == "user"),
-        None,
+    if resend := serving(
+        lambda record: (
+            record["next_actor"] == "user" and record["source"]["kind"] == "update"
+        )
     ):
         return {"kind": "needs_user", "reason": "resend", "workflow": resend["id"]}
-    if waiting := next(
-        (workflow for workflow in candidates if workflow["holds_thread"]), None
-    ):
+    if waiting := serving(lambda record: record["next_actor"] == "agent"):
         return {
             "kind": "waiting",
             "reason": "uncertain" if waiting["condition"] else "workflow",
@@ -71,30 +83,32 @@ def _thread_attention(
             "kind": "waiting",
             "reason": "todo",
             "workflow": None,
-            "todo": {
-                "id": todo["id"],
-                "title": todo["title"],
-                "line": todo["running"]["text"] if todo["running"] else None,
-            },
+            "todo": todo["id"],
         }
     return None
 
 
 def _apply_thread_attention(
-    durable: WorkReading, workflows: list[dict], threads: list[dict], todos: list[dict]
+    records: list[dict], workflows: list[dict], threads: list[dict], todos: list[dict]
 ):
     """Attach each served thread's `attention`, the browser's one reading of whose turn
-    it is. `durable` is the reading of the view these threads are served in, so a
-    pinned revision's threads take the attention its own vocabulary reads;
+    it is. `records` are the obligation records of the view these threads are served
+    in, so a pinned revision's threads take the attention its own vocabulary reads;
     `workflows` are the page's, enriched with delivery liveness."""
-    owed = {item["thread"] for item in durable.items["user"]}
+    open_records: dict[str, list[dict]] = {}
+    for record in records:
+        if record["thread"] is not None and record["status"] == "open":
+            open_records.setdefault(record["thread"], []).append(record)
     by_thread: dict[str, list[dict]] = {}
     for workflow in workflows:
         if workflow["thread"] is not None:
             by_thread.setdefault(workflow["thread"], []).append(workflow)
     for thread in threads:
         thread["attention"] = _thread_attention(
-            thread, thread["id"] in owed, by_thread.get(thread["id"], []), todos
+            thread,
+            open_records.get(thread["id"], []),
+            by_thread.get(thread["id"], []),
+            todos,
         )
 
 
@@ -165,11 +179,15 @@ def browser_state(
             )
         )
         # The view's own reading of the log: its document, and the frozen thread
-        # widgets with the items and attention they give, under its registry.
+        # widgets with the obligations and attention they give, under its registry.
         viewed = durable.viewing(page)
         reading = viewed.document
         thread, thread_reading = browser_thread(viewed, work.live_reply)
-        _apply_thread_attention(viewed, workflows, thread["threads"], agent_todos)
+        # The view's obligations are its own document's beside its frozen thread's, and
+        # the page's updates', served once: a list row and the approval gate name a
+        # record by its id.
+        items = reading.items["all"] + viewed.items["all"] + durable.updates["all"]
+        _apply_thread_attention(items, workflows, thread["threads"], agent_todos)
         stamp = stamped_version(events, revision)
         documents[revision] = reading
         projection = reading.projection
@@ -179,7 +197,7 @@ def browser_state(
         }
         coverage = []
         for event in events:
-            if event["kind"] in WIDGET_KINDS:
+            if event["kind"] in verb_writers():
                 classified_entry = classified.get(event["id"])
             elif event["kind"] == "undo":
                 classified_entry = classified.get(event["undoes"])
@@ -201,14 +219,11 @@ def browser_state(
             ),
             active.get("activated_at") if active_revision == revision else None,
         )
-        # The view's items are its own document's beside its frozen thread's, served
-        # once: a list row and the approval gate name an item by its id.
-        items = reading.items["all"] + viewed.items["all"]
         views[str(revision)] = {
             "basis": {"revision": revision, "through_seq": through_seq},
             "document": browser_document(reading, revision),
             "thread": thread,
-            "items": items,
+            "obligations": items,
             "reports": canonical_reports(projection),
             "undo": browser_undo_candidates(
                 events,
@@ -219,7 +234,7 @@ def browser_state(
             ),
             "coverage": coverage,
             "published_at": published_at,
-            "queues": queues(thread["threads"], workflows, todos, collection(items)),
+            "queues": queues(workflows, todos, items),
             "approval_blocking": [item["id"] for item in approval_blocking(items)],
         }
     if wants_history(readings[revision] for revision in view_revisions):

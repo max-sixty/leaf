@@ -1,6 +1,7 @@
 import {
   ELEMENTS,
   pageScopes,
+  stances,
   textEntryScope,
   universalCommandReference
 } from "./bundle-user-intent.js";
@@ -49,7 +50,7 @@ import {
   renderedUnder,
   sizeObserver,
   takesLetters
-} from "./bundle-sample-visibility.js";
+} from "./bundle-frame-visibility.js";
 
 // runtime/sample-child.js
 var child = document.documentElement.lfSample;
@@ -177,6 +178,7 @@ var userIn = (scope) => {
   return !scope.at || scope.at();
 };
 var standing = (scope) => userIn(scope) && pageHas(scope);
+var innermostStance = () => stances().find(({ scope }) => standing(scope)) ?? null;
 var nativeBoundary = (claims) => ({
   get rows() {
     const reference = universalCommandReference();
@@ -479,7 +481,7 @@ export {
   registerSampleCommand,
   sampleNotice,
   userIn,
-  standing,
+  innermostStance,
   stack,
   keyReady,
   dispatchKey,

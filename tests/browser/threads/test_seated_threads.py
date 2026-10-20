@@ -8,7 +8,7 @@ from interact_support import append_carried_log_record
 from leaf import data as data_model
 from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
-from render_cases_interaction import ITEM_PAGE, panel_comment
+from render_cases_interaction import OBLIGATION_PAGE, panel_comment
 from render_cases_navigation import source_revision
 from render_harness import (
     PANEL,
@@ -216,13 +216,13 @@ def test_growth_is_seen_only_below_where_scroll_anchoring_holds(browser, serve):
             return {foot, seen, moved};
           };
           // No chrome stands over the page's head.
-          const banner = 0;
-          return {banner, landing,
-            gap: await read((banner + landing) / 2),
+          const head = 0;
+          return {head, landing,
+            gap: await read((head + landing) / 2),
             band: await read(landing + 6)};
         }"""
     )
-    assert readings["banner"] < readings["landing"], readings
+    assert readings["head"] < readings["landing"], readings
     assert readings["gap"] == {**readings["gap"], "seen": False}, readings
     assert abs(readings["gap"]["moved"]) < 1, readings
     assert readings["band"] == {**readings["band"], "seen": True}, readings
@@ -801,9 +801,8 @@ def test_a_user_on_a_thread_returning_to_the_diff_goes_with_it(
 ):
     """The user stands on the margin card's Close, or on the thread's margin marker,
     when the patch comes back and the thread takes its seat on the diff line again.
-    The node they stood on goes with the margin's copy of the thread. They landed on
-    the banner's More button or the page; they land on the thread where it now
-    stands."""
+    The node they stood on goes with the margin's copy of the thread; they land on
+    the thread where it now stands."""
     url, root = seated_thread(serve, "diff", 2)
     page = open_page(browser, url)
     resized(page, 1440, 900)
@@ -845,7 +844,7 @@ def test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it(
 ):
     """A page seat retains its native editor, words and caret through settlement."""
     if kind == "margin":
-        url = serve(ITEM_PAGE)
+        url = serve(OBLIGATION_PAGE)
         root = panel_comment(serve.page_dir, "Keep discussing", {"section": "bracket"})
     else:
         url, root = seated_thread(serve, kind, 2)

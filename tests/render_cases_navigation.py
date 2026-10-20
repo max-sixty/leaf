@@ -285,8 +285,7 @@ session.</p></details>
 {tail}
 """,
 ).format(
-    # Enough page below the decision that it can be scrolled up under the banner, which is where
-    # a chip placed from the page's geometry alone lands on the status line.
+    # Enough page below the decision that it can be scrolled up past the window's top.
     tail="\n".join(
         f"<p id='t{i}'>Tail {i}. " + "Words. " * 20 + "</p>" for i in range(12)
     )
@@ -405,7 +404,7 @@ id="fn3" href="#s3">3</a> and are checked below.</p>
 <p id="s1">One.</p><p id="s2">Two.</p><p id="s3">Three.</p></details>
 """,
 )
-# Links all the way down, so one of them starts in the corner the shortcut bar stands in.
+# Links all the way down, so one of them starts in the corner the floating panel stands in.
 FOOTED_PAGE = leaf_page(
     "footed",
     """

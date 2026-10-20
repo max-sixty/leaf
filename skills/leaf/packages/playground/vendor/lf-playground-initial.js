@@ -1,5 +1,5 @@
 (() => {
-  // skills/leaf/packages/playground/initial.js
+  // skills/leaf/packages/playground/initial/lf-playground.js
   var own = (root, tag) => [...root.querySelectorAll(`:scope > ${tag}`)];
   var belongsTo = (host, member) => member.parentElement.closest("lf-playground, [data-lf-exhibit]") === host;
   var ownControls = (host, preview) => [
@@ -111,6 +111,17 @@
     };
     const interactive = !host.closest("[data-lf-exhibit]");
     host.classList.toggle("lf-playground-quoted", !interactive);
+    if (!interactive) {
+      const bare = new Set(controls);
+      const holdsOnlyBare = (box) => [...box.childNodes].every(
+        (child) => child.nodeType === Node.TEXT_NODE ? !child.data.trim() : child.nodeType === Node.COMMENT_NODE || bare.has(child)
+      );
+      for (const control of controls)
+        for (let box = control.parentElement; box !== preview && box !== host && !bare.has(box) && holdsOnlyBare(box); box = box.parentElement) {
+          bare.add(box);
+          box.classList.add("lf-playground-control-box");
+        }
+    }
     const inputs = /* @__PURE__ */ new Map(), presetButtons = /* @__PURE__ */ new Map(), regions = [];
     const presetSettings = new Map(
       presets.map((preset) => {
@@ -235,8 +246,9 @@
       const split = node("div", "lf-playground-split");
       if (!railed.length && presetBar)
         split.append(pane("controls", "Controls", null, presetBar));
-      split.append(
-        pane("preview", "Preview", null, previewBody),
+      const rail = node("div", "lf-playground-rail");
+      rail.dataset.lfTrack = "";
+      rail.append(
         ...railed.length ? [pane("controls", "Controls", presetBar, panel)] : [],
         pane(
           "instruction",
@@ -250,6 +262,8 @@
           actions
         )
       );
+      regions.push({ name: "rail", host: rail, body: rail });
+      split.append(pane("preview", "Preview", null, previewBody), rail);
       host.append(split);
     }
     const setInput = (control, value) => {

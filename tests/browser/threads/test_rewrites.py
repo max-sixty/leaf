@@ -1321,11 +1321,11 @@ def test_a_rewrite_saved_in_a_resolved_thread_goes_with_its_thread(browser, serv
     page.keyboard.press("Enter")
     holding(page, held, 1, "the rewrite")
     expect(settle).to_have_text("Resolve", use_inner_text=True)
-    expect(reply).to_be_visible()
+    expect(reply).to_be_focused()
     held.pop().continue_()
     round_trip(page)
     expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket. Now.")
-    expect(reply).to_be_visible()
+    expect(reply).to_be_focused()
     page.unroute_all(behavior="wait")
 
 

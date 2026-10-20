@@ -17,7 +17,7 @@ from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
-    SEATED_ITEM_PAGE,
+    SEATED_OBLIGATION_PAGE,
     THREAD_DIFF_PAGE,
     panel_comment,
 )
@@ -302,7 +302,7 @@ def test_an_answer_completing_its_stream_with_the_same_words_folds_progress_as_i
     browser, serve, request
 ):
     """An App Server final repeats the words it streamed, and it folds the progress
-    before it into Previous updates. That fold is the answer's news, so a card the user
+    before it into its disclosure. That fold is the answer's news, so a card the user
     is writing in, which holds it, says a reply arrived rather than that a summary
     changed.
     """
@@ -349,7 +349,7 @@ def test_an_idle_card_shows_an_answer_folding_the_progress_at_its_end(
     browser, serve, request, streamed
 ):
     """The agent acknowledges a move with progress before it answers, and the answer
-    folds that progress into Previous updates. In an open card the user is reading but
+    folds that progress into its disclosure. In an open card the user is reading but
     not writing in, that fold changes only the thread's end, so the answer shows as it
     lands, streamed or not. The progress disclosure stays put when the answer gains
     its feedback control, and nothing above the progress moves.
@@ -419,12 +419,13 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
         for text in ("Reading the banner's styles.", "Trying a lighter weight.")
     ]
     page = open_page(browser, url)
-    # The comment's card on the agent's list says the agent is at work on it.
+    # The comment's card on the agent's list says the agent's last step on it, as the
+    # page's status does, rather than only that it is working.
     page.locator(".lf-fp-on-user").click()
     panel_settled(page, view="queue")
     page.locator(".lf-fp-filters button").filter(has_text="On Codex").click()
     card = page.locator('.lf-fp-on-item[data-list="agent"]')
-    expect(card.locator(".lf-fp-said")).to_have_text("Working")
+    expect(card.locator(".lf-fp-said")).to_have_text("Trying a lighter weight.")
     # Nothing counts unread.
     expect(thread_row(page, root)).not_to_have_attribute("data-unread", "")
     page.locator(".lf-fp-close").click()
@@ -546,7 +547,7 @@ def test_a_new_step_waits_where_its_words_would_move_the_draft(browser, serve):
     """A step's words wrap, so a new step can change the working message's height. In a
     seat where that would move the reply being typed, the step waits behind the
     thread's notice, as a reply would, and the draft keeps its place."""
-    url = serve(SEATED_ITEM_PAGE)
+    url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Which job comes first?", {"section": "jobs"})
     thread_model.post_reply(
         serve.page_dir, {"to": root, "for": root}, "Reading the jobs.", ephemeral=True
@@ -569,7 +570,7 @@ def test_a_new_step_waits_where_its_words_would_move_the_draft(browser, serve):
         ephemeral=True,
     )
     told(page)
-    notice = thread.get_by_role("button", name="1 new update", exact=True)
+    notice = thread.get_by_role("button", name="1 new message", exact=True)
     expect(notice).to_be_visible()
     expect(words).to_have_text("Reading the jobs")
     rendered(page)
@@ -578,6 +579,50 @@ def test_a_new_step_waits_where_its_words_would_move_the_draft(browser, serve):
     notice.click()
     expect(words).to_contain_text("what each one needs before it can start")
     assert editor.evaluate("box => box.value") == "Start with the mounts."
+
+
+def test_held_news_too_long_for_its_notice_drops_a_later_fact_whole(browser, serve):
+    """A seat's notice keeps the width of the news it first said. News that grows past
+    it shows its first fact whole and drops the later one, which the notice's name
+    still says, rather than cutting the first fact mid-word ("1 new re…")."""
+    url = serve(SEATED_OBLIGATION_PAGE)
+    root = panel_comment(serve.page_dir, "Which job comes first?", {"section": "jobs"})
+    page = open_page(browser, url)
+    resized(page, 390, 900)
+    thread = page.locator("#jobs .lf-page-thread")
+    expect(thread).to_be_visible()
+    write(thread.locator("leaf-text"), "Start with the mounts.")
+    rendered(page)
+
+    thread_model.post_reply(
+        serve.page_dir, {"to": root, "for": root}, "The mounts come first."
+    )
+    told(page)
+    notice = thread.get_by_role("button", name="1 new reply", exact=True)
+    expect(notice).to_be_visible()
+    rendered(page)
+    width = notice.bounding_box()["width"]
+
+    append_user_reply(serve.page_dir, root, "And the bird bath?")
+    told(page)
+    notice = thread.get_by_role(
+        "button", name="1 new reply · 1 new message", exact=True
+    )
+    expect(notice).to_be_visible()
+    rendered(page)
+    assert notice.bounding_box()["width"] == pytest.approx(width, abs=0.5)
+    facts = notice.locator(":scope > span > span")
+    assert facts.nth(0).evaluate("fact => fact.scrollWidth <= fact.clientWidth")
+    # The later fact wraps past the words' clip, so nothing of it draws or takes a press.
+    assert facts.nth(1).evaluate(
+        """fact => {
+            const box = fact.getBoundingClientRect();
+            const hit = fact
+                .getRootNode()
+                .elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+            return !fact.contains(hit);
+        }"""
+    )
 
 
 def test_a_streaming_answer_takes_the_working_messages_place_and_disclosure(
@@ -614,7 +659,7 @@ def test_a_streaming_answer_takes_the_working_messages_place_and_disclosure(
 
 def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request):
     """An answer that asks back or promises work says so in its head, beside its time,
-    for as long as the item is the user's or the to-do stays open."""
+    for as long as the obligation is the user's or the to-do stays open."""
     url = serve(PANEL_PAGE)
     asked = panel_comment(serve.page_dir, "Which store owns it?", {"section": "h-how"})
     promised = panel_comment(serve.page_dir, "Rebuild the banner", {"section": "lede"})
@@ -657,7 +702,7 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
 ):
     """A board the agent sent in a reply takes a moved card as a page board does: the
     reply carrying the board reports the saved move, and the thread stays nobody's
-    turn, since the move answers no item and wakes nobody. The agent's next turn in
+    turn, since the move answers no obligation and wakes nobody. The agent's next turn in
     the thread takes the move in, and the receipt leaves with it, even while that turn
     waits behind the card's notice, since a held thread draws its messages' delivery
     as it stands."""

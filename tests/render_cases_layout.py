@@ -99,7 +99,7 @@ def arrival_findings(browser, url):
     write and cannot fix.
 
     What it reads: a fresh context holds nothing, so every other reading in the suite
-    is of a first visit — the thread panel shut, no drawer open, design mode off —
+    is of a first visit — design mode off, the annotations shown —
     and each of those is something a user turns on once and gets back on every load
     afterwards. That left the restores as the one road onto a page with nothing
     watching it, and a drawer someone had left open came up as a ReferenceError
@@ -188,11 +188,11 @@ def motions(events):
     """The settling motions the browser reported, keyed by the motion, not by its target.
 
     Settling and not living, which is the render gate's `moving` distinction and is here for
-    its reason: the banner's dot pulses for as long as the tab is open, and something
+    its reason: the panel's status sheens for as long as the agent works, and something
     that never ends never arrived anywhere. An unbounded iteration count cannot cross
     JSON, so the browser omits it, and that omission is the reading.
 
-    A target is a backend node id, and the same drawer over two loads is two of them,
+    A target is a backend node id, and the same panel over two loads is two of them,
     so an id cannot say whether the second load moved what the first one did. The kind
     of motion, the property or keyframes it plays and how long it runs are one string
     whichever load painted it, and that is the key. The id rides along beside it for
@@ -570,8 +570,8 @@ SCROLLED_CONTAINER = LONG_PAGE.replace(
     "<div id='riding' style='width: 900px'>Where the content of a scrolled box "
     "starts.</div></div>\n</main>",
 )
-# One item, so a page has something On me.
-ONE_ITEM = (
+# One obligation, so a page has something On me.
+ONE_OBLIGATION = (
     '<lf-ask id="go-decision"><h2>Ship it?</h2>'
     '<lf-options id="go" choose>'
     '<lf-option id="go-yes"><strong>Yes</strong></lf-option>'
@@ -580,12 +580,12 @@ ONE_ITEM = (
 )
 
 
-def with_one_item(html):
-    """The page with `ONE_ITEM` at the foot of its main, where it moves nothing above it."""
+def with_one_obligation(html):
+    """The page with `ONE_OBLIGATION` at the foot of its main, where it moves nothing above it."""
     assert html.count("</main>") == 1, (
-        "the fixture has no single main to add the item to"
+        "the fixture has no single main to add the obligation to"
     )
-    return html.replace("</main>", ONE_ITEM + "</main>")
+    return html.replace("</main>", ONE_OBLIGATION + "</main>")
 
 
 def toggle_queue(page, open=True):
@@ -772,9 +772,8 @@ def displaced(before, boxes, news=False):
     `news` reads the rule for a change nobody gestured (`skills/leaf/assets/AGENTS.md`,
     "Stability"): a box whose own words changed may grow or shrink into free room, so its
     width is its own, but its place is not, and no other box may move or resize. The
-    free room may lie on either side: a box packed against the run to its right, as the
-    banner's queue counts are, grows leftward into the status's room, and the edge that
-    holds still is its place. A box that grew by pushing its neighbours still fails, as
+    free room may lie on either side: a box packed against the run to its right grows
+    leftward into the room before it, and the edge that holds still is its place. A box that grew by pushing its neighbours still fails, as
     they do."""
 
     def moved(was, now):
@@ -807,7 +806,7 @@ def aim_targets(page_dir):
 
 # Where in a target to aim, asked of the rendered page rather than assumed: near its
 # leading corner, since the middle of a container is usually one of its children, and only
-# where the point is really the target's — an element under the banner or clipped to
+# where the point is really the target's — an element under the panel or clipped to
 # nothing is somewhere no aim can land, which is a skip rather than a failure.
 AIM_POINT = """(el) => {
   const r = el.getBoundingClientRect();
@@ -867,13 +866,9 @@ PAGE_MARKUP = r"""() => [...document.body.children]
         if (c.dataset && c.dataset.lfGen !== undefined) c.textContent = "";
         for (const el of [c, ...c.querySelectorAll("*")]) {
             el.classList?.remove("lf-mark-hover", "lf-projected-mark", "lf-binding-seat");
-            // The name a margin row anchors by, which the layout writes on whatever
-            // target a row comes to stand by, on its own schedule rather than a press's.
-            if (el.style?.anchorName) {
-                el.style.anchorName = el.style.anchorName.split(",")
-                    .map((name) => name.trim())
-                    .filter((name) => !/^--lf-a\d+$/.test(name)).join(", ");
-            }
+            // Anchor naming is presentation state. The layout may copy a name
+            // from a stylesheet into inline style while positioning a comment.
+            el.style?.removeProperty("anchor-name");
             if (!el.getAttribute("style")) el.removeAttribute("style");
         }
         return c.outerHTML;
@@ -1399,6 +1394,9 @@ UNPARSABLE_DIAGRAM = LONG_PAGE.replace(
 
 
 RINGS_DRAWN = browser_function("focus_rings.js", "ringsDrawn", using="control_name.js")
+RING_CANDIDATES = browser_function(
+    "focus_rings.js", "ringCandidates", using="control_name.js"
+)
 
 
 # Which focus ring a box wears is which rule drew it, and the browser says so: the
@@ -1476,12 +1474,13 @@ def _winning_declaration(matches, carrier):
     return won.get(True) or won.get(False)
 
 
-def ring_rules(page, wants):
+def _read_ring_boxes(page, wants, *, geometry=False):
     """For each box the last probe stashed (`stash`, focus_rings.js), the selector of
     the rule that drew its ring with the ring's token, or "" where none did.
 
     `wants` holds one `(pseudo, carrier)` pair per box: the pseudo-element the ring is
-    on, if any, and whether it is an outline or a box shadow."""
+    on, if any, and whether it is an outline or a box shadow. With `geometry`, also
+    return pseudo border rectangles from the browser's layout, aligned with `wants`."""
     if not wants:
         return []
     cdp = _ring_session(page)
@@ -1498,6 +1497,7 @@ def ring_rules(page, wants):
         int(p["name"]): p["value"]["objectId"] for p in listed if p["name"].isdigit()
     }
     rules = []
+    rectangles = []
     for index, (pseudo, carrier) in enumerate(wants):
         node = cdp.send("DOM.requestNode", {"objectId": ids[index]})["nodeId"]
         styles = cdp.send("CSS.getMatchedStylesForNode", {"nodeId": node})
@@ -1507,15 +1507,41 @@ def ring_rules(page, wants):
                 for entry in styles["pseudoElements"]
                 if entry["pseudoType"] == pseudo
             )
+            if geometry:
+                described = cdp.send("DOM.describeNode", {"nodeId": node})["node"]
+                pseudo_node = next(
+                    entry
+                    for entry in described["pseudoElements"]
+                    if entry["pseudoType"] == pseudo
+                )
+                border = cdp.send(
+                    "DOM.getBoxModel",
+                    {"backendNodeId": pseudo_node["backendNodeId"]},
+                )["model"]["border"]
+                rectangles.append(
+                    {
+                        "left": min(border[::2]),
+                        "right": max(border[::2]),
+                        "top": min(border[1::2]),
+                        "bottom": max(border[1::2]),
+                    }
+                )
         else:
             matches = list(styles["matchedCSSRules"])
             if inline := styles.get("inlineStyle"):
                 matches.append({"rule": {"origin": "inline", "style": inline}})
+        if geometry and not pseudo:
+            rectangles.append(None)
         won = _winning_declaration(matches, carrier)
         drew = won and RING_TOKEN[carrier].search(won[1])
         rules.append(_matched_selector(won[0]) if drew else "")
     cdp.send("Runtime.releaseObjectGroup", group)
-    return rules
+    return (rules, rectangles) if geometry else rules
+
+
+def ring_rules(page, wants):
+    """The winning ring selector for each stashed box and `(pseudo, carrier)` pair."""
+    return _read_ring_boxes(page, wants)
 
 
 def ring_rule(target, pseudo=None, carrier="outline"):
@@ -1531,8 +1557,15 @@ def rings_drawn(page):
 
     A non-focused element mark painting the band with no ring rule behind it is the
     pointer's feedback contour rather than a ring, so it is left out."""
-    answers = page.evaluate(RINGS_DRAWN)
-    rules = ring_rules(page, [(seen["pseudo"], seen["carrier"]) for seen in answers])
+    candidates = page.evaluate(RING_CANDIDATES)
+    if not candidates:
+        return []
+    rules, rectangles = _read_ring_boxes(
+        page,
+        [(seen["pseudo"], seen["carrier"]) for seen in candidates],
+        geometry=True,
+    )
+    answers = page.evaluate(RINGS_DRAWN, rectangles)
     drawn = []
     for seen, rule in zip(answers, rules, strict=True):
         if seen.pop("mark") and not seen["focused"] and not rule:

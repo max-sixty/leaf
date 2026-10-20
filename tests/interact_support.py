@@ -64,7 +64,7 @@ from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
 from leaf.findings import Finding
-from leaf.items import collection
+from leaf.obligations import collection
 from leaf.refusals import Refused
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import load_registry
@@ -196,7 +196,7 @@ def model_layer(*packages: str) -> dict:
 
 
 def queue_board_registry(registry: dict) -> dict:
-    """A page-owned queue stays an item until all cards leave its Queued column.
+    """A page-owned queue stays an obligation until all cards leave its Queued column.
 
     Extend the board's position verb with a completion condition to exercise
     answers spanning units without a presentation-specific package.
@@ -724,7 +724,7 @@ def let_a_pick_settle_a_thread(page_dir, thread):
     registry = files_model.read_json(page_dir / "registry.json")
     registry["lf-options"]["properties"]["resolves"] = {"type": "string"}
     cleanup_model.write_json(page_dir / "registry.json", registry)
-    # An item, so a pick answers it; the markup already records that pick, so the
+    # An obligation, so a pick answers it; the markup already records that pick, so the
     # answer owes no version of its own and only the thread is left to settle.
     source = page_dir / "index.html"
     source.write_text(
@@ -826,14 +826,26 @@ def served_thread(browser: dict) -> dict:
     return view["thread"]
 
 
-def served_items(browser: dict, *, page: bool = False) -> dict:
-    """The item records the one view `browser` serves, by the selections
-    `items.collection` makes: the frozen threads' items, or with `page` the
-    document's."""
+def served_obligations(browser: dict, *, page: bool = False) -> dict:
+    """The obligation records the one view `browser` serves for what the page asks, by
+    the selections `obligations.collection` makes: the frozen threads' obligations, or
+    with `page` the document's and its sign-off. The records the user's updates publish
+    are `served_updates`."""
     [view] = browser["views"].values()
     return collection(
-        [item for item in view["items"] if (item["thread"] is None) == page]
+        [
+            item
+            for item in view["obligations"]
+            if item["source"]["kind"] != "update" and (item["thread"] is None) == page
+        ]
     )
+
+
+def served_updates(browser: dict) -> list[dict]:
+    """The records the user's updates publish (`workflows.handed_over`), in the one view
+    `browser` serves."""
+    [view] = browser["views"].values()
+    return [item for item in view["obligations"] if item["source"]["kind"] == "update"]
 
 
 @pytest.fixture
@@ -863,6 +875,56 @@ def native_codex_chat(tmp_path):
     return create
 
 
+def _page_record(path):
+    """The `state.Record` a page file's name declares."""
+    from leaf.event_log import CURSOR
+    from leaf.presence import VIEWED
+    from leaf.user_views import USER_VIEWS
+
+    return {
+        schema_model.STATUS_FILE: service_model.STATUS,
+        schema_model.SERVICE_FILE: server_model.SERVICE,
+        schema_model.PREVIEW_FILE: server_model.PREVIEW,
+        schema_model.CURSOR_FILE: CURSOR,
+        schema_model.VIEWED_FILE: VIEWED,
+        schema_model.USER_VIEWS_FILE: USER_VIEWS,
+    }[path.name]
+
+
+def read_record(path):
+    """A page's record as Leaf reads it, or None where Leaf reads none."""
+    return _page_record(path).read(path)
+
+
+def write_record(path, value):
+    """Write a page's record as its writer in Leaf would, through the `state.Record`
+    its file name declares. A status names no stream unless `value` does, and a
+    service no runtime and an incarnation no server holds unless it names them."""
+    record = _page_record(path)
+    if record is service_model.STATUS:
+        stream = {**service_model.no_stream(), **value.get("stream", {})}
+        value = {**value, "stream": stream}
+    if record is server_model.SERVICE:
+        value = {"runtime": {}, "server_id": "gone", **value}
+    record.write(path, value)
+
+
+def write_row(path, page):
+    """Publish a neighbor row for `page` at `path` with every field a serving
+    page's producer writes, none of them saying anything."""
+    activity = dict.fromkeys(server_rows_model.ACTIVITY_FIELDS)
+    activity["counts"] = dict.fromkeys(server_rows_model.COUNT_FIELDS, 0)
+    server_rows_model.ROW.write(
+        path,
+        {
+            "page": str(page),
+            "page_key": cleanup_model.page_key(page),
+            "server_id": "fixture-server",
+            "row": {"title": page.name, "session_cwd": None, "activity": activity},
+        },
+    )
+
+
 def record_claim(page, /, harness="claude-code", **fields):
     """Write the canonical claim shape for lifecycle fixtures.
 
@@ -878,7 +940,7 @@ def record_claim(page, /, harness="claude-code", **fields):
         "pid": os.getpid(),
         "agent": "Claude",
         "cwd": str(Path.cwd()),
-        "ts": "t",
+        "ts": cleanup_model.now_iso(),
         "turn": observed["turn"] if observed else "turn-1",
         "turn_opened": observed["turn_opened"] if observed else cleanup_model.now_iso(),
         "turn_closed": observed["turn_closed"] if observed else None,
@@ -1088,10 +1150,10 @@ def state_json(d):
     return json.loads(result.output)
 
 
-def items_on_user(state):
-    """Widget items on the user's list, On me, retaining source and prompt identity:
-    each row joined to the record in `items` it names."""
-    records = {item["id"]: item for item in state["items"]}
+def obligations_on_user(state):
+    """Widget obligations on the user's list, On me, retaining source and prompt identity:
+    each row joined to the record in `obligations` it names."""
+    records = {item["id"]: item for item in state["obligations"]}
     return [
         {
             "id": row["id"],
@@ -1106,13 +1168,42 @@ def items_on_user(state):
 
 
 def owed(state):
-    """The workflows one agent-facing state still owes an answer.
+    """The answers one agent-facing state still owes, each the workflow of the input
+    its record names, with the record's id as `obligation` and the owed `answer`.
 
-    `activity.obligations` names them by id, so this is the join an agent makes to
-    reach a move's stage, subject, or answer.
+    `activity.obligations` names each by its record's id beside its answer, so this
+    is the join an agent makes to reach a move's stage or subject.
     """
-    ids = set(state["activity"]["obligations"])
-    return [item for item in state["workflows"] if item["id"] in ids]
+    records = {item["id"]: item for item in state["obligations"]}
+    by_input = {item["input"]: item for item in state["workflows"]}
+    return [
+        {
+            **by_input[records[entry["id"]]["source"]["id"]],
+            "obligation": entry["id"],
+            "answer": entry["answer"],
+        }
+        for entry in state["activity"]["obligations"]
+    ]
+
+
+def activity_reading(page_dir, now: str | None = None) -> dict:
+    """The page's activity as the server folds it (`activity.canonical_activity`), each
+    owed answer (`obligations`) whole: the workflow of its update with the record's id
+    and the answer, where the served state lists the record ids alone and `page state`
+    prints each id beside its answer."""
+    from leaf.served_state.context import read_page
+
+    events = events_model.read_events(page_dir)
+    return read_page(page_dir, events, now=now).work.activity
+
+
+def owed_answers(page_dir):
+    """The answers the page's agent owes (`activity.obligations`), as the hooks and
+    `leaf status idle` read them: each the workflow of the input its record names, with
+    the record's id as `obligation` and the owed `answer`."""
+    from leaf.served_state.context import read_page
+
+    return read_page(page_dir, events_model.read_events(page_dir)).work.obligations
 
 
 # A question and the accept that answers it, written as a stored log holds them:
@@ -1488,7 +1579,7 @@ def fixture_service(directory, port: int, lifetime: str = "persistent") -> dict:
         "lifetime": lifetime,
         "server_id": "fixture-server",
     }
-    cleanup_model.write_json(directory / "service.json", service)
+    write_record(directory / "service.json", service)
     return service
 
 
@@ -1636,7 +1727,7 @@ def neighbour_page(directory, title=None, dead=False, published=True, port=59999
     assert initialized.exit_code == 0, initialized.output
     write_revision(directory, 1, html.encode())
     # A neighbour waiting on its user: a closed one is not listed (`other_leaves`).
-    cleanup_model.write_json(
+    write_record(
         directory / "status.json",
         {"state": "waiting", "detail": "", "ts": cleanup_model.now_iso()},
     )
@@ -1757,7 +1848,7 @@ def newest_move(page_dir, widget):
 
 
 def _start(page_dir, item, line):
-    """`leaf task start`: take a move or task in hand with the banner's line."""
+    """`leaf task start`: take a move or task in hand with the status's line."""
     return CliRunner().invoke(
         cli_model.cli, ["task", "start", str(page_dir), str(item), line]
     )
@@ -1841,6 +1932,32 @@ def claimed(page_dir, monkeypatch):
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     service_model.claim_page(page_dir)
     return page_dir
+
+
+def _launched_as(monkeypatch, argv: list[str]) -> None:
+    """Read this process, the CLAUDE_PID `claimed` names, as a Claude Code launched
+    with `argv`, which is what says whether a watch follows its turns
+    (`ClaudeCodeHarness.watches_between_turns`). Other processes read as they run."""
+    launched = harness_model.process_argv
+    monkeypatch.setattr(
+        harness_model,
+        "process_argv",
+        lambda pid: argv if pid == os.getpid() else launched(pid),
+    )
+
+
+@pytest.fixture
+def interactive(monkeypatch):
+    """Claude Code at its terminal, where a watch follows each turn and gives input
+    that arrives as the turn ends a turn of its own."""
+    _launched_as(monkeypatch, ["claude"])
+
+
+@pytest.fixture
+def printing(monkeypatch):
+    """Claude Code under plain `--print`, where no watch follows the run, so its Stop
+    hook hands over the input pending as the turn ends."""
+    _launched_as(monkeypatch, ["claude", "-p", "review the page"])
 
 
 @pytest.fixture(scope="session")
@@ -2414,7 +2531,7 @@ def woken(output: str, session: str | None = None) -> tuple[dict, dict, list[dic
         candidate, _ = decoder.raw_decode("\n".join(lines[i:]))
         if (
             isinstance(candidate, dict)
-            and candidate.get("format") == delivery_model.DELIVERY_FORMAT
+            and candidate.get("format") == delivery_model.DELIVERY.format
         ):
             payload = candidate
             break
@@ -2429,7 +2546,7 @@ def woken(output: str, session: str | None = None) -> tuple[dict, dict, list[dic
             session or session_model.session_harness().session
         )
         assert payload["acknowledge"] is None
-    assert payload["format"] == delivery_model.DELIVERY_FORMAT
+    assert payload["format"] == delivery_model.DELIVERY.format
     [batch] = payload["batches"]
     return payload, batch, batch["events"]
 
@@ -2448,7 +2565,7 @@ def printed(output: str) -> tuple[dict, dict, list[dict]]:
     """Read the one delivery a wait printed, for a harness whose wait is its watcher
     (a bare shell, a Codex watcher): its reader confirms it with `wait --ack`."""
     payload = json.loads(output)
-    assert payload["format"] == delivery_model.DELIVERY_FORMAT
+    assert payload["format"] == delivery_model.DELIVERY.format
     assert payload["acknowledge"] is not None
     [batch] = payload["batches"]
     return payload, batch, batch["events"]

@@ -323,7 +323,7 @@ function captureCommandReferenceCatalog() {
   // A control's native Enter/Space scope can name that capability without an action of
   // its own. Prefer a row the reference can invoke, then teach a keyboard route rather
   // than an unbound control; among keyboard routes,
-  // prefer the reachable one (an item digit can replace a shadowed intrinsic key).
+  // prefer the reachable one (an obligation digit can replace a shadowed intrinsic key).
   // Invoking the reference names the capability, so any executable route makes the
   // entry available even when its displayed sequence has not been entered yet.
   const preferred = new Map();
@@ -1007,6 +1007,7 @@ pageScope("command reference", {
   rows: [
     {
       id: "command.reference.command.next",
+      touch: false,
       keys: ["ArrowDown"],
       description: "Choose the next command",
       title: "choose next",
@@ -1020,6 +1021,7 @@ pageScope("command reference", {
     },
     {
       id: "command.reference.command.previous",
+      touch: false,
       keys: ["ArrowUp"],
       description: "Choose the previous command",
       title: "choose previous",
@@ -1031,6 +1033,7 @@ pageScope("command reference", {
     },
     {
       id: "command.reference.command.activate",
+      touch: false,
       keys: ["Enter"],
       description: "Activate the chosen command",
       title: "activate",
@@ -1041,6 +1044,7 @@ pageScope("command reference", {
     },
     {
       id: "command.reference.close",
+      touch: false,
       keys: ["Escape"],
       description: "Close the command reference",
       title: "close command reference",

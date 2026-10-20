@@ -23,7 +23,7 @@
    A native continuation (`focus: false`) returns its presented route under session
    availability even after Tab supersedes positioning; it never takes focus, and the
    original intent alone permits scrolling or another reveal gesture.
-   Addressed part and focus are independent. Materializing a thread item asks
+   Addressed part and focus are independent. Materializing a thread obligation asks
    for its message part without focus; a native editing continuation asks for the
    reply part without focus. Omitting part follows each surface's ordinary route.
    A focused primary arrival uses page travel's ordinary arrival, which clears a
@@ -48,6 +48,7 @@ import { heldThread } from "./focus.js";
 import { showHeldThread } from "./held-news.js";
 import { revealHeld, surfaceFocusTarget } from "./surfaces.js";
 import { reveal } from "../widget-elements.js";
+import { visibleTargetParts } from "../visible-target-parts.js";
 import { closestAcross } from "../passages.js";
 import { renderedUnder } from "../shadow.js";
 import { discussed, threadKey } from "./model.js";
@@ -247,8 +248,20 @@ export function createThreadDestinations({
       // A thread a seat holds whole has no node until the seat shows it (held-news.js).
       if (showHeldThread(id) && surfaceFocusTarget(id, { part: localPart }))
         return openSurface();
+      // A card stands beside its passage while the passage is drawn
+      // (`commentAttachment`), and a card with nowhere to stand never places. A trip
+      // reveals the passage as it arrives. A thread opened where the user stands reveals
+      // it here, opening the tab or disclosure that holds it, unless the caller keeps
+      // every scroller still, since a tab switch scrolls its strip. A passage that stays
+      // hidden leaves the thread to the primary reader.
+      const place = preview && !trip ? threadTarget(id) : null;
+      const placeDrawn = () => visibleTargetParts(place).length > 0;
+      if (place && scroll && !placeDrawn()) {
+        await reveal(place, intent).ready;
+        if (!mayPresent()) return null;
+      }
       let opened = null;
-      if (preview)
+      if (preview && (!place || placeDrawn()))
         intent.handoff(() => {
           opened = preview.open(id, { origin });
         });
@@ -307,7 +320,7 @@ export function createThreadDestinations({
 
   // Where a thread about an element an agent sent in a message goes to its subject: the
   // message stands in for a place on the page (anchor-placement.js), so the message's
-  // thread opens there without moving focus, as a thread ask's does (items/view.js), and
+  // thread opens there without moving focus, as a thread ask's does (obligations/view.js), and
   // the user lands on the element in it. A thread whose subject stands on the page goes
   // there by opening itself, beside its words.
   async function openThreadSubject(id, { intent = retainUserIntent() } = {}) {

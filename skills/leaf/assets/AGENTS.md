@@ -199,7 +199,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Composition and the application's state                                                                     | `application.js`, `semantic-state.js`, `context.js`                                                                                                                       |
 | Delivery, accepted state, and wakeups                                                                       | `delivery.js`, `state-application.js`, `state-feed.js`, `layer-client.js`, `traffic.js`                                                                                   |
 | Undo and withdrawal                                                                                         | `undo.js`                                                                                                                                                                 |
-| State models and projection                                                                                 | `projection/`, `thread/model.js`, `thread/workflow.js`, `thread/state.js`, `pending/`, `items/model.js`, `queues.js`                                                      |
+| State models and projection                                                                                 | `projection/`, `thread/model.js`, `thread/workflow.js`, `thread/state.js`, `pending/`, `obligations/model.js`, `queues.js`                                                |
 | Widget capture and lifecycle                                                                                | `document-identity.js`, `widget-descriptors.js`, `widget-controller.js`, `widget-loader.js`, `widget-upgrade.js`                                                          |
 | Vocabulary and public helpers                                                                               | `registry.js`, `widget-api.js`, `widget-elements.js`                                                                                                                      |
 | External data                                                                                               | `data.js`, `projection/data.js`, `projection/authored.js`                                                                                                                 |
@@ -209,7 +209,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Reading regions and scrolling                                                                               | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js`                                                                        |
 | Keyboard                                                                                                    | `keyboard/AGENTS.md`                                                                                                                                                      |
 | Focus and navigation                                                                                        | `focus.js`, `standing-target.js`, `navigation.js`, `queue-walk.js`, `history.js`, `user-intent.js`, `walk-position.js`                                                    |
-| Items                                                                                                       | `items/`                                                                                                                                                                  |
+| Obligations                                                                                                 | `obligations/`                                                                                                                                                            |
 | Comment capture                                                                                             | `composing/`, `drafts.js`, `media.js`                                                                                                                                     |
 | Threads                                                                                                     | `thread/`                                                                                                                                                                 |
 | Annotation inventory and controls                                                                           | `annotation-inventory.js`, `annotation-view.js`, `contributions.js`, `contribution-controls.js`, `inline-contributions.js`                                                |
@@ -323,7 +323,7 @@ the ordered list of this tab's unresolved work into the one state every componen
 | version shown                                                                                                 | the revision the delivery prelude names; a newer revision with the same executable identity patches in place, and a different one loads a fresh document |
 | accepted history                                                                                              | the server's event log and its `/api/state` answer, which the publisher adopts whole                                                                     |
 | unresolved browser work                                                                                       | the publisher's one ordered list                                                                                                                         |
-| threads, workflow, attention, items, to-dos, activity, unread                                                 | the server's state; the browser adds only its own unresolved sends and the versions it is marking read                                                   |
+| threads, workflow, attention, obligations, to-dos, activity, unread                                           | the server's state; the browser adds only its own unresolved sends and the versions it is marking read                                                   |
 | what waits on the user and on the agent                                                                       | the server's `served_state.queues`, which `page state` prints; the publisher adds this tab's sends (`localQueues`)                                       |
 | what the DOM shows                                                                                            | the presentation coordinator's renderer tickets and preparation regions                                                                                  |
 | when a document-wide renderer paints                                                                          | the order `PRESENTATION_ORDER` in `runtime/semantic-state.js` declares                                                                                   |
@@ -396,7 +396,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | The language a file path means                                                                        | `syntax.js` `langForPath`, from the registry's `$languages`                        |
 | Paint on the next frame, or watch a size                                                              | `rendering.js` `nextRender`, `nextFrame`, `sizeObserver` (_lint_)                  |
 | Write a DOM value only when it changed                                                                | `keeps.js` `keeps`                                                                 |
-| Threads, workflow, attention, items, and whether they are answered                                    | the server's state, under "One writer for each fact"                               |
+| Threads, workflow, attention, obligations, and whether they are answered                              | the server's state, under "One writer for each fact"                               |
 | A workflow's word, and its progress face on a control; an open to-do's word                           | `thread/workflow.js` `workflowLabel`, `progressFace`, `todoLabel`                  |
 | A thread's word, which Threads states as its status                                                   | `thread/workflow.js` `threadAttention`                                             |
 | What a thread's margin entry and Page Map row say of it: its line, turn and receipt                   | `margin-model.js` `threadMarks`                                                    |
@@ -404,7 +404,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | The thread a name names: its id, a message's, or this tab's attempt                                   | `thread/state.js` `threadNamed`, `threadIdNamed`                                   |
 | The thread id a drawn thread carries                                                                  | `thread/selectors.js` `drawnThreadId`                                              |
 | The draft a thread holds: its reply box or a rewrite                                                  | `drafts.js` `replyContext`, `rewriteContext`, `threadDraft`                        |
-| Which items a region of the page holds                                                                | `items/place.js` `itemsIn`                                                         |
+| Which obligations a region of the page holds                                                          | `obligations/place.js` `obligationsIn`                                             |
 
 ### Facts both runtimes know
 
@@ -413,9 +413,16 @@ can highlight, has one home. Either one language owns it and sends it to the oth
 data, as the server sends its state in `/api/state`, whose type the build generates
 from `served_state/state.schema.json`, or the registry declares it and the browser's
 copy is generated, as `build/registry.mjs` writes `runtime/syntax-languages.js` from
-`$languages`. A parity fixture, or a test that scans
-one language's source for the other's names, keeps two copies in step instead; in
-review, ask why that fact isn't generated.
+`$languages`. Where runtime code must spell a value, as a comparison does, a generated
+type makes a spelling the declaration lacks fail the type check, as `ServedWorkKind`
+and `AuthoredAllocations` do. Where only a literal can carry the fact, as a
+stylesheet's attribute selector spells a mark's paint or Python's markup names an
+attribute the runtime reads, a check holds the spelling to the declaration or to the
+other runtime's spelling (`build/registry.test.mjs`). An algorithm both runtimes run
+can't be generated, so a shared case file holds both to the same answers
+(`tests/*_cases.json`). Anywhere else, a parity fixture, or a test that scans one
+language's source for the other's names, keeps two copies in step instead; in review,
+ask why that fact isn't generated.
 
 ## Startup and presentation
 
@@ -457,13 +464,13 @@ first alone. Code outside the page waits on `pageReadiness`, through
 
 ## Authoritative projection
 
-Python decides which items exist, when a widget is complete, and when a thread is
-answered. Each view carries every item record once, the page's and its frozen threads'
-(`items`); a row of On me names its item by id, and the publisher joins the two. The
+Python decides which obligations exist, when a widget is complete, and when a thread is
+answered. Each view carries every obligation record once, the page's and its frozen threads'
+(`obligations`); a row of On me names its obligation by id, and the publisher joins the two. The
 browser reads a widget's answer from
 the same state its controls draw and doesn't reapply the `x-awaits.answered` rule. A
-required-version approval is an item the browser updates at once, restoring the server's
-state on refusal. A thread gesture changes no attention and no item until the server's
+required-version approval is an obligation the browser updates at once, restoring the server's
+state on refusal. A thread gesture changes no attention and no obligation until the server's
 reading of it arrives (root `AGENTS.md`, "Responsiveness").
 
 Every state read carries one `through_seq`, and version comparison asks `/api/view` at

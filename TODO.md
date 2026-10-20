@@ -79,20 +79,13 @@ has tried; settle that before building it.
   bar and the switch between them went. Work through its remaining list. The phone
   waits until the desktop design is firm, and where a passage thread opens from
   Threads waits until later.
-- **Give "update" one meaning on screen.** It names the user's input ("Undo the
-  latest update", "Stalled update", "1 update to send again", the On view's
-  Update rows) and, since the floating card's held-news notice, the agent's progress
-  ("1 new update"); the glossary keeps it for the user's input alone. Choose one
-  sense, rename the other surfaces, and update the glossary to match.
-- **Find the labels where cutting at the room misleads.** Since 2026-10-14 a label
-  holding a room (`data-lf-room`, `controls.css`) cuts words past it with an ellipsis
-  rather than widening its control, which had shifted the banner (the user's
-  decision). An ellipsis at the end cuts the count or the later news first, so some
-  cuts lose the fact the label exists for: On me at 100 or more reads "On me: 1…",
-  and the user called that count essential; the agent's On count reads the same way,
-  and a held-news notice that first said "1 new reply" cuts "1 new reply · 1 reaction
-  changed" to "1 new re…". Start with On me, then each room's owner, and give each
-  misleading cut a room that holds it or a shorter form, such as "99+".
+- **Fit a held-news notice's first fact in a phone-width seat.** A notice shows each
+  fact of its news whole or not at all (`newsNotice`), but the first is cut at its
+  end where it alone outgrows the notice: a seat's head row at 390px leaves it about
+  108px, so "1 new progress message" reads "1 new progress me…", and a count that
+  grows past the room the notice first held ("1 new reply", then "2 new replies")
+  cuts the same way. Both keep the count and most of the kind. A shorter form for a
+  narrow row, or more of the row for the notice, would read whole.
 
 ### Agent and author experience
 

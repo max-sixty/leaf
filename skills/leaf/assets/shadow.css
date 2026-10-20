@@ -550,6 +550,22 @@ button.lf-thread-notice[data-lf-focus] {
   flex: none;
   align-self: center;
 }
+.lf-thread-news > span {
+  display: flex;
+  flex-wrap: wrap;
+  block-size: 1lh;
+  overflow: clip;
+}
+.lf-thread-news > span > span {
+  flex: none;
+  white-space: pre;
+}
+.lf-thread-news > span > :first-child {
+  flex-shrink: 1;
+  min-inline-size: 0;
+  overflow: clip;
+  text-overflow: ellipsis;
+}
 .lf-seat-news {
   display: flex;
   align-items: center;

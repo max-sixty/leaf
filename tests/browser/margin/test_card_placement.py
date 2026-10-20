@@ -276,7 +276,7 @@ def test_an_open_card_takes_news_without_moving_its_controls(browser, serve):
     )
     told(page)
     notice = preview.locator(".lf-thread-notice-news")
-    expect(notice).to_have_text("1 new update")
+    expect(notice).to_have_text("1 new progress message")
     expect(words).to_contain_text("before and after the change")
     thread_model.post_reply(
         serve.page_dir,
@@ -391,7 +391,7 @@ def test_a_card_above_its_target_holds_news_it_would_grow_up_for(browser, serve)
     )
     told(page)
     notice = preview.locator(".lf-thread-notice-news")
-    expect(notice).to_have_text("1 new update")
+    expect(notice).to_have_text("1 new progress message")
     rendered(page)
     assert preview.bounding_box() == pytest.approx(opened, abs=0.5)
     notice.click()

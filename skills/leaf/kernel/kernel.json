@@ -22,7 +22,7 @@
     "runtime/annotation-overlay/margin-cluster-view.js": "236faf29c0e2da10483394ee8ae24137b3af02ad47fae7c69a80a76d66e79de0",
     "runtime/annotation-overlay/margin-layout.js": "07d0b79e63987b94d9c7a8401e032775493eab5ea230155b3782bfe1bef51c57",
     "runtime/annotation-overlay/margin-placement.js": "3d49c3db2141cac9f9f935893e4ef76b7aa28ae1bde673ce412b845021cf22d8",
-    "runtime/annotation-overlay/margin-projection.js": "994b58767da865797d5e10bd85150fe0b22ce6e2816ae97152b864aba6bbc319",
+    "runtime/annotation-overlay/margin-projection.js": "fe00349dcc802e1ef6d56cdb3705e04be33e675be2d3811521f31d3bf07cb3b4",
     "runtime/annotation-overlay/surface-grip.js": "e7e8b915f18bc131e321090ef8de108c49a70fc8005dba9519ec3833cf0c83f3",
     "runtime/annotation-overlay/thread-preview.js": "51128532a677093e0e20504d6f930fb98219bf401a38785a3dc67c797178f7f2",
     "runtime/annotation-overlay/visual-mark-paint.js": "79bfa0da875d52954da0cd24360389a5bbc821711258088cb0bbfff3557ef1cb",

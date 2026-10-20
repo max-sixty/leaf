@@ -1509,9 +1509,11 @@ export function createMarginProjection({
   const entryThread = (node) => {
     if (under(node, preview) && previewOpen()) {
       const selected = card.selection();
-      const item = selected && threadReading(selected.entry)?.items.find(
-        (candidate) => candidate.id === selected.threadItem,
-      );
+      const item =
+        selected &&
+        threadReading(selected.entry)?.items.find(
+          (candidate) => candidate.id === selected.threadItem,
+        );
       if (item) return sourceItem(item).thread.id;
     }
     const entry = closestAcross(node, ".lf-margin-entry")?.lfEntry;

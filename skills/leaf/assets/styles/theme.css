@@ -266,11 +266,18 @@
      It is authored rather than measured, so the page's geometry is settled before
      anything lands in the margin and never moves because of what does. It seats the
      resting cluster the margin model budgets (RESTING_MARGIN_ENTRY_BUDGET in
-     margin-model.js): two entries and the cluster's 4px gap, hung 22px off the column,
-     with the focus ring's room at the outer edge. A cluster that unfolds past it stands
-     over whatever lies beyond. The rule that spends it is beside .lf-margin-cluster
-     below. */
-  --rail: calc(2 * var(--margin-entry) + 4px + 22px + var(--focus-ring-room));
+     margin-model.js): two entries and the cluster's gap (`--margin-gap`), hung
+     `--rail-hang` off the column, with the focus ring's room at the outer edge. A
+     finger's larger entries spend the room the hang would, so it shrinks with them. A
+     cluster that unfolds past it stands over whatever lies beyond. The rule that spends
+     it is beside .lf-margin-cluster below; the overlay reads the hang to seat a row
+     (margin-layout.js). */
+  --margin-gap: 4px;
+  --rail-hang: 22px;
+  --rail: calc(
+    2 * var(--margin-entry) + var(--margin-gap) + var(--rail-hang) +
+      var(--focus-ring-room)
+  );
   /* A sidenote's strip: a column of text plus its gutter, chosen rather than measured
      off anything the way --rail is. The 360px it leaves the note sets about fifty-six
      characters of --t-5 serif. The rule that spends it is beside aside.sidenote below.
@@ -573,14 +580,16 @@ html:not([data-lf-live]) {
   --lf-foot-room: 0px;
 }
 /* The other half of --aim-floor and --entry-floor, and the whole of what a coarse pointer
-   changes about how small a control, or the words typed in one, may be. Every rule that
-   states a floor reads its token, so a control joins both answers by joining one of them. */
+   changes about how small a control, or the words typed in one, may be, with the room
+   that follows from it. Every rule that states a floor reads its token, so a control
+   joins both answers by joining one of them. */
 @media (pointer: coarse) {
   :root {
     --aim-floor: 44px;
     --entry-floor: 16px;
     --lf-fp-line: 34px;
     --lf-fp-row-pad: 7px;
+    --rail-hang: 10px;
   }
 }
 

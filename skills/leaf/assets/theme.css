@@ -54,7 +54,9 @@
   --entry-floor: 0px;
   --margin-entry: max(32px, var(--aim-floor));
   --pin-inset: 4px;
-  --rail: calc(2 * var(--margin-entry) + 4px + 22px + var(--focus-ring-room));
+  --margin-gap: 4px;
+  --rail-hang: 22px;
+  --rail: calc( 2 * var(--margin-entry) + var(--margin-gap) + var(--rail-hang) + var(--focus-ring-room) );
   --note: 384px;
   --thread-card: 592px;
   --thread-card-min: 320px;
@@ -193,6 +195,7 @@ html:not([data-lf-live]) {
     --entry-floor: 16px;
     --lf-fp-line: 34px;
     --lf-fp-row-pad: 7px;
+    --rail-hang: 10px;
   }
 }
 @property --lf-frame-start { syntax: "<integer>"; inherits: false; initial-value: 0; }

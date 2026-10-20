@@ -48,7 +48,7 @@
   top: var(--lf-margin-y, 0px);
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--margin-gap);
   white-space: nowrap;
   padding-right: var(--focus-ring-room);
   pointer-events: auto;
@@ -192,16 +192,6 @@
 @media screen and (width > 640px) {
   html[data-lf-live]:not([data-lf-layout~="workspace"]) body[data-rail="right"] {
     padding-inline-end: var(--rail);
-  }
-}
-/* How far a rail marker hangs off the column. A finger's larger entries spend the rail's
- * room themselves, so the hang shrinks with them. */
-:root {
-  --rail-hang: 22px;
-}
-@media (pointer: coarse) {
-  :root {
-    --rail-hang: 10px;
   }
 }
 @media print {

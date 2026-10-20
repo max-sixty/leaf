@@ -114,7 +114,8 @@
   --card: light-dark(#fffefb, #201e1a);
   --field: light-dark(#f4f1e8, #232019);
   --shade: light-dark(rgb(0 0 0 / 0.14), rgb(0 0 0 / 0.55));
-  --raise-1: 0 2px 8px var(--shade);
+  --raise-1-reach: 8px;
+  --raise-1: 0 2px var(--raise-1-reach) var(--shade);
   --raise-2: 0 8px 24px var(--shade);
   --raise-3: 0 12px 36px var(--shade);
   --tip-bg: var(--ink);

@@ -3,6 +3,7 @@ hand, and the two queues say what is on the user and what is on the agent."""
 
 import json
 import re
+import threading
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,7 @@ from click.testing import CliRunner
 from interact_support import (
     FLOW_PAGE,
     PAGE,
+    STATED_TIMEOUT,
     ModelPage,
     _start,
     _status,
@@ -41,8 +43,13 @@ from leaf import files as files_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import state as state_model
+from leaf import thread as thread_model
 from leaf import todos as todos_model
+from leaf.event_contracts import append_admitted
+from leaf.findings import Rejected
 from leaf.served_state.page import full_state
+from leaf.state import EVENTS_FILE
 from leaf_dev.page_fixtures import package_selection_args
 
 
@@ -799,6 +806,66 @@ def test_working_names_a_move_until_its_answer_and_a_todo_until_its_end(page_dir
     written(leaf("task", "end", page_dir, todo["id"], "done", "the glossary section"))
     state = state_json(page_dir)
     assert state["todos"] == []
+    assert state["activity"]["kind"] != "working"
+
+
+@pytest.mark.parametrize(
+    "claim, refusal",
+    [("task start", "unowed-start"), ("progress reply", "superseded-reply")],
+)
+def test_a_claim_reaching_the_door_as_its_update_settles_is_refused(
+    page_dir, monkeypatch, claim, refusal
+):
+    """An agent decides to take an update in hand from a delivery it read earlier, so
+    the update may settle between that reading and its claim. The door reads whether
+    the update is still owed under the same log lock as the append, so a claim that
+    reaches the lock while the settlement holds it is refused, and the page never
+    reads Working on a settled update."""
+    publish(page_dir)
+    comment = append_command(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Tighten it."},
+    )
+    reference = response_reference(page_dir, comment["id"])
+    claim_waits = threading.Event()
+    take_lock = state_model.acquire
+
+    def acquire(f, path, deadline):
+        if threading.current_thread().name == "claim" and path.name == EVENTS_FILE:
+            claim_waits.set()
+        take_lock(f, path, deadline)
+
+    monkeypatch.setattr(state_model, "acquire", acquire)
+
+    def take_in_hand():
+        if claim == "task start":
+            todos_model.cmd_start(page_dir, comment["id"], "Tightening it")
+        else:
+            thread_model.post_response(reference, "Tightening it", ephemeral=True)
+
+    refusals = []
+
+    def run_claim():
+        try:
+            take_in_hand()
+        except Rejected as refused:
+            refusals.append(refused)
+
+    claiming = threading.Thread(target=run_claim, name="claim")
+    with service_model.PageTransaction(page_dir) as page:
+        claiming.start()
+        assert claim_waits.wait(STATED_TIMEOUT)
+        append_admitted(
+            page, {"kind": "resolve", "author": "user", "parent": comment["id"]}
+        )
+    claiming.join(STATED_TIMEOUT)
+    assert not claiming.is_alive()
+
+    [refused] = refusals
+    assert refused.findings[0].code == refusal
+    assert events_model.read_events(page_dir)[-1]["kind"] == "resolve"
+    state = state_json(page_dir)
+    assert state["workflows"] == []
     assert state["activity"]["kind"] != "working"
 
 

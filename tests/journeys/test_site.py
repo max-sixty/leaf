@@ -598,7 +598,8 @@ def test_every_published_page_keeps_its_canonical_page_record(site):
         if seed.exists():
             assert seed.read_text() in (page_dir / "events.jsonl").read_text()
             # The seed is history, so the page acknowledges all of it.
-            assert acknowledged(events) == len(events) - 1
+            receipt = next(event for event in events if event["kind"] == "receipt")
+            assert acknowledged(events) == receipt["seq"] - 1
         else:
             assert acknowledged(events) == 0
         assert set(contracts) == {operation["source"] for operation in operations}

@@ -279,7 +279,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         comments = [events_model.read_events(page)[-1]]
         wait_for(
             lambda: acknowledged_through(page),
-            lambda cursor: cursor == 1,
+            lambda cursor: cursor == comments[0]["seq"],
             failure=lambda: (
                 "the adapter did not acknowledge its batch: "
                 f"deliveries={codex_records('codex-thread')!r}; "

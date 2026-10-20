@@ -130,10 +130,6 @@ has tried; settle that before building it.
   [Test compositions where evidence supports them](notes/workspace-followups.md#item-20),
   using current code and an unfamiliar author; two samples per task do not settle
   which compositions work generally.
-- **Give a recommendation's reason beside the options, not in its card.** The
-  default registry's `lf-options` example writes the reason into the recommended
-  card (`<em>My take: …</em>`). The user accepted moving it into prose beside the
-  options on 2026-10-12. Score the change with `evals/` before and after.
 - **Keep agent activity intelligible throughout a task.** Run the
   [status evaluations](notes/user-feedback-responsiveness.md) for delivery,
   multi-step work, and delegation. Show the plan as well as the current step;
@@ -424,10 +420,12 @@ on 2026-10-07.
   removed that trigger, since the hook now does the watching. **Unconfirmed:** check
   whether any remaining block, such as input the turn still owes an answer to, reaches
   a turn whose answer is already written.
-- **Reproduce the Codex delivery-start race.** Another client may start a turn
-  between Leaf's idle check and its start request. **Unconfirmed:** test the installed
-  App Server's behavior before changing delivery policy; the
-  [Codex brief](notes/codex-integration.md#delivery-start-race) owns the experiment.
+- **Decide how a Codex delivery avoids joining another client's turn.** App Server's
+  `turn/start` steers into a running turn. A follow-up the user queued in Codex starts
+  just after Leaf's idle check reads idle, so Leaf's delivery joins it and Leaf posts
+  that turn's answer as its reply to the comment. The
+  [Codex brief](notes/codex-integration.md#delivery-start-race) holds the
+  measurements, the reproduction and the two options.
 
 - **Measure how often agents produce bad pages.** Write `evals/` cases in which agents
   author ordinary pages, and have a judge read each result at wide, middle and phone

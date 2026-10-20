@@ -3224,6 +3224,15 @@ def test_a_comment_on_words_where_the_page_draws_no_margin_is_written_in_the_row
     expect(box).to_be_focused()
     expect(page.locator(".lf-fp-field")).to_be_hidden()
     page.keyboard.type("Is this paragraph needed?")
+    # Send stands in the field's end corner, as in every comment box, not on a line
+    # of its own under the field.
+    send = response.locator(".lf-compose-submit").bounding_box()
+    words = box.bounding_box()
+    assert words["y"] <= send["y"] and send["y"] + send["height"] <= (
+        words["y"] + words["height"]
+    ), (send, words)
+    assert words["x"] + words["width"] / 2 < send["x"], (send, words)
+    assert send["x"] + send["width"] <= words["x"] + words["width"], (send, words)
     # An image it is given hangs over the panel as the field's does, so the box and
     # its words stay where they are.
     card = page.locator(".lf-fp-card")

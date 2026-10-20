@@ -7217,6 +7217,13 @@ function createFloatingPanel({
     return entry?.event ?? null;
   };
   const tabLabel = (tab) => tab === "plan" ? "Plan" : tab === "agent" ? `On ${agentName()}` : "On me";
+  const PLAN_STATES = Object.freeze({
+    open: "Not started",
+    working: "Under way",
+    done: "Done",
+    failed: "Failed",
+    dropped: "Dropped"
+  });
   const PLAN_MARKS = Object.freeze({
     done: "check",
     working: "activity",
@@ -7228,25 +7235,32 @@ function createFloatingPanel({
     ...planItemIds(step.steps)
   ]);
   function planPlace(id) {
-    const plan = readPlan();
-    for (const goal of plan?.steps ?? []) {
-      const index = goal.steps.findIndex(
+    for (const goal of readPlan()?.steps ?? []) {
+      const counted = goal.steps.filter((step) => step.state !== "dropped");
+      const index = counted.findIndex(
         (step) => step.item?.id === id || planItemIds(step.steps).includes(id)
       );
-      if (index >= 0) return `${goal.title} \xB7 step ${index + 1} of ${goal.steps.length}`;
+      if (index < 0) continue;
+      const place3 = `step ${index + 1} of ${counted.length}`;
+      return goal.title ? `${goal.title} \xB7 ${place3}` : capital(place3);
     }
     return null;
   }
   function planStep(step) {
     const mark2 = PLAN_MARKS[step.state];
     return html`<li class="lf-fp-plan-step" data-state=${step.state}>
-      <span class="lf-fp-plan-mark"
+      <span class="lf-fp-plan-mark" role="img" aria-label=${PLAN_STATES[step.state]}
         >${mark2 ? iconTemplate(mark2, "lf-action-icon") : nothing}</span
       ><span class="lf-fp-plan-title">${step.title ?? ""}</span>${step.owner === "user" && step.state === "open" ? html`<button
               type="button"
               class="lf-fp-plan-tag"
               @click=${() => {
-      if (chooseQueueTab("you")) paint();
+      chooseQueueTab("you");
+      paint();
+      focusDestination(
+        head.querySelector('.lf-fp-filters [aria-pressed="true"]'),
+        "move"
+      );
     }}
             >
               On me
@@ -7352,7 +7366,7 @@ function createFloatingPanel({
     else answers = html`${arrive}${discuss}`;
     const key = queueItemKey(item);
     const approval = record?.source.kind === "approval";
-    const place3 = list === "you" ? planPlace(item.id) : null;
+    const place3 = queueTab === "you" ? planPlace(item.id) : null;
     return html`<section
       class="lf-fp-on-item"
       data-list=${list}

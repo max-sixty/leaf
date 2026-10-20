@@ -2116,6 +2116,14 @@ export function createFloatingPanel({
     tab === "plan" ? "Plan" : tab === "agent" ? `On ${agentName()}` : "On me";
 
   // ---------- the plan ----------
+  // What each state reads as to assistive tech, which hears no mark.
+  const PLAN_STATES = Object.freeze({
+    open: "Not started",
+    working: "Under way",
+    done: "Done",
+    failed: "Failed",
+    dropped: "Dropped",
+  });
   const PLAN_MARKS = Object.freeze({
     done: "check",
     working: "activity",
@@ -2127,21 +2135,24 @@ export function createFloatingPanel({
       ...(step.item ? [step.item.id] : []),
       ...planItemIds(step.steps),
     ]);
-  // Where an item stands in the plan: its goal, and its place among that goal's steps.
+  // Where an item stands in the plan: its goal, and its place among that goal's steps,
+  // counted as the goal's own count is, without the dropped ones (`plans.py`).
   function planPlace(id) {
-    const plan = readPlan();
-    for (const goal of plan?.steps ?? []) {
-      const index = goal.steps.findIndex(
+    for (const goal of readPlan()?.steps ?? []) {
+      const counted = goal.steps.filter((step) => step.state !== "dropped");
+      const index = counted.findIndex(
         (step) => step.item?.id === id || planItemIds(step.steps).includes(id),
       );
-      if (index >= 0) return `${goal.title} · step ${index + 1} of ${goal.steps.length}`;
+      if (index < 0) continue;
+      const place = `step ${index + 1} of ${counted.length}`;
+      return goal.title ? `${goal.title} · ${place}` : capital(place);
     }
     return null;
   }
   function planStep(step) {
     const mark = PLAN_MARKS[step.state];
     return html`<li class="lf-fp-plan-step" data-state=${step.state}>
-      <span class="lf-fp-plan-mark"
+      <span class="lf-fp-plan-mark" role="img" aria-label=${PLAN_STATES[step.state]}
         >${mark ? iconTemplate(mark, "lf-action-icon") : nothing}</span
       ><span class="lf-fp-plan-title">${step.title ?? ""}</span>${
         step.owner === "user" && step.state === "open"
@@ -2149,7 +2160,14 @@ export function createFloatingPanel({
               type="button"
               class="lf-fp-plan-tag"
               @click=${() => {
-                if (chooseQueueTab("you")) paint();
+                chooseQueueTab("you");
+                paint();
+                // The pressed step leaves with the plan, so focus moves to the list
+                // it turned to rather than falling to the page.
+                focusDestination(
+                  head.querySelector('.lf-fp-filters [aria-pressed="true"]'),
+                  "move",
+                );
               }}
             >
               On me
@@ -2299,8 +2317,9 @@ export function createFloatingPanel({
     const key = queueItemKey(item);
     const approval = record?.source.kind === "approval";
     // An item the plan names says where it stands in it, so the user answers it
-    // knowing which run it unblocks.
-    const place = list === "you" ? planPlace(item.id) : null;
+    // knowing which run it unblocks, and keeps saying so once answered, so the
+    // answer moves nothing.
+    const place = queueTab === "you" ? planPlace(item.id) : null;
     return html`<section
       class="lf-fp-on-item"
       data-list=${list}

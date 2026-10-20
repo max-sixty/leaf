@@ -2037,11 +2037,13 @@ def test_the_plan_has_its_own_tab_and_an_item_says_its_place_in_it(browser, serv
     """While the agent has a plan, the On view adds a Plan tab beside the two lists,
     drawing the goal with its steps in order, and a step waiting on the user is a way
     to On me. On me keeps every item it lists, and one the plan names says its goal
-    and step over its question."""
+    and step over its question, counted as the goal counts, without dropped steps, and
+    still says it once answered."""
     url = serve(ITEM_PAGE)
     steps = [
         {"depth": 0, "title": "Ship the migration", "state": "working"},
         {"depth": 1, "title": "Read the old schema", "state": "done"},
+        {"depth": 1, "title": "Ask the DBA", "state": "dropped"},
         {"depth": 1, "item": "widget:schema"},
         {"depth": 1, "title": "Write the note", "state": "open"},
     ]
@@ -2057,6 +2059,17 @@ def test_the_plan_has_its_own_tab_and_an_item_says_its_place_in_it(browser, serv
         "Ship the migration · step 2 of 3"
     )
     expect(cards.nth(1).locator(".lf-fp-plan-place")).to_have_count(0)
+    settled(page)
+    answers = cards.first.locator(".lf-fp-answers").bounding_box()
+    with sending(page, "the answer"):
+        cards.first.locator(".lf-fp-answer", has_text="Shim").click()
+    expect(cards.first.locator(".lf-fp-said")).to_have_text(re.compile("^Answered"))
+    expect(cards.first.locator(".lf-fp-plan-place")).to_have_text(
+        "Ship the migration · step 2 of 3"
+    )
+    assert cards.first.locator(".lf-fp-answers").bounding_box()["y"] == answers["y"]
+    with sending(page, "the undo"):
+        cards.first.get_by_role("button", name="Undo").click()
 
     tabs = page.locator(".lf-fp-filters button")
     expect(tabs).to_have_text(["On me 2", "On Claude 0", "Plan"])
@@ -2066,11 +2079,12 @@ def test_the_plan_has_its_own_tab_and_an_item_says_its_place_in_it(browser, serv
         re.compile(r"Ship the migration\s*1 of 3")
     )
     plan_steps = page.locator(".lf-fp-plan > .lf-fp-plan-steps > .lf-fp-plan-step")
-    expect(plan_steps).to_have_count(3)
-    expect(plan_steps.nth(0)).to_have_attribute("data-state", "done")
-    # The step waiting on the user turns the view to On me.
-    plan_steps.nth(1).locator(".lf-fp-plan-tag").click()
+    expect(plan_steps).to_have_count(4)
+    expect(plan_steps.nth(0).get_by_role("img")).to_have_accessible_name("Done")
+    # The step waiting on the user turns the view to On me, and focus with it.
+    plan_steps.nth(2).locator(".lf-fp-plan-tag").click()
     expect(page.locator(".lf-fp-title")).to_have_text("On me")
+    expect(tabs.nth(0)).to_be_focused()
 
 
 def test_versions_travel_and_approval_open_in_the_panel(browser, serve):

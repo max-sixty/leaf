@@ -25,14 +25,14 @@ work".
 A card is one decision with its evidence beside it, which is what an item framed
 by an `lf-ask` already is (`references/authoring-decisions.md`).
 
-| Feed card      | Leaf today                                                              |
-| -------------- | ----------------------------------------------------------------------- |
-| The work, done | Evidence inside an `lf-ask`: a table, a chart, a diff                   |
-| Approve        | An `lf-options` pick, a suggestion's Accept, or Approve version         |
-| Edit           | `lf-draft`, text the user rewrites in place, with its history recorded  |
-| Dismiss        | A "Not now" option or a reject, recorded as an outcome                  |
-| Jump into chat | Discuss on the On view's card, or a comment on the draft's exact words  |
-| The feed       | The On view and `m`, which walk On me in page order, for one page only  |
+| Feed card      | Leaf today                                                             |
+| -------------- | ---------------------------------------------------------------------- |
+| The work, done | Evidence inside an `lf-ask`: a table, a chart, a diff                  |
+| Approve        | An `lf-options` pick, a suggestion's Accept, or Approve version        |
+| Edit           | `lf-draft`, text the user rewrites in place, with its history recorded |
+| Dismiss        | A "Not now" option or a reject, recorded as an outcome                 |
+| Jump into chat | Discuss on the On view's card, or a comment on the draft's exact words |
+| The feed       | The On view and `m`, which walk On me in page order, for one page only |
 
 LangChain's [Agent Inbox](https://github.com/langchain-ai/agent-inbox) uses the
 same four verbs (`HumanInterruptConfig`: accept, edit, respond, ignore), and
@@ -96,9 +96,13 @@ Social feeds are tuned to keep the user scrolling; SOUL.md asks Leaf to preserve
 the user's attention, and the research says an empty list should mean nothing is
 left to decide. So each card should expire to a recorded "not now" rather than
 pile up, as [ChatGPT Pulse](https://www.eweek.com/news/openai-chatgpt-pulse/)
-expires its morning cards after a day. An approval should carry out the wording
-on screen when the user pressed, which an `lf-draft`'s recorded state already
-gives.
+expires its morning cards after a day.
+
+An approval should carry out the wording on screen when the user pressed, and
+nothing binds the two today. An `lf-draft` records each `edit` of its body and
+`lf-options` records only the option chosen, as separate events, so an edit made
+after Send but before the agent acts leaves the approved wording unnamed. A feed
+needs its approval to name the text it approves.
 
 Related open work: `TODO.md`, "Explore independent jobs", asks who owns and
 continues a job's result; a feed's background pass is one such job.

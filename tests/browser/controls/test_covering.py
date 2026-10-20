@@ -4,7 +4,7 @@ an open view, separate scrolling, and where selection stops."""
 import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
-from render_cases_layout import ONE_ITEM, toggle_queue
+from render_cases_layout import ONE_OBLIGATION, toggle_queue
 from render_harness import (
     LONG_PAGE,
     PANEL,
@@ -129,7 +129,7 @@ def test_an_open_view_stands_through_a_replaced_document(browser, serve):
     """A live version can update main under an open view without putting it away: the
     view and the user's place in it stand, and closing it shows the updated document."""
     source = LONG_PAGE.replace(
-        '<h1 id="t">Long</h1>', f'<h1 id="t">Long</h1>{ONE_ITEM}'
+        '<h1 id="t">Long</h1>', f'<h1 id="t">Long</h1>{ONE_OBLIGATION}'
     )
     url = serve(source)
     page = open_page(browser, live_url(url))

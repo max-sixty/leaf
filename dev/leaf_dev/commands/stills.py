@@ -563,7 +563,7 @@ def options_in_pane(page: Page) -> None:
 
 def tally_after_an_answer(page: Page) -> None:
     """A queue's tally after Next on me and one answer: the count down by one, the
-    answered row's check above the open marks, and Next on me's second item open."""
+    answered row's check above the open marks, and Next on me's second obligation open."""
     next_on_me = page.locator("#ar-left .lf-tally-next")
     next_on_me.click()
     page.locator("#ar-canary-consecutive").click()
@@ -847,7 +847,7 @@ def versions_menu(page: Page) -> None:
 
 
 def ask_by_keyboard(page: Page) -> None:
-    """The next open item, an `lf-ask`, reached with `m`: its ring and its marker in view."""
+    """The next open obligation, an `lf-ask`, reached with `m`: its ring and its marker in view."""
     page.keyboard.press("m")
     page.locator("lf-ask").first.wait_for()
 

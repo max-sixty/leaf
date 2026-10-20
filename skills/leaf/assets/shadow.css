@@ -189,7 +189,7 @@ summary {
   color: var(--ink);
   overflow-wrap: anywhere;
 }
-.lf-page-thread[data-lf-focus-within] {
+.lf-page-thread:not(.lf-primary-part)[data-lf-focus-within] {
   outline: none;
   border-radius: var(--r);
   background: var(--focus-surface);
@@ -207,7 +207,7 @@ summary {
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 @media (forced-colors: active) {
-  .lf-page-thread[data-lf-focus-within] {
+  .lf-page-thread:not(.lf-primary-part)[data-lf-focus-within] {
     outline: 2px solid Highlight;
     outline-offset: -2px;
     box-shadow: none;
@@ -226,10 +226,10 @@ summary {
 .lf-thread-seat > .lf-say {
   margin-top: 0;
 }
-.lf-page-thread + :is(.lf-page-thread, .lf-resolved-threads) {
+.lf-page-thread:not(.lf-primary-part) + :is(.lf-page-thread:not(.lf-primary-part), .lf-resolved-threads) {
   margin-top: var(--sp-3);
 }
-.lf-page-thread + :is(.lf-page-thread, .lf-resolved-threads)::before {
+.lf-page-thread:not(.lf-primary-part) + :is(.lf-page-thread:not(.lf-primary-part), .lf-resolved-threads)::before {
   content: "";
   position: absolute;
   inset-inline: var(--sp-1);
@@ -297,6 +297,7 @@ summary {
 }
 .lf-primary-part {
   position: relative;
+  border-radius: var(--r);
 }
 .lf-primary-part[data-lf-part=reply] {
   padding-block-start: max(28px, var(--aim-floor));

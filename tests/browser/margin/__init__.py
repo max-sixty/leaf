@@ -18,7 +18,7 @@ from render_harness import (
     write,
 )
 
-COMMENT_ON_ITEM = {
+COMMENT_ON_OBLIGATION = {
     "kind": "comment",
     "author": "user",
     "revision": 1,
@@ -29,15 +29,15 @@ COMMENT_ON_ITEM = {
 
 # A comment whose lines take the card's whole measure, for a case about the room a
 # placement gives the card rather than the width a short thread takes inside it.
-PARAGRAPH_ON_ITEM = {
-    **COMMENT_ON_ITEM,
+PARAGRAPH_ON_OBLIGATION = {
+    **COMMENT_ON_OBLIGATION,
     "text": "Check whether these jobs can share one visit: the mounts, the bracket and "
     "the cable run all need the same ladder and the same afternoon, and one visit would "
     "halve the call-out charge.",
 }
 
 
-ACTION_ON_ITEM = {
+ACTION_ON_OBLIGATION = {
     "kind": "action",
     "author": "user",
     "revision": 1,

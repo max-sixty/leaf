@@ -11,7 +11,7 @@ from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
-from render_cases_interaction import ITEM_PAGE, PANEL_PAGE, REPORT_PAGE, live_url
+from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, REPORT_PAGE, live_url
 from render_cases_navigation import CHIPS, _publish, address_code, go_to_address
 from render_harness import (
     PANEL,
@@ -32,8 +32,8 @@ from render_harness import (
 )
 
 from browser.margin import (
-    ACTION_ON_ITEM,
-    COMMENT_ON_ITEM,
+    ACTION_ON_OBLIGATION,
+    COMMENT_ON_OBLIGATION,
     DENSE_SUGGESTIONS_PAGE,
 )
 
@@ -144,9 +144,9 @@ PAGE_MAP_EVENTS = [
 ]
 
 
-def test_the_standing_item_marks_its_selected_margin_reading(browser, serve):
-    """The page and margin projections identify the same selected item."""
-    page = open_page(browser, serve(ITEM_PAGE))
+def test_the_standing_obligation_marks_its_selected_margin_reading(browser, serve):
+    """The page and margin projections identify the same selected obligation."""
+    page = open_page(browser, serve(OBLIGATION_PAGE))
     resized(page, 1440, 900)
 
     page.keyboard.press("m")
@@ -155,7 +155,7 @@ def test_the_standing_item_marks_its_selected_margin_reading(browser, serve):
     first_marker = page.locator(
         '[data-lf-margin-for="jobs-decision"] > .lf-margin-marker'
     )
-    expect(first).to_have_attribute("data-lf-item", "1")
+    expect(first).to_have_attribute("data-lf-obligation", "1")
     expect(first_marker).to_have_attribute("data-lf-target-selected", "")
     assert first_marker.evaluate(
         "marker => getComputedStyle(marker).borderTopColor"
@@ -669,11 +669,11 @@ def test_the_page_map_dialog_walks_its_rows_from_the_search(browser, serve):
     expect(thread.locator("leaf-text")).to_be_focused()
 
 
-def test_the_chrome_names_an_item_by_its_question(browser, serve):
-    """An item is named by its heading, not its heading run into its options and their
+def test_the_chrome_names_an_obligation_by_its_question(browser, serve):
+    """An obligation is named by its heading, not its heading run into its options and their
     chips: the card in the panel's On me view, and the Page Map group for it, whose one
-    row says why the item is there rather than naming it a second time."""
-    page = open_page(browser, serve(ITEM_PAGE))
+    row says why the obligation is there rather than naming it a second time."""
+    page = open_page(browser, serve(OBLIGATION_PAGE))
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
@@ -912,7 +912,8 @@ def test_the_page_map_walk_stops_at_both_visible_edges(browser, serve):
     """The Page Map is a vertical list: its arrows stop at its first and last markers,
     while Home and End remain direct routes to those edges."""
     page = open_page(
-        browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM])
+        browser,
+        serve(OBLIGATION_PAGE, events=[ACTION_ON_OBLIGATION, COMMENT_ON_OBLIGATION]),
     )
     markers = page.locator(".lf-margin-marker:visible")
     assert markers.count() > 1, "the Page Map has no pair of visible markers to walk"
@@ -945,8 +946,10 @@ def test_a_margin_entry_walk_position_stays_out_of_its_visible_word(browser, ser
         "while keeping the bird bath available and leaving enough time to replace "
         "the mounts before the next storm arrives?"
     )
-    source = ITEM_PAGE.replace("Which jobs are worth starting?", subject)
-    page = open_page(browser, serve(source, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM]))
+    source = OBLIGATION_PAGE.replace("Which jobs are worth starting?", subject)
+    page = open_page(
+        browser, serve(source, events=[ACTION_ON_OBLIGATION, COMMENT_ON_OBLIGATION])
+    )
     resized(page, 1440, 900)
     buttons = page.evaluate(
         """() => [...document.querySelectorAll('.lf-margin-entry')].map(control => ({
@@ -1028,7 +1031,7 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
     )
     page = open_page(
         browser,
-        serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM]),
+        serve(OBLIGATION_PAGE, events=[ACTION_ON_OBLIGATION, COMMENT_ON_OBLIGATION]),
         context=context,
     )
     resized(page, 390, 760)
@@ -1088,7 +1091,8 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
 def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, serve):
     """The Page Map is one destination while its compact rail changes posture."""
     page = open_page(
-        browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM])
+        browser,
+        serve(OBLIGATION_PAGE, events=[ACTION_ON_OBLIGATION, COMMENT_ON_OBLIGATION]),
     )
     resized(page, 390, 760)
     page.keyboard.press("g")
@@ -1102,7 +1106,7 @@ def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, s
         page.locator('.lf-margin-cluster[data-lf-place="rail"]').first
     ).to_be_visible()
     expect(dialog).to_be_visible()
-    # The item stands once, under the row saying where its answer has got to.
+    # The obligation stands once, under the row saying where its answer has got to.
     expect(dialog.locator(".lf-page-map-action")).to_have_count(4)
     expect(
         dialog.locator(".lf-page-map-action").filter(
@@ -1118,7 +1122,8 @@ def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve):
     """The open dialog is a live projection, not a snapshot from its opening press."""
     height = 480
     page = open_page(
-        browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM])
+        browser,
+        serve(OBLIGATION_PAGE, events=[ACTION_ON_OBLIGATION, COMMENT_ON_OBLIGATION]),
     )
     resized(page, 390, height)
     page.keyboard.press("g")
@@ -1156,7 +1161,9 @@ def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve):
 
 def test_a_live_version_keeps_the_user_on_the_same_margin_location(browser, serve):
     """Replacing authored main must not discard focus held by retained map chrome."""
-    version_url = serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM])
+    version_url = serve(
+        OBLIGATION_PAGE, events=[ACTION_ON_OBLIGATION, COMMENT_ON_OBLIGATION]
+    )
     page = open_page(browser, live_url(version_url))
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
@@ -1164,7 +1171,7 @@ def test_a_live_version_keeps_the_user_on_the_same_margin_location(browser, serv
     expect(marker).to_be_focused()
 
     (serve.page_dir / "index.html").write_text(
-        ITEM_PAGE.replace("Three jobs", "Four jobs")
+        OBLIGATION_PAGE.replace("Three jobs", "Four jobs")
     )
     told(page)
     expect(page.get_by_role("heading", name="Four jobs")).to_be_visible()
@@ -1173,7 +1180,9 @@ def test_a_live_version_keeps_the_user_on_the_same_margin_location(browser, serv
 
 def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
     """A retained preview must mark the new document's matching destination."""
-    version_url = serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM])
+    version_url = serve(
+        OBLIGATION_PAGE, events=[ACTION_ON_OBLIGATION, COMMENT_ON_OBLIGATION]
+    )
     page = open_page(browser, live_url(version_url))
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
@@ -1186,7 +1195,7 @@ def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
     expect(mark).to_be_visible()
 
     (serve.page_dir / "index.html").write_text(
-        ITEM_PAGE.replace("Three jobs", "Four jobs")
+        OBLIGATION_PAGE.replace("Three jobs", "Four jobs")
     )
     told(page)
     expect(page.get_by_role("heading", name="Four jobs")).to_be_visible()
@@ -1197,11 +1206,11 @@ def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
 
 def test_a_version_comparison_joins_the_same_map_and_leaves_with_it(browser, serve):
     """Comparison marks are another projection, not DOM scraped by the map."""
-    url = serve(ITEM_PAGE)
+    url = serve(OBLIGATION_PAGE)
     _publish(
         serve.page_dir,
         2,
-        ITEM_PAGE.replace("Three jobs", "Four jobs"),
+        OBLIGATION_PAGE.replace("Three jobs", "Four jobs"),
         "The heading now names four jobs.",
     )
     page = open_page(browser, url.replace("v1.html", "v2.html"))

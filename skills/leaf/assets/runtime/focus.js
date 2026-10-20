@@ -1198,7 +1198,7 @@ export function controlNavigationKeys(node) {
 // item out on the page and standing on a panel button are the same state — the user
 // holding something — reached from either side of the chrome. What those rungs do not
 // share is the word, and neither word is the other's: leaving the chrome names where the
-// user lands, since that is the whole of what the rung is for, and letting go of an item
+// user lands, since that is the whole of what the rung is for, and letting go of an obligation
 // names the act, since they were on the page all along.
 //
 // Where they land is the block they are reading in the page region they last acted in

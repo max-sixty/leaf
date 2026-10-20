@@ -35,7 +35,7 @@ from .structure import VOID_TAGS, SourceDocument, pre_body
 #               the log's outcomes drops here exactly what drops there — and a widget
 #               whose decision leaves nothing showing goes with its slots (settledAway
 #               there, `gone` here). Its values are also the vocabulary's decision
-#               verbs, which is where `items` reads them from.
+#               verbs, which is where `obligations` reads them from.
 #   x-state, record kind "body"  the verb whose detail text becomes this element's
 #               body once the user sends one (lf-draft's `edit`): replay writes
 #               the newest surviving one into the DOM verbatim (a widget's render is
@@ -654,11 +654,11 @@ class SourceReading:
     def inventory(self) -> SourceInventory:
         """Read historical consumers together, without retaining parser records."""
         from .data_contracts import data_document_readings
-        from .items import item_registrations
+        from .obligations import obligation_registrations
 
         return SourceInventory(
             tuple(self.document.ids),
-            item_registrations(self.document, self.registry),
+            obligation_registrations(self.document, self.registry),
             data_document_readings(self.document, "", self.registry),
         )
 

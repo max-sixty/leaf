@@ -714,7 +714,7 @@ def canonical_activity(
             "active": len(active_updates),
             "handling": len(handling),
             # Of those, the updates in a thread: comments. The rest are widget actions in
-            # an answered item, the only widget actions that owe an answer.
+            # an answered obligation, the only widget actions that owe an answer.
             "handling_comments": sum(
                 item["subject"]["kind"] == "thread" for item in handling
             ),

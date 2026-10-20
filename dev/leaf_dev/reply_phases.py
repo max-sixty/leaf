@@ -186,8 +186,10 @@ def reply_breakdown(
 ) -> dict | None:
     """The whole reply, Leaf's share of it, and its model calls, in milliseconds.
 
-    A tool phase counts toward Leaf's share when any of its calls ran `leaf`, so a
-    batch mixing a read with a `leaf` command counts whole. A model call is the run
+    A tool phase counts toward Leaf's share when any of its calls names `leaf`, so a
+    batch mixing a read with a `leaf` command counts whole, as does one shell command
+    that runs `leaf` among slower work: Leaf's share is an upper bound, close where
+    the agent runs `leaf` on its own, as the journey's agents do. A model call is the run
     of model phases that the same `model_response` is the first to follow: they were
     one response, whose tool calls ran while it still streamed. Each call names the
     tool calls it led to. Returns None for a comment never picked up."""

@@ -27,13 +27,15 @@ identifies the harness and the provider of an explicitly recorded matching turn;
 no current claim or timestamp proximity supplies this identity.
 
 An answered input whose answering session is Claude Code's, with its transcript
-still in this machine's Claude Code projects, also carries its reply's breakdown (`reply`,
-`reply_phases.reply_breakdown`): the whole reply, Leaf's share of it (delivery and
-`leaf` commands), the harness's other work before it took the input, and the model
-calls the reply took. Its case is `working` where the harness took the input at a
-tool boundary of a turn already running, else `waiting`; a running turn that ended
-without another tool call reads as waiting. Other harnesses' inputs carry no
-breakdown, and the summary's reply rows count them missing.
+still in this machine's Claude Code projects, also carries its reply's breakdown
+(`reply`, `reply_phases.reply_breakdown`): the whole reply, Leaf's share of it
+(delivery and `leaf` commands), the harness's other work before it took the input,
+idle time between its turns, and the model calls the reply took. Leaf's share
+counts a whole shell command that runs `leaf` among other work, which real pages'
+agents often write, so it is an upper bound. Its case is `working` where a turn was
+running at the admission, so the harness took the input at that turn's next tool
+boundary or its end, else `waiting`. Other harnesses' inputs carry no breakdown,
+and the summary's reply rows count them missing.
 """
 
 import json

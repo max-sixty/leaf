@@ -184,58 +184,69 @@ reply's, and the harness's record of the session splits it
   boundary. That wait belongs to the work the user started, so the working budget
   counts the reply after the boundary.
 - **Model calls**: each response the harness asked of the model, with the tool calls
-  it issued. The other tools, the agent's own reads and edits, took under 0.1 s in
+  it issued. The agent's other tools, its own reads and edits, took under 0.1 s in
   every reply.
 
 `uv run leaf-dev journey-chart --replies` tabulates the kept samples. These are
-three journeys per harness on this Mac between 14:00 and 14:25 PT on 2026-10-20, at
-`6e6ab4f7a` (main at `8df338a36` with the benchmark's change), with the load average
-between 6 and 10 on 18 cores and the comments posted over HTTP. Codex App Server
-ran #3357's delivery: an idle task takes each delivery from App Server's queue as a
-turn of its own, and a working one gets a pointer from the tool hook, which the
-agent reads and acknowledges with `leaf delivery read` and `leaf delivery ack`.
-Seconds:
+three journeys per harness on this Mac between 14:35 and 15:00 PT on 2026-10-20, at
+`e4d720ce5` (main at `8df338a36` with the benchmark's change), with the comments
+posted over HTTP. Other sessions' suites pushed the load average from 7 to 27 on 18
+cores during the batch, which slows each `leaf` command. Codex App Server ran
+#3357's delivery: an idle task takes each delivery from App Server's queue as a turn
+of its own, and a working one gets a pointer from the tool hook, which the agent
+reads and acknowledges with `leaf delivery read` and `leaf delivery ack`. Seconds:
 
 | Harness          | Case    | Whole reply | Leaf's share | Harness busy first | After the boundary | Model calls | Model time |
 | ---------------- | ------- | ----------: | -----------: | -----------------: | -----------------: | ----------: | ---------: |
-| Claude Code      | waiting |   20.2–27.5 |      1.4–2.9 |                  0 |          20.2–27.5 |         3–5 |  18.8–24.5 |
-| Claude Code      | working |   38.3–38.9 |      1.1–1.4 |          24.8–25.0 |          13.5–13.9 |         2–3 |  12.3–12.7 |
-| Codex App Server | waiting |   17.2–21.8 |      1.0–1.3 |                  0 |          17.2–21.8 |         4–5 |  15.9–20.5 |
-| Codex App Server | working |   40.1–47.0 |      0.8–1.2 |          24.6–24.7 |          15.5–22.2 |         3–4 |  14.7–21.0 |
-| Pi               | waiting |   21.4–28.5 |      1.6–1.8 |                  0 |          21.4–28.5 |         6–8 |  19.8–26.7 |
-| Pi               | working |   39.7–40.9 |      0.9–1.3 |          24.7–25.0 |          14.7–16.1 |         5–6 |  13.4–15.1 |
+| Claude Code      | waiting |   17.5–32.1 |      3.0–3.2 |                  0 |          17.5–32.1 |         3–6 |  14.4–28.9 |
+| Claude Code      | working |   38.6–41.1 |      1.8–2.1 |          24.6–24.8 |          14.0–16.4 |         2–3 |  12.2–14.2 |
+| Codex App Server | waiting |   20.3–30.2 |      1.8–3.5 |                  0 |          20.3–30.2 |         4–5 |  18.4–26.6 |
+| Codex App Server | working |   44.8–50.4 |      1.2–3.7 |          24.6–25.0 |          20.2–25.8 |           4 |  18.7–22.0 |
+| Pi               | waiting |   22.3–27.1 |      1.8–2.9 |                  0 |          22.3–27.1 |         6–7 |  20.4–24.2 |
+| Pi               | working |   40.2–42.6 |      1.0–1.7 |          24.8–25.0 |          15.3–17.6 |         5–6 |  13.8–16.6 |
 
-Leaf's share was under 2 s in 17 of the 18 replies. Delivery took 0.37–0.58 s
-waiting and 0.13–0.31 s working; on Codex App Server it reads 0 working, since the
+Leaf's share was under 2 s in 10 of the 18 replies. Delivery took 0.38–1.28 s
+waiting and 0.19–0.47 s working; on Codex App Server it reads 0 working, since the
 pointer arrives with the tool result and its read and acknowledgement count as
-commands. The `leaf` commands took 0.6–2.4 s, about 0.3–0.5 s each. An earlier
-Claude Code journey, at `1ce8a4c91`, ran `leaf page check --render` twice before a
-waiting reply, 6.3 s each, and its Leaf share reached 13.8 s; `SKILL.md` asks only
-for `leaf page check` before replying about a revision.
+commands. The `leaf` commands took 0.8–3.7 s, about 0.5–0.7 s each. An earlier
+batch of three journeys per harness, between 14:00 and 14:25 PT at load 6 to 10,
+read the same pattern with Leaf's share 0.8–2.9 s, under 2 s in 17 of 18, and
+whole replies of the same size, Codex's 2–8 s shorter. In a run before that, Claude Code ran
+`leaf page check --render` twice before a waiting reply, 6.3 s each, and its Leaf
+share reached 13.8 s; `SKILL.md` asks only for `leaf page check` before replying
+about a revision. A call that only names the launcher counts as Leaf's too: in this
+batch, Pi's `printf '%s\n' "$LEAF"` and `ls "$LEAF"`, a few milliseconds each.
 
-The model took the rest, at 3–7 s a call on Claude Code, 3–8 s on Codex and 1.5–6 s
-on Pi. The quickest replies took two calls once the comment was in context. In
-Claude Code's working replies, the first call claimed the comment with a progress
-reply, and the second edited the page, checked it and replied. In Codex's, after
-the pointer's read, one 7.4 s response acknowledged it, claimed it, edited, checked
-and replied. The other calls went to:
+The model took the rest, at 1.5–6 s a call on Pi and 2–9 s on Claude Code and
+Codex. The quickest replies took two calls once the comment was in context: in a
+Claude Code working reply, the first call claimed the comment with a progress
+reply and made the edit, and the second checked the page and replied. The other
+calls went to:
 
 - **Reading Leaf's references.** Pi and Codex read `event-batches.md`,
   `threads.md`, `page-authoring.md` or `authoring-revisions.md` in one to three
-  calls of every waiting reply. Serving the page had needed none of them, and the
-  working replies, later in the same session, read none again. The waiting ask is
-  each session's first comment, so the two cases differ in this as well as in
-  whether the harness was working.
+  calls of every waiting reply, and Claude Code read the registry in one. Serving
+  the page had needed none of them, and the working replies, later in the same
+  session, read none.
 - **Looking up the widgets.** `leaf page state`, `leaf page instructions` or
-  `registry.json` took one or two calls on Pi and Codex.
-- **Checking apart from the reply.** In every waiting reply Claude Code ran
-  `leaf page check` and replied in the next call; Pi always chained
-  `page check && response reply` in one command.
-- **Reading the pointer.** On Codex App Server a working reply spent a 2.6–4.0 s call
-  on `leaf delivery read` before the work.
+  `registry.json` took one or two calls of each waiting reply on Pi and Codex.
+- **Checking apart from the reply.** In each of Claude Code's waiting replies the
+  check and the reply came in separate calls; in its working replies one command
+  ran both. Pi always chained
+  `page check && response reply` in one command, and Codex ran the check with its
+  edit.
+- **Reading the pointer.** On Codex App Server a working reply spent a 3.7–4.8 s
+  call on `leaf delivery read` before the work.
 - **The user's own next step.** In the working case Pi and Codex ran the user's
-  `printf` in a call of its own before or after the claim. That call belongs to
-  the user's task, though it falls inside the reply's time.
+  `printf` in a call of its own. That call belongs to the user's task, though it
+  falls inside the reply's time.
+
+The two cases differ in more than the harness's state. The waiting ask is each
+session's first comment, so it reads the references and builds the record from
+nothing, a new column or tile; the working ask, later in the same session, adds a
+second release to the record the first one made. Part of the working case's
+shorter reply after the boundary comes from that, and the comparison would need
+the order reversed, or each case in a fresh session, to separate the two.
 
 Proposed budgets for a small page change:
 
@@ -244,12 +255,13 @@ Proposed budgets for a small page change:
 | Leaf's share | under 2 s                                | under 2 s                           |
 | Whole reply  | Leaf's share and two model calls (below) | the same, counted from the boundary |
 
-The two calls: the first claims the comment with a progress reply and reads
-what the edit needs; the second edits the page and replies in the same response,
-the reply reporting what the check found. At today's call times that is about 7 s
-on Codex and Pi and 12 s on Claude Code. A budget in seconds alone would measure
-the model's speed, which Leaf doesn't set; the count of calls is what Leaf's
-instructions and commands decide.
+The two calls: the first claims the comment with a progress reply and reads what
+the edit needs; the second edits the page and replies in the same response, the
+reply reporting what the check found. At the call times measured here that is
+about 6–9 s on Pi and 10–14 s on Claude Code and Codex. A budget in seconds alone
+would measure the model's speed, which Leaf doesn't set; the count of calls is what
+Leaf's instructions and commands decide. Leaf's share rose with the host's load,
+as each `leaf` command starts a fresh process.
 
 ## Status evaluations
 
@@ -302,6 +314,15 @@ In `document/idle` the first reply came 3.9–5.6 s after each comment; in
   `PostToolBatch` does, rather than a pointer to read. Each changes shipped
   instructions or a harness contract, so score it with `evals/` and read the
   journey's model calls before and after.
+- **Separate the cases from the session's history:** the working ask follows the
+  waiting one in the same session ("A small page change's reply"). Asking each in
+  a fresh session, or the working one first, would leave the harness's state the
+  only difference, at the cost of a session per case.
+- **Leaf's share on real pages:** `leaf-dev response-times` reads Leaf's share from
+  Claude Code's transcript, so a shell command that runs `leaf` among slower work
+  counts whole, and Codex and Pi pages get none. If each `leaf` command recorded its
+  own duration in the page's diagnostics, as the server records each request's,
+  the page would say Leaf's share on every harness.
 - **The hosted opening's cost:** whether the hosted agent's opening line delays its
   answer needs runs without one, such as an arm whose `CODEX_INSTRUCTIONS` drop the
   acknowledgement.

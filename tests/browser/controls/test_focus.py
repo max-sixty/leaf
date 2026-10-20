@@ -612,6 +612,104 @@ def test_a_key_onto_a_control_at_a_scrollers_edge_shows_its_ring(
     assert read["room"] >= read["ring"], read
 
 
+GROUPED_SIDE_LIST = leaf_page(
+    "a grouped queue",
+    '<header><h1>Queue</h1></header><lf-tabs id="queue" list="side">'
+    + "".join(
+        f'<lf-tab id="t-{n}" label="Ticket {n}" group="Group {n // 10}">'
+        f"<p>Ticket {n}.</p></lf-tab>"
+        for n in range(30)
+    )
+    + "</lf-tabs>",
+    layout="workspace",
+)
+
+# Stands `el` `past` pixels beyond `edge` of the box `port` names around it.
+PLACE_PAST_EDGE = """(el, [port, edge, past]) => {
+  const box = el.closest(port);
+  const top = box.getBoundingClientRect().top + box.clientTop;
+  const at = el.getBoundingClientRect();
+  box.scrollTop += edge === 'foot'
+    ? at.bottom - (top + box.clientHeight) - past
+    : at.top - top + past;
+}"""
+
+# How much shorter than the list's band the run from the group's label to the tab
+# `el` would have to be to fit with 7px to spare: the shortfall of the tab's ring room
+# at both ends.
+RUN_SHORTFALL = """(el) => {
+  const strip = el.closest('[role=tablist]');
+  const run = document.createRange();
+  run.setStartBefore(el.parentElement.querySelector(':scope > .lf-tab-group'));
+  run.setEndAfter(el);
+  const style = getComputedStyle(strip);
+  const band = strip.clientHeight - (parseFloat(style.scrollPaddingTop) || 0)
+    - (parseFloat(style.scrollPaddingBottom) || 0);
+  return band - run.getBoundingClientRect().height - 7;
+}"""
+
+# How far `el` stands inside `edge` of that box, and how far its ring reaches past it.
+ROOM_AT_EDGE = """(el, [port, edge]) => {
+  const box = el.closest(port);
+  const top = box.getBoundingClientRect().top + box.clientTop;
+  const at = el.getBoundingClientRect();
+  const style = getComputedStyle(el);
+  return {
+    room: edge === 'foot' ? top + box.clientHeight - at.bottom : at.top - top,
+    ring: parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset),
+  };
+}"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize("walk", ["reference", "side list", "side list, long group"])
+def test_a_walk_in_a_box_no_reading_region_moves_shows_the_ring(
+    request, serve, walk, engine
+):
+    """A box no reading region moves revealed a walk's next item by its bare box: the
+    command reference's results, a fixed dialog's list, and a side list's tabs, which a
+    walk reveals bounded `within` the list. So Up onto a command past the results' head
+    stood its button flush with the head, and Down onto a tab past the list's foot
+    stood it flush with the foot, each ring cut there. The tab comes in with its
+    group's label, as one range, where that fits; a group whose run fits the list but
+    not with the tab's ring room comes in by the tab alone, since landing the run
+    would leave the tab past the foot. Each now shows its ring."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(LONG_PAGE if walk == "reference" else GROUPED_SIDE_LIST),
+    )
+    resized(page, 1280, 560)
+    if walk == "reference":
+        page.keyboard.press("?")
+        items = page.locator(".lf-command-reference-command:visible")
+        port, key, edge = ".lf-command-reference-results", "ArrowUp", "head"
+        start, target = items.nth(9), items.nth(8)
+    else:
+        items = page.get_by_role("tab")
+        port, key, edge = "[role=tablist]", "ArrowDown", "foot"
+        last = 19 if walk == "side list, long group" else 15
+        start, target = items.nth(last - 1), items.nth(last)
+        if walk == "side list, long group":
+            resized(page, 1280, 560 - round(target.evaluate(RUN_SHORTFALL)))
+    start.evaluate("el => el.focus({preventScroll: true})")
+    rendered(page)
+    scroll_settled(page)
+    target.evaluate(PLACE_PAST_EDGE, [port, edge, 6])
+    scroll_settled(page)
+    page.keyboard.press(key)
+    expect(target).to_be_focused()
+    rendered(page)
+    read = target.evaluate(ROOM_AT_EDGE, [port, edge])
+    assert read["room"] >= read["ring"], read
+    if walk == "side list":
+        # The run fits, so the group's label came in with the tab.
+        assert target.evaluate(
+            """(el) => el.parentElement.querySelector(':scope > .lf-tab-group')
+              .getBoundingClientRect().top
+              >= el.closest('[role=tablist]').getBoundingClientRect().top"""
+        )
+
+
 # One step of `handBack`, run as a layer closes with the user inside it: `layer` holds
 # the button they stand on, and hiding it drops their focus. `shut` is a hidden button
 # and `open` a shown one, both at the end of `main`.

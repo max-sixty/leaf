@@ -13,13 +13,16 @@
  * bottom margin too, which clears a pinned foot such as a long thread's reply row.
  * Sideways it takes the destination's inline margins, so a focused control brought in
  * from a sideways scroller's end keeps its ring's room there as it does at a foot.
- * Full placement first reveals inner overflow. Both operations stop at this
- * document, so a sample never scrolls its containing page, and a reveal bounded
- * `within` one box stops there. End alignment reveals a tall destination's closing
- * edge through enclosing reading regions. Every script reveal comes through here, a
- * reveal bounded to one box included: a hand-rolled `scrollTop` sum is one more
- * reading of the band that can disagree with this one (eslint.config.mjs,
- * "architecture/scroll-writes").
+ * Full placement first reveals inner overflow, each box moving the destination
+ * nearest with the clearance a nearest landing keeps in its reading region. A box no
+ * reading region moves reveals it the same way, as a fixed layer's list and a reveal
+ * bounded `within` one box do, so a walked item keeps its ring's room at that box's
+ * edge too. Both operations stop at this document, so a sample never scrolls its
+ * containing page, and a reveal bounded `within` one box stops there. End alignment
+ * reveals a tall destination's closing edge through enclosing reading regions. Every
+ * script reveal comes through here, a reveal bounded to one box included: a
+ * hand-rolled `scrollTop` sum is one more reading of the band that can disagree with
+ * this one (eslint.config.mjs, "architecture/scroll-writes").
  *
  * Room and being shown are this module's too, so a landing that asks whether to move
  * reads the same arithmetic the move then does. A destination's room (`landingRoom`) is
@@ -83,10 +86,18 @@ const land = (box, by, behavior) => {
   box.scrollBy({ ...by, behavior });
 };
 
-const scrollMargin = (where, side = "Top") =>
-  where instanceof Range
-    ? 0
-    : Number.parseFloat(getComputedStyle(where)[`scrollMargin${side}`]) || 0;
+// A destination's landing margin on one side. A range has none of its own and takes the
+// larger of those of the elements it starts and ends with, so a side list's run of a
+// group's label and a tab keeps the room the tab's ring needs (lf-tabs.js, `#showTab`).
+function scrollMargin(where, side = "Top") {
+  if (!(where instanceof Range))
+    return Number.parseFloat(getComputedStyle(where)[`scrollMargin${side}`]) || 0;
+  const edges = [
+    where.startContainer.childNodes[where.startOffset],
+    where.endContainer.childNodes[where.endOffset - 1],
+  ].filter((edge) => edge instanceof Element);
+  return edges.length ? Math.max(...edges.map((edge) => scrollMargin(edge, side))) : 0;
+}
 
 // The element a landing shows of `where` (see the header): the box wearing its ring
 // where that fits the room a landing has, and otherwise `where` itself, since a ring
@@ -124,13 +135,14 @@ function topMargin(where, box, holder = holderOf(where)) {
 export const landingRoom = (where, until = where) =>
   roomAround(shownFor(where), where, until);
 
-// The same room for `where` shown as `shown`, the box it or its ring stands in.
+// The same room for `where` shown as `shown`, the box it or its ring stands in. The
+// boxes clipping a range start at the element holding it, and an element's at its parent.
 function roomAround(shown, where, until = where) {
   const holder = placeHolder(shown);
   const regions = [...scrollersOf(holder)];
   let { width, height } = shownWindow();
   for (
-    let box = renderedParent(shown);
+    let box = shown instanceof Range ? holder : renderedParent(shown);
     box instanceof Element;
     box = renderedParent(box)
   ) {
@@ -264,8 +276,9 @@ export function scrollIntoReadingBand(where, holder, block, behavior) {
 // walk ends at this document's scrollport or a fixed box; native scrollIntoView
 // would continue through same-origin frames and move their containing pages.
 // Horizontal inspection is nearest; vertical alignment is start, center, end,
-// or nearest. An explicit alignment lets a passage prepare its inner overflow
-// before its enclosing context lands in the reading band. A destination in a
+// or nearest. Each box the walk moves reveals the destination nearest as the reading
+// region does (`placementBy`), with its margins. An explicit alignment lets a passage
+// prepare its inner overflow before its enclosing context lands in the reading band. A destination in a
 // fixed layer, such as a modal's list, has no reading region: its boxes reveal it
 // nearest, out to that layer. `within` ends the walk at that box, so only it and the
 // boxes inside it move, each revealing the destination nearest: an item comes into
@@ -283,11 +296,12 @@ export function scrollIntoView(
   // Horizontal inspection can belong to any ancestor, the owning region included.
   // Only inner scrollports prepare Y; the region and its outers glide below.
   let inside = true;
-  for (let box = holderOf(where); box instanceof Element; box = renderedParent(box)) {
+  const start = holderOf(where);
+  for (let box = start; box instanceof Element; box = renderedParent(box)) {
     if (box === targetScroller) inside = false;
     const band = landingBand(box);
     if (band) {
-      const { left, right, top, bottom } = band;
+      const { left, right } = band;
       const destination = destinationBox(where);
       const byX = nearestScrollBy(
         destination.left - scrollMargin(where, "Left"),
@@ -296,7 +310,7 @@ export function scrollIntoView(
         right,
       );
       const byY = inside
-        ? nearestScrollBy(destination.top, destination.bottom, top, bottom)
+        ? placementBy(where, "nearest", box, topMargin(where, box, start))
         : 0;
       if (byX || byY) land(box, localScrollBy(box, { x: byX, y: byY }), "instant");
     }

@@ -479,7 +479,15 @@ var land = (box, by, behavior) => {
   if (behavior !== "instant") chooseScroll(box);
   box.scrollBy({ ...by, behavior });
 };
-var scrollMargin = (where, side = "Top") => where instanceof Range ? 0 : Number.parseFloat(getComputedStyle(where)[`scrollMargin${side}`]) || 0;
+function scrollMargin(where, side = "Top") {
+  if (!(where instanceof Range))
+    return Number.parseFloat(getComputedStyle(where)[`scrollMargin${side}`]) || 0;
+  const edges = [
+    where.startContainer.childNodes[where.startOffset],
+    where.endContainer.childNodes[where.endOffset - 1]
+  ].filter((edge) => edge instanceof Element);
+  return edges.length ? Math.max(...edges.map((edge) => scrollMargin(edge, side))) : 0;
+}
 function shownFor(where) {
   const ring = ringBox(where);
   if (ring === where) return where;
@@ -499,7 +507,7 @@ function roomAround(shown, where, until = where) {
   const holder = placeHolder(shown);
   const regions = [...scrollersOf(holder)];
   let { width, height } = shownWindow();
-  for (let box = renderedParent(shown); box instanceof Element; box = renderedParent(box)) {
+  for (let box = shown instanceof Range ? holder : renderedParent(shown); box instanceof Element; box = renderedParent(box)) {
     const band = (until === where || renderedUnder(until, box)) && landingBand(box);
     if (band) {
       const axes = box === pageScroller ? { x: true, y: true } : clippingAxes(getComputedStyle(box));
@@ -597,11 +605,12 @@ function scrollIntoView(where, { alignment = where, behavior = "auto", block = "
   if (!holder) return;
   const targetScroller = within2 ? null : scrollersOf(holder).next().value;
   let inside = true;
-  for (let box = holderOf(where); box instanceof Element; box = renderedParent(box)) {
+  const start = holderOf(where);
+  for (let box = start; box instanceof Element; box = renderedParent(box)) {
     if (box === targetScroller) inside = false;
     const band = landingBand(box);
     if (band) {
-      const { left, right, top, bottom } = band;
+      const { left, right } = band;
       const destination = destinationBox(where);
       const byX = nearestScrollBy(
         destination.left - scrollMargin(where, "Left"),
@@ -609,7 +618,7 @@ function scrollIntoView(where, { alignment = where, behavior = "auto", block = "
         left,
         right
       );
-      const byY = inside ? nearestScrollBy(destination.top, destination.bottom, top, bottom) : 0;
+      const byY = inside ? placementBy(where, "nearest", box, topMargin(where, box, start)) : 0;
       if (byX || byY) land(box, localScrollBy(box, { x: byX, y: byY }), "instant");
     }
     if (box === within2 || box === pageScroller || getComputedStyle(box).position === "fixed")

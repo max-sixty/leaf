@@ -266,10 +266,19 @@ def extract_payload(
 def build_arm(ref: str | None, dest: Path, *, paths: Iterable[str] = PAYLOAD) -> str:
     """Extract `paths` at `ref`, or as the working tree has it when `ref` is None,
     into `dest`, replacing any earlier arm there, and build its environment; return
-    the commit, HEAD's for the working tree."""
+    the commit, HEAD's for the working tree.
+
+    The arm's Python is compiled to bytecode here, as a used install's and the
+    working tree's already are. Without it, an arm's first server compiles each
+    module it imports while answering the page, and a timing that compares the arm
+    with the working tree counts that compilation against the arm."""
     extract_payload(dest, ref, paths=paths)
     with tempfile.TemporaryDirectory() as state:
         run_leaf(dest, Path(state), "--root", check=True)
+    # Serial: `-j` needs a forkserver socket, which a sandboxed CI runner refuses.
+    subprocess.run(
+        [dest / ".venv/bin/python", "-m", "compileall", "-q", dest], check=True
+    )
     return subprocess.run(
         ["git", "-C", ROOT, "rev-parse", f"{ref or 'HEAD'}^{{commit}}"],
         capture_output=True,
@@ -449,11 +458,11 @@ def retire_sessions(payload: Path, state: Path) -> None:
             "-c",
             """
 import json
-from leaf.state import SESSION_SUFFIX, end_session, flocked, state_home_path
+from leaf.state import SESSION_SUFFIX, end_session, flocked, state_home
 from leaf.leases import adapter_lease_path
 from leaf.codex_adapter import adapter_start_lock_path
 
-sessions = state_home_path() / "sessions"
+sessions = state_home() / "sessions"
 for path in sessions.glob(f"*.{SESSION_SUFFIX}"):
     session = json.loads(path.read_text())["id"]
     end_session(session)
@@ -496,12 +505,13 @@ def private_tmp(*owned: Path) -> str:
     overwrite. Writes to `/tmp` are refused except under `owned`, the child's own
     directories, wherever they are, and the names Claude Code and Leaf give their
     own machine-local files there: Claude Code's per-user directory and each
-    shell's cwd file and socket, and Leaf's per-user package locks and each App
-    Server's socket directory. The sandbox resolves `/tmp` to `/private/tmp`, so
-    the rules name that."""
+    shell's cwd file and socket, zsh's here-document files, whose names are
+    unique, and Leaf's per-user package locks and each App Server's socket
+    directory. The sandbox resolves `/tmp` to `/private/tmp`, so the rules name
+    that."""
     uid = os.getuid()
     names = (
-        rf"claude-{uid}(/|$)|claude-[0-9a-f]+-cwd$|cc-socks(/|$)"
+        rf"claude-{uid}(/|$)|claude-[0-9a-f]+-cwd$|cc-socks(/|$)|zsh[^/]+$"
         rf"|leaf-package-locks-{uid}(/|$)|leaf-codex-[^/]+(/|$)"
     )
     return "\n".join(

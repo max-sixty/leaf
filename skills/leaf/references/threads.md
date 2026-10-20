@@ -131,8 +131,8 @@ Every answer declares what it leaves the thread with:
 - `--todo "<what you owe>"`: it promises work it does not deliver, and opens that
   to-do on the thread under the reply's id until `leaf task end <page> <reply-id>`
   ([Long-running work](conversation-loop.md#long-running-work)).
-- A question back: put it in an `lf-ask` in `--markup`. It is an item on the user's
-  On me list, `widget:<its id>` in `page state`'s `items`, until their next message in
+- A question back: put it in an `lf-ask` in `--markup`. It is an obligation on the user's
+  On me list, `widget:<its id>` in `page state`'s `obligations`, until their next message in
   the thread answers it or you end it
   ([The On lists](conversation-loop.md#the-on-lists)). An answer that asks this way
   needs no flag.
@@ -165,9 +165,11 @@ its text becomes the **Working** status in Leaf's panel, so keep it to one line
 ([conversation loop, "When to write"](conversation-loop.md#when-to-write)). In a
 thread that owes no reply, use `leaf thread reply --ephemeral`.
 
-The thread shows the latest progress as one dim working message above its reply box,
-with its author and posting time. Progress never counts as unread. Your next ordinary
-reply takes its place, with the progress folded behind it. Progress carries only text;
+The thread shows the latest progress as one dim working message where you posted it,
+with its author and posting time, so a message the user sends after it follows it.
+Progress never counts as unread. Your next ordinary reply folds the progress just
+before it behind its head; progress the user replied after stays where it was, still.
+Progress carries only text;
 questions, to-dos, markup, anchor moves and failure receipts each need a reply of
 their own.
 

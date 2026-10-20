@@ -9,6 +9,7 @@
  * its durable datum identity. Either address matches only its named side's number.
  * Ambiguous addresses detach rather than choose a file by order. Decoding validates
  * the external key once; file and line lookup consume that reading. */
+/** @param {DiffCoordinate} coordinate */
 export const diffDatumKey = ({ path, file, side, oldLine, newLine }) =>
   JSON.stringify(
     file

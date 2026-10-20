@@ -6,7 +6,7 @@ import re
 import pytest
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
-from render_cases_interaction import ITEM_PAGE, PANEL_PAGE, answered_comment
+from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, answered_comment
 from render_harness import (
     FOLLOWER_MARK,
     SUBJECT_MARK,
@@ -20,8 +20,8 @@ from render_harness import (
 )
 
 from browser.margin import (
-    ACTION_ON_ITEM,
-    COMMENT_ON_ITEM,
+    ACTION_ON_OBLIGATION,
+    COMMENT_ON_OBLIGATION,
     PANE_PIN_PAGE,
     _comment_on,
 )
@@ -32,7 +32,8 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def test_the_margin_keeps_its_page_coordinate_while_the_user_scrolls(browser, serve):
     """Runtime chrome and authored content share one document-space coordinate."""
     page = open_page(
-        browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM])
+        browser,
+        serve(OBLIGATION_PAGE, events=[ACTION_ON_OBLIGATION, COMMENT_ON_OBLIGATION]),
     )
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
@@ -50,9 +51,9 @@ def test_the_margin_keeps_its_page_coordinate_while_the_user_scrolls(browser, se
 
 
 def test_a_keyboard_arrival_brings_its_card_once_its_row_is_shown(browser, serve):
-    """`m` to an item below a pane's fold scrolls it into view while its row is still
+    """`m` to an obligation below a pane's fold scrolls it into view while its row is still
     withheld, so there is nothing yet to hang its card from. The card of the thread the
-    user leaves goes at once, and the item's comes once the margin shows its row, as it
+    user leaves goes at once, and the obligation's comes once the margin shows its row, as it
     would for an arrival whose row was already there."""
     item = (
         '<lf-ask id="work"><h2>Choose</h2><lf-options id="options" choose>'
@@ -370,8 +371,8 @@ SEATED_PANE_PAGE = leaf_page(
 def test_a_pin_in_a_pane_takes_one_seat_at_every_scroll(browser, serve):
     """A pin whose corner covers words is seated beside its target, and in a pane that
     seat is found in the pane's whole content, not the part it shows: seated against the
-    shown part and the pane header's controls, the same item's pin stood 28px above its
-    heading at one scroll and 55px down inside the item at another. Seated outside its
+    shown part and the pane header's controls, the same obligation's pin stood 28px above its
+    heading at one scroll and 55px down inside the obligation at another. Seated outside its
     target, a pin can leave the pane while its target is still in view, so it is
     withheld by where it stands rather than by where its target does."""
     page = open_page(browser, serve(SEATED_PANE_PAGE))
@@ -382,7 +383,7 @@ def test_a_pin_in_a_pane_takes_one_seat_at_every_scroll(browser, serve):
     expect(row).to_have_attribute("data-lf-place", "pin")
 
     def seat_at(gap):
-        """The pin's offset from its item, laid out with the item `gap` below the pane's
+        """The pin's offset from its obligation, laid out with the obligation `gap` below the pane's
         top, and where the pin's top stands against that top."""
         body.evaluate(
             """(body, gap) => {
@@ -416,7 +417,7 @@ def test_a_pin_in_a_pane_takes_one_seat_at_every_scroll(browser, serve):
     assert not far["withheld"], far
     near = seat_at(40)
     assert (near["dx"], near["dy"]) == (far["dx"], far["dy"]), (far, near)
-    # Scrolled to the pane's top, the item's heading is in view, and the pin either
+    # Scrolled to the pane's top, the obligation's heading is in view, and the pin either
     # stands inside the pane at its seat or is withheld; it never stands above the pane.
     top = seat_at(2)
     assert top["withheld"] or (
@@ -772,8 +773,7 @@ def test_an_authored_anchor_scope_leaves_margin_controls_reachable(browser, serv
     expect(stuck).to_be_visible()
 
 
-@pytest.mark.parametrize("position", ["sticky", "sticky-ancestor", "fixed"])
-def test_a_constrained_target_carries_its_row_through_scroll(browser, serve, position):
+def test_a_constrained_target_carries_its_row_through_scroll(browser, serve, subtests):
     """A sticky or fixed box between a target and its scroller moves the target as no
     scroll alone does, so its row's carrier is anchored to the target itself, which
     carries the row in the first frame after every scroll with no pass to reseat it.
@@ -786,84 +786,96 @@ def test_a_constrained_target_carries_its_row_through_scroll(browser, serve, pos
     """
     page = open_page(browser, serve(PANEL_PAGE))
     resized(page, 1280, 900)
-    page.evaluate(
-        """async (position) => {
-          const {contributionEntry, registerContribution} =
-            await window.__lfWidgetApi();
-          document.querySelector('main').dataset.lfMargin = 'none';
-          const host = document.createElement('div');
-          host.style.cssText = 'height: 300px; width: 400px; overflow: auto';
-          host.dataset.bound = 'start';
-          host.innerHTML = '<div style="height: 80px"></div>'
-            + '<div id="constraint"><p id="nonlinear-target" '
-            + 'style="height: 30px; margin: 0">Constrained passage.</p></div>'
-            + '<div style="height: 700px"></div>';
-          document.querySelector('main').prepend(host);
-          const target = host.querySelector('p');
-          if (position === 'sticky') host.querySelector('#constraint').replaceWith(target);
-          const constrained = position === 'sticky-ancestor'
-            ? host.querySelector('#constraint') : target;
-          constrained.style.position = position === 'fixed' ? 'fixed' : 'sticky';
-          constrained.style.top = position === 'fixed' ? '300px' : '0';
-          if (position === 'fixed') {
-            target.style.left = '180px'; target.style.width = '300px';
-            document.querySelector('main').append(target);
-            host.remove();
-            document.body.style.minHeight = '2000px';
-          }
-          const contribution = registerContribution({key: 'nonlinear', target,
-            read: () => ({entries: [contributionEntry({key: 'nonlinear',
-              glyph: '!', label: 'Constrained controls'})]}), activate: () => {}});
-          window.__nonlinear = {host, target, position, contribution};
-        }""",
-        position,
-    )
-    rendered(page)
-    # Inserting the scroller can retain the old content by scrolling the page.
-    # Put the newly registered target on screen before testing its inner scroll.
-    page.evaluate("window.scrollTo(0, 0)")
-    rendered(page)
-    reading = """() => {
-      const {target, contribution} = window.__nonlinear;
-      const row = contribution.control('nonlinear', 'margin').closest('.lf-margin-cluster');
-      const r = row.getBoundingClientRect(), t = target.getBoundingClientRect();
-      return {offset: r.top-t.top, top: r.top, target: t.top,
-        hit: row.contains(document.elementFromPoint(r.left+r.width/2, r.top+r.height/2)),
-        withheld: row.classList.contains('lf-withheld')};
-    }"""
-    before = page.evaluate(reading)
-    assert before["hit"] and not before["withheld"], before
-    for scroll in (30, 80, 100, 150):
-        page.evaluate(
-            """scroll => {
-              const {host, position} = window.__nonlinear;
-              if (position === 'fixed') window.scrollTo(0, scroll);
-              else host.scrollTop = scroll;
-            }""",
-            scroll,
-        )
-        rendered(page)
-        after = page.evaluate(reading)
-        assert after["offset"] == pytest.approx(before["offset"], abs=1), after
-        assert after["hit"] and not after["withheld"], after
-    if position == "fixed":
-        return
-    # A rectangle read in the frame after a scroll shows where the last frame drew an
-    # anchored box, so the compositor's own frames are what show it carried.
-    page.evaluate(
-        f"""() => {{
-          const {{host, target, contribution}} = window.__nonlinear;
-          host.scrollTop = 0;
-          host.id = 'constrained-host';
-          target.style.background = '{SUBJECT_MARK}';
-          contribution.control('nonlinear', 'margin').closest('.lf-margin-cluster')
-            .style.outline = '6px solid {FOLLOWER_MARK}';
-        }}"""
-    )
-    rendered(page)
-    box = page.locator("#nonlinear-target").bounding_box()
-    page.mouse.move(box["x"] + 20, box["y"] + 40)
-    assert_follows_in_every_frame(page, "#constrained-host")
+    # Each case adds its own scroller and row, replacing the case before; the fixed
+    # target, which also lengthens the document, goes last.
+    for position in ("sticky", "sticky-ancestor", "fixed"):
+        with subtests.test(position=position):
+            # The last case left the pointer where this case's target will stand.
+            page.mouse.move(0, 0)
+            page.evaluate(
+                """async (position) => {
+                  const {contributionEntry, registerContribution} =
+                    await window.__lfWidgetApi();
+                  if (window.__nonlinear) {
+                    // The case before leaves its host, or its fixed target, and its row.
+                    const {host, target, contribution} = window.__nonlinear;
+                    contribution.unregister();
+                    host.remove();
+                    target.remove();
+                  } else document.querySelector('main').dataset.lfMargin = 'none';
+                  const host = document.createElement('div');
+                  host.style.cssText = 'height: 300px; width: 400px; overflow: auto';
+                  host.dataset.bound = 'start';
+                  host.innerHTML = '<div style="height: 80px"></div>'
+                    + '<div id="constraint"><p id="nonlinear-target" '
+                    + 'style="height: 30px; margin: 0">Constrained passage.</p></div>'
+                    + '<div style="height: 700px"></div>';
+                  document.querySelector('main').prepend(host);
+                  const target = host.querySelector('p');
+                  if (position === 'sticky') host.querySelector('#constraint').replaceWith(target);
+                  const constrained = position === 'sticky-ancestor'
+                    ? host.querySelector('#constraint') : target;
+                  constrained.style.position = position === 'fixed' ? 'fixed' : 'sticky';
+                  constrained.style.top = position === 'fixed' ? '300px' : '0';
+                  if (position === 'fixed') {
+                    target.style.left = '180px'; target.style.width = '300px';
+                    document.querySelector('main').append(target);
+                    host.remove();
+                    document.body.style.minHeight = '2000px';
+                  }
+                  const contribution = registerContribution({key: 'nonlinear', target,
+                    read: () => ({entries: [contributionEntry({key: 'nonlinear',
+                      glyph: '!', label: 'Constrained controls'})]}), activate: () => {}});
+                  window.__nonlinear = {host, target, position, contribution};
+                }""",
+                position,
+            )
+            rendered(page)
+            # Inserting the scroller can retain the old content by scrolling the page.
+            # Put the newly registered target on screen before testing its inner scroll.
+            page.evaluate("window.scrollTo(0, 0)")
+            rendered(page)
+            reading = """() => {
+              const {target, contribution} = window.__nonlinear;
+              const row = contribution.control('nonlinear', 'margin').closest('.lf-margin-cluster');
+              const r = row.getBoundingClientRect(), t = target.getBoundingClientRect();
+              return {offset: r.top-t.top, top: r.top, target: t.top,
+                hit: row.contains(document.elementFromPoint(r.left+r.width/2, r.top+r.height/2)),
+                withheld: row.classList.contains('lf-withheld')};
+            }"""
+            before = page.evaluate(reading)
+            assert before["hit"] and not before["withheld"], before
+            for scroll in (30, 80, 100, 150):
+                page.evaluate(
+                    """scroll => {
+                      const {host, position} = window.__nonlinear;
+                      if (position === 'fixed') window.scrollTo(0, scroll);
+                      else host.scrollTop = scroll;
+                    }""",
+                    scroll,
+                )
+                rendered(page)
+                after = page.evaluate(reading)
+                assert after["offset"] == pytest.approx(before["offset"], abs=1), after
+                assert after["hit"] and not after["withheld"], after
+            if position == "fixed":
+                continue
+            # A rectangle read in the frame after a scroll shows where the last frame drew an
+            # anchored box, so the compositor's own frames are what show it carried.
+            page.evaluate(
+                f"""() => {{
+                  const {{host, target, contribution}} = window.__nonlinear;
+                  host.scrollTop = 0;
+                  host.id = 'constrained-host';
+                  target.style.background = '{SUBJECT_MARK}';
+                  contribution.control('nonlinear', 'margin').closest('.lf-margin-cluster')
+                    .style.outline = '6px solid {FOLLOWER_MARK}';
+                }}"""
+            )
+            rendered(page)
+            box = page.locator("#nonlinear-target").bounding_box()
+            page.mouse.move(box["x"] + 20, box["y"] + 40)
+            assert_follows_in_every_frame(page, "#constrained-host")
 
 
 def test_distant_margin_coordinates_follow_small_moves_without_restatement(

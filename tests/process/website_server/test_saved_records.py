@@ -48,6 +48,7 @@ def durable_page_store():
     stored = {
         "publications": [],
         "records": {},
+        "staged": {},
         "blobs": {},
         "uploads": [],
         "restores": 0,
@@ -93,6 +94,10 @@ def durable_page_store():
             elif self.path == "/prepare":
                 stored["inventories"] += 1
                 publication = json.loads(body)
+                # This HTTP double supplies an opaque identity; real Worker tests
+                # cover canonical hashing and replacement of staged content.
+                identity = hashlib.sha256(body).hexdigest()
+                stored["staged"][publication["root"]] = (identity, publication)
                 digests = {
                     digest
                     for entry in (
@@ -106,18 +111,22 @@ def durable_page_store():
                 self.wfile.write(
                     json.dumps(
                         {
+                            "identity": identity,
                             "missing": [
                                 digest
                                 for digest in digests
                                 if digest not in stored["blobs"]
-                            ]
+                            ],
                         }
                     ).encode()
                 )
                 return
             else:
                 assert self.path == "/publication"
-                publication = json.loads(body)
+                commit = json.loads(body)
+                assert set(commit) == {"root", "identity"}
+                identity, publication = stored["staged"][commit["root"]]
+                assert commit["identity"] == identity
                 if stored["fail"]:
                     self.send_response(503)
                     self.end_headers()

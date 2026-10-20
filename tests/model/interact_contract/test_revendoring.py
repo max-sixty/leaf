@@ -564,7 +564,9 @@ def test_revendoring_can_change_frozen_thread_widget_vocabulary(
         '<lf-option id="thread-a">A</lf-option>'
         "</lf-options></lf-ask>"
     )
-    thread_model.post_reply(page_dir, {"to": "c1", "for": "c1"}, "Pick one:", markup)
+    thread_model.post_reply(
+        page_dir, {"parent": "c1", "responds": "c1"}, "Pick one:", markup
+    )
 
     registry = json.loads((page_dir / "registry.json").read_text())
     options = registry["lf-options"]

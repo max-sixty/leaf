@@ -42,6 +42,8 @@ CORPUS_PAGE = EXAMPLES_DIR / "corpus.page"
 # underlying widget and thread states already stand in the feature gallery.
 DEVELOPER_SOURCES = [
     EXAMPLES_DIR / "developer" / "file-editor.html",
+    EXAMPLES_DIR / "developer" / "file-tree.html",
+    EXAMPLES_DIR / "developer" / "file-tree-input.html",
     EXAMPLES_DIR / "developer" / "diff-thread-gallery.html",
     EXAMPLES_DIR / "developer" / "feature-gallery.html",
     EXAMPLES_DIR / "developer" / "visual-review-gallery.html",

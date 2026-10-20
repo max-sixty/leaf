@@ -39,7 +39,7 @@
  * chip explicitly releases that hold. The chip remains available while activation waits.
  *
  * Retained nodes keep their mechanical state. Replaced nodes use `carry.js`'s authored-id
- * contract, and the item view restores the selected item by id. Both installs restore these
+ * contract, and the obligation view restores the selected obligation by id. Both installs restore these
  * readings; the patch passes its retained nodes so restoration skips them. Unnamed
  * replaced controls receive no guessed focus. Authored controls and registered draft
  * editors carry native editing under their existing replacement identity; arbitrary
@@ -47,10 +47,10 @@
  * use their own stores.
  *
  * A fresh-document install stores a page-scoped, one-use handoff: reading position,
- * comparison, pointer, margin and panel standing, mechanical carry, and item standing. A newer
+ * comparison, pointer, margin and panel standing, mechanical carry, and obligation standing. A newer
  * revision may consume it, but ordinary reloads and history travel cannot replay it.
  * Explicit historical travel carries reading position and the decision landmark, without
- * mechanical carry or item standing. State application serializes responses and remains
+ * mechanical carry or obligation standing. State application serializes responses and remains
  * pending after navigation starts until the old document is discarded.
  *
  * `captureView` records a place (reading-place.js) for the page and each reading
@@ -161,7 +161,7 @@ import { watchProjection } from "./projection-watch.js";
 import { ADDRESSABLE, anchoringIsReady, fragmentTarget } from "./anchor-resolution.js";
 import { scrollToFragment } from "./anchor-travel.js";
 import { rememberAuthoredParents, stageAuthoredStates } from "./projection/authored.js";
-import { foldWidgetStates, itemValue } from "./projection/model.js";
+import { foldWidgetStates, obligationValue } from "./projection/model.js";
 import { runtimeRootState } from "./root-state.js";
 import {
   commitWidgetDescriptors,
@@ -577,7 +577,8 @@ function diffBlocks(root) {
     // of an upgraded widget are opaque to comparison.
     const bindingAttrs = new Set();
     for (const input of Object.values(entry["x-data"] ?? {})) {
-      bindingAttrs.add(input.source);
+      if (input.source) bindingAttrs.add(input.source);
+      if (input.reference) bindingAttrs.add(input.reference);
     }
     const binding = [...bindingAttrs]
       .sort()
@@ -586,6 +587,8 @@ function diffBlocks(root) {
   }
   return pairs;
 }
+/** One revision's browser reading at a log boundary, as `/api/view` answers it.
+ * @returns {Promise<import("../../../../build/browser/contract.js").ServedViewAnswer["browser"]>} */
 async function baseReading(baseRevision, throughSeq) {
   const params = new URLSearchParams({
     revision: String(baseRevision),
@@ -702,8 +705,11 @@ function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
         }
         continue;
       }
-      const { value } = itemValue(now, verb, true);
-      if (JSON.stringify(value) === JSON.stringify(itemValue(before, verb, true).value))
+      const { value } = obligationValue(now, verb, true);
+      if (
+        JSON.stringify(value) ===
+        JSON.stringify(obligationValue(before, verb, true).value)
+      )
         continue;
       // The option now picked is where a pick reads; anything else reads on its
       // widget.
@@ -1036,8 +1042,8 @@ function revisionDocument(revision) {
  *   syncLayout: any,
  *   captureRetainedStanding?: () => unknown,
  *   restoreRetainedStanding?: (standing: unknown) => boolean,
- *   captureItemStanding?: () => unknown,
- *   restoreItemStanding?: (standing: unknown) => void,
+ *   captureObligationStanding?: () => unknown,
+ *   restoreObligationStanding?: (standing: unknown) => void,
  *   versions: { press: () => void },
  * }} controller */
 export function createVersionController({
@@ -1051,8 +1057,8 @@ export function createVersionController({
   syncLayout,
   captureRetainedStanding = () => null,
   restoreRetainedStanding = () => false,
-  captureItemStanding = () => null,
-  restoreItemStanding = () => {},
+  captureObligationStanding = () => null,
+  restoreObligationStanding = () => {},
   // The chrome's Versions, which `g V` opens or puts away (floating-panel.js, `doors`).
   versions,
 }) {
@@ -1286,7 +1292,7 @@ export function createVersionController({
   }
 
   // Patch against the authored baselines. Retained nodes keep their live state;
-  // replacement nodes recover eligible state through carry and item restoration.
+  // replacement nodes recover eligible state through carry and obligation restoration.
   function captureEditingContinuity() {
     const draftEditing = captureDraftEditing();
     return {
@@ -1295,9 +1301,9 @@ export function createVersionController({
       // A replaced reply box takes focus back either way, but is brought into view only
       // where it marked the user's place (user-place.js, `focusedInView`).
       replyInView: focusedInView() !== null,
-      // Item standing is the fallback for unnamed controls. An exact editor already
-      // has a replacement identity, so its parent item does not also own focus.
-      itemStanding: draftEditing ? null : captureItemStanding(),
+      // Obligation standing is the fallback for unnamed controls. An exact editor already
+      // has a replacement identity, so its parent obligation does not also own focus.
+      obligationStanding: draftEditing ? null : captureObligationStanding(),
     };
   }
 
@@ -1314,8 +1320,8 @@ export function createVersionController({
 
   async function restoreEditingContinuity(continuity, currentIntent) {
     if (!currentIntent()) return;
-    const { draftEditing, replyThread, replyInView, itemStanding } = continuity;
-    restoreItemStanding(itemStanding);
+    const { draftEditing, replyThread, replyInView, obligationStanding } = continuity;
+    restoreObligationStanding(obligationStanding);
     const mayRestore = restrictUserIntent(currentIntent, () =>
       draftEditingStands(draftEditing),
     );
@@ -1341,6 +1347,7 @@ export function createVersionController({
   async function activateRevision(doc, target) {
     const currentIntent = retainUserIntent();
     const view = captureView();
+    const retainedStanding = captureRetainedStanding();
     const editingContinuity = captureEditingContinuity();
     // A pending selection counts too: cancel its old-document request before the
     // authored page changes, then restore that base against the arriving revision.
@@ -1512,6 +1519,7 @@ export function createVersionController({
           syncLayout();
           if (currentIntent()) {
             restoreView(view, currentIntent);
+            restoreRetainedStanding(retainedStanding);
             restoreCarryScroll();
             await restoreEditingContinuity(editingContinuity, currentIntent);
           }

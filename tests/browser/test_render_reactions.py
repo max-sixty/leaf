@@ -47,6 +47,7 @@ from render_harness import (
     round_trip,
     scroll_settled,
     select,
+    selection_field,
     sending,
     suggestion_control,
     told,
@@ -1127,7 +1128,9 @@ def test_a_visual_target_places_the_bar_from_the_target_and_keeps_it_through_ref
     """The target, not the point inside it, places the action bar. A layout change
     resolves that same target again, and the quiet outline stays on it until an
     outside press dismisses both."""
-    page = open_page(browser, serve(PART_DIAGRAM_PAGE))
+    page = open_page(
+        browser, serve(PART_DIAGRAM_PAGE.replace("graph LR", "graph TD", 1))
+    )
     start = page.locator('#flow g[data-id="S"]')
     bar = page.locator(".lf-fab-bar")
 
@@ -2008,18 +2011,18 @@ def test_a_selection_change_offers_a_visual_target_without_replacing_an_open_com
             }"""
         )
     bar = page.locator(".lf-fab-bar")
-    expect(page.get_by_role("button", name="Comment on selection")).to_be_visible()
+    expect(selection_field(page)).to_be_visible()
     expect(bar).to_have_attribute("aria-label", re.compile("Start request"))
     expect(bar).to_be_visible()
 
     page.evaluate(
         "() => { document.activeElement.blur(); getSelection().removeAllRanges(); }"
     )
-    expect(page.get_by_role("button", name="Comment on selection")).to_be_hidden()
+    expect(selection_field(page)).to_be_hidden()
     expect(bar).to_be_visible()
 
     page.locator("h1").select_text()
-    page.get_by_role("button", name="Comment on selection").click()
+    selection_field(page).click()
     expect(bar).to_have_attribute("aria-label", re.compile("Request path"))
     expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
 
@@ -2572,7 +2575,9 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     )
 
     thread_model.post_reply(
-        serve.page_dir, {"to": reaction["id"]}, "Which part — the case, or the answer?"
+        serve.page_dir,
+        {"parent": reaction["id"]},
+        "Which part — the case, or the answer?",
     )
     told(page)
     expect(page.locator(".lf-fp-threads")).to_have_attribute(

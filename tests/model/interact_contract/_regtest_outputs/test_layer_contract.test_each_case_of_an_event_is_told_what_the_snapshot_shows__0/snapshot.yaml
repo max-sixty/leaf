@@ -109,14 +109,14 @@
 #              there.
 #      clause 8, does not apply:
 #        when: {"properties": {"answer": {"properties": {"writer": {"const": "turn"}}}}}
-#        text: Leaf streams your opening message into the thread and posts your final
-#              message as the reply, unless an explicit reply already answered this
-#              input. Before your first tool call, tell the user briefly the answer or
-#              what you are about to do; later working messages stay in Codex. End
-#              with the answer, or what changed and where it shows. For widgets, a
-#              question awaiting the user (an `lf-ask` in `--markup`), work promised
-#              beyond this turn (`--todo`), a title or moving the thread, reply
-#              explicitly with `leaf response reply <answer.ref>`
+#        text: Leaf posts your opening message in the thread as your progress line and
+#              your final message as the reply, unless an explicit reply already
+#              answered this input. Before your first tool call, tell the user briefly
+#              the answer or what you are about to do; later working messages stay in
+#              Codex. End with the answer, or what changed and where it shows. For
+#              widgets, a question awaiting the user (an `lf-ask` in `--markup`), work
+#              promised beyond this turn (`--todo`), a title or moving the thread,
+#              reply explicitly with `leaf response reply <answer.ref>`
 #              (`references/threads.md`); it posts at once, and your final message is
 #              then not posted.
 #      clause 9, applies:
@@ -140,7 +140,7 @@
 #    This comment fits in one reading, shown here as the wait prints it:
 #
 #      {
-#        "format": "leaf-delivery/9",
+#        "format": "leaf-delivery/14",
 #        "id": "e8417b8a",
 #        "created_at": 1790046750.29,
 #        "acknowledge": "Whoever ran the `leaf wait` that printed this delivery acknowledges it; until then the user's updates read Sent rather than Picked up. If the output was cut off, reread it with `leaf delivery read e8417b8a`. Follow any `next` commands before confirming. If you handle it, acknowledge before any other work; if you forward it, acknowledge once it durably arrives there. To acknowledge, start `leaf wait --ack e8417b8a` as the next background task: it confirms this delivery and waits for the next.",
@@ -201,8 +201,8 @@
 #                ],
 #                "answer": {
 #                  "kind": "reply",
-#                  "to": "1946b466",
-#                  "for": "1946b466",
+#                  "parent": "1946b466",
+#                  "responds": "1946b466",
 #                  "ref": "e8417b8a:0:1946b466",
 #                  "writer": "agent"
 #                }
@@ -334,15 +334,15 @@ comment over App Server:
   told:
     - when: {"properties": {"answer": {"properties": {"writer": {"const": "turn"}}}}}
       text: >-
-        Leaf streams your opening message into the thread and posts your final message
-        as the reply, unless an explicit reply already answered this input. Before
-        your first tool call, tell the user briefly the answer or what you are about
-        to do; later working messages stay in Codex. End with the answer, or what
-        changed and where it shows. For widgets, a question awaiting the user (an
-        `lf-ask` in `--markup`), work promised beyond this turn (`--todo`), a title
-        or moving the thread, reply explicitly with `leaf response reply <answer.ref>`
-        (`references/threads.md`); it posts at once, and your final message is then
-        not posted.
+        Leaf posts your opening message in the thread as your progress line and
+        your final message as the reply, unless an explicit reply already answered
+        this input. Before your first tool call, tell the user briefly the answer
+        or what you are about to do; later working messages stay in Codex. End with
+        the answer, or what changed and where it shows. For widgets, a question
+        awaiting the user (an `lf-ask` in `--markup`), work promised beyond this
+        turn (`--todo`), a title or moving the thread, reply explicitly with `leaf
+        response reply <answer.ref>` (`references/threads.md`); it posts at once,
+        and your final message is then not posted.
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -822,11 +822,11 @@ pick on the page:
         the pick in a later version, mark the element `restated` and say why in
         the version note.
     - text: >-
-        It answers the page's item, which shows as waiting on you until the markup
-        records the answer. Name the work it selects or unblocks with `leaf task
-        start <page> <event-id> "<the work, in a line>"` before starting it; then
-        do it, write the answer in, and stamp a version. An option the user added
-        needs no writing in: the page keeps it where the user put it.
+        It answers the page's obligation, which shows as waiting on you until the
+        markup records the answer. Name the work it selects or unblocks with `leaf
+        task start <page> <event-id> "<the work, in a line>"` before starting it;
+        then do it, write the answer in, and stamp a version. An option the user
+        added needs no writing in: the page keeps it where the user put it.
 
 option the user added:
   event:
@@ -852,9 +852,9 @@ option the user added:
         the version note.
     - when: {"not": {"required": ["answer"]}}
       text: >-
-        This action owes no answer of its own: it answers no item, a later action
-        on the same widget carries the answer, or the answer is not complete yet,
-        as with a pick before the Done its group waits for.
+        This action owes no answer of its own: it answers no obligation, a later
+        action on the same widget carries the answer, or the answer is not complete
+        yet, as with a pick before the Done its group waits for.
 
 pick before Done:
   event:
@@ -875,9 +875,9 @@ pick before Done:
         the version note.
     - when: {"not": {"required": ["answer"]}}
       text: >-
-        This action owes no answer of its own: it answers no item, a later action
-        on the same widget carries the answer, or the answer is not complete yet,
-        as with a pick before the Done its group waits for.
+        This action owes no answer of its own: it answers no obligation, a later
+        action on the same widget carries the answer, or the answer is not complete
+        yet, as with a pick before the Done its group waits for.
 
 decided suggestion:
   event:
@@ -901,11 +901,11 @@ decided suggestion:
         the pick in a later version, mark the element `restated` and say why in
         the version note.
     - text: >-
-        It answers the page's item, which shows as waiting on you until the markup
-        records the answer. Name the work it selects or unblocks with `leaf task
-        start <page> <event-id> "<the work, in a line>"` before starting it; then
-        do it, write the answer in, and stamp a version. An option the user added
-        needs no writing in: the page keeps it where the user put it.
+        It answers the page's obligation, which shows as waiting on you until the
+        markup records the answer. Name the work it selects or unblocks with `leaf
+        task start <page> <event-id> "<the work, in a line>"` before starting it;
+        then do it, write the answer in, and stamp a version. An option the user
+        added needs no writing in: the page keeps it where the user put it.
 
 pick inside a thread:
   event:
@@ -960,15 +960,15 @@ pick inside a thread over App Server:
         The user already sees the action applied.
     - when: {"properties": {"answer": {"properties": {"writer": {"const": "turn"}}}}}
       text: >-
-        Leaf streams your opening message into the thread and posts your final message
-        as the reply, unless an explicit reply already answered this input. Before
-        your first tool call, tell the user briefly the answer or what you are about
-        to do; later working messages stay in Codex. End with the answer, or what
-        changed and where it shows. For widgets, a question awaiting the user (an
-        `lf-ask` in `--markup`), work promised beyond this turn (`--todo`), a title
-        or moving the thread, reply explicitly with `leaf response reply <answer.ref>`
-        (`references/threads.md`); it posts at once, and your final message is then
-        not posted.
+        Leaf posts your opening message in the thread as your progress line and
+        your final message as the reply, unless an explicit reply already answered
+        this input. Before your first tool call, tell the user briefly the answer
+        or what you are about to do; later working messages stay in Codex. End with
+        the answer, or what changed and where it shows. For widgets, a question
+        awaiting the user (an `lf-ask` in `--markup`), work promised beyond this
+        turn (`--todo`), a title or moving the thread, reply explicitly with `leaf
+        response reply <answer.ref>` (`references/threads.md`); it posts at once,
+        and your final message is then not posted.
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,

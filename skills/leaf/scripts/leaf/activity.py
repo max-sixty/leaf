@@ -8,22 +8,23 @@ supplies every reader — browser chrome, hooks, and agent-facing state — with
 answer.
 """
 
+import json
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import NamedTuple
 
+from .obligations import response_address
+
 WORKING_GRACE = timedelta(minutes=15)
 PICKUP_GRACE = timedelta(minutes=2)
 TURN_RENEWAL_GRACE = timedelta(minutes=2)
-WORK_KINDS = {
-    "working",
-    "thinking",
-    "tool",
-    "awaiting_approval",
-    "awaiting_input",
-    "awaiting_user",
-    "replying",
-}
+# The steps a harness may report, whose home is the served state's `WorkKind`: the
+# browser words each one, and its type makes that table name every kind.
+WORK_KINDS = frozenset(
+    json.loads(
+        (Path(__file__).with_name("served_state") / "state.schema.json").read_text()
+    )["$defs"]["WorkKind"]["enum"]
+)
 # Steps that wait on the user in the agent's own window, which renew nothing until
 # the user answers there.
 # `awaiting_user` is a dialog whose kind, approval or question, the harness does not
@@ -57,11 +58,11 @@ def canonical_stream_reply(
     if reply is None:
         return None
     result = dict(reply)
-    if result.get("state") == "active" and (
-        result.get("session") != present.get("claim_session")
+    if result["state"] == "active" and (
+        result["session"] != present.get("claim_session")
         or not present["listening"]
         or _quiet(
-            result.get("updated_at") or result.get("ts"),
+            result["updated_at"],
             datetime.fromisoformat(now_iso),
             WORKING_GRACE,
         )
@@ -72,32 +73,23 @@ def canonical_stream_reply(
 
 def _reply_evidence(reply: dict) -> dict:
     """Keep response settlement evidence in activity without duplicating its text."""
-    return {
-        key: reply.get(key)
-        for key in ("state", "session", "turn", "reply_to", "responds", "settles")
-    } | {
-        **({"attempt": reply["attempt"]} if reply.get("attempt") else {}),
-        "has_text": bool(reply.get("text")),
-    }
+    return {key: reply[key] for key in ("state", "turn", "settles", "attempt")}
 
 
-def _bind_receipt_refs(workflows: list[dict], present: dict) -> None:
-    """Give each owed answer the `ref` its update's receipts recorded under the
-    page's current claim (`workflows`, `receipt_refs`).
+def _receipt_bindings(workflows: list[dict], present: dict) -> dict[str, dict]:
+    """Take each workflow's `receipt_refs` off it, and return, by input, what its
+    receipts give an answer owed to it: the `ref` recorded under the page's current
+    claim (`workflows`, `receipt_refs`), or nothing.
 
     A reference authorizes only the claim its delivery was captured under, and
     `post_reply` refuses it once another session claims the page, so a ref
-    captured under an earlier owner is withheld. An answer whose update the page's
-    cursor has passed without a usable ref is marked `received`, since `leaf wait`
-    will not hand that update out again (`reply_command`)."""
+    captured under an earlier owner is withheld. The update is then deliverable to
+    the new owner again (`delivery.deliverable`), whose receipt records its ref."""
+    bindings = {}
     for item in workflows:
         usable = item.pop("receipt_refs", {}).get(present.get("claim_session"))
-        if item["answer"] is None:
-            continue
-        if usable is not None:
-            item["answer"] = {**item["answer"], "ref": usable}
-        elif item["seq"] <= present["cursor"]:
-            item["answer"] = {**item["answer"], "received": True}
+        bindings[item["input"]] = {"ref": usable} if usable is not None else {}
+    return bindings
 
 
 def _bind_reply(workflows: list[dict], reply: dict | None) -> None:
@@ -105,10 +97,10 @@ def _bind_reply(workflows: list[dict], reply: dict | None) -> None:
 
     A durable response outranks it: a harness's failure reply has already answered
     the input, and the turn's leftover stream must not paint it as still replying."""
-    if reply is None or not reply.get("responds"):
+    if reply is None:
         return
     workflow = next(
-        (item for item in workflows if item.get("input") == reply["responds"]), None
+        (item for item in workflows if item["input"] == reply["responds"]), None
     )
     if workflow is None or workflow["stage"] == "answered":
         return
@@ -118,9 +110,9 @@ def _bind_reply(workflows: list[dict], reply: dict | None) -> None:
         {
             "kind": "replying",
             "detail": None,
-            "ts": reply.get("updated_at") or reply.get("ts"),
-            "session": reply.get("session"),
-            "turn": reply.get("turn"),
+            "ts": reply["updated_at"],
+            "session": reply["session"],
+            "turn": reply["turn"],
         }
     ]
     # `partial` is a turn that completed without a final answer: it ended with
@@ -130,7 +122,7 @@ def _bind_reply(workflows: list[dict], reply: dict | None) -> None:
         "interrupted": "interrupted",
         "failed": "failed",
         "partial": "ended",
-    }.get(reply.get("state"))
+    }.get(reply["state"])
     workflow["condition"] = (
         {"kind": condition, "operation": "response"} if condition else None
     )
@@ -168,18 +160,15 @@ def reply_command(answer: dict, page_dir: Path) -> str:
     """The `leaf response reply` that answers a reply `answer`.
 
     It names the exact `ref` its update's receipt recorded where the page's owner can
-    still use it (`_bind_receipt_refs`). An update the page has not received has
-    none, and minting one would deliver the page's whole pending batch and mark its
-    other input Picked up unseen, so the command names the `leaf wait` that
-    delivers it, after the claim its receipt needs where this command's session
-    does not hold the page (`service.may_receive`). An update received without a
-    reference the owner can use, as one received while it was owed nothing or under
-    a claim another session has since taken, is named by id: `leaf wait` will not
-    hand it out again, and only a hook's recovery reading mints its reference."""
+    still use it (`_receipt_bindings`). An update the owner holds no ref for, as one
+    the page has not received or one another session received before the page
+    changed hands, is deliverable (`delivery.deliverable`). Minting a ref here would
+    deliver the page's whole pending batch and mark its other input Picked up
+    unseen, so the command names the `leaf wait` that delivers it, after the claim
+    its receipt needs where this command's session does not hold the page
+    (`service.may_receive`)."""
     if "ref" in answer:
         return f"`leaf response reply {answer['ref']}`"
-    if answer.get("received"):
-        return f"`leaf response reply <answer.ref>` for {answer['for']}"
     from .harness import session_harness
     from .service import may_receive, page_claim
 
@@ -192,7 +181,7 @@ def reply_command(answer: dict, page_dir: Path) -> str:
     )
     return (
         "`leaf response reply <answer.ref>` with the `answer.ref` that "
-        f"`leaf wait {page_dir}` delivers for {answer['for']}{claim}"
+        f"`leaf wait {page_dir}` delivers for {answer['responds']}{claim}"
     )
 
 
@@ -217,19 +206,19 @@ def _turn_wrote(obligation: dict, state: dict) -> bool:
     client commits it once the turn ends, after the agent's last command. So the
     update is answered now when the turn's final message is complete, with text, in
     the reply draft bound to it."""
-    draft = obligation.get("response") or {}
+    draft = obligation["response"]
     return bool(
-        obligation["answer"].get("writer") == "turn"
-        and draft.get("state") == "active"
-        and draft.get("settles")
-        and draft.get("has_text")
-        and draft.get("turn") == state["claim_turn"]
+        draft
+        and obligation["answer"].get("writer") == "turn"
+        and draft["state"] == "active"
+        and draft["settles"]
+        and draft["turn"] == state["claim_turn"]
     )
 
 
 def acknowledged_obligations(state: dict) -> list[dict]:
-    """The owed answers whose updates the page cursor has passed, which nothing will
-    deliver again."""
+    """The owed answers whose updates the page cursor has passed. A delivery brings
+    one back only to an owner holding no usable ref for it (`delivery.unreferenced`)."""
     return [
         obligation
         for obligation in state["activity"]["obligations"]
@@ -258,7 +247,7 @@ def blocking_obligations(state: dict, *, watched: bool) -> list[dict]:
 def started_in_turn(obligation: dict, state: dict) -> bool:
     """Whether the claimant's open turn took this update in hand (`todos.take_in_hand`)
     after it was delivered: a start covering the update
-    (`workflows.canonical_workflows`, `started_by`) that turn wrote since the update's
+    (`workflows.handed_over`, `started_by`) that turn wrote since the update's
     pickup.
 
     Read from the covering starts rather than the update's Working stage, which follows
@@ -444,6 +433,7 @@ def _canonical_workflows(
                 stage = item["fallback_stage"]
                 item["ts"] = item["fallback_ts"]
                 item["detail"] = None
+                item["detail_seq"] = None
                 item["agent"] = None
                 item["session"] = None
                 item["activity"] = []
@@ -492,17 +482,23 @@ def canonical_activity(
     reservations: dict | None = None,
     *,
     todo_reading=None,
+    updates: dict,
 ) -> dict:
     """Return the one current reading of agent activity for a page snapshot.
 
-    `interaction_evidence` are the page's workflows (`workflows.canonical_workflows`)
-    and `events` the log they were read from, which holds the agent's open to-dos and
-    the starts running on them (`todos.TodoReading`). Both come back aged, as
-    `workflows` and `todos`.
+    `interaction_evidence` are the page's workflows and `updates` the records the
+    user's updates publish (`workflows.handed_over`), and `events` the log they were
+    read from, which holds the agent's open to-dos and the starts running on them
+    (`todos.TodoReading`). Workflows and to-dos come back aged, as `workflows` and
+    `todos`.
 
-    `reservations` reserve automatic replies from the claimant's exact App Server
-    turn (`reply_reservation_stands`). Their workflows keep the `reply` answer kind
-    and add `writer: "turn"` and the reservation's attempt. An explicit addressed
+    `obligations` are the answers the agent owes: for each update record whose next
+    actor is the agent, the workflow of the input it names, carrying the record's id as
+    `obligation` and, as `answer`, the operation that answers it
+    (`obligations.response_address`) with what its receipts give it
+    (`_receipt_bindings`). `reservations` reserve automatic replies from the
+    claimant's exact App Server turn (`reply_reservation_stands`); an answer they
+    reserve adds `writer: "turn"` and the reservation's attempt. An explicit addressed
     answer may commit first; the automatic final then yields to it.
 
     `detail_source` preserves the selected start's event and item identity when
@@ -535,25 +531,28 @@ def canonical_activity(
         interaction_evidence, present, now, held=held, turn=turn
     )
     todos, todo_aging = _canonical_todos(log.owed, present, now, held=held, turn=turn)
-    _bind_receipt_refs(workflows, present)
+    bindings = _receipt_bindings(workflows, present)
     _bind_reply(workflows, reply)
-    for item in workflows:
-        reservation = (reservations or {}).get(item.get("input"))
-        if (
-            item["answer"] is not None
-            and item["answer"]["kind"] == "reply"
-            and reply_reservation_stands(
-                reservation,
-                present.get("claim_session"),
-                present.get("claim_turn"),
-                present.get("turn_closed"),
-            )
+    owing = {
+        record["source"]["id"]: record
+        for record in updates["all"]
+        if record["next_actor"] == "agent"
+    }
+
+    def owed_answer(item: dict) -> dict:
+        answer = {
+            **response_address(owing[item["input"]]),
+            **bindings[item["input"]],
+        }
+        reservation = (reservations or {}).get(item["input"])
+        if answer["kind"] == "reply" and reply_reservation_stands(
+            reservation,
+            present.get("claim_session"),
+            present.get("claim_turn"),
+            present.get("turn_closed"),
         ):
-            item["answer"] = {
-                **item["answer"],
-                "writer": "turn",
-                "attempt": reservation["attempt"],
-            }
+            answer.update(writer="turn", attempt=reservation["attempt"])
+        return answer
 
     # The items in hand: each Working update, by the start that holds it, and each to-do
     # a start runs on, each beside how quiet and whether dropped that start is. Their
@@ -584,20 +583,19 @@ def canonical_activity(
     ]
     if stream and stream.get("kind") not in AWAITING_KINDS:
         lapses.append((_moment(stream.get("ts")), WORKING_GRACE))
-    if reply and reply.get("state") == "active":
-        lapses.append(
-            (_moment(reply.get("updated_at") or reply.get("ts")), WORKING_GRACE)
-        )
+    if reply and reply["state"] == "active":
+        lapses.append((_moment(reply["updated_at"]), WORKING_GRACE))
     deadlines = [
         moment + grace for moment, grace in lapses if moment and moment + grace > now
     ]
 
-    # Page activity counts the updates the agent owes, one per answer. A receipt
+    # Page activity counts the updates the agent owes, one per record. A receipt
     # reports delivery for every update the user handed over, but an update that owes
     # nothing, an input a newer one in its thread answers through, and a failed
     # answer the user must resend are no work the status may promise the agent
-    # picks up.
-    obligations = [item for item in workflows if item["answer"] is not None]
+    # picks up. These are the workflows themselves, so the conditions set below reach
+    # every reader of them.
+    obligations = [item for item in workflows if item["input"] in owing]
     in_hand_now = [(start, age) for start, age in in_hand if not age[0]]
     active_updates = [
         item
@@ -637,8 +635,7 @@ def canonical_activity(
     overdue = [
         item
         for item in obligations
-        if item["next_actor"] == "agent"
-        and item["condition"] is not None
+        if item["condition"] is not None
         and (
             item["condition"]["kind"] in {"ended", "interrupted"}
             or item["condition"]["operation"] == "delivery"
@@ -714,7 +711,7 @@ def canonical_activity(
             "active": len(active_updates),
             "handling": len(handling),
             # Of those, the updates in a thread: comments. The rest are widget actions in
-            # an answered item, the only widget actions that owe an answer.
+            # an answered obligation, the only widget actions that owe an answer.
             "handling_comments": sum(
                 item["subject"]["kind"] == "thread" for item in handling
             ),
@@ -728,6 +725,12 @@ def canonical_activity(
         "next_transition_at": min(deadlines).isoformat() if deadlines else None,
         "workflows": workflows,
         "todos": todos,
-        "obligations": obligations,
-        **({"reply": _reply_evidence(reply)} if reply is not None else {}),
+        "obligations": [
+            {
+                **item,
+                "obligation": owing[item["input"]]["id"],
+                "answer": owed_answer(item),
+            }
+            for item in obligations
+        ],
     }

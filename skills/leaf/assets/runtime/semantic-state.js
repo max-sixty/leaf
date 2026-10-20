@@ -86,13 +86,13 @@ export const queueWidgetUpdate = (widget, update) =>
 
 // Where a document-wide renderer stands in one presentation pass. The projection
 // materializes provenance words and coordinate chrome inside authored elements, the
-// thread resolves its passages over the nodes that leaves, and the item view resolves
+// thread resolves its passages over the nodes that leaves, and the obligation view resolves
 // the widget nodes those passages placed. Declaring the order here is what lets every
 // publisher simply publish.
 export const PRESENTATION_ORDER = Object.freeze({
   projection: 0,
   thread: 1,
-  items: 2,
+  obligations: 2,
 });
 
 // The document-wide presenters, in registration order. `presentDocument` is what a
@@ -311,8 +311,9 @@ export const projectionRegionsPresented = (widgets) =>
   applicationRegionsPresented(["projection:chrome", ...widgets.flatMap(widgetRegions)]);
 export const watchPresentation = presentation.subscribe;
 // A reading of presentation proof itself, such as whether the regions a report waits
-// on have committed. A paint that follows one draws again when it moves without
+// on have committed. A paint that follows one draws again when it rises without
 // claiming its own region for it: a claim moves presentation, and the reading with it.
+// Its fall owes no paint, since a paint that reads it false holds what it would say.
 const proofReadings = new WeakSet();
 export const proofReading = (read) => {
   const reading = outsideReading(read, (moved) => watchPresentation(() => moved({})));

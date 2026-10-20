@@ -9,11 +9,11 @@ from interact_support import append_carried_log_record
 from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    ITEM_PAGE,
+    OBLIGATION_PAGE,
     PANEL_PAGE,
-    SEATED_ITEM_LAYER,
-    SEATED_ITEM_PAGE,
-    SEATED_ITEM_WIDGETS,
+    SEATED_OBLIGATION_LAYER,
+    SEATED_OBLIGATION_PAGE,
+    SEATED_OBLIGATION_WIDGETS,
     panel_comment,
 )
 from render_harness import (
@@ -59,8 +59,8 @@ def test_inline_settlement_retains_focus_when_its_controls_are_replaced(browser,
                 "Should these jobs share a visit?</lf-verdict>"
                 '<label>Another thought <input id="later"></label>',
             ),
-            layer_registry=SEATED_ITEM_LAYER,
-            layer_widgets=SEATED_ITEM_WIDGETS,
+            layer_registry=SEATED_OBLIGATION_LAYER,
+            layer_widgets=SEATED_OBLIGATION_WIDGETS,
         ),
     )
     first = page.locator("#proposal > .lf-thread-seat > .lf-say")
@@ -116,7 +116,7 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(held_events, serv
     page = open_page(
         browser,
         serve(
-            ITEM_PAGE,
+            OBLIGATION_PAGE,
             events=[
                 {
                     "kind": "comment",
@@ -183,7 +183,7 @@ def test_z_puts_the_user_back_in_the_thread_they_resolved(browser, serve):
         "text": "Check whether these jobs can share one visit.",
         "anchor": {"section": "bracket"},
     }
-    page = open_page(browser, serve(ITEM_PAGE, events=[comment]))
+    page = open_page(browser, serve(OBLIGATION_PAGE, events=[comment]))
     resized(page, 1440, 900)
     page.keyboard.press("Shift+t")
     landed = page.locator(".lf-margin-thread .lf-page-thread")
@@ -205,7 +205,7 @@ def test_z_leaves_the_user_in_a_seated_thread_they_resolved(browser, serve):
     """A thread seated on the page folds where it stands when resolved, so the user
     never left it, and taking the resolve back moves them nowhere either: not to
     Threads, and not to a margin card for the same thread."""
-    url = serve(SEATED_ITEM_PAGE)
+    url = serve(SEATED_OBLIGATION_PAGE)
     root = append_carried_log_record(
         serve.page_dir,
         {
@@ -275,7 +275,7 @@ def test_resolving_one_of_two_threads_leaves_the_user_in_the_card(browser, serve
     page = open_page(
         browser,
         serve(
-            ITEM_PAGE,
+            OBLIGATION_PAGE,
             events=[
                 {**comment, "text": "Check whether these jobs can share one visit."},
                 {**comment, "text": "And whether the second visit needs a permit."},
@@ -324,7 +324,7 @@ def test_a_card_repaint_keeps_the_user_on_the_control_they_reached(browser, serv
     page = open_page(
         browser,
         serve(
-            ITEM_PAGE,
+            OBLIGATION_PAGE,
             events=[
                 {
                     "kind": "comment",
@@ -387,7 +387,7 @@ def test_a_poll_accounted_settlement_repaints_before_its_post_response(
     read.
     """
     browser, held = held_events
-    url = serve(SEATED_ITEM_PAGE)
+    url = serve(SEATED_OBLIGATION_PAGE)
     root = append_carried_log_record(
         serve.page_dir,
         {
@@ -457,7 +457,8 @@ def test_taking_back_a_resolve_is_the_users_own_gesture(browser, serve):
 
 def test_a_resolved_thread_can_be_reopened(browser, serve):
     """Reopening is a logged transition: the thread returns to the open list with
-    its reply and resolve controls."""
+    its reply and resolve controls, and the caret in its reply, so what the user types
+    next is their reply."""
     page = open_page(browser, serve(LONG_PAGE, comments=18))
     comment = next(
         e["id"]
@@ -475,7 +476,10 @@ def test_a_resolved_thread_can_be_reopened(browser, serve):
         settle.click()
     expect(view).to_be_visible()
     expect(settle).to_have_text("Resolve", use_inner_text=True)
-    expect(page.locator(PANEL_REPLY)).to_be_visible()
+    reply = page.locator(PANEL_REPLY)
+    expect(reply).to_be_focused()
+    page.keyboard.type("Back to this.")
+    expect(reply).to_have_js_property("value", "Back to this.")
     expect_open_threads(page, 18)
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "unresolve"
 

@@ -981,6 +981,42 @@ def test_the_lens_follows_the_scroll_without_a_scroll_timeline(browser, serve):
         assert height == pytest.approx(native_height, abs=1), (native, fallback)
 
 
+@pytest.mark.parametrize(
+    ("layout", "holder"),
+    [
+        # A sidebar page's track, as pr-walkthrough holds its contents.
+        ("sidebar", '<aside><section class="panel">{toc}</section></aside>'),
+        # A column's margin sidebar holding the map beside other notes.
+        ("column", '<aside class="sidebar">{toc}<p>Owner: platform.</p></aside>'),
+    ],
+)
+def test_the_current_entry_follows_the_document_from_a_sticking_track(
+    browser, serve, layout, holder
+):
+    """A track that sticks beside the body scrolls only what it holds, so the outline
+    standing in it marks the section the window shows, from the page's scroll."""
+    sections = "".join(
+        f'<section><h2 id="{name.lower()}">{name}</h2><div style="height: 1200px">'
+        "</div></section>"
+        for name in ("Prepare", "Move", "Verify")
+    )
+    source = leaf_page(
+        "contents in a sticking track",
+        "<header><h1>A migration</h1></header>"
+        + holder.format(toc='<lf-toc id="track-contents"></lf-toc>')
+        + f"<div>{sections}</div>",
+        layout=layout,
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1400, 900)
+    current = page.locator("#track-contents a[aria-current='location']")
+    for name in ("Prepare", "Move"):
+        page.locator(f"#{name.lower()}").evaluate(
+            "node => node.scrollIntoView({block: 'start', behavior: 'instant'})"
+        )
+        expect(current).to_have_text(name)
+
+
 def test_a_route_taller_than_the_map_returns_to_an_open_outline(browser, serve):
     """A route that cannot physically fit keeps every heading in one honest form."""
     sections = "\n".join(
@@ -1220,12 +1256,7 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
     page.mouse.move(0, 0)
     expect(bubble).to_be_hidden()
     page.evaluate(RELEASE_FOCUS)
-    # Walk from the layer's skip link through the chrome's controls to the first
-    # action in the page. The exact number of chrome stops can change.
-    for _ in range(12):
-        page.keyboard.press("Tab")
-        if mark.evaluate("node => document.activeElement === node"):
-            break
+    page.keyboard.press("Tab")
     expect(mark).to_be_focused()
     expect(bubble).to_be_visible()
     expect(gloss).to_have_css("outline-style", "solid")

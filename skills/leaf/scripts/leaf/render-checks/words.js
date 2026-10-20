@@ -201,6 +201,23 @@ export function coveredWords({
       const b = runs[j];
       if (a.el === b.el || a.el.contains(b.el) || b.el.contains(a.el)) continue;
       if (holdLabelLines && a.label && a.label === b.label) continue;
+      // SVG renderers can draw a stroked copy directly behind a filled label
+      // to make its letters legible. They are one painted word, not two words
+      // covering each other; keep comparing either copy with every other run.
+      if (
+        a.label &&
+        b.label &&
+        a.label !== b.label &&
+        a.label.parentElement === b.label.parentElement &&
+        a.label.textContent === b.label.textContent &&
+        (getComputedStyle(a.label).fill === "none" ||
+          getComputedStyle(b.label).fill === "none") &&
+        Math.abs(a.box.left - b.box.left) < 1 &&
+        Math.abs(a.box.top - b.box.top) < 1 &&
+        Math.abs(a.box.width - b.box.width) < 1 &&
+        Math.abs(a.box.height - b.box.height) < 1
+      )
+        continue;
       const across =
         Math.min(a.box.right, b.box.right) - Math.max(a.box.left, b.box.left);
       const down =
@@ -209,6 +226,9 @@ export function coveredWords({
       found.push({
         code: "covered-words",
         at: at(a.el),
+        // Both elements' places (locate.js), so the gate's sweep meets the same pair
+        // again at another width and tells it from another pair sharing a name.
+        place: `${place(a.el)} ${place(b.el)}`,
         words: a.text,
         under: at(b.el),
         covered: b.text,
@@ -394,8 +414,13 @@ function shrunkLabels(floor) {
       const words = node.data.trim();
       // Inside an SVG `text`, so an SVG element.
       const holder = /** @type {Element} */ (node.parentElement);
-      if (!words || !holder.getClientRects().length) continue;
-      if (!holder.checkVisibility({ visibilityProperty: true, opacityProperty: true }))
+      // Visibility first: it answers for a run in skipped content, such as a tab not
+      // chosen, without making the browser lay that content out to find its box.
+      if (
+        !words ||
+        !holder.checkVisibility({ visibilityProperty: true, opacityProperty: true }) ||
+        !holder.getClientRects().length
+      )
         continue;
       const ctm = /** @type {SVGGraphicsElement} */ (holder).getScreenCTM();
       const set = parseFloat(getComputedStyle(holder).fontSize);

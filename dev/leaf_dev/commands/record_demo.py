@@ -309,9 +309,9 @@ def record(
     shot(1600)
 
     select_text(page, "#p2", "Backfill history")
-    # The selected words offer the response action. Open it before typing, then
-    # send from the focused field with Mod+Enter.
-    page.get_by_role("button", name="Comment on selection").click()
+    # The panel's field offers the selected words, quoting them. A press there opens
+    # their comment before typing, then the focused field sends with Mod+Enter.
+    page.locator('.lf-fp-field leaf-text[data-says="selection"]').click()
     field = page.locator(".lf-fab-input")
     field.focus()
     page.keyboard.insert_text("Can the backfill stay online?")
@@ -343,7 +343,7 @@ def record(
 
     post_reply(
         page_dir,
-        {"for": comment_id},
+        {"responds": comment_id},
         "Yes. The fixed rate limit keeps the backfill online.",
         validate_source=True,
     )

@@ -55,11 +55,11 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
     These surfaces do not repaint on every keystroke as the panel does. News captures
     the same continuity extent, so a panel-only draft fix would leave them broken.
     """
-    from render_cases_interaction import SEATED_ITEM_PAGE
+    from render_cases_interaction import SEATED_OBLIGATION_PAGE
     from render_harness import told
 
     if place == "seat":
-        source = SEATED_ITEM_PAGE
+        source = SEATED_OBLIGATION_PAGE
         anchor = {"section": "jobs"}
         selector = '[data-lf-thread-seat="jobs"] > .lf-page-thread'
     else:
@@ -281,10 +281,10 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
 
 def test_passive_reply_room_ends_at_native_edit_and_new_inline_measure(browser, serve):
     """Mirrors retain the writing room; canceled input retains it and edits resize it."""
-    from render_cases_interaction import SEATED_ITEM_PAGE
+    from render_cases_interaction import SEATED_OBLIGATION_PAGE
     from render_harness import stored_draft_text, told
 
-    url = serve(SEATED_ITEM_PAGE)
+    url = serve(SEATED_OBLIGATION_PAGE)
     parent = events_model.append_event(
         serve.page_dir,
         {
@@ -545,15 +545,14 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "reply"
     ]
-    if place == "panel":
-        # The refusal covers the words it gave back in the panel's field, which sends
-        # nothing until the user's first edit or press there brings them back.
-        cover = page.locator(".lf-fp-error-cover")
-        expect(cover).to_contain_text("refused before append")
-        cover.click()
-    else:
-        draft.focus()
+    # The refusal covers the words it gave back in their box, wherever it stands. The
+    # first Enter there only uncovers them, so nothing is sent unseen; the next sends.
+    cover = draft.locator("xpath=following-sibling::p[@class='lf-compose-error']")
+    expect(cover).to_contain_text("refused before append")
+    draft.focus()
     expect(draft).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(cover).to_be_hidden()
     page.keyboard.press("Enter")
     holding(page, held, 1, "the refused reply's retry")
     assert held[0].request.post_data_json["attempt"] == attempt

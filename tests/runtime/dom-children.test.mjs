@@ -37,6 +37,11 @@ test("a staged widget shows each failure in its stage and its next stage replace
   const view = document.createElement("p");
   view.textContent = "Good reading";
   shadowStage(host, [view]);
+  const rendererSheet = new CSSStyleSheet();
+  rendererSheet.replaceSync("p { color: red }");
+  // An embedded renderer owns its sheet; restaging adds Leaf's apparatus without
+  // losing the renderer's face or accumulating copies on later draws.
+  host.shadowRoot.adoptedStyleSheets = [rendererSheet];
   for (const message of ["first failure", "second failure"]) {
     failSoftUnreported(host, new Error(message));
     const errors = host.shadowRoot.querySelectorAll(".lf-error");
@@ -46,6 +51,12 @@ test("a staged widget shows each failure in its stage and its next stage replace
     );
     assert.equal(view.isConnected, false);
     shadowStage(host, [view]);
+    assert.equal(
+      host.shadowRoot.adoptedStyleSheets.filter((sheet) => sheet === rendererSheet)
+        .length,
+      1,
+    );
+    assert.ok(host.shadowRoot.adoptedStyleSheets.length > 1);
     assert.equal(host.shadowRoot.querySelector(".lf-error"), null);
     assert.equal(view.isConnected, true);
   }

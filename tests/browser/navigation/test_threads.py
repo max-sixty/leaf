@@ -8,7 +8,7 @@ from interact_support import append_carried_log_record, element_declaration
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
-from render_cases_interaction import PANEL_PAGE, SEATED_ITEM_PAGE, panel_comment
+from render_cases_interaction import PANEL_PAGE, SEATED_OBLIGATION_PAGE, panel_comment
 from render_cases_layout import ring_faults, rings_drawn
 from render_cases_navigation import NOTED_PAGE
 from render_harness import (
@@ -249,6 +249,36 @@ def test_a_reply_link_moves_the_thread_walk_to_its_destination(
         f'.lf-margin-preview .lf-page-thread[data-thread="{roots[2]}"]'
     )
     expect(next_thread).to_be_focused()
+
+
+def test_a_tap_on_a_reply_link_to_a_missing_section_says_why(browser, serve):
+    """A reply's link to a section the shown version lacks goes nowhere, and its title
+    says why only to a resting pointer. A tap on it says why as an error."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Where did it go?", {"section": "how-cap"})
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root,
+            "text": "It moved; [see the old section](#removed-section).",
+        },
+    )
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, url, context=context)
+    view = open_panel_thread(page, root)
+    link = view.get_by_role("link", name="see the old section")
+    expect(link).to_have_attribute("aria-disabled", "true")
+    link.tap(force=True)  # Playwright taps no aria-disabled control by itself.
+    expect(panel_field(page)).to_have_attribute("data-says", "error")
+    expect(panel_field(page)).to_have_attribute(
+        "placeholder", "§ removed-section isn't in the version shown"
+    )
+    assert not page.url.endswith("#removed-section")
 
 
 @pytest.mark.parametrize("shadow", [False, True], ids=["light", "shadow"])
@@ -633,7 +663,7 @@ def test_an_inline_thread_rings_its_card_for_pointer_and_keyboard_focus(browser,
 
 def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):
     """The system focus outline replaces the surface paint high contrast removes."""
-    url = serve(SEATED_ITEM_PAGE)
+    url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
     )
@@ -665,7 +695,7 @@ def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):
 
 def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
     """Thread controls and complete messages keep their room when the reply is focused."""
-    url = serve(SEATED_ITEM_PAGE)
+    url = serve(SEATED_OBLIGATION_PAGE)
     panel_comment(serve.page_dir, "First job note", {"section": "jobs"})
     root = panel_comment(
         serve.page_dir, "Which job should come first?", {"section": "jobs"}

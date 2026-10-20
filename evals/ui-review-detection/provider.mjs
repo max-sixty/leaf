@@ -87,7 +87,7 @@ export async function openBrowser(manifest, evidenceDir, limit = 12) {
     !["localhost", "127.0.0.1", "[::1]"].includes(fixture.hostname)
   )
     throw new Error("Browser fixture must use a loopback HTTP(S) URL");
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({ channel: "chromium", headless: true });
   try {
     const context = await browser.newContext({
       viewport: manifest.viewport ?? { width: 1200, height: 900 },

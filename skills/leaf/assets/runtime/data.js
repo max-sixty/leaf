@@ -1,10 +1,13 @@
-/* The accepted external data and its readers.
+/* Accepted external values, mounted-widget outputs, and their typed readers.
 
    The browser orders data readings by when the server took them, independently of
    the log sequence, because overlapping poll and POST responses can order the authorities
    differently. A `LeafElement` reads a bound input through `dataReader` (`this.data`),
    which yields one copy a delivery of `{source, contract, revision, run, updated, value,
-   origin}`, or `null` while the bound source has no readable value. What it shows moves
+   origin}`, or `null` while the bound source has no readable value. A widget-output
+   binding yields `{contract, value, origin}` with derived-widget provenance, without
+   a fabricated source revision or run. Outputs join the immutable application
+   publication and the same presentation barrier as sources. What a source shows moves
    only as state application delivers, and each element that draws data holds the data
    version until its region has drawn the delivery (`joinDataDelivery`). Modules project
    the result into the authored seat; they do not fetch it, mutate the accepted copy, or
@@ -16,6 +19,8 @@ import { applicationState, whenApplicationRegionsPresented } from "./semantic-st
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
 import { registry } from "./registry.js";
+import { watchOwner } from "./arrivals.js";
+import { referencedProjection, requireReference } from "./references.js";
 import { reportPageError, requestJson } from "./layer-client.js";
 
 export function acceptData(candidate, taken) {
@@ -52,6 +57,86 @@ const declaredInput = (element, input) => {
   return declaration;
 };
 
+// Mounted widgets own their derived values. The publication holds the immutable
+// reading, while this weak lifetime record only lets a retained node return with it.
+const outputOwners = new WeakMap();
+const outputKeys = new WeakMap();
+let outputSequence = 0;
+function outputKey(element) {
+  if (!outputKeys.has(element)) outputKeys.set(element, `output:${++outputSequence}`);
+  return outputKeys.get(element);
+}
+export function publishOutput(element, output, value) {
+  const declaration = registry[element.localName]?.["x-output"]?.[output];
+  if (!declaration)
+    throw new Error(
+      `publishOutput(${element.localName}, ${output}) output is not declared by this widget`,
+    );
+  if (!element.id) throw new Error("publishOutput requires a widget id");
+  let owner = outputOwners.get(element);
+  if (!owner) {
+    owner = { values: new Map(), connected: false };
+    outputOwners.set(element, owner);
+    watchOwner(element, {
+      connect() {
+        owner.connected = true;
+        for (const [name, reading] of owner.values)
+          applicationState.publishOutput(outputKey(element), name, reading);
+      },
+      disconnect() {
+        owner.connected = false;
+        for (const name of owner.values.keys())
+          applicationState.publishOutput(outputKey(element), name, null);
+      },
+    });
+  }
+  const reading =
+    value === null
+      ? null
+      : { contract: declaration.contract, value: structuredClone(value) };
+  owner.values.set(output, reading);
+  if (owner.connected)
+    applicationState.publishOutput(outputKey(element), output, reading);
+}
+
+function inputBinding(element, declaration) {
+  const source = declaration.source ? element.getAttribute(declaration.source) : null;
+  const widget = declaration.reference && element.getAttribute(declaration.reference);
+  if (source && widget)
+    throw new Error(
+      `<${element.localName}> input binds both an external source and widget output`,
+    );
+  if (declaration.reference) requireReference("data", element, declaration.reference);
+  const selected = applicationState.select((root) => {
+    if (source)
+      return Object.hasOwn(root.data.sources, source)
+        ? root.data.sources[source]
+        : null;
+    if (!widget) return null;
+    const producer = referencedProjection(element, declaration.reference, widget);
+    if (!producer) return null;
+    const key = outputKey(producer);
+    const outputs = Object.hasOwn(root.outputs, key) ? root.outputs[key] : null;
+    return outputs && Object.hasOwn(outputs, declaration.output)
+      ? outputs[declaration.output]
+      : null;
+  });
+  const snapshot = (reading, input) =>
+    source
+      ? {
+          source,
+          ...reading,
+          origin: {
+            input,
+            source,
+            contract: declaration.contract,
+            revision: reading.revision,
+          },
+        }
+      : { ...reading, origin: { derived: [{ widget }] } };
+  return { source, widget, selected, snapshot };
+}
+
 // A `LeafElement`'s reader of one bound input (leaf-element.js): the delivered source
 // reading, read through a selection of that source, so a render that reads it is drawn
 // again when the source moves. Markup owns the binding, captured at the first read, so
@@ -59,12 +144,7 @@ const declaredInput = (element, input) => {
 // revision that rebinds mounts a new element.
 export function dataReader(element, input) {
   const declaration = declaredInput(element, input);
-  const source = element.getAttribute(declaration.source);
-  const selected = applicationState.select((root) =>
-    source && Object.hasOwn(root.data.sources, source)
-      ? root.data.sources[source]
-      : null,
-  );
+  const { source, widget, selected, snapshot } = inputBinding(element, declaration);
   // What the element shows moves only as state application delivers, so a reading
   // accepted for a revision still being activated never draws into the document it
   // replaces. The first read takes the accepted reading.
@@ -83,7 +163,7 @@ export function dataReader(element, input) {
       return () => deliveryListeners.delete(moved);
     },
   );
-  stagedReadings.add(selected);
+  if (!widget) stagedReadings.add(selected);
   let reported = null;
   let copied = { store: null, value: null };
   return () => {
@@ -91,33 +171,24 @@ export function dataReader(element, input) {
     // accepts it; the delivered one draws.
     selected.read();
     const sourceStore = /** @type {{contract: string, revision?: string} | null} */ (
-      delivered.read()
+      widget ? selected.read() : delivered.read()
     );
     const incompatible = sourceStore && sourceStore.contract !== declaration.contract;
     if (incompatible && reported !== sourceStore) {
       reported = sourceStore;
       reportPageError(
-        `data source ${source} carries contract ${sourceStore.contract}; ` +
+        `${source ? `data source ${source}` : `widget output ${widget}.${declaration.output}`} carries contract ${sourceStore.contract}; ` +
           `<${element.localName}> input ${input} requires ${declaration.contract}`,
       );
     }
-    if (incompatible || !source || !sourceStore || !Object.hasOwn(sourceStore, "value"))
+    if (incompatible || !sourceStore || !Object.hasOwn(sourceStore, "value"))
       return null;
     // One copy a delivery: a render that reads it again gets the same value, so a widget
     // tells a new delivery by identity, and none can mutate the accepted snapshot.
     if (sourceStore !== copied.store)
       copied = {
         store: sourceStore,
-        value: structuredClone({
-          source,
-          ...sourceStore,
-          origin: {
-            input,
-            source,
-            contract: declaration.contract,
-            revision: sourceStore.revision,
-          },
-        }),
+        value: structuredClone(snapshot(sourceStore, input)),
       };
     return copied.value;
   };

@@ -9,7 +9,7 @@ from leaf import server as server_model
 from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    ITEMS_PAGE,
+    OBLIGATIONS_PAGE,
     PANEL_PAGE,
     WORKSHOP_THREAD_EVENTS,
     WORKSHOP_THREADS_PAGE,
@@ -33,7 +33,7 @@ from render_harness import (
     ROOT,
     command_reference_rows,
     expect_comment_notes,
-    expect_items_answered,
+    expect_obligations_answered,
     leaf_page,
     navigate,
     open_page,
@@ -52,7 +52,6 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 from browser.navigation import (
     READING_REGIONS_PAGE,
-    STANDING,
 )
 from browser.threads import open_panel_thread
 
@@ -71,7 +70,7 @@ def go_to_passage(page, page_dir, words):
     page.locator(".lf-fp-head").get_by_role("button", name="On the page").click()
 
 
-# An item's digits beside a page-scoped command with a context key of its own,
+# An obligation's digits beside a page-scoped command with a context key of its own,
 # registered the way an authored module does.
 QUICK_KEYS_PAGE = leaf_page(
     "quick keys",
@@ -175,7 +174,7 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
     seeded = serve(example)
     first = seeded.replace("/versions/v2.html", "/versions/v1.html")
     page = open_page(browser, first)
-    expect_items_answered(page, "2/2")
+    expect_obligations_answered(page, "2/2")
     expect(page.locator("#review-cache-auto")).to_have_attribute("chosen", "")
     expect(page.locator("#review-billing-legacy")).to_have_attribute("chosen", "")
     page.close()
@@ -183,7 +182,7 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
     newest = serve(example, seed_log=False)
     first = newest.replace("/versions/v2.html", "/versions/v1.html")
     page = open_page(browser, first)
-    expect_items_answered(page, "0/2")
+    expect_obligations_answered(page, "0/2")
     expect(page.locator("#review-cache-auto")).not_to_have_attribute("chosen", "")
     expect(page.locator("#review-billing-legacy")).not_to_have_attribute("chosen", "")
     expect(page.locator("#review-cache")).to_contain_text(
@@ -208,7 +207,7 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
     expect(page.locator("#review-billing-decision")).to_be_focused()
     with sending(page, "the billing reconciliation decision"):
         page.keyboard.press("1")
-    expect_items_answered(page, "2/2")
+    expect_obligations_answered(page, "2/2")
     expect(footer).to_contain_text("This revision asks two release-blocking questions")
 
     page.goto(live_url(newest))
@@ -225,9 +224,9 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
     expect(page.locator("#review-detail > footer")).to_contain_text(
         "This revision incorporates both answers"
     )
-    # The revision settles both questions; the item inventory retains answers
-    # after an authored revision settles their sources (`items.py`).
-    expect_items_answered(page, "2/2")
+    # The revision settles both questions; the obligation inventory retains answers
+    # after an authored revision settles their sources (`obligations.py`).
+    expect_obligations_answered(page, "2/2")
 
     actions = [
         event
@@ -296,14 +295,14 @@ def test_comparison_choice_replays_and_is_applied_by_the_next_revision(browser, 
     seeded = serve(example)
     first = seeded.replace("/versions/v2.html", "/versions/v1.html")
     page = open_page(browser, first)
-    expect_items_answered(page, "1/1")
+    expect_obligations_answered(page, "1/1")
     expect(page.locator("#comparison-policy-shared")).to_have_attribute("chosen", "")
     page.close()
 
     newest = serve(example, seed_log=False)
     first = newest.replace("/versions/v2.html", "/versions/v1.html")
     page = open_page(browser, first)
-    expect_items_answered(page, "0/1")
+    expect_obligations_answered(page, "0/1")
     expect(page.locator("#comparison-policy-shared")).not_to_have_attribute(
         "chosen", ""
     )
@@ -323,9 +322,9 @@ def test_comparison_choice_replays_and_is_applied_by_the_next_revision(browser, 
         "enables shared refreshes for web clients"
     )
     expect(page.locator("#comparison-policy")).to_have_attribute("settled", "")
-    # The item reading keeps an item the user answered after a later version settles it
-    # (`items.py`, the retained answered inventory).
-    expect_items_answered(page, "1/1")
+    # The obligation reading keeps an obligation the user answered after a later version settles it
+    # (`obligations.py`, the retained answered inventory).
+    expect_obligations_answered(page, "1/1")
 
     actions = [
         event
@@ -782,8 +781,8 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
 
     An Ask stood on while On me stands lets go first, then On me; a thread's Ask
     reached by `m` with Threads open leaves through the panel's own step."""
-    # A page item stood on while On me, which the keyboard opened, stands over the page.
-    page = open_page(browser, serve(ITEMS_PAGE))
+    # A page obligation stood on while On me, which the keyboard opened, stands over the page.
+    page = open_page(browser, serve(OBLIGATIONS_PAGE))
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
@@ -796,7 +795,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
 
-    # `m` from a heading into a thread's item, with Threads already open: Escape puts the
+    # `m` from a heading into a thread's obligation, with Threads already open: Escape puts the
     # panel's view away, without returning to the heading.
     page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
     page.locator(".lf-fp-threads").click()
@@ -805,7 +804,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     heading.evaluate("el => { el.tabIndex = -1; el.focus(); }")
     expect(heading).to_be_focused()
     page.keyboard.press("m")
-    expect(page.locator(f"{PANEL_THREAD} lf-ask[data-lf-item]")).to_be_focused()
+    expect(page.locator(f"{PANEL_THREAD} lf-ask[data-lf-obligation]")).to_be_focused()
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     assert page.evaluate("() => document.activeElement === document.body")
@@ -896,7 +895,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
         "[el.dataset.lfGoToMarginEntry, el.dataset.lfHintCode]))"
     )
     thread_code = mixed_codes["reading:threadList"]
-    item_key = next(key for key in mixed_codes if key != "reading:threadList")
+    obligation_key = next(key for key in mixed_codes if key != "reading:threadList")
 
     page.keyboard.press("m")
     filtered = page.locator(CHIPS)
@@ -933,10 +932,12 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     expect(
         page.locator(f'{CHIPS}[data-lf-go-to-target="revealed-link"]')
     ).to_have_count(1)
-    item_code = address_code(page, "Margin entry", "opts-decision", item_key)
-    page.keyboard.type(item_code)
+    obligation_code = address_code(
+        page, "Margin entry", "opts-decision", obligation_key
+    )
+    page.keyboard.type(obligation_code)
     expect(page.locator("#opts-decision")).to_be_focused()
-    expect(page.locator("#opts-decision")).to_have_attribute("data-lf-item", "1")
+    expect(page.locator("#opts-decision")).to_have_attribute("data-lf-obligation", "1")
 
     # Scroll past the links to give the hyperlinks filter no members. An empty
     # filter stays empty through resize; Escape restores the complete map.
@@ -999,7 +1000,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
         == 1
     ), "showing deferred news announced it a second time"
 
-    # The item route may scroll these hyperlinks out of the visible target map.
+    # The obligation route may scroll these hyperlinks out of the visible target map.
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
@@ -1097,7 +1098,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
         f"live Go to commands missing from the complete reference: "
         f"{sorted(live_commands - reference_commands)}"
     )
-    assert "navigation.drawer.leaves" not in reference_commands
+    assert "navigation.panel.leaves" not in reference_commands
     expect(page.locator(CHIPS).first).to_be_visible()
     # The chips are the eye's copy of the Go-to sequence; a user who cannot see them is
     # told the window opened and what it holds.
@@ -1346,7 +1347,7 @@ def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
     page.keyboard.press("g")
     expect(
         page.locator(
-            '.lf-go-to-hints [data-lf-go-to-command="navigation.drawer.leaves"]'
+            '.lf-go-to-hints [data-lf-go-to-command="navigation.panel.leaves"]'
         )
     ).to_have_count(0)
     # A live page arriving while the sequence stands keeps its destination operable.
@@ -1550,41 +1551,6 @@ def test_c_travels_to_an_item_its_own_scroller_has_taken_away(browser, serve):
     expect(page.locator(".lf-composer")).to_be_visible()
     assert page.evaluate(seen)["onScreen"], (
         "the box opened on a card the board had carried out of sight"
-    )
-
-
-def test_a_user_at_the_top_of_the_document_is_one_press_from_the_chrome(browser, serve):
-    """The runtime's layer follows `main`, so reaching it by Tab meant reaching it last.
-
-    Document order is right for reading — the page is what the user came for — and it
-    is the whole tab order too, so on a page of any length the banner, the panel and the
-    shortcut bar stood behind every link, fold and control the author wrote. A keyboard user
-    arriving at the top of the document had no way to the layer that is not the page.
-
-    The press is what is asserted rather than the link's presence: a skip link that is in
-    the DOM and does not land anybody is the failure this is about, one step later.
-
-    On the PR walkthrough, which opens on its contents links, because a page of plain
-    paragraphs would put the chrome one Tab away on its own and this would pass with
-    the link taken out.
-    """
-    example = next(e for e in EXAMPLES if e.stem == "pr-walkthrough")
-    page = open_page(browser, serve(example))
-    page.evaluate(RELEASE_FOCUS)
-    page.keyboard.press("Tab")
-    standing = page.evaluate(STANDING)
-    assert standing["isFirstStop"], (
-        f"the first Tab from the top of the document landed on {standing['name']}, so "
-        f"the layer is still behind the whole page"
-    )
-    assert standing["top"] >= 0, (
-        f"the skip link takes focus and is not on screen: {standing}"
-    )
-    page.keyboard.press("Enter")
-    landed = page.evaluate(STANDING)
-    assert landed["inChrome"], (
-        f"the skip link's press left the user on {landed['name']}, outside the layer "
-        f"it names"
     )
 
 

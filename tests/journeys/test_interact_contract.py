@@ -63,7 +63,7 @@ def test_revendoring_serializes_with_thread_markup_entering_the_log(
         monkeypatch,
         "reply",
         lambda: thread_model.post_reply(
-            page_dir, {"to": "c1", "for": "c1"}, "Pick one:", markup
+            page_dir, {"responds": "c1"}, "Pick one:", markup
         ),
     )
 

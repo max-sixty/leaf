@@ -31,6 +31,8 @@
  * history, so undo never walks back into a draft the runtime swapped out.
  * `edit(text)` replaces the words as external text input, such as dictation: it keeps
  * undo history and emits the same before-edit/input bracket as native typing.
+ * `lf-caret-move` says the user moved the caret or selection without editing, as an
+ * arrow key does; a write to the selection triple fires nothing.
  * A box owner that takes pasted pictures intercepts paste in capture; otherwise the field pastes
  * the clipboard's text, including text carried beside a picture.
  * `naturalBlockSize` reads the field's intrinsic border-box block size in CSS pixels,
@@ -42,12 +44,14 @@
  * It is drawn in the theme's muted ink; a box that wants another face for it styles
  * `::part(placeholder)`, which a slotted child inherits.
  *
- * The editor lives while the element is in a document. A field removed and not put
- * back in the same task keeps its state and destroys its view, which releases the
- * listeners CodeMirror holds on the window and document; reconnecting builds another.
- * `:state(ready)` means that view exists. A reading surface being replaced can keep
- * its words in flow until then, so measuring the connecting editor never collapses
- * the scrollport before the editor has content.
+ * A connected field holding words draws them in its editor. An empty one builds its
+ * editor when the user arrives in it (`#build`), since a page can show many empty
+ * fields the user never writes in. A field removed and not put back in the same task
+ * keeps its state and destroys its editor, which releases the listeners CodeMirror
+ * holds on the window and document; reconnecting builds another. `:state(ready)` means
+ * the connected field draws its words: in its editor, or as an empty line. A reading
+ * surface being replaced can keep its words in flow until then, so measuring the
+ * connecting field never collapses the scrollport before it has content.
  *
  * The host is also the control accessibility tooling addresses, since nothing outside a
  * closed root sees into it: it takes `role="textbox"`, `aria-multiline` and a tab stop
@@ -117,6 +121,10 @@ sheet.replaceSync(`
   .cm-editor.cm-focused { outline: none; }
   .cm-scroller { font-family: inherit; line-height: inherit; overflow: visible; }
   .cm-content { padding: 0; caret-color: currentColor; min-height: 1lh; }
+  /* An empty field draws no editor until the user arrives in it (#build). This box
+     holds the empty line's place, as tall as the editor's line, and takes the focus
+     that builds the editor. */
+  .lf-field-rest { min-height: 1lh; outline: none; }
   .cm-line { padding: 0; }
   /* The placeholder is a layer under the words, as a textarea's is, never content in
      the line: a widget in an empty line is what the platform would draw the caret
@@ -331,12 +339,14 @@ const lastLineRoom = EditorView.decorations.compute(["doc"], (state) => {
 
 /** @typedef {LeafText} LeafTextElement For its tag (`runtime-globals.d.ts`). */
 class LeafText extends HTMLElement {
-  // The field's one model. Until the element first connects it is a bare EditorState,
-  // which holds the value, selection and configuration without a DOM; connecting hands
-  // it to the view that edits it from then on. A composer built and never shown pays
-  // for no editor.
+  // The field's one model. Until the field has an editor it is a bare EditorState,
+  // which holds the value, selection and configuration without a DOM; building the
+  // editor hands it to the view that edits it from then on (`#build`).
   #model;
   #view = null;
+  // The empty line's place while the field has no editor, and the node focus lands on
+  // there, whichever route brought it.
+  #rest = document.createElement("div");
   #nativeInput = false;
   #root;
   #internals = null;
@@ -461,10 +471,23 @@ class LeafText extends HTMLElement {
     hint.name = "placeholder";
     hint.append(this.#placeholderText);
     this.#placeholderLayer.append(hint);
-    this.#frame.append(this.#placeholderLayer);
+    this.#rest.className = "lf-field-rest";
+    // The break an empty editable line holds, as the editor's own empty line does, so
+    // the place reads the same value to assistive technology.
+    this.#rest.append(document.createElement("br"));
+    // In `focusin`, never `focus`: Chrome and Firefox send no `focusin` for a node that
+    // passes focus on in its own `focus` handler, and the move inside the closed root
+    // reaches nothing outside it, so the page would never hear the field take focus.
+    this.#rest.addEventListener("focusin", () => this.#build());
+    this.#frame.append(this.#placeholderLayer, this.#rest);
     this.#root.append(this.#frame);
     this.#model = this.#create("");
+    this.#dressRest();
     this.addEventListener("mousedown", (event) => this.#pressPadding(event));
+    // Words dragged in drop where the editor will take them.
+    this.addEventListener("dragenter", () => {
+      if (!this.#view) this.#build();
+    });
     this.addEventListener("scroll", () => this.#measureOverflow(), { passive: true });
     this.#root.addEventListener("beforeinput", () => this.#beforeEdit(), {
       capture: true,
@@ -540,6 +563,7 @@ class LeafText extends HTMLElement {
   attributeChangedCallback(name) {
     if (name === "placeholder") this.#placeholderText.data = this.placeholder;
     if (name === "aria-describedby") return this.#describe();
+    this.#dressRest();
     this.#apply({
       effects: this.#attributes.reconfigure(
         EditorView.contentAttributes.of(this.#contentAttributes()),
@@ -566,6 +590,39 @@ class LeafText extends HTMLElement {
     if (!this.hasAttribute("tabindex")) this.tabIndex = 0;
     this.#internals ??= this.attachInternals();
     this.#root.adoptedStyleSheets = [sheet];
+    if (this.#model.doc.length) this.#build();
+    else this.#describe();
+    this.#paintEmpty();
+    this.#internals.states.add("ready");
+  }
+
+  // Until the field has an editor, its empty line's place stands in for the editor's
+  // content node to assistive technology, so the tree reads the same before and after
+  // the editor builds. CodeMirror's node is a multiline textbox, `contenteditable` (its
+  // theme makes it plain text only) and `aria-readonly` while the field is read-only,
+  // and it wears the field's name, hint and description (`#describe`). This place
+  // declares the same, and being editable it is a tab stop where the editor's node is.
+  #dressRest() {
+    const wanted = {
+      ...this.#contentAttributes(),
+      role: "textbox",
+      "aria-multiline": "true",
+      contenteditable: "plaintext-only",
+      ...(this.#readOnly && { "aria-readonly": "true" }),
+    };
+    for (const name of ["aria-label", "aria-placeholder", "aria-readonly"])
+      if (!(name in wanted)) this.#rest.removeAttribute(name);
+    for (const [name, value] of Object.entries(wanted))
+      if (this.#rest.getAttribute(name) !== value) this.#rest.setAttribute(name, value);
+  }
+
+  // A connected field draws its words in an editor, and an empty one builds its editor
+  // only when the user arrives in it, by its own `focus()`, a press, or native focus by
+  // any route, which lands on the empty line's place, or when words are written into
+  // it. Building on arrival hands focus to the words in the same task, so the first key
+  // the user types lands in them. A page holding many fields, such as one under each
+  // list of options, builds none of them to show itself.
+  #build() {
     this.#view = new LeafEditorView({
       root: this.#root,
       parent: this.#frame,
@@ -583,6 +640,8 @@ class LeafText extends HTMLElement {
         this.#paintEmpty();
         this.#measureOverflow();
         if (edited) this.dispatchEvent(new Event("input", { bubbles: true }));
+        else if (transactions.some((tr) => tr.isUserEvent("select")))
+          this.dispatchEvent(new Event("lf-caret-move", { bubbles: true }));
       },
     });
     this.#model = null;
@@ -596,8 +655,13 @@ class LeafText extends HTMLElement {
     // delegates focus to, which holds no caret.
     this.#view.scrollDOM.removeAttribute("tabindex");
     this.#describe();
-    this.#paintEmpty();
-    this.#internals.states.add("ready");
+    // Focus that landed on the empty line's place moves on into the words, in that
+    // place's `focusin`, which goes on to reach the page as the field's.
+    if (this.#root.activeElement === this.#rest) {
+      this.#view.contentDOM.focus({ preventScroll: true });
+      this.#view.placeSelection();
+    }
+    this.#rest.hidden = true;
     this.#measureOverflow();
   }
 
@@ -608,30 +672,39 @@ class LeafText extends HTMLElement {
   // A move between parents reconnects within the task and keeps its editor.
   disconnectedCallback() {
     queueMicrotask(() => {
-      if (this.isConnected || !this.#view) return;
+      if (this.isConnected) return;
+      this.#internals.states.delete("ready");
+      if (!this.#view) return;
       this.#model = this.#view.state;
       this.#sizes.disconnect();
       this.#overflow.disconnect();
       this.#view.destroy();
       this.#view = null;
-      this.#internals.states.delete("ready");
+      this.#rest.hidden = false;
     });
   }
 
   #describe() {
-    const content = this.#view?.contentDOM;
-    if (!content) return;
+    if (!this.isConnected) return;
+    const content = this.#view?.contentDOM ?? this.#rest;
     const root = /** @type {Document | ShadowRoot} */ (this.getRootNode());
-    content.ariaDescribedByElements = (this.getAttribute("aria-describedby") ?? "")
+    const described = (this.getAttribute("aria-describedby") ?? "")
       .split(/\s+/)
       .filter(Boolean)
       .map((id) => root.getElementById(id))
       .filter(Boolean);
+    const current = content.ariaDescribedByElements ?? [];
+    if (
+      described.length !== current.length ||
+      described.some((element, at) => element !== current[at])
+    )
+      content.ariaDescribedByElements = described;
   }
 
   // The editor adapter places its recorded caret without native scrolling. The
   // field reveals itself separately when its caller requests ordinary focus.
   focus(options) {
+    if (!this.#view && this.isConnected) this.#build();
     if (!this.#view) return;
     this.#view.focus();
     if (this.#root.activeElement !== this.#view.contentDOM) return;
@@ -646,7 +719,15 @@ class LeafText extends HTMLElement {
   // at the nearest character, the way a textarea's does. Presses inside the editor are
   // CodeMirror's to place.
   #pressPadding(event) {
-    if (event.button !== 0 || !this.#view) return;
+    if (event.button !== 0) return;
+    if (!this.#view) {
+      // The field is empty, so wherever the press lands the caret stands at its start.
+      // Another button's press focuses the empty line's place natively, which builds the
+      // editor before the press's own action, such as a context menu's, reads its target.
+      event.preventDefault();
+      this.focus({ preventScroll: true });
+      return;
+    }
     const area = this.#view.scrollDOM.getBoundingClientRect();
     const { clientX: x, clientY: y } = event;
     if (x >= area.left && x < area.right && y >= area.top && y < area.bottom) return;
@@ -665,6 +746,7 @@ class LeafText extends HTMLElement {
   }
 
   #apply(spec) {
+    if (!this.#view && spec.changes && this.isConnected) this.#build();
     if (this.#view) this.#view.dispatch(spec);
     else this.#model = this.#model.update(spec).state;
   }
@@ -739,6 +821,7 @@ class LeafText extends HTMLElement {
   set value(text) {
     text = String(text ?? "").replace(/\r\n?/g, "\n");
     if (text === this.value) return;
+    if (!this.#view && this.isConnected) this.#build();
     if (!this.#view) {
       this.#model = this.#create(text);
       return;
@@ -804,6 +887,7 @@ class LeafText extends HTMLElement {
   }
   set readOnly(on) {
     this.#readOnly = Boolean(on);
+    this.#dressRest();
     this.#apply({
       effects: this.#editable.reconfigure(EditorState.readOnly.of(this.#readOnly)),
     });

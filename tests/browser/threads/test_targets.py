@@ -21,6 +21,7 @@ from render_harness import (
     open_page,
     resized,
     select_words,
+    selection_field,
     sending,
     stamp_page,
     told,
@@ -406,7 +407,7 @@ def test_original_quoted_words_remain_readable_after_the_page_rewrites_them(
     page = open_page(browser, live_url(url), context=context)
     select_words(page, "#passage")
     if touch:
-        page.get_by_role("button", name="Comment on selection", exact=True).tap()
+        selection_field(page).tap()
     write(page.locator(".lf-composer leaf-text"), "Please revisit this earlier plan.")
     with sending(page, "the long passage comment"):
         page.locator(".lf-composer button.lf-compose-submit").click()
@@ -533,13 +534,17 @@ def test_a_long_quote_of_replaced_data_has_a_local_reading(browser, serve):
     disclosure = card.get_by_role("button", name="Full quote", exact=True)
     expect(disclosure).to_be_visible()
     compact = card.bounding_box()["height"]
+    compact_quote = quote.bounding_box()["height"]
     disclosure.click()
     assert quote.evaluate("el => el.scrollHeight <= el.clientHeight + 1")
     rendered(page)
-    assert card.bounding_box()["height"] > compact
+    assert quote.bounding_box()["height"] > compact_quote
+    assert card.bounding_box()["height"] == pytest.approx(compact, abs=0.5)
+    assert card.evaluate("el => el.scrollHeight > el.clientHeight")
     disclosure.click()
     rendered(page)
     assert card.bounding_box()["height"] == pytest.approx(compact, abs=0.5)
+    assert quote.evaluate("el => el.scrollHeight > el.clientHeight")
 
 
 @pytest.mark.parametrize("quoted", [True, False], ids=["short-quote", "whole-section"])

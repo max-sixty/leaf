@@ -1,15 +1,19 @@
 """Text-passage readings of authored HTML."""
 
 import re
+import weakref
 from functools import cached_property, lru_cache
 from html import escape
-from typing import NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 from urllib.parse import urlsplit
 
 import turbohtml
 
 from .registry.kernel import kernel_passages
 from .structure import VOID_TAGS, SourceDocument, pre_body
+
+if TYPE_CHECKING:
+    from .obligations import ObligationSources
 
 # ---------- passages: the text an anchor points at ----------
 # The runtime resolves an anchor against the DOM; `leaf thread open` writes one down
@@ -35,7 +39,7 @@ from .structure import VOID_TAGS, SourceDocument, pre_body
 #               the log's outcomes drops here exactly what drops there — and a widget
 #               whose decision leaves nothing showing goes with its slots (settledAway
 #               there, `gone` here). Its values are also the vocabulary's decision
-#               verbs, which is where `items` reads them from.
+#               verbs, which is where `obligations` reads them from.
 #   x-state, record kind "body"  the verb whose detail text becomes this element's
 #               body once the user sends one (lf-draft's `edit`): replay writes
 #               the newest surviving one into the DOM verbatim (a widget's render is
@@ -654,13 +658,21 @@ class SourceReading:
     def inventory(self) -> SourceInventory:
         """Read historical consumers together, without retaining parser records."""
         from .data_contracts import data_document_readings
-        from .items import item_registrations
+        from .obligations import obligation_registrations
 
         return SourceInventory(
             tuple(self.document.ids),
-            item_registrations(self.document, self.registry),
+            obligation_registrations(self.document, self.registry),
             data_document_readings(self.document, "", self.registry),
         )
+
+    @cached_property
+    def obligation_sources(self) -> "ObligationSources":
+        """The widgets this version declares that can ask the user, which every
+        reading of its obligations starts from (`obligations.ObligationSources`)."""
+        from .obligations import obligation_sources
+
+        return obligation_sources(self.document, self.registry)
 
     @cached_property
     def passages(self) -> Passages:
@@ -701,23 +713,38 @@ class SourceReading:
         vocabulary anything (`enclosing_ids`)."""
         return self.passages.enclosing
 
-    def decided_passages(self, decided: dict) -> Passages:
+    def decided_passages(
+        self, decided: dict, rewrites: dict | None = None, additions: dict | None = None
+    ) -> Passages:
         """The passage reading under the retirement outcomes in force
-        (`projection.retirement_outcomes`)."""
-        carried = tuple(
-            sorted(
-                (widget, outcome)
-                for widget, outcome in decided.items()
-                if widget in self.passages.enclosing
-            )
+        (`projection.retirement_outcomes`), and under the user's rewritten bodies
+        and created children where a caller passes them
+        (`projection.rewritten_bodies`, `projection.generated_children`)."""
+        # The parser consults an outcome only by the id of an element it opens, so
+        # outcomes naming none of this document's elements leave it as authored. A
+        # rewrite or a created child may stand on an element another created child
+        # brought, which the authored walk never opens, so those are kept whole.
+        carried = (
+            tuple(
+                sorted(
+                    (widget, outcome)
+                    for widget, outcome in decided.items()
+                    if widget in self.passages.enclosing
+                )
+            ),
+            tuple(sorted((rewrites or {}).items())),
+            tuple(sorted((additions or {}).items())),
         )
-        if not carried:
+        if not any(carried):
             return self.passages
         # One read of the pair: threads share a held reading, and another's
         # outcomes may replace it between a check and a second read.
         held = self._decided
         if held is None or held[0] != carried:
-            held = (carried, page_passages(self.document, self.registry, dict(carried)))
+            held = (
+                carried,
+                page_passages(self.document, self.registry, *map(dict, carried)),
+            )
             self._decided = held
         return held[1]
 
@@ -738,5 +765,15 @@ def enclosing_ids(document: SourceDocument) -> dict:
     an element sits off the tag stack, before anything asks the registry what it
     shows. Words are the other half and the vocabulary's word entirely, so this
     is the reading for a caller that may not raise on the registry gate — it can
-    have where an element sits, and must not ask what it says."""
-    return page_passages(document, {}).enclosing
+    have where an element sits, and must not ask what it says.
+
+    A document is immutable, so the walk runs once per document: checking a page
+    reads its containment once for each live sample it declares."""
+    if (held := _ENCLOSING.get(document)) is None:
+        held = _ENCLOSING[document] = page_passages(document, {}).enclosing
+    return held
+
+
+_ENCLOSING: "weakref.WeakKeyDictionary[SourceDocument, dict]" = (
+    weakref.WeakKeyDictionary()
+)

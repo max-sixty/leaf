@@ -4,6 +4,8 @@ import copy
 import json
 import os
 import re
+import socket
+import sys
 from pathlib import Path
 
 import pytest
@@ -14,6 +16,7 @@ from interact_support import (
     PAGE,
     ROOT,
     SHIPPED_PACKAGES,
+    STATED_TIMEOUT,
     _report,
     _tasks_version,
     append_carried_log_record,
@@ -26,6 +29,7 @@ from interact_support import (
     fragment_errors,
     fresh_process,
     live_versions,
+    owed,
     page_state,
     publish,
     published,
@@ -46,12 +50,17 @@ from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import todos as todos_model
 from leaf.findings import Finding, Rejected
+from leaf.refusals import Refused
 from leaf.registry import storage as registry_storage
 from leaf.registry.contract import element_declarations
 from leaf.structure import SourceDocument
 from leaf.thread_context import thread_digest
 from leaf.validation import composition as validation_model
-from leaf.validation.admission import check_markup, revision_publication
+from leaf.validation.admission import (
+    check_markup,
+    read_text_arg,
+    revision_publication,
+)
 from leaf.validation.instances import reference_errors
 from leaf_dev.example_data import regression_sources
 from leaf_dev.page_fixtures import prepare_page, read_fixture
@@ -294,9 +303,9 @@ def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
     )
     assert fragment_errors(first, registry) == []
 
-    # Evidence can quote another item source without giving this item a
+    # Evidence can quote another obligation source without giving this obligation a
     # second live source. The runtime already excludes x-exhibit descendants from the
-    # item list, so the authored boundary must read the same relation.
+    # obligation list, so the authored boundary must read the same relation.
     with_evidence = (
         '<lf-ask id="decision-with-evidence"><h2>Choose</h2>'
         f'{first}<lf-sample id="quoted-example" label="another question">'
@@ -304,9 +313,9 @@ def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
     )
     assert fragment_errors(with_evidence, registry) == []
 
-    # The item's title is what the shared name rule reads, so a heading in an
+    # The obligation's title is what the shared name rule reads, so a heading in an
     # hgroup after its eyebrow, a subheading, or context before the heading all
-    # name the item. A frame whose leading title is not a heading is refused.
+    # name the obligation. A frame whose leading title is not a heading is refused.
     for titled in (
         f'<lf-ask id="d"><hgroup><p class="eyebrow">#5</p><h2>Choose</h2></hgroup>{first}</lf-ask>',
         f'<lf-ask id="d"><p class="eyebrow">#5</p><h2>Choose</h2>{first}</lf-ask>',
@@ -321,7 +330,7 @@ def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
         assert found(fragment_errors(untitled, registry), "untitled-question")
 
     # A context framing no widget is a question the user answers in words, and needs
-    # no heading. One framing only widgets that item nothing would show a question the
+    # no heading. One framing only widgets that obligation nothing would show a question the
     # On me list never counts. A retired source still counts: settling a decision
     # keeps its context.
     assert (
@@ -347,21 +356,23 @@ def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
         widgets=lacking({"choose": [True]}),
     )
     settled = first.replace(" choose", " choose settled")
-    settled_item = f'<lf-ask id="decision-settled"><h2>Chosen</h2>{settled}</lf-ask>'
-    assert fragment_errors(settled_item, registry) == []
-    # The registry's `retired` is what says the flag ended an item; a flag
+    settled_obligation = (
+        f'<lf-ask id="decision-settled"><h2>Chosen</h2>{settled}</lf-ask>'
+    )
+    assert fragment_errors(settled_obligation, registry) == []
+    # The registry's `retired` is what says the flag ended an obligation; a flag
     # that merely stops a widget asking leaves the context framing nothing.
     unretired = copy.deepcopy(registry)
     del unretired["lf-options"]["x-awaits"]["retired"]
     assert found(
-        fragment_errors(settled_item, unretired),
+        fragment_errors(settled_obligation, unretired),
         "empty-question",
         widgets=lacking({"settled": [False]}),
     )
-    # A quoted item is a mention, and its widgets ask nothing by design.
+    # A quoted obligation is a mention, and its widgets ask nothing by design.
     assert (
         fragment_errors(
-            '<lf-sample id="quoted-ask" label="an item">'
+            '<lf-sample id="quoted-ask" label="an obligation">'
             f'<lf-ask id="decision-quoted"><h2>Choose</h2>{second}</lf-ask>'
             "</lf-sample>",
             registry,
@@ -388,7 +399,9 @@ def test_command_references_preserve_the_package_owned_subject_roles(page_dir):
         "</lf-test-worker></lf-test-task></lf-test-plan>"
     )
 
-    errors = reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
+    errors = reference_errors(
+        parser.lf_elements, registry, parser.ids, parser.by_id, thread_ids=set()
+    )
 
     assert [(e.code, e.values["via"], e.values["where"]) for e in errors] == [
         ("reference-contract", "$work.widgets", {"role": "readings"}),
@@ -410,7 +423,9 @@ def test_a_readings_seat_answers_to_one_command(page_dir):
         '<lf-test-summary id="orphan"></lf-test-summary>'
     )
 
-    errors = reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
+    errors = reference_errors(
+        parser.lf_elements, registry, parser.ids, parser.by_id, thread_ids=set()
+    )
 
     assert errors == [
         Finding(
@@ -814,9 +829,10 @@ def test_a_playground_control_stands_in_the_rail_or_inside_its_preview():
         '<lf-playground-output><lf-playground-value for="item-tone">'
         "</lf-playground-value></lf-playground-output></lf-playground>"
     ).lf_elements
-    assert [e.code for e in reference_errors(quoted_records, registry, set(), {})] == [
-        "unmatched-member"
-    ]
+    assert [
+        e.code
+        for e in reference_errors(quoted_records, registry, set(), {}, thread_ids=set())
+    ] == ["unmatched-member"]
     assert [
         e.code
         for e in errors(
@@ -1085,6 +1101,26 @@ def test_agent_messages_preserve_a_single_space(page_dir):
     assert [message["text"] for message in messages] == [" ", " "]
 
 
+def test_a_body_reads_only_piped_stdin(page_dir, monkeypatch):
+    """A body without --text comes from a pipe or file; a socket the caller keeps
+    open, as Claude Code hands a command spanning lines, is refused at once rather
+    than waited on."""
+    held, caller = socket.socketpair()
+    with held, caller:
+        # A regression waits on the socket; the timeout turns that into a failure.
+        held.settimeout(STATED_TIMEOUT)
+        monkeypatch.setattr(sys, "stdin", held.makefile("r"))
+        with pytest.raises(Refused, match="empty text"):
+            read_text_arg(page_dir, None)
+
+    read, write = os.pipe()
+    os.write(write, b"Checked the label row.")
+    os.close(write)
+    with open(read) as piped:
+        monkeypatch.setattr(sys, "stdin", piped)
+        assert read_text_arg(page_dir, None) == "Checked the label row."
+
+
 def test_the_wire_ships_a_message_as_logged(page_dir):
     """The wire adds nothing to the log: text is Markdown the page's vendored runtime
     renders (test_render holds that side), markup is the fragment the CLI gate
@@ -1123,7 +1159,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     """Several worker sessions report to one page. Each agent-authored event
     carries its poster's display name and session id from the poster's own
     environment, so the log tells the voices apart by id; the claim — the
-    watcher the banner names — and every publication stay the hub's, untouched
+    watcher the panel names — and every publication stay the hub's, untouched
     by a worker's post."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "hub")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
@@ -1184,7 +1220,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
 def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
     """Progress on a move the agent owes is the user's first sign it is handled: one
     write posts it in the thread and takes the move in hand, Working with the update's text as its line,
-    while the answer stays owed. The line is the banner's, so the update is one line."""
+    while the answer stays owed. The line is the status's, so the update is one line."""
     published(claimed)
     root = append_command(
         claimed,
@@ -1226,7 +1262,7 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
     assert events_model.read_events(claimed)[-1] == update
     [working] = page_state(claimed)["workflows"]
     assert (working["stage"], working["detail"]) == ("working", "Checking the camera.")
-    assert working["answer"]["for"] == root["id"]
+    assert working["obligation"] == f"update:{root['id']}"
     # The same exact input remains owed; newer progress replaces the Working line.
     again = progress("Checking the clock.")
     assert again.exit_code == 0, again.output
@@ -1485,12 +1521,9 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
         return json.loads(result.output)
 
     def owed_answers():
-        state = state_json(page_dir)
-        owed = set(state["activity"]["obligations"])
         return [
             (item["input"], item["message"], item["answer"])
-            for item in state["workflows"]
-            if item["id"] in owed
+            for item in owed(state_json(page_dir))
         ]
 
     asked = append_command(
@@ -1514,7 +1547,7 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
         (
             edit["id"],
             asked["id"],
-            {"kind": "reply", "to": asked["id"], "for": edit["id"]},
+            {"kind": "reply", "parent": asked["id"], "responds": edit["id"]},
         )
     ]
     with service_model.PageTransaction(page_dir) as page:

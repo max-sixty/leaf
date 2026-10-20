@@ -17,6 +17,7 @@ from interact_support import (
     freeze_events,
     last_deliverable_seq,
     let_a_pick_settle_a_thread,
+    owed_answers,
     page_state,
     printed,
     publish,
@@ -294,7 +295,7 @@ def test_delivery_distinguishes_thread_obligations_from_closing_answered_work(pa
     assert opened.exit_code == 0, opened.output
     assert not write("resolve", parent=question["id"])["attention"]
     assert not write("unresolve", parent=question["id"])["attention"]
-    assert page_state(page_dir)["activity"]["obligations"] == []
+    assert owed_answers(page_dir) == []
     with service_model.PageTransaction(page_dir) as page:
         page.set_status("idle", "")
     assert withdrawal in service_model.unacknowledged(
@@ -305,7 +306,9 @@ def test_delivery_distinguishes_thread_obligations_from_closing_answered_work(pa
     )["attention"]
 
 
-def test_delivery_distinguishes_composing_an_item_from_changing_input_in_hand(page_dir):
+def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_hand(
+    page_dir,
+):
     source = PAGE.replace(
         "<lf-options>", '<lf-options id="choice" choose multiple>'
     ).replace(
@@ -346,7 +349,7 @@ def test_delivery_distinguishes_composing_an_item_from_changing_input_in_hand(pa
         page_dir, {"kind": "undo", "author": "user", "undoes": completed["id"]}
     )
     assert undone["attention"]
-    # The item is unfinished again, but the agent is already acting on its pick.
+    # The obligation is unfinished again, but the agent is already acting on its pick.
     changed = action("choice", "choose", {"value": ["backfill-first"]})
     assert changed["attention"]
     assert append_command(
@@ -509,10 +512,10 @@ def test_a_delivered_reply_carries_the_thread_it_lands_in(page_dir, capsys):
     assert session_model.cmd_wait(page_dir) == 0
     _, header, shown = delivered(capsys)
     assert [e["id"] for e in shown] == [followed["id"]]
-    assert {key: shown[0]["answer"][key] for key in ("kind", "to", "for")} == {
+    assert {key: shown[0]["answer"][key] for key in ("kind", "parent", "responds")} == {
         "kind": "reply",
-        "to": followed["id"],
-        "for": followed["id"],
+        "parent": followed["id"],
+        "responds": followed["id"],
     }
     assert delivery_model.response_address(shown[0]["answer"]["ref"])["page"] == str(
         page_dir
@@ -770,8 +773,8 @@ def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
     assert shown[0]["threads"] == [origin["id"], target["id"]]
     assert shown[0]["answer"] == {
         "kind": "reply",
-        "to": origin["id"],
-        "for": accepted["id"],
+        "parent": origin["id"],
+        "responds": accepted["id"],
         "ref": f"{payload['id']}:0:{accepted['id']}",
         "writer": "agent",
     }
@@ -787,7 +790,7 @@ def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
 
     reply = thread_model.post_reply(
         page_dir,
-        {"to": origin["id"], "for": accepted["id"]},
+        {"parent": origin["id"], "responds": accepted["id"]},
         "Applied the accepted wording.",
     )
     assert reply["parent"] == origin["id"]
@@ -1051,8 +1054,8 @@ def test_a_settling_reaction_wakes_only_when_it_answers_the_agent(
     assert mark["attention"] is False
 
 
-def test_success_readers_require_the_same_exact_agent_answer(tmp_path):
-    from leaf.thread import answered_by_reply, successful_replies
+def test_successful_replies_require_an_exact_agent_answer():
+    from leaf.thread import successful_replies
 
     comment = {
         "kind": "comment",
@@ -1069,7 +1072,6 @@ def test_success_readers_require_the_same_exact_agent_answer(tmp_path):
     }
     for changes, success in (
         ({}, True),
-        ({"ephemeral": True}, False),
         ({"failure": "turn_failed"}, False),
         ({"parent": "input", "responds": "later-input"}, False),
         ({"parent": "input", "responds": None}, False),
@@ -1079,6 +1081,4 @@ def test_success_readers_require_the_same_exact_agent_answer(tmp_path):
         reply = {**answer, **changes}
         events = [comment, reply]
         expected = [reply] if success else []
-        (tmp_path / "events.jsonl").write_text("\n".join(json.dumps(e) for e in events))
         assert successful_replies(events, "input") == expected
-        assert answered_by_reply(events, "input") is success

@@ -168,7 +168,7 @@ export function createGoToSequence({
       when: () => true,
     },
     {
-      id: "navigation.drawer.queue",
+      id: "navigation.panel.queue",
       keys: ["Shift+m"],
       // Its door is On me's, so where the On view shows the agent's list it turns to
       // the user's rather than closing.
@@ -178,7 +178,7 @@ export function createGoToSequence({
       when: () => true,
     },
     {
-      id: "navigation.drawer.leaves",
+      id: "navigation.panel.leaves",
       keys: ["Shift+l"],
       description: () => (doors.leaves.shows() ? "Close All pages" : "Go to All pages"),
       title: () => (doors.leaves.shows() ? "close All pages" : "All pages"),
@@ -197,8 +197,8 @@ export function createGoToSequence({
   // Whether each door's surface stands, by the door's id.
   const DOOR_STANDS = new Map([
     ["navigation.panel.threads", () => doors.threads.shows()],
-    ["navigation.drawer.queue", () => doors.queue.shows()],
-    ["navigation.drawer.leaves", () => doors.leaves.shows()],
+    ["navigation.panel.queue", () => doors.queue.shows()],
+    ["navigation.panel.leaves", () => doors.leaves.shows()],
   ]);
   // A press hint is an activation and an arrival. Reveal first so a nested control can open
   // the panel that holds it, then focus and use its click path so pointer and keyboard
@@ -501,6 +501,7 @@ export function createGoToSequence({
     return [
       {
         id: "navigation.thread.edge",
+        touch: false,
         // A focused thread is one place, so its two placements complete the sequence
         // without naming a list or taking a digit. This is the thread-local counterpart
         // to the page edges below: k/j place the card inside its panel rather than moving
@@ -531,6 +532,7 @@ export function createGoToSequence({
       },
       {
         id: "navigation.page.focus",
+        touch: false,
         // This changes focus without unwinding an open surface.
         keys: PAGE_RETURN_KEYS,
         description: "Focus the page",
@@ -543,6 +545,7 @@ export function createGoToSequence({
       },
       {
         id: "navigation.target",
+        touch: false,
         runFromCommandReference: false,
         // Every alphabet key is claimed while the map stands. If a scene refresh retired
         // a remembered route, that old letter must report the miss rather than falling
@@ -567,6 +570,7 @@ export function createGoToSequence({
       },
       {
         id: "navigation.target.filter",
+        touch: false,
         keys: FILTER_KEYS,
         routes: TARGET_FILTERS.map(({ id, key, word }) => ({
           id: `navigation.target.filter.${id}`,
@@ -606,6 +610,7 @@ export function createGoToSequence({
       })),
       {
         id: "navigation.page.edge",
+        touch: false,
         keys: PAGE_EDGE_KEYS,
         routes: [
           {
@@ -629,6 +634,7 @@ export function createGoToSequence({
       },
       {
         id: "navigation.go-to.back",
+        touch: false,
         keys: ["Escape"],
         sequenceControl: true,
         description: () =>

@@ -34,7 +34,7 @@ from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
 from leaf import schema as schema_model
-from leaf.event_log import _parse_events, read_events
+from leaf.event_log import CURSOR, _parse_events, read_events
 from leaf.events import bare_reaction, build_threads
 from leaf.passages import enclosing_ids
 from leaf.render_checks import wait_until_ready
@@ -52,7 +52,7 @@ from render_harness import (
     compare_with,
     consume_browser_errors,
     displayed,
-    expect_items_answered,
+    expect_obligations_answered,
     holding,
     http_error_console,
     is_problem,
@@ -279,7 +279,7 @@ def served_example(site, tmp_path):
 
 def product_url(hosted, name):
     """The canonical route for one product source."""
-    return hosted + site_build.PRODUCT_ROUTES[name]
+    return hosted + site_build.product_route(Path(name))
 
 
 media_url = site_build.media_url
@@ -294,7 +294,7 @@ def active_revision_directory(page_dir):
 def opened(page, url):
     """A navigation this module makes for itself, waiting on what `open_page` waits
     on — the document's stamp and the log's — since a page at the first alone has a
-    banner the user would not recognize (tests/AGENTS.md)."""
+    chrome the user would not recognize (tests/AGENTS.md)."""
     navigate(page, url, wait_until="load")
 
 
@@ -357,7 +357,6 @@ def test_published_example_has_the_normal_leaf_layout(hosted, browser, serve):
 def test_product_pages_are_published_as_complete_page_records(site):
     """Each page retains its layer, history, and every captured media input."""
     sources = pages_under(DOCS)
-    assert {source.name for source in sources} == set(site_build.PRODUCT_ROUTES)
     for source in sources:
         page = site_build.product_page(site, source.name)
         expected = authored_markup(source)
@@ -525,7 +524,7 @@ def test_a_crawler_is_given_one_page_per_route(site):
         if page["kind"] == "product":
             # Whoever draws the card draws it at 1.91:1 and centre-crops whatever it
             # is given, so a picture of another shape arrives with a band off the top
-            # and the bottom. The product shot lost its banner that way: the version
+            # and the bottom. The product shot lost its chrome that way: the version
             # control, the approval, the thread count, every part of the picture that
             # says the page is live.
             with Image.open(assets / page["image"].lstrip("/")) as card:
@@ -599,9 +598,7 @@ def test_every_published_page_keeps_its_canonical_page_record(site):
         seed = source.with_suffix(".jsonl")
         if seed.exists():
             assert seed.read_text() in (page_dir / "events.jsonl").read_text()
-            assert json.loads((page_dir / "cursor.json").read_text()) == {
-                "seq": len(events)
-            }
+            assert CURSOR.read(page_dir / "cursor.json") == {"seq": len(events)}
         else:
             assert not (page_dir / "cursor.json").exists()
         assert set(contracts) == {operation["source"] for operation in operations}
@@ -1086,7 +1083,7 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
     takes its paper from the theme in both schemes, and nothing scrolls sideways at
     390px: the nav wraps, the screenshots scale, and a command too long for the
     column scrolls inside its own block, as the architecture diagram fits its box."""
-    names = list(site_build.PRODUCT_ROUTES)
+    names = [source.name for source in site_build.product_sources()]
     page = browser.new_page()
     failed = []
     page.on(
@@ -1566,7 +1563,7 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
 
 def test_shipped_data_opens_in_its_package_projection(site, served_example, browser):
     """The page backend delivers package data through the live state contract, and
-    the page counts every item it declares."""
+    the page counts every obligation it declares."""
     stored = data_model.source_file(
         site / "examples" / "command-hub", "atlas-worktrees"
     )
@@ -1585,8 +1582,8 @@ def test_shipped_data_opens_in_its_package_projection(site, served_example, brow
             "xpath=following-sibling::dd[1]"
         )
     ).to_have_text("running")
-    # The inventory includes request Decisions beside state items.
-    expect_items_answered(page, "0/5")
+    # The inventory includes request Decisions beside state obligations.
+    expect_obligations_answered(page, "0/5")
     expect(page.locator(".lf-fp-on-user")).to_be_visible()
 
 
@@ -1646,17 +1643,17 @@ def test_a_published_decision_survives_reload(served_example, browser):
     _, url = served_example("heat-loss")
     page = open_page(browser, url)
     decisions = page.locator(".lf-fp-on-user")
-    expect_items_answered(page, "0/1")
+    expect_obligations_answered(page, "0/1")
     expect(decisions).to_be_visible()
     chosen = "() => [...document.querySelectorAll('lf-option[chosen]')].map(o => o.id)"
     with sending(page, "the published option pick"):
         page.locator("#heat-opt-floor .lf-pick").click()
     expect(page.locator("#heat-first")).to_have_attribute("data-lf-user-override", "1")
     assert "heat-opt-floor" in page.evaluate(chosen)
-    expect_items_answered(page, "1/1")
+    expect_obligations_answered(page, "1/1")
     page.reload(wait_until="load")
     wait_until_ready(page)
-    expect_items_answered(page, "1/1")
+    expect_obligations_answered(page, "1/1")
     assert "heat-opt-floor" in page.evaluate(chosen)
 
 

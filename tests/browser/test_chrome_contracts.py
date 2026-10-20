@@ -17,7 +17,7 @@ from render_cases_interaction import (
 )
 from render_cases_layout import (
     toggle_queue,
-    with_one_item,
+    with_one_obligation,
 )
 from render_harness import (
     LONG_PAGE,
@@ -27,6 +27,7 @@ from render_harness import (
     panel_settled,
     resized,
     select,
+    selection_field,
     stamp_page,
     told,
     wait_for_revision,
@@ -325,9 +326,9 @@ def test_a_phone_comment_field_keeps_its_passage_clear(iphone, serve):
       getSelection().addRange(range);
     }""")
     expect(page.locator(".lf-fab-input")).to_be_hidden()
-    # A finger's selection puts Comment on selection in the panel's row as the
-    # gesture's next step.
-    comment = page.locator(".lf-fp-step", has_text="Comment on selection")
+    # A finger's selection is quoted in the panel's field, a tap on which comments on
+    # it.
+    comment = selection_field(page)
     box = comment.bounding_box()
     assert box and 0 <= box["y"] < page.evaluate("innerHeight"), box
     before_scroll = page.evaluate("scrollY")
@@ -664,7 +665,7 @@ WIDE_PAGE = leaf_page(
 SURFACE_PAGES = {
     "threads-column": ("threads", lambda: LONG_PAGE),
     "threads-wide-page": ("threads", lambda: WIDE_PAGE),
-    "queue": ("queue", lambda: with_one_item(LONG_PAGE)),
+    "queue": ("queue", lambda: with_one_obligation(LONG_PAGE)),
 }
 
 

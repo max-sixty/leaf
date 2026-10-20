@@ -69,7 +69,7 @@ def draw_over(page, locator, *, steps=8, points=STROKE):
     return stroke_over(page, locator, steps=steps, points=points)
 
 
-# Two joined options of one item, with prose around them so the page scrolls them
+# Two joined options of one obligation, with prose around them so the page scrolls them
 # into the middle of the window and on past it.
 FILLER = "\n".join(
     f"<p id='filler-{i}'>Paragraph {i}. " + "Filler. " * 20 + "</p>" for i in range(12)
@@ -863,7 +863,7 @@ def test_draw_mode_leaves_inline_thread_controls_usable(browser, serve):
 
 
 def test_draw_mode_captures_widget_controls(browser, serve):
-    """A page widget remains drawable; a Draw press never answers its item."""
+    """A page widget remains drawable; a Draw press never answers its obligation."""
     page = open_page(
         browser,
         serve(
@@ -976,11 +976,11 @@ def test_an_unsent_drawing_survives_reload_before_it_has_words(browser, serve):
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "note"
 
 
-def test_another_protocols_anchored_drawing_draft_keeps_its_words_without_the_mark(
+def test_another_formats_anchored_drawing_draft_keeps_its_words_without_the_mark(
     browser, serve
 ):
-    """A draft a runtime at another protocol saved may hold a drawing this one cannot
-    draw, so its words come back and its mark neither shows nor sends."""
+    """A draft a runtime at another draft format saved may hold a drawing this one
+    cannot draw, so its words come back and its mark neither shows nor sends."""
     page = open_page(browser, serve(TARGETS_PAGE))
     # The composer's draft is keyed on the passage it is on.
     ctx = "composer:" + json.dumps([["section", "prose"]], separators=(",", ":"))
@@ -1133,8 +1133,8 @@ def test_a_posted_drawing_stands_down_without_a_false_page_reference(browser, se
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "comment"
     ]
-    # Out of Draw mode, whose step holds the panel's row, to reach Threads.
-    page.locator(".lf-fp-step", has_text="Exit Draw mode").click()
+    # Out of Draw mode, by its ✕ in the panel's row, to reach Threads.
+    page.locator('.lf-fp-exit[aria-label="Exit Draw mode"]').click()
     references = open_panel_thread(page, comment).locator(".lf-drawing-reference")
     expect(references.first).to_have_text("Drawing comment")
     assert set(references.all_text_contents()) == {"Drawing comment"}

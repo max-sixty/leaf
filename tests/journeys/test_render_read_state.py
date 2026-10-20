@@ -112,7 +112,7 @@ def _select_new_route(page):
 def _agent_update_reply(page_dir, root, number, for_event=None):
     return thread_model.post_reply(
         page_dir,
-        {"to": root, "for": for_event},
+        {"parent": root, "responds": for_event},
         f"Update {number}.\n\nCompleted steps: {number}.",
         settlement=thread_model.ProviderFinal("test-final"),
     )["id"]
@@ -120,13 +120,16 @@ def _agent_update_reply(page_dir, root, number, for_event=None):
 
 def test_progress_is_never_unread_and_reading_its_answer_reads_only_it(browser, serve):
     """Pending progress pulls the user back to nothing; the answer after it is the
-    thread's one unread message, and reading the thread, which the panel draws with
-    its progress unfolded, acknowledges that answer alone."""
+    thread's one unread message, and reading the thread, which the panel draws as its
+    card does, the progress folded behind the answer, acknowledges that answer alone."""
     url = serve(PANEL_PAGE)
     panel_comment(serve.page_dir, "An earlier conversation.")
     root = panel_comment(serve.page_dir, "Check the schedule.")
     progress = thread_model.post_reply(
-        serve.page_dir, {"to": root, "for": root}, "Checking mounts.", ephemeral=True
+        serve.page_dir,
+        {"responds": root},
+        "Checking mounts.",
+        ephemeral=True,
     )["id"]
     page = open_page(browser, url)
     page.locator(".lf-fp-threads").click()
@@ -137,7 +140,7 @@ def test_progress_is_never_unread_and_reading_its_answer_reads_only_it(browser, 
     _expect_news(page, False)
 
     answer = thread_model.post_reply(
-        serve.page_dir, {"to": root, "for": root}, "Both mounts fit."
+        serve.page_dir, {"responds": root}, "Both mounts fit."
     )["id"]
     told(page)
     expect(row).to_have_attribute("data-unread", "")
@@ -145,7 +148,7 @@ def test_progress_is_never_unread_and_reading_its_answer_reads_only_it(browser, 
     wait_until_ready(page)
     card = open_panel_thread(page, root)
     expect(card.locator(f'.lf-msg[data-event="{answer}"]')).to_be_visible()
-    expect(card.locator(f'.lf-msg[data-event="{progress}"]')).to_be_visible()
+    expect(card.locator(f'.lf-msg[data-event="{progress}"]')).to_be_hidden()
     _expect_news(page, False)
     round_trip(page)
     assert _read_events(serve.page_dir)[-1]["messages"] == [
@@ -613,7 +616,9 @@ def test_a_reply_held_in_a_diff_thread_is_read_once_the_keyboard_opens_it(
     expect(thread).to_be_visible()
     height = _box_height(thread)
     reply = thread_model.post_reply(
-        serve.page_dir, {"to": root, "for": root}, "The route-line answer is ready."
+        serve.page_dir,
+        {"responds": root},
+        "The route-line answer is ready.",
     )
     told(page)
     news = thread.locator(
@@ -885,7 +890,9 @@ def test_a_reopening_in_a_folded_diff_thread_waits_in_its_summary(
     _to_upper_third(resolved)
     height = _box_height(resolved)
     # Resolving answered the comment, so the agent's turn is one nothing asked for.
-    reply = thread_model.post_reply(serve.page_dir, {"to": root}, "The route stays.")
+    reply = thread_model.post_reply(
+        serve.page_dir, {"parent": root}, "The route stays."
+    )
     told(page)
     expect(summary).to_have_text("Resolved · 1 · Reopened · 1 new reply")
     expect(resolved).not_to_have_attribute("open", "")
@@ -1211,7 +1218,9 @@ def test_a_page_seat_the_open_panel_stands_over_is_not_read(
     page.locator(".lf-fp-threads").click()
     panel_settled(page, view="threads")
     reply = thread_model.post_reply(
-        serve.page_dir, {"to": root, "for": root}, "The route-line answer is ready."
+        serve.page_dir,
+        {"responds": root},
+        "The route-line answer is ready.",
     )
     told(page)
     body = page.locator(

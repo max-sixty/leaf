@@ -24,7 +24,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
     SUGGESTION_PAGE,
-    THREAD_ITEMS,
+    THREAD_OBLIGATIONS,
     live_url,
 )
 from render_cases_layout import (
@@ -82,6 +82,7 @@ from render_harness import (
     resized,
     scroll_settled,
     select,
+    selection_field,
     sending,
     stamp_page,
     told,
@@ -152,10 +153,10 @@ def expect_open_threads(page, count):
 
 
 def open_selected_comment(page):
-    """Choose the Comment action offered for the completed selection."""
-    button = page.get_by_role("button", name="Comment on selection", exact=True)
-    expect(button).to_be_visible()
-    button.click()
+    """Press the panel's field, which offers the completed selection."""
+    field = selection_field(page)
+    expect(field).to_be_visible()
+    field.click()
 
 
 def selected_comment_marks_chosen_start(page, chosen):
@@ -431,7 +432,7 @@ def test_a_revision_preserves_every_open_quoted_thread(browser, serve):
     assert all(event["anchor"] == {"section": "revised-quotes"} for event in moves)
 
 
-@pytest.mark.parametrize("panes", [False, True], ids=["item", "panes"])
+@pytest.mark.parametrize("panes", [False, True], ids=["obligation", "panes"])
 def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve, panes):
     """A pane does not turn visible prose into separate quotation islands."""
     item = """<lf-ask id="decision">
@@ -639,9 +640,7 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
         >= box["x"] + box["width"]
     ), "the control must hang beside the selected paragraph"
 
-    # A box that takes no pointer cannot be covered for the pointer, which is the whole
-    # subject here: the skip link rests transparent and inert at the window's head and only
-    # becomes a control at all when the keyboard reaches it.
+    # A box that takes no pointer cannot be covered for the pointer.
     under = page.evaluate("""() => [...document.querySelectorAll("[data-lf-offer]")]
         .filter(c => (!c.closest(".lf-chrome") || c.closest(".lf-margin-cluster"))
                      && c.checkVisibility()
@@ -798,11 +797,11 @@ def faces(page, *selectors):
 def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     """One physical press keeps its geometry wherever Leaf presents it."""
     url = serve(ADDRESSED_PAGE)
-    for event in THREAD_ITEMS:
+    for event in THREAD_OBLIGATIONS:
         append_carried_log_record(serve.page_dir, event)
     page = open_page(browser, url)
 
-    # Focus inside the first thread's item, open in the panel, paints that group's
+    # Focus inside the first thread's obligation, open in the panel, paints that group's
     # predictable digits once a keyboard gesture has asked for a paint. The sequence is a
     # nearer keyboard layer and takes the digits back while it stands, so each face is
     # read from the one moment its own layer renders it rather than from a single frame

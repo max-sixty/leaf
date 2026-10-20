@@ -456,3 +456,154 @@ test("a projection watcher's paint that reads the whole publication fails", asyn
   assert.equal(errors.mock.callCount(), 1);
   assert.match(errors.mock.calls[0].arguments[0], /whole publication/);
 });
+
+// Mounted outputs use the same LeafElement reader and presentation region as sources.
+let outputScenes = 0;
+function outputScene(draw) {
+  const suffix = ++outputScenes;
+  const producerTag = `lf-output-${suffix}`;
+  const consumerTag = `lf-consumer-${suffix}`;
+  adoptRegistry({
+    [producerTag]: {
+      "x-data": { rows: { source: "source", contract: "rows" } },
+      "x-output": { rows: { contract: "rows" } },
+    },
+    [consumerTag]: {
+      "x-data": { rows: { reference: "for", output: "rows", contract: "rows" } },
+      "x-refers": { for: {} },
+    },
+  });
+  customElements.define(
+    consumerTag,
+    class extends LeafElement {
+      render() {
+        this.snapshot = this.data("rows");
+        return nothing;
+      }
+      updated(changed) {
+        super.updated(changed);
+        const work = draw(this, this.snapshot);
+        if (work) this.drawing(work);
+      }
+    },
+  );
+  return { producerTag, consumerTag };
+}
+const settleOutput = async () => new Promise((resolve) => setTimeout(resolve));
+
+test("typed output readers retain authored scope and producer instance identity", async () => {
+  const { publishOutput, dataReader } = await import("/runtime/data.js");
+  const readings = new Map();
+  const { producerTag, consumerTag } = outputScene((element, snapshot) => {
+    const history = readings.get(element.id) ?? [];
+    readings.set(element.id, [...history, snapshot]);
+  });
+  document.body.innerHTML =
+    `<main><${producerTag} id="feed"></${producerTag}><${consumerTag} id="page" for="feed"></${consumerTag}></main>` +
+    `<div class="lf-msg-body"><${producerTag} id="feed"></${producerTag}><${consumerTag} id="message" for="feed"></${consumerTag}></div>`;
+  const [pageProducer, messageProducer] = document.querySelectorAll(producerTag);
+  const pageConsumer = document.querySelector("#page");
+  await settleOutput();
+  const current = dataReader(pageConsumer, "rows");
+  const pageValue = { rows: ["page"] };
+  publishOutput(pageProducer, "rows", pageValue);
+  pageValue.rows[0] = "mutated";
+  publishOutput(messageProducer, "rows", { rows: ["message"] });
+  await settleOutput();
+  assert.deepEqual(readings.get("page"), [
+    null,
+    {
+      contract: "rows",
+      value: { rows: ["page"] },
+      origin: { derived: [{ widget: "feed" }] },
+    },
+  ]);
+  assert.deepEqual(readings.get("message").at(-1).value, { rows: ["message"] });
+  assert.deepEqual(current().value, { rows: ["page"] });
+  publishOutput(pageProducer, "rows", { rows: ["page"] });
+  await settleOutput();
+  assert.equal(readings.get("page").length, 2, "same complete value does not repaint");
+  readings.get("page").at(-1).value.rows[0] = "consumer mutation";
+  assert.deepEqual(
+    current().value,
+    { rows: ["page"] },
+    "consumer copies are independent",
+  );
+  const otherProducer = document.createElement(producerTag);
+  otherProducer.id = "other";
+  document.querySelector("main").append(otherProducer);
+  publishOutput(otherProducer, "rows", { rows: ["other"] });
+  pageConsumer.setAttribute("for", "other");
+  publishOutput(pageProducer, "rows", { rows: ["changed first"] });
+  await settleOutput();
+  const captured = {
+    contract: "rows",
+    value: { rows: ["changed first"] },
+    origin: { derived: [{ widget: "feed" }] },
+  };
+  assert.deepEqual(readings.get("page").at(-1), captured);
+  assert.deepEqual(current(), captured);
+  const replacement = document.createElement(producerTag);
+  replacement.id = "feed";
+  pageProducer.replaceWith(replacement);
+  publishOutput(replacement, "rows", { rows: ["replacement"] });
+  await settleOutput();
+  assert.deepEqual(readings.get("page").at(-1).value, { rows: ["replacement"] });
+  replacement.remove();
+  await settleOutput();
+  assert.equal(readings.get("page").at(-1), null);
+  document.querySelector("main").append(replacement);
+  await settleOutput();
+  assert.deepEqual(readings.get("page").at(-1).value, { rows: ["replacement"] });
+  publishOutput(replacement, "rows", null);
+  await settleOutput();
+  assert.equal(readings.get("page").at(-1), null);
+  document.body.replaceChildren();
+  await settleOutput();
+});
+
+test("source readiness includes asynchronous LeafElement output consumers", async () => {
+  const { publishOutput } = await import("/runtime/data.js");
+  let release;
+  let started;
+  const begun = new Promise((resolve) => (started = resolve));
+  const rendering = new Promise((resolve) => (release = resolve));
+  const { producerTag, consumerTag } = outputScene((element, snapshot) => {
+    if (snapshot?.value === "next") {
+      started();
+      return rendering;
+    }
+  });
+  customElements.define(
+    producerTag,
+    class extends LeafElement {
+      render() {
+        this.snapshot = this.data("rows");
+        return nothing;
+      }
+      updated(changed) {
+        super.updated(changed);
+        publishOutput(this, "rows", this.snapshot?.value ?? null);
+      }
+    },
+  );
+  document.body.innerHTML = `<main><${producerTag} id="feed" source="deployments"></${producerTag}><${consumerTag} id="consumer" for="feed"></${consumerTag}></main>`;
+  await settleOutput();
+  acceptData(
+    {
+      version: `outputs-${++fixtureSequence}`,
+      sources: { deployments: { contract: "rows", revision: "next", value: "next" } },
+    },
+    1,
+  );
+  let presented = false;
+  const completed = notifyDataSubscribers().then(() => (presented = true));
+  await begun;
+  await Promise.resolve();
+  assert.equal(presented, false, "derived rendering holds source readiness");
+  release();
+  await completed;
+  assert.equal(presented, true);
+  document.body.replaceChildren();
+  await settleOutput();
+});

@@ -321,7 +321,8 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(browser, s
     """The compact composer reads the complete draft hidden behind its text box.
 
     Several images make its shelf overflow, proving the anchored box gets the same
-    horizontal thumbnail projection as the larger thread text boxes.
+    horizontal thumbnail projection as the larger thread text boxes. The shelf stands
+    above the field, so attaching leaves the box and its words where they were.
     """
     # The narrow box, where the shelf of images overflows soonest.
     width = 390
@@ -331,17 +332,27 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(browser, s
     field = page.locator(".lf-fab-input")
     expect(field).to_be_visible()
     field.click()
+    rendered(page)
+    bar = page.locator(".lf-fab-bar")
+    before = (bar.bounding_box(), field.bounding_box())
     pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
 
-    paste_image(field, pixels, count=4)
+    # Enough of them to outrun the narrow box.
+    pasted = 6
+    kept = pasted - 1
+    paste_image(field, pixels, count=pasted)
 
     expect(field).to_have_js_property("value", "")
     shelf = page.locator(".lf-fab-bar .lf-composer-media")
-    expect(shelf.locator("img")).to_have_count(4)
+    expect(shelf.locator("img")).to_have_count(pasted)
     rendered(page)
-    field_box = field.bounding_box()
-    shelf_box = shelf.bounding_box()
-    assert shelf_box["x"] + shelf_box["width"] <= field_box["x"]
+    assert (bar.bounding_box(), field.bounding_box()) == before
+    field_box = before[1]
+    for picture in shelf.locator(".lf-composer-media-open").all():
+        assert (
+            picture.bounding_box()["y"] + picture.bounding_box()["height"]
+            <= (field_box["y"])
+        )
     assert field_box["x"] + field_box["width"] <= width
     layout = shelf.evaluate(
         """element => ({
@@ -354,36 +365,24 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(browser, s
     shelf.get_by_role("button", name="Remove attached image 2").click()
     rendered(page)
     expect(shelf).to_be_visible()
-    expect(shelf.locator(":scope > .lf-composer-media-item")).to_have_count(3)
+    expect(shelf.locator(":scope > .lf-composer-media-item")).to_have_count(kept)
     expect(field).to_be_focused()
-    expect(shelf.locator("img")).to_have_count(3)
+    expect(shelf.locator("img")).to_have_count(kept)
     assert shelf.locator(".lf-composer-media-remove").evaluate_all(
         "buttons => buttons.map(button => button.getAttribute('aria-label'))"
-    ) == [
-        "Remove attached image 1",
-        "Remove attached image 2",
-        "Remove attached image 3",
-    ]
+    ) == [f"Remove attached image {n}" for n in range(1, kept + 1)]
     assert shelf.locator(".lf-composer-media-open").evaluate_all(
         "buttons => buttons.map(button => button.getAttribute('aria-label'))"
-    ) == [
-        "View attached image 1",
-        "View attached image 2",
-        "View attached image 3",
-    ]
+    ) == [f"View attached image {n}" for n in range(1, kept + 1)]
     page.keyboard.press("Escape")
     expect(page.locator(".lf-composer")).to_be_hidden()
     page.locator("#p1").click(click_count=3)
     expect(field).to_be_visible()
     field.click()
-    expect(shelf.locator("img")).to_have_count(3)
+    expect(shelf.locator("img")).to_have_count(kept)
     assert shelf.locator(".lf-composer-media-remove").evaluate_all(
         "buttons => buttons.map(button => button.getAttribute('aria-label'))"
-    ) == [
-        "Remove attached image 1",
-        "Remove attached image 2",
-        "Remove attached image 3",
-    ]
+    ) == [f"Remove attached image {n}" for n in range(1, kept + 1)]
     with sending(page, "the retained image draft"):
         page.keyboard.press("ControlOrMeta+Enter")
     comments = [
@@ -395,13 +394,9 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(browser, s
     sent = comments[0]
     image_markdown = "![Attached image](/media/051bee487bfb5d13.png)"
     assert sent["kind"] == "comment"
-    assert sent["text"].splitlines() == [
-        image_markdown,
-        "",
-        image_markdown,
-        "",
-        image_markdown,
-    ]
+    assert (
+        sent["text"].splitlines() == "\n\n".join([image_markdown] * kept).splitlines()
+    )
     expect(page.locator(".lf-composer")).to_be_hidden()
 
 
@@ -434,11 +429,20 @@ def test_capture_leaves_selected_content_visible_through_the_drag(
         assert actual.crop(crop).tobytes() == baseline.crop(crop).tobytes(), (
             f"Capture paint obscures the selected content during a {dx}×{dy} drag"
         )
-    page.mouse.up()
+    # Leave before lifting, which would attach the area.
     page.keyboard.press("Escape")
+    page.mouse.up()
+    expect(surface).to_be_hidden()
+    expect(page.locator(".lf-composer-media-item")).to_have_count(0)
 
 
-def test_touch_capture_can_cancel_and_reopen_before_attaching(browser, serve):
+def test_touch_capture_attaches_on_lift_and_a_tap_or_cancel_attaches_nothing(
+    browser, serve
+):
+    """A finger's drag is the whole gesture: lifting it attaches the area, and the
+    attachment's ✕ takes a bad one back. A tap draws no area, so it leaves capture
+    standing over the area it showed; the ✕, Enter on it, or Escape leave with
+    nothing attached."""
     page = capture_page(browser, serve, touch=True)
     touch = page.context.new_cdp_session(page)
     # Retain the native event so the assertion reads its final cancellation state.
@@ -448,12 +452,12 @@ def test_touch_capture_can_cancel_and_reopen_before_attaching(browser, serve):
             {capture: true, passive: true});
     }""")
 
-    def drag_area():
+    def touch_area(dx, dy):
         target = page.locator("#capture-target").bounding_box()
         left, top = int(target["x"]) + 10, int(target["y"]) + 20
         for kind, points in (
             ("touchStart", [{"x": left, "y": top}]),
-            ("touchMove", [{"x": left + 180, "y": top + 130}]),
+            ("touchMove", [{"x": left + dx, "y": top + dy}]),
             ("touchEnd", []),
         ):
             touch.send(
@@ -463,7 +467,16 @@ def test_touch_capture_can_cancel_and_reopen_before_attaching(browser, serve):
     before = events_model.read_events(serve.page_dir)
     before_media = sorted((serve.page_dir / "media").iterdir())
     surface = open_capture_area(page, touch=True)
-    drag_area()
+    selection = surface.locator(".lf-region-selection")
+    shown = selection.bounding_box()
+    # The panel's row offers only the way out; lifting a drag attaches.
+    expect(page.get_by_role("button", name="Attach capture", exact=True)).to_have_count(
+        0
+    )
+    touch_area(3, 2)
+    rendered(page)
+    expect(surface).to_be_visible()
+    assert selection.bounding_box() == shown
     page.get_by_role("button", name="Cancel capture", exact=True).tap()
     expect(surface).to_be_hidden()
     assert page.evaluate("captureTouchStarts.at(-2).defaultPrevented"), (
@@ -474,35 +487,106 @@ def test_touch_capture_can_cancel_and_reopen_before_attaching(browser, serve):
     assert events_model.read_events(serve.page_dir) == before
     assert sorted((serve.page_dir / "media").iterdir()) == before_media
     surface = open_capture_area(page, touch=True)
-    drag_area()
     page.get_by_role("button", name="Cancel capture", exact=True).press("Enter")
     expect(surface).to_be_hidden()
-    expect(page.locator(".lf-composer-media-item")).to_have_count(0)
     surface = open_capture_area(page, touch=True)
     page.keyboard.press("Escape")
     expect(surface).to_be_hidden()
     expect(page.locator(".lf-composer-media-item")).to_have_count(0)
     surface = open_capture_area(page, touch=True)
-    # A new press must belong to its own gesture, even before queued work from
-    # the preceding drag runs. Keep that ordering independent of machine load.
+    # The lift must start capture, and the next press must belong to its own gesture,
+    # before queued work from the drag runs. Keep that ordering independent of load.
     page.clock.install(time=0)
     page.clock.pause_at(1)
-    drag_area()
-    expect(surface.locator(".lf-region-selection")).to_be_visible()
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
-        page.get_by_role("button", name="Attach capture", exact=True).tap()
+        touch_area(180, 130)
         assert surface.get_attribute("aria-busy") == "true", (
-            "the first confirmation tap must start capture before drag timers run"
+            "lifting the drag must start capture before drag timers run"
         )
-        page.clock.resume()
     expect(surface).to_be_hidden()
     attachment = page.locator(".lf-composer-media-item img")
     expect(attachment).to_be_visible()
     image = Image.open(serve.page_dir / attachment.get_attribute("src").lstrip("/"))
     assert image.size == (360, 260)
+    page.get_by_role("button", name="Remove attached image 1", exact=True).tap()
+    expect(attachment).to_have_count(0)
+    page.clock.resume()
     assert events_model.read_events(serve.page_dir) == before
     assert page.evaluate("!captureTouchStarts.at(-1).defaultPrevented")
     touch.detach()
+
+
+def test_the_keyboard_moves_resizes_and_attaches_the_area(browser, serve):
+    """Arrows move the area and Shift with an arrow resizes it, 10 pixels a press,
+    and Enter attaches it, so capture needs no drag."""
+    page = capture_page(browser, serve)
+    surface = open_capture_area(page)
+    selection = surface.locator(".lf-region-selection")
+    shown = selection.bounding_box()
+    for key in ("ArrowRight", "ArrowDown", "Shift+ArrowRight", "Shift+ArrowUp"):
+        page.keyboard.press(key)
+    moved = selection.bounding_box()
+    assert (moved["x"], moved["y"], moved["width"], moved["height"]) == (
+        pytest.approx(shown["x"] + 10),
+        pytest.approx(shown["y"] + 10),
+        pytest.approx(shown["width"] + 10),
+        pytest.approx(shown["height"] - 10),
+    )
+    with page.expect_response(lambda response: response.url.endswith("/api/media")):
+        page.keyboard.press("Enter")
+    expect(surface).to_be_hidden()
+    attachment = page.locator(".lf-composer-media-item img")
+    expect(attachment).to_be_visible()
+    image = Image.open(serve.page_dir / attachment.get_attribute("src").lstrip("/"))
+    assert image.size == (round(moved["width"] * 2), round(moved["height"] * 2))
+
+
+# The renderer, failing its first drawing and drawing every later one.
+RENDERER_FAILING_ONCE = """
+import * as renderer from "./snapdom.esm.js?draws";
+let failed = false;
+export const snapdom = (...args) => {
+  if (failed) return renderer.snapdom(...args);
+  failed = true;
+  throw new Error("the renderer failed");
+};
+"""
+
+
+def test_a_capture_that_fails_to_draw_stands_for_another_drag(browser, serve):
+    """A pointer has no Attach to press again after a capture fails, so capture stays
+    open over the same area: the next drag attaches."""
+    page = capture_page(browser, serve)
+    page.route(
+        lambda url: url.endswith("/snapdom.esm.js"),
+        lambda route: route.fulfill(
+            content_type="text/javascript", body=RENDERER_FAILING_ONCE
+        ),
+    )
+    target = page.locator("#capture-target").bounding_box()
+    left, top = int(target["x"]) + 10, int(target["y"]) + 10
+    surface = open_capture_area(page)
+
+    def drag():
+        page.mouse.move(left, top)
+        page.mouse.down()
+        page.mouse.move(left + 200, top + 120, steps=4)
+        page.mouse.up()
+
+    drag()
+    expect(surface.locator(".lf-region-status")).to_have_text(
+        "Could not capture — the renderer failed"
+    )
+    expect(surface).to_be_visible()
+    expect(surface).not_to_have_attribute("aria-busy", "true")
+    expect(page.locator(".lf-composer-media-item")).to_have_count(0)
+    with page.expect_response(lambda response: response.url.endswith("/api/media")):
+        drag()
+    expect(surface).to_be_hidden()
+    attachment = page.locator(".lf-composer-media-item img")
+    expect(attachment).to_be_visible()
+    image = Image.open(serve.page_dir / attachment.get_attribute("src").lstrip("/"))
+    assert image.size == (400, 240)
 
 
 def test_capture_temporarily_owns_page_input_without_leaving_draw_mode(browser, serve):
@@ -526,32 +610,73 @@ def test_capture_temporarily_owns_page_input_without_leaving_draw_mode(browser, 
 
     for attach in (False, True):
         surface = open_capture_area(page)
+        selection = surface.locator(".lf-region-selection")
+        shown = selection.bounding_box()
         box = control.bounding_box()
         left, top = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
-        page.mouse.move(left, top)
-        page.mouse.down()
-        page.mouse.move(left + 180, top + 100, steps=5)
-        page.mouse.up()
-        selected = surface.locator(".lf-region-selection").bounding_box()
-        assert selected["width"] == pytest.approx(180)
-        assert selected["height"] == pytest.approx(100)
+        # A click draws no area: it attaches nothing and keeps the area it showed.
+        page.mouse.click(left, top)
         rendered(page)
+        expect(surface).to_be_visible()
+        assert selection.bounding_box() == shown
         expect(control).not_to_be_checked()
         expect(page.locator(".lf-drawing-mark")).to_have_count(0)
         expect(page.locator(".lf-fab-input")).to_be_hidden()
+        page.mouse.move(left, top)
+        page.mouse.down()
+        page.mouse.move(left + 180, top + 100, steps=5)
+        selected = selection.bounding_box()
+        assert selected["width"] == pytest.approx(180)
+        assert selected["height"] == pytest.approx(100)
         if attach:
             with page.expect_response(
                 lambda response: response.url.endswith("/api/media")
             ):
-                page.get_by_role("button", name="Attach capture", exact=True).click()
+                page.mouse.up()
             expect(page.locator(".lf-composer-media-item img")).to_be_visible()
         else:
+            # Leaving mid-drag attaches nothing, and the drag still owns its release.
             page.keyboard.press("Escape")
+            page.mouse.up()
+        rendered(page)
         expect(surface).to_be_hidden()
         expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
         expect(page.locator(".lf-drawing-mark")).to_have_count(0)
         expect(control).not_to_be_checked()
         assert events_model.read_events(serve.page_dir) == before
+
+
+def test_a_capture_attaches_to_the_box_an_error_stood_over(browser, serve):
+    """Attaching an image is the user coming back to the comment box, as typing is, so
+    an error that stood over the box never swallows a capture: Escape puts the words
+    and the error away, and the drag's lift lands the capture in the box."""
+    page = open_page(browser, serve(LONG_PAGE))
+    target = page.locator("#p3")
+    target.scroll_into_view_if_needed()
+    target.click(click_count=3)
+    page.keyboard.press("c")
+    box = page.locator(".lf-fab-input")
+    write(box, "Words a refusal handed back.")
+    page.evaluate(
+        """async () => (await window.__lfWidgetApi()).raiseError(
+          "Couldn't send — refused before append",
+          { subject: document.querySelector('.lf-fab-input') })"""
+    )
+    cover = page.locator(".lf-fab-bar .lf-compose-error")
+    expect(cover).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(box).to_be_hidden()
+
+    surface = open_capture_area(page)
+    area = target.bounding_box()
+    page.mouse.move(area["x"] + 20, area["y"] + 5)
+    page.mouse.down()
+    page.mouse.move(area["x"] + 220, area["y"] + 60, steps=5)
+    with page.expect_response(lambda response: response.url.endswith("/api/media")):
+        page.mouse.up()
+    expect(surface).to_be_hidden()
+    expect(page.locator(".lf-composer-media-item img")).to_be_visible()
+    expect(cover).to_be_hidden()
 
 
 @pytest.mark.parametrize("change", ["resize", "revision"])
@@ -594,9 +719,8 @@ def test_a_region_capture_anchors_the_page_as_it_stands_at_confirmation(
     page.mouse.move(target["x"] + 20, target["y"] + 20)
     page.mouse.down()
     page.mouse.move(target["x"] + 100, target["y"] + 80)
-    page.mouse.up()
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
-        page.keyboard.press("Enter")
+        page.mouse.up()
     expect(surface).to_be_hidden()
     expect(page.locator(".lf-composer-media-item img")).to_be_visible()
     field = page.locator(".lf-fab-bar leaf-text")
@@ -631,9 +755,8 @@ def test_capture_in_design_keeps_the_exact_repeated_control(browser, serve):
     page.mouse.move(target["x"], target["y"])
     page.mouse.down()
     page.mouse.move(target["x"] + target["width"], target["y"] + target["height"])
-    page.mouse.up()
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
-        page.keyboard.press("Enter")
+        page.mouse.up()
     expect(surface).to_be_hidden()
     field = page.locator(".lf-fab-input")
     expect(page.locator(".lf-composer-media-item img")).to_be_visible()

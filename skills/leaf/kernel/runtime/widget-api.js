@@ -8,20 +8,23 @@ import {
   dataReader,
   dispatchWidget,
   invalidateDom,
-  itemActions,
   joinDataDelivery,
   landInThread,
   loadDeferred,
   navigateToDatum,
+  obligationActions,
   placePageThreads,
   projectData,
+  publishOutput,
   pushEntry,
   queueActions,
   queueItemKey,
   queueTitle,
   readQueues,
+  referencedProjection,
   registerThreadPresentation,
   replaceEntry,
+  requireReference,
   stagesOnly,
   threadActions,
   threadBox,
@@ -54,11 +57,11 @@ import {
   clearDraft,
   copyBlock,
   ensureSyntaxLanguage,
+  fitsWhole,
   heldGrowth,
   highlightBlocks,
   inlineMarkdownFragment,
   isPagePaint,
-  itemsIn,
   keepView,
   langForPath,
   listWalkPosition,
@@ -67,11 +70,12 @@ import {
   markdownReady,
   markdownSourceOffset,
   markdownWords,
+  obligationsIn,
   openingView,
   paintMarkdown,
   placeKeeper,
   quietWord,
-  readItems,
+  readObligations,
   readThreads,
   releaseOutlets,
   renderMarkdown,
@@ -116,7 +120,7 @@ import {
   reducedMotion,
   scrollBehavior
 } from "./bundle-motion.js";
-import "./bundle-content-layout.js";
+import "./bundle-page-controls.js";
 import {
   addressableLabel,
   addressableName,
@@ -124,9 +128,7 @@ import {
   addressedElements,
   fragmentTarget,
   projectedDatum,
-  referencedProjection,
-  registerVisualParts,
-  requireReference
+  registerVisualParts
 } from "./bundle-chrome.js";
 import {
   initialRender
@@ -259,6 +261,7 @@ import {
   nextAnimation,
   nextFrame,
   nextRender,
+  onStanding,
   onUserInput,
   openLayer,
   openerOf,
@@ -267,7 +270,7 @@ import {
   standingIn,
   under,
   whenLeft
-} from "./bundle-sample-visibility.js";
+} from "./bundle-frame-visibility.js";
 import {
   LitElement,
   M,
@@ -548,7 +551,7 @@ var LeafElement = class extends LitElement {
   get controller() {
     return this.#controller;
   }
-  /** The bound source of a declared `x-data` input, one copy a delivery (data.js). */
+  /** The bound reading of a declared `x-data` input, one copy a delivery (data.js). */
   data(input) {
     let read = this.#data.get(input);
     if (!read) this.#data.set(input, read = dataReader(this, input));
@@ -668,8 +671,9 @@ var LeafElement = class extends LitElement {
     this.#following = this.#connected ? reads.map(
       ([reading, seen]) => reading.subscribe((now) => {
         if (now === seen) return;
-        if (readsProof(reading)) this.requestUpdate();
-        else if (stagesOnly(reading)) this.#stage();
+        if (readsProof(reading)) {
+          if (now) this.requestUpdate();
+        } else if (stagesOnly(reading)) this.#stage();
         else this.#moved();
       })
     ) : [];
@@ -911,7 +915,7 @@ var done = (goal, read) => {
 };
 function interventions(goal, open) {
   const scope = workAncestor(goal, "scope");
-  return itemsIn(goal, open).map((item) => elementById(
+  return obligationsIn(goal, open).map((item) => elementById(
     /** @type {{id: string}} */
     item.source.id
   )).filter(
@@ -955,13 +959,16 @@ function goalView(goal, open, read) {
     stoppedAt: reportedStoppedAt ?? (role.stoppedAt ? goal.getAttribute(role.stoppedAt) : null)
   };
 }
+var openWidgetObligations = readPart(
+  (root) => root.effective.obligations.user.filter((item) => item.source.kind === "widget")
+);
 function readWork(scope) {
   const readings = /* @__PURE__ */ new Map();
   const read = (element) => {
     if (!readings.has(element)) readings.set(element, widgetController(element).read());
     return readings.get(element);
   };
-  const open = readItems().user.filter((item) => item.source.kind === "widget");
+  const open = openWidgetObligations();
   const goals = workElements(scope, "goal").map((goal) => goalView(goal, open, read));
   const byElement = new Map(goals.map((goal) => [goal.element, goal]));
   const workers = workElements(scope, "worker").map(
@@ -1689,6 +1696,7 @@ export {
   ensureSyntaxLanguage,
   excerptWords,
   failSoft,
+  fitsWhole,
   focusDestination,
   focused,
   foldBlock,
@@ -1712,8 +1720,6 @@ export {
   isCanonicalMediaUrl,
   isNativeLayer,
   isPagePaint,
-  itemActions,
-  itemsIn,
   keepView,
   keeps,
   keepsHidden,
@@ -1747,9 +1753,12 @@ export {
   noChange,
   nothing,
   notice,
+  obligationActions,
+  obligationsIn,
   offer,
   offered,
   onMotionPreferenceChange,
+  onStanding,
   onUserInput,
   once,
   openLayer,
@@ -1767,6 +1776,7 @@ export {
   pressIsKeyboardActivation,
   projectData,
   projectedDatum,
+  publishOutput,
   pushEntry,
   queueActions,
   queueItemKey,
@@ -1778,7 +1788,7 @@ export {
   rankAt,
   reachedForWords,
   readHistory,
-  readItems,
+  readObligations,
   readQueues,
   readThreads,
   readWork,

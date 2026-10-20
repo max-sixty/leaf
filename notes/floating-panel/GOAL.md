@@ -1,16 +1,19 @@
 # Goal: the floating Leaf panel
 
-> **Status (2026-10-16): Leaf's only chrome (TODO #28).** Checkpoints 1–3 landed
+> **Status (2026-10-20): Leaf's only chrome (TODO #28).** Checkpoints 1–3 landed
 > on `main` behind a preference, off by default. The user disliked their look, so
 > a second round redesigned it from a sketch they tried and configured (below, "The
 > overhaul"). On 16 October the user made the rebuilt panel the default, and later
-> that day removed the banner, the bottom bar and the switch between them: "we'd
-> like to remove the banner. it's useful as reference code, but we don't need to
-> support users switching to it." The old chrome survives only in Git history.
+> that day asked to remove the banner, the bottom bar and the switch between them:
+> "we'd like to remove the banner. it's useful as reference code, but we don't need
+> to support users switching to it." That removal landed on 19 October (#3100). The
+> old chrome survives only in Git history; `b5b6153c4` is the last commit holding it.
 >
 > On 13 October the user retired the Codex reference: the panel is judged by Leaf's
 > own aesthetic and the user's eye, not against the Codex app. The phone waits until
 > the desktop design is firm, and gets no work before then.
+>
+> Every follow-up the user named has landed; the desktop design waits on their review.
 
 ## The overhaul
 
@@ -42,7 +45,9 @@ what the module header of `runtime/floating-panel.js` now states:
   opens a list of its own ends in a chevron. Navigate holds All pages and Search
   page; Page Map, Resume writing, Restore selection and Align current item at top
   keep their keys and leave the menu (the row group `keys`); where no keyboard is
-  there to reach them, a finger finds them under Navigate.
+  there to reach them, a finger finds them under Navigate. Page Map is a key's
+  convenience only beside the margin's rail; where the window has no room for the
+  rail, Navigate offers it to a mouse too.
 - **Where the user is sits at a view's top edge**, with its filters, search,
   Resolve and Close beside it; the destination line and the thread-actions row went.
 - **Motion moves no layout**: every change of size takes effect in one step and a
@@ -57,15 +62,13 @@ its recipient ("I don't think we need 'To Agent' (who else might we be sending i
 to??)"), menu rows drew their keys as key caps, and About's copy rows took Leaf's copy
 icon.
 
-### Follow-ups the user named
-
-- **Selected words go to the anchored comment box, not the field.** The fresh review
-  found that clicking the panel's field with words selected drops the selection and
-  comments on the page as a whole. The user declined carrying the selection into the
-  field (14 October): "at the moment we should encourage using the anchored comment
-  box; though we may change our mind", since that box becomes the anchored comment and
-  stands beside its passage. If the drop needs treating, steer toward that box rather
-  than giving the field a second way to anchor.
+On 14 October the user asked that comments on selected words go through the anchored
+comment box, which stands beside its passage, rather than the panel's field ("at the
+moment we should encourage using the anchored comment box; though we may change our
+mind"). On 20 October they accepted the field offering the words where no box opens
+beside them, as after a finger selects them (#3275): the empty field's placeholder
+quotes the words, and a press on the field opens the anchored comment box on them.
+Where a mouse selects words, the box opens beside them as before.
 
 Leaf's chrome is one panel that hovers over the bottom of the page, like the
 Codex app's floating chat panel, in place of the banner and the bottom bar it
@@ -227,9 +230,10 @@ shortfall. Add each improvement you make, with its reason. Where an item here an
   opens or closes, since the user found views slow to appear (15 October). (The first
   build tweened the card's height; a layout tween's last frame landed outside CI's
   input window as a shift.)
-- **The focused field shows no frame and no ground**: one quiet line opens above it,
-  with the keys that send. A dark frame around the field was the previous attempt's
-  "form" look.
+- **The focused field shows no ground, and wears the anchored comment box's focus
+  ring** while it holds the caret, so a key that moves the caret there, `c` among
+  them, shows where the words will go (the user's pick, #3097). A dark frame around
+  the field at rest was the previous attempt's "form" look.
 - **While the user types, Send floats in the field's end corner,** as an anchored
   comment box's does, and the counts step aside for the field; they come back when
   the caret leaves, and the line naming where the words go stays while the field holds
@@ -247,7 +251,7 @@ shortfall. Add each improvement you make, with its reason. Where an item here an
 - **The answer the user waits for grows the thread's view,** up to its height limit,
   with New reply only past it; other news in an open thread still moves nothing. The
   user chose growth over a reserved New reply slot on 14 October (#2916).
-- **Answers are the widget's own choices** (a multiple-choice item shows its options and
+- **Answers are the widget's own choices** (a multiple-choice obligation shows its options and
   Done), recorded exactly as on the page; the On view has On me / On {agent} / Done.
 - **Messages draw with Leaf's own reader** (the panel is a registered thread
   presentation), so questions, reactions and HTML replies work in the panel.
@@ -322,7 +326,7 @@ comments as they arrive. Give them a new checkpoint at each milestone:
 
 - the resting panel, the leaf mark's status, and the menu;
 - Threads, opening, answering and resolving a thread, and writing in the one box;
-- items answered inline in the On view, Versions, approval, modes, and the Moderate display;
+- obligations answered inline in the On view, Versions, approval, modes, and the Moderate display;
 - motion and polish.
 
 Budget about eight hours of work. If the user hasn't answered a checkpoint

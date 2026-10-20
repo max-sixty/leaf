@@ -195,9 +195,9 @@ def mark_preview(
     watcher can distinguish source edits from competing page edits. The page's own
     authored files and event log remain authoritative.
     """
-    from leaf.state import write_json
+    from leaf.server import PREVIEW
 
-    write_json(
+    PREVIEW.write(
         page / "preview.json",
         {
             "example": source.stem,
@@ -315,6 +315,31 @@ class PreviewService:
         from leaf.hosting import server_reading
 
         return json.dumps(server_reading(self.page)) if self.user else WATCHER_NOTE
+
+    def follow_runtime(self, launcher: Path) -> None:
+        """Move user delivery to the immutable runtime the initiating checkout built.
+
+        A source path alone cannot identify loaded Python modules: a preview
+        keeps watching when that checkout changes its protocol. The prepared
+        installation gives hooks and the adapter the same stable identity, so
+        selecting its successor retires the former adapter through its owner.
+        Explicit comparison renderers still keep their selected checkout.
+        """
+        from leaf.harness import claim_harness
+        from leaf.session_runtime import select_launcher
+
+        # Initial resume refresh precedes the server acquisition and the child's
+        # readiness handshake. Its parent still holds delivery preparation; move
+        # delivery only once that handshake has made forward progress possible.
+        if not self.user or self.claim is None:
+            return
+        if self.ended:
+            raise Refused(
+                "this preview no longer owns its page; delivery stays with its successor"
+            )
+        harness = claim_harness(self.claim)
+        select_launcher(harness.session, launcher)
+        harness.ensure_delivery()
 
     def serve_again(self) -> None:
         """Put a `--user` service that is down but still wanted back up.
@@ -520,6 +545,8 @@ def refresh_preview(
         )
         state["authored"] = incoming_digest
         mark_preview(source, page, runtime, service.user, state["authored"])
+        if service.user:
+            service.follow_runtime(cached_installation(compiler_root()) / "bin/leaf")
     except (
         LeafFailed,
         Refused,
@@ -731,6 +758,7 @@ def serve_preview(
     """Build this slot's page, serve it, and follow its inputs until stopped."""
     from leaf.files import read_json
     from leaf.layer import layer_inputs
+    from leaf.server import PREVIEW
 
     # Fixture progress is distinct from the page's own authored inputs: an agent
     # may have revised those while this watcher was absent.
@@ -739,18 +767,16 @@ def serve_preview(
     }
     resumed = user and page.exists()
     if resumed:
-        record = read_json(page / "preview.json")
-        inputs = record.get("input") if isinstance(record, dict) else None
+        record = PREVIEW.read(page / "preview.json")
         if (
-            not isinstance(inputs, dict)
-            or inputs.get("source") != fixture_identity(source)
-            or not isinstance(inputs.get("authored"), str)
-            or record.get("interaction") != "user"
+            record is None
+            or record["input"]["source"] != fixture_identity(source)
+            or record["interaction"] != "user"
         ):
             raise ValueError(
                 f"{page} belongs to another preview; choose another --slot"
             )
-        state["authored"] = inputs["authored"]
+        state["authored"] = record["input"]["authored"]
     service = None
     changes = None
     try:
@@ -791,6 +817,10 @@ def serve_preview(
         changes = watch_changes(watched)
         if handshake is not None and not handshake.announce({"url": url}):
             return
+        if service.user:
+            # The parent can now release its delivery-preparation lock. Re-read
+            # the immutable runtime in case an edit overtook initial preparation.
+            service.follow_runtime(cached_installation(compiler_root()) / "bin/leaf")
         print(
             preparation_note(source, prepared_page.data_sources, prepared_page.versions)
             if prepared_page is not None
@@ -930,12 +960,18 @@ def start_desktop_preview(source: Path, page: Path, runtime: Path, harness) -> N
     from leaf.detached import starting_detached
     from leaf.hosting import server_reading
     from leaf.service import prepare_claim
+    from leaf.session_runtime import select_launcher
 
     log = page.with_name(f"{page.name}.log")
     log.parent.mkdir(parents=True, exist_ok=True)
-    with harness.preparing_delivery():
-        claim = prepare_claim(harness, page)
-        with starting_detached(
+    # The checkout launching an explicit user review owns this session's hooks
+    # and delivery, including a comparison whose renderers use other runtimes.
+    # Prepare the lifetime before choosing it, and choose before the adapter.
+    claim = prepare_claim(harness, page)
+    select_launcher(harness.session, cached_installation(compiler_root()) / "bin/leaf")
+    with (
+        harness.preparing_delivery(),
+        starting_detached(
             [
                 "--source",
                 str(source),
@@ -954,8 +990,9 @@ def start_desktop_preview(source: Path, page: Path, runtime: Path, harness) -> N
             log=log,
             cwd=runtime,
             timeout=120,
-        ) as ready:
-            pass
+        ) as ready,
+    ):
+        pass
     print(json.dumps(server_reading(page)), file=sys.stderr, flush=True)
     print(ready["url"], flush=True)
     print(f"Watching {source}; detached preview log: {log}", flush=True)
@@ -1039,6 +1076,15 @@ def preview(
                 if harness and harness.lifetime() == {"chat": True}:
                     start_desktop_preview(source, page, runtime, harness)
                 else:
+                    if harness:
+                        from leaf.service import prepare_claim
+                        from leaf.session_runtime import select_launcher
+
+                        prepare_claim(harness, page)
+                        select_launcher(
+                            harness.session,
+                            cached_installation(compiler_root()) / "bin/leaf",
+                        )
                     run_preview(source, page, runtime / "bin" / "leaf", runtime, user)
         elif export:
             export_preview(*checkout(runtime), authored_source(example, source), slot)

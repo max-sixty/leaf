@@ -18,14 +18,14 @@ const identity = (record) => record.attempt ?? record.id;
 
 // News reads the shown revision's view: the one the page just presented, whose On me list
 // the floating panel counts. While an activation waits (a gesture defers it, or
-// the document is a pinned version), an item the active revision adds is not on this
+// the document is a pinned version), an obligation the active revision adds is not on this
 // page yet; it becomes news when a revision holding it is presented.
 export function semanticNewsReading(root) {
   const view = root.effective.view;
   if (!view) throw new Error("The shown page has no browser reading");
   const state = root.authoritative;
   return {
-    page: view.document,
+    obligations: view.obligations,
     thread: view.thread,
     workflows: state.workflows,
     activity: state.activity,
@@ -47,18 +47,15 @@ function unreadContent(threadView) {
     .sort((a, b) => moved(a.message).seq - moved(b.message).seq);
 }
 
-function userObligations(page, threadView) {
+// What the page asks of the user. An update handed back to them is news through its
+// failed response (`responseFailures`), not a second time as an obligation.
+function userObligations(items) {
   const held = new Map();
-  for (const item of page.items.user)
-    held.set(JSON.stringify(["page", item.id]), {
-      source: item.id,
-      thread: null,
-    });
-  for (const item of threadView.items.user) {
-    held.set(JSON.stringify(["thread", item.thread, item.id]), {
-      source: item.id,
-      thread: item.thread,
-    });
+  for (const item of items) {
+    if (item.next_actor !== "user" || item.source.kind === "update") continue;
+    const key =
+      item.thread === null ? ["page", item.id] : ["thread", item.thread, item.id];
+    held.set(JSON.stringify(key), { source: item.id, thread: item.thread });
   }
   return held;
 }
@@ -91,7 +88,7 @@ const agentAvailable = (activity) =>
 
 export function observeSemanticNews(prior, reading) {
   const content = unreadContent(reading.thread);
-  const obligations = userObligations(reading.page, reading.thread);
+  const obligations = userObligations(reading.obligations);
   const failures = responseFailures(reading.workflows);
   const available = agentAvailable(reading.activity);
   const first = prior === null;
@@ -155,7 +152,7 @@ export function observeSemanticNews(prior, reading) {
 // an answer can replace a failure while the user's own command holds the line.
 export function currentSemanticNews(news, reading, observed) {
   const versions = new Set(unreadContent(reading.thread).map(({ version }) => version));
-  const obligations = userObligations(reading.page, reading.thread);
+  const obligations = userObligations(reading.obligations);
   const failures = responseFailures(reading.workflows);
   return news.flatMap((item) => {
     switch (item.kind) {
@@ -203,7 +200,7 @@ export function semanticNewsNotice(news) {
     const verb = message.kind === "reply" ? "reply" : "comment";
     clauses.push(
       message.edited
-        ? `${agent} updated a ${verb}`
+        ? `${agent} edited a ${verb}`
         : `${agent} ${verb === "reply" ? "replied" : "commented"}`,
     );
   } else if (content.length) {
@@ -226,9 +223,7 @@ export function semanticNewsNotice(news) {
   }
   if (obligations.length)
     clauses.push(
-      obligations.length === 1
-        ? "Input needed"
-        : `${plural(obligations.length, "item")} waiting on me`,
+      obligations.length === 1 ? "Input needed" : `${obligations.length} waiting on me`,
     );
   if (availability.length) clauses.push(`${agentLabel()} active on this page`);
   return clauses.join("; ");

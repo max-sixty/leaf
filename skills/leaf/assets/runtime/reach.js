@@ -167,20 +167,35 @@ export function reachReadingScroller(el) {
     if (!watched(el)) unwatchReach(el);
     el.removeEventListener("scroll", readingScrolled);
     afterScript(() => {
-      if (!downwards.has(el)) el.removeAttribute(PAGE_PAINT_ATTRIBUTE.moreBelow);
+      if (!downwards.has(el)) keeps(el, PAGE_PAINT_ATTRIBUTE.moreBelow, null);
     });
   };
 }
 
+const readingPaints = new Set();
+let readingPaintQueued = false;
 function paintReadingReach(el) {
   // End-following owners finish their scroll after registering or resizing the
-  // region. Paint its remaining-content cue from that final place in this turn.
-  afterScript(() => {
-    if (!downwards.has(el) || unpainted(el)) return;
+  // region. Read each final place once in the render pass before it paints.
+  readingPaints.add(el);
+  if (readingPaintQueued) return;
+  readingPaintQueued = true;
+  nextRender(paintReadingReachNow);
+}
+function paintReadingReachNow() {
+  readingPaintQueued = false;
+  const pending = [...readingPaints];
+  readingPaints.clear();
+  for (const el of pending) {
+    if (!downwards.has(el) || unpainted(el)) continue;
     const style = getComputedStyle(el);
     const scrolling = userScrollport(style.overflowY);
-    el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.moreBelow, scrolling && !atScrollEnd(el));
-  });
+    keeps(
+      el,
+      PAGE_PAINT_ATTRIBUTE.moreBelow,
+      scrolling && !atScrollEnd(el) ? "" : null,
+    );
+  }
 }
 
 // Every element in the scope is asked, except content the browser skips (`skipped`,
@@ -266,6 +281,12 @@ function sweep(root) {
 // scrolling at another width stops restarting the slot, or its headers would pin behind
 // the window's head.
 //
+// A box the user scrolls only sideways (`across`: its overflow down hidden) restarts the
+// slot for what sticks inside it all the same, but lands nothing down: a landing on what
+// it holds moves the box around it, under the headers that stand over the box. So it
+// keeps their reading for what it holds (state.css), where a restart had cut a diff's
+// rows off from the file header and a framed tab set's strip over them.
+//
 // A box that sticks at its scroller's top is marked too, for the focus margin of the
 // controls it holds (shadow.css, at `--lf-head-inset`): a control in a stuck header
 // stands inside its scroller's landing band, and the browser scrolled toward it on every
@@ -273,10 +294,9 @@ function sweep(root) {
 // package makes sticky is covered without declaring anything.
 function paintSlot(el, style) {
   const sticks = style.position === "sticky";
-  el.toggleAttribute(
-    PAGE_PAINT_ATTRIBUTE.scrolls,
-    scrollsBy(style) && !sticks && !el.matches(TEXT_BOX),
-  );
+  const scrolls = scrollsBy(style) && !sticks && !el.matches(TEXT_BOX);
+  const across = userScrollport(style.overflowX) && !userScrollport(style.overflowY);
+  keeps(el, PAGE_PAINT_ATTRIBUTE.scrolls, scrolls ? (across ? "across" : "") : null);
   el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.sticks, sticks && style.top !== "auto");
 }
 
@@ -469,7 +489,7 @@ function paintReachNow() {
 // a frame passes without it being asked for again. A container that keeps moving for
 // longer than `PLAYING_MS` is the exception: whatever moves it, its own animation, a
 // sibling's or a script's, the page is playing rather than coming to rest, as a meter
-// pulsing for as long as work runs does. Its items stop holding the page, and its box is
+// pulsing for as long as work runs does. Its obligations stop holding the page, and its box is
 // due once it has held still for `STILL_MS`, which a timer waits for. Its watch is
 // uncounted (`queries`, below) for the same reason. A transition, a drag or any motion
 // that ends within `PLAYING_MS` stays counted, so the page settles after its sweep; one

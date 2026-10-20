@@ -3,8 +3,9 @@
 import { anchoringIsReady } from "../anchor-resolution.js";
 import { bindings, bindingEnabled, cycledRow } from "../keyboard/bindings.js";
 import { el, LAYOUT, searchField } from "../widget-elements.js";
+import { iconElement } from "../icons.js";
 import { coarsePointer } from "../pointer.js";
-import { html, nothing, render } from "/vendor/browser-runtime.js";
+import { html, nothing, render, signal } from "/vendor/browser-runtime.js";
 
 import {
   contextAround,
@@ -74,7 +75,24 @@ pageSearchStatus.setAttribute("role", "status");
 pageSearchStatus.slot = "end";
 const pageSearchWords = el("span");
 pageSearchStatus.append(pageSearchWords);
-pageSearchInput.append(pageSearchStatus);
+// The box walks its own matches, as a browser's find bar does: up and down beside the
+// count they move, the walk's one control for a finger and a mouse. A press leaves focus
+// in the field, so a phone's keyboard stays up and the next letter still edits the query.
+// Tab is their key, so they are no stop of its own.
+const matchStep = (icon, name) => {
+  const control = el("button", "lf-btn lf-icon-action lf-page-search-step");
+  control.type = "button";
+  control.tabIndex = -1;
+  control.slot = "end";
+  control.append(iconElement(icon, "lf-action-icon"));
+  control.setAttribute("aria-label", name);
+  control.title = name;
+  control.addEventListener("mousedown", (event) => event.preventDefault());
+  return control;
+};
+const previousMatchControl = matchStep("up", "Previous match");
+const nextMatchControl = matchStep("down", "Next match");
+pageSearchInput.append(pageSearchStatus, previousMatchControl, nextMatchControl);
 pageSearchSurface.append(pageSearchInput);
 const noMatches = "No matches";
 const searchCount = (position, total) => `${position} of ${total}`;
@@ -101,8 +119,9 @@ const searchCount = (position, total) => `${position} of ${total}`;
 // Admission and clipping stay with key-badge-placement.js.
 //
 // `/` opens a real search input over the whole page reading, either directly from the
-// page or from the visible target hints. Tab walks repeated occurrences and Enter makes a
-// native browser Selection from the active match. Once the prompt closes, n repeats that
+// page or from the visible target hints. Tab walks repeated occurrences, as the box's
+// arrows do, and Enter or a press on the active match makes a native browser Selection
+// from it. Once the prompt closes, n repeats that
 // accepted search and N reverses it. Escape returns to the surface that opened search:
 // the page after a direct `/`, or the visible hints after `s` then `/`. The interaction keeps
 // `?` available and claims the rest of the page's keyboard while it stands.
@@ -121,7 +140,10 @@ export function createTargetPicker({
 
   let pickerOpen = false;
   let pageSearchOpen = false;
-  let matches = [];
+  // The search's matches are a signal because the walk's rows read them for the arrows'
+  // availability, which follows the signals it reads (keyboard/scopes.js): a query
+  // that arrives with no key, as a paste does, offers the arrows all the same.
+  const matches = signal([]);
   let matchesIn = null; // the reading `matches` were found in
   let active = -1;
   let searchReturnsToHints = false;
@@ -226,7 +248,7 @@ export function createTargetPicker({
     pickerOpen = on;
     pageSearchOpen = false;
     searchReturnsToHints = false;
-    matches = [];
+    matches.value = [];
     active = -1;
     pageSearchInput.value = "";
     keepsHidden(pageSearchSurface, true);
@@ -262,7 +284,7 @@ export function createTargetPicker({
       announce("Search the page.");
     } else {
       pageSearchInput.value = "";
-      matches = [];
+      matches.value = [];
       active = -1;
       releaseFocus();
       // Search may have travelled to a match, so the map the user comes back to is read
@@ -304,8 +326,8 @@ export function createTargetPicker({
     const query = pageSearchInput.value.trim();
     const status = !query
       ? nothing
-      : matches.length
-        ? searchCount(active + 1, matches.length)
+      : matches.value.length
+        ? searchCount(active + 1, matches.value.length)
         : noMatches;
     render(html`${status}`, pageSearchWords);
   }
@@ -359,15 +381,15 @@ export function createTargetPicker({
   }
 
   function matchWalkPosition(query) {
-    if (!query || active < 0 || active >= matches.length) return null;
-    if (!matchIsRangeable(matches[active])) return null;
+    if (!query || active < 0 || active >= matches.value.length) return null;
+    if (!matchIsRangeable(matches.value[active])) return null;
     // An open search owns its highlighted match. A repeated n/N search owns a native
     // selection instead; leaving that selection retires both its readout and refresh.
-    if (!pageSearchOpen && !selectionIs(matches[active])) return null;
+    if (!pageSearchOpen && !selectionIs(matches.value[active])) return null;
     return {
-      target: matchIdentity(query, matches[active]),
+      target: matchIdentity(query, matches.value[active]),
       position: active + 1,
-      total: matches.length,
+      total: matches.value.length,
       qualifier: "",
     };
   }
@@ -383,12 +405,12 @@ export function createTargetPicker({
   // matches again first, keeping the active one where it still stands.
   function refreshMatches() {
     const query = pageSearchOpen ? pageSearchInput.value.trim() : repeatedSearch?.query;
-    const current = matches[active];
+    const current = matches.value[active];
     if (!query || !current || pageText() === matchesIn) return false;
     const found = find(query);
     const same = found.findIndex((candidate) => sameMatch(candidate, current));
     active = same >= 0 ? same : found.length ? Math.min(active, found.length - 1) : -1;
-    matches = found;
+    matches.value = found;
     if (repeatedSearch && !pageSearchOpen && active >= 0) repeatedSearch.index = active;
     return true;
   }
@@ -404,30 +426,30 @@ export function createTargetPicker({
 
   function search() {
     const query = pageSearchInput.value.trim();
-    matches = query ? find(query) : [];
-    active = matches.length ? startingMatch(matches) : -1;
+    matches.value = query ? find(query) : [];
+    active = matches.value.length ? startingMatch(matches.value) : -1;
     presentSearchStatus();
     showMatch();
     repaint();
   }
 
   function showMatch() {
-    const segments = matches[active];
+    const segments = matches.value[active];
     if (!segments || matchRect(segments)) return;
     scrollToRange(rangeOf(segments), "instant");
   }
 
   function moveMatch(direction) {
     refreshMatches();
-    if (!matches.length) return presentSearchStatus();
-    const { row, wrapped } = cycledRow(matches, matches[active], direction);
-    active = matches.indexOf(row);
+    if (!matches.value.length) return presentSearchStatus();
+    const { row, wrapped } = cycledRow(matches.value, matches.value[active], direction);
+    active = matches.value.indexOf(row);
     presentSearchStatus();
     showMatch();
     const query = pageSearchInput.value.trim();
     beginWalk("page-search", "Match", () => matchWalkPosition(query), wrapped);
     announce(
-      `Match ${active + 1} of ${matches.length}: ${matchDescription(matches[active])}.`,
+      `Match ${active + 1} of ${matches.value.length}: ${matchDescription(matches.value[active])}.`,
     );
     repaint();
   }
@@ -448,16 +470,16 @@ export function createTargetPicker({
 
   function chooseMatch() {
     refreshMatches();
-    const segments = matches[active];
+    const segments = matches.value[active];
     if (!segments) return;
-    const quote = quoteFrom(matches[active]);
+    const quote = quoteFrom(matches.value[active]);
     repeatedSearch = { query: pageSearchInput.value.trim(), index: active };
     setTargetPicker(false);
     selectMatch(segments);
     announce(
       `Selected match: ${quote}. ${
         coarsePointer.matches || !bindingEnabled("c")
-          ? "Comment on selection comments on it."
+          ? "A press on the comment field comments on it."
           : "Press n for next, Shift+n for previous, or c to comment."
       }`,
     );
@@ -474,23 +496,23 @@ export function createTargetPicker({
   }
 
   function repeatSearch(direction) {
-    matches = find(repeatedSearch.query);
-    if (!matches.length) {
+    matches.value = find(repeatedSearch.query);
+    if (!matches.value.length) {
       repeatedSearch = null;
       active = -1;
       announce("The page no longer contains that search.");
       return repaint();
     }
-    const from = Math.min(repeatedSearch.index, matches.length - 1);
-    const { row, wrapped } = cycledRow(matches, matches[from], direction);
-    active = matches.indexOf(row);
+    const from = Math.min(repeatedSearch.index, matches.value.length - 1);
+    const { row, wrapped } = cycledRow(matches.value, matches.value[from], direction);
+    active = matches.value.indexOf(row);
     repeatedSearch.index = active;
     showMatch();
-    selectMatch(matches[active]);
+    selectMatch(matches.value[active]);
     const query = repeatedSearch.query;
     beginWalk("page-search", "Match", () => matchWalkPosition(query), wrapped);
     announce(
-      `Match ${active + 1} of ${matches.length}: ${matchDescription(matches[active])}.`,
+      `Match ${active + 1} of ${matches.value.length}: ${matchDescription(matches.value[active])}.`,
     );
   }
 
@@ -564,7 +586,7 @@ export function createTargetPicker({
   // over what holds the words and carried by what carries them
   // (`anchorFor`).
   function paintSearchMatches() {
-    const segments = matches[active];
+    const segments = matches.value[active];
     const owner = segments && matchIsRangeable(segments) ? matchOwner(segments) : null;
     const reading = room();
     const clip = owner ? reading.clipOver(owner) : null;
@@ -648,14 +670,10 @@ export function createTargetPicker({
         : hints.prefix()
           ? "back one letter"
           : "close picker",
-    touch: () =>
-      pageSearchOpen
-        ? searchReturnsToHints
-          ? "Back to hints"
-          : "Close search"
-        : hints.prefix()
-          ? "Back one letter"
-          : "Cancel selection",
+    // The ✕ of both stances (keyboard/AGENTS.md, "Touch routes"). While the user
+    // has typed part of a hint it takes back a letter, as its words say; a finger,
+    // which types none, always closes.
+    exit: true,
     run: back,
   };
 
@@ -664,6 +682,7 @@ export function createTargetPicker({
 
   const TARGET_HINT_TYPE = {
     id: "target.picker.hint.type",
+    touch: false,
     keys: HINT_KEYS,
     label: "a–z",
     description: "Type the hint for a target",
@@ -704,30 +723,32 @@ export function createTargetPicker({
         keys: ["Enter"],
         description: "Select the current search match",
         title: "select match",
-        touch: "Select",
-        when: () => matches.length > 0,
+        // A finger presses the marked match itself (`pressMatch`).
+        touch: false,
+        when: () => matches.value.length > 0,
         run: chooseMatch,
       },
       {
         id: "page.search.match.walk",
         keys: ["Tab", "Shift+Tab"],
+        touch: false,
         routes: [
           {
             id: "page.search.match.previous",
             binding: "Shift+Tab",
             title: "Go to the previous search match",
-            touch: "Previous",
+            control: previousMatchControl,
           },
           {
             id: "page.search.match.next",
             binding: "Tab",
             title: "Go to the next search match",
-            touch: "Next",
+            control: nextMatchControl,
           },
         ],
         title: "matches",
         repeat: true,
-        when: () => matches.length > 0,
+        when: () => matches.value.length > 0,
         run: (binding) => moveMatch(binding === "Tab" ? 1 : -1),
       },
       TARGETING_BACK,
@@ -738,8 +759,39 @@ export function createTargetPicker({
   const openTargetPicker = () => setTargetPicker(true);
   const closeTargetPicker = () => setTargetPicker(false);
 
+  // A press on the marked match selects it, as Enter does: the match is what the user is
+  // looking at, and a phone's keyboard may offer no Enter. The press's mouse events are
+  // the match's alone, claimed at its mousedown and taken at capture to its click: the
+  // browser starts no selection from it, the page's selection gesture (surface.js) does
+  // not snap it on mouseup, and no link the words stand in is followed. Its pointer
+  // events pass, so whatever reads input still hears the press. A press lands on the
+  // match only through the block holding its words, so a control painted over them
+  // keeps its own.
+  let pressOnMatch = false;
+  function onMarkedMatch(ev) {
+    if (!pageSearchOpen || ev.button !== 0) return false;
+    refreshMatches();
+    const segments = matches.value[active];
+    if (!segments || !ev.composedPath().includes(matchOwner(segments))) return false;
+    const { clientX: x, clientY: y } = ev;
+    return [...rangeOf(segments).getClientRects()].some(
+      (rect) => x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom,
+    );
+  }
+  function pressMatch(ev) {
+    if (ev.type === "mousedown") pressOnMatch = onMarkedMatch(ev);
+    if (!pressOnMatch) return;
+    if (ev.type !== "mouseup") ev.preventDefault();
+    ev.stopPropagation();
+    if (ev.type !== "click") return;
+    pressOnMatch = false;
+    chooseMatch();
+  }
+
   function mount() {
     pageSearchInput.addEventListener("input", search);
+    for (const type of ["mousedown", "mouseup", "click"])
+      document.addEventListener(type, pressMatch, true);
     hints.mount();
     addEventListener("resize", () => {
       if (pageSearchOpen) repaint();

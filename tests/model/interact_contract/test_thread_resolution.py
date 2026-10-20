@@ -54,7 +54,7 @@ def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
 
     answer = thread_model.post_reply(
         page_dir,
-        {"to": "question", "for": "question"},
+        {"parent": "question", "responds": "question"},
         "Here is the completed answer.",
         settlement=thread_model.ProviderFinal("test-final"),
     )
@@ -82,13 +82,19 @@ def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
     assert threads["question"]["resolved"] is None
     thread_model.post_reply(
         page_dir,
-        {"to": "question", "for": "question"},
+        {"parent": "question", "responds": "question"},
         "Additional detail on the original question.",
         settlement=thread_model.ProviderFinal("test-final"),
     )
     assert delivery_model.current_responses(
         page_dir, events_model.read_events(page_dir)
-    ) == {"correction": {"kind": "reply", "to": "correction", "for": "correction"}}
+    ) == {
+        "correction": {
+            "kind": "reply",
+            "parent": "correction",
+            "responds": "correction",
+        }
+    }
     closed = thread_model.cmd_resolve(page_dir, "question")
     threads = event_folds_model.build_threads(events_model.read_events(page_dir), {})
     assert threads["question"]["resolved"]["id"] == closed["id"]
@@ -129,7 +135,7 @@ def test_late_answer_to_a_frozen_widget_reopens_without_repeating_its_obligation
     thread_model.cmd_resolve(page_dir, question["id"])
     answer = thread_model.post_reply(
         page_dir,
-        {"to": question["id"], "for": choice["id"]},
+        {"parent": question["id"], "responds": choice["id"]},
         "I applied your choice.",
         settlement=thread_model.ProviderFinal("test-final"),
     )
@@ -486,7 +492,7 @@ def test_independent_state_does_not_reopen_an_answer_even_after_retirement(
     )
     assert result["c1"]["resolved"]["id"] == accepted["id"]
     # The immutable old command document still admits a different answer; a reject
-    # declines the fix, so it answers the item and reopens the thread it was for.
+    # declines the fix, so it answers the obligation and reopens the thread it was for.
     rejected = send("decide", {"outcome": "reject"}, "rejected-proposal")
     assert rejected["meaning"]["answer"] is None
     result = event_folds_model.build_threads(

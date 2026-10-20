@@ -26,8 +26,9 @@
    Rejected: keeping wrappers around a placement (`returningFocus`, `placeChrome`) that a
    caller could forget, which is how those returns reached the readers as moves.
 
-   And it exposes the document's input count, begun by prepaint.js before any module
-   can load, so delayed work knows whether the user has moved on since it began.
+   And it exposes the document's input count and text-entry predicates, begun by
+   prepaint.js before any module can load, so startup and runtime share their reading.
+   Delayed work uses the count to know whether the user moved on since it began.
    A hold asks a different question, so the two counts stay distinct:
 
    - A hold (`holdFocus`, `holdStanding`, `handBack`'s retry) reads `placements`: has
@@ -444,7 +445,10 @@ let stood = null;
 // list's `focusin`. A focus that leaves for nowhere and returns, as a window losing
 // and regaining focus does, is none.
 const readers = new Set();
-export const onStanding = (read) => readers.add(read);
+export const onStanding = (read) => {
+  readers.add(read);
+  return () => readers.delete(read);
+};
 let published = null;
 let departed = false;
 let readings = 0;
@@ -479,7 +483,15 @@ function paintFocus(node) {
     paintedFocus = next;
   }
   const within = new Set();
-  for (let owner = next; owner; owner = renderedParent(owner)) within.add(owner);
+  // The document roots are in every element's ancestry, but no control draws
+  // their marks. Leaving them out also avoids withdrawing and restoring the
+  // same root marks when focus passes through a native drop in one gesture.
+  for (
+    let owner = next;
+    owner && owner !== document.body && owner !== document.documentElement;
+    owner = renderedParent(owner)
+  )
+    within.add(owner);
   for (const owner of paintedWithin) {
     if (!within.has(owner)) markFocus(owner, "focus-within", false);
   }
@@ -865,6 +877,30 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
     },
     { capture: true, passive: true },
   );
+// The box that wears the focus ring for `node`. A rule that rings a control's face
+// rather than the control declares it there, `--lf-wears-ring: 1` (theme.css), as a
+// playground's choice rings its radio and words together; the nearest such box around
+// the control is the one. Anything else wears its own. Those rules ring the face of the
+// control the focus paint marks, so only that control has one. A move paints after its
+// script, and a landing in that script, as an option walk's End is, reads the paint
+// now; a return's paint still waits for its frame.
+export function ringBox(node) {
+  if (
+    node &&
+    node !== paintedFocus &&
+    node === paintDestination?.deref() &&
+    !returnPaintPending
+  )
+    refreshFocusPaint();
+  if (!node?.matches?.("[data-lf-focus]")) return node;
+  for (
+    let box = renderedParent(node);
+    box instanceof Element;
+    box = renderedParent(box)
+  )
+    if (getComputedStyle(box).getPropertyValue("--lf-wears-ring") === "1") return box;
+  return node;
+}
 // Drawn counts `visibility: hidden` as hidden: a node under it keeps focus for a frame
 // and then the browser blurs it to the body, as it does a node under `display: none`.
 export const drawn = (node) =>
@@ -1137,41 +1173,11 @@ const land = (landing) => {
   }
 };
 
-// bootstrap.js spells `takesLetters` again, for keys pressed before any
-// module loads; a type added here goes there too.
-const TYPED_TYPES = new Set([
-  "text",
-  "search",
-  "url",
-  "tel",
-  "email",
-  "password",
-  "number",
-  "date",
-  "time",
-  "datetime-local",
-  "month",
-  "week",
-]);
-
 // Where a printed key becomes text in the box.
-export function typesText(node) {
-  return (
-    Boolean(node) &&
-    (node.matches(TEXT_BOX) ||
-      node.isContentEditable ||
-      (node.tagName === "INPUT" && TYPED_TYPES.has(node.type)))
-  );
-}
+export const typesText = inputs.typesText;
 
 // Select options retain typeahead when an open custom list moves focus into an option.
-export function takesLetters(node) {
-  return (
-    typesText(node) ||
-    (Boolean(node) &&
-      (node.tagName === "SELECT" || node.getAttribute("role") === "option"))
-  );
-}
+export const takesLetters = inputs.takesLetters;
 
 // Radio and range controls own their arrow navigation before a containing widget.
 // Custom controls expose the same role at their focused element as the native input.
@@ -1198,7 +1204,7 @@ export function controlNavigationKeys(node) {
 // item out on the page and standing on a panel button are the same state — the user
 // holding something — reached from either side of the chrome. What those rungs do not
 // share is the word, and neither word is the other's: leaving the chrome names where the
-// user lands, since that is the whole of what the rung is for, and letting go of an item
+// user lands, since that is the whole of what the rung is for, and letting go of an obligation
 // names the act, since they were on the page all along.
 //
 // Where they land is the block they are reading in the page region they last acted in
@@ -1215,7 +1221,7 @@ export function controlNavigationKeys(node) {
 //
 // `releaseFocus` is the other half of the pair and the top of the document is the point of
 // it: a page that has just arrived is not a page anybody has read yet, so its first Tab
-// belongs at the skip link rather than part-way through the prose that happens to be on
+// belongs at its first control rather than part-way through the prose that happens to be on
 // screen. It is also the fallback here, for a page whose view holds nothing to land on,
 // such as a run of figures, where the honest answer is that the user has no reading
 // position for the browser to continue from. A region in that state still has one: the

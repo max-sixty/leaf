@@ -3,24 +3,61 @@
 // the browser paints what has arrived well before that. Delivery places this script
 // after the head's canonical link, so the page root that link declares is in the
 // document when it runs, and before the bootstrap and the theme (`compose_document`).
+/** @typedef {import("../../../../build/browser/contract.js").AuthoredAllocations} Allocations */
 (() => {
   const root = document.documentElement;
-  // A cross-document swap commits departure before Chrome rejects its aborted
-  // fetches. Those rejections belong to the old document, not its replacement.
-  // beforeunload is cancelable and therefore cannot end this lifetime; pageshow
-  // reopens it when the browser restores the same realm from its page cache.
-  let documentActive = true;
+  // A page-wide allocation `body` states (`$authored`), or null where it states none.
+  /** @template {keyof Allocations} A @param {A} name @returns {Allocations[A] | null} */
+  const pageAllocation = (name) =>
+    /** @type {any} */ (document.body.getAttribute(name));
+  // A document reports faults only until it departs. A navigation away aborts the
+  // document's requests, and those failures are the navigation's, not the page's.
+  // Chrome fires `pageswap` and `pagehide` before it rejects the aborted requests.
+  // Firefox has no `pageswap`, and it aborts the requests as soon as a `beforeunload`
+  // lets the navigation start, while the document stays shown and running until the
+  // destination answers. Neither engine says whether a navigation that has started
+  // will replace the document: the user can stay at a leave prompt, and a link
+  // answered with a download or a 204 leaves the document in place, its aborted
+  // requests failed for good. So a fault that arrives after `beforeunload` waits.
+  // `pageswap` or `pagehide` drops it with the document. The user's next press, key
+  // or edit shows the document stayed, and the fault is reported then. A wheel turn
+  // shows nothing, since a reader may scroll a page they are leaving while its
+  // destination loads, and neither does the document's own first `pageshow`, which
+  // can follow a prompt the user stayed at. Each report names the fault it reports,
+  // and only the first report of a fault waits, so a read that keeps failing while
+  // the user does nothing adds nothing. A persisted `pageshow` reopens the lifetime
+  // when the browser restores the same document from its page cache, the faults that
+  // waited having gone with the `pagehide`.
+  let swapped = false;
+  let leaving = false;
+  /** @type {Map<string, () => void>} */
+  let waiting = new Map();
   root.lfDocumentLifetime = Object.freeze({
-    get active() {
-      return documentActive;
+    /** Run `report` of `fault` now, once the document is known to have stayed, or never. */
+    whenActive(fault, report) {
+      if (!swapped && !leaving) report();
+      else if (!swapped && !waiting.has(fault)) waiting.set(fault, report);
     },
+  });
+  const stayed = () => {
+    if (!leaving) return;
+    leaving = false;
+    const reports = waiting;
+    waiting = new Map();
+    for (const report of reports.values()) report();
+  };
+  window.addEventListener("beforeunload", () => {
+    leaving = true;
   });
   for (const type of ["pageswap", "pagehide"])
     window.addEventListener(type, () => {
-      documentActive = false;
+      swapped = true;
+      waiting = new Map();
     });
-  window.addEventListener("pageshow", () => {
-    documentActive = true;
+  window.addEventListener("pageshow", (event) => {
+    if (!event.persisted) return;
+    swapped = false;
+    leaving = false;
   });
   // The runtime will run here and upgrade the page's widgets, so the themes give each
   // widget the box its module will draw it at (`html[data-lf-interactive]`). A reading
@@ -34,7 +71,38 @@
   // same counter and subscription after startup; no later listener starts over.
   let inputs = 0;
   const inputReaders = new Set();
+  // Early key holding and the runtime ask the same question of a key's origin.
+  // Selects and custom options keep typeahead without being text editors.
+  const textField = "leaf-text";
+  const textBox = `textarea, ${textField}`;
+  const typedTypes = new Set([
+    "text",
+    "search",
+    "url",
+    "tel",
+    "email",
+    "password",
+    "number",
+    "date",
+    "time",
+    "datetime-local",
+    "month",
+    "week",
+  ]);
+  const typesText = (node) =>
+    Boolean(node) &&
+    (node.matches(textBox) ||
+      node.isContentEditable ||
+      (node.localName === "input" && typedTypes.has(node.type)));
+  const takesLetters = (node) =>
+    typesText(node) ||
+    (Boolean(node) &&
+      (node.localName === "select" || node.getAttribute("role") === "option"));
   root.lfInputs = {
+    textField,
+    textBox,
+    typesText,
+    takesLetters,
     get count() {
       return inputs;
     },
@@ -45,6 +113,7 @@
   };
   const input = (event) => {
     if (event.type === "blur" && event.target !== window) return;
+    if (event.type !== "blur" && event.type !== "wheel") stayed();
     inputs++;
     for (const read of inputReaders) read(event);
   };
@@ -68,25 +137,28 @@
   // (bootstrap.js); an export has no server to wait for. A later fault only takes the
   // mark off where it is incomplete. The first is the earliest evidence and a later one
   // is often its consequence; the bootstrap's report keeps the first as well.
-  const fault = (reason, incomplete, error = null, page = false) => {
-    if (!documentActive) return;
-    if (incomplete) root.toggleAttribute("data-lf-interactive", false);
-    if (root.hasAttribute("data-lf-startup-error")) return;
-    root.dataset.lfStartupError = reason;
-    // The attribute is the short display reason; this record retains the actual
-    // exception before modules load, including for an opaque sample's private port.
-    root.lfStartupException =
-      error?.message === undefined
-        ? null
-        : {
-            name: error.name,
-            message: error.message,
-            stack: error.stack,
-          };
-    window.dispatchEvent(
-      new CustomEvent("lf-startup-fault", { detail: { reason, incomplete, page } }),
-    );
-  };
+  const fault = (reason, incomplete, error = null, page = false) =>
+    root.lfDocumentLifetime.whenActive(`fault ${reason}`, () => {
+      if (incomplete) {
+        root.toggleAttribute("data-lf-interactive", false);
+        trade(PLAYER, "controls");
+      }
+      if (root.hasAttribute("data-lf-startup-error")) return;
+      root.dataset.lfStartupError = reason;
+      // The attribute is the short display reason; this record retains the actual
+      // exception before modules load, including for an opaque sample's private port.
+      root.lfStartupException =
+        error?.message === undefined
+          ? null
+          : {
+              name: error.name,
+              message: error.message,
+              stack: error.stack,
+            };
+      window.dispatchEvent(
+        new CustomEvent("lf-startup-fault", { detail: { reason, incomplete, page } }),
+      );
+    });
   window.addEventListener(
     "error",
     (event) => {
@@ -348,6 +420,20 @@
     if (label !== undefined) node.textContent = label;
     return node;
   };
+  // A recording the runtime plays through its own bar (video-controls.js) shows no
+  // browser controls from its first paint, which would otherwise draw until that
+  // module arrives and then give way to the bar. Traded as the parser inserts each
+  // video while the runtime is still expected, and given back to a page that cannot
+  // start, as its readable fallback. A copy of what the author wrote (`authoredCopy`)
+  // takes the trade back, whoever made it, so a revision compares `controls` with
+  // `controls`.
+  const PLAYER = "data-lf-player";
+  const trade = (from, to) => {
+    for (const video of document.querySelectorAll(`video[${from}]`)) {
+      video.removeAttribute(from);
+      video.setAttribute(to, "");
+    }
+  };
   const authoredCopy = (node, target = null) => {
     if (target === null) {
       // A cloned live document retains custom-element definitions, so attaching
@@ -364,6 +450,10 @@
     origins.set(copy, origins.get(source) ?? node);
     copy.removeAttribute?.("data-lf-opening");
     copy.removeAttribute?.("data-lf-sole-content");
+    if (copy.hasAttribute?.(PLAYER)) {
+      copy.removeAttribute(PLAYER);
+      copy.setAttribute("controls", "");
+    }
     const held = source.localName === "template" ? source.content : source;
     const into = copy.localName === "template" ? copy.content : copy;
     if (source.localName === "template") origins.set(into, origins.get(held) ?? held);
@@ -429,19 +519,25 @@
   };
   // The box the page's Layout arranges (layouts.css, `--lf-layout-box`): the page's
   // `main` (passages.js, `pageDocument`), or the shown child of a `main` that carries no
-  // Layout itself. Its parent is the shell the Layout places it in. CSS declares the box,
-  // so the runtime reads no Layout class. Without a Layout, the box is `main`.
+  // Layout itself, or the shown child of a part of such a `main`, a member of its child
+  // that holds the page's parts (`data-lf-views="parts"`). A part not shown hides what
+  // it holds (`hidden="until-found"`), so a box in it is not shown. Its parent is the shell the
+  // Layout places it in. CSS declares the box, so the runtime reads no Layout class.
+  // Without a Layout, the box is `main`.
   const isLayoutBox = (box) =>
     getComputedStyle(box).getPropertyValue("--lf-layout-box").trim() === "1";
   const layoutBox = () => {
     const main = document.querySelector("body > main");
     if (!main || isLayoutBox(main)) return main;
-    for (const child of main.children)
-      if (child.checkVisibility() && isLayoutBox(child)) return child;
-    return main;
+    const parts = main.querySelector(':scope > [data-lf-views="parts"]');
+    const boxes = [
+      ...main.children,
+      ...[...(parts?.children ?? [])].flatMap((part) => [...part.children]),
+    ];
+    return boxes.find((box) => box.checkVisibility() && isLayoutBox(box)) ?? main;
   };
   // The shell that last held the column, so a column that moves to another shell, as
-  // when another view is shown, leaves none of its tracks behind.
+  // when another part is shown, leaves none of its tracks behind.
   let lastShell = null;
   const seat = () => {
     const body = document.body;
@@ -471,8 +567,11 @@
     // The shift is written on `body` whatever the shell, and the shell's tracks inherit
     // it: `body` is root state, whose runtime styles a revision keeps (version.js).
     if (!box) {
-      const shifted = body.style.getPropertyValue("--lf-column-shift") !== "";
+      const shifted =
+        body.style.getPropertyValue("--lf-column-shift") !== "" ||
+        body.style.getPropertyValue("--lf-shell-left") !== "";
       removeRuntimeRootStyle(body, "--lf-column-shift");
+      removeRuntimeRootStyle(body, "--lf-shell-left");
       return shellChanged || shifted;
     }
     const style = getComputedStyle(box);
@@ -497,6 +596,13 @@
     const scale = shellRect.width / shellNode.offsetWidth || 1;
     const shellLeft = shellRect.left + shellNode.clientLeft * scale;
     const shell = { left: shellLeft, right: shellLeft + shellNode.clientWidth * scale };
+    // A resident fixed to the window, as the contents map is (toc.css), stands from the
+    // shell's left edge rather than the window's, which differ where the page puts
+    // something before the shell, as a page's list of parts does.
+    const left = Math.round(shellLeft) ? `${Math.round(shellLeft)}px` : "";
+    const moved = body.style.getPropertyValue("--lf-shell-left") !== left;
+    if (left) setRuntimeRootStyle(body, "--lf-shell-left", left);
+    else removeRuntimeRootStyle(body, "--lf-shell-left");
     const room = {
       left: column.left - gridShift - shell.left,
       right: shell.right - column.right + gridShift,
@@ -551,9 +657,11 @@
     const allocate = (room, movable) => {
       const taken = { left: 0, right: 0 };
       const granted = [];
+      /** @type {Allocations["data-annotations"]} */
+      const annotations = pageAllocation("data-annotations") ?? "overlay";
       if (
-        (document.body.dataset.annotations ?? "overlay") === "overlay" &&
-        document.body.getAttribute("data-rail") !== "none" &&
+        annotations === "overlay" &&
+        pageAllocation("data-rail") !== "none" &&
         room.right >= need("--rail")
       ) {
         granted.push("rail");
@@ -618,7 +726,7 @@
     const { shift, granted } = allocation;
     const tokens = granted.join(" ");
     const seated = (box.getAttribute("data-lf-margin") ?? "") !== tokens;
-    if (!seated && shift === shellWritten) return shellChanged;
+    if (!seated && shift === shellWritten) return shellChanged || moved;
     // Source copies keep the authored shell before initial geometry writes to it;
     // children still follow their original routes as the parser continues.
     if (!sourceShells.has(box)) sourceShells.set(box, box.cloneNode(false));
@@ -818,11 +926,60 @@
     }
     return changed;
   };
+  // A page of parts' title, which its list sticks under (layouts.css, "A page of
+  // parts"): no CSS stacks one sticking box under another of unknown height. The title
+  // is what stands before the parts, in the one row above the list.
+  const TITLE = "--lf-parts-title-h";
+  const title = () => {
+    const body = document.body;
+    const main = document.querySelector("body > main");
+    if (!body) return false;
+    const parts =
+      main && !isLayoutBox(main)
+        ? main.querySelector(':scope > [data-lf-views="parts"]')
+        : null;
+    let height = 0;
+    for (
+      let node = parts?.previousElementSibling;
+      node;
+      node = node.previousElementSibling
+    )
+      height = Math.max(height, node.getBoundingClientRect().height);
+    const value = height ? `${Math.round(height)}px` : "";
+    if (body.style.getPropertyValue(TITLE) === value) return false;
+    if (value) setRuntimeRootStyle(body, TITLE, value);
+    else removeRuntimeRootStyle(body, TITLE);
+    return true;
+  };
+  // The header a Layout sticks over its body, as a workspace does where the window is
+  // too small to be its screen (layouts.css, "Workspace"): what the body stands under is
+  // the header's height, which no CSS can read, so it is written here for the body's
+  // sticky-header slot (`--lf-top`, theme.css) to add. Which header sticks is the
+  // stylesheet's to say; this reads its computed position.
+  const HEAD = "--lf-layout-head-h";
+  const head = () => {
+    const body = document.body;
+    if (!body) return false;
+    const header = layoutBox()?.querySelector(":scope > header");
+    const value =
+      header && getComputedStyle(header).position === "sticky"
+        ? `${Math.ceil(header.getBoundingClientRect().height)}px`
+        : "";
+    if (body.style.getPropertyValue(HEAD) === value) return false;
+    if (value) setRuntimeRootStyle(body, HEAD, value);
+    else removeRuntimeRootStyle(body, HEAD);
+    return true;
+  };
   const residency = () => {
     const seated = seat();
+    const titled = title();
+    const headed = head();
     const stood = stand();
     const reading = breakouts();
-    return { ...reading, changed: reading.changed || seated || stood };
+    return {
+      ...reading,
+      changed: reading.changed || seated || titled || headed || stood,
+    };
   };
 
   // The id a URL fragment spells, for location.hash and for a link's href alike, from
@@ -981,6 +1138,7 @@
   const initialLayout = () => {
     mark();
     residency();
+    if (root.hasAttribute("data-lf-interactive")) trade("controls", PLAYER);
   };
   const parsing = new MutationObserver(initialLayout);
   parsing.observe(root, { childList: true, subtree: true });

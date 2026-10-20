@@ -17,6 +17,7 @@ from render_harness import (
     open_page,
     scroll_settled,
     select_words,
+    selection_field,
     sending,
     write,
 )
@@ -114,7 +115,7 @@ def test_observed_selection_offers_comment_without_replacing_the_editor(
     field = page.locator(".lf-fab-input")
     write(field, words)
     field.evaluate("el => { window.heldSelectionEditor = el; }")
-    action = page.get_by_role("button", name="Comment on selection", exact=True)
+    action = selection_field(page)
 
     def select_in_browser():
         field.evaluate("el => el.blur()")
@@ -155,12 +156,11 @@ def test_observed_selection_offers_comment_without_replacing_the_editor(
     expect(action).to_be_hidden()
     select_in_browser()
 
-    # Both routes activate the same native banner control and its captured passage.
+    # A tap or a click on the panel's field comments on the captured passage.
     if touch:
         action.tap()
     else:
-        action.focus()
-        page.keyboard.press("Enter")
+        action.click()
     expect(field).to_be_focused()
     expect(field).to_have_js_property("value", "")
     assert pending_text(page) == selected.replace("\n", "")

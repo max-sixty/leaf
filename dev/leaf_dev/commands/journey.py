@@ -32,7 +32,8 @@ with its turn closed. A website target runs `release` alone, since only a termin
 can start a turn or interrupt one. What the harnesses share lives here: their
 isolation and its evidence (`isolated`), the session the journey hears through every
 wait (`Terminal`), and the user (`User`). `--hooks-module` turns on Claude Code's
-opt-in hooks module; `--sandbox` runs Claude Code's shell commands in its sandbox;
+opt-in hooks module; `--sandbox` runs the session's shell commands in its harness's
+sandbox;
 `--preview` has Codex serve the page with the canonical
 `leaf-dev preview --user`. The journey stops at the first check that fails and keeps
 no sample.
@@ -101,6 +102,7 @@ from leaf.event_log import read_events
 from leaf.events import build_threads
 from leaf.files import revision_path
 from leaf.findings import Finding
+from leaf.leases import titles_log
 from leaf.server import running_server
 from leaf.structure import SourceDocument
 from leaf.thread import successful_replies
@@ -184,14 +186,11 @@ class Session(NamedTuple):
 
 
 def still_answering(state: dict, event_id: str) -> bool:
-    """Whether the page's `activity` says a working turn still owes this comment a
-    reply, which a wall clock cannot tell."""
+    """Whether the page's `activity` says a turn is working while the comment's own
+    obligation is still on the agent, which a wall clock cannot tell."""
     activity = state.get("activity") or {}
-    if activity.get("kind") != "working":
-        return False
-    return any(
-        obligation.get("input") == event_id and not obligation.get("dropped")
-        for obligation in activity.get("obligations") or ()
+    return activity.get("kind") == "working" and f"update:{event_id}" in (
+        activity.get("obligations") or ()
     )
 
 
@@ -879,6 +878,26 @@ class Terminal:
                     return
         raise self.failure(what, STEP_LIMIT)
 
+    def page_server_title(self, session: str, thread: str) -> dict | None:
+        """The record the page server of `session`'s page made of the title it
+        generated for `thread`, hearing the session for as long as the request may
+        take, or None where it made none. A thread's title says nothing of who made
+        it; this says the page server did."""
+        log = titles_log(session)
+        deadline = time.monotonic() + TITLE_PATIENCE
+        while True:
+            records = log.read_text().splitlines() if log.exists() else []
+            for line in records:
+                record = json.loads(line)
+                if (record["event"], record["thread"]) == (
+                    "thread_title_generated",
+                    thread,
+                ):
+                    return record
+            if time.monotonic() > deadline:
+                return None
+            self.hear(0.5)
+
     def await_command(self, text: str, what: str) -> None:
         """Hear the session until it runs a shell command containing `text`."""
         self.until(
@@ -1353,8 +1372,11 @@ def target_session(
         else:
             from leaf_dev.journey_codex import answering
 
-            harness = answering(browser, named["transport"], preview=preview)
+            harness = answering(
+                browser, named["transport"], preview=preview, sandbox=sandbox
+            )
             named |= {"preview": True} if preview else {}
+            named |= {"sandbox": True} if sandbox else {}
         with harness as (user, run):
             yield user, named, run
         return
@@ -1406,8 +1428,8 @@ def target_session(
 @click.option(
     "--sandbox",
     is_flag=True,
-    help="On claude-code, run the session's shell commands in Claude Code's sandbox, "
-    "configured as the README says.",
+    help="On claude-code or a codex target, run the session's shell commands in its "
+    "harness's sandbox, configured as the README says.",
 )
 @click.option(
     "--preview",
@@ -1440,10 +1462,15 @@ def journey(
     """
     if hooks_module and target != "claude-code":
         raise click.UsageError("--hooks-module is an option of claude-code")
-    if sandbox and target != "claude-code":
-        raise click.UsageError("--sandbox is an option of claude-code")
+    if sandbox and HARNESS_TARGETS.get(target, {}).get("harness") not in (
+        "claude-code",
+        "codex",
+    ):
+        raise click.UsageError("--sandbox is an option of claude-code and codex")
     if preview and HARNESS_TARGETS.get(target, {}).get("harness") != "codex":
         raise click.UsageError("--preview is an option of the codex targets")
+    if preview and sandbox:
+        raise click.UsageError("--preview runs leaf-dev, which a sandbox refuses")
     website = target not in HARNESS_TARGETS
     if website and browser is False:
         raise click.UsageError(

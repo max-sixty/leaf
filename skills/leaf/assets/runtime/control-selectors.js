@@ -2,15 +2,16 @@
 
    These platform and Leaf field declarations have one home for gesture routing,
    focus traversal and layout evidence. Informational ARIA groups and live regions do not
-   imply a control. This module reads no document and installs no behavior, so a
-   reader can evaluate the same vocabulary before a page or runtime exists. */
+   imply a control. The prepaint owns the text-field vocabulary because early key
+   holding needs it before modules load; this module exposes it with the other
+   control selectors and installs no behavior. */
 
 // The runtime's text field (`composing/text-field.js`): every box the runtime builds
 // for the user to write in is one. Code that looks for such a box names it by this, and
 // code asking whether something takes typed paragraphs asks `TEXT_BOX`, since a native
 // textarea on an author's page still does. One spelling of each lets the field's
 // element change without a lookup somewhere silently finding nothing.
-export const TEXT_FIELD = "leaf-text";
+export const TEXT_FIELD = document.documentElement.lfInputs.textField;
 
 // The same modifiers as the platform's own keydowns: what `ev.key` says when a modifier
 // goes down alone, ahead of the key it modifies. The dispatcher's sequence asks this to tell
@@ -32,7 +33,7 @@ export const CARET_KEYS = [
 // Select All under either platform's modifier. With Shift also held the key reads "A".
 export const selectsAll = (event) =>
   event.key.toLowerCase() === "a" && (event.metaKey || event.ctrlKey);
-export const TEXT_BOX = `textarea, ${TEXT_FIELD}`;
+export const TEXT_BOX = document.documentElement.lfInputs.textBox;
 
 // What the platform puts in the tab order without being asked, which is what a layout
 // keeps clear of and what "does this box already hold a stop" asks about. A disclosure's
@@ -62,6 +63,9 @@ const PRESS_SELECTORS = [
   "summary",
   TEXT_BOX,
   "video[controls]",
+  // A recording whose browser controls the runtime has traded for its own
+  // (video-controls.js).
+  "video[data-lf-player]",
   "[role='button']",
   "[role='checkbox']",
   "[role='combobox']",

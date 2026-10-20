@@ -27,11 +27,11 @@ Leaf uses three Cloudflare tokens, one for each holder. None is stored in this
 repository, and each arrives as `CLOUDFLARE_API_TOKEN` wherever it is used. The
 permissions below use the names Cloudflare's token API reports:
 
-| Token                          | Reaches                                                                                                                                                                                                                                                   | Held by                                                     |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `Leaf agent administration`    | `Individual Workers Editor` on `leaf-website` and `leaf-website-dev`; `Workers Routes Write` on the `leaf.page` zone; `Workers Containers Write`, `Workers Observability Read`, `Account Analytics Read`, and `Workers Metadata Read-Only` on the account | Agents on the maintainer's machine                          |
-| `Leaf site deploy (CI)`        | `Individual Workers Editor` on `leaf-website`; `Workers Routes Write` on the `leaf.page` zone; `Workers Containers Write` and `Account Settings Read` on the account                                                                                      | `publish-site`, through the `cloudflare-deploy` environment |
-| `Leaf observability (Tend CI)` | `Workers Observability Read` and `Account Analytics Read` on the account                                                                                                                                                                                  | Tend's agent, through the `tend` environment                |
+| Token                          | Reaches                                                                                                                                                                                                                                                   | Held by                                           |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `Leaf agent administration`    | `Individual Workers Editor` on `leaf-website` and `leaf-website-dev`; `Workers Routes Write` on the `leaf.page` zone; `Workers Containers Write`, `Workers Observability Read`, `Account Analytics Read`, and `Workers Metadata Read-Only` on the account | Agents on the maintainer's machine                |
+| `Leaf release (CI)`            | `Individual Workers Editor` on `leaf-website`; `Workers Routes Write` on the `leaf.page` zone; `Workers Containers Write` and `Account Settings Read` on the account                                                                                      | `publish-site`, through the `release` environment |
+| `Leaf observability (Tend CI)` | `Workers Observability Read` and `Account Analytics Read` on the account                                                                                                                                                                                  | Tend's agent, through the `tend` environment      |
 
 The account also serves Workers and zones that are not Leaf's, so each token that edits
 a Worker lists the Workers it may edit. `Individual Workers Editor` deploys and
@@ -164,24 +164,28 @@ The deploy needs a Cloudflare Workers Paid account with Containers enabled, and 
 before it changes production. The `leaf.page` domain already uses Cloudflare
 nameservers, and the Worker serves it as a custom domain.
 
-In GitHub, the `cloudflare-deploy` environment holds `Leaf site deploy (CI)` and the
-`tend` environment holds `Leaf observability (Tend CI)`, each as
-`CLOUDFLARE_API_TOKEN`. Each environment's deployment-branch policy allows only `main`,
-so a workflow dispatched from another branch cannot read either token. The policy is not
+In GitHub, the `release` environment holds `Leaf release (CI)` as
+`CLOUDFLARE_API_TOKEN` and the dependency-bundle publisher's bot token as
+`BUNDLE_PUBLISH_TOKEN`. Deployment and publishing jobs share this environment and
+can access both credentials. The `tend` environment holds `Leaf observability
+(Tend CI)` as `CLOUDFLARE_API_TOKEN`. Each environment's deployment-branch policy allows only `main`,
+so a workflow dispatched from another branch cannot read these credentials. The policy is not
 an approval gate: in yolo mode, the next `publish-site` run deploys code Tend merged to
 `main` with the deploy token.
 
 Create the environment and secrets once; each `secret` command prompts for its value:
 
 ```sh
-gh api --method PUT repos/max-sixty/leaf/environments/cloudflare-deploy \
+gh api --method PUT repos/max-sixty/leaf/environments/release \
   -F 'deployment_branch_policy[protected_branches]=false' \
   -F 'deployment_branch_policy[custom_branch_policies]=true'
 gh api --method POST \
-  repos/max-sixty/leaf/environments/cloudflare-deploy/deployment-branch-policies \
+  repos/max-sixty/leaf/environments/release/deployment-branch-policies \
   -f name=main -f type=branch
 gh secret set CLOUDFLARE_API_TOKEN \
-  --repo max-sixty/leaf --env cloudflare-deploy
+  --repo max-sixty/leaf --env release
+gh secret set BUNDLE_PUBLISH_TOKEN \
+  --repo max-sixty/leaf --env release
 gh secret set CLOUDFLARE_API_TOKEN \
   --repo max-sixty/leaf --env tend
 pnpm exec wrangler secret put OPENAI_API_KEY --config worker/wrangler.toml
@@ -500,8 +504,10 @@ The records to read first:
 | `container_start_failed`                                                 | The turn could not be started; the Worker and the container each write one from their side                                                                                   |
 | `turn_start_acknowledged`                                                | App Server started the turn; carries Codex's `turnId`                                                                                                                        |
 | `turn_delivery_bound`                                                    | The Leaf turn opened for that Codex turn                                                                                                                                     |
-| `turn_reply_first_text_published`                                        | First final-answer text reached the user's thread, the first thing the user sees                                                                                             |
+| `turn_reply_first_text_published`                                        | The turn's first words reached the user's thread, its opening line or its answer, the first thing the user sees                                                              |
 | `turn_stream_completed`                                                  | The turn ended, whether it finished, lost its connection, went silent, or failed; carries status, fault, `modelRequests`, `inputTokens`, `cachedInputTokens`, `outputTokens` |
+| `turn_reply_published`                                                   | A completed reply update was published; carries item identity and phase, without text                                                                                        |
+| `turn_following_ended`                                                   | Follower cleanup and continuation ended; `completed` is false if that work raised                                                                                            |
 | `turn_reply_commit_failed`                                               | Leaf could not validate or append the reply                                                                                                                                  |
 | `turn_interrupted`, `turn_interrupt_failed`                              | The container stopped a turn it could no longer follow, or App Server refused, usually because the turn had already ended                                                    |
 | `turn_abandoned_interrupt_started`, `turn_abandoned_interrupt_completed` | The same for a turn found running on a resumed thread                                                                                                                        |
@@ -510,6 +516,13 @@ The records to read first:
 | `container_continuation_receipted`                                       | The container wrote `startup_failed` for a waiting message it could not start, and whether that settled it                                                                   |
 | `thread_title_generated`, `thread_title_skipped`, `thread_title_failed`  | The title request for an untitled thread                                                                                                                                     |
 | `page_fault`                                                             | The adapter answered `500`: route, method, page path, exception class, and `detail`                                                                                          |
+
+The page's private `observations.jsonl` also records these hosted-turn boundaries.
+Only that private diagnostic stream retains the complete published reply updates,
+including the opening before a final answer replaced it. Developer response evals
+query that stream through `read_interactions`; they install no observer inside the
+adapter. `turn_stream_completed` precedes reply accounting; `turn_following_ended`
+follows cleanup and scheduling, so the former alone does not establish completion.
 
 A failure record carries `error`, the exception's class, and `detail`, the message the
 refusing code wrote, cut to its last 500 characters with a leading ellipsis. A
@@ -560,7 +573,11 @@ an unstamped revision. A release selects fresh demo records, while container
 replacement preserves the current release's records. `docs/website.html`, **Private sessions**, owns the
 storage and identity contract.
 
-The append lease admits one staged successor per page. Replacing or committing it
+The append lease admits one staged successor per page. Preparation stores its descriptor
+and returns its content identity plus missing chunk digests. Commit names that identity;
+the stored descriptor supplies every file and response reference. Identical preparations
+share an identity; different content replaces it. Commit checks the stored page and
+release against the current site manifest before promotion. Replacing or committing it
 collects chunks no committed record, staged successor, delivery stream or restore
 snapshot uses.
 An interrupted upload therefore retains at most one successor until that page

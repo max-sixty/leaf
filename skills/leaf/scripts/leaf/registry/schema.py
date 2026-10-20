@@ -24,7 +24,7 @@ import jsonschema._keywords
 import jsonschema._utils
 import regress
 from jsonschema import Draft202012Validator, FormatChecker
-from jsonschema.exceptions import SchemaError
+from jsonschema.exceptions import SchemaError, best_match
 from pywhatwgurl import URL
 from referencing import Registry
 from referencing.exceptions import Unresolvable
@@ -165,8 +165,11 @@ def schema_error(schema: dict, instance) -> str | None:
 def schema_complaint(schema: dict, instance) -> dict | None:
     """`schema_error` with the place it concerns: `field`, the JSON pointer of the
     value it is about (empty for the instance itself), and `rule`, the schema keyword
-    that value breaks, beside `error`."""
-    error = min(json_validator(schema).iter_errors(instance), key=str, default=None)
+    that value breaks, beside `error`. Of several complaints it takes jsonschema's
+    `best_match`, which goes inside a `oneOf` or `anyOf` to the branch the instance
+    nearly matched, so a step with an unknown `state` names that field rather than
+    the whole step."""
+    error = best_match(json_validator(schema).iter_errors(instance))
     if error is None:
         return None
     return {

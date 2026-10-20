@@ -97,7 +97,6 @@ from .leases import (
     step_hook_ran,
     take_lease,
 )
-from .machine import state_home
 from .refusals import Refused
 from .service import (
     claim_page,
@@ -105,14 +104,27 @@ from .service import (
 )
 from .session import Watch, read_watch_pass
 from .state import (
+    Record,
     ensure_session,
     flocked,
+    object_schema,
     session_record,
     start_session_turn,
+    state_home,
 )
 from .thread import delivery_reply_reserved
 
 QUEUE_TIMEOUT = 20
+# The adapter's transport and the immutable runtime running it. A session can
+# select a replacement runtime while this lease remains held (`_running_adapter`).
+ADAPTER = Record(
+    "codex-adapter",
+    object_schema(
+        {"app_server": {"type": ["string", "null"]}},
+        {"launcher": {"type": "string"}},
+    ),
+    since=13,
+)
 
 
 def _run_codex(codex_path: str, *arguments: str) -> None:
@@ -436,7 +448,7 @@ class TaskConnection:
             for delivery_id in pending:
                 codex.abandon_uncertain_delivery(
                     self.thread_id,
-                    codex.read_json(codex.delivery_path(delivery_id)),
+                    codex.stored_delivery(delivery_id),
                 )
 
     def _resume(self, thread: dict, expected: dict | None | object = ...) -> set[str]:
@@ -827,6 +839,8 @@ def run_adapter(
     if harness is None or harness.name != CodexHarness.name:
         raise Refused("the Codex adapter needs a Codex task identity")
     with ExitStack() as resources:
+        from .session_runtime import own_launcher, selected_launcher
+
         lease = take_lease(adapter_lease_path(harness.session))
         if lease is None:
             raise Refused("a Codex delivery adapter is already active")
@@ -834,7 +848,9 @@ def run_adapter(
         # in the task reports the one it joins.
         resources.callback(release_lease, lease)
         lease.truncate(0)
-        lease.write(json.dumps({"app_server": app_server}).encode())
+        lease.write(
+            ADAPTER.encode({"app_server": app_server, "launcher": str(own_launcher())})
+        )
         lease.flush()
         watch = Watch(harness)
         if not watch.acquire():
@@ -866,6 +882,12 @@ def run_adapter(
             return 1
         failures = 0
         while True:
+            selected = selected_launcher(harness.session)
+            if selected is not None and selected != own_launcher():
+                # Selection belongs to the session, so the former adapter leaves
+                # before reading another page. Preparation holds the start lock
+                # until these leases and the connection are released.
+                return 0
             try:
                 recovered = codex.recover_codex_receipt(harness.session)
                 if not recovered:
@@ -959,8 +981,29 @@ def preparing_adapter(
     if app_server is not None:
         app_server_socket_path(app_server)
     launch_lock = adapter_start_lock_path(session_id)
-    with flocked(launch_lock):
-        record = _running_adapter(session_id)
+    with ExitStack() as preparation:
+        from .session_runtime import selected_launcher
+
+        deadline = time.monotonic() + START_TIMEOUT
+        while True:
+            preparation.enter_context(flocked(launch_lock))
+            launcher = selected_launcher(session_id)
+            record = _running_adapter(session_id)
+            if (
+                record is None
+                or launcher is None
+                or record.get("launcher") == str(launcher)
+            ):
+                break
+            # The former adapter observes the selection on its next bounded
+            # pass. Let it take the start lock on its way out too, then retry
+            # preparation under that lock rather than racing a third start.
+            preparation.pop_all().close()
+            if time.monotonic() >= deadline:
+                raise Refused(
+                    "the former Leaf delivery adapter did not release its session"
+                )
+            time.sleep(0.05)
         if record is not None:
             running = record["app_server"]
             if app_server is not None and app_server != running:
@@ -971,9 +1014,14 @@ def preparing_adapter(
                 )
             yield {"task": session_id, "app_server": running, "started": False}
             return
-        # The connection captures its causal lifecycle before observing turns.
-        # Establish it in the launching harness, independently of page ownership.
-        ensure_session(session_id, harness.lifetime())
+        # Existing active ownership already proves the canonical lifetime and
+        # generation. A detached preview can replace its adapter, but its process
+        # ancestry cannot rediscover the interactive harness that took the page.
+        # A new acquisition still establishes that evidence in its own harness.
+        # owned_pages checks generation and liveness, so retained claims cannot
+        # lend an ended session their former authority.
+        if not owned_pages(session_id):
+            ensure_session(session_id, harness.lifetime())
         with starting_detached(
             [
                 "codex",
@@ -987,6 +1035,7 @@ def preparing_adapter(
             log=adapter_log_path(session_id),
             cwd=state_home(),
             timeout=START_TIMEOUT,
+            launcher=launcher,
         ):
             pass
         yield {"task": session_id, "app_server": app_server, "started": True}
@@ -999,10 +1048,7 @@ def _running_adapter(session_id: str) -> dict | None:
     it; that reads as no adapter."""
     if not adapter_is_live(session_id):
         return None
-    try:
-        return json.loads(adapter_lease_path(session_id).read_text())
-    except FileNotFoundError:
-        return None
+    return ADAPTER.read(adapter_lease_path(session_id))
 
 
 def cmd_codex_launch(codex_path: str | None = None) -> int:

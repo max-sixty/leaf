@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 
 import pytest
 import tinycss2
+from browser_sources import browser_function
 from click.testing import CliRunner
 from interact_support import (
     COMMAND_HUB_PACKAGE,
@@ -78,7 +79,6 @@ from render_harness import (
     EXAMPLE_PACKAGES,
     INLINE_PAGE,
     LONG_PAGE,
-    RELEASE_FOCUS,
     TOKEN,
     _traffic,
     _until,
@@ -206,10 +206,11 @@ def test_the_render_gate_renders_each_scheme_viewport_and_margin_width_on_an_arm
 
 
 def test_the_render_gate_reports_a_compact_spill_and_unreserved_heights(browser, serve):
-    """A row that fits the wide viewport and spills from the compact one fails there
-    alone, in both schemes. On the same page, a widget that states the height its
-    module draws at holds it from first paint, so the gate has nothing to say about it;
-    one stating none, or another height, is told the height to state."""
+    """A row that fits the wide viewport and spills from the compact one fails at the
+    widths it spills at, read once by the sweep. On the same page, a widget that
+    states the height its module draws at holds it from first paint, so the gate has
+    nothing to say about it; one stating none, or another height, is told the height
+    to state."""
     source = leaf_page(
         "compact spill and reserved heights",
         """
@@ -238,9 +239,9 @@ lf-test-drawn { display: block; }
     )
 
     overflow = [f for f in reading.failures if f.code == "page-scrolls"]
-    assert len(overflow) == 2, reading.failures
-    assert all(f.viewports == ("540x720",) for f in overflow), overflow
-    assert {f.scheme for f in overflow} == {"light", "dark"}
+    assert [(f.widths, f.scheme, f.viewports) for f in overflow] == [
+        ((360, 600), None, ())
+    ], reading.failures
     assert [(f.code, f.at, f.values) for f in reading.advice] == [
         (
             "unreserved-height",
@@ -270,7 +271,14 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
     """A body beside its track, and a row that spills only from 600 to 900px: both fixed
     viewports read the page clean, and only the sweep between them sees it. A control
     row that loses its scrollbar track room only between them is the same reading for
-    the overlay bar."""
+    the overlay bar. Below both, a decision in a card of fixed height, whose prose
+    grows at 440px and narrower (a margin stands in for its wrapping) until it pushes
+    the decision's controls under the card's clip: a press nobody can reach, which only
+    the sweep's narrowest widths see. A card as tall as the window holds its decision
+    below 600px of plan, so a window 720px tall clips it and one 900px tall does not:
+    only the phone render's sweep, at its own height, sees it. A card whose rule for the
+    dark scheme pushes its decision under the clip is clipped only in the two dark
+    renders, which each read the geometry once."""
     source = leaf_page(
         "mid-width overflow",
         f"""
@@ -282,6 +290,17 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
 <p id="mid-spill">{"A line that wraps at both viewports and runs on unbroken between them. " * 4}</p>
 <div id="strip"><button>Summary</button><button>Release scope</button>
 <button>Owner handoff</button></div>
+<div id="card"><lf-ask id="go-decision"><h2>Ship it?</h2>
+<p>The release passed its checks.</p><lf-options id="go" choose>
+<lf-option id="go-yes"><strong>Yes</strong></lf-option>
+</lf-options></lf-ask></div>
+<div id="short"><div id="plan-body"></div><lf-ask id="hold-decision"><h2>Hold it?</h2>
+<lf-options id="hold" choose><lf-option id="hold-yes"><strong>Yes</strong></lf-option>
+</lf-options></lf-ask></div>
+<div id="dusk"><lf-ask id="dusk-decision"><h2>Wait?</h2>
+<p>The canary is still running.</p><lf-options id="wait" choose>
+<lf-option id="wait-yes"><strong>Yes</strong></lf-option>
+</lf-options></lf-ask></div>
 """,
         head="""<style>
 #tracks { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
@@ -289,12 +308,30 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
 #strip { display: flex; width: 240px; overflow: auto; padding: 0 0 15px; border: 0; }
 #strip button { flex: 0 0 180px; height: 40px; margin: 0; }
 @media (min-width: 600px) and (max-width: 900px) { #strip { padding-bottom: 0; } }
+#card { height: 400px; overflow: hidden; }
+@media (max-width: 440px) { #card p { margin-bottom: 400px; } }
+#short { height: 100vh; overflow: hidden; }
+#plan-body { height: 600px; }
+#dusk { height: 400px; overflow: hidden; }
+@media (prefers-color-scheme: dark) { #dusk p { margin-bottom: 400px; } }
 </style>""",
     )
 
-    reading = render_gate_model.render_version(browser, serve(source, packages=()))
+    reading = render_gate_model.render_version(
+        browser, serve(source, packages=("default",))
+    )
 
-    assert {(f.code, f.at, f.widths) for f in reading.failures} == {
+    clipped = [f for f in reading.failures if f.code == "clipped-control"]
+    assert clipped, reading.failures
+    assert {(f.values["by"], f.widths) for f in clipped} == {
+        ("<div id=card>", (360, 440)),
+        ("<div id=short>", (360, 540)),
+        ("<div id=dusk>", (1200, 1200)),
+        ("<div id=dusk>", (540, 540)),
+    }, clipped
+    assert {(f.code, f.at, f.widths) for f in reading.failures} - {
+        (f.code, f.at, f.widths) for f in clipped
+    } == {
         ("page-scrolls", "", (600, 880)),
         ("scrollbar-clearance", "<div id=strip>", (600, 880)),
     }, reading.failures
@@ -349,13 +386,16 @@ def test_user_view_checks_read_current_geometry_without_changing_the_page(
     """A passive reading exposes layout and measured checks at the actual width.
 
     The same drawing's labels shrink further on a narrower window; large labels are
-    clean at desktop and cross the stated threshold on mobile. Reading leaves the
-    DOM, focus, selection, and scroll position intact.
+    clean at desktop and cross the stated threshold on mobile. A closed disclosure's
+    arrangement is no part of the view, so the reading leaves it out. Reading leaves
+    the DOM, focus, selection, and scroll position intact.
     """
     source = DRAWN_LABELS_PAGE.replace(
         "<h1>Rollout</h1>",
         '<h1>Rollout</h1><div id="arrangement" style="display:flex; gap:16px">'
-        "<p>Canary</p><p>Global</p></div>",
+        "<p>Canary</p><p>Global</p></div>"
+        '<details><summary>Later</summary><div style="display:flex; gap:16px">'
+        "<p>Europe</p><p>Asia</p></div></details>",
     )
     page = open_page(browser, serve(source, packages=()))
 
@@ -862,12 +902,36 @@ def test_a_rendering_turn_is_polled_from_the_driver(browser, serve):
     ), failures
 
 
+def test_a_rendering_turn_ends_after_its_intersection_observer_deliveries(
+    browser, serve
+):
+    """A reader waiting on a rendering turn sees what that turn's IntersectionObserver
+    callbacks did, such as a Copy control leaving layout once a resize and a scroll
+    put its code block more than a screen away. Chrome runs those callbacks in a task
+    after one the animation frame queues, so a turn marked from that task let
+    `rendered` read the page before those callbacks ran."""
+    page = open_page(browser, serve(LONG_PAGE))
+    rendered(page)
+    marked_first = page.evaluate(
+        """() => new Promise(resolve => {
+          const driver = globalThis.__leafRenderDriver;
+          const turn = driver.requestFrame();
+          const observer = new IntersectionObserver(() => {
+            observer.disconnect();
+            resolve(driver.framePresented(turn));
+          });
+          observer.observe(document.body);
+        })"""
+    )
+    assert marked_first is False
+
+
 def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve, monkeypatch):
     """A navigation ends a trip the browser reports for neither kind, and the ledger
     must not carry it into the next document or every later wait there runs its
     timeout out.
 
-    Accept-all is how a real sweep gets here: it answers its items one awaited
+    Accept-all is how a real sweep gets here: it answers its obligations one awaited
     trip at a time, so a reload after the press lands mid-cascade and kills an
     /api/event POST that then produces no `response` and no `requestfailed`.
     The held answer puts the navigation on that exact edge. The ledger is the
@@ -917,7 +981,7 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve, monkeypatch
         release_answer.set()
     # The first trip of the new document's own cascade, which is the whole of what a
     # ledger carried across the navigation can get wrong. Waiting the answer-all out
-    # instead ties this reading to how many items the page happens to carry.
+    # instead ties this reading to how many obligations the page happens to carry.
     #
     # The trip is over when that first attempt leaves `pending`, which is the outbox's
     # own list of attempts with no outcome — a failed post keeps its attempt there and
@@ -1370,6 +1434,31 @@ def test_only_a_final_settling_failure_keeps_projection_findings(
     codes = {failure.code for failure in failures}
     assert ("verbatim" in codes) is expects_projection
     assert ("never-settled" in codes) is (failed_stage == "pageSettled")
+
+
+def test_a_transition_on_a_hidden_control_leaves_the_page_settled(
+    firefox_browser, serve
+):
+    """A scheme switch starts the colour transitions of controls inside a closed
+    disclosure too. Firefox never runs them while the disclosure stays closed, and they
+    move no box, so the page settles; reading them as motion held `leaf-dev probe
+    --firefox` on live-progress until its 120 s limit."""
+    page = open_page(
+        firefox_browser,
+        serve(
+            leaf_page(
+                "a transition in a closed disclosure",
+                "<h1>Settles</h1><details><summary>More</summary>"
+                '<input id="hidden-field" style="transition: color 150ms; '
+                'color: var(--ink)"></details>',
+            )
+        ),
+    )
+    page.emulate_media(color_scheme="dark")
+    assert page.evaluate(
+        "() => document.getElementById('hidden-field').getAnimations().length"
+    )
+    render_checks_model.wait_for_probe(page, "pageSettled")
 
 
 def test_the_state_wait_follows_a_source_rewritten_under_it(browser, serve):
@@ -2482,7 +2571,6 @@ def surface_findings(page):
         for surface, (_, door) in SURFACES.items()
     }
     left_alone(page)
-    page.evaluate(RELEASE_FOCUS)
 
     def press(keys):
         for key in keys:
@@ -2693,7 +2781,6 @@ def typed_box_findings(page):
     findings = []
     for box, route in TYPED_BOXES.items():
         left_alone(page)
-        page.evaluate(RELEASE_FOCUS)
         keys = route(page)
         if not keys:
             continue
@@ -2742,7 +2829,7 @@ def unshown_key_findings(page, source):
     """Each command in a widget that declares context keys the page never shows
     (`shows-context-keys`, widget_quality.py), in the page and each Leaf document it
     frames. A worked example shows one state of its widget, and a command a widget
-    declares only in another, such as a multiple-choice item's Done, goes unseen
+    declares only in another, such as a multiple-choice obligation's Done, goes unseen
     there; the corpus holds those states. Widgets and `KNOWN` are read as for
     `held_scroller_findings`."""
     local = source.with_suffix(".page")
@@ -2934,60 +3021,74 @@ def test_the_page_edge_is_no_frame(browser, serve):
     assert [f["at"] for f in framed] == ["<html>", "<html>"], framed
 
 
-@pytest.mark.parametrize("display", ("flex", "grid"))
-@pytest.mark.parametrize("frame", ("1", "trim", "propagated"))
-def test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it(
-    browser, serve, display, frame
-):
+def test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it(browser, serve, subtests):
     """A row holds its edge whether it declares the frame or receives its edge from
     outside. The advice names the actual split, and its documented declaration stops
-    that trim. An unframed row's deliberate item margins remain the author's choice."""
-    row = f"""<div id="row" style="display:{display};grid-template-columns:1fr 1fr;gap:12px;
-      padding:24px;--lf-block-frame:{"0" if frame == "propagated" else frame}">
-  <p id="left">Left.</p><p id="right">Right.</p>
+    that trim. An unframed row's deliberate item margins remain the author's choice.
+    The advice names each row by its id, so every case stands on one page."""
+    cases = [
+        (display, frame)
+        for display in ("flex", "grid")
+        for frame in ("1", "trim", "propagated")
+    ]
+
+    def rows(display, frame):
+        name = f"{display}-{frame}"
+        row = f"""<div id="row-{name}" style="display:{display};grid-template-columns:1fr 1fr;
+      gap:12px;padding:24px;--lf-block-frame:{"0" if frame == "propagated" else frame}">
+  <p id="left-{name}">Left.</p><p id="right-{name}">Right.</p>
 </div>"""
-    if frame == "propagated":
-        row = f'<div style="--lf-block-frame:1">{row}</div>'
+        if frame == "propagated":
+            row = f'<div style="--lf-block-frame:1">{row}</div>'
+        return f"{row}<p>Following text keeps the rows apart.</p>"
+
+    deliberate = "".join(
+        f"""<div id="deliberate-{display}" style="display:{display};grid-template-columns:1fr 1fr">
+  <p style="margin-block-start:0">One deliberately higher item.</p>
+  <p style="margin-block-start:13px">One lower item.</p>
+</div>"""
+        for display in ("flex", "grid")
+    )
     page = open_page(
         browser,
         serve(
             leaf_page(
-                "Split row",
-                f"""<h1>Rows</h1>{row}
-<div id="deliberate" style="display:{display};grid-template-columns:1fr 1fr">
-  <p style="margin-block-start:0">One deliberately higher item.</p>
-  <p style="margin-block-start:13px">One lower item.</p>
-</div>
-<p>Following text keeps the rows away from the page frame's edges.</p>""",
+                "Split rows",
+                "<h1>Rows</h1>"
+                + "".join(rows(display, frame) for display, frame in cases)
+                + deliberate
+                + "<p>Following text keeps the rows away from the page frame's edges.</p>",
             )
         ),
     )
 
-    def tops():
+    def tops(name):
         return page.evaluate(
-            """() => ['left', 'right'].map(id =>
-              Math.round(document.getElementById(id).getBoundingClientRect().top))"""
+            """name => ['left', 'right'].map(side => Math.round(
+              document.getElementById(`${side}-${name}`).getBoundingClientRect().top))""",
+            name,
         )
 
-    left, right = tops()
-    assert left != right
-    assert any(
-        f["id"] == "row" and f["edge"] == "above"
-        for f in render_checks_model.evaluate_probe(page, "splitEdges")
-    )
-    assert not [
-        f
-        for f in render_checks_model.evaluate_probe(page, "splitEdges")
-        if f["id"] == "deliberate"
-    ]
-    page.locator("#row").evaluate("el => el.style.setProperty('--lf-holds-edge', '1')")
-    left, right = tops()
-    assert left == right
-    assert not [
-        f
-        for f in render_checks_model.evaluate_probe(page, "splitEdges")
-        if f["id"] == "row"
-    ]
+    def split(identity):
+        return [
+            f
+            for f in render_checks_model.evaluate_probe(page, "splitEdges")
+            if f["id"] == identity
+        ]
+
+    assert not split("deliberate-flex") and not split("deliberate-grid")
+    for display, frame in cases:
+        with subtests.test(display=display, frame=frame):
+            name = f"{display}-{frame}"
+            left, right = tops(name)
+            assert left != right
+            assert any(f["edge"] == "above" for f in split(f"row-{name}"))
+            page.locator(f"#row-{name}").evaluate(
+                "el => el.style.setProperty('--lf-holds-edge', '1')"
+            )
+            left, right = tops(name)
+            assert left == right
+            assert not split(f"row-{name}")
 
 
 def test_every_idiom_in_the_catalog_stands_in_a_corpus_source(browser):
@@ -3147,35 +3248,7 @@ def aim_selectors():
     return " ".join(tinycss2.serialize(rules[0].prelude).split())
 
 
-AIM_BOXES = """(selectors) => {
-  const floor = parseFloat(
-    getComputedStyle(document.documentElement).getPropertyValue("--aim-floor")
-  );
-  const short = [];
-  let seen = 0;
-  const sweep = (root) => {
-    for (const el of root.querySelectorAll(selectors)) {
-      const box = el.getBoundingClientRect();
-      // A box and not checkVisibility(): the corpus renders much of itself inside
-      // content-visibility sections, which this browser answers no for, and a control
-      // laid out inside one is a control a user reaches by scrolling to it.
-      if (!box.width || !box.height) continue;
-      const shown = getComputedStyle(el);
-      // Hidden, or standing there for a pointer a finger is not: the diff's line
-      // comment is transparent and takes no presses until its row is hovered, and a
-      // finger never hovers it.
-      if (shown.visibility === "hidden") continue;
-      if (shown.opacity === "0" || shown.pointerEvents === "none") continue;
-      seen += 1;
-      if (Math.min(box.width, box.height) < floor - 0.5)
-        short.push(`${Math.round(box.width)}x${Math.round(box.height)} ${el.className}`);
-    }
-    for (const el of root.querySelectorAll("*"))
-      if (el.shadowRoot) sweep(el.shadowRoot);
-  };
-  sweep(document);
-  return {floor, seen, short};
-}"""
+AIM_BOXES = browser_function("aims.js", "flooredAims")
 
 
 # Everything an injected control still draws once the medium has taken the press away.
@@ -3288,7 +3361,8 @@ def short_aim_findings(page):
     rule that states a minimum of its own for one of these outranks it — and a package's
     38px button or the chrome's 28px step is shorter than a finger. Those fold the floor
     in with max(), and this sweep is what says they did: it reads the layer's selector
-    list, then measures every visible control under an emulated finger."""
+    list, then measures every visible control, with any reach it hangs past its box,
+    under an emulated finger."""
     cdp = page.context.new_cdp_session(page)
     cdp.send("Emulation.setTouchEmulationEnabled", {"enabled": True})
     try:
@@ -3330,7 +3404,7 @@ def pressable_paper_findings(page):
     mean anything: a corpus whose controls were bare and whose disclosures were open
     everywhere would pass the assertions below while proving nothing about the medium.
     """
-    page.get_by_role("tab", name="Command", exact=True).click()
+    page.locator('[role="tab"][aria-controls="corpus-command-hub"]').click()
     expect(page.locator("#corpus-command-hub")).to_be_visible()
     on_screen = page.evaluate(PRINTED_OFFERS)
     assert sum(1 for offer in on_screen if offer["pressable"]) > 20, (
@@ -4008,11 +4082,11 @@ def test_a_breakout_takes_the_rooms_width_unless_the_page_sizes_it(browser, serv
     assert off == ["<iframe id=sized>", "<iframe id=wider>"], misplaced
 
 
-def test_an_item_spanning_its_block_is_a_breakout(browser, serve):
-    """An item allocated the column spans the wide block it holds, so its ring goes
+def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
+    """An obligation allocated the column spans the wide block it holds, so its ring goes
     round the block, and the gate named it as set out in the margin on every page with
     one. The theme says which boxes it lets stand past their holders, so the gate reads
-    the item as the breakout it is. A page width on an item moves its edges off the
+    the obligation as the breakout it is. A page width on an obligation moves its edges off the
     column's, so its block keeps to it and neither stands past the column. A box padded
     or sized past the column without that leave is named, whether or not it paints there
     or a breakout fills it."""

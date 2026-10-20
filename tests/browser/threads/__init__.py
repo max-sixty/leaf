@@ -14,8 +14,8 @@ from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
-    SEATED_ITEM_LAYER,
-    SEATED_ITEM_WIDGETS,
+    SEATED_OBLIGATION_LAYER,
+    SEATED_OBLIGATION_WIDGETS,
     panel_comment,
 )
 from render_cases_navigation import source_revision
@@ -167,8 +167,7 @@ def stream_reply(page_dir, root, text):
         transaction.set_stream_reply(
             "codex-thread",
             "leaf-turn",
-            root,
-            root,
+            {"parent": root, "responds": root},
             STREAM_ATTEMPT,
             "item-1" if text else None,
             text,
@@ -472,8 +471,8 @@ def seated_page(serve, kind):
             f'<h1>Review the plan</h1>{SEAT_FILLER}<lf-verdict id="proposal" asks>'
             f"Should these jobs share a visit?</lf-verdict>{SEAT_FILLER}",
         ),
-        layer_registry=SEATED_ITEM_LAYER,
-        layer_widgets=SEATED_ITEM_WIDGETS,
+        layer_registry=SEATED_OBLIGATION_LAYER,
+        layer_widgets=SEATED_OBLIGATION_WIDGETS,
     ), "#proposal"
 
 
@@ -663,7 +662,7 @@ customElements.define('lf-capture-art', class extends HTMLElement {
 
 def open_capture_area(page, *, touch=False):
     """Enter the screenshot tool through its ordinary page-control route: the leaf's
-    menu, Annotations, Capture area."""
+    menu, Annotations, Capture area, and wait for its first area to paint."""
     menu = page.locator(".lf-fp-menu")
     for press in (
         page.locator(".lf-fp-leaf"),
@@ -676,4 +675,5 @@ def open_capture_area(page, *, touch=False):
             press.click()
     surface = page.get_by_role("region", name="Capture area", exact=True)
     expect(surface).to_be_visible()
+    expect(surface.locator(".lf-region-selection")).to_be_visible()
     return surface

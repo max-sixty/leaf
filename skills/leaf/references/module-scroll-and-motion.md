@@ -31,6 +31,17 @@ theme to placement within the pane, such as track sizes, and don't copy the Layo
 full-height rules. Generate plain boxes rather than `lf-pane` elements, which the render
 gate expects to find in the page's file.
 
+A box the module generates to stand beside what it serves, such as a playground's rail
+of controls and instruction beside its stage, is a track. Mark it `data-lf-track`, and
+the Layout keeps it in view while the window scrolls a taller neighbour past, as it
+keeps a sidebar page's track block. The track sticks below the window's head room and
+any tab strip, takes at most the window's height below them, and scrolls what it holds
+beyond that. In a window shorter than 480px, where that height would show a few lines
+of what it holds, the track flows with the page. Inside a box that scrolls on its own,
+the track flows with that box. Where the module stacks the track with what it serves,
+as on a phone, it declares `--lf-track-posture: flow` on the track's parent, and the
+track flows with the page. Register the track as a reading region, since it may scroll.
+
 Register the pane's body, and any other box the widget may scroll, with
 `registerReadingRegion({id, host, body})` inside `whileConnected`, returning the
 function it gives back as the cleanup. `body` is the box that may scroll, and `host` the
@@ -84,7 +95,11 @@ it move, each revealing the item nearest. For a vertical move that keeps the sid
 scroll, use `scrollIntoReadingBand(target, holder, block, behavior)`, where `target` is
 an element or a Range and `holder` the element whose regions contain it. Unlike native
 `Element.scrollIntoView`, both stay inside a live sample. Use them only for a deliberate
-move; focusing a visible control or redrawing keeps the scroll.
+move; focusing a visible control or redrawing keeps the scroll. A landing keeps the
+target's `scroll-margin` clear on every side, which is where a focused control's ring
+stands. `fitsWhole(target)` says whether the target and those margins fit the room a
+landing has, so a widget can bring in a heading or label with an item where it fits,
+and the item alone where it does not.
 
 `scrollLimit(box)` is how far a box scrolls down, and `atScrollEnd(box)` whether it is
 there. `landingInsets(scroller)` reads a scroller's `scroll-padding`.
@@ -134,7 +149,10 @@ an `overflow: hidden` box scrolls away with the page.
 ### Sideways scrollers and container queries
 
 Give a box a package scrolls sideways the class `lf-text-scroller`, and Leaf leaves room
-below its last line for an overlay scrollbar.
+below its last line for an overlay scrollbar. Write its overflow as `auto hidden`: down,
+`visible` computes to `auto` beside a scrolling axis, and a box that scrolls down
+starts the landing band again, so a landing on what it holds no longer clears the
+sticky headers over the box.
 
 The page decides how big a Leaf element's box is; the package decides how its contents
 use that space, from the element's own width. Prefer intrinsic grid or flex layout. For
@@ -190,7 +208,8 @@ own background.
 ## Notices and spoken words
 
 `notice(message)` shows a moment's news in Leaf's panel and announces it to screen
-readers, such as confirming a gesture the widget recorded. News not caused by the user
+readers, such as a view the widget switched to. A recorded gesture is acknowledged by the
+`says` its dispatch gives (`module-state.md`). News not caused by the user
 passes `{background: true}` and waits behind what the user just did; `{announce: false}`
 only shows it. `announce(message)` only announces, for words already on screen.
 

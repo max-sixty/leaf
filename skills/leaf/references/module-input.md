@@ -98,7 +98,7 @@ as `1` and Keep as `2`, and disabling `1` must not turn `2` into something else.
 page keeps `m` and `Shift+m` for moving through On me.
 
 `decision: true`, which needs a `control`, marks a command that starts, advances,
-answers or revises the item holding it; it forwards no keys by itself. A forwarded key
+answers or revises the obligation holding it; it forwards no keys by itself. A forwarded key
 runs the original row, if available. Register each command once, not on every nearby
 button.
 
@@ -164,6 +164,11 @@ whether focus is in a scope. `whenLeft(element, leave)` runs `leave` once when f
 leaves an element. A group the user moves through with arrow keys offers one Tab stop
 with `rove(items, stop)`.
 
+`onStanding(read)` calls `read(node, cause, left)` synchronously when focus changes,
+including inside a declared shadow root, and returns its unsubscribe function. Register
+it inside `whileConnected` and call that function in the connection's cleanup. The
+causes are `return`, `press`, `step`, `move`, and `drop`; a dropped place is `null`.
+
 ### Layers
 
 A widget opening its own layer, such as a list over its contents, calls
@@ -228,7 +233,7 @@ element drawn on; a moving visual listens for it and freezes what it shows.
 A widget's own text box is `offer(TEXT_FIELD)`, Leaf's Markdown editor, which shows the
 draft as the sent message will read, behaves like a textarea, and fires `input` only for
 the user's edits. `TEXT_FIELD` is its tag, and `TEXT_BOX` matches it or a native
-textarea. The field matches `:state(ready)` once its editor exists. When the field
+textarea. The field matches `:state(ready)` once it draws its words. When the field
 replaces text the user was reading, leave that text in place until the field is ready,
 so the scroller doesn't shrink.
 

@@ -19,23 +19,214 @@
    * (`--lf-measure`, read by theme.css) and allocate each block's declared room
    * (`data-lf-space`), whose rules name the document Layouts in one list (Breakouts,
    * below). A workspace does neither: its grid sizes its regions.
-   *
+   */
+  html:is(
+      [data-lf-layout~="column"],
+      [data-lf-layout~="sidebar"],
+      [data-lf-layout~="workspace"]
+    )
+    body {
+    margin: 0;
+  }
+  @media screen {
+    html[data-lf-live]:is(
+        [data-lf-layout~="column"],
+        [data-lf-layout~="sidebar"],
+        [data-lf-layout~="workspace"]
+      ):not([data-lf-sample-block])
+      body {
+      min-height: 100%;
+    }
+  }
+  /*
    * The box a Layout arranges is `main`, or a child of a `main` that carries no Layout
-   * of its own, and the box's parent is the shell the Layout places it in: `body` or
-   * `main`. The box says so (`--lf-layout-box`), and the runtime finds it by that
-   * (prepaint.js, `layoutBox`) rather than by reading a Layout class. It is the style
-   * container a margin resident asks for the Layout's readings (`lf-content-frame`,
-   * theme.css), and a `main` holding it is its shell and the size its `cqi` measure. */
+   * of its own, or the child of a part of such a `main`, a member of the child that holds
+   * the page's parts (`data-lf-views="parts"`), as each part holds its own. The box's
+   * parent is the shell the Layout places it in: `body`, `main` or the part. The box says so
+   * (`--lf-layout-box`), and the runtime finds the shown one by that (prepaint.js,
+   * `layoutBox`) rather than by reading a Layout class. It is the style container a
+   * margin resident asks for the Layout's readings (`lf-content-frame`, theme.css), and a
+   * shell other than `body` is the size its `cqi` measure. Its padding draws nothing, so
+   * it trims what it holds at its edges (`--lf-block-frame: trim`, theme.css). */
   @property --lf-layout-box {
     syntax: "*";
     inherits: false;
   }
-  :is(main, main > *):is(.layout-column, .layout-sidebar, .layout-workspace) {
+  :is(main, main > *, main > [data-lf-views="parts"] > * > *):is(
+    .layout-column,
+    .layout-sidebar,
+    .layout-workspace
+  ) {
     --lf-layout-box: 1;
+    --lf-block-frame: trim;
     container-name: lf-content-frame;
   }
-  main:has(> :is(.layout-column, .layout-sidebar, .layout-workspace)) {
+  :is(main, main > [data-lf-views="parts"] > *):has(
+    > :is(.layout-column, .layout-sidebar, .layout-workspace)
+  ) {
     container-type: inline-size;
+  }
+  /* A page of parts: a `main` that carries no Layout and holds the page's parts
+   * (`data-lf-views="parts"`, lf-parts.js), each a member whose child is the box its own
+   * Layout arranges (above). Live, a column down the left holds what the page writes
+   * before the parts, its title, and under it the parts' list (its `tablist`); the open
+   * part takes the rest of the width from the top of the page. Title and list both stick
+   * at the top of the window, the list below the title by the title's height, which
+   * prepaint.js measures (`--lf-parts-title-h`), since no CSS can stack one sticking box
+   * under another of unknown height. So the column stands still whichever part is open
+   * and wherever it is read. The page is at least the window's height, from first paint
+   * and before the list is drawn, so a short part leaves nothing to scroll and a
+   * full-height workspace takes the whole window. The holder itself draws nothing. The
+   * part is the shell its Layout's box stands in. On a phone the title, the list and the
+   * part stack. Before the module upgrades the holder, the column holds only the title. */
+  @media screen {
+    html[data-lf-interactive]
+      body
+      > main:not(.layout-column, .layout-sidebar, .layout-workspace):has(
+        > [data-lf-views="parts"]
+      ) {
+      --lf-parts-list: 15rem;
+      display: grid;
+      grid-template-columns: var(--lf-parts-list) minmax(0, 1fr);
+      grid-template-rows: auto minmax(0, 1fr);
+      align-items: start;
+      box-sizing: border-box;
+      min-block-size: var(--lf-view-height);
+    }
+    /* What the page writes before the parts, named from itself rather than by a `:has()`
+     * on `main`, which would restyle the whole document on every write: what stands
+     * before the parts' holder. */
+    html[data-lf-interactive]
+      body
+      > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+      > :has(~ [data-lf-views="parts"]):not(
+        [data-lf-views="parts"],
+        [data-lf-views="parts"] ~ *
+      ) {
+      grid-column: 1;
+      grid-row: 1;
+      position: sticky;
+      top: var(--lf-top);
+      box-sizing: border-box;
+      margin: 0;
+      padding: var(--sp-4) 20px 0;
+      --lf-parts-title: 1;
+    }
+    html[data-lf-interactive]
+      body
+      > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+      > [data-lf-views="parts"] {
+      display: contents;
+    }
+    html[data-lf-interactive]
+      body
+      > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+      > [data-lf-views="parts"]
+      > [role="tablist"] {
+      grid-column: 1;
+      grid-row: 2;
+    }
+    html[data-lf-interactive]
+      body
+      > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+      > [data-lf-views="parts"]
+      > :not([role="tablist"]) {
+      grid-column: 2;
+      grid-row: 1 / -1;
+    }
+    html[data-lf-interactive]
+      body
+      > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+      > [data-lf-views="parts"]
+      > :not([role="tablist"], [hidden]) {
+      align-self: stretch;
+    }
+    /* A full-height workspace's height is its part's, not its content's, so the part
+     * contributes none of its own to the row it fills. */
+    @media (min-width: 720px) and (min-height: 480px) {
+      html[data-lf-interactive]
+        body
+        > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+        > [data-lf-views="parts"]
+        > :not([role="tablist"], [hidden]):has(> .layout-workspace) {
+        contain: size;
+      }
+      html[data-lf-interactive]
+        body
+        > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+        > [data-lf-views="parts"]
+        > :not([role="tablist"], [hidden])
+        > .layout-workspace {
+        block-size: 100%;
+      }
+    }
+    @container lf-shell (width < 640px) {
+      html[data-lf-interactive]
+        body
+        > main:not(.layout-column, .layout-sidebar, .layout-workspace):has(
+          > [data-lf-views="parts"]
+        ) {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: none;
+        min-block-size: 0;
+      }
+      html[data-lf-interactive]
+        body
+        > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+        > :has(~ [data-lf-views="parts"]):not(
+          [data-lf-views="parts"],
+          [data-lf-views="parts"] ~ *
+        ),
+      html[data-lf-interactive]
+        body
+        > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+        > [data-lf-views="parts"]
+        > [role="tablist"],
+      html[data-lf-interactive]
+        body
+        > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+        > [data-lf-views="parts"]
+        > :not([role="tablist"]) {
+        grid-column: 1;
+        grid-row: auto;
+      }
+      /* The title scrolls away; the list sticks over the part (the package theme). */
+      html[data-lf-interactive]
+        body
+        > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+        > :has(~ [data-lf-views="parts"]):not(
+          [data-lf-views="parts"],
+          [data-lf-views="parts"] ~ *
+        ) {
+        position: static;
+      }
+      html[data-lf-interactive]
+        body
+        > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+        > [data-lf-views="parts"]
+        > :not([role="tablist"], [hidden]) {
+        align-self: start;
+      }
+      /* Stacked, the title and list stand over the part, so a full-height workspace takes
+       * the window's height again and the page scrolls past them to it. */
+      @media (min-width: 720px) and (min-height: 480px) {
+        html[data-lf-interactive]
+          body
+          > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+          > [data-lf-views="parts"]
+          > :not([role="tablist"], [hidden]):has(> .layout-workspace) {
+          contain: none;
+        }
+        html[data-lf-interactive]
+          body
+          > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+          > [data-lf-views="parts"]
+          > :not([role="tablist"], [hidden])
+          > .layout-workspace {
+          block-size: var(--lf-view-height);
+        }
+      }
+    }
   }
   /* The pane role's grammar (theme.css owns its look): which row each child stands in,
    * and a body held to the pane's width. Not a page Layout, but it resets what a widget
@@ -76,20 +267,11 @@
    * on the wide line, and prose and breakouts sharing one left edge. Reconsider if column
    * pages keep opening with a wide surface, or keep writing their own CSS to line a
    * title up with one. */
-  html[data-lf-layout~="column"] body {
-    margin: 0;
-  }
-  @media screen {
-    html[data-lf-live][data-lf-layout~="column"]:not([data-lf-sample-block]) body {
-      min-height: 100%;
-    }
-  }
-  :is(main, main > *).layout-column {
+  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-column {
     max-width: var(--col);
     margin-inline: auto;
     padding-inline: var(--col-pad);
     padding-block: var(--page-pad-start) var(--page-pad-end);
-    --lf-block-frame: trim;
     --lf-measure: var(--col);
     --lf-width: min(var(--col), max(0px, 100cqi - 2 * var(--col-pad)));
     --lf-beside: calc((100cqi - var(--lf-width)) / 2);
@@ -130,7 +312,7 @@
     [data-lf-column-shell] > :not(.layout-column) {
       grid-column: 1 / -1;
     }
-    :is(main, main > *).layout-column {
+    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-column {
       --lf-column-shell: grid;
     }
     [data-lf-column-shell] > .layout-column {
@@ -153,7 +335,7 @@
   }
   /* An empty map-only slot already has its margin posture: no margin and no
    * formatting context between the blocks around it. */
-  :is(main, main > *).layout-column
+  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-column
     > aside.sidebar:nth-child(1 of aside.sidebar):has(
       > [data-lf-resident="map"]:only-child:empty
     ) {
@@ -163,38 +345,40 @@
   /* A resident anchors no scroll (its passage does), and is a reading region of the
    * Layout's own in either posture (`--lf-reading-region`, reading-regions.js), so the
    * reader's place in it survives a change of posture. */
-  :is(main, main > *).layout-column > aside.sidebar:nth-child(1 of aside.sidebar) {
+  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-column
+    > aside.sidebar:nth-child(1 of aside.sidebar) {
     --lf-resident: sidebar;
     --lf-sidebar-slot: margin;
     overflow-anchor: none;
     --lf-reading-region: layout;
   }
-  :is(main, main > *).layout-column aside.sidenote {
+  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-column
+    aside.sidenote {
     --lf-resident: note;
     overflow-anchor: none;
   }
   @media screen {
     /* Sticky, it can stand level with any band, so it takes its whole side. */
-    :is(main, main > *).layout-column[data-lf-margin~="sidebar"] {
+    :is(
+        main,
+        main > *,
+        main > [data-lf-views="parts"] > * > *
+      ).layout-column[data-lf-margin~="sidebar"] {
       --lf-sidebar-posture: margin;
       --lf-taken-l: calc(var(--lf-beside) + var(--lf-shift));
       --lf-top-outer: var(--lf-top);
     }
-    /* It scrolls what it holds, so it restarts `--lf-top` and its landing band
-     * (theme.css), and a focused link keeps the ring's room (`--lf-head-inset`). */
-    :is(main, main > *).layout-column[data-lf-margin~="sidebar"]
+    /* It sticks and scrolls what it holds, as a sidebar page's track block does
+     * (Sticking blocks, below). */
+    :is(
+        main,
+        main > *,
+        main > [data-lf-views="parts"] > * > *
+      ).layout-column[data-lf-margin~="sidebar"]
       > aside.sidebar:nth-child(1 of aside.sidebar) {
       float: left;
       clear: left;
-      position: sticky;
-      top: calc(var(--lf-top-outer) + var(--sp-4));
-      --lf-top: 0px;
-      --lf-top-covered: 0px;
-      --lf-landing-room: 0px;
-      --lf-head-inset: initial;
       width: calc(var(--sidebar) - var(--sp-4));
-      max-height: calc(var(--lf-view-height) - 2 * var(--sp-4));
-      overflow-y: auto;
       margin: 0 var(--sp-4) var(--sp-4) calc(-1 * var(--sidebar));
     }
   }
@@ -202,29 +386,37 @@
    * `data-lf-resident`) rests as a spine in that slot and reveals its labels over the
    * page; its package draws it there once the slot is in the margin. */
   @media screen and (hover: hover) and (pointer: fine) {
-    :is(main, main > *).layout-column
+    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-column
       > aside.sidebar:nth-child(1 of aside.sidebar):has([data-lf-resident="map"]) {
       --lf-resident: sidebar map;
     }
     /* A sidebar holding only the map stands as the map alone. */
-    :is(main, main > *).layout-column
+    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-column
       > aside.sidebar:nth-child(1 of aside.sidebar):has(
         > [data-lf-resident="map"]:only-child
       ) {
       --lf-resident: map;
     }
-    :is(main, main > *).layout-column[data-lf-margin~="map"] {
+    :is(
+        main,
+        main > *,
+        main > [data-lf-views="parts"] > * > *
+      ).layout-column[data-lf-margin~="map"] {
       --lf-sidebar-posture: margin;
     }
     /* At rest the map is its spine, so a breakout stops short of it. */
-    :is(main, main > *).layout-column:is(
+    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-column:is(
         [data-lf-margin~="map"],
         [data-lf-margin~="sidebar"]
       ):has(> aside.sidebar:nth-child(1 of aside.sidebar) [data-lf-resident="map"]) {
       --lf-taken-l: var(--map);
     }
     /* A sidebar whose map stands alone takes no room in the flow. */
-    :is(main, main > *).layout-column[data-lf-margin~="map"]
+    :is(
+        main,
+        main > *,
+        main > [data-lf-views="parts"] > * > *
+      ).layout-column[data-lf-margin~="map"]
       > aside.sidebar:nth-child(1 of aside.sidebar):has(
         > [data-lf-resident="map"]:only-child
       ) {
@@ -233,10 +425,20 @@
     }
   }
   @media screen {
-    :is(main, main > *).layout-column[data-lf-margin~="note"] [data-lf-space] {
+    :is(
+        main,
+        main > *,
+        main > [data-lf-views="parts"] > * > *
+      ).layout-column[data-lf-margin~="note"]
+      [data-lf-space] {
       clear: right;
     }
-    :is(main, main > *).layout-column[data-lf-margin~="note"] aside.sidenote {
+    :is(
+        main,
+        main > *,
+        main > [data-lf-views="parts"] > * > *
+      ).layout-column[data-lf-margin~="note"]
+      aside.sidenote {
       float: right;
       clear: right;
       width: calc(var(--note) - var(--sp-4));
@@ -298,7 +500,12 @@
      * A widget holding authored blocks (`x-content: markup`), one of which breaks out,
      * shares the arithmetic, so it may span that block: an lf-ask does (ask.css). `wide`
      * and `available` each refine the second rule. */
-    :where(:is(main, main > *):is(.layout-column, .layout-sidebar)) {
+    :where(
+      :is(main, main > *, main > [data-lf-views="parts"] > * > *):is(
+        .layout-column,
+        .layout-sidebar
+      )
+    ) {
       :is(
         [data-lf-space],
         [data-lf-content="markup"]:has(> [data-lf-space]:not([data-lf-kept]))
@@ -399,7 +606,7 @@
      * `normal` before `scroll-state` because Firefox and WebKit drop the second, and a
      * size container would zero its `max-content`. */
     @container not (style(--lf-room: 100%) or style(--lf-block-frame: 1)) {
-      :is(main, main > *).layout-column
+      :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-column
         table[data-lf-space]:not([data-lf-space] table, [data-lf-kept]) {
         contain: none;
         container-type: normal;
@@ -443,19 +650,13 @@
    * order is reading order at every width. Body and track take 2:1 of the room from
    * bases of 30rem and 18rem, and stack where they no longer fit or where the body would
    * lose its content's minimum. A header or footer takes the whole row. Flex margins do
-   * not collapse, so the items' block margins go. */
-  html[data-lf-layout~="sidebar"] body {
-    margin: 0;
-  }
-  @media screen {
-    html[data-lf-live][data-lf-layout~="sidebar"]:not([data-lf-sample-block]) body {
-      min-height: 100%;
-    }
-  }
-  :is(main, main > *).layout-sidebar {
+   * not collapse, so the items' block margins go. The row holds its edge
+   * (`--lf-holds-edge`, theme.css): each item beside another stands at both of its
+   * edges, so the trim follows into each alike, a header only from the top and a footer
+   * only from the foot. */
+  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar {
     padding-inline: clamp(var(--col-pad), 4cqi, 64px);
     padding-block: var(--page-pad-start) var(--page-pad-end);
-    --lf-block-frame: trim;
     --lf-measure: var(--col);
     max-width: var(--wide-page-max);
     margin-inline: auto;
@@ -465,21 +666,29 @@
     flex-wrap: wrap;
     align-items: flex-start;
     gap: var(--sp-4);
+    --lf-holds-edge: 1;
   }
-  :is(main, main > *).layout-sidebar > :is(header, footer) {
+  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
+    > :not(footer) {
+    --lf-frame-start: 1;
+  }
+  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
+    > :not(header) {
+    --lf-frame-end: 1;
+  }
+  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
+    > :is(header, footer) {
     flex: 1 0 100%;
     margin-block: 0;
   }
-  :is(main, main > *).layout-sidebar > :not(header, footer) {
+  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
+    > :not(header, footer) {
     flex: 2 1 30rem;
     margin-block: 0;
   }
-  :is(main, main > *).layout-sidebar > aside {
+  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar > aside {
     flex: 1 1 18rem;
     --lf-resident: track;
-  }
-  :is(main, main > *).layout-sidebar > :not(header, footer) > :first-child {
-    margin-top: 0;
   }
   /* A track holding one block keeps it in view beside the scrolling body: sticky below
    * the window's head room and any tab strip, scrolling what it holds within the window, and only
@@ -488,26 +697,65 @@
    * so the margin reading marks it (`data-lf-beside`, prepaint.js `residency`). Like a
    * margin sidebar, the block restarts the slot and landing band, keeps the ring's room,
    * anchors no reading, and is a reading region of the Layout's own. */
-  :is(main, main > *).layout-sidebar > aside:has(> :only-child) {
+  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
+    > aside:has(> :only-child) {
     align-self: stretch;
   }
-  :is(main, main > *).layout-sidebar > aside > :only-child {
+  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
+    > aside
+    > :only-child {
     --lf-reading-region: layout;
   }
   @media screen {
-    :is(main, main > *).layout-sidebar {
+    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar {
       --lf-top-outer: var(--lf-top);
     }
-    :is(main, main > *).layout-sidebar > aside[data-lf-beside] > :only-child {
-      position: sticky;
-      top: calc(var(--lf-top-outer) + var(--sp-4));
-      --lf-top: 0px;
-      --lf-top-covered: 0px;
-      --lf-landing-room: 0px;
-      --lf-head-inset: initial;
-      max-height: calc(var(--lf-view-height) - 2 * var(--sp-4));
-      overflow-y: auto;
-      overflow-anchor: none;
+    /* A widget's track: a box a widget generates beside what it serves, such as a
+     * playground's rail beside its stage, marked `data-lf-track`. It sticks as a track
+     * block does (module-scroll-and-motion.md, "Reading regions"). */
+    :has(> [data-lf-track]) {
+      --lf-top-outer: var(--lf-top);
+    }
+    /* Sticking blocks: a column's sidebar in the margin, a sidebar page's track block
+     * beside the body and a widget's track stand below the window's head room and any tab
+     * strip, and scroll what they hold within the window below that, so each restarts
+     * `--lf-top` and its landing band (theme.css), a focused link keeps the ring's room
+     * (`--lf-head-inset`), and it anchors no scroll. It holds that height on purpose
+     * (`--lf-holds-height`). Only the window's scroll keeps one in view, since its height
+     * is the window's: inside a box that scrolls ([data-lf-scrolls], state.css), inside
+     * another sticking block, or where a widget stacks its track with what it serves,
+     * `--lf-track-posture: flow` holds and the block flows with its holder. It also
+     * flows in a window shorter than 480px, where a workspace flows too (below). Bounded
+     * to such a window, the block would show a few lines of what it holds, and its foot,
+     * such as a playground's submit button, only by scrolling inside it; flowing, the
+     * page scrolls to all of it. */
+    @media (min-height: 480px) {
+      @container not style(--lf-track-posture: flow) {
+        :is(
+            main,
+            main > *,
+            main > [data-lf-views="parts"] > * > *
+          ).layout-column[data-lf-margin~="sidebar"]
+          > aside.sidebar:nth-child(1 of aside.sidebar),
+        :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
+          > aside[data-lf-beside]
+          > :only-child,
+        [data-lf-track] {
+          position: sticky;
+          top: calc(var(--lf-top-outer) + var(--sp-4));
+          --lf-top: 0px;
+          --lf-top-covered: 0px;
+          --lf-landing-room: 0px;
+          --lf-head-inset: initial;
+          --lf-track-posture: flow;
+          max-height: calc(
+            100dvh - var(--lf-foot-room) - var(--lf-top-outer) - 2 * var(--sp-4)
+          );
+          overflow-y: auto;
+          overflow-anchor: none;
+          --lf-holds-height: 1;
+        }
+      }
     }
   }
   /* Tiles: equal cells, as many to a row as fit at 9rem, each row's cells one height.
@@ -531,22 +779,15 @@
    * painted by delivery; a widget-generated one also carries `data-lf-generated`. The
    * workspace takes the whole window, with minimal gutter, gap and header, since every
    * pixel of frame comes from the panes. Type is the theme's (`.density-working`). */
-  html[data-lf-layout~="workspace"] body {
-    margin: 0;
-  }
-  @media screen {
-    html[data-lf-live][data-lf-layout~="workspace"]:not([data-lf-sample-block]) body {
-      min-height: 100%;
-    }
-  }
-  :is(main, main > *).layout-workspace {
-    padding-inline: 12px;
+  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace {
+    --lf-workspace-gutter: 12px;
+    padding-inline: var(--lf-workspace-gutter);
     padding-block: var(--sp-2) var(--page-pad-end);
-    --lf-block-frame: trim;
   }
   /* The header is one row: the title with the page's status beside it, wrapping only
    * where the row runs out. A lede belongs in a pane. */
-  :is(main, main > *).layout-workspace > header {
+  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
+    > header {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
@@ -554,12 +795,14 @@
     padding-block: 0 var(--sp-2);
     --lf-block-frame: 1;
   }
-  :is(main, main > *).layout-workspace > header > * {
+  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
+    > header
+    > * {
     margin-block: 0;
   }
   /* A body that is not itself a pane is a reading region of the Layout's own
    * (reading-regions.js, `syncLayoutRegion`). */
-  :is(main, main > *).layout-workspace
+  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
     > :not(header, footer, [data-lf-reading-role="pane"]) {
     --lf-reading-region: layout;
   }
@@ -568,7 +811,7 @@
    * ring outside its box, so neighbours' rings fill the gap as one line and an empty
    * cell shows the page's ground. A pane a body widget generates
    * (`data-lf-generated`) is that widget's region, so neither is drawn for it. */
-  :is(main, main > *).layout-workspace
+  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
     > :not(header, footer):has(
       > [data-lf-reading-role="pane"]:not([data-lf-generated])
     ) {
@@ -576,15 +819,48 @@
     border: 1px solid var(--rule);
     border-radius: var(--r);
   }
-  :is(main, main > *).layout-workspace
+  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
     > :not(header, footer)
     > [data-lf-reading-role="pane"]:not([data-lf-generated]) {
     border: 0;
     border-radius: 0;
     box-shadow: 0 0 0 1px var(--rule);
   }
+  /* Where the window is too small to be the screen, the workspace flows and the page
+   * scrolls, and the header sticks at the window's top, so the page's status and its
+   * tally stay in view as they do on the screen: a Next pressed in the tally leaves the
+   * tally under the finger. As it sticks, the header covers the workspace's gutters with
+   * shadows in its ground colour, which paint without moving its box out of the column.
+   * What it stands over adds its height to the sticky-header slot (`--lf-top`,
+   * theme.css), so a landing and a sticky box below clear it; no CSS reads a box's
+   * height, so the runtime writes it (prepaint.js, `--lf-layout-head-h`). The workspace
+   * passes its own slot down as `--lf-workspace-top` rather than `--lf-top-outer`, which
+   * a tab set in the body names for its own strip. The body is a stacking context of
+   * its own, so nothing it lifts paints over the header. */
+  @media screen and ((width < 720px) or (height < 480px)) {
+    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace {
+      --lf-workspace-top: var(--lf-top);
+      padding-block-start: 0;
+    }
+    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
+      > header {
+      position: sticky;
+      top: var(--lf-top);
+      z-index: 1;
+      padding-block: var(--sp-2);
+      background: var(--paper);
+      box-shadow:
+        calc(-1 * var(--lf-workspace-gutter)) 0 var(--paper),
+        var(--lf-workspace-gutter) 0 var(--paper);
+    }
+    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
+      > :not(header) {
+      --lf-top: calc(var(--lf-workspace-top) + var(--lf-layout-head-h, 0px));
+      isolation: isolate;
+    }
+  }
   @media screen and (min-width: 720px) and (min-height: 480px) {
-    :is(main, main > *).layout-workspace {
+    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace {
       --lf-full-height: 1;
       display: flex;
       flex-direction: column;
@@ -592,17 +868,19 @@
       padding-block-end: 0;
       box-sizing: border-box;
     }
-    :is(main, main > *).layout-workspace > :is(header, footer) {
+    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
+      > :is(header, footer) {
       flex: none;
     }
-    :is(main, main > *).layout-workspace > :not(header, footer) {
+    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
+      > :not(header, footer) {
       flex: 1 1 0;
       min-block-size: 0;
       margin-block: 0;
     }
     /* Only a page's grid of panes shares the body's height among its rows and gives its
      * panes a definite height; a body widget lays out its own tracks. */
-    :is(main, main > *).layout-workspace
+    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
       > :not(header, footer):has(
         > [data-lf-reading-role="pane"]:not([data-lf-generated])
       ) {
@@ -613,7 +891,7 @@
      * as a whole. Each box that scrolls here stops sticking boxes at its own top
      * (`--lf-top: 0px`; the theme's head room is the window's) and holds its height
      * on purpose (`--lf-holds-height`, theme.css). */
-    :is(main, main > *).layout-workspace
+    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
       > :not(header, footer, [data-lf-reading-role="pane"]) {
       overflow: auto;
       --lf-top: 0px;
@@ -644,7 +922,7 @@
      * a box that also scrolls. */
     @container style(--lf-holds-height: 1) {
       :is(
-          :is(main, main > *).layout-workspace
+          :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
             > :not(header, footer, [data-lf-reading-role="pane"]),
           [data-lf-reading-role="pane"] > :not(header, footer)
         )

@@ -85,7 +85,7 @@ import { randomId } from "./ids.js";
 import { focusDestination, readCaret, focused } from "./focus.js";
 import { retainUserIntent } from "./user-intent.js";
 import { CARET_KEYS, selectsAll } from "./control-selectors.js";
-import { raiseError } from "./errors.js";
+import { passErrorsAt, raiseError } from "./errors.js";
 import { notice } from "./notifications.js";
 
 // ---------- draft persistence ----------
@@ -123,8 +123,8 @@ import { notice } from "./notifications.js";
 // the older shared attempt. The log still outranks both: an attempt already present in
 // `events` is settled whatever stale active record storage hands back on reload.
 const DRAFT = "lf-draft:";
-// The page's own draft: the box of Comment on the page (thread/page-comment.js), which
-// the floating panel's field shares, and the one place a page thread starts.
+// The page's own draft: the floating panel's field, the one place a page thread
+// starts.
 export const PAGE_DRAFT = "general";
 // Where the draft at `ctx` is kept, as the store says (`where`): the page scope is in
 // the key. The storage listener below reads other tabs' writes by it, and a test that
@@ -603,7 +603,16 @@ export function forgetWritingPlace(ctx) {
 // destination, a content change to that draft like any other, and the refusal's error
 // carries the sentence naming that address (delivery.js). The error is about the box on
 // screen the sending gesture's words came back to, where there is one (`field`).
+//
+// Resume writing comes back to words a refusal handed back at their end (`atEnd`), as a
+// press on the error over them does (composing/input.js), so Enter sends them.
 export function keepRefusedWords(attempts) {
+  // The draft's length, which the editor clamps to the end of its words, since any
+  // attached images follow them.
+  const atEnd = (ctx) => {
+    const end = (activeDraftRecord(ctx)?.text ?? "").length;
+    return [end, end];
+  };
   let held = 0;
   for (const attempt of attempts) {
     const from = openedFrom.get(attempt);
@@ -614,7 +623,11 @@ export function keepRefusedWords(attempts) {
     const resumed = writingPlace?.context === under;
     clearDraft(under);
     if (resumed)
-      keepWritingPlace({ context: from, selection: [0, 0], generation: randomId() });
+      keepWritingPlace({
+        context: from,
+        selection: atEnd(from),
+        generation: randomId(),
+      });
     if (box.text) held += 1;
   }
   const returned = attempts.flatMap((attempt) => {
@@ -629,11 +642,16 @@ export function keepRefusedWords(attempts) {
       .map((view) => editorInput(view))
       .find((input) => input?.isConnected && input.checkVisibility()) ?? null;
   const hidden = returned.filter((ctx) => !shownIn(ctx));
+  // Words back where Resume writing already goes are resumed at their end too, not at
+  // the caret the send left.
+  const resumes = returned.find((ctx) => ctx === writingPlace?.context);
+  if (resumes !== undefined)
+    keepWritingPlace({ ...writingPlace, selection: atEnd(resumes) });
   // The gesture delivery was sending comes first, so it is the place Resume writing
   // reaches first, and the others stand behind it.
   for (const ctx of hidden.toReversed())
     if (writingPlace?.context !== ctx)
-      keepWritingPlace({ context: ctx, selection: [0, 0], generation: randomId() });
+      keepWritingPlace({ context: ctx, selection: atEnd(ctx), generation: randomId() });
   const sentences = [
     hidden.length && "Draft kept — g i resumes writing",
     held && "Reply kept — it returns when its comment sends",
@@ -738,7 +756,12 @@ export function createWritingResume({
       !input.readOnly &&
       !input.disabled
     ) {
-      intent.handoff(() => focusDestination(input, "move", { caret: place.selection }));
+      // Coming back to the words is the user dealing with any error over them, as a
+      // press on it is (errors.js, `passErrorsAt`).
+      intent.handoff(() => {
+        passErrorsAt(input);
+        focusDestination(input, "move", { caret: place.selection });
+      });
       return;
     }
     // A document behind the active one may lack a box the active one holds, so only

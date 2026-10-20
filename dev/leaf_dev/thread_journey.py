@@ -14,8 +14,8 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from leaf.registry.kernel import kinds_declaring
 from leaf.render_checks import rendered, wait_for_probe
-from leaf.schema import MESSAGE_KINDS
 from playwright.sync_api import Locator, Page, expect
 
 from leaf_dev.browser import scroll_settled
@@ -243,7 +243,7 @@ def delivery_journey(page: Page, surface: str, checkpoint: Checkpoint) -> dict:
     held = []
 
     def hold(route):
-        if route.request.post_data_json.get("kind") in MESSAGE_KINDS:
+        if route.request.post_data_json.get("kind") in kinds_declaring("message"):
             held.append(route)
         else:
             route.continue_()
@@ -257,7 +257,7 @@ def delivery_journey(page: Page, surface: str, checkpoint: Checkpoint) -> dict:
             with page.expect_request(
                 lambda request: (
                     request.url.endswith("/api/event")
-                    and request.post_data_json.get("kind") in MESSAGE_KINDS
+                    and request.post_data_json.get("kind") in kinds_declaring("message")
                 )
             ):
                 page.keyboard.press("Enter")

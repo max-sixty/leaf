@@ -1,6 +1,6 @@
 # Reading the page from a module
 
-Read with [module-authoring.md](module-authoring.md), which holds what every behavior module owes. This file covers reading the page's words, elements and declarations, the content helpers that render Markdown, code, images and icons, and the page readings: items, work hierarchies, history, and version changes.
+Read with [module-authoring.md](module-authoring.md), which holds what every behavior module owes. This file covers reading the page's words, elements and declarations, the content helpers that render Markdown, code, images and icons, and the page readings: obligations, work hierarchies, history, and version changes.
 
 ## Reading the page
 
@@ -51,16 +51,20 @@ message's markup first and then in the page, as the server does; a keyed contrac
 inside the widget's enclosing owner. Both helpers below throw for an undeclared
 attribute.
 
-`navigateToDatum(this, attribute, key, {success, missing})` takes the user to the first
+`navigateToDatum(this, attribute, key, {success, missing, focus})` takes the user to the first
 element `key` names in the referenced widget. The key is a visual part's id, a projected
 datum's key, or whatever the target's `lfElementsFor(key)` maps it to; `lf-code` takes
 line ranges, so `"3-5,8"` names those lines. Leaf has the target load or draw the datum,
-opens any disclosure around it, focuses it, updates the fragment, and announces
+opens any disclosure around it, reveals its start, focuses it, updates the fragment, and announces
 `success` or `missing`. A lazy target can implement `lfRevealDatum(key)`, returning a
 promise that resolves once the datum is loaded, `lfDataDatum(key)` to map a key to its
 projected element, and `lfDatumLabel(key)` to name a datum not yet drawn. Where your key
 is a source location rather than the datum's lasting identity, translate it and read
 `projectedDatum(widget, key)`, which returns the one matching element or `null`.
+
+Pass `focus: false` when the source remains the user's input surface, as a file
+navigator does while selecting evidence beside it. The destination is still revealed;
+the navigator keeps focus so the next arrow or activation continues there.
 
 #### Indicating (experimental)
 
@@ -141,7 +145,7 @@ For a thread control, put `iconElement("comment", "lf-action-icon")` in an
 
 A widget that draws from the readings below registers its drawing once with
 `watchProjection(owner, paint)`. Leaf calls `paint()` on the next microtask, again when
-the page first presents, and again whenever a reader it called, such as `readItems()` or a
+the page first presents, and again whenever a reader it called, such as `readObligations()` or a
 controller's `read()`, returns something new. So a paint never lists its inputs. Only
 reads before the first `await` count, and reads of DOM nodes don't; watch those
 yourself. The watcher pauses while the owner is out of the page. Call the returned
@@ -149,13 +153,14 @@ function to end it, or its `refresh()` to repaint after a change Leaf can't see,
 revealing held news. An optional third argument, `ready()`, holds every paint until it
 returns true.
 
-### Reading items and obligation queues
+### Reading obligations and the On lists
 
-An item is what a widget or a version's sign-off waits on the user for, and On me lists
-it. `readItems()` returns `{phase, all, user, unanswered}`. `all` holds every item whose
-source is still there, answered and withdrawn ones included; `user` the open items
-waiting on the user; and `unanswered` every open item, including those with the agent.
-Each record looks like this:
+An obligation is what a widget or a version's sign-off waits on the user for, or what an
+update the user handed over is owed, and the On lists list it by its next actor.
+`readObligations()` returns `{phase, all, user, unanswered}`. `all` holds every obligation
+whose source is still there, answered and withdrawn ones included; `user` the open
+obligations waiting on the user; and `unanswered` every open obligation, including those
+with the agent. Each record looks like this:
 
 ```js
 {
@@ -171,10 +176,10 @@ Each record looks like this:
 }
 ```
 
-A widget's item takes its answer from the state of the verb its entry's `x-awaits.value`
+A widget's obligation takes its answer from the state of the verb its entry's `x-awaits.value`
 names, and `x-awaits.answered` decides when it is complete ([package-data.md, "User
 state"](package-data.md#user-state)). So a partial answer can show while `status` is
-`open`, and an empty selection can be complete. `answer` is `null` until the item has an
+`open`, and an empty selection can be complete. `answer` is `null` until the obligation has an
 answer, and `answer.event` is `null` for authored state. An `lf-ask` or another widget
 declaring `x-awaits.encloses` around it supplies the prompt and where the user lands;
 `prompt.text` is `null` for a widget with no heading.
@@ -182,40 +187,48 @@ declaring `x-awaits.encloses` around it supplies the prompt and where the user l
 A widget whose entry declares `x-awaits.reply`, such as an `lf-ask` holding no
 widget, is a question the user answers in words: their next message in its thread, or
 a comment on it on the page, is its `answer.value` (`{text}`, or `{token}` for a
-settling reaction); `answeredInWords(item)` says whether an item is one. When the
+settling reaction); `answeredInWords(obligation)` says whether an obligation is one. When the
 agent ends it with `leaf task end` instead, `status` is `answered_elsewhere` or
 `withdrawn` and `end.detail` says why.
 
-An approval item, `source.kind === "approval"`, asks the user to approve the stamped
+An approval obligation, `source.kind === "approval"`, asks the user to approve the stamped
 version `source.version`. Approving sets `answer.value` to `true`, and Undo reopens it.
+
+An update's obligation, `source.kind === "update"`, is what a message the user sent, or an
+action in an answered widget's obligation, is owed. `source.id` names the event and
+`source.subject` the thread or widget it stands on. Its next actor is the agent while it
+owes a reply or a version, the user when it was handed back to send again, and `null`
+once a reply answered it, whose event `answer.event` names; `prompt.text` is `null`. Of
+several messages the user sent in a row, only the newest publishes one, since the reply
+to it answers them all. It has no place on the page, so `obligationsIn` never counts it.
 
 `thread` and `message` name the Thread and message of a widget inside a Thread.
 `prompt.target` is where the user goes to answer. A user's answer shows in `answer`
-at once; which items exist changes when the server's reading arrives.
+at once; which obligations exist changes when the server's reading arrives.
 
-`answerWords(item)` words an answer for display, using a widget's `answerWords`
-(`module-state.md`, "Declared widget state"). `itemsIn(region, items)` returns the
-widgets' items, not withdrawn, inside `region`; `lf-tabs` and `lf-tally` count with it,
-so a module marking items per card or section should too, passing `readItems().user`
-for the items waiting on the user.
+`answerWords(obligation)` words an answer for display, using a widget's `answerWords`
+(`module-state.md`, "Declared widget state"). `obligationsIn(region, obligations)` returns the
+widgets' obligations, not withdrawn, inside `region`; `lf-tabs` and `lf-tally` count with it,
+so a module marking obligations per card or section should too, passing `readObligations().user`
+for the obligations waiting on the user.
 
-`itemActions.open(id)` takes the user to an item, resolving to `false` if it is gone.
-`itemActions.next({within, dir})` steps to the next item waiting on the user inside
+`obligationActions.open(id)` takes the user to an obligation, resolving to `false` if it is gone.
+`obligationActions.next({within, dir})` steps to the next obligation waiting on the user inside
 `within`, or the previous with `dir: -1`, as `m` does in On me, and resolves to whether
 it arrived. A control that calls it should prevent `mousedown`'s default so focus stays
-put and a second press steps on. Items have no answer API; answer through the widget's
+put and a second press steps on. Obligations have no answer API; answer through the widget's
 own command.
 
 `readQueues()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
 under On me and On <agent>.
-Each row has a `kind` (`widget` or `approval` for an item, which it carries as `item`;
-`todo`; `resend` for an update the user must send again; `answer` for a reply the
-agent owes or sent; and others) and an `owner`, `user` or
-`agent`. Rows not done carry `offers: {open, done}`. `queueItemKey(row)` names a row
+Each row has a `kind`, its obligation's `source.kind` (`widget`, `approval` or `update`,
+the obligation it carries as `obligation`) or `todo` (the to-do it carries as `todo`),
+and an `owner`, `user` or `agent`: an `update` row is one to resend on the user's list,
+and a reply or version owed on the agent's. Rows not done carry `offers: {open, done}`. `queueItemKey(row)` names a row
 across moves between lists, and `queueTitle(row)` gives its title.
 `queueActions.open(key)` goes to a row. `queueActions.done(key)` ends a to-do the agent
 opened on the user, returning its admission promise, and returns `null` for any other
-row; items end through their own widget, reply or approval. Act on a collection only
+row; obligations end through their own widget, reply or approval. Act on a collection only
 when its `phase` is `ready`.
 
 ### Work hierarchies

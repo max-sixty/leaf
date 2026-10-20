@@ -29,6 +29,7 @@ from render_harness import (
     open_page,
     post_event,
     select,
+    selection_field,
     stamp_page,
     told,
     write,
@@ -168,7 +169,7 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
         const s = getSelection(); s.removeAllRanges(); s.addRange(r);
         document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
     }""")
-    page.get_by_role("button", name="Comment on selection", exact=True).click()
+    selection_field(page).click()
     page.locator(".lf-fab-input").click()
     quote = composer_quote(page)
     assert quote["shown"], "a selection across option cells cannot paint one passage"

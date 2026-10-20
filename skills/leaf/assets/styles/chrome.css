@@ -68,9 +68,9 @@
   user-select: none;
   -webkit-user-select: none;
 }
-/* The skip link's resting box: a pixel, out of flow and out of the selection, the
+/* A comment note's resting box: a pixel, out of flow and out of the selection, the
    geometry .lf-quiet has for the same reasons (shadow.css). */
-.lf-skip {
+.lf-mark-note {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -78,19 +78,17 @@
   user-select: none;
   -webkit-user-select: none;
 }
-/* The skip link rests transparent rather than clipped, since the on-screen readings
+/* A comment note rests transparent rather than clipped, since the on-screen readings
    (control sweeps, covered words, paper) ask opacity, and takes no pointer while it
    rests, being a keyboard affordance. */
-.lf-skip {
+.lf-mark-note {
   opacity: 0;
   pointer-events: none;
 }
-/* The skip link (leaf.js says why it stands where it does), a comment note
-   (anchor-note-view.js) and a picture's response proxy (anchor-controls.js) take this
-   chip's face at the window's head on focus. Outside the scope block, since the skip
-   link stands outside the container. Its ring insets: it is dropped over whatever the
-   page has there. */
-:is(.lf-skip, .lf-visual-action)[data-lf-focus] {
+/* A comment note (anchor-note-view.js) and a picture's response proxy
+   (anchor-controls.js) share this face at the window's head on focus. Its ring
+   insets: it is dropped over whatever the page has there. */
+:is(.lf-mark-note, .lf-visual-action)[data-lf-focus] {
   position: fixed;
   top: calc(var(--lf-head-room) + 6px);
   left: 8px;
@@ -111,7 +109,7 @@
   color: var(--ink);
   box-shadow: var(--raise-2);
 }
-.lf-skip[data-lf-focus] {
+.lf-mark-note[data-lf-focus] {
   opacity: 1;
   z-index: var(--lf-z-escaped-control);
 }
@@ -185,12 +183,12 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
    holds a thread waiting on the agent has left the user's list. One decision wears it at
    a time; a widget a page styles boxless hangs it on its contents' boxes (shownParts).
    It is an outline, so it moves nothing. A widget carrying the location itself stands
-   it down with `--lf-item-ring: none` on the decision. */
+   it down with `--lf-obligation-ring: none` on the decision. */
 /* The ring stands outside the decision, so a landing keeps its room at the scroller's
-   edge, as a margin entry's does (theme.css): an item landed at the top of a scrolling
+   edge, as a margin entry's does (theme.css): an obligation landed at the top of a scrolling
    pane stood flush with it, the top of its ring cut off under the pane's header rule. */
-[data-lf-item] {
-  outline: var(--lf-item-ring, var(--focus-ring));
+[data-lf-obligation] {
+  outline: var(--lf-obligation-ring, var(--focus-ring));
   outline-offset: var(--focus-ring-gap);
   scroll-margin-block: var(--focus-ring-landing);
 }
@@ -206,12 +204,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
      An omitted endpoint lets the browser interpolate to that underlying value. */
   from {
     background-color: var(--hi-tint);
-  }
-}
-@keyframes lf-runtime-4f3c2a8d-grow {
-  0% {
-    opacity: 0;
-    transform: translateY(-6px) scale(0.985);
   }
 }
 /* Everything below is private to the chrome: no widget or page class can match it. */
@@ -267,7 +259,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   /* A picture's response proxies stand on the details shelf rather than as a role written
      onto the provider's drawing. Resting, each is a conventional clipped control; focus
-     gives it the skip link's face at the window's head (above). */
+     gives it the comment note's face at the window's head (above). */
   .lf-visual-action {
     pointer-events: none;
   }
@@ -372,8 +364,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-dot.offline {
     background: var(--danger);
   }
-  /* Approval and Threads each hold the widest words they can show (data-lf-room), so
-     either can change without moving the other. */
   @layer lf-reset {
     .lf-thread-action {
       font: inherit;
@@ -774,6 +764,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     padding: 3px 0;
     vertical-align: top;
   }
+  /* A walk lands a command's row (command-reference.js), and the command's ring stands
+     past the row's edge, so the row keeps the ring's room as a landing's margin. */
+  .lf-command-reference tr[data-lf-command] {
+    scroll-margin-block: var(--focus-ring-landing);
+  }
   .lf-command-reference tr.lf-sequence-command td {
     padding-top: 8px;
     border-top: 1px solid var(--rule);
@@ -1024,7 +1019,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     top: 0;
     display: block;
   }
-  /* Item binding badges sit on the answer control's upper-left corner: the single digit is
+  /* Obligation binding badges sit on the answer control's upper-left corner: the single digit is
      a local label for the control it touches. */
   .lf-command-binding-badge {
     transform: translate(-50%, -50%);
@@ -1062,9 +1057,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     box-shadow: inset 0 -2px color-mix(in srgb, var(--accent) 72%, transparent);
   }
   /* Page search's box stands over the floating panel's row, centred on it as the row
-     is, where Previous, Next and Close search stand while it is open. It stands on the
-     panel's top, so a row that grows to hold those steps on a narrow phone carries the
-     box up rather than standing under it. */
+     is, where Select stands while it is open, with its ✕ at the row's end. It stands on
+     the panel's top, so a row that grows on a narrow phone carries the box up rather
+     than standing under it. */
   .lf-page-search {
     position: fixed;
     z-index: var(--lf-z-page-search);
@@ -1079,13 +1074,45 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     box-shadow: var(--raise-2);
   }
   .lf-page-search-status {
-    min-width: 0;
+    min-width: min-content;
+    margin-inline-start: 6px;
     min-height: 1lh;
     color: var(--muted);
     font-size: var(--t-6);
     font-variant-numeric: tabular-nums;
     text-align: right;
     white-space: nowrap;
+  }
+  /* The query keeps room for a word on the narrowest phone. The count's reserved room
+     is the most it will need, not a floor: past it, the count gives way down to the
+     words it says now, and only then does the query's room shrink. */
+  .lf-page-search-box::part(input) {
+    flex: 1 1 4em;
+  }
+  .lf-page-search-status > span {
+    min-inline-size: max(100%, max-content);
+  }
+  .lf-page-search-box::part(end) {
+    flex-shrink: 1;
+    min-inline-size: 0;
+  }
+  /* The arrows beside the count wear the field's quiet face, as its clear button does:
+     bare glyphs that take the chip's wash under the pointer, so the box reads as one
+     control rather than a field with buttons bolted on. They stand as a pair, close to
+     the count they move. */
+  .lf-page-search-step {
+    flex: none;
+    margin-inline-start: 0;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+  }
+  .lf-page-search-status + .lf-page-search-step {
+    margin-inline-start: 4px;
+  }
+  .lf-page-search-step:not([aria-disabled="true"]):hover {
+    background: var(--chip);
+    color: var(--ink);
   }
   .lf-legend-box {
     position: absolute;

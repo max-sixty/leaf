@@ -92,7 +92,7 @@ Thread's turns, and `threadSummary(thread)` its `topic`, the name Threads, the m
 Page Map show it under, and its `latest` activity.
 
 Address a Thread by its `key`, which stays the same after the server admits it. Its `id`
-is the name items and workflows use. `root` is its opening message, `anchor` names the
+is the name obligations and workflows use. `root` is its opening message, `anchor` names the
 `section` and `datum` it is attached to, and `attention.kind` is `"needs_user"` when it
 waits on the user and `"waiting"` when it is with the agent. `offers: {open, reply,
 resolve, reopen}` says which actions are available now. A message's `reactions` lists
@@ -157,7 +157,13 @@ inside messages live there.
 
 `render(shownCollection, parts)` names outlets inside the widget: a whole conversation
 with `parts.thread(thread.key, outlet)`, or its parts with
-`parts.message(thread.key, message.key, outlet)` and `parts.reply(thread.key, outlet)`.
+`parts.message(thread.key, message.key, outlet)` for each of its `threadTurns` and
+`parts.reply(thread.key, outlet)`. `parts.transcript(thread.key, outlet)` draws all of
+its turns as a whole conversation does, with progress folded and work under way as one
+dim line, for a widget that draws the conversation's head itself; it takes the place of
+message parts. A reaction a thread opens on is its root turn; any
+later reaction is drawn as the chip on the message it answers, so naming one as a
+message part throws.
 Leaf fills them and keeps the rendering, reactions, read tracking and reply draft; the
 package keeps layout, order, selection, scroll and disclosure. `parts.reply` takes
 `{hint, accessibleName, sent}`, where `sent()` runs after a send instead of moving the
@@ -225,7 +231,7 @@ the same targets and returns the same array as `threadOutlets`, for passages and
 parts as well as data; a widget's own outlet still wins. Outlets stay inside the
 element, and if `render` fails, presentation fails.
 
-The same element can show items, updates, status and margin actions by registering
+The same element can show obligations, updates, status and margin actions by registering
 `consumeAnnotations(owner, render)`. `render` runs synchronously after the conversations
 are placed, with the current inventory and a view:
 

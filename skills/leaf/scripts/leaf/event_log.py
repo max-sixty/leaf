@@ -14,12 +14,24 @@ from collections.abc import Iterator
 from copy import deepcopy
 from pathlib import Path
 
-from leaf.files import file_stamp, read_json
+from leaf.files import file_stamp
 from leaf.findings import Finding, Rejected
 from leaf.refusals import Refused
 from leaf.registry.kernel import kernel_event_ownership
 from leaf.schema import CURSOR_FILE
-from leaf.state import EVENTS_FILE, flocked, now_iso
+from leaf.state import (
+    EVENTS_FILE,
+    Record,
+    flocked,
+    now_iso,
+    object_schema,
+    replace_bytes,
+)
+
+# The acknowledgement cursor (`read_cursor`).
+CURSOR = Record(
+    "cursor", object_schema({"seq": {"type": "integer", "minimum": 0}}), since=13
+)
 
 
 def read_cursor(page_dir: Path) -> int:
@@ -33,7 +45,7 @@ def read_cursor(page_dir: Path) -> int:
     stored seq instead is silent and unbounded — every event the new log ever
     takes arrives at or below the cursor, so `leaf wait` never returns, the hooks
     report each comment as already answered, and `leaf wait --ack` writes nothing."""
-    stored = (read_json(page_dir / CURSOR_FILE) or {"seq": 0})["seq"]
+    stored = (CURSOR.read(page_dir / CURSOR_FILE) or {"seq": 0})["seq"]
     events = read_events(page_dir)
     return 0 if stored > (events[-1]["seq"] if events else 0) else stored
 
@@ -155,6 +167,22 @@ def _append_event_unlocked(
     # The record as every reader reads it back: seq is its line number, which the
     # stored line does not carry.
     return {**event, "seq": seq}
+
+
+def start_log(page_dir: Path, events: list[dict] = ()) -> None:
+    """Start a page's log holding `events`, each already admitted, in order: empty
+    for a page `page init` starts, or a sample's starting history (`samples`). The
+    log's inode is the page's successful-init marker, so it is written whole."""
+    stored = "".join(
+        jsonl_line({key: value for key, value in event.items() if key != "seq"}) + "\n"
+        for event in events
+    )
+    replace_bytes([(page_dir / EVENTS_FILE, stored.encode(), False)])
+
+
+def write_cursor(page_dir: Path, seq: int) -> None:
+    """Confirm receipt through `seq`, under the caller's page transaction."""
+    CURSOR.write(page_dir / CURSOR_FILE, {"seq": seq})
 
 
 def append_event(page_dir: Path, event: dict) -> dict:

@@ -1,4 +1,5 @@
 import {
+  HOLDS_WORD,
   progressFace,
   threadAttention,
   workflowLabel
@@ -27,8 +28,9 @@ import {
   afterScript,
   focusDestination,
   focused,
-  keeps
-} from "./bundle-sample-visibility.js";
+  keeps,
+  keepsText
+} from "./bundle-frame-visibility.js";
 import {
   html,
   render
@@ -463,8 +465,16 @@ function paintAgentDescription(control) {
   if (!reading) {
     control.removeAttribute("aria-description");
     control.removeAttribute("title");
+    paintLabelMore(control, null);
     return;
   }
+  const record = records.get(control);
+  const more = [
+    reading.title !== record?.label && reading.title,
+    reading.stage && reading.word,
+    reading.stage && reading.detail
+  ].filter(Boolean).join(" \xB7 ");
+  paintLabelMore(control, more);
   if (!reading.stage) {
     for (const [attribute, value] of [
       ["aria-description", reading.description],
@@ -475,7 +485,6 @@ function paintAgentDescription(control) {
     return;
   }
   const work = [reading.word, reading.detail].filter(Boolean).join(" \xB7 ");
-  const record = records.get(control);
   keeps(
     control,
     "aria-description",
@@ -490,6 +499,12 @@ function paintAgentDescription(control) {
       work
     ].filter(Boolean).join(" \xB7 ")
   );
+}
+function paintLabelMore(control, more) {
+  const line = control.querySelector(
+    ":scope > .lf-margin-entry-label > .lf-margin-entry-more"
+  );
+  if (line) keepsText(line, more ?? "");
 }
 function syncAgentDescriptionBase(control, description, title) {
   Object.assign(agentWorkflowDescription(control), { description, title });
@@ -612,6 +627,7 @@ function presentContributionEntry(control, offered, options = {}) {
   if (Object.hasOwn(options, "selected"))
     syncContributionSelection(control, options.selected);
   control.classList.toggle("lf-margin-entry", true);
+  control.classList.toggle(HOLDS_WORD, true);
   const priorClasses = contributorClasses.get(control) ?? [];
   const nextClasses = record.className?.split(/\s+/).filter(Boolean) ?? [];
   for (const name of priorClasses)
@@ -625,12 +641,13 @@ function presentContributionEntry(control, offered, options = {}) {
   render(
     html`${glyph}<span class="lf-margin-entry-space" aria-hidden="true"> </span
       ><span class="lf-margin-entry-label" aria-hidden="true"
-        ><span class="lf-margin-entry-label-word">${visibleLabel}</span>${record.context ? html`<span class="lf-margin-entry-context">${record.context}</span>` : null}</span
+        ><span class="lf-margin-entry-label-word">${visibleLabel}</span>${record.context ? html`<span class="lf-margin-entry-context">${record.context}</span>` : null}<span class="lf-margin-entry-more"></span></span
       >${record.count > 1 ? html`<span class="lf-margin-count" aria-hidden="true"
               >${record.count}</span
             >` : null}`,
     control
   );
+  paintAgentDescription(control);
   return control;
 }
 function trackContributionControl(offered, surface, key, control) {

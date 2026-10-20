@@ -28,12 +28,12 @@ from urllib.request import urlopen
 
 import click
 import yaml
-from leaf.render_gate.browser import ending
 from playwright.sync_api import expect, sync_playwright
 
 from leaf_dev import ROOT
 from leaf_dev.arms import environment
-from leaf_dev.commands.eval import PROMPTFOO, screenshot_judge
+from leaf_dev.commands.eval import PROMPTFOO
+from leaf_dev.screenshot_judge import screenshot_judge
 
 SOURCE = ROOT / "evals/ui-review-detection"
 MODELS = {
@@ -165,6 +165,9 @@ def stage(output):
         raise click.ClickException("Frozen timeline dependency changed")
     for name in ("cases.yaml", "rubric.json", "provider.mjs", "grade.mjs"):
         shutil.copyfile(SOURCE / name, output / name)
+    for suffix in (".py", ".mjs"):
+        name = f"screenshot_judge{suffix}"
+        shutil.copyfile(ROOT / "dev/leaf_dev" / name, output / name)
     shutil.copyfile(fixtures / "private/provenance.json", output / "provenance.json")
     shutil.copyfile(Path(__file__), output / "runner.py")
     for name in ("package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml"):
@@ -197,7 +200,7 @@ def stage(output):
     return provenance
 
 
-def grading(output, home):
+def grading(output, login):
     """Configure the standard judge on anonymous evidence, with a disposable home.
 
     The login home stays outside the evidence tree. Candidate providers read only
@@ -205,7 +208,8 @@ def grading(output, home):
     """
     evidence = output / "grading"
     evidence.mkdir()
-    provider = screenshot_judge(None, home)
+    provider = screenshot_judge(None, login)
+    provider["id"] = (output / "screenshot_judge.mjs").as_uri()
     write_json(
         output / "grader-environment.json",
         {
@@ -328,7 +332,7 @@ def eval_ui_review(models, condition, mode, repeat, prepare_only, output):
     cases = yaml.safe_load((output / "cases.yaml").read_text())["cases"]
     conditions = ["no-tools", "browser"] if condition == "both" else [condition]
     with (
-        tempfile.TemporaryDirectory(prefix="leaf-ui-grader-") as temporary,
+        tempfile.TemporaryDirectory(prefix="leaf-ui-grader-login-") as temporary,
         served(output / "site") as origin,
     ):
         for private in (
@@ -346,14 +350,16 @@ def eval_ui_review(models, condition, mode, repeat, prepare_only, output):
                     f"Private fixture path was exposed: {private}"
                 )
         tests, readings = [], {}
-        # Installed Chrome, the browser `provider.mjs` gives the model's live tool, so
-        # the screenshots, the tool and the recorded version are one build.
+        # Playwright's Chrome for Testing, the browser `provider.mjs` gives the model's
+        # live tool: the Python and Node Playwright pins match, so the screenshots, the
+        # tool and the recorded version are one build. A Google-signed Chrome would
+        # leave keychain keys behind on macOS (`leaf_dev.browser.shell_executable`).
         with (
             sync_playwright() as playwright,
-            ending(playwright.chromium.launch(channel="chrome")) as browser,
+            playwright.chromium.launch(channel="chromium") as browser,
         ):
             runtime = json.loads((output / "environment.json").read_text())
-            runtime["chrome"] = browser.version
+            runtime["browser"] = browser.version
             write_json(output / "environment.json", runtime)
             for variant, identity in provenance["variants"].items():
                 packet = output / "candidates" / identity
@@ -406,7 +412,7 @@ def eval_ui_review(models, condition, mode, repeat, prepare_only, output):
         write_json(output / "behavior-evidence.json", readings)
         config = {
             "description": f"UI review {mode}; automatic blinded evidence-aware grading",
-            "defaultTest": grading(output, Path(temporary) / "judge"),
+            "defaultTest": grading(output, Path(temporary) / ".codex"),
             "prompts": ["{{prompt}}"],
             "providers": [
                 {

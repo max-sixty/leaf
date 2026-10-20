@@ -195,7 +195,7 @@ def test_an_early_anchored_send_merges_history_and_keeps_its_seen_revision(
     expect(page.locator('[data-thread^="pending:"]')).to_have_count(0)
     # Threads lists the saved conversation beside the two the tab sent early.
     # Draw mode's steps stand in the marks' place until the user leaves it.
-    page.locator(".lf-fp-step", has_text="Exit Draw mode").click()
+    page.locator('.lf-fp-exit[aria-label="Exit Draw mode"]').click()
     page.locator(".lf-fp-threads").click()
     panel_settled(page, view="threads")
     rows = page.locator('.lf-fp-view[data-view="threads"] .lf-fp-thread')
@@ -278,7 +278,7 @@ def test_an_early_touch_comment_returns_its_words_when_delivery_is_refused(
     # comment, which says why over them.
     expect(editor).to_have_js_property("value", words)
     assert stored_draft_text(page, "general") == words
-    expect(page.locator(".lf-fp-error-cover")).to_have_text(
+    expect(page.locator(".lf-fp-field .lf-compose-error")).to_have_text(
         "Couldn't send — The cold comment was refused before append"
     )
     assert not [
@@ -289,7 +289,7 @@ def test_an_early_touch_comment_returns_its_words_when_delivery_is_refused(
     consume_browser_errors(page, http_error_console(400))
 
 
-COLD_ITEM = leaf_page(
+COLD_OBLIGATION = leaf_page(
     "Cold decisions",
     """<h1>Cold decisions</h1><lf-ask id="cold-ask"><h2>What now?</h2>
 <lf-options id="cold-choice" choose>
@@ -302,8 +302,8 @@ COLD_ITEM = leaf_page(
 def test_history_dependent_keys_keep_their_place_until_the_first_reading(
     browser, serve, key
 ):
-    """Item walking, Decisions, and Undo wait for their own saved history."""
-    url = serve(COLD_ITEM)
+    """Obligation walking, Decisions, and Undo wait for their own saved history."""
+    url = serve(COLD_OBLIGATION)
     if key != "m":
         append_command(
             serve.page_dir,

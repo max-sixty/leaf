@@ -115,7 +115,10 @@ describe("deployment configuration", () => {
     expect(dockerfile).toContain("codex-resources /codex-bin/codex-resources");
     expect(dockerfile).toContain("test -x /codex-bin/codex-resources/bwrap");
     expect(dockerfile).toContain("codex plugin marketplace add /app --json");
-    expect(codexConfig).not.toHaveProperty("plugins");
+    // Codex runs unsandboxed here, so the plugin's route out of the sandbox is off.
+    expect(codexConfig.plugins).toEqual({
+      "leaf@leaf": { mcp_servers: { leaf: { enabled: false } } },
+    });
   });
 
   it("keeps the model's shell from inheriting the OpenAI credential", () => {

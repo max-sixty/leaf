@@ -26,7 +26,7 @@ import {
   keeps,
   keepsText,
   nextRender
-} from "./bundle-sample-visibility.js";
+} from "./bundle-frame-visibility.js";
 import "./bundle-queued-work.js";
 import "./bundle-__export.js";
 
@@ -171,7 +171,7 @@ function createRegionSelector({
     if (ended) return false;
     if (event.type === "pointerdown") {
       if (busy || drag || !event.isPrimary || event.button !== 0) return false;
-      drag = { id: event.pointerId, x: event.clientX, y: event.clientY };
+      drag = { id: event.pointerId, x: event.clientX, y: event.clientY, from: box };
       box = { x: drag.x, y: drag.y, width: MIN_SIZE, height: MIN_SIZE };
       fit();
       return true;
@@ -179,9 +179,12 @@ function createRegionSelector({
     if (!drag || drag.id !== event.pointerId) return false;
     if (event.type === "pointermove") dragTo(event);
     else if (event.type === "pointerup" || event.type === "pointercancel") {
-      if (event.type === "pointerup") dragTo(event);
+      const drew = event.type === "pointerup" && (Math.abs(event.clientX - drag.x) >= MIN_SIZE || Math.abs(event.clientY - drag.y) >= MIN_SIZE);
+      if (drew) dragTo(event);
+      else box = drag.from;
       drag = null;
-      paintKeys();
+      if (drew) capture();
+      else fit();
     } else return false;
     return true;
   }
@@ -192,12 +195,15 @@ function createRegionSelector({
       id: "capture.region.attach",
       keys: ["Enter"],
       title: "Attach capture",
-      touch: "Attach capture",
+      // Lifting a pointer's drag attaches the area it drew.
+      touch: false,
       when: () => !ended && !busy && !drag,
       run: capture
     },
     {
       id: "capture.region.adjust",
+      // A pointer drags the area it wants instead.
+      touch: false,
       keys: [
         "ArrowLeft",
         "ArrowRight",
@@ -218,7 +224,7 @@ function createRegionSelector({
       id: "capture.region.cancel",
       keys: ["Escape"],
       title: "Cancel capture",
-      touch: "Cancel capture",
+      exit: true,
       when: () => !ended,
       run: cancel
     }

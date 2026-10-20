@@ -3,7 +3,7 @@
  *
  * A place is what an anchor names (anchor-resolution.js): an element with an id, a
  * passage inside one, or a part of a widget, such as a projected datum or a visual
- * part. A thread travels to its anchor's place, a fragment link to its element, an item
+ * part. A thread travels to its anchor's place, a fragment link to its element, an obligation
  * to its own arrival region, and a module's `navigateToDatum` to the part its
  * reference names. Every route shares two steps: `revealAddressed` draws the part,
  * and `reveal` opens what holds it. Each
@@ -27,11 +27,10 @@
  * (`returnToFragment`) is a trip that adds no entry.
  */
 
+import { referencedProjection, requireReference } from "./references.js";
 import {
   addressedElements,
   fragmentTarget,
-  referencedProjection,
-  requireReference,
   resolveAnchor,
   revealAddressed,
   sectionOf,
@@ -261,7 +260,7 @@ export function createAnchorTravel({
   // or newer intent leaves history and the continuing journey untouched. A destination
   // not yet placed (a datum a widget has yet to hydrate) is somewhere else. `there` is the
   // caller's reading of already being there where it asks more than the destination's
-  // own (an item's arrival region), built on the reading it is handed. Clearing a surface
+  // own (an obligation's arrival region), built on the reading it is handed. Clearing a surface
   // can take the focus out of it, so the caller's retained `intent` hands the gesture
   // over to where that leaves the user rather than reading the move as a newer one.
   /** @param {{landing?: () => unknown, url?: URL, intent: any}} trip */
@@ -350,7 +349,7 @@ export function createAnchorTravel({
     owner,
     attribute,
     key,
-    { success = "", missing = "" } = {},
+    { success = "", missing = "", focus = true } = {},
   ) {
     const mayArrive = retainTravel();
     requireReference("navigateToDatum", owner, attribute);
@@ -396,7 +395,13 @@ export function createAnchorTravel({
       () => {
         const source = referencedProjection(owner, attribute);
         const where = source && addressedElements(source, key)[0];
-        return where && { where, focus: where, scroll: moving ? [{ at: where }] : [] };
+        return (
+          where && {
+            where,
+            focus: focus ? where : null,
+            scroll: moving ? [{ at: where, block: "start" }] : [],
+          }
+        );
       },
       { intent: mayArrive, departure },
     );

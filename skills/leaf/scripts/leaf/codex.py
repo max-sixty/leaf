@@ -83,6 +83,7 @@ from .codex_state import (
     hook_turn,
 )
 from .delivery import (
+    DELIVERY,
     DeliveryIdConflict,
     ReceiptRefused,
     batch_data,
@@ -95,17 +96,15 @@ from .delivery import (
     new_delivery_id,
     pages_gone,
     read_delivery,
-    readable_delivery,
     receive_batch,
     record_pickup,
+    stored_delivery,
     stream_reply_target,
     validate_delivery_id,
 )
-from .files import read_json
 from .harness import Harness
 from .leases import sessions_home
 from .refusals import Refused
-from .registry.kernel import record_format
 from .service import (
     PageTransaction,
     delivery_reply_attempt,
@@ -113,22 +112,19 @@ from .service import (
     restore_page_claim,
 )
 from .state import (
+    Record,
     close_session_turn,
     flocked,
     renew_turn,
     session_lock_path,
     session_record,
     start_session_turn,
-    write_json,
 )
 
 START_TIMEOUT = 20
 # Names the App Server a task runs on to the `leaf` commands it runs, so they hand
 # its pages to that server (`private_app_server`, `leaf codex start`).
 APP_SERVER_ENV = "LEAF_CODEX_APP_SERVER"
-# A record of another protocol is ignored, and the events its page has not
-# acknowledged are captured afresh.
-RECORD_FORMAT = record_format("codex-delivery")
 STREAM_UPDATE_INTERVAL = 0.2
 STREAM_TEXT_METHODS = {"item/reasoning/summaryTextDelta"}
 STREAM_MESSAGE_METHOD = "item/agentMessage/delta"
@@ -242,9 +238,9 @@ def private_app_server(
     The server runs in a session of its own and never exits by itself, and a block
     on a daemon thread, as a page server's title request is, never reaches its
     `finally` when the process exits. So each running server is also stopped at
-    exit (`_stop_private_app_servers`), and on a SIGTERM or SIGHUP in a process that
-    turns them into an exit (`leases.release_on_termination`), as a page server
-    does. A SIGKILL leaves one running.
+    exit (`stop_private_app_servers`), on a SIGTERM or SIGHUP in a process that
+    turns them into an exit (`leases.release_on_termination`), and as a page server
+    ends itself (`server.exit_serving`). A SIGKILL leaves one running.
     """
     with tempfile.TemporaryDirectory(prefix="leaf-codex-", dir="/tmp") as directory:
         path = Path(directory) / "app-server.sock"
@@ -271,7 +267,8 @@ _private_app_servers: set[subprocess.Popen] = set()
 
 
 @atexit.register
-def _stop_private_app_servers() -> None:
+def stop_private_app_servers() -> None:
+    """Stop every App Server `private_app_server` started in this process."""
     for server in list(_private_app_servers):
         stop_app_server(server)
 
@@ -457,8 +454,8 @@ def app_server_delivery_id(message: dict) -> str | None:
                 continue
             if (
                 isinstance(payload, dict)
+                and payload.get("format") == DELIVERY.format
                 and isinstance(payload.get("id"), str)
-                and readable_delivery(payload, payload["id"])
             ):
                 add(payload["id"])
             continue
@@ -559,12 +556,20 @@ class AppServerEvents:
     turn reads as nothing: which turn a notification belongs to is the client's
     routing, not something this fold follows.
 
-    A turn's reply is its opening and its final answer. The opening is a `commentary`
-    agent message that is the turn's first, written before any item but the turn's
-    input and reasoning: the agent writes it to the user before its first tool call,
-    so the reply starts streaming as soon as the turn does. Every other commentary is
+    A turn's reply is its final answer. Its opening is a `commentary` agent message
+    that is the turn's first, written before any item but the turn's input and
+    reasoning: the agent writes it to the user before its first tool call, saying what
+    it is about to do. That is the line every harness's agent posts first
+    (`conversation-loop.md`, "When to write"), so once complete it posts as the turn's
+    progress (`AppServerReplyStream.open`): the thread shows it at once as its working
+    message, where it was said, and the answer folds it away. An update carries it as
+    `opening` once, when its completion arrives or, where that was missed, as the next
+    item begins. Every other commentary is
     the agent's working narration and stays in Codex, including narration written
     after a tool call by an agent that skipped the opening.
+    Rejected: streaming the opening as the head of the reply, which held words said at
+    the turn's start in a draft at the thread's end until the answer committed, so a
+    message the user sent meanwhile stood above them.
     """
 
     def __init__(self, thread_id: str, turn_id: str):
@@ -575,6 +580,9 @@ class AppServerEvents:
         self.message_order: list[str] = []
         self.opening: str | None = None
         self.opening_open = True
+        # Whether the opening is complete, and whether an update has said it.
+        self.opening_ended = False
+        self.opening_told = False
         self.item_started_at: dict[str, int] = {}
         self.active_items: dict[str, dict] = {}
         self.waiting_kind: str | None = None
@@ -586,6 +594,8 @@ class AppServerEvents:
         self.message_order.clear()
         self.opening = None
         self.opening_open = True
+        self.opening_ended = False
+        self.opening_told = False
         self.item_started_at.clear()
         self.active_items.clear()
         self.waiting_kind = None
@@ -596,7 +606,27 @@ class AppServerEvents:
                 self._close_opening(item)
 
     def read(self, message: dict) -> dict | None:
-        """Return one transient activity or turn-completion update."""
+        """Return one transient activity or turn-completion update, carrying the
+        turn's `opening` where this notification shows it complete."""
+        update = self._read(message)
+        opening = self.said_opening()
+        if not opening:
+            return update
+        return {**(update or {"turn": self.turn_id}), "opening": opening}
+
+    def said_opening(self) -> str:
+        """The opening's words, once it is complete and no update has said them."""
+        if (
+            self.opening_told
+            or not self.opening_ended
+            or not self._is_opening(self.opening)
+            or not self.text.get(self.opening)
+        ):
+            return ""
+        self.opening_told = True
+        return self.text[self.opening]
+
+    def _read(self, message: dict) -> dict | None:
         method = message.get("method")
         params = message.get("params") or {}
         message_thread = params.get("threadId")
@@ -674,6 +704,8 @@ class AppServerEvents:
             self.active_items.pop(item["id"], None)
             if item["type"] == "agentMessage":
                 self._record_message(item)
+                if item["id"] == self.opening:
+                    self.opening_ended = True
                 if not self._in_reply(item["id"]):
                     return {"turn": turn_id, "item": lifecycle}
                 return {
@@ -765,11 +797,14 @@ class AppServerEvents:
         self.message_order.append(item_id)
         if self.opening is None and self.opening_open:
             self.opening = item_id
+        elif self.opening is not None:
+            self.opening_ended = True
         self.opening_open = False
 
     def _close_opening(self, item: dict) -> None:
         if item["type"] not in OPENING_PRELUDE_ITEM_TYPES:
             self.opening_open = False
+            self.opening_ended = self.opening is not None
 
     def _record_message(self, item: dict) -> None:
         item_id = item["id"]
@@ -783,14 +818,12 @@ class AppServerEvents:
         phase = self.message_phases.get(item_id)
         return phase != "commentary" or item_id == self.opening
 
-    def _visible_text(self) -> str:
-        opening = (
-            [self.text[self.opening]]
-            if self.opening is not None
-            and self.message_phases.get(self.opening) == "commentary"
-            and self.text.get(self.opening)
-            else []
+    def _is_opening(self, item_id: str) -> bool:
+        return (
+            item_id == self.opening and self.message_phases.get(item_id) == "commentary"
         )
+
+    def _visible_text(self) -> str:
         final = [
             self.text[item_id]
             for item_id in self.message_order
@@ -804,28 +837,27 @@ class AppServerEvents:
                 if self.message_phases.get(item_id) is None and self.text.get(item_id)
             ]
             final = unknown[-1:]
-        return "\n\n".join(opening + final)
+        return "\n\n".join(final)
 
     @staticmethod
     def final_text(turn: dict) -> str:
-        """Return a completed turn's reply: its opening and final answer.
-
-        A turn with no final answer has no reply to publish, whatever its opening said.
-        """
-        opening, final = _reply_parts(turn)
-        return "\n\n".join(opening + final) if final else ""
+        """Return a completed turn's reply: its final answer, or nothing for a turn
+        with none, whatever its opening said."""
+        return "\n\n".join(_final_answer(turn))
 
     @staticmethod
     def reply_so_far(turn: dict) -> str:
-        """Return the reply a still-running turn has written, opening included."""
-        opening, final = _reply_parts(turn)
-        return "\n\n".join(opening + final)
+        """Return the reply a still-running turn has written."""
+        return "\n\n".join(_final_answer(turn))
 
     def _message_update(self, item_id: str, *, complete: bool) -> dict:
+        """One reply message's update: the opening's own words, or the answer so far."""
         return {
             "item": item_id,
             "phase": self.message_phases.get(item_id),
-            "text": self._visible_text(),
+            "text": self.text.get(item_id, "")
+            if self._is_opening(item_id)
+            else self._visible_text(),
             "complete": complete,
         }
 
@@ -889,37 +921,25 @@ class AppServerEvents:
         return None
 
 
-def _reply_parts(turn: dict) -> tuple[list[str], list[str]]:
-    """Split one turn's items into its reply's opening and final-answer texts."""
-    items = turn.get("items", [])
-    first = next(
-        (item for item in items if item["type"] not in OPENING_PRELUDE_ITEM_TYPES),
-        None,
-    )
-    opening = (
-        [first["text"]]
-        if first is not None
-        and first["type"] == "agentMessage"
-        and first.get("phase") == "commentary"
-        and first.get("text")
-        else []
-    )
-    final = [
+def _final_answer(turn: dict) -> list[str]:
+    """One turn's final-answer texts."""
+    return [
         item["text"]
-        for item in items
+        for item in turn.get("items", [])
         if item["type"] == "agentMessage"
         and item.get("phase") == "final_answer"
         and item.get("text")
     ]
-    return opening, final
 
 
 class AppServerReplyStream:
-    """Project one App Server turn's provisional reply and commit its final answer.
+    """Post one App Server turn's opening as progress, project its provisional reply
+    and commit its final answer.
 
     The provider owns this lifecycle; `thread.post_response` owns admission of the
-    durable answer. Partial text survives interruption and disconnect without
-    becoming thread history.
+    opening and the durable answer, both under the delivery's reply reservation.
+    Partial answer text survives interruption and disconnect without becoming thread
+    history.
     """
 
     def __init__(
@@ -941,27 +961,59 @@ class AppServerReplyStream:
     def update(self, update: dict | None) -> bool:
         """Publish a reply message's update, throttling only partial deltas.
 
-        Only the final answer's completion settles the reply; the opening streams it.
+        The opening posts once an update says it; only the final answer streams, and
+        only its completion settles the reply.
         """
-        message = update.get("message") if update is not None else None
-        if message is None or message["phase"] not in {"final_answer", "commentary"}:
+        if update is None:
             return False
+        opened = self.open(update.get("opening", ""))
+        message = update.get("message")
+        if message is None or message["phase"] != "final_answer":
+            return opened
         now = time.monotonic()
         if not message["complete"] and now - self.last_update < STREAM_UPDATE_INTERVAL:
-            return False
+            return opened
         published = self._replace(
             message["item"],
             message["text"],
-            settles=message["complete"]
-            and message["phase"] == "final_answer"
-            and bool(message["text"]),
+            settles=message["complete"] and bool(message["text"]),
         )
         self.last_update = now
-        return published
+        return published or opened
 
     def restore(self, text: str) -> bool:
         """Restore a still-running reply after reconnecting."""
         return self._replace(None, text)
+
+    def open(self, text: str) -> bool:
+        """Post the turn's opening as its progress at the reserved address, once: a
+        repeat names the same attempt and returns the first. An update another writer
+        answered, or another delivery holds, takes none (`ProviderFinal`).
+
+        Progress is one line, the update's Working line, so the opening's paragraphs
+        join into one. A refusal, such as a page whose saved source is mid-edit, costs
+        the user only the line: the turn goes on to its answer, so it is reported and
+        not raised into the notification loop, which would end the turn."""
+        if not text:
+            return False
+        from .thread import post_response
+
+        try:
+            posted = post_response(
+                self.target["ref"],
+                " ".join(text.split()),
+                reservation=self.attempt,
+                attempt=f"{self.attempt}-opening",
+                ephemeral=True,
+                identity={"session": self.session_id},
+                claimed_session=self.session_id,
+            )
+        except FileNotFoundError:
+            return False
+        except Refused as error:
+            print(f"Codex opening not posted: {error}", file=sys.stderr, flush=True)
+            return False
+        return posted is not None
 
     def _replace(
         self,
@@ -985,8 +1037,7 @@ class AppServerReplyStream:
                 page.set_stream_reply(
                     self.session_id,
                     self.turn_id,
-                    self.target["reply_to"],
-                    self.target["responds"],
+                    self.target,
                     self.attempt,
                     item_id,
                     text,
@@ -1213,6 +1264,8 @@ class TurnFold:
         """Take up a still-running turn from a snapshot of what it has said."""
         self.events.restore_turn(turn)
         if self.reply_stream is not None:
+            # An opening the turn completed while nobody was reading posts now.
+            self.reply_stream.open(self.events.said_opening())
             self.reply_stream.restore(self.events.reply_so_far(turn))
 
     def absorb(self, message: dict) -> dict | None:
@@ -1583,7 +1636,7 @@ RECORD_VARIANTS = {
     )
 }
 _STRING = {"type": "string"}
-_ANSWER_FIELDS = {"reply": ("to", "for"), "markup": ("action",)}
+_ANSWER_FIELDS = {"reply": ("parent", "responds"), "markup": ("action",)}
 _ANSWER = {
     "type": "object",
     "properties": {"kind": {"enum": list(_ANSWER_FIELDS)}},
@@ -1650,17 +1703,16 @@ def _when_variant(holds, then: dict) -> dict:
     return {"if": {"properties": {"state": {"enum": states}}}, "then": then}
 
 
-# Objects stay open: a record from another leaf on this machine may carry fields
-# this version ignores, and `format` already names the shape this version reads.
+# A record at another format is ignored, and the events its page has not
+# acknowledged are captured afresh.
 RECORD_SCHEMA = {
     "type": "object",
     "properties": {
-        "format": {"const": RECORD_FORMAT},
         "state": {"enum": list(RECORD_VARIANTS)},
         "created_at": {"type": "number"},
         "batches": {"type": "array", "minItems": 1, "items": _BATCH},
     },
-    "required": ["format", "state", "created_at", "batches"],
+    "required": ["state", "created_at", "batches"],
     "allOf": [
         _when_variant(
             lambda variant: variant is Collecting,
@@ -1687,44 +1739,24 @@ RECORD_SCHEMA = {
         ),
     ],
 }
+RECORD = Record("codex-delivery", RECORD_SCHEMA, since=14)
 
 
 def read_record(path: Path) -> DeliveryRecord | None:
-    """Decode a complete record at the shared-state boundary, ignoring other versions.
-
-    Live and archived records use the same variants. `RECORD_SCHEMA` states each
-    variant's shape; what it cannot state is checked here: receipts are sorted,
-    unique and name a batch, and an offered record's payload is one this version
-    reads. No partial state may enter delivery recovery, and an unreadable record
-    never authorizes deletion.
-    """
-    # Codex's hooks import this module between steps (module docstring), so the
-    # validator loads only once a task has a record to read.
-    from .registry.schema import json_validator
-
-    try:
-        record = read_json(path)
-    except ValueError:
+    """Decode one task record, live or archived, or None where this Leaf reads
+    none, as for one in a state this Leaf does not know, or an offered record
+    whose delivery this Leaf does not read. An unreadable record never authorizes
+    deletion."""
+    record = RECORD.read(path)
+    variant = RECORD_VARIANTS.get(record["state"]) if record else None
+    if variant is None:
         return None
-    if not json_validator(RECORD_SCHEMA).is_valid(record):
+    if variant is not Collecting and stored_delivery(path.stem) is None:
         return None
-    variant = RECORD_VARIANTS[record["state"]]
-    if variant is not Collecting:
-        try:
-            payload = read_json(delivery_path(path.stem))
-        except (ValueError, OSError):
-            return None
-        if not readable_delivery(payload, path.stem):
-            return None
     values = {item.name: record[item.name] for item in fields(variant)}
     values["batches"] = tuple(values["batches"])
     if issubclass(variant, ReceiptOutcome):
-        pending = values["pending"]
-        if pending != sorted(set(pending)) or any(
-            index >= len(values["batches"]) for index in pending
-        ):
-            return None
-        values["pending"] = tuple(pending)
+        values["pending"] = tuple(values["pending"])
     return variant(**values)
 
 
@@ -1752,7 +1784,7 @@ def archive_record(path: Path, record: DeliveryRecord) -> bool:
 
 def write_record(path: Path, record: DeliveryRecord) -> None:
     """Store one delivery record, retiring it once nothing is owed on it."""
-    write_json(path, {"format": RECORD_FORMAT, "state": record.state, **asdict(record)})
+    RECORD.write(path, {"state": record.state, **asdict(record)})
     archive_record(path, record)
 
 
@@ -1832,7 +1864,7 @@ def _readdress_record(path: Path) -> Path:
     while True:
         candidate = new_delivery_id()
         replacement = path.with_name(f"{candidate}.json")
-        if replacement.exists() or read_json(delivery_path(candidate)) is not None:
+        if replacement.exists() or delivery_path(candidate).exists():
             continue
         path.replace(replacement)
         return replacement
@@ -1928,7 +1960,7 @@ def append_batch(
         while True:
             delivery_id = new_delivery_id()
             path = record_path(session_id, delivery_id)
-            if not path.exists() and read_json(delivery_path(delivery_id)) is None:
+            if not path.exists() and not delivery_path(delivery_id).exists():
                 break
         path.parent.mkdir(parents=True, exist_ok=True)
         record = Collecting(time.time(), ())
@@ -1980,9 +2012,10 @@ def append_batch(
 
 
 def offer_hook_delivery(
-    session_id: str, expected: dict | None
+    session_id: str, expected: dict | None, *, received: bool = True
 ) -> tuple[str | None, dict | None]:
     """Offer one plain-reply pointer through a tool or Stop hook, without receipt.
+    `received` is `delivery.deliverable`'s: the tool hook leaves it false.
 
     The agent's explicit `delivery ack` confirms complete input in its turn. If the
     hook output arrives after the turn ends, the adapter queues the same frozen
@@ -2008,7 +2041,7 @@ def offer_hook_delivery(
                     if session_record(session_id) != expected:
                         return None, expected
                     expected = renew_turn(expected)
-                    if batch := deliverable(page):
+                    if batch := deliverable(page, received=received):
                         append_batch(session_id, page_dir, page, batch)
         except FileNotFoundError:
             continue
@@ -2122,11 +2155,11 @@ UNCONFIRMED_TEXT = (
 
 def reply_target_answered(target: dict) -> bool | None:
     """Read exact reply completion, or None when its page no longer exists."""
-    from .thread import answered_by_reply
+    from .thread import successful_replies
 
     try:
         with PageTransaction(Path(target["page"])) as page:
-            return answered_by_reply(page.events, target["responds"])
+            return bool(successful_replies(page.events, target["responds"]))
     except FileNotFoundError:
         return None
 
@@ -2145,9 +2178,7 @@ def settle_answered_deliveries(session_id: str) -> bool:
         if target is None:
             continue
         if reply_target_answered(target):
-            abandon_uncertain_delivery(
-                session_id, read_json(delivery_path(delivery_id))
-            )
+            abandon_uncertain_delivery(session_id, stored_delivery(delivery_id))
             settled = True
     return settled
 

@@ -18,6 +18,7 @@ from render_cases_navigation import DIFF_PAGE
 from render_cases_widgets import SCROLLED, WIDE_DIAGRAM_PAGE
 from render_harness import (
     LONG_PAGE,
+    RELEASE_FOCUS,
     REPLY_HOST_PAGE,
     expect_comment_notes,
     held_frames,
@@ -474,6 +475,241 @@ def test_a_control_tab_skips_leaves_a_scrolling_box_its_own_stop(browser, serve)
     expect(inside).not_to_have_attribute("tabindex", "0")
 
 
+# Controls to Tab onto at a scroller's edge. Each wears its ring on a different box:
+# the radio on itself, a playground choice on its face, a joined option group's pick on
+# its row.
+EDGE_CONTROLS = {
+    "radio": '<p><label><input id="at" type="radio" name="r" checked> Pick</label></p>',
+    "playground": (
+        '<lf-playground id="pg"><lf-playground-control name="tone" label="Tone" kind="choice"'
+        ' value="quiet"><lf-playground-choice value="quiet" label="Quiet">'
+        '</lf-playground-choice><lf-playground-choice value="bold" label="Bold">'
+        "</lf-playground-choice></lf-playground-control><lf-playground-preview>"
+        "<p>Preview</p></lf-playground-preview><lf-playground-output>Use"
+        ' <lf-playground-value for="tone"></lf-playground-value></lf-playground-output>'
+        "</lf-playground>"
+    ),
+    "options": (
+        '<lf-options id="op" choose><lf-option id="op-a">Alpha</lf-option>'
+        '<lf-option id="op-b">Beta, the second choice</lf-option></lf-options>'
+    ),
+}
+EDGE_TARGETS = {
+    "radio": "#at",
+    "playground": "#pg input:checked",
+    "options": "#op-b .lf-pick",
+    "table": "#wide td:nth-child(11) a",
+}
+
+
+def edges_page(control):
+    entries = [f'<p><a href="#log-{i}">Entry {i}</a></p>' for i in range(60)]
+    return leaf_page(
+        "controls at scrollers' edges",
+        '<h1 id="t">Edges</h1>\n<div id="log" data-bound="start">'
+        + "".join(entries[:30])
+        + EDGE_CONTROLS.get(control, "")
+        + "".join(entries[30:])
+        + '</div>\n<table id="wide"><tbody><tr>'
+        + "".join(
+            f'<td><a href="#cell-{i}">Cell&nbsp;link&nbsp;{i}</a></td>'
+            for i in range(30)
+        )
+        + "</tr></tbody></table>",
+    )
+
+
+@pytest.mark.parametrize(
+    ("control", "past", "key", "engine"),
+    [
+        *(
+            pytest.param(
+                control, past, key, engine, id=f"{control}-{name}-{key}-{engine}"
+            )
+            for control, past, name, key in [
+                ("radio", 6, "past", "Tab"),
+                ("radio", -2, "inside", "Tab"),
+                ("options", 6, "past", "Tab"),
+                ("options", 6, "past", "End"),
+                ("table", 6, "past", "Tab"),
+            ]
+            for engine in ["browser", "firefox_browser"]
+        ),
+        # Firefox logs a warning of its own on any playground page.
+        pytest.param(
+            "playground", 6, "Tab", "browser", id="playground-past-Tab-browser"
+        ),
+    ],
+)
+def test_a_key_onto_a_control_at_a_scrollers_edge_shows_its_ring(
+    request, serve, control, past, key, engine
+):
+    """The browser reveals a Tab's arrival only when it counts it out of view, Firefox
+    when less than about a line of it shows and Chromium across only when none of it
+    does, and neither it nor Leaf's landing knew a box that wears the control's ring.
+    So a radio 6px past a bounded log's foot stayed cut in Firefox, and one 2px inside
+    it kept its ring cut; a link 6px past a wide table's end stayed cut in both
+    engines; and a joined option group's row and a playground choice's face, each
+    wearing its control's ring, stayed cut in both, the face once its radio stood 7px
+    inside, the row whether Tab or End reached it. `past` is how far beyond the edge
+    the box wearing the ring stood before the key; each now shows its ring."""
+    page = open_page(request.getfixturevalue(engine), serve(edges_page(control)))
+    resized(page, 1280, 560)
+    side = "right" if control == "table" else "bottom"
+    target = page.locator(EDGE_TARGETS[control])
+    # Which box wears the ring is the paint's answer: the nearest box out from the
+    # control whose outline is the ring.
+    target.evaluate("el => el.focus({preventScroll: true})")
+    rendered(page)
+    target.evaluate(
+        """(el) => {
+          const w = getComputedStyle(el).getPropertyValue('--focus-ring-w').trim();
+          for (let n = el; n; n = n.parentElement) {
+            const cs = getComputedStyle(n);
+            if (cs.outlineStyle === 'solid' && cs.outlineWidth === w)
+              return void (window.ringed = n);
+          }
+        }"""
+    )
+    if key == "Tab":
+        page.keyboard.press("Shift+Tab")
+    else:
+        page.locator("#op-a .lf-pick").evaluate("el => el.focus({preventScroll: true})")
+    page.evaluate(
+        """([side, past]) => {
+          const box = window.ringed.closest(side === 'bottom' ? '#log' : '#wide');
+          const port = box.getBoundingClientRect();
+          const at = window.ringed.getBoundingClientRect();
+          if (side === 'bottom')
+            box.scrollTop += at.bottom - (port.top + box.clientTop + box.clientHeight)
+              - past;
+          else
+            box.scrollLeft += at.right - (port.left + box.clientLeft + box.clientWidth)
+              - past;
+        }""",
+        [side, past],
+    )
+    scroll_settled(page)
+    page.keyboard.press(key)
+    expect(target).to_be_focused()
+    rendered(page)
+    read = page.evaluate(
+        """(side) => {
+          const el = window.ringed;
+          const box = el.closest(side === 'bottom' ? '#log' : '#wide');
+          const port = box.getBoundingClientRect();
+          const at = el.getBoundingClientRect();
+          const style = getComputedStyle(el);
+          return {
+            room: side === 'bottom'
+              ? port.top + box.clientTop + box.clientHeight - at.bottom
+              : port.left + box.clientLeft + box.clientWidth - at.right,
+            ring: parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset),
+          };
+        }""",
+        side,
+    )
+    assert read["room"] >= read["ring"], read
+
+
+GROUPED_SIDE_LIST = leaf_page(
+    "a grouped queue",
+    '<header><h1>Queue</h1></header><lf-tabs id="queue" list="side">'
+    + "".join(
+        f'<lf-tab id="t-{n}" label="Ticket {n}" group="Group {n // 10}">'
+        f"<p>Ticket {n}.</p></lf-tab>"
+        for n in range(30)
+    )
+    + "</lf-tabs>",
+    layout="workspace",
+)
+
+# Stands `el` `past` pixels beyond `edge` of the box `port` names around it.
+PLACE_PAST_EDGE = """(el, [port, edge, past]) => {
+  const box = el.closest(port);
+  const top = box.getBoundingClientRect().top + box.clientTop;
+  const at = el.getBoundingClientRect();
+  box.scrollTop += edge === 'foot'
+    ? at.bottom - (top + box.clientHeight) - past
+    : at.top - top + past;
+}"""
+
+# How much shorter than the list's band the run from the group's label to the tab
+# `el` would have to be to fit with 7px to spare: the shortfall of the tab's ring room
+# at both ends.
+RUN_SHORTFALL = """(el) => {
+  const strip = el.closest('[role=tablist]');
+  const run = document.createRange();
+  run.setStartBefore(el.parentElement.querySelector(':scope > .lf-tab-group'));
+  run.setEndAfter(el);
+  const style = getComputedStyle(strip);
+  const band = strip.clientHeight - (parseFloat(style.scrollPaddingTop) || 0)
+    - (parseFloat(style.scrollPaddingBottom) || 0);
+  return band - run.getBoundingClientRect().height - 7;
+}"""
+
+# How far `el` stands inside `edge` of that box, and how far its ring reaches past it.
+ROOM_AT_EDGE = """(el, [port, edge]) => {
+  const box = el.closest(port);
+  const top = box.getBoundingClientRect().top + box.clientTop;
+  const at = el.getBoundingClientRect();
+  const style = getComputedStyle(el);
+  return {
+    room: edge === 'foot' ? top + box.clientHeight - at.bottom : at.top - top,
+    ring: parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset),
+  };
+}"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize("walk", ["reference", "side list", "side list, long group"])
+def test_a_walk_in_a_box_no_reading_region_moves_shows_the_ring(
+    request, serve, walk, engine
+):
+    """A box no reading region moves revealed a walk's next item by its bare box: the
+    command reference's results, a fixed dialog's list, and a side list's tabs, which a
+    walk reveals bounded `within` the list. So Up onto a command past the results' head
+    stood its button flush with the head, and Down onto a tab past the list's foot
+    stood it flush with the foot, each ring cut there. The tab comes in with its
+    group's label, as one range, where that fits; a group whose run fits the list but
+    not with the tab's ring room comes in by the tab alone, since landing the run
+    would leave the tab past the foot. Each now shows its ring."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(LONG_PAGE if walk == "reference" else GROUPED_SIDE_LIST),
+    )
+    resized(page, 1280, 560)
+    if walk == "reference":
+        page.keyboard.press("?")
+        items = page.locator(".lf-command-reference-command:visible")
+        port, key, edge = ".lf-command-reference-results", "ArrowUp", "head"
+        start, target = items.nth(9), items.nth(8)
+    else:
+        items = page.get_by_role("tab")
+        port, key, edge = "[role=tablist]", "ArrowDown", "foot"
+        last = 19 if walk == "side list, long group" else 15
+        start, target = items.nth(last - 1), items.nth(last)
+        if walk == "side list, long group":
+            resized(page, 1280, 560 - round(target.evaluate(RUN_SHORTFALL)))
+    start.evaluate("el => el.focus({preventScroll: true})")
+    rendered(page)
+    scroll_settled(page)
+    target.evaluate(PLACE_PAST_EDGE, [port, edge, 6])
+    scroll_settled(page)
+    page.keyboard.press(key)
+    expect(target).to_be_focused()
+    rendered(page)
+    read = target.evaluate(ROOM_AT_EDGE, [port, edge])
+    assert read["room"] >= read["ring"], read
+    if walk == "side list":
+        # The run fits, so the group's label came in with the tab.
+        assert target.evaluate(
+            """(el) => el.parentElement.querySelector(':scope > .lf-tab-group')
+              .getBoundingClientRect().top
+              >= el.closest('[role=tablist]').getBoundingClientRect().top"""
+        )
+
+
 # One step of `handBack`, run as a layer closes with the user inside it: `layer` holds
 # the button they stand on, and hiding it drops their focus. `shut` is a hidden button
 # and `open` a shown one, both at the end of `main`.
@@ -556,9 +792,9 @@ def test_a_closing_layer_hands_the_user_back_to_the_first_place_that_takes_them(
     for step in ["nothing to land on", "body"]:
         assert page.evaluate(HAND_BACK, step) == "body"
         page.keyboard.press("Tab")
-        assert page.evaluate(
-            "() => !document.activeElement.matches('#open, #shut, .lf-skip')"
-        ), f"{step}: the next Tab did not carry on from the block being read"
+        assert page.evaluate("() => !document.activeElement.matches('#open, #shut')"), (
+            f"{step}: the next Tab did not carry on from the block being read"
+        )
 
 
 @pytest.mark.parametrize("new_composer", [False, True], ids=["control", "composer"])
@@ -665,85 +901,93 @@ def test_a_reference_command_finishes_its_gesture_before_a_newer_control(
     assert page.evaluate("scrollY") == before
 
 
-@pytest.mark.parametrize("native_move", [True, False])
-@pytest.mark.parametrize("renderer", ["children", "lit"])
-def test_retained_moves_keep_native_editor_and_frame_state(
-    browser, serve, native_move, renderer
-):
+def test_retained_moves_keep_native_editor_and_frame_state(browser, serve, subtests):
     """A reorder or a move to another parent keeps the user typing in the moved row,
     with no focus hold of the caller's, whether or not the browser has `moveBefore`;
-    a native move also keeps the row's iframe document."""
+    a native move also keeps the row's iframe document.
+
+    Each case paints its own rows into its own pair of parents on one page. The cases
+    without `moveBefore` delete it from the page, so they come last."""
+    cases = [
+        (native_move, renderer)
+        for native_move in (True, False)
+        for renderer in ("children", "lit")
+    ]
+    parents = "".join(
+        f'<div id="rows-{index}"></div><div id="other-{index}"></div>'
+        for index in range(len(cases))
+    )
     page = open_page(
         browser,
-        serve(
-            leaf_page(
-                "Retained rows",
-                '<h1>Retained rows</h1><div id="rows"></div><div id="other"></div>',
-            )
-        ),
+        serve(leaf_page("Retained rows", f"<h1>Retained rows</h1>{parents}")),
     )
-    page.evaluate(
-        """async ([nativeMove, renderer]) => {
-      const {render, repeat} = await window.__lfWidgetApi();
-      const {setChildren: orderChildren} = await window.__lfWidgetApi();
-      const {move} = await window.__lfWidgetApi();
-      const rows = document.querySelector('#rows');
-      if (!nativeMove) Element.prototype.moveBefore = undefined;
-      const nodes = ['a', 'b', 'c'].map(id => {
-        const row = document.createElement('div');
-        row.dataset.row = id;
-        row.innerHTML = `<input aria-label="${id}">
-          <iframe title="${id}" srcdoc="<p>Retained frame</p>"></iframe>`;
-        return row;
-      });
-      const paint = nodes => renderer === 'lit'
-        ? render(repeat(nodes, node => node.dataset.row, node => node), rows)
-        : orderChildren(rows, nodes);
-      paint(nodes);
-      const editor = rows.querySelector('[data-row=c] input');
-      window.blurs = 0;
-      editor.addEventListener('blur', () => window.blurs++);
-      editor.addEventListener('keydown', event => {
-        if (event.key === 'ArrowUp' && event.altKey) {
-          event.preventDefault();
-          paint([nodes[2], nodes[0], nodes[1]]);
-        } else if (event.key === 'ArrowDown' && event.altKey) {
-          event.preventDefault();
-          const other = document.querySelector('#other');
-          if (renderer === 'lit') render(nodes[2], other);
-          else move(other, nodes[2], null);
-        }
-      });
-    }""",
-        [native_move, renderer],
-    )
-    editor = page.get_by_role("textbox", name="c", exact=True)
-    editor.fill("unfinished words")
-    editor.evaluate("node => node.setSelectionRange(3, 9, 'backward')")
-    frame = page.locator("[data-row=c] iframe")
-    expect(page.frame_locator("[data-row=c] iframe").locator("p")).to_have_text(
-        "Retained frame"
-    )
-    frame.evaluate("node => window.heldDocument = node.contentDocument")
-    for key, parent in [("Alt+ArrowUp", "#rows"), ("Alt+ArrowDown", "#other")]:
-        page.keyboard.press(key)
-        expect(page.locator(f"{parent} > [data-row=c]")).to_have_count(1)
-        if key == "Alt+ArrowUp":
-            expect(page.locator("#rows > [data-row]").first).to_have_attribute(
-                "data-row", "c"
+    for index, (native_move, renderer) in enumerate(cases):
+        with subtests.test(native_move=native_move, renderer=renderer):
+            page.evaluate(
+                """async ([index, nativeMove, renderer]) => {
+              const {render, repeat, setChildren: orderChildren, move} =
+                await window.__lfWidgetApi();
+              const rows = document.querySelector(`#rows-${index}`);
+              if (!nativeMove) Element.prototype.moveBefore = undefined;
+              const nodes = ['a', 'b', 'c'].map(id => {
+                const row = document.createElement('div');
+                row.dataset.row = id;
+                row.innerHTML = `<input aria-label="${id}-${index}">
+                  <iframe title="${id}-${index}" srcdoc="<p>Retained frame</p>"></iframe>`;
+                return row;
+              });
+              const paint = nodes => renderer === 'lit'
+                ? render(repeat(nodes, node => node.dataset.row, node => node), rows)
+                : orderChildren(rows, nodes);
+              paint(nodes);
+              const editor = rows.querySelector('[data-row=c] input');
+              editor.addEventListener('blur', () => window.blurs++);
+              editor.addEventListener('keydown', event => {
+                if (event.key === 'ArrowUp' && event.altKey) {
+                  event.preventDefault();
+                  paint([nodes[2], nodes[0], nodes[1]]);
+                } else if (event.key === 'ArrowDown' && event.altKey) {
+                  event.preventDefault();
+                  const other = document.querySelector(`#other-${index}`);
+                  if (renderer === 'lit') render(nodes[2], other);
+                  else move(other, nodes[2], null);
+                }
+              });
+            }""",
+                [index, native_move, renderer],
             )
-        expect(editor).to_be_focused()
-        expect(editor).to_have_value("unfinished words")
-        assert editor.evaluate(
-            "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
-        ) == [3, 9, "backward"]
-        if native_move:
-            assert page.evaluate("window.blurs") == 0
-            assert frame.evaluate(
-                "node => node.contentDocument === window.heldDocument"
-            )
-        else:
-            assert page.evaluate("window.blurs") > 0
+            editor = page.get_by_role("textbox", name=f"c-{index}", exact=True)
+            editor.fill("unfinished words")
+            editor.evaluate("node => node.setSelectionRange(3, 9, 'backward')")
+            # Counted from here, once the last case's editor has given up the focus.
+            page.evaluate("window.blurs = 0")
+            frame = page.locator(f'iframe[title="c-{index}"]')
+            expect(
+                page.frame_locator(f'iframe[title="c-{index}"]').locator("p")
+            ).to_have_text("Retained frame")
+            frame.evaluate("node => window.heldDocument = node.contentDocument")
+            for key, parent in [
+                ("Alt+ArrowUp", f"#rows-{index}"),
+                ("Alt+ArrowDown", f"#other-{index}"),
+            ]:
+                page.keyboard.press(key)
+                expect(page.locator(f"{parent} > [data-row=c]")).to_have_count(1)
+                if key == "Alt+ArrowUp":
+                    expect(
+                        page.locator(f"#rows-{index} > [data-row]").first
+                    ).to_have_attribute("data-row", "c")
+                expect(editor).to_be_focused()
+                expect(editor).to_have_value("unfinished words")
+                assert editor.evaluate(
+                    "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
+                ) == [3, 9, "backward"]
+                if native_move:
+                    assert page.evaluate("window.blurs") == 0
+                    assert frame.evaluate(
+                        "node => node.contentDocument === window.heldDocument"
+                    )
+                else:
+                    assert page.evaluate("window.blurs") > 0
 
 
 def test_unfocused_editor_move_leaves_later_selection_alone(browser, serve):
@@ -781,3 +1025,63 @@ def test_unfocused_editor_move_leaves_later_selection_alone(browser, serve):
     })""")
     expect(editor).to_be_focused()
     assert editor.evaluate("node => [node.selectionStart, node.selectionEnd]") == [9, 9]
+
+
+def test_an_empty_field_reads_the_same_before_and_after_its_editor_builds(
+    browser, serve
+):
+    """An empty text field builds its editor only when the user arrives in it. The box
+    drawn in its place was a textbox in Chromium's accessibility tree but not an
+    editable one, and its value was empty where the editor's is a line break, so a
+    screen reader could describe the field differently before the user arrived. Every
+    named node the field gives the tree reads the same before Tab builds the editor and
+    after, and the key typed on arrival lands in the field."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Empty field",
+                "<h1>Empty field</h1><p id='hint'>Markdown works</p>"
+                "<button id='before'>Before</button><div id='holder'></div>",
+            )
+        ),
+    )
+    page.evaluate("""() => {
+      const field = document.createElement('leaf-text');
+      field.setAttribute('aria-label', 'Reply');
+      field.setAttribute('placeholder', 'Write a reply');
+      field.setAttribute('aria-describedby', 'hint');
+      document.querySelector('#holder').append(field);
+    }""")
+    cdp = page.context.new_cdp_session(page)
+
+    def field_nodes():
+        return sorted(
+            (
+                node["role"]["value"],
+                node.get("description", {}).get("value") or "",
+                node.get("value", {}).get("value") or "",
+                sorted(
+                    (prop["name"], prop["value"].get("value"))
+                    for prop in node.get("properties", [])
+                    if prop["name"] != "focused"
+                ),
+            )
+            for node in cdp.send("Accessibility.getFullAXTree")["nodes"]
+            if not node["ignored"] and node.get("name", {}).get("value") == "Reply"
+        )
+
+    before = field_nodes()
+    field = page.locator("#holder leaf-text")
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    page.keyboard.type("x")
+    expect(field).to_be_focused()
+    field.evaluate(
+        "node => new Promise(resolve => node.value ? resolve() : "
+        "node.addEventListener('input', resolve, {once: true}))"
+    )
+    assert field.evaluate("node => node.value") == "x"
+    page.keyboard.press("Backspace")
+    page.evaluate(RELEASE_FOCUS)
+    assert field_nodes() == before

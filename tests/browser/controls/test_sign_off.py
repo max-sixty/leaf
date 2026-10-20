@@ -1,4 +1,4 @@
-"""Sign-off approval and the items it joins: where the control stands, how a press
+"""Sign-off approval and the obligations it joins: where the control stands, how a press
 records, is taken back or refused, and when it waits."""
 
 import re
@@ -8,12 +8,16 @@ from interact_support import append_carried_log_record
 from leaf import event_log as events_model
 from leaf.render_checks import wait_until_ready
 from playwright.sync_api import expect
-from render_cases_interaction import SEATED_ITEM_LAYER, SEATED_ITEM_WIDGETS, live_url
+from render_cases_interaction import (
+    SEATED_OBLIGATION_LAYER,
+    SEATED_OBLIGATION_WIDGETS,
+    live_url,
+)
 from render_cases_navigation import actions
 from render_harness import (
     LONG_PAGE,
     _traffic,
-    expect_items_answered,
+    expect_obligations_answered,
     holding,
     leaf_page,
     open_page,
@@ -65,7 +69,7 @@ def test_sign_off_stands_through_a_draft_and_moves_nothing(browser, serve):
 
 
 def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
-    """The declared item puts the approval there, and the press posts `done`, once
+    """The declared obligation puts the approval there, and the press posts `done`, once
     however often it is pressed while the first is on its way.
 
     Drive the shipped browser through the real POST door, since a control that merely
@@ -91,7 +95,7 @@ def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
 
 
 def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serve):
-    """Approval and its item agree during send, undo and refusal.
+    """Approval and its obligation agree during send, undo and refusal.
 
     Holding each POST proves the result is visible before admission; a definitive
     refusal restores the same admitted approval through every consumer: the row's word
@@ -218,7 +222,7 @@ def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):
     """The user's own remark must not lock the control it is a remark about.
 
     A thread standing in the widget's seat takes the decision off the user's
-    list — the banner stops counting it — but answers nothing, so the press that would
+    list — On me stops counting it — but answers nothing, so the press that would
     answer it is still live. This is the browser half of the split, and the half the
     user meets first: the POST door only sees a hand-posted event, while here
     the controller reading paints the control and its dispatcher guards the press, and
@@ -227,8 +231,8 @@ def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):
     it — the widget flips, nothing is logged, no notice fires, and the next poll puts it
     back with nothing anywhere saying why.
 
-    The subject is the project widget SEATED_ITEM_ENTRY declares, whose seat is where a
-    user most often starts such a thread; any thread anchored on an item splits it the
+    The subject is the project widget SEATED_OBLIGATION_ENTRY declares, whose seat is where a
+    user most often starts such a thread; any thread anchored on an obligation splits it the
     same way, and the reading under test never asks which widget it is."""
     url = serve(
         leaf_page(
@@ -238,8 +242,8 @@ def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):
             '<lf-verdict id="pick" asks>Three attempts, then stop.</lf-verdict>'
             "</lf-ask>",
         ),
-        layer_registry=SEATED_ITEM_LAYER,
-        layer_widgets=SEATED_ITEM_WIDGETS,
+        layer_registry=SEATED_OBLIGATION_LAYER,
+        layer_widgets=SEATED_OBLIGATION_WIDGETS,
     )
     append_carried_log_record(
         serve.page_dir,
@@ -253,7 +257,7 @@ def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):
     )
     page = open_page(browser, url)
     # Off the user's list, which is the whole reason the two readings differ here.
-    expect_items_answered(page, "0/1")
+    expect_obligations_answered(page, "0/1")
 
     page.get_by_role("button", name="Accept").click()
     round_trip(page)

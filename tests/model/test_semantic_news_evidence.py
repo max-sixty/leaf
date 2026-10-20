@@ -4,43 +4,36 @@ from interact_support import (
     append_carried_log_record,
     page_state,
     publish,
-    served_thread,
+    record_claim,
 )
-from leaf import activity, thread
+from leaf import thread
+from leaf.service import PageTransaction
 
 
-def test_live_response_evidence_keeps_its_attempt_without_text():
-    evidence = activity._reply_evidence(
-        {
-            "attempt": "reply-attempt",
-            "state": "interrupted",
-            "responds": "user-input",
-            "text": "partial private response",
-        }
+def test_live_response_evidence_keeps_its_attempt_without_text(page_dir):
+    publish(page_dir)
+    source = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "A"}
     )
-    assert evidence["attempt"] == "reply-attempt"
-    assert evidence["state"] == "interrupted"
-    assert evidence["responds"] == "user-input"
-    assert evidence["has_text"] is True
-    assert "text" not in evidence
-
-    workflow = {
-        "input": "user-input",
-        "stage": "picked_up",
-        "response": None,
-        "condition": None,
-    }
-    activity._bind_reply(
-        [workflow],
-        {
-            "attempt": "reply-attempt",
-            "state": "interrupted",
-            "responds": "user-input",
-            "text": "partial private response",
-        },
-    )
+    record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
+    with PageTransaction(page_dir) as page:
+        page.set_stream_reply(
+            "codex-thread",
+            "turn-1",
+            {"parent": source["id"], "responds": source["id"]},
+            "reply-attempt",
+            "item-1",
+            "partial private response",
+            "interrupted",
+        )
+    [workflow] = page_state(page_dir)["workflows"]
     assert workflow["condition"] == {"kind": "interrupted", "operation": "response"}
-    assert workflow["response"]["attempt"] == "reply-attempt"
+    assert workflow["response"] == {
+        "state": "interrupted",
+        "turn": "turn-1",
+        "settles": False,
+        "attempt": "reply-attempt",
+    }
 
 
 def test_terminal_failure_workflow_names_exact_reply_source(page_dir):
@@ -51,7 +44,7 @@ def test_terminal_failure_workflow_names_exact_reply_source(page_dir):
     )
     failure = thread.post_reply(
         page_dir,
-        {"to": source["id"], "for": source["id"]},
+        {"parent": source["id"], "responds": source["id"]},
         "The agent turn ended.",
         failure="turn_failed",
         attempt="response-attempt",
@@ -63,63 +56,4 @@ def test_terminal_failure_workflow_names_exact_reply_source(page_dir):
         "id": failure["id"],
         "attempt": "response-attempt",
         "state": "failed",
-        "responds": source["id"],
     }
-
-
-def test_user_prompt_names_the_latest_item_content_version(page_dir):
-    publish(page_dir)
-    root = append_carried_log_record(
-        page_dir,
-        {"kind": "comment", "id": "root", "author": "user", "text": "Help"},
-    )
-    first = append_carried_log_record(
-        page_dir,
-        {
-            "kind": "reply",
-            "id": "first-question",
-            "author": "agent",
-            "parent": root["id"],
-            "responds": root["id"],
-            "revision": 1,
-            "text": "First:",
-            "markup": '<lf-ask id="first">First question?</lf-ask>',
-        },
-    )
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "reply",
-            "id": "status-update",
-            "author": "agent",
-            "parent": first["id"],
-            "text": "Still checking.",
-        },
-    )
-    [thread] = served_thread(page_state(page_dir)["browser"])["threads"]
-    assert thread["user_prompt"] == {"message": first["id"], "version": first["id"]}
-
-    second = append_carried_log_record(
-        page_dir,
-        {
-            "kind": "reply",
-            "id": "second-question",
-            "author": "agent",
-            "parent": first["id"],
-            "revision": 1,
-            "text": "Second:",
-            "markup": '<lf-ask id="second">Second question?</lf-ask>',
-        },
-    )
-    edited = append_carried_log_record(
-        page_dir,
-        {
-            "kind": "edit",
-            "id": "second-edit",
-            "author": "agent",
-            "message": second["id"],
-            "text": "Reworded second:",
-        },
-    )
-    [thread] = served_thread(page_state(page_dir)["browser"])["threads"]
-    assert thread["user_prompt"] == {"message": second["id"], "version": edited["id"]}

@@ -270,7 +270,7 @@ export function createReactionController({
           glyph: choice.glyph,
           label: choice.label,
           rank: "secondary",
-          className: `lf-react ${HOLDS_WORD}`,
+          className: "lf-react",
           pressed: Boolean(choice.inForce),
         })),
         readings: [],
@@ -497,6 +497,7 @@ export function createReactionController({
     rows: [
       {
         id: "reaction.choose",
+        touch: false,
         runFromCommandReference: false,
         keys: () =>
           reactionTokens()
@@ -532,6 +533,7 @@ export function createReactionController({
       },
       {
         id: "reaction.move",
+        touch: false,
         runFromCommandReference: false,
         keys: ["Tab", "Shift+Tab", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
         description: "Move through reactions",
@@ -541,6 +543,7 @@ export function createReactionController({
       },
       {
         id: "response.activate",
+        touch: false,
         runFromCommandReference: false,
         keys: PRESS,
         description: "Use the focused response",
@@ -550,6 +553,7 @@ export function createReactionController({
       },
       {
         id: "reaction.cancel",
+        touch: false,
         keys: ["Escape"],
         description: "Close response choices",
         title: "cancel",

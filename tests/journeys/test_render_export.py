@@ -14,8 +14,8 @@ from interact_support import (
 )
 from leaf import cli as cli_model
 from leaf import exporting as exporting_model
-from leaf import machine as machine_model
 from leaf import server as server_model
+from leaf import state as cleanup_model
 from leaf.render_checks import wait_until_ready
 from leaf.schema import ELEMENT_ID
 from leaf.served_state.service import PageStateService
@@ -34,7 +34,7 @@ ROOT = Path(__file__).parents[2]
 def test_export_omits_neighboring_pages_and_their_access_key(serve, tmp_path):
     """Sharing an offline record grants no access to the machine's other pages."""
     serve(leaf_page("Exported record", "<h1>Exported record</h1>"), packages=())
-    neighbor = machine_model.state_home() / "pages" / "private-neighbor"
+    neighbor = cleanup_model.state_home() / "pages" / "private-neighbor"
     url = neighbour_page(neighbor, title="Private neighboring page")
     live = PageStateService(serve.page_dir).page_state(1)
     assert any(row["url"] == url for row in live["others"])
@@ -199,7 +199,22 @@ def test_authored_video_and_audio_play_seek_and_export_offline(
                 arg=selector,
             )
             assert player.evaluate("el => el.duration") == pytest.approx(8, abs=0.2)
-            # Reach the browser's player controls through ordinary sequential focus.
+            if selector == "#video":
+                # Leaf's bar replaces the browser's controls, the same in each engine.
+                assert player.get_attribute("controls") is None
+                bar = page.get_by_role("group", name="Test pattern")
+                bar.get_by_role("button", name="Play recording").click()
+                page.wait_for_function(
+                    "selector => document.querySelector(selector).currentTime > 0",
+                    arg=selector,
+                )
+                bar.get_by_role("button", name="Pause recording").click()
+                assert player.evaluate("el => el.paused")
+                expect(
+                    bar.get_by_role("slider", name="Recording position")
+                ).to_have_attribute("aria-valuetext", re.compile(r"^0:0\d of 0:08$"))
+                player.evaluate("el => { el.currentTime = 0; }")
+            # Reach the player through ordinary sequential focus.
             for _ in range(20):
                 page.keyboard.press("Tab")
                 if player.evaluate("el => document.activeElement === el"):
@@ -224,21 +239,18 @@ def test_authored_video_and_audio_play_seek_and_export_offline(
         for selector in ("#video", "#audio"):
             player = touch.locator(selector)
             bounds = player.bounding_box()
-            player.tap(
-                position={
-                    "x": 24,
-                    "y": bounds["height"] - 48 if selector == "#video" else 27,
-                }
+            # A finger plays a recording by tapping its picture, and the audio player
+            # by its own button.
+            spot = (
+                {"x": bounds["width"] / 2, "y": bounds["height"] / 3}
+                if selector == "#video"
+                else {"x": 24, "y": 27}
             )
+            player.tap(position=spot)
             touch.wait_for_function(
                 "selector => !document.querySelector(selector).paused", arg=selector
             )
-            player.tap(
-                position={
-                    "x": 24,
-                    "y": bounds["height"] - 48 if selector == "#video" else 27,
-                }
-            )
+            player.tap(position=spot)
             assert player.evaluate("el => el.paused")
         touch.close()
     assert media_responses

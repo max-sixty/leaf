@@ -13,7 +13,7 @@ import subprocess
 import sys
 
 import click
-from leaf.state import flocked, state_home_path
+from leaf.state import flocked, state_home
 
 from leaf_dev import ROOT
 
@@ -30,7 +30,7 @@ def setup() -> None:
     Worktrunk's post-start hook runs this in the background. Invoke `wt setup`
     before testing to wait for other installs and verify the current checkout.
     """
-    lock = state_home_path() / "development-setup.lock"
+    lock = state_home() / "development-setup.lock"
     lock.parent.mkdir(parents=True, exist_ok=True)
     try:
         with flocked(lock):
@@ -45,7 +45,6 @@ def setup() -> None:
                 "chromium",
                 "webkit",
                 "firefox",
-                "--only-shell",
             )
             run("uv", "run", "--frozen", "playwright", "install", "chrome")
             if sys.platform == "linux":

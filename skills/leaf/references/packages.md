@@ -50,16 +50,17 @@ too.
 
 The optional bundled packages are:
 
-| Package         | Adds                                                                                               |
-| --------------- | -------------------------------------------------------------------------------------------------- |
-| `code-review`   | Instructions for writing a review; select it with the evidence packages the page needs.            |
-| `diagram`       | `lf-diagram`, rendering Mermaid syntax with Pele.                                                  |
-| `diff`          | `lf-diff` (`unified-diff` data) and `lf-call-diff` (`calldiff` JSON), linked to exact patch lines. |
-| `file-editor`   | `lf-file-editor`, a CodeMirror editor for a bound local text file.                                 |
-| `playground`    | Controls with shared state, preview and output, and typed submission of the configuration.         |
-| `monitoring`    | Instructions for a release workspace: current state, checks, a run log and a rollback decision.    |
-| `visual-review` | Website cases with aligned before-and-after captures and a verdict per case.                       |
-| `playwright`    | Trace import and `lf-trace`, which steps through recorded actions and screenshots.                 |
+| Package         | Adds                                                                                                                              |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `code-review`   | Instructions for writing a review; select it with the evidence packages the page needs.                                           |
+| `diagram`       | `lf-diagram`, rendering Mermaid syntax with Pele.                                                                                 |
+| `diff`          | `lf-diff` (`unified-diff` data) and `lf-call-diff` (`calldiff` JSON), linked to exact patch lines.                                |
+| `file-editor`   | `lf-file-editor`, a CodeMirror editor for a bound local text file.                                                                |
+| `file-tree`     | `lf-file-tree`, a searchable navigator for a file list or another widget’s typed file inventory, following its opaque datum keys. |
+| `playground`    | Controls with shared state, preview and output, and typed submission of the configuration.                                        |
+| `monitoring`    | Instructions for a release workspace: current state, checks, a run log and a rollback decision.                                   |
+| `visual-review` | Website cases with aligned before-and-after captures and a verdict per case.                                                      |
+| `playwright`    | Trace import and `lf-trace`, which steps through recorded actions and screenshots.                                                |
 
 Packages declare no dependencies on each other; a page lists every package it needs.
 
@@ -183,8 +184,8 @@ colours with the page's status.
 
 An element declaration is a JSON Schema over the element's attributes, plus `x-` keys
 that say how Leaf treats the tag, such as whether a module upgrades it, its action verbs
-and whether it puts an item on On me. The merged registry's `$keys` entry defines each
-key; `$state` defines the members of `x-state`, and `$awaits` an item's answer. Every
+and whether it puts an obligation on On me. The merged registry's `$keys` entry defines each
+key; `$state` defines the members of `x-state`, and `$awaits` an obligation's answer. Every
 declaration has a `description` saying what the widget is for and when to use it, and a
 valid `x-example`. The optional `x-instructions` gives the choices and obligations of
 using it.

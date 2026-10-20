@@ -72,6 +72,7 @@ from leaf.files import latest_revision, revision_path
 from leaf.harness import EmbeddedHarness
 from leaf.hosting import LeafHTTPServer
 from leaf.http import PageEndpoint, PostRoute, scope_page_urls
+from leaf.interaction_log import append_interactions
 from leaf.leases import release_lease, take_lease, waiter_lease_path
 from leaf.page_memory import Slot, memo
 from leaf.page_snapshot import capture_page_snapshot
@@ -81,7 +82,7 @@ from leaf.revision_artifact import read_revision
 from leaf.revision_delivery import Delivery
 from leaf.revisioning import activate_source
 from leaf.schema import PAGE_ROUTE_DIRS, VENDORED_FILES
-from leaf.served_state.page import full_state
+from leaf.served_state.context import read_page
 from leaf.served_state.service import PageStateService
 from leaf.server import preview_metadata
 from leaf.service import (
@@ -181,6 +182,13 @@ AGENT_START_PATH = "/_leaf/agent/start"
 AGENT_FAIL_PATH = "/_leaf/agent/fail"
 STARTUP_REPORT_PATH = "/api/performance"
 LEAF_COMMAND = str(Path(sys.executable).with_name("leaf"))
+# The private diagnostic milestones consumed by hosted reply evaluations. Their
+# producer owns these names; an arm lacking them cannot supply that experiment.
+HOSTED_TURN_RECORDS = {
+    "reply": "turn_reply_published",
+    "terminal": "turn_stream_completed",
+    "following": "turn_following_ended",
+}
 # Environment facts supplement the installed Leaf skill. The agent discovers and
 # reads that skill and its references through Codex's ordinary plugin mechanism.
 CODEX_INSTRUCTIONS = """## On leaf.page
@@ -190,9 +198,10 @@ This harness already serves the page in your working directory and delivers its
 input through Codex App Server. The `leaf` command takes `.` as the page path.
 
 Answer questions in the conversation; change the document only when the request
-calls for a page edit. Your opening commentary and final answer appear together
-as your reply to the user. If you need to read first, a brief acknowledgement
-tells them what you are checking; an immediate answer needs no preamble.
+calls for a page edit. Your opening commentary shows in the thread at once as your
+progress line, and your final answer is your reply to the user. If you need to read
+first, a brief acknowledgement tells them what you are checking; an immediate
+answer needs no preamble.
 
 This page is the scope of your work. Use its normal Leaf controls. Saving valid
 index.html publishes its revision. Leave status to the harness: it projects your
@@ -376,9 +385,10 @@ def pending_agent_inputs(page_dir: Path) -> dict[str, str | None]:
         activation = activate_source(page_dir, transaction=page)
         if activation.error:
             raise ValueError(activation.error)
-        # Obligations already are canonical workflows, including their delivery
-        # session. Joining a second workflow list would repeat the owner’s reading.
-        obligations = full_state(page_dir, page.events)["activity"]["obligations"]
+        # The owed answers already carry their update's workflow, including its
+        # delivery session (`activity.canonical_activity`). Joining a second workflow
+        # list would repeat the owner’s reading.
+        obligations = read_page(page_dir, page.events).work.obligations
         return {item["input"]: item["delivery_session"] for item in obligations}
 
 
@@ -401,7 +411,7 @@ def next_unaccepted_agent_event(
     who to tell.
     """
     with PageTransaction(page_dir) as page:
-        obligations = full_state(page_dir, page.events)["activity"]["obligations"]
+        obligations = read_page(page_dir, page.events).work.obligations
         return next(
             (
                 item["input"]
@@ -424,6 +434,11 @@ class HostedTurn(CarriedTurn):
     silence past `STREAM_SILENCE`, and any fault in this code are endings as well,
     and this host closes those by interrupting the provider turn, so a turn the
     page has stopped watching is not left running.
+
+    Boundary readings also enter the page's private diagnostic log. Completed reply
+    updates retain exactly the text published, the opening's and the final answer's;
+    public operator records remain content-free. The follower's
+    final record comes after cleanup and continuation, not just provider completion.
     """
 
     silence = STREAM_SILENCE
@@ -466,7 +481,20 @@ class HostedTurn(CarriedTurn):
     def elapsed(self) -> int:
         return elapsed_ms(self.started)
 
-    def record(self, event: str, **fields) -> None:
+    def record(self, event: str, *, reply: dict | None = None, **fields) -> None:
+        append_interactions(
+            self.page_dir,
+            [
+                {
+                    "source": "server",
+                    "type": event,
+                    **self.fields,
+                    "turnId": self.turn_id,
+                    **fields,
+                    **({"reply": reply} if reply is not None else {}),
+                }
+            ],
+        )
         log_agent(event, **self.fields, turnId=self.turn_id, **fields)
 
     def milestone(self, event: str, **fields) -> None:
@@ -540,13 +568,23 @@ class HostedTurn(CarriedTurn):
             )
 
     def observe_reply(self, update: dict | None, published: bool) -> None:
-        """Record the first of the turn's answer to reach the user's reply."""
+        """Record published reply milestones, keeping text in private diagnostics."""
         message_update = update.get("message") if update is not None else None
-        if published and message_update is not None and bool(message_update["text"]):
+        if published and (
+            update.get("opening")
+            or (message_update is not None and bool(message_update["text"]))
+        ):
             self.milestone(
                 "turn_reply_first_text_published",
                 durationMs=self.elapsed(),
                 recovered=False,
+            )
+        if published and message_update is not None and message_update["complete"]:
+            self.record(
+                HOSTED_TURN_RECORDS["reply"],
+                itemId=message_update["item"],
+                phase=message_update["phase"],
+                reply=message_update,
             )
 
     def ended(self, error: BaseException) -> dict:
@@ -569,7 +607,7 @@ class HostedTurn(CarriedTurn):
         the turn ended rather than how accounting for it went.
         """
         self.record(
-            "turn_stream_completed",
+            HOSTED_TURN_RECORDS["terminal"],
             durationMs=self.elapsed(),
             status=terminal.get("status"),
             **self.tokens,
@@ -854,40 +892,45 @@ class WebsiteCodexHarness:
         the page refuses here, such as one waiting on a reply the turn still holds, is
         recorded rather than ending the thread before the page is handed on.
         """
-        page_dir = turn.page_dir
+        completed = False
         try:
-            turn.follow()
-        finally:
-            with self.lock:
-                self.following_threads.discard(turn.session_id)
-            restarted = False
-            if turn.correction is not None and not self.stop_event.is_set():
-                try:
-                    with self.lock:
-                        process = self._ensure_server()
-                        restarted = self._resume_and_start(
-                            page_dir, turn.session_id, process, turn.event_ids[0]
-                        )
-                except Exception as error:  # noqa: BLE001 - daemon owns failure feedback
-                    log_agent(
-                        "turn_correction_start_failed",
-                        **agent_event_fields(turn.event_ids),
-                        error=type(error).__name__,
-                        detail=str(error),
-                    )
-            if not restarted:
-                if turn.correction is not None:
-                    for event_id in turn.event_ids:
-                        abandon_codex_delivery(turn.session_id, event_id)
+            page_dir = turn.page_dir
+            try:
+                turn.follow()
+            finally:
+                with self.lock:
+                    self.following_threads.discard(turn.session_id)
+                restarted = False
+                if turn.correction is not None and not self.stop_event.is_set():
                     try:
-                        turn._receipt_unanswered()
-                    except Refused as error:
+                        with self.lock:
+                            process = self._ensure_server()
+                            restarted = self._resume_and_start(
+                                page_dir, turn.session_id, process, turn.event_ids[0]
+                            )
+                    except Exception as error:  # noqa: BLE001 - daemon owns failure feedback
                         log_agent(
-                            "turn_receipt_refused",
+                            "turn_correction_start_failed",
                             **agent_event_fields(turn.event_ids),
-                            **fault_fields(error),
+                            error=type(error).__name__,
+                            detail=str(error),
                         )
-                self._continue_page(page_dir, turn.event_ids)
+                if not restarted:
+                    if turn.correction is not None:
+                        for event_id in turn.event_ids:
+                            abandon_codex_delivery(turn.session_id, event_id)
+                        try:
+                            turn._receipt_unanswered()
+                        except Refused as error:
+                            log_agent(
+                                "turn_receipt_refused",
+                                **agent_event_fields(turn.event_ids),
+                                **fault_fields(error),
+                            )
+                    self._continue_page(page_dir, turn.event_ids)
+            completed = True
+        finally:
+            turn.record(HOSTED_TURN_RECORDS["following"], completed=completed)
 
     def _continue_page(self, page_dir: Path, excluding: tuple[str, ...]) -> None:
         """Start the page's next unanswered move, receipting each start that cannot.

@@ -12,7 +12,6 @@ from playwright.sync_api import expect
 from render_cases_layout import ring_faults, standing_ring
 from render_harness import (
     at_rest,
-    consume_browser_errors,
     holding,
     leaf_page,
     open_page,
@@ -132,10 +131,6 @@ def test_timeline_tooltips_keep_their_words_above_marks_inside_the_timeline(
     data_model.cmd_data_set(serve.page_dir, "trace", record)
     context = browser.new_context(viewport={"width": width, "height": 900})
     page = open_page(browser, url, context=context)
-    if engine == "firefox_browser":
-        # Firefox reports the initial presentation sensor's unsupported entry type;
-        # tooltip geometry is read directly below and needs no layout-shift entries.
-        consume_browser_errors(page, "Ignoring unsupported entryTypes: layout-shift.")
     widget = page.locator("#journey")
     timeline = widget.get_by_role("group", name="Recording timeline", exact=True)
     timeline.scroll_into_view_if_needed()
@@ -1355,7 +1350,7 @@ def test_trace_render_gate_restores_the_zoomed_time_window(browser, serve):
 
     before = time_window()
     # Marks outside the zoomed window are drawing, not controls hidden by a clip.
-    assert evaluate_probe(user, "reachabilityReading")["clipped"] == []
+    assert evaluate_probe(user, "clippedControls") == []
     assert time_window() == before
 
 

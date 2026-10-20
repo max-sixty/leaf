@@ -56,12 +56,12 @@ from interact_support import (
     publish,
     record_claim,
     wait_for,
+    write_record,
 )
 from leaf import cli as cli_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import leases as leases_model
-from leaf import machine as machine_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import state as cleanup_model
@@ -142,30 +142,37 @@ def shift_watch_source():
             "--input-type=module",
             "--eval",
             (
-                'import { WORKS } from "./skills/leaf/assets/runtime/control-selectors.js";'
+                'import { WORKS, PRESSES } from "./skills/leaf/assets/runtime/control-selectors.js";'
                 'import { clippingAxes } from "./skills/leaf/assets/runtime/rect.js";'
                 'import { elementAxes, scrollAxes } from "./skills/leaf/assets/runtime/element-frame.js";'
                 'import { shadowHost, upFrom, renderedParent } from "./skills/leaf/assets/runtime/shadow.js";'
-                "process.stdout.write(JSON.stringify([WORKS,...[clippingAxes,shadowHost,upFrom,renderedParent,elementAxes,scrollAxes].map(fn=>fn.toString())]));"
+                "process.stdout.write(JSON.stringify([WORKS,PRESSES,...[clippingAxes,shadowHost,upFrom,renderedParent,elementAxes,scrollAxes].map(fn=>fn.toString())]));"
             ),
         ],
         cwd=ROOT,
         text=True,
         timeout=STATED_TIMEOUT,
     )
-    interactive, clipping, host, parent, rendered_parent, element_axes, axes = (
-        json.loads(controls)
-    )
+    (
+        interactive,
+        presses,
+        clipping,
+        host,
+        parent,
+        rendered_parent,
+        element_axes,
+        axes,
+    ) = json.loads(controls)
     return (
         WATCH_PLATFORM_SOURCE.read_text()
         + "\n"
         + "const nativePerformance = window.lfWatchPlatform.performance;\n"
         + "const nativeFrame = callback => window.lfWatchPlatform.frame(callback);\n"
         + "const nativeTask = (callback, ...args) => window.lfWatchPlatform.later(callback, ...args);\n"
-        + f"((interactive, clippingAxes) => {{\n"
+        + f"((interactive, pressControls, clippingAxes) => {{\n"
         f"const shadowHost = {host};\nconst upFrom = {parent};\n"
         f"const renderedParent = {rendered_parent};\nconst elementAxes = {element_axes};\nconst scrollAxes = {axes};\n"
-        f"{SHIFT_WATCH_SOURCE.read_text()}\n}})({json.dumps(interactive)}, {clipping});"
+        f"{SHIFT_WATCH_SOURCE.read_text()}\n}})({json.dumps(interactive)}, {json.dumps(presses)}, {clipping});"
     )
 
 
@@ -648,7 +655,7 @@ def serve(tmp_path, monkeypatch, initialized_page, request):
                 },
             )
         if preview is not None:
-            cleanup_model.write_json(d / schema_model.PREVIEW_FILE, preview)
+            write_record(d / schema_model.PREVIEW_FILE, preview)
         server = hosting_model.TemporaryPageServer(
             d,
             token=TOKEN,
@@ -978,7 +985,7 @@ def plant_quiet_word(page, selector, holding):
 # reading answers that against an `/api/state` answer, and names no transport.
 # Counting answered requests said the same thing only while a fixed interval made them
 # the same thing: the page now asks when its freshness reading says the page has moved, so a
-# count of items started here reaches the answer that carries the news only by luck of
+# count of obligations started here reaches the answer that carries the news only by luck of
 # the ordering.
 def told(page, *, until=None):
     """Wait until the page has taken in everything the server now holds.
@@ -1014,7 +1021,7 @@ def nudge(page_dir):
     """Give the page a reason to ask, changing nothing it shows.
 
     The page asks for state when its freshness reading says the page has moved, and the
-    reading names file stamps. A test that wants the page's next item — to park it, or to
+    reading names file stamps. A test that wants the page's next obligation — to park it, or to
     watch it refused — used to wait for the poll's timer; now it moves the revisions
     directory stamp, which the state fingerprint reads without changing page content.
     """
@@ -1275,9 +1282,7 @@ def clean_browser(test=None):
 def judge_watches():
     """Judge every layout shift each watched page makes, once the frames the test's
     last act changed have painted (`shift_watch.js`, `lfShiftsJudged`), and then every
-    loss of typed words so far (`words_watch.js`, `lfWordsJudged`). The driver reads
-    frame-owner visibility across origins: an opaque child cannot inspect the
-    ancestor that suppresses its paint (`window.frameElement` is null there).
+    loss of typed words so far (`words_watch.js`, `lfWordsJudged`).
 
     Chrome hands a frame's shifts to the observer only after it paints, so a test whose
     last act moves the page or takes words away would end before the report. Judgement
@@ -1305,28 +1310,23 @@ def _judge_frame_watches(frame):
     """Drain a frame while its page owns it; the caller handles native detachment."""
     page = frame.page
     frame.evaluate(
-        """ancestorsDrawn => {
-            const judgement = window.lfWatchJudgement = {
-              ancestorsDrawn, complete: false, error: null,
-            };
+        """() => {
+            const judgement = window.lfWatchJudgement = { complete: false, error: null };
             Promise.resolve().then(async () => {
               await window.lfShiftsJudged?.();
               await window.lfWordsJudged?.();
             }).then(() => { judgement.complete = true; },
               error => { judgement.error = error; });
-        }""",
-        _frame_owners_drawn(frame),
+        }"""
     )
     deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
     while True:
         complete = frame.evaluate(
-            """ancestorsDrawn => {
+            """() => {
                 const judgement = window.lfWatchJudgement;
-                judgement.ancestorsDrawn = ancestorsDrawn;
                 if (judgement.error) throw judgement.error;
                 return judgement.complete;
-            }""",
-            _frame_owners_drawn(frame),
+            }"""
         )
         if complete:
             break
@@ -1336,20 +1336,6 @@ def _judge_frame_watches(frame):
         # browser tests a tenth of a second.
         page.wait_for_timeout(10)
     frame.evaluate("delete window.lfWatchJudgement")
-
-
-def _frame_owners_drawn(frame):
-    """Read current ancestor visibility across origin boundaries for the sensor."""
-    ancestor = frame
-    while ancestor.parent_frame is not None:
-        owner = ancestor.frame_element()
-        try:
-            if not owner.evaluate("element => element.checkVisibility()"):
-                return False
-        finally:
-            owner.dispose()
-        ancestor = ancestor.parent_frame
-    return True
 
 
 def watched(page, *, java_script_enabled=True):
@@ -1621,7 +1607,7 @@ def navigate(page, url, *, wait_until="load", upgraded=True):
 
 
 def active_digit_bindings(page):
-    """Read reachable digits without inventing a page-owned aggregate item command.
+    """Read reachable digits without inventing a page-owned aggregate obligation command.
 
     Widgets assign their contextual aliases. The dispatcher is the canonical reader of
     which declared keys can execute where focus stands, including native shadowing.
@@ -1679,12 +1665,15 @@ def panel_settled(page, open=True, view=None):
         """([open, view]) => {
           const host = document.querySelector('.lf-floating-panel');
           const ground = document.querySelector('.lf-fp-ground');
-          const moving = [host, ground].flatMap((n) => n.getAnimations({subtree: true}));
+          // A working indicator may keep animating while the panel has settled.
+          const finite = (n) => n.getAnimations({subtree: true}).filter((move) =>
+            Number.isFinite(move.effect?.getComputedTiming().endTime));
+          const moving = [host, ground].flatMap(finite);
           for (const move of moving) move.finish();
           const shown = host.dataset.open ?? null;
           return (open ? shown !== null && (!view || shown === view) : shown === null)
             && !host.querySelector('.lf-fp-view[data-leaving]')
-            && [host, ground].every((n) => !n.getAnimations({subtree: true}).length);
+            && [host, ground].every((n) => !finite(n).length);
         }""",
         arg=[open, view],
         polling=render_checks_model.PROBE_POLL_MS,
@@ -1728,9 +1717,10 @@ def panel_control(page, key, at=None):
     (`approval`) stands under Versions. Every other row is the menu's, by its key:
     `versions`, `leaves` (All pages, under `navigate` where other pages are live),
     `latest`, `blanket:accept`, `command:<id>` for a page command such as
-    `command:history.undo` or `command:draw.mode.enter` (under `annotate`). A gesture's
-    next step stands in the marks' place as a `.lf-fp-step` chip named by its words, and
-    the page comment is `page_comment`'s."""
+    `command:history.undo` or `command:draw.mode.enter` (under `annotate`). The way out
+    of the stance the user stands in is the `.lf-fp-exit` ✕ named by its `aria-label`,
+    and the page comment is `page_comment`'s, offering selected words as
+    `selection_field`'s."""
     if key in PANEL_ROW_CONTROLS:
         control = page.locator(PANEL_ROW_CONTROLS[key])
     elif key == "approval":
@@ -1752,6 +1742,14 @@ def expect_panel_offers(page, key, *, offered=True, at=None):
     expect(row).to_have_count(1 if offered else 0)
     page.locator(".lf-fp-leaf").click()
     expect(page.locator(PANEL)).not_to_have_attribute("data-menu", "")
+
+
+def selection_field(page):
+    """Return the page comment's box in the panel's field while it offers the words
+    selected on the page: its placeholder quotes them, and a press on it comments on
+    them (floating-panel.js, `selectedWords`). Nothing matches while no words are
+    offered, so the locator reads as hidden then."""
+    return page.locator('.lf-fp-field leaf-text[name="comment"][data-says="selection"]')
 
 
 def page_comment(page):
@@ -1803,15 +1801,15 @@ def expect_error_waits_in_menu(page, message):
     expect(page.locator(PANEL)).not_to_have_attribute("data-menu", "")
 
 
-# How many of the page's active items are answered, as "answered/total": the publisher's
-# own item reading, which the On panel's Done list and the `m` walk select from. Before
+# How many of the page's active obligations are answered, as "answered/total": the publisher's
+# own obligation reading, which the On panel's Done list and the `m` walk select from. Before
 # the page has admitted a state answer the reading is empty, which is no count at all.
-_ITEMS_ANSWERED = """async () => {
+_OBLIGATIONS_ANSWERED = """async () => {
   const { readApplication } = await window.__lfCheckApi();
-  window.__lfItemsAnswered = () => {
+  window.__lfObligationsAnswered = () => {
     const application = readApplication();
     if (application.phase !== 'ready') return null;
-    const items = application.effective.items;
+    const items = application.effective.obligations;
     const all = items.all.filter(item => item.source.kind === "widget");
     const unanswered = items.unanswered.filter(item => item.source.kind === "widget");
     return `${all.length - unanswered.length}/${all.length}`;
@@ -1819,21 +1817,23 @@ _ITEMS_ANSWERED = """async () => {
 }"""
 
 
-def expect_items_answered(page, answered: str) -> None:
-    """Wait until the page's item reading holds `answered` ("answered/total").
+def expect_obligations_answered(page, answered: str) -> None:
+    """Wait until the page's obligation reading holds `answered` ("answered/total").
 
     The deadline bounds a hang; on expiry the failure names the reading the page held.
     """
-    page.evaluate(_ITEMS_ANSWERED)
+    page.evaluate(_OBLIGATIONS_ANSWERED)
     try:
         page.wait_for_function(
-            "(want) => window.__lfItemsAnswered() === want",
+            "(want) => window.__lfObligationsAnswered() === want",
             arg=answered,
             timeout=render_checks_model.SERVED_TIMEOUT_MS,
         )
     except PlaywrightTimeout as error:
-        held = page.evaluate("() => window.__lfItemsAnswered()")
-        raise AssertionError(f"answered items read {held}, not {answered}") from error
+        held = page.evaluate("() => window.__lfObligationsAnswered()")
+        raise AssertionError(
+            f"answered obligations read {held}, not {answered}"
+        ) from error
 
 
 def open_page(
@@ -2168,7 +2168,7 @@ def live_leaf(tmp_path, monkeypatch):
     waiters = []
 
     def go(name, title):
-        d = machine_model.state_home() / "pages" / name
+        d = cleanup_model.state_home() / "pages" / name
         result = CliRunner().invoke(cli_model.cli, ["page", "init", str(d)])
         assert result.exit_code == 0, result.output
         stamp_page(
@@ -2177,7 +2177,7 @@ def live_leaf(tmp_path, monkeypatch):
             "t",
         )
         declare_work(d, "running the suite")
-        # A live leaf has a session behind it, and what the drawer's hover says about a
+        # A live leaf has a session behind it, and what All pages says on hover about a
         # page is the work that session is doing it for — so the fixture's pages come
         # out of somewhere nameable rather than out of nowhere.
         record_claim(
@@ -2763,9 +2763,13 @@ REST_SECONDS = 5
 
 
 def left_alone(page):
-    """Prepare a still_page and its Leaf frames for their reading: rendered, arrival
-    notices retired, and the pointer off its controls. Advance its controlled timer
-    clock through every due callback while Date.now stays fixed.
+    """Prepare a still_page and its Leaf frames for their reading: rendered, the focus
+    released and the pointer off its controls, and arrival notices retired. Advance its
+    controlled timer clock through every due callback while Date.now stays fixed.
+
+    The leaf's peek also shows while the pointer rests on the leaf or the panel's
+    field, or the focus on the leaf, as after a press on the panel, so both leave
+    before the notices are waited out.
     """
 
     def prepare_children(parent):
@@ -2779,6 +2783,8 @@ def left_alone(page):
 
     rendered(page)
     prepare_children(page.main_frame)
+    page.evaluate(RELEASE_FOCUS)
+    page.mouse.move(2, 300)
     deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
     # A passing notice stands in the panel's empty field, in the line over it once the
     # field is written in, or in the leaf's peek (notifications.js).
@@ -2791,7 +2797,6 @@ def left_alone(page):
         # still_page fixes Date.now but its timer clock otherwise runs in real time.
         # Run every callback until the notice retires; fast_forward would skip ticks.
         page.clock.run_for(100)
-    page.mouse.move(2, 300)
     rendered(page)
 
 

@@ -2,16 +2,16 @@
 /* Pure thread structure and turn-taking projected by the server.
 
    This reads projected threads by `isReaction`, `spoken`, `turns`, and `bareReaction`,
-   the names `events.py` reads them by. The panel lists `discussed` threads only;
-   a card shows its turns and its root, so a
-   thread that grew out of a reaction opens on the mark, whose body
-   thread/messages.js writes as the glyph and its word. Whose turn a thread is
-   (`awaitsUser`, `awaitsAgent`) is read from the complete browser Thread's
-   `attention` and nothing else, so a filter and the card it lists agree: a user
-   obligation outranks concurrent agent work, which stays the card's secondary
-   status.
+   the names `events.py` reads them by. The panel lists `discussed` threads only.
+   Every drawing of a thread, a card or the message parts a presentation names
+   (thread/primary-reader.js), shows its turns: its spoken messages and its root, so a
+   thread that grew out of a reaction opens on the mark, whose body thread/messages.js
+   writes as the glyph and its word, and any other reaction stands as its chip on the
+   message it answers. Whose turn a thread is is read
+   from the complete browser Thread's `attention` and nothing else: a user obligation
+   outranks concurrent agent work, which stays the card's secondary status.
 
-   A thread's `id` is its one identity: the id the server keys it by, which every item,
+   A thread's `id` is its one identity: the id the server keys it by, which every obligation,
    workflow, placement, and view names it by. Its `root` is its opening message, a
    message like any other, and what a reply or settlement addresses as its `parent`. A
    thread this tab opened goes by its pending message's id until the log answers. */
@@ -168,12 +168,12 @@ const sending = (turn) => ({
 // `gestures` are the ledger's thread gestures, oldest first: each comment, reply or
 // rewrite as the thread draws it, each settlement with the `localParent` its pending
 // parent went by, and each undo.
-/** @param {Thread[]} threads
+/** @param {readonly Thread[]} threads
  * @param {readonly import("../../../../../build/browser/domain.ts").ThreadGesture[]} gestures
  * @returns {Thread[]}
  */
 export function foldThreads(threads, gestures) {
-  if (!gestures.length) return threads;
+  if (!gestures.length) return [...threads];
   const withdrawn = new Set(
     gestures.flatMap((gesture) => (gesture.kind === "undo" ? [gesture.undoes] : [])),
   );
@@ -181,6 +181,7 @@ export function foldThreads(threads, gestures) {
   // reply written against the first: the one this page gave it, and the one the log
   // gave back. Both reach the one thread, so a reply written into the card a
   // send had just drawn stays in it when the answer arrives.
+  /** @type {Thread[]} */
   const copies = threads
     .filter((thread) => !withdrawn.has(thread.root.id))
     .map((thread) => ({
@@ -204,7 +205,6 @@ export function foldThreads(threads, gestures) {
         msgs: [gesture],
         revisions: [],
         resolved: null,
-        user_prompt: null,
         bare_reaction: reaction,
         seat: pendingSeat(gesture),
         summaries: [],
@@ -219,7 +219,7 @@ export function foldThreads(threads, gestures) {
       // A reply still streaming stands last, where the log will take its answer, so the
       // user's message joins the thread above it and its acceptance moves nothing.
       const streaming = thread.msgs.at(-1)?.provisional ? 1 : 0;
-      thread.msgs.splice(thread.msgs.length - streaming, 0, gesture);
+      thread.msgs = thread.msgs.toSpliced(thread.msgs.length - streaming, 0, gesture);
       // A reaction is no turn, so it reopens nothing.
       if (!isReaction(gesture)) thread.resolved = null;
     } else if (gesture.kind === "edit") {
@@ -278,16 +278,10 @@ export const reactionsAt = (threads, anchor) =>
     .map((thread) => thread.root);
 
 /** @param {Thread} thread */
-export const awaitsAgent = (thread) =>
-  !thread.resolved && thread.attention?.kind === "waiting";
-/** @param {Thread} thread */
-export const awaitsUser = (thread) =>
-  !thread.resolved && thread.attention?.kind === "needs_user";
-/** @param {Thread} thread */
 export const seatRoot = (thread) => thread.seat;
 
 // When a message last moved: its latest edit, else its own arrival. Every ordering that
-// asks what is newest in a thread — Recent, the first unread, news — reads this,
+// asks what is newest in a thread — the first unread, news — reads this,
 // so an agent message edited today is today's in all of them. A message still being
 // sent carries the clock the user's gesture gave it and no log position yet.
 /** @param {{edited?: {seq?: number, ts: string}, seq?: number, ts?: string}} message */
@@ -318,12 +312,14 @@ const versionKey = ({ message, version }) => `${message}\u0000${version}`;
    A Thread's `unread` is the server's reading of the agent content versions the user
    has not taken in, less those this tab is marking read now: the page draws them read
    in the turn it sends that, and the answer confirms rather than decides it. */
-/** @param {Thread[]} threads
+/** @param {readonly Thread[]} threads
  * @param {import("../../../../../build/browser/application.ts").SemanticDocument} document
  * @param {ReturnType<typeof import("../projection/model.js").foldWidgetStates>} widgets
  * @param {import("../../../../../build/browser/application.ts").Workflow[]} workflows
  * @param {readonly import("../../../../../build/browser/application.ts").WireTodo[]} todos
  *   the open to-dos, of which each thread holds the agent's on it
+ * @param {readonly import("../../../../../build/browser/application.ts").ObligationRecord[]} obligations
+ *   the view's obligations, of which each thread holds those its messages make
  * @param {import("../../../../../build/browser/domain.ts").ContentVersion[]} markingRead
  * @param {boolean} ready
  */
@@ -333,6 +329,7 @@ export function readThreadRecords(
   widgets,
   workflows,
   todos = [],
+  obligations = [],
   markingRead = [],
   ready = true,
 ) {
@@ -420,8 +417,10 @@ export function readThreadRecords(
       rewritten_from: thread.rewritten_from,
       resolved: thread.resolved,
       settling: thread.settling ?? null,
-      user_prompt: thread.user_prompt,
       attention: thread.attention,
+      // The obligations that stand in it: those widgets in its messages make, such as an
+      // `lf-ask` the user owes words to there, and those its updates publish.
+      obligations: obligations.filter((obligation) => obligation.thread === thread.id),
       // The agent's open to-dos on the thread: a reply that promised one says it is
       // still open (a to-do a reply opens takes the reply's id, `todos.py`), the first
       // is the one a thread waiting on a to-do waits on, and a running one is work the

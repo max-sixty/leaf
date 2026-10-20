@@ -483,7 +483,7 @@ def state(dir: str, target: str | None, after: int | None, limit: int | None) ->
     one, names its thread: the output is that thread with a page of its messages,
     their frozen markup, and the state of its widgets, paged by --after and
     --limit. A widget on the page names itself: its element, its current actions
-    and reports, its items and to-dos, and its workflows."""
+    and reports, its obligations and to-dos, and its workflows."""
     from leaf.agent_state import cmd_page_state
 
     if target is None and (after is not None or limit is not None):
@@ -794,6 +794,22 @@ def file_bind(dir: str, binding: str, path: Path) -> dict:
     }
 
 
+def json_input(input_file):
+    """The JSON value a command's `--file` holds, or else its piped stdin
+    (`piped_input`)."""
+    from leaf.piped_input import piped_stdin
+
+    text = input_file.read() if input_file else piped_stdin()
+    if not text.strip():
+        raise click.ClickException("no JSON given")
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as error:
+        raise click.ClickException(
+            f"invalid JSON ({error.msg}, line {error.lineno})"
+        ) from error
+
+
 @cli.group(short_help="Set or clear page-bound external data.")
 def data() -> None:
     """Manage each bound source's current value, one JSON file per source."""
@@ -806,19 +822,13 @@ def data() -> None:
     "--file",
     "input_file",
     type=click.File("r", encoding="utf-8"),
-    default="-",
     help="JSON value to read (default: stdin)",
 )
 def data_set(dir: str, source: str, input_file) -> dict:
     """Validate and replace SOURCE with one complete JSON value."""
     from leaf.data import cmd_data_set
 
-    try:
-        value = json.loads(input_file.read())
-    except json.JSONDecodeError as error:
-        raise click.ClickException(
-            f"invalid JSON ({error.msg}, line {error.lineno})"
-        ) from error
+    value = json_input(input_file)
     return cmd_data_set(resolve_dir(dir), source, value)
 
 
@@ -1176,7 +1186,9 @@ def thread_reply(dir: str, thread: str, **options) -> dict | None:
     """
     from leaf.thread import post_reply
 
-    return post_reply(resolve_dir(dir), {"to": thread}, validate_source=True, **options)
+    return post_reply(
+        resolve_dir(dir), {"parent": thread}, validate_source=True, **options
+    )
 
 
 @thread.command("edit", short_help="Edit a message's text, or its thread's title.")
@@ -1231,7 +1243,7 @@ def task() -> None:
     session that opened it, until `leaf task end` or a stamp that `--completes` its
     widget ends it. A to-do you open `--on user` goes on the user's On me list
     instead, until they press its Done or you end it. `leaf task plan` arranges
-    to-dos, items and plain steps into one outline of the work. Every write prints
+    to-dos, obligations and plain steps into one outline of the work. Every write prints
     the record it appended, one JSON line, as `page events` prints it.
     """
 
@@ -1294,7 +1306,7 @@ def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> dict:
     TODO may also be the id of a question the user answers in words, such as an
     `lf-ask` in a reply (`widget:<id>`): `done` records that the user answered it
     elsewhere, DETAIL saying where, and `dropped` withdraws it. Neither records an
-    answer from the user. An item a widget's state answers ends through that state
+    answer from the user. An obligation a widget's state answers ends through that state
     or an authored withdrawal."""
     from leaf.todos import cmd_end
 
@@ -1307,7 +1319,6 @@ def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> dict:
     "--file",
     "input_file",
     type=click.File("r", encoding="utf-8"),
-    default="-",
     help="JSON outline to read (default: stdin)",
 )
 def task_plan(dir: str, input_file) -> dict:
@@ -1315,7 +1326,7 @@ def task_plan(dir: str, input_file) -> dict:
 
     Each step has a `depth`, 0 for a goal and one more for each level under it.
     A plain step has a `title` and a `state`: open, working, done or dropped.
-    A step can instead name an `item`, a to-do's id or an item's id, and shows
+    A step can instead name an `item`, a to-do's id or an obligation's id, and shows
     that item's title and state, so work that stays owed past your turn is a
     to-do the plan names:
 
@@ -1329,10 +1340,5 @@ def task_plan(dir: str, input_file) -> dict:
     nothing; it stays on its list. `[]` clears the plan."""
     from leaf.plans import cmd_plan
 
-    try:
-        steps = json.loads(input_file.read())
-    except json.JSONDecodeError as error:
-        raise click.ClickException(
-            f"invalid JSON ({error.msg}, line {error.lineno})"
-        ) from error
+    steps = json_input(input_file)
     return cmd_plan(resolve_dir(dir), steps)

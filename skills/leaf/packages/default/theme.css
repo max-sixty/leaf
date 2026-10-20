@@ -1541,9 +1541,15 @@
   padding: 2px 5px;
   border-bottom: 2px solid transparent;
 }
-.lf-tabstrip .lf-tab-btn[aria-selected=true] > .lf-tab-name {
-  border-bottom-color: currentColor;
+.lf-tabstrip .lf-tab-btn::after {
+  border-bottom-color: transparent;
+}
+.lf-tabstrip .lf-tab-btn[aria-selected=true] {
   color: var(--ink);
+}
+.lf-tabstrip .lf-tab-btn[aria-selected=true] > .lf-tab-name,
+.lf-tabstrip .lf-tab-btn[aria-selected=true]::after {
+  border-bottom-color: currentColor;
 }
 @container style(--lf-tabstrip-flow: column) {
   .lf-tabstrip .lf-tab-btn {
@@ -1552,13 +1558,17 @@
   .lf-tabstrip .lf-tab-btn > .lf-tab-name {
     border-bottom: 0;
   }
+  .lf-tabstrip .lf-tab-btn::after {
+    display: none;
+  }
   .lf-tabstrip .lf-tab-btn[aria-selected=true] > .lf-tab-name {
     background: var(--card);
     box-shadow: inset 0 0 0 1px var(--border-2);
   }
 }
 @media (forced-colors: active) {
-  .lf-tabstrip .lf-tab-btn:not([aria-selected=true]) > .lf-tab-name {
+  .lf-tabstrip .lf-tab-btn:not([aria-selected=true]) > .lf-tab-name,
+  .lf-tabstrip .lf-tab-btn:not([aria-selected=true])::after {
     border-bottom-color: Canvas;
   }
   @container style(--lf-tabstrip-flow: column) {
@@ -1600,7 +1610,7 @@
     box-sizing: border-box;
     min-block-size: var(--lf-tabstrip-h);
     border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
-    --lf-tabstrip-bg: var(--field);
+    --lf-tabstrip-bg: var(--card);
     background: var(--lf-tabstrip-bg);
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -1670,6 +1680,7 @@
     grid-column: 1;
     grid-row: 1;
     --lf-tabstrip-flow: column;
+    --lf-tabstrip-bg: var(--field);
     gap: 0;
     overflow: visible;
     padding: 8px;
@@ -1681,10 +1692,23 @@
   :scope:is(lf-tabs[list=side], lf-parts).lf-rendered > .lf-tabstrip .lf-tab-btn {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    column-gap: calc(var(--focus-ring-w) + var(--lf-tab-focus-gap));
+    align-content: start;
     align-items: baseline;
     justify-items: start;
     text-align: start;
+    &::after {
+      content: "";
+      grid-column: 1 / -1;
+      justify-self: stretch;
+      border-bottom-width: 2px;
+      border-bottom-style: solid;
+    }
+    & > .lf-tab-name {
+      border-bottom: 0;
+    }
+    & > .lf-tabdiff {
+      margin-left: calc(6px + var(--focus-ring-w) + var(--lf-tab-focus-gap));
+    }
   }
   :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer {
     container-type: inline-size;
@@ -1748,6 +1772,7 @@
       grid-column: 1 / -1;
       grid-row: auto;
       --lf-tabstrip-flow: row;
+      --lf-tabstrip-bg: var(--card);
       gap: 2px;
       overflow-x: auto;
       overflow-y: hidden;
@@ -1843,9 +1868,6 @@
     border-radius: 0;
     --lf-tabstrip-pad: 0px;
     --lf-tabstrip-bg: var(--paper);
-  }
-  :scope:is(lf-tabs)[data-lf-tabs-flow=box]:not([list=side]) > .lf-tabstrip {
-    --lf-tabstrip-bg: var(--card);
   }
   .lf-tabstrip-scroll {
     display: none;
@@ -1979,10 +2001,6 @@
         box-sizing: border-box;
         block-size: var(--lf-tabstrip-h);
         border-bottom: 1px solid var(--border-2);
-      }
-      &[list=side]::before {
-        border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
-        background: var(--field);
       }
       & > lf-tab {
         padding: var(--sp-4);

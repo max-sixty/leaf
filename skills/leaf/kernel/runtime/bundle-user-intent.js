@@ -140,6 +140,7 @@ import {
   offer,
   pagePresented,
   paintKeys,
+  passErrorsAt,
   placeBox,
   placeHolder,
   plainPress,
@@ -212,6 +213,7 @@ import {
   renderedOrder,
   renderedParent,
   renderedUnder,
+  ringBox,
   selectsAll,
   sizeObserver,
   standingIn,
@@ -477,20 +479,31 @@ var land = (box, by, behavior) => {
   box.scrollBy({ ...by, behavior });
 };
 var scrollMargin = (where, side = "Top") => where instanceof Range ? 0 : Number.parseFloat(getComputedStyle(where)[`scrollMargin${side}`]) || 0;
-var readingTop = (where, box) => visibleBand(box, placeHolder(where))?.top ?? landingBand(box).top;
-function topMargin(where, box) {
-  const band = landingBand(box);
-  return Math.max(scrollMargin(where), readingTop(where, box) - band.top);
+function shownFor(where) {
+  const ring = ringBox(where);
+  if (ring === where) return where;
+  const box = placeBox(ring);
+  const room = roomAround(ring, where);
+  return box.height <= room.height && box.width <= room.width ? ring : where;
 }
-function landingRoom(where, until = where) {
-  const regions = [...scrollersOf(placeHolder(where))];
+var destinationBox = (where) => placeBox(shownFor(where));
+var holderOf = (where) => placeHolder(shownFor(where));
+var readingTop = (holder, box) => visibleBand(box, holder)?.top ?? landingBand(box).top;
+function topMargin(where, box, holder = holderOf(where)) {
+  const band = landingBand(box);
+  return Math.max(scrollMargin(where), readingTop(holder, box) - band.top);
+}
+var landingRoom = (where, until = where) => roomAround(shownFor(where), where, until);
+function roomAround(shown, where, until = where) {
+  const holder = placeHolder(shown);
+  const regions = [...scrollersOf(holder)];
   let { width, height } = shownWindow();
-  for (let box = renderedParent(where); box instanceof Element; box = renderedParent(box)) {
+  for (let box = renderedParent(shown); box instanceof Element; box = renderedParent(box)) {
     const band = (until === where || renderedUnder(until, box)) && landingBand(box);
     if (band) {
       const axes = box === pageScroller ? { x: true, y: true } : clippingAxes(getComputedStyle(box));
       const at = regions.indexOf(box);
-      const clearance = at === 0 ? topMargin(where, box) + scrollMargin(until, "Bottom") : at > 0 ? Math.max(0, readingTop(regions[at - 1], box) - band.top) : 0;
+      const clearance = at === 0 ? topMargin(where, box, holder) + scrollMargin(until, "Bottom") : at > 0 ? Math.max(0, readingTop(regions[at - 1], box) - band.top) : 0;
       if (axes.x) width = Math.min(width, band.right - band.left);
       if (axes.y) height = Math.min(height, band.bottom - band.top - clearance);
     }
@@ -499,19 +512,38 @@ function landingRoom(where, until = where) {
   return { width, height };
 }
 function fitsWhole(where) {
-  const box = shownBox(where);
+  const box = destinationBox(where);
   const room = landingRoom(where);
   return box.height <= room.height && box.width <= room.width;
 }
-function alreadyShown(where) {
-  const seen = seenRect(where, /* @__PURE__ */ new Map());
+function seesWhole(where, box, out) {
+  const seen = seenRect(shownFor(where), /* @__PURE__ */ new Map(), out);
   if (!seen) return false;
-  const box = shownBox(where);
   const room = landingRoom(where);
-  return (box.height > room.height || seen.top <= box.top && seen.bottom >= box.bottom) && (box.width > room.width || seen.left <= box.left && seen.right >= box.right);
+  return (box.height > room.height || seen.top <= out.top && seen.bottom >= out.bottom) && (box.width > room.width || seen.left <= out.left && seen.right >= out.right);
+}
+function alreadyShown(where) {
+  const box = destinationBox(where);
+  return seesWhole(where, box, box);
+}
+function ringShown(where) {
+  const box = destinationBox(where);
+  const [top, right, bottom, left] = ["Top", "Right", "Bottom", "Left"].map(
+    (side) => scrollMargin(where, side)
+  );
+  return seesWhole(
+    where,
+    box,
+    new DOMRect(
+      box.left - left,
+      box.top - top,
+      box.width + left + right,
+      box.height + top + bottom
+    )
+  );
 }
 function placementBy(where, block, box, margin) {
-  const rect = placeBox(where);
+  const rect = destinationBox(where);
   const band = landingBand(box);
   const room = band.bottom - band.top;
   const place2 = block === "start" ? margin : block === "end" ? room - rect.height - scrollMargin(where, "Bottom") : Math.max((room - rect.height) / 2, margin);
@@ -531,7 +563,7 @@ function verticalTravel(box, movement) {
 function scrollIntoReadingBand(where, holder, block, behavior) {
   const [box, ...around] = scrollersOf(holder);
   if (!box) return;
-  const rect = placeBox(where);
+  const rect = destinationBox(where);
   const margin = topMargin(where, box);
   let { top, bottom } = rect;
   if (block === "start") {
@@ -560,16 +592,16 @@ function scrollIntoReadingBand(where, holder, block, behavior) {
 }
 function scrollIntoView(where, { alignment = where, behavior = "auto", block = "start", within: within2 = null } = {}) {
   if (!where) return;
-  const holder = placeHolder(alignment);
+  const holder = holderOf(alignment);
   if (!holder) return;
   const targetScroller = within2 ? null : scrollersOf(holder).next().value;
   let inside = true;
-  for (let box = placeHolder(where); box instanceof Element; box = renderedParent(box)) {
+  for (let box = holderOf(where); box instanceof Element; box = renderedParent(box)) {
     if (box === targetScroller) inside = false;
     const band = landingBand(box);
     if (band) {
       const { left, right, top, bottom } = band;
-      const destination = where.getBoundingClientRect();
+      const destination = destinationBox(where);
       const byX = nearestScrollBy(
         destination.left - scrollMargin(where, "Left"),
         destination.right + scrollMargin(where, "Right"),
@@ -587,7 +619,7 @@ function scrollIntoView(where, { alignment = where, behavior = "auto", block = "
 onStanding((node, cause) => {
   if (cause !== "step" || !node) return;
   nextRender(() => {
-    if (deepFocus() === node && !alreadyShown(node))
+    if (deepFocus() === node && !ringShown(node))
       scrollIntoView(node, { block: "nearest" });
   });
 });
@@ -2540,6 +2572,10 @@ function forgetWritingPlace(ctx) {
   storeWritingPlace();
 }
 function keepRefusedWords(attempts) {
+  const atEnd = (ctx) => {
+    const end = (activeDraftRecord(ctx)?.text ?? "").length;
+    return [end, end];
+  };
   let held = 0;
   for (const attempt of attempts) {
     const from = openedFrom.get(attempt);
@@ -2550,7 +2586,11 @@ function keepRefusedWords(attempts) {
     const resumed = writingPlace?.context === under2;
     clearDraft(under2);
     if (resumed)
-      keepWritingPlace({ context: from, selection: [0, 0], generation: randomId() });
+      keepWritingPlace({
+        context: from,
+        selection: atEnd(from),
+        generation: randomId()
+      });
     if (box.text) held += 1;
   }
   const returned = attempts.flatMap((attempt) => {
@@ -2561,9 +2601,12 @@ function keepRefusedWords(attempts) {
   });
   const shownIn = (ctx) => [...draftEditors].filter((view) => view.ctx === ctx).map((view) => editorInput(view)).find((input) => input?.isConnected && input.checkVisibility()) ?? null;
   const hidden = returned.filter((ctx) => !shownIn(ctx));
+  const resumes = returned.find((ctx) => ctx === writingPlace?.context);
+  if (resumes !== void 0)
+    keepWritingPlace({ ...writingPlace, selection: atEnd(resumes) });
   for (const ctx of hidden.toReversed())
     if (writingPlace?.context !== ctx)
-      keepWritingPlace({ context: ctx, selection: [0, 0], generation: randomId() });
+      keepWritingPlace({ context: ctx, selection: atEnd(ctx), generation: randomId() });
   const sentences = [
     hidden.length && "Draft kept \u2014 g i resumes writing",
     held && "Reply kept \u2014 it returns when its comment sends"
@@ -2643,7 +2686,10 @@ function createWritingResume({
       (view) => view.ctx === place2.context && editorInput(view) === input
     );
     if (matchesEditor && input?.isConnected && input.checkVisibility() && !input.readOnly && !input.disabled) {
-      intent.handoff(() => focusDestination(input, "move", { caret: place2.selection }));
+      intent.handoff(() => {
+        passErrorsAt(input);
+        focusDestination(input, "move", { caret: place2.selection });
+      });
       return;
     }
     if (runtime.showsActive && !holdsBox(place2.context) && moveToPage(place2.context)) {
@@ -3117,11 +3163,22 @@ function threadRewrites({
       // The rung above a rewrite is the thread's reply box, where ↑ came from, while it
       // is in view; a thread showing none, as a resolved one or a margin card not
       // replying, or one whose box is off screen, hands the user on as a sent reply
-      // does, which moves nothing.
+      // does, which moves nothing. A save in a resolved thread reopens it, so the box
+      // its presentation draws then takes the caret, as Reopen's landing gives it
+      // (#46, the user's decision, 2026-10-07).
       land: (message) => {
-        const input = box();
-        if (input && seenRect(input, /* @__PURE__ */ new Map())) landInThread(input);
-        else landSent(home(message));
+        const shown = () => {
+          const input2 = box();
+          return input2 && seenRect(input2, /* @__PURE__ */ new Map()) ? input2 : null;
+        };
+        const input = shown();
+        if (input) return landInThread(input);
+        landSent(home(message));
+        const mayLand = retainUserIntent();
+        void whenDocumentPresented().then(() => {
+          const drawn3 = shown();
+          if (drawn3 && mayLand()) landInThread(drawn3);
+        });
       },
       previous: (id) => lastEditable(id),
       // A rewrite of message `id` opens in `view`. It starts from the words as they
@@ -5445,7 +5502,7 @@ async function settleThread({
   prepareLanding,
   pendingEntries,
   actions,
-  retainReversal
+  retainGesture
 }) {
   if (pendingSettlement(pendingEntries(), parent())) return;
   const landing = prepareLanding?.();
@@ -5453,7 +5510,7 @@ async function settleThread({
   const answer = resolved2 ? actions.reopen(key, { attempt }) : actions.resolve(key, { attempt });
   if (!answer) return;
   notice(resolved2 ? "Reopened the thread" : "Resolved the thread");
-  if (landing) retainReversal(attempt, landing.reverse);
+  if (landing) retainGesture(attempt, { reverse: landing.reverse });
   await landGesture({
     landing,
     answer,

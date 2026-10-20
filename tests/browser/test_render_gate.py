@@ -2952,60 +2952,74 @@ def test_the_page_edge_is_no_frame(browser, serve):
     assert [f["at"] for f in framed] == ["<html>", "<html>"], framed
 
 
-@pytest.mark.parametrize("display", ("flex", "grid"))
-@pytest.mark.parametrize("frame", ("1", "trim", "propagated"))
-def test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it(
-    browser, serve, display, frame
-):
+def test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it(browser, serve, subtests):
     """A row holds its edge whether it declares the frame or receives its edge from
     outside. The advice names the actual split, and its documented declaration stops
-    that trim. An unframed row's deliberate item margins remain the author's choice."""
-    row = f"""<div id="row" style="display:{display};grid-template-columns:1fr 1fr;gap:12px;
-      padding:24px;--lf-block-frame:{"0" if frame == "propagated" else frame}">
-  <p id="left">Left.</p><p id="right">Right.</p>
+    that trim. An unframed row's deliberate item margins remain the author's choice.
+    The advice names each row by its id, so every case stands on one page."""
+    cases = [
+        (display, frame)
+        for display in ("flex", "grid")
+        for frame in ("1", "trim", "propagated")
+    ]
+
+    def rows(display, frame):
+        name = f"{display}-{frame}"
+        row = f"""<div id="row-{name}" style="display:{display};grid-template-columns:1fr 1fr;
+      gap:12px;padding:24px;--lf-block-frame:{"0" if frame == "propagated" else frame}">
+  <p id="left-{name}">Left.</p><p id="right-{name}">Right.</p>
 </div>"""
-    if frame == "propagated":
-        row = f'<div style="--lf-block-frame:1">{row}</div>'
+        if frame == "propagated":
+            row = f'<div style="--lf-block-frame:1">{row}</div>'
+        return f"{row}<p>Following text keeps the rows apart.</p>"
+
+    deliberate = "".join(
+        f"""<div id="deliberate-{display}" style="display:{display};grid-template-columns:1fr 1fr">
+  <p style="margin-block-start:0">One deliberately higher item.</p>
+  <p style="margin-block-start:13px">One lower item.</p>
+</div>"""
+        for display in ("flex", "grid")
+    )
     page = open_page(
         browser,
         serve(
             leaf_page(
-                "Split row",
-                f"""<h1>Rows</h1>{row}
-<div id="deliberate" style="display:{display};grid-template-columns:1fr 1fr">
-  <p style="margin-block-start:0">One deliberately higher item.</p>
-  <p style="margin-block-start:13px">One lower item.</p>
-</div>
-<p>Following text keeps the rows away from the page frame's edges.</p>""",
+                "Split rows",
+                "<h1>Rows</h1>"
+                + "".join(rows(display, frame) for display, frame in cases)
+                + deliberate
+                + "<p>Following text keeps the rows away from the page frame's edges.</p>",
             )
         ),
     )
 
-    def tops():
+    def tops(name):
         return page.evaluate(
-            """() => ['left', 'right'].map(id =>
-              Math.round(document.getElementById(id).getBoundingClientRect().top))"""
+            """name => ['left', 'right'].map(side => Math.round(
+              document.getElementById(`${side}-${name}`).getBoundingClientRect().top))""",
+            name,
         )
 
-    left, right = tops()
-    assert left != right
-    assert any(
-        f["id"] == "row" and f["edge"] == "above"
-        for f in render_checks_model.evaluate_probe(page, "splitEdges")
-    )
-    assert not [
-        f
-        for f in render_checks_model.evaluate_probe(page, "splitEdges")
-        if f["id"] == "deliberate"
-    ]
-    page.locator("#row").evaluate("el => el.style.setProperty('--lf-holds-edge', '1')")
-    left, right = tops()
-    assert left == right
-    assert not [
-        f
-        for f in render_checks_model.evaluate_probe(page, "splitEdges")
-        if f["id"] == "row"
-    ]
+    def split(identity):
+        return [
+            f
+            for f in render_checks_model.evaluate_probe(page, "splitEdges")
+            if f["id"] == identity
+        ]
+
+    assert not split("deliberate-flex") and not split("deliberate-grid")
+    for display, frame in cases:
+        with subtests.test(display=display, frame=frame):
+            name = f"{display}-{frame}"
+            left, right = tops(name)
+            assert left != right
+            assert any(f["edge"] == "above" for f in split(f"row-{name}"))
+            page.locator(f"#row-{name}").evaluate(
+                "el => el.style.setProperty('--lf-holds-edge', '1')"
+            )
+            left, right = tops(name)
+            assert left == right
+            assert not split(f"row-{name}")
 
 
 def test_every_idiom_in_the_catalog_stands_in_a_corpus_source(browser):

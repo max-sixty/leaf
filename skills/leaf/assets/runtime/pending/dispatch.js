@@ -16,11 +16,14 @@ import { messageText } from "../thread/messages.js";
 /** @typedef {ReturnType<typeof import("../../../../../build/browser/application.ts").createSemanticApplication>} Application */
 /** @typedef {ReturnType<ReturnType<Application["selectWidget"]>["read"]>["actions"][string]["undo"][number]} UndoCandidate */
 /** A package's command, as `widgetController(owner).dispatch` takes it. Admission
- * judges each registry-declared detail schema.
- * @typedef {{kind: "undo", target: string} | {kind: "action", verb: string, detail?: Record<string, unknown>, attempt?: string}} WidgetCommand */
+ * judges each registry-declared detail schema. An action's `says` names the gesture in
+ * the widget's words: the one name Leaf acknowledges it by once the log admits it, and
+ * names it by when the user undoes it.
+ * @typedef {{kind: "undo", target: string} | {kind: "action", verb: string, detail?: Record<string, unknown>, attempt?: string, says?: string}} WidgetCommand */
 
 /** @typedef {{
  * afterEnqueue: (entry: import("./state.js").DeliveryHandle) => void,
+ * named: (entry: import("./state.js").DeliveryHandle, says: string) => void,
  * withdraw: (event: UndoCandidate) => Promise<Event | null> | null,
  * onCollision: (attempt: string | undefined) => void,
  * }} DispatchDependencies */
@@ -57,10 +60,10 @@ export function createCommandDispatch() {
       return null;
     }
     afterEnqueue(entry);
-    return entry.answer;
+    return entry;
   };
   /** @param {PendingCommand} event */
-  const post = (event) => startPost(event) ?? Promise.resolve(null);
+  const post = (event) => startPost(event)?.answer ?? Promise.resolve(null);
   /** @param {WidgetDescriptor} descriptor @param {WidgetCommand} command */
   const dispatchWidget = (descriptor, command) => {
     const { withdraw } = current();
@@ -85,7 +88,10 @@ export function createCommandDispatch() {
         `<${descriptor.tag} id="${descriptor.id}"> cannot dispatch ${JSON.stringify(command.verb)}; its user verbs are: ${Object.keys(reading.actions).join(", ") || "none"}`,
       );
     if (!action.available) return null;
-    return startPost(actionForWidget(descriptor, command, revision));
+    const entry = startPost(actionForWidget(descriptor, command, revision));
+    if (!entry) return null;
+    if (command.says) current().named(entry, command.says);
+    return entry.answer;
   };
   return Object.freeze({
     ledger,

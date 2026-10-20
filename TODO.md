@@ -23,6 +23,10 @@
   slow development. Reduce their runtime and the work needed to run them while
   preserving useful coverage. `notes/shift-watch-cost.md` records what the
   Stability sensor costs and when a cheaper gate would be worth revisiting.
+  Sharing one page across a test's cases (`tests/AGENTS.md`, "One page for the
+  cases that can share it") reaches only cases that leave the log and the page's
+  own UI alone, so most of the time spent opening pages needs each opening to
+  cost less.
 
 Priority runs from **Now** to **Next** to **Etc**. Themes group related work within
 each priority; bullets are outcomes, not implementation plans. Linked notes hold the
@@ -36,12 +40,6 @@ has tried; settle that before building it.
 
 ### User experience
 
-- **Verify cancellation when a browser document departs.** Reproduce navigation
-  away during registry loading, state response decoding, and presentation, plus
-  removal of a loading sample iframe. Confirm which work survives departure and
-  whether it produces errors before changing shared startup or presentation
-  lifetimes. Include real back/forward-cache restoration so cancellation cannot
-  break a returning page.
 - **#25 — Answer one decision beside its evidence and on a board.** A section's
   picker and its board card currently record independent facts. Choose the owner
   and test both views against one decision, including ordering, write-ins and
@@ -177,6 +175,14 @@ has tried; settle that before building it.
   buckets scroll horizontally and the release rationale sits below the board.
   Keep comparison context available during a move, preserving direct destination
   controls and undo.
+- **Decide whether Back may restore a served page whole.** Every served page and
+  API answer carries `Cache-Control: no-store`, so Chrome and Firefox load the page
+  afresh on Back rather than restoring it from their back/forward cache, and Firefox
+  also refuses a page holding a sample ([browser support](notes/browser-support.md),
+  "Page cache"). With `no-store` lifted, a Chrome probe restored a page that caught
+  up with the log and recorded gestures. Weigh an instant Back against what
+  `no-store` protects, a private page's copy in the browser's disk cache, and
+  exercise Safari.
 - **Consider automatic Leaf recovery on resume.** Reuse the reconnect notice's
   eligibility checks to restore serving, ownership, and feedback delivery, while
   respecting explicit stops and transfers to another session.
@@ -287,19 +293,12 @@ and its chrome coordinate.
   while a sample still scrolled inside a fixed-height frame, with no reproduction.
   The frame now takes its page's height, so nothing scrolls inside it; check that the
   report no longer reproduces once the scrolling changes land.
-- **Keep a playground's rail in view beside a tall preview.** With controls beside
-  each item in the preview (#2711), the user works down a long stage while the
-  page-wide controls, the instruction and the submit button scroll away above it.
-  Bound the rail to the window's height, as the sidebar's sticky panel is (#2636).
 - **Decide whether a sidebar built from several blocks sticks.** A sidebar panel
   sticks only when it is a single block, so existing multi-panel pages keep
   flowing; dropping that condition makes every sidebar page's panel stick.
 - **Decide whether a too-narrow table fails a page at the fixed widths.** It is
   advice at every width, the two fixed viewports included, where it once refused
   the page.
-- **Clear a quoted playground's empty item boxes.** A playground quoted in a static
-  sample hides its controls, those written beside items in its preview included,
-  but leaves the author's settings boxes standing empty.
 
 ### Layout stability
 
@@ -353,9 +352,6 @@ height and where a switch lands wait on the workspace decision under Layout.
   label sticky at the row's start, stepping clear of the start press while stuck
   (`scroll-state(stuck)`, Chrome 133+), keeps it named, but `#showTab` then has to
   bring a tab in clear of a label whose width changes once it sticks.
-- **Close the tally's small gaps.** On a phone the workspace header, tally
-  included, scrolls away after Next; Undo's announcement doesn't name what it
-  undid; the `m` help text is ambiguous; and a row's ○ mark has no legend.
 
 ### Before/after comparison
 

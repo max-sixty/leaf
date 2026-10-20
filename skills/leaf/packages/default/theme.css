@@ -374,6 +374,7 @@
   outline: var(--focus-ring);
   outline-offset: 1px;
   border-radius: var(--r);
+  --lf-wears-ring: 1;
 }
 @media print {
   :scope:is(lf-shot),
@@ -600,6 +601,7 @@
 :scope:is(lf-gloss):has(> .lf-gloss-mark[data-lf-focus]) {
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
+  --lf-wears-ring: 1;
 }
 .lf-gloss-popover {
   --lf-gloss-gap: 8px;
@@ -1077,11 +1079,13 @@
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w));
     z-index: 1;
+    --lf-wears-ring: 1;
   }
   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > .lf-another:has(leaf-text[data-lf-focus]) {
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w));
     z-index: 1;
+    --lf-wears-ring: 1;
   }
   .lf-another {
     --lf-option-action-size: max(28px, var(--aim-floor));
@@ -1739,10 +1743,13 @@
     flex: none;
     color: var(--ok-ink);
   }
-  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer[data-lf-obligations=open]::before {
-    content: "○" / "";
+  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer[data-lf-obligations=open] {
     font-weight: 400;
     color: var(--muted);
+    &::before {
+      content: "○" / "";
+      color: inherit;
+    }
   }
   :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer:not([data-lf-obligations]) {
     visibility: hidden;
@@ -3117,6 +3124,9 @@
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
+:scope:is(lf-text-document) .lf-text-document-listing:has(> pre[data-lf-focus]) {
+  --lf-wears-ring: 1;
+}
 :scope:is(lf-text-document)[preview] > .lf-text-document-view {
   background: var(--paper);
 }
@@ -3215,6 +3225,7 @@
   :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus]) {
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-room));
+    --lf-wears-ring: 1;
   }
   :scope:is(lf-draft):has(.lf-draft-edit:state(ready)) > .lf-draft-body {
     display: none;

@@ -1717,45 +1717,52 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
     assert root_overflow(page) == 0
 
 
-@pytest.mark.parametrize("holder", ["flow", "list-item", "quotation"])
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
 def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
-    browser, serve, direction, holder
+    browser, serve, subtests, direction
 ):
     """A table granted room sizes its box to its columns, so it is no longer the
     container its caption reads its width from; the caption is held to the box instead.
     On a phone, where the room is the column and an eight-column table scrolls, a long
     caption stays inside the scrollport at either end of the scroll: in the page's flow,
-    and in a list item and a quotation, which hold it to their own width."""
+    and in a list item and a quotation, which hold it to their own width. Each holder's
+    table scrolls alone, so one page holds all three."""
     cells = "".join(f"<td>measured value {i}</td>" for i in range(8))
     caption = "Services in the migration, by stage, with their owners and windows"
-    table = (
-        f'<table id="wide" data-width="available"><caption>{caption}</caption>'
-        f"<tr>{cells}</tr></table>"
+
+    def table(holder):
+        return (
+            f'<table id="{holder}" data-width="available"><caption>{caption}</caption>'
+            f"<tr>{cells}</tr></table>"
+        )
+
+    body = (
+        "<h1>Tables</h1><p>A paragraph at the measure.</p>"
+        + table("flow")
+        + f"<ol><li>An item holding the table.{table('list-item')}</li></ol>"
+        + "<blockquote><p>A quotation holding the table.</p>"
+        + f"{table('quotation')}</blockquote>"
     )
-    if holder == "list-item":
-        table = f"<ol><li>An item holding the table.{table}</li></ol>"
-    elif holder == "quotation":
-        table = f"<blockquote><p>A quotation holding the table.</p>{table}</blockquote>"
-    body = "<h1>Tables</h1><p>A paragraph at the measure.</p>" + table
     source = leaf_page("Caption", body).replace(
         '<html lang="en">', f'<html lang="en" dir="{direction}">', 1
     )
     page = open_page(browser, serve(source))
     resized(page, 390, 844)
-    table = page.locator("#wide")
-    assert table.evaluate("t => t.scrollWidth > t.clientWidth")
     reading = """t => {
       const box = t.getBoundingClientRect(), cap = t.querySelector('caption')
         .getBoundingClientRect();
       return {box: [box.left, box.right], caption: [cap.left, cap.right]};
     }"""
-    for end in (0, -10_000 if direction == "rtl" else 10_000):
-        table.evaluate("(t, x) => { t.scrollLeft = x; }", end)
-        rendered(page)
-        at = table.evaluate(reading)
-        assert at["caption"][0] >= at["box"][0] - 1, (end, at)
-        assert at["caption"][1] <= at["box"][1] + 1, (end, at)
+    for holder in ("flow", "list-item", "quotation"):
+        with subtests.test(holder=holder):
+            wide = page.locator(f"#{holder}")
+            assert wide.evaluate("t => t.scrollWidth > t.clientWidth")
+            for end in (0, -10_000 if direction == "rtl" else 10_000):
+                wide.evaluate("(t, x) => { t.scrollLeft = x; }", end)
+                rendered(page)
+                at = wide.evaluate(reading)
+                assert at["caption"][0] >= at["box"][0] - 1, (end, at)
+                assert at["caption"][1] <= at["box"][1] + 1, (end, at)
     assert root_overflow(page) == 0
 
 
@@ -1954,17 +1961,13 @@ INDENTED_PAGE = leaf_page(
 
 
 @pytest.mark.parametrize(
-    ("posture", "engine"),
-    [(posture, "browser") for posture in ("even", "map", "sidebar", "phone")]
-    + [
-        (posture, engine)
-        for engine in ("firefox_browser", "webkit_browser")
-        for posture in ("even", "phone")
-    ],
+    ("resident", "engine"),
+    [(resident, "browser") for resident in ("plain", "map", "sidebar")]
+    + [("plain", engine) for engine in ("firefox_browser", "webkit_browser")],
 )
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
 def test_a_breakout_grows_only_from_a_holder_that_spans_the_column(
-    request, serve, direction, posture, engine
+    request, serve, subtests, direction, resident, engine
 ):
     """A block breaks out only from a holder whose content box is the column's, and
     keeps to any other: its holder's axis is not the prose's, and the room beside it is
@@ -1982,17 +1985,19 @@ def test_a_breakout_grows_only_from_a_holder_that_spans_the_column(
     its sibling, a table in an inline block scrolls inside it, and a block in a holder's
     second column keeps to that column. A link or a span around a block is no holder:
     the browser sets the block in the column's flow, so it grows as one in the flow
-    does."""
+    does.
+
+    A plain page is read at a desktop and then a phone width, on one page."""
     browser = request.getfixturevalue(engine)
     source = INDENTED_PAGE
-    if posture == "map":
+    if resident == "map":
         source = source.replace(
             '<main class="layout-column">',
             '<main class="layout-column"><aside class="sidebar">'
             '<lf-toc id="toc"></lf-toc></aside>',
             1,
         )
-    elif posture == "sidebar":
+    elif resident == "sidebar":
         source = source.replace(
             '<main class="layout-column">',
             '<main class="layout-column"><aside class="sidebar">'
@@ -2003,105 +2008,115 @@ def test_a_breakout_grows_only_from_a_holder_that_spans_the_column(
         '<html lang="en">', f'<html lang="en" dir="{direction}">', 1
     )
     page = open_page(browser, serve(source))
-    if posture == "phone":
-        resized(page, 390, 844)
-    else:
-        resized(page, 1440, 900)
-    margins_laid_out(page)
-    at = page.evaluate(
-        """(direction) => {
-      const edges = (el) => {
-        const box = el.getBoundingClientRect();
-        return {left: box.left, right: box.right, centre: (box.left + box.right) / 2};
-      };
-      const content = (el) => {
-        const box = el.getBoundingClientRect(), style = getComputedStyle(el);
-        return {
-          left: box.left + parseFloat(style.paddingLeft) + parseFloat(style.borderLeftWidth),
-          right: box.right - parseFloat(style.paddingRight)
-            - parseFloat(style.borderRightWidth),
-        };
-      };
-      const reading = {
-        margin: document.querySelector('main').getAttribute('data-lf-margin') ?? '',
-        prose: edges(document.getElementById('prose')),
-      };
-      for (const name of ['control', 'nested', 'steps', 'plain', 'inset'])
-        reading[name] = {
-          wide: edges(document.getElementById(`${name}-wide`)),
-          available: edges(document.getElementById(`${name}-available`)),
-          table: edges(document.getElementById(`${name}-table`)),
-          narrow: edges(document.querySelector(`#${name}-narrow tr`)),
-          holder: content(document.getElementById(`${name}-narrow`).parentElement),
-        };
-      reading.arranged = Object.fromEntries([
-        'gridded-track', 'gridded-wide', 'gridded-available', 'flexed-beside',
-        'flexed-wide', 'boxed', 'boxed-table', 'linked-wide', 'spanned-wide', 'cols',
-        'cols-wide',
-      ].map((id) => [id, edges(document.getElementById(id))]));
-      return reading;
-    }""",
-        direction,
-    )
-    if posture in ("map", "sidebar"):
-        assert posture in at["margin"].split(), at
-    control, prose = at["control"], at["prose"]
-    start = "left" if direction == "ltr" else "right"
-    assert abs(at["nested"]["holder"][start] - control["holder"][start]) >= 70, at
-    for edge in ("left", "right"):
-        assert control["holder"][edge] == pytest.approx(prose[edge], abs=1), at
-    for name in ("control", "nested", "steps", "plain", "inset"):
-        holder = at[name]
-        assert holder["narrow"][start] == pytest.approx(
-            holder["holder"][start], abs=1
-        ), (
-            name,
-            at,
-        )
-    for block in ("wide", "available", "table"):
-        for edge in ("left", "right"):
-            assert at["plain"][block][edge] == pytest.approx(
-                control[block][edge], abs=1
-            ), (block, edge, at)
-            for name in ("nested", "steps", "inset"):
-                assert at[name][block][edge] == pytest.approx(
-                    at[name]["holder"][edge], abs=1
-                ), (name, block, edge, at)
-    if posture != "phone":
-        assert control["available"]["right"] - control["available"]["left"] > (
-            prose["right"] - prose["left"] + 100
-        ), at
-    if posture in ("even", "map"):
-        assert control["wide"]["centre"] == pytest.approx(prose["centre"], abs=1), at
-    arranged = at["arranged"]
-    for block in ("gridded-wide", "gridded-available"):
-        for edge in ("left", "right"):
-            assert arranged[block][edge] == pytest.approx(
-                arranged["gridded-track"][edge], abs=1
-            ), (block, at)
-    beside, wide = arranged["flexed-beside"], arranged["flexed-wide"]
-    assert wide["right"] - wide["left"] == pytest.approx(
-        beside["right"] - beside["left"], abs=1
-    ), at
-    assert wide["left"] >= beside["right"] or wide["right"] <= beside["left"], at
-    assert arranged["boxed-table"]["left"] >= arranged["boxed"]["left"] - 1, at
-    assert arranged["boxed-table"]["right"] <= arranged["boxed"]["right"] + 1, at
-    for block in ("linked-wide", "spanned-wide"):
-        for edge in ("left", "right"):
-            assert arranged[block][edge] == pytest.approx(
-                control["wide"][edge], abs=1
-            ), (block, at)
-    columns, in_column = arranged["cols"], arranged["cols-wide"]
-    assert in_column["right"] - in_column["left"] == pytest.approx(
-        (columns["right"] - columns["left"] - 16) / 2, abs=1
-    ), at
-    assert (
-        columns["left"] - 1
-        <= in_column["left"]
-        < in_column["right"]
-        <= (columns["right"] + 1)
-    ), at
-    assert root_overflow(page) == 0
+    for posture in ("even", "phone") if resident == "plain" else (resident,):
+        with subtests.test(posture=posture):
+            if posture == "phone":
+                resized(page, 390, 844)
+            else:
+                resized(page, 1440, 900)
+            margins_laid_out(page)
+            at = page.evaluate(
+                """(direction) => {
+              const edges = (el) => {
+                const box = el.getBoundingClientRect();
+                return {left: box.left, right: box.right, centre: (box.left + box.right) / 2};
+              };
+              const content = (el) => {
+                const box = el.getBoundingClientRect(), style = getComputedStyle(el);
+                return {
+                  left: box.left + parseFloat(style.paddingLeft) + parseFloat(style.borderLeftWidth),
+                  right: box.right - parseFloat(style.paddingRight)
+                    - parseFloat(style.borderRightWidth),
+                };
+              };
+              const reading = {
+                margin: document.querySelector('main').getAttribute('data-lf-margin') ?? '',
+                prose: edges(document.getElementById('prose')),
+              };
+              for (const name of ['control', 'nested', 'steps', 'plain', 'inset'])
+                reading[name] = {
+                  wide: edges(document.getElementById(`${name}-wide`)),
+                  available: edges(document.getElementById(`${name}-available`)),
+                  table: edges(document.getElementById(`${name}-table`)),
+                  narrow: edges(document.querySelector(`#${name}-narrow tr`)),
+                  holder: content(document.getElementById(`${name}-narrow`).parentElement),
+                };
+              reading.arranged = Object.fromEntries([
+                'gridded-track', 'gridded-wide', 'gridded-available', 'flexed-beside',
+                'flexed-wide', 'boxed', 'boxed-table', 'linked-wide', 'spanned-wide', 'cols',
+                'cols-wide',
+              ].map((id) => [id, edges(document.getElementById(id))]));
+              return reading;
+            }""",
+                direction,
+            )
+            if posture in ("map", "sidebar"):
+                assert posture in at["margin"].split(), at
+            control, prose = at["control"], at["prose"]
+            start = "left" if direction == "ltr" else "right"
+            assert (
+                abs(at["nested"]["holder"][start] - control["holder"][start]) >= 70
+            ), at
+            for edge in ("left", "right"):
+                assert control["holder"][edge] == pytest.approx(prose[edge], abs=1), at
+            for name in ("control", "nested", "steps", "plain", "inset"):
+                holder = at[name]
+                assert holder["narrow"][start] == pytest.approx(
+                    holder["holder"][start], abs=1
+                ), (
+                    name,
+                    at,
+                )
+            for block in ("wide", "available", "table"):
+                for edge in ("left", "right"):
+                    assert at["plain"][block][edge] == pytest.approx(
+                        control[block][edge], abs=1
+                    ), (block, edge, at)
+                    for name in ("nested", "steps", "inset"):
+                        assert at[name][block][edge] == pytest.approx(
+                            at[name]["holder"][edge], abs=1
+                        ), (name, block, edge, at)
+            if posture != "phone":
+                assert control["available"]["right"] - control["available"]["left"] > (
+                    prose["right"] - prose["left"] + 100
+                ), at
+            if posture in ("even", "map"):
+                assert control["wide"]["centre"] == pytest.approx(
+                    prose["centre"], abs=1
+                ), at
+            arranged = at["arranged"]
+            for block in ("gridded-wide", "gridded-available"):
+                for edge in ("left", "right"):
+                    assert arranged[block][edge] == pytest.approx(
+                        arranged["gridded-track"][edge], abs=1
+                    ), (block, at)
+            beside, wide = arranged["flexed-beside"], arranged["flexed-wide"]
+            assert wide["right"] - wide["left"] == pytest.approx(
+                beside["right"] - beside["left"], abs=1
+            ), at
+            assert wide["left"] >= beside["right"] or wide["right"] <= beside["left"], (
+                at
+            )
+            assert arranged["boxed-table"]["left"] >= arranged["boxed"]["left"] - 1, at
+            assert arranged["boxed-table"]["right"] <= arranged["boxed"]["right"] + 1, (
+                at
+            )
+            for block in ("linked-wide", "spanned-wide"):
+                for edge in ("left", "right"):
+                    assert arranged[block][edge] == pytest.approx(
+                        control["wide"][edge], abs=1
+                    ), (block, at)
+            columns, in_column = arranged["cols"], arranged["cols-wide"]
+            assert in_column["right"] - in_column["left"] == pytest.approx(
+                (columns["right"] - columns["left"] - 16) / 2, abs=1
+            ), at
+            assert (
+                columns["left"] - 1
+                <= in_column["left"]
+                < in_column["right"]
+                <= (columns["right"] + 1)
+            ), at
+            assert root_overflow(page) == 0
 
 
 def test_a_breakout_a_revision_inserts_deeper_lands_before_it_paints(browser, serve):

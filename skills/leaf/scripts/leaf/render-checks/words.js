@@ -201,6 +201,23 @@ export function coveredWords({
       const b = runs[j];
       if (a.el === b.el || a.el.contains(b.el) || b.el.contains(a.el)) continue;
       if (holdLabelLines && a.label && a.label === b.label) continue;
+      // SVG renderers can draw a stroked copy directly behind a filled label
+      // to make its letters legible. They are one painted word, not two words
+      // covering each other; keep comparing either copy with every other run.
+      if (
+        a.label &&
+        b.label &&
+        a.label !== b.label &&
+        a.label.parentElement === b.label.parentElement &&
+        a.label.textContent === b.label.textContent &&
+        (getComputedStyle(a.label).fill === "none" ||
+          getComputedStyle(b.label).fill === "none") &&
+        Math.abs(a.box.left - b.box.left) < 1 &&
+        Math.abs(a.box.top - b.box.top) < 1 &&
+        Math.abs(a.box.width - b.box.width) < 1 &&
+        Math.abs(a.box.height - b.box.height) < 1
+      )
+        continue;
       const across =
         Math.min(a.box.right, b.box.right) - Math.max(a.box.left, b.box.left);
       const down =

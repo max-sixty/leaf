@@ -3083,6 +3083,11 @@ function passErrors(ids) {
       )
     );
 }
+function passErrorsAt(subject) {
+  passErrors(
+    errors.filter((entry) => entry.subject === subject).map((entry) => entry.id)
+  );
+}
 function seeErrors() {
   if (errors.some((entry) => !entry.seen))
     publish(
@@ -3565,6 +3570,7 @@ export {
   registerErrorPresentation,
   raiseError,
   passErrors,
+  passErrorsAt,
   seeErrors,
   dismissError,
   holdingError,

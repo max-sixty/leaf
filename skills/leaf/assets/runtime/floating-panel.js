@@ -36,13 +36,12 @@
  *   gives the placeholder to where the words go, and from then on nothing that passes
  *   is said while the caret is in the field: news, an acknowledgement, a walk's position and Go-to's word go unsaid
  *   there but for the live region, and the empty field says what still stands once the
- *   caret leaves. An error (errors.js) is no passing word: the field says the newest
- *   one about its editor, or about nothing while the editor is empty, in its status's
- *   place and the danger's ink, until the user's first edit, and over words its
- *   editor holds, such as a refused send's, it covers them until the first key or
- *   press there (`errorCover`). An error the field has passed or cannot say waits in
- *   the leaf's menu, under Errors, with a dot on the leaf until the user opens the
- *   list (`errorsList`). The user chose this on 17
+ *   caret leaves. An error (errors.js) is no passing word: one about the field's
+ *   editor covers its words, as at any box (composing/input.js), and the empty field
+ *   says the newest one about nothing in its status's place and the danger's ink,
+ *   until the user's first edit. An error the field has passed or no box stands for
+ *   waits in the leaf's menu, under Errors, with a dot on the leaf until the user
+ *   opens the list (`errorsList`). The user chose this on 17
  *   October over errors riding the passing notice, which faded after four seconds and
  *   went unsaid while the user wrote. With no view open the line over the field says a
  *   passing notice the placeholder cannot, while words hide the placeholder and the
@@ -153,7 +152,7 @@ import {
   tellDraft,
 } from "./drafts.js";
 import { textField } from "./composing/text-field.js";
-import { draftOf, syncInput } from "./composing/input.js";
+import { draftOf, standsAtItsBox, syncInput } from "./composing/input.js";
 import { TEXT_FIELD } from "./control-selectors.js";
 import { retainUserIntent } from "./user-intent.js";
 import { settleThread } from "./thread/folding.js";
@@ -513,17 +512,14 @@ export function createFloatingPanel({
   let landAtEnd = null;
 
   // ---------- one native editor per destination ----------
-  // The errors the field can say now, newest first (errors.js): not yet edited past,
-  // and about the editor standing in the field, or about nothing while that editor is
-  // empty. A folded panel, or a view with no editor in the field, can say none.
+  // The errors the field can say now, newest first (errors.js): about nothing, not yet
+  // edited past, while the editor standing in the field is empty. An error about the
+  // editor covers it instead, as at any box (composing/input.js). A folded panel, or a
+  // view with no editor in the field, can say none.
   function sayable() {
     const input = host.dataset.rest === "mark" ? null : fieldInput();
-    if (!input?.isConnected) return [];
-    const empty = draftOf(input) === "";
-    return errorsReading().filter(
-      (error) =>
-        !error.passed && (error.subject === input || (error.subject === null && empty)),
-    );
+    if (!input?.isConnected || draftOf(input) !== "") return [];
+    return errorsReading().filter((error) => !error.passed && error.subject === null);
   }
   // What the empty field says, and whose reading it is (`says`): the newest error it
   // can say; once the caret is in a field that takes words, where they go; a passing
@@ -591,7 +587,6 @@ export function createFloatingPanel({
           : null;
       },
       accessibleName: "Comment on the page",
-      busy: () => !errorCover.hidden,
       sends: "send",
       sendBtn: send,
       save: (text) => {
@@ -653,7 +648,6 @@ export function createFloatingPanel({
       replyOptions.set(key, {
         hint: () => saying(key, replyInput()),
         accessibleName: () => `Reply to ${threadTitle(key)}`,
-        busy: () => !errorCover.hidden,
         sent: (flight) => {
           landAtEnd = { key, after: outletOf()?.childElementCount ?? 0 };
           // The user's turn grows the view to show it and takes New reply away.
@@ -692,25 +686,13 @@ export function createFloatingPanel({
   }
   field.addEventListener("input", retype);
   // The user's first edit in the field passes every error it could say to the menu's
-  // list, read before the edit changes what it could say. Over words its subject
-  // holds, an error covers them (`errorCover`), and the first edit or press there
-  // brings them back, a press with the caret at their end; while they are covered the
-  // field sends nothing (`busy`), so words the user has not seen again are never sent.
-  // The user chose both on 17 October. The cover stands in the box of the editor whose
-  // words it covers, so a press on it is a press in that box: a reply's ends in its
-  // row, which a press elsewhere would put away (thread/replies.js), even where the
-  // cover going under the pointer lands the click on what holds them both.
-  const errorCover = el("p", "lf-fp-error-cover");
-  errorCover.setAttribute("aria-hidden", "true");
-  const passSayable = () => passErrors(sayable().map((error) => error.id));
-  field.addEventListener("beforeinput", passSayable, { capture: true });
-  errorCover.addEventListener("pointerdown", (event) => {
-    event.preventDefault();
-    const input = fieldInput();
-    passSayable();
-    const end = draftOf(input).length;
-    focusDestination(input, "move", { caret: [end, end] });
-  });
+  // list, read before the edit changes what it could say. The user chose this on 17
+  // October.
+  field.addEventListener(
+    "beforeinput",
+    () => passErrors(sayable().map((error) => error.id)),
+    { capture: true },
+  );
 
   // ---------- readings ----------
   // The threads the page draws, this tab's sends among them while the saved ones are
@@ -2805,11 +2787,12 @@ export function createFloatingPanel({
     keepsText(badge, onUser ? String(onUser) : "");
     keeps(badge, "data-shown", onUser ? "" : null);
     keeps(newsDot, "data-shown", news ? "" : null);
-    // An error the user has not seen marks the leaf while the field is not saying it:
-    // passed, raised where the field could not say it, or held while folded.
+    // An error the user has not seen marks the leaf while nothing says it: passed, about
+    // a box not on screen, about nothing while the field holds words, or held while
+    // folded. One a box on screen stands over says itself there (`standsAtItsBox`).
     const sayingNow = new Set(sayable().map((error) => error.id));
     const unseen = errorsReading().some(
-      (error) => !error.seen && !sayingNow.has(error.id),
+      (error) => !error.seen && !sayingNow.has(error.id) && !standsAtItsBox(error),
     );
     keeps(errorDot, "data-shown", unseen ? "" : null);
 
@@ -2954,14 +2937,6 @@ export function createFloatingPanel({
           : reading.says === "error"
             ? reading.words
             : null;
-    // An error stands over the words its subject holds, such as a refused send's,
-    // which the user's first key or press there brings back (`errorCover`).
-    const [error] = sayable();
-    const covering = Boolean(error) && error.subject === input && draftOf(input) !== "";
-    if (covering && errorCover.parentNode !== input.parentNode)
-      move(input.parentNode, errorCover, null);
-    keepsText(errorCover, covering ? error.message : "");
-    keepsHidden(errorCover, !covering);
     // The line over the field says the passing notice the field cannot, while words
     // hide its placeholder with the caret elsewhere and no view is open. While the
     // caret is in the field nothing passing is said there: an error, the one thing

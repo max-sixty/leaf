@@ -419,28 +419,28 @@ Rendering defects other than the chrome's fell on 6 of 11 dashboards, 4 of 6
 configurations, 2 of 10 queues and no document. Every defect on all 40 pages, beside
 the checks:
 
-| Defect                                                                                                                                                                                                                                                        | Owner                          | Defects (pages) | Final plain check | Final render check | Author's own checks           |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | --------------- | ----------------- | ------------------ | ----------------------------- |
-| A supplied fact stated wrongly or left out                                                                                                                                                                                                                    | author                         | 26 (19)         | 0                 | 0                  | none reported                 |
-| SVG labels a few pixels high on a phone or at 900px                                                                                                                                                                                                           | author                         | 3 (3)           | 0                 | 3                  | reported; changed, not enough |
-| Other author layout: a chart annotation cut off at the phone's edge (2), labels too faint, a chart tooltip reading "UTC 935", a phone table dropping a column, a note's table clipped, headline metrics three screens down (2), two footer spans run together | author                         | 9 (7)           | 0                 | 0                  | none reported                 |
-| A playground followed by a note draws its instruction over the note at 900×700                                                                                                                                                                                | `lf-ask` (fixed, #3328)        | 2 (2)           | 0                 | 0                  | none reported                 |
-| A playground's stage gets 190–280px at 900×700, under its presets and instruction                                                                                                                                                                             | `lf-playground` in a workspace | 4 (4)           | 0                 | 0                  | none reported                 |
-| The tally says "1 of 8 to answer" while its Next on me is disabled                                                                                                                                                                                            | `lf-tally`                     | 2 (2)           | 0                 | 0                  | none reported                 |
-| An open thread card covers the text near its passage at 900px and on a phone                                                                                                                                                                                  | thread chrome                  | 14 (14)         | 0                 | 0                  | none reported                 |
-| A thread's pin covers words at a line's end on a phone                                                                                                                                                                                                        | thread chrome                  | 5 (5)           | 0                 | 0                  | none reported                 |
-| The inline thread header's pencil overlaps "Waiting for pickup" on a phone                                                                                                                                                                                    | thread chrome                  | 1 (1)           | 0                 | 0                  | none reported                 |
+| Defect                                                                                                                                                                                                                                                        | Owner                          | Defects (pages) | Final plain check | Final render check | Author's own checks                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | --------------- | ----------------- | ------------------ | ---------------------------------- |
+| A supplied fact stated wrongly or left out                                                                                                                                                                                                                    | author                         | 26 (19)         | 0                 | 0                  | none reported                      |
+| SVG labels a few pixels high on a phone or at 900px                                                                                                                                                                                                           | author                         | 3 (3)           | 0                 | 3                  | reported; changed, not enough      |
+| Other author layout: a chart annotation cut off at the phone's edge (2), labels too faint, a chart tooltip reading "UTC 935", a phone table dropping a column, a note's table clipped, headline metrics three screens down (2), two footer spans run together | author                         | 9 (7)           | 0                 | 0                  | 1 reported and changed, not enough |
+| A playground followed by a note draws its instruction over the note at 900×700                                                                                                                                                                                | `lf-ask` (fixed, #3328)        | 2 (2)           | 0                 | 0                  | none reported                      |
+| A playground's stage gets 190–280px at 900×700, under its presets and instruction                                                                                                                                                                             | `lf-playground` in a workspace | 4 (4)           | 0                 | 0                  | none reported                      |
+| The tally says "1 of 8 to answer" while its Next on me is disabled                                                                                                                                                                                            | `lf-tally`                     | 2 (2)           | 0                 | 0                  | none reported                      |
+| An open thread card covers the text near its passage at 900px and on a phone                                                                                                                                                                                  | thread chrome                  | 14 (14)         | 0                 | 0                  | none reported                      |
+| A thread's pin covers words at a line's end on a phone                                                                                                                                                                                                        | thread chrome                  | 5 (5)           | 0                 | 0                  | none reported                      |
+| The inline thread header's pencil overlaps "Waiting for pickup" on a phone                                                                                                                                                                                    | thread chrome                  | 1 (1)           | 0                 | 0                  | none reported                      |
 
 Of the 66 defects, the final render check reported 3 and the plain check none. The
 checks read neither the page's facts nor Leaf's own chrome (`render_gate/readings.py`
 leaves chrome to the suite), so their reach is the 20 rendering defects outside the
 chrome, of which they reported 3. Their value shows earlier: on 35 of the 40 pages the
-author's own checks reported 137 distinct findings, as the matching turn groups repeats,
+author's own checks reported 142 distinct findings, as the matching turn groups repeats,
 and the final page still had 10 of them. The render check's were labels shrunk below
 10px (52 on 10 pages, 9 kept on 4), tables squeezed at 360px (7), labels drawn over
 each other in a chart (6), scrollbar clearance (3), content past the column (1), a
 verbatim mismatch (2) and a console error (1). The plain check's were markup: targets with no id (35 on 18 pages), schema
-refusals (20 on 7 pages), and 10 runs before `index.html` existed. Every author ran a
+refusals (25 on 7 pages), and 10 runs before `index.html` existed. Every author ran a
 check, and 27 of 40 ran `--render`; on the 13 pages whose authors did not, mostly
 queues and Codex pages, the final render check found nothing.
 
@@ -464,9 +464,10 @@ How far to trust these numbers:
   for word, and Claude Code pages added derived claims; the "half of eu-west's
   checkouts" claim appeared on 5 of 6 Claude Code dashboards.
 - The 3 render-reported defects match the check messages the matching turn quoted.
-  A second matching turn, given each check's whole output where the first had its
-  first 6,000 characters, read all 66 defects the same way. The other readings were
-  not checked by hand.
+  A second matching turn, given each check's whole output and each tool call whole
+  where the first had cut them, read 65 of the 66 defects the same way; it found that
+  the author of the faint labels had changed them after a check reported them shrunk.
+  The other readings were not checked by hand.
 
 The overlap from a playground followed by a note came from `lf-ask`: its full-height
 rule gave every child the height signal, so a playground that was not the last child

@@ -240,7 +240,7 @@ engine, something the whole document declares, such as `dir` or its layout class
 case that writes the page's log, publishes a revision, or changes something the page
 holds once, such as the composer, the panel or a draft, in a way the next case would
 inherit. A case that consumes a finding of its own, as a write-watch test does, needs
-its own page too, since a sensor reports one finding once per page. Give each case its
+its own page too, since a sensor reports each finding once per page. Give each case its
 own part of the page, such as its own ids, holder, editor or contribution key, or undo
 what it changed, and order the cases so that none moves content the shift watch reads.
 `suite_profile` judges a test with subtests against its budget per case.

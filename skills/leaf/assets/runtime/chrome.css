@@ -205,15 +205,12 @@
     outline-offset: 0;
     border-radius: var(--r);
   }
-  .lf-fp-card {
-    anchor-name: --lf-fp-card;
-  }
   .lf-fp-field {
     anchor-name: --lf-fp-field;
   }
   .lf-fp-field .lf-composer-media:not([hidden]) {
     position: fixed;
-    bottom: calc(anchor(--lf-fp-card top) + 6px);
+    bottom: calc(anchor(--lf-fp-panel top) + 6px);
     left: anchor(--lf-fp-field left);
     width: max-content;
     max-width: anchor-size(--lf-fp-field width);

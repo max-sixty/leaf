@@ -51,7 +51,7 @@ from leaf_dev.arms import (
     install_codex_plugin,
     instruction_context,
 )
-from leaf_dev.eval_cases import definition
+from leaf_dev.eval_cases import DEFAULT_VIEWPORTS, VIEWPORTS, definition
 from leaf_dev.leaf_assets import pinned_copy
 
 PROMPTFOO = ROOT / "node_modules/.bin/promptfoo"
@@ -197,7 +197,12 @@ def workflow_harness(harness: str) -> str:
 
 
 def workflow_provider(
-    harness: str, condition: str, payload: Path, samples: Path, screenshots: Path
+    harness: str,
+    condition: str,
+    payload: Path,
+    samples: Path,
+    screenshots: Path,
+    viewports: tuple[str, ...],
 ) -> dict:
     """The Python provider that hands one complete task to its declared executor."""
     return {
@@ -214,6 +219,7 @@ def workflow_provider(
             "payload": str(payload),
             "samples": str(samples),
             "screenshots": str(screenshots),
+            "viewports": list(viewports),
             "pythonExecutable": sys.executable,
             "timeout": WORKFLOW_LIMIT * 1000,
             # A retry would replace a failed, side-effecting sample with a new one.
@@ -271,6 +277,7 @@ def prepare(
     harnesses: tuple[str, ...],
     conditions: tuple[str, ...],
     samples: Path,
+    viewports: tuple[str, ...] = DEFAULT_VIEWPORTS,
 ) -> dict:
     """One test per selected address and condition, run on each column it applies to."""
     definitions = catalog()
@@ -306,7 +313,12 @@ def prepare(
                     if label not in providers:
                         if executor or authoring:
                             configured = workflow_provider(
-                                harness, condition, payload, samples, screenshots
+                                harness,
+                                condition,
+                                payload,
+                                samples,
+                                screenshots,
+                                viewports,
                             )
                         else:
                             work = scratch / "work" / label
@@ -500,7 +512,22 @@ def describe(base: str | None, head: str, globs: tuple[str, ...]) -> str:
     default="leaf",
     show_default=True,
 )
-def eval(args: tuple[str, ...], base: str | None, harness: str, condition: str):
+@click.option(
+    "--viewport",
+    "viewports",
+    type=click.Choice(list(VIEWPORTS)),
+    multiple=True,
+    default=DEFAULT_VIEWPORTS,
+    show_default=True,
+    help="Window size for all authored-task comparisons in this run; repeat to check more.",
+)
+def eval(
+    args: tuple[str, ...],
+    base: str | None,
+    harness: str,
+    condition: str,
+    viewports: tuple[str, ...],
+):
     """Score CASE globs or task/context addresses on the working tree.
 
     Options Promptfoo takes follow the cases, such as `--repeat 3` or `-j 4`.
@@ -549,6 +576,7 @@ def eval(args: tuple[str, ...], base: str | None, harness: str, condition: str):
             HARNESSES if harness == "both" else (harness,),
             conditions,
             out / "samples",
+            viewports,
         )
         config["description"] = describe(
             commits.get("base"), commits["candidate"], globs

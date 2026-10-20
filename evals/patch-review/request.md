@@ -7,9 +7,8 @@ our review; it does not deploy code. I'll comment before making the final call.
 
 The patch spans implementation, acceptance tests and release documentation. Help me
 navigate its directory hierarchy and switch among files while keeping track of the
-selected file. I review on my desktop, sometimes in a narrower window about 810px
-wide and 900px tall. Keep the code comfortable to read and the review notes and
-final approval route easy to reach.
+selected file. Keep the code comfortable to read on my desktop and the review
+notes and final approval route easy to reach.
 
 ## Proposed patch
 

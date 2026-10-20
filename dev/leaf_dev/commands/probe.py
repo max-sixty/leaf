@@ -20,7 +20,7 @@ from urllib.parse import urlsplit
 import click
 from leaf.findings import Finding
 from leaf.render_checks import PageNotReady
-from leaf.render_gate.scheme import collect_page_errors
+from leaf.render_gate.scheme import collect_page_exceptions, console_finding
 from playwright.sync_api import Error as PlaywrightError
 
 from leaf_dev import ROOT
@@ -198,8 +198,8 @@ def probe(
 
     Prints one JSON line per arm: startup phases, resources and diagnostic initial
     layout shifts; what --js returned, or the error that stopped the arm;
-    the page's console errors and uncaught exceptions; and with --shot the
-    screenshot's path under .tmp/probe/.
+    the page's console errors and warnings and its uncaught exceptions; and with
+    --shot the screenshot's path under .tmp/probe/.
 
     --journey loads a Python file with run(page), using the full Playwright API
     for clicks, typing, scrolling and assertions. --record DIR saves trace.zip
@@ -272,7 +272,7 @@ def probe(
                     ):
                         if record_dir:
                             reading["recording"] = str(record_dir.resolve() / arm)
-                        reading["errors"] = console_errors(page)
+                        reading["console"] = console_findings(page)
                         if throttle:
                             page.context.new_cdp_session(page).send(
                                 "Emulation.setCPUThrottlingRate", {"rate": throttle}
@@ -305,15 +305,23 @@ def probe(
                     message = str(error).split("\n", 1)[0] or type(error).__name__
                     reading["failed"] = f"{doing}: {message}"
                 failed |= "failed" in reading
-                if "errors" in reading:
-                    reading["errors"] = list(map(str, reading["errors"]))
+                if "console" in reading:
+                    reading["console"] = list(map(str, reading["console"]))
                 click.echo(json.dumps({"arm": arm, "ran": ran, **reading}))
     if failed:
         raise click.ClickException("probe failed; see the arm's reading and recording")
 
 
-def console_errors(page) -> list[Finding]:
-    """The page's console errors and uncaught exceptions, collected from here on."""
-    errors = []
-    collect_page_errors(page, errors)
-    return errors
+def console_findings(page) -> list[Finding]:
+    """The console errors and warnings and the uncaught exceptions of every document
+    in the page, collected from here on. Warnings carry the browser's own diagnostics,
+    such as Firefox's note that a `document.write` forced a reparse."""
+    found = []
+
+    def heard(message):
+        if (finding := console_finding(message)) is not None:
+            found.append(finding)
+
+    page.on("console", heard)
+    collect_page_exceptions(page, found)
+    return found

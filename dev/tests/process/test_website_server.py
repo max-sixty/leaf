@@ -1289,6 +1289,32 @@ def test_the_agent_pass_waits_out_an_allocation_the_rollout_has_not_reached(
     assert slept == [10]
 
 
+def test_the_agent_pass_retries_a_reset_activation_on_a_fresh_session(monkeypatch):
+    release = "a471af1a" + "0" * 56
+    page = _DeployedPage("", revision=1, presented_at=900.0)
+
+    class Resetting(_RollingOutContainer):
+        def get(self, url: str, **kwargs):
+            if "api/view" in url:
+                raise verify_site.PlaywrightError(
+                    "APIRequestContext.get: read ECONNRESET"
+                )
+            return super().get(url, **kwargs)
+
+    resetting = Resetting(release, page)
+    ready = _DeployedContainer(release, page)
+    slept: list[float] = []
+    _rolling_clock(monkeypatch, [0.0, 12.0], slept)
+
+    site = _RollingSite([resetting, ready])
+    session = verify_site.agent_session(site, release, origin="https://leaf.page")
+
+    assert session.context is ready
+    assert resetting.closed and not ready.closed
+    assert site.opened == [resetting, ready]
+    assert slept == [10]
+
+
 def test_a_rollout_that_never_lands_ends_the_agent_pass_naming_it(monkeypatch):
     """The bound still holds, and the message says which reading ran it out."""
     release = "a471af1a" + "0" * 56

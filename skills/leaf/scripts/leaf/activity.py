@@ -8,6 +8,7 @@ supplies every reader — browser chrome, hooks, and agent-facing state — with
 answer.
 """
 
+import json
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import NamedTuple
@@ -15,15 +16,13 @@ from typing import NamedTuple
 WORKING_GRACE = timedelta(minutes=15)
 PICKUP_GRACE = timedelta(minutes=2)
 TURN_RENEWAL_GRACE = timedelta(minutes=2)
-WORK_KINDS = {
-    "working",
-    "thinking",
-    "tool",
-    "awaiting_approval",
-    "awaiting_input",
-    "awaiting_user",
-    "replying",
-}
+# The steps a harness may report, whose home is the served state's `WorkKind`: the
+# browser words each one, and its type makes that table name every kind.
+WORK_KINDS = frozenset(
+    json.loads(
+        (Path(__file__).with_name("served_state") / "state.schema.json").read_text()
+    )["$defs"]["WorkKind"]["enum"]
+)
 # Steps that wait on the user in the agent's own window, which renew nothing until
 # the user answers there.
 # `awaiting_user` is a dialog whose kind, approval or question, the harness does not
@@ -714,7 +713,7 @@ def canonical_activity(
             "active": len(active_updates),
             "handling": len(handling),
             # Of those, the updates in a thread: comments. The rest are widget actions in
-            # an answered item, the only widget actions that owe an answer.
+            # an answered obligation, the only widget actions that owe an answer.
             "handling_comments": sum(
                 item["subject"]["kind"] == "thread" for item in handling
             ),

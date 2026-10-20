@@ -25,12 +25,12 @@ counts under `queues.on_agent` in `page state`, and shows in the page's status.
 `../../references/conversation-loop.md` tells the agent which work gets a to-do.
 
 A to-do on the user is a `todo` event opened with `--on user`, ended by the user's
-Done or by the agent. Items are separate records (`items`) that the lists read
+Done or by the agent. Obligations are separate records (`obligations`) that the lists read
 directly, never turned into to-dos. The agent's `todo_end` can also close an open
-question the user answers in words, such as an `lf-ask` in a reply, by its item id:
+question the user answers in words, such as an `lf-ask` in a reply, by its obligation id:
 `done` when the user answered it elsewhere, `dropped` when it no longer applies,
-never `failed`. Neither records an answer from the user (`items.settle_by_words`). A
-stamped version declaring `lf-review=sign-off` adds an approval item for that
+never `failed`. Neither records an answer from the user (`obligations.settle_by_words`). A
+stamped version declaring `lf-review=sign-off` adds an approval obligation for that
 version, which only an approval the user has not withdrawn answers.
 
 A start lasts until its item ends: the to-do's end, or for an update, the reply or
@@ -55,12 +55,12 @@ empty session identity, so Leaf can't tell them apart.
 Admission (`todo_error`) accepts an agent's `todo` on the page, on any element, or
 on a live widget that declares `x-work` or holds an unsettled action
 (`work.widget_seat_error`), and a to-do on the user on any element or on a widget
-with no open item. It accepts a `start` on an open agent to-do or an owed update, and
+with no open obligation. It accepts a `start` on an open agent to-do or an owed update, and
 a `todo_end` of an open to-do; the user ends only a to-do opened on them.
 `TodoReading` reads the log's to-dos, starts and ends, and `WorkReading.page_todos`
 adds their thread and activity readings.
 
-A plan (`plans`) arranges to-dos and items into an outline without owning them, so no
+A plan (`plans`) arranges to-dos and obligations into an outline without owning them, so no
 rule here reads it.
 
 Experimental: to-dos and the two lists are new, and their shape is expected to
@@ -73,7 +73,7 @@ from pathlib import Path
 
 from .events import note_settlements, taken_back
 from .findings import Finding, Rejected
-from .items import replied
+from .obligations import replied
 from .thread_context import thread_names
 
 # What `task open` takes for the page as a whole; any other id names a widget or an
@@ -178,7 +178,7 @@ class TodoReading:
     @cached_property
     def ends(self) -> dict:
         """The `todo_end` in force on each id it names, by that id: a to-do's, or an
-        item's the agent ended unanswered (`items.settle_by_words`)."""
+        obligation's the agent ended unanswered (`obligations.settle_by_words`)."""
         return {
             event["todo"]: {
                 "state": event["outcome"],
@@ -289,8 +289,8 @@ def todo_error(
     schema keeps off a `todo` event. A start names an open agent to-do or an owed
     update. Both completion carriers share `TodoReading.completion_error`.
     Either side can end a to-do within its ownership rules. An agent end may
-    also end an open item the user answers in words (`items.replied`) by its id,
-    while an item its widget's state answers stays owned by that state.
+    also end an open obligation the user answers in words (`obligations.replied`) by its id,
+    while an obligation its widget's state answers stays owned by that state.
     """
     kind = event["kind"]
     if kind == "todo":
@@ -328,15 +328,17 @@ def todo_error(
         if item is not None:
             if item["source"]["kind"] == "approval":
                 return Finding(
-                    "approval-item",
+                    "approval-obligation",
                     values={**named, "version": item["source"]["version"]},
                 )
             if not replied(registry[item["source"]["tag"]]):
-                return Finding("widget-item", values=named)
+                return Finding("widget-obligation", values=named)
             if event["author"] != "agent":
                 return Finding("users-question", values=named)
             if item["status"] != "open":
-                return Finding("ended-item", values={**named, "status": item["status"]})
+                return Finding(
+                    "ended-obligation", values={**named, "status": item["status"]}
+                )
             if event["outcome"] == "failed":
                 return Finding("failed-question", values=named)
             return None
@@ -354,7 +356,7 @@ def cmd_open(page_dir: Path, subject: str, title: str, owner: str) -> dict:
     """Open a to-do titled `title`, owed by `owner`, on what `subject` names: a page
     widget, any other element of the page by its id, or `page` for the page as a
     whole; the record. A thread takes its work from the reply that promises it, and
-    its item for the user from a reply that asks it."""
+    its obligation for the user from a reply that asks it."""
     from .event_contracts import append_admitted
     from .harness import message_identity
     from .leases import contract_writer

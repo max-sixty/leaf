@@ -496,12 +496,13 @@ def private_tmp(*owned: Path) -> str:
     overwrite. Writes to `/tmp` are refused except under `owned`, the child's own
     directories, wherever they are, and the names Claude Code and Leaf give their
     own machine-local files there: Claude Code's per-user directory and each
-    shell's cwd file and socket, and Leaf's per-user package locks and each App
-    Server's socket directory. The sandbox resolves `/tmp` to `/private/tmp`, so
-    the rules name that."""
+    shell's cwd file and socket, zsh's here-document files, whose names are
+    unique, and Leaf's per-user package locks and each App Server's socket
+    directory. The sandbox resolves `/tmp` to `/private/tmp`, so the rules name
+    that."""
     uid = os.getuid()
     names = (
-        rf"claude-{uid}(/|$)|claude-[0-9a-f]+-cwd$|cc-socks(/|$)"
+        rf"claude-{uid}(/|$)|claude-[0-9a-f]+-cwd$|cc-socks(/|$)|zsh[^/]+$"
         rf"|leaf-package-locks-{uid}(/|$)|leaf-codex-[^/]+(/|$)"
     )
     return "\n".join(

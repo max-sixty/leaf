@@ -195,9 +195,9 @@ def mark_preview(
     watcher can distinguish source edits from competing page edits. The page's own
     authored files and event log remain authoritative.
     """
-    from leaf.state import write_json
+    from leaf.server import PREVIEW
 
-    write_json(
+    PREVIEW.write(
         page / "preview.json",
         {
             "example": source.stem,
@@ -731,6 +731,7 @@ def serve_preview(
     """Build this slot's page, serve it, and follow its inputs until stopped."""
     from leaf.files import read_json
     from leaf.layer import layer_inputs
+    from leaf.server import PREVIEW
 
     # Fixture progress is distinct from the page's own authored inputs: an agent
     # may have revised those while this watcher was absent.
@@ -739,18 +740,16 @@ def serve_preview(
     }
     resumed = user and page.exists()
     if resumed:
-        record = read_json(page / "preview.json")
-        inputs = record.get("input") if isinstance(record, dict) else None
+        record = PREVIEW.read(page / "preview.json")
         if (
-            not isinstance(inputs, dict)
-            or inputs.get("source") != fixture_identity(source)
-            or not isinstance(inputs.get("authored"), str)
-            or record.get("interaction") != "user"
+            record is None
+            or record["input"]["source"] != fixture_identity(source)
+            or record["interaction"] != "user"
         ):
             raise ValueError(
                 f"{page} belongs to another preview; choose another --slot"
             )
-        state["authored"] = inputs["authored"]
+        state["authored"] = record["input"]["authored"]
     service = None
     changes = None
     try:

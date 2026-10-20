@@ -424,7 +424,7 @@ sidebar, with lifecycle hooks preferred over per-agent terminal-text matching.
 
 This is useful evidence for shared controls and attention across tasks. It does
 not supply a document, passage comments, or a reconciliation model for decisions
-against a rewritten page. Leaf's page activity and outstanding items have their
+against a rewritten page. Leaf's page activity and outstanding obligations have their
 own semantics; an agent's process state does not establish who owes a response.
 
 ## Declarative UI formats

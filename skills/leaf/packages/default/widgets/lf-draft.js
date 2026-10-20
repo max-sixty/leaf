@@ -20,7 +20,7 @@
  * and changed the box's size as the editor opened. The same
  * command declarations own pointer activation, keyboard routes, availability and
  * accessible shortcut hints. The editor's own keys, Save's and Escape's, show in the
- * shared command reference (`?`). The controls take no context keys, so an item lends them
+ * shared command reference (`?`). The controls take no context keys, so an obligation lends them
  * no digits; Tab reaches them, as it does every native button. Comments and workflow
  * receipts keep their own annotation layer; hiding annotations cannot hide the
  * editor's controls. The editor and its tools are Leaf surfaces even inside the
@@ -106,7 +106,7 @@ function caretAt(body, x, y) {
 customElements.define(
   "lf-draft",
   class extends LeafElement {
-    // What the item was answered with: the current words.
+    // What the obligation was answered with: the current words.
     static answerWords(value) {
       return markdownWords(value).trim() || "Empty";
     }

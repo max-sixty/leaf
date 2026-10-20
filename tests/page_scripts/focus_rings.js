@@ -168,14 +168,19 @@
       !claimed.some((claim) => claim.el === focused)
     )
       claimed.push({ el: focused, cs: getComputedStyle(focused) });
-    // A skipped until-found panel retains stale boxes; only rendered carriers count.
-    const visible = claimed.filter(({ el }) =>
-      el.checkVisibility({
-        contentVisibilityAuto: true,
-        opacityProperty: true,
-        visibilityProperty: true,
-      }),
-    );
+    // A skipped until-found panel retains stale boxes; only rendered carriers count. A
+    // `display: contents` element has no box, so the platform calls it unrendered, but
+    // its pseudo-element still renders, in its parent's box: a page of parts' holder
+    // draws the open part's ring that way. Such a pseudo is shown where its parent is.
+    const shown = (el, pseudo) =>
+      pseudo && getComputedStyle(el).display === "contents"
+        ? shown(flatParent(el), false)
+        : el.checkVisibility({
+            contentVisibilityAuto: true,
+            opacityProperty: true,
+            visibilityProperty: true,
+          });
+    const visible = claimed.filter(({ el, pseudo }) => shown(el, pseudo));
     const rings = visible
       .map((claim) => ({
         ...claim,

@@ -17,7 +17,7 @@ ORPHAN_GRACE_SECS = 1
 # The harness-neutral name of an agent nothing names: a page's when no claimant
 # supplies one, and an agent-authored event's that carries no `agent` (`agent_name`).
 UNNAMED_AGENT = "Agent"
-ANSWER_ITEM_INSTRUCTION = (
+ANSWER_INSTRUCTION = (
     "Each update takes the answer named for it. Read current obligations with "
     "`leaf page state <page>` and thread history with `leaf page state <page> <id>`."
 )
@@ -84,7 +84,7 @@ _RECORD_VALUE = {
 }
 
 # A `when` predicate selects instances by attribute values (or by a flag's being
-# present or absent). One condition shape serves items and threads because they
+# present or absent). One condition shape serves obligations and threads because they
 # ask the same question of the same authored attributes.
 AWAITING_CONDITION = {
     "type": "object",
@@ -97,7 +97,7 @@ AWAITING_CONDITION = {
     },
 }
 
-# When a local item is answered: a map from each answering x-state verb to the
+# When a local obligation is answered: a map from each answering x-state verb to the
 # condition its current state meets. An empty condition means the verb's state stands
 # (a non-empty attribute or value record, otherwise an action in force). `when` narrows
 # the verb to instances whose attributes match; `empty` holds when the one member
@@ -233,9 +233,9 @@ STATE_SCHEMA = {
     "propertyNames": {"pattern": f"^{HTML_NAME}$"},
     "additionalProperties": VERB_SCHEMA,
 }
-# A widget's item is answered either by its own state (`value` and `answered`) or, with
+# A widget's obligation is answered either by its own state (`value` and `answered`) or, with
 # `reply`, by the user's words about it, which it has no state to hold. `encloses`
-# makes a widget the frame of the items inside it, asking nothing itself while it holds
+# makes a widget the frame of the obligations inside it, asking nothing itself while it holds
 # another that can ask.
 AWAITS_SCHEMA = {
     "type": "object",

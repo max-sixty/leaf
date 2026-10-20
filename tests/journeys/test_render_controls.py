@@ -10,6 +10,7 @@ from interact_support import (
     append_carried_log_record,
     record_claim,
     wait_for,
+    write_record,
 )
 from leaf import event_log as events_model
 from leaf import hosting as hosting_model
@@ -2193,7 +2194,7 @@ def test_leaves_keep_focus_through_reordering_and_stay_in_the_list_on_removal(
         "focusedLeaf === document.activeElement && focusedLeaf.isConnected"
     )
 
-    cleanup_model.write_json(
+    write_record(
         other_dir / "status.json",
         {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
     )
@@ -2400,7 +2401,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     """The feature-gallery sweep above reads broad authored UI with the chrome shut: it
     never presses a key, so the panel's views, its field, the leaf's menu and its
     Versions, the command reference and the sequence's chips are surfaces four readings
-    pass straight over. A `role="list"` whose children were not all list items shipped
+    pass straight over. A `role="list"` whose children were not all list obligations shipped
     through it, green every time.
 
     One page because the chrome is the same on every document. What varies here is which
@@ -2892,11 +2893,11 @@ def test_every_control_the_layer_offers_is_a_box_the_user_can_hit(
         comments=2,
         anchored=[("aim-lead", "first view")],
         preview={
-            "kind": "example",
             "example": "corpus",
             "checkout": "fb77",
             "interaction": "user",
             "started": "2026-08-31T12:00:00+00:00",
+            "input": {"source": "corpus", "authored": "fb77"},
         },
     )
     # An agent's answer on a thread the walk leaves open carries a reaction strip,

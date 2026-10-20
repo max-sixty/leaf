@@ -265,9 +265,20 @@ test("a status asks the user to act only where its words do", () => {
   assert.equal(reached("refused"), true);
 });
 
+// The served lists as `readQueues` publishes them, each to-do row joined to its record.
+function publishedQueues(reading) {
+  const todos = new Map(reading.browser.todos.map((todo) => [todo.id, todo]));
+  const join = (rows) =>
+    rows.map((row) =>
+      row.kind === "todo" ? { ...row, todo: todos.get(row.id) } : row,
+    );
+  const { on_user: onUser, on_agent: onAgent } = reading.browser.views["1"].queues;
+  return { on_user: join(onUser), on_agent: join(onAgent) };
+}
+
 test("the explanation names what waits on each side", () => {
   const reading = servedReading("queues on both sides");
-  const { queues } = reading.browser.views["1"];
+  const queues = publishedQueues(reading);
   const status = pageStatus({
     ...reading,
     activity: servedActivity({ kind: "listening" }),
@@ -294,7 +305,7 @@ test("the explanation names what waits on each side", () => {
 
 test("what the disclosure adds to the row says only what the row does not", () => {
   const reading = servedReading("queues on both sides");
-  const { queues } = reading.browser.views["1"];
+  const queues = publishedQueues(reading);
   const adds = (activity, onBoth = NO_QUEUES) =>
     statusModel(pageStatus(state(activity)), onBoth, "Claude").adds;
   const work = { kind: "working", detail: "revising the plan", ts: minutesAgo(0) };

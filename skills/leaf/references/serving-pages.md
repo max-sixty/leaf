@@ -117,7 +117,7 @@ leaf page state <page>
 ```
 
 Read the active revision's HTML (`active.file`) and the `state` over it, then the open
-items, the threads, and `measurement_lag` for figures whose sources have run again, as
+obligations, the threads, and `measurement_lag` for figures whose sources have run again, as
 `authoring-revisions.md`, "Read before editing", describes. Then run
 `leaf page claim <page>`, which moves the page to your session and stops another
 session's watcher from watching it, and watch it as your harness's reference says.

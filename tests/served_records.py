@@ -5,7 +5,7 @@ through `model_folds.served_reading` rather than written by hand, so a Node test
 every field the server sends and cannot omit one the runtime relies on. `thread`,
 `workflow` and `activity` are one record of each, which `served.mjs` hands out for a
 test to change only the fields the server sends; `gestures` holds an admitted edit, undo, refusal
-and revision sequence shared across runtimes; `item_values` holds typed values
+and revision sequence shared across runtimes; `obligation_values` holds typed values
 folded by Python for comparison with the browser; `state_definitions` holds the
 operation definitions Python records, for the browser's comparison of them; `readings`
 holds whole served readings whose premise is the case under test. `served.mjs` reads this output directly, so its
@@ -18,7 +18,7 @@ from pathlib import Path
 from interact_support import model_layer, served_thread
 from leaf.event_log import EventRefused
 from leaf.passages import SourceReading
-from leaf.projection import StateProjection, authored_rank, item_value
+from leaf.projection import StateProjection, authored_rank, obligation_value
 from leaf.registry.contract import state_definition
 from leaf.structure import SourceDocument
 from model_folds import NOW, UNCLAIMED, leaf_page, served_reading
@@ -34,7 +34,7 @@ def _served(events: tuple[dict, ...]) -> dict:
     }
 
 
-# Something of every kind on each list: a widget item, a question, a to-do the agent put
+# Something of every kind on each list: a widget obligation, a question, a to-do the agent put
 # on the user, a reply that failed and a page action whose pickup failed are on On me;
 # a comment owed a reply and a to-do the agent has in hand are on On <agent>.
 BOTH_SIDES = (
@@ -154,17 +154,17 @@ def build() -> dict:
     threads = {thread["id"]: thread for thread in records["threads"]}
     workflows = {workflow["id"]: workflow for workflow in records["workflows"]}
     return {
-        "item_values": item_value_cases(),
+        "obligation_values": obligation_value_cases(),
         "thread": threads["e1"],
         "workflow": workflows["e4"],
         # The page-wide activity of a page a live session holds, owing nothing.
         "activity": served_reading(PAGE, presence=HELD)["activity"],
         "gestures": gesture_sequence(),
-        "record_item": _served_record_item(),
+        "obligation_row": _served_obligation_row(),
         "state_definitions": state_definition_cases(),
         "readings": {
             # A required approval of the exact stamped document, with no other
-            # items. Keep the whole browser reading for local approval folds.
+            # obligations. Keep the whole browser reading for local approval folds.
             "approval": served_reading(SIGN_OFF_PAGE, (READY,)),
             # The same version once the user approved it.
             "approved": served_reading(
@@ -199,12 +199,12 @@ def build() -> dict:
                 )
             ),
             "queues on both sides": served_reading(
-                ITEM_PAGE,
+                OBLIGATION_PAGE,
                 BOTH_SIDES,
             ),
             # The same page once the user has marked their to-do done.
             "user done": served_reading(
-                ITEM_PAGE,
+                OBLIGATION_PAGE,
                 (
                     *BOTH_SIDES,
                     {"kind": "todo_end", "todo": "e11", "outcome": "done"},
@@ -213,7 +213,7 @@ def build() -> dict:
             # Two to-dos the agent holds on a page it is working on: a start running
             # on one went quiet past the working grace, and the other's is current.
             "quiet start": served_reading(
-                ITEM_PAGE,
+                OBLIGATION_PAGE,
                 (
                     *(
                         {
@@ -262,10 +262,10 @@ def build() -> dict:
                     },
                 ),
             ),
-            # One item answered and one open, and a to-do the agent ended beside one it
-            # still holds: only the answered item and the ended to-do are done.
+            # One obligation answered and one open, and a to-do the agent ended beside one it
+            # still holds: only the answered obligation and the ended to-do are done.
             "done": served_reading(
-                ITEM_PAGE,
+                OBLIGATION_PAGE,
                 (
                     {
                         "kind": "action",
@@ -320,7 +320,7 @@ HELD = {
 }
 QUIET = "2026-09-19T11:30:00+00:00"
 
-ITEM_PAGE = leaf_page(
+OBLIGATION_PAGE = leaf_page(
     "Served queues",
     '<lf-ask id="pick-ask"><h2>Which one?</h2><lf-options id="pick" choose>'
     '<lf-option id="one">One</lf-option><lf-option id="two">Two</lf-option>'
@@ -331,9 +331,9 @@ ITEM_PAGE = leaf_page(
 )
 
 
-def _served_record_item() -> dict:
-    """One item's row as On me lists it (`served_state.queues`)."""
-    state = served_reading(ITEM_PAGE, BOTH_SIDES)
+def _served_obligation_row() -> dict:
+    """One obligation's row as On me lists it (`served_state.queues`)."""
+    state = served_reading(OBLIGATION_PAGE, BOTH_SIDES)
     return next(
         row
         for row in state["browser"]["views"]["1"]["queues"]["on_user"]
@@ -341,12 +341,12 @@ def _served_record_item() -> dict:
     )
 
 
-def item_value_cases():
+def obligation_value_cases():
     """Shared typed-value fixtures: Python's projection reader supplies expected output.
 
     These isolate the state boundary from event admission, pairing authored markup
     with its browser initial state and value actions in force. Both runtimes fold
-    the same operation specs; no item-specific store participates.
+    the same operation specs; no obligation-specific store participates.
     """
     cases = []
 
@@ -388,7 +388,7 @@ def item_value_cases():
                 }
             )
         projection = StateProjection(held, {}, held, {}, {}, frozenset(), frozenset())
-        value, present = item_value(
+        value, present = obligation_value(
             "owner",
             "set",
             spec,

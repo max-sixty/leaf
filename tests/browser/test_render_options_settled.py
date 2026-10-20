@@ -8,8 +8,8 @@ from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    ITEM_SHAPES_PAGE,
-    SETTLED_ITEM_PAGE,
+    OBLIGATION_SHAPES_PAGE,
+    SETTLED_OBLIGATION_PAGE,
     live_url,
 )
 from render_cases_navigation import (
@@ -35,7 +35,7 @@ from browser.threads import open_panel_thread
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-def test_a_reconnected_settled_item_restores_its_diff_watcher(browser, serve):
+def test_a_reconnected_settled_obligation_restores_its_diff_watcher(browser, serve):
     """Tabs and settled answers count the comparison, including after reconnection."""
     first = SETTLED_PAGE.replace(
         '<lf-ask id="transport-decision">',
@@ -255,14 +255,16 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     expect(page.locator("#opt-strict")).to_be_visible()
 
 
-def test_a_settled_item_reconciles_added_options_into_its_disclosure(browser, serve):
+def test_a_settled_obligation_reconciles_added_options_into_its_disclosure(
+    browser, serve
+):
     """A replayed option stays inside the settled disclosure it belongs to.
 
     The disclosure's count and controls describe the complete current option set,
     including options reconstructed from their `add` in force, and follow the undo
     that takes that `add` back.
     """
-    page = open_page(browser, serve(SETTLED_ITEM_PAGE))
+    page = open_page(browser, serve(SETTLED_OBLIGATION_PAGE))
     group = page.locator("#jobs")
     row = group.locator(":scope > .lf-settled")
 
@@ -323,9 +325,9 @@ def test_a_printed_page_says_which_option_carries_the_pick(browser, serve):
     assert page.locator("#opt-strict").evaluate(after) == "none"
 
 
-def test_a_settled_item_keeps_its_heading_above_the_answer(browser, serve):
+def test_a_settled_obligation_keeps_its_heading_above_the_answer(browser, serve):
     """A settled answer still follows the authored question, on-page and in a reply."""
-    url = serve(ITEM_SHAPES_PAGE)
+    url = serve(OBLIGATION_SHAPES_PAGE)
     append_carried_log_record(
         serve.page_dir,
         {

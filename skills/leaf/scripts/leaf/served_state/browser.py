@@ -7,7 +7,7 @@ from ..events import UndoReading
 from ..files import stamped_version
 from ..gesture_words import GestureWords, RevisionReader
 from ..history import history, wants_history
-from ..items import approval_blocking, collection
+from ..obligations import approval_blocking, collection
 from ..passages import SourceReading
 from ..projection import (
     FrozenThreadReading,
@@ -40,15 +40,15 @@ class BrowserReading(NamedTuple):
 def _thread_attention(
     thread: dict, owed: bool, candidates: list[dict], todos: list[dict]
 ) -> dict | None:
-    """Whose turn one thread is: `needs_user` while an item in it is the user's
+    """Whose turn one thread is: `needs_user` while an obligation in it is the user's
     (`owed`), or for an update the user must send again (`resend`); `waiting` while a
     workflow holds the thread with the agent, which covers every input
     `events.unanswered_turns` holds, or while a to-do the agent opened on it stands;
     else None, as for every resolved thread. `candidates` are the thread's
     `served_workflows`, strongest first, so the first that qualifies is the one the
     thread waits on, and a workflow speaks before a to-do. `todos` are the agent's
-    open to-dos, each stamped with its `thread`; the browser reads the one it waits on
-    from the served `todos` itself, and `todo` here names it for `page state`."""
+    open to-dos, each stamped with its `thread`, and `todo` names the one the thread
+    waits on by id."""
     if thread["resolved"]:
         return None
     if owed:
@@ -71,11 +71,7 @@ def _thread_attention(
             "kind": "waiting",
             "reason": "todo",
             "workflow": None,
-            "todo": {
-                "id": todo["id"],
-                "title": todo["title"],
-                "line": todo["running"]["text"] if todo["running"] else None,
-            },
+            "todo": todo["id"],
         }
     return None
 
@@ -165,7 +161,7 @@ def browser_state(
             )
         )
         # The view's own reading of the log: its document, and the frozen thread
-        # widgets with the items and attention they give, under its registry.
+        # widgets with the obligations and attention they give, under its registry.
         viewed = durable.viewing(page)
         reading = viewed.document
         thread, thread_reading = browser_thread(viewed, work.live_reply)
@@ -201,14 +197,14 @@ def browser_state(
             ),
             active.get("activated_at") if active_revision == revision else None,
         )
-        # The view's items are its own document's beside its frozen thread's, served
-        # once: a list row and the approval gate name an item by its id.
+        # The view's obligations are its own document's beside its frozen thread's, served
+        # once: a list row and the approval gate name an obligation by its id.
         items = reading.items["all"] + viewed.items["all"]
         views[str(revision)] = {
             "basis": {"revision": revision, "through_seq": through_seq},
             "document": browser_document(reading, revision),
             "thread": thread,
-            "items": items,
+            "obligations": items,
             "reports": canonical_reports(projection),
             "undo": browser_undo_candidates(
                 events,

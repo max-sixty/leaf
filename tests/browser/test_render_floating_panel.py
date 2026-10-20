@@ -1857,7 +1857,7 @@ def test_nothing_lies_over_a_view_s_foot_but_new_reply(browser, serve):
     expect(inventory.locator(".lf-fp-thread")).to_have_count(13)
     field(page).click()
     page.keyboard.type("Could")
-    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-typing", "")
+    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-drafted", "")
     at_end(".lf-fp-thread")
 
     page.keyboard.press("ControlOrMeta+a")
@@ -1867,7 +1867,7 @@ def test_nothing_lies_over_a_view_s_foot_but_new_reply(browser, serve):
     expect(reader.locator(".lf-msg")).to_have_count(9)
     field(page).click()
     page.keyboard.type("Could")
-    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-typing", "")
+    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-drafted", "")
     at_end(".lf-msg")
 
     # The answer to the user's turn waits below the fold behind New reply, and its
@@ -4094,10 +4094,10 @@ def test_looking_at_an_attached_image_keeps_the_draft_where_it_stands(browser, s
     write(field(page), "A draft long enough to wrap once the counts stand beside it")
     paste_image(field(page), solid_png(40, 30, (255, 128, 64)))
     host = page.locator(".lf-floating-panel")
-    expect(host).to_have_attribute("data-typing", "")
+    expect(host).to_have_attribute("data-drafted", "")
     words = field(page).bounding_box()
     look_at(page.locator(".lf-fp-box .lf-composer-media-open"))
-    expect(host).to_have_attribute("data-typing", "")
+    expect(host).to_have_attribute("data-drafted", "")
     assert field(page).bounding_box() == words
     field(page).click()
     assert field(page).bounding_box() == words
@@ -4189,13 +4189,14 @@ def test_a_draft_draws_a_bullet_list_as_the_message_will(browser, serve):
     assert [mark["drawn"] for mark in nested["marks"]] == ['"•"', '"•"'], nested
 
 
-def test_send_stands_in_the_counts_place_while_the_user_types(browser, serve):
+def test_send_stands_in_the_counts_place_while_the_field_holds_a_draft(browser, serve):
     """Typing puts Send where the counts stood, wearing every composer's accent arrow
-    rather than the panel's own press face, and a press that takes the caret away
-    brings the counts back while the words stay where they were."""
+    rather than the panel's own press face. A press that takes the caret away leaves
+    the draft as it stands, Send and every line in place, and so does a press back
+    into it; the counts come back once the field empties."""
     page = floating(browser, serve(LONG_PAGE))
     field(page).click()
-    page.keyboard.type("Could the rollback cover the weekend?")
+    page.keyboard.type("Could the rollback cover the weekend, and the Monday after it?")
     send = page.locator(".lf-fp-send")
     expect(send).to_be_visible()
     accent = page.evaluate(
@@ -4209,11 +4210,16 @@ def test_send_stands_in_the_counts_place_while_the_user_types(browser, serve):
     words = field(page).bounding_box()
     page.mouse.click(5, 5)
     expect(field(page)).not_to_be_focused()
-    expect(send).to_be_hidden()
-    expect(page.locator(".lf-fp-on-user")).to_be_visible()
     settled(page)
-    after = field(page).bounding_box()
-    assert (after["x"], after["y"]) == (words["x"], words["y"])
+    expect(send).to_be_visible()
+    expect(page.locator(".lf-fp-on-user")).to_be_hidden()
+    assert field(page).bounding_box() == words
+    field(page).click()
+    settled(page)
+    assert field(page).bounding_box() == words
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.press("Backspace")
+    expect(page.locator(".lf-fp-on-user")).to_be_visible()
 
 
 def test_writing_reaches_the_field_however_the_panel_stands(browser, serve):

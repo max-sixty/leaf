@@ -1709,6 +1709,9 @@ function localQueues(served, threads, workflows, todos, items) {
   const inventoryAt = new Map(items.all.map((item, at) => [item.id, at]));
   const open = new Set(todos.open.map((todo) => todo.id));
   const ended = new Set(todos.ended.map((todo) => todo.id));
+  const todoRecord = new Map(
+    [...todos.open, ...todos.ended].map((todo) => [todo.id, todo])
+  );
   const byThread = new Map(threads.map((thread) => [thread.id, thread]));
   const sending2 = workflows.filter(
     (workflow) => workflow.stage === "sending" && workflow.next_actor === "agent" && workflow.subject.kind === "thread"
@@ -1742,7 +1745,12 @@ function localQueues(served, threads, workflows, todos, items) {
   };
   const reopened = (item) => carriesObligation2(item) ? obligationOf(item).status === "open" && obligationOf(item).next_actor === "user" : item.kind === "todo" && open.has(item.id);
   const endedHere = (item) => carriesObligation2(item) ? obligationOf(item).status !== "open" : item.kind === "todo" && ended.has(item.id);
-  const current = (item) => carriesObligation2(item) ? { ...item, obligation: obligationOf(item) } : item;
+  const todoOf = (item) => {
+    const local = todoRecord.get(item.id);
+    if (!local) throw new Error(`Queue item ${item.id} names no to-do`);
+    return local;
+  };
+  const current = (item) => carriesObligation2(item) ? { ...item, obligation: obligationOf(item) } : item.kind === "todo" ? { ...item, todo: todoOf(item) } : item;
   const asOpen = ({
     state: _state,
     ended: _ended,
@@ -1798,7 +1806,7 @@ function localQueues(served, threads, workflows, todos, items) {
         answer: workflow.answer,
         stage: workflow.stage
       })),
-      ...served.on_agent.filter((item) => item.kind === "todo" && standsOpen(item)),
+      ...served.on_agent.filter((item) => item.kind === "todo" && standsOpen(item)).map(current),
       ...reopenedFor("agent").map(asOpen)
     ],
     // Newest first, as the server serves it: what ended in this tab has just ended.

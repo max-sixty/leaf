@@ -45,18 +45,23 @@ export function declareSide(bridge) {
   return () => sides.delete(bridge);
 }
 
-// Source containment identifies the obligation before its enclosing widget does. An enclosing widget
-// shared by several sources cannot identify one of them on its own.
+// The innermost obligation whose source, or whose own enclosing widget, is or holds `node`.
+// An enclosing widget shared by several sources cannot identify one of them on its own,
+// so only a source stands for such an obligation (`obligationPlace`). Obligations nest, as a question
+// inside a proposal's new text does, so the nearest place holding the node names the
+// obligation rather than the kind of place: on the inner question's enclosing widget the user
+// stands on that question, not on the proposal whose source holds it.
 export function obligationHolding(items, node) {
   if (!node) return null;
-  const places = items
-    .filter((item) => item.source.kind === "widget")
-    .map((item) => ({ item, ...obligationPlace(item, items) }));
-  const holds = (element) => element && (element === node || under(node, element));
-  const source = places.findLast((place) => holds(place.source));
-  if (source) return source.item;
-  const contexts = places.filter((place) => holds(place.node));
-  return contexts.length === 1 ? contexts[0].item : null;
+  const holds = (element) => element && under(node, element);
+  let held = null;
+  for (const item of items) {
+    if (item.source.kind !== "widget") continue;
+    const { source, node: stands } = obligationPlace(item, items);
+    const at = holds(source) ? source : holds(stands) ? stands : null;
+    if (at && (!held || under(at, held.at))) held = { item, at };
+  }
+  return held?.item ?? null;
 }
 
 // The source target a presentation node shows, by its owner's declaration, or null

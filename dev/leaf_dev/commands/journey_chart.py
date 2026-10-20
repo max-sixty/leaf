@@ -2,8 +2,8 @@
 
 The chart draws when each sign of the release ask came. The table (`--replies`)
 gives, for each target and case (`journey.CASES`), the whole reply and Leaf's share
-of it, beside the harness's other work before it took the comment and the model
-calls the reply took (`reply_phases.reply_breakdown`), as ranges over the kept
+of it, beside the harness's other work before it took the comment, the reply after
+that, and the model calls the reply took (`reply_phases.reply_breakdown`), as ranges over the kept
 samples of the latest version each target ran.
 """
 
@@ -78,9 +78,9 @@ def reply_table(samples: list[dict]) -> str:
     lines = [
         (
             "| Target | Case | Runs | Whole reply | Leaf's share | Harness busy first "
-            "| Model calls | Model time |"
+            "| After the boundary | Model calls | Model time |"
         ),
-        "| --- | --- | --: | --: | --: | --: | --: | --: |",
+        "| --- | --- | --: | --: | --: | --: | --: | --: | --: |",
     ]
     for (target, case), group in sorted(
         replies.items(), key=lambda item: (item[0][0], list(CASES).index(item[0][1]))
@@ -89,6 +89,7 @@ def reply_table(samples: list[dict]) -> str:
         lines.append(
             f"| {target} | {case} | {len(group)} | {seconds(group, 'wholeMs')} "
             f"| {seconds(group, 'leafMs')} | {seconds(group, 'busyMs')} "
+            f"| {span([(r['wholeMs'] - r['busyMs']) / 1000 for r in group])} "
             f"| {min(calls)}–{max(calls)} | {seconds(group, 'modelMs')} |"
         )
     return "\n".join(lines)

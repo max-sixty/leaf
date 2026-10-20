@@ -275,8 +275,9 @@ def build_arm(ref: str | None, dest: Path, *, paths: Iterable[str] = PAYLOAD) ->
     extract_payload(dest, ref, paths=paths)
     with tempfile.TemporaryDirectory() as state:
         run_leaf(dest, Path(state), "--root", check=True)
+    # Serial: `-j` needs a forkserver socket, which a sandboxed CI runner refuses.
     subprocess.run(
-        [dest / ".venv/bin/python", "-m", "compileall", "-q", "-j0", dest], check=True
+        [dest / ".venv/bin/python", "-m", "compileall", "-q", dest], check=True
     )
     return subprocess.run(
         ["git", "-C", ROOT, "rev-parse", f"{ref or 'HEAD'}^{{commit}}"],

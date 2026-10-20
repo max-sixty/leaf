@@ -445,7 +445,7 @@ def judge_pages(
                 )
             instructions = f"""Judge the live pages below against the task and criterion.
 Use this browser CLI: {shlex.join(command)}
-Open your own headless Chrome with -s=<session> open <URL> --browser=chrome.
+Open your own headless Chromium with -s=<session> open <URL> --browser=chromium.
 Use --mobile for phone and resize W H for each required viewport. Choose your own
 tabs, navigation, actions and screenshots. Use one browser session
 at a time and close it before opening another. Evaluate the page without editing

@@ -28,7 +28,6 @@ from urllib.request import urlopen
 
 import click
 import yaml
-from leaf.render_gate.browser import ending
 from playwright.sync_api import expect, sync_playwright
 
 from leaf_dev import ROOT
@@ -346,14 +345,16 @@ def eval_ui_review(models, condition, mode, repeat, prepare_only, output):
                     f"Private fixture path was exposed: {private}"
                 )
         tests, readings = [], {}
-        # Installed Chrome, the browser `provider.mjs` gives the model's live tool, so
-        # the screenshots, the tool and the recorded version are one build.
+        # Playwright's Chrome for Testing, the browser `provider.mjs` gives the model's
+        # live tool: the Python and Node Playwright pins match, so the screenshots, the
+        # tool and the recorded version are one build. A Google-signed Chrome would
+        # leave keychain keys behind on macOS (`leaf_dev.browser.shell_executable`).
         with (
             sync_playwright() as playwright,
-            ending(playwright.chromium.launch(channel="chrome")) as browser,
+            playwright.chromium.launch(channel="chromium") as browser,
         ):
             runtime = json.loads((output / "environment.json").read_text())
-            runtime["chrome"] = browser.version
+            runtime["browser"] = browser.version
             write_json(output / "environment.json", runtime)
             for variant, identity in provenance["variants"].items():
                 packet = output / "candidates" / identity

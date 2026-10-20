@@ -1584,7 +1584,7 @@
     color: var(--lf-fp-muted);
     font-size: 12px;
   }
-  .lf-fp-state b {
+  .lf-fp-summary {
     color: var(--ink);
     font-size: 13px;
     font-weight: 600;
@@ -1605,16 +1605,16 @@
   }
   /* A tone's words wear its ink, which reads as text on the menu's ground; the bare
      tone is for marks, and the amber one reads 3.65:1 there. */
-  .lf-fp-state[data-tone="working"] b {
+  .lf-fp-state[data-tone="working"] .lf-fp-summary {
     color: var(--accent);
   }
-  .lf-fp-state[data-tone="listening"] b {
+  .lf-fp-state[data-tone="listening"] .lf-fp-summary {
     color: var(--ok-ink);
   }
-  .lf-fp-state[data-tone="away"] b {
+  .lf-fp-state[data-tone="away"] .lf-fp-summary {
     color: var(--warn-ink);
   }
-  .lf-fp-state[data-tone="offline"] b {
+  .lf-fp-state[data-tone="offline"] .lf-fp-summary {
     color: var(--danger-ink);
   }
 

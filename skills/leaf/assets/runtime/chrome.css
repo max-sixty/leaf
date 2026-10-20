@@ -1301,7 +1301,7 @@
     color: var(--lf-fp-muted);
     font-size: 12px;
   }
-  .lf-fp-state b {
+  .lf-fp-summary {
     color: var(--ink);
     font-size: 13px;
     font-weight: 600;
@@ -1318,16 +1318,16 @@
     overflow: hidden;
     height: calc(var(--lines) * 1lh);
   }
-  .lf-fp-state[data-tone=working] b {
+  .lf-fp-state[data-tone=working] .lf-fp-summary {
     color: var(--accent);
   }
-  .lf-fp-state[data-tone=listening] b {
+  .lf-fp-state[data-tone=listening] .lf-fp-summary {
     color: var(--ok-ink);
   }
-  .lf-fp-state[data-tone=away] b {
+  .lf-fp-state[data-tone=away] .lf-fp-summary {
     color: var(--warn-ink);
   }
-  .lf-fp-state[data-tone=offline] b {
+  .lf-fp-state[data-tone=offline] .lf-fp-summary {
     color: var(--danger-ink);
   }
   .lf-fp-leaf {

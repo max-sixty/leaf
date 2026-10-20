@@ -454,9 +454,10 @@ export class TabSet extends HTMLElement {
   #activate(active, reason) {
     if (!this.#buttons.has(active)) return;
     // The open tab pressed again, or walked to, is the user's way back to it after
-    // scrolling the row away.
+    // scrolling the row away. A reveal is travel to something inside the open view,
+    // which leaves the row where the user scrolled it.
     if (active === this.#active) {
-      this.#showTab(this.#buttons.get(active));
+      if (reason !== "reveal") this.#showTab(this.#buttons.get(active));
       return Promise.resolve();
     }
     const previous = this.#active;

@@ -328,6 +328,40 @@ def test_opening_a_thread_reveals_its_closed_tab(browser, serve, options):
     expect(page.locator(".lf-margin-preview")).to_be_visible()
 
 
+LONG_STRIP_PAGE = leaf_page(
+    "a thread in the open tab of a long strip",
+    '''
+  <lf-tabs id="views">
+    <lf-tab id="view-open" label="The open tab"><p id="open-words">Words in it.</p></lf-tab>
+'''
+    + "".join(
+        f'<lf-tab id="view-{n}" label="Another long tab name {n}"><p>Tab {n}.</p></lf-tab>'
+        for n in range(8)
+    )
+    + "</lf-tabs>",
+)
+
+
+def test_a_thread_opened_without_scrolling_leaves_its_open_tab_s_strip(browser, serve):
+    """Opening a thread in the open tab with `scroll: false` reveals nothing new, so the
+    tab strip the user scrolled stays where they left it."""
+    page = open_page(browser, serve(LONG_STRIP_PAGE, events=[_comment_on("open-words")]))
+    resized(page, 390, 844)
+    strip = page.locator("#views > .lf-tabstrip")
+    left = strip.evaluate("s => (s.scrollLeft = s.scrollWidth, s.scrollLeft)")
+    assert left > 0, "the strip fits, so it proves nothing"
+    opened = page.evaluate(
+        """async () => {
+          const {readThreads, threadActions} = await window.__lfWidgetApi();
+          const [thread] = readThreads().threads;
+          return Boolean(await threadActions.open(
+            thread.key, {focus: false, travel: false, scroll: false, flash: false}));
+        }"""
+    )
+    assert opened
+    assert strip.evaluate("s => s.scrollLeft") == left
+
+
 def test_one_information_margin_entry_does_not_raise_a_preview(browser, serve):
     """A single non-thread reading travels directly; cards are reserved for threads."""
     page = open_page(

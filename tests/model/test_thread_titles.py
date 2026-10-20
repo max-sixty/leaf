@@ -503,15 +503,17 @@ def test_a_codex_title_server_runs_while_a_codex_session_holds_the_page(
 
     record_claim(page_dir, id="s1", harness="claude-code", agent="Claude")
     # The page server's follower, run in a process of its own as it is there, until
-    # its stdin closes. Its exit then stops the title server it holds, as a page
-    # server's does.
+    # its stdin closes. It then ends as a page server ends itself, stopping the
+    # title server it holds.
     follow = """
 import sys, threading
 from pathlib import Path
+from leaf.server import exit_serving
 from leaf.thread_titles import follow_claimant
 page = Path(sys.argv[1])
 threading.Thread(target=follow_claimant, args=(page,), daemon=True).start()
 sys.stdin.read()
+exit_serving(0)
 """
     follower = spawn(
         [sys.executable, "-c", follow, str(page_dir)], stdin=subprocess.PIPE

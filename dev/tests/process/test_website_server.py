@@ -1296,7 +1296,9 @@ def test_the_agent_pass_retries_a_reset_activation_on_a_fresh_session(monkeypatc
     class Resetting(_RollingOutContainer):
         def get(self, url: str, **kwargs):
             if "api/view" in url:
-                raise verify_site.PlaywrightError("APIRequestContext.get: read ECONNRESET")
+                raise verify_site.PlaywrightError(
+                    "APIRequestContext.get: read ECONNRESET"
+                )
             return super().get(url, **kwargs)
 
     resetting = Resetting(release, page)

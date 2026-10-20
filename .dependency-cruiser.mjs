@@ -64,7 +64,7 @@ const exactClosures = {
     "thread/workflow.js",
   ],
   "thread/workflow.js": [],
-  "pending/model.js": ["thread/identity.js"],
+  "pending/model.js": ["thread/identity.js", "event-kinds.js"],
   "pending/state.js": ["semantic-state.js", "queued-work.js"],
   "keyboard/dispatch.js": [
     "context.js",
@@ -85,6 +85,8 @@ const exactClosures = {
     "user-intent.js",
     "registry.js",
     "registry-contract.js",
+    "event-kinds.js",
+    "names.js",
     "rendering.js",
     "sample-visibility.js",
     "repaint.js",

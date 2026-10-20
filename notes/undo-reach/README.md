@@ -46,8 +46,9 @@ Undo is one-way. Nothing puts back what an undo took:
   every id any undo names, and every Python fold reads it.
 - The append door's `UndoReading.error` (`events.py`) refuses an undo whose
   target isn't an unwithdrawn gesture of the user's own, so an undo can't name an
-  undo. `UNDOABLE_KINDS` (`skills/leaf/scripts/leaf/schema.py`) is resolve,
-  unresolve, action, done, and todo_end; an unanswered reaction is also undoable.
+  undo. The kinds `$events.kinds` marks `undoable`
+  (`skills/leaf/assets/registry.json`) are resolve, unresolve, action, done, and
+  todo_end; an unanswered reaction is also undoable.
 - `events.md` states "An undo cannot itself be undone."
 
 ## The candidates

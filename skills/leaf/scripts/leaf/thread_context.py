@@ -14,7 +14,7 @@ from leaf.events import (
     taken_back,
 )
 from leaf.passages import enclosing_ids
-from leaf.schema import MESSAGE_KINDS
+from leaf.registry.kernel import kinds_declaring
 from leaf.structure import SourceDocument
 
 
@@ -232,7 +232,7 @@ def event_threads(event: dict, names: dict, widgets: dict) -> list:
     validates its target against the active revision's own elements, so one
     can never name a widget an agent sent."""
     kind = event["kind"]
-    if kind in MESSAGE_KINDS:
+    if kind in kinds_declaring("message"):
         named = [names.get(event["id"])]
     elif kind == "edit":
         named = [names.get(event["message"])]

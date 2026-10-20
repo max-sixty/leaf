@@ -1,13 +1,14 @@
 """Leaf's fixed kernel facts, read off the kernel's own registry.
 
 Every `$events` member but `handling` and `answering` is the transport contract no
-layer can change (`layer.merge_layer_declarations`), and `$passages` is how a page reads
-as text, which the browser's generated copy (`runtime/passage-facts.js`) shares. Both
-are read from the running Leaf's shipped `registry.json` rather than from a page's
-composed vocabulary, which may be another Leaf's at the same `protocol`
-(`kernel_protocol`). Reading them needs no schema validator, and this module imports
-none: the page service sorts every event by these kinds, including in a harness hook
-that validates nothing."""
+layer can change (`layer.merge_layer_declarations`), `$passages` is how a page reads
+as text, which the browser's generated copy (`runtime/passage-facts.js`) shares, and
+`$marks` the declarations painted for stylesheets, which composition stamps over any a
+layer declares. All three are read from the running Leaf's shipped `registry.json`
+rather than from a page's composed vocabulary, which may be another Leaf's at the same
+`protocol` (`kernel_protocol`). Reading them needs no schema validator, and this module
+imports none: the page service sorts every event by these kinds, including in a harness
+hook that validates nothing."""
 
 from functools import cache
 
@@ -57,11 +58,37 @@ def kernel_event_ownership() -> dict:
 
 
 @cache
-def bookkeeping_kinds() -> frozenset[str]:
-    """The kinds `$events` declares `bookkeeping`: facts about the user's view of
-    the page, kept for the page's own readings and never an update the agent answers."""
+def kinds_declaring(flag: str) -> frozenset[str]:
+    """The kinds whose `$events.kinds` contract sets `flag`: `bookkeeping`, a fact
+    about the user's view of the page that is never an update the agent answers;
+    `message`, words said in a thread; `undoable`, a gesture of the user's own an
+    `undo` may withdraw. `$events.description` owns what each means."""
     return frozenset(
-        kind
-        for kind, contract in kernel_event_kinds().items()
-        if contract.get("bookkeeping")
+        kind for kind, contract in kernel_event_kinds().items() if contract.get(flag)
     )
+
+
+@cache
+def verb_writers() -> dict[str, str]:
+    """Each widget kind, one that carries an x-state verb, with the side that writes
+    that verb (`verb_writer`): the user's `action`, the agent's `report`."""
+    return {
+        kind: contract["verb_writer"]
+        for kind, contract in kernel_event_kinds().items()
+        if "verb_writer" in contract
+    }
+
+
+def answer_kinds() -> list[str]:
+    """The answers an update may owe (`reply`, `markup`), each of which
+    `$events.answering` instructs; a layer restates only these."""
+    return list(_kernel_events()["answering"])
+
+
+@cache
+def kernel_marks() -> dict:
+    """The declarations a stylesheet reads, each with the attribute it is painted as
+    (`$marks`, whose description owns the table's meaning)."""
+    return {
+        key: mark for key, mark in _kernel()["$marks"].items() if key != "description"
+    }

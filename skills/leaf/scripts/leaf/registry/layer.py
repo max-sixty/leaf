@@ -1,7 +1,6 @@
 """Layer registry composition and contract validation."""
 
 import json
-from copy import deepcopy
 
 import jmespath
 import turbohtml
@@ -10,7 +9,6 @@ from jsonschema.exceptions import SchemaError
 
 from leaf.schema import (
     AWAITS_SCHEMA,
-    DECLARED_MARKS,
     EXTENSION_SCHEMA,
     LAYER_FACTS_SCHEMA,
     VERB_SCHEMA,
@@ -22,6 +20,7 @@ from .contract import (
     stamp_decisions,
     stamp_states,
 )
+from .kernel import answer_kinds
 from .schema import (
     check_schema,
     json_validator,
@@ -31,6 +30,11 @@ from .schema import (
 
 # The `$events` members a layer may restate; the rest are the kernel's.
 LAYER_OWNED_EVENTS = frozenset({"handling", "answering"})
+# The facts both runtimes read from the kernel registry, each whole and none from a
+# layer (`registry.kernel`): Python reads the running Leaf's own copy and the browser a
+# copy generated from it, so a layer's change would reach neither. A page's older
+# runtime reads `$marks` from the vocabulary it was vendored with.
+KERNEL_FACTS = frozenset({"$passages", "$names", "$marks"})
 # The facts that document a declaration's keys, each beside the schema that admits
 # those keys (`validate_layer_declarations`).
 DOCUMENTED_KEYS = {
@@ -51,7 +55,7 @@ def merge_layer_declarations(merged: dict, declarations: dict) -> None:
     silently drop every shipped extension with it. Scalar and list members replace
     whole — a names list is one statement. `$events` is the exception: every member
     but `handling` and `answering` is Leaf's fixed kernel transport contract and its
-    `protocol`, which no layer changes.
+    `protocol`, which no layer changes; so is each of `KERNEL_FACTS`, whole.
 
     Inside a map member the merge is JSON merge-patch: a later layer's value
     replaces the key, a new key joins, and `null` removes one — which is the
@@ -62,6 +66,10 @@ def merge_layer_declarations(merged: dict, declarations: dict) -> None:
         earlier = merged.get(name)
         if not (name.startswith("$") and earlier is not None):
             merged[name] = entry
+            continue
+        if name in KERNEL_FACTS:
+            if _canonical(entry) != _canonical(earlier):
+                raise registry_error("fixed-kernel-fact", name=name)
             continue
         if name == "$events":
             # Only the kernel's own value passes, compared as JSON so that `true` or
@@ -85,9 +93,8 @@ def _canonical(value) -> str:
 
 def stamp_composition(registry: dict) -> dict:
     """Write into a validated vocabulary what the browser reads rather than derives:
-    `$decisions` (`registry.contract.stamp_decisions`), `$states`
-    (`registry.contract.stamp_states`), and `$marks`, the declared marks
-    (`schema.DECLARED_MARKS`) it paints on a message it renders.
+    `$decisions` (`registry.contract.stamp_decisions`) and `$states`
+    (`registry.contract.stamp_states`).
 
     Each composition that ends in a vocabulary stamps it, `page init`'s layer and a
     page's own declarations over it, overwriting whatever a layer declared under
@@ -95,7 +102,6 @@ def stamp_composition(registry: dict) -> dict:
     """
     stamp_decisions(registry)
     stamp_states(registry)
-    registry["$marks"] = deepcopy(DECLARED_MARKS)
     return registry
 
 
@@ -115,10 +121,19 @@ def validate_layer_declarations(registry: dict, path) -> None:
     Schema, each `resources` entry JMESPath, the documented keys, and the idioms."""
     check_layer_facts(registry, path)
     events = registry["$events"]
+    # A layer instructs only the kinds there are: events of a declared kind, and the
+    # answers the kernel's own `answering` instructs.
+    declared = {"handling": sorted(events["kinds"]), "answering": answer_kinds()}
     for key in ("handling", "answering"):
         for kind, clauses in events[key].items():
-            if key == "handling" and kind not in events["kinds"]:
-                raise registry_error("undeclared-event-kind", path, kind=kind)
+            if kind not in declared[key]:
+                raise registry_error(
+                    "undeclared-event-kind",
+                    path,
+                    key=key,
+                    kind=kind,
+                    declared=declared[key],
+                )
             for clause in clauses:
                 if "when" not in clause:
                     continue

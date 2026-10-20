@@ -1,6 +1,6 @@
 ---
 name: leaf
-description: Presents designs, decisions, findings, or live work as an HTML page the user can comment on and manipulate, and processes user input delivered from an existing Leaf page. Use for “explain this in HTML,” “write up the findings,” “show me the options,” building a playground, explorer, simulator, or interactive tool, work whose progress or review belongs in a shared page, or a `leaf-delivery` message.
+description: Presents designs, decisions, findings, or live work as an HTML page the user can comment on and manipulate, and processes user input delivered from an existing Leaf page. Use for “explain this in HTML,” “write up the findings,” “show me the options,” building a playground, explorer, simulator, or interactive tool, work whose progress or review belongs in a shared page, a `leaf_delivery` tool output, or a `leaf-delivery` message.
 allowed-tools:
   - Bash(leaf:*)
   - Bash(jq:*)
@@ -13,8 +13,8 @@ delivered update on the page and in its thread, stamp checkpoints, and idle the
 page when it is finished.
 
 The input is either a subject to present or a delivery from a page already handed
-over: a `leaf-delivery` element, or a delivery envelope that Leaf sent as a message
-or `leaf wait` printed. A delivery starts at step 6 below; don't initialize or hand
+over: a `leaf_delivery` tool output, a `leaf-delivery` element, or the envelope
+`leaf wait` printed. A delivery starts at step 6 below; don't initialize or hand
 the page over again. With no subject in `$ARGUMENTS`, present the work already
 under discussion.
 

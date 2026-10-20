@@ -133,7 +133,7 @@ def test_codex_app_server_restart_finishes_an_accepted_batch_without_starting_it
                         }
                     )
                 )
-            elif method in {"thread/turns/list", "thread/queue/list"}:
+            elif method == "thread/turns/list":
                 socket.send(
                     json.dumps(
                         {
@@ -142,9 +142,13 @@ def test_codex_app_server_restart_finishes_an_accepted_batch_without_starting_it
                         }
                     )
                 )
-            elif method == "thread/queue/add":
+            elif method == "turn/start":
                 starts.append(request)
-                socket.send(json.dumps({"id": request["id"], "result": {}}))
+                socket.send(
+                    json.dumps(
+                        {"id": request["id"], "result": {"turn": {"id": "again"}}}
+                    )
+                )
 
     endpoint = app_server(handle)
     finished = tmp_path / "codex-start-finished"

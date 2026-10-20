@@ -796,7 +796,7 @@ def test_prompt_and_stop_reuse_the_original_unanswered_delivery(claimed, capsys)
 def inline_delivery(context: str) -> dict:
     """The delivery a hook handed over inline, from the context it added."""
     opening, envelope, *_ = context.split("\n")
-    assert opening == delivery_model.INLINE_OPENING
+    assert opening == hook_transport_model.INLINE_OPENING
     return json.loads(envelope)
 
 
@@ -1093,7 +1093,7 @@ def test_a_prompt_re_vendors_a_page_an_older_leaf_vendored_and_hands_over_its_in
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
         "additionalContext"
     ]
-    assert context.startswith(delivery_model.INLINE_OPENING)
+    assert context.startswith(hook_transport_model.INLINE_OPENING)
     assert "page protocol" not in context
     assert events_model.read_cursor(claimed) >= comment["seq"]
     assert event_contracts_model.write_refusal(claimed) is None
@@ -1202,11 +1202,11 @@ def test_a_prompt_offers_no_new_input_from_a_page_its_leaf_cannot_write(
 
     refused = prompt()
     assert "page protocol" in refused
-    assert delivery_model.INLINE_OPENING not in refused
+    assert hook_transport_model.INLINE_OPENING not in refused
     assert events_model.read_cursor(claimed) < comment["seq"]
 
     cleanup_model.write_json(stamp, json.loads(vendored))
-    assert prompt().startswith(delivery_model.INLINE_OPENING)
+    assert prompt().startswith(hook_transport_model.INLINE_OPENING)
     assert events_model.read_cursor(claimed) >= comment["seq"]
 
 

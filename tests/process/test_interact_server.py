@@ -114,7 +114,7 @@ def browser_observation(kind, sequence=1, **fields):
     """A browser observation whose wall clock is deliberately ahead of the host."""
     return {
         "type": kind,
-        "observed_at": "2099-01-01T00:00:00Z",
+        "observed_at": "2099-01-01T00:00:00.000Z",
         "sequence": sequence,
         "monotonic_ms": sequence * 10,
         "visibility": "visible",
@@ -125,8 +125,9 @@ def browser_observation(kind, sequence=1, **fields):
 def test_interaction_trace_records_browser_entries_and_every_request_outcome(
     server, page_dir
 ):
+    tab = "1" * 32
     payload = {
-        "session": "tab-1",
+        "session": tab,
         "entries": [
             browser_observation(
                 "click", target="#approve", source="forged", ts="forged"
@@ -139,12 +140,15 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
         b"",
     )
     assert (
-        fetch(f"{server}/api/interaction", data=b'{"session":"tab-1","entries":[]}')[0]
+        fetch(
+            f"{server}/api/interaction",
+            data=json.dumps({"session": tab, "entries": []}).encode(),
+        )[0]
         == 400
     )
     for invalid in (
         {"type": ""},
-        {"observed_at": "2026-10-14T12:00:00"},
+        {"observed_at": "2026-10-14T12:00:00.000"},
         {"sequence": True},
         {"monotonic_ms": -1},
         {"visibility": "unknown"},
@@ -153,7 +157,7 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
         assert (
             fetch(
                 f"{server}/api/interaction",
-                data=json.dumps({"session": "malformed", "entries": [entry]}).encode(),
+                data=json.dumps({"session": tab, "entries": [entry]}).encode(),
             )[0]
             == 400
         )
@@ -162,10 +166,16 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
     assert (
         fetch(
             f"{server}/api/interaction",
-            data=json.dumps({"session": "missing", "entries": [missing_time]}).encode(),
+            data=json.dumps({"session": tab, "entries": [missing_time]}).encode(),
         )[0]
         == 400
     )
+    # A clock past a double's range, which the browser and the Worker read as infinity.
+    overflowing = json.dumps(
+        {"session": tab, "entries": [browser_observation("x")]}
+    ).replace('"monotonic_ms": 10', '"monotonic_ms": 1e400')
+    assert "1e400" in overflowing
+    assert fetch(f"{server}/api/interaction", data=overflowing.encode())[0] == 400
     assert (
         fetch(
             f"{server}/api/interaction", data=json.dumps(payload).encode(), token=None
@@ -183,11 +193,11 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
     client = [row for row in rows if row["source"] == "client"]
     assert len(client) == 2
     assert [(row["session"], row["type"]) for row in client] == [
-        ("tab-1", "click"),
-        ("tab-1", "input"),
+        (tab, "click"),
+        (tab, "input"),
     ]
     assert client[0]["source"] == "client"
-    assert all(row["observed_at"] == "2099-01-01T00:00:00Z" for row in client)
+    assert all(row["observed_at"] == "2099-01-01T00:00:00.000Z" for row in client)
     assert all(datetime.fromisoformat(row["ts"]).year != 2099 for row in client)
     assert all("received" not in row for row in client)
     server_rows = [row for row in rows if row["source"] == "server"]
@@ -230,14 +240,14 @@ def test_interaction_trace_is_writable_from_a_read_only_page_preview(page_dir):
         status, body = fetch(
             f"{preview.origin}/api/interaction",
             data=json.dumps(
-                {"session": "preview", "entries": [browser_observation("click")]}
+                {"session": "2" * 32, "entries": [browser_observation("click")]}
             ).encode(),
         )
         assert (status, body) == (204, b"")
         assert fetch(f"{preview.origin}/api/event", data=b"{}")[0] == 403
     assert event_model.read_events(page_dir) == before
     assert any(
-        row["source"] == "client" and row["session"] == "preview"
+        row["source"] == "client" and row["session"] == "2" * 32
         for row in map(
             json.loads,
             (page_dir / interaction_model.INTERACTIONS_FILE).read_text().splitlines(),
@@ -347,7 +357,7 @@ def test_samples_use_captured_resources_and_independent_event_logs(server, page_
     assert fetch(
         child + "/api/interaction",
         data=json.dumps(
-            {"session": "child-tab", "entries": [browser_observation("click")]}
+            {"session": "c" * 32, "entries": [browser_observation("click")]}
         ).encode(),
     ) == (204, b"")
     status, answer = fetch(
@@ -378,7 +388,7 @@ def test_samples_use_captured_resources_and_independent_event_logs(server, page_
     assert fetch(child + "/api/state")[0] == 404
     assert any(
         row["source"] == "client"
-        and row["session"] == "child-tab"
+        and row["session"] == "c" * 32
         and row["page"] == allocated["page"]
         for row in map(
             json.loads,
@@ -669,7 +679,7 @@ def test_sample_capability_authorizes_only_its_live_descendants(page_dir, routed
                 token=None,
                 data=json.dumps(
                     {
-                        "session": "routed-sample",
+                        "session": "a" * 32,
                         "entries": [browser_observation("checkpoint")],
                     }
                 ).encode(),
@@ -684,7 +694,7 @@ def test_sample_capability_authorizes_only_its_live_descendants(page_dir, routed
                 .read_text()
                 .splitlines(),
             )
-            if row.get("session") == "routed-sample"
+            if row.get("session") == "a" * 32
         )
         assert routed_trace["page"] == first.removeprefix(origin)
         assert fetch(origin + "/api/state", token=None)[0] == 401
@@ -697,7 +707,7 @@ def test_sample_capability_authorizes_only_its_live_descendants(page_dir, routed
                 token=None,
                 data=json.dumps(
                     {
-                        "session": "nested-sample",
+                        "session": "b" * 32,
                         "entries": [browser_observation("checkpoint")],
                     }
                 ).encode(),
@@ -733,7 +743,7 @@ def test_sample_capability_authorizes_only_its_live_descendants(page_dir, routed
                 .read_text()
                 .splitlines(),
             )
-            if row.get("session") == "nested-sample"
+            if row.get("session") == "b" * 32
         )
         assert (
             nested_trace["page"]

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Rate limiter rollout</title>
+  </head>
+  <body>
+    <main class="layout-column">
+      <h1>Rate limiter rollout</h1>
+      <p class="lede" id="lede">
+        The new token-bucket rate limiter replaces the fixed-window one in the API
+        gateway. It ships one region at a time.
+      </p>
+
+      <section id="latency">
+        <h2>Gateway latency</h2>
+        <p id="latency-note">
+          p99 latency of the gateway over the last week, with the new limiter in shadow
+          mode.
+        </p>
+        <table id="latency-table">
+          <thead>
+            <tr>
+              <th>Region</th>
+              <th>p99</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>eu-west</td>
+              <td>191 ms</td>
+            </tr>
+            <tr>
+              <td>us-east</td>
+              <td>214 ms</td>
+            </tr>
+            <tr>
+              <td>ap-south</td>
+              <td>262 ms</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="first">
+        <lf-ask id="first-region-decision">
+          <h2>Which region goes first?</h2>
+          <lf-options id="first-region" choose>
+            <lf-option id="opt-eu-west"
+              ><strong>eu-west</strong> Lowest traffic at night, and its on-call team
+              wrote the limiter.</lf-option
+            >
+            <lf-option id="opt-us-east"
+              ><strong>us-east</strong> Most traffic, so the soonest real signal, and
+              the longest-standing alerts.</lf-option
+            >
+            <lf-option id="opt-ap-south"
+              ><strong>ap-south</strong> Highest latency today, where the limiter's
+              smoothing should help most.</lf-option
+            >
+          </lf-options>
+        </lf-ask>
+      </section>
+
+      <section id="schedule">
+        <h2>Schedule</h2>
+        <p id="schedule-pending">To be written once the first region is picked.</p>
+      </section>
+    </main>
+  </body>
+</html>

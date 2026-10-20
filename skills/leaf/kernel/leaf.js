@@ -507,7 +507,8 @@ import {
   repeat,
   sameAnchor,
   threadKey,
-  threadNames
+  threadNames,
+  turns
 } from "./runtime/bundle-queued-work.js";
 import "./runtime/bundle-__export.js";
 
@@ -5429,6 +5430,7 @@ var TONE = {
   closed: ""
 };
 var WORK_WORDS = {
+  working: "working",
   thinking: "thinking",
   tool: "using a tool",
   awaiting_approval: "waiting for approval",
@@ -5449,7 +5451,7 @@ function activityFacts({ activity }) {
   const { counts } = activity;
   return Object.freeze({
     tone: TONE[activity.kind],
-    work: WORK_WORDS[activity.observed_kind] || "working",
+    work: activity.observed_kind ? WORK_WORDS[activity.observed_kind] : "working",
     left: Boolean(activity.dropped),
     silentSince: ago(activity.ts),
     listening: Boolean(counts.pending || counts.queued),
@@ -5644,7 +5646,7 @@ function queueKinds(items2) {
     byKind.set(itemNoun(item), [...byKind.get(itemNoun(item)) ?? [], item]);
   return [...byKind].map(([kind, all]) => {
     const words = `${all.length} ${QUEUE_WORDS[kind][all.length === 1 ? 0 : 1]}`;
-    return kind === "todo" ? `${words} (${all.map((todo) => todo.title).join(" \xB7 ")})` : words;
+    return kind === "todo" ? `${words} (${all.map((row) => row.todo.title).join(" \xB7 ")})` : words;
   });
 }
 function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {
@@ -5787,9 +5789,11 @@ function paintStatus() {
   saidActionableWork = actionableWork;
   if (changed) announce(model.explanation);
 }
+var REVIEW = "lf-review";
+var SIGN_OFF = "sign-off";
 var isSignoffDeclared = () => (
   /** @type {HTMLMetaElement | null} */
-  document.querySelector('meta[name="lf-review"]')?.content === "sign-off"
+  document.querySelector(`meta[name="${REVIEW}"]`)?.content === SIGN_OFF
 );
 var signoff = false;
 var approving = false;
@@ -7073,7 +7077,7 @@ function createFloatingPanel({
       (candidate) => candidate.key === top.thread || candidate.id === top.thread
     );
     if (!outlet || !thread) return;
-    for (const message of thread.msgs) parts.message(thread.key, message.key, outlet);
+    for (const message of turns(thread)) parts.message(thread.key, message.key, outlet);
     const news = newsOutlet();
     if (news) parts.news(thread.key, news);
     if (replyOutlet.isConnected)
@@ -7316,7 +7320,7 @@ function createFloatingPanel({
         >${thread ? discuss : nothing}`;
     else if (list !== "you" && !answered)
       answers = html`<span class="lf-fp-said"
-          >${item.running?.text ?? workflowLabel(item.workflow) ?? ""}</span
+          >${item.todo?.running?.text ?? workflowLabel(item.workflow) ?? ""}</span
         >${thread ? discuss : nothing}`;
     else if (answered)
       answers = html`<span class="lf-fp-said">${obligationEnding(record)}</span>${gesture ? html`<button

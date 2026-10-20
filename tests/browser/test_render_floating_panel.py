@@ -36,6 +36,7 @@ from render_harness import (
     holding,
     http_error_console,
     open_page,
+    round_trip,
     select_words,
     sending,
     stamp_page,
@@ -307,6 +308,45 @@ def test_a_thread_s_keys_answer_in_its_view(browser, serve):
         page.keyboard.press("Enter")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "unresolve"
     expect(settle).to_have_text("Resolve", use_inner_text=True)
+
+
+def test_a_reaction_in_the_view_stands_as_its_chip_alone(browser, serve):
+    """A reaction to the agent's reply shows once in the thread's view, as the pressed
+    chip on the reply, as a card in Threads draws it: before the server answers and
+    after, the view draws no message of its own for it."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Is the window long enough?")
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "revision": 1,
+            "text": "Forty-eight hours covers the first cohort.",
+        },
+    )
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    thread = page.locator(".lf-fp-view[data-view=thread]")
+    reply = thread.locator(".lf-msg.agent")
+    reply.click()
+    page.keyboard.press("e")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.keyboard.press("1")
+    holding(page, held, 1, "the reaction")
+    pressed = reply.locator(".lf-react[aria-pressed=true]")
+    expect(pressed).to_have_count(1)
+    expect(thread.locator(".lf-msg")).to_have_count(2)
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    assert events_model.read_events(serve.page_dir)[-1]["token"]
+    expect(pressed).to_have_count(1)
+    expect(thread.locator(".lf-msg")).to_have_count(2)
 
 
 def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
@@ -3184,6 +3224,36 @@ def test_a_comment_on_words_where_the_page_draws_no_margin_is_written_in_the_row
     expect(box).to_be_focused()
     expect(page.locator(".lf-fp-field")).to_be_hidden()
     page.keyboard.type("Is this paragraph needed?")
+    # Send stands in the field's end corner, as in every comment box, not on a line
+    # of its own under the field.
+    send = response.locator(".lf-compose-submit").bounding_box()
+    words = box.bounding_box()
+    assert words["y"] <= send["y"] and send["y"] + send["height"] <= (
+        words["y"] + words["height"]
+    ), (send, words)
+    assert words["x"] + words["width"] / 2 < send["x"], (send, words)
+    assert send["x"] + send["width"] <= words["x"] + words["width"], (send, words)
+    # An image it is given hangs over the panel as the field's does, so the box and
+    # its words stay where they are.
+    card = page.locator(".lf-fp-card")
+    before = (card.bounding_box(), box.bounding_box())
+    box.evaluate(
+        """(box, encoded) => {
+          const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
+          const transfer = new DataTransfer();
+          transfer.items.add(new File([bytes], 'pasted.png', {type: 'image/png'}));
+          box.dispatchEvent(new ClipboardEvent('paste', {
+            bubbles: true, cancelable: true, clipboardData: transfer,
+          }));
+        }""",
+        base64.b64encode(solid_png(40, 30, (255, 128, 64))).decode(),
+    )
+    picture = response.locator(".lf-composer-media-open")
+    expect(picture).to_have_count(1)
+    expect(box).not_to_have_attribute("aria-busy", "true")
+    assert (card.bounding_box(), box.bounding_box()) == before
+    tile = picture.bounding_box()
+    assert tile["y"] + tile["height"] <= before[0]["y"], (tile, before)
     page.keyboard.press("Enter")
     reader = page.locator(".lf-fp-view[data-view=thread]")
     expect(reader.locator(".lf-msg")).to_contain_text("Is this paragraph needed?")

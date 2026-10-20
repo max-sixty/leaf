@@ -50,8 +50,7 @@ def _thread_attention(
     stage. A widget's record turns the agent's only while the thread's newest
     unanswered turn publishes an update record (`queues`), so a waiting thread always
     has a workflow to name. `todos` are the agent's open to-dos, each stamped with its
-    `thread`; the browser reads the one it waits on from the served `todos` itself,
-    and `todo` here names it for `page state`."""
+    `thread`, and `todo` names the one the thread waits on by id."""
     if thread["resolved"]:
         return None
 
@@ -84,11 +83,7 @@ def _thread_attention(
             "kind": "waiting",
             "reason": "todo",
             "workflow": None,
-            "todo": {
-                "id": todo["id"],
-                "title": todo["title"],
-                "line": todo["running"]["text"] if todo["running"] else None,
-            },
+            "todo": todo["id"],
         }
     return None
 

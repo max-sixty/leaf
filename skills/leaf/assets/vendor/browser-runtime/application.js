@@ -206,8 +206,10 @@ function advance(
 
 
 /** One row of On me or On <agent>, as `served_state.queues` serves it or this tab
- * places it: `owner` names the list. A widget or approval row names its obligation by `id`,
- * and a to-do row carries the fields a row draws. */
+ * places it: `owner` names the list. A widget, approval or to-do row names its record
+ * by `id`. */
+
+
 
 
 
@@ -489,6 +491,9 @@ function localQueues(
   const inventoryAt = new Map(items.all.map((item, at) => [item.id, at]));
   const open = new Set(todos.open.map((todo) => todo.id));
   const ended = new Set(todos.ended.map((todo) => todo.id));
+  const todoRecord = new Map(
+    [...todos.open, ...todos.ended].map((todo) => [todo.id, todo]),
+  );
   // The threads holding a send this tab has in flight.
   const sentIn = new Set(
     workflows.flatMap((workflow) =>
@@ -528,9 +533,17 @@ function localQueues(
   // Whether an item the server listed as open has ended in this tab.
   const endedHere = (item           ) =>
     namesRecord(item) ? obligationOf(item).status !== "open" : ended.has(item.id);
-  // A record's row carries this tab's record of it.
+  const todoOf = (item           ) => {
+    const local = todoRecord.get(item.id);
+    if (!local) throw new Error(`Queue item ${item.id} names no to-do`);
+    return local;
+  };
+  // A record's row carries this tab's record of its obligation, and a to-do's row
+  // this tab's record of the to-do.
   const current =                      (item   )    =>
-    namesRecord(item) ? { ...item, obligation: obligationOf(item) } : item;
+    namesRecord(item)
+      ? { ...item, obligation: obligationOf(item) }
+      : { ...item, todo: todoOf(item) };
   const asOpen = ({
     state: _state,
     ended: _ended,
@@ -578,7 +591,9 @@ function localQueues(
         .filter((item) => item.kind !== "todo" && standsOpen(item))
         .map(current),
       ...local.filter((item) => item.next_actor === "agent").map(localRow),
-      ...served.on_agent.filter((item) => item.kind === "todo" && standsOpen(item)),
+      ...served.on_agent
+        .filter((item) => item.kind === "todo" && standsOpen(item))
+        .map(current),
       ...reopenedFor("agent").map(asOpen),
     ],
     // Newest first, as the server serves it: what ended in this tab has just ended.

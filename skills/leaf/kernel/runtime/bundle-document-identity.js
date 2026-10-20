@@ -235,6 +235,7 @@ import {
   excerptWords,
   inChrome,
   labelWords,
+  leafSurface,
   pageDocument,
   pageParts,
   pageRange,
@@ -409,6 +410,7 @@ import {
   stateCoordinate,
   threadKey,
   tokenChoices,
+  turns,
   untracked
 } from "./bundle-queued-work.js";
 
@@ -820,7 +822,7 @@ function sentDrawing(drawing) {
 }
 
 // runtime/protocol.js
-var recordFormat = (kind) => `leaf-${kind}/12`;
+var recordFormat = (kind) => `leaf-${kind}/13`;
 
 // runtime/composing/text-field.js
 import {
@@ -4057,7 +4059,7 @@ var currentProjection = readPart((root) => root.effective.projection);
 // runtime/thread/placement.js
 var threadPlace = (t, placedAt) => {
   const place = placedAt(t.id)?.place ?? (t.anchor ? sectionOf(t.anchor) : null);
-  return place?.isConnected ? place : null;
+  return place?.isConnected && !leafSurface(place) ? place : null;
 };
 var inPageOrder = (threads, placedAt) => byRenderedOrder(threads, (t) => threadPlace(t, placedAt));
 var outlined = null;
@@ -6434,8 +6436,8 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
         throw new Error("Thread nominations belong to their current render callback");
       const thread = byKey.get(key);
       if (!thread) throw new Error(`No Thread has key ${key}`);
-      if (message !== null && !thread.msgs.some((item) => item.key === message))
-        throw new Error(`Thread ${key} has no message ${message}`);
+      if (message !== null && !turns(thread).some((item) => item.key === message))
+        throw new Error(`Thread ${key} has no turn ${message}`);
       const identity2 = JSON.stringify([kind, key, message]);
       if (nominations.some(
         (item) => item.identity === identity2 || item.key === key && (item.kind === "thread" || kind === "thread")
@@ -7554,6 +7556,7 @@ function mountApplication(dependencies) {
     scrollThreadIntoView: dependencies.annotationCommands.scrollThreadIntoView,
     renderMarginThread: (host, thread, controls) => renderMarginThread(host, thread, inlineView, controls),
     placedAt: dependencies.anchorPlacement.placedAt,
+    marksFor: (id) => dependencies.anchorPaint?.marksFor(id) ?? [],
     scrollToElement: dependencies.anchorTravel.scrollToElement
   });
   const threadDestinations = createThreadDestinations({
@@ -7984,7 +7987,7 @@ function queueTitle(item) {
   const thread = readThreads().threads.find((thread2) => thread2.id === item.thread);
   const own = elementById(item.subject.id);
   const topic = thread ? threadName(thread) : "";
-  const title = item.title ?? item.obligation?.prompt.text;
+  const title = item.todo?.title ?? item.obligation?.prompt.text;
   if (title) return title;
   const reply = item.kind === "update" ? item.obligation?.answer?.event?.id : null;
   const sent = reply && thread?.msgs.find((message) => message.id === reply);

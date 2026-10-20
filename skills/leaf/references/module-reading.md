@@ -218,9 +218,9 @@ own command.
 `readQueues()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
 under On me and On <agent>.
 Each row has a `kind`, its obligation's `source.kind` (`widget`, `approval` or `update`,
-the obligation it carries as `obligation`) or `todo`, and an `owner`, `user` or `agent`:
-an `update` row is one to resend on the user's list, and a reply or version owed on the
-agent's. Rows not done carry `offers: {open, done}`. `queueItemKey(row)` names a row
+the obligation it carries as `obligation`) or `todo` (the to-do it carries as `todo`),
+and an `owner`, `user` or `agent`: an `update` row is one to resend on the user's list,
+and a reply or version owed on the agent's. Rows not done carry `offers: {open, done}`. `queueItemKey(row)` names a row
 across moves between lists, and `queueTitle(row)` gives its title.
 `queueActions.open(key)` goes to a row. `queueActions.done(key)` ends a to-do the agent
 opened on the user, returning its admission promise, and returns `null` for any other

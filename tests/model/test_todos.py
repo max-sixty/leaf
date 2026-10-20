@@ -269,11 +269,7 @@ def test_a_todo_holds_its_thread_on_the_agent_past_reply_and_resolve(page_dir):
         "kind": "waiting",
         "reason": "todo",
         "workflow": None,
-        "todo": {
-            "id": todo["id"],
-            "title": "Rebuild the banner quieter",
-            "line": None,
-        },
+        "todo": todo["id"],
     }
     assert [item["id"] for item in state["todos"]] == [todo["id"]]
 
@@ -443,6 +439,13 @@ def test_a_plan_arranges_todos_obligations_and_plain_steps_without_owning_them(
         outline.write_text(json.dumps(steps))
         [refused] = command_findings("task", "plan", page_dir, "--file", outline)
         assert refused.code == code
+    # A step close to one of the two shapes is refused at the field it gets wrong.
+    outline.write_text(json.dumps([{"depth": 0, "title": "Ship", "state": "active"}]))
+    [unknown] = command_findings("task", "plan", page_dir, "--file", outline)
+    assert (unknown.code, unknown.values["field"]) == (
+        "invalid-event",
+        "/steps/0/state",
+    )
     written(plan([]))
     assert state_json(page_dir)["plan"] is None
 
@@ -800,8 +803,8 @@ def test_working_names_a_move_until_its_answer_and_a_todo_until_its_end(page_dir
 
 
 def test_a_thread_todo_runs_under_its_start_line(page_dir):
-    """A started to-do on a thread reads Working with its line in the thread's
-    attention, and To-do open with its title once nothing runs on it."""
+    """A thread waits on a started to-do by its id, and the to-do's record carries the
+    line its start runs under."""
     publish(page_dir)
     comment = append_carried_log_record(
         page_dir,
@@ -819,12 +822,14 @@ def test_a_thread_todo_runs_under_its_start_line(page_dir):
         )
     )
     written(leaf("task", "start", page_dir, todo["id"], "Waiting on the build"))
-    [thread] = state_json(page_dir)["threads"]
-    assert thread["attention"]["todo"] == {
-        "id": todo["id"],
-        "title": "Rebuild the chart",
-        "line": "Waiting on the build",
-    }
+    state = state_json(page_dir)
+    [thread] = state["threads"]
+    assert thread["attention"]["todo"] == todo["id"]
+    [record] = state["todos"]
+    assert (record["id"], record["running"]["text"]) == (
+        todo["id"],
+        "Waiting on the build",
+    )
 
 
 def test_an_older_session_cannot_end_a_todo_a_newer_session_started(page_dir):

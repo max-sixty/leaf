@@ -79,13 +79,24 @@ refuses. Housekeeping such as re-vendoring, restarting the server, or merging ne
 no to-do.
 
 When the work runs to several steps, some of which may wait on the user, write your plan
-so the user can follow it in the panel's Plan tab: the goal, its steps in order, the one
-under way, and those waiting on them. `leaf task plan <page>` takes the whole outline as
-a JSON list of steps: the goal at depth 0, each step one deeper than the step it belongs
-to, and each either a `title` and `state` or the `item` it names. Make each step that
-stays owed past your turn a to-do or obligation the plan names by id, so it follows
-that one's state; a plain step's state is yours to keep current. Write the plan again when a
-step finishes or the breakdown changes.
+before you start the first step, so the user can follow it in the panel's Plan tab: the
+goal, its steps in order, the one under way, and those waiting on them.
+`leaf task plan <page>` reads the whole outline from stdin as a JSON list of steps: the
+goal at depth 0, each step one deeper than the step it belongs to, and each either a
+`title` with a `state` (`open`, `working`, `done` or `dropped`) or the `item` it names:
+
+```bash
+leaf task plan <page> <<'EOF'
+[{"depth": 0, "title": "Move the billing exports", "state": "working"},
+ {"depth": 1, "item": "<to-do id>"},
+ {"depth": 1, "item": "widget:<widget-id>"},
+ {"depth": 1, "title": "Retire the old export job", "state": "open"}]
+EOF
+```
+
+Make each step that stays owed past your turn a to-do or obligation the plan names by
+id, so it follows that one's state; a plain step's state is yours to keep current. Write
+the plan again when a step finishes or the breakdown changes.
 
 When input arrives:
 
@@ -215,14 +226,17 @@ leaf page state <page> | jq '{source, obligations, todos, queues}'
 `queues.on_user` is On me: the open obligations on the user, updates to resend among
 them, and to-dos on the user. `queues.on_agent` is your list: the updates you owe a
 reply or a version, and your to-dos. Read them as given rather than rebuilding them
-from events. A row names its obligation by `id`; its record in `obligations` holds its
-`prompt`, its `answer` once given, its `status` and its `next_actor`, and a widget's
-obligation takes its answer from the widget's state. `activity.obligations` lists each
-answer you owe as its record's `id` beside the `answer` that settles it: the reply to
-write, with the `ref` its delivery gave where you can still use it, or the action a
-stamped version must record. Recover what you owe there when no delivery is at hand. Read a thread or a widget with `leaf page state <page> <id>`,
-using a message id or a widget id; the widget's markup is in the HTML file named by
-`active.file`. Unsent drafts and tabs on older versions are not in this reading.
+from events. A row names its obligation or to-do by `id`. An obligation's record in
+`obligations` holds its `prompt`, its `answer` once given, its `status` and its
+`next_actor`, and a widget's obligation takes its answer from the widget's state; a
+to-do's record in `todos` holds its `title` and the start `running` on it.
+`activity.obligations` lists each answer you owe as its record's `id` beside the
+`answer` that settles it: the reply to write, with the `ref` its delivery gave where
+you can still use it, or the action a stamped version must record. Recover what you
+owe there when no delivery is at hand. Read a thread or a widget with
+`leaf page state <page> <id>`, using a message id or a widget id; the widget's markup
+is in the HTML file named by `active.file`. Unsent drafts and tabs on older versions
+are not in this reading.
 Check `source` for an invalid or missing draft before taking an empty list as a
 clean handoff.
 

@@ -28,8 +28,8 @@ A step naming an obligation a later version removed reads as dropped.
 
 The floating panel draws the plan in a Plan tab of the On view, and an On me item the
 plan names says its goal and step there (`floating-panel.js`). `conversation-loop.md`,
-"When to write", asks an agent for a plan when its work runs to several steps or part of
-it waits on the user.
+"When to write", asks an agent for a plan when its work runs to several steps, some of
+which may wait on the user.
 
 Experimental, like to-dos and the lists; nothing outside this repository depends on it.
 """

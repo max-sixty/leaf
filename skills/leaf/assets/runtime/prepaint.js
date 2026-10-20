@@ -3,8 +3,13 @@
 // the browser paints what has arrived well before that. Delivery places this script
 // after the head's canonical link, so the page root that link declares is in the
 // document when it runs, and before the bootstrap and the theme (`compose_document`).
+/** @typedef {import("../../../../build/browser/contract.js").AuthoredAllocations} Allocations */
 (() => {
   const root = document.documentElement;
+  // A page-wide allocation `body` states (`$authored`), or null where it states none.
+  /** @template {keyof Allocations} A @param {A} name @returns {Allocations[A] | null} */
+  const pageAllocation = (name) =>
+    /** @type {any} */ (document.body.getAttribute(name));
   // A cross-document swap commits departure before Chrome rejects its aborted
   // fetches. Those rejections belong to the old document, not its replacement.
   // beforeunload is cancelable and therefore cannot end this lifetime; pageshow
@@ -567,9 +572,11 @@
     const allocate = (room, movable) => {
       const taken = { left: 0, right: 0 };
       const granted = [];
+      /** @type {Allocations["data-annotations"]} */
+      const annotations = pageAllocation("data-annotations") ?? "overlay";
       if (
-        (document.body.dataset.annotations ?? "overlay") === "overlay" &&
-        document.body.getAttribute("data-rail") !== "none" &&
+        annotations === "overlay" &&
+        pageAllocation("data-rail") !== "none" &&
         room.right >= need("--rail")
       ) {
         granted.push("rail");

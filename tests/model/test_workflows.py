@@ -4,7 +4,9 @@ thread reads from them."""
 
 import json
 from datetime import datetime, timedelta
+from pathlib import Path
 
+import pytest
 from interact_support import (
     _start,
     append_carried_log_record,
@@ -29,6 +31,7 @@ from interact_support import (
 from leaf import activity as activity_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
+from leaf import events as event_folds_model
 from leaf import hooks as hooks_model
 from leaf import leases as leases_model
 from leaf import obligations as obligations_model
@@ -40,6 +43,26 @@ from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf.served_state import browser as browser_served_model
 from leaf.served_state import work as work_served_model
+
+
+@pytest.mark.parametrize(
+    "case",
+    json.loads(Path(__file__).parents[1].joinpath("turn_cases.json").read_text()),
+    ids=lambda case: case["id"],
+)
+def test_a_users_turns_are_the_gestures_the_browser_hands_over(case):
+    """The user's turns in a thread, each with the message it shows on, are the
+    gestures the browser's `isTurnEvent` and `turnMessage` take for its own sends."""
+    events = [
+        {"author": "user", "seq": seq, "ts": "2026-10-19T00:00:00+00:00", **event}
+        for seq, event in enumerate(case["events"], 1)
+    ]
+    turns = [
+        [turn["id"], event_folds_model.turn_message(turn)]
+        for thread in event_folds_model.build_threads(events, {}).values()
+        for turn in event_folds_model.exchange(thread)
+    ]
+    assert turns == case["turns"]
 
 
 def test_consecutive_user_inputs_share_one_exact_response_obligation(page_dir):
@@ -623,7 +646,7 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
         "kind": "waiting",
         "reason": "todo",
         "workflow": None,
-        "todo": {"id": "t1", "title": "Rebuild", "line": None},
+        "todo": "t1",
     }
 
 

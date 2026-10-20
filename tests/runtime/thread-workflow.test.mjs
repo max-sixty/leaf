@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   isPageWidgetWorkflow,
@@ -10,7 +11,25 @@ import {
   foldThreads,
   readThreadRecords,
 } from "../../skills/leaf/assets/runtime/thread/model.js";
+import {
+  isTurnEvent,
+  turnMessage,
+} from "../../skills/leaf/assets/runtime/pending/model.js";
 import { servedReading, servedThread, servedWorkflow } from "../served.mjs";
+
+// The user's turns, which `events.exchange` and `events.turn_message` read off the log
+// by the same cases (`tests/turn_cases.json`).
+const TURN_CASES = JSON.parse(
+  readFileSync(new URL("../turn_cases.json", import.meta.url), "utf8"),
+);
+
+for (const { id, events, turns } of TURN_CASES)
+  test(`a gesture this tab sends hands over the turn the server reads: ${id}`, () => {
+    assert.deepEqual(
+      events.filter(isTurnEvent).map((event) => [event.id, turnMessage(event)]),
+      turns,
+    );
+  });
 
 // A workflow for an input in the thread `root` opened, which serves the record of the
 // reply the agent owes it.

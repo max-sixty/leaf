@@ -22,9 +22,9 @@ update records alone, and the comment's row stands for the widget's side
 A row names its kind (its record's `source.kind`, or `todo`), its subject, the list it
 stands on (`owner`), the thread it stands in, and whether the agent has it in hand now
 (`live`): a to-do a start holds, or an update the agent is at work on whose work has not
-gone quiet or stopped. A record's row names it by `id` and carries no copy of it: the
-view serves each record once, in `obligations`, and the browser's publisher joins the
-row to its current record. A to-do row carries the fields a row draws. On <agent>
+gone quiet or stopped. A row names its record by `id` and carries no copy of it: the
+view serves each obligation record once, in `obligations`, the page serves each to-do
+once, in `todos`, and the browser's publisher joins the row to its current record. On <agent>
 orders the updates by their strongest workflow (`work.served_workflows`), the order
 every surface showing one of several reads.
 
@@ -43,18 +43,15 @@ from ..registry.schema import aware_instant
 
 
 def _todo_item(todo: dict) -> dict:
-    """One to-do as an item on the list of its `owner`."""
+    """One to-do on the list of its `owner`. It names the to-do by `id`; the record is
+    the page's `todos` entry."""
     return {
         "kind": "todo",
         "id": todo["id"],
         "owner": todo["owner"],
         "subject": todo["subject"],
         "thread": todo["thread"],
-        "title": todo["title"],
-        "running": todo["running"],
         "live": todo["running"] is not None,
-        "agent": todo["agent"],
-        "session": todo["session"],
     }
 
 

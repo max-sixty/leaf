@@ -127,7 +127,7 @@ def _document_errors(page_dir: Path, parser) -> list[Finding]:
             )
             continue
         allowed = LF_META[meta["name"]]
-        if allowed is not None and meta["content"] not in allowed:
+        if meta["content"] not in allowed:
             errors.append(
                 Finding(
                     "meta-content",

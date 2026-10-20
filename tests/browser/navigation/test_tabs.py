@@ -484,7 +484,8 @@ def test_a_tab_layout_completion_preserves_native_navigation(browser, serve, int
 def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serve):
     """The strip reads as an index inside the one frame that bounds its views.
 
-    The selected name becomes one compact paper face; the tab around it does not grow a
+    The strip stands on the frame's own ground, and the selected name takes the page
+    tabs' rule under it rather than a face of its own, so the tab around it grows no
     second frame inside the shared surface. The strip's closing rule keeps the index
     distinct from the panel, whose enclosing frame still answers how far that
     selected view runs.
@@ -545,6 +546,11 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
               shadow: tabStyle.boxShadow,
               tabDecoration: tabStyle.textDecorationLine,
               labelGround: labelStyle.backgroundColor,
+              labelShadow: labelStyle.boxShadow,
+              labelRule: {
+                width: parseFloat(labelStyle.borderBottomWidth),
+                color: labelStyle.borderBottomColor,
+              },
               labelInk: labelStyle.color,
               labelDecoration: labelStyle.textDecorationLine,
               labelPadding: ['Top', 'Right', 'Bottom', 'Left'].map(
@@ -564,6 +570,7 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
               ground: style(tabs).backgroundColor,
             },
             divider: {
+              ground: style(strip).backgroundColor,
               width: parseFloat(style(strip).borderBottomWidth),
               color: style(strip).borderBottomColor,
             },
@@ -592,8 +599,15 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
     assert boundary["selected"]["shadow"] == "none", boundary
     assert boundary["inactive"]["shadow"] == "none", boundary
     assert boundary["selected"]["tabDecoration"] == "none", boundary
-    assert boundary["selected"]["labelGround"] == boundary["frame"]["ground"], boundary
+    assert boundary["divider"]["ground"] == boundary["frame"]["ground"], boundary
+    assert boundary["selected"]["labelGround"] == "rgba(0, 0, 0, 0)", boundary
     assert boundary["inactive"]["labelGround"] == "rgba(0, 0, 0, 0)", boundary
+    assert boundary["selected"]["labelShadow"] == "none", boundary
+    assert boundary["selected"]["labelRule"] == {
+        "width": 2,
+        "color": boundary["selected"]["labelInk"],
+    }, boundary
+    assert boundary["inactive"]["labelRule"]["color"] == "rgba(0, 0, 0, 0)", boundary
     assert boundary["selected"]["labelInk"] == boundary["palette"]["ink"], boundary
     assert (
         boundary["selected"]["labelPadding"] == boundary["inactive"]["labelPadding"]

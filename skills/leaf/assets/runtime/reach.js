@@ -266,6 +266,12 @@ function sweep(root) {
 // scrolling at another width stops restarting the slot, or its headers would pin behind
 // the window's head.
 //
+// A box the user scrolls only sideways (`across`: its overflow down hidden) restarts the
+// slot for what sticks inside it all the same, but lands nothing down: a landing on what
+// it holds moves the box around it, under the headers that stand over the box. So it
+// keeps their reading for what it holds (state.css), where a restart had cut a diff's
+// rows off from the file header and a framed tab set's strip over them.
+//
 // A box that sticks at its scroller's top is marked too, for the focus margin of the
 // controls it holds (shadow.css, at `--lf-head-inset`): a control in a stuck header
 // stands inside its scroller's landing band, and the browser scrolled toward it on every
@@ -273,10 +279,9 @@ function sweep(root) {
 // package makes sticky is covered without declaring anything.
 function paintSlot(el, style) {
   const sticks = style.position === "sticky";
-  el.toggleAttribute(
-    PAGE_PAINT_ATTRIBUTE.scrolls,
-    scrollsBy(style) && !sticks && !el.matches(TEXT_BOX),
-  );
+  const scrolls = scrollsBy(style) && !sticks && !el.matches(TEXT_BOX);
+  const across = userScrollport(style.overflowX) && !userScrollport(style.overflowY);
+  keeps(el, PAGE_PAINT_ATTRIBUTE.scrolls, scrolls ? (across ? "across" : "") : null);
   el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.sticks, sticks && style.top !== "auto");
 }
 

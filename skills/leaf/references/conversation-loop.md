@@ -159,9 +159,9 @@ your conversation inherits the page too. Work that needs its own conversation wi
 the user belongs in its own session, with its own page.
 
 A start lasts only for the turn that wrote it. About two minutes after the turn ends,
-the panel's status says your turn ended and quotes the line; in Claude Code, not
-before the background subagents that turn left running finish. Within a long turn a
-start goes stale after about 15 minutes. The status shows the item you started last, so
+the panel's status says your turn ended and quotes the line, or in Claude Code, while
+background subagents run, that you are working in the background. Within a long turn
+a start goes stale after about 15 minutes. The status shows the item you started last, so
 start the one that best describes what is running. While a worker produces an
 update's answer, start that update before you end your turn; the Stop hook lets a
 turn end over an update it started. In the next turn, start the item again or answer

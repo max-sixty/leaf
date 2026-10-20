@@ -316,8 +316,8 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
 def test_a_coordinators_workers_keep_its_page_working(claimed, capsys):
     """Claude Code's record stays `busy` after a turn ends while the background
     subagents it left run. Until the record leaves `busy`, the page reads working,
-    observed in the background, with the line of the update the coordinator
-    started, which the turn's ending does not drop. A background shell leaves the
+    observed in the background. The record doesn't say which turn left the work,
+    so the ended turn's start is dropped as usual. A background shell leaves the
     record `shell`, which is idle."""
     serving(claimed, 1)
     registry = harness_model.claude_code_sessions()
@@ -353,19 +353,23 @@ def test_a_coordinators_workers_keep_its_page_working(claimed, capsys):
     capsys.readouterr()
     assert service_model.page_claim(claimed)["turn_closed"] is not None
 
-    later = _activity_at(claimed, 10)
-    assert (later["kind"], later["detail"], later["observed"]) == (
+    # Within the renewal grace the start's line stands, with the step beside it.
+    ending = _activity_at(claimed)
+    assert (ending["kind"], ending["detail"], ending["observed"]) == (
         "working",
         "Workers are comparing layouts",
         activity_model.BACKGROUND_DETAIL,
     )
-    assert later["obligations"][0]["condition"] is None
-    # Past the working grace the line has gone quiet, and the step stands alone.
-    quiet = _activity_at(claimed, 20)
-    assert (quiet["kind"], quiet["detail"]) == (
+    later = _activity_at(claimed, 10)
+    assert (later["kind"], later["detail"], later["dropped"]) == (
         "working",
         activity_model.BACKGROUND_DETAIL,
+        False,
     )
+    assert later["obligations"][0]["condition"] == {
+        "kind": "stale",
+        "operation": "work",
+    }
 
     for idle in ("idle", "shell"):
         harness_says(idle)
@@ -375,31 +379,6 @@ def test_a_coordinators_workers_keep_its_page_working(claimed, capsys):
             True,
             "",
         )
-
-    # A later turn's workers carry only that turn's starts.
-    hooks_model.cmd_hook(
-        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
-    )
-    harness_says("busy")
-    for repeated in (False, True):
-        hooks_model.cmd_hook(
-            "claude-code",
-            {
-                "hook_event_name": "Stop",
-                "session_id": "s1",
-                "stop_hook_active": repeated,
-            },
-        )
-    capsys.readouterr()
-    later_turn = _activity_at(claimed, 10)
-    assert (later_turn["kind"], later_turn["detail"]) == (
-        "working",
-        activity_model.BACKGROUND_DETAIL,
-    )
-    assert later_turn["obligations"][0]["condition"] == {
-        "kind": "stale",
-        "operation": "work",
-    }
 
 
 def test_away_asks_for_a_nudge_only_once_input_is_overdue(claimed, capsys):

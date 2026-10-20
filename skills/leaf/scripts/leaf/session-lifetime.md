@@ -56,9 +56,10 @@ observed as `awaiting_user` since the record does not say whether it asks for
 approval or an answer. Its `busy` never says a turn runs, since Claude Code's record
 keeps it across a turn's ending while the background subagents that turn left run
 (a background shell leaves it `shell`, read as `idle`). After a turn the stamps
-closed, `busy` says that work continues: the status reads working, observed as
-`working` in the background, and the starts that turn wrote, though not an earlier
-turn's, are not dropped, for as long as the record stays `busy`. Browser-event admission reads the same turn before it
+closed, `busy` says the session works on: the status reads working, observed as
+`working` in the background, for as long as the record stays `busy`. The record
+doesn't say which turn left that work, so the ended turn's starts are dropped as
+usual. Browser-event admission reads the same turn before it
 nudges a session (`presence.claimant_reading`), and nudges only after an ending
 something saw: a turn Leaf merely stopped believing in may still be running a long
 step.

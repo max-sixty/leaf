@@ -683,55 +683,7 @@ def _tab_walk(page, stem):
     return unindicated, faults
 
 
-# Every box the layer promises a press on, wherever it stands. Not a list of class names:
-# what makes something a target is that the runtime built it (data-lf-offer) or that it
-# stands in the runtime's own layer, and that the page under the pointer says a press
-# lands there. A twelfth control joins by being one, which is how the six this first
-# reported were found.
-#
-# The reading takes the element's box together with any absolutely positioned pseudo it
-# hangs, because a control may enlarge its target outside layout rather than make the
-# visible line or row taller.
-#
-# Inline boxes are out, and that is the target-size exception rather than an excuse: a
-# link inside a sentence is sized by the words around it, and nothing can be done about
-# that which does not damage the sentence.
-AIM_BOXES = """(floor) => {
-  const found = [];
-  const seen = new Set();
-  for (const el of document.querySelectorAll(
-    '[data-lf-offer], .lf-chrome button, .lf-chrome [role="button"],' +
-    ' .lf-chrome [role="checkbox"], .lf-chrome [role="tab"], .lf-chrome .lf-btn,' +
-    ' .lf-chrome .lf-outline-chip, .lf-chrome .lf-quote'
-  )) {
-    if (seen.has(el)) continue;
-    seen.add(el);
-    const style = getComputedStyle(el);
-    if (!['pointer', 'grab'].includes(style.cursor)) continue;
-    // A box that takes no press is not an aim, however its cursor reads.
-    if (style.pointerEvents === 'none') continue;
-    if (!el.checkVisibility({ visibilityProperty: true, opacityProperty: true })) continue;
-    if (style.display === 'inline') continue;
-    // The option mark is the one control held out, and it is a handover rather than an
-    // exemption: its box is being rewritten alongside the group's pressable rule, and
-    // this line goes with that change. It stands at 11x11 today.
-    if (el.classList.contains('lf-pick')) continue;
-    const box = el.getBoundingClientRect();
-    if (!box.width || !box.height) continue;
-    let [w, h] = [box.width, box.height];
-    for (const pseudo of ['::before', '::after']) {
-      const at = getComputedStyle(el, pseudo);
-      if (at.content === 'none' || at.position !== 'absolute') continue;
-      w = Math.max(w, parseFloat(at.width) || 0);
-      h = Math.max(h, parseFloat(at.height) || 0);
-    }
-    const name = (el.className || el.tagName).toString().trim().split(/\\s+/)[0]
-      + ` ${JSON.stringify((el.textContent || '').trim().slice(0, 32))}`;
-    if (Math.min(w, h) < floor - 0.5)
-      found.push(`${name} at ${w.toFixed(1)}x${h.toFixed(1)}`);
-  }
-  return found;
-}"""
+AIM_BOXES = browser_function("aims.js", "offeredAims")
 
 
 # What the sweep has to have stood in front of before its answer means anything. Each is

@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 
 import pytest
 import tinycss2
+from browser_sources import browser_function
 from click.testing import CliRunner
 from interact_support import (
     COMMAND_HUB_PACKAGE,
@@ -3176,35 +3177,7 @@ def aim_selectors():
     return " ".join(tinycss2.serialize(rules[0].prelude).split())
 
 
-AIM_BOXES = """(selectors) => {
-  const floor = parseFloat(
-    getComputedStyle(document.documentElement).getPropertyValue("--aim-floor")
-  );
-  const short = [];
-  let seen = 0;
-  const sweep = (root) => {
-    for (const el of root.querySelectorAll(selectors)) {
-      const box = el.getBoundingClientRect();
-      // A box and not checkVisibility(): the corpus renders much of itself inside
-      // content-visibility sections, which this browser answers no for, and a control
-      // laid out inside one is a control a user reaches by scrolling to it.
-      if (!box.width || !box.height) continue;
-      const shown = getComputedStyle(el);
-      // Hidden, or standing there for a pointer a finger is not: the diff's line
-      // comment is transparent and takes no presses until its row is hovered, and a
-      // finger never hovers it.
-      if (shown.visibility === "hidden") continue;
-      if (shown.opacity === "0" || shown.pointerEvents === "none") continue;
-      seen += 1;
-      if (Math.min(box.width, box.height) < floor - 0.5)
-        short.push(`${Math.round(box.width)}x${Math.round(box.height)} ${el.className}`);
-    }
-    for (const el of root.querySelectorAll("*"))
-      if (el.shadowRoot) sweep(el.shadowRoot);
-  };
-  sweep(document);
-  return {floor, seen, short};
-}"""
+AIM_BOXES = browser_function("aims.js", "flooredAims")
 
 
 # Everything an injected control still draws once the medium has taken the press away.
@@ -3317,7 +3290,8 @@ def short_aim_findings(page):
     rule that states a minimum of its own for one of these outranks it — and a package's
     38px button or the chrome's 28px step is shorter than a finger. Those fold the floor
     in with max(), and this sweep is what says they did: it reads the layer's selector
-    list, then measures every visible control under an emulated finger."""
+    list, then measures every visible control, with any reach it hangs past its box,
+    under an emulated finger."""
     cdp = page.context.new_cdp_session(page)
     cdp.send("Emulation.setTouchEmulationEnabled", {"enabled": True})
     try:

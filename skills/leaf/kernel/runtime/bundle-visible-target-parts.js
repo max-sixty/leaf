@@ -3,7 +3,7 @@ import {
 } from "./bundle-page-paint.js";
 import {
   drawn
-} from "./bundle-sample-visibility.js";
+} from "./bundle-frame-visibility.js";
 
 // runtime/visible-target-parts.js
 function visibleTargetParts(target) {

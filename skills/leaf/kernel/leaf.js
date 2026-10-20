@@ -493,7 +493,7 @@ import {
   typesText,
   under,
   upFrom
-} from "./runtime/bundle-sample-visibility.js";
+} from "./runtime/bundle-frame-visibility.js";
 import {
   LitElement,
   bareReaction,

@@ -68,7 +68,7 @@ import {
   sizeObserver,
   under,
   upFrom
-} from "./bundle-sample-visibility.js";
+} from "./bundle-frame-visibility.js";
 
 // runtime/annotation-overlay/margin-placement.js
 function rowPosture({

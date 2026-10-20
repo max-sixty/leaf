@@ -205,7 +205,7 @@ import {
   standingIn,
   tabStops,
   under
-} from "./bundle-sample-visibility.js";
+} from "./bundle-frame-visibility.js";
 import {
   bareReaction,
   html,

@@ -92,7 +92,11 @@ export {
 export { surfaceFocusTarget, claimed } from "./thread/surfaces.js";
 export { runtimeRootState } from "./root-state.js";
 export { tabStore, draftStore, userStore, PAGE_SCOPE } from "./storage.js";
-export { sampleVisibility, readSampleVisibility } from "./sample-visibility.js";
+export {
+  frameVisibility,
+  onFrameVisibility,
+  readSampleVisibility,
+} from "./frame-visibility.js";
 export { observeQueuedWork, bindQueuedWork } from "./queued-work.js";
 export { createPresentationSchedule } from "/vendor/browser-runtime.js";
 export { reachScrollers, releaseReachStop } from "./reach.js";

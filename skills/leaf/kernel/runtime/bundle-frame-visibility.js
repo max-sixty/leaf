@@ -5,21 +5,63 @@ import {
   runWork
 } from "./bundle-queued-work.js";
 
-// runtime/sample-visibility.js
+// runtime/frame-visibility.js
 var child = document.documentElement.lfSample;
-var visibility = child ? { visible: false } : null;
+var owner = child ? null : window.frameElement;
 var admitted = false;
-var intersecting = false;
 var observers = /* @__PURE__ */ new Set();
 var readings = /* @__PURE__ */ new Map();
 var readingId = 0;
-var sampleVisibility = () => visibility;
-function onSampleVisibility(callback) {
+function watchFrame(frame2, callback) {
+  let intersecting = false;
+  const seen = new IntersectionObserver(
+    (entries) => {
+      const { width, height } = entries.at(-1).intersectionRect;
+      intersecting = width > 0 && height > 0;
+      callback();
+    },
+    // Edge adjacency is already "intersecting" at zero area, so a positive threshold
+    // makes the first painted pixel a delivery. A whole frame coming into view is one
+    // too, which brings a sample's exposure reading round.
+    { threshold: [0, Number.EPSILON, 1] }
+  );
+  seen.observe(frame2);
+  const styled = new MutationObserver((records) => {
+    if (records.some(({ target }) => target === frame2 || target.contains(frame2)))
+      callback();
+  });
+  styled.observe(frame2.ownerDocument, {
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["inert", "open", "hidden", "aria-hidden", "class", "style"]
+  });
+  return {
+    shown: () => intersecting && drawn(frame2),
+    stop: () => {
+      seen.disconnect();
+      styled.disconnect();
+    }
+  };
+}
+var drawn = (frame2) => frame2.checkVisibility({ visibilityProperty: true }) && getComputedStyle(frame2).contentVisibility !== "hidden";
+var ownerWatch = owner && watchFrame(owner, publish);
+function ownerShown() {
+  if (!ownerWatch.shown()) return false;
+  for (let view = window.parent; view.frameElement; view = view.parent)
+    if (!drawn(view.frameElement)) return false;
+  return true;
+}
+function frameVisibility() {
+  if (child) return { visible: admitted };
+  if (ownerWatch) return { visible: ownerShown() };
+  return null;
+}
+function onFrameVisibility(callback) {
   observers.add(callback);
   return () => observers.delete(callback);
 }
 function readSampleVisibility() {
-  if (!child) return Promise.resolve(null);
+  if (!child) return null;
   return new Promise((resolve, reject) => {
     const id = ++readingId;
     readings.set(id, { resolve, reject });
@@ -27,7 +69,7 @@ function readSampleVisibility() {
   });
 }
 function publish() {
-  visibility = { visible: admitted && intersecting };
+  const visibility = frameVisibility();
   for (const callback of observers) callback(visibility);
 }
 if (child) {
@@ -50,25 +92,11 @@ if (child) {
     admitted = detail.visible;
     publish();
   });
-  const seen = new IntersectionObserver(
-    ([entry]) => {
-      const { width, height } = entry.intersectionRect;
-      intersecting = width > 0 && height > 0;
-      publish();
-    },
-    // Edge adjacency is already "intersecting" at zero area. A positive threshold
-    // makes the first painted pixel a delivery rather than leaving visibility stale.
-    { threshold: [0, Number.EPSILON] }
-  );
-  const screen = document.createElement("div");
-  screen.dataset.lfRuntime = "";
-  screen.style.cssText = "all:initial;position:fixed;inset:0;visibility:hidden;contain:strict;pointer-events:none";
-  document.documentElement.append(screen);
-  seen.observe(screen);
-  addEventListener("pagehide", (event) => {
-    if (!event.persisted) seen.disconnect();
-  });
 }
+if (ownerWatch)
+  addEventListener("pagehide", (event) => {
+    if (!event.persisted) ownerWatch.stop();
+  });
 
 // runtime/rendering.js
 var ROUNDS = 8;
@@ -177,17 +205,7 @@ var renderingState = () => {
     preparationsSettled: preparations === 0 || !visible
   };
 };
-function rendered() {
-  if (document.hidden) return false;
-  const sample = sampleVisibility();
-  if (sample) return sample.visible;
-  for (let view = (
-    /** @type {Window} */
-    window
-  ); view.frameElement; view = view.parent)
-    if (!view.frameElement.checkVisibility()) return false;
-  return true;
-}
+var rendered = () => !document.hidden && frameVisibility()?.visible !== false;
 function unsettle() {
   quiet = false;
   if (checking) return;
@@ -223,8 +241,8 @@ function afterSettling(settled) {
   settling.push({ settled, since: begun });
   nextFrame(owed);
 }
-onSampleVisibility(() => {
-  if (sampleVisibility()?.visible) unsettle();
+onFrameVisibility((visibility) => {
+  if (visibility.visible) unsettle();
 });
 unsettle();
 
@@ -395,7 +413,7 @@ var placed = (cause2, move2) => {
   }
 };
 var landedOn = (node) => node === document.body ? node.matches(":focus") : node.getRootNode().activeElement === node || Boolean(node.shadowRoot?.activeElement);
-var lendable = (node) => drawn(node) && !node.matches(TAB_STOP);
+var lendable = (node) => drawn2(node) && !node.matches(TAB_STOP);
 var lent = /* @__PURE__ */ new WeakSet();
 var wearsLentStop = (element) => lent.has(element);
 function whenLeft(element, leave) {
@@ -446,7 +464,7 @@ function landLabelPress() {
     if (labelPress) return;
     const at = deepFocus();
     if (at && at !== document.body) return reconcile(null, pressedPath);
-    if (!drawn(published?.deref())) return;
+    if (!drawn2(published?.deref())) return;
     placements += 1;
     stood = null;
     publish2(null, cause(null));
@@ -508,12 +526,12 @@ function paintFocus(node) {
     paintedFocus = next;
   }
   const within = /* @__PURE__ */ new Set();
-  for (let owner = next; owner; owner = renderedParent(owner)) within.add(owner);
-  for (const owner of paintedWithin) {
-    if (!within.has(owner)) markFocus(owner, "focus-within", false);
+  for (let owner2 = next; owner2; owner2 = renderedParent(owner2)) within.add(owner2);
+  for (const owner2 of paintedWithin) {
+    if (!within.has(owner2)) markFocus(owner2, "focus-within", false);
   }
-  for (const owner of within) {
-    if (!paintedWithin.has(owner)) markFocus(owner, "focus-within", true);
+  for (const owner2 of within) {
+    if (!paintedWithin.has(owner2)) markFocus(owner2, "focus-within", true);
   }
   paintedWithin = within;
 }
@@ -634,7 +652,7 @@ document.addEventListener(
       const at = document.activeElement;
       if (at !== null && at !== document.body) return;
       if (heldByLabel()) return;
-      if (!drawn(left)) return publish2(null, "drop");
+      if (!drawn2(left)) return publish2(null, "drop");
       if (left !== document.body) placements += 1;
       if (stood?.deref() === left) stood = null;
       publish2(null, cause(null));
@@ -804,12 +822,12 @@ function ringBox(node) {
     if (getComputedStyle(box).getPropertyValue("--lf-wears-ring") === "1") return box;
   return node;
 }
-var drawn = (node) => node?.isConnected && node.checkVisibility({ visibilityProperty: true });
+var drawn2 = (node) => node?.isConnected && node.checkVisibility({ visibilityProperty: true });
 var dropped = () => {
   const at = deepFocus();
   if (at && at !== document.body) return null;
   const node = stood?.deref();
-  return node && !drawn(node) ? node : null;
+  return node && !drawn2(node) ? node : null;
 };
 function holdFocus(scope, { key = null } = {}) {
   const node = heldIn(scope);
@@ -846,7 +864,7 @@ function holdFocus(scope, { key = null } = {}) {
       return byKey.get(value) ?? [];
     };
     const matching = (root) => {
-      if (root.matches(like) && drawn(root)) return root;
+      if (root.matches(like) && drawn2(root)) return root;
       const assigned = root.localName === "slot" ? root.assignedElements({ flatten: true }) : [];
       for (const child2 of assigned.length ? assigned : root.children) {
         const found = matching(child2);
@@ -855,12 +873,12 @@ function holdFocus(scope, { key = null } = {}) {
       return null;
     };
     const find = (value) => {
-      const found = keyed(value).filter(drawn);
+      const found = keyed(value).filter(drawn2);
       return (like && found.find((each) => each.matches(like))) ?? (like && found.map(matching).find(Boolean)) ?? found[0] ?? null;
     };
     const neighbour = (value) => () => {
       const place = find(value);
-      if (!place || !drawn(place)) return null;
+      if (!place || !drawn2(place)) return null;
       focusDestination(place, "return");
       return landedOn(place);
     };
@@ -948,7 +966,7 @@ function holdOn(held) {
       const place = typeof standIn === "function" ? standIn() : standIn;
       if (place?.then)
         return place.then((destination) => {
-          if (!(destination instanceof Element) || !drawn(destination) || deepFocus() !== destination)
+          if (!(destination instanceof Element) || !drawn2(destination) || deepFocus() !== destination)
             return false;
           return land(() => {
             focusDestination(destination, "return", { caret });
@@ -956,7 +974,7 @@ function holdOn(held) {
           });
         });
       if (place === true) return true;
-      if (!(place instanceof Element) || !drawn(place)) continue;
+      if (!(place instanceof Element) || !drawn2(place)) continue;
       if (place === held && deepFocus() === held) return true;
       const landed = land(() => {
         focusDestination(place, "return", { caret });
@@ -1055,7 +1073,7 @@ function handBack(...destinations) {
     const at = placements;
     return places.some((node) => {
       if (placements !== at) return true;
-      if (!drawn(node)) return false;
+      if (!drawn2(node)) return false;
       focusDestination(node, "return");
       return landedOn(node);
     });
@@ -1065,7 +1083,7 @@ function handBack(...destinations) {
     letGo();
     return;
   }
-  const yielded = !drawn(deepFocus());
+  const yielded = !drawn2(deepFocus());
   if (yielded) releaseFocus();
   const began = placements;
   const pendingInput = inputCount();
@@ -1092,8 +1110,9 @@ function move(parent, node, before) {
 }
 
 export {
-  sampleVisibility,
-  onSampleVisibility,
+  watchFrame,
+  frameVisibility,
+  onFrameVisibility,
   readSampleVisibility,
   observePreparations,
   holdRendering,
@@ -1153,7 +1172,7 @@ export {
   onPress,
   recoveredLabelFocus,
   ringBox,
-  drawn,
+  drawn2 as drawn,
   holdFocus,
   standingIn,
   rove,

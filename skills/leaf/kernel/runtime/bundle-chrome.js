@@ -71,7 +71,7 @@ import {
   sizeObserver,
   under,
   upFrom
-} from "./bundle-sample-visibility.js";
+} from "./bundle-frame-visibility.js";
 import {
   anchorKey,
   isElementName

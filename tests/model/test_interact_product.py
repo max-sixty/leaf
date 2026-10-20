@@ -16,6 +16,7 @@ from interact_support import (
     PAGE,
     ROOT,
     SHIPPED_PACKAGES,
+    STATED_TIMEOUT,
     _report,
     _tasks_version,
     append_carried_log_record,
@@ -1102,7 +1103,7 @@ def test_a_body_reads_only_piped_stdin(page_dir, monkeypatch):
     held, caller = socket.socketpair()
     with held, caller:
         # A regression waits on the socket; the timeout turns that into a failure.
-        held.settimeout(5)
+        held.settimeout(STATED_TIMEOUT)
         monkeypatch.setattr(sys, "stdin", held.makefile("r"))
         with pytest.raises(Refused, match="empty text"):
             read_text_arg(page_dir, None)

@@ -1434,7 +1434,7 @@ def test_a_transition_on_a_hidden_control_leaves_the_page_settled(
     assert page.evaluate(
         "() => document.getElementById('hidden-field').getAnimations().length"
     )
-    render_checks_model.wait_for_probe(page, "pageSettled", timeout_ms=5_000)
+    render_checks_model.wait_for_probe(page, "pageSettled")
 
 
 def test_the_state_wait_follows_a_source_rewritten_under_it(browser, serve):

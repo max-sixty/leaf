@@ -542,20 +542,20 @@ function scrollIntoReadingBand(where, holder, block, behavior) {
   }
   let { local, moved: moved2 } = verticalTravel(box, placementBy(where, block, box, margin));
   if (Math.abs(moved2) >= 1) land(box, { top: local }, behavior);
-  let inner = box;
-  for (const outer of around) {
+  let inner2 = box;
+  for (const outer2 of around) {
     top -= moved2;
     bottom -= moved2;
-    const band = landingBand(outer);
+    const band = landingBand(outer2);
     if (!band) return;
-    band.top = Math.max(band.top, readingTop(inner, outer));
+    band.top = Math.max(band.top, readingTop(inner2, outer2));
     if (block === "start") bottom = Math.min(bottom, top + band.bottom - band.top);
     ({ local, moved: moved2 } = verticalTravel(
-      outer,
+      outer2,
       nearestScrollBy(top, bottom, band.top, band.bottom)
     ));
-    if (Math.abs(moved2) >= 1) land(outer, { top: local }, behavior);
-    inner = outer;
+    if (Math.abs(moved2) >= 1) land(outer2, { top: local }, behavior);
+    inner2 = outer2;
   }
 }
 function scrollIntoView(where, { alignment = where, behavior = "auto", block = "start", within: within2 = null } = {}) {
@@ -1023,10 +1023,13 @@ function obligationsIn(region, items = readObligations().all) {
 }
 
 // runtime/standing-target.js
-var sides = /* @__PURE__ */ new Set();
-function declareSide(bridge) {
-  sides.add(bridge);
-  return () => sides.delete(bridge);
+var inner = /* @__PURE__ */ new Set();
+var outer = /* @__PURE__ */ new Set();
+var sides = () => [...inner, ...outer];
+function declareSide(bridge, { holdsOthers = false } = {}) {
+  const set = holdsOthers ? outer : inner;
+  set.add(bridge);
+  return () => set.delete(bridge);
 }
 function obligationHolding(items, node) {
   if (!node) return null;
@@ -1041,7 +1044,7 @@ function obligationHolding(items, node) {
   return held?.item ?? null;
 }
 function sideOf(node) {
-  for (const side of sides) {
+  for (const side of sides()) {
     const place2 = side(node);
     if (place2) return place2;
   }
@@ -1051,7 +1054,7 @@ function placeOf(node) {
   const at = node?.nodeType === 1 ? node : node?.parentElement;
   if (!at || at === document.body) return null;
   if (obligationHolding(readObligations().all, at)) return at;
-  for (const side of sides) {
+  for (const side of sides()) {
     const place2 = side(at);
     if (place2)
       return inChrome(place2) && !obligationHolding(readObligations().all, place2) ? null : place2;
@@ -4720,8 +4723,8 @@ function* drawingsOf(thread) {
     yield at;
 }
 function wholeThread(thread) {
-  const outer = [...drawingsOf(thread)].at(-1);
-  return declaredParts.get(outer)?.whole(outer) ?? outer;
+  const outer2 = [...drawingsOf(thread)].at(-1);
+  return declaredParts.get(outer2)?.whole(outer2) ?? outer2;
 }
 function threadPart(thread, name) {
   for (const at of drawingsOf(thread)) {

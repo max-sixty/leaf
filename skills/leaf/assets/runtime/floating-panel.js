@@ -158,7 +158,9 @@ import { queueTitle } from "./queue-title.js";
 import { carriesObligation, itemOutcome } from "./queues.js";
 import { shortAgo } from "./presence.js";
 import { obligationEnding } from "./obligations/answer.js";
-import { answeredInWords } from "./obligations/model.js";
+import { answeredInWords, readObligations } from "./obligations/model.js";
+import { obligationPlace } from "./obligations/place.js";
+import { declareSide } from "./standing-target.js";
 import { versionPicker } from "./version-picker.js";
 import { versionsReading } from "./version.js";
 import { UPGRADE } from "./presentation.js";
@@ -197,7 +199,7 @@ import { declareOccluder, declareWindowChrome } from "./geometry.js";
 import { registerReadingRegion } from "./reading-regions.js";
 import { agentName } from "./semantic-state.js";
 import { runtime } from "./context.js";
-import { renderedUnder } from "./shadow.js";
+import { renderedUnder, under } from "./shadow.js";
 import { nativeModalAdmits } from "./keyboard/layer-stack.js";
 import { closestAcross } from "./passages.js";
 
@@ -1345,19 +1347,21 @@ export function createFloatingPanel({
     if (!route) return;
     const view = shownView();
     // A thread opens with the caret in its reply, as the one field means, once Leaf's
-    // reader has drawn the reply there. A list stands on the row of the thread the user
-    // stood in, where it lists it, as `g T` from a thread does; else, opened by a key in
-    // the panel, on its first row, or its first control where it has none, or itself
-    // where it holds neither, as an empty Threads does; opened from anywhere else, as
-    // `g T` from the page or a pointer, it holds focus itself.
+    // reader has drawn the reply there; one taking no reply, as a resolved thread does,
+    // holds focus itself, so the user stands in it. A list stands on the row of the
+    // thread the user stood in, where it lists it, as `g T` from a thread does; else,
+    // opened by a key in the panel, on its first row, or its first control where it has
+    // none, or itself where it holds neither, as an empty Threads does; opened from
+    // anywhere else, as `g T` from the page or a pointer, it holds focus itself.
     if (route.view === "thread") {
       // A finger opening a thread reads it first; the keyboard rises when they tap in.
       if (coarse()) return;
       const intent = retainUserIntent();
       void Promise.resolve(drawn).then(() => {
-        const input = replyInput();
-        if (input && trail.at(-1) === route && intent())
-          focusDestination(input, "move");
+        const at = shownView();
+        const target = at && (viewParts.reply(at) ?? at);
+        if (target && trail.at(-1) === route && intent())
+          focusDestination(target, "move");
       });
       return;
     }
@@ -2343,6 +2347,7 @@ export function createFloatingPanel({
       class="lf-fp-on-item"
       data-list=${list}
       data-key=${key}
+      data-obligation=${record?.id ?? nothing}
       ?data-approval=${approval}
       style=${seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
     >
@@ -2362,6 +2367,27 @@ export function createFloatingPanel({
       <div class="lf-fp-answers">${answers}</div>
     </section>`;
   }
+
+  // A thread's view, its head and its reply stand at what the thread is about, and an On
+  // card at the obligation it shows (standing-target.js, `declareSide`), as the side
+  // panel's thread cards and On rows did. So an ask a thread or card in the panel is
+  // about wears its ring and takes its digits from there, whether the thread is open or
+  // resolved, and `m`, `t` and `c` step from the ask. What the view holds answers
+  // first: an ask in a reply stands for itself, and a margin control on a widget in a
+  // reply stands where its own side says.
+  declareSide(
+    (node) => {
+      const part = [openView(), head, replyOutlet].find((at) => at && under(node, at));
+      const thread = part && openIn(part);
+      if (thread) return placedAt(thread.id)?.place ?? null;
+      const id = under(node, stage)
+        ? closestAcross(node, ".lf-fp-on-item[data-obligation]")?.dataset.obligation
+        : null;
+      const record = id && readObligations().all.find((item) => item.id === id);
+      return record ? obligationPlace(record).node : null;
+    },
+    { holdsOthers: true },
+  );
 
   // The version's approval is answered here: arriving at it, as `m` and an On me row
   // do, opens this view on its card and stands on its

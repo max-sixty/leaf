@@ -6711,9 +6711,10 @@ function createFloatingPanel({
       if (coarse()) return;
       const intent = retainUserIntent();
       void Promise.resolve(drawn2).then(() => {
-        const input = replyInput();
-        if (input && trail.at(-1) === route && intent())
-          focusDestination(input, "move");
+        const at = shownView();
+        const target2 = at && (viewParts.reply(at) ?? at);
+        if (target2 && trail.at(-1) === route && intent())
+          focusDestination(target2, "move");
       });
       return;
     }
@@ -7399,6 +7400,7 @@ function createFloatingPanel({
       class="lf-fp-on-item"
       data-list=${list}
       data-key=${key}
+      data-obligation=${record?.id ?? nothing}
       ?data-approval=${approval}
       style=${seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
     >
@@ -7412,6 +7414,17 @@ function createFloatingPanel({
       <div class="lf-fp-answers">${answers}</div>
     </section>`;
   }
+  declareSide(
+    (node) => {
+      const part = [openView(), head, replyOutlet].find((at) => at && under(node, at));
+      const thread = part && openIn(part);
+      if (thread) return placedAt(thread.id)?.place ?? null;
+      const id = under(node, stage) ? closestAcross(node, ".lf-fp-on-item[data-obligation]")?.dataset.obligation : null;
+      const record = id && readObligations().all.find((item) => item.id === id);
+      return record ? obligationPlace(record).node : null;
+    },
+    { holdsOthers: true }
+  );
   const approvalControl = () => {
     const card2 = stage.querySelector(".lf-fp-view:not([data-leaving]) [data-approval]");
     return card2?.querySelector("button") ?? card2;

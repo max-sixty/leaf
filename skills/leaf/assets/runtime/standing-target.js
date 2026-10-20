@@ -5,10 +5,12 @@
    answered or not, wherever it is drawn: an obligation frozen into a reply is where a user
    working it is, never the page obligation its thread is about. A presentation can stand at the
    source target it shows in authored flow or chrome, as its owner declares (`declareSide`): the margin for its
-   cluster controls and the thread card; the details shelf for the elements that name its notes. A side's answer
+   cluster controls and the thread card; the details shelf for the elements that name its notes; the
+   floating panel for a thread's view, at what the thread is about, open or resolved, and an On
+   card, at its obligation. A side's answer
    drawn in the chrome itself, such as a margin control on a widget frozen into a reply,
    stands only where an obligation holds it. Chrome no side
-   claims — the floating panel's own controls — stands nowhere, and a
+   claims — the floating panel's row, menu and lists — stands nowhere, and a
    press made from it means the page whole.
 
    Each feature takes what it needs from that place by its own rule: the obligation view the
@@ -37,12 +39,18 @@ import { obligationPlace } from "./obligations/place.js";
 import { renderedOrder, renderedUnder, under } from "./shadow.js";
 import { pageReadingBlock } from "./reading-place.js";
 
-const sides = new Set();
+const inner = new Set();
+const outer = new Set();
+// Asked innermost first: an outer side's surface holds others' presentations, as the
+// floating panel's thread view holds the margin controls of a widget in a reply, so it
+// answers only for a node none of them claims.
+const sides = () => [...inner, ...outer];
 
 // A presentation owner's reading of the source target one of its nodes shows, or null.
-export function declareSide(bridge) {
-  sides.add(bridge);
-  return () => sides.delete(bridge);
+export function declareSide(bridge, { holdsOthers = false } = {}) {
+  const set = holdsOthers ? outer : inner;
+  set.add(bridge);
+  return () => set.delete(bridge);
 }
 
 // The innermost obligation whose source, or whose own enclosing widget, is or holds `node`.
@@ -68,7 +76,7 @@ export function obligationHolding(items, node) {
 // for a node no side claims. A side is asked of the node the user stands on, inside any
 // shadow tree it is in, so each climbs across shadow roots to its own surface.
 export function sideOf(node) {
-  for (const side of sides) {
+  for (const side of sides()) {
     const place = side(node);
     if (place) return place;
   }
@@ -81,7 +89,7 @@ export function placeOf(node) {
   // An obligation is the user's current action wherever it is rendered. A source-linked
   // presentation may otherwise stand in authored flow as well as fixed chrome.
   if (obligationHolding(readObligations().all, at)) return at;
-  for (const side of sides) {
+  for (const side of sides()) {
     const place = side(at);
     if (place)
       return inChrome(place) && !obligationHolding(readObligations().all, place)

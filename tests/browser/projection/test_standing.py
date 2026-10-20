@@ -5,6 +5,7 @@ import json
 import re
 
 import pytest
+from interact_support import append_carried_log_record
 from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -31,6 +32,7 @@ from render_harness import (
     leaf_page,
     open_page,
     panel_field,
+    panel_settled,
     resized,
     round_trip,
     scroll_settled,
@@ -42,6 +44,8 @@ from render_harness import (
     wait_for_revision,
     write,
 )
+
+from browser.threads import PANEL_REPLY, open_panel_thread
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -679,6 +683,94 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
         "the user standing in the chrome is drawn in some other band than the "
         f"one a decision uses: {toggle.evaluate(RING)} against {decision_ring}"
     )
+
+
+STORE_ASK_PAGE = leaf_page(
+    "Session store",
+    '<h1 id="h">Where sessions live</h1>'
+    '<lf-ask id="store-ask"><h3>Which store should hold sessions?</h3>'
+    '<lf-options id="store" choose>'
+    '<lf-option id="store-redis">Redis</lf-option>'
+    '<lf-option id="store-cookie">Signed cookie</lf-option>'
+    '<lf-option id="store-db">The main database</lf-option>'
+    "</lf-options></lf-ask>",
+)
+
+
+def seed_thread_about_the_ask(page_dir, root, *, resolved=False):
+    """A thread on the ask the agent has answered, so the ask stays On me's."""
+    append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": root,
+            "author": "user",
+            "revision": 1,
+            "text": f"A question about the store ({root})",
+            "anchor": {"section": "store-ask"},
+        },
+    )
+    append_carried_log_record(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "responds": root,
+            "revision": 1,
+            "text": "An answer.",
+        },
+    )
+    if resolved:
+        append_carried_log_record(
+            page_dir,
+            {"kind": "resolve", "author": "user", "parent": root, "revision": 1},
+        )
+
+
+def test_a_thread_about_an_ask_stands_at_the_ask_from_the_panel(browser, serve):
+    """A thread's view in the panel stands at what the thread is about, open or
+    resolved, as the side panel's cards did: the ask it is about wears the ring, and
+    its digits answer it from the view. Opening a resolved thread left focus nowhere,
+    and nothing about the view said where the user stood, so the ask stayed plain and
+    2 chose nothing. A digit typed in the reply is still a word in the reply."""
+    url = serve(STORE_ASK_PAGE)
+    seed_thread_about_the_ask(serve.page_dir, "t-done", resolved=True)
+    seed_thread_about_the_ask(serve.page_dir, "t-open")
+    page = open_page(browser, url)
+    ask = page.locator("#store-ask")
+
+    view = open_panel_thread(page, "t-done")
+    expect(view).to_be_focused()
+    expect(ask).to_have_attribute("data-lf-obligation", "1")
+    page.keyboard.press("2")
+    expect(page.locator("#store-cookie")).to_have_attribute("chosen", "")
+
+    page.keyboard.press("Escape")
+    view = open_panel_thread(page, "t-open")
+    reply = page.locator(PANEL_REPLY)
+    expect(reply).to_be_focused()
+    expect(ask).to_have_attribute("data-lf-obligation", "1")
+    page.keyboard.type("3")
+    expect(reply).to_have_js_property("value", "3")
+    expect(page.locator("#store-db")).not_to_have_attribute("chosen", "")
+    view.focus()
+    page.keyboard.press("3")
+    expect(page.locator("#store-db")).to_have_attribute("chosen", "")
+
+
+def test_an_on_me_card_stands_at_its_ask(browser, serve):
+    """On me's card for an ask stands at the ask, as an On row did: standing on the
+    card rings the ask, and its digits answer it there."""
+    page = open_page(browser, serve(STORE_ASK_PAGE))
+    page.locator(".lf-fp-on-user").click()
+    panel_settled(page, view="queue")
+    card = page.locator(""".lf-fp-on-item[data-key='["widget","widget:store"]']""")
+    card.focus()
+    expect(page.locator("#store-ask")).to_have_attribute("data-lf-obligation", "1")
+    page.keyboard.press("2")
+    expect(page.locator("#store-cookie")).to_have_attribute("chosen", "")
 
 
 def test_escape_lets_go_of_the_obligation_the_user_is_standing_on(browser, serve):

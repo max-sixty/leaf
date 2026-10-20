@@ -1123,7 +1123,7 @@ def test_an_answer_the_user_waits_for_grows_the_view_up_to_its_cap(browser, serv
 
 
 def test_new_reply_leads_to_the_reply_once_one_follows_the_work(browser, serve):
-    """Work under way past the view's cap waits behind New progress message; the reply
+    """Work under way past the view's cap waits behind New message; the reply
     that follows it takes the press over, which then says New reply and brings the
     reply's start into sight, not the work before it."""
     url = serve(LONG_PAGE)
@@ -1143,7 +1143,7 @@ def test_new_reply_leads_to_the_reply_once_one_follows_the_work(browser, serve):
 
     press = view.locator(".lf-fp-new-reply")
     say("Reading the jobs, the mounts and the frost dates. " * 80, ephemeral=True)
-    expect(press).to_have_text("New progress message")
+    expect(press).to_have_text("New message")
     say("The mounts come first. " + "They need the frost to lift. " * 120)
     expect(press).to_have_text("New reply")
     press.click()

@@ -4986,9 +4986,9 @@ var counted = (count, one, many) => count && `${count} ${count === 1 ? one : man
 var newsParts = ({
   settled,
   working,
-  progress,
-  replies,
-  messages,
+  progress = 0,
+  replies = 0,
+  messages = 0,
   edits,
   reactions,
   summaries,
@@ -4998,10 +4998,10 @@ var newsParts = ({
   ![settled, progress, replies, messages, edits, reactions, summaries, threads].some(
     Boolean
   ) && working,
-  // A reply arriving with progress before it folds that progress, so it says both.
-  !replies && counted(progress, "new progress message", "new progress messages"),
   counted(replies, "new reply", "new replies"),
-  counted(messages, "new message", "new messages"),
+  // A progress message is no reply, so it counts with the user's messages from
+  // elsewhere; a reply arriving after it folds it, and says it.
+  counted(messages + (replies ? 0 : progress), "new message", "new messages"),
   counted(edits, "message edited", "messages edited"),
   counted(reactions, "reaction changed", "reactions changed"),
   counted(summaries, "summary changed", "summaries changed"),

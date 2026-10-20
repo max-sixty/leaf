@@ -53,12 +53,12 @@
    working message's arrival, its departure, and a new step whose words wrap to
    another height change the thread's height, so a seat holds any change of its words
    behind its control-row notice when that growth would move the reader. The notice
-   counts each held progress message as it counts a held reply, "1 new progress
-   message" (the user's choice, 2026-10-14), unless a held reply folds it, and says
-   "Work in progress" or "Work changed" only where the working message changed with
-   none. It names the message by its kind, as the thread's own disclosure does.
-   "Update" names only the user's input (glossary), so "1 new update" read as news of
-   the user's own.
+   counts each held progress message as it counts a held reply (the user's choice,
+   2026-10-14), as "1 new message", unless a held reply folds it, and says "Work in
+   progress" or "Work changed" only where the working message changed with none.
+   Rejected: "1 new update", since "update" names only the user's input (glossary);
+   and "1 new progress message", which at about 126px cut in a phone seat's head row
+   and a primary reader's 5rem notice, and squeezed a margin card's heads.
    A run on screen stays open where
    it stood, its group's border drawn around it (components/surfaces.css), so the fold
    moves none of its words; a run off screen folds away. Changes to other existing
@@ -409,9 +409,9 @@ const counted = (count, one, many) => count && `${count} ${count === 1 ? one : m
 const newsParts = ({
   settled,
   working,
-  progress,
-  replies,
-  messages,
+  progress = 0,
+  replies = 0,
+  messages = 0,
   edits,
   reactions,
   summaries,
@@ -422,10 +422,10 @@ const newsParts = ({
     ![settled, progress, replies, messages, edits, reactions, summaries, threads].some(
       Boolean,
     ) && working,
-    // A reply arriving with progress before it folds that progress, so it says both.
-    !replies && counted(progress, "new progress message", "new progress messages"),
     counted(replies, "new reply", "new replies"),
-    counted(messages, "new message", "new messages"),
+    // A progress message is no reply, so it counts with the user's messages from
+    // elsewhere; a reply arriving after it folds it, and says it.
+    counted(messages + (replies ? 0 : progress), "new message", "new messages"),
     counted(edits, "message edited", "messages edited"),
     counted(reactions, "reaction changed", "reactions changed"),
     counted(summaries, "summary changed", "summaries changed"),

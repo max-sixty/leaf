@@ -79,16 +79,17 @@ has tried; settle that before building it.
   bar and the switch between them went. Work through its remaining list. The phone
   waits until the desktop design is firm, and where a passage thread opens from
   Threads waits until later.
-- **Fit a held-news notice's first fact where its row is narrow.** A notice shows
-  each fact of its news whole or not at all (`newsNotice`), but cuts the first at its
-  end where it alone outgrows the notice. A seat's head row at 390px leaves it about
-  108px and a primary reader's head 5rem (`--lf-primary-news-width`), so "1 new
-  progress message" (about 126px) reads "1 new progress me…" or "1 new progr…"; and
-  a count growing past the room the notice first held ("1 new reply", then "2 new
-  replies") cuts the same way. A seat's notice stands absolutely over free head row,
-  so its room could be the whole slot up to the visible end (`thread-card.js`,
-  `#retainHeaderSlot`), which also shows facts it now drops at 1200px, if a notice
-  wider than its words under the pointer is acceptable; otherwise a shorter form.
+- **Say when a held-news notice holds more than it shows.** A notice in a seat's
+  head row keeps the width of the news it first said (`data-lf-room`) and shows each
+  fact whole or not at all (`newsNotice`), so "1 new reply" with a message arriving
+  after it still reads "1 new reply", with nothing on screen saying more waits; the
+  title that names every fact doesn't reach touch. A count growing past that room
+  ("1 new reply", then "2 new replies") still cuts at its end ("2 new repl…"). The
+  notice stands absolutely over the free head row, so its room could be the whole
+  slot up to the visible end (`thread-card.js`, `#retainHeaderSlot`), if a notice
+  wider than its words under the pointer is acceptable; a "+1" for dropped facts is
+  the other route. In a margin card the notice takes its width from the heads'
+  track, and a wide one moved the head's time sideways in CI (PR #3250's first run).
 
 ### Agent and author experience
 

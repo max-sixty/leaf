@@ -567,7 +567,7 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
     page.evaluate(
         "window.originalOption = document.querySelector('#workspace').querySelector('#email')"
     )
-    with sending(page, "answer the package's native item"):
+    with sending(page, "answer the package's native obligation"):
         email.get_by_role("checkbox").click()
     expect(workspace.locator(".counts")).to_contain_text("Email")
     workspace.get_by_role("button", name="Keep it concise.", exact=True).click()
@@ -935,7 +935,9 @@ def test_primary_reader_revision_replaces_owner_without_losing_thread_draft(
     assert email.evaluate(
         "node => node === originalOption && node.getRootNode() === document"
     )
-    with sending(page, "answer the unchanged native item after reader replacement"):
+    with sending(
+        page, "answer the unchanged native obligation after reader replacement"
+    ):
         email.click()
     expect(replacement.locator(".counts")).to_contain_text("Email")
     replacement.get_by_role("button", name="Keep it concise.", exact=True).click()

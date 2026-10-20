@@ -328,10 +328,10 @@ def test_a_click_on_a_reply_s_draft_opens_it_in_the_panel(browser, serve):
     expect(draft.locator("leaf-text")).to_be_focused()
 
 
-def test_a_draft_in_an_item_takes_no_digits_and_answers_from_its_controls(
+def test_a_draft_in_an_obligation_takes_no_digits_and_answers_from_its_controls(
     browser, serve
 ):
-    """A draft lends its item no digits, so a digit typed while standing on the item
+    """A draft lends its obligation no digits, so a digit typed while standing on the obligation
     or in the editor is not a command; the user Tabs to Edit and saves with
     Mod+Enter."""
     original = "Keep **this** source editable."

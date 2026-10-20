@@ -6,7 +6,7 @@
 The canonical names for the page a user sees and operates. Use them in element
 declarations, JavaScript, CSS, visible copy, tests, examples and references. Where an
 existing name disagrees, rename it rather than adding an alias. Events, comments,
-threads, replies, items and activity are named by their protocol references, not here.
+threads, replies, obligations and activity are named by their protocol references, not here.
 
 A term gets an entry once current behavior gives it a stable identity. Name the
 narrowest established kind, and use the web platform's or UI design's name where one
@@ -24,7 +24,7 @@ implementation terms keep their exact spelling where the reader needs them.
 | **Page** | The document the user reads and acts on; *page instance* below names its directory |
 | **Update** | One input the user sends the agent, of any kind, or several of mixed kinds: “Updates are saved” |
 | **Response** | Work owed to user input of unknown kind: “2 responses owed” |
-| **Answer** | The current value of an item, or the response that satisfies a user update. An item contains its answer; there is no separate Answer record |
+| **Answer** | The current value of an obligation, or the response that satisfies a user update. An obligation contains its answer; there is no separate Answer record |
 | **Reply** | A message in a conversation, including an answer or an unprompted message |
 | **Delivery** | How far an update has got toward the agent: **Sending**, **Sent**, **Queued**, then **Picked up**. Picked up doesn't mean work has begun |
 | **Sent** | An update Leaf has logged that no harness has queued or opened into a turn yet (stage `sent` in `workflows.py`); before the log accepts it, the browser shows **Sending** |
@@ -94,7 +94,8 @@ inside the regions that key names), and `x-reading-role` (an authored reading-st
 role). Every other `x-*` key declares a capability, not an element family.
 
 Don't say *widget entry* for an element declaration, *item* for an addressable element
-(it stays ordinary English for a list item), or *holder* for a compound owner.
+or an obligation (it stays ordinary English for a list item or a row of a list), or
+*holder* for a compound owner.
 
 ## Authored reading structure
 
@@ -103,12 +104,13 @@ Don't say *widget entry* for an element declaration, *item* for an addressable e
 | **Page shell** | The body-level box that sizes the page after the chrome takes its space |
 | **Content frame** | `body > main`, the root of authored content and its reading column in flow posture |
 | **Layout** | A shipped class (`layouts.css`, the `lf-layouts` cascade layer) that arranges the box it is on: the page Layouts `layout-column`, `layout-sidebar` and `layout-workspace` on the content frame only, and `layout-tiles` on any block |
-| **Frame** | A box whose size comes from outside it: `main`, a root tab panel, a pane, a cell of a Layout or of the page's own grid, or any box declaring `--lf-block-frame`. It sets its children's width and trims their outer margins |
+| **Frame** | A box whose size comes from outside it: `main`, a root tab panel, a part, a pane, a cell of a Layout or of the page's own grid, or any box declaring `--lf-block-frame`. It sets its children's width and trims their outer margins |
 | **Text** and **surface** | How a block uses its frame's width. Text (a paragraph, list item, quote, caption, heading, or a block given the column) keeps the reading measure. Every other block is a surface and takes the width its frame allows: `wide` up to `--wide`, `available` all of it |
 | **Bounded block** | A block that keeps its own height and scrolls inside it (`x-bound`, `data-bound`), which makes it a reading region |
 | **Sidebar page** | A content frame on `layout-sidebar`, as wide as the window up to a cap, with the body beside its `aside` when both fit |
 | **Margin sidebar** | `aside.sidebar` on a column page: supporting material, usually navigation, in the left margin where it fits and in flow otherwise |
 | **Workspace** | A page on `main.layout-workspace`, which keeps task regions together |
+| **Part** | One `lf-part` of a page of parts: a `main` with no Layout holding one `lf-parts`, whose parts each hold a child carrying that part's own Layout, listed down the window's left edge under the page's title. Not a **view**, which is Leaf's panel's |
 | **Full-height** | A workspace that exactly fills the window, where the window is large enough, marked by `--lf-full-height: 1` on `main`; the web calls it a full-height or app-shell layout |
 | **Pane** | One reading region, usually in a workspace: an optional header, exactly one body element, an optional footer |
 | **Reading region** | A stable place on the page that navigation and reading-position recovery use |
@@ -177,23 +179,24 @@ In flow it lists every included heading; where the margin has room it may show t
 | **Target picker** | The `s` interaction that shows addressable elements and ends when the user picks one or closes it |
 | **Page search** | The `/` interaction that filters or steps through text matches for a query |
 | **Walk** | Stepping in order through one kind of destination: open threads (`t`), the user's On me list (`m`), a list's rows |
-| **On me** | The user's list of everything waiting on them (`queues.on_user`): the open items widgets and a version's sign-off put there (`items.py`), to-dos the agent gave them, and resends. An item the user has commented on leaves it until the agent replies. `m` walks it. Labels for what waits on the user name the list, as **Next on me** and **Waiting on me** do, and a row names its item by the widget's word (`x-word`) |
+| **Obligation** | What a widget or a version's sign-off waits on the user for (`obligations.py`, `readObligations()`): its prompt, its typed answer once given, its status and its next actor, under an id that never changes (`widget:<id>`, `approval:v<n>`). On me lists the open ones beside to-dos and resends, which are not obligations. `activity.obligations`, the user updates the agent owes an answer, is a separate reading |
+| **On me** | The user's list of everything waiting on them (`queues.on_user`): the open obligations widgets and a version's sign-off put there (`obligations.py`), to-dos the agent gave them, and resends. An obligation the user has commented on leaves it until the agent replies. `m` walks it. Labels for what waits on the user name the list, as **Next on me** and **Waiting on me** do, and a row names its obligation by the widget's word (`x-word`) |
 | **On *agent*** | The agent's list of everything waiting on it (`queues.on_agent`), named for the agent, such as **On Claude**: answers it owes, work in hand and its own to-dos. Prose about no particular agent writes `On <agent>` |
 | **To-do** | Explicit work owed until it ends (`todo` in the protocol), by the agent or by the user |
-| **Plan** | The agent's outline of the page's work (`plan` in the protocol): goals and steps by depth, each step plain or naming a to-do or item, which it arranges without owning |
-| **Tally** | `lf-tally`: how many of a region's items (`itemsIn`) are still open, “7 of 8 to answer”, with an optional Next on me that walks the region's items waiting on the user |
+| **Plan** | The agent's outline of the page's work (`plan` in the protocol): goals and steps by depth, each step plain or naming a to-do or obligation, which it arranges without owning |
+| **Tally** | `lf-tally`: how many of a region's obligations (`obligationsIn`) are still open, “7 of 8 to answer”, with an optional Next on me that walks the region's obligations waiting on the user |
 | **Resend** | An update the user has to send again, which stays in On me until they do |
 | **Done** | The control with which the user ends a to-do the agent gave them; it writes `todo_end`. A widget may also call its own submit control Done |
 | **Done items** | The items that left either list, under a Done heading at the foot of the On view |
-| **Trip** | One move to a destination, such as a thread's passage, an item, or the element a followed fragment link names. It clears any surface hiding the destination, then stays put if the user already sees it, or moves and adds a history entry (`history.js`) |
+| **Trip** | One move to a destination, such as a thread's passage, an obligation, or the element a followed fragment link names. It clears any surface hiding the destination, then stays put if the user already sees it, or moves and adds a history entry (`history.js`) |
 | **Journey** | Consecutive trips, each starting where the last landed, that share one history entry, so Back returns to where the first began |
-| **Standing** | Being at a destination or a control inside it: a thread on the page or in the panel, an item, or authored page content. A panel thread's title and its messages are one destination; chrome controls, margin rows, comment notes and contents links are not destinations |
+| **Standing** | Being at a destination or a control inside it: a thread on the page or in the panel, an obligation, or authored page content. A panel thread's title and its messages are one destination; chrome controls, margin rows, comment notes and contents links are not destinations |
 | **Standing target** | The addressable element the user is at, whether focus is on the element, inside it, on its margin cluster, on a note it names on the details shelf, or on the thread card showing its threads (`standing-target.js`) |
 | **Floor** | The place in a layer where the user is at nothing: the page's body, or an open view of Leaf's panel as a whole |
 | **Unwind** | What one Escape closes: the innermost open step, decided by what is open now rather than how the user got there (`runtime/keyboard/AGENTS.md`, "Escape"). It lands the user on the parent of what it closed |
 | **Landing** | Where a step leaves the user. Closing a box lands on its container, leaving a destination lands on the layer's floor, and closing a surface lands on the document block the user was reading |
 | **Layer stack** | Leaf's ordered record of the popovers and modal dialogs open over the page (`keyboard/layer-stack.js`); an open view of Leaf's panel sits beneath it without being an entry |
-| **Focus ring** | The one ring on whatever takes the user's next press: a focused control, a bounded decision, an item the user is at. It shows standing as well as DOM focus (`--focus-ring` in `theme.css`) |
+| **Focus ring** | The one ring on whatever takes the user's next press: a focused control, a bounded decision, an obligation the user is at. It shows standing as well as DOM focus (`--focus-ring` in `theme.css`) |
 | **Key badge** | A keycap-shaped label for a binding or a hint code |
 | **Binding badge** | A key badge showing a command's current binding |
 
@@ -246,7 +249,7 @@ These name Leaf concepts no standard term covers:
 - **Key badge**: it carries hint codes as well as bindings, so *keycap* would misname
   half its uses.
 - **Tally**: a *progress indicator* draws completion as a bar or ring, and a *counter*
-  counts anything; a tally counts a region's open items against their total and leads to
+  counts anything; a tally counts a region's open obligations against their total and leads to
   the next one.
 
 **Pin**, **Toolbar** and **Picker** keep their ordinary UI meanings. Qualify **picker**

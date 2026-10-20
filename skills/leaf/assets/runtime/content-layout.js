@@ -7,6 +7,7 @@ import { nextFrame, nextRender } from "./rendering.js";
 import { repaintPage } from "./repaint.js";
 import { layoutChanged } from "./widget-elements.js";
 import { pageDocument } from "./passages.js";
+import { marks } from "./marks.js";
 // One computed reading seats the rail first without moving the column, then each
 // authored resident on its preferred side, or in flow when there is no room. The
 // column's runtime grid offset is removed before measuring, including RTL, while an
@@ -50,7 +51,8 @@ export function settleResidency() {
 // `breakouts`). A breakout a revision or a widget inserts, or one a holder reveals (a panel
 // losing `hidden`, a disclosure opening), is read in the microtask its arrival queues.
 // A holder a class or a script moves or pads anew keeps its reading until the next pass.
-const BREAKOUT = "[data-lf-space]";
+const ROOM = marks["x-space"].paint;
+const BREAKOUT = `[${ROOM}]`;
 const bringsBreakout = (node) =>
   node.nodeType === Node.ELEMENT_NODE &&
   (node.matches(BREAKOUT) || node.querySelector(BREAKOUT) !== null);
@@ -60,6 +62,11 @@ function readBreakouts() {
   layoutChanged(pageDocument());
   repaintPage();
 }
+// A part shown or hidden can change which box the page's Layout arranges (prepaint.js,
+// `layoutBox`): a child of `main`, or a child of a part. Read before the frame paints,
+// so the open part stands in its own margin from its first frame.
+const mayHoldLayoutBox = (node) =>
+  node.matches('body > main > *, body > main > [data-lf-views="parts"] > *');
 export function openResidency({ onRead }) {
   readFinished = onRead;
   residencyOpen = true;
@@ -69,6 +76,15 @@ export function openResidency({ onRead }) {
   if (main)
     new MutationObserver((records) => {
       if (
+        records.some(
+          (record) =>
+            record.type === "attributes" &&
+            record.attributeName === "hidden" &&
+            mayHoldLayoutBox(record.target),
+        )
+      )
+        readResidency();
+      else if (
         records.some((record) =>
           record.type === "attributes"
             ? bringsBreakout(record.target)
@@ -80,7 +96,7 @@ export function openResidency({ onRead }) {
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ["data-lf-space", "hidden", "open"],
+      attributeFilter: [ROOM, "hidden", "open"],
     });
   readResidency();
 }

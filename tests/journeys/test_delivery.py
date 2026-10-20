@@ -28,7 +28,7 @@ from leaf import thread_context as thread_context_model
 from leaf.registry import storage as registry_storage
 
 
-def test_a_page_item_that_settles_a_thread_carries_its_thread(page_dir, capsys):
+def test_a_page_obligation_that_settles_a_thread_carries_its_thread(page_dir, capsys):
     """A gesture settles a thread through its widget's `resolves`, and the
     widget it is made on need not stand in that thread — for the one shipped
     settling verb, `lf-suggestion`'s decide, it stands on the page and in no
@@ -62,7 +62,7 @@ def test_a_page_item_that_settles_a_thread_carries_its_thread(page_dir, capsys):
     assert message["drawing"] == SETTLING_DECISION["drawing"]
 
 
-def test_an_undo_of_a_page_item_carries_the_thread_it_reopens(page_dir, capsys):
+def test_an_undo_of_a_page_obligation_carries_the_thread_it_reopens(page_dir, capsys):
     """Withdrawing that gesture reopens the thread, so the delivery owes
     the same reading the accept did."""
     _settling_page(page_dir)

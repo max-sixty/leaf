@@ -28,13 +28,13 @@ that reply, which itself needs read evidence. Neither is something the user read
 order to keep up, so neither pulls them back to the thread. An edit to other content
 is a new version needing fresh evidence. An explicit summary
 does not mark read what it covers. Unread is independent of turn-taking and of the
-user's outstanding work: reading never answers an item, and answering one does
+user's outstanding work: reading never answers an obligation, and answering one does
 mark it read.
 """
 
 from .events import taken_back
 from .findings import Finding
-from .schema import MESSAGE_KINDS
+from .registry.kernel import kinds_declaring
 from .thread_context import event_threads
 
 
@@ -46,7 +46,7 @@ def user_message_content(event: dict) -> bool:
     stream placeholders are not content versions in the page log.
     """
     return (
-        event["kind"] in MESSAGE_KINDS
+        event["kind"] in kinds_declaring("message")
         and event["author"] == "agent"
         and not event.get("token")
     )

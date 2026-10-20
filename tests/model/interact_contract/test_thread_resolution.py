@@ -486,7 +486,7 @@ def test_independent_state_does_not_reopen_an_answer_even_after_retirement(
     )
     assert result["c1"]["resolved"]["id"] == accepted["id"]
     # The immutable old command document still admits a different answer; a reject
-    # declines the fix, so it answers the item and reopens the thread it was for.
+    # declines the fix, so it answers the obligation and reopens the thread it was for.
     rejected = send("decide", {"outcome": "reject"}, "rejected-proposal")
     assert rejected["meaning"]["answer"] is None
     result = event_folds_model.build_threads(

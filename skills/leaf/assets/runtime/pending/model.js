@@ -4,12 +4,12 @@
    The ledger holding each gesture, and the lifecycle that decides when it leaves, belong
    to the application publisher (`build/browser/application.ts`). */
 import { PENDING } from "../thread/identity.js";
+import { MESSAGE_KINDS } from "../event-kinds.js";
 
 /** @param {import("../../../../../build/browser/domain.ts").Command} event
- * @returns {event is Extract<import("../../../../../build/browser/domain.ts").Command, {kind: "comment" | "reply"}>}
+ * @returns {event is Extract<import("../../../../../build/browser/domain.ts").Command, {kind: import("../../../../../build/browser/contract.js").MessageKind}>}
  */
-export const isThreadEvent = (event) =>
-  event.kind === "comment" || event.kind === "reply";
+export const isThreadEvent = (event) => MESSAGE_KINDS.has(event.kind);
 
 /** @param {import("../../../../../build/browser/domain.ts").Command} event */
 export const isMessageEvent = (event) => isThreadEvent(event) && !event.token;
@@ -24,7 +24,7 @@ export const isTurnEvent = (event) => isMessageEvent(event) || event.kind === "e
 export const turnMessage = (turn) =>
   turn.kind === "edit" && turn.message ? turn.message : turn.id;
 
-/** @param {Extract<import("../../../../../build/browser/domain.ts").Command, {kind: "comment" | "reply"}>} event
+/** @param {Extract<import("../../../../../build/browser/domain.ts").Command, {kind: import("../../../../../build/browser/contract.js").MessageKind}>} event
  * @param {string} timestamp
  */
 export const threadForAttempt = (event, timestamp) => ({

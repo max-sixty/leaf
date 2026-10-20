@@ -50,7 +50,15 @@ from playwright.sync_api import Page, expect
 
 from leaf_dev import ROOT
 from leaf_dev.arms import build_pair, copy_committed, run_directory, serving_source
-from leaf_dev.browser import BESIDE, DESKTOP, headless_shell, load, settle, tab
+from leaf_dev.browser import (
+    BESIDE,
+    DESKTOP,
+    headless_shell,
+    load,
+    scroll_settled,
+    settle,
+    tab,
+)
 
 OUT = ROOT / ".tmp" / "stills"
 CROP_MARGIN = 32
@@ -70,6 +78,25 @@ def captured_source(page: Page) -> None:
         "tab", name="Data & work", exact=True
     ).click()
     page.locator("#bg-source-captures").scroll_into_view_if_needed()
+
+
+def markdown_preview_scrolled(page: Page) -> None:
+    """A Markdown code example scrolled under the preview's focused viewport edge."""
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Data & work", exact=True
+    ).click()
+    page.locator("#bg-document-previews").scroll_into_view_if_needed()
+    viewer = page.locator("#bg-markdown-preview")
+    viewer.scroll_into_view_if_needed()
+    viewer.get_by_role("tab", name="Preview", exact=True).click()
+    page.keyboard.press("Tab")
+    panel = "#bg-markdown-preview--preview"
+    expect(page.locator(panel)).to_be_focused()
+    page.keyboard.press("PageDown")
+    page.wait_for_function(
+        "selector => document.querySelector(selector).scrollTop > 0", arg=panel
+    )
+    scroll_settled(page, panel)
 
 
 def tab_by_keyboard(page: Page) -> None:
@@ -536,7 +563,7 @@ def options_in_pane(page: Page) -> None:
 
 def tally_after_an_answer(page: Page) -> None:
     """A queue's tally after Next on me and one answer: the count down by one, the
-    answered row's check above the open marks, and Next on me's second item open."""
+    answered row's check above the open marks, and Next on me's second obligation open."""
     next_on_me = page.locator("#ar-left .lf-tally-next")
     next_on_me.click()
     page.locator("#ar-canary-consecutive").click()
@@ -820,7 +847,7 @@ def versions_menu(page: Page) -> None:
 
 
 def ask_by_keyboard(page: Page) -> None:
-    """The next open item, an `lf-ask`, reached with `m`: its ring and its marker in view."""
+    """The next open obligation, an `lf-ask`, reached with `m`: its ring and its marker in view."""
     page.keyboard.press("m")
     page.locator("lf-ask").first.wait_for()
 
@@ -988,6 +1015,19 @@ class State:
 
 
 STATES = (
+    State(
+        "markdown-preview-scrolled",
+        "developer/feature-gallery",
+        markdown_preview_scrolled,
+        region="#bg-markdown-preview",
+    ),
+    State(
+        "markdown-preview-scrolled-dark",
+        "developer/feature-gallery",
+        markdown_preview_scrolled,
+        scheme="dark",
+        region="#bg-markdown-preview",
+    ),
     State(
         "captured-source",
         "developer/feature-gallery",

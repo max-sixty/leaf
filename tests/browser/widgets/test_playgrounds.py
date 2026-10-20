@@ -474,6 +474,36 @@ def test_inline_playground_keeps_evidence_and_long_instruction_reachable_in_a_sh
     }
 
 
+def test_an_artifact_that_changes_height_leaves_the_stage_where_it_stands(
+    browser, serve
+):
+    """The stage starts its artifacts at its top, so an artifact a control shrinks or
+    grows moves nothing above or beside it, even where the rail holds the stage taller
+    than what stands on it."""
+    source = leaf_page(
+        "Stage",
+        '<lf-ask id="stage-ask"><h1>Choose a density</h1>'
+        '<lf-playground id="stage-playground">'
+        '<lf-playground-control name="rows" label="Rows" kind="range" value="4" '
+        'min="1" max="8"></lf-playground-control>'
+        '<lf-playground-control name="mode" label="Mode" kind="choice" value="a">'
+        '<lf-playground-choice value="a" label="A"></lf-playground-choice>'
+        '<lf-playground-choice value="b" label="B"></lf-playground-choice>'
+        "</lf-playground-control>"
+        '<lf-playground-preview><div id="first">First</div>'
+        '<div id="artifact" style="height: 200px">Artifact</div></lf-playground-preview>'
+        "<lf-playground-output>Use the chosen density.</lf-playground-output>"
+        "</lf-playground></lf-ask>",
+        layout="workspace",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1280, 900)
+    first = page.locator("#first")
+    before = first.bounding_box()["y"]
+    page.locator("#artifact").evaluate("node => { node.style.height = '40px'; }")
+    assert first.bounding_box()["y"] == before
+
+
 def test_notification_playground_sets_regions_side_by_side_while_its_workspace_is_full_height(
     browser, serve
 ):
@@ -519,7 +549,7 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
           === playground.querySelector('.lf-playground-presets'),
         controlsSize: [controls.clientHeight, controls.scrollHeight],
         pageScrolls: document.scrollingElement.scrollHeight > innerHeight,
-        itemDisplay: getComputedStyle(document.querySelector('#notification-ask')).display,
+        obligationDisplay: getComputedStyle(document.querySelector('#notification-ask')).display,
         authoredWords: leaf.wrote(playground).includes('Concurrent release events'),
         spokenWords: leaf.says(playground).includes('Concurrent release events'),
       };
@@ -538,7 +568,7 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
         "sideBySide": True,
         "presetsHeadControls": True,
         "pageScrolls": False,
-        "itemDisplay": "flex",
+        "obligationDisplay": "flex",
         "authoredWords": True,
         "spokenWords": True,
     }
@@ -643,7 +673,7 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
             "postures": ["flow", "flow", "flow"],
             "scrollers": ["page", "page", "page"],
             "pageScrolls": True,
-            "itemDisplay": "block",
+            "obligationDisplay": "block",
         }, (width, height)
         # Too short to hold the regions is not too narrow to set them side by side.
         assert flow["stacked"] is (width < 1100), (width, height, flow)

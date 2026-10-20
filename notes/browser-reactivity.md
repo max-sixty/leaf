@@ -14,7 +14,7 @@ findings; each owning module's header states the current contract.
 - **Watchers collect what they read.** `watchProjection(owner, paint)` collects every
   part of the publication its paint reads synchronously (`collectReads`, `snapshot.ts`)
   and repaints when one of those parts moves (`runtime/projection-watch.js`). It is the
-  one watcher packages use too: a reading has a reader (`readItems`, `readQueues`,
+  one watcher packages use too: a reading has a reader (`readObligations`, `readQueues`,
   `readThreads`, `readWork`, `reportSequence`, `readHistory`, a controller's `read()`)
   and no watcher of its own, so a paint that reads several needs one watcher, and a
   paint that narrates reports passes `reportsPresented` as the watcher's proof. The
@@ -29,8 +29,8 @@ findings; each owning module's header states the current contract.
   paint through one `watchProjection`, and call its `refresh()` for their own
   mechanical inputs, such as an open menu or a comparison. How the server answered the latest read is in the publication (`reach`),
   so the status reads it rather than the state feed pushing each answer at it.
-- **Regions collect what they read.** The four document regions (projection, threads,
-  items, the On panel) are `applicationPresenter`s (`runtime/semantic-state.js`).
+- **Regions collect what they read.** The three document regions (projection, threads,
+  obligations) are `applicationPresenter`s (`runtime/semantic-state.js`).
   Each one's `reading` says whether it owes a paint, and the parts its reading and its
   paint read are collected, as a watcher's are. A publication that moves none of them
   carries the region's last commit into the new epoch. Another owner a paint drives
@@ -38,11 +38,12 @@ findings; each owning module's header states the current contract.
   own to follow: a widget a paint mounts, which connects inside that paint, and the
   margin the thread presentation refreshes once it commits, which has its own watcher.
 - **Key and button availability are tracked effects** (`runtime/keyboard/scopes.js`).
-  Private state their predicates read, such as where the user stands and the thread
-  list's models, is held in signals so the effects see it move.
+  Private state their predicates read, such as where the user stands, is held in
+  signals so the effects see it move.
 - **Lit renders templates.** Paints call Lit's `render()` synchronously. `LitElement`
-  appears only in `RetainedFace` (`runtime/retained-face.js`), whose updates wait a
-  microtask unless the caller asks for `now`.
+  appears in `LeafElement` (`runtime/leaf-element.js`), whose moves draw in the
+  presentation pass the publication starts, and in the composer's media shelf
+  (`composing/input.js`).
 
 ## Reads after an `await`
 
@@ -53,9 +54,8 @@ JavaScript has no way to carry it across an `await` (the TC39 AsyncContext propo
 would, but no browser ships it). So a region paint is handed `resume`, which wraps a
 continuation, a `.then` callback or a function called after an `await`, so its reads
 join the paint's parts while the paint is current. The thread presentation resumes its
-commit after a package's thread reader prepares, and the thread list resumes the rows it
-derives again once frozen widgets have connected (`renderReading`,
-`thread/presentation.js`; `renderThreads`, `thread/thread-list.js`). The time a paint
+commit after a package's thread reader prepares (`renderReading`,
+`thread/presentation.js`). The time a paint
 shows is recorded with its parts (`outsideReading`, `snapshot.ts`), so `resume` carries
 those reads too. Nothing checks that a continuation is wrapped: a read in one that is
 not goes unfollowed, as a read outside a watcher's paint does.
@@ -110,8 +110,8 @@ inside its selection, so its callers subscribe to the result rather than to its
 inputs (`skills/leaf/assets/AGENTS.md`, "Working on the runtime"). A review found more
 readers breaking it, now selections of what they return: `readThreads` (the thread
 collection, not all thread state), the to-dos and undo list (`runtime.todos`,
-`runtime.undo`, not the whole browser reading or view), and approval's blocking items
-and approved state (not every item). No check finds the rest;
+`runtime.undo`, not the whole browser reading or view), and approval's blocking obligations
+and approved state (not every obligation). No check finds the rest;
 `leaf-dev bench-latency` against the previous commit shows one that costs time.
 
 ## What reactivity will not fix

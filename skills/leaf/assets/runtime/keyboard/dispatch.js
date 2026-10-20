@@ -107,7 +107,7 @@ import { composedParentNode, renderedUnder, excludedByInert } from "../shadow.js
 
 // The two questions a scope answers, named apart because the surfaces ask them apart: the
 // reference lists a scope the page *has* and filters its rows by liveness only where the user
-// is standing in it, while the dispatcher and the line want both at once. Spelled `!x || x()`
+// is standing in it, while the dispatcher wants both at once. Spelled `!x || x()`
 // in three places before, which is a rule written three times and named nowhere.
 const pageHas = scopeAvailable;
 export const userIn = (scope) => {
@@ -324,7 +324,7 @@ export const shadow = (quick = quickShortcuts()) => {
 // callback. Resolve that reference at invocation time so replacement, disconnection,
 // scope liveness, row liveness, and dynamic routes have the same meaning as they do for
 // an intrinsic key press. The source scope need not be where focus stands: that is the
-// point of an ancestor projection such as an item.
+// point of an ancestor projection such as an obligation.
 function referencedInvocation(reference) {
   if (!reference) return null;
   const current = referencedCommandEntry(reference);
@@ -516,7 +516,7 @@ export function activeCommandLabel(ids) {
   return command?.binding != null ? spell(command.binding) : "";
 }
 // Snapshot executable bindings by row while focus is still on the page. A widget's
-// intrinsic key and an item alias can share a command id while only one is shadowed.
+// intrinsic key and an obligation alias can share a command id while only one is shadowed.
 // The reference is a modal scope and shadows the page once it opens, so callers take
 // this snapshot before opening it.
 export function availableCommandRoutes({

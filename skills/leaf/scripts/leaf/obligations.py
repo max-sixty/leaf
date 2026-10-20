@@ -1,4 +1,4 @@
-"""Canonical items from widgets and stamped page sign-off.
+"""Canonical obligations from widgets and stamped page sign-off.
 
 One record contains its prompt, typed answer, completion and next actor. Its thread
 and exact owning message locate frozen sources without depending on a live renderer.
@@ -13,13 +13,13 @@ whose message holds it, a reaction there whose token settles it, or on the page 
 message in a thread anchored inside it. It has no x-state, so its answer is that
 message's text or token. The user chose a question widget over a reply flag
 (`--ask`, which Leaf had), so that only widgets, to-dos, resends and sign-off put
-items on the user's list.
+obligations on the user's list.
 
 A record's `status` is one of four, and this module is their one producer: `open`;
 `answered`, its typed answer in the record; `answered_elsewhere`, a reply-answered
-item the agent ended `done` because the user answered on another surface, with no
-answer value; and `withdrawn`, an item the document no longer makes or a
-reply-answered item the agent ended `dropped`. A state-answered item never takes
+obligation the agent ended `done` because the user answered on another surface, with no
+answer value; and `withdrawn`, an obligation the document no longer makes or a
+reply-answered obligation the agent ended `dropped`. A state-answered obligation never takes
 `answered_elsewhere`: an answer given elsewhere goes into the widget's declared
 state in a revision, which records the value itself."""
 
@@ -45,37 +45,37 @@ from leaf.projection import (
     enclosing_widgets,
     folded_value,
     frozen_thread_reading,
-    item_value,
     markup_value,
+    obligation_value,
     page_reading,
     projected_action_holders,
     state_projection,
 )
-from leaf.registry.contract import WRITERS
+from leaf.registry.kernel import verb_writers
 from leaf.structure import review_mode
 from leaf.thread_context import widget_messages
 
 
-def local_item_entry(entry: dict) -> bool:
-    """Whether a widget can originate an item when its predicate holds."""
+def local_obligation_entry(entry: dict) -> bool:
+    """Whether a widget can originate an obligation when its predicate holds."""
     return entry.get("x-awaits") is not None
 
 
 def replied(entry: dict) -> bool:
-    """Whether the user's own words answer this widget's item (`x-awaits.reply`)
+    """Whether the user's own words answer this widget's obligation (`x-awaits.reply`)
     rather than its state."""
     return bool((entry.get("x-awaits") or {}).get("reply"))
 
 
 def encloses(entry: dict) -> bool:
-    """Whether this widget frames the items inside it (`x-awaits.encloses`): its leading
+    """Whether this widget frames the obligations inside it (`x-awaits.encloses`): its leading
     heading gives their prompt, and going to one of them lands on it."""
     return bool((entry.get("x-awaits") or {}).get("encloses"))
 
 
-def holds_items(record: dict, records: list[dict], registry: dict) -> bool:
+def holds_obligations(record: dict, records: list[dict], registry: dict) -> bool:
     """Whether an enclosing widget holds another that can ask, and so asks nothing
-    itself: a frame around a decision widget stays one item. It reads the authored
+    itself: a frame around a decision widget stays one obligation. It reads the authored
     containment, so every revision and reading agrees on it."""
     return encloses(registry[record["tag"]]) and any(
         other is not record
@@ -86,7 +86,7 @@ def holds_items(record: dict, records: list[dict], registry: dict) -> bool:
 
 
 def settle_by_words(record: dict, answer: dict | None, ending: dict | None) -> None:
-    """Settle a reply-answered item from the user's message that answers it and the
+    """Settle a reply-answered obligation from the user's message that answers it and the
     agent's `todo_end` on its id, whichever came first. An end records no answer,
     since the user's words are not in the log; a message after an end reopens
     nothing, as the end already retired it."""
@@ -107,7 +107,7 @@ def settle_by_words(record: dict, answer: dict | None, ending: dict | None) -> N
         record["next_actor"] = None
 
 
-class ItemRegistration(NamedTuple):
+class ObligationRegistration(NamedTuple):
     """Compact registration inputs and the last event-dependent registration.
 
     No parser records or holder chains survive here. The last dynamic answer uses
@@ -121,10 +121,12 @@ class ItemRegistration(NamedTuple):
     requested: Slot
 
 
-def item_registrations(document, registry: dict) -> dict[str, ItemRegistration]:
+def obligation_registrations(
+    document, registry: dict
+) -> dict[str, ObligationRegistration]:
     """Compact immutable registration inputs, separate from a revision's parse."""
     return {
-        unit: ItemRegistration(
+        unit: ObligationRegistration(
             record["tag"],
             asking(record["attrs"], declaration.get("when")),
             "restated" in record["attrs"],
@@ -163,8 +165,8 @@ def event_reference(event: dict | None) -> dict | None:
 
 
 def approval_blocking(records: list[dict]) -> list[dict]:
-    """The items that keep a version from being approved: each open widget
-    item someone still owes, on the page or in a widget an agent sent. The append
+    """The obligations that keep a version from being approved: each open widget
+    obligation someone still owes, on the page or in a widget an agent sent. The append
     door refuses a sign-off while one stands, and the browser view serves their ids
     so the approve control says the same."""
     return [
@@ -185,12 +187,12 @@ def collection(records: list[dict]) -> dict:
     }
 
 
-def approval_item(document, revision: int, events: list) -> dict | None:
-    """Sign-off for an exact public stamp as one canonical item.
+def approval_obligation(document, revision: int, events: list) -> dict | None:
+    """Sign-off for an exact public stamp as one canonical obligation.
 
     Draft revisions owe none. Only a done event in force for this public version
-    supplies the typed answer; an undo makes the same item open again.
-    Approval admission counts widget items alone, so this record cannot
+    supplies the typed answer; an undo makes the same obligation open again.
+    Approval admission counts widget obligations alone, so this record cannot
     block its own answer.
     """
     version = stamped_version(events, revision)
@@ -297,7 +299,7 @@ def previously_requested(
 
 
 def answer_verbs(entry: dict) -> dict:
-    """Each x-state verb whose current state answers this widget's local item,
+    """Each x-state verb whose current state answers this widget's local obligation,
     mapped to the condition that state has to meet (x-awaits.answered)."""
     return (entry.get("x-awaits") or {}).get("answered") or {}
 
@@ -317,7 +319,7 @@ def verb_answers(
     The condition reads current state and nothing else. `empty` asks the projected
     containment the verb's position records leave; an attribute or value record reads
     through authored markup as well as the fold, so a version that honors the answer
-    keeps it answered and a cleared value opens the item again; any other verb answers
+    keeps it answered and a cleared value opens the obligation again; any other verb answers
     while one of its actions stands on the widget.
     """
     condition = answer_verbs(entry)[verb]
@@ -341,7 +343,7 @@ def verb_answers(
     return held is not None
 
 
-def item_answered(
+def obligation_answered(
     rec: dict,
     entry: dict,
     projection: StateProjection,
@@ -350,7 +352,7 @@ def item_answered(
     registry: dict,
     holders: dict[str, dict] | None = None,
 ) -> bool:
-    """Whether the user's own state answers this item: one of its answering verbs'
+    """Whether the user's own state answers this obligation: one of its answering verbs'
     conditions holds."""
     if holders is None:
         holders = projected_action_holders(projection, byid, registry)
@@ -363,14 +365,14 @@ def item_answered(
 def sections_with_agent(threads: dict) -> set[str]:
     """The sections anchoring an open thread whose next word is the agent's.
 
-    An open item such a thread is about is the agent's turn rather than the user's:
+    An open obligation such a thread is about is the agent's turn rather than the user's:
     the user has said something about it and waits on the reply, so it leaves
     their list until the agent answers. That is not an answer, since the widget's
-    state is untouched, and the item stays open, its controls live. The browser
+    state is untouched, and the obligation stays open, its controls live. The browser
     receives the lists this leaves rather than deciding again, so On me's
     count and `page state` cannot disagree about whose turn it is.
 
-    Which kind of thread does not enter into it: a seat's, a quote on the item's
+    Which kind of thread does not enter into it: a seat's, a quote on the obligation's
     words, a design note, or one the agent opened that the user has answered."""
     return {
         anchor["section"]
@@ -382,11 +384,11 @@ def sections_with_agent(threads: dict) -> set[str]:
 
 
 def discussed(records: list[dict], sections: set[str], within: dict) -> None:
-    """Hand each open item a thread anchored on `sections` is about to the agent.
+    """Hand each open obligation a thread anchored on `sections` is about to the agent.
 
-    A section is about the innermost item whose widget encloses it, answered or not;
-    failing one, about every item whose prompt target (its enclosing
-    widget) is the innermost to enclose it. So a note on one item's
+    A section is about the innermost obligation whose widget encloses it, answered or not;
+    failing one, about every obligation whose prompt target (its enclosing
+    widget) is the innermost to enclose it. So a note on one obligation's
     option leaves its framed sibling with the user, and one on the frame's heading
     is about them all. `within` is the document's containment (`Passages.enclosing`).
     """
@@ -482,7 +484,7 @@ def answering_action(
     registered: bool = False,
 ) -> bool:
     """Whether an action of `verb`, in force in `projection`, answers its widget's
-    item: the instance asks or retains an earlier registration, and the verb's
+    obligation: the instance asks or retains an earlier registration, and the verb's
     own condition holds with it in place. Editable answers retain user provenance
     after the author suppresses the request. Admission stamps `meaning.answer` on
     exactly these."""
@@ -503,8 +505,8 @@ def answering_action(
     )
 
 
-class _ItemReducer:
-    """One page or frozen-thread item fold over a shared state projection."""
+class _ObligationReducer:
+    """One page or frozen-thread obligation fold over a shared state projection."""
 
     def __init__(
         self,
@@ -546,7 +548,7 @@ class _ItemReducer:
         self.yielded = {
             id(record)
             for record in self.records
-            if holds_items(record, self.records, registry)
+            if holds_obligations(record, self.records, registry)
         }
         self.positioned_holders = projected_action_holders(projection, byid, registry)
 
@@ -563,7 +565,7 @@ class _ItemReducer:
         return self.registry[record["tag"]]
 
     def _is_declared(self, record):
-        return local_item_entry(self.registry.get(record["tag"]) or {})
+        return local_obligation_entry(self.registry.get(record["tag"]) or {})
 
     def _declaration(self, record):
         return self._entry(record).get("x-awaits", {})
@@ -579,7 +581,7 @@ class _ItemReducer:
         return self.positioned_holders.get(unit, record.get("holder"))
 
     def _answered(self, record):
-        return item_answered(
+        return obligation_answered(
             record,
             self._entry(record),
             self.projection,
@@ -610,7 +612,7 @@ class _ItemReducer:
         # there (`previously_requested`). Other log entries need no historical parse.
         written = {}
         for event in self.events:
-            if event["kind"] in WRITERS:
+            if event["kind"] in verb_writers():
                 written.setdefault((event["revision"], event["widget"]), set()).add(
                     event["action"]
                 )
@@ -642,7 +644,7 @@ class _ItemReducer:
         state_events = [
             event
             for event in self.events
-            if event["kind"] in WRITERS or event["kind"] == "note"
+            if event["kind"] in verb_writers() or event["kind"] == "note"
         ]
         withdrawals = sorted(taken_back(self.events))
         earlier = []
@@ -726,11 +728,11 @@ class _ItemReducer:
                 if self.local[id(record)]
                 else "withdrawn"
             )
-            # A reply-answered item has no state; its reading settles it from the
+            # A reply-answered obligation has no state; its reading settles it from the
             # conversation (`settle_by_words`).
             value_verb = entry["x-awaits"].get("value")
             value, has_content = (
-                item_value(
+                obligation_value(
                     unit,
                     value_verb,
                     entry["x-state"][value_verb],
@@ -788,7 +790,7 @@ class _ItemReducer:
         return records
 
 
-def page_item_readings(
+def page_obligation_readings(
     source,
     projection,
     byid,
@@ -804,13 +806,13 @@ def page_item_readings(
     revision: int | None = None,
     events: list = (),
 ) -> dict:
-    """Items in one document basis; a discussion changes attention, not answer:
-    an item a thread with the agent is about is the agent's (`sections_with_agent`).
-    A reply-answered item is the exception, since a message about it is its answer:
+    """Obligations in one document basis; a discussion changes attention, not answer:
+    an obligation a thread with the agent is about is the agent's (`sections_with_agent`).
+    A reply-answered obligation is the exception, since a message about it is its answer:
     the first user message in a thread opened inside it, after the stamped version
     that last restated it (`$restated`), so a rewritten question is asked again.
     `ends` holds the agent's `todo_end` on each id."""
-    reducer = _ItemReducer(
+    reducer = _ObligationReducer(
         source, projection, byid, spk, registry, dropped, revision, events
     )
     records = reducer.inventory(settled_away or set(), prior)
@@ -848,7 +850,7 @@ def page_item_readings(
     return collection(records)
 
 
-def thread_item_readings(
+def thread_obligation_readings(
     events: list,
     registry: dict,
     threads: dict,
@@ -856,14 +858,14 @@ def thread_item_readings(
     *,
     reading: FrozenThreadReading | None = None,
 ) -> dict:
-    """Frozen widget items retain inventory when their containing thread closes,
+    """Frozen widget obligations retain inventory when their containing thread closes,
     with no next actor. While the thread is open, a user turn after the message
-    that asks hands the item to the agent until the agent answers that turn, as a
-    thread anchored on a page item does (`sections_with_agent`). That turn instead
-    answers a reply-answered item, as does a reaction on the message whose token
+    that asks hands the obligation to the agent until the agent answers that turn, as a
+    thread anchored on a page obligation does (`sections_with_agent`). That turn instead
+    answers a reply-answered obligation, as does a reaction on the message whose token
     settles it; `ends` holds the agent's `todo_end` on each id."""
     reading = reading or frozen_thread_reading(events, registry)
-    reducer = _ItemReducer(
+    reducer = _ObligationReducer(
         reading.structure,
         reading.projection,
         reading.by_id,

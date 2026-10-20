@@ -133,6 +133,7 @@ import { watchProjection } from "./projection-watch.js";
 import { threadAttention, workflowLabel } from "./thread/workflow.js";
 import { messageReading, threadName } from "./thread/messages.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
+import { turns } from "./thread/model.js";
 import { declareThreadParts } from "./thread/focus.js";
 import { quoteReading } from "./thread/thread-card.js";
 import { dismissReply, replyAvailable } from "./thread/replies.js";
@@ -151,12 +152,12 @@ import { draftOf, syncInput } from "./composing/input.js";
 import { TEXT_FIELD } from "./control-selectors.js";
 import { retainUserIntent } from "./user-intent.js";
 import { settleThread } from "./thread/folding.js";
-import { queueItemKey, readQueues } from "./queue-api.js";
+import { queueItemKey, readPlan, readQueues } from "./queue-api.js";
 import { queueTitle } from "./queue-title.js";
-import { carriesItem, itemOutcome } from "./queues.js";
+import { carriesObligation, itemOutcome } from "./queues.js";
 import { shortAgo } from "./presence.js";
-import { itemEnding } from "./items/answer.js";
-import { answeredInWords } from "./items/model.js";
+import { obligationEnding } from "./obligations/answer.js";
+import { answeredInWords } from "./obligations/model.js";
 import { versionPicker } from "./version-picker.js";
 import { versionsReading } from "./version.js";
 import { UPGRADE } from "./presentation.js";
@@ -284,7 +285,7 @@ export function createFloatingPanel({
   threadActions,
   registerChromeThreadPresentation,
   observeFeedback,
-  items: itemView,
+  obligations: obligationView,
   queueActions,
   withdraw,
   settlement,
@@ -934,7 +935,6 @@ export function createFloatingPanel({
   // takes the shorter tween: the view's own change, and the one when the view it
   // replaced is gone after its fade.
   let viewMovingUntil = 0;
-  const SHADOW_REACH = 32;
   const outlineClip = (box, grow = 0) =>
     `inset(${box.top - grow}px ${box.right - grow}px ${box.bottom - grow}px ${
       box.left - grow
@@ -962,12 +962,17 @@ export function createFloatingPanel({
       return;
     outline = next;
     const duration = performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
-    // The ground is cut too, to the outline grown by its shadow's reach (`--raise-2`, a
-    // 24px blur dropped 8px), so it stands over nothing else in the window: a layer over
-    // the whole window that paints nothing left every word under it unmeasured by a
-    // contrast checker. Its cut moves with the ring's, so it holds the ring every frame.
+    // The ground is cut too, to the outline grown by its shadow's reach (`--raise-2`'s
+    // blur dropped by its drop, theme.css), so it stands over nothing else in the window:
+    // a layer over the whole window that paints nothing left every word under it
+    // unmeasured by a contrast checker. Its cut moves with the ring's, so it holds the
+    // ring every frame.
+    const lift = getComputedStyle(ground);
+    const shadowReach = ["--raise-2-drop", "--raise-2-blur"]
+      .map((token) => Number.parseFloat(lift.getPropertyValue(token)))
+      .reduce((reach, part) => reach + part);
     for (const [layer, grow] of [
-      [ground, SHADOW_REACH],
+      [ground, shadowReach],
       [ring, 1],
       [fill, 0],
     ]) {
@@ -1297,7 +1302,7 @@ export function createFloatingPanel({
     if (changed) viewMovingUntil = performance.now() + OUT_MS + VIEW_RESIZE_MS;
     paint();
     // The reader draws what the view arriving holds, and lets go of what the one
-    // leaving held: a thread's messages, or the items On shows as messages.
+    // leaving held: a thread's messages, or the obligations On shows as messages.
     const drawn =
       reading || before?.view === "queue" ? present({ release: reading }) : null;
     if (!changed || reducedMotion() || !pagePresented()) {
@@ -1900,7 +1905,7 @@ export function createFloatingPanel({
       (candidate) => candidate.key === top.thread || candidate.id === top.thread,
     );
     if (!outlet || !thread) return;
-    for (const message of thread.msgs) parts.message(thread.key, message.key, outlet);
+    for (const message of turns(thread)) parts.message(thread.key, message.key, outlet);
     const news = newsOutlet();
     if (news) parts.news(thread.key, news);
     if (replyOutlet.isConnected)
@@ -2054,12 +2059,12 @@ export function createFloatingPanel({
       }`;
   }
 
-  // ---------- On: items answered where they are read ----------
+  // ---------- On: obligations answered where they are read ----------
   // The lists are the publisher's (`readQueues`): what waits on the user and on the
   // agent, a tab each, and under each what left it, its Done (`owner`). The view has no
   // name of its own: its title is the open tab's. An item the user answers here stays
   // where it stood, saying its answer and offering Undo, until the view closes, so
-  // answering one item never carries the next under the pointer. Done stands open under
+  // answering one obligation never carries the next under the pointer. Done stands open under
   // the list rather than folded, since a fold opening would grow the view up from under
   // the pointer that opened it.
   let queueTab = "you";
@@ -2068,6 +2073,15 @@ export function createFloatingPanel({
   // answer that shortens it moves nothing below.
   const seatHeights = new Map();
   const QUEUE_TABS = Object.freeze({ you: "user", agent: "agent" });
+  // The agent's plan has a tab of its own beside the two lists, while there is a plan,
+  // or while the view stands on it. The lists stay as they are, a planned to-do
+  // included, since the plan arranges items without owning them. The user chose this
+  // on 2026-10-19 over the plan heading On <agent>, with the to-dos it leaves out
+  // following as rows.
+  const queueTabs = () =>
+    readPlan()?.steps.length || queueTab === "plan"
+      ? [...Object.keys(QUEUE_TABS), "plan"]
+      : Object.keys(QUEUE_TABS);
   // Turning to another list seats its items afresh.
   const chooseQueueTab = (tab) => {
     if (tab === queueTab) return false;
@@ -2093,7 +2107,7 @@ export function createFloatingPanel({
     };
   };
 
-  // The undo list's entry for the gesture that answered an item, where it can still be
+  // The undo list's entry for the gesture that answered an obligation, where it can still be
   // taken back (undo.js).
   const answerGesture = (item) => {
     const id = item?.answer?.event?.id ?? item?.answer?.event;
@@ -2103,10 +2117,98 @@ export function createFloatingPanel({
     );
     return entry?.event ?? null;
   };
-  const tabLabel = (tab) => (tab === "agent" ? `On ${agentName()}` : "On me");
+  const tabLabel = (tab) =>
+    tab === "plan" ? "Plan" : tab === "agent" ? `On ${agentName()}` : "On me";
+
+  // ---------- the plan ----------
+  // What each state reads as to assistive tech, which hears no mark.
+  const PLAN_STATES = Object.freeze({
+    open: "Not started",
+    working: "Under way",
+    done: "Done",
+    failed: "Failed",
+    dropped: "Dropped",
+  });
+  const PLAN_MARKS = Object.freeze({
+    done: "check",
+    working: "activity",
+    failed: "cross",
+    dropped: "subtract",
+  });
+  const planItemIds = (steps) =>
+    steps.flatMap((step) => [
+      ...(step.item ? [step.item.id] : []),
+      ...planItemIds(step.steps),
+    ]);
+  // Where an item stands in the plan: its goal, and its place among that goal's steps,
+  // counted as the goal's own count is, without the dropped ones (`plans.py`).
+  function planPlace(id) {
+    for (const goal of readPlan()?.steps ?? []) {
+      const counted = goal.steps.filter((step) => step.state !== "dropped");
+      const index = counted.findIndex(
+        (step) => step.item?.id === id || planItemIds(step.steps).includes(id),
+      );
+      if (index < 0) continue;
+      const place = `step ${index + 1} of ${counted.length}`;
+      return goal.title ? `${goal.title} · ${place}` : capital(place);
+    }
+    return null;
+  }
+  function planStep(step) {
+    const mark = PLAN_MARKS[step.state];
+    return html`<li class="lf-fp-plan-step" data-state=${step.state}>
+      <span class="lf-fp-plan-mark" role="img" aria-label=${PLAN_STATES[step.state]}
+        >${mark ? iconTemplate(mark, "lf-action-icon") : nothing}</span
+      ><span class="lf-fp-plan-title">${step.title ?? ""}</span>${
+        step.owner === "user" && step.state === "open"
+          ? html`<button
+              type="button"
+              class="lf-fp-plan-tag"
+              @click=${() => {
+                chooseQueueTab("you");
+                paint();
+                // The pressed step leaves with the plan, so focus moves to the list
+                // it turned to rather than falling to the page.
+                focusDestination(
+                  head.querySelector('.lf-fp-filters [aria-pressed="true"]'),
+                  "move",
+                );
+              }}
+            >
+              On me
+            </button>`
+          : step.state === "working" && step.since
+            ? html`<span class="lf-fp-plan-time">${shortAgo(step.since)}</span>`
+            : nothing
+      }${
+        step.running
+          ? html`<span class="lf-fp-plan-line">${step.running.text}</span>`
+          : nothing
+      }${
+        step.steps.length
+          ? html`<ol class="lf-fp-plan-steps">
+              ${step.steps.map(planStep)}
+            </ol>`
+          : nothing
+      }
+    </li>`;
+  }
+  const planCards = () =>
+    (readPlan()?.steps ?? []).map(
+      (goal) =>
+        html`<section class="lf-fp-plan">
+          <h3 class="lf-fp-plan-goal">
+            <span>${goal.title ?? ""}</span
+            ><span class="lf-fp-plan-count">${goal.done} of ${goal.total}</span>
+          </h3>
+          <ol class="lf-fp-plan-steps">
+            ${goal.steps.map(planStep)}
+          </ol>
+        </section>`,
+    );
 
   function onItemCard(item, list) {
-    const record = carriesItem(item) ? item.item : null;
+    const record = carriesObligation(item) ? item.obligation : null;
     const thread = item.thread ? threadByKey(item.thread) : null;
     // A question asked in words is a message in its thread, and reads as that message,
     // drawn whole by Leaf's reader as the thread draws it (`nominate`), images and all:
@@ -2134,7 +2236,7 @@ export function createFloatingPanel({
     const answered = record && record.status !== "open";
     const choices =
       record && !answered && record.source.kind === "widget" && !inWords
-        ? itemView.choicesOf(record)
+        ? obligationView.choicesOf(record)
         : null;
     const gesture = answered ? answerGesture(record) : null;
     const discuss = thread
@@ -2152,7 +2254,7 @@ export function createFloatingPanel({
       @click=${() => {
         close();
         void (record
-          ? itemView.open(record.id)
+          ? obligationView.open(record.id)
           : queueActions.open(queueItemKey(item)));
       }}
     >
@@ -2165,10 +2267,10 @@ export function createFloatingPanel({
         >${thread ? discuss : nothing}`;
     else if (list !== "you" && !answered)
       answers = html`<span class="lf-fp-said"
-          >${item.running?.text ?? workflowLabel(item.workflow) ?? ""}</span
+          >${item.todo?.running?.text ?? workflowLabel(item.workflow) ?? ""}</span
         >${thread ? discuss : nothing}`;
     else if (answered)
-      answers = html`<span class="lf-fp-said">${itemEnding(record)}</span>${
+      answers = html`<span class="lf-fp-said">${obligationEnding(record)}</span>${
           gesture
             ? html`<button
                 type="button"
@@ -2224,6 +2326,10 @@ export function createFloatingPanel({
     else answers = html`${arrive}${discuss}`;
     const key = queueItemKey(item);
     const approval = record?.source.kind === "approval";
+    // An item the plan names says where it stands in it, so the user answers it
+    // knowing which run it unblocks, and keeps saying so once answered, so the
+    // answer moves nothing.
+    const place = queueTab === "you" ? planPlace(item.id) : null;
     return html`<section
       class="lf-fp-on-item"
       data-list=${list}
@@ -2231,7 +2337,7 @@ export function createFloatingPanel({
       ?data-approval=${approval}
       style=${seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
     >
-      ${
+      ${place ? html`<p class="lf-fp-plan-place">${place}</p>` : nothing}${
         message
           ? html`${title ? html`<h3 class="lf-fp-on-title">${title}</h3>` : nothing}
               <div
@@ -2255,7 +2361,7 @@ export function createFloatingPanel({
     const card = stage.querySelector(".lf-fp-view:not([data-leaving]) [data-approval]");
     return card?.querySelector("button") ?? card;
   };
-  // An approval is an item, always On me's, open or done.
+  // An approval is an obligation, always On me's, open or done.
   function arriveAtApproval() {
     chooseQueueTab("you");
     open({ view: "queue" }, { reopen: true, focus: false });
@@ -2268,6 +2374,10 @@ export function createFloatingPanel({
   }
 
   function onView() {
+    if (queueTab === "plan") {
+      const cards = planCards();
+      return cards.length ? cards : html`<p class="lf-fp-empty">No plan.</p>`;
+    }
     const lists = queueLists();
     const all = [...lists.you, ...lists.agent, ...lists.done];
     const byKey = new Map(all.map((item) => [queueItemKey(item), item]));
@@ -2407,13 +2517,13 @@ export function createFloatingPanel({
     } else if (top.view === "queue") {
       const lists = queueLists();
       aux = tabs(
-        Object.keys(QUEUE_TABS),
+        queueTabs(),
         queueTab,
         tabLabel,
         (tab) => {
           if (chooseQueueTab(tab)) paint();
         },
-        (tab) => lists[tab].length,
+        (tab) => (tab === "plan" ? null : lists[tab].length),
       );
     } else if (thread) {
       // Resolve and Reopen share one seat as wide as the wider of them, both drawn and

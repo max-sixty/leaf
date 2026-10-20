@@ -24,7 +24,7 @@
      row's, so the row's says what every route shares ("Filter visible targets by kind"),
      never what tells them apart ("Next / previous match").
    - `title` is the command's required concise name, or a function when state changes
-     it. `description` optionally explains information the title cannot carry. The item,
+     it. `description` optionally explains information the title cannot carry. The obligation,
      menu rows, reference, and announcements read these same words.
    - `label` overrides the compact keycap, independently of the action name. A keyless
      command remains named by its title in the reference.
@@ -33,7 +33,7 @@
      including on an exact editor scope. A route declares its own aliases when one row
      owns several results. No caller allocates or renumbers another widget's bindings.
    - `control` is the visible element activating the command. `decision: true` marks a
-     command that starts, advances, answers, or revises an item; the role does not assign
+     command that starts, advances, answers, or revises an obligation; the role does not assign
      bindings. `bindingBadge` independently requests an inline hint: an Element lends
      the widget's seat, null requests a corner badge, absence requests none. A route
      inherits its row's seat only when its own field is undefined.
@@ -273,9 +273,9 @@ export const labelOf = (row) => {
   if (label !== undefined && label !== null) return label;
   return bindings(row).map(spell).join(" / ");
 };
-// Whether a row is live right now, asked through one predicate by the dispatcher, the line
-// and the overlay alike, so no surface can promise a press the dispatcher refuses. A guard
-// inside `run` instead is a liveness no surface can see. A declared visible control's
+// Whether a row is live right now, asked through one predicate by the dispatcher and
+// every surface that names a press, so none can promise a press the dispatcher refuses.
+// A guard inside `run` instead is a liveness no surface can see. A declared visible control's
 // native or ARIA disabled state constrains associated controls; an executable command
 // owns its button's disabled fields as output rather than reading them back.
 // Native and contribution painters identify their derived fields here. Availability
@@ -462,13 +462,13 @@ export function activeRows(rows, where = "a scope") {
   return validateActive(active, where, (row) => availableBindings(row, bindings(row)));
 }
 
-// The controls one ordered command set contributes to an item. `decision: true` marks
-// its answering role; the command's title supplies its name. The item view reads these controls
+// The controls one ordered command set contributes to an obligation. `decision: true` marks
+// its answering role; the command's title supplies its name. The obligation view reads these controls
 // for arrival and visibility, while the shared compiler forwards context bindings from
 // the original declarations. Routes may name distinct controls when one compact row
 // owns a family of parameterized bindings. Each result retains its scoped identity so
 // two declarations cannot present different meanings through the same control.
-export function decisionControls(commands, where = "an item") {
+export function decisionControls(commands, where = "an obligation") {
   const controls = new Map();
   for (const { source, scope, row } of commands) {
     const routes = commandRoutes(row);
@@ -491,7 +491,7 @@ export function decisionControls(commands, where = "an item") {
         : allBindings(row);
       // A semantic command may temporarily have no presented control: a compact
       // margin cluster can give its seat to another contribution, or the owning
-      // widget can replace one state with the next. The item projects only controls
+      // widget can replace one state with the next. The obligation projects only controls
       // that exist in this reading; a non-Element value is still a malformed
       // declaration and fails at its owner.
       if (control == null) continue;

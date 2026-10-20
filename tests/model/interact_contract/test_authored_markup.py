@@ -187,7 +187,7 @@ def test_source_reading_keeps_a_sample_out_of_its_parent_identity_space():
     [sample] = parser.samples
     assert "nested-options" in sample["document"].by_id
     assert sample["document"].authoring.main_elements == [(1, True)]
-    assert structure_model.page_layout(sample["document"]) == "column"
+    assert structure_model.page_layout(sample["document"], {}) == "column"
 
 
 def test_a_sample_template_names_its_children_layout():
@@ -198,7 +198,7 @@ def test_a_sample_template_names_its_children_layout():
         "<header><h1>Desk</h1></header><div>Body</div></template></main>"
     )
     [sample] = parser.samples
-    assert structure_model.page_layout(sample["document"]) == "workspace"
+    assert structure_model.page_layout(sample["document"], {}) == "workspace"
     main = sample["document"].tree.select_one("body > main")
     assert main.attrs["class"] == ["layout-workspace", "density-working"]
 
@@ -215,13 +215,31 @@ def test_the_root_names_the_layout_of_a_child_of_a_main_without_one():
         '<main class="layout-tiles"><section class="layout-workspace">'
         "<p>Words.</p></section></main>"
     )
-    assert structure_model.page_layout(in_child) == "column"
-    assert structure_model.page_layout(under_tiles) == "tiles workspace"
+    assert structure_model.page_layout(in_child, {}) == "column"
+    assert structure_model.page_layout(under_tiles, {}) == "tiles workspace"
     beside_hidden = structure_model.SourceDocument(
         '<main><section class="layout-column"><p>Words.</p></section>'
         '<section class="layout-workspace" hidden><p>Queue.</p></section></main>'
     )
-    assert structure_model.page_layout(beside_hidden) == "column"
+    assert structure_model.page_layout(beside_hidden, {}) == "column"
+
+
+def test_the_root_names_the_layouts_of_a_page_of_parts():
+    """Which part opens is the browser's, so every part's Layout goes across, and a box
+    at a part's depth under any other child names none."""
+    registry = {"lf-parts": {"x-views": "parts"}, "lf-tabs": {"x-views": True}}
+    parts = structure_model.SourceDocument(
+        '<main><header><h1>Review</h1></header><lf-parts id="parts">'
+        '<lf-part id="try" label="Try"><div class="layout-workspace"></div></lf-part>'
+        '<lf-part id="read" label="Read"><article class="layout-column"></article>'
+        "</lf-part></lf-parts></main>"
+    )
+    tabs = structure_model.SourceDocument(
+        '<main><lf-tabs id="tabs"><lf-tab id="one" label="One">'
+        '<div class="layout-workspace"></div></lf-tab></lf-tabs></main>'
+    )
+    assert structure_model.page_layout(parts, registry) == "workspace column"
+    assert structure_model.page_layout(tabs, registry) is None
 
 
 @pytest.mark.parametrize(

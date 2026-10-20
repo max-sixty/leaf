@@ -7,11 +7,12 @@ from leaf.event_log import read_events
 from leaf.events import approvals_in_force, build_threads, is_reaction, taken_back
 from leaf.files import latest_revision, revision_label
 from leaf.gesture_words import GestureWords, revisions_on_disk
+from leaf.registry.kernel import verb_writers
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.schema import json_value
 from leaf.registry.storage import active_registry
 from leaf.revision_artifact import read_revision
-from leaf.schema import WIDGET_KINDS, agent_name
+from leaf.schema import agent_name
 
 # A quote as a transcript names it. The anchor stores the passage whole, because that
 # is the extent the page marks; a transcript is prose someone pastes into an MR, where
@@ -63,7 +64,7 @@ def _edits(page_dir: Path, events: list, registry: dict) -> Iterator[str]:
     edits = [
         e
         for e in events
-        if e["kind"] in WIDGET_KINDS or (e["kind"] == "note" and e.get("restated"))
+        if e["kind"] in verb_writers() or (e["kind"] == "note" and e.get("restated"))
     ]
     if edits:
         yield "\n### Edits\n"

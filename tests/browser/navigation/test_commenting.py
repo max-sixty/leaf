@@ -11,8 +11,8 @@ from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
-    SEATED_ITEM_LAYER,
-    SEATED_ITEM_WIDGETS,
+    SEATED_OBLIGATION_LAYER,
+    SEATED_OBLIGATION_WIDGETS,
     panel_comment,
 )
 from render_cases_navigation import DISCLOSED_PAGE, NOTED_PAGE, TARGETS_PAGE, _publish
@@ -23,7 +23,7 @@ from render_harness import (
     RELEASE_FOCUS,
     ROOT,
     draft_control,
-    expect_items_answered,
+    expect_obligations_answered,
     leaf_page,
     open_page,
     open_versions,
@@ -316,7 +316,7 @@ def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
     page" — the ⌥ aim's "the item under the pointer" with no twin for the cursor.
 
     Where they are standing is the unanswered decision first, because that is what the page
-    has already told them: markHere rings the whole item when m/M lands on its control.
+    has already told them: markHere rings the whole obligation when m/M lands on its control.
     Below a decision it is the innermost item, which is the aim's own reading — so a focused
     link speaks for the paragraph holding it, no id of its own being what an anchor needs.
 
@@ -352,7 +352,7 @@ def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
     # A decision: the composer opens on the question rather than on the option the
     # walk happens to stand the user on, and rather than on the page.
     page.keyboard.press("m")
-    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-item", "1")
+    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator(".lf-composer")).to_contain_text("question · Which material?")
@@ -374,7 +374,7 @@ def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
     rewrite_action = suggestion_control(page, "sug-window", "accept")
     rewrite_action.focus()
     expect(rewrite_action).to_be_focused()
-    expect(page.locator("#sug-window")).to_have_attribute("data-lf-item", "1")
+    expect(page.locator("#sug-window")).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator(".lf-composer")).to_contain_text("rewrite")
@@ -416,7 +416,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     """Where the user is standing and what the user still owes are two facts, and a
     widget whose seat holds a thread waiting on the agent is where they part. Its seat holds the words
     the user just wrote, its answer is unmade and its controls are live, and it has left
-    the banner and the drawer because the next word there is the agent's — but the user
+    On me because the next word there is the agent's — but the user
     is standing in it all the same, and it is still the question they are working.
 
     Read off the user's list, both the ring and `c` went with the count: the moment the
@@ -427,14 +427,14 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     Nothing the user did moved either, which is the whole of the complaint; the reply
     phase here is what says the ring has stopped tracking the count rather than merely
     tracking it late. `c` names the user's own thread throughout, because its target,
-    the widget, lies within the item the user holds (`commentDestination`), and the
+    the widget, lies within the obligation the user holds (`commentDestination`), and the
     press lands in that thread's reply box.
 
     A picked group is the control on the other side. It is answered, so it is off both
     readings and must stay off: the switch is about a seat the user is mid-sentence in,
     not about reopening what a pick has closed.
 
-    The seat and the item are the project widget SEATED_ITEM_ENTRY declares, for the
+    The seat and the obligation are the project widget SEATED_OBLIGATION_ENTRY declares, for the
     reason test_a_seat_thread_leaves_the_pick_it_is_about_live gives."""
     url = serve(
         leaf_page(
@@ -455,8 +455,8 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
 </lf-suggestion></p>
 """,
         ),
-        layer_registry=SEATED_ITEM_LAYER,
-        layer_widgets=SEATED_ITEM_WIDGETS,
+        layer_registry=SEATED_OBLIGATION_LAYER,
+        layer_widgets=SEATED_OBLIGATION_WIDGETS,
     )
     d = serve.page_dir
     append_carried_log_record(
@@ -472,11 +472,11 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
 
     page = open_page(browser, url)
 
-    # The completion count includes every active item: the authored pick is complete;
-    # the seated item and suggestion are not.
-    expect_items_answered(page, "1/3")
-    # In On me the seated item is the agent's: the comment in its seat is owed a reply,
-    # which stands for it, so it is neither the user's item nor done.
+    # The completion count includes every active obligation: the authored pick is complete;
+    # the seated obligation and suggestion are not.
+    expect_obligations_answered(page, "1/3")
+    # In On me the seated obligation is the agent's: the comment in its seat is owed a reply,
+    # which stands for it, so it is neither the user's obligation nor done.
     panel_control(page, "queue").click()
     panel_settled(page, view="queue")
 
@@ -496,9 +496,9 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
 
     # And with it shut, which is every other reading below.
     page.locator("#shape .lf-settle").focus()
-    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-item", "1")
+    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-obligation", "1")
     # The count is completion, not the open walk's position, so focus leaves it stable.
-    expect_items_answered(page, "1/3")
+    expect_obligations_answered(page, "1/3")
 
     # Answering hands the question back, and the count moves while the ring does not.
     # Focus is not touched again from here, so the ring read below is the one painted
@@ -520,14 +520,14 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
             },
         )
     told(page)
-    # Back on the user's open list, the same item is still incomplete, so the
+    # Back on the user's open list, the same obligation is still incomplete, so the
     # completion count remains stable.
-    expect_items_answered(page, "1/3")
+    expect_obligations_answered(page, "1/3")
     expect(page.locator("#shape .lf-settle")).to_be_focused()
-    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-item", "1")
+    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-obligation", "1")
 
     # And the press means that thread, so the next line joins the one the first line
-    # opened rather than starting another on the item or the widget. Whichever surface
+    # opened rather than starting another on the obligation or the widget. Whichever surface
     # draws the thread is the destination's choice; which thread it is is this test's.
     page.keyboard.press("c")
     page.wait_for_function(
@@ -548,7 +548,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     # the frame before the paint, and stays green while a ring lands here a frame later.
     page.locator("#picked .lf-pick").first.focus()
     rendered(page)
-    assert page.locator("[data-lf-item]").count() == 0, (
+    assert page.locator("[data-lf-obligation]").count() == 0, (
         "an answered group wears the ring the switch was not about"
     )
 
@@ -558,7 +558,7 @@ def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
     its own, so a press meaning "say something about this" belongs to that box rather
     than to the page the panel stands over. `threadBox` states the same rule from
     the other side when it declines to seat a widget standing inside a thread, and the
-    items and the `m`/`M` walk include the ones an agent sent — without this the same
+    obligations and the `m`/`M` walk include the ones an agent sent — without this the same
     question answered one way on the page and another in the panel.
 
     A resolved thread is the case that has to be asked separately, and the reason this

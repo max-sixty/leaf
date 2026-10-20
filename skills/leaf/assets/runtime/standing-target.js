@@ -1,25 +1,25 @@
 /* Where the user stands: the page node a focused node stands at, one reading every
    feature takes (glossary, Standing target).
 
-   An ordinary node on the page stands at itself. So does a node inside any item source in the inventory,
-   answered or not, wherever it is drawn: an item frozen into a reply is where a user
-   working it is, never the page item its thread is about. A presentation can stand at the
+   An ordinary node on the page stands at itself. So does a node inside any obligation source in the inventory,
+   answered or not, wherever it is drawn: an obligation frozen into a reply is where a user
+   working it is, never the page obligation its thread is about. A presentation can stand at the
    source target it shows in authored flow or chrome, as its owner declares (`declareSide`): the margin for its
    cluster controls and the thread card; the details shelf for the elements that name its notes. A side's answer
    drawn in the chrome itself, such as a margin control on a widget frozen into a reply,
-   stands only where an item holds it. Chrome no side
+   stands only where an obligation holds it. Chrome no side
    claims — the floating panel's own controls — stands nowhere, and a
    press made from it means the page whole.
 
-   Each feature takes what it needs from that place by its own rule: the item view the
-   item source or unique enclosing widget holding it, `c` and `e` its semantic target, the walks its place
-   in the page's order. Every side answers alike: an open item stood at from its card still wears its
+   Each feature takes what it needs from that place by its own rule: the obligation view the
+   obligation source or unique enclosing widget holding it, `c` and `e` its semantic target, the walks its place
+   in the page's order. Every side answers alike: an open obligation stood at from its card still wears its
    ring and takes its digits, `c` at an element whose own thread is shown continues it,
    and `m` and `t` step from the target.
 
    The chrome stands over the page rather than in it and is appended after it,
-   so a chrome node measured as a place would put the user behind every item and thread
-   there is; no reader measures from one that does not stand in an item.
+   so a chrome node measured as a place would put the user behind every obligation and thread
+   there is; no reader measures from one that does not stand in an obligation.
 
    Page walks share `walkOrigin`: focus, then the selection's ends, then the first
    visible reading block. A selected tab starts a walk at its controlled panel,
@@ -32,8 +32,8 @@
 import { cycledRow } from "./keyboard/bindings.js";
 import { focused, standingNodes } from "./focus.js";
 import { inChrome } from "./passages.js";
-import { readItems } from "./items/model.js";
-import { itemPlace } from "./items/place.js";
+import { readObligations } from "./obligations/model.js";
+import { obligationPlace } from "./obligations/place.js";
 import { renderedOrder, renderedUnder, under } from "./shadow.js";
 import { pageReadingBlock } from "./reading-place.js";
 
@@ -45,18 +45,23 @@ export function declareSide(bridge) {
   return () => sides.delete(bridge);
 }
 
-// Source containment identifies the item before its enclosing widget does. An enclosing widget
-// shared by several sources cannot identify one of them on its own.
-export function itemHolding(items, node) {
+// The innermost obligation whose source, or whose own enclosing widget, is or holds `node`.
+// An enclosing widget shared by several sources cannot identify one of them on its own,
+// so only a source stands for such an obligation (`obligationPlace`). Obligations nest, as a question
+// inside a proposal's new text does, so the nearest place holding the node names the
+// obligation rather than the kind of place: on the inner question's enclosing widget the user
+// stands on that question, not on the proposal whose source holds it.
+export function obligationHolding(items, node) {
   if (!node) return null;
-  const places = items
-    .filter((item) => item.source.kind === "widget")
-    .map((item) => ({ item, ...itemPlace(item, items) }));
-  const holds = (element) => element && (element === node || under(node, element));
-  const source = places.findLast((place) => holds(place.source));
-  if (source) return source.item;
-  const contexts = places.filter((place) => holds(place.node));
-  return contexts.length === 1 ? contexts[0].item : null;
+  const holds = (element) => element && under(node, element);
+  let held = null;
+  for (const item of items) {
+    if (item.source.kind !== "widget") continue;
+    const { source, node: stands } = obligationPlace(item, items);
+    const at = holds(source) ? source : holds(stands) ? stands : null;
+    if (at && (!held || under(at, held.at))) held = { item, at };
+  }
+  return held?.item ?? null;
 }
 
 // The source target a presentation node shows, by its owner's declaration, or null
@@ -73,20 +78,22 @@ export function sideOf(node) {
 export function placeOf(node) {
   const at = node?.nodeType === 1 ? node : node?.parentElement;
   if (!at || at === document.body) return null;
-  // An item is the user's current action wherever it is rendered. A source-linked
+  // An obligation is the user's current action wherever it is rendered. A source-linked
   // presentation may otherwise stand in authored flow as well as fixed chrome.
-  if (itemHolding(readItems().all, at)) return at;
+  if (obligationHolding(readObligations().all, at)) return at;
   for (const side of sides) {
     const place = side(at);
     if (place)
-      return inChrome(place) && !itemHolding(readItems().all, place) ? null : place;
+      return inChrome(place) && !obligationHolding(readObligations().all, place)
+        ? null
+        : place;
   }
   return inChrome(at) ? null : at;
 }
 
 // A standing origin can step off its current stop. An `at` origin arrives at
 // its place; an `enter` origin starts inside its region, from either direction.
-// A selected tab enters its panel instead of standing on an item it may hold.
+// A selected tab enters its panel instead of standing on an obligation it may hold.
 export function walkOrigin() {
   for (const node of standingNodes()) {
     const place = placeOf(node);
@@ -129,9 +136,9 @@ export function stepFrom(list, { place: here, kind }, dir, placeOfItem) {
     : { row: dir > 0 ? list[0] : list.at(-1), wrapped: true };
 }
 
-// The item the user stands in, answered or not: where letting go lands, and the extent
+// The obligation the user stands in, answered or not: where letting go lands, and the extent
 // of what `c` counts as the element they stand at.
-export function heldItem(node = focused()) {
-  const item = itemHolding(readItems().all, placeOf(node));
-  return itemPlace(item).node;
+export function heldObligation(node = focused()) {
+  const item = obligationHolding(readObligations().all, placeOf(node));
+  return obligationPlace(item).node;
 }

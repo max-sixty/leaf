@@ -43,7 +43,8 @@ def test_registered_control_keys_activate_once(browser, serve):
           const editor = host.querySelector('leaf-text');
           const hs = getComputedStyle(host), es = getComputedStyle(editor);
           return {
-            host: {outline: hs.outlineStyle, width: parseFloat(hs.outlineWidth)},
+            host: {outline: hs.outlineStyle, width: parseFloat(hs.outlineWidth),
+              offset: hs.outlineOffset},
             editor: {outline: es.outlineStyle, shadow: es.boxShadow},
           };
         }"""
@@ -58,13 +59,24 @@ def test_registered_control_keys_activate_once(browser, serve):
     forced = page.locator("#draft-ops").evaluate(
         """host => {
           const editor = host.querySelector('leaf-text');
+          const hs = getComputedStyle(host);
+          const highlight = document.createElement('i');
+          highlight.style.color = 'Highlight';
+          host.append(highlight);
+          const ink = getComputedStyle(highlight).color;
+          highlight.remove();
           return {
-            host: getComputedStyle(host).outlineStyle,
+            host: [hs.outlineStyle, parseFloat(hs.outlineWidth), hs.outlineOffset],
+            ink: hs.outlineColor === ink,
             editor: getComputedStyle(editor).outlineStyle,
           };
         }"""
     )
-    assert forced == {"host": "solid", "editor": "none"}
+    assert forced == {
+        "host": ["solid", focus_paint["host"]["width"], focus_paint["host"]["offset"]],
+        "ink": True,
+        "editor": "none",
+    }, "forced colors keep the draft's ring where it stands, in Highlight"
     page.emulate_media(forced_colors="none")
     page.keyboard.press("Escape")
 

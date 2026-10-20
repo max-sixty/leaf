@@ -164,7 +164,7 @@ def test_a_codex_session_id_with_no_codex_above_it_is_refused(page_dir, monkeypa
 
 
 def test_a_claim_records_where_the_session_is_working(page_dir, tmp_path, monkeypatch):
-    """What tells one leaf from another on the drawer is the work behind it, which
+    """What tells one leaf from another in All pages is the work behind it, which
     neither the title somebody wrote nor the state directory nobody chose says — so
     the claim records the directory the claiming command ran in, the same reading
     `layer_dirs` already takes cwd to be. Every seat gets it through `presence`, and a
@@ -423,7 +423,7 @@ def test_the_codex_environment_defaults_the_name_but_a_worker_keeps_its_own(
 def test_hook_remedies_follow_the_harness_not_the_display_name(
     tmp_path, under_codex, codex_env, capsys
 ):
-    """LEAF_AGENT names the voice the banner and threads show; which
+    """LEAF_AGENT names the voice the panel and threads show; which
     machinery the hook prescribes (unified exec vs background tasks) keys on the
     recorded harness, so a renamed Codex worker still gets Codex remedies."""
     page = tmp_path / "worker-page"
@@ -671,7 +671,7 @@ def test_a_page_lock_is_its_directory_and_follows_a_page_made_again(
     page gone for good raises."""
     page = tmp_path / "page"
     assert CliRunner().invoke(cli_model.cli, ["page", "init", str(page)]).exit_code == 0
-    assert not (machine_model.state_home() / "page-locks").exists()
+    assert not (cleanup_model.state_home() / "page-locks").exists()
 
     entered = threading.Event()
     release = threading.Event()
@@ -833,7 +833,9 @@ def test_a_claim_an_older_leaf_wrote_is_dropped_rather_than_read_or_raised_on(
     claim = service_model.page_claim(stale)
     written_before_811 = {**claim, "host": claim["harness"]}
     del written_before_811["harness"]
-    cleanup_model.write_json(service_model.claim_path(stale), written_before_811)
+    cleanup_model.write_json(
+        service_model.claim_path(stale), service_model.CLAIM.stored(written_before_811)
+    )
 
     # The reported failure: the watcher walks every page the session holds, and
     # the record it cannot read belongs to a page the user is not on.
@@ -857,7 +859,9 @@ def test_a_claim_an_older_leaf_wrote_is_dropped_rather_than_read_or_raised_on(
         {**claim, "harness": "some-harness-a-later-leaf-named"},
         {key: value for key, value in claim.items() if key != "generation"},
     ):
-        cleanup_model.write_json(service_model.claim_path(stale), unreadable)
+        cleanup_model.write_json(
+            service_model.claim_path(stale), service_model.CLAIM.stored(unreadable)
+        )
         hooks_model.cmd_hook(
             "claude-code", {"hook_event_name": "Stop", "session_id": "s8"}
         )

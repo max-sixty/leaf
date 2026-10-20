@@ -2,16 +2,16 @@
 /* Pure thread structure and turn-taking projected by the server.
 
    This reads projected threads by `isReaction`, `spoken`, `turns`, and `bareReaction`,
-   the names `events.py` reads them by. The panel lists `discussed` threads only;
-   a card shows its turns and its root, so a
-   thread that grew out of a reaction opens on the mark, whose body
-   thread/messages.js writes as the glyph and its word. Whose turn a thread is
-   (`awaitsUser`, `awaitsAgent`) is read from the complete browser Thread's
-   `attention` and nothing else, so a filter and the card it lists agree: a user
-   obligation outranks concurrent agent work, which stays the card's secondary
-   status.
+   the names `events.py` reads them by. The panel lists `discussed` threads only.
+   Every drawing of a thread, a card or the message parts a presentation names
+   (thread/primary-reader.js), shows its turns: its spoken messages and its root, so a
+   thread that grew out of a reaction opens on the mark, whose body thread/messages.js
+   writes as the glyph and its word, and any other reaction stands as its chip on the
+   message it answers. Whose turn a thread is is read
+   from the complete browser Thread's `attention` and nothing else: a user obligation
+   outranks concurrent agent work, which stays the card's secondary status.
 
-   A thread's `id` is its one identity: the id the server keys it by, which every item,
+   A thread's `id` is its one identity: the id the server keys it by, which every obligation,
    workflow, placement, and view names it by. Its `root` is its opening message, a
    message like any other, and what a reply or settlement addresses as its `parent`. A
    thread this tab opened goes by its pending message's id until the log answers. */
@@ -278,16 +278,10 @@ export const reactionsAt = (threads, anchor) =>
     .map((thread) => thread.root);
 
 /** @param {Thread} thread */
-export const awaitsAgent = (thread) =>
-  !thread.resolved && thread.attention?.kind === "waiting";
-/** @param {Thread} thread */
-export const awaitsUser = (thread) =>
-  !thread.resolved && thread.attention?.kind === "needs_user";
-/** @param {Thread} thread */
 export const seatRoot = (thread) => thread.seat;
 
 // When a message last moved: its latest edit, else its own arrival. Every ordering that
-// asks what is newest in a thread — Recent, the first unread, news — reads this,
+// asks what is newest in a thread — the first unread, news — reads this,
 // so an agent message edited today is today's in all of them. A message still being
 // sent carries the clock the user's gesture gave it and no log position yet.
 /** @param {{edited?: {seq?: number, ts: string}, seq?: number, ts?: string}} message */
@@ -324,8 +318,8 @@ const versionKey = ({ message, version }) => `${message}\u0000${version}`;
  * @param {import("../../../../../build/browser/application.ts").Workflow[]} workflows
  * @param {readonly import("../../../../../build/browser/application.ts").WireTodo[]} todos
  *   the open to-dos, of which each thread holds the agent's on it
- * @param {readonly import("../../../../../build/browser/application.ts").ItemRecord[]} items
- *   the view's items, of which each thread holds those its messages make
+ * @param {readonly import("../../../../../build/browser/application.ts").ObligationRecord[]} obligations
+ *   the view's obligations, of which each thread holds those its messages make
  * @param {import("../../../../../build/browser/domain.ts").ContentVersion[]} markingRead
  * @param {boolean} ready
  */
@@ -335,7 +329,7 @@ export function readThreadRecords(
   widgets,
   workflows,
   todos = [],
-  items = [],
+  obligations = [],
   markingRead = [],
   ready = true,
 ) {
@@ -424,9 +418,9 @@ export function readThreadRecords(
       resolved: thread.resolved,
       settling: thread.settling ?? null,
       attention: thread.attention,
-      // The items widgets in its messages make, such as an `lf-ask` the user owes
+      // The obligations widgets in its messages make, such as an `lf-ask` the user owes
       // words to there.
-      items: items.filter((item) => item.thread === thread.id),
+      obligations: obligations.filter((obligation) => obligation.thread === thread.id),
       // The agent's open to-dos on the thread: a reply that promised one says it is
       // still open (a to-do a reply opens takes the reply's id, `todos.py`), the first
       // is the one a thread waiting on a to-do waits on, and a running one is work the

@@ -141,7 +141,20 @@ function eventTypes(registry) {
       ].filter((key) => !owned.has(key));
       return `${JSON.stringify(kind)}: ${typeOf({ ...record, properties, required })};`;
     });
-  return `export interface EventMap {\n${records.join("\n")}\n}\ntype Keys<T> = T extends unknown ? keyof T : never;\nexport type CompleteUnion<T, Whole = T> = T extends unknown ? T & Partial<Record<Exclude<Keys<Whole>, keyof T>, never>> : never;\nexport type Event = CompleteUnion<EventMap[keyof EventMap]>;\nexport interface BrowserCommandMap {\n${browser.join("\n")}\n}\nexport type BrowserCommand = CompleteUnion<BrowserCommandMap[keyof BrowserCommandMap]>;\n`;
+  // The kinds each `$events.kinds` classification names (`runtime/event-kinds.js`
+  // carries the same classifications as values).
+  const classified = Object.entries({
+    MessageKind: "message",
+    UndoableKind: "undoable",
+    WidgetKind: "verb_writer",
+  }).map(
+    ([type, flag]) =>
+      `export type ${type} = ${kinds
+        .filter(([, contract]) => contract[flag])
+        .map(([kind]) => JSON.stringify(kind))
+        .join(" | ")};\n`,
+  );
+  return `${classified.join("")}export interface EventMap {\n${records.join("\n")}\n}\ntype Keys<T> = T extends unknown ? keyof T : never;\nexport type CompleteUnion<T, Whole = T> = T extends unknown ? T & Partial<Record<Exclude<Keys<Whole>, keyof T>, never>> : never;\nexport type Event = CompleteUnion<EventMap[keyof EventMap]>;\nexport interface BrowserCommandMap {\n${browser.join("\n")}\n}\nexport type BrowserCommand = CompleteUnion<BrowserCommandMap[keyof BrowserCommandMap]>;\n`;
 }
 
 function servedTypes(schema, verb) {

@@ -501,11 +501,13 @@ def lists(state) -> tuple[list, list, list]:
 
 FRAMED = model.leaf_page(
     "Questions",
-    '<p id="intro">Context.</p><lf-ask id="frame"><h2 id="head">Two routes</h2>'
+    '<p id="intro">Context.</p><section id="case">'
+    '<lf-ask id="frame"><h2 id="head">Two routes</h2><div id="first">'
     + OPTIONS.format(attrs="choose")
+    + "</div>"
     + OPTIONS.format(attrs="choose").replace('id="', 'id="y-')
     + OPTIONS.format(attrs="").replace('id="', 'id="shown-')
-    + "</lf-ask>",
+    + "</lf-ask></section>",
 )
 
 
@@ -515,17 +517,22 @@ FRAMED = model.leaf_page(
         ({"section": "a", "quote": "A"}, ["widget:choice"]),
         ({"section": "head", "quote": "Two"}, ["widget:choice", "widget:y-choice"]),
         ({"section": "shown-a", "quote": "A"}, ["widget:choice", "widget:y-choice"]),
+        ({"section": "first"}, ["widget:choice"]),
+        ({"section": "case"}, ["widget:choice", "widget:y-choice"]),
         ({"section": "intro", "quote": "Context"}, []),
     ],
-    ids=["option", "frame", "display-only", "elsewhere"],
+    ids=["option", "frame", "display-only", "part", "section", "elsewhere"],
 )
 def test_a_comment_on_an_obligation_is_the_agents_turn_until_the_agent_replies(
     anchor, held
 ):
     """The user's comment about an open obligation hands it to the agent without answering
     it: the obligation leaves On me while the comment's answer stands on On <agent>, and comes
-    back once the agent replies. A comment on one obligation leaves its framed sibling with
-    the user, one on the frame's heading or on a widget there that asks nothing is
+    back once the agent replies, or once the agent ends the work its reply promised, which
+    a resolution leaves standing: that is how a decision the user put off until other
+    work lands stays off their list. A comment on one obligation, or on the part of the
+    frame holding it, leaves its framed sibling with the user; one on the frame's
+    heading, on a widget there that asks nothing or on the section holding the frame is
     about both, and one elsewhere about none."""
     comment = {
         "kind": "comment",
@@ -545,12 +552,26 @@ def test_a_comment_on_an_obligation_is_the_agents_turn_until_the_agent_replies(
         "text": "It means the first route.",
     }
     assert lists(model.reading(FRAMED, [comment, reply])) == (items, [], [])
+    promise = {**reply, "id": "p1", "todo": "Ask again once the other work lands"}
+    resolve = {"kind": "resolve", "author": "user", "parent": "c1"}
+    end = {"kind": "todo_end", "author": "agent", "todo": "p1", "outcome": "done"}
+    assert lists(model.reading(FRAMED, [comment, promise, resolve])) == (
+        owed,
+        ["p1"],
+        held,
+    )
+    assert lists(model.reading(FRAMED, [comment, promise, resolve, end])) == (
+        items,
+        [],
+        [],
+    )
 
 
 def test_a_reply_after_a_thread_obligation_is_the_agents_turn_until_the_agent_replies():
     """A widget an agent sent into a thread is the agent's turn once the user writes
-    after it, and the user's again once the agent answers. A user turn the agent
-    still owes from before the widget leaves the widget with the user."""
+    after it, and the user's again once the agent answers, or once the agent ends the
+    work its answer promised. A user turn the agent still owes from before the widget
+    leaves the widget with the user."""
     asked = {
         "kind": "reply",
         "id": "obligation",
@@ -580,6 +601,18 @@ def test_a_reply_after_a_thread_obligation_is_the_agents_turn_until_the_agent_re
         ["widget:t-choice"],
     )
     assert lists(model.reading(document, [opened, asked, later, answered])) == (
+        ["widget:t-choice"],
+        [],
+        [],
+    )
+    promised = {**answered, "id": "p", "todo": "Find out whether C exists"}
+    assert lists(model.reading(document, [opened, asked, later, promised])) == (
+        [],
+        ["p"],
+        ["widget:t-choice"],
+    )
+    end = {"kind": "todo_end", "author": "agent", "todo": "p", "outcome": "done"}
+    assert lists(model.reading(document, [opened, asked, later, promised, end])) == (
         ["widget:t-choice"],
         [],
         [],

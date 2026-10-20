@@ -14,6 +14,7 @@ from .obligations import approval_obligation, collection, page_obligation_readin
 from .passages import Passages
 from .projection import PageReading, StateProjection, retirement_outcomes
 from .structure import SourceDocument
+from .todos import TodoReading
 
 
 class DocumentReading(NamedTuple):
@@ -26,7 +27,7 @@ class DocumentReading(NamedTuple):
     floors: dict
 
 
-def read_document(page: PageReading, threads: dict, ends: dict) -> DocumentReading:
+def read_document(page: PageReading, threads: dict, log: TodoReading) -> DocumentReading:
     """Resolve a document's durable state and its user's outstanding obligations.
 
     `spoken` retains authored words because retractions and action ownership are
@@ -51,7 +52,7 @@ def read_document(page: PageReading, threads: dict, ends: dict) -> DocumentReadi
         dropped,
         threads,
         page.within,
-        ends,
+        log,
         settled_away=set(passages.gone),
         prior=page.prior,
         revision=revision,

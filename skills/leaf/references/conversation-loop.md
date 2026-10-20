@@ -177,7 +177,9 @@ The reply answers the message and opens a to-do on the thread, under the reply's
 The to-do keeps the thread on your list and in the panel's status until you end it,
 even after the user resolves the thread or your session ends. A turn's own message cannot
 open one. Handing the work to another session, a background job, or a later turn is
-such a promise too; a `--done` reply would tell the user nothing more is coming.
+such a promise too; a `--done` reply would tell the user nothing more is coming. So is
+holding a decision the user put off until other work lands: while the to-do stays open,
+the decision their thread is about stays off On me, and ending the to-do puts it back.
 
 Whoever finishes the work ends the to-do: `leaf task end <page> <todo> done "<where>"`,
 or `failed`/`dropped` with the reason. If another session will finish it, put the page

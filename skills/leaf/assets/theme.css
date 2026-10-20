@@ -410,6 +410,13 @@ h3 {
     line-height: 1.1;
   }
 }
+@container style(--lf-parts-title: 1) {
+  h1 {
+    font-size: var(--t-3);
+    line-height: 1.25;
+    letter-spacing: normal;
+  }
+}
 p {
   margin: 13px 0;
 }

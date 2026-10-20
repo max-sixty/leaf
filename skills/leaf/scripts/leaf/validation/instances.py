@@ -184,6 +184,24 @@ def layout_errors(lf_elements: list, registry: dict) -> list[Finding]:
     return errors
 
 
+def parts_errors(document: SourceDocument, registry: dict) -> list[Finding]:
+    """A page's parts (`x-views: "parts"`) written directly in `main` lay the page out
+    themselves, each part's child carrying its own Layout, so the `main` holding them
+    carries none. With one, its Layout and the parts' both arrange the page, and the
+    page renders with nothing out of reach, so the render check passes it."""
+    main = document.tree.select_one("body > main")
+    classes = main.attrs.get("class", []) if main else []
+    layouts = [token for token in classes if token.startswith("layout-")]
+    if not layouts:
+        return []
+    return [
+        found_at("parts-in-layout", rec, rec["attrs"].get("id", ""), layout=layouts[0])
+        for rec in document.lf_elements
+        if rec["parent"] == "main"
+        and registry.get(rec["tag"], {}).get("x-views") == "parts"
+    ]
+
+
 def unasked(rec: dict, entry: dict) -> dict:
     """The `x-awaits.when` conditions a widget never met, as attribute and the values
     it would ask at, or none where it asks, was asked, or can be made to ask.
@@ -531,6 +549,7 @@ def instance_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     return (
         widget_errors(lf_elements, registry)
         + layout_errors(lf_elements, registry)
+        + parts_errors(document, registry)
         + addressable_instance_errors(lf_elements, registry)
         + enclosing_errors(document, registry)
         + declared_word_errors(lf_elements, registry)

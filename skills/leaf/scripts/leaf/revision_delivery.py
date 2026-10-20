@@ -832,7 +832,7 @@ def compose_document(
             )
         )
     root = dict(delivery.html_attributes)
-    if (layout := page_layout(document)) is not None:
+    if (layout := page_layout(document, registry)) is not None:
         root["data-lf-layout"] = layout
     if root:
         attributes = _attributes(root)

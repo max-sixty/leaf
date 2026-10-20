@@ -2433,6 +2433,60 @@ gallery/
               </lf-tabs>
             </section>
 
+            <section id="bg-parts">
+              <p class="eyebrow bg-feature-elements">lf-parts · lf-part</p>
+              <h3>
+                <strong>Parts</strong
+                ><span class="bg-feature-detail"
+                  >: a page of parts with Layouts of their own</span
+                >
+              </h3>
+              <p id="bg-parts-guide">
+                A page whose parts want different Layouts, here a workspace to try and a
+                column to read, lists them down its left under the page's title. The
+                window below is such a page.
+              </p>
+              <ul id="bg-parts-steps">
+                <li>
+                  Choose <strong>Notes</strong>, then <strong>Try</strong>: the column
+                  and the workspace each take the room beside the list, which stays put.
+                </li>
+                <li>
+                  Narrow the window to a phone's width: the title scrolls away and the
+                  list becomes a row that sticks over the part.
+                </li>
+              </ul>
+              <lf-sample id="bg-parts-sample" label="page of parts" window>
+                <template id="bg-parts-page" data-sample class="bg-parts-sample">
+                  <header><h1>Trail planner</h1></header>
+                  <lf-parts id="bg-parts-list">
+                    <lf-part id="bg-part-try" label="Try" summary="Pick a route">
+                      <div class="layout-workspace">
+                        <header><h2>Routes</h2></header>
+                        <div>
+                          <p>Ridge loop, eleven kilometres, three hours of climbing.</p>
+                        </div>
+                      </div>
+                    </lf-part>
+                    <lf-part
+                      id="bg-part-notes"
+                      label="Notes"
+                      summary="Why these routes"
+                    >
+                      <article class="layout-column">
+                        <h2>Notes</h2>
+                        <p>
+                          The ridge loop keeps to the trail the rangers reopened in May.
+                        </p>
+                        <p>The valley route stays below the snow line all year.</p>
+                        <p>Both start at the shelter and end at the covered terrace.</p>
+                      </article>
+                    </lf-part>
+                  </lf-parts>
+                </template>
+              </lf-sample>
+            </section>
+
             <section id="bg-drawing">
               <p class="eyebrow">svg.drawing</p>
               <h3>

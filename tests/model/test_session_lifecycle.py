@@ -18,6 +18,7 @@ from interact_support import (
     PLUGIN_ROOT,
     STATED_TIMEOUT,
     append_carried_log_record,
+    declared,
     read_record,
     record_claim,
     serving,
@@ -68,7 +69,7 @@ def test_session_end_releases_the_page_and_its_session_server_retires(claimed):
         lambda running: not running,
         failure="the unclaimed session server stayed up after session end",
     )
-    assert read_record(claimed / "status.json")["state"] == "waiting"
+    assert declared(claimed)["state"] == "waiting"
     assert read_record(claimed / "service.json")["enabled"] is True
     claim = service_model.page_claim(claimed)
     assert claim is not None
@@ -322,7 +323,7 @@ hooks.cmd_hook("codex", {"hook_event_name": "SessionStart", "session_id": "s1", 
     for page in (first, second):
         assert f"leaf server start {shlex.quote(str(page))}" in context
         assert (
-            read_record(page / "status.json")["stream"]["activity"]["detail"]
+            read_record(page / "stream.json")["activity"]["detail"]
             == "Both pages updated"
         )
 
@@ -558,7 +559,7 @@ def test_session_end_cannot_release_a_page_claimed_by_its_successor(page_dir):
     assert service_model.page_claim(page_dir)["id"] == "successor"
     assert service_model.claim_is_active(service_model.page_claim(page_dir))
     assert read_record(page_dir / "service.json")["enabled"] is True
-    assert read_record(page_dir / "status.json")["detail"] == "successor is reviewing"
+    assert declared(page_dir)["detail"] == "successor is reviewing"
     assert server_model.running_server(page_dir)
 
 

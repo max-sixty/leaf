@@ -242,7 +242,7 @@ RECORDS: dict = {}
 
 class Record:
     """One kind of JSON object Leaf keeps outside a page's log and document, such as
-    a page's status, a claim or a session's lifecycle.
+    a page's stream, a claim or a session's lifecycle.
 
     Each kind is declared once, beside the module that owns it, whose functions are
     its only writers, and `schema` declares the object. Objects stay open, so a

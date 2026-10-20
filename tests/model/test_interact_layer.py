@@ -712,7 +712,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     assert "already stamped as v1" in again.output
 
     [waiting] = written(["status", str(page_dir), "waiting", "pick a storage engine"])
-    assert waiting.items() <= read_record(page_dir / schema_model.STATUS_FILE).items()
+    assert waiting == logged(waiting)
     assert (waiting["state"], waiting["detail"]) == ("waiting", "pick a storage engine")
 
     # The comment's id is the thread's; --title names it in the same command.
@@ -1320,7 +1320,7 @@ def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypa
     (first / "leaf.js").symlink_to(tmp_path / "nowhere")
     (first / "widgets" / "lf-planted.js").symlink_to(tmp_path / "nowhere")
     (first / "media" / "elsewhere").symlink_to(tmp_path, target_is_directory=True)
-    (first / "status.json").write_text("{}")
+    (first / "stream.json").write_text("{}")
     pool.give_back("plain", first)
 
     second = pool.lend("plain", tmp_path / "second", initialize)
@@ -1329,8 +1329,8 @@ def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypa
     assert {path.relative_to(second).as_posix() for path in second.rglob("*")} == shape
     for name in ("theme.css", "widgets/lf-tabs.js", "registry.json"):
         assert (second / name).read_bytes() == (template / name).read_bytes(), name
-    # A status the test wrote is a file it added, so the reset takes it away.
-    assert not (second / "status.json").exists()
+    # A stream the test wrote is a file it added, so the reset takes it away.
+    assert not (second / "stream.json").exists()
     linked = "runtime/chrome.css"
     assert (second / linked).stat().st_ino == (template / linked).stat().st_ino
 
@@ -2322,7 +2322,7 @@ def test_init_composes_and_prunes_nested_browser_modules(tmp_path, monkeypatch):
         "export const model = 'package';\n"
     )
     assert schema_model.SERVED_PATH.fullmatch("/runtime/nested-package/fold/model.js")
-    assert not schema_model.SERVED_PATH.fullmatch("/vendor/../../status.json")
+    assert not schema_model.SERVED_PATH.fullmatch("/vendor/../../stream.json")
     assert not schema_model.SERVED_PATH.fullmatch("/vendor/../leaf.js")
 
     module.unlink()
@@ -4033,8 +4033,8 @@ def test_package_recognizes_a_page_without_runtime_status(tmp_path, monkeypatch)
     page = tmp_path / "page"
     initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
-    # A page has no status until its agent declares one.
-    assert not (page / "status.json").exists()
+    # A page has no stream until a harness observes a turn on it.
+    assert not (page / "stream.json").exists()
     before = (page / "theme.css").read_bytes()
 
     layer = project / ".leaf"

@@ -28,7 +28,7 @@ from urllib.parse import urljoin, urlsplit
 import leaf_website as website_server
 import pytest
 from conftest import LENT_LINKED_DIRS
-from interact_support import running_http_server
+from interact_support import declared, running_http_server
 from leaf import data as data_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
@@ -364,7 +364,6 @@ def test_product_pages_are_published_as_complete_page_records(site):
         for name in (
             *schema_model.VENDORED_FILES,
             "events.jsonl",
-            "status.json",
         ):
             assert (page / name).is_file(), f"{source.name}: no {name}"
         for name in (
@@ -379,7 +378,7 @@ def test_product_pages_are_published_as_complete_page_records(site):
         for path, resource in artifact.resources.items():
             if path.startswith("/media/"):
                 assert (page / path.lstrip("/")).read_bytes() == resource.data
-        assert json.loads((page / "status.json").read_text())["state"] == "idle"
+        assert declared(page)["state"] == "idle"
 
 
 def test_page_layers_stay_inside_their_page_directories(site):
@@ -434,7 +433,7 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
     assert (example_layer / "registry.json").is_file()
     assert list((example_root / "versions").glob("v*.html"))
     assert list((example_root / "revisions").glob("r*.html"))
-    for private in ("data.json", "events.jsonl", "status.json", "cursor.json"):
+    for private in ("data.json", "events.jsonl", "stream.json", "cursor.json"):
         assert not (example_root / private).exists()
 
     notification_root = assets / "examples" / "notification-playground"
@@ -611,7 +610,6 @@ def test_every_published_page_keeps_its_canonical_page_record(site):
             "icon.svg",
             "leaf.js",
             "registry.json",
-            "status.json",
             "theme.css",
         ):
             assert (page_dir / name).is_file(), f"{source.name}: no {name}"
@@ -624,7 +622,7 @@ def test_every_published_page_keeps_its_canonical_page_record(site):
             "widgets",
         ):
             assert list((page_dir / sub).iterdir()), f"{source.name}: {sub}/ is empty"
-        assert json.loads((page_dir / "status.json").read_text())["state"] == "idle"
+        assert declared(page_dir)["state"] == "idle"
         assert not (page_dir / "service.json").exists()
         assert not (page_dir / "preview.json").exists()
         assert not (page_dir / "versions").exists()

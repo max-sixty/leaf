@@ -159,13 +159,14 @@ ID PATH` (`file_bindings.BINDINGS`).
   and validate its value against the recorded contract. Deferred record fields served by
   `/api/deferred` come from the value in these same publications.
 
-- `status.json` — the agent's `waiting` or `idle` declaration, observed activity,
-  and reply reservations (`service.STATUS`). The work in hand is no status: it is
-  the log's `start` events.
+- `stream.json` — what the harness observes of the claimant's task as it runs: its
+  live activity, the reply it drafts, and reply reservations (`service.STREAM`).
+  The agent's `waiting` or `idle` declaration and the work in hand are not here:
+  they are the log's `status` and `start` events.
   [session-lifetime.md](session-lifetime.md) owns their writers and lifetimes;
   the `delivery` header defines reply reservations, and `thread.py` reserves and
   releases them. Every reader loads it
-  through `service.read_status`, which reads a missing file as no declaration.
+  through `service.read_stream`, which reads a missing file as an empty stream.
 
 - `waiter.lock` — stable bare-shell wait lease file; harness sessions instead
   use `<state-home>/sessions/<session>.wait`. See [session-lifetime.md](session-lifetime.md).

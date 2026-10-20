@@ -189,7 +189,7 @@
     "runtime/shadow.js": "047427438d42b59d2c183cfe9f80f481119c1e55352c74919eb4e383919a89ef",
     "runtime/standing-target.js": "62763720fd8bf58317b99ebc4f5c64802aa9855a87b3c4b590a8713e94583e93",
     "runtime/state-application.js": "70b325a887349472f52fe196cebdea3a12ae98253af804b237ede220a8a1faca",
-    "runtime/state-feed.js": "7acce779005ebc9849ba4d6e4af8648d4c6696b8ecedb2f7725030e64d3d34f0",
+    "runtime/state-feed.js": "aa1001a17e75e9aba74056bb7a27dfeca63ed46ab3bfd89d3381b2f7d0fcea1f",
     "runtime/storage.js": "d6050ad31628f2d5bf4d6098bd8e11a488975e6f48968383f62069740e2389a0",
     "runtime/stylesheets.js": "a02cc929c4474c32e0f72bbf663fdaa1c70ddf975c2b67a05fa26ae2aea4579c",
     "runtime/syntax-languages.js": "95c84c76e34ca2541da78795d99ab452ffa8016c2a2da8b0dc40590ef1585a1f",

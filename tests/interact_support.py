@@ -6,7 +6,6 @@ Run from the repo root:
 """
 
 import difflib
-import errno
 import fcntl
 import http.client
 import http.cookiejar
@@ -882,7 +881,7 @@ def _page_record(path):
     from leaf.user_views import USER_VIEWS
 
     return {
-        schema_model.STATUS_FILE: service_model.STATUS,
+        schema_model.STREAM_FILE: service_model.STREAM,
         schema_model.SERVICE_FILE: server_model.SERVICE,
         schema_model.PREVIEW_FILE: server_model.PREVIEW,
         schema_model.CURSOR_FILE: CURSOR,
@@ -898,12 +897,11 @@ def read_record(path):
 
 def write_record(path, value):
     """Write a page's record as its writer in Leaf would, through the `state.Record`
-    its file name declares. A status names no stream unless `value` does, and a
+    its file name declares. A stream observes nothing `value` doesn't name, and a
     service no runtime and an incarnation no server holds unless it names them."""
     record = _page_record(path)
-    if record is service_model.STATUS:
-        stream = {**service_model.no_stream(), **value.get("stream", {})}
-        value = {**value, "stream": stream}
+    if record is service_model.STREAM:
+        value = {**service_model.no_stream(), **value}
     if record is server_model.SERVICE:
         value = {"runtime": {}, "server_id": "gone", **value}
     record.write(path, value)
@@ -1599,29 +1597,38 @@ def available_loopback_port() -> int:
         return probe.getsockname()[1]
 
 
-def fifo_writer(path: Path, failure: str) -> int:
-    """Open a nonblocking writer once a child is waiting on this FIFO."""
-    deadline = time.monotonic() + STATED_TIMEOUT
-    while time.monotonic() < deadline:
-        try:
-            return os.open(path, os.O_WRONLY | os.O_NONBLOCK)
-        except OSError as error:
-            if error.errno != errno.ENXIO:
-                raise
-            time.sleep(POLL_INTERVAL)
-    path.unlink()
-    pytest.fail(failure)
+_HELD_SELECTION = """
+import sys
+from pathlib import Path
+
+from leaf import session
+from leaf.__main__ import main
+
+transaction = session.PageTransaction
+marker, page = Path(sys.argv[1]), Path(sys.argv[2]).resolve()
 
 
-def hold_status_read(path: Path) -> None:
-    """Replace a live status file with a FIFO without exposing a missing path.
+def selected(page_dir, *args, **options):
+    if Path(page_dir).resolve() == page:
+        session.PageTransaction = transaction
+        marker.write_text("selected", encoding="utf-8")
+        sys.stdin.readline()
+    return transaction(page_dir, *args, **options)
 
-    Watchers may read the status between test setup steps. A gap between unlink
-    and mkfifo lets one exit before it reaches the read this fixture holds.
-    """
-    staged = path.with_name(f".{path.name}.fifo")
-    os.mkfifo(staged)
-    os.replace(staged, path)
+
+session.PageTransaction = selected
+sys.argv = ["leaf", *sys.argv[3:]]
+main()
+"""
+
+
+def held_selection(marker: Path, page: Path, *args: str) -> list[str]:
+    """`leaf ARGS` as a child whose watch holds after it selects `page` and before
+    it reads that page under its lease: it writes `marker` there, and goes on once a
+    line reaches its stdin. A watch's first transaction on a page is that read
+    (`session.Watch.tick`), so whatever the test does meanwhile, such as
+    transferring the claim, wins the race the lease must then decline."""
+    return [sys.executable, "-c", _HELD_SELECTION, str(marker), str(page), *args]
 
 
 @pytest.fixture(autouse=True)
@@ -1727,10 +1734,7 @@ def neighbour_page(directory, title=None, dead=False, published=True, port=59999
     assert initialized.exit_code == 0, initialized.output
     write_revision(directory, 1, html.encode())
     # A neighbour waiting on its user: a closed one is not listed (`other_leaves`).
-    write_record(
-        directory / "status.json",
-        {"state": "waiting", "detail": "", "ts": cleanup_model.now_iso()},
-    )
+    declare(directory)
     if published:
         append_carried_log_record(
             directory,
@@ -1759,6 +1763,37 @@ def declare_idle(page_dir):
     over unanswered moves, for a test whose subject is what an idle page does."""
     with service_model.PageTransaction(page_dir) as page:
         return page.set_status("idle", "")
+
+
+def declared(page_dir):
+    """The agent's declaration as the page's log holds it (`activity.declaration`)."""
+    from leaf.activity import declaration
+
+    return declaration(events_model.read_events(page_dir))
+
+
+def status_and_stream(page_dir):
+    """The agent's declaration beside what the harness streams, for a test that
+    asserts a write moved neither."""
+    return declared(page_dir), service_model.read_stream(page_dir)
+
+
+def declare(page_dir, state="waiting", detail="", *, ts=None, **voice):
+    """Seed the agent's declaration as the log holds it, a `status` event, for a test
+    of how a page reads it: `state` with `detail`, dated `ts` (now by default) and
+    spoken in `voice` (`agent`, `session`). Raw, so a test can date it in the past;
+    `leaf status` is the command an agent runs."""
+    return append_carried_log_record(
+        page_dir,
+        {
+            "kind": "status",
+            "author": "agent",
+            "state": state,
+            "detail": detail,
+            **({"ts": ts} if ts else {}),
+            **voice,
+        },
+    )
 
 
 def declare_work(page_dir, line, *, item=None, ts=None, **voice):

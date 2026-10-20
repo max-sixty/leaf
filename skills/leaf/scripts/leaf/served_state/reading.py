@@ -143,7 +143,7 @@ def held_page_reading(page_dir: Path) -> str:
 def record_reading(page_dir: Path) -> str:
     """Name durable page inputs with the same file stamps as live readings.
 
-    Claim, lease, status and browser observations belong to a serving process.
+    Claim, lease, stream and browser observations belong to a serving process.
     A dormant publication excludes them, while log acknowledgement and bound
     external files still change what its canonical state answers.
     """
@@ -166,8 +166,8 @@ def source_readings(page_dir: Path) -> tuple[str, str]:
     (`SESSION_FILES`), and its log acknowledgement (`LOG_STATE_FILES`).
     History is `HISTORY`; source is every other stamp, so a file nothing names here
     counts as source and moves the activation it could change. Leaving the session
-    out is what lets an agent declare its status, acknowledge a delivery, or take a
-    wait without the next state read validating the whole page again.
+    out is what lets a harness stream a turn, an agent acknowledge a delivery, or a
+    wait take its lease without the next state read validating the whole page again.
     """
     stamps = [
         stamp

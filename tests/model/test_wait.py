@@ -8,7 +8,6 @@ import os
 import shlex
 import shutil
 import subprocess
-import sys
 import threading
 import time
 import urllib.parse
@@ -28,10 +27,10 @@ from interact_support import (
     available_loopback_port,
     claim_and_wait_command,
     declare_idle,
+    declared,
     delivered,
-    fifo_writer,
     freeze_events,
-    hold_status_read,
+    held_selection,
     last_deliverable_seq,
     owed_answers,
     page_state,
@@ -56,7 +55,6 @@ from leaf import harness as harness_model
 from leaf import hooks as hooks_model
 from leaf import hosting as hosting_model
 from leaf import leases as leases_model
-from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
@@ -122,7 +120,7 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(
     receive_through(page_dir, later["seq"])
     assert page_state(page_dir)["pending"] == 0
     # Pickup is exact log evidence and does not rewrite the agent's page-wide claim.
-    status = service_model.read_status(page_dir)
+    status = declared(page_dir)
     assert status["state"] == "waiting"
     pickups = [e for e in events_model.read_events(page_dir) if e["kind"] == "pickup"]
     assert [e["events"] for e in pickups] == [["c1", shown[1]["id"]], ["c2"]]
@@ -246,8 +244,7 @@ def test_wait_preserves_the_work_in_hand_on_mid_work_output(page_dir, capsys):
     serving(page_dir, 1)
     session_model.cmd_waiting(page_dir, "")
     working(page_dir, "running the browser suite")
-    status_path = page_dir / "status.json"
-    before = status_path.read_bytes()
+    before = declared(page_dir)
     append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "one more thing"},
@@ -257,7 +254,7 @@ def test_wait_preserves_the_work_in_hand_on_mid_work_output(page_dir, capsys):
     assert session_model.cmd_wait(page_dir) == 0
     _, _, shown = delivered(capsys)
     assert [event["id"] for event in shown] == ["c1"]
-    assert status_path.read_bytes() == before
+    assert declared(page_dir) == before
     [task] = page_state(page_dir)["browser"]["todos"]
     assert task["running"]["text"] == "running the browser suite"
 
@@ -374,7 +371,6 @@ def test_a_page_without_a_declaration_leaves_the_sessions_wait_running(
     service_model.claim_page(page_dir)
     copy = tmp_path / "copy"
     shutil.copytree(page_dir, copy)
-    (copy / schema_model.STATUS_FILE).unlink(missing_ok=True)
     serving(copy, 1)
     service_model.claim_page(copy)
     assert service_model.owned_pages(session_model.session_harness().session) == [
@@ -567,43 +563,33 @@ def test_wait_revival_cannot_take_a_page_back_after_claim_transfer(
 ):
     """A stale wait cannot revive a server for a page it no longer owns.
 
-    The FIFO holds the status read after the waiter selected the page but
-    before it checks the dead server. Another session then claims the page. The
-    old wait must leave without spawning a server under its stale ownership
-    decision.
+    The waiter holds after it selected the page but before it checks the dead
+    server. Another session then claims the page. The old wait must leave without
+    spawning a server under its stale ownership decision.
     """
     page = codex_claimed_page
     hosting_model.cmd_stop(page)
     session_model.cmd_waiting(page, "comment on the prototype")
-    status_path = page / "status.json"
-    hold_status_read(status_path)
+    selected = page.parent / "selected"
     first = under_codex(
-        claim_and_wait_command(page),
+        shlex.join([*LEAF_COMMAND, "page", "claim", str(page)])
+        + " && "
+        + shlex.join(held_selection(selected, page, "wait", str(page))),
         codex_env | {"CODEX_THREAD_ID": "leaf-watcher-1"},
+        stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
 
-    writer = fifo_writer(status_path, "the waiter never reached its held status read")
+    wait_for(selected.exists, bool, failure="the waiter never selected its page")
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "replacement")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     service_model.claim_page(page)
-    os.write(
-        writer,
-        json.dumps(
-            {
-                "state": "waiting",
-                "detail": "comment on the prototype",
-                "ts": "t",
-            }
-        ).encode(),
-    )
-    os.close(writer)
     declare_idle(page)
 
-    first_out, first_err = first.communicate(timeout=STATED_TIMEOUT)
+    first_out, first_err = first.communicate(input="continue\n", timeout=STATED_TIMEOUT)
     assert (first.returncode, first_out) == (2, ""), first_err
     assert "no longer owns it" in first_err
     assert "the page closed" not in first_err
@@ -615,9 +601,9 @@ def test_wait_revival_cannot_take_a_page_back_after_claim_transfer(
 def test_session_end_cannot_be_overtaken_by_wait_revival(claimed, spawn):
     """The session-end reaper must outrank a wait's stale live-page snapshot.
 
-    The FIFO holds the wait after it selected the page but before it checks the
-    dead server. SessionEnd then releases its claim. Releasing the stale status
-    read must not let that wait put a session server back up.
+    The wait holds after it selected the page but before it checks the dead
+    server. SessionEnd then releases its claim. Letting the stale selection go on
+    must not let that wait put a session server back up.
     """
     page = claimed
     write_record(
@@ -631,18 +617,18 @@ def test_session_end_cannot_be_overtaken_by_wait_revival(claimed, spawn):
         },
     )
     session_model.cmd_waiting(page, "comment on the prototype")
-    status_path = page / "status.json"
-    hold_status_read(status_path)
+    selected = page.parent / "selected"
     waiter = spawn(
-        [*LEAF_COMMAND, "wait", str(page)],
+        held_selection(selected, page, "wait", str(page)),
         env=os.environ
         | {"CLAUDE_CODE_SESSION_ID": "s1", "CLAUDE_PID": str(os.getpid())},
+        stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
 
-    writer = fifo_writer(status_path, "the waiter never reached its held status read")
+    wait_for(selected.exists, bool, failure="the waiter never selected its page")
 
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "SessionEnd", "session_id": "s1"}
@@ -650,26 +636,14 @@ def test_session_end_cannot_be_overtaken_by_wait_revival(claimed, spawn):
     assert read_record(page / "service.json")["enabled"] is True
     assert server_model.running_server(page) is None
 
-    os.write(
-        writer,
-        json.dumps(
-            {
-                "state": "waiting",
-                "detail": "comment on the prototype",
-                "ts": "t",
-            }
-        ).encode(),
-    )
-    os.close(writer)
-
-    out, err = waiter.communicate(timeout=STATED_TIMEOUT)
+    out, err = waiter.communicate(input="continue\n", timeout=STATED_TIMEOUT)
     assert waiter.returncode == 2, f"{out}{err}"
     assert "this session no longer owns it" in err
     assert not service_model.claim_is_active(service_model.page_claim(page))
     assert server_model.running_server(page) is None
-    # SessionEnd releases ownership only. The FIFO remains the same status path;
-    # lifecycle code did not replace it with an authored idle state.
-    assert status_path.is_fifo()
+    # SessionEnd releases ownership only: lifecycle code declares nothing for the
+    # agent, so the page still waits on its user.
+    assert page_state(page)["status"]["state"] == "waiting"
 
 
 def test_a_revived_server_keeps_the_lifetime_it_was_serving_under(
@@ -771,8 +745,8 @@ def test_one_wait_watches_every_page_the_session_holds(
     assert batch["page"] == str(second)
     assert [event["text"] for event in shown] == ["hi"]
     # The page that spoke records exact pickup; neither page's status is rewritten.
-    assert read_record(second / "status.json")["state"] == "waiting"
-    assert read_record(page_dir / "status.json")["state"] == "waiting"
+    assert declared(second)["state"] == "waiting"
+    assert declared(page_dir)["state"] == "waiting"
     assert events_model.read_events(second)[-1]["kind"] == "pickup"
     assert all(e["kind"] != "pickup" for e in events_model.read_events(page_dir))
 
@@ -1529,13 +1503,15 @@ def test_a_superseded_waiter_cannot_deliver_the_new_owners_batch(
     assert second.poll() is None
     assert page_state(page)["listening"]
 
-    append_carried_log_record(page, {"kind": "comment", "author": "user", "text": "hi"})
+    comment = append_carried_log_record(
+        page, {"kind": "comment", "author": "user", "text": "hi"}
+    )
     second_out, second_err = second.communicate(timeout=STATED_TIMEOUT)
 
     assert second.returncode == 0, f"{second_out}{second_err}"
     _, header, [event] = printed(second_out)
     assert header["page"] == str(page)
-    assert event["seq"] == 1
+    assert event["seq"] == comment["seq"]
 
 
 def test_a_claim_transfer_stops_a_waiter_already_inside_a_poll(
@@ -1543,33 +1519,18 @@ def test_a_claim_transfer_stops_a_waiter_already_inside_a_poll(
 ):
     """Ownership is checked at delivery, not only at the start of a poll.
 
-    The probe holds a normal status read after the first watcher has already
-    selected its page. A second session then takes the claim and an event arrives.
-    The old watcher must re-read ownership before it prints that event; otherwise
-    two sessions can act as cursor owner despite the supersession check passing on
-    every ordinary run.
+    The first watcher holds after it has selected its page. A second session then
+    takes the claim and an event arrives. The old watcher must re-read ownership
+    before it prints that event; otherwise two sessions can act as cursor owner
+    despite the supersession check passing on every ordinary run.
     """
     page = codex_claimed_page
     session_model.cmd_waiting(page, "comment on the prototype")
     selected = page.parent / "waiter-selected-page"
-    probe = """
-import sys
-from pathlib import Path
-from leaf import session
-
-read_status = session.read_status
-def held_status(page):
-    Path(sys.argv[2]).write_text("selected", encoding="utf-8")
-    sys.stdin.readline()
-    return read_status(page)
-
-session.read_status = held_status
-from leaf.service import claim_page
-claim_page(Path(sys.argv[1]))
-sys.exit(session.cmd_wait(Path(sys.argv[1])))
-"""
     first = under_codex(
-        shlex.join([sys.executable, "-c", probe, str(page), str(selected)]),
+        shlex.join([*LEAF_COMMAND, "page", "claim", str(page)])
+        + " && "
+        + shlex.join(held_selection(selected, page, "wait", str(page))),
         codex_env | {"CODEX_THREAD_ID": "leaf-watcher-1"},
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,

@@ -176,7 +176,7 @@
     "contracts": {}
   },
   "$events": {
-    "protocol": 15,
+    "protocol": 16,
     "draft_since": 13,
     "ownership": {
       "derived": ["meaning", "attention"],
@@ -1117,7 +1117,7 @@
           "additionalProperties": false
         }
       },
-      "put_down": {
+      "status": {
         "record": {
           "type": "object",
           "properties": {
@@ -1125,12 +1125,23 @@
             "id": { "type": "string", "minLength": 1 },
             "ts": { "type": "string", "minLength": 1 },
             "author": { "const": "agent" },
-            "kind": { "const": "put_down" },
+            "kind": { "const": "status" },
             "seq": { "type": "integer", "minimum": 1 },
+            "state": { "enum": ["waiting", "idle"] },
+            "detail": { "type": "string" },
             "agent": { "type": "string", "minLength": 1 },
             "session": { "type": "string", "minLength": 1 }
           },
-          "required": ["attention", "id", "ts", "author", "kind", "seq"],
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "state",
+            "detail"
+          ],
           "additionalProperties": false
         }
       },

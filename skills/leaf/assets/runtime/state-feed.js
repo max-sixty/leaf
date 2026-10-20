@@ -180,7 +180,7 @@ export function createStateFeed({
     };
     // What the page does when a freshness look says it has moved. State application remains
     // independent — see readState — but the network side admits only one read at a time.
-    // status.json can move several times while a container is still answering the first
+    // stream.json can move several times while a container is still answering the first
     // read; those wake-ups mean "read again afterwards", not "open another socket". One
     // trailing read therefore absorbs the whole burst and keeps reads from queueing behind
     // the page transaction they are trying to observe.

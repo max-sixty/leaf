@@ -25,9 +25,9 @@ delivered at prompt:
     batches:
       - page: <page>
         claim: <claim-session>
-        through_seq: 2
+        through_seq: 3
         threads:
-          - id: event-2
+          - id: event-3
             title: null
             anchor: null
             detached_from: null
@@ -74,19 +74,19 @@ delivered at prompt:
             revision: 1
             text: >-
               Add the camera first.
-            id: event-2
+            id: event-3
             ts: <time>
-            seq: 2
+            seq: 3
             subject:
               kind: thread
-              id: event-2
-            threads: [event-2]
+              id: event-3
+            threads: [event-3]
             handling: [h1, h2, h3]
             answer:
               kind: reply
-              parent: event-2
-              responds: event-2
-              ref: <delivery>:0:event-2
+              parent: event-3
+              responds: event-3
+              ref: <delivery>:0:event-3
               writer: agent
   attention: ''
 
@@ -95,7 +95,7 @@ acknowledged at stop:
     hookEventName: Stop
     additionalContext: |-
       Leaf needs attention:
-      - <page>: 1 acknowledged user update with no answer (`leaf response reply <delivery>:0:event-2`).
+      - <page>: 1 acknowledged user update with no answer (`leaf response reply <delivery>:0:event-3`).
 
       Each update takes the answer named for it. Read current obligations with `leaf page state <page>` and thread history with `leaf page state <page> <id>`.
       Read these unanswered updates and their exact answer references:
@@ -108,7 +108,7 @@ idle before answer:
   stdout: ''
   stderr:
     - error: >-
-        1 acknowledged user update with no answer (`leaf response reply <delivery>:0:event-2`);
+        1 acknowledged user update with no answer (`leaf response reply <delivery>:0:event-3`);
         answer before idling. Each update takes the answer named for it. Read current
         obligations with `leaf page state <page>` and thread history with `leaf
         page state <page> <id>`.
@@ -119,15 +119,15 @@ answer:
   author: agent
   agent: Claude
   session: s1
-  parent: event-2
+  parent: event-3
   text: >-
     I will add the camera first.
-  responds: event-2
+  responds: event-3
   attempt: <attempt>
   revision: 1
-  id: event-4
+  id: event-5
   attention: false
   ts: <time>
-  seq: 4
+  seq: 5
 
 answered at stop: null

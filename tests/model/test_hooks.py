@@ -22,6 +22,7 @@ from interact_support import (
     codex_records,
     continued,
     declare_idle,
+    declared,
     delivered,
     delivered_ref,
     freeze_events,
@@ -65,7 +66,7 @@ def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, ca
     It stamps whether or not it has a nudge to make, and ahead of both of the guard's
     early returns: a turn that ends with nothing outstanding is exactly the turn that
     walks away from a `working` claim. The stamp is provenance and lands on the claim
-    record rather than in status.json — what the agent said it was doing stays the
+    record rather than in a status — what the agent said it was doing stays the
     agent's to write, which is the line SessionEnd already draws."""
     working(claimed, "reading the reconnect traces")
     assert service_model.page_claim(claimed)["turn_closed"] is None
@@ -192,7 +193,7 @@ def test_the_prompt_hook_opens_the_turn_on_every_page_the_session_holds(
     assert service_model.page_claim(claimed)["turn_closed"]
     assert service_model.page_claim(sibling)["turn_closed"]
 
-    status_before = read_record(claimed / "status.json")
+    status_before = declared(claimed)
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
     )
@@ -200,7 +201,7 @@ def test_the_prompt_hook_opens_the_turn_on_every_page_the_session_holds(
     assert service_model.page_claim(claimed)["turn_closed"] is None
     assert service_model.page_claim(sibling)["turn_closed"] is None
     # Only the stamp moves: what the agent said it was doing stays the agent's.
-    assert read_record(claimed / "status.json") == status_before
+    assert declared(claimed) == status_before
 
     # Another session's prompt says nothing about this one's pages.
     hooks_model.cmd_hook(
@@ -237,12 +238,12 @@ def test_a_named_wait_does_not_invent_turn_entry(claimed, printing, capsys):
     append_carried_log_record(
         claimed, {"kind": "comment", "id": "c1", "author": "user", "text": "one"}
     )
-    status_before = read_record(claimed / "status.json")
+    status_before = declared(claimed)
 
     assert session_model.cmd_wait(claimed) == 0
     capsys.readouterr()
     assert service_model.page_claim(claimed)["turn_closed"]
-    assert read_record(claimed / "status.json") == status_before
+    assert declared(claimed) == status_before
     assert read_record(claimed / "cursor.json") is None
     assert not any(
         event["kind"] == "pickup" for event in events_model.read_events(claimed)

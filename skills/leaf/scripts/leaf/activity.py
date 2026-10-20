@@ -1,11 +1,11 @@
 """Canonical page availability and agent work projected from durable evidence.
 
-Status is the agent's waiting or idle declaration, a start in the log is the item it
-has in hand (`todos`), claims prove ownership and turn lifetime, and pickup events
-prove delivery. Delivery remains interaction evidence rather than becoming the
-page's execution state. This module is the one fold that orders those facts and
-supplies every reader — browser chrome, hooks, and agent-facing state — with one
-answer.
+Status is the agent's waiting or idle declaration, the newest `status` event in the
+log (`declaration`), a start in the log is the item it has in hand (`todos`), claims
+prove ownership and turn lifetime, and pickup events prove delivery. Delivery remains
+interaction evidence rather than becoming the page's execution state. This module is
+the one fold that orders those facts and supplies every reader — browser chrome,
+hooks, and agent-facing state — with one answer.
 """
 
 import json
@@ -30,6 +30,35 @@ WORK_KINDS = frozenset(
 # `awaiting_user` is a dialog whose kind, approval or question, the harness does not
 # say.
 AWAITING_KINDS = {"awaiting_approval", "awaiting_input", "awaiting_user"}
+
+
+def undeclared() -> dict:
+    """The status of a page whose agent has declared nothing, such as one before any
+    `leaf status` or a copy a host serves: no work under way and nothing ended, so
+    the page waits on its user and a wait keeps watching it."""
+    return {"state": "waiting", "detail": ""}
+
+
+def declaration(events: list) -> dict:
+    """The agent's declaration about the page: the state, detail and time of the
+    newest `status` event in `events`, or `undeclared` before the first.
+
+    Work taken in hand reopens a page the agent had closed: `idle` says it was done
+    with the page, and every watcher stands down for an idle page. So a start after
+    an `idle` (`todos.start_reading`) reads as a bare `waiting` from that start on.
+    It has no event of its own, since a declaration puts down every start before
+    it."""
+    from .todos import start_reading
+
+    reopened = None
+    for event in reversed(events):
+        if event["kind"] == "status":
+            if event["state"] == "idle" and reopened is not None:
+                return {"state": "waiting", "detail": "", "ts": reopened["ts"]}
+            return {key: event[key] for key in ("state", "detail", "ts")}
+        if start_reading(event):
+            reopened = event
+    return undeclared()
 
 
 def _moment(value: str | None) -> datetime | None:

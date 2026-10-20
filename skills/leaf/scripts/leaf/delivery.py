@@ -17,8 +17,8 @@ a pointer it read with `leaf delivery ack`.
 A reply reservation lets a Codex App Server turn's final message become the reply
 to one delivered update. Freezing with `turn_replies` marks each reply answer
 `writer: "turn"`, and the harness reserves the reply's address before it starts the
-turn (`thread.reserve_delivery_reply`). The page's status lists open reservations
-under `stream.reply_reservations`, and session-lifetime.md says when one is
+turn (`thread.reserve_delivery_reply`). The page's stream lists open reservations
+under `reply_reservations` (`service.STREAM`), and session-lifetime.md says when one is
 released. While a reservation is open, no other delivery can reserve the address,
 the turn's final message commits as the reply, and failure receipts and other
 turns' finals are refused or write nothing. A `leaf response reply` still commits at

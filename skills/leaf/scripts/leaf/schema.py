@@ -615,7 +615,7 @@ RENDER_CHECKS_DIR = "checks"
 # How long a bare address stays authorized after the last handover link (`host_key`),
 # the lifetime Jupyter gives its login cookie.
 KEY_COOKIE_MAX_AGE = 30 * 24 * 60 * 60
-STATUS_FILE = "status.json"
+STREAM_FILE = "stream.json"
 CURSOR_FILE = "cursor.json"
 SERVICE_FILE = "service.json"
 SERVER_LOCK = "server.lock"
@@ -625,7 +625,7 @@ WAITER_LOCK = "waiter.lock"
 # Neither validation nor a revision's capture reads these, so a write to one is news to
 # an open tab and never a candidate revision.
 SESSION_FILES = (
-    STATUS_FILE,
+    STREAM_FILE,
     WAITER_LOCK,
     VIEWED_FILE,
     USER_VIEWS_FILE,

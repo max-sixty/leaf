@@ -8,6 +8,7 @@ import pytest
 from interact_support import (
     append_carried_log_record,
     append_command,
+    declare,
     declare_work,
     end_work,
     record_claim,
@@ -300,10 +301,7 @@ def test_a_closed_leaf_clears_itself_off_all_pages(browser, serve, other_leaf):
     rows = view.locator("a.lf-fp-page")
     expect(rows).to_have_count(1)
     rows.first.focus()
-    write_record(
-        other_dir / "status.json",
-        {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
-    )
+    declare(other_dir, "idle")
     told(page)
     expect(rows).to_have_count(0)
     expect(view.locator(".lf-fp-page")).to_contain_text("long")

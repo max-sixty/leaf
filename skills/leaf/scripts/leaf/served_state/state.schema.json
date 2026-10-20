@@ -123,7 +123,7 @@
           "additionalProperties": { "type": "string" }
         },
         "status": {
-          "description": "The agent's declaration (`leaf status`), as `presence.presence_with_activity` reads it; that module owns the presence fields below.",
+          "description": "The agent's declaration, the newest `status` event (`activity.declaration`), as `presence.presence_with_activity` reads it; that module owns the presence fields below.",
           "type": "object",
           "properties": {
             "state": { "type": "string" },

@@ -70,16 +70,23 @@
   // Ask the compositor for a rendering turn without handing page.evaluate a Promise
   // whose settlement depends on that turn. Playwright polls the synchronous fact
   // below, so its own deadline still runs when a stopped compositor never calls us
-  // back. The turn counts as presented in a task queued from its animation-frame
-  // callback, so it is the whole update: its layout, and the ResizeObserver deliveries
-  // and loop notice that follow the callbacks.
+  // back. The turn counts as presented in a task queued from an IntersectionObserver
+  // the animation-frame callback starts, so it is the whole update: its layout, the
+  // ResizeObserver deliveries and loop notice that follow the callbacks, and the
+  // update's IntersectionObserver deliveries, which Chrome runs in a task of their own
+  // after a task queued from the animation frame itself. A new observer's first notice
+  // comes from the update that follows its `observe`, beside every other observer's.
   const requestFrame = () => {
     const requested = ++requestedFrame;
-    requestAnimationFrame(() =>
-      setTimeout(() => {
-        presentedFrame = Math.max(presentedFrame, requested);
-      }),
-    );
+    requestAnimationFrame(() => {
+      const delivered = new IntersectionObserver(() => {
+        delivered.disconnect();
+        setTimeout(() => {
+          presentedFrame = Math.max(presentedFrame, requested);
+        });
+      });
+      delivered.observe(document.documentElement);
+    });
     return requested;
   };
   const framePresented = (requested) => presentedFrame >= requested;

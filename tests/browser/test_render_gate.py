@@ -902,6 +902,30 @@ def test_a_rendering_turn_is_polled_from_the_driver(browser, serve):
     ), failures
 
 
+def test_a_rendering_turn_ends_after_its_intersection_observer_deliveries(
+    browser, serve
+):
+    """A reader waiting on a rendering turn sees what that turn's IntersectionObserver
+    callbacks did, such as a Copy control leaving layout once a resize and a scroll
+    put its code block more than a screen away. Chrome runs those callbacks in a task
+    after one the animation frame queues, so a turn marked from that task let
+    `rendered` read the page before the callbacks unsettled it."""
+    page = open_page(browser, serve(LONG_PAGE))
+    rendered(page)
+    marked_first = page.evaluate(
+        """() => new Promise(resolve => {
+          const driver = globalThis.__leafRenderDriver;
+          const turn = driver.requestFrame();
+          const observer = new IntersectionObserver(() => {
+            observer.disconnect();
+            resolve(driver.framePresented(turn));
+          });
+          observer.observe(document.body);
+        })"""
+    )
+    assert marked_first is False
+
+
 def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve, monkeypatch):
     """A navigation ends a trip the browser reports for neither kind, and the ledger
     must not carry it into the next document or every later wait there runs its

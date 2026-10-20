@@ -4,7 +4,6 @@ Each test is one journey a user takes through the panel: writing a page comment 
 threads and taking in news, answering obligations, travelling between versions, and
 folding the panel to the leaf in the window's corner and back."""
 
-import base64
 import json
 import re
 from datetime import datetime, timedelta
@@ -13,16 +12,15 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     append_carried_log_record,
+    declare,
     declare_idle,
     declare_work,
     working,
-    write_record,
 )
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import interaction_log as interaction_model
 from leaf import service as service_model
-from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf.render_checks import one_frame, wait_until_ready
 from model_folds import leaf_page
@@ -47,6 +45,8 @@ from render_harness import (
     write,
 )
 from render_harness import leaf_page as titled_page
+
+from browser.threads import paste_image
 
 SIGN_OFF = LONG_PAGE.replace(
     "<title>long</title>",
@@ -2381,11 +2381,9 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
 
 
 def test_a_refused_key_is_an_error_the_field_says(browser, serve):
-    """A status that only reports reads in the dim face, with the status in full in the
-    leaf's peek on pointing at the field. Once the server refuses this tab's key, which
-    asks the user to act, that stands as an error: the field says it in the danger's
-    ink, and the peek over the still pointer says it in full in the status's place. The
-    caret going in leaves it in the field until the user writes."""
+    """A report reads dimly in the field. A refused key asks the user to act, so
+    the field says it as an error and the menu keeps the full status. Focus leaves
+    the error in the field until the user writes."""
     url = serve(LONG_PAGE)
     working(serve.page_dir, "Drafting the rollout")
     page = floating(browser, url)
@@ -2399,14 +2397,19 @@ def test_a_refused_key_is_an_error_the_field_says(browser, serve):
 
     expect(field(page)).to_have_attribute("placeholder", re.compile("^Claude working"))
     page.locator(".lf-fp-field").hover()
-    expect(peek).to_have_text(re.compile("^Claude is working — Drafting the rollout"))
+    expect(peek).to_be_hidden()
 
     page.route("**/api/state*", lambda route: route.fulfill(status=401, body="{}"))
     declare_idle(serve.page_dir)
     expect(field(page)).to_have_attribute("data-says", "error")
     expect(field(page)).to_have_attribute("placeholder", re.compile("^Key refused"))
     assert alpha() > 0.6, "the refused key reads as dim as a report"
-    expect(peek).to_have_text(re.compile("^Key refused — open Leaf's link"))
+    expect(peek).to_be_hidden()
+    page.locator(".lf-fp-leaf").click()
+    expect(page.locator(".lf-fp-menu")).to_contain_text(
+        "Key refused — open Leaf's link in a new tab"
+    )
+    page.keyboard.press("Escape")
     field(page).click()
     expect(field(page)).to_have_attribute("data-says", "error")
     expect(peek).to_be_hidden()
@@ -3187,10 +3190,7 @@ def test_all_pages_in_the_menu_counts_the_pages_it_lists(
         ".lf-fp-menu[data-level=group] .lf-fp-item", has_text="All pages"
     )
     expect(row.locator(".lf-fp-value")).to_have_text("3")
-    write_record(
-        closing_dir / "status.json",
-        {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
-    )
+    declare(closing_dir, "idle")
     told(page)
     expect(row.locator(".lf-fp-value")).to_have_text("2")
 
@@ -4004,20 +4004,9 @@ def test_a_comment_on_words_where_the_page_draws_no_margin_is_written_in_the_row
     # its words stay where they are.
     card = page.locator(".lf-fp-card")
     before = (card.bounding_box(), box.bounding_box())
-    box.evaluate(
-        """(box, encoded) => {
-          const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
-          const transfer = new DataTransfer();
-          transfer.items.add(new File([bytes], 'pasted.png', {type: 'image/png'}));
-          box.dispatchEvent(new ClipboardEvent('paste', {
-            bubbles: true, cancelable: true, clipboardData: transfer,
-          }));
-        }""",
-        base64.b64encode(solid_png(40, 30, (255, 128, 64))).decode(),
-    )
+    paste_image(box, solid_png(40, 30, (255, 128, 64)))
     picture = response.locator(".lf-composer-media-open")
     expect(picture).to_have_count(1)
-    expect(box).not_to_have_attribute("aria-busy", "true")
     assert (card.bounding_box(), box.bounding_box()) == before
     tile = picture.bounding_box()
     assert tile["y"] + tile["height"] <= before[0]["y"], (tile, before)
@@ -4075,26 +4064,57 @@ def test_an_image_pasted_in_the_page_s_field_hangs_above_the_panel(browser, serv
     field(page).click()
     card = page.locator(".lf-fp-card")
     before = card.bounding_box()
-    field(page).evaluate(
-        """(box, encoded) => {
-          const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
-          const transfer = new DataTransfer();
-          transfer.items.add(new File([bytes], 'pasted.png', {type: 'image/png'}));
-          box.dispatchEvent(new ClipboardEvent('paste', {
-            bubbles: true, cancelable: true, clipboardData: transfer,
-          }));
-        }""",
-        base64.b64encode(solid_png(40, 30, (255, 128, 64))).decode(),
-    )
+    paste_image(field(page), solid_png(40, 30, (255, 128, 64)))
     shelf = page.locator(".lf-fp-box .lf-composer-media-item")
     expect(shelf).to_have_count(1)
-    expect(field(page)).not_to_have_attribute("aria-busy", "true")
     assert card.bounding_box() == before
     assert field(page).bounding_box()["width"] > 300
     tile = shelf.bounding_box()
     assert tile["y"] + tile["height"] <= before["y"], (tile, before)
     assert tile["x"] >= field(page).bounding_box()["x"] - 1, tile
     expect(field(page)).not_to_have_attribute("placeholder", re.compile("Image added"))
+
+
+def test_looking_at_an_attached_image_keeps_the_draft_where_it_stands(browser, serve):
+    """The image viewer opened from a draft's attachment stands over the panel, and
+    Escape hands the user back to the attachment: they never left what they were
+    writing, so the page's field keeps Send in its corner and the counts aside, behind
+    the viewer, after it and as they press back into the words, and a rewrite keeps
+    its thread view's height."""
+    page = floating(browser, serve(LONG_PAGE))
+    viewer = page.locator("dialog.lf-media-viewer")
+
+    def look_at(picture):
+        picture.click()
+        expect(viewer).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(viewer).to_be_hidden()
+        expect(picture).to_be_focused()
+
+    write(field(page), "A draft long enough to wrap once the counts stand beside it")
+    paste_image(field(page), solid_png(40, 30, (255, 128, 64)))
+    host = page.locator(".lf-floating-panel")
+    expect(host).to_have_attribute("data-typing", "")
+    words = field(page).bounding_box()
+    look_at(page.locator(".lf-fp-box .lf-composer-media-open"))
+    expect(host).to_have_attribute("data-typing", "")
+    assert field(page).bounding_box() == words
+    field(page).click()
+    assert field(page).bounding_box() == words
+
+    page.keyboard.press("Enter")
+    view = page.locator(".lf-fp-view[data-view=thread]")
+    expect(view.locator(".lf-msg")).to_contain_text("A draft long enough")
+    settled(page)
+    view.locator(".lf-msg-body").dblclick()
+    rewrite = view.locator(".lf-msg-editor leaf-text")
+    expect(rewrite).to_be_focused()
+    paste_image(rewrite, solid_png(40, 30, (64, 128, 255)))
+    settled(page)
+    stood = view.bounding_box()
+    look_at(view.locator(".lf-msg-editor .lf-composer-media-open").last)
+    settled(page)
+    assert view.bounding_box() == stood
 
 
 def test_a_long_draft_fades_where_words_run_past_the_field(browser, serve):

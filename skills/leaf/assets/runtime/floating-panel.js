@@ -1319,9 +1319,15 @@ export function createFloatingPanel({
     if (press?.landed) queueMicrotask(() => judgePress(press));
   });
   const inRewrite = (node) => Boolean(node && closestAcross(node, ".lf-msg-editor"));
+  // A modal over the panel, such as the image viewer opened from a draft's attachment,
+  // is a layer the user steps into from the panel, which hands them back as it closes:
+  // standing in it leaves them writing where they were, so nothing the panel shows for
+  // writing moves behind it and again on the way back.
+  const overPanel = (node) =>
+    Boolean(node) && nativeModalAdmits(node) && !nativeModalAdmits(host);
   onStanding((node, cause) => {
     const top = trail.value.at(-1);
-    if (top?.view !== "thread" || cause === "drop") return;
+    if (top?.view !== "thread" || cause === "drop" || overPanel(node)) return;
     const view = openView();
     const writing = inRewrite(node) && Boolean(view) && renderedUnder(node, view);
     if (writing === rewriting) return;
@@ -3724,9 +3730,11 @@ export function createFloatingPanel({
     },
     true,
   );
-  // Writing begins in the field and lasts while the user stays in the panel, so the
-  // line naming where the words go stays put while they press Resolve or a filter.
+  // Writing begins in the field and lasts while the user stays in the panel, or in a
+  // modal over it (`overPanel`), so the line naming where the words go stays put while
+  // they press Resolve or a filter, or look at an attached image.
   onStanding((node, _cause, left) => {
+    if (overPanel(node)) return;
     // The menu lasts while the user stands in it or on the leaf that opened it, so Tab
     // past its row, or a press in the field, puts it away.
     if (menuOpen.value && node && node !== leaf && !renderedUnder(node, menu))
@@ -3744,7 +3752,7 @@ export function createFloatingPanel({
     paint();
   });
   // A press on the page puts away what stands open above the row. A press in a modal
-  // over the panel, such as the image viewer opened from a draft, is not on the page.
+  // over the panel is not on the page (`overPanel`).
   document.addEventListener(
     "pointerdown",
     (event) => {

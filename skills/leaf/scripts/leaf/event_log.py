@@ -18,36 +18,12 @@ from leaf.files import file_stamp
 from leaf.findings import Finding, Rejected
 from leaf.refusals import Refused
 from leaf.registry.kernel import kernel_event_ownership
-from leaf.schema import CURSOR_FILE
 from leaf.state import (
     EVENTS_FILE,
-    Record,
     flocked,
     now_iso,
-    object_schema,
     replace_bytes,
 )
-
-# The acknowledgement cursor (`read_cursor`).
-CURSOR = Record(
-    "cursor", object_schema({"seq": {"type": "integer", "minimum": 0}}), since=13
-)
-
-
-def read_cursor(page_dir: Path) -> int:
-    """The seq whose receipt is confirmed through; 0 before any.
-
-    A cursor is a position in this log, so one past its end belongs to a log that
-    is gone — what `page init` on a directory whose log was moved or renamed away
-    leaves behind. Nothing the log holds now was acknowledged through that
-    position, so it reads as 0: the events in the replacement log are delivered,
-    and the next `leaf wait --ack` writes a position this log can hold. Trusting the
-    stored seq instead is silent and unbounded — every event the new log ever
-    takes arrives at or below the cursor, so `leaf wait` never returns, the hooks
-    report each comment as already answered, and `leaf wait --ack` writes nothing."""
-    stored = (CURSOR.read(page_dir / CURSOR_FILE) or {"seq": 0})["seq"]
-    events = read_events(page_dir)
-    return 0 if stored > (events[-1]["seq"] if events else 0) else stored
 
 
 def jsonl_line(event: dict) -> str:
@@ -178,11 +154,6 @@ def start_log(page_dir: Path, events: list[dict] = ()) -> None:
         for event in events
     )
     replace_bytes([(page_dir / EVENTS_FILE, stored.encode(), False)])
-
-
-def write_cursor(page_dir: Path, seq: int) -> None:
-    """Confirm receipt through `seq`, under the caller's page transaction."""
-    CURSOR.write(page_dir / CURSOR_FILE, {"seq": seq})
 
 
 def append_event(page_dir: Path, event: dict) -> dict:

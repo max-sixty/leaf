@@ -10,6 +10,7 @@ from interact_support import (
     COMMAND_SUBJECTS,
     PAGE,
     PICKS_PAGE,
+    ROOT,
     SKILL_ROOT,
     _start,
     append_carried_log_record,
@@ -1097,3 +1098,33 @@ def test_the_reference_names_each_field_a_delivered_event_adds():
     declared = items["properties"]["events"]["items"]["properties"]
     assert set(declared) <= named
     assert set(re.findall(r"^- `([a-z_]+)`", listed, re.MULTILINE)) <= set(declared)
+
+
+def test_every_delivery_an_eval_pastes_is_the_envelope_leaf_writes():
+    """An eval case that pastes a delivery scores the shipped instructions against
+    that envelope, so a change to `DELIVERY` fails here until the case is frozen
+    again with `freeze_delivery`."""
+    import yaml
+    from leaf.registry.schema import schema_error, with_leaf_resources
+
+    def strings(value):
+        if isinstance(value, str):
+            yield value
+        elif isinstance(value, dict | list):
+            for item in value.values() if isinstance(value, dict) else value:
+                yield from strings(item)
+
+    pasted = [
+        (case.parent.name, json.loads(line))
+        for case in sorted((ROOT / "evals").glob("*/case.yaml"))
+        for text in strings(yaml.safe_load(case.read_text()))
+        for line in text.splitlines()
+        if line.lstrip().startswith('{"format"') and "leaf-delivery/" in line
+    ]
+    assert pasted
+    for case, envelope in pasted:
+        assert envelope.pop("format") == delivery_model.DELIVERY.format, case
+        error = schema_error(
+            with_leaf_resources(delivery_model.DELIVERY.schema), envelope
+        )
+        assert error is None, f"{case}: {error}"

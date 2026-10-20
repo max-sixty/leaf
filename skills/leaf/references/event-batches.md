@@ -20,7 +20,7 @@ Every transport delivers the same immutable object:
 
 ```json
 {
-  "format": "leaf-delivery/<protocol>",
+  "format": "leaf-delivery/…",
   "id": "a1b2c3d4",
   "created_at": 0,
   "acknowledge": "Whoever ran the `leaf wait` that printed this delivery acknowledges it; …",

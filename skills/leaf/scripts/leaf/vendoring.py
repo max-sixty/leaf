@@ -35,7 +35,6 @@ from .locations import located, locations_overlap, path_is_within, path_location
 from .refusals import Refused
 from .registry.storage import RegistryError, layer_metadata, layer_packages
 from .schema import (
-    CURSOR_FILE,
     LAYER_PLACEHOLDER,
     PACKAGE_DIRS,
     PAGE_OWNED_DIRS,
@@ -49,7 +48,7 @@ from .service import (
     claimant_matches,
     page_claim,
 )
-from .state import EVENTS_FILE, json_bytes
+from .state import EVENTS_FILE, json_bytes, remove_claim
 from .validation.source import check_source
 
 
@@ -449,7 +448,7 @@ def _commit_layer(page_dir: Path, plan: _PagePlan) -> None:
         # A page's claim lives outside its directory. Recreating a deleted path
         # creates a new page, so it must not inherit the deleted page's owner.
         # Re-vendoring an existing page preserves that page and its claim.
-        claim_path(page_dir).unlink(missing_ok=True)
+        remove_claim(claim_path(page_dir))
     for directory in sorted(directories, key=lambda path: len(path.parts)):
         directory.mkdir(exist_ok=True)
     # Stage the whole layer together. The registry is the declaration that
@@ -483,8 +482,4 @@ def _commit_layer(page_dir: Path, plan: _PagePlan) -> None:
     # the page transaction lease. Publish it only after the layer commits, so a
     # failed first write still takes the fresh-init path.
     if fresh:
-        # A log this page starts holds nothing the old one's user acknowledged,
-        # so the acknowledgement position goes with the log it named. Re-vendoring
-        # an existing page keeps both.
-        (page_dir / CURSOR_FILE).unlink(missing_ok=True)
         start_log(page_dir)

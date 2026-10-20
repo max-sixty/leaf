@@ -28,6 +28,7 @@ from leaf.files import revision_path
 from leaf.state import session_record
 from leaf_dev import ROOT, startup
 from leaf_dev.commands import journey, journey_chart, refresh_previews, verify_site
+from leaf_dev.reply_phases import turn_phases
 from process.website_server import (  # noqa: F401
     _no_harness_outlives_its_test_fixture,
     accept_in_turn,
@@ -1233,7 +1234,7 @@ def test_an_agent_turn_splits_into_delivery_model_and_tool_phases():
     ]
     # Delivery ends at the opened pickup, not at the first record the harness sends
     # after admission: a tool result of a turn already running is no delivery.
-    assert journey.turn_phases(stream, comment["ts"], at(0.5), reply["ts"]) == [
+    assert turn_phases(stream, comment["ts"], at(0.5), reply["ts"]) == [
         {"phase": "delivery", "startMs": 0, "ms": 500},
         {"phase": "model", "startMs": 500, "ms": 3500},
         {
@@ -1252,7 +1253,7 @@ def test_an_agent_turn_splits_into_delivery_model_and_tool_phases():
             "calls": ["leaf response reply 62af9e31:0:test-comment"],
         },
     ]
-    assert journey.turn_phases(stream, comment["ts"], None, reply["ts"]) == []
+    assert turn_phases(stream, comment["ts"], None, reply["ts"]) == []
 
 
 def test_the_agent_pass_waits_out_an_allocation_the_rollout_has_not_reached(

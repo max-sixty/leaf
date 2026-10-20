@@ -353,8 +353,9 @@ def test_app_server_events_report_semantic_codex_progress():
         "turn": "turn-live",
         "activity": {"kind": "working", "detail": "Run the browser checks"},
     }
-    # The turn's first agent message opens the reply and streams at once, even as
-    # commentary; the commentary that follows it is working narration and stays private.
+    # The turn's first agent message is its opening, which the reply stream posts as
+    # progress, its own words alone; the commentary that follows it is working narration
+    # and stays private.
     assert events.read(
         {
             "method": "item/completed",
@@ -385,6 +386,7 @@ def test_app_server_events_report_semantic_codex_progress():
             "text": "Checking the page now.",
             "complete": True,
         },
+        "opening": "Checking the page now.",
     }
     assert events.read(
         {
@@ -557,7 +559,7 @@ def test_app_server_events_report_semantic_codex_progress():
             "params": {"threadId": "codex-thread", "turn": {"id": "turn-live"}},
         }
     ) == {"turn": "turn-live", "completed": "completed"}
-    # A committed reply contains the final answer; a turn that never reached one
+    # A committed reply is the final answer alone; a turn that never reached one
     # commits nothing on the strength of its opening.
     opening, narration, final = (
         {"type": "agentMessage", "phase": phase, "text": text}
@@ -567,14 +569,18 @@ def test_app_server_events_report_semantic_codex_progress():
             ("final_answer", "The page is ready for review."),
         )
     )
-    final_text = events.final_text({"items": [opening, narration, final]})
-    assert final_text.endswith(final["text"])
-    assert narration["text"] not in final_text
+    assert events.final_text({"items": [opening, narration, final]}) == final["text"]
     assert events.final_text({"items": [opening, narration]}) == ""
-    # A reconnect mid-turn restores the opening already on screen.
-    assert events.reply_so_far({"items": [opening, narration]}) == (
-        "Checking the page now."
-    )
+    # A reconnect mid-turn says the opening once an item after it shows it complete,
+    # and has no answer to restore yet.
+    snapshot = [{"id": "opening", **opening}, {"id": "narration", **narration}]
+    restored = codex_model.AppServerEvents("codex-thread", "turn-restored")
+    restored.restore_turn({"items": snapshot[:1]})
+    assert restored.said_opening() == ""
+    restored.restore_turn({"items": snapshot})
+    assert restored.said_opening() == opening["text"]
+    assert restored.said_opening() == ""
+    assert events.reply_so_far({"items": snapshot}) == ""
     # Narration after a tool call is never the opening, even with no message before it.
     tool = {"type": "commandExecution", "command": "pytest"}
     assert events.final_text({"items": [tool, narration, final]}) == (

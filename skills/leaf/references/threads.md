@@ -165,9 +165,11 @@ its text becomes the **Working** status in Leaf's panel, so keep it to one line
 ([conversation loop, "When to write"](conversation-loop.md#when-to-write)). In a
 thread that owes no reply, use `leaf thread reply --ephemeral`.
 
-The thread shows the latest progress as one dim working message above its reply box,
-with its author and posting time. Progress never counts as unread. Your next ordinary
-reply takes its place, with the progress folded behind it. Progress carries only text;
+The thread shows the latest progress as one dim working message where you posted it,
+with its author and posting time, so a message the user sends after it follows it.
+Progress never counts as unread. Your next ordinary reply folds the progress just
+before it behind its head; progress the user replied after stays where it was, still.
+Progress carries only text;
 questions, to-dos, markup, anchor moves and failure receipts each need a reply of
 their own.
 

@@ -120,7 +120,9 @@ export function quoteReading(thread, anchors) {
 // a proactive progress message, which takes no request in hand, gives its own words.
 // `live` while the work runs; work whose turn ended or went stale without an answer
 // says so beside its last line. The progress messages behind it are gathered by
-// `withPendingProgress`, and its disclosure shows them. An answer already
+// `withPendingProgress`. It stands where those words were said, after `after`, the
+// last message logged before them (`workingPlace`): as the face of the progress run
+// it follows, or as a face of its own (transcript.js). An answer already
 // streaming at the thread's end is the agent's next word, so the working message gives way to it
 // and the answer's head holds the disclosure, as it will once its fold arrives.
 const STOPPED = new Set(["ended", "stale", "interrupted"]);
@@ -131,6 +133,9 @@ function workingMessage(thread, attention, messages) {
     (message) => message.progress && !covered.has(message.id),
   );
   const said = pending.at(-1)?.body.plainText ?? "";
+  // Where each message was said: its own place in the log, which a later edit of it
+  // leaves; a message the log does not hold yet comes after everything it does.
+  const saidAt = new Map(thread.msgs.map(({ id, seq }) => [id, seq ?? Infinity]));
   const workflows = thread.workflows ?? [];
   const running = workflows.find(
     (workflow) =>
@@ -140,13 +145,21 @@ function workingMessage(thread, attention, messages) {
     (workflow) => STOPPED.has(workflow.condition?.kind) && workflow.detail,
   );
   const todo = thread.todos.find((open) => open.running);
-  const [words, live, condition, agent] = running
-    ? [running.detail || said, true, null, running.agent]
-    : todo
-      ? [todo.running.text, true, null, null]
-      : stopped
-        ? [stopped.detail, false, workflowLabel(stopped), stopped.agent]
-        : [said, false, null, null];
+  const [words, at, live, condition, agent] = running?.detail
+    ? [running.detail, running.detail_seq, true, null, running.agent]
+    : running
+      ? [said, saidAt.get(pending.at(-1)?.id), true, null, running.agent]
+      : todo
+        ? [todo.running.text, todo.running.seq, true, null, null]
+        : stopped
+          ? [
+              stopped.detail,
+              stopped.detail_seq,
+              false,
+              workflowLabel(stopped),
+              stopped.agent,
+            ]
+          : [said, saidAt.get(pending.at(-1)?.id), false, null, null];
   if (!words || (!pending.length && !live && !condition)) return null;
   const agentMessage = messages.findLast((message) => message.author === "agent");
   // A workflow's detail is explicit agent work text linked to its exact input. A
@@ -171,6 +184,7 @@ function workingMessage(thread, attention, messages) {
       : null;
   return Object.freeze({
     who: work?.agent || progress?.by || agent || agentMessage?.by || "Agent",
+    after: messages.findLast((message) => saidAt.get(message.id) <= at).key,
     timestamp,
     age: timestamp ? ago(timestamp) : null,
     words: words.trim().replace(/\.$/, ""),

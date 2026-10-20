@@ -2058,6 +2058,7 @@ function createSemanticApplication({
         stage: "sending",
         ts: turn?.ts ?? null,
         detail: null,
+        detail_seq: null,
         agent: null,
         session: null,
         delivery_seq: null,

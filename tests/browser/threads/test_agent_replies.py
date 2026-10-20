@@ -39,6 +39,7 @@ from browser.threads import (
     append_user_reply,
     claim_for_codex,
     open_panel_thread,
+    reply_by_keyboard,
     stream_reply,
     thread_row,
 )
@@ -1009,3 +1010,166 @@ def test_canceling_a_long_stream_keeps_the_panel_reading(browser, serve, request
     ) == pytest.approx(0, abs=1)
     assert reply.bounding_box()["y"] == pytest.approx(reply_top, abs=1)
     expect(reply).to_have_js_property("value", "Half a thought")
+
+
+# The open thread view's user messages and working message in the order they stand, each
+# user message by its words.
+TRANSCRIPT_ORDER = """view => [...view.querySelectorAll('.lf-msg.user, .lf-thread-working')]
+    .filter((node) => node.checkVisibility())
+    .map((node) => node.matches('.lf-thread-working')
+        ? 'working'
+        : node.querySelector('.lf-msg-text')?.innerText.trim())"""
+
+
+@pytest.mark.watch_shifts
+def test_a_reply_sent_after_progress_stands_below_it(browser, serve, request):
+    """A thread reads in the order its messages were said, and nothing moves above the
+    user's message as the agent goes on. The agent's progress line was said before the
+    user's next message, so that message stands below it, both as the send draws it
+    and once the log holds it; the agent's next step stands below the message, the
+    earlier one staying where it was, still; and the answer folds only the step it
+    follows."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Record the release", {"section": "h-how"})
+    claim_for_codex(serve.page_dir, request)
+    thread_model.post_reply(
+        serve.page_dir,
+        {"parent": root, "responds": root},
+        "Checking the board",
+        ephemeral=True,
+        identity={"agent": "Codex", "session": "codex-thread"},
+    )
+    page = open_page(browser, url)
+    view = reply_by_keyboard(page, root)
+    expect(view.locator(".lf-thread-working")).to_be_visible()
+    page.keyboard.type("And the changelog?")
+    with sending(page, "the reply"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    expect(view.locator(".lf-msg.user", has_text="And the changelog?")).to_be_visible()
+    assert view.evaluate(TRANSCRIPT_ORDER)[-2:] == ["working", "And the changelog?"]
+    told(page)
+    assert view.evaluate(TRANSCRIPT_ORDER)[-2:] == ["working", "And the changelog?"]
+
+    # The agent's next step is said after the user's message, so it stands below it.
+    asked = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "reply" and event["author"] == "user"
+    )
+    thread_model.post_reply(
+        serve.page_dir,
+        {"responds": asked["id"]},
+        "Reading the changelog",
+        ephemeral=True,
+        identity={"agent": "Codex", "session": "codex-thread"},
+    )
+    told(page)
+    assert view.evaluate(TRANSCRIPT_ORDER)[-3:] == [
+        "working",
+        "And the changelog?",
+        "working",
+    ]
+    faces = view.locator(".lf-thread-working")
+    expect(faces.first).not_to_have_attribute("data-lf-live", "")
+    expect(faces.last).to_have_attribute("data-lf-live", "")
+    expect(faces.last).to_have_text(re.compile("Reading the changelog"))
+
+    # The answer folds the step it follows behind its head; the step the user spoke
+    # after stays where it was said.
+    answer = thread_model.post_reply(
+        serve.page_dir,
+        {"responds": asked["id"]},
+        "Recorded, with the changelog.",
+        identity={"agent": "Codex", "session": "codex-thread"},
+    )
+    told(page)
+    expect(view.locator(f'.lf-msg[data-event="{answer["id"]}"]')).to_be_visible()
+    assert view.evaluate(TRANSCRIPT_ORDER)[-2:] == ["working", "And the changelog?"]
+    expect(view.locator(".lf-thread-working")).to_have_text(
+        re.compile("Checking the board")
+    )
+    expect(view.locator(".lf-thread-working")).not_to_have_attribute("data-lf-live", "")
+    expect(
+        view.get_by_role("button", name="Show 1 progress message", exact=True)
+    ).to_be_visible()
+
+
+@pytest.mark.watch_shifts
+def test_progress_the_user_spoke_after_keeps_its_steps_and_its_place(browser, serve):
+    """A run of progress the user spoke after is one no answer folds, so its face
+    offers its earlier steps itself, and a rewrite of the step it shows waits behind the
+    thread's notice where it would move the user's message below it."""
+    url = serve(SEATED_OBLIGATION_PAGE)
+    root = panel_comment(serve.page_dir, "Which job comes first?", {"section": "jobs"})
+    steps = [
+        thread_model.post_reply(
+            serve.page_dir, {"parent": root, "responds": root}, text, ephemeral=True
+        )
+        for text in ("Reading the jobs.", "Comparing the frost dates.")
+    ]
+    asked = append_user_reply(serve.page_dir, root, "And the camera?")
+    thread_model.post_reply(
+        serve.page_dir,
+        {"responds": asked["id"]},
+        "Checking the camera.",
+        ephemeral=True,
+    )
+    page = open_page(browser, url)
+    resized(page, 390, 900)
+    thread = page.locator("#jobs .lf-page-thread")
+    first = thread.locator(f'.lf-msg[data-event="{steps[0]["id"]}"]')
+    expect(first).to_be_hidden()
+    show = thread.get_by_role("button", name="Show 2 progress messages", exact=True)
+    show.press("Enter")
+    expect(first).to_be_visible()
+    thread.get_by_role("button", name="Hide 2 progress messages", exact=True).press(
+        "Enter"
+    )
+    expect(first).to_be_hidden()
+
+    message = thread.locator(".lf-msg.user", has_text="And the camera?")
+    rendered(page)
+    box = message.bounding_box()
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "edit",
+            "author": "agent",
+            "agent": "Codex",
+            "session": "pytest",
+            "message": steps[1]["id"],
+            "text": "Comparing the frost dates for the mounts, the bird bath and the "
+            "camera, and what each one needs before it can start.",
+        },
+    )
+    told(page)
+    notice = thread.get_by_role("button", name="1 message edited", exact=True)
+    expect(notice).to_be_visible()
+    rendered(page)
+    assert message.bounding_box() == pytest.approx(box, abs=0.5)
+    notice.click()
+    expect(thread.locator(".lf-thread-working").first).to_contain_text("bird bath")
+
+    # Opened, the run shows the step itself above its face, which can stand below the
+    # window while the step shows; a rewrite of it holds the same.
+    show.press("Enter")
+    expect(first).to_be_visible()
+    resized(page, 390, 540)
+    page.evaluate("scrollTo(0, 0)")
+    rendered(page)
+    box = message.bounding_box()
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "edit",
+            "author": "agent",
+            "agent": "Codex",
+            "session": "pytest",
+            "message": steps[1]["id"],
+            "text": "Comparing the frost dates.",
+        },
+    )
+    told(page)
+    expect(notice).to_be_visible()
+    rendered(page)
+    assert message.bounding_box() == pytest.approx(box, abs=0.5)

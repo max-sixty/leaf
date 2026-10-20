@@ -203,9 +203,10 @@ This harness already serves the page in your working directory and delivers its
 input through Codex App Server. The `leaf` command takes `.` as the page path.
 
 Answer questions in the conversation; change the document only when the request
-calls for a page edit. Your opening commentary and final answer appear together
-as your reply to the user. If you need to read first, a brief acknowledgement
-tells them what you are checking; an immediate answer needs no preamble.
+calls for a page edit. Your opening commentary shows in the thread at once as your
+progress line, and your final answer is your reply to the user. If you need to read
+first, a brief acknowledgement tells them what you are checking; an immediate
+answer needs no preamble.
 
 This page is the scope of your work. Use its normal Leaf controls. Saving valid
 index.html publishes its revision. Leave status to the harness: it projects your
@@ -471,8 +472,8 @@ class HostedTurn(CarriedTurn):
     page has stopped watching is not left running.
 
     Boundary readings also enter the page's private diagnostic log. Completed reply
-    updates retain exactly the text published, including an opening later replaced
-    by a final answer; public operator records remain content-free. The follower's
+    updates retain exactly the text published, the opening's and the final answer's;
+    public operator records remain content-free. The follower's
     final record comes after cleanup and continuation, not just provider completion.
     """
 
@@ -603,7 +604,10 @@ class HostedTurn(CarriedTurn):
     def observe_reply(self, update: dict | None, published: bool) -> None:
         """Record published reply milestones, keeping text in private diagnostics."""
         message_update = update.get("message") if update is not None else None
-        if published and message_update is not None and bool(message_update["text"]):
+        if published and (
+            update.get("opening")
+            or (message_update is not None and bool(message_update["text"]))
+        ):
             self.milestone(
                 "turn_reply_first_text_published",
                 durationMs=self.elapsed(),

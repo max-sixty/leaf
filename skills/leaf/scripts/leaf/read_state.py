@@ -21,11 +21,12 @@ shows the user what the thread says, so neither is evidence here. An update the 
 took back is no evidence either, as it is none for every other fold over the
 current log.
 
-A progress message (`ephemeral`) is never unread. While its update is in hand the
-thread draws it as its one working message, not as a reply, and once the next
-ordinary agent reply supersedes it (`events.progress_completions`) it folds behind
-that reply, which itself needs read evidence. Neither is something the user reads in
-order to keep up, so neither pulls them back to the thread. An edit to other content
+A progress message (`ephemeral`) is never unread. The thread draws its run as one
+dim line, the working message while its update is in hand, not as a reply, and once
+the next ordinary agent reply supersedes it (`events.progress_completions`) it folds
+behind that reply, which itself needs read evidence, unless the user spoke after it.
+Neither is something the user reads in order to keep up, so neither pulls them back
+to the thread. An edit to other content
 is a new version needing fresh evidence. An explicit summary
 does not mark read what it covers. Unread is independent of turn-taking and of the
 user's outstanding work: reading never answers an obligation, and answering one does

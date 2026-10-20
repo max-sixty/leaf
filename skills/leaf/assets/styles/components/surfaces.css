@@ -746,19 +746,20 @@ summary {
   font: 600 11px/1.4 var(--sans);
   cursor: pointer;
 }
-/* Progress belongs to the completing reply's metadata, with no summary row.
-   Flex wrapping keeps its complete label and hit target at narrow widths. */
-.lf-msg-head:has(> .lf-summary-expand) {
+/* Progress belongs to the completing reply's metadata, or to the face of a run no
+   reply folds, with no summary row. Flex wrapping keeps its complete label and hit
+   target at narrow widths. */
+:is(.lf-msg-head, .lf-thread-working-head):has(> .lf-summary-expand) {
   flex-wrap: wrap;
   overflow: visible;
   white-space: normal;
   row-gap: 0;
 }
-.lf-msg-head > .lf-thread-disclosure {
+:is(.lf-msg-head, .lf-thread-working-head) > .lf-thread-disclosure {
   padding-block: 0;
 }
 /* The age can change without a gesture; keep its progress control at the row end. */
-.lf-msg-head > .lf-progress-expand {
+:is(.lf-msg-head, .lf-thread-working-head) > .lf-progress-expand {
   margin-inline-start: auto;
 }
 .lf-thread-disclosure:hover {
@@ -776,13 +777,13 @@ summary {
 .lf-summary-originals > .lf-msg {
   margin-block: 8px;
 }
-/* The working message: the step of work in hand, at the transcript's foot just above
-   the reply box. It takes a message's head and body faces, but its words stay dim, and
-   while the work runs a sheen passes over them, as over a title being generated, so a
-   step reads as work under way rather than as a reply. Its words wrap as a message's
-   do, so the whole step shows however narrow the surface. Its arrival, its departure
-   and a new step that replaces its words are held when they would move what the
-   reader sees (held-news.js). */
+/* A progress run's face, the working message among them: its latest step, where it
+   was said (thread/transcript.js). It takes a message's head and body faces, but its
+   words stay dim, and while the work runs a sheen passes over them, as over a title
+   being generated, so a step reads as work under way rather than as a reply. Its words
+   wrap as a message's do, so the whole step shows however narrow the surface. Its
+   arrival, its departure and a new step that replaces its words are held when they
+   would move what the reader sees (held-news.js). */
 .lf-thread-working {
   margin-top: 16px;
 }

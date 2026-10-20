@@ -363,8 +363,9 @@ def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:
     Summaries replace overlapping summaries whole. Editing a covered message
     invalidates a summary containing prose. A fold without prose keeps showing the
     revised originals. Progress messages acquire a fold when the next ordinary
-    agent reply arrives. Explicit summaries own any overlap with these derived
-    folds; no extra event is written. The original messages remain the authority.
+    agent reply arrives, unless the user spoke after them. Explicit summaries own any
+    overlap with these derived folds; no extra event is written. The original messages
+    remain the authority.
     """
     edits = {}
     written = {}
@@ -413,15 +414,24 @@ def progress_completions(thread: dict) -> dict[str, dict]:
 
 
 def _ephemeral_ranges(thread: dict, covered: set) -> list[dict]:
-    """Contiguous completed progress outside explicit summaries, split by conversation.
+    """Contiguous completed progress outside explicit summaries that the reply
+    completing it follows with nothing the user said between them.
+
+    A thread reads in the order it was said, so progress the user spoke after stays
+    where it stood: their message followed it, and folding it into a later answer would
+    take it from above their message, moving what they read. Rejected: folding every
+    run an answer completes, which either moved the user's message or held the answer
+    they waited for behind a notice.
 
     The completing reply is also the presentation dependency: a renderer holding
     that reply must hold its folds with it.
     """
     completed = progress_completions(thread)
+    turns = spoken_turns(thread)
+    positions = {message["id"]: index for index, message in enumerate(turns)}
     ranges = []
     for reply, messages in groupby(
-        spoken_turns(thread),
+        turns,
         key=lambda message: (
             None if message["id"] in covered else completed.get(message["id"])
         ),
@@ -429,6 +439,9 @@ def _ephemeral_ranges(thread: dict, covered: set) -> list[dict]:
         if reply is None:
             continue
         group = list(messages)
+        between = turns[positions[group[-1]["id"]] + 1 : positions[reply["id"]]]
+        if any(message["author"] == "user" for message in between):
+            continue
         ranges.append(
             {
                 "id": f"ephemeral:{group[0]['id']}:{reply['id']}",

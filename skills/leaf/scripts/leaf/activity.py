@@ -439,6 +439,7 @@ def _canonical_workflows(
                 stage = item["fallback_stage"]
                 item["ts"] = item["fallback_ts"]
                 item["detail"] = None
+                item["detail_seq"] = None
                 item["agent"] = None
                 item["session"] = None
                 item["activity"] = []

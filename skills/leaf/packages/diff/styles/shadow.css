@@ -261,14 +261,14 @@
 }
 /* The file comment is a sibling of its disclosure, so each keeps its own action.
    Both follow the sticky header; the shared height reserves the comment's square.
-   The files the filter shows are one list in one frame: each draws its top edge on the
+   The files the filter shows are one bordered list: each draws its top edge on the
    hairline above it, and only the list's two ends keep their corners (the radii here,
    which the file's box reads). A card a file, 8px apart, made forty-six files forty-six
    boxes of one line each. A file's own conversations hang under it in their own box
-   (.lf-diff-file-thread-outlet), so that file ends the list's frame and the next starts
-   another 8px below. That reads the file just before, so where the filter hides the
-   files between a file with conversations and the next one it shows, that next one
-   still joins on (no selector reads the nearest shown file before another). */
+   (.lf-diff-file-thread-outlet), so that file ends a run of the list and the next file
+   shown starts another 8px below. The widget marks where each run starts and ends
+   (`markRuns`, lf-diff.js), since the nearest shown file before another, past those
+   the filter hides, is not something a selector can read. */
 .lf-diff-file {
   position: relative;
   display: flow-root;
@@ -288,13 +288,11 @@
                    bar of presses where that stands taller, as under a finger. */
   --lf-diff-head-h: 35px;
 }
-.lf-diff-file:nth-child(1 of .lf-diff-file:not(.lf-diff-filtered)),
-.lf-diff-file:has(> .lf-diff-file-thread-outlet) + .lf-diff-file {
+.lf-diff-run-start {
   margin-top: 8px;
   --lf-diff-r-start: var(--r);
 }
-.lf-diff-file:nth-last-child(1 of .lf-diff-file:not(.lf-diff-filtered)),
-.lf-diff-file:has(> .lf-diff-file-thread-outlet) {
+.lf-diff-run-end {
   --lf-diff-r-end: var(--r);
 }
 .lf-diff-file:has(> .lf-diff-file-actions > *) {

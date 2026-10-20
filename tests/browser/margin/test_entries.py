@@ -767,6 +767,7 @@ def test_lit_inline_margin_projection_keys_controls_inside_thread_chrome(
     }
 
 
+@pytest.mark.watch_shifts
 def test_the_feature_gallery_s_margin_atlas_and_layer_samples(browser, serve):
     """The gallery draws every kind of margin entry at once, and opening it is the
     suite's most expensive page open, so its readings share one page: the unchanged

@@ -99,12 +99,14 @@
 // the frame after one that read an announced change, since native anchoring
 // follows its scroller a frame late. Each announcement is made in the task of the
 // change it covers: DOM writes in the document and every shadow root; a running
-// animation anywhere in the composed tree, or one that stopped or left the set;
-// input, focus, scroll, drag, resize, load, reset and beforetoggle events; the
-// emulated media tests change; this frame's own visibility; and the calls that
-// restyle without a DOM write (custom states, constructed and adopted sheets,
-// form-control values and ranges, animation mutators). A child cannot observe every
-// change in its embedding page, so child-frame readings remain complete. Every
+// animation anywhere in the composed tree, or one that stopped or left the set,
+// except a scroll-driven one, which moves only as the scroll and layout announced
+// here move it; input, focus, scroll, drag, resize, load, reset and beforetoggle
+// events; the emulated media tests change; this frame's own visibility; and the
+// calls that restyle without a DOM write (custom states, constructed and adopted
+// sheets, form-control values and ranges, animation mutators). A child cannot
+// observe every change in its embedding page, so child-frame readings remain
+// complete. Every
 // VERIFY-th unannounced frame, and the first one once the fixture asks for the test's
 // verdict, reads completely and fails where any reading differs, naming the innermost
 // node that changed, so a source missing from this list is found rather than
@@ -870,12 +872,19 @@
     const nativeCameras = readCameras(selections);
     readMotion(at);
     // A running animation changes poses on every frame, and the frame after it stops
-    // or leaves the set settles the last of them.
+    // or leaves the set settles the last of them. A scroll-driven one moves only as
+    // its scroller scrolls or its layout changes, which announce themselves, so it
+    // reads completely only on those frames, as the contents' window does in lf-toc.
     const animations = allAnimations();
-    const running = animations.some(({ playState }) => playState === "running");
+    const running = animations.some(
+      ({ playState, timeline }) =>
+        playState === "running" &&
+        !(typeof window.ScrollTimeline === "function" && timeline instanceof ScrollTimeline),
+    );
     if (writes.takeRecords().length) unread = true;
-    // An embedding page can hide this document's frame without telling it.
-    const drawn = drawing();
+    // A child frame reads completely on every frame, since its embedding page can
+    // hide or move it without telling it; only a hidden tab announces itself here.
+    const drawn = !document.hidden;
     const announced =
       unread ||
       window !== top ||
@@ -1291,6 +1300,7 @@
   // Shifts whose frame has no reading after it yet.
   const waiting = [];
   const tick = (time) => {
+    presentationChanged();
     const at = read(time);
     if (open) {
       // Effects begun before news retain their exact property evidence below.
@@ -1362,9 +1372,10 @@
     );
   });
   // Resizing and media preferences change the browser's presentation. Their new
-  // state is the fact: layout can precede the native event, and a shift record
-  // delivered between them already reads the new presentation, so the observer checks
-  // it before reading. The preceding pose seals typing; taking a new pose here would
+  // state is the fact: layout can precede the native event, as when an embedding page
+  // resizes a frame and the frame lays out and paints before its resize event, so each
+  // frame checks it before reading, and so does the observer before a shift record
+  // delivered meanwhile. The preceding pose seals typing; taking a new pose here would
   // attribute the presentation change to the key.
   const presentationState = () => [
     innerWidth,
@@ -1425,6 +1436,14 @@
     listen(held, "pointercancel", (event) => presses.delete(event.pointerId), true);
     if (view === view.parent) break;
   }
+  // An embedding page this document cannot read, as an opaque sample's host is, sends
+  // its input here only as work its port carries under that input's source, which
+  // input_work_watch.js marks `carried`. The first such work opens the input's
+  // rendering here, as hearing the input would have.
+  window.lfInputWork.subscribe((source) => {
+    if (source?.carried && !inputRenderings.has(source.event))
+      begin(nativePerformance.now(), null, new Set(), source.event);
+  });
   // Each finding goes to the fixture as a record (`leaf/findings.py` words it),
   // once per `key`, with every node in it named.
   const reported = new Set();
@@ -2605,14 +2624,6 @@
     );
   };
   checkpoint();
-  const drawing = () => {
-    if (document.hidden) return false;
-    // Frame-owner visibility belongs to the driver, which can read across
-    // origins and refreshes this fact while draining. A document's ancestor
-    // window walk can lose access when a same-origin blank frame is sandboxed.
-    if (window.lfWatchJudgement?.ancestorsDrawn === false) return false;
-    return true;
-  };
   // The fixture awaits actual paint and observer drainage. An outer hang watchdog
   // may fail this wait; no elapsed-time fallback can turn unfinished paint green.
   window.lfShiftsJudged = () => {
@@ -2620,36 +2631,61 @@
     // periodic check still has its last change compared.
     quiet = VERIFY - 1;
     const through = nativePerformance.now();
-    const hidden = () => {
-      // Hidden documents have no pending native paint. Their existing records are
-      // still judged against a fresh pose; visibility is a fact, not a time limit.
+    // A document nobody can see has no paint pending on screen: Chrome stops
+    // rendering a hidden tab, and a child frame its embedding page hides, clips or
+    // scrolls out of the viewport, as it does a gallery's samples below the fold.
+    // Its existing records are still judged against a fresh pose; whether it is on
+    // screen is a native fact, not a time limit.
+    const unseen = () => {
       read(nativePerformance.now());
       drained(through);
     };
-    if (!drawing()) {
-      hidden();
+    if (document.hidden) {
+      unseen();
       return Promise.resolve();
     }
     return new Promise((resolve) => {
       let complete = false;
-      let visibilityTask;
+      const leftScreen = () => {
+        if (complete) return;
+        try {
+          unseen();
+        } finally {
+          finish();
+        }
+      };
+      const tabHidden = () => {
+        if (document.hidden) leftScreen();
+      };
+      // Intersection with the top-level viewport covers every way an embedding page
+      // takes a frame off screen, across origins, and Chrome delivers it to a frame
+      // whose rendering it has stopped. It is read through a box the watch stands
+      // over the frame's own viewport while it waits, since the root's box can scroll
+      // out of that viewport, as a live page's does. Its first entry reports the
+      // present state.
+      let screen = null;
+      let onScreen = null;
+      if (window !== top) {
+        screen = document.createElement("lf-shift-screen");
+        screen.style.cssText =
+          "all:initial;position:fixed;inset:0;visibility:hidden;pointer-events:none";
+        cameraNodes.add(screen);
+        document.documentElement.append(screen);
+        onScreen = new IntersectionObserver((entries) => {
+          if (!entries.at(-1).isIntersecting) leftScreen();
+        });
+        onScreen.observe(screen);
+      }
       const finish = () => {
         if (complete) return;
         complete = true;
-        window.lfWatchPlatform.cancelLater(visibilityTask);
+        onScreen?.disconnect();
+        screen?.remove();
+        cameraNodes.delete(screen);
+        document.removeEventListener("visibilitychange", tabHidden);
         resolve();
       };
-      // Display can change through CSSOM, media queries or ancestor layout without
-      // a DOM mutation or visibility event. Poll its platform fact while paint is
-      // pending; the interval schedules a reading and never decides the result.
-      const visibility = () => {
-        if (complete) return;
-        if (!drawing()) {
-          hidden();
-          finish();
-        } else visibilityTask = nativeTask(visibility, 100);
-      };
-      visibilityTask = nativeTask(visibility, 100);
+      document.addEventListener("visibilitychange", tabHidden);
       nativeFrame(() =>
         nativeFrame(() =>
           nativeTask(() => {

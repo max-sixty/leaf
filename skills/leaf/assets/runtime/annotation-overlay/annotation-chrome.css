@@ -64,11 +64,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
 @scope (.lf-chrome) {
   /* The hand only where the press lands. An element anchor draws its contour
      wherever its element stands, the layer's own parts included — that is what lets
-     a design comment about the banner point at the banner, and a thread about a
+     a design comment about the panel point at the panel, and a thread about a
      question an agent asked in a reply point at the question. What the mark may
      not do here is offer the hand: markAt refuses a press inside this container on
-     purpose, because what the container holds keeps its own presses — the Threads
-     button opens the panel, an option takes a pick, and neither opens a thread. So
+     purpose, because what the container holds keeps its own presses — a panel mark
+     opens its view, an option takes a pick, and neither opens a thread. So
      the contour goes on saying which element, and stops promising a click nothing
      takes. Scoped rather than written at document level, where it would widen the
      shared vocabulary by this container's own class. Design mode's rules outside
@@ -96,10 +96,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   }
   /* Placement fits the finished thread before typing: the frame reserves the card's
      header and reply rows around the editor, and is at least as wide as the card
-     (`--thread-card-min`), so Send swaps the box for its card in place. Its tracks
-     shrink into that frame, including beside attached media. Offered on a selection,
-     only the editor paints, and the transparent rows neither take document flow nor
-     intercept presses. */
+     (`--thread-card-min`), so the card Send opens stands in the frame and grows out of
+     the field (`.lf-margin-preview[data-lf-grows]`). Only the editor paints; the
+     transparent rows neither take document flow nor intercept presses. Its tracks
+     shrink into that frame, and attached images stand in its header row. */
   .lf-fab-bar:not([data-lf-target-only], [data-lf-presentation="inline"]) {
     box-sizing: border-box;
     /* An auto-height positioned box borrows its inset-modified available height.
@@ -115,7 +115,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     grid-template-rows: minmax(var(--lf-response-height), 1fr);
     grid-auto-rows: auto;
     align-items: end;
-    max-height: var(--lf-float-h, calc(100vh - var(--lf-banner-h) - 16px));
+    max-height: var(--lf-float-h, calc(100vh - var(--lf-head-room) - 16px));
     max-width: var(--lf-comment-frame-max-width);
     padding: var(--lf-comment-frame-top) var(--lf-comment-frame-inline)
       var(--lf-comment-frame-bottom);
@@ -131,50 +131,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   }
   .lf-fab-bar > * {
     pointer-events: auto;
-  }
-  /* Being written, focused or holding words, the box paints its frame as the card it
-     becomes, so the window's edge it meets, rising a line at a time, is the edge it
-     shows. The user asked (2026-10-18) for the box to match its card: with only the
-     editor painted, the box rose while the room below it looked free, and letting the
-     unpainted reply row hang past the window's edge instead (#3139) moved the words at
-     Send. Its rows are the box's grip, as a card's padding is (`.lf-surface-grip`).
-     The paint opens out of the field when writing starts, as the card once opened out
-     of the box at Send. It stands on its own layer beneath the box, so the growth moves
-     only paint: no word moves, and the box takes presses in its whole frame from the
-     start. Every edge reaches the box's together; the clip then opens past
-     `--raise-3`'s reach (48px), so the shadow is whole when the clip lifts. The layer
-     keeps its raster while a scroll carries the box out of the window: rastered again
-     on its return, the shadow missed the frame that brought the box's words back. */
-  .lf-fab-bar:not([data-lf-target-only], [data-lf-presentation="inline"]):is(
-      [data-lf-focus-within],
-      :has(.lf-fab-input:not(:state(placeholder-shown)))
-    )::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    border-radius: 10px;
-    background: var(--paper);
-    box-shadow:
-      inset 0 0 0 1px var(--border-2),
-      var(--raise-3);
-    pointer-events: none;
-    will-change: transform;
-    animation: lf-comment-grow 240ms ease;
-  }
-  @keyframes lf-comment-grow {
-    from {
-      clip-path: inset(
-        var(--lf-comment-frame-top) var(--lf-comment-frame-inline)
-          var(--lf-comment-frame-bottom) round var(--r)
-      );
-    }
-    85% {
-      clip-path: inset(0 round 10px);
-    }
-    to {
-      clip-path: inset(-48px round 58px);
-    }
   }
   .lf-fab-bar {
     position: fixed;
@@ -210,18 +166,35 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     grid-column: 1 / -1;
     grid-row: 2;
   }
-  .lf-fab-bar:not([data-lf-presentation="inline"]):has(
-      .lf-composer-media:not([hidden])
-    ) {
-    grid-template-columns: auto minmax(0, 1fr);
+  /* Attached images stand in the header row the frame keeps for the card's author line,
+     over the field's start, so attaching neither widens the box nor moves a word, as
+     the floating panel hangs its shelf over its card (floating-panel.css). The pictures
+     fill that row down to the message body's gap above the field, from 7px under the
+     frame's top, which keeps each picture's removal mark inside the placed frame. The
+     shelf's padding, which holds their shadows and removal reach (response.css), is
+     taken back by its offsets. Only the pictures take presses, so the padding over page
+     text takes none. */
+  .lf-fab-bar:not([data-lf-presentation="inline"])
+    .lf-composer-media:not([hidden], :has(> .lf-composer-drawing)) {
+    --lf-media-h: calc(var(--lf-comment-frame-top) - var(--lf-msg-body-gap) - 7px);
+    position: absolute;
+    /* Out of the grid, so its offsets read from the box's edge, not the field's cell. */
+    grid-area: auto;
+    inset-block-start: calc(7px - var(--lf-media-room));
+    inset-inline-start: calc(var(--lf-comment-frame-inline) - var(--lf-media-room));
+    max-width: calc(
+      100% - 2 * var(--lf-comment-frame-inline) + 2 * var(--lf-media-room)
+    );
+    margin: 0;
+    pointer-events: none;
   }
-  .lf-fab-bar:not([data-lf-presentation="inline"]):has(.lf-composer-media:not([hidden]))
-    .lf-compose-field {
-    grid-column: 2;
+  .lf-fab-bar:not([data-lf-presentation="inline"])
+    .lf-composer-media:not([hidden], :has(> .lf-composer-drawing))
+    > * {
+    pointer-events: auto;
   }
-  /* A drawing's tile carries its undo and removal, more than the field's side of a
-     card-wide bar can spare under a finger, so a shelf holding one takes a row of its
-     own above the field. */
+  /* A drawing's picture stands taller than the header row, so a shelf holding one
+     takes a row of its own above the field. */
   .lf-fab-bar:not([data-lf-presentation="inline"]):has(
       .lf-composer-media:not([hidden]) > .lf-composer-drawing
     ) {
@@ -281,17 +254,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     height: 100%;
     overflow: hidden;
   }
-  .lf-fab-bar:not([data-lf-presentation="inline"]) .lf-composer-media {
-    grid-column: 1;
-    grid-row: 1;
-    min-width: 42px;
-  }
   /* thread-preview.js writes the width and height cap the card's placement gives it
      (comment-placement.js); these are the fallbacks for a card no placement has sized
      yet, so only they are held to the viewport. The selected thread's transcript is
      the card's reading scroller; metadata and reply stand outside it. Anchored to what
-     it is about, it moves with the words (floating.js), and passes under the banner
-     and the bottom bar the way they do. Its insets are its placement's alone:
+     it is about, it moves with the words (floating.js), and passes under the floating
+     panel the way they do. Its insets are its placement's alone:
      floating.js writes the edges that hold it and clears the others, so an edge the
      stylesheet set would stretch a card held by its foot. */
   .lf-margin-preview {
@@ -303,7 +271,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     width: max-content;
     min-width: var(--lf-thread-min-width, 0);
     max-width: var(--lf-thread-width, min(var(--thread-card), calc(100vw - 16px)));
-    max-height: var(--lf-thread-max-height, calc(100vh - var(--lf-banner-h) - 16px));
+    max-height: var(--lf-thread-max-height, calc(100vh - var(--lf-head-room) - 16px));
     box-sizing: border-box;
     overflow: hidden;
     scroll-padding-block: var(--focus-ring-room);
@@ -337,19 +305,60 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-margin-preview-close {
     flex: none;
   }
+  /* A reading region the card stands in cuts it at the region's edge
+     (thread-preview.js, `placeThreadPreview`); with no region the cuts are unset, and
+     the declaration with them, so nothing clips the card. */
+  .lf-margin-preview {
+    clip-path: inset(
+      var(--lf-cut-top) var(--lf-cut-right) var(--lf-cut-bottom) var(--lf-cut-left)
+    );
+  }
+  /* A card Send opened grows out of the comment box it replaces (thread-preview.js,
+     `growOut`). The box paints only its field while it is written: the user preferred
+     (2026-10-19) a field that opens into its card at Send to a box painted as the card
+     throughout (#3157). The box's frame and the card share their corner, width and
+     height, so the clip opens from the field, which stands the frame's insets inside the
+     card, to the card's edge, then past `--raise-3`'s reach (48px), so the shadow is
+     whole when the clip lifts. The card is whole beneath the clip from the first frame,
+     so no word moves. Each edge stops at the region's cut, so the growth never paints
+     past the region the card stands in. */
+  .lf-margin-preview[data-lf-grows] {
+    animation: lf-comment-grow 240ms ease;
+  }
+  @keyframes lf-comment-grow {
+    from {
+      clip-path: inset(
+        max(var(--lf-comment-frame-top), var(--lf-cut-top, -48px))
+          max(var(--lf-comment-frame-inline), var(--lf-cut-right, -48px))
+          max(var(--lf-comment-frame-bottom), var(--lf-cut-bottom, -48px))
+          max(var(--lf-comment-frame-inline), var(--lf-cut-left, -48px)) round var(--r)
+      );
+    }
+    85% {
+      clip-path: inset(
+        max(0px, var(--lf-cut-top, -48px)) max(0px, var(--lf-cut-right, -48px))
+          max(0px, var(--lf-cut-bottom, -48px)) max(0px, var(--lf-cut-left, -48px))
+          round 10px
+      );
+    }
+    to {
+      clip-path: inset(
+        var(--lf-cut-top, -48px) var(--lf-cut-right, -48px) var(--lf-cut-bottom, -48px)
+          var(--lf-cut-left, -48px) round 10px
+      );
+    }
+  }
   /* A floating comment surface is carried by its edge (surface-grip.js): a band
      `--lf-grip-out` outside its box and `--lf-grip-in` inside, cut out of a box over
      the surface by an even-odd clip, which also bounds where it takes a press, so the
      surface's own controls and words keep theirs. The card's band is its padding,
      inside the border its overflow clips at; the comment box's hugs its field, whose
-     inside is the caret's, from outside. Once the box paints its frame, the grip is the
-     whole frame stacked beneath the box's controls, so it takes every press they
-     don't, wherever a short window lets them borrow the reserved rows. The band paints
-     nothing: the pointer on it takes the grab cursor and, after a beat, the surface's
-     own border takes the accent, so a pointer crossing the band to a control inside
-     flashes nothing. It used to tint the whole band, which on the card lit a 12px
-     frame at every crossing. A focused field's ring already stands in the unpainted
-     box's border, so there the cursor alone shows the grip. */
+     inside is the caret's, from outside. The band paints nothing: the pointer on it
+     takes the grab cursor and, after a beat, the surface's own border takes the
+     accent, so a pointer crossing the band to a control inside flashes nothing. It
+     used to tint the whole band, which on the card lit a 12px frame at every crossing.
+     A focused field's ring already stands in the box's border, so there the cursor
+     alone shows the grip. */
   .lf-surface-grip {
     --lf-grip-out: 0px;
     --lf-grip-in: var(--lf-comment-inset);
@@ -383,15 +392,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     border-color: color-mix(in srgb, var(--accent) 55%, var(--border-2));
     transition: border-color 0.1s 0.15s;
   }
-  .lf-fab-bar:is(
-      [data-lf-focus-within],
-      :has(.lf-fab-input:not(:state(placeholder-shown)))
-    ):is(:has(> .lf-surface-grip:hover), [data-lf-carried])::before {
-    box-shadow:
-      inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, var(--border-2)),
-      var(--raise-3);
-    transition: box-shadow 0.1s 0.15s;
-  }
   [data-lf-carried],
   [data-lf-carried] * {
     cursor: grabbing;
@@ -408,16 +408,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     .lf-fab-bar > .lf-surface-grip {
       --lf-grip-out: 12px;
     }
-  }
-  .lf-fab-bar:not([data-lf-target-only], [data-lf-presentation="inline"]):is(
-      [data-lf-focus-within],
-      :has(.lf-fab-input:not(:state(placeholder-shown)))
-    )
-    > .lf-surface-grip {
-    inset: 0;
-    clip-path: none;
-    z-index: -1;
-    border-radius: 10px;
   }
   /* A target-only box is not carried; one seated in a widget hides its grip in that
      widget's tree (response.css). */
@@ -486,15 +476,24 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      Bodies keep both tracks; each sticky head stops at the actions without copying
      their measured width into every message. */
   .lf-margin-thread .lf-thread-transcript > *,
-  .lf-margin-thread :is(.lf-thread-checkpoint, .lf-summary-originals) > * {
+  .lf-margin-thread
+    :is(.lf-thread-checkpoint, .lf-summary-checkpoint, .lf-summary-originals)
+    > * {
     grid-column: 1 / -1;
   }
   .lf-margin-thread
-    :is(.lf-msg, .lf-thread-checkpoint, .lf-summary-originals):not([hidden]) {
+    :is(
+      .lf-msg,
+      .lf-thread-checkpoint,
+      .lf-summary-checkpoint,
+      .lf-summary-originals
+    ):not([hidden]) {
     display: grid;
     grid-template-columns: subgrid;
   }
-  .lf-margin-thread .lf-msg-head {
+  /* A summary's head is a head too: one opening the transcript stands under the
+     actions, which would otherwise cover its disclosure on a narrow card. */
+  .lf-margin-thread :is(.lf-msg-head, .lf-summary-header) {
     grid-column: 1;
   }
   .lf-margin-thread .lf-msg-body {

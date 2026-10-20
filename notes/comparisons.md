@@ -74,8 +74,8 @@ Opaque widget JSON persistence does not prove that a decision keeps its meaning.
 **Page-level threads.** I operated [Agentation's toolbar](https://www.agentation.com/)
 and contextual composer, typed a local draft, and dismissed it without sending.
 Plannotator's [global composer mode](https://github.com/backnotprop/plannotator/blob/main/packages/ui/components/CommentPopover.tsx)
-shares draft machinery. Leaf's banner “Comment on the page” opens a creation card
-owned by [page-comment.js](../skills/leaf/assets/runtime/thread/page-comment.js);
+shares draft machinery. Leaf starts a page thread in the floating panel's comment
+field ([floating-panel.js](../skills/leaf/assets/runtime/floating-panel.js)), and
 Threads holds continuation. That separation landed in
 [PR #1930](https://github.com/max-sixty/leaf/pull/1930). Recovery of a global
 conversation among anchored threads remains a usability question.
@@ -105,7 +105,7 @@ dense-prose fallback. No replacement policy was implemented or demonstrated.
 
 Proposals first checked against Leaf `486180b51888d8dd46584f6c84e3d2a96f2035cb`,
 then rechecked against `532be8f718f6a2f3bdf1391f936a4778fcf5735f` on October 5.
-IDs match the live report. Existing task starts, the On panel's Done list,
+IDs match the live report. Existing task starts, the On view's Done list,
 persistence, free HTML, general composing, constrained panels and CSS-anchor
 following are the baseline, not proposed additions.
 
@@ -115,17 +115,17 @@ following are the baseline, not proposed additions.
   sends empty user input and a structured `leaf_delivery` tool result. Desktop
   access and rendering remain unverified. Prove agent wake-up and exact
   input/reply identity while keeping automatic user-message text out of chat.
-- **#4 — Make finished task results easy to read.** The On panel already
+- **#4 — Make finished task results easy to read.** The On view already
   lists ended tasks under Done with their outcome. Their detail is in the row's
   native tooltip; show it as visible text or a disclosure usable by a finger.
   Test whether readers find the result after the active count drops. Retain
   navigation to an existing thread where one belongs to the task, including
-  resolved threads. Page and widget tasks may have no thread, so the On panel
+  resolved threads. Page and widget tasks may have no thread, so the On view
   remains their result route. This displays the logged outcome rather than creating
   independent evidence of completion.
 - **#6 — Canonical task selectors and list/board experiment.** Workbench's
   heading-driven board and [Sfora's map](https://www.sfora.ai/features/boards)
-  were operated, without persistence proof. Leaf's On panel already consumes
+  were operated, without persistence proof. Leaf's On view already consumes
   canonical task readings; expose those through the existing package publication
   API. Prove list and board consume one task outcome without agent-maintained
   duplicate status markup. Preserve arbitrary authored HTML.
@@ -136,7 +136,7 @@ following are the baseline, not proposed additions.
 - **#8 — Shared visual-viewport fixed-panel bounds.**
   [Lavish's sheet](https://github.com/kunchenguid/lavish-axi/blob/main/src/chrome.css)
   consumes visible bounds. Leaf measures them but fixed auxiliary panels still
-  reach the layout bottom. Route bounds through geometry/chrome-layout to all
+  reach the layout bottom. Route bounds through `geometry.js` to all
   affected surfaces. This condition is source-identified, not a reproduced bug;
   keyboard-only shrink needs first-frame caret/Send and draft/focus proof.
 
@@ -424,7 +424,7 @@ sidebar, with lifecycle hooks preferred over per-agent terminal-text matching.
 
 This is useful evidence for shared controls and attention across tasks. It does
 not supply a document, passage comments, or a reconciliation model for decisions
-against a rewritten page. Leaf's page activity and outstanding Asks have their
+against a rewritten page. Leaf's page activity and outstanding obligations have their
 own semantics; an agent's process state does not establish who owes a response.
 
 ## Declarative UI formats
@@ -454,7 +454,7 @@ Integration needs to preserve those semantics. Rendering a foreign spec inside
 a widget requires declarations for its visible text, anchors and actions;
 otherwise the embedded tree is opaque to Leaf's checks and log. Exporting Leaf's
 registry as a catalog likewise needs more than component props: state verbs,
-fold units, settlement, and Ask declarations are part of the vocabulary. Replacing
+fold units, settlement, and `x-awaits` declarations are part of the vocabulary. Replacing
 HTML with a protocol is a product change that needs evidence from authoring and
 revision tasks, not merely a schema mapping.
 

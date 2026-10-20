@@ -185,9 +185,12 @@ drains its rows, whatever its body says, since each row names a stranded
 trigger. This applies by title; `ci-fix`
 diagnosis trackers have no rows and `ci-fix` closes them.
 
-## Nightly: agent release notes
+## Nightly: model and harness releases
 
-Find upstream changes worth acting on in Leaf. Each nightly run, scan the
+Keep Leaf's model defaults current and find upstream capabilities worth adopting.
+Each nightly run, scan the
+[Claude Platform release notes](https://platform.claude.com/docs/en/release-notes/overview),
+[OpenAI API changelog](https://developers.openai.com/api/docs/changelog),
 [Claude Code changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md),
 [Codex releases](https://github.com/openai/codex/releases), and
 [Codex product changelog](https://developers.openai.com/codex/changelog/).
@@ -195,19 +198,44 @@ Read entries since the last successful `tend-nightly` run, with a day's overlap;
 on the first run, read the past week. If a source cannot be read, report that in
 the run summary rather than treating it as having no changes.
 
-Open an issue only for a concrete, material opportunity or incompatibility in
-Leaf's current code or agent workflow. Check the affected implementation and
-upstream documentation before deciding. Hooks, waking agents, background work,
+Search open and closed issues and pull requests before acting, and skip changes
+already covered, adopted, or declined.
+
+### Model defaults
+
+Compare the current defaults with each provider's current stable models, even
+when a release predates the scan window. `MODELS` in `dev/leaf_dev/arms.py` owns
+the eval agents, judges and simulated user; the website adapter in
+`worker/leaf_website/` owns its hosted default, and `.config/tend.yaml` owns
+Tend's. Inspect these owners and their callers rather than replacing model names
+throughout the tree.
+
+Prepare a pull request upgrading a default to its suitable stable successor.
+Preserve each role's purpose and weigh quality, latency and cost; a newer model
+in a different tier is a candidate to evaluate, not an automatic replacement.
+Verify the exact model id and availability through the actual harness and login,
+and run a small representative eval or journey for the affected role, including
+grading when a judge changes. Record the old and new models, upstream sources
+and validation; keep model pins the same across arms in a Leaf comparison.
+Regenerate Tend workflows from its config when that default changes, and follow
+**Landing** for changes requiring the control-plane owner's approval. If access
+or a material tradeoff prevents a bump, report what remains to establish.
+
+### Harness opportunities
+
+Look for concrete, material opportunities or incompatibilities in Leaf's current
+code or agent workflow, including new capabilities that could simplify Leaf or
+improve its user experience. Check the affected implementation and upstream
+documentation before deciding. Hooks, waking agents, background work,
 plugins, MCP, and permissions can affect Leaf's harness integration; a release
 mentioning one of them does not by itself justify an issue. Claude Code's
 `asyncWake` is the calibration example: a harness capability that could improve
 Leaf's comment-to-agent wake loop warrants investigation. Routine fixes,
 cosmetic changes, and speculative relevance do not.
 
-Expect a qualifying finding on roughly 5% of days. This is a high relevance
+Expect a qualifying harness finding on roughly 5% of days. This is a high relevance
 threshold, not a quota or a reason to suppress an important finding. Most runs
-should open no release-note issue. Search open and closed issues and pull
-requests before filing, and skip changes already covered, adopted, or declined.
+should open no harness issue; this threshold does not limit model-default bumps.
 
 For a qualifying finding, open an issue here, rather than implementing it as
 part of the scan. Include the upstream version/date and source link, the

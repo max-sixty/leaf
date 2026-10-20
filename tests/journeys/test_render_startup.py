@@ -35,6 +35,7 @@ from render_harness import (
     leaf_page,
     open_page,
     page_comment,
+    panel_menu,
     panel_settled,
     refuse,
     round_trip,
@@ -49,8 +50,10 @@ from render_harness import (
 pytestmark = pytest.mark.shifts_unsurveyed
 
 from browser.startup import HELD_KEYS_PAGE, _hold_startup
+from browser.threads import open_panel_thread
 
 
+@pytest.mark.watch_shifts
 def test_the_gallery_embeds_an_ordinary_stamped_page(browser, serve):
     """Authored iframe markup opens a durable version rather than a practice copy."""
     url = live_url(serve(FEATURE_GALLERY))
@@ -63,8 +66,8 @@ def test_the_gallery_embeds_an_ordinary_stamped_page(browser, serve):
     expect(frame.locator("#bg-choice-ask h3")).to_have_text(
         "Which map should the sample team carry?"
     )
-    frame.locator(".lf-threads-toggle").click()
-    expect(frame.locator(".lf-thread-panel")).to_be_visible()
+    frame.locator(".lf-fp-threads").click()
+    expect(frame.locator('.lf-fp-view[data-view="threads"]')).to_be_visible()
     frame.goto(frame.url)
     wait_until_ready(frame)
     assert urlparse(frame.url).path == "/versions/v2.html"
@@ -79,6 +82,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         "checkout": "fb77",
         "interaction": "user",
         "started": "2026-08-31T12:00:00+00:00",
+        "input": {"source": "triage-board", "authored": "test"},
     }
     context = browser.new_context(
         viewport={"width": 1200, "height": 900},
@@ -104,16 +108,15 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         serve(leaf_page("Preview", "<h1>Preview</h1>"), preview=preview),
         context=context,
     )
-    badge = page.locator(".lf-preview")
-    expect(badge).to_have_text("User · fb77@26499ea1abcd+ · 3d ago")
-    expect(badge).to_have_attribute("aria-label", "Copy preview diagnostics")
-
-    page.get_by_role("button", name="More page controls", exact=True).click()
-    expect(badge).to_be_visible()
+    # The leaf's menu names the preview on its copy row, and the copy says so where
+    # the empty field's placeholder would.
+    badge = panel_menu(page).locator('.lf-fp-item[data-row="preview"]')
+    expect(badge).to_have_text("Copy preview diagnostics")
+    expect(badge).to_have_attribute("title", "User · fb77@26499ea1abcd+ · 3d ago")
     badge.click()
-    expect(page.locator(".lf-notice")).to_have_text("Copied preview diagnostics")
-    expect(page.locator(".lf-notice")).to_have_text("Copied preview diagnostics")
-    expect(page.locator(".lf-notice")).to_be_visible()
+    expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
+        "placeholder", re.compile("^Preview diagnostics copied")
+    )
     diagnostics = page.evaluate("() => navigator.clipboard.readText()")
     assert "example: triage-board" in diagnostics
     assert "checkout: fb77" in diagnostics
@@ -134,7 +137,9 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         serve(leaf_page("Ordinary", "<h1>Ordinary</h1>")),
         context=context,
     )
-    expect(ordinary.locator(".lf-preview")).to_have_count(0)
+    expect(
+        panel_menu(ordinary).locator('.lf-fp-item[data-row="preview"]')
+    ).to_have_count(0)
     layer = json.loads((serve.page_dir / "registry.json").read_text())["$layer"]
     producer = layer.get("producer", {})
     identity = (
@@ -142,21 +147,20 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         if producer.get("commit")
         else "sha256:" + layer["fingerprint"].removeprefix("sha256:")[:12]
     )
-    reference = ordinary.locator(".lf-layer-reference")
+    reference = ordinary.locator('.lf-fp-menu .lf-fp-item[data-row="layer"]')
     dated = producer.get("committed") or producer.get("installed")
-    expect(reference).to_have_text(
+    expect(reference).to_have_text("Copy Leaf version")
+    expect(reference).to_have_attribute(
+        "title",
         re.compile(
             rf"^Leaf {re.escape(identity)}{re.escape('+') if producer.get('dirty') else ''}"
             + (r" · (just now|\d+[mhd] ago)$" if dated else "$")
-        )
+        ),
     )
-    expect(reference.locator("code")).to_have_text(
-        f"{identity}{'+' if producer.get('dirty') else ''}"
-    )
-    ordinary.get_by_role("button", name="More page controls", exact=True).click()
-    expect(reference).to_be_visible()
     reference.click()
-    expect(ordinary.locator(".lf-notice")).to_have_text("Copied Leaf version")
+    expect(ordinary.locator(".lf-fp-field leaf-text")).to_have_attribute(
+        "placeholder", re.compile("^Leaf version copied")
+    )
     diagnostics = ordinary.evaluate("() => navigator.clipboard.readText()")
     assert f"fingerprint: {layer['fingerprint']}" in diagnostics
     if producer.get("commit"):
@@ -227,7 +231,7 @@ def test_more_than_six_live_documents_share_an_origin_without_stalling(browser, 
         last = pages[-1]
         write(page_comment(last), "All eight views are live.")
         with sending(last, "the eighth view's comment"):
-            last.locator(".lf-page-comment-card .lf-general .lf-compose-submit").click()
+            last.locator(".lf-fp-field .lf-compose-submit").click()
         assert any(
             event.get("text") == "All eight views are live."
             for event in events_model.read_events(serve.page_dir)
@@ -270,7 +274,9 @@ def test_slow_history_keeps_decisions_safe_and_status_honest(browser, serve, ans
     # This is the interval that used to invent an offline answer and release choices.
     page.wait_for_function("performance.now() > 11_000")
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
-    expect(page.locator(".lf-status-text")).to_have_text("Loading saved state…")
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute(
+        "aria-label", "Page menu · Loading saved state…"
+    )
     assert len(held) == 1
     if answer == "ready":
         # An ordinary error in a usable page must not start recovery that could
@@ -296,10 +302,11 @@ def test_slow_history_keeps_decisions_safe_and_status_honest(browser, serve, ans
         page.route("**/api/state*", refuse)
         for route in held:
             refuse(route)
-        expect(page.locator(".lf-status-text")).to_contain_text("Server offline")
+        expect(page.locator(".lf-fp-leaf")).to_have_attribute(
+            "aria-label", re.compile("Server offline")
+        )
         expect(page.locator(".lf-held-keys")).to_have_count(0)
         expect(first).to_have_attribute("aria-disabled", "true")
-        expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("Proceed")
         first.focus()
         page.keyboard.press("1")
         page.keyboard.press("Space")
@@ -355,7 +362,9 @@ def test_offline_reaction_waits_for_its_saved_state(browser, serve):
     )
     page.route("**/api/state*", refuse)
     page.goto(serve(source, events=[saved]), wait_until="load")
-    expect(page.locator(".lf-status-text")).to_contain_text("Server offline")
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute(
+        "aria-label", re.compile("Server offline")
+    )
     page.locator("#target").click()
     page.keyboard.press("e")
     page.keyboard.press("1")
@@ -365,10 +374,8 @@ def test_offline_reaction_waits_for_its_saved_state(browser, serve):
     page.keyboard.press("Tab")
     chip = page.locator('.lf-response-options .lf-react[data-token="keep"]')
     expect(chip).to_have_attribute("aria-disabled", "true")
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("react")
     chip.dispatch_event("click")
     chip.focus()
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("choose")
     page.keyboard.press("Space")
     assert posts == []
     page.keyboard.press("Escape")
@@ -391,14 +398,11 @@ def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
     thing it knew about the server is from before the silence."""
     url = serve(LONG_PAGE)
     page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    status = page.locator(".lf-status-detail")
+    status = page.locator(".lf-fp-leaf")
+    offline = re.compile("Server offline")
     port = serve.httpd.server_address[1]
     next(server for server in serve.servers if server.httpd is serve.httpd).close()
-    expect(status).to_have_text(
-        "Server offline — reconnecting. Keep this page open so pending changes can send."
-    )
+    expect(status).to_have_attribute("aria-label", offline)
 
     server = hosting_model.TemporaryPageServer(
         serve.page_dir, token=TOKEN, port=port
@@ -409,10 +413,10 @@ def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
         {"kind": "comment", "author": "user", "revision": 1, "text": "Back."},
     )
     told(page)
-    expect(page.locator(".lf-thread", has_text="Back.")).to_have_count(1)
-    expect(status).not_to_have_text(
-        "Server offline — reconnecting. Keep this page open so pending changes can send."
-    )
+    expect(status).not_to_have_attribute("aria-label", offline)
+    page.locator(".lf-fp-threads").click()
+    panel_settled(page, view="threads")
+    expect(page.locator(".lf-fp-thread", has_text="Back.")).to_have_count(1)
     # The requests that failed while the server was down are the one thing the
     # console may hold; a page fault of the runtime's own would say something else.
     consume_browser_errors(page, "net::ERR")
@@ -420,7 +424,10 @@ def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
 
 def test_thread_timestamps_age_without_new_state(browser, serve):
     page = open_page(browser, serve(LONG_PAGE, comments=1))
-    page.keyboard.press("c")
+    [comment] = [
+        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "comment"
+    ]
+    open_panel_thread(page, comment["id"])
     timestamp = page.locator(".lf-msg-head time").first
     expect(timestamp).to_have_text("just now")
     held = []
@@ -772,7 +779,7 @@ def test_first_history_answer_keeps_an_open_quote_draft(browser, serve, answer, 
         child = page.locator("#practice iframe").element_handle().content_frame()
         child.locator("#inspect").click()
     else:
-        page.locator(".lf-status-button").focus()
+        page.locator(".lf-fp-leaf").focus()
         page.evaluate("getSelection().removeAllRanges()")
     expect(field).to_be_visible()
     page.unroute("**/api/state*")
@@ -792,63 +799,3 @@ def test_first_history_answer_keeps_an_open_quote_draft(browser, serve, answer, 
     if answer == "offline":
         consume_browser_errors(page, "net::ERR_INTERNET_DISCONNECTED")
     page.close()
-
-
-@pytest.mark.parametrize("started", [False, True], ids=["untouched", "commenting"])
-def test_saved_pages_arrival_yields_to_newer_input(browser, serve, live_leaf, started):
-    """Saved chrome restores a visit, but cannot cover a comment begun meanwhile."""
-    live_leaf("second", "A second leaf")
-    url = serve(
-        leaf_page(
-            "Saved Pages",
-            '<h1>Saved Pages</h1><p id="passage">The prototype needs a mobile check.</p>',
-        )
-    )
-    context = browser.new_context(viewport={"width": 480, "height": 900})
-    try:
-        prior = context.new_page()
-        prior.goto(url, wait_until="load")
-        wait_until_ready(prior)
-        prior.keyboard.press("g")
-        prior.keyboard.press("Shift+l")
-        expect(prior.locator("#lf-leaves")).to_be_visible()
-        prior.close()
-
-        held = []
-        page = context.new_page()
-        watched(page)
-        page.route("**/api/state*", lambda route: held.append(route))
-        page.goto(url, wait_until="load")
-        expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
-        assert held
-        expect(page.locator("#lf-leaves")).to_be_hidden()
-        if started:
-            select_words(page, "#passage")
-            expect(page.locator(".lf-fab-bar")).to_be_visible()
-            page.keyboard.press("c")
-            field = page.locator(".lf-fab-input")
-            write(field, "Keep these words.")
-            page.keyboard.press("Home")
-            for _ in range(7):
-                page.keyboard.press("ArrowRight")
-            expect(field).to_be_focused()
-        for route in held:
-            route.continue_()
-        page.unroute("**/api/state*")
-        wait_until_ready(page)
-        if started:
-            expect(page.locator("#lf-leaves")).to_be_hidden()
-            expect(field).to_be_visible()
-            expect(field).to_be_focused()
-            expect(field).to_have_js_property("value", "Keep these words.")
-            assert field.evaluate("f => [f.selectionStart, f.selectionEnd]") == [7, 7]
-            expect(page.locator("html")).not_to_have_attribute(
-                "data-lf-covering-surface", "lf-leaves"
-            )
-        else:
-            expect(page.locator("#lf-leaves")).to_be_visible()
-            expect(page.locator("html")).to_have_attribute(
-                "data-lf-covering-surface", "lf-leaves"
-            )
-    finally:
-        context.close()

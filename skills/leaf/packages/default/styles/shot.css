@@ -29,7 +29,7 @@
       content: "";
       display: block;
       height: var(--lf-shot-rail-size);
-      border: 1px solid var(--rule);
+      border: var(--lf-shot-frame-border) solid var(--rule);
       border-bottom: 0;
       border-radius: var(--r) var(--r) 0 0;
       background: var(--card);
@@ -39,7 +39,7 @@
       display: block;
       box-sizing: border-box;
       aspect-ratio: var(--lf-shot-ratio);
-      border: 1px solid var(--rule);
+      border: var(--lf-shot-frame-border) solid var(--rule);
       border-radius: 0 0 var(--r) var(--r);
       background: var(--card);
     }
@@ -48,7 +48,7 @@
 :scope:is(lf-shot) .lf-shotcomparison {
   grid-area: 2 / 1;
   aspect-ratio: var(--lf-shot-ratio);
-  border: 1px solid var(--rule);
+  border: var(--lf-shot-frame-border) solid var(--rule);
   border-radius: 0 0 var(--r) var(--r);
   background: var(--card);
   --divider-width: 2px;
@@ -71,6 +71,12 @@
   transition:
     opacity 120ms ease,
     scale 120ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  :scope:is(lf-shot) .lf-shotcomparison::part(divider),
+  :scope:is(lf-shot) .lf-shotcomparison::part(handle) {
+    transition: none;
+  }
 }
 :scope:is(lf-shot) .lf-shot-handle {
   display: block;
@@ -124,7 +130,7 @@
   grid-template: var(--lf-shot-rail-size) / auto auto minmax(0, 1fr) auto auto;
   height: var(--lf-shot-rail-size);
   padding: 0;
-  border: 1px solid var(--rule);
+  border: var(--lf-shot-frame-border) solid var(--rule);
   border-bottom: 0;
   border-radius: var(--r) var(--r) 0 0;
   color: var(--muted);
@@ -275,7 +281,7 @@
   }
 }
 :scope:is(lf-shot) .lf-shotcap[data-lf-state] {
-  outline-offset: -2px;
+  outline-offset: calc(-1 * var(--focus-ring-w));
 }
 :scope:is(lf-shot) .lf-shotcap[data-lf-state="before"] {
   --lf-shot-side-tint: var(--del-tint);
@@ -365,7 +371,7 @@
   z-index: 1;
   overflow: clip;
   cursor: pointer;
-  border: 1px solid var(--rule);
+  border: var(--lf-shot-frame-border) solid var(--rule);
   border-radius: 0 0 var(--r) var(--r);
   background: var(--card);
 }
@@ -422,7 +428,7 @@
     grid-area: 2 / 1;
     aspect-ratio: var(--lf-shot-ratio);
     box-sizing: border-box;
-    border: 1px solid var(--rule);
+    border: var(--lf-shot-frame-border) solid var(--rule);
     border-radius: 0 0 var(--r) var(--r);
   }
 }
@@ -455,6 +461,7 @@
   outline: var(--focus-ring);
   outline-offset: 1px;
   border-radius: var(--r);
+  --lf-wears-ring: 1;
 }
 
 @media print {
@@ -509,14 +516,16 @@
   :scope:is(lf-shot) .lf-shotframe {
     visibility: visible !important;
     margin-bottom: var(--sp-2);
-    border: 1px solid var(--rule);
+    border: var(--lf-shot-frame-border) solid var(--rule);
     border-radius: var(--r);
   }
 }
 
 /* Inspection belongs to the pair, including when another package chooses its
  * view. The containing package allocates room; it never targets these frame nodes.
- * Typed lengths give the fitting consumer resolved CSS pixels even for rem/calc. */
+ * Typed lengths give the fitting consumer resolved CSS pixels even for rem/calc. Every
+ * border of the frame and its rail is drawn at --lf-shot-frame-border, so the width the
+ * consumer fits is the width drawn. */
 @property --lf-shot-frame-border {
   syntax: "<length>";
   inherits: true;
@@ -544,9 +553,6 @@
       var(--lf-shot-frame-border)
   );
   max-width: none;
-}
-:scope:is(lf-shot)[data-lf-shot-mode] .lf-shotcomparison {
-  border-width: var(--lf-shot-frame-border);
 }
 @media screen {
   :scope:is(lf-shot)[data-lf-shot-mode="compare"],

@@ -28,6 +28,7 @@ from render_harness import (
     leaf_page,
     nudge,
     open_page,
+    panel_settled,
     round_trip,
     said,
     select,
@@ -37,6 +38,8 @@ from render_harness import (
     wait_for_revision,
     write,
 )
+
+from browser.threads import open_panel_thread, open_threads
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -115,16 +118,15 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_user_saw(
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0, (
         "the comment followed its old display text onto the other datum"
     )
-    expect(page.locator(".lf-thread .lf-quote")).to_contain_text("Ready")
-    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_text("Earlier data")
     assert api.evaluate("node => JSON.parse(node.dataset.lfOrigin)") == {
         **origin,
         "revision": replaced,
         "path": [1, "value"],
     }, "the source coordinate must follow construction order, not the datum key"
-    expect(page.locator(".lf-thread .lf-quote")).not_to_have_class(
-        re.compile(r"\bdetached\b")
-    )
+    quote = open_panel_thread(page, comment["id"]).locator(".lf-fp-quote")
+    expect(quote).to_contain_text("Ready")
+    expect(quote.locator(".lf-anchor-status")).to_have_text("Earlier data")
+    expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
 
 
 def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacements(
@@ -259,10 +261,15 @@ customElements.define('lf-feed', class extends LeafElement {
     expect(page.locator('[data-lf-datum="b-1"]')).not_to_have_class(
         re.compile(r"\blf-mark-el\b")
     )
-    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_text("Changed")
 
     with sending(page, "the kept draft"):
         draft.press("ControlOrMeta+Enter")
+    # The first comment's head says its row changed since the user commented.
+    expect(
+        open_panel_thread(page, comment["id"]).locator(".lf-anchor-status")
+    ).to_have_text("Changed")
+    page.locator(".lf-fp-close").click()
+    panel_settled(page, open=False)
     drafted = next(
         e
         for e in events_model.read_events(serve.page_dir)
@@ -403,8 +410,9 @@ customElements.define('lf-derived', class extends HTMLElement {
         re.compile(r"\blf-mark-el\b")
     )
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
-    expect(page.locator(".lf-thread .lf-quote")).to_contain_text("Ready")
-    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_text("Changed")
+    quote = open_panel_thread(page, comment["id"]).locator(".lf-fp-quote")
+    expect(quote).to_contain_text("Ready")
+    expect(quote.locator(".lf-anchor-status")).to_have_text("Changed")
 
 
 def test_a_captured_source_stays_pointable_and_pinned(browser, serve):
@@ -561,13 +569,13 @@ def test_an_older_data_response_cannot_replace_a_newer_reading(browser, serve):
 # loaded machine to produce that overlap.
 QUEUED_STATE_READS = """() => {
   window.__leafStateReads = [];
-  window.__leafStateItems = 0;
+  window.__leafStateObligations = 0;
   const native = window.fetch.bind(window);
   window.fetch = async (...args) => {
     const input = args[0];
     const url = typeof input === 'string' ? input : input.url;
     if (new URL(url, location.href).pathname !== '/api/state') return native(...args);
-    window.__leafStateItems += 1;
+    window.__leafStateObligations += 1;
     while (!window.__leafStateReads.length)
       await new Promise((resolve) => setTimeout(resolve, 5));
     const [body, headers] = window.__leafStateReads.shift();
@@ -615,7 +623,7 @@ def test_a_source_that_returns_under_an_unfinished_reading_stays_current(
     away = page.request.get(urljoin(page.url, "/api/state"))
     # The page is inside that read before the source returns, so the reading it takes is
     # the one that moved the source and the trailing read is answered at once.
-    page.wait_for_function("() => window.__leafStateItems >= 1")
+    page.wait_for_function("() => window.__leafStateObligations >= 1")
     data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
     back = page.request.get(urljoin(page.url, "/api/state"))
     assert away.json()["data"]["version"] != back.json()["data"]["version"]
@@ -638,7 +646,10 @@ def test_a_source_that_returns_under_an_unfinished_reading_stays_current(
     # what it shows is that reading's value rather than the one it overtook.
     wait_until_ready(page, back.json())
     expect(page.locator("#notes code")).to_have_text("First.\n")
-    expect(page.locator(".lf-thread", has_text="A message arriving")).to_have_count(1)
+    open_threads(page)
+    expect(page.locator(".lf-fp-thread", has_text="A message arriving")).to_have_count(
+        1
+    )
 
 
 def test_new_data_in_a_stale_event_response_is_still_accepted(browser, serve):
@@ -661,8 +672,9 @@ def test_new_data_in_a_stale_event_response_is_still_accepted(browser, serve):
         },
     )
     told(page)
+    open_threads(page)
     expect(
-        page.locator(".lf-thread", has_text="This event must not disappear")
+        page.locator(".lf-fp-thread", has_text="This event must not disappear")
     ).to_have_count(1)
 
     crossed = []
@@ -690,7 +702,7 @@ def test_new_data_in_a_stale_event_response_is_still_accepted(browser, serve):
     expect(page.locator('[data-lf-datum="api"]')).to_contain_text("Running")
     assert crossed, "the new data never arrived beside the stale event tail"
     expect(
-        page.locator(".lf-thread", has_text="This event must not disappear")
+        page.locator(".lf-fp-thread", has_text="This event must not disappear")
     ).to_have_count(1)
 
 
@@ -705,6 +717,7 @@ def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
         serve.page_dir,
         {
             "kind": "comment",
+            "id": "earlier",
             "author": "user",
             "revision": 1,
             "text": "An earlier question.",
@@ -712,8 +725,8 @@ def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
         },
     )
     page = open_page(browser, url)
-    page.keyboard.press("c")
-    timestamp = page.locator(".lf-msg-head time").first
+    view = open_panel_thread(page, "earlier")
+    timestamp = view.locator(".lf-msg-head time").first
     expect(timestamp).to_have_text("1h ago")
     stale = page.evaluate("async () => (await fetch('/api/state')).json()")
     stale["taken"] = 0
@@ -772,9 +785,9 @@ def test_a_data_widget_draws_each_publication_and_recovers(browser, serve):
     for snapshot, publication in zip(
         deliveries, [original, json.loads(publication_file.read_text())], strict=True
     ):
-        assert {
-            key: snapshot[key] for key in ("run", "updated", "value")
-        } == publication
+        assert {key: snapshot[key] for key in ("run", "updated", "value")} == {
+            key: publication[key] for key in ("run", "updated", "value")
+        }
     second = deliveries[-1]
     assert second["revision"] == first["revision"]
     assert second["run"] != first["run"]
@@ -886,7 +899,7 @@ customElements.define(TAG, class extends LeafElement {
     )
     data_model.cmd_data_set(serve.page_dir, "shared", ["same bytes"])
     page = open_page(browser, url)
-    page.keyboard.press("c")
+    open_panel_thread(page, "question")
     expect(page.locator("#page-feed")).to_have_text('["same bytes"]')
     expect(page.locator("#thread-feed")).to_have_text("null")
     consume_browser_errors(page, "<lf-object-feed> input data requires other-rows")
@@ -965,7 +978,7 @@ def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_
             failed[name] = 0;
             stops.push(api.watchProjection(owner, () => {
               failed[name] += 1;
-              api.readItems();
+              api.readObligations();
               // A paint that fails later is told the same way as one that throws.
               if (name === 'rejecting')
                 return Promise.reject(new Error(`${name} paint failed`));
@@ -980,7 +993,7 @@ def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_
           const finished = new Promise((resolve) => { finish = resolve; });
           stops.push(api.watchProjection(owner, () => {
             paints += 1;
-            api.readItems();
+            api.readObligations();
             return finished;
           }));
           await settle();

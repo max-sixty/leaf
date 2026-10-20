@@ -54,7 +54,10 @@
   // delivers two records, unlike replaceChildren(), but can restate the same list.
   // Nodes in native records stay live. Read only the compared subtree at a record
   // boundary, undoing its later native changes rather than treating today's node as
-  // its earlier value. Attribute order does not affect equality.
+  // its earlier value. Attribute order does not affect equality. A list re-rendered
+  // row by row is read once per record, so each subtree nothing wrote into is read
+  // once per batch: reading every subtree at every record made a 76-row table's
+  // re-render take a second.
   const batchReadings = (records) => {
     const changes = new Map();
     const positions = new Map();
@@ -68,7 +71,27 @@
       if (!changes.has(record.target)) changes.set(record.target, []);
       changes.get(record.target).push({ record, position });
     });
+    // Each node whose subtree, shadow trees included, holds a written node now. A
+    // subtree the batch wrote into at any point holds one still: a node a write took
+    // out of it was taken out by a write to a node within it. So any other subtree
+    // holds the same at every boundary.
+    const written = new Set();
+    for (const target of changes.keys())
+      for (
+        let node = target;
+        node && !written.has(node);
+        node = node instanceof ShadowRoot ? node.host : node.parentNode
+      )
+        written.add(node);
+    // A node's value at a boundary, its shadow tree included, as a string, which is
+    // the same string at every boundary for a subtree nothing wrote into.
+    const unwritten = new Map();
     const valueAt = (node, boundary) => {
+      if (written.has(node)) return readAt(node, boundary);
+      if (!unwritten.has(node)) unwritten.set(node, readAt(node, boundary));
+      return unwritten.get(node);
+    };
+    const readAt = (node, boundary) => {
       const children = [...node.childNodes];
       const attributes = new Map(
         [...(node.attributes ?? [])].map((attribute) => [
@@ -92,20 +115,21 @@
           else attributes.set(key, record.oldValue);
         } else text = record.oldValue;
       }
-      return [
+      const own = JSON.stringify([
         node.nodeType,
         node.namespaceURI,
         node.nodeName,
         text,
         [...attributes].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
-        children.map((child) => valueAt(child, boundary)),
-        shadows.has(node) ? valueAt(shadows.get(node), boundary) : null,
-      ];
+      ]);
+      const inner = children.map((child) => valueAt(child, boundary)).join(",");
+      const shadow = shadows.has(node) ? valueAt(shadows.get(node), boundary) : null;
+      return `[${own},[${inner}],${shadow}]`;
     };
     return {
       position: (record) => positions.get(record),
       read: (nodes, boundary) =>
-        JSON.stringify(nodes.map((node) => valueAt(node, boundary))),
+        `[${nodes.map((node) => valueAt(node, boundary)).join(",")}]`,
     };
   };
   // Detaching an iframe retires its browsing context even if the same element is
@@ -173,9 +197,10 @@
       const after = renderedChildren(current);
       if (
         !frameRecords.has(record) &&
-        (pending.get(after.length) ?? []).includes(
-          readings.read(after, readings.position(record) + 1),
-        )
+        pending.has(after.length) &&
+        pending
+          .get(after.length)
+          .includes(readings.read(after, readings.position(record) + 1))
       )
         return true;
     }
@@ -206,16 +231,6 @@
     // Lit's keyed repeat moves equivalent marker nodes when a visual action in
     // the group changes identity, while the rendered controls update in place.
     (what, node) => what === "children" && is(node, "div.lf-visual-actions"),
-    // Mermaid's diagram renderers and their shared viewport helper both assign the SVG's
-    // width while measuring the same drawing. Its upstream-owned paint is separate
-    // from Leaf's adapter, which uses keeps when setting the final natural width.
-    (what, node) => what === "width" && is(node, "svg[id^='lf-diagram-']"),
-    // Mermaid's layout pass reapplies the same transform to a label group while
-    // measuring it. The diagram module does not own that SVG write.
-    (what, node) => what === "transform" && is(node, "g.label"),
-    // Mermaid's timeline wraps and measures labels by restating tspan text. Its
-    // measurement groups have already detached by the observer's reading.
-    (what, node) => what === "children" && is(node, "g > text > tspan"),
     // CodeMirror writes every attribute of its content element when it mounts a view,
     // the tab-size style that element already holds among them.
     (what, node) => what === "style" && is(node, "div.cm-content"),

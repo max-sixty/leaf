@@ -25,18 +25,11 @@ def browser_projection(
             {
                 "event": event,
                 "coordinate": list(coordinate),
-                # The revision registry that interpreted this event is immutable and
-                # may differ from the active document's. Browser folds consume the
-                # admitted meaning carried here instead of reinterpreting history
-                # through whichever registry the current DOM selected.
                 "spec": spec,
                 "value": folded_value(event, spec) if spec.get("record") else None,
                 "scope": scope,
                 "restated": restated,
-                # A later revision absorbed this move; its markup places the unit.
                 "absorbed": event["id"] in projection.absorbed,
-                # An action nothing has taken back or retracted, which stands at its
-                # coordinate once every newer one is withdrawn.
                 "stands": event["id"] in projection.in_force,
             }
         )

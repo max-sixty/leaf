@@ -56,6 +56,7 @@ from render_harness import (
     resized,
     scroll_settled,
     select,
+    selection_field,
     sending,
     write,
 )
@@ -119,7 +120,7 @@ PHRASE = """(words) => {
 
 class Passage:
     """Words in the long paragraph, selected by dragging across them or, under a
-    finger, by the platform's selection and the banner's Comment on selection."""
+    finger, by the platform's selection and a tap on the panel's field."""
 
     block = "#long"
 
@@ -135,9 +136,7 @@ class Passage:
                 }}""",
                 self.words,
             )
-            page.locator(".lf-banner-actions").get_by_role(
-                "button", name="Comment on selection"
-            ).tap()
+            selection_field(page).tap()
             return
         rect = self.line(page)
         y = rect["top"] + rect["height"] / 2
@@ -170,14 +169,15 @@ class Element:
         target.click(modifiers=["Alt"], position={"x": 40, "y": y})
 
     def line(self, page):
-        """Its top as the window shows it, which a scroll may have clipped."""
+        """Its top as the window shows it, which a scroll may have clipped, less the
+        ring's room at the window's head."""
         return page.evaluate(
             """([selector, head]) => {
               const {left, top, right, bottom} = document.querySelector(selector)
                 .getBoundingClientRect();
               return {left, top: Math.max(top, head), right, bottom};
             }""",
-            [self.block, page.evaluate(BANNER_FOOT) + 8],
+            [self.block, 8],
         )
 
 
@@ -215,10 +215,6 @@ CASES = {
         {"again": True},
     ),
 }
-
-BANNER_FOOT = (
-    "() => document.querySelector('.lf-banner').getBoundingClientRect().bottom"
-)
 
 SIDES = {
     "right-start": "right",
@@ -736,8 +732,7 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
             page.mouse.move(880, 650)
             page.mouse.wheel(0, 350)
             scroll_settled(page)
-        # The pointer wheels what scrolls, off the box, which takes the wheel as its
-        # card does.
+        # The pointer wheels what scrolls, off the box, which stands outside the pane.
         mouse = (
             (before_target["x"] + 50, content_box["y"] + 35)
             if region in ("code", "content")
@@ -1080,31 +1075,120 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
     )
 
 
+def test_a_sent_card_grows_inside_its_reading_region(browser, serve):
+    """A card sent in a pane grows out of its box no further than the pane's edge
+    cuts it at rest: the growth's clip and the region's are one clip, so the card and
+    its shadow never paint past the pane, even for the growth's 240ms."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Growth in a pane",
+                '<div id="grow-split"><lf-pane id="grow-pane" label="Findings"><div>'
+                '<div style="height:180px"></div>'
+                '<p id="grow-target">The export keeps each tenant in an archive.</p>'
+                '<div style="height:1600px"></div></div></lf-pane>'
+                '<lf-pane id="grow-notes" label="Notes"><div><p>Notes.</p></div>'
+                "</lf-pane></div>",
+                head=regions_side_by_side("grow-split"),
+                layout="workspace",
+            )
+        ),
+    )
+    resized(page, 1440, 600)
+    pane_posture(page, page.locator("#grow-pane"), "bounded")
+    box = page.locator("#grow-target").bounding_box()
+    select(page, (box["x"] + 2, box["y"] + 10), (box["x"] + 150, box["y"] + 10))
+    page.locator(".lf-fab-input").click()
+    page.keyboard.insert_text("Keep the growth inside the pane.")
+    rendered(page)
+    page.evaluate("""() => {
+      window.clips = [];
+      const sample = () => {
+        const card = document.querySelector('.lf-margin-preview');
+        if (card?.getAnimations().length) window.clips.push(getComputedStyle(card).clipPath);
+        window.sampling = requestAnimationFrame(sample);
+      };
+      window.sampling = requestAnimationFrame(sample);
+    }""")
+    with sending(page, "comment"):
+        page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_be_visible()
+    wait_for(
+        lambda: page.evaluate(
+            "document.querySelector('.lf-margin-preview').getAnimations().length"
+        ),
+        lambda n: n == 0,
+        failure="Thread growth never finished",
+    )
+    clips, rest = page.evaluate("""() => {
+      cancelAnimationFrame(window.sampling);
+      return [window.clips, getComputedStyle(document.querySelector('.lf-margin-preview')).clipPath];
+    }""")
+
+    def insets(clip):
+        # inset()'s edges before `round`, its shorthand spread to top, right, bottom, left.
+        edges = [float(v) for v in re.findall(r"-?[\d.]+", clip.split("round")[0])]
+        return [
+            edges[i]
+            for i in ((0, 0, 0, 0), (0, 1, 0, 1), (0, 1, 2, 1), (0, 1, 2, 3))[
+                len(edges) - 1
+            ]
+        ]
+
+    cut = insets(rest)
+    assert len(cut) == 4 and max(cut) > -48, ("the pane cuts nothing", rest)
+    assert clips, "Send showed the card without growing it out of the box"
+    for clip in clips:
+        assert all(a >= b - 0.5 for a, b in zip(insets(clip), cut)), (clip, rest)
+
+
 @pytest.mark.parametrize(
-    "size,at,long,touch,again,options",
+    "size,at,long,touch,again,options,engine",
     [
-        ((1440, 900), 0.4, False, False, False, False),
-        ((900, 600), 0.85, False, False, False, False),
-        ((390, 844), 0.12, False, False, False, False),
-        ((900, 600), 0.4, True, False, False, False),
-        ((900, 600), 0.4, "scrolled", False, False, False),
-        ((1440, 900), 0.4, "paragraphs", False, False, False),
-        ((1440, 900), 0.4, False, False, True, False),
-        ((390, 844), 0.4, "passage", True, False, False),
+        ((1440, 900), 0.4, False, False, False, False, "browser"),
+        ((900, 600), 0.75, False, False, False, False, "browser"),
+        ((390, 844), 0.12, False, False, False, False, "browser"),
+        ((900, 600), 0.4, True, False, False, False, "browser"),
+        ((900, 600), 0.4, "scrolled", False, False, False, "browser"),
+        ((1440, 900), 0.4, "paragraphs", False, False, False, "browser"),
+        ((1440, 900), 0.4, False, False, True, False, "browser"),
+        ((390, 844), 0.4, "passage", True, False, False, "browser"),
+        # Firefox sized this one-line comment's card 13px wider than its box.
         pytest.param(
-            (900, 600), 0.85, False, False, False, True, id="above-with-options"
+            (1728, 999),
+            0.4,
+            "line",
+            False,
+            False,
+            False,
+            "firefox_browser",
+            id="line-firefox",
+        ),
+        pytest.param(
+            (900, 600),
+            0.75,
+            False,
+            False,
+            False,
+            True,
+            "browser",
+            id="above-with-options",
         ),
     ],
 )
 def test_send_grows_thread_around_the_words(
-    browser, serve, size, at, long, touch, again, options
+    request, serve, size, at, long, touch, again, options, engine
 ):
-    """The box being written is drawn as the card it becomes, and Send swaps one for
-    the other in that rectangle, so the draft's words stand where they were typed through
-    Send and its acknowledgement: the box and the card share one text column and foot,
-    and the card stands its words as far above its end as the box did. Read inside the
-    editor solely to measure its actual glyphs, without changing its closed-root
-    behavior."""
+    """The box being written paints only its field, and Send grows the card out of it in
+    the rectangle the box's frame reserved, so the draft's words stand where they were
+    typed through Send and its acknowledgement: the box and the card share one text
+    column and foot, and the card stands its words as far above its end as the box did.
+    The growth only clips the card, so the words its layout places are the ones painted.
+    Read inside the editor solely to measure its actual glyphs, without changing its
+    closed-root behavior."""
+    browser = request.getfixturevalue(engine)
     context = browser.new_context(has_touch=touch, is_mobile=touch)
     page = open_page(
         browser,
@@ -1136,6 +1220,8 @@ def test_send_grows_thread_around_the_words(
     )
     if long == "paragraphs":
         text = "First paragraph.\n\nSecond paragraph."
+    if long == "line":
+        text = "Show it in the text box, then move it to the errors list."
     page.keyboard.insert_text(text)
     rendered(page)
     if long == "scrolled":
@@ -1148,7 +1234,7 @@ def test_send_grows_thread_around_the_words(
         page.locator(".lf-fab-input").focus()
         rendered(page)
     if long == "passage":
-        assert FIRST_LINE.line(page)["bottom"] > page.evaluate(BANNER_FOOT)
+        assert FIRST_LINE.line(page)["bottom"] > 0
     page.evaluate("""() => {
       const input = document.querySelector('.lf-fab-input');
       const blockRects = node => {
@@ -1183,11 +1269,15 @@ def test_send_grows_thread_around_the_words(
       window.beforeWords = rects(editor);
       window.beforePageScroll = scrollY;
       const bar = document.querySelector('.lf-fab-bar');
+      const style = getComputedStyle(bar);
       window.box = {frame: bar.getBoundingClientRect().toJSON(),
-        painted: getComputedStyle(bar, '::before').backgroundColor !== 'rgba(0, 0, 0, 0)'};
+        painted: style.backgroundColor !== 'rgba(0, 0, 0, 0)' || style.boxShadow !== 'none'};
       window.sendFrames = [];
+      window.grew = false;
       const sample = () => {
         const card = document.querySelector('.lf-margin-preview');
+        window.grew ||= Boolean(card?.getAnimations().some(animation =>
+          animation.effect.getKeyframes().some(frame => 'clipPath' in frame)));
         const body = card?.querySelector('.lf-msg-body');
         if (body && card.checkVisibility()) {
           window.sendFrames.push({rects:rects(body), pageScroll:scrollY,
@@ -1207,11 +1297,19 @@ def test_send_grows_thread_around_the_words(
     card = page.locator(".lf-margin-preview")
     expect(card).to_be_visible()
     rendered(page)
+    wait_for(
+        lambda: page.evaluate(
+            "document.querySelector('.lf-margin-preview').getAnimations().length"
+        ),
+        lambda n: n == 0,
+        failure="Thread growth never finished",
+    )
     reading = page.evaluate("""() => {
       cancelAnimationFrame(window.sampling);
-      return {before:beforeWords,pageScroll:beforePageScroll,frames:sendFrames,box};
+      return {before:beforeWords,pageScroll:beforePageScroll,frames:sendFrames,box,grew};
     }""")
-    assert reading["box"]["painted"], "The box being written showed only its field"
+    assert not reading["box"]["painted"], "The box being written painted its frame"
+    assert reading["grew"], "Send showed the card without growing it out of the box"
     assert reading["frames"]
     # The card takes the box's rectangle, less the response choices the box alone
     # carries under its field.
@@ -1240,13 +1338,16 @@ def test_send_grows_thread_around_the_words(
         if painted_growth:
             rendered(page)
             # Layout Instability compares painted frames; a RAF measurement can
-            # catch an intermediate height the browser never actually displayed.
+            # catch an intermediate height the browser never actually displayed. The
+            # card grows up from its foot here, so its painted top rises. Its source
+            # rect is the card's visual rect, which takes in the ink below its box, so
+            # that rect's height need not change while the card's does.
             card.evaluate("""card => {
               const growth = [];
               const record = entries => {
                 for (const entry of entries) for (const source of entry.sources) {
                   if (source.node !== card || !source.previousRect.height) continue;
-                  const before = source.previousRect.height, after = source.currentRect.height;
+                  const before = source.previousRect.top, after = source.currentRect.top;
                   if (Math.abs(after - before) > 0.75) growth.push({before, after});
                 }
               };
@@ -1266,7 +1367,7 @@ def test_send_grows_thread_around_the_words(
         ).to_be_visible()
         if painted_growth:
             growth = page.evaluate("window.__replyGrowth()")
-            assert len(growth) == 1 and growth[0]["after"] > growth[0]["before"], growth
+            assert len(growth) == 1 and growth[0]["after"] < growth[0]["before"], growth
 
         # The first sent message, subsequent turns, metadata and the empty reply
         # share one reading edge, both during the handoff and after reopening.
@@ -1354,21 +1455,12 @@ def test_room_for_a_surface_uses_the_scrollports_visible_scale(browser, serve, s
     assert reading["visible"], reading
 
 
-@pytest.mark.parametrize(
-    "source,read,existing",
-    # Each point the wheel can land in the solve, each scroller, and a placement
-    # already in place, each at least once.
-    [
-        ("inner", "before-discovery", False),
-        ("document", "before-scroll", True),
-        ("inner", "after-scroll", True),
-        ("document", "after-scroll", False),
-    ],
-)
 def test_native_attachment_measures_solver_and_scroll_origin_together(
-    browser, serve, source, read, existing
+    browser, serve, subtests
 ):
-    """A wheel during either side of an asynchronous solve is carried exactly once."""
+    """A wheel during either side of an asynchronous solve is carried exactly once.
+    Each case places its own box from an unscrolled page and quote, so the cases
+    share one page."""
     page = open_page(
         browser,
         serve(
@@ -1383,92 +1475,114 @@ def test_native_attachment_measures_solver_and_scroll_origin_together(
             )
         ),
     )
-    page.evaluate(
-        """async ([read, source, existing]) => {
-          const {floatingPlacement, floatingUi} =
-            await window.__lfOverlayApi();
-          const ui = await floatingUi();
-          const paragraph = document.querySelector('#quote');
-          const node = paragraph.childNodes[4];
-          const range = document.createRange();
-          range.setStart(node, 0); range.setEnd(node, 12);
-          const box = document.createElement('div');
-          box.style = 'position:fixed;width:100px;height:60px;background:white';
-          document.querySelector('.lf-chrome').append(box);
-          const captured = range.getBoundingClientRect();
-          const reference = {
-            contextNode: node, contextElement: paragraph,
-            // Presenters can hand the owner a solved passage snapshot or a live
-            // virtual reference; both share its scroll/anchor measurement boundary.
-            getBoundingClientRect: () => source === 'document' || read === 'before-discovery'
-              ? captured : range.getBoundingClientRect(),
-          };
-          const owner = floatingPlacement({floating: box, update: () => {}});
-          if (existing) {
-            owner.begin();
-            const answer = await owner.position(ui.computePosition, reference,
-              {placement:'right-start', middleware:[]}, () => 'page', paragraph);
-            owner.stand(answer);
-          }
-          const gate = new Promise(done => {window.releaseSolve = done;});
-          window.solveEntered = false;
-          window.solveRead = false;
-          owner.begin();
-          window.solve = owner.position(async (...args) => {
-            window.solveEntered = true;
-            if (read !== 'before-scroll') await gate;
-            const answer = await ui.computePosition(...args);
-            window.solveRead = true;
-            if (read === 'before-scroll') await gate;
-            return answer;
-          }, reference, {placement:'right-start', middleware:[]}, () => 'page', paragraph)
-            .then(answer => owner.stand(answer));
-          // A script may scroll in the turn that starts placement, before its
-          // dependency continuation discovers the native overflow sources.
-          if (read === 'before-discovery') {
-            if (source === 'inner') paragraph.scrollTop = 20;
-            else scrollTo(0, 20);
-          }
-          window.attachmentReading = () => ({
-            quote: range.getBoundingClientRect().toJSON(),
-            box: box.getBoundingClientRect().toJSON(),
-            plane: box.dataset.lfPlane,
-          });
-        }""",
-        [read, source, existing],
-    )
-    page.wait_for_function("window.solveEntered")
-    if read == "before-scroll":
-        page.wait_for_function("window.solveRead")
-    else:
-        assert page.evaluate("window.solveRead") is False
-    if source == "inner":
-        box = page.locator("#quote").bounding_box()
-        # Clear of the box, which stands beside the words with no frame to take its
-        # pointer input.
-        page.mouse.move(box["x"] + 380, box["y"] + 80)
-        moved = "document.querySelector('#quote').scrollTop"
-    else:
-        page.mouse.move(100, 500)
-        moved = "scrollY"
-    page.mouse.wheel(0, 30)
-    page.wait_for_function(f"{moved} > 0")
-    scroll_settled(page, "#quote" if source == "inner" else None)
-    if existing:
-        page.screenshot()
-        pending = page.evaluate("attachmentReading()")
-        assert pending["box"]["x"] == pytest.approx(pending["quote"]["right"], abs=1), (
-            pending
-        )
-        assert pending["box"]["y"] == pytest.approx(pending["quote"]["top"], abs=1), (
-            pending
-        )
-    page.evaluate("async () => {releaseSolve(); await solve;}")
-    page.screenshot()
-    state = page.evaluate("attachmentReading()")
-    assert state["plane"] == "page", state
-    assert state["box"]["x"] == pytest.approx(state["quote"]["right"], abs=1), state
-    assert state["box"]["y"] == pytest.approx(state["quote"]["top"], abs=1), state
+    # Each point the wheel can land in the solve, each scroller, and a placement
+    # already in place, each at least once.
+    for source, read, existing in [
+        ("inner", "before-discovery", False),
+        ("document", "before-scroll", True),
+        ("inner", "after-scroll", True),
+        ("document", "after-scroll", False),
+    ]:
+        with subtests.test(source=source, read=read, existing=existing):
+            page.evaluate(
+                """async ([read, source, existing]) => {
+                  const {floatingPlacement, floatingUi} =
+                    await window.__lfOverlayApi();
+                  const ui = await floatingUi();
+                  const paragraph = document.querySelector('#quote');
+                  // The case before leaves the box placed; stopping its owner clears what
+                  // that placement wrote on it.
+                  window.placed?.owner.stop();
+                  paragraph.scrollTop = 0;
+                  scrollTo(0, 0);
+                  const node = paragraph.childNodes[4];
+                  const range = document.createRange();
+                  range.setStart(node, 0); range.setEnd(node, 12);
+                  let box = window.placed?.box;
+                  if (!box) {
+                    box = document.createElement('div');
+                    box.style = 'position:fixed;width:100px;height:60px;background:white';
+                    document.querySelector('.lf-chrome').append(box);
+                  }
+                  const captured = range.getBoundingClientRect();
+                  const reference = {
+                    contextNode: node, contextElement: paragraph,
+                    // Presenters can hand the owner a solved passage snapshot or a live
+                    // virtual reference; both share its scroll/anchor measurement boundary.
+                    getBoundingClientRect: () => source === 'document' || read === 'before-discovery'
+                      ? captured : range.getBoundingClientRect(),
+                  };
+                  const owner = floatingPlacement({floating: box, update: () => {}});
+                  window.placed = {box, owner};
+                  if (existing) {
+                    owner.begin();
+                    const answer = await owner.position(ui.computePosition, reference,
+                      {placement:'right-start', middleware:[]}, () => 'page', paragraph);
+                    owner.stand(answer);
+                  }
+                  const gate = new Promise(done => {window.releaseSolve = done;});
+                  window.solveEntered = false;
+                  window.solveRead = false;
+                  owner.begin();
+                  window.solve = owner.position(async (...args) => {
+                    window.solveEntered = true;
+                    if (read !== 'before-scroll') await gate;
+                    const answer = await ui.computePosition(...args);
+                    window.solveRead = true;
+                    if (read === 'before-scroll') await gate;
+                    return answer;
+                  }, reference, {placement:'right-start', middleware:[]}, () => 'page', paragraph)
+                    .then(answer => owner.stand(answer));
+                  // A script may scroll in the turn that starts placement, before its
+                  // dependency continuation discovers the native overflow sources.
+                  if (read === 'before-discovery') {
+                    if (source === 'inner') paragraph.scrollTop = 20;
+                    else scrollTo(0, 20);
+                  }
+                  window.attachmentReading = () => ({
+                    quote: range.getBoundingClientRect().toJSON(),
+                    box: box.getBoundingClientRect().toJSON(),
+                    plane: box.dataset.lfPlane,
+                  });
+                }""",
+                [read, source, existing],
+            )
+            page.wait_for_function("window.solveEntered")
+            if read == "before-scroll":
+                page.wait_for_function("window.solveRead")
+            else:
+                assert page.evaluate("window.solveRead") is False
+            if source == "inner":
+                box = page.locator("#quote").bounding_box()
+                # Clear of the box, which stands beside the words with no frame to take its
+                # pointer input.
+                page.mouse.move(box["x"] + 380, box["y"] + 80)
+                moved = "document.querySelector('#quote').scrollTop"
+            else:
+                page.mouse.move(100, 500)
+                moved = "scrollY"
+            page.mouse.wheel(0, 30)
+            page.wait_for_function(f"{moved} > 0")
+            scroll_settled(page, "#quote" if source == "inner" else None)
+            if existing:
+                page.screenshot()
+                pending = page.evaluate("attachmentReading()")
+                assert pending["box"]["x"] == pytest.approx(
+                    pending["quote"]["right"], abs=1
+                ), pending
+                assert pending["box"]["y"] == pytest.approx(
+                    pending["quote"]["top"], abs=1
+                ), pending
+            page.evaluate("async () => {releaseSolve(); await solve;}")
+            page.screenshot()
+            state = page.evaluate("attachmentReading()")
+            assert state["plane"] == "page", state
+            assert state["box"]["x"] == pytest.approx(state["quote"]["right"], abs=1), (
+                state
+            )
+            assert state["box"]["y"] == pytest.approx(state["quote"]["top"], abs=1), (
+                state
+            )
 
 
 @pytest.mark.parametrize("engine", ["browser", "webkit_browser"])

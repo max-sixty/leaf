@@ -1,9 +1,14 @@
 """Layer schema and page-directory vocabulary."""
 
+import json
 import re
 from pathlib import Path
 
 from .state import EVENTS_FILE
+
+SKILL_ROOT = Path(__file__).resolve().parent.parent.parent
+PLUGIN_ROOT = SKILL_ROOT.parent.parent
+ASSETS = SKILL_ROOT / "assets"
 
 # A session-managed server gives a replacement session one short poll window to
 # claim the page before it closes. The external claim record is the ownership
@@ -12,17 +17,7 @@ ORPHAN_GRACE_SECS = 1
 # The harness-neutral name of an agent nothing names: a page's when no claimant
 # supplies one, and an agent-authored event's that carries no `agent` (`agent_name`).
 UNNAMED_AGENT = "Agent"
-# Non-message gesture kinds eligible for withdrawal; events.undo_error handles
-# reactions. The complete eligibility contract is events.md, "Undo".
-UNDOABLE_KINDS = {"resolve", "unresolve", "action", "done", "todo_end"}
-MESSAGE_KINDS = {"comment", "reply"}
-# The kinds a widget owns, admitted against the page's registry before they append.
-WIDGET_KINDS = {"action", "report"}
-# The operations that settle an update the agent owes, as `workflows` and
-# `activity` address them and `$events.answering` explains them. Which writer posts a
-# reply is separate: a reply reservation (`delivery`) gives it to a provider turn.
-ANSWER_KINDS = ("reply", "markup")
-ANSWER_ITEM_INSTRUCTION = (
+ANSWER_INSTRUCTION = (
     "Each update takes the answer named for it. Read current obligations with "
     "`leaf page state <page>` and thread history with `leaf page state <page> <id>`."
 )
@@ -34,8 +29,11 @@ WAIT_BATCH_OUTPUT_INSTRUCTION = (
     "with new input instead, and end."
 )
 
-HTML_NAME = r"[a-z][a-z0-9-]*"
-WIDGET_NAME = r"lf-[a-z0-9]+(?:-[a-z0-9]+)*"
+# The name grammars, declared in the kernel registry's `$names`, which the browser's
+# generated copy shares.
+_NAMES = json.loads((ASSETS / "registry.json").read_text())["$names"]
+HTML_NAME = _NAMES["html"]
+WIDGET_NAME = _NAMES["widget"]
 # What a refused element name is told, so the author need not read WIDGET_NAME.
 WIDGET_NAME_RULE = (
     "an element name is `lf-` followed by hyphen-separated words of lowercase "
@@ -86,7 +84,7 @@ _RECORD_VALUE = {
 }
 
 # A `when` predicate selects instances by attribute values (or by a flag's being
-# present or absent). One condition shape serves items and threads because they
+# present or absent). One condition shape serves obligations and threads because they
 # ask the same question of the same authored attributes.
 AWAITING_CONDITION = {
     "type": "object",
@@ -99,7 +97,7 @@ AWAITING_CONDITION = {
     },
 }
 
-# When a local item is answered: a map from each answering x-state verb to the
+# When a local obligation is answered: a map from each answering x-state verb to the
 # condition its current state meets. An empty condition means the verb's state stands
 # (a non-empty attribute or value record, otherwise an action in force). `when` narrows
 # the verb to instances whose attributes match; `empty` holds when the one member
@@ -182,59 +180,62 @@ REFERENCE_SCHEMA = {
 
 # Each verb declares its coordinate and a recorded effect or custom detail schema.
 # `writer: "agent"` makes it a report through `leaf page report`; otherwise the
-# user writes it. The writers differ in what their state may be, not its shape.
+# user writes it. The writers differ in what their state may be, not its shape. The
+# served state hands the browser each admitted event's verb in this shape, and the
+# browser build generates its type from this schema (`build/browser/contract-types.mjs`).
+VERB_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "detail": {"type": "object"},
+        "unit": {"type": "string", "minLength": 1},
+        "record": {
+            "oneOf": [
+                _RECORD_ATTRIBUTE,
+                _RECORD_POSITION,
+                _RECORD_BODY,
+                _RECORD_VALUE,
+            ]
+        },
+        "writer": {"const": "agent"},
+        "creates": ACTION_CREATES,
+        # The effect owns the payload; `text` adds a required non-empty detail.text.
+        "text": {"const": True},
+    },
+    "required": ["unit"],
+    "allOf": [
+        {
+            "if": {"required": ["record"]},
+            "then": {"properties": {"detail": False, "creates": False}},
+            "else": {"required": ["detail"]},
+        }
+    ],
+    "additionalProperties": False,
+    # An agent's verb moves declared state only, never body words — so the
+    # passage reading never has to model one — and never a part's place, which
+    # the stamped version owns and a rank reads between the neighbours a widget
+    # shows the user. Its record is required: the gate compares record forms,
+    # and a recordless report would be a claim nothing could check a version
+    # against. Only the user adds children, and only an agent verb
+    # declares `text`.
+    "if": {"required": ["writer"]},
+    "then": {
+        "required": ["record"],
+        "properties": {
+            "record": {"properties": {"kind": {"enum": ["attribute", "value"]}}},
+            "creates": False,
+        },
+    },
+    "else": {"properties": {"text": False}},
+}
 STATE_SCHEMA = {
     "type": "object",
     "minProperties": 1,
     "propertyNames": {"pattern": f"^{HTML_NAME}$"},
-    "additionalProperties": {
-        "type": "object",
-        "properties": {
-            "detail": {"type": "object"},
-            "unit": {"type": "string", "minLength": 1},
-            "record": {
-                "oneOf": [
-                    _RECORD_ATTRIBUTE,
-                    _RECORD_POSITION,
-                    _RECORD_BODY,
-                    _RECORD_VALUE,
-                ]
-            },
-            "writer": {"const": "agent"},
-            "creates": ACTION_CREATES,
-            # The effect owns the payload; `text` adds a required non-empty detail.text.
-            "text": {"const": True},
-        },
-        "required": ["unit"],
-        "allOf": [
-            {
-                "if": {"required": ["record"]},
-                "then": {"properties": {"detail": False, "creates": False}},
-                "else": {"required": ["detail"]},
-            }
-        ],
-        "additionalProperties": False,
-        # An agent's verb moves declared state only, never body words — so the
-        # passage reading never has to model one — and never a part's place, which
-        # the stamped version owns and a rank reads between the neighbours a widget
-        # shows the user. Its record is required: the gate compares record forms,
-        # and a recordless report would be a claim nothing could check a version
-        # against. Only the user adds children, and only an agent verb
-        # declares `text`.
-        "if": {"required": ["writer"]},
-        "then": {
-            "required": ["record"],
-            "properties": {
-                "record": {"properties": {"kind": {"enum": ["attribute", "value"]}}},
-                "creates": False,
-            },
-        },
-        "else": {"properties": {"text": False}},
-    },
+    "additionalProperties": VERB_SCHEMA,
 }
-# A widget's item is answered either by its own state (`value` and `answered`) or, with
+# A widget's obligation is answered either by its own state (`value` and `answered`) or, with
 # `reply`, by the user's words about it, which it has no state to hold. `encloses`
-# makes a widget the frame of the items inside it, asking nothing itself while it holds
+# makes a widget the frame of the obligations inside it, asking nothing itself while it holds
 # another that can ask.
 AWAITS_SCHEMA = {
     "type": "object",
@@ -400,7 +401,7 @@ EXTENSION_SCHEMA = {
                 },
             ]
         },
-        "x-views": {"const": True},
+        "x-views": {"enum": [True, "parts"]},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-within": {
             "type": "array",
@@ -450,11 +451,7 @@ LAYER_FACTS_SCHEMA = {
             "properties": {
                 "kinds": {"type": "object"},
                 "handling": {"type": "object", "additionalProperties": _CLAUSES},
-                "answering": {
-                    "type": "object",
-                    "propertyNames": {"enum": list(ANSWER_KINDS)},
-                    "additionalProperties": _CLAUSES,
-                },
+                "answering": {"type": "object", "additionalProperties": _CLAUSES},
             },
             "required": ["kinds", "handling", "answering"],
         },
@@ -549,68 +546,7 @@ ATTRIBUTE_KEYS = (
     "x-tone",
     "x-unique",
 )
-# The declarations a stylesheet reads, each painted on the element as `paint`: the room
-# it takes (x-space), whether it sets inline among words (x-inline), quotes what it holds
-# (x-exhibit), holds its own height (x-bound), draws into a box of a stated height
-# (x-height), the reading structure it supplies (x-reading-role), the margin posture it
-# takes where it stands in a column's sidebar (x-resident), and whether it shows
-# one member at a time (x-views). Neither a stylesheet nor the prepaint, which runs
-# before the registry has loaded (`runtime/prepaint.js`), can read the registry, so
-# each is painted where a selector can ask. `authored` is
-# the attribute an occurrence writes to override its tag's declaration, and
-# `authored_on` where that override means something, so elsewhere it is inert:
-# `content`, a block inside `main`, since the room and the bound size a block in the
-# page's flow and on `main` or `body` would size the page itself; `declared`, an element
-# whose tag declares the mark, since a stated height reserves room for a module's
-# drawing and a block no module draws into would be clipped to it for good.
-# `message` says
-# whether the mark holds in a thread's message too:
-# each is the element's own fact wherever it renders, except the room and the margin
-# posture, which are the document's to hand out; a message renders in the panel, whose
-# width bounds it and which has no margin.
-#
-# The room is only ever past the measure: a widget read as lines of text keeps to the
-# measure in its own stylesheet (`max-inline-size: var(--lf-measure)`), so `x-space`
-# names a breakout and nothing else.
-#
-# `presence` paints only whether a declaration exists, without serializing its rules.
-# Delivery paints a page's document from this (`revision_delivery.mark_declared`).
-# Composition stamps it into the vocabulary as `$marks` (`registry.layer.
-# stamp_composition`), from which the runtime paints a message it renders and tells the
-# paint from the author's attributes (`isPagePaint`). The paint names are also the
-# theme's contract: the stylesheets that read them spell them out.
-DECLARED_MARKS = {
-    "x-content": {"paint": "data-lf-content", "message": True},
-    "x-verbatim": {"paint": "data-lf-verbatim", "message": True},
-    "x-space": {
-        "paint": "data-lf-space",
-        "authored": "data-width",
-        "authored_on": "content",
-        "message": False,
-    },
-    "x-inline": {"paint": "data-lf-inline", "message": True},
-    "x-exhibit": {"paint": "data-lf-exhibit", "message": True},
-    "x-bound": {
-        "paint": "data-lf-bound",
-        "authored": "data-bound",
-        "authored_on": "content",
-        "message": True,
-    },
-    "x-height": {
-        "paint": "data-lf-height",
-        "authored": "data-height",
-        "authored_on": "declared",
-        "message": True,
-    },
-    "x-reading-role": {"paint": "data-lf-reading-role", "message": True},
-    "x-resident": {"paint": "data-lf-resident", "message": False},
-    "x-views": {"paint": "data-lf-views", "message": True},
-    "x-awaits": {"paint": "data-lf-awaits", "presence": True, "message": True},
-}
 
-SKILL_ROOT = Path(__file__).resolve().parent.parent.parent
-PLUGIN_ROOT = SKILL_ROOT.parent.parent
-ASSETS = SKILL_ROOT / "assets"
 # The kernel compiled from ASSETS's modules, committed beside them (`layer.current_kernel`).
 KERNEL = SKILL_ROOT / "kernel"
 BUNDLED_PACKAGES = SKILL_ROOT / "packages"

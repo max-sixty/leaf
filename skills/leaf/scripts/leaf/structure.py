@@ -2,6 +2,7 @@
 
 import hashlib
 import re
+from collections.abc import Mapping
 from functools import cached_property
 from html import escape
 from urllib.parse import urlsplit
@@ -9,6 +10,7 @@ from urllib.parse import urlsplit
 import turbohtml
 
 from .findings import Finding
+from .registry.kernel import kernel_authored
 from .schema import EVENT_ID, MEDIA_DIR
 
 DELIVERY_ENCODING_META = '<meta charset="utf-8" data-lf-runtime>'
@@ -71,21 +73,21 @@ PROSE_TAGS = {"p", "h1", "h2", "h3", "h4", "h5", "h6"}
 # Where an aim that found no tighter id has escaped to: naming one of these is
 # naming most of the page.
 SECTIONING_TAGS = {"section", "article", "main", "body"}
+# The page-wide allocations the runtime reads from `body`, which a sample template
+# carries onto its child's body (`$authored` in the kernel registry).
+PAGE_ALLOCATIONS = kernel_authored()["allocations"]
 # The allocations a page occurrence may state, each attribute with the values it takes:
 # a block's width in the page's flow, whether it bounds its own height, the height in
-# CSS pixels of a widget that draws into a box of a stated height (x-height), and, read
-# from `body`, the selected annotation presentation and whether the page claims the
-# overlay rail or keeps that margin for its own residents. Delivery honours a width,
-# bound or height only where it means something (`authored_on`, schema.DECLARED_MARKS).
+# CSS pixels of a widget that draws into a box of a stated height (x-height), and the
+# page-wide ones. Delivery honours a width, bound or height only where it means
+# something (`authored_on` in the kernel registry's `$marks`), and paints it for the
+# runtime to read.
 AUTHORED_ALLOCATIONS = {
     "data-width": ("wide", "available"),
     "data-bound": ("start", "end"),
     "data-height": re.compile("[1-9][0-9]*"),
-    "data-rail": ("right", "none"),
-    "data-annotations": ("overlay", "page"),
+    **{attr: tuple(values) for attr, values in PAGE_ALLOCATIONS.items()},
 }
-# Page-wide declarations. A sample template carries these onto its child's body.
-PAGE_ALLOCATIONS = frozenset({"data-rail", "data-annotations"})
 
 
 def allocation_valid(attr: str, value: str) -> bool:
@@ -97,10 +99,12 @@ def allocation_valid(attr: str, value: str) -> bool:
 
 
 # Page-level declarations the runtime reads from <meta name="lf-*"> in the head,
-# name → allowed content values (None = free-form). A misspelled name or value
-# would silently declare nothing in the browser, so `page check` owns this
-# vocabulary the way the registry owns lf-* elements.
-LF_META = {"lf-review": frozenset({"sign-off"})}
+# name → allowed content values (`$authored` in the kernel registry). A misspelled
+# name or value would silently declare nothing in the browser, so `page check` holds
+# a page to this vocabulary the way the registry holds lf-* elements.
+LF_META = {
+    name: frozenset(values) for name, values in kernel_authored()["meta"].items()
+}
 
 
 def remote_reference(reference: str) -> bool:
@@ -880,25 +884,50 @@ def annotation_mode(document: SourceDocument) -> str:
     return element_attrs(body).get("data-annotations", "overlay") if body else "overlay"
 
 
-def page_layout(document: SourceDocument):
-    """The `layout-` names the document's `main` and its shown children carry
-    (`layout-column` is `column`), space-separated, or None.
+def page_layout(document: SourceDocument, registry: Mapping):
+    """The `layout-` names the document's `main` and the boxes under it that can be its
+    Layout's carry (`layout-column` is `column`), space-separated, or None.
 
-    A page Layout's class is on `main`, or on a shown child of a `main` that carries none
-    (layouts.css, `--lf-layout-box`), which the parser reaches after it has begun
-    painting the body, so delivery repeats it on the root for the Layout's own body rules
-    to read before the first paint. A child the page hides is not the page's shape, so
-    its names stay off. Every other name goes across, since a block's own
-    (`layout-tiles`) can stand beside the page's and the body rules read only the page
-    Layouts' names."""
+    A page Layout's class is on `main`, on a shown child of a `main` that carries none,
+    or on the child of each part of such a `main`'s parts (`x-views: "parts"`,
+    layouts.css, `--lf-layout-box`). The parser reaches those after it has begun
+    painting the body, so delivery repeats them on the root for the Layout's own body
+    rules to read before the first paint. Which part opens is the browser's, so every
+    part's names go across. A child the page hides is not the page's shape, so its names
+    stay off. Every other name goes across, since a block's own (`layout-tiles`) can
+    stand beside the page's and the body rules read only the page Layouts' names."""
     main = document.tree.select_one("body > main")
+    if main is None:
+        return None
+
+    def shown(parent):
+        return [
+            child
+            for child in parent.children
+            if isinstance(child, turbohtml.Element) and "hidden" not in child.attrs
+        ]
+
+    def carried(box):
+        return [
+            token.removeprefix("layout-")
+            for token in box.attrs.get("class", [])
+            if token.startswith("layout-")
+        ]
+
+    boxes = [main, *shown(main)]
+    if not carried(main):
+        boxes += [
+            child
+            for holder in shown(main)
+            if registry.get(holder.tag, {}).get("x-views") == "parts"
+            for part in shown(holder)
+            for child in shown(part)
+        ]
     names = []
-    for box in [main, *main.children] if main else []:
-        if isinstance(box, turbohtml.Element) and "hidden" not in box.attrs:
-            for token in box.attrs.get("class", []):
-                name = token.removeprefix("layout-")
-                if name != token and name not in names:
-                    names.append(name)
+    for box in boxes:
+        for name in carried(box):
+            if name not in names:
+                names.append(name)
     return " ".join(names) or None
 
 

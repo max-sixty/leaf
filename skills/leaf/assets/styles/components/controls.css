@@ -131,7 +131,6 @@
     [aria-pressed="true"],
     :hover,
     [data-lf-focus],
-    [data-lf-focus],
     [aria-busy="true"]
   ) {
   color: var(--ink-2);
@@ -216,7 +215,7 @@
 /* A progress disclosure precedes the completed answer's feedback control. Hold that
    control's room from the first disclosure paint so its arrival moves no label. */
 .lf-msg:has(.lf-msg-control, > .lf-msg-head > .lf-progress-expand) > .lf-msg-head {
-  --lf-msg-control: max(26px, var(--aim-floor));
+  --lf-msg-control: var(--lf-msg-control-size);
   padding-inline-end: calc(
     var(--lf-msg-control-room, var(--lf-msg-control)) + var(--lf-msg-head-room, 0px)
   );
@@ -228,9 +227,7 @@
   scroll-margin-block-end: var(--sp-2);
 }
 .lf-msg:has(> .lf-msg-body > .lf-msg-editor) > .lf-msg-head {
-  --lf-msg-control-room: calc(
-    max(52px, var(--aim-floor)) + 4px + max(40px, var(--aim-floor))
-  );
+  --lf-msg-control-room: var(--lf-msg-edit-room);
 }
 .lf-msg:has(> .lf-msg-body > .lf-msg-editor) > .lf-msg-head > .lf-msg-meta {
   display: none;
@@ -244,8 +241,8 @@
   inset-inline-end: anchor(right);
   translate: 0 -50%;
   box-sizing: border-box;
-  inline-size: 26px;
-  block-size: 26px;
+  inline-size: var(--lf-msg-control-size);
+  block-size: var(--lf-msg-control-size);
   padding: 0;
   display: inline-flex;
   align-items: center;
@@ -348,7 +345,7 @@ svg[data-lf-icon] {
    height; reserve its inline room here too. */
 @media (pointer: coarse), (hover: none) {
   .lf-msg:is(.agent, .user) > .lf-msg-head {
-    --lf-msg-control: max(26px, var(--aim-floor));
+    --lf-msg-control: var(--lf-msg-control-size);
     padding-inline-end: calc(
       var(--lf-msg-control-room, var(--lf-msg-control)) + var(--lf-msg-head-room, 0px)
     );
@@ -381,28 +378,45 @@ svg[data-lf-icon] {
 [data-lf-holds] {
   position: relative;
 }
-/* The layer's marks for a box that shows less than it holds across (reachScrollers, for
- * why the sweep and not a rule beside each overflow decides who wears them). Scrolling
- * is the honest answer when the room ran short, and on a platform drawing overlay
- * scrollbars it is an answer the user is never given: a flowchart cut 356px of 1026
- * inside a tab panel read as a finished graph at every width from 1200 to 1920. A cut
- * line of code announces itself by being a line; a drawing announces nothing, so the box
- * says it.
+/* The layer's marks for a box that shows less than it holds (reachScrollers, for why the
+ * sweep and not a rule beside each overflow decides who wears them): across it, and down
+ * a reading region (reachReadingScroller). Scrolling is the honest answer when the room
+ * ran short, and on a platform drawing overlay scrollbars it is an answer the user is
+ * never given: a flowchart cut 356px of 1026 inside a tab panel read as a finished graph
+ * at every width from 1200 to 1920. A cut line of code announces itself by being a line;
+ * a drawing announces nothing, so the box says it.
  *
  * The visible content fades at each edge that has more beyond it. The fade follows the
  * scroll position: inline end at the start, both edges in the middle, and inline start
- * at the end. Masking the box makes the content itself recede instead of casting an
- * unexplained shadow behind it. That is right for text, where a word fading at the edge
- * reads as cut. A widget whose content reads otherwise states how wide the fade is
+ * at the end; the block end until the end is reached. Masking the box makes the content
+ * itself recede instead of casting an unexplained shadow behind it. That is right for
+ * text, where a word fading at the edge reads as cut, and it is the only paint that
+ * shows over any content: an inset shadow, which the block end once wore, paints under
+ * its descendants, so a playground's preview, whose cards fill it to the edge, showed
+ * none of it. A widget whose content reads otherwise states how wide the fade is
  * (--lf-more-fade, 24px) and how much of the content is left at the edge
- * (--lf-more-fade-to, none); lf-diagram's theme does, for a drawing. Focus within
- * removes the mask so the scroller's complete ring and controls painted outside its box
- * remain visible; the user standing there already has the platform's scroll affordance.
+ * (--lf-more-fade-to, none); lf-diagram's theme does, for a drawing.
+ *
+ * Each axis states its gradient's stops in a property no box inherits, so a nested
+ * scroller fades only where it is cut itself, and one rule intersects the two gradients,
+ * so a box cut both ways fades on both. Focus within removes the mask so the scroller's
+ * complete ring and controls painted outside its box remain visible, and so does a
+ * control focused at the edge: Tab left a playground's radio 3px past its region's end
+ * in Firefox, faded to nothing. The user standing there already has the platform's
+ * scroll affordance.
  *
  * Neither the mask nor its attributes affect layout, so observing the scroller cannot
  * feed the measurement back into itself. Screen only, because a mark whose whole
  * meaning is "scroll to see the rest" says nothing on a sheet nobody can scroll. The
  * page writes its reading on each scroll. */
+@property --lf-more-across {
+  syntax: "*";
+  inherits: false;
+}
+@property --lf-more-down {
+  syntax: "*";
+  inherits: false;
+}
 @media screen {
   [data-lf-more-after]:where(
     [data-lf-scroll-direction="ltr"]:not([data-lf-more-before])
@@ -410,16 +424,8 @@ svg[data-lf-icon] {
   [data-lf-more-before]:where(
     [data-lf-scroll-direction="rtl"]:not([data-lf-more-after])
   ) {
-    -webkit-mask-image: linear-gradient(
-      to right,
-      #000 calc(100% - var(--lf-more-fade, 24px)),
-      var(--lf-more-fade-to, transparent)
-    );
-    mask-image: linear-gradient(
-      to right,
-      #000 calc(100% - var(--lf-more-fade, 24px)),
-      var(--lf-more-fade-to, transparent)
-    );
+    --lf-more-across:
+      #000 calc(100% - var(--lf-more-fade, 24px)), var(--lf-more-fade-to, transparent);
   }
   [data-lf-more-before]:where(
     [data-lf-scroll-direction="ltr"]:not([data-lf-more-after])
@@ -427,46 +433,29 @@ svg[data-lf-icon] {
   [data-lf-more-after]:where(
     [data-lf-scroll-direction="rtl"]:not([data-lf-more-before])
   ) {
-    -webkit-mask-image: linear-gradient(
-      to right,
-      var(--lf-more-fade-to, transparent),
-      #000 var(--lf-more-fade, 24px)
-    );
-    mask-image: linear-gradient(
-      to right,
-      var(--lf-more-fade-to, transparent),
-      #000 var(--lf-more-fade, 24px)
-    );
+    --lf-more-across:
+      var(--lf-more-fade-to, transparent), #000 var(--lf-more-fade, 24px);
   }
   [data-lf-more-before][data-lf-more-after] {
-    -webkit-mask-image: linear-gradient(
-      to right,
-      var(--lf-more-fade-to, transparent),
-      #000 var(--lf-more-fade, 24px),
-      #000 calc(100% - var(--lf-more-fade, 24px)),
-      var(--lf-more-fade-to, transparent)
-    );
-    mask-image: linear-gradient(
-      to right,
-      var(--lf-more-fade-to, transparent),
-      #000 var(--lf-more-fade, 24px),
-      #000 calc(100% - var(--lf-more-fade, 24px)),
-      var(--lf-more-fade-to, transparent)
-    );
+    --lf-more-across:
+      var(--lf-more-fade-to, transparent), #000 var(--lf-more-fade, 24px),
+      #000 calc(100% - var(--lf-more-fade, 24px)), var(--lf-more-fade-to, transparent);
   }
-  :is([data-lf-more-before], [data-lf-more-after]):is(
+  [data-lf-more-below] {
+    --lf-more-down:
+      #000 calc(100% - var(--lf-more-fade, 24px)), var(--lf-more-fade-to, transparent);
+  }
+  :is([data-lf-more-before], [data-lf-more-after], [data-lf-more-below]) {
+    mask-image:
+      linear-gradient(to right, var(--lf-more-across, #000, #000)),
+      linear-gradient(var(--lf-more-down, #000, #000));
+    mask-composite: intersect;
+  }
+  :is([data-lf-more-before], [data-lf-more-after], [data-lf-more-below]):is(
     [data-lf-focus],
     :has([data-lf-focus])
   ) {
-    -webkit-mask-image: none;
     mask-image: none;
-  }
-  /* A registered reading region with more below it gets the same edge vocabulary on
-   * its block end. This shadow is paint behind descendants rather than an overlay over
-   * their words or controls. The runtime removes it at the end and in flow posture,
-   * and the `@media screen` above already keeps it off a printed sheet. */
-  [data-lf-more-below] {
-    box-shadow: inset 0 -8px 8px -8px var(--shade);
   }
 }
 @media print {
@@ -509,7 +498,7 @@ svg[data-lf-icon] {
  * widest line in its own face, with no script. The words take no part in that width:
  * they fill the room and are cut past it with an ellipsis, so the control never widens
  * when its words change. Rejected: the room as a least width, which let a long label
- * widen its control and shift the banner beside it, too often and in too many places
+ * widen its control and shift the controls beside it, too often and in too many places
  * to oversee (the user's decision, 2026-10-14). Cut words stay whole in the element's
  * text and accessible name; generated content is in neither. The room wraps at its
  * spaces, so it never holds the element wider than its container. The words' line is
@@ -548,9 +537,8 @@ svg[data-lf-icon] {
 :is(.lf-btn, .button).primary:not(:disabled, [aria-disabled="true"]):hover {
   background: var(--accent-tint);
 }
-/* Two selectors, two mechanisms, one look: the platform's own on the banner's real
-   buttons, and the attribute wireInput sets, which is the only one a span press can
-   wear. */
+/* Two selectors, two mechanisms, one look: the platform's own on a real button, and the
+   attribute wireInput sets, which is the only one a span press can wear. */
 :is(.lf-btn, .button):disabled,
 :is(.lf-btn, .button)[aria-disabled="true"] {
   opacity: 0.55;

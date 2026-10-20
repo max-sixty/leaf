@@ -98,7 +98,8 @@
     globalThis.__lfRingBoxes = boxes;
   }
 
-  // Every focus ring the page is showing right now, and what is wrong with each.
+  // The carriers of every focus ring the page is showing right now. Faults are read
+  // after the protocol supplies the pseudo-elements' own border boxes.
   //
   // Asked of every box painting one, rather than of the focused one.
   // The two are not the same set: three rules draw the ring on something other than the
@@ -114,19 +115,7 @@
   // Both carriers of the band are read. Most of the layer's rules draw it as an outline;
   // two cast it as a shadow instead, and a reading that knew only the outline reported the
   // response bar and the browsed target hint as boxes with no ring on them at all.
-  async function ringsDrawn() {
-    // shownBand, rather than a fourth reading of what a box clips to. Its own comment
-    // carries why: page check --render imports it so the band a handover is refused
-    // against and the band the page paints to are one reading, and written twice they
-    // disagreed twice. This was the third copy and it was wrong in both of the ways that
-    // comment names — it asked only about overflow, so paint containment and
-    // content-visibility clipped a ring away with nothing said, and it measured the
-    // padding box with the scrollbar's gutter still in it.
-    const { shownBand } = await window.__lfCheckApi();
-    const holds = (a, b) => {
-      for (let n = b; n; n = flatParent(n)) if (n === a) return true;
-      return false;
-    };
+  function ringCandidates() {
     const { accent, mixed } = accentSwatch();
     // The band this box casts as a shadow, where it draws one, in the width it draws it
     // at. Its own comment carries what makes a shadow that band rather than a lift.
@@ -179,22 +168,57 @@
       !claimed.some((claim) => claim.el === focused)
     )
       claimed.push({ el: focused, cs: getComputedStyle(focused) });
+    // A skipped until-found panel retains stale boxes; only rendered carriers count. A
+    // `display: contents` element has no box, so the platform calls it unrendered, but
+    // its pseudo-element still renders, in its parent's box: a page of parts' holder
+    // draws the open part's ring that way. Such a pseudo is shown where its parent is.
+    const shown = (el, pseudo) =>
+      pseudo && getComputedStyle(el).display === "contents"
+        ? shown(flatParent(el), false)
+        : el.checkVisibility({
+            contentVisibilityAuto: true,
+            opacityProperty: true,
+            visibilityProperty: true,
+          });
+    const visible = claimed.filter(({ el, pseudo }) => shown(el, pseudo));
+    const rings = visible
+      .map((claim) => ({
+        ...claim,
+        outlined:
+          claim.cs.outlineStyle === "none" ? 0 : parseFloat(claim.cs.outlineWidth) || 0,
+        cast: hereShadow(claim.cs),
+        here: isFocusRing(claim.cs),
+      }))
+      .filter(({ outlined, cast }) => outlined || cast);
+    globalThis.__lfRingClaims = rings;
+    stash(rings.map(({ el }) => el));
+    return rings.map(({ outlined, pseudo }) => ({
+      pseudo: pseudo ? "after" : null,
+      carrier: outlined ? "outline" : "box-shadow",
+    }));
+  }
+
+  // Complete the same candidate reading after the protocol has measured pseudo boxes.
+  // A pseudo-element need not share its originating element's border box: anchored
+  // frames and frames moving with scrolled contents both depend on its actual layout.
+  async function ringsDrawn(rectangles) {
+    // shownBand, rather than a fourth reading of what a box clips to. Its own comment
+    // carries why: page check --render imports it so the band a handover is refused
+    // against and the band the page paints to are one reading, and written twice they
+    // disagreed twice. This was the third copy and it was wrong in both of the ways that
+    // comment names — it asked only about overflow, so paint containment and
+    // content-visibility clipped a ring away with nothing said, and it measured the
+    // padding box with the scrollbar's gutter still in it.
+    const { shownBand } = await window.__lfCheckApi();
+    const holds = (a, b) => {
+      for (let n = b; n; n = flatParent(n)) if (n === a) return true;
+      return false;
+    };
+    const focused = deepFocus();
+    const claimed = globalThis.__lfRingClaims;
+    delete globalThis.__lfRingClaims;
     const answers = [];
-    const boxes = [];
-    for (const { el, cs, pseudo } of claimed) {
-      // A ring on something the browser is not rendering is not on screen, and its box is
-      // whatever the last layout left behind. An inactive lf-tab is the case: it carries
-      // `hidden="until-found"`, so the UA gives it `content-visibility: hidden`, its
-      // contents are skipped, and the decision inside one still answers a stale rect three
-      // thousand pixels from the band its own panel now reports.
-      if (
-        !el.checkVisibility({
-          contentVisibilityAuto: true,
-          opacityProperty: true,
-          visibilityProperty: true,
-        })
-      )
-        continue;
+    for (const [index, { el, cs, pseudo, cast, outlined, here }] of claimed.entries()) {
       // Straight off the computed style, which holds because no ring in this layer moves.
       // A ring on its way somewhere reads as wherever it has got to — mid-transition the
       // platform reports the animated value, which early on is the value the property is
@@ -212,13 +236,9 @@
       // wherever there is one, so every box this reading already measured is measured the
       // same way: the two carriers are on different boxes in this layer, and where a box
       // ever wears both, the outline is the one the layer's own rules put there.
-      const cast = hereShadow(cs);
-      const outlined =
-        cs.outlineStyle === "none" ? 0 : parseFloat(cs.outlineWidth) || 0;
       const w = outlined || cast;
-      if (!w) continue;
       const grow = outlined ? outlined + (parseFloat(cs.outlineOffset) || 0) : cast;
-      const b = el.getBoundingClientRect();
+      const b = pseudo ? rectangles[index] : el.getBoundingClientRect();
       const ring = {
         top: b.top - grow,
         left: b.left - grow,
@@ -233,9 +253,10 @@
       let scrolled = false;
       const above = flatParent;
       // One side, one message, named for the innermost box that took it. A scroll region's
-      // edge is often the window's to the pixel — .lf-threads' right edge is .lf-thread-panel's is
-      // innerWidth — and one ring reported twice reads as two defects. The innermost box is
-      // the more useful of the two answers anyway: it is the box the control lives in.
+      // edge is often the window's to the pixel — a list flush with a window-edge panel
+      // shares its right edge, which is innerWidth — and one ring reported twice reads as
+      // two defects. The innermost box is the more useful of the two answers anyway: it
+      // is the box the control lives in.
       const taken = {};
       const took = (band, who) => {
         // Only the sides where this box is showing the control's own edge, which is the
@@ -292,9 +313,10 @@
       // box stops somewhere. It is the outermost clip there is: a fixed subtree is laid out
       // against it, and everything else reaches it through body, which is this page's
       // scroller. Not a claim that nothing else could clip a fixed box — a containing block
-      // established by transform, filter or containment is a real case, and .lf-banner's
-      // backdrop-filter is one such generator — but the walk covers that case now by asking
-      // every box on the way up instead of branching on the focused one's own position.
+      // established by transform, filter or containment is a real case, and a chrome
+      // surface's backdrop-filter is one such generator — but the walk covers that case
+      // now by asking every box on the way up instead of branching on the focused one's
+      // own position.
       took({ top: 0, left: 0, bottom: innerHeight, right: innerWidth }, "the window");
       for (const side of ["top", "left", "bottom", "right"])
         if (taken[side]) cuts.push(taken[side]);
@@ -324,10 +346,10 @@
       // hit-testable. A pixel of ring outside the control's box therefore returns whatever
       // is beneath, and beneath is where the answer would have to come from.
       //
-      // That is sound where an ancestor's hit surface covers the sample. The shortcut
-      // bar takes no hits outside its More button, so a ring pixel there returns the
-      // page underneath. The auxiliary envelope also takes no hits, but its panel
-      // restores them inside its box. Read each ring side under the nearest such box;
+      // That is sound where an ancestor's hit surface covers the sample. A chrome layer
+      // that takes no hits, such as the floating panel's window-wide ground, returns the
+      // page underneath for a ring pixel there, unless a box inside it restores hits
+      // over the sample. Read each ring side under the nearest such box;
       // `cuts` remains a geometry reading even where hit order says nothing.
       const orderedAt = (x, y) => {
         let hitSurface = null;
@@ -342,7 +364,7 @@
         return true;
       };
       // Whether a fixed surface standing over this ring is worth reporting. Tab scrolls
-      // the control it lands on clear of the banner — that is what the document's
+      // the control it lands on clear of fixed chrome — that is what the document's
       // scroll-padding is for — so a fixed bar over the focused control's ring is a
       // promise broken. Over a ring some ancestor wears it is not: nobody scrolled that
       // box, and where its top edge comes to rest a pixel under the bar is the user's
@@ -385,8 +407,8 @@
       // Each run sampled in the middle of the part of it that is on screen, rather than in
       // the middle of the whole run. They differ for anything taller or wider than the
       // window, and then the plain midpoint is a point the user cannot see: an option
-      // group 1791px tall was sampled 22px down the window, which is inside the banner,
-      // and the banner's status dot came back as standing over its ring.
+      // group 1791px tall was sampled 22px down the window, which is inside the chrome
+      // fixed there, and its status dot came back as standing over its ring.
       const runX = [Math.max(ring.left, 0), Math.min(ring.right, innerWidth)];
       const runY = [Math.max(ring.top, 0), Math.min(ring.bottom, innerHeight)];
       const shownRun = runX[0] <= runX[1] && runY[0] <= runY[1];
@@ -429,9 +451,9 @@
           // which is a fact about where the control was put rather than about the ring being
           // drawn outside its box. The claim worth making is the other one: where the control
           // can be seen, so can the ring that names it. Stated without a case on purpose —
-          // the one this was written for was the drawer's edge handle running the whole height
-          // of the window under the banner, which stopped being true in 3a8f16f0, the commit
-          // that added this comment and the handle's top inset together.
+          // the one this was written for was a drawer's edge handle running the whole height
+          // of the window under the chrome at its top, which stopped being true in 3a8f16f0,
+          // the commit that added this comment and the handle's top inset together.
           //
           // The step in has to clear the ring's own band. Past an outward ring, `grow + 1`
           // lands on the control's own outermost pixels, so a control whose edge stands
@@ -586,10 +608,9 @@
           break;
         }
       }
-      boxes.push(el);
       answers.push({
         who: named(el),
-        here: isFocusRing(cs),
+        here,
         mark: el.matches(".lf-mark-el"),
         pseudo: pseudo ? "after" : null,
         carrier: outlined ? "outline" : "box-shadow",
@@ -604,7 +625,6 @@
         covers,
       });
     }
-    stash(boxes);
     return answers;
   }
 
@@ -725,6 +745,7 @@
   }
 
   return {
+    ringCandidates,
     ringsDrawn,
     newStop,
     seenStop,

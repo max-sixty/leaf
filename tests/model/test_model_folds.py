@@ -9,7 +9,7 @@ putting one in the claim.
 """
 
 import model_folds as model
-from interact_support import page_packages, served_thread
+from interact_support import page_packages, served_obligations
 
 HUB = model.leaf_page(
     "command hub",
@@ -360,8 +360,12 @@ def test_every_served_agent_record_carries_the_name_it_is_shown_under():
     )
 
     thread = model.threads(state)["e1"]
-    assert [message["agent"] for message in thread["msgs"]] == [None, "Agent", "Codex"]
-    assert thread["root"]["agent"] is None
+    assert [message.get("agent") for message in thread["msgs"]] == [
+        None,
+        "Agent",
+        "Codex",
+    ]
+    assert "agent" not in thread["root"]
     assert thread["resolved"]["agent"] == "Agent"
     assert [(row["id"], row["agent"]) for row in state["history"]] == [
         ("e4", "Agent"),
@@ -374,9 +378,9 @@ def test_every_served_agent_record_carries_the_name_it_is_shown_under():
 def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it():
     """A card moved on a board the agent sent in a reply is served in that reply's
     thread, so every surface of the thread shows its receipt; but the move owes
-    nothing, so it leaves the thread the user's to answer, and no card reads it as
-    work the agent is holding. The thread's own unanswered input is the contrast:
-    it stands in its thread and holds it."""
+    nothing and publishes no obligation, so it leaves the thread the user's to answer,
+    and no card reads it as work the agent is holding. The thread's own unanswered
+    input is the contrast: it publishes the obligation that holds its thread."""
     board = model.model_layer()["lf-board"]["x-example"]
     state = model.reading(
         HUB,
@@ -402,9 +406,9 @@ def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it
     )
 
     assert [
-        (workflow["id"], workflow["thread"], workflow["holds_thread"])
+        (workflow["id"], workflow["thread"], workflow["obligation"])
         for workflow in state["workflows"]
-    ] == [("e4", "e4", True), ("e3", "e1", False)]
+    ] == [("e4", "e4", "update:e4"), ("e3", "e1", None)]
     threads = model.threads(state)
     assert threads["e1"]["attention"] == {
         "kind": "needs_user",
@@ -479,26 +483,16 @@ def test_questions_settle_one_by_one_and_an_end_outlasts_a_later_reply():
     state = add(
         "reply", "second", parent="first", text="And:", markup=question("hue", "Hue?")
     )
-    assert model.threads(state)["first"]["user_prompt"] == {
-        "message": "second",
-        "version": "second",
-    }
     assert state["todos"] == []
-    assert [item["id"] for item in served_thread(state)["items"]["user"]] == [
+    assert [item["id"] for item in served_obligations(state)["user"]] == [
         "widget:route",
         "widget:hue",
     ]
     state = add("reply", "reaction", "user", parent="second", token="keep")
-    assert model.threads(state)["first"]["user_prompt"] == {
-        "message": "first",
-        "version": "first",
-    }
-    assert [item["id"] for item in served_thread(state)["items"]["user"]] == [
+    assert [item["id"] for item in served_obligations(state)["user"]] == [
         "widget:route"
     ]
-    assert (
-        served_thread(state)["items"]["all"][1]["answer"]["event"]["id"] == "reaction"
-    )
+    assert served_obligations(state)["all"][1]["answer"]["event"]["id"] == "reaction"
     state = add(
         "todo_end",
         "end",
@@ -506,9 +500,9 @@ def test_questions_settle_one_by_one_and_an_end_outlasts_a_later_reply():
         outcome="dropped",
         detail="Asked elsewhere",
     )
-    assert model.threads(state)["first"]["user_prompt"] is None
+    assert served_obligations(state)["user"] == []
     state = add("reply", "answer", "user", parent="first", text="Route A")
-    first, second = served_thread(state)["items"]["all"]
+    first, second = served_obligations(state)["all"]
     assert (first["status"], first["answer"]) == ("withdrawn", None)
     assert (second["status"], second["answer"]["event"]["id"]) == (
         "answered",
@@ -519,20 +513,14 @@ def test_questions_settle_one_by_one_and_an_end_outlasts_a_later_reply():
     )
     state = add("resolve", "close", "user", parent="first")
     assert state["todos"] == []
-    assert model.threads(state)["first"]["user_prompt"] is None
+    assert served_obligations(state)["user"] == []
     state = add("unresolve", "reopen", "user", parent="first")
-    assert [item["id"] for item in served_thread(state)["items"]["user"]] == [
-        "widget:size"
-    ]
-    assert model.threads(state)["first"]["user_prompt"] == {
-        "message": "third",
-        "version": "third",
-    }
+    assert [item["id"] for item in served_obligations(state)["user"]] == ["widget:size"]
 
 
-def test_frozen_item_attention_comes_from_its_widget_without_a_prose_task():
+def test_frozen_obligation_attention_comes_from_its_widget_without_a_prose_task():
     """Frozen widgets have no independent thread seat: their user and unanswered
-    lists agree, and later prose or reactions cannot retire the widget item."""
+    lists agree, and later prose or reactions cannot retire the widget obligation."""
     events = [
         {
             "kind": "comment",
@@ -545,14 +533,13 @@ def test_frozen_item_attention_comes_from_its_widget_without_a_prose_task():
     ]
     state = model.reading(HUB, events)
     thread = model.threads(state)["e1"]
-    assert thread["user_prompt"] is None
     assert thread["attention"] == {
         "kind": "needs_user",
         "reason": "widget",
         "workflow": None,
     }
     assert state["todos"] == []
-    [item] = served_thread(state)["items"]["all"]
+    [item] = served_obligations(state)["all"]
     assert item["id"] == "widget:routes"
     assert item["next_actor"] == "user"
     events.append(
@@ -564,16 +551,15 @@ def test_frozen_item_attention_comes_from_its_widget_without_a_prose_task():
         }
     )
     state = model.reading(HUB, events)
-    assert model.threads(state)["e1"]["user_prompt"] is None
     assert state["todos"] == []
-    [item] = served_thread(state)["items"]["all"]
+    [item] = served_obligations(state)["all"]
     assert (item["status"], item["answer"]["value"]) == (
         "answered",
         ["route-a"],
     )
 
 
-def test_summary_protects_the_unanswered_item_after_later_agent_messages():
+def test_summary_protects_the_unanswered_obligation_after_later_agent_messages():
     """A summary cannot hide the question the user owes merely because a newer
     agent message is the last turn. Protection selects the canonical prompt."""
     state = model.reading(
@@ -605,7 +591,8 @@ def test_summary_protects_the_unanswered_item_after_later_agent_messages():
         ),
     )
     thread = model.threads(state)["e1"]
-    assert thread["user_prompt"] == {"message": "e1", "version": "e1"}
+    [owed] = served_obligations(state)["user"]
+    assert owed["message"] == "e1"
     [summary] = thread["summaries"]
     assert summary["covers"] == ["e1", "e2"]
     assert summary["protected"] == ["e1"]

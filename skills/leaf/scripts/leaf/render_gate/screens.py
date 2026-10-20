@@ -7,9 +7,9 @@ reaches, where what scales with the window is at its largest, and on a phone, ea
 far as its first eight screens, where a reader decides whether to go on, with the
 label saying how many of the page's screens they are; one screen at each width
 where the page's own arrangement is at its tightest before it changes, or where its
-margin content changes, with that box in view; and, on a page with items, the desktop
+margin content changes, with that box in view; and, on a page with obligations, the desktop
 window at each of its first eight open ones as `m` arrives there from the top, which is
-how a user working the page reads each item, with the view that holds it opened;
+how a user working the page reads each obligation, with the view that holds it opened;
 `m` walks everything waiting on the user, so a thread or a handed-back widget action it
 stops at on the way gets no screen. The screens go to one directory per page
 under the state home's screens/, which the check names; a check writes a fresh
@@ -19,16 +19,15 @@ file there would count as activity on the page.
 
 A screen is the window as the reader sees it, fixed chrome included, scrolled by most
 of a window at a time, because the document is the page's scroller and a full-page
-capture would draw the banner and bottom bar in the wrong places."""
+capture would draw the floating panel in the wrong place."""
 
 import shutil
 import tempfile
 from pathlib import Path
 
-from leaf.machine import state_home
 from leaf.render_checks import RENDER_VIEWPORT, rendered, wait_until_ready
 from leaf.render_gate.readings import SWEEP_WIDTHS
-from leaf.state import page_key
+from leaf.state import page_key, state_home
 
 PHONE = {"width": 390, "height": 844}
 # How far down a long page the screens go.
@@ -66,30 +65,30 @@ def _down_the_page(page, into: Path, stem: str) -> tuple[list[Path], int]:
     return shots, total
 
 
-# Where a press of `m` left the user: the item they stand in, as the runtime marks it
-# (the outermost element wearing its ring, outside the On panel, which mirrors the
+# Where a press of `m` left the user: the obligation they stand in, as the runtime marks it
+# (the outermost element wearing its ring, outside the panel's On view, which mirrors the
 # same reading); else the thread holding focus; else the page widget holding it, where
 # the walk puts the user on an update handed back to them. Those are the walk's other
 # kinds of stop (queue-walk.js), which the screens pass, so each is read only to step
 # past it.
-STANDING_ITEM = """() => {
-  const item = [...document.querySelectorAll('[data-lf-item]:not(.lf-queue-row)')]
-    .find((el) => !el.parentElement?.closest('[data-lf-item]'))?.id;
-  if (item) return {item: true, id: item};
+STANDING_OBLIGATION = """() => {
+  const item = [...document.querySelectorAll('[data-lf-obligation]')]
+    .find((el) => !el.parentElement?.closest('[data-lf-obligation]'))?.id;
+  if (item) return {obligation: true, id: item};
   let held = document.activeElement;
   while (held?.shadowRoot?.activeElement) held = held.shadowRoot.activeElement;
   const thread = held?.closest?.('.lf-thread, .lf-page-thread');
   const id = thread?.dataset.id ?? thread?.dataset.thread;
-  if (id) return {item: false, id};
+  if (id) return {obligation: false, id};
   const page = document.activeElement;
   const widget = page?.closest?.('.lf-chrome') ? null : page?.closest?.('[id]');
-  return widget ? {item: false, id: widget.id} : null;
+  return widget ? {obligation: false, id: widget.id} : null;
 }"""
 
 
-def _items_in_turn(page, into: Path) -> tuple[list[Path], bool]:
-    """The window at each open item `m` reaches from the top, as far as MOST_SCREENS,
-    and whether the walk goes on past them. Which ask a press reached is the runtime's
+def _obligations_in_turn(page, into: Path) -> tuple[list[Path], bool]:
+    """The window at each open obligation `m` reaches from the top, as far as MOST_SCREENS,
+    and whether the walk goes on past them. Which obligation a press reached is the runtime's
     own mark, so the walk covers whatever `m` does, a suggestion as much as an
     `lf-ask`. The walk stops at its last item rather than wrapping, so a press that
     reaches an item it has already stood on has reached the end."""
@@ -97,15 +96,15 @@ def _items_in_turn(page, into: Path) -> tuple[list[Path], bool]:
     while True:
         page.keyboard.press("m")
         rendered(page)
-        here = page.evaluate(STANDING_ITEM)
-        if here is None or (here["item"], here["id"]) in seen:
+        here = page.evaluate(STANDING_OBLIGATION)
+        if here is None or (here["obligation"], here["id"]) in seen:
             return shots, False
-        seen.add((here["item"], here["id"]))
-        if not here["item"]:
+        seen.add((here["obligation"], here["id"]))
+        if not here["obligation"]:
             continue
         if len(shots) == MOST_SCREENS:
             return shots, True
-        shot = into / f"{page.viewport_size['width']}px-item-{len(shots) + 1}.png"
+        shot = into / f"{page.viewport_size['width']}px-obligation-{len(shots) + 1}.png"
         page.screenshot(path=shot)
         shots.append(shot)
 
@@ -160,10 +159,10 @@ def save_screens(
     whole(RENDER_VIEWPORT, False, "desktop")
     context, page = _open(browser, url, RENDER_VIEWPORT, False)
     try:
-        shots, more = _items_in_turn(page, into)
-        label = "desktop, each press of `m` from the top, at the next open item"
+        shots, more = _obligations_in_turn(page, into)
+        label = "desktop, each press of `m` from the top, at the next open obligation"
         if more:
-            label = f"{label}, the first {len(shots)} of the page's open items"
+            label = f"{label}, the first {len(shots)} of the page's open obligations"
         saved.extend((shot, label) for shot in shots)
     finally:
         context.close()

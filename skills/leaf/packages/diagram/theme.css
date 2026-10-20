@@ -6,10 +6,16 @@
 /* Inherited palette aliases keep the generated SVG responsive to the live page's
  * scheme without redrawing its nodes or replacing Comment coordinates. */
 :scope:is(lf-diagram) {
-  --lf-diagram-paper: var(--paper);
-  --lf-diagram-ink: var(--ink);
-  --lf-diagram-muted: var(--muted);
-  --lf-diagram-accent: var(--accent);
+  --pele-bg: var(--paper);
+  --pele-fg: var(--ink);
+  --pele-muted: var(--muted);
+  --pele-line: var(--muted);
+  --pele-surface: color-mix(in srgb, var(--accent) 10%, var(--paper));
+  --pele-surface-alt: var(--paper);
+  --pele-border: var(--accent);
+  --pele-accent: var(--accent);
+  --pele-font: var(--sans);
+  --pele-font-mono: var(--mono);
 }
 /* Without the runtime, or once it could not start (runtime/prepaint.js), nothing will
  * draw, and the box holds authored source for good. That source reads from the
@@ -50,7 +56,7 @@
   flex: none;
 }
 /* A declared reservation stays the drawing's minimum room. Native font metrics
- * can make Mermaid's natural box slightly shorter on another machine; finishing
+ * can make Pele's natural box slightly shorter on another machine; finishing
  * the drawing must not pull the page back into that spare room. */
 :scope:is(lf-diagram).lf-rendered[data-lf-height] {
   min-block-size: attr(data-lf-height px);

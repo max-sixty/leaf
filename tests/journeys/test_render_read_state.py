@@ -5,7 +5,8 @@ import re
 import time
 
 import pytest
-from interact_support import append_carried_log_record, served_thread, wait_for
+from browser.threads import open_panel_thread
+from interact_support import append_carried_log_record, served_thread
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import thread as thread_model
@@ -20,6 +21,9 @@ from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_cases_navigation import source_revision
 from render_cases_widgets import LONG_LINE_DIFF_PAGE, MULTI_HUNK_PATCH
 from render_harness import (
+    PANEL,
+    PANEL_THREAD,
+    RELEASE_FOCUS,
     Traffic,
     _traffic,
     holding,
@@ -41,6 +45,41 @@ def _read_events(page_dir):
     return [
         event for event in events_model.read_events(page_dir) if event["kind"] == "read"
     ]
+
+
+# The panel's Threads mark says how many open threads hold news the user has not read,
+# and its dot shows while any do: the page's one standing sign of unread messages.
+def _threads_mark(page):
+    return page.locator(".lf-fp-threads")
+
+
+def _expect_news(page, news=True):
+    mark = _threads_mark(page)
+    if news:
+        expect(mark).to_have_attribute("aria-label", re.compile("with news"))
+    else:
+        expect(mark).not_to_have_attribute("aria-label", re.compile("with news"))
+
+
+def _has_news(page):
+    return "with news" in _threads_mark(page).get_attribute("aria-label")
+
+
+def _first_unread(page):
+    """Go to the first unread message the way the keyboard does, `g u`."""
+    page.keyboard.press("g")
+    page.keyboard.press("u")
+
+
+# What the panel's chrome says now: the line over the field and the leaf's peek.
+def _said(page):
+    return " ".join(page.locator(".lf-fp-context, .lf-fp-peek").all_text_contents())
+
+
+def _thread_row(page, thread):
+    return page.locator(
+        f'.lf-fp-view[data-view="threads"] .lf-fp-thread[data-key="{thread}"]'
+    )
 
 
 def _select_new_route(page):
@@ -79,11 +118,10 @@ def _agent_update_reply(page_dir, root, number, for_event=None):
     )["id"]
 
 
-def test_progress_is_never_unread_and_reading_its_answer_leaves_it_folded(
-    browser, serve
-):
-    """Pending progress pulls the user back to nothing; the answer that folds it is
-    the thread's one unread message, and reading it unfolds nothing."""
+def test_progress_is_never_unread_and_reading_its_answer_reads_only_it(browser, serve):
+    """Pending progress pulls the user back to nothing; the answer after it is the
+    thread's one unread message, and reading the thread, which the panel draws as its
+    card does, the progress folded behind the answer, acknowledges that answer alone."""
     url = serve(PANEL_PAGE)
     panel_comment(serve.page_dir, "An earlier conversation.")
     root = panel_comment(serve.page_dir, "Check the schedule.")
@@ -91,36 +129,31 @@ def test_progress_is_never_unread_and_reading_its_answer_leaves_it_folded(
         serve.page_dir, {"to": root, "for": root}, "Checking mounts.", ephemeral=True
     )["id"]
     page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    card = page.locator(f'.lf-thread[data-id="{root}"]')
-    expect(card).not_to_have_attribute("open", "")
-    expect(card.locator(".lf-thread-unread")).to_have_count(0)
+    page.locator(".lf-fp-threads").click()
+    panel_settled(page, view="threads")
+    row = _thread_row(page, root)
+    expect(row).to_be_visible()
+    expect(row).not_to_have_attribute("data-unread", "")
+    _expect_news(page, False)
 
     answer = thread_model.post_reply(
         serve.page_dir, {"to": root, "for": root}, "Both mounts fit."
     )["id"]
     told(page)
-    expect(card.locator(".lf-thread-unread")).to_have_text("1 unread")
-    # A fresh transcript starts with completed progress folded, as on a later visit.
+    expect(row).to_have_attribute("data-unread", "")
     page.reload()
     wait_until_ready(page)
-    card.locator(":scope > .lf-thread-summary").click()
-    expect(card.locator(f'.lf-msg[data-mid="{answer}"]')).to_be_visible()
-    expect(card.locator(f'.lf-msg[data-mid="{progress}"]')).to_be_hidden()
-    expect(page.locator(".lf-first-unread")).to_be_hidden()
+    card = open_panel_thread(page, root)
+    expect(card.locator(f'.lf-msg[data-event="{answer}"]')).to_be_visible()
+    expect(card.locator(f'.lf-msg[data-event="{progress}"]')).to_be_hidden()
+    _expect_news(page, False)
     round_trip(page)
     assert _read_events(serve.page_dir)[-1]["messages"] == [
         {"message": answer, "version": answer}
     ]
-
-    expand = card.get_by_role("button", name="Show 1 progress message", exact=True)
-    expand.press("Enter")
-    expect(card.get_by_text("Checking mounts.", exact=True)).to_be_visible()
-    expect(page.locator(".lf-first-unread")).to_be_hidden()
     page.reload()
     wait_until_ready(page)
-    expect(page.locator(".lf-first-unread")).to_be_hidden()
+    _expect_news(page, False)
 
 
 def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
@@ -131,55 +164,37 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
     root = panel_comment(serve.page_dir, "An answer for the user.", author="agent")
     page = open_page(browser, url)
 
-    expect(page.locator(".lf-first-unread")).to_have_text("Next unread")
-    expect(page.locator(".lf-first-unread")).to_have_attribute(
-        "aria-label", "1 unread message. Go to first unread message"
+    mark = _threads_mark(page)
+    expect(mark).to_have_text("2")
+    expect(mark).to_have_attribute("aria-label", "Threads, 2 open, 1 with news")
+    expect(mark).to_have_attribute("title", "Threads, 2 open, 1 with news")
+    expect(mark.locator(".lf-fp-news")).to_be_visible()
+    thread_control_width = mark.bounding_box()["width"]
+    # With news waiting, Threads opens on the threads that hold it.
+    mark.click()
+    panel_settled(page, view="threads")
+    expect(page.locator(".lf-fp-filters button", has_text="Unread")).to_have_attribute(
+        "aria-pressed", "true"
     )
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 2")
-    expect(page.locator(".lf-threads-toggle")).to_have_attribute(
-        "aria-label", "Open threads: 2, 1 unread thread"
-    )
-    expect(page.locator(".lf-threads-toggle")).to_have_attribute(
-        "data-unread-threads", ""
-    )
-    expect(page.locator(".lf-threads-toggle")).to_have_attribute(
-        "title", "Show or hide the thread panel; 1 unread thread (g T)"
-    )
-    thread_control_width = page.locator(".lf-threads-toggle").bounding_box()["width"]
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    card = page.locator(f'.lf-thread[data-id="{root}"]')
-    expect(card.locator(".lf-thread-unread")).to_have_text("1 unread")
+    row = _thread_row(page, root)
+    expect(row).to_have_attribute("data-unread", "")
     with sending(page, "first unread acknowledgement"):
-        page.locator(".lf-first-unread").click()
-    expect(card).to_have_attribute("open", "")
-    expect(card.locator(f'.lf-msg[data-mid="{root}"]')).to_be_focused()
-    expect(card.locator(f'.lf-msg[data-mid="{root}"]')).not_to_have_class(
+        row.click()
+    card = page.locator(f'{PANEL_THREAD}[data-thread="{root}"]')
+    expect(card).to_be_visible()
+    expect(card.locator(f'.lf-msg[data-message="{root}"]')).not_to_have_class(
         re.compile(r"(^|\s)lf-unread(\s|$)")
     )
-    expect(page.locator(".lf-first-unread")).to_be_hidden()
-    expect(page.locator(".lf-threads-toggle")).not_to_have_attribute(
-        "data-unread-threads", ""
-    )
-    expect(page.locator(".lf-threads-toggle")).not_to_have_attribute(
-        "aria-label", re.compile("unread")
-    )
-    expect(page.locator(".lf-threads-toggle")).to_have_attribute(
-        "title", "Show or hide the thread panel (g T)"
-    )
-    assert (
-        abs(
-            page.locator(".lf-threads-toggle").bounding_box()["width"]
-            - thread_control_width
-        )
-        < 1
-    )
+    expect(mark).to_have_attribute("aria-label", "Threads, 2 open")
+    expect(mark).to_have_attribute("title", "Threads, 2 open")
+    expect(mark.locator(".lf-fp-news")).to_be_hidden()
+    assert abs(mark.bounding_box()["width"] - thread_control_width) < 1
     assert _read_events(serve.page_dir)[-1]["messages"] == [
         {"message": root, "version": root}
     ]
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 2")
+    expect(mark).to_have_text("2")
     page.reload()
-    expect(page.locator(".lf-first-unread")).to_be_hidden()
+    _expect_news(page, False)
 
 
 def test_oversized_message_needs_contiguous_traversal(browser, serve):
@@ -193,27 +208,20 @@ def test_oversized_message_needs_contiguous_traversal(browser, serve):
         author="agent",
     )
     page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    page.locator(".lf-first-unread").click()
-    body = page.locator(f'.lf-msg[data-mid="{root}"] .lf-msg-body')
-    assert (
-        body.bounding_box()["height"]
-        > page.locator(".lf-threads").bounding_box()["height"]
-    )
-    page.locator(".lf-threads").evaluate(
-        "element => element.scrollTop = element.scrollHeight"
-    )
+    _first_unread(page)
+    view = page.locator(PANEL_THREAD)
+    panel_settled(page, view="thread")
+    body = view.locator(f'.lf-msg[data-message="{root}"] .lf-msg-body')
+    assert body.bounding_box()["height"] > view.bounding_box()["height"]
+    view.evaluate("element => element.scrollTop = element.scrollHeight")
     page.wait_for_timeout(100)
     assert _read_events(serve.page_dir) == []
 
-    page.locator(".lf-threads").evaluate("element => element.scrollTop = 0")
-    page.locator(".lf-threads").hover()
-    list_height = page.locator(".lf-threads").evaluate(
-        "element => element.clientHeight"
-    )
+    view.evaluate("element => element.scrollTop = 0")
+    view.hover()
+    list_height = view.evaluate("element => element.clientHeight")
     for _ in range(100):
-        if page.locator(".lf-threads").evaluate(
+        if view.evaluate(
             "element => element.scrollTop + element.clientHeight >= element.scrollHeight - 1"
         ):
             break
@@ -221,7 +229,7 @@ def test_oversized_message_needs_contiguous_traversal(browser, serve):
         page.wait_for_timeout(20)
     else:
         raise AssertionError("mouse wheel did not traverse the complete answer")
-    expect(page.locator(".lf-first-unread")).to_be_hidden()
+    _expect_news(page, False)
     assert _read_events(serve.page_dir)[-1]["messages"] == [
         {"message": root, "version": root}
     ]
@@ -235,20 +243,18 @@ def test_edit_reopens_only_its_new_content_version(browser, serve):
     )
     root = original["id"]
     page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    page.locator(".lf-first-unread").click()
-    expect(page.locator(".lf-first-unread")).to_be_hidden()
-    page.locator(f'.lf-thread[data-id="{user}"] > .lf-thread-summary').click()
-    page.locator('.lf-thread-panel [aria-label="Close threads"]').click()
+    _first_unread(page)
+    _expect_news(page, False)
+    open_panel_thread(page, user)
+    page.locator(".lf-fp-close").click()
+    panel_settled(page, open=False)
 
     [edit] = thread_model.cmd_edit(serve.page_dir, root, "Revised answer.")
     told(page)
-    expect(page.locator(".lf-first-unread")).to_have_text("Next unread")
-    page.locator(".lf-threads-toggle").click()
+    _expect_news(page)
     with sending(page, "edited answer read"):
-        page.locator(".lf-first-unread").click()
-    expect(page.locator(".lf-first-unread")).to_be_hidden()
+        _first_unread(page)
+    _expect_news(page, False)
     assert _read_events(serve.page_dir)[-1]["messages"] == [
         {"message": root, "version": edit["id"]}
     ]
@@ -262,14 +268,12 @@ def test_an_acknowledgement_neither_waits_for_nor_holds_up_a_gesture(browser, se
     panel_comment(serve.page_dir, "The earlier user thread.")
     root = panel_comment(serve.page_dir, "Read this answer.", author="agent")
     page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
     held = []
     page.route("**/api/event", lambda route: held.append(route))
-    page.locator(".lf-first-unread").click()
+    _first_unread(page)
     holding(page, held, 1, "automatic read")
-    card = page.locator(f'.lf-thread[data-id="{root}"]')
-    message = card.locator(f'.lf-msg[data-mid="{root}"]')
+    card = page.locator(f'{PANEL_THREAD}[data-thread="{root}"]')
+    message = card.locator(f'.lf-msg[data-message="{root}"]')
     expect(message).not_to_have_class(re.compile(r"(^|\s)lf-unread(\s|$)"))
     expect(message.locator(".lf-msg-sending")).to_have_count(0)
     assert (
@@ -280,7 +284,9 @@ def test_an_acknowledgement_neither_waits_for_nor_holds_up_a_gesture(browser, se
         "async () => (await window.__lfCheckApi()).readApplication().unresolved.length === 0"
     )
 
-    card.get_by_role("button", name="Resolve thread").click()
+    # Resolving from the thread's view moves the user on to Threads, so the message
+    # the refused read leaves unread is no longer on screen to show it.
+    page.locator(".lf-fp-settle").click()
     holding(page, held, 2, "a resolve sent while the read is held")
     assert [route.request.post_data_json["kind"] for route in held] == [
         "read",
@@ -289,22 +295,17 @@ def test_an_acknowledgement_neither_waits_for_nor_holds_up_a_gesture(browser, se
     held[0].fulfill(
         status=400, json={"ok": False, "final": True, "error": "refused before append"}
     )
-    expect(message).to_have_class(re.compile(r"(^|\s)lf-unread(\s|$)"))
     page.unroute("**/api/event")
     held[1].abort()
-    expect(page.locator(".lf-notice")).to_contain_text("Connection lost")
     told(page)
-    expect(page.locator(".lf-first-unread")).to_be_hidden()
+    _expect_news(page, False)
     assert _read_events(serve.page_dir) == []
     assert [
         event["kind"]
         for event in events_model.read_events(serve.page_dir)
         if event["author"] == "user"
     ] == ["comment", "resolve"]
-    assert not any(
-        "Couldn't send" in text
-        for text in page.locator(".lf-notice").all_text_contents()
-    )
+    assert "Couldn't send" not in _said(page)
     reported_browser_errors(
         page,
         lambda error: (
@@ -316,59 +317,6 @@ def test_an_acknowledgement_neither_waits_for_nor_holds_up_a_gesture(browser, se
             and "/api/event" in error.values["url"]
         ),
     )
-
-
-def test_visible_message_waits_for_whole_document_presentation(browser, serve):
-    url = serve(PANEL_PAGE)
-    # A long user opening pins the reply row, so the incoming answer can paint
-    # immediately while the whole-document presentation proof is held below.
-    root = panel_comment(
-        serve.page_dir, "\n\n".join(["Please report the result with its context."] * 30)
-    )
-    page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    card = page.locator(f'.lf-thread[data-id="{root}"]')
-    card.locator(":scope > .lf-thread-summary").click()
-    assert (
-        card.bounding_box()["height"]
-        > page.locator(".lf-threads").bounding_box()["height"]
-    )
-    page.evaluate("""() => {
-      const list = document.querySelector('leaf-thread-list');
-      const present = list.present.bind(list);
-      let release;
-      list.present = async model => {
-        const candidate = await present(model);
-        if (!window.__readHeld) {
-          window.__readHeld = true;
-          await new Promise(resolve => { release = resolve; });
-        }
-        return candidate;
-      };
-      window.__releaseReadPresentation = () => release();
-    }""")
-    reply = thread_model.post_reply(
-        serve.page_dir, {"to": root, "for": root}, "The result is ready."
-    )
-    page.wait_for_function("window.__readHeld === true")
-    body = card.locator(f'.lf-msg[data-mid="{reply["id"]}"] .lf-msg-body')
-    expect(body).to_be_visible()
-    page.evaluate("window.dispatchEvent(new Event('resize'))")
-    body.hover()
-    page.wait_for_timeout(100)
-    assert _read_events(serve.page_dir) == []
-
-    page.evaluate("window.__releaseReadPresentation()")
-    told(page)
-    wait_for(
-        lambda: _read_events(serve.page_dir),
-        bool,
-        failure="presented answer was not acknowledged",
-    )
-    assert _read_events(serve.page_dir)[-1]["messages"] == [
-        {"message": reply["id"], "version": reply["id"]}
-    ]
 
 
 @pytest.mark.parametrize("origin", ["page", "reference"])
@@ -390,7 +338,6 @@ def test_keyboard_first_unread_exposes_authored_reply(browser, serve, origin):
     page = open_page(browser, url)
     if origin == "reference":
         page.keyboard.press("?")
-        page.keyboard.press("?")
         page.get_by_role("combobox", name="Search commands").fill("g u")
         route = page.locator(
             '.lf-command-reference tr[data-lf-command="thread.unread.first"]'
@@ -402,10 +349,10 @@ def test_keyboard_first_unread_exposes_authored_reply(browser, serve, origin):
         else:
             page.keyboard.press("g")
             page.keyboard.press("u")
-    card = page.locator(f'.lf-thread[data-id="{root}"]')
-    expect(card).to_have_attribute("open", "")
-    expect(card.locator(f'.lf-msg[data-mid="{root}"]')).to_be_focused()
-    expect(page.locator(".lf-first-unread")).to_be_hidden()
+    card = page.locator(f'{PANEL_THREAD}[data-thread="{root}"]')
+    expect(card).to_be_visible()
+    expect(card.locator(f'.lf-msg[data-message="{root}"]')).to_be_focused()
+    _expect_news(page, False)
     assert _read_events(serve.page_dir)[-1]["messages"] == [
         {"message": root, "version": root}
     ]
@@ -417,14 +364,12 @@ def test_read_converges_across_two_tabs(browser, serve):
     root = panel_comment(serve.page_dir, "The shared user answer.", author="agent")
     first = open_page(browser, url)
     second = open_page(browser, url)
-    expect(first.locator(".lf-first-unread")).to_have_text("Next unread")
-    expect(second.locator(".lf-first-unread")).to_have_text("Next unread")
-    first.locator(".lf-threads-toggle").click()
-    panel_settled(first)
-    first.locator(".lf-first-unread").click()
-    expect(first.locator(".lf-first-unread")).to_be_hidden()
+    _expect_news(first)
+    _expect_news(second)
+    _first_unread(first)
+    _expect_news(first, False)
     told(second)
-    expect(second.locator(".lf-first-unread")).to_be_hidden()
+    _expect_news(second, False)
     assert _read_events(serve.page_dir)[-1]["messages"] == [
         {"message": root, "version": root}
     ]
@@ -469,34 +414,51 @@ def _sample_reading_page(browser, serve, body, style):
     frame = page.locator("#read-practice iframe")
     child = frame.element_handle().content_frame()
     child.lf_traffic = Traffic(child)
-    expect(child.locator(".lf-first-unread")).to_have_attribute(
-        "aria-label", "1 unread message. Go to first unread message"
-    )
+    _expect_news(child)
     return page, frame, child
 
 
 def _message_body(child):
-    return child.locator(f'.lf-msg[data-mid="{SAMPLE_READER}"] .lf-msg-body')
+    return child.locator(
+        f'{PANEL_THREAD} .lf-msg[data-message="{SAMPLE_READER}"] .lf-msg-body'
+    )
 
 
 def _open_first_unread(page, child):
-    """The user opens the sample's Threads from its focused toggle and goes to its first
-    unread message by key. Once the panel's slide has ended, the message stands whole in
+    """The user opens the sample's Threads from its focused mark and goes to its first
+    unread message by key. Once the panel's motion has ended, the message stands whole in
     the child's own viewport, so what the containing page shows of the frame is all that
     is left to keep it unread."""
     page.keyboard.press("Enter")
-    expect(child.locator(".lf-threads")).to_be_visible()
+    expect(child.locator('.lf-fp-view[data-view="threads"]')).to_be_visible()
     page.keyboard.press("g")
     page.keyboard.press("u")
-    expect(child.locator(f'.lf-thread[data-id="{SAMPLE_READER}"]')).to_have_attribute(
-        "open", ""
-    )
-    panel_settled(child)
+    expect(
+        child.locator(f'{PANEL_THREAD}[data-thread="{SAMPLE_READER}"]')
+    ).to_be_visible()
+    panel_settled(child, view="thread")
     assert _message_body(child).evaluate("""body => {
         const box = body.getBoundingClientRect();
         return box.top >= 0 && box.bottom <= innerHeight
             && box.left >= 0 && box.right <= innerWidth;
     }"""), "the message is not whole in the child's own viewport"
+
+
+def _scroll_to_message(page, child, scroller):
+    """Scroll `scroller`, in the containing page, until the sample's message stands
+    in the middle of what it shows. The sample's frame is as tall as its page, and its
+    panel stands at its foot, so the message stands near the frame's foot."""
+    top = _message_body(child).evaluate("body => body.getBoundingClientRect().top")
+    page.evaluate(
+        """([scroller, top]) => {
+          const box = scroller === document.scrollingElement
+            ? {top: 0, height: innerHeight} : scroller.getBoundingClientRect();
+          const frame = document.querySelector('#read-practice iframe')
+            .getBoundingClientRect().top;
+          scroller.scrollBy(0, frame + top - box.top - box.height / 2);
+        }""",
+        [page.evaluate_handle(scroller), top],
+    )
 
 
 def _settled(page, child):
@@ -515,15 +477,15 @@ def _settled(page, child):
 
 def _still_unread(page, child):
     """Once both pages settle (`_settled`), a pass that read the message would have
-    hidden Next unread and counted a send."""
+    taken the news off the sample's Threads mark and counted a send."""
     _settled(page, child)
-    assert child.locator(".lf-first-unread").is_visible()
+    assert _has_news(child)
     assert _traffic(child).sends == 0
 
 
 def _read_by_the_sample(page, child):
     """The control: the child sends the message read, and its server holds it read."""
-    expect(child.locator(".lf-first-unread")).to_be_hidden()
+    _expect_news(child, False)
     round_trip(child)
     state = page.request.get(f"{child.url}api/state").json()
     (thread,) = served_thread(state["browser"])["threads"]
@@ -540,7 +502,7 @@ def test_clipped_sample_cannot_acknowledge_child_viewport(browser, serve):
         '<h1>Practice page</h1><div id="read-clip">{sample}</div>',
         "#read-clip { height: 100px; overflow: auto; }",
     )
-    child.locator(".lf-threads-toggle").focus()
+    _threads_mark(child).focus()
     _open_first_unread(page, child)
     _still_unread(page, child)
 
@@ -562,9 +524,9 @@ def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
         '<h1>Practice page</h1><div id="read-gap"></div>{sample}',
         "#read-gap { height: 2000px; }",
     )
-    # Below the first screen it shows nothing: the user focuses its Threads toggle and
+    # Below the first screen it shows nothing: the user focuses its Threads mark and
     # scrolls the containing page back to the top first.
-    child.locator(".lf-threads-toggle").focus()
+    _threads_mark(child).focus()
     page.evaluate("scrollTo(0, 0)")
     _open_first_unread(page, child)
     assert frame.bounding_box()["y"] > page.viewport_size["height"]
@@ -579,7 +541,7 @@ def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
         scrollBy(0, top - innerHeight + 20);
     }""")
     _still_unread(page, child)
-    page.evaluate("scrollBy(0, 700)")
+    _scroll_to_message(page, child, "document.scrollingElement")
     _read_by_the_sample(page, child)
 
 
@@ -594,8 +556,9 @@ def test_a_sample_in_a_native_modal_escapes_inherited_inertness(browser, serve):
     page.locator("#owner-modal").evaluate(
         "dialog => { dialog.close(); dialog.showModal(); }"
     )
-    child.locator(".lf-threads-toggle").focus()
+    _threads_mark(child).focus()
     _open_first_unread(page, child)
+    _scroll_to_message(page, child, "document.querySelector('#owner-modal')")
     _read_by_the_sample(page, child)
 
 
@@ -689,7 +652,7 @@ def test_a_reply_held_in_a_diff_thread_is_read_once_the_keyboard_opens_it(
         expect(body).to_be_visible()
         assert body.evaluate("element => element.getRootNode() instanceof ShadowRoot")
         body.scroll_into_view_if_needed()
-    expect(page.locator(".lf-first-unread")).to_be_hidden()
+    _expect_news(page, False)
     assert _read_events(serve.page_dir)[-1]["messages"] == [
         {"message": reply["id"], "version": reply["id"]}
     ]
@@ -738,9 +701,7 @@ def test_a_walk_to_a_thread_a_diff_line_holds_lands_in_its_outlet(browser, serve
     assert landed.evaluate(
         "thread => thread.contains(thread.getRootNode().activeElement)"
     ), "the walk did not land in the outlet"
-    expect(page.locator(".lf-threads-toggle")).to_have_attribute(
-        "aria-expanded", "false"
-    )
+    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
     expect(news).to_have_count(0)
 
 
@@ -794,7 +755,7 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
           behavior: 'instant'})"""
     )
     if end == "onto":
-        # The key before the focus makes the shortcut bar's redraw an answer to input.
+        # The key before the focus makes the chrome's redraw an answer to input.
         page.keyboard.press("Shift")
         thread.focus()
     height = _box_height(thread)
@@ -1146,7 +1107,7 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
             range.selectNodeContents(node); const selection = getSelection();
             selection.removeAllRanges(); selection.addRange(range); }"""
         )
-        page.locator(".lf-threads-toggle").focus()
+        _threads_mark(page).focus()
         # The user scrolls the line away, a gesture of theirs the page answers.
         page.mouse.move(40, 400)
         page.mouse.wheel(
@@ -1170,7 +1131,7 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
         return
     elif end == "keyboard":
         # The marker as the rail's Tab stop, in keyboard modality. The key before the
-        # focus makes the shortcut bar's redraw for the stop an answer to input.
+        # focus makes the chrome's redraw for the stop an answer to input.
         page.keyboard.press("Shift")
         marker.focus()
         page.keyboard.press("Shift+Tab")
@@ -1214,21 +1175,20 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
         expect(outlet.locator(".lf-resolved-threads")).to_have_attribute("open", "")
 
 
-@pytest.mark.parametrize(("width", "under_panel"), [(900, True), (1920, False)])
+@pytest.mark.parametrize("under_panel", [True, False])
 def test_a_page_seat_the_open_panel_stands_over_is_not_read(
-    browser, serve, width, under_panel
+    browser, serve, under_panel
 ):
-    """Exposure counts a message read once all of it has been shown. The open Threads
-    panel stands over the right of the page, so an answer in a page-side seat that
-    reaches under it has not been shown whole, however much of it is clear: at 900px
-    the diff's thread outlet runs under the panel and earns no receipt until the panel
-    closes. At 1920px the panel stands over empty margin and the same answer is read
-    with the panel open. The panel's list is narrowed to no card, so the page seat is the
-    only copy in view."""
+    """Exposure counts a message read once all of it has been shown. The open panel's
+    view stands over the window's foot, so an answer in a page-side seat that reaches
+    under it has not been shown whole, however much of it is clear: scrolled so the
+    diff's thread outlet runs under the open Threads view, it earns no receipt until the
+    view closes. Scrolled clear above it, the same answer is read with the view open.
+    Threads lists rows rather than messages, so the page seat is the only copy in view.
+    The answer arrives below the window's foot, where it is drawn at once."""
     url = serve(LONG_LINE_DIFF_PAGE)
     data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
     page = open_page(browser, url)
-    page.set_viewport_size({"width": width, "height": 900})
     page.wait_for_function("document.querySelector('lf-diff.lf-rendered') !== null")
     _select_new_route(page)
     expect(page.locator(".lf-fab-bar")).to_be_visible()
@@ -1240,56 +1200,55 @@ def test_a_page_seat_the_open_panel_stands_over_is_not_read(
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     )
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    # A find that matches nothing narrows the panel's list to no card, so the page seat
-    # is the one copy of the answer in view.
-    find = page.get_by_role("searchbox", name="Find in threads")
-    find.focus()
-    page.keyboard.type("nothing matches this")
-    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(0)
-    find.blur()
+    # The user lets go of the thread the send left them on and scrolls back up, so the
+    # whole thread stands below the window and the answer joining it moves nothing they
+    # see: it is drawn at once rather than held.
+    page.evaluate(RELEASE_FOCUS)
+    page.evaluate(
+        """thread => scrollBy(0, thread.getBoundingClientRect().top - innerHeight - 40)""",
+        page.locator("lf-diff .lf-page-thread").element_handle(),
+    )
+    page.locator(".lf-fp-threads").click()
+    panel_settled(page, view="threads")
     reply = thread_model.post_reply(
         serve.page_dir, {"to": root, "for": root}, "The route-line answer is ready."
     )
     told(page)
-    # The answer landed on screen, so the user opens it where it waits.
-    page.locator("lf-diff .lf-page-thread").get_by_role(
-        "button", name="1 new reply"
-    ).click()
     body = page.locator(
         f'lf-diff .lf-diff-thread-outlet .lf-msg[data-event="{reply["id"]}"]'
         " .lf-msg-body"
     )
-    expect(body).to_be_visible()
-    body.scroll_into_view_if_needed()
+    expect(body).to_have_count(1)
+    # The answer's foot 20px under the open view's top edge, or 20px above it.
+    page.evaluate(
+        """([body, card, under]) => scrollBy(0, body.getBoundingClientRect().bottom
+            - card.getBoundingClientRect().top + (under ? -20 : 20))""",
+        [
+            body.element_handle(),
+            page.locator(".lf-fp-card").element_handle(),
+            under_panel,
+        ],
+    )
     read = [{"message": reply["id"], "version": reply["id"]}]
 
     def receipt():
         return any(event["messages"] == read for event in _read_events(serve.page_dir))
 
-    body_right = body.evaluate("element => element.getBoundingClientRect().right")
-    panel_left = page.locator(".lf-thread-panel").bounding_box()["x"]
-    assert (body_right > panel_left) == under_panel, (
-        f"the fixture put the seat's right edge at {body_right} against the panel's "
-        f"{panel_left}, so it does not test what it names"
+    body_bottom = body.evaluate("element => element.getBoundingClientRect().bottom")
+    panel_top = page.locator(".lf-fp-card").bounding_box()["y"]
+    assert (body_bottom > panel_top) == under_panel, (
+        f"the fixture put the seat's foot at {body_bottom} against the panel's "
+        f"{panel_top}, so it does not test what it names"
     )
     if under_panel:
         # Long enough for an observation pass to have sent a receipt had it counted.
         page.wait_for_timeout(1500)
         assert not receipt(), "a message partly under the open panel was marked read"
-        # With the shortcut bar gone, as under a finger, no other chrome changes size
-        # as the panel goes, so only the panel's own announcement sets off the pass that
-        # reads the answer, before the page settles. An unrelated pass would read it some
-        # 40s on, so waiting for the receipt proves nothing.
-        page.locator(".lf-shortcut-bar").evaluate(
-            "bar => { bar.style.display = 'none'; }"
-        )
-        page.get_by_role("button", name="Close threads").click()
+        page.locator(".lf-fp-close").click()
         panel_settled(page, open=False)
         rendered(page)
         round_trip(page)
-        assert receipt(), "the panel closing off the answer set off no reading"
+        assert receipt(), "the view closing off the answer set off no reading"
         return
     deadline = time.monotonic() + SERVED_TIMEOUT_MS / 1000
     while not receipt() and time.monotonic() < deadline:

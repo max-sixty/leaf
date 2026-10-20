@@ -15,7 +15,6 @@ import { retainUserIntent } from "../user-intent.js";
 import { leafSurface, closestAcross } from "../passages.js";
 import { pressIsKeyboardActivation } from "../pointer.js";
 import { onStanding } from "../focus.js";
-import { bannerControlDoor } from "../banner-toolbar.js";
 import { raiseError } from "../errors.js";
 
 export function createRegionCapture({
@@ -91,7 +90,7 @@ export function createRegionCapture({
       node !== document.body &&
       !closestAcross(
         node,
-        ".lf-banner, .lf-banner-menu, .lf-command-reference, .lf-region-capture",
+        ".lf-floating-panel, .lf-command-reference, .lf-region-capture",
       )
     )
       selector.cancel({ restore: false });
@@ -127,7 +126,6 @@ export function createRegionCapture({
           parent,
           visibleTargets,
           openComposerWithMedia,
-          returnTo: bannerControlDoor(),
         });
         document.addEventListener("touchstart", claimTouch, {
           capture: true,

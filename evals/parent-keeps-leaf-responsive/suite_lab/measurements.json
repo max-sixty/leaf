@@ -1,0 +1,32 @@
+[
+  {
+    "test": "test_render",
+    "phase": "browser",
+    "seconds": 23,
+    "skipped": false
+  },
+  {
+    "test": "test_fold",
+    "phase": "model",
+    "seconds": 2,
+    "skipped": false
+  },
+  {
+    "test": "test_slow",
+    "phase": "browser",
+    "seconds": 100,
+    "skipped": true
+  },
+  {
+    "test": "test_delivery",
+    "phase": "process",
+    "seconds": 5,
+    "skipped": false
+  },
+  {
+    "test": "test_focus",
+    "phase": "browser",
+    "seconds": 7,
+    "skipped": false
+  }
+]

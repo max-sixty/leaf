@@ -36,7 +36,7 @@ def compose_page_registry(
 
     ``validated`` is a vocabulary already validated, such as the active revision's:
     a composition equal to it is not validated again. A composition that is
-    validated gets its `$decisions` and `$marks` stamped
+    validated gets its `$decisions` and `$states` stamped
     (`registry.layer.stamp_composition`); one equal to ``validated`` already carries
     them.
 

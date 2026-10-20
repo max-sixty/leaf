@@ -11,10 +11,9 @@ from pathlib import Path
 
 from .activity import Turn, current_turn, declared_at, takes_input
 from .event_log import read_cursor
-from .files import file_stamp, read_json
+from .files import file_stamp
 from .harness import claim_harness
 from .leases import lock_is_held, wait_is_live, waiter_lease_path
-from .machine import state_home
 from .page_memory import memo
 from .schema import SERVER_LOCK, UNNAMED_AGENT, VIEWED_FILE
 from .server import running_server
@@ -24,8 +23,9 @@ from .service import (
     page_claim,
     read_status,
     unacknowledged,
+    undeclared,
 )
-from .state import now_iso, write_json
+from .state import Record, now_iso, object_schema, state_home
 
 # Presence is deliberately a short-lived reading: process and lock leases can change
 # without touching a page file. Readers share one observation for two seconds, while
@@ -34,6 +34,8 @@ PRESENCE_CACHE_S = 2.0
 # How stale the user-attention lease may grow while a visible tab keeps asking for
 # news before the next ask renews it.
 VIEWED_RENEW_S = 30
+# When a browser last had the page visible, in POSIX seconds (`renew_viewed`).
+VIEWED = Record("viewed", object_schema({"t": {"type": "number"}}), since=13)
 # (row-directory stamp, producer publications): the machine's, so one slot.
 _candidates = ((), ())
 _candidates_lock = threading.Lock()
@@ -101,6 +103,8 @@ def neighbor_candidates() -> tuple:
             return _candidates[1]
         # Atomic producer publications move the directory stamp. Scan only when
         # it changes; the parsed rows retain their per-file stamps between scans.
+        from .server_rows import ROW
+
         current = set(rows.glob("*.json")) if rows.is_dir() else set()
         for path in _row_files.keys() - current:
             del _row_files[path]
@@ -110,12 +114,12 @@ def neighbor_candidates() -> tuple:
                 _row_files.pop(path, None)
             elif path not in _row_files or _row_files[path][0] != key:
                 try:
-                    _row_files[path] = (key, read_json(path))
+                    _row_files[path] = (key, ROW.read(path))
                 except (OSError, ValueError):
                     _row_files[path] = (key, None)
         found = []
         for _key, record in _row_files.values():
-            if isinstance(record, dict) and isinstance(record.get("page"), str):
+            if record is not None:
                 found.append((Path(record["page"]), record))
         _candidates = (stamp, tuple(found))
         return _candidates[1]
@@ -230,9 +234,7 @@ def presence_with_activity(
     carries only the compact presentation fields derived from these facts. A captured
     host publication without a process keeps durable acknowledgement and pending
     input, while omitting claimant, watcher, turn and live activity facts."""
-    stored_status = (
-        read_status(page_dir) if process else {"state": "waiting", "detail": ""}
-    )
+    stored_status = read_status(page_dir) if process else undeclared()
     # The declaration's own fields; the harness's stream stays server-side.
     status = {
         key: value
@@ -251,7 +253,7 @@ def presence_with_activity(
         "cursor": cursor,
         # The user's number, not the watcher's: their own messages the agent
         # hasn't taken in. Reports ride the same cursor but are the agent's debt,
-        # so the banner never tells a user that a worker's news is waiting on them.
+        # so the panel never tells a user that a worker's news is waiting on them.
         "pending": sum(
             1 for e in unacknowledged(events, cursor) if e["author"] == "user"
         ),
@@ -285,15 +287,15 @@ def presence_with_activity(
         # and left. Hidden tabs stop their freshness reads, so this records
         # user attention rather than tab lifetime.
         "viewed": _viewed_at(page_dir) if process else None,
-        # Where the claimant is working (claim_page), for the drawer's hover: what
+        # Where the claimant is working (claim_page), for All pages' hover: what
         # tells one leaf from another is the work behind it, and neither the title
         # nor the page directory says which that is. It outlives the session that
-        # wrote it, as every other fact in this record does — a page the drawer
+        # wrote it, as every other fact in this record does — a page All pages
         # calls unheld came out of somewhere, and that is still where it came from.
         # None for a page nothing ever claimed, which is the honest nothing.
         "session_cwd": claim.get("cwd") if claim else None,
     }
-    return reading, stored_status.get("stream")
+    return reading, stored_status["stream"] if process else None
 
 
 def claimant_reading(page_dir: Path, events: list) -> tuple[dict, Turn]:
@@ -318,7 +320,7 @@ def presence(page_dir: Path, events: list) -> dict:
 
 def presence_fingerprint(present: dict, others: list) -> str:
     """The half of a reading that file stamps cannot supply, from the facts a state
-    already carries: its `live_facts`, and the neighbours as the drawer shows them."""
+    already carries: its `live_facts`, and the neighbours as All pages shows them."""
     facts = (
         [present[key] for key in ("listening", "session_alive", "live_turn")],
         others,
@@ -399,7 +401,8 @@ def nudge_unwatched(page: PageTransaction) -> None:
 def _viewed_at(page_dir: Path) -> float | None:
     """When a browser last had the page visible, or None for a page nobody has
     ever viewed."""
-    return (read_json(page_dir / VIEWED_FILE) or {"t": None})["t"]
+    viewed = VIEWED.read(page_dir / VIEWED_FILE)
+    return viewed["t"] if viewed else None
 
 
 def renew_viewed(page_dir: Path) -> None:
@@ -407,4 +410,4 @@ def renew_viewed(page_dir: Path) -> None:
     once per VIEWED_RENEW_S."""
     viewed, now = _viewed_at(page_dir), time.time()
     if viewed is None or now - viewed > VIEWED_RENEW_S:
-        write_json(page_dir / VIEWED_FILE, {"t": now})
+        VIEWED.write(page_dir / VIEWED_FILE, {"t": now})

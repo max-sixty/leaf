@@ -42,14 +42,14 @@ never prints it; `cli.LeafGroup` prints what it returns (`cli.py`'s header).
 - `work_reading`: the durable work state shared by admission, serving and delivery;
 - `workflows`, `activity`: unfinished updates with their evidence, and the page-level
   summary over workflows, to-dos, status, claim, turn and watcher;
-- `items`: every widget's and sign-off's item on On me, with typed answers, completion
+- `obligations`: every widget's and sign-off's obligation on On me, with typed answers, completion
   and attention;
 - `work`: what an id names, which widgets hold a to-do, and which widget to-dos a
   version would leave without a target;
 - `todos` (experimental): committed work on either side until it ends, the `start`
-  that takes an update or to-do in hand, and `leaf task`. Items never become to-dos;
+  that takes an update or to-do in hand, and `leaf task`. Obligations never become to-dos;
 - `plans` (experimental): the agent's outline of the work, whose steps are plain or
-  name a to-do or item without owning it, and `leaf task plan`;
+  name a to-do or obligation without owning it, and `leaf task plan`;
 - `delivery`, `session`, `hooks`, `hook_transport`, `harness`: the delivery envelope
   and receipt, status and the `leaf wait` watch, the harness hooks' entry, the prompt
   and Stop hooks as a session's transport, and harness declarations;
@@ -58,13 +58,19 @@ never prints it; `cli.LeafGroup` prints what it returns (`cli.py`'s header).
   Server reply lifecycles, and the detached adapter behind `leaf codex start`;
 - `thread_titles`: the title Leaf asks the harness's model for when a user opens a
   thread;
-- `state`: session lifetime and turn publication, cold SessionEnd, shared paths, page
-  identity, locks and atomic replacement, with no dependencies on the rest;
+- `state`: session lifetime and turn publication, cold SessionEnd and the retirement
+  of a session's files, shared paths, page identity, locks, atomic replacement, and
+  `Record`, the one form of every JSON record Leaf keeps outside a page's log and
+  document, with no dependencies on the rest;
 - `machine`, `leases`, `service`, `server`, `hosting`, `detached`: process readings,
   process-backed leases (`take_lease`, `release_lease`), page claims and serialized
   transactions, server state, HTTP servers, and detached starts;
 - `bridge`: the bridge Leaf's Claude Code hooks keep outside Claude Code's
   sandbox, which runs each `leaf` command the sandbox confines;
+- `codex_tool`: the MCP server Leaf's Codex plugin declares, whose `run` tool
+  runs a `leaf` command outside Codex's sandbox;
+- `piped_input`: the text a caller pipes to a command on stdin, read only from a
+  pipe or a file;
 - `presence`: page, claim and neighboring-leaf presence;
 - `server_rows`: the summary row each serving page publishes for its neighbors;
 - `user_views`: disposable per-document browser observations;
@@ -93,9 +99,10 @@ Within `served_state/`, `context` holds the live or captured inputs every readin
 `work` adds live activity and reply reservations to the durable work state, `wire`
 serializes one reading, `thread` and `document` own their scoped readings, `queues`
 selects the work queues each view serves and `page state` prints, `browser` assembles
-the requested views, `page` composes the response, `reading` names file changes for
-freshness reads, and `service` owns the page source every route reads (the live
-directory or a `page_snapshot` capture) and its transaction.
+the requested views, `page` composes the response, whose shape `state.schema.json`
+declares, `reading` names file changes for freshness reads, and `service` owns the page
+source every route reads (the live directory or a `page_snapshot` capture) and its
+transaction.
 
 Within `render_gate/`, `scheme` owns one browser and color-scheme run, `readings` the
 probe readings and the findings they become, `version` retries, `page_code` the run

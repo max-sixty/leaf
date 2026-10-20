@@ -15,7 +15,7 @@
     "../../skills/leaf/assets/leaf.js",
     "../../skills/leaf/assets/runtime/**/*.js",
     "../../skills/leaf/assets/widgets/*.js",
-    "../../skills/leaf/packages/*/initial.js",
+    "../../skills/leaf/packages/*/initial/*.js",
     "../../skills/leaf/packages/*/widgets/**/*.js",
     "../../skills/leaf/scripts/leaf/render-checks/*.js"
   ]

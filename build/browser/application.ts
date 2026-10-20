@@ -10,7 +10,7 @@ import {
   foldProjection,
   foldedValue,
   foldWidgetStates,
-  itemValue,
+  obligationValue,
   isProjectionEntry,
   stateCoordinate,
 } from "../../skills/leaf/assets/runtime/projection/model.js";
@@ -46,14 +46,21 @@ import type {
   LocalEdit,
   ThreadGesture,
   Message,
-  WidgetEvent,
   LocalAction,
   ActionSpec,
   PendingProjection,
   ProjectionEntry,
-  Coverage,
   ContentVersion,
 } from "./domain.ts";
+import type {
+  ServedObligation,
+  ServedQueueRow,
+  ServedState,
+  ServedSubject,
+  ServedTodo,
+  ServedView,
+  ServedWorkflow,
+} from "./contract.js";
 
 /* The lifecycle of one unresolved gesture, from the turn that makes it to the
  * publication that retires it.
@@ -66,11 +73,16 @@ import type {
  * part, since a refused attempt has no receipt to read.
  *
  * `sending` and `accepted` are drawn from the gesture; from `:logged` on, the log's
- * own event draws it. An entry leaves in exactly two ways. A refused one waits for
- * `release`, once the reading it restores is on the page. An accepted one leaves on
- * reaching `accepted:presented`, unless it is an action: an action's widget can hold a
- * reading past the document pass (a deferred widget), so an action waits there for
- * `release`, which its owner calls once those regions have committed. A signal a state has no edge for leaves it where it is. */
+ * own event draws it. An entry leaves in one of three ways. A refused one waits for
+ * `release`, once the reading it restores is on the page. An accepted one other than
+ * an action leaves on reaching `accepted:logged`, in the same publication as the
+ * reading that logs it, or as the acceptance where the reading came first. The log
+ * draws it from then on, so the page draws that reading in one pass, and `settled`
+ * keeps its thread gestured until that pass has run. An accepted action waits for that pass,
+ * since its widget can hold a reading past it (a deferred widget): it goes on to
+ * `accepted:presented` and waits there for `release`, which its owner calls once
+ * those regions have committed. A signal a state has no edge for leaves it where it
+ * is, and `present` moves only actions. */
 type GestureState =
   | "sending"
   | "sending:logged"
@@ -159,165 +171,62 @@ function advance(
   signal: Signal,
   admitted: Event | null = null,
 ): LedgerEntry | null {
+  const action = entry.event.kind === "action";
+  if (signal === "present" && !action) return entry;
   const state = LIFECYCLE[entry.state][signal];
   if (!state) return entry;
-  if (state === "accepted:presented" && entry.event.kind !== "action") return null;
+  if (state === "accepted:logged" && !action) return null;
   return { ...entry, state, admitted: entry.admitted ?? admitted };
 }
 
-interface WireProjection {
-  entries: {
-    event: WidgetEvent;
-    coordinate: [string, string, string];
-    restated: string[];
-    absorbed: boolean;
-    stands: boolean;
-    scope: string;
-    spec: Omit<ActionSpec, "writer">;
-    value: unknown;
-  }[];
-  actions: string[];
-  reports: string[];
-  desired: string[];
+/** The state the server serves (`served_state/state.schema.json`), whose type the
+ * build generates. The server answers `active` and `browser` null only before a page's
+ * first revision, when it serves no document a runtime could run in
+ * (`http._serve_root`), so every answer this runtime reads has both. The names below
+ * select from it. */
+type AuthoritativeState = ServedState & {
+  active: NonNullable<ServedState["active"]>;
+  browser: NonNullable<ServedState["browser"]>;
+};
+/** A server view with its basis, the transport identity, left off. */
+type PageView = Omit<ServedView, "basis">;
+export type ObligationRecord = ServedObligation;
+/** The selections `readObligations` publishes from a view's one list of obligation
+ * records. */
+interface ObligationLists {
+  all: readonly ObligationRecord[];
+  user: readonly ObligationRecord[];
+  unanswered: readonly ObligationRecord[];
 }
-
-/** A request and its contained answer. The source owns the canonical value;
- * identity includes its kind so authored ids and message ids cannot collide. */
-interface ItemRecord {
-  id: string;
-  source:
-    { kind: "widget"; id: string; tag: string } | { kind: "approval"; version: number };
-  thread: string | null;
-  message: string | null;
-  prompt: { text: string | null; target: string };
-  answer: { value: unknown; event: Event | null } | null;
-  /** `items.py` owns the statuses; only a question answered in words is
-   * `answered_elsewhere`. */
-  status: "open" | "answered" | "answered_elsewhere" | "withdrawn";
-  /** The agent's `leaf task end` that retired a question answered in words: where the
-   * answer is, or why the item no longer applies. */
-  end: { detail: string | null; event: Event } | null;
-  next_actor: "user" | "agent" | null;
-}
-
-interface WireItems {
-  all: ItemRecord[];
-  user: ItemRecord[];
-  unanswered: ItemRecord[];
-}
-
-/** One served workflow, as `served_state.browser.served_workflows` serializes it;
- * `AuthoritativeState.workflows` lists them strongest first. */
-interface WireWorkflow {
-  id: string;
-  seq: number;
-  revision: number | null;
-  input: string | null;
-  /** The message a thread input shows on: its own, or the one an edit rewrote. */
-  message: string | null;
-  subject: { kind: "thread" | "widget"; id: string };
-  thread: string | null;
-  /** Whether the agent is at work on it (`served_state.work.at_work`). */
-  at_work: boolean;
-  holds_thread: boolean;
-  coordinate: unknown;
-  answer: { kind: "reply" | "turn" | "markup" } | null;
-  stage: "sent" | "queued" | "picked_up" | "working" | "replying" | "answered";
-  ts: string | null;
-  detail: string | null;
-  agent: string | null;
-  session: string | null;
-  delivery_seq: number | null;
-  delivery_session: string | null;
-  delivery_turn: string | null;
-  response: object | null;
-  activity: readonly {
-    kind: string;
-    detail: string;
-    ts: string;
-    session: string | null;
-    turn: string | null;
-  }[];
-  condition: {
-    kind: "ended" | "interrupted" | "stale" | "failed";
-    operation: "delivery" | "work" | "response";
-  } | null;
-  next_actor: "user" | "agent";
-  /** The starts that take the move in hand, which the Stop hook reads. */
-  started_by: readonly {
-    item: string;
-    session: string | null;
-    turn: string | null;
-    seq: number;
-  }[];
-  quiet: boolean;
-  dropped: boolean;
-}
-
-/** Published workflows include local sends, before the server can classify quietness. */
-export type Workflow = Omit<WireWorkflow, "quiet" | "dropped" | "stage"> & {
-  stage: WireWorkflow["stage"] | "sending";
-  quiet?: boolean;
-  dropped?: boolean;
+/** Published workflows include local sends, before the server can classify them: a
+ * send has no stage the server knows yet, and a widget move no coordinate the server
+ * has read. */
+export type Workflow = Omit<ServedWorkflow, "stage" | "coordinate"> & {
+  stage: ServedWorkflow["stage"] | "sending";
+  coordinate: readonly (string | null)[] | null;
 };
 
-/** One step of the agent's plan, as `plans.plan_reading` serves it: plain, or naming a
- * to-do or item whose title, owner and state it shows; `done` of `total` counts its
- * children, dropped ones left out. */
-interface WirePlanStep {
-  /** An item whose prompt has no text names no title. */
-  title: string | null;
-  state: "open" | "working" | "done" | "failed" | "dropped";
-  owner: "agent" | "user";
-  item: { kind: "todo" | "item"; id: string } | null;
-  running: WireTodo["running"];
-  since: string | null;
-  steps: WirePlanStep[];
-  done: number;
-  total: number;
-}
+/** One to-do as the browser publishes it: as the server serves it, or ended by this
+ * tab's Done, which the server has not dated yet. */
+export type WireTodo = Omit<ServedTodo, "outcome"> & {
+  outcome: ServedTodo["outcome"] | { ts: null; detail: null };
+};
 
-/** One to-do, as `served_state.browser` serves it (`work_reading.WorkReading.page_todos`): `todos` holds
- * every to-do on either side, open or ended, an ended one with its outcome. It is the
- * one record of each; the queue items and thread readings the browser draws select
- * from it. Items are separate records and never appear in this list. */
-export interface WireTodo {
-  id: string;
-  owner: "agent" | "user";
-  subject: { kind: "thread" | "widget" | "element"; id: string } | { kind: "page" };
-  thread: string | null;
-  title: string | null;
-  state: "open" | "done" | "failed" | "dropped";
-  ts: string;
-  revision: number | null;
-  /** The start that holds the to-do, while one does; one gone quiet holds nothing
-   * (`activity._canonical_todos`). */
-  running: {
-    id: string;
-    text: string;
-    seq: number;
-    ts: string;
-    agent: string | null;
-    session: string | null;
-    turn: string | null;
-  } | null;
-  agent: string | null;
-  session: string | null;
-  outcome: { id?: string; ts: string | null; detail?: string | null } | null;
-}
-
-/** One item on On me or On <agent>, as `served_state.queues` serves it: `owner` names
- * the list. A widget or approval item keeps its record; a to-do item the fields a row
- * draws. */
+/** One row of On me or On <agent>, as `served_state.queues` serves it or this tab
+ * places it: `owner` names the list. A widget, approval or to-do row names its record
+ * by `id`. */
 interface QueueItem {
-  kind: "widget" | "approval" | "todo" | "resend" | "answer" | "work";
+  kind: ServedQueueRow["kind"];
   id: string;
   owner: "user" | "agent";
-  subject: { kind: "thread" | "widget" | "element"; id: string } | { kind: "page" };
+  subject: ServedSubject;
   thread: string | null;
   /** Whether the agent has it in hand now. */
   live: boolean;
-  item?: ItemRecord;
+  /** A widget or approval row's current record, which `localQueues` joins on. */
+  obligation?: ObligationRecord;
+  /** A to-do row's current record, which `localQueues` joins on. */
+  todo?: WireTodo;
   [field: string]: unknown;
 }
 
@@ -330,9 +239,9 @@ type DoneItem = QueueItem & {
 };
 
 interface WireQueues {
-  on_user: QueueItem[];
-  on_agent: QueueItem[];
-  done: DoneItem[];
+  on_user: readonly QueueItem[];
+  on_agent: readonly QueueItem[];
+  done: readonly DoneItem[];
 }
 
 export interface SemanticDocument {
@@ -375,94 +284,6 @@ export interface WidgetDescriptor {
   quoted: boolean;
 }
 
-interface AuthoritativeState {
-  taken: number;
-  layer: { generation: string };
-  active: { revision: number; version?: number | null; label?: string | null };
-  versions?: { revision: number; version: number; url: string }[];
-  revision_labels: Record<string, string>;
-  events: Event[];
-  /** Each bound file's stamp, by binding, which moves when the file may have. */
-  files: Record<string, string>;
-  workflows: WireWorkflow[];
-  /** The machine's other live pages, each its compact activity summary
-   * (`server_rows.py`). */
-  others: ({ page_key: string; url: string; title: string } & Record<
-    string,
-    unknown
-  >)[];
-  browser: {
-    basis: { through_seq: number };
-    views: Record<
-      string,
-      {
-        basis: { revision: number; through_seq: number };
-        document: {
-          projection: WireProjection;
-          items: WireItems;
-        };
-        /** The frozen threads as this revision reads them: its registry classifies
-         * their widgets' decisions, and so the items and attention those give. */
-        thread: {
-          threads: Thread[];
-          projection: WireProjection;
-          items: WireItems;
-        };
-        /** Each gesture undo can take back, latest first; `newest` marks the user's
-         * latest gesture (`served_state.document`). */
-        undo: { event: Event; coordinate?: string[]; newest?: true }[];
-        coverage: Coverage[];
-        /** The view's report feed, in log order (`projection.canonical_reports`). */
-        reports: {
-          id: string;
-          target: { kind: "widget"; id: string };
-          source: "report";
-          action: string;
-          detail: Record<string, unknown>;
-          text: string | null;
-          ts: string;
-          revision: number;
-          seq: number;
-          agent: string | null;
-          session: string | null;
-          disposition: "effective" | "outranked" | "settled";
-        }[];
-        published_at: string | null;
-        queues: WireQueues;
-        /** The items approving this version waits on (`items.approval_blocking`). */
-        approval_blocking: string[];
-      }
-    >;
-    /** Approvals in force across every stamp, for Threads' event timeline. */
-    approval_history: Event[];
-    receipts: Event[];
-    /** Every thread whose history each logged event changes
-     * (`thread_context.thread_memberships`). */
-    thread_memberships: Record<string, string[]>;
-    todos: WireTodo[];
-    /** The agent's plan in force, or null (`plans.plan_reading`). */
-    plan: {
-      id: string;
-      ts: string;
-      agent: string | null;
-      session: string | null;
-      steps: WirePlanStep[];
-    } | null;
-    /** Each version's note, by version (`served_state.browser`). */
-    version_notes: Record<string, string>;
-    /** The newest events as a history feed reads them, sent only to a page holding a
-     * widget that declares `x-history` (`history.history`). */
-    history?: object[];
-  };
-  activity: unknown;
-  reading?: string;
-  agent?: string;
-}
-
-type ServerView = AuthoritativeState["browser"]["views"][string];
-/** A server view with its basis, the transport identity, left off. */
-type PageView = Omit<ServerView, "basis">;
-
 // The server classifies a view's page and thread entries alike under that revision's
 // registry, so every entry is one the view's widgets can draw.
 function normalizedProjection(view: PageView | null | undefined) {
@@ -494,26 +315,24 @@ function normalizedProjection(view: PageView | null | undefined) {
   return { entries, actionIds, reportIds, desiredIds, coverage: view?.coverage ?? [] };
 }
 
-const NO_ITEMS = {
-  all: [] as ItemRecord[],
-  user: [] as ItemRecord[],
-  unanswered: [] as ItemRecord[],
+const NO_OBLIGATIONS = {
+  all: [] as ObligationRecord[],
+  user: [] as ObligationRecord[],
+  unanswered: [] as ObligationRecord[],
 };
 
 /* The admitted inventory owns membership and widget completion. Approval and its
  * undo draw their direct result immediately. Widget values come from
  * the same local-inclusive fold used by their controls, so a partial answer is
- * visible before its POST settles the item. */
-function normalizedItems(
+ * visible before its POST settles the obligation. */
+function normalizedObligations(
   view: PageView | null,
   widgets: ReturnType<typeof foldWidgetStates>,
   document: SemanticDocument,
   projection: ReturnType<typeof foldProjection>,
   local: readonly LedgerEntry[],
-): WireItems {
-  const page = view?.document.items;
-  const thread = view?.thread.items;
-  const all = [...(page?.all ?? []), ...(thread?.all ?? [])].map((item): ItemRecord => {
+): ObligationLists {
+  const all = (view?.obligations ?? []).map((item): ObligationRecord => {
     if (item.source.kind === "approval") {
       const version = item.source.version;
       const undone = new Set(
@@ -544,7 +363,7 @@ function normalizedItems(
     const completed =
       item.status === "answered" &&
       !(item.answer?.event && projection.pendingWithdrawals.has(item.answer.event.id));
-    const { value, present } = itemValue(widget, verb, completed);
+    const { value, present } = obligationValue(widget, verb, completed);
     const pendingValue =
       (widget.entries as { e: Event }[]).some(
         ({ e }) => e.action === verb && !Number.isInteger(e.seq),
@@ -559,19 +378,13 @@ function normalizedItems(
       : null;
     return { ...item, answer };
   });
-  const selection = (kind: "user" | "unanswered") => {
-    const admitted = new Set(
-      [...(page?.[kind] ?? []), ...(thread?.[kind] ?? [])].map((item) => item.id),
-    );
-    return all.filter((item) =>
-      item.source.kind === "approval"
-        ? kind === "user"
-          ? item.next_actor === "user"
-          : item.status === "open"
-        : admitted.has(item.id),
-    );
+  // A widget's record keeps the server's status and next actor, which only the log
+  // decides; an approval's carries this tab's gesture, so both select alike.
+  return {
+    all,
+    user: all.filter((item) => item.next_actor === "user"),
+    unanswered: all.filter((item) => item.status === "open"),
   };
-  return { all, user: selection("user"), unanswered: selection("unanswered") };
 }
 
 /* To-dos, open and ended, including Done this tab is sending or undoing. A to-do the
@@ -588,8 +401,8 @@ function localTodos(state: AuthoritativeState | null, local: readonly LedgerEntr
   const all = state?.browser.todos ?? [];
   const served = all.filter((todo) => todo.state === "open");
   const ended = all.filter((todo) => todo.state !== "open");
-  const reopened = (todo: WireTodo) =>
-    todo.outcome !== null && undoing.has(todo.outcome.id ?? "");
+  const reopened = (todo: ServedTodo) =>
+    todo.outcome !== null && undoing.has(todo.outcome.id);
   const open = [
     ...served,
     ...ended
@@ -666,76 +479,78 @@ function currentWidgetRelations(
 
 /* What is on the user (On me), what is on the agent (On <agent>), and what is done:
  * the view's served lists (`served_state.queues`), with this tab's unresolved sends
- * placed against them. A send moves an item the server listed only where the item is
- * its own subject: a Done or its undo moves a to-do between its list and done, and an
- * approval or its undo moves the approval item. What a send leaves anything else, such
- * as which items in its thread it answers, waits for the server's reading of it. This
- * adds only the items a send alone implies: its own answer owed, which stands for the
- * response its thread was already owed, and the resend a refused one leaves. Nothing
- * here selects a list again. */
+ * placed against them. Every row but a to-do names an obligation record, so a send moves
+ * an item the server listed only where the record is its own subject: a Done or its
+ * undo moves a to-do between its list and done, and an approval or its undo moves the
+ * approval obligation. What a send leaves anything else, such as which obligations in
+ * its thread it answers, waits for the server's reading of it. This adds only the
+ * records a send alone publishes (`localUpdates`): the answer it is owed, which stands
+ * for every update the server listed open in its thread, and the resend a refused one
+ * leaves. Nothing here selects a list again. */
 function localQueues(
   served: WireQueues,
-  threads: readonly Pick<Thread, "id" | "resolved" | "attention">[],
   workflows: readonly Workflow[],
   todos: ReturnType<typeof localTodos>,
-  items: WireItems,
+  items: ObligationLists,
+  local: readonly ObligationRecord[],
 ) {
   const record = new Map(items.all.map((item) => [item.id, item]));
-  const asked = new Map(items.all.map((item, at) => [item.id, at]));
+  const inventoryAt = new Map(items.all.map((item, at) => [item.id, at]));
   const open = new Set(todos.open.map((todo) => todo.id));
   const ended = new Set(todos.ended.map((todo) => todo.id));
-  const byThread = new Map(threads.map((thread) => [thread.id, thread]));
-  // The forward sends still in flight; a refused one is the user's resend, below.
-  const sending = workflows.filter(
-    (workflow) =>
-      workflow.stage === "sending" &&
-      workflow.next_actor === "agent" &&
-      workflow.subject.kind === "thread",
+  const todoRecord = new Map(
+    [...todos.open, ...todos.ended].map((todo) => [todo.id, todo]),
   );
-  const resent = new Set(sending.map((workflow) => workflow.thread));
-  const retrying = (thread: string) => {
-    const reading = byThread.get(thread);
-    return Boolean(
-      reading &&
-      !reading.resolved &&
-      reading.attention?.kind === "needs_user" &&
-      reading.attention.reason === "resend",
-    );
+  // The threads holding a send this tab has in flight.
+  const sentIn = new Set(
+    workflows.flatMap((workflow) =>
+      workflow.stage === "sending" &&
+      workflow.condition === null &&
+      workflow.subject.kind === "thread"
+        ? [workflow.thread]
+        : [],
+    ),
+  );
+  const obligationOf = (item: QueueItem) => {
+    const current = record.get(item.id);
+    if (!current) throw new Error(`Queue item ${item.id} names no obligation`);
+    return current;
   };
-  const itemOf = (item: QueueItem) => {
-    const local = record.get(item.id);
-    if (!local) throw new Error(`Queue item ${item.id} names no item`);
-    return local;
-  };
-  // Whether an item the server listed as open still stands open in this tab.
+  // Whether an item the server listed as open still stands open in this tab: a
+  // record still on the list's side, unless it is an update in a thread this tab has
+  // sent to since, whose own record stands for it.
   const standsOpen = (item: QueueItem) => {
-    switch (item.kind) {
-      case "widget":
-      case "approval":
-        return itemOf(item).next_actor === "user";
-      case "todo":
-        return open.has(item.id);
-      case "resend":
-        return item.thread === null || retrying(item.thread);
-      case "answer":
-        return !resent.has(item.thread);
-      default:
-        return true;
-    }
+    if (item.kind === "todo") return open.has(item.id);
+    const current = obligationOf(item);
+    return (
+      current.next_actor === item.owner &&
+      !(
+        current.source.kind === "update" &&
+        current.thread !== null &&
+        sentIn.has(current.thread)
+      )
+    );
   };
   // Whether an item the server listed as done stands open again in this tab.
   const reopened = (item: DoneItem) =>
-    carriesItem(item)
-      ? itemOf(item).status === "open" && itemOf(item).next_actor === "user"
-      : item.kind === "todo" && open.has(item.id);
+    namesRecord(item)
+      ? obligationOf(item).status === "open" &&
+        obligationOf(item).next_actor === item.owner
+      : open.has(item.id);
   // Whether an item the server listed as open has ended in this tab.
   const endedHere = (item: QueueItem) =>
-    carriesItem(item)
-      ? itemOf(item).status !== "open"
-      : item.kind === "todo" && ended.has(item.id);
-  // A widget or approval item carries this tab's record of its item.
+    namesRecord(item) ? obligationOf(item).status !== "open" : ended.has(item.id);
+  const todoOf = (item: QueueItem) => {
+    const local = todoRecord.get(item.id);
+    if (!local) throw new Error(`Queue item ${item.id} names no to-do`);
+    return local;
+  };
+  // A record's row carries this tab's record of its obligation, and a to-do's row
+  // this tab's record of the to-do.
   const current = <T extends QueueItem>(item: T): T =>
-    carriesItem(item) ? { ...item, item: itemOf(item) } : item;
+    namesRecord(item)
+      ? { ...item, obligation: obligationOf(item) }
+      : { ...item, todo: todoOf(item) };
   const asOpen = ({
     state: _state,
     ended: _ended,
@@ -746,65 +561,46 @@ function localQueues(
     ...current(item),
     live: false,
     state:
-      carriesItem(item) && itemOf(item).status === "withdrawn" ? "dropped" : "done",
+      namesRecord(item) && obligationOf(item).status === "withdrawn"
+        ? "dropped"
+        : "done",
     ended: null,
     detail: null,
   });
-  const listed = new Set(
-    [...served.on_user, ...served.on_agent].map((item) => `${item.kind}:${item.id}`),
-  );
-  const resend = (id: string, subject: QueueItem["subject"], thread: string | null) =>
-    listed.has(`resend:${id}`)
-      ? []
-      : [
-          {
-            kind: "resend" as const,
-            id,
-            owner: "user" as const,
-            subject,
-            thread,
-            live: false,
-          },
-        ];
   const reopenedFor = (owner: "user" | "agent") =>
     served.done.filter((item) => item.owner === owner && reopened(item));
+  // A record this tab published, as the row the server would list it under.
+  const localRow = (item: ObligationRecord): QueueItem => {
+    const source = item.source as { kind: "update"; subject: ServedSubject };
+    return current({
+      kind: "update",
+      id: item.id,
+      owner: item.next_actor as "user" | "agent",
+      subject: source.subject,
+      thread: item.thread,
+      live: false,
+    });
+  };
   return {
     on_user: [
       ...served.on_user.filter(standsOpen).map(current),
       ...reopenedFor("user").map(asOpen),
-      ...threads.flatMap((thread) =>
-        retrying(thread.id)
-          ? resend(thread.id, { kind: "thread", id: thread.id }, thread.id)
-          : [],
-      ),
-      ...workflows.flatMap((workflow) =>
-        workflow.next_actor === "user" && workflow.thread === null
-          ? resend(workflow.id, workflow.subject, null)
-          : [],
-      ),
+      ...local.filter((item) => item.next_actor === "user").map(localRow),
     ].toSorted(
       (a, b) =>
         onUserRank(a) - onUserRank(b) ||
-        (carriesItem(a) && carriesItem(b) ? asked.get(a.id)! - asked.get(b.id)! : 0),
+        (namesRecord(a) && namesRecord(b)
+          ? inventoryAt.get(a.id)! - inventoryAt.get(b.id)!
+          : 0),
     ),
     on_agent: [
-      ...served.on_agent.filter((item) => item.kind !== "todo" && standsOpen(item)),
-      // One answer per thread, as the server lists one for the newest turn owed.
-      ...sending
-        .filter((workflow, at) =>
-          sending.slice(at + 1).every((later) => later.thread !== workflow.thread),
-        )
-        .map((workflow) => ({
-          kind: "answer" as const,
-          id: workflow.id,
-          owner: "agent" as const,
-          subject: workflow.subject,
-          thread: workflow.thread,
-          live: false,
-          answer: workflow.answer,
-          stage: workflow.stage,
-        })),
-      ...served.on_agent.filter((item) => item.kind === "todo" && standsOpen(item)),
+      ...served.on_agent
+        .filter((item) => item.kind !== "todo" && standsOpen(item))
+        .map(current),
+      ...local.filter((item) => item.next_actor === "agent").map(localRow),
+      ...served.on_agent
+        .filter((item) => item.kind === "todo" && standsOpen(item))
+        .map(current),
       ...reopenedFor("agent").map(asOpen),
     ],
     // Newest first, as the server serves it: what ended in this tab has just ended.
@@ -815,14 +611,51 @@ function localQueues(
   };
 }
 
-// The order the server lists On me in: widget and approval items, to-dos, then
-// resends; items among themselves in the order the view's item inventory holds them.
-const onUserRank = (item: QueueItem) =>
-  carriesItem(item) ? 0 : item.kind === "todo" ? 1 : 2;
+/* The records this tab's sends publish before the server has read them, in the served
+ * record's shape (`obligations.update_obligation`): the answer a message it is sending
+ * is owed, one per thread for the newest, as the server's reply to the newest answers
+ * every message before it; and the resend each refused message or widget move leaves.
+ * Each local workflow names the record it serves. */
+function localUpdates(workflows: readonly Workflow[]) {
+  const newest = new Map<string | null, Workflow>();
+  for (const workflow of workflows)
+    if (workflow.stage === "sending" && workflow.condition === null)
+      newest.set(workflow.thread, workflow);
+  const records: ObligationRecord[] = [];
+  const named = workflows.map((workflow): Workflow => {
+    if (workflow.stage !== "sending") return workflow;
+    const refused = workflow.condition !== null;
+    const owner = refused ? workflow : newest.get(workflow.thread)!;
+    const id = `update:${owner.id}`;
+    if (owner === workflow)
+      records.push({
+        id,
+        source: { kind: "update", id: workflow.input, subject: workflow.subject },
+        thread: workflow.thread,
+        message: workflow.message,
+        prompt: {
+          text: null,
+          target: "id" in workflow.subject ? workflow.subject.id : workflow.input,
+        },
+        answer: null,
+        status: "open",
+        end: null,
+        next_actor: refused ? "user" : "agent",
+      });
+    return { ...workflow, obligation: id };
+  });
+  return { workflows: named, records };
+}
 
-// Whether a list item is a widget's or an approval's, which carries its record.
-const carriesItem = (item: QueueItem) =>
-  item.kind === "widget" || item.kind === "approval";
+// The order the server lists On me in: what the page asks (widget and approval
+// obligations), to-dos, then updates to send again; records of a kind among
+// themselves in the order the view's inventory holds them.
+const onUserRank = (item: QueueItem) =>
+  item.kind === "todo" ? 1 : item.kind === "update" ? 2 : 0;
+
+// Whether a list item names an obligation record, which it carries: every row but a
+// to-do's.
+const namesRecord = (item: QueueItem) => item.kind !== "todo";
 
 type SemanticRoot = ReturnType<ReturnType<typeof createSemanticApplication>["read"]>;
 type RootProjection = SemanticRoot["effective"]["projection"];
@@ -982,6 +815,11 @@ export function createSemanticApplication({
     } as SemanticDocument,
     authoritative: null as AuthoritativeState | null,
     unresolved: [] as LedgerEntry[],
+    // The entries that left the ledger once a reading logged them. Each stays until the
+    // first reading adopted after a document pass drew its receipt (`drawn`), so its
+    // thread stays gestured through that pass, a failed one and its retry included, as
+    // it was while the ledger held it.
+    settled: [] as LedgerEntry[],
     // Content versions this tab has marked read and the log has not yet answered for.
     // Marking read is bookkeeping, not a gesture, so it has no place in the ordered
     // `unresolved` ledger; each leaves once the answer carrying it is applied.
@@ -990,7 +828,8 @@ export function createSemanticApplication({
     // How the server answered the page's latest read: not yet (`waiting`), with a
     // reading the page adopted (`reached`), with nothing (`unreachable`, or `refused`
     // where it refused this tab's key), or with one the page could not apply
-    // (`broken`). It is what the banner says about the server, and no semantic epoch.
+    // (`broken`). It is what the page's status says about the server, and no semantic
+    // epoch.
     reach: "waiting" as "waiting" | "reached" | "unreachable" | "refused" | "broken",
     hostAvailable: true,
     data: { version: null as string | null, sources: {} as Record<string, unknown> },
@@ -1004,6 +843,7 @@ export function createSemanticApplication({
       null,
       [],
       [],
+      [],
       "waiting",
       true,
     ),
@@ -1013,6 +853,10 @@ export function createSemanticApplication({
   const widgets = publisher.select(widgetIndex);
   let dataTaken = -Infinity;
   let order = 0;
+  // The attempts of `settled` and of the ledger whose receipts a document pass has drawn
+  // (`present`). A settled entry among them leaves `settled` with the next adoption,
+  // since a publication of its own would repaint the threads to show nothing new.
+  const drawn = new Set<string>();
   let publicationDepth = 0;
   let activePresentation: SemanticPresentationPublication | null = null;
 
@@ -1022,6 +866,7 @@ export function createSemanticApplication({
     document: SemanticDocument,
     state: AuthoritativeState | null,
     unresolved: LedgerEntry[],
+    settled: LedgerEntry[],
     markingRead: ContentVersion[],
     phase: string,
     hostAvailable: boolean,
@@ -1069,7 +914,7 @@ export function createSemanticApplication({
     });
     // A local comment belongs to the shown document even before saved history arrives.
     // Fold it through the same ledger and receipt path in every phase; collection.phase
-    // still says whether this is a complete reading. The items need the log to say which
+    // still says whether this is a complete reading. The obligations need the log to say which
     // of them the page still holds, so their inventory waits for that reading.
     const ready = phase === "ready";
     // The ledger's thread gestures, in the order the user made them.
@@ -1089,9 +934,9 @@ export function createSemanticApplication({
       widgets,
       projection,
     );
-    const items = ready
-      ? normalizedItems(view, widgets, document, projection, local)
-      : NO_ITEMS;
+    const servedItems = ready
+      ? normalizedObligations(view, widgets, document, projection, local)
+      : NO_OBLIGATIONS;
     const todos = ready ? localTodos(state, local) : { open: [], ended: [] };
     // Thread attention is the server's reading, and one local fact adjusts it: a
     // refused send hands a thread the server left with the agent back to the user,
@@ -1139,7 +984,7 @@ export function createSemanticApplication({
     // closes changes in the reading that logs the answer, and the gesture concerns it
     // from that reading on.
     const logged = state?.browser.thread_memberships ?? {};
-    const threadsOfEntry = (entry: LedgerEntry): string[] => {
+    const threadsOfEntry = (entry: LedgerEntry): readonly string[] => {
       const filed = entry.admitted ? logged[entry.admitted.id] : undefined;
       if (filed) return filed;
       const { event } = entry;
@@ -1168,9 +1013,10 @@ export function createSemanticApplication({
           }
         : thread;
     });
-    // A send this tab has not delivered, in the served workflow's shape. A turn holds
-    // its thread as every thread input does; a widget move owes no answer until the
-    // server has read it, so it holds none.
+    // A send this tab has not delivered, in the served workflow's shape, naming the
+    // record it serves once `localUpdates` publishes it. A widget move owes no answer
+    // until the server has read it, so only a refused one publishes a record: the
+    // resend it leaves.
     const localWorkflow = (entry: LedgerEntry, rejected: boolean): Workflow | null => {
       const turn = isTurnEvent(entry.event) ? entry.thread : null;
       const thread = threadOfEntry(entry);
@@ -1191,14 +1037,13 @@ export function createSemanticApplication({
         subject,
         thread,
         at_work: false,
-        holds_thread: Boolean(turn),
         // The server's tuple, where the local fold keys a coordinate.
         coordinate: turn
           ? ["thread", thread]
           : entry.projection
             ? coordinateOf(entry.projection.coordinate)
             : null,
-        answer: null,
+        obligation: null,
         stage: "sending",
         ts: turn?.ts ?? null,
         detail: null,
@@ -1210,11 +1055,10 @@ export function createSemanticApplication({
         response: null,
         activity: [],
         condition: rejected ? { kind: "failed", operation: "delivery" } : null,
-        next_actor: rejected ? "user" : "agent",
         started_by: [],
       };
     };
-    const workflows: Workflow[] = [
+    const sends = localUpdates([
       ...(state ? state.workflows : []),
       ...local.flatMap((entry) =>
         isTurnEvent(entry.event) ? (localWorkflow(entry, false) ?? []) : [],
@@ -1222,31 +1066,49 @@ export function createSemanticApplication({
       // A refused message or widget move has a destination to send again.
       // Other gestures restore their own control or to-do when speculation ends.
       ...refused.flatMap((entry) => localWorkflow(entry, true) ?? []),
-    ];
+    ]);
+    const workflows = sends.workflows;
+    // The records this tab's sends publish join the served inventory once it is read.
+    const localRecords = ready ? sends.records : [];
+    const all = [...servedItems.all, ...localRecords];
+    const items: ObligationLists = {
+      all,
+      user: [
+        ...servedItems.user,
+        ...localRecords.filter((item) => item.next_actor === "user"),
+      ],
+      unanswered: [...servedItems.unanswered, ...localRecords],
+    };
     const threads = readThreadRecords(
       obligated,
       document,
       widgets,
       workflows,
       todos.open,
+      items.all,
       markingRead,
       ready,
     );
     const selectedQueues = localQueues(
       ready ? (view?.queues ?? NO_QUEUES) : NO_QUEUES,
-      threads,
       workflows,
       todos,
       items,
+      localRecords,
     );
-    const workflowById = new Map(workflows.map((workflow) => [workflow.id, workflow]));
+    // A record's row reads the strongest workflow serving it, the first in the
+    // published order.
+    const serving = new Map<string, Workflow>();
+    for (const workflow of workflows)
+      if (workflow.obligation !== null && !serving.has(workflow.obligation))
+        serving.set(workflow.obligation, workflow);
     const contextual = <T extends { id: string; kind: string }>(
       items: T[],
       onUser = false,
     ) =>
       items.map((item) => ({
         ...item,
-        workflow: workflowById.get(item.id) ?? null,
+        workflow: serving.get(item.id) ?? null,
         offers: queueOffers(item, ready, onUser),
       }));
     return {
@@ -1273,10 +1135,13 @@ export function createSemanticApplication({
           threads: threads.filter(discussed),
         },
         // The threads the gestures this tab's ledger still holds concern, refused ones
-        // included until the reading they restore is drawn (held-news.js, `gesturedOn`).
-        gestured: [...new Set(unresolved.flatMap(threadsOfEntry))],
+        // included until the reading they restore is drawn, and those the adopted
+        // reading settled (held-news.js, `gesturedOn`).
+        gestured: [...new Set([...unresolved, ...settled].flatMap(threadsOfEntry))],
       },
-      items: { phase, ...items },
+      obligations: { phase, ...items },
+      // The agent's plan in force, as the server read it (`plans.plan_reading`).
+      plan: ready ? (state?.browser.plan ?? null) : null,
       // On me (on the user), On <agent> (on the agent), and done: the served lists
       // with this tab's sends placed against them (`localQueues`).
       queues: {
@@ -1310,6 +1175,7 @@ export function createSemanticApplication({
         next.document,
         next.authoritative,
         next.unresolved,
+        next.settled,
         next.markingRead,
         next.phase,
         next.hostAvailable,
@@ -1391,16 +1257,20 @@ export function createSemanticApplication({
         ),
     });
   // The ledger after `signal` reaches each attempt `admitted` names, with the log's
-  // event for it (or null), and the attempts that left. The caller publishes it.
+  // event for it (or null), the entries that left, with that event, and whether any
+  // entry moved. The caller publishes it.
   const transition = (signal: Signal, admitted: Map<string, Event | null>) => {
-    const left: string[] = [];
+    const left: LedgerEntry[] = [];
+    let moved = false;
     const unresolved = publisher.peek().unresolved.flatMap((item) => {
       if (!admitted.has(item.event.attempt)) return [item];
-      const next = advance(item, signal, admitted.get(item.event.attempt) ?? null);
-      if (!next) left.push(item.event.attempt);
+      const event = admitted.get(item.event.attempt) ?? null;
+      const next = advance(item, signal, event);
+      if (next !== item) moved = true;
+      if (!next) left.push({ ...item, admitted: item.admitted ?? event });
       return next ? [next] : [];
     });
-    return { unresolved, left };
+    return { unresolved, left, moved };
   };
   const byAttempt = (receipts: readonly Event[]) =>
     new Map<string, Event | null>(
@@ -1419,7 +1289,7 @@ export function createSemanticApplication({
     // Version comparison receives a server projection already interpreted through the
     // requested revision's registry. Keep that admitted spec on the wire; the current
     // document contract must not reinterpret historical events.
-    projectView(view: AuthoritativeState["browser"]["views"][string]) {
+    projectView(view: ServedView) {
       return foldProjection({
         ...normalizedProjection(view),
         pendingEntries: [],
@@ -1536,11 +1406,19 @@ export function createSemanticApplication({
       if (!adoptable(state, document)) return false;
       const authoritative = structuredClone(state);
       // The reading and what it logs are one publication: the entries whose receipts
-      // it holds stop drawing from the gesture as the log starts drawing them.
-      const { unresolved } = transition(
+      // it holds stop drawing from the gesture as the log starts drawing them, and an
+      // accepted one other than an action leaves with it.
+      const { unresolved, left } = transition(
         "log",
         byAttempt(authoritative.browser.receipts),
       );
+      const settled = [
+        ...prior.settled.filter((item) => !drawn.has(item.event.attempt)),
+        ...left,
+      ];
+      for (const attempt of drawn)
+        if (!unresolved.some((item) => item.event.attempt === attempt))
+          drawn.delete(attempt);
       // A capture can add message bodies without changing the shown document.
       // Retain its explicit identity and share fields the publisher already owns.
       const capture = <T>(value: T, previous: unknown): T =>
@@ -1564,6 +1442,7 @@ export function createSemanticApplication({
           : prior.document,
         authoritative,
         unresolved,
+        settled,
         phase: "ready",
         reach: "reached",
       });
@@ -1662,8 +1541,13 @@ export function createSemanticApplication({
     // The POST accepted `attempt` as the log's `accepted`.
     accept(attempt: string, accepted: Event) {
       if (!entry(attempt)) return;
-      const { unresolved } = transition("accept", new Map([[attempt, accepted]]));
-      publish({ unresolved });
+      const { unresolved, left } = transition("accept", new Map([[attempt, accepted]]));
+      // A reading logged it first; it stays gestured unless a pass has drawn that.
+      const settled = left.filter((item) => !drawn.delete(item.event.attempt));
+      publish({
+        unresolved,
+        ...(settled.length && { settled: [...publisher.peek().settled, ...settled] }),
+      });
     },
     // The POST refused `attempt`, or it can no longer be sent. What depends on it goes
     // with it: every gesture naming it by its pending id (`namesEvent`), such as an undo
@@ -1696,11 +1580,15 @@ export function createSemanticApplication({
       });
       return dependents;
     },
-    // A document pass carrying these receipts has run. Returns the attempts that left.
+    // A document pass carrying these receipts has run, which moves only the actions
+    // among them, and publishes only where one moved.
     present(receipts: Event[]) {
-      const { unresolved, left } = transition("present", byAttempt(receipts));
-      publish({ unresolved });
-      return left;
+      const { unresolved, settled } = publisher.peek();
+      const attempts = byAttempt(receipts);
+      for (const item of [...settled, ...unresolved])
+        if (attempts.has(item.event.attempt)) drawn.add(item.event.attempt);
+      const { unresolved: next, moved } = transition("present", attempts);
+      if (moved) publish({ unresolved: next });
     },
     // The entries no document pass has presented yet.
     unpresented: () =>

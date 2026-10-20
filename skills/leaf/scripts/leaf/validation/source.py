@@ -52,7 +52,8 @@ class SourceCheck(NamedTuple):
 
     `reading` is the document under `registry` (none where the page has no
     vocabulary), read once for the whole check; the revision activation writes from
-    it adopts it (`revision_artifact.write_artifact`)."""
+    it adopts it (`revision_artifact.write_artifact`). `advice` names the threads
+    the revision would relocate; `source_advice` reads the source's other drift."""
 
     reading: SourceReading
     registry: dict | None
@@ -127,7 +128,7 @@ def _document_errors(page_dir: Path, parser) -> list[Finding]:
             )
             continue
         allowed = LF_META[meta["name"]]
-        if allowed is not None and meta["content"] not in allowed:
+        if meta["content"] not in allowed:
             errors.append(
                 Finding(
                     "meta-content",
@@ -249,14 +250,15 @@ def _presentation_errors(parser) -> list[Finding]:
     return errors
 
 
-def _source_advice(
-    parser,
-    registry: dict | None,
-    stored_data: dict,
-) -> list[Finding]:
-    """Report non-blocking drift after every error-producing phase has run."""
+def source_advice(page_dir: Path, checked: SourceCheck) -> list[Finding]:
+    """The source's non-blocking drift, which `page check` reports beside what
+    `check_source` found. It is read apart from the check because judging the
+    page's recorded data takes a cold process about 200 ms on a large page, and no
+    other caller of the check reports advice."""
+    parser = checked.document
+    stored_data = read_data(page_dir, checked.registry)
     return [
-        *measurement_lag(parser.lf_elements, registry or {}, stored_data),
+        *measurement_lag(parser.lf_elements, checked.registry or {}, stored_data),
         *(
             Finding(
                 "unreadable-data",
@@ -292,7 +294,6 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
     reading = SourceReading(document, registry)
     if registry is not None and (refusal := incompatible_layer(page_dir, registry)):
         return SourceCheck(reading, registry, [refusal], [])
-    stored_data = read_data(page_dir, registry)
     contracts = read_contracts(page_dir)
     # A conflicting binding lies within one document, and history holds none
     # (`data_contracts.data_binding_errors`), so the check reads this one alone.
@@ -326,9 +327,7 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
         except ArtifactError as error:
             errors.extend(error.findings)
     revision = predecessor_reading(page_dir, data, events, artifact)
-    advice = _source_advice(document, registry, stored_data)
-    reanchors, anchor_advice = revision_reanchors(
+    reanchors, advice = revision_reanchors(
         events, reading, revision, candidate_revision=revision.candidate
     )
-    advice.extend(anchor_advice)
     return SourceCheck(reading, registry, errors, advice, artifact, reanchors, revision)

@@ -11,22 +11,23 @@
    `holdingError`, which raises it when the condition begins and clears it when it
    ends.
 
-   The floating panel places each error from what it draws (floating-panel.js): in its
-   field, in the status's place, while that field is the error's subject, or, for an
-   error with no subject, while the field is empty; over words its subject holds, it
-   covers them until the user's first key or press there. The user's first edit in
-   the field passes every error the field could say (`passErrors`). An error the
-   field cannot say, or has passed, waits in the Errors list in the leaf's menu, with
-   a dot on the leaf until the user opens the list (`seeErrors`). The user chose this
-   on 17 October over errors riding the passing notice, which faded after four
-   seconds, was replaced by whatever came next, and went unseen while the user typed.
-   The banner chrome keeps no list; with no chrome presenting errors, each passes as a
-   notice in its status line instead.
+   An error about a text field stands at that field, wherever it is, covering the
+   field's words and actions until the user comes back to them, by a key or an image
+   there, a press on the cover or Resume writing (`g i`), or the field stops showing
+   them (`passErrorsAt`; composing/input.js, `errorOver`). The floating panel's field
+   also says an error about nothing, in its status's place while it is empty, until the
+   user's first edit there (floating-panel.js). An error no field stands for, or one the user has
+   passed, waits in the Errors list in the leaf's menu, with a dot on the leaf until
+   the user opens the list (`seeErrors`). The user chose this on 17 October over
+   errors riding the passing notice, which faded after four seconds, was replaced by
+   whatever came next, and went unseen while the user typed; and on 19 October chose
+   the cover at a passage's comment box, where the error had shown only as the leaf's
+   dot, so nothing said a refused send's words had come back.
 
    A screen reader hears each error as it is raised, unless its producer already says
-   it aloud, as the banner does a change of status. News and acknowledgements stay
+   it aloud, as page-status.js does a change of status. News and acknowledgements stay
    notices (notifications.js); an error is never one. */
-import { announce, notice } from "./notifications.js";
+import { announce } from "./notifications.js";
 
 /**
  * @typedef {Readonly<{
@@ -58,8 +59,7 @@ const publish = (next) => {
 /** The standing errors, newest first. */
 export const errorsReading = () => errors;
 
-// A chrome that shows errors registers how it repaints; one that registers nothing
-// leaves each error to the notice seat.
+// The chrome registers how it repaints when the errors change.
 export function registerErrorPresentation(present) {
   presenters.add(present);
 }
@@ -71,6 +71,12 @@ export function registerErrorPresentation(present) {
  * @param {{ subject?: Element | null, announce?: boolean }} [options]
  */
 export function raiseError(message, { subject = null, announce: speak = true } = {}) {
+  return raise(message, subject, speak, null);
+}
+
+// Raise an error, taking the one `replaced` names down in the same reading, so the
+// chrome never draws the moment between them.
+function raise(message, subject, speak, replaced) {
   const id = ++raised;
   if (speak && !unsaid.length)
     queueMicrotask(() => {
@@ -78,12 +84,11 @@ export function raiseError(message, { subject = null, announce: speak = true } =
       unsaid = [];
     });
   if (speak) unsaid.push(message);
-  if (!presenters.size) notice(message, { announce: false });
   publish([
     Object.freeze({ id, message, subject, at: Date.now(), passed: false, seen: false }),
-    ...errors,
+    ...errors.filter((entry) => entry.id !== replaced),
   ]);
-  return Object.freeze({ clear: () => dismissError(id) });
+  return Object.freeze({ id, clear: () => dismissError(id) });
 }
 
 /** The user edited past these errors where the field said them. */
@@ -96,6 +101,13 @@ export function passErrors(ids) {
           : entry,
       ),
     );
+}
+
+/** The user came back to the words in `subject`, so every error about it is passed. */
+export function passErrorsAt(subject) {
+  passErrors(
+    errors.filter((entry) => entry.subject === subject).map((entry) => entry.id),
+  );
 }
 
 /** The user opened the Errors list, so none it shows is news any more. */
@@ -123,8 +135,11 @@ export function holdingError({ announce: speak = true } = {}) {
   let said = null;
   return (/** @type {string | null} */ message) => {
     if (message === said) return;
-    held?.clear();
-    held = message ? raiseError(message, { announce: speak }) : null;
+    if (message) held = raise(message, null, speak, held?.id ?? null);
+    else {
+      held?.clear();
+      held = null;
+    }
     said = message;
   };
 }

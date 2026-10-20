@@ -59,7 +59,7 @@ import { closestAcross, elementById, inChrome } from "../passages.js";
 
 import { notice } from "../notifications.js";
 import { sentDrawing } from "./drawing-record.js";
-import { recordFormat } from "../protocol.js";
+import { DRAFT_FORMAT } from "../protocol.js";
 import { commitPoint } from "../pointed-place.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
 import { textField } from "./text-field.js";
@@ -145,7 +145,6 @@ function wordsOf(element) {
 export let composerOpen = false;
 
 export function createSelectionComposer({
-  panelIsOpen,
   setReact,
   reactionTokens,
   reactionAvailable,
@@ -173,7 +172,7 @@ export function createSelectionComposer({
   // What the open composer's comment is about: "design" for one opened in design mode, so
   // the anchor chosen there — a widget, a control, a runtime part — posts with the word
   // that says so. Decided at the open, where the anchor is, and carried with the draft: a
-  // draft on the banner remains about design however the mode stands when it is sent.
+  // draft in the panel remains about design however the mode stands when it is sent.
   // The composer's draft is keyed by the passage it is on. Under one key — which is what it
   // was while a draft lived and died in one tab — two tabs composing on different passages
   // would each overwrite the other's words, so the key says which passage and the record
@@ -183,7 +182,6 @@ export function createSelectionComposer({
   // draft follows an identified subject across a data replacement as `sameAnchor` does;
   // reopened on the re-minted anchor, it posts that anchor, the rendering last aimed at.
   const COMPOSER_KEY = "composer:";
-  const DRAFT_FORMAT = recordFormat("draft");
   const composerCtx = (anchor) => COMPOSER_KEY + anchorKey(anchor);
   let syncComposer;
   let pendingRevision = null;
@@ -216,7 +214,7 @@ export function createSelectionComposer({
     try {
       record = JSON.parse(stored);
       if (!Number.isInteger(record?.revision)) record = null;
-      // Another protocol's draft keeps its words, which are only text, and loses its
+      // A draft at another format keeps its words, which are only text, and loses its
       // drawing, whose shape this runtime may not draw.
       else if (record.format !== DRAFT_FORMAT) record = { ...record, drawing: null };
     } catch {
@@ -411,7 +409,7 @@ export function createSelectionComposer({
   function showComposer(open) {
     if (open && composerField.hasChildNodes()) composer.append(composerField);
     if (!open) syncComposer?.cancelDictation();
-    // Hiding keeps the words and used to say nothing at all, so a press on the banner took
+    // Hiding keeps the words and used to say nothing at all, so a press on the chrome took
     // the box off screen with the user's sentence in it and left no sign the sentence
     // still existed — recoverable only by reselecting that exact passage on that exact
     // version. Said here rather than at each dismissal because every one of them — an
@@ -757,20 +755,17 @@ export function createSelectionComposer({
         // card or title, never back on its page target. A later
         // gesture may already have moved the user elsewhere while presentation was
         // settling.
-        if (shouldReveal || panelIsOpen()) {
+        if (shouldReveal) {
           const destination = await revealSent({
-            part: shouldReveal ? "thread" : "reply",
-            focus: shouldReveal,
+            part: "thread",
+            focus: true,
             travel: false,
             flash: false,
-            intent: shouldReveal
-              ? restrictUserIntent(currentIntent, revealAvailable)
-              : currentIntent,
+            intent: restrictUserIntent(currentIntent, revealAvailable),
             origin,
           });
           const thread = destination && closestAcross(destination, THREAD);
-          if (shouldReveal && mayReveal() && thread)
-            currentIntent.handoff(() => landSent(thread));
+          if (mayReveal() && thread) currentIntent.handoff(() => landSent(thread));
         }
       },
     });
@@ -793,6 +788,7 @@ export function createSelectionComposer({
   const RESPONSE_OPTIONS_TITLE = "With other responses open";
   const RESPONSE_REACTION = {
     id: "response.reaction.choose",
+    touch: false,
     ready: savedReadingSettled,
     keys: () =>
       reactionTokens()
@@ -816,6 +812,7 @@ export function createSelectionComposer({
   };
   const RESPONSE_MOVE = {
     id: "response.move",
+    touch: false,
     keys: ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
     description: "Move through other responses",
     title: "move",
@@ -825,6 +822,7 @@ export function createSelectionComposer({
   };
   const RESPONSE_ACTIVATE = {
     id: "response.activate",
+    touch: false,
     keys: PRESS,
     description: "Use the focused response",
     title: "choose",
@@ -835,6 +833,7 @@ export function createSelectionComposer({
   };
   const RESPONSE_CLOSE = {
     id: "response.close",
+    touch: false,
     keys: ["Escape"],
     description: "Close other responses",
     title: "close",

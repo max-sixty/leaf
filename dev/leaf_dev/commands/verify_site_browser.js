@@ -4,15 +4,12 @@
  * because the agent journey may navigate before Python reads them. __leafVerifier is
  * the website-specific Playwright boundary exposed to the Python orchestrator.
  *
- * A reply shows the user one of three ways, in the Threads panel or on a card at its
- * passage, and the page records each as it happens, whatever the journey is doing,
- * counting only what is in view by the same measure for all three: the reply's own
- * message; a thread's row, open or folded, dating its latest message activity at or
- * after the reply, since a folded thread draws no messages; or a news notice, on a
- * thread holding the reply back so as not to move what the user reads, changing once
- * the page's applied state holds the reply. Each compares like clocks: the row's date
- * with the reply's, both the server's, and the notice's change with the reply's
- * arrival, both the page's.
+ * A reply shows the user one of two ways, in the floating panel's view of its thread
+ * or on its card at its passage, and the page records each as it happens, whatever
+ * the journey is doing, counting only what is in view by the same measure for both:
+ * the reply's own message, or a news notice, on a thread holding the reply back so as
+ * not to move what the user reads, changing once the page's applied state holds the
+ * reply. The notice's change and the reply's arrival are both on the page's clock.
  */
 (() => {
   const startedKey = "leaf-visible-reply-started";
@@ -25,14 +22,12 @@
     return script;
   }
 
-  // `messages`: when each message id came into view; `rows`: when each thread's row in
-  // view first dated its latest activity at each instant; `notices`: each change of
-  // what a thread's notice in view says, its going included; `applied`: when the
-  // page's applied state first held each event.
+  // `messages`: when each message id came into view; `notices`: each change of what a
+  // thread's notice in view says, its going included; `applied`: when the page's
+  // applied state first held each event.
   function shown() {
     return {
       messages: {},
-      rows: {},
       notices: {},
       applied: {},
       ...JSON.parse(sessionStorage.getItem(shownKey) ?? "{}"),
@@ -54,8 +49,10 @@
     let dirty = false;
     const inView = new Set();
     const observed = new WeakSet();
-    const selector =
-      ".lf-msg.agent[data-mid], .lf-thread[data-id] > .lf-thread-summary, .lf-thread-news";
+    // A message names its event by `data-mid` or `data-event`, as the reader drawing
+    // it does (thread/messages.js).
+    const message = ".lf-msg.agent:is([data-mid], [data-event])";
+    const selector = `${message}, .lf-thread-news`;
     const note = (table, key, now) => {
       if (table[key] !== undefined) return;
       table[key] = now;
@@ -75,17 +72,11 @@
           continue;
         }
         if (!node.checkVisibility()) continue;
-        if (node.matches(".lf-msg.agent[data-mid]")) {
+        if (node.matches(message)) {
           if (node.querySelector(".lf-msg-text")?.textContent.trim())
-            note(found.messages, node.dataset.mid, now);
-        } else if (node.matches(".lf-thread-summary")) {
-          const thread = node.parentElement?.dataset.id;
-          const latest = node
-            .querySelector(".lf-thread-recency")
-            ?.getAttribute("datetime");
-          if (thread && latest) note((found.rows[thread] ??= {}), latest, now);
+            note(found.messages, node.dataset.mid ?? node.dataset.event, now);
         } else {
-          const thread = node.closest(".lf-thread[data-id]")?.dataset.id;
+          const thread = drawnThread(node);
           if (thread) said[thread] = node.textContent.trim();
         }
       }
@@ -146,15 +137,21 @@
     watchApplied();
   }
 
-  // When the page first showed the user reply `id`, admitted at `ts` in `thread`, and
-  // by which sign: its `message`, its thread's `row`, or its thread's `notice`. A
-  // visible row dates the reply a frame before its message comes into view, so the
-  // reading also says when the message itself did (`message`, null while it has not).
-  function replyShown({ thread, id, ts }) {
+  // The thread a node is drawn in: a card's, or the one the panel's view stands for.
+  const drawnThread = (node) => {
+    const thread = node.closest(
+      ".lf-thread[data-id], [data-lf-thread-view][data-thread]",
+    );
+    return thread?.dataset.id ?? thread?.dataset.thread ?? null;
+  };
+
+  // When the page first showed the user reply `id` in `thread`, and by which sign: its
+  // `message` or its thread's `notice`. A notice shows the reply before its message
+  // comes into view, so the reading also says when the message itself did
+  // (`message`, null while it has not).
+  function replyShown({ thread, id }) {
     const found = shown();
     const signs = [["message", found.messages[id]]];
-    for (const [latest, at] of Object.entries(found.rows[thread] ?? {}))
-      if (Date.parse(latest) >= Date.parse(ts)) signs.push(["row", at]);
     const applied = found.applied[id];
     if (applied !== undefined)
       for (const [said, at] of found.notices[thread] ?? [])
@@ -163,6 +160,12 @@
       .filter(([, at]) => at !== undefined)
       .sort((a, b) => a[1] - b[1])[0] ?? [null, null];
     return by === null ? null : { at, by, message: found.messages[id] ?? null };
+  }
+
+  // The page's status as the floating panel's leaf names it in every paint, whichever
+  // of the field's placeholder, a passing notice or a thread's turn the row shows.
+  function status() {
+    return document.querySelector(".lf-fp-leaf")?.getAttribute("aria-label") || null;
   }
 
   async function runtimeModule(name) {
@@ -218,33 +221,33 @@
       return started;
     },
     replyShownAt: replyShown,
-    // What the page shows about a reply the container holds and the panel never drew:
+    // What the page shows about a reply the container holds and the page never drew:
     // the reading it last applied, its traffic, and each message's identity.
     visibleReplyDebug() {
       return {
-        panel: document.querySelector(".lf-thread-panel")?.checkVisibility() ?? null,
+        // The view open in the floating panel: threads, a thread, or none.
+        view: document.querySelector(".lf-floating-panel")?.dataset.open ?? null,
         visibility: document.visibilityState,
         presented: document.body.hasAttribute("data-lf-presented"),
         reading: document.body.dataset.lfReading ?? null,
         traffic: document.documentElement.dataset.lfTraffic ?? null,
         revision: document.querySelector('meta[name="lf-revision"]')?.content ?? null,
-        status: document.querySelector(".lf-status-text")?.textContent?.trim() || null,
-        // What each thread shows of itself, and what the page recorded of it.
-        threads: [...document.querySelectorAll(".lf-thread[data-id]")].map((node) => ({
-          id: node.dataset.id,
-          inPanel: Boolean(node.closest(".lf-threads")),
-          open: node.hasAttribute("open"),
+        status: status(),
+        // What each drawn thread shows of itself: a card, or the panel's view.
+        threads: [
+          ...document.querySelectorAll(
+            ".lf-thread[data-id], [data-lf-thread-view][data-thread]",
+          ),
+        ].map((node) => ({
+          id: drawnThread(node),
+          inPanel: node.matches("[data-lf-thread-view]"),
           visible: node.checkVisibility(),
-          latest:
-            node
-              .querySelector(":scope > .lf-thread-summary .lf-thread-recency")
-              ?.getAttribute("datetime") ?? null,
           news: node.querySelector(".lf-thread-news")?.textContent.trim() ?? null,
         })),
         shown: shown(),
         messages: [...document.querySelectorAll(".lf-msg")].map((node) => ({
           classes: [...node.classList],
-          mid: node.dataset.mid ?? null,
+          mid: node.dataset.mid ?? node.dataset.event ?? null,
           attempt: node.dataset.attempt ?? null,
           busy: node.hasAttribute("aria-busy"),
           hasText: Boolean(node.querySelector(".lf-msg-text")?.textContent.trim()),
@@ -263,9 +266,7 @@
     revision() {
       return document.querySelector('meta[name="lf-revision"]')?.content ?? null;
     },
-    status() {
-      return document.querySelector(".lf-status-text")?.textContent?.trim() || null;
-    },
+    status,
   };
 
   Object.defineProperty(window, "__leafVerifier", {

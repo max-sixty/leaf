@@ -140,7 +140,7 @@ function returnStop(el, authored) {
 // as anything else. Computed, not declared, is
 // wider than it sounds and is the set on purpose: `overflow-x: visible` computes to
 // `auto` whenever `overflow-y` is not visible, so a box that only ever meant to scroll
-// down — the panel's list, a drawer, the sidebar — is in here too. It earns the mark on the
+// down — the panel's list, the sidebar — is in here too. It earns the mark on the
 // same terms as the rest, by actually holding more across than it shows; a box that
 // scrolls only downwards never does, and the ones that do were cutting a word off with
 // nothing to say so.
@@ -248,7 +248,7 @@ function sweep(root) {
 
 // And a box that scrolls is the scroller for whatever sticks inside it, so it starts the
 // sticky-header slot `--lf-top` again at its own top (theme.css, at `--lf-top`). Without
-// that, a diff's file header in it pinned the banner's height below the box's top.
+// that, a diff's file header in it pinned the window's head room below the box's top.
 // Marked here, from the composed box, for the same reason as the containment above: an
 // author's scroller, made by a page rule, an inline style or a script, restarts on the
 // same terms as a package's and the theme's own. Which boxes those are is geometry.js's
@@ -258,13 +258,19 @@ function sweep(root) {
 // sticky header's holder stacks onto the box, since a header outside the box covers
 // nothing the box scrolls, and restarts the slot at `--lf-top-start`, 0 unless the box
 // states otherwise (a workspace pane's body starts at minus its top padding). The root,
-// whose slot starts at the banner, is never swept. Two scrolling boxes keep the slot
+// whose slot starts at the window's head room, is never swept. Two scrolling boxes keep the slot
 // they met. A text box holds nothing. A sticking box reads the slot
 // for its own `top`, so a restart there would stick the box itself at 0, behind the
-// banner; a sticking box that scrolls headers restarts the slot for them itself (a
+// window's head; a sticking box that scrolls headers restarts the slot for them itself (a
 // column's sidebar, layouts.css). Read with the declaration, so a box that stops
 // scrolling at another width stops restarting the slot, or its headers would pin behind
-// the banner.
+// the window's head.
+//
+// A box the user scrolls only sideways (`across`: its overflow down hidden) restarts the
+// slot for what sticks inside it all the same, but lands nothing down: a landing on what
+// it holds moves the box around it, under the headers that stand over the box. So it
+// keeps their reading for what it holds (state.css), where a restart had cut a diff's
+// rows off from the file header and a framed tab set's strip over them.
 //
 // A box that sticks at its scroller's top is marked too, for the focus margin of the
 // controls it holds (shadow.css, at `--lf-head-inset`): a control in a stuck header
@@ -273,10 +279,9 @@ function sweep(root) {
 // package makes sticky is covered without declaring anything.
 function paintSlot(el, style) {
   const sticks = style.position === "sticky";
-  el.toggleAttribute(
-    PAGE_PAINT_ATTRIBUTE.scrolls,
-    scrollsBy(style) && !sticks && !el.matches(TEXT_BOX),
-  );
+  const scrolls = scrollsBy(style) && !sticks && !el.matches(TEXT_BOX);
+  const across = userScrollport(style.overflowX) && !userScrollport(style.overflowY);
+  keeps(el, PAGE_PAINT_ATTRIBUTE.scrolls, scrolls ? (across ? "across" : "") : null);
   el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.sticks, sticks && style.top !== "auto");
 }
 
@@ -469,7 +474,7 @@ function paintReachNow() {
 // a frame passes without it being asked for again. A container that keeps moving for
 // longer than `PLAYING_MS` is the exception: whatever moves it, its own animation, a
 // sibling's or a script's, the page is playing rather than coming to rest, as a meter
-// pulsing for as long as work runs does. Its items stop holding the page, and its box is
+// pulsing for as long as work runs does. Its obligations stop holding the page, and its box is
 // due once it has held still for `STILL_MS`, which a timer waits for. Its watch is
 // uncounted (`queries`, below) for the same reason. A transition, a drag or any motion
 // that ends within `PLAYING_MS` stays counted, so the page settles after its sweep; one

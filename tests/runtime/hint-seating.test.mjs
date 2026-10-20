@@ -53,18 +53,6 @@ test("a chip past the window's corner is held inside the band", () => {
   ]);
 });
 
-test("a chip over the key line sits beside it on a wide target, and above it on a narrow one", () => {
-  const lineBox = { left: 0, top: 760, right: 300, height: 19 };
-  const wide = box(100, 760, 500, 30);
-  const narrow = box(100, 760, 210, 30);
-  assert.deepEqual(seat([{ start: chip(100, 770), target: wide }], { lineBox }), [
-    { left: 302, top: 770 },
-  ]);
-  assert.deepEqual(seat([{ start: chip(100, 770), target: narrow }], { lineBox }), [
-    { left: 100, top: 742 },
-  ]);
-});
-
 test("before-target chips stay outside the words, including when the window clamps them", () => {
   assert.deepEqual(
     seat([

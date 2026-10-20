@@ -16,12 +16,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Protocol
 
-from leaf.event_log import read_events
+from leaf.event_log import read_events, write_cursor
 from leaf.interaction_log import append_interactions
 from leaf.media import media_name
 from leaf.revision_artifact import Resource, capture_artifact, capture_local_resource
-from leaf.schema import CURSOR_FILE, MEDIA_DIR, MEDIA_TYPES
-from leaf.state import write_json
+from leaf.schema import MEDIA_DIR, MEDIA_TYPES
 from leaf.structure import SourceDocument
 
 from leaf_dev import ROOT, docs
@@ -242,6 +241,41 @@ def _seed_data(fixture: PageFixture, page: Path, run_leaf: LeafRunner) -> None:
         )
 
 
+def refresh_captures(fixture: PageFixture, page: Path, run_leaf: LeafRunner) -> None:
+    """Publish changed authored captures without replaying the page's seed data.
+
+    `$captures` names the fixture files that remain authoritative. Literal
+    companion values are initial state, so a resumed or live preview preserves
+    what the page now holds there. Unchanged captures retain their run receipts;
+    sources no longer captured remain available to historical revisions.
+    """
+    from leaf.data import read_data
+    from leaf.data_contracts import working_data_bindings
+    from leaf.registry.storage import load_registry
+
+    registry = load_registry(page)
+    current = read_data(page, registry)["sources"]
+    bindings, _ = working_data_bindings(page, registry, read_events(page))
+    for operation in fixture.data:
+        if operation["kind"] != "capture":
+            continue
+        held = current.get(operation["source"])
+        if (
+            held is None
+            or "value" not in held
+            or json.dumps(held["value"], sort_keys=True)
+            != json.dumps(operation["value"], sort_keys=True)
+            or held["contract"] != bindings.get(operation["source"])
+        ):
+            run_leaf(
+                "data",
+                "set",
+                str(page),
+                operation["source"],
+                input_text=json.dumps(operation["value"]),
+            )
+
+
 def _seed_log(fixture: PageFixture, page: Path) -> None:
     if fixture.seed is None:
         return
@@ -253,7 +287,7 @@ def _acknowledge_seed(fixture: PageFixture, page: Path) -> None:
     if fixture.seed is None:
         return
     events = read_events(page)
-    write_json(page / CURSOR_FILE, {"seq": events[-1]["seq"] if events else 0})
+    write_cursor(page, events[-1]["seq"] if events else 0)
 
 
 def prepare_page(

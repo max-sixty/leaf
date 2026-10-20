@@ -7,7 +7,7 @@ metadata:
 vars:
   prompt: |
     You are revising a Leaf page for the user. It has a triage board
-    (`<lf-board id="triage">` with three columns of cards) and, below it, an Ask whose
+    (`<lf-board id="triage">` with three columns of cards) and, below it, an `lf-ask` whose
     answer is an `<lf-options id="next-step" choose>` with three options. The page's own
     `<style>` is empty.
 

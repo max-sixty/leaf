@@ -55,7 +55,7 @@ choice depends on purpose or intent the code can't supply.
 When the user acts, the page draws what that act decides by itself before the
 browser's next frame, in the task that handles it: the user's message in its
 thread, a widget's new state, a thread they resolved. Facts that depend on the
-rest of the log, such as whose turn a thread is and which items the user owes,
+rest of the log, such as whose turn a thread is and which obligations the user owes,
 arrive with the server's reading of the gesture, which should be on screen within
 100 ms since the server usually runs on the user's machine. The browser doesn't
 predict that reading: a prediction is a second copy of the server's rules, and
@@ -72,16 +72,17 @@ writes it. A change crosses that gap in one of two ways.
   page vendored at another number is refused until it is re-vendored, which the
   session holding the page does itself on its first command or hook naming the
   page. Bump it for
-  any change an earlier page would break on. It is Leaf's only version, so records
-  kept outside a page, such as a browser draft, carry it, and a change to one of
-  them bumps it too (`layer-registry.md`, "Page protocol", owns the rules).
+  any change an earlier page would break on. It is Leaf's only version, so a
+  record kept outside a page, such as a browser draft, carries the protocol at
+  which its own shape last changed (`layer-registry.md`, "Page protocol", owns
+  the rules).
   Bumps are rare, perhaps one in five hundred commits. Once Leaf is released,
   only a bump may break an existing page.
 - **Drift** may break an older page without a bump while Leaf is in alpha, as
   when a render check imports a runtime name the page's older runtime lacks. Leaf
   doesn't detect drift by comparing a page's files with its own, since nearly
-  every update would then force a rebuild. Instead the banner and `page check`
-  name the Leaf that vendored the page beside the one serving or checking it,
+  every update would then force a rebuild. Instead the Leaf panel's menu and
+  `page check` name the Leaf that vendored the page beside the one serving or checking it,
   with dates, and the agent re-vendors a much older page that misbehaves. Where
   drift does cause a failure, as at the render gate, the failure names the
   re-vendor.
@@ -228,7 +229,7 @@ deletes an event or invents a counter-event.
 The registry keys each widget action and report by its widget, the unit of that
 widget's state it changes, and its verb (`events.md`). From one consistent read
 of the log, Python computes which action wins each key, what was withdrawn, the
-state of each On me item and thread, and the user's updates, and serves that to the
+state of each On me obligation and thread, and the user's updates, and serves that to the
 browser.
 
 In the browser, only `applicationState` (`runtime/semantic-state.js`) combines the
@@ -255,7 +256,7 @@ once, in `PRESENTATION_ORDER`.
 
 A gesture's own result shows in the task that sends it, before the server
 answers ("Responsiveness"); a disabled control, spinner or delivery status is
-not that result. Everything that depends on the whole log, such as which items
+not that result. Everything that depends on the whole log, such as which obligations
 remain, which the user owes and whose turn a thread is, comes from the server's
 reading. The browser adds only what a gesture decides by itself; for example,
 the user's own reply appears before the server answers. Those additions are a
@@ -271,9 +272,9 @@ to the new node, matched by the key the replacement already uses, or the user
 loses it.
 
 Python decides where the agent's work stands: `activity` (`activity.py`) for the
-whole page, read by the banner, and `workflows` (`workflows.py`) for each update
+whole page, read by the Leaf panel, and `workflows` (`workflows.py`) for each update
 the user handed over, read by messages, thread attention, margin entries and the
-Stop hook; thread attention also reads the user's outstanding items. A busy page
+Stop hook; thread attention also reads the user's outstanding obligations. A busy page
 doesn't mean every message is being worked on. The browser adds its own unsent
 gestures but never ages or reclassifies a workflow. Other pages read a page's
 activity only from the row `server_rows.py` writes and whether its server is

@@ -8,10 +8,11 @@ import pytest
 from leaf import thread as thread_model
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
-from render_cases_interaction import ITEM_PAGE, PANEL_PAGE, panel_comment
-from render_cases_layout import banner_control
+from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, panel_comment
 from render_harness import (
     EXAMPLES,
+    PANEL,
+    PANEL_THREAD,
     ROOT,
     holding,
     leaf_page,
@@ -29,10 +30,10 @@ from render_harness import (
 )
 
 from browser.margin import (
-    ACTION_ON_ITEM,
-    COMMENT_ON_ITEM,
+    ACTION_ON_OBLIGATION,
+    COMMENT_ON_OBLIGATION,
     LONG_THREAD_ROOT,
-    PARAGRAPH_ON_ITEM,
+    PARAGRAPH_ON_OBLIGATION,
     WORDS_RIGHT,
     leave_card_by_its_target,
     resized_shell,
@@ -49,11 +50,11 @@ def test_a_thread_card_is_unseen_until_its_first_placement_lands(browser, serve)
     page = open_page(
         browser,
         serve(
-            ITEM_PAGE,
+            OBLIGATION_PAGE,
             events=[
-                COMMENT_ON_ITEM,
+                COMMENT_ON_OBLIGATION,
                 {
-                    **COMMENT_ON_ITEM,
+                    **COMMENT_ON_OBLIGATION,
                     "text": "Check the tools separately.",
                     "anchor": {"section": "tools"},
                 },
@@ -76,12 +77,12 @@ def test_a_thread_card_is_unseen_until_its_first_placement_lands(browser, serve)
         expect(preview).to_contain_text("Check the tools separately.")
         page.keyboard.press("Escape")
         expect(preview).to_be_hidden()
-        page.locator(".lf-threads-toggle").focus()
+        page.locator(".lf-fp-threads").focus()
 
         held.pop(0).continue_()
         rendered(page)
         expect(preview).to_be_hidden()
-        expect(page.locator(".lf-threads-toggle")).to_be_focused()
+        expect(page.locator(".lf-fp-threads")).to_be_focused()
         expect(preview).not_to_have_attribute("data-lf-thread-placement")
 
         first.click()
@@ -100,7 +101,7 @@ def test_a_margin_card_clears_its_row_without_sacrificing_message_width(
 ):
     """Only a full-width message leaves the margin row clear; a narrower message
     uses the row's space and reaches the visible edge."""
-    page = open_page(browser, serve(ITEM_PAGE, events=[PARAGRAPH_ON_ITEM]))
+    page = open_page(browser, serve(OBLIGATION_PAGE, events=[PARAGRAPH_ON_OBLIGATION]))
     resized(page, width, 900)
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
     preview = page.locator(".lf-margin-preview")
@@ -275,7 +276,7 @@ def test_an_open_card_takes_news_without_moving_its_controls(browser, serve):
     )
     told(page)
     notice = preview.locator(".lf-thread-notice-news")
-    expect(notice).to_have_text("1 new update")
+    expect(notice).to_have_text("1 new message")
     expect(words).to_contain_text("before and after the change")
     thread_model.post_reply(
         serve.page_dir,
@@ -390,7 +391,7 @@ def test_a_card_above_its_target_holds_news_it_would_grow_up_for(browser, serve)
     )
     told(page)
     notice = preview.locator(".lf-thread-notice-news")
-    expect(notice).to_have_text("1 new update")
+    expect(notice).to_have_text("1 new message")
     rendered(page)
     assert preview.bounding_box() == pytest.approx(opened, abs=0.5)
     notice.click()
@@ -499,13 +500,12 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     geometry = marker.evaluate(
         """markerNode => {
           const main = document.querySelector('main').getBoundingClientRect();
-          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
           const controls = markerNode.closest('[data-lf-margin-for]').getBoundingClientRect();
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
           const reply = document.querySelector('.lf-margin-thread .lf-thread-reply')
             .getBoundingClientRect();
           const cardStyle = getComputedStyle(document.querySelector('.lf-margin-preview'));
-          return {bannerBottom: banner.bottom, mainLeft: main.left,
+          return {mainLeft: main.left,
                   mainRight: main.right, controlsRight: controls.right,
                   controlsTop: controls.top, controlsBottom: controls.bottom,
                   cardLeft: card.left, cardRight: card.right, cardTop: card.top,
@@ -514,13 +514,13 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
                   borderLeft: cardStyle.borderLeftWidth,
                   borderRight: cardStyle.borderRightWidth,
                   replyTop: reply.top, replyBottom: reply.bottom,
-                  panelOpen: document.querySelector('.lf-thread-panel').classList.contains('open')};
+                  panelOpen: 'open' in document.querySelector('.lf-floating-panel').dataset};
         }"""
     )
     assert geometry["cardLeft"] >= page.evaluate(WORDS_RIGHT) + 7.5, geometry
     assert geometry["cardRight"] <= geometry["viewportRight"] - 7, geometry
     assert geometry["cardWidth"] >= 379, geometry
-    assert geometry["cardTop"] >= geometry["bannerBottom"] + 7, geometry
+    assert geometry["cardTop"] >= 7, geometry
     assert geometry["cardBottom"] <= 892, geometry
     assert geometry["replyTop"] >= geometry["cardTop"], geometry
     assert geometry["replyBottom"] <= geometry["cardBottom"], geometry
@@ -553,14 +553,13 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(preview).to_be_visible()
     capped = preview.evaluate(
         """card => {
-          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
           const box = card.getBoundingClientRect();
           const list = card.querySelector('.lf-thread-transcript');
-          return {bannerBottom: banner.bottom, top: box.top, bottom: box.bottom,
+          return {top: box.top, bottom: box.bottom,
                   clientHeight: list.clientHeight, scrollHeight: list.scrollHeight};
         }"""
     )
-    assert capped["top"] >= capped["bannerBottom"] + 7, capped
+    assert capped["top"] >= 7, capped
     assert capped["bottom"] <= 472.5, capped
     assert capped["scrollHeight"] > capped["clientHeight"], capped
     # The thread scrolls while its opening metadata and settlement remain usable.
@@ -586,14 +585,16 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
-    expect(preview).to_be_hidden()
-    expect(page.locator(".lf-queue-panel")).to_have_class(re.compile(r"\bopen\b"))
-    # Exchanging one auxiliary surface for another is lateral, so the drawer's Escape
-    # lands on the page and the card it displaced is not put back up.
+    # On me opens in the panel over the page's foot, beside the card rather than in
+    # its place, and the view's Escape puts it away to the page; the card's own
+    # Escape follows.
+    panel_settled(page, view="queue")
+    expect(preview).to_be_visible()
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-queue-panel")).not_to_have_class(re.compile(r"\bopen\b"))
-    expect(preview).to_be_hidden()
+    panel_settled(page, open=False)
     assert page.evaluate("() => document.activeElement === document.body")
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
     marker.click()
     expect(preview).to_be_visible()
     expect(thread.locator(".lf-page-thread")).to_be_focused()
@@ -602,12 +603,11 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     open_full.focus()
     expect(open_full).to_be_focused()
     page.keyboard.press("Enter")
-    panel_settled(page)
-    expect(preview).to_be_hidden()
-    expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
-    expect(page.locator("#off-slip")).to_be_in_viewport()
+    # The thread opens in the panel, which draws the reply's interactive widgets.
+    panel_settled(page, view="thread")
+    expect(page.locator(f"{PANEL_THREAD} #off-slip")).to_be_in_viewport()
     expect(page.locator("#off-slip-chase [role=checkbox]")).to_be_checked()
-    page.get_by_role("button", name="Close threads").click()
+    page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     marker.focus()
     page.keyboard.press("Enter")
@@ -647,13 +647,13 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(preview).to_be_visible()
     expect(marker).to_have_attribute("aria-controls", "lf-margin-preview")
     expect(marker).to_have_attribute("aria-expanded", "true")
-    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile(""))
     leave_card_by_its_target(page)
     marker.hover()
     expect(preview).to_be_hidden()
     marker.click()
     expect(preview).to_be_visible()
-    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile(""))
 
     leave_card_by_its_target(page)
     resized(page, 1280, 600)
@@ -684,7 +684,8 @@ def test_crossing_to_the_small_screen_keeps_the_card_by_its_pin(browser, serve):
     """The rail falling changes where a marker stands, not whether it does: the marker
     becomes a pin and the card it opened stays up beside it."""
     page = open_page(
-        browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM])
+        browser,
+        serve(OBLIGATION_PAGE, events=[ACTION_ON_OBLIGATION, COMMENT_ON_OBLIGATION]),
     )
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
@@ -697,7 +698,6 @@ def test_crossing_to_the_small_screen_keeps_the_card_by_its_pin(browser, serve):
     row = marker.locator("xpath=ancestor::*[@data-lf-margin-for][1]")
     expect(row).to_have_attribute("data-lf-place", "pin")
     expect(marker).to_be_visible()
-    expect(banner_control(page, ".lf-page-map-toggle")).to_be_visible()
     expect(card).to_be_visible()
 
 
@@ -711,7 +711,7 @@ def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve):
     of those cases is to the margin.
     """
     width = 1440
-    page = open_page(browser, serve(ITEM_PAGE, events=[COMMENT_ON_ITEM]))
+    page = open_page(browser, serve(OBLIGATION_PAGE, events=[COMMENT_ON_OBLIGATION]))
     resized(page, width, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
     marker.evaluate(
@@ -761,7 +761,7 @@ def test_a_card_under_a_containing_block_stands_beside_its_cluster(
     the fixed card, so a spot or a length written as a client one would be moved or
     scaled by the transform; carried across, the card stays where and as wide as the
     rule put it."""
-    page = open_page(browser, serve(ITEM_PAGE, events=[PARAGRAPH_ON_ITEM]))
+    page = open_page(browser, serve(OBLIGATION_PAGE, events=[PARAGRAPH_ON_OBLIGATION]))
     resized(page, 1920, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
     marker.evaluate(
@@ -804,8 +804,8 @@ def test_a_card_under_a_containing_block_stands_beside_its_cluster(
     assert after == pytest.approx(before, abs=0.5), (before, after)
 
 
-QUOTED_ON_ITEM = {
-    **COMMENT_ON_ITEM,
+QUOTED_ON_OBLIGATION = {
+    **COMMENT_ON_OBLIGATION,
     "anchor": {"section": "sec-mounts", "quote": "one came down in January"},
 }
 
@@ -851,12 +851,13 @@ def test_a_focused_thread_covers_the_pages_choice_hints(browser, serve):
 
 def test_a_scroll_that_carries_the_card_writes_nothing(browser, serve):
     """A scroll the card rides with its cluster leaves the page's DOM as it was: the
-    card, its target's trace, the marks, and the item's binding badges stand in the
+    card, its target's trace, the marks, and the obligation's binding badges stand in the
     plane the scroll carries them with, and each owner on the scroll path writes only
     what changed. Chrome repaints the whole document for any write while a highlight
     holds a range, which a page with a quoted comment always has."""
     page = open_page(
-        browser, serve(ITEM_PAGE, events=[COMMENT_ON_ITEM, QUOTED_ON_ITEM])
+        browser,
+        serve(OBLIGATION_PAGE, events=[COMMENT_ON_OBLIGATION, QUOTED_ON_OBLIGATION]),
     )
     resized(page, 1440, 600)
     marker = page.locator('[data-lf-margin-for="bracket"] .lf-margin-marker')
@@ -881,17 +882,17 @@ def test_a_card_beside_an_element_scrolled_past_its_top_waits_at_the_windows_top
 ):
     """Beside an element, a card stays level with some line of it. A scroll that takes
     the element's top past the window's, with the rest still showing, leaves the card
-    held at the window's top, below the banner, in the window's plane, so the scroll
-    writes nothing. Stood level with the element's clipped top instead, the card sat
-    under the banner in the page's plane: the browser carried it with each scroll
-    frame and the next placement pulled it back, and Shift+a up to an item with a
+    held at the window's top, in the window's plane, so the scroll writes nothing.
+    Stood level with the element's clipped top instead, the card sat at the window's
+    top in the page's plane: the browser carried it with each scroll
+    frame and the next placement pulled it back, and Shift+a up to an obligation with a
     thread shook its card. Once the element's foot passes the window's top, the card
-    leaves with it. On an item's options, the binding badge the banner holds in stands
-    in the window's plane too, for the same reason."""
-    comment = {**COMMENT_ON_ITEM, "anchor": {"section": target}}
-    # Give the last item room to pass above the viewport before scroll reaches the
+    leaves with it. On an obligation's options, the binding badge held at the window's top
+    stands in the window's plane too, for the same reason."""
+    comment = {**COMMENT_ON_OBLIGATION, "anchor": {"section": target}}
+    # Give the last obligation room to pass above the viewport before scroll reaches the
     # document's end; the fixture otherwise stops with #bracket still visible.
-    source = ITEM_PAGE.replace(
+    source = OBLIGATION_PAGE.replace(
         "</main>", '<div style="height: 800px" aria-hidden="true"></div></main>'
     )
     page = open_page(browser, serve(source, events=[comment]))
@@ -961,7 +962,7 @@ def test_a_card_a_panes_edge_holds_stays_put_as_the_pane_scrolls(browser, serve)
     was anchored to the element, carried up with each scroll frame, and placed back. A
     scroll of the page carries the pane and the card together, and keeps the card's
     side, which the pane's size holds rather than where the page shows it."""
-    comment = {**COMMENT_ON_ITEM, "anchor": {"section": "pane-sec"}}
+    comment = {**COMMENT_ON_OBLIGATION, "anchor": {"section": "pane-sec"}}
     page = open_page(browser, serve(PANE_PAGE, events=[comment]))
     resized(page, 1440, 900)
     page.evaluate("() => document.getElementById('pane-sec').scrollIntoView()")
@@ -1022,7 +1023,7 @@ def test_a_card_an_outer_panes_edge_holds_stands_in_that_panes_plane(browser, se
     """Inside a bounded block that itself scrolls inside a pane, the edge holding the
     card in can be the outer pane's, which clips the inner block. The card is anchored
     to the box whose edge holds it, so the outer pane's scroll writes nothing to it."""
-    comment = {**COMMENT_ON_ITEM, "anchor": {"section": "pane-sec"}}
+    comment = {**COMMENT_ON_OBLIGATION, "anchor": {"section": "pane-sec"}}
     page = open_page(browser, serve(NESTED_PANE_PAGE, events=[comment]))
     resized(page, 1440, 900)
     page.evaluate(
@@ -1067,8 +1068,9 @@ def test_the_paint_over_a_target_in_panes_rides_each_panes_scroll(browser, serve
     it (target-paint-geometry.js, `paintStand`). A scroll of either pane writes nothing to
     them and leaves them over the element. Drawn in the document's plane from the
     element's box as the panes cut it, they were rewritten on every scroll step, a frame
-    behind the words."""
-    comment = {**COMMENT_ON_ITEM, "anchor": {"section": "pane-sec"}}
+    behind the words. The card's thread marks the element while the user stands in it,
+    and the trace while they stand on its marker."""
+    comment = {**COMMENT_ON_OBLIGATION, "anchor": {"section": "pane-sec"}}
     page = open_page(browser, serve(NESTED_PANE_PAGE, events=[comment]))
     resized(page, 1440, 900)
     page.evaluate(
@@ -1082,33 +1084,39 @@ def test_the_paint_over_a_target_in_panes_rides_each_panes_scroll(browser, serve
         }"""
     )
     rendered(page)
-    page.locator('[data-lf-margin-for="pane-sec"] .lf-margin-marker').click()
-    for paint in (".lf-target-trace", ".lf-visual-mark-here"):
-        expect(page.locator(paint)).to_be_visible()
-    offsets = """() => {
+    marker = page.locator('[data-lf-margin-for="pane-sec"] .lf-margin-marker')
+    marker.click()
+    offsets = """(paint) => {
       const target = document.getElementById('pane-sec').getBoundingClientRect();
-      return ['.lf-target-trace', '.lf-visual-mark-here'].map((paint) => {
-        const box = document.querySelector(paint).getBoundingClientRect();
-        return [box.left - target.left, box.top - target.top, box.width, box.height];
-      }).flat();
+      const box = document.querySelector(paint).getBoundingClientRect();
+      return [box.left - target.left, box.top - target.top, box.width, box.height];
     }"""
-    at = page.evaluate(offsets)
-    for scroller in ("inner", "pane-body"):
-        writes = scroll_writes(
-            page,
-            (5, 5, -5, 5),
-            scroller=f"document.getElementById('{scroller}')",
-        )
-        painted = [
-            w
-            for w in writes
-            if any(
-                re.search(r"lf-(target-trace|visual-mark|paint)", step)
-                for step in w["target"]
+    for paint, stand in (
+        (".lf-visual-mark-here", lambda: None),
+        (".lf-target-trace", marker.focus),
+    ):
+        stand()
+        expect(page.locator(paint)).to_be_visible()
+        at = page.evaluate(offsets, paint)
+        for scroller in ("inner", "pane-body"):
+            writes = scroll_writes(
+                page,
+                (5, 5, -5, 5),
+                scroller=f"document.getElementById('{scroller}')",
             )
-        ]
-        assert painted == [], (scroller, painted)
-        assert page.evaluate(offsets) == pytest.approx(at, abs=0.5), scroller
+            painted = [
+                w
+                for w in writes
+                if any(
+                    re.search(r"lf-(target-trace|visual-mark|paint)", step)
+                    for step in w["target"]
+                )
+            ]
+            assert painted == [], (paint, scroller, painted)
+            assert page.evaluate(offsets, paint) == pytest.approx(at, abs=0.5), (
+                paint,
+                scroller,
+            )
     # Words arriving below the element lengthen what the inner block can scroll through,
     # and tell the paint nothing, which stays on the element, as does the scroll that
     # follows.
@@ -1117,15 +1125,15 @@ def test_the_paint_over_a_target_in_panes_rides_each_panes_scroll(browser, serve
           .insertAdjacentHTML('beforeend', '<p>Arrived.</p>'.repeat(30))"""
     )
     rendered(page)
-    assert page.evaluate(offsets) == pytest.approx(at, abs=0.5)
+    assert page.evaluate(offsets, paint) == pytest.approx(at, abs=0.5)
     scroll_writes(page, (5, 5), scroller="document.getElementById('inner')")
-    assert page.evaluate(offsets) == pytest.approx(at, abs=0.5)
+    assert page.evaluate(offsets, paint) == pytest.approx(at, abs=0.5)
 
 
 def test_a_scroll_that_carries_the_response_bar_writes_nothing(browser, serve):
     """The response bar a selection raises rides a scroll with its passage in the same
     plane, writing nothing, as the card does."""
-    page = open_page(browser, serve(ITEM_PAGE, events=[QUOTED_ON_ITEM]))
+    page = open_page(browser, serve(OBLIGATION_PAGE, events=[QUOTED_ON_OBLIGATION]))
     resized(page, 1440, 600)
     words = page.locator("#heater-p")
     words.evaluate(

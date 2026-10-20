@@ -25,13 +25,14 @@ from interact_support import (
     command_findings,
     fixture_service,
     publish,
+    read_record,
     record_claim,
     serving,
     start_server_command,
     wait_for,
+    write_record,
 )
 from leaf import cli as cli_model
-from leaf import files as files_model
 from leaf import harness as harness_model
 from leaf import hooks as hooks_model
 from leaf import hosting as hosting_model
@@ -103,7 +104,7 @@ def test_a_stop_during_a_restart_keeps_the_service_stopped(
     enables the service and starts it as a revival. A stop can also land while the
     restart's own stop is still waiting out the old server's lease, between two of
     its passes, and a later pass must not write the restart's mark back over it."""
-    cleanup_model.write_json(
+    write_record(
         page_dir / "service.json",
         {
             "host": "127.0.0.1",
@@ -139,11 +140,11 @@ def test_a_stop_during_a_restart_keeps_the_service_stopped(
 
         monkeypatch.setattr(hosting_model.time, "sleep", stop_in_the_pause)
     with hosting_model.restarting_server(page_dir, harness_model.session_harness()):
-        assert not files_model.read_json(page_dir / "service.json")["enabled"]
+        assert not read_record(page_dir / "service.json")["enabled"]
         if stopped == "during the block":
             hosting_model.cmd_stop(page_dir)
 
-    service = files_model.read_json(page_dir / "service.json")
+    service = read_record(page_dir / "service.json")
     assert "restart" not in service
     if stopped == "never":
         assert service["enabled"]
@@ -187,7 +188,7 @@ def test_a_restart_leaves_the_service_of_a_session_that_took_the_page_meanwhile(
         hosting_model.restarting_server(page_dir, restarting_for),
     ):
         pytest.fail("the re-vendor ran over another session's page")
-    service = files_model.read_json(page_dir / "service.json")
+    service = read_record(page_dir / "service.json")
     assert service["enabled"] and "restart" not in service
 
 
@@ -265,7 +266,7 @@ def test_a_background_jobs_server_lives_as_long_as_the_job(
     monkeypatch.setenv("CLAUDE_JOB_DIR", str(job))
     assert service_model.claim_page(page_dir)
     assert hosting_model.start_server(page_dir, harness=harness_model.session_harness())
-    assert files_model.read_json(page_dir / "service.json")["lifetime"] == "session"
+    assert read_record(page_dir / "service.json")["lifetime"] == "session"
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "SessionEnd", "session_id": "bg-job"}
     )
@@ -318,7 +319,7 @@ def test_a_server_exits_when_its_session_is_hard_killed(
 
     server.wait(timeout=STATED_TIMEOUT)
     assert server.returncode == 0, server.stderr.read()
-    assert files_model.read_json(page_dir / "service.json")["enabled"] is True
+    assert read_record(page_dir / "service.json")["enabled"] is True
     assert not leases_model.lock_is_held(page_dir / "server.lock")
 
 
@@ -336,7 +337,7 @@ def test_a_live_session_can_take_over_an_existing_server(
     second.wait(timeout=STATED_TIMEOUT)
     server.wait(timeout=STATED_TIMEOUT)
     assert server.returncode == 0, server.stderr.read()
-    assert files_model.read_json(page_dir / "service.json")["enabled"] is True
+    assert read_record(page_dir / "service.json")["enabled"] is True
 
 
 def test_server_start_hands_the_page_to_a_process_of_its_own(page_dir):
@@ -357,7 +358,7 @@ def test_server_start_hands_the_page_to_a_process_of_its_own(page_dir):
     # The child claims only after its refusal and bind checks, which is what lets
     # the loop's hooks find the session's pages without a failed start taking one.
     assert service_model.page_claim(page_dir)["id"] == "starter"
-    service = files_model.read_json(page_dir / "service.json")
+    service = server_model.read_service(page_dir)
     assert service["lifetime"] == "session"
     assert set(service) == {
         "host",
@@ -383,7 +384,7 @@ def test_server_start_forwards_flags_and_returns_service_output(page_dir):
     persistent = start_server_command(page_dir, "--persistent")
     assert persistent.returncode == 0, persistent.stderr
     assert json.loads(persistent.stdout)["lifetime"] == "persistent"
-    assert files_model.read_json(page_dir / "service.json")["lifetime"] == "persistent"
+    assert read_record(page_dir / "service.json")["lifetime"] == "persistent"
     assert service_model.page_claim(page_dir) is None
 
     refused = start_server_command(page_dir, "--host", "devbox.corp.example")
@@ -398,7 +399,7 @@ def test_server_start_forwards_flags_and_returns_service_output(page_dir):
 def test_server_stop_disables_desired_state_without_signalling_a_pid(
     page_dir, monkeypatch
 ):
-    cleanup_model.write_json(
+    write_record(
         page_dir / "service.json",
         {
             "host": "127.0.0.1",
@@ -416,25 +417,25 @@ def test_server_stop_disables_desired_state_without_signalling_a_pid(
     monkeypatch.setattr(os, "kill", unexpected_signal)
 
     assert hosting_model.cmd_stop(page_dir) is False
-    assert files_model.read_json(page_dir / "service.json")["enabled"] is False
+    assert read_record(page_dir / "service.json")["enabled"] is False
 
 
 def test_server_stop_reports_a_server_that_exits_as_soon_as_it_is_disabled(
     page_dir, persistent_server, monkeypatch
 ):
     server = persistent_server(page_dir)
-    write_json = hosting_model.write_json
+    write_service = hosting_model.write_service
 
-    def write_and_wait_for_exit(path, value):
-        write_json(path, value)
-        if path == page_dir / "service.json" and not value["enabled"]:
+    def write_and_wait_for_exit(directory, value):
+        write_service(directory, value)
+        if not value["enabled"]:
             wait_for(
                 lambda: leases_model.lock_is_held(page_dir / "server.lock"),
                 lambda held: not held,
                 failure="server did not release its lease after stop",
             )
 
-    monkeypatch.setattr(hosting_model, "write_json", write_and_wait_for_exit)
+    monkeypatch.setattr(hosting_model, "write_service", write_and_wait_for_exit)
     assert hosting_model.cmd_stop(page_dir) is True
     server.wait(timeout=STATED_TIMEOUT)
 
@@ -461,7 +462,7 @@ def test_server_stop_waits_for_the_live_server_to_release_its_lease(
     stopping.start()
     try:
         wait_for(
-            lambda: files_model.read_json(page_dir / "service.json")["enabled"],
+            lambda: read_record(page_dir / "service.json")["enabled"],
             lambda enabled: not enabled,
             failure="server stop never disabled the service",
         )
@@ -483,7 +484,7 @@ def test_server_stop_closes_accepted_keep_alive_connections(
     page_dir, persistent_server
 ):
     server = persistent_server(page_dir)
-    service = files_model.read_json(page_dir / "service.json")
+    service = read_record(page_dir / "service.json")
     connection = http.client.HTTPConnection(service["host"], service["port"])
     connection.request("GET", f"/api/state?t={server_model.host_key()}")
     response = connection.getresponse()
@@ -527,7 +528,10 @@ def test_server_run_persistent_declines_the_claim_a_harness_session_offers(
     explicit: the launch declines the claim it could have made, so the server
     records the persistent lifetime and the page stays nobody's — no watcher
     thread to stop it when the harness pid goes, no SessionEnd reaper. The harness is
-    the suite's own session, which every command here already runs under."""
+    the suite's own session, which every command here already runs under. Its user
+    stops it with Ctrl-C, which unwinds through the process's exit handlers while
+    its watch threads still run, whereas `server stop` ends it at once
+    (`exit_serving`)."""
     process = spawn(
         [
             *LEAF_COMMAND,
@@ -543,8 +547,13 @@ def test_server_run_persistent_declines_the_claim_a_harness_session_offers(
     reading = json.loads(process.stdout.readline())
     assert reading["url"].startswith("http://127.0.0.1:")
     assert reading["lifetime"] == "persistent"
-    assert files_model.read_json(page_dir / "service.json")["lifetime"] == "persistent"
+    assert read_record(page_dir / "service.json")["lifetime"] == "persistent"
     assert service_model.page_claim(page_dir) is None
+
+    process.send_signal(signal.SIGINT)
+    _, error = process.communicate(timeout=STATED_TIMEOUT)
+    assert process.returncode == 1, error
+    assert json.loads(error.splitlines()[-1])["error"] == "interrupted"
 
 
 def test_server_run_temporary_uses_the_browser_harness_boundary(page_dir, spawn):
@@ -602,7 +611,16 @@ while (page / "service.json").exists():
 def older_server(page_dir, spawn):
     """An older Leaf's persistent serve: its `"lifetime": "standing"` record, and a
     process holding the lease over it."""
-    fixture_service(page_dir, 1, "standing")
+    cleanup_model.write_json(
+        page_dir / "service.json",
+        {
+            "host": "127.0.0.1",
+            "bind": "127.0.0.1",
+            "port": 1,
+            "enabled": True,
+            "lifetime": "standing",
+        },
+    )
     process = spawn(
         [sys.executable, "-c", OLDER_SERVER, str(page_dir)],
         stdout=subprocess.PIPE,
@@ -653,7 +671,7 @@ def test_a_persistent_server_outlives_a_session_that_picks_the_page_up(
     process it didn't start nor a leaf that outlives it."""
     server = persistent_server(page_dir)
     launched = server_model.running_server(page_dir)
-    assert files_model.read_json(page_dir / "service.json")["lifetime"] == "persistent"
+    assert read_record(page_dir / "service.json")["lifetime"] == "persistent"
 
     # A session picks the page up, the way `leaf wait` does.
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "later")
@@ -676,7 +694,7 @@ def test_a_persistent_server_outlives_a_session_that_picks_the_page_up(
 
     # The synchronous hook left the persistent service enabled and live.
     assert server_model.running_server(page_dir) == launched
-    assert files_model.read_json(page_dir / "status.json")["state"] == "waiting"
+    assert read_record(page_dir / "status.json")["state"] == "waiting"
     assert not service_model.claim_is_active(service_model.page_claim(page_dir))
     assert page_dir not in service_model.owned_pages("later")
     # Explicit stop crosses that server's release barrier before returning.

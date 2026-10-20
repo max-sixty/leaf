@@ -34,7 +34,7 @@ canonical harness contract rather than prescribe one command for every harness.
 
 ## Decision A: status depth
 
-Recommendation: show the banner readings with a short explanation, and link to the
+Recommendation: show the status readings with a short explanation, and link to the
 protocol references for how the server derives them. The alternatives are the same
 derivation under a closed disclosure, or a full explanation of the mechanism on the
 site. Both alternatives keep a second copy of the protocol material.

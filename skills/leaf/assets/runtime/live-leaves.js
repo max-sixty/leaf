@@ -1,56 +1,20 @@
-/* This module derives the machine's immutable Leaves presentation and owns its walk. */
-import { watchProjection } from "./projection-watch.js";
+/* The pages served on this machine now, as the floating panel's All pages lists them
+   (`leavesRows`), and its row among the page's controls (page-controls.js), offered
+   while another page is served beside this one. */
 import { runtime } from "./context.js";
 import { pagePresented } from "./page-paint.js";
-import { liveLeavesList, drawerIsOpen, othersPanel } from "./drawers.js";
-import { keys, paintKeys } from "./keyboard/scopes.js";
 import { activityFacts, leafRow } from "./activity-words.js";
-import { rowWalk } from "./walk-position.js";
+import { commandSteps } from "./keyboard/control-keys.js";
+import { PAGE_CONTROL_RANK, registerPageControl } from "./page-controls.js";
 
-/** @type {readonly any[]} */
-let others = [];
-let rows = Object.freeze([]);
-
-// The drawer's one offer: something to show, or the drawer already open — the key that
-// opened it must still close it, and its button must still be pressable. The button's
-// visibility and the key both ask the drawer's own predicate, so the two surfaces cannot
-// disagree about whether there is a drawer to open. A pages drawer of one — the page the
-// user is already on — is not worth a control.
+// Something to show: a list of one, the page the user is already on, is not worth a
+// door. It reads the state itself, so a paint drawing it follows neighbours as they
+// come and go; `others` holds live neighbours only, since a closed one leaves it
+// (presence.py).
 export const leavesOffered = () =>
-  pagePresented() && (others.length > 0 || drawerIsOpen("leaves"));
-// The control counts the rows its press opens, including this page's own marked row.
-// One neighbour therefore says two, rather than naming a different collection from
-// the drawer. The list and its control receive this same frozen value.
-const presentationModel = () =>
-  Object.freeze({
-    offered: leavesOffered(),
-    label: `All pages (${rows.length})`,
-    rows,
-  });
-export const presentLeaves = () => liveLeavesList.present(presentationModel());
-// How many rows the drawer lists, for a menu row that names the drawer beside its count.
-// It reads the state itself, so a paint drawing the count follows it as neighbours come
-// and go.
-export const leavesCount = () => listedPages(runtime.state).length;
+  pagePresented() && (runtime.state?.others.length ?? 0) > 0;
 
-// The drawer's own scope. The walk is the drawer's rather than the page's, because the
-// arrows, Home and End anywhere else are the page's own scroll and stay so; Enter is the
-// browser's, a row being a link, and the row says so with no `run` to give. The user
-// arrives here by key — `g L` lands focus on the first neighbour — so the scope names
-// what activating does rather than leaving it to the platform's own contract.
-const othersLinks = () => [...othersPanel.querySelectorAll("a.lf-others-row")];
-// Declared once the drawer is in the document (leaf.js): the drawer is drawers.js's, an
-// owner that imports this module back.
-export function declareLeavesKeys() {
-  keys(
-    othersPanel,
-    "In the pages drawer",
-    rowWalk({ id: "leaf", noun: "Page", plural: "pages", rows: othersLinks }),
-    () => othersLinks().length > 0,
-  );
-}
-
-// The whole of what the drawer knows about one page, for its hover. Everything drawn
+// The whole of what the list knows about one page, for its hover. Everything drawn
 // on a row is cut to the panel's fixed width — the title ellipsizes, the line
 // ellipsizes — and the fact that tells two rows apart is not drawn at all: where the
 // session behind the leaf is working. A title is a sentence somebody wrote and two
@@ -76,7 +40,7 @@ const rowAccount = (entry, title, line) =>
     .filter(Boolean)
     .join("\n");
 
-// The pages the drawer lists for a state reading: this page's own, then each live
+// The pages the list holds for a state reading: this page's own, then each live
 // neighbour. A neighbour's row is its page, keyed by `page_key`, and its link is wherever
 // that page is served now. A server restarted on another port keeps the row, and the
 // focus on it, where they were; only the destination changes.
@@ -93,14 +57,10 @@ const listedPages = (state) =>
         })),
       ];
 
-function paintOthers() {
-  const state = runtime.state;
-  const offeredBefore = leavesOffered();
-  // Null is the explicit pre-read state. It has no self presence to draw, and recovery
-  // from a refused first reading must remove every row that candidate introduced.
-  // `others` holds live neighbours only: a closed one leaves it (presence.py).
-  others = state === null ? [] : state.others;
-  rows = Object.freeze(
+// Each page a state reading lists, as a row says it: its tone and line in the shape of
+// the page's own status, and the whole account its hover gives.
+export const leavesRows = (state) =>
+  Object.freeze(
     listedPages(state).map(({ key, href, title, entry }) => {
       const { tone, line } = leafRow(entry);
       return Object.freeze({
@@ -114,12 +74,15 @@ function paintOthers() {
       });
     }),
   );
-  if (offeredBefore !== leavesOffered()) paintKeys();
-  return presentLeaves();
-}
 
-// Owned by the list rather than the body: the body never leaves, so a clock owned by it
-// would go on repainting a drawer that has, and the owner argument is exactly the
-// question of whose departure ends the paint. An offline page never mounts the list,
-// so it draws no rows.
-watchProjection(liveLeavesList, paintOthers);
+// The list's row among the page's controls counts the pages its press lists, this page
+// included, so one neighbour says two.
+registerPageControl({
+  key: "leaves",
+  rank: PAGE_CONTROL_RANK.leaves,
+  label: "All pages",
+  value: () => String(listedPages(runtime.state).length),
+  shortcut: () => commandSteps("navigation.panel.leaves"),
+  offered: leavesOffered,
+  group: "navigate",
+});

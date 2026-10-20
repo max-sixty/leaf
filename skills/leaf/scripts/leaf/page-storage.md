@@ -5,6 +5,12 @@
 The author writes `index.html` and `page/` candidate inputs. Leaf owns the
 other page files and the external state listed below.
 
+Each JSON record below is a `state.Record`, declared once with its schema beside
+the module named for it, whose functions are its only writers. The record carries
+the protocol at which its kind's shape last changed, and one this Leaf does not
+read, such as one an earlier Leaf wrote before that change, reads as absent
+(`state.Record`).
+
 - `index.html` — mutable author document. The server validates it before activation and
   never serves it directly. An invalid save creates no revision, leaves the previous
   valid revision live, and exposes the diagnostic in page state and browser chrome.
@@ -40,14 +46,15 @@ other page files and the external state listed below.
   `page instructions` composes them with selected registry instructions
   (`../../references/packages.md`, "Package contract").
 
-- `icon.svg` — tab icon; its lf-tone element follows the banner's status colour
+- `icon.svg` — tab icon; its lf-tone element follows the page's status colour, as the
+  panel's leaf does
 
 - `runtime/` — private browser owners plus the public widget-api.js module
 
 - `widgets/` — one ES module per upgraded widget (lf-tabs.js, lf-board.js)
 
 - `vendor/` — vendored third-party assets (sortable.esm.js, plot.esm.js), and whatever a
-  selected package brings (mermaid.esm.js)
+  selected package brings (pele.esm.js)
 
 - `page/` — mutable page-specific browser-ready modules, styles, assets,
   page/registry.json declarations, and page/widgets/ modules. These are candidate inputs
@@ -101,7 +108,7 @@ other page files and the external state listed below.
 
   Command observations capture the selected title and description, focus and scroll
   before execution. `event_submit` records local enqueue with its `attempt`;
-  `reply_visible` records actual message or working words entering a visible banner,
+  `reply_visible` records actual message or working words entering a visible status,
   thread, or On list, with reply/input identity and presentation kind. Generic
   delivery labels do not count. Compare monotonic values only within one browser
   session; host receipt and browser wall time do not measure send-to-visible latency.
@@ -117,7 +124,7 @@ other page files and the external state listed below.
   evidence and exports timing rows without message text.
 
 - `user-views.json` — replaceable per-document browser
-  observations (`user_views.py`). These are author
+  observations (`user_views.USER_VIEWS`). These are author
   context, not event history or source inputs. They are excluded from page freshness
   and activation. `../../references/conversation-loop.md`, "The user's view", defines
   the agent reading.
@@ -125,11 +132,11 @@ other page files and the external state listed below.
 - `user-views.lock` — the independent lock serializing observation writes;
   excluded from page freshness and activation.
 
-- `data.json` — the current contract each external-data source id was set under.
-  `data.py` owns storage and updates.
+- `data.json` — the current contract each external-data source id was set under
+  (`data.CONTRACTS`). `data.py` owns storage and updates.
 
 - `files.json` — explicit local text-file grants, written by `leaf file bind PAGE
-ID PATH` as `{ "bindings": { "ID": "/absolute/canonical/path" } }`.
+ID PATH` (`file_bindings.BINDINGS`).
   `file_bindings.py` owns the grants and current-file reads and writes. Browser
   requests name only a binding, never a path. The page's reading stamps each bound
   file and the state answer carries those stamps under `files`, so a tab hears a
@@ -145,14 +152,16 @@ ID PATH` as `{ "bindings": { "ID": "/absolute/canonical/path" } }`.
   replacement; this is not an operating-system compare-and-swap guarantee.
 
 - `data/` — one JSON publication per source, `<source>.json`, holding `run`,
-  `updated`, and `value` together. `leaf data set` validates and atomically writes
-  it; a new write gets a new opaque run receipt, including an identical value.
+  `updated`, and `value` together (`data.PUBLICATION`). `leaf data set` validates
+  and atomically writes it; a new write gets a new opaque run receipt, including an
+  identical value.
   Copying the page preserves that receipt. Readings trust the publication's shape
   and validate its value against the recorded contract. Deferred record fields served by
   `/api/deferred` come from the value in these same publications.
 
 - `status.json` — the agent's `waiting` or `idle` declaration, observed activity,
-  and reply reservations. The work in hand is no status: it is the log's `start` events.
+  and reply reservations (`service.STATUS`). The work in hand is no status: it is
+  the log's `start` events.
   [session-lifetime.md](session-lifetime.md) owns their writers and lifetimes;
   the `delivery` header defines reply reservations, and `thread.py` reserves and
   releases them. Every reader loads it
@@ -161,19 +170,23 @@ ID PATH` as `{ "bindings": { "ID": "/absolute/canonical/path" } }`.
 - `waiter.lock` — stable bare-shell wait lease file; harness sessions instead
   use `<state-home>/sessions/<session>.wait`. See [session-lifetime.md](session-lifetime.md).
 
-- `viewed.json` — last visible browser attention, written by the server and absent until
-  first viewed. `presence.py` owns throttled renewal, which the server runs as a
+- `viewed.json` — last visible browser attention (`presence.VIEWED`), written by
+  the server and absent until first viewed. `presence.py` owns throttled renewal,
+  which the server runs as a
   visible tab asks for news; hidden tabs do not renew it.
 
-- `cursor.json` — durable acknowledged position in this page's event log, retained
+- `cursor.json` — durable acknowledged position in this page's event log
+  (`event_log.CURSOR`), retained
   with that log when its serving process is replaced. Acknowledgement and
   log replacement rules are defined in [session-lifetime.md](session-lifetime.md).
 
-- `preview.json` — the preview identity browser chrome labels, written by
+- `preview.json` — the preview identity browser chrome labels (`server.PREVIEW`),
+  written by
   `leaf-dev preview`, which decides what a preview tells the browser: the server
   hands the file to the page whole. Its presence exempts the page from the handoff's watcher guard.
 
-- `service.json` — desired server address, enabled state, lifetime, and runtime
+- `service.json` (`server.SERVICE`) — desired server address, enabled state,
+  lifetime, and runtime
   provenance and current serving incarnation (`server_id`), plus a `restart` mark while `page init` holds a served page down to
   re-vendor it, which any other stop replaces so the restart leaves that stop
   alone. `hosting.py` owns start/stop, restart, and revival;
@@ -192,7 +205,7 @@ ID PATH` as `{ "bindings": { "ID": "/absolute/canonical/path" } }`.
   on stop, after sockets close. The stable file remains after release.
 
 - `<state-home>/claims/<page-key>.json` — the page's one atomic canonical claim
-  payload. `<state-home>/claims/<session-key>/<page-key>.json` is a symlink
+  payload (`service.CLAIM`). `<state-home>/claims/<session-key>/<page-key>.json` is a symlink
   locating that payload for the owning session's discovery. The locator is prepared
   before ownership commits in the payload; failed preparation leaves ownership
   intact. Discovery admits a locator only when the payload names that partition's
@@ -206,7 +219,7 @@ ID PATH` as `{ "bindings": { "ID": "/absolute/canonical/path" } }`.
   claimant identity, harness, and lifetime.
 
 - `<state-home>/rows/<page-key>.json` — disposable delivery output of a serving
-  page's own canonical activity. `server_rows.py` owns the record, producer and
+  page's own canonical activity. `server_rows.py` owns the record (`ROW`), producer and
   freshness contract. It is never read by a page's semantic fold; losing it only
   hides that neighbor until the server's next maintenance look. A neighbour
   reading deletes a row whose server lease no process holds.
@@ -253,7 +266,7 @@ contracts with a deferred record field expose the manifest plus the value file a
 its revision for their payload. The reading's `content_source` names the thread and
 vocabulary file. A widget on the page names itself: the reading is its `widget`
 element, the `state` and `reports` in force on it, the open `todos` on it,
-the canonical `items` sourced by it, and the `workflows` it is the subject of, with
+the canonical `obligations` sourced by it, and the `workflows` it is the subject of, with
 their `activity` obligations. Page ids
 and event ids share one address space, which is why `page check` refuses an authored
 id shaped like an event id. Default `page state` thread entries stay compact. Raw
@@ -263,7 +276,7 @@ the vocabulary.
 Immutable deliveries live outside page directories at
 `<state-home>/deliveries/<id>.json`, because one envelope can contain complete
 batches from several pages and must resolve identically in every harness. Once
-written, the file's `format` (`delivery.DELIVERY_FORMAT`), id, capture time,
+written, the file's `format` (`delivery.DELIVERY`), id, capture time,
 acknowledgement and batches never change. Delivery
 records are separate mutable transport state; acknowledgement can archive
 those records without moving or rewriting the delivery addressed by `leaf

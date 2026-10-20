@@ -7,6 +7,7 @@ from leaf.registry.contract import element_declarations
 from leaf.render_checks import RENDER_VIEWPORT, SERVED_TIMEOUT_MS
 
 from .readings import (
+    SWEEP_WIDTHS,
     arrangement_changes,
     margin_changes,
     open_widgets,
@@ -14,7 +15,7 @@ from .readings import (
     shrunk_label_advice,
     squeezed_table_advice,
     sweep,
-    swept_overflow,
+    swept_faults,
     unreserved_height_advice,
 )
 from .scheme import _render_scheme
@@ -77,10 +78,9 @@ def _render_version_attempt(
     placed no matching page host, a widget upgraded into a box of no usable size,
     an element showing words with no box for a mark to hang on, so a comment anchored
     there would outline nothing and the On me walk would travel to the top of the page,
-    the page scrolling sideways, content set past the column and out into the margin,
-    words the user can read and can't select, words drawn on top of other words — each
-    in both color schemes at wide and compact viewports, because the dark theme and
-    responsive layout are real CSS nobody otherwise renders — plus, in one scheme at
+    words the user can read and can't select — each in both color schemes at wide and
+    compact viewports, because the dark theme and responsive layout are real CSS nobody
+    otherwise renders — plus, in one scheme at
     each viewport, a word the registry promised that never reached
     the page (a declaration is scheme-blind), an attribute a module left on a
     widget that its entry never declared (a file's reading sees one writer, and this is
@@ -92,14 +92,26 @@ def _render_version_attempt(
     in that scheme. Once per version, on the settled desktop page in the light scheme,
     it reads, as advice, whether a widget declaring x-height drew at a height its first
     paint did not hold; and then, resizing that loaded page through every width from
-    360px to 1920px, the sideways readings again: a version holds at each of them, not
-    only at the two it renders. There it also reads, as advice naming the widths it
-    spans, whether a drawing's fit to its box shrinks its labels past reading, and
-    whether a table scrolls sideways with a cell in it wrapped. That pass
-    also finds each width where the page's margin content changes (a sidebar, contents
-    map or note first standing in the margin), and the gate renders the page there too,
-    in the light scheme: what stands in the margin is layout, which the scheme does not
-    change. No failures is a pass.
+    360px to 1920px (`readings.sweep`), the geometry that moves with the window: the
+    page scrolling sideways, content set past the column and out into the margin, a
+    horizontal scrollbar with no room below what it scrolls, a control clipped out of
+    reach, words drawn on top of other words. There it also reads, as advice naming
+    the widths it spans, whether a drawing's fit to its box shrinks its labels past
+    reading, and whether a table scrolls sideways with a cell in it wrapped. That pass
+    also finds each width where the page's margin content changes (a sidebar,
+    contents map or note first standing in the margin), and the gate renders the page
+    there too, in the light scheme: what stands in the margin is layout, which the
+    scheme does not change. No failures is a pass.
+
+    The geometry has one reading (`readings.swept_faults`), reported by the runs of
+    widths each fault stands across, and every render adds its samples to it. Each
+    render reads the geometry first at the size it loaded at, before it opens a
+    thread: a widget can lay itself out by the window it first met, and a page's own
+    rules can lay it out differently in the dark scheme. The light phone render then
+    sweeps down from 540px at its 720px height, since a widget can size by the
+    window's height (a file editor clips its body at 60vh, a trace stage fills the
+    window): a short window can cut off what a tall one shows, and a page's own rules
+    can do the reverse.
 
     One implementation with two callers — `page check --render` on the page an agent
     just wrote, and the render suite on the shipped examples
@@ -116,21 +128,28 @@ def _render_version_attempt(
     failures = []
     notices = []
     completed = []
-    swept = []
+    samples = []
     advice = []
     changes = []
     arrangement = []
+    desktop, phone = RENDER_VIEWPORTS
+    fixed = {viewport["width"] for viewport in RENDER_VIEWPORTS}
+    steps = sorted({*SWEEP_WIDTHS, *fixed}, reverse=True)
 
-    def once(page, registry):
-        desktop = RENDER_VIEWPORTS[0]
+    def sample(page, registry):
+        samples.extend(
+            sweep(page, [page.viewport_size["width"]], open_widgets(registry))
+        )
+
+    def desktop_sweep(page, registry):
         # First, at the first paint's viewport, which the sweep then leaves.
         advice.extend(unreserved_height_advice(page, element_declarations(registry)))
-        widths = sweep(page, RENDER_VIEWPORTS, open_widgets(registry))
+        sample(page, registry)
+        widths = sweep(page, steps, open_widgets(registry))
+        samples.extend(widths)
         advice.extend(shrunk_label_advice(widths))
         advice.extend(squeezed_table_advice(widths))
-        swept.extend(swept_overflow(widths, RENDER_VIEWPORTS))
         arrangement.extend(arrangement_changes(widths))
-        fixed = {viewport["width"] for viewport in RENDER_VIEWPORTS}
         changes.extend(
             width
             for width in margin_changes(page, widths, desktop["height"])
@@ -139,7 +158,13 @@ def _render_version_attempt(
         # Back to the desktop viewport for the readings `_render_scheme` takes last.
         settle_at(page, desktop["width"], desktop["height"])
 
-    def render(viewport, scheme, then=None):
+    def phone_sweep(page, registry):
+        # From the phone's own width, so the first sample is the page as it loaded.
+        narrow = [width for width in steps if width <= phone["width"]]
+        samples.extend(sweep(page, narrow, open_widgets(registry)))
+        settle_at(page, phone["width"], phone["height"])
+
+    def render(viewport, scheme, then):
         viewport_label = _viewport_label(viewport)
         found, found_notices, complete = _render_scheme(
             browser, url, scheme, viewport, served_timeout_ms, opened_pages, then=then
@@ -149,23 +174,21 @@ def _render_version_attempt(
         completed.append(complete)
 
     try:
-        for viewport in RENDER_VIEWPORTS:
-            for scheme in ("light", "dark"):
-                first = viewport is RENDER_VIEWPORTS[0] and scheme == "light"
-                render(viewport, scheme, then=once if first else None)
-        margins = [
-            {"width": width, "height": RENDER_VIEWPORTS[0]["height"]}
-            for width in changes
-        ]
-        for viewport in margins:
-            render(viewport, "light")
+        render(desktop, "light", desktop_sweep)
+        render(desktop, "dark", sample)
+        render(phone, "light", phone_sweep)
+        render(phone, "dark", sample)
+        for width in changes:
+            render({"width": width, "height": desktop["height"]}, "light", sample)
     except PlaywrightError:
         for page in opened_pages:
             if not page.is_closed():
                 page.close()
         raise
     reading = RenderReading(
-        [*_findings_with_viewports(failures), *swept, *advice], changes, arrangement
+        [*_findings_with_viewports(failures), *swept_faults(samples), *advice],
+        changes,
+        arrangement,
     )
     return reading, _findings_with_viewports(notices), all(completed)
 

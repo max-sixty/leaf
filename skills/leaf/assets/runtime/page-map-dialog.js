@@ -47,37 +47,21 @@ import { keepsHidden, keepsText } from "./keeps.js";
 import { placeKeeper } from "./user-place.js";
 import { retainUserIntent } from "./user-intent.js";
 import {
-  BANNER_CONTROL_RANK,
-  bannerControlDoor,
-  registerBannerControl,
-  showBannerControl,
-} from "./banner-toolbar.js";
+  PAGE_CONTROL_RANK,
+  pageControlsChanged,
+  registerPageControl,
+} from "./page-controls.js";
 import {
   clearContributionControls,
   contributionHost,
   contributionReceipts,
 } from "./contribution-controls.js";
 import { contributionSource } from "./contributions.js";
+import { railStands } from "./content-layout.js";
+import { commandSteps } from "./keyboard/control-keys.js";
 
 import { contributionItemKey, KINDS } from "./contribution-model.js";
-import { versionBtn } from "./version-picker.js";
 import { marginMapGroups } from "./margin-map-model.js";
-
-export const mapButton = el("button", "lf-btn lf-page-map-toggle", "Map");
-let mapCount = 0;
-mapButton.type = "button";
-mapButton.title = "Open Page Map";
-registerBannerControl({
-  key: "map",
-  control: mapButton,
-  rank: BANNER_CONTROL_RANK.map,
-  present: false,
-  row: {
-    label: "Page Map",
-    value: () => String(mapCount),
-    group: "keys",
-  },
-});
 
 const dialog = document.createElement("dialog");
 dialog.className = "lf-ui lf-page-map-dialog";
@@ -130,6 +114,21 @@ export function createPageMapDialog({
   let groups = [];
   let target = null;
   let trackedOffers = new Set();
+  // The Map is a row of the page's controls while it has entries, which a keyboard
+  // reaches by `g P` (keyboard/go-to-sequence.js). Beside the rail, whose markers show
+  // the page's annotations where they stand, it is a keyboard's convenience; where the
+  // window has no room for the rail, the markers are pins over the content, and the
+  // map is where a reader surveys them, so Navigate offers it to a mouse too.
+  registerPageControl({
+    key: "map",
+    rank: PAGE_CONTROL_RANK.map,
+    label: "Page Map",
+    value: () => String(entries.length),
+    shortcut: () => commandSteps("navigation.page-map"),
+    offered: () => entries.length > 0,
+    group: () => (railStands() ? "keys" : "navigate"),
+    press: () => openPageMap(),
+  });
 
   const pageMapIsActive = () => dialog.open || Boolean(activeInAnnotations?.());
 
@@ -137,11 +136,11 @@ export function createPageMapDialog({
     releaseAnnotations?.(entry);
     const destination = annotationFocus?.(entry);
     // A location without a presented annotation lands on its exact authored target.
-    // Commands that open a Thread or item retain their own navigation capability.
+    // Commands that open a Thread or obligation retain their own navigation capability.
     closeLayer(leavePageMap, () =>
       !destination && targetFor(entry)?.isConnected
         ? focusDestination(targetFor(entry), "move")
-        : handBack(destination, pageMapInvoker(), bannerControlDoor(versionBtn)),
+        : handBack(destination, openerOf(dialog)),
     );
     inventory.activate(item);
   }
@@ -338,16 +337,9 @@ export function createPageMapDialog({
     keepsHidden(dialogEmpty, shown !== 0);
   }
 
-  function pageMapInvoker() {
-    return bannerControlDoor(mapButton) ?? mapButton;
-  }
-
   function renderPageMapDialog(nextEntries) {
+    if (nextEntries.length !== entries.length) pageControlsChanged();
     entries = nextEntries;
-    const label = `Map (${entries.length})`;
-    mapCount = entries.length;
-    showBannerControl(mapButton, entries.length > 0);
-    keepsText(mapButton, label);
     if (dialog.open) renderSheet();
   }
 
@@ -391,8 +383,6 @@ export function createPageMapDialog({
     paintKeys();
   }
 
-  const enterPageMap = () => openPageMap();
-
   // Focus belongs to the visible control in this native layer. A contributor closing
   // its disclosure can use the registration's surface reading to return here.
   function leavePageMap() {
@@ -418,7 +408,6 @@ export function createPageMapDialog({
       rowWalk({ id: "map", noun: "Entry", plural: "entries", rows: mapRows }),
       mapHasEntries,
     );
-    mapButton.onclick = enterPageMap;
     // Escape and Close return to the opening focus or the prior reading position.
     // Leaf performs the whole step instead of landing the user from the `close` event:
     // that event arrives a task later, and a user whose next
@@ -476,7 +465,6 @@ export function createPageMapDialog({
     pageMapDialogContains,
     renderPageMapDialog,
     openPageMap,
-    enterPageMap,
     leavePageMap,
     mount,
   };

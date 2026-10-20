@@ -188,7 +188,7 @@ export function elementFrame(source) {
 
 // The element's CSS border box, for consumers cloning its computed presentation.
 // Intrinsic content coordinates are a separate reading supplied by elementFrame.
-export function elementBorderFrame(source) {
+function elementBorderFrame(source) {
   const box = shownBox(source);
   if (!box?.width || !box?.height) return null;
   const style = getComputedStyle(source);

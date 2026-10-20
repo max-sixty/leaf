@@ -6,13 +6,13 @@ import re
 import pytest
 from leaf import data as data_model
 from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
     ROOT,
     displayed,
-    expect_items_answered,
+    expect_obligations_answered,
     fills_the_window,
     leaf_page,
     open_page,
@@ -110,7 +110,7 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     browser, serve
 ):
     """The workspace Layout takes the whole window, wider than a sidebar page's capped
-    frame, and its height below the banner: each pane's body scrolls on its own. Its
+    frame, and the window's height above the panel's band: each pane's body scrolls on its own. Its
     header is one row, the title with the status beside it, so the panes keep the
     window. A window too short to hold it hands the scroll to the page."""
     frame = """() => {
@@ -215,6 +215,64 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     fills_the_window(page, workspace, True)
 
 
+def test_a_flowing_workspace_keeps_its_header_over_what_a_next_lands_on(browser, serve):
+    """On a phone the workspace flows and the page scrolls, and its header sticks at the
+    window's top, so a tally's Next on me stays under the pointer that pressed it. The
+    obligation it lands on stands below the header, which the landing clears, and a
+    tab set's sticky strip sticks under it."""
+
+    def item(key):
+        return (
+            f'<lf-tab id="t-{key}" label="{key}"><lf-ask id="{key}-decision">'
+            f'<h2>Pick the {key}</h2><div style="height: 900px"></div>'
+            f'<lf-options id="{key}" choose><lf-option id="{key}-a">Alpha</lf-option>'
+            "</lf-options></lf-ask></lf-tab>"
+        )
+
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "A phone queue",
+                '<header><h1>Which alerts should still page?</h1><p id="status">'
+                '<lf-tally id="left" for="queue" next></lf-tally>'
+                '<span class="tag warn">7 mostly noise</span></p></header>'
+                '<lf-tabs id="queue" list="side">'
+                + item("first")
+                + item("second")
+                + "</lf-tabs>"
+                '<lf-tabs id="views"><lf-tab id="v-one" label="One">'
+                '<div id="v-long" style="height: 1600px"></div></lf-tab>'
+                '<lf-tab id="v-two" label="Two"><p>Two</p></lf-tab></lf-tabs>',
+                layout="workspace",
+            )
+        ),
+    )
+    resized(page, 390, 844)
+    button = page.locator("#left").get_by_role("button", name="Next on me")
+    before = button.bounding_box()
+    button.click()
+    expect(page.locator("#first-decision")).to_be_focused()
+    button.click()
+    second = page.locator("#second-decision")
+    expect(second).to_be_focused()
+    scroll_settled(page)
+    assert page.evaluate("() => document.scrollingElement.scrollTop") > 0
+    assert button.bounding_box() == before
+    header = page.locator("main > header").bounding_box()
+    assert second.bounding_box()["y"] >= header["y"] + header["height"], (
+        second.bounding_box(),
+        header,
+    )
+    # A tab set in the body sticks its strip under the header, not behind it.
+    page.locator("#v-long").evaluate("el => el.scrollIntoView({block: 'center'})")
+    scroll_settled(page)
+    strip = page.locator("#views > .lf-tabstrip").bounding_box()
+    assert strip["y"] >= header["y"] + header["height"] - 1, (strip, header)
+    # The stuck header covers the gutters with paint alone; its box stays in the column.
+    assert evaluate_probe(page, "misplacedBoxes") == []
+
+
 PANE_BAND_PAGE = leaf_page(
     "A pane that opens on its words",
     """
@@ -297,17 +355,17 @@ def test_a_table_at_a_pane_top_is_under_no_sticky_header(browser, serve):
 
 
 def clear_of_the_bottom_chrome(page, selector):
-    """Scroll the page to its end and measure one box against the shortcut bar.
+    """Scroll the page to its end and measure one box against the floating panel's row.
 
-    The bar is the fixed chrome a page's last line has to scroll clear of; a page whose
+    The row is the fixed chrome a page's last line has to scroll clear of; a page whose
     end room is missing leaves that line under it however far the user scrolls."""
     return page.evaluate(
         """selector => {
           const page = document.scrollingElement;
           page.scrollTop = page.scrollHeight;
-          const bar = document.querySelector('.lf-shortcut-bar').getBoundingClientRect();
+          const row = document.querySelector('.lf-fp-row').getBoundingClientRect();
           const box = document.querySelector(selector).getBoundingClientRect();
-          return {bottom: box.bottom, bar: bar.top, clear: box.bottom <= bar.top + 1};
+          return {bottom: box.bottom, row: row.top, clear: box.bottom <= row.top + 1};
         }""",
         selector,
     )
@@ -329,8 +387,8 @@ SECTIONED_PANE_PAGE = leaf_page(
 )
 
 
-THREE_PART_ITEM_PAGE = leaf_page(
-    "a three-part item as the workspace",
+THREE_PART_OBLIGATION_PAGE = leaf_page(
+    "a three-part obligation as the workspace",
     """
   <lf-ask id="workspace-ask">
     <h2>Which release should go out?</h2>
@@ -396,7 +454,7 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
     which fills the window, scrolls it. The control is the same pane as the workspace's
     body, which fills the window.
 
-    Whatever the user scrolls to in that full-height workspace clears the bottom bar,
+    Whatever the user scrolls to in that full-height workspace clears the panel's row,
     as a document's last line does: the body scrolls as a whole and its end stands
     above the band."""
     page = open_page(browser, serve(SECTIONED_PANE_PAGE))
@@ -504,7 +562,7 @@ def test_an_lf_ask_gives_its_answer_what_its_context_leaves(browser, serve):
     taller than the window the options keep theirs, nothing is drawn over them, and the
     body scrolls. A playground below a premise fits itself to what is left, its controls
     scrolling within the window."""
-    page = open_page(browser, serve(THREE_PART_ITEM_PAGE))
+    page = open_page(browser, serve(THREE_PART_OBLIGATION_PAGE))
     resized(page, 1280, 720)
     geometry = page.evaluate(
         """() => ({
@@ -514,6 +572,9 @@ def test_an_lf_ask_gives_its_answer_what_its_context_leaves(browser, serve):
     )
     assert geometry["options"]["top"] >= geometry["context"] - 1, geometry
     assert geometry["options"]["height"] > 40, geometry
+    ask = page.locator("#workspace-ask")
+    assert ask.evaluate("node => node.scrollHeight > node.clientHeight")
+    ask.evaluate("node => { node.scrollTop = node.scrollHeight; }")
     end = clear_of_the_bottom_chrome(page, "#workspace-options")
     assert end["clear"], end
     page.close()
@@ -552,19 +613,20 @@ def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve
     room = page.evaluate(
         """() => {
           const probe = document.createElement('div');
-          probe.style.cssText = 'position:fixed;visibility:hidden;height:var(--lf-bottom-bar-h)';
+          probe.style.cssText = 'position:fixed;visibility:hidden;height:var(--lf-foot-room)';
           document.body.append(probe);
           const band = probe.getBoundingClientRect().height;
           probe.remove();
           return {
             padding: parseFloat(getComputedStyle(document.body).paddingBottom),
             band,
-            line: document.querySelector('.lf-shortcut-bar').getBoundingClientRect().height,
+            panel: innerHeight
+              - document.querySelector('.lf-fp-row').getBoundingClientRect().top,
           };
         }"""
     )
-    # The page's end room is the band's stated height, and the band is that tall.
-    assert room["padding"] == room["band"] == room["line"] and room["band"] > 0, room
+    # The page's end room is the band's stated height, which holds the panel's row.
+    assert room["padding"] == room["band"] >= room["panel"] > 0, room
     end = clear_of_the_bottom_chrome(page, "#document-end")
     assert end["clear"], end
     page.close()
@@ -921,10 +983,10 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
     """Replaceable log evidence does not become the authority for release state.
 
     The release escape path is a question the operator answers: the page lists it
-    among its items, and the pick reaches the agent as an action naming the option."""
+    among its obligations, and the pick reaches the agent as an action naming the option."""
     example = ROOT / "examples" / "live-progress.html"
     page = open_page(browser, live_url(serve(example)))
-    expect_items_answered(page, "0/1")
+    expect_obligations_answered(page, "0/1")
     with sending(page, "the rollback pick"):
         page.locator("#lp-rollback-now").click()
     pick = events_model.read_events(serve.page_dir)[-1]
@@ -934,7 +996,7 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
         "choose",
     )
     assert pick["detail"] == {"value": ["lp-rollback-now"]}
-    expect_items_answered(page, "1/1")
+    expect_obligations_answered(page, "1/1")
 
     log = page.locator("#lp-live-log")
     listing = log.locator("pre")

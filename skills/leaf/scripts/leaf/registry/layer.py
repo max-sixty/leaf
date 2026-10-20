@@ -1,14 +1,18 @@
 """Layer registry composition and contract validation."""
 
 import json
-from copy import deepcopy
 
 import jmespath
 import turbohtml
 from jmespath.exceptions import JMESPathError
 from jsonschema.exceptions import SchemaError
 
-from leaf.schema import DECLARED_MARKS, EXTENSION_SCHEMA, LAYER_FACTS_SCHEMA
+from leaf.schema import (
+    AWAITS_SCHEMA,
+    EXTENSION_SCHEMA,
+    LAYER_FACTS_SCHEMA,
+    VERB_SCHEMA,
+)
 
 from .contract import (
     is_element_name,
@@ -16,6 +20,7 @@ from .contract import (
     stamp_decisions,
     stamp_states,
 )
+from .kernel import answer_kinds
 from .schema import (
     check_schema,
     json_validator,
@@ -25,6 +30,18 @@ from .schema import (
 
 # The `$events` members a layer may restate; the rest are the kernel's.
 LAYER_OWNED_EVENTS = frozenset({"handling", "answering"})
+# The facts both runtimes read from the kernel registry, each whole and none from a
+# layer (`registry.kernel`): Python reads the running Leaf's own copy and the browser a
+# copy generated from it, so a layer's change would reach neither. A page's older
+# runtime reads `$marks` from the vocabulary it was vendored with.
+KERNEL_FACTS = frozenset({"$passages", "$names", "$marks", "$authored"})
+# The facts that document a declaration's keys, each beside the schema that admits
+# those keys (`validate_layer_declarations`).
+DOCUMENTED_KEYS = {
+    "$keys": EXTENSION_SCHEMA,
+    "$state": VERB_SCHEMA,
+    "$awaits": AWAITS_SCHEMA,
+}
 
 
 def merge_layer_declarations(merged: dict, declarations: dict) -> None:
@@ -38,7 +55,7 @@ def merge_layer_declarations(merged: dict, declarations: dict) -> None:
     silently drop every shipped extension with it. Scalar and list members replace
     whole — a names list is one statement. `$events` is the exception: every member
     but `handling` and `answering` is Leaf's fixed kernel transport contract and its
-    `protocol`, which no layer changes.
+    `protocol`, which no layer changes; so is each of `KERNEL_FACTS`, whole.
 
     Inside a map member the merge is JSON merge-patch: a later layer's value
     replaces the key, a new key joins, and `null` removes one — which is the
@@ -49,6 +66,10 @@ def merge_layer_declarations(merged: dict, declarations: dict) -> None:
         earlier = merged.get(name)
         if not (name.startswith("$") and earlier is not None):
             merged[name] = entry
+            continue
+        if name in KERNEL_FACTS:
+            if _canonical(entry) != _canonical(earlier):
+                raise registry_error("fixed-kernel-fact", name=name)
             continue
         if name == "$events":
             # Only the kernel's own value passes, compared as JSON so that `true` or
@@ -72,9 +93,8 @@ def _canonical(value) -> str:
 
 def stamp_composition(registry: dict) -> dict:
     """Write into a validated vocabulary what the browser reads rather than derives:
-    `$decisions` (`registry.contract.stamp_decisions`), `$states`
-    (`registry.contract.stamp_states`), and `$marks`, the declared marks
-    (`schema.DECLARED_MARKS`) it paints on a message it renders.
+    `$decisions` (`registry.contract.stamp_decisions`) and `$states`
+    (`registry.contract.stamp_states`).
 
     Each composition that ends in a vocabulary stamps it, `page init`'s layer and a
     page's own declarations over it, overwriting whatever a layer declared under
@@ -82,7 +102,6 @@ def stamp_composition(registry: dict) -> dict:
     """
     stamp_decisions(registry)
     stamp_states(registry)
-    registry["$marks"] = deepcopy(DECLARED_MARKS)
     return registry
 
 
@@ -102,10 +121,19 @@ def validate_layer_declarations(registry: dict, path) -> None:
     Schema, each `resources` entry JMESPath, the documented keys, and the idioms."""
     check_layer_facts(registry, path)
     events = registry["$events"]
+    # A layer instructs only the kinds there are: events of a declared kind, and the
+    # answers the kernel's own `answering` instructs.
+    declared = {"handling": sorted(events["kinds"]), "answering": answer_kinds()}
     for key in ("handling", "answering"):
         for kind, clauses in events[key].items():
-            if key == "handling" and kind not in events["kinds"]:
-                raise registry_error("undeclared-event-kind", path, kind=kind)
+            if kind not in declared[key]:
+                raise registry_error(
+                    "undeclared-event-kind",
+                    path,
+                    key=key,
+                    kind=kind,
+                    declared=declared[key],
+                )
             for clause in clauses:
                 if "when" not in clause:
                     continue
@@ -119,26 +147,29 @@ def validate_layer_declarations(registry: dict, path) -> None:
                         kind=kind,
                         **schema_reading(error),
                     ) from error
-    # $keys documents exactly the x- keys the lint admits, one string per key: the
-    # keys are closed here (EXTENSION_SCHEMA), so a member for a key that cannot be
-    # declared is documentation of nothing, and a key with no member is one an author
-    # reads the registry for and finds unsaid. Agents query it and the site's table is
-    # generated from it, which is what makes the pin worth keeping.
-    keys = registry.get("$keys")
-    admitted = set(EXTENSION_SCHEMA["properties"])
-    documented = set(keys or {}) - {"description"}
-    if (
-        not isinstance(keys, dict)
-        or not isinstance(keys.get("description"), str)
-        or not all(isinstance(text, str) and text for text in keys.values())
-        or documented != admitted
-    ):
-        raise registry_error(
-            "keys-documentation",
-            path,
-            missing=sorted(admitted - documented),
-            unadmitted=sorted(documented - admitted),
-        )
+    # Each documenting fact holds exactly the keys its schema admits, one string per
+    # key, beside its description: the keys are closed by that schema, so a member for
+    # a key that cannot be declared is documentation of nothing, and a key with no
+    # member is one an author reads the registry for and finds unsaid. Agents query
+    # them and the site's table is generated from $keys, which is what makes the pin
+    # worth keeping.
+    for fact, schema in DOCUMENTED_KEYS.items():
+        members = registry.get(fact)
+        admitted = set(schema["properties"])
+        documented = set(members or {}) - {"description"}
+        if (
+            not isinstance(members, dict)
+            or not isinstance(members.get("description"), str)
+            or not all(isinstance(text, str) and text for text in members.values())
+            or documented != admitted
+        ):
+            raise registry_error(
+                "keys-documentation",
+                path,
+                fact=fact,
+                missing=sorted(admitted - documented),
+                unadmitted=sorted(documented - admitted),
+            )
     # Idioms share author-facing fields with elements and declare no marks: a mark is
     # its tag's (`revision_delivery.mark_declared`). Validate every selector, because it
     # remains an authored vocabulary identity.

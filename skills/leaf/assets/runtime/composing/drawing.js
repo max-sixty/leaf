@@ -149,7 +149,6 @@ export function createDrawingController({
   setDesignMode,
   closeTargetPicker,
   closeReactionMode,
-  banner,
   announce,
   paintDrawings,
   shiftDrawingPaint,
@@ -193,7 +192,6 @@ export function createDrawingController({
       if (claimedPointer === null) claimThroughClick = false;
     }
     document.documentElement.toggleAttribute("data-lf-draw-mode", on);
-    banner.toggleAttribute("data-lf-draw-mode", on);
     refreshAim();
     if (spoken)
       announce(
@@ -639,7 +637,6 @@ export function createDrawingController({
     claimThroughClick = false;
     claimedPointer = null;
     document.documentElement.removeAttribute("data-lf-draw-mode");
-    banner.removeAttribute("data-lf-draw-mode");
   }
 
   // Draw mode claims pointer strokes and hands their marks to an ordinary comment. Its own
@@ -658,14 +655,14 @@ export function createDrawingController({
         label: "drag",
         title: "Draw on the page",
         description: "Each stroke adds to one drawing",
-        line: false,
       },
       {
         id: "draw.mode.undo",
         keys: UNDO_STROKE,
         title: "undo stroke",
         description: "Undo the last stroke drawn",
-        touch: "Undo stroke",
+        // A finger undoes a stroke with the undo button on its drawing's composer.
+        touch: false,
         when: () => Boolean(undoTarget()),
         run: () => undoStroke(),
       },
@@ -673,9 +670,7 @@ export function createDrawingController({
         id: "draw.mode.exit",
         keys: ["w"],
         title: "exit Draw mode",
-        touch: "Exit Draw mode",
-        // Escape's step says the same on the line.
-        line: false,
+        exit: true,
         run: () => setDrawMode(false),
       },
     ],

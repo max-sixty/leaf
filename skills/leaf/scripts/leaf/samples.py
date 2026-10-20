@@ -9,7 +9,6 @@ directories until explicit release or server shutdown, and nothing reads one aft
 crash, so a child's revisions are staged without fsync (`revision_artifact.Disposable`).
 """
 
-import json
 import secrets
 import shutil
 from dataclasses import dataclass, field
@@ -17,13 +16,12 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Lock
 
-from .data import source_file
+from .data import write_data
+from .event_log import start_log
 from .page_memory import PageMemory, memory_of
 from .revision_artifact import Disposable, RevisionArtifact
 from .revisioning import activate_source
 from .sample_content import initial_sample_events
-from .schema import DATA_DIR, DATA_FILE
-from .state import now_iso, write_json
 from .structure import SourceDocument
 from .thread_context import thread_structure
 
@@ -119,31 +117,20 @@ class Samples:
                 shutil.copytree(parent / "media", child / "media", dirs_exist_ok=True)
             # The child reads the data the parent reading it was built from held,
             # which for a frozen preview is not what the parent's files hold now.
-            write_json(
-                child / DATA_FILE,
+            write_data(
+                child,
                 {
-                    "sources": {
-                        name: {"contract": reading["contract"]}
-                        for name, reading in data["sources"].items()
-                    }
+                    name: reading["contract"]
+                    for name, reading in data["sources"].items()
+                },
+                {
+                    name: {key: reading[key] for key in ("run", "updated", "value")}
+                    for name, reading in data["sources"].items()
+                    if "value" in reading
                 },
             )
-            (child / DATA_DIR).mkdir()
-            for name, reading in data["sources"].items():
-                if "value" in reading:
-                    write_json(
-                        source_file(child, name),
-                        {key: reading[key] for key in ("run", "updated", "value")},
-                    )
             (child / "index.html").write_bytes(source)
-            (child / "events.jsonl").write_text(
-                "".join(json.dumps(event) + "\n" for event in seeded),
-                encoding="utf-8",
-            )
-            write_json(
-                child / "status.json",
-                {"state": "waiting", "detail": "", "ts": now_iso()},
-            )
+            start_log(child, seeded)
             activation = activate_source(child)
             if activation.error:
                 raise ValueError(f"invalid sample: {activation.error}")

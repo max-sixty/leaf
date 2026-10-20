@@ -58,8 +58,10 @@ never prints it; `cli.LeafGroup` prints what it returns (`cli.py`'s header).
   Server reply lifecycles, and the detached adapter behind `leaf codex start`;
 - `thread_titles`: the title Leaf asks the harness's model for when a user opens a
   thread;
-- `state`: session lifetime and turn publication, cold SessionEnd, shared paths, page
-  identity, locks and atomic replacement, with no dependencies on the rest;
+- `state`: session lifetime and turn publication, cold SessionEnd and the retirement
+  of a session's files, shared paths, page identity, locks, atomic replacement, and
+  `Record`, the one form of every JSON record Leaf keeps outside a page's log and
+  document, with no dependencies on the rest;
 - `machine`, `leases`, `service`, `server`, `hosting`, `detached`: process readings,
   process-backed leases (`take_lease`, `release_lease`), page claims and serialized
   transactions, server state, HTTP servers, and detached starts;

@@ -21,6 +21,7 @@ from interact_support import (
     page_packages,
     page_state,
     publish,
+    read_record,
     record_claim,
     refused_on,
     response_reference,
@@ -1577,7 +1578,7 @@ def test_a_start_is_one_log_record_read_at_the_status_and_the_move(
         "reading the traces",
         "Trace reader",
     )
-    assert "work" not in (files_model.read_json(page_dir / "status.json") or {})
+    assert "work" not in (read_record(page_dir / "status.json") or {})
     live = page_state(page_dir)
     assert "claims" not in live
     [workflow] = live["workflows"]

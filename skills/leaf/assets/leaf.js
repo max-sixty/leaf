@@ -471,6 +471,7 @@ floatingPanel = createFloatingPanel({
   obligations: { choicesOf: items.choicesOf },
   queueActions: app.queueActions,
   arrivesAt: (item) => queueWalk.arrivesAt(item),
+  inWalkOrder: (items) => queueWalk.inWalkOrder(items),
   withdraw: app.withdraw,
   settlement: app.settlement,
   placedAt: anchorPlacement.placedAt,

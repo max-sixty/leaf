@@ -2,6 +2,7 @@
 identity and order, and what an answered one says."""
 
 import pytest
+from interact_support import append_carried_log_record
 from leaf.render_checks import wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -437,3 +438,56 @@ def test_the_m_walk_brings_its_card_into_on_me_s_view_and_rings_it(browser, serv
     expect(first).to_have_attribute("data-walked", "")
     expect(last).not_to_have_attribute("data-walked", "")
     assert shown(first)
+
+
+ORDERED_PAGE = leaf_page(
+    "walk order",
+    '<h1 id="title">Release</h1><p id="cadence">We publish a build every week.</p>'
+    '<lf-ask id="channel-ask"><h2>Which channel first?</h2>'
+    '<lf-options id="channel" choose><lf-option id="beta">Beta first</lf-option>'
+    '<lf-option id="both">Both at once</lf-option></lf-options></lf-ask>'
+    '<p id="notes">Release notes come from merged titles.</p>',
+)
+
+
+def test_on_me_lists_its_cards_in_the_order_m_walks_them(browser, serve):
+    """On me lists its cards in the order `m` reaches their items, by where each is on
+    the page, rather than the server's order, which puts what the page asks before
+    to-dos. So successive presses of `m` outline successive cards."""
+    url = serve(ORDERED_PAGE)
+    for subject, title in (
+        ("cadence", "Check the cadence"),
+        ("notes", "Check the notes"),
+    ):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "todo",
+                "author": "agent",
+                "agent": "Agent",
+                "session": "walk-order",
+                "owner": "user",
+                "subject": {"kind": "element", "id": subject},
+                "title": title,
+            },
+        )
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    view = open_on_me(page)
+    cards = view.locator(".lf-fp-on-item")
+    expect(cards).to_have_count(3)
+    expect(cards.locator(".lf-fp-on-kind")).to_have_text(["To-do", "Options", "To-do"])
+    expect(cards.nth(0)).to_contain_text("Check the cadence")
+    expect(cards.nth(2)).to_contain_text("Check the notes")
+
+    def walked():
+        expect(view.locator(".lf-fp-on-item[data-walked]")).to_have_count(1)
+        return cards.evaluate_all(
+            "cards => cards.findIndex((card) => card.hasAttribute('data-walked'))"
+        )
+
+    page.keyboard.press("m")
+    first = walked()
+    for step in (1, 2, 3):
+        page.keyboard.press("m")
+        expect(cards.nth((first + step) % 3)).to_have_attribute("data-walked", "")

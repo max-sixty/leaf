@@ -41,6 +41,8 @@
    page. An item with no place on the page, a general thread or one whose passage is
    gone, comes after every placed one in the list's own order, as the t/T walk reaches
    such threads from its list's ends. A step past either end comes round to the other.
+   On me lists its items in this order too (`inWalkOrder`), so successive presses
+   reach successive cards.
 
    The walk can also step within one region of the page (`obligationActions.next`, as an
    `lf-tally`'s Next on me presses it): its stops are then the obligations waiting on the user
@@ -164,10 +166,15 @@ export function createQueueWalk({
     return at?.isConnected && !inChrome(at) ? at : null;
   };
 
+  // Items of any list in the walk's order: by where each is arrived at on the page, and
+  // those with no place there after, in the list's own order.
+  const inWalkOrder = (items) =>
+    byRenderedOrder(items, (item) => pagePlace(queueStop(item)));
+
   function stops() {
     const list = [];
     const listed = new Set();
-    for (const item of readQueues().on_user) {
+    for (const item of inWalkOrder(readQueues().on_user)) {
       const stop = queueStop(item);
       // Two items arrived at in one place, such as two to-dos on one thread, are one
       // stop.
@@ -175,7 +182,7 @@ export function createQueueWalk({
       listed.add(stop.key);
       list.push({ ...stop, place: pagePlace(stop) });
     }
-    return byRenderedOrder(list, (stop) => stop.place);
+    return list;
   }
 
   // The stops of a walk within `region`: the obligations waiting on the user it holds.
@@ -467,5 +474,5 @@ export function createQueueWalk({
       : walk(toward, within, here);
   }
 
-  return { mount, arriveAtItem, arrivesAt, nextWithin };
+  return { mount, arriveAtItem, arrivesAt, inWalkOrder, nextWithin };
 }

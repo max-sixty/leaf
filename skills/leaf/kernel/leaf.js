@@ -6022,16 +6022,17 @@ function createQueueWalk({
     const at = stopElement(stop);
     return at?.isConnected && !inChrome(at) ? at : null;
   };
+  const inWalkOrder = (items2) => byRenderedOrder(items2, (item) => pagePlace(queueStop(item)));
   function stops() {
     const list = [];
     const listed2 = /* @__PURE__ */ new Set();
-    for (const item of readQueues().on_user) {
+    for (const item of inWalkOrder(readQueues().on_user)) {
       const stop = queueStop(item);
       if (listed2.has(stop.key)) continue;
       listed2.add(stop.key);
       list.push({ ...stop, place: pagePlace(stop) });
     }
-    return byRenderedOrder(list, (stop) => stop.place);
+    return list;
   }
   function stopsWithin(region) {
     const held = new Set(obligationsIn(region).map((item) => item.id));
@@ -6233,7 +6234,7 @@ function createQueueWalk({
     const shown = items2.map((item) => obligationPlace(item).node).find((node) => node && seenRect(node, clips));
     return shown ? walk(toward, within, { place: shown, kind: "at" }) : walk(toward, within, here);
   }
-  return { mount, arriveAtItem, arrivesAt, nextWithin };
+  return { mount, arriveAtItem, arrivesAt, inWalkOrder, nextWithin };
 }
 
 // runtime/keyboard/status-context.js
@@ -6310,6 +6311,7 @@ function createFloatingPanel({
   obligations: obligationView,
   queueActions,
   arrivesAt,
+  inWalkOrder,
   withdraw,
   settlement,
   placedAt,
@@ -7628,9 +7630,11 @@ function createFloatingPanel({
     const reading = readQueues();
     if (reading.phase !== "ready") return { you: [], agent: [], done: [] };
     return {
-      you: reading.on_user,
-      agent: reading.on_agent,
-      done: reading.done.filter((item) => item.owner === QUEUE_TABS[queueTab])
+      you: inWalkOrder(reading.on_user),
+      agent: inWalkOrder(reading.on_agent),
+      done: inWalkOrder(
+        reading.done.filter((item) => item.owner === QUEUE_TABS[queueTab])
+      )
     };
   };
   const answerGesture = (item) => {
@@ -11362,6 +11366,7 @@ floatingPanel = createFloatingPanel({
   obligations: { choicesOf: items.choicesOf },
   queueActions: app.queueActions,
   arrivesAt: (item) => queueWalk.arrivesAt(item),
+  inWalkOrder: (items2) => queueWalk.inWalkOrder(items2),
   withdraw: app.withdraw,
   settlement: app.settlement,
   placedAt: anchorPlacement.placedAt,

@@ -295,6 +295,7 @@ export function createFloatingPanel({
   obligations: obligationView,
   queueActions,
   arrivesAt,
+  inWalkOrder,
   withdraw,
   settlement,
   placedAt,
@@ -2250,13 +2251,17 @@ export function createFloatingPanel({
     if (turned && trail.at(-1)?.view === "queue") paint();
     else open({ view: "queue" });
   }
+  // Each list in the `m` walk's order (queue-walk.js, `inWalkOrder`), so the cards the
+  // walk outlines (`walkedStop`) follow one another down the list.
   const queueLists = () => {
     const reading = readQueues();
     if (reading.phase !== "ready") return { you: [], agent: [], done: [] };
     return {
-      you: reading.on_user,
-      agent: reading.on_agent,
-      done: reading.done.filter((item) => item.owner === QUEUE_TABS[queueTab]),
+      you: inWalkOrder(reading.on_user),
+      agent: inWalkOrder(reading.on_agent),
+      done: inWalkOrder(
+        reading.done.filter((item) => item.owner === QUEUE_TABS[queueTab]),
+      ),
     };
   };
 

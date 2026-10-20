@@ -108,6 +108,9 @@ def _phases(
                 break
             if after < at and record["type"] == "turn_end":
                 return at
+            if record["type"] in ("turn_start", "turn_end"):
+                # A call an interrupted turn left out is no longer running.
+                out.clear()
             if record["type"] not in ("assistant", "user"):
                 continue
             for part in record["message"]["content"]:
@@ -148,7 +151,11 @@ def _phases(
     # The calls still out when the comment was picked up.
     out: dict[str, str] = {}
     for at, record in timed:
-        if at > began or record["type"] not in ("assistant", "user"):
+        if at > began:
+            continue
+        if record["type"] in ("turn_start", "turn_end"):
+            out.clear()
+        if record["type"] not in ("assistant", "user"):
             continue
         for part in record["message"]["content"]:
             if part["type"] == "tool_use":

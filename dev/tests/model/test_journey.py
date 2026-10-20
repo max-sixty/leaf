@@ -480,6 +480,18 @@ def test_a_reply_taken_while_working_splits_into_leaf_share_and_model_calls():
     ]
     drained = reply_breakdown(batch, at(1), at(10.2), at(12))
     assert (drained["busyMs"], drained["deliveryMs"]) == (9000, 200)
+    # A call an interrupted turn left without a result holds no later turn.
+    interrupted = [
+        {"type": "turn_start", "received_at": at(0)},
+        use(1, "x", "sleep 60"),
+        {"type": "turn_end", "received_at": at(2)},
+        {"type": "turn_start", "received_at": at(3)},
+        use(4, "y", "sleep 2"),
+        result(6, "y"),
+    ]
+    later = reply_breakdown(interrupted, at(5), at(6.2), at(8))
+    assert (later["busyMs"], later["deliveryMs"]) == (1000, 200)
+    assert later["phases"][2]["phase"] == "model"
 
 
 def test_pis_events_give_the_turn_phases(monkeypatch):

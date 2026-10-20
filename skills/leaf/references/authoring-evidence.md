@@ -148,8 +148,8 @@ Put invented examples inside `lf-sample` and make them visibly fictional. Render
 tickets, source locations and URLs as real links.
 
 `lf-shot` shows two versions of an interface, before and after, captured at the same
-viewport. It draws each capture across the column, about 720px, so a whole 1440px window
-shows at half size. For a smaller change, capture the subject in a reading column
+viewport. It draws each capture across the column (`--col`), so a capture of a whole
+window shows well below its real size. For a smaller change, capture the subject in a reading column
 rather than the whole window and crop both frames to the change, or show the element at
 real size. Before writing the prose and `alt`, open both images and compare them where
 the change should be.

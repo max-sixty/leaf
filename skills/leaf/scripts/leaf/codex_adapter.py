@@ -104,8 +104,10 @@ from .service import (
 )
 from .session import Watch, read_watch_pass
 from .state import (
+    Record,
     ensure_session,
     flocked,
+    object_schema,
     session_record,
     start_session_turn,
     state_home,
@@ -113,6 +115,11 @@ from .state import (
 from .thread import delivery_reply_reserved
 
 QUEUE_TIMEOUT = 20
+# What the adapter's lease file holds while it runs: the App Server it delivers
+# through, if not its own (`_running_adapter`).
+ADAPTER = Record(
+    "codex-adapter", object_schema({"app_server": {"type": ["string", "null"]}})
+)
 
 
 def _run_codex(codex_path: str, *arguments: str) -> None:
@@ -436,7 +443,7 @@ class TaskConnection:
             for delivery_id in pending:
                 codex.abandon_uncertain_delivery(
                     self.thread_id,
-                    codex.read_json(codex.delivery_path(delivery_id)),
+                    codex.stored_delivery(delivery_id),
                 )
 
     def _resume(self, thread: dict, expected: dict | None | object = ...) -> set[str]:
@@ -834,7 +841,7 @@ def run_adapter(
         # in the task reports the one it joins.
         resources.callback(release_lease, lease)
         lease.truncate(0)
-        lease.write(json.dumps({"app_server": app_server}).encode())
+        lease.write(ADAPTER.encode({"app_server": app_server}))
         lease.flush()
         watch = Watch(harness)
         if not watch.acquire():
@@ -999,10 +1006,7 @@ def _running_adapter(session_id: str) -> dict | None:
     it; that reads as no adapter."""
     if not adapter_is_live(session_id):
         return None
-    try:
-        return json.loads(adapter_lease_path(session_id).read_text())
-    except FileNotFoundError:
-        return None
+    return ADAPTER.read(adapter_lease_path(session_id))
 
 
 def cmd_codex_launch(codex_path: str | None = None) -> int:

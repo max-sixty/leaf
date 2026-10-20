@@ -16,6 +16,7 @@ from interact_support import (
     declare_idle,
     declare_work,
     working,
+    write_record,
 )
 from leaf import cli as cli_model
 from leaf import event_log as events_model
@@ -2424,7 +2425,7 @@ def test_all_pages_in_the_menu_counts_the_pages_it_lists(
         ".lf-fp-menu[data-level=group] .lf-fp-item", has_text="All pages"
     )
     expect(row.locator(".lf-fp-value")).to_have_text("3")
-    cleanup_model.write_json(
+    write_record(
         closing_dir / "status.json",
         {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
     )

@@ -10,23 +10,20 @@ Checks retain their own revision, log position, viewport, scheme and sequence.
 Their first server receipt is preserved when later context reports repeat them;
 a fresh context can therefore carry older checks. These observations are neither
 events nor obligations and cannot affect semantic state or document activation.
-The replaceable record is independently locked, pruned on writes after one day,
-and ignored when another protocol wrote it (`registry.kernel.record_format`).
+The replaceable record (`USER_VIEWS`) is independently locked and pruned on
+writes after one day.
 """
 
 import copy
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from leaf.files import read_json
-from leaf.registry.kernel import record_format
 from leaf.registry.schema import aware_instant, schema_error
 from leaf.schema import USER_VIEWS_FILE, USER_VIEWS_LOCK
-from leaf.state import flocked, write_json
+from leaf.state import Record, flocked, object_schema
 
 FRESH_FOR_S = 45
 RETAIN_FOR = timedelta(days=1)
-FORMAT = record_format("user-views")
 
 
 def _object(properties: dict) -> dict:
@@ -97,12 +94,17 @@ _RECORD = _object(
         **_PROPERTIES,
         "received_at": _INSTANT,
         "checks": {
-            "anyOf": [
-                {"type": "null"},
-                _object({**_CHECKS["properties"], "checked_at": _INSTANT}),
-            ]
+            **_object({**_CHECKS["properties"], "checked_at": _INSTANT}),
+            "type": ["object", "null"],
         },
     }
+)
+
+
+# Each document's latest report, by its session.
+USER_VIEWS = Record(
+    "user-views",
+    object_schema({"sessions": {"type": "object", "additionalProperties": _RECORD}}),
 )
 
 
@@ -111,18 +113,8 @@ def _now() -> datetime:
 
 
 def _records(page_dir: Path) -> dict:
-    stored = read_json(page_dir / USER_VIEWS_FILE)
-    if (
-        not isinstance(stored, dict)
-        or stored.get("format") != FORMAT
-        or not isinstance(stored.get("sessions"), dict)
-    ):
-        return {}
-    return {
-        session: record
-        for session, record in stored["sessions"].items()
-        if schema_error(_RECORD, record) is None and record["session"] == session
-    }
+    stored = USER_VIEWS.read(page_dir / USER_VIEWS_FILE)
+    return stored["sessions"] if stored else {}
 
 
 def observe_user_view(page_dir: Path, payload: dict) -> bool:
@@ -160,7 +152,7 @@ def observe_user_view(page_dir: Path, payload: dict) -> bool:
         elif checks is not None:
             checks["checked_at"] = record["received_at"]
         records[record["session"]] = record
-        write_json(page_dir / USER_VIEWS_FILE, {"format": FORMAT, "sessions": records})
+        USER_VIEWS.write(page_dir / USER_VIEWS_FILE, {"sessions": records})
     return True
 
 

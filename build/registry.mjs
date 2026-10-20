@@ -36,7 +36,7 @@ const modules = [
   },
   {
     // The one version Leaf has, which a record kept outside a page's log and document
-    // carries in its `format` as `registry.kernel.record_format` writes it.
+    // carries in its `format` as `state.Record` writes it.
     out: `${assets}/runtime/protocol.js`,
     from: ["$events", "protocol"],
     code: (protocol) =>

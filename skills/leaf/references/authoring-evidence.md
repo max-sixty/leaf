@@ -126,8 +126,10 @@ Keep each capture in its own image file; never join captures into one. Where cap
 vary along named axes, such as the moment in an interaction, the case, the window width
 or the colour scheme, put them in a `<table>` with one linked capture per cell, a
 `<th scope="col">` naming each column's value and a `<th scope="row">` naming each
-row's, so each axis is labelled once. Place captures the reader compares side by side
-or one above the other, so whatever moved shows as a misalignment.
+row's, so each axis is labelled once. Captures that show what each option of a decision
+gives stand in their options instead (`authoring-decisions.md`). Place captures the
+reader compares side by side or one above the other, so whatever moved shows as a
+misalignment.
 
 Use a recording for a fixed demo and a live widget where the user should operate the
 subject. Show a browser journey recorded with Playwright as a trace in `lf-trace`

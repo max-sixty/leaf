@@ -135,7 +135,7 @@ def test_sort_film_readout_and_narration(browser, serve):
     example = next(path for path in EXAMPLES if path.stem == "rust-sort")
     page = open_page(browser, serve(example))
     assert (
-        "collapse(): merge when a clause is true"
+        "collapse(): merge if one is true"
         in page.locator("#sort-film svg[role='img']").text_content()
     )
     readings = page.evaluate(
@@ -183,6 +183,32 @@ def test_sort_film_readout_and_narration(browser, serve):
     )
     expect(note.locator("strong")).to_contain_text("≤")
     expect(note.locator("code")).to_have_text("buf")
+
+
+def test_sort_film_fits_its_pane_where_the_panes_stand_side_by_side(browser, serve):
+    """A workspace is a screen, so at the narrowest width the page sets its panes side
+    by side the whole player shows in its pane, the last step's longer summary included
+    (page-layout.md, "A workspace")."""
+    example = next(path for path in EXAMPLES if path.stem == "rust-sort")
+    context = browser.new_context(
+        reduced_motion="reduce", viewport={"width": 720, "height": 900}
+    )
+    page = open_page(browser, serve(example), context=context)
+    overruns = page.evaluate(
+        """() => {
+          const pane = document.querySelector('#sort-stage-pane');
+          const film = pane.querySelector('#sort-film');
+          const overrun = () =>
+            film.querySelector('.sort-stats').getBoundingClientRect().bottom -
+            pane.getBoundingClientRect().bottom;
+          const atRest = overrun();
+          const scrub = film.querySelector('.sort-scrub');
+          scrub.value = scrub.max;
+          scrub.dispatchEvent(new Event('input', {bubbles: true}));
+          return [atRest, overrun()];
+        }"""
+    )
+    assert all(overrun <= 0 for overrun in overruns), overruns
 
 
 def test_ship_review_summary_is_addressable_and_baseline_aligned(browser, serve):

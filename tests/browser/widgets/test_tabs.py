@@ -1560,6 +1560,24 @@ def test_wide_evidence_in_a_part_takes_the_room_it_would_on_a_page_of_its_own(
     twin(phone, "phone")
 
 
+def test_the_list_of_parts_lands_its_last_name_above_the_floating_row(browser, serve):
+    """The list of parts runs to the window's foot, under the floating panel's row where
+    a narrow window puts the row over the column. A name the keyboard moves to still
+    lands above the row, as a landing in the page does."""
+    page = open_page(browser, serve(ROOT_PARTS_PAGE))
+    resized(page, 800, 500)
+    tabs = page.locator("#root-parts")
+    tabs.get_by_role("tab", name="Plan", exact=True).focus()
+    page.keyboard.press("End")
+    last = tabs.get_by_role("tab", name="Summary", exact=True)
+    expect(last).to_be_focused()
+    scroll_settled(page)
+    row = page.locator(".lf-fp-row").bounding_box()
+    box = last.bounding_box()
+    assert box["x"] < row["x"] + row["width"], (box, row)
+    assert box["y"] + box["height"] <= row["y"], (box, row)
+
+
 def test_a_phone_keeps_the_list_of_parts_in_reach_and_each_part_s_place(browser, serve):
     """On a phone the list of parts is a row over the open part, and it sticks there as
     page tabs' strip does: the reader reaches another part from deep in this one, the

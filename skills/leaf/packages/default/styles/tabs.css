@@ -776,8 +776,9 @@
    * holds more names than the window's height leaves under the title, a height it holds
    * on purpose (`--lf-holds-height`), as a sticking block does. It reaches the window's
    * foot, as the open part does (layouts.css), and keeps the foot's room inside its
-   * scroll, so its last name scrolls clear of the floating panel's row where a narrow
-   * window puts the row over the column. On a phone it is
+   * scroll and its landing band, as the root does, so its last name scrolls and lands
+   * clear of the floating panel's row where a narrow window puts the row over the
+   * column. On a phone it is
    * a row sticking over the part, scrolled sideways. Placed anywhere else, as when the corpus
    * embeds a page of parts, the list is a strip's row over the open part.
    *
@@ -813,6 +814,7 @@
       --lf-tabstrip-flow: column;
       gap: 0;
       padding: var(--sp-4) 8px calc(var(--sp-4) + var(--lf-foot-room));
+      scroll-padding-block-end: var(--lf-foot-room);
       overflow-x: hidden;
       overflow-y: auto;
       --lf-holds-height: 1;

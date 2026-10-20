@@ -2059,6 +2059,7 @@
       --lf-tabstrip-flow: column;
       gap: 0;
       padding: var(--sp-4) 8px calc(var(--sp-4) + var(--lf-foot-room));
+      scroll-padding-block-end: var(--lf-foot-room);
       overflow-x: hidden;
       overflow-y: auto;
       --lf-holds-height: 1;

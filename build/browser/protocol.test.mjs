@@ -191,8 +191,9 @@ test("a keyword the comparison can't read fails loudly", () => {
     () => changed((s) => (note(s).slug.contentEncoding = "base64")),
     /can't read "contentEncoding"/,
   );
+  const pair = (field) => ({ prefixItems: [{ properties: { [field]: {} } }] });
   assert.throws(
-    () => changed((s) => (note(s).pair = { prefixItems: [{ properties: { x: {} } }] })),
+    () => changed((s) => (note(s).pair = pair("x"))),
     /can't read fields inside `prefixItems`/,
   );
 });

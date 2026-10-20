@@ -90,6 +90,33 @@ function fields(schema, path = "", found = new Set()) {
   return found;
 }
 
+/** Refuse what the comparison can't read: a keyword it doesn't know, or a field inside
+ * `prefixItems`, so a field's path names no tuple position. */
+function readable(schema) {
+  if (typeof schema !== "object") return;
+  for (const key of Object.keys(schema))
+    if (!KEYWORDS.has(key)) throw new Error(`The protocol check can't read "${key}"`);
+  for (const item of schema.prefixItems ?? [])
+    if (fields(item).size)
+      throw new Error("The protocol check can't read fields inside `prefixItems`");
+  const nested = [
+    Object.values(schema.properties ?? {}),
+    Object.values(schema.dependentSchemas ?? {}),
+    schema.anyOf,
+    schema.oneOf,
+    schema.allOf,
+    schema.prefixItems,
+    schema.items,
+    schema.not,
+    schema.if,
+    schema.then,
+    schema.else,
+    schema.additionalProperties,
+    schema.unevaluatedProperties,
+  ];
+  for (const child of nested.flat()) readable(child);
+}
+
 /** Each change from `old` to `now` the consuming side refuses, as `[path, message]`.
  * `side.newConsumes` says whether the new schema takes the old one's values or the
  * reverse, `side.validates` whether the consumer is the browser door, and
@@ -102,8 +129,6 @@ function diff(old, now, path, side) {
   const [consumer, producer] = side.newConsumes ? [now, old] : [old, now];
   if (producer === false) return [];
   if (consumer === false) return [[path, `${show(old)} → ${show(now)}`]];
-  for (const key of [...Object.keys(old), ...Object.keys(now)])
-    if (!KEYWORDS.has(key)) throw new Error(`The protocol check can't read "${key}"`);
   // A union on one side only is a union of one on the other.
   const union = (schema) => schema.anyOf ?? schema.oneOf;
   if (Boolean(union(old)) !== Boolean(union(now)))
@@ -188,12 +213,8 @@ function diff(old, now, path, side) {
   else if ([old, now].some((s) => typeof others(s) === "object"))
     nested(".*", unnamed(old), unnamed(now));
 
-  // A position past `prefixItems` holds what `items` allows. A tuple's positions hold
-  // values, not fields, which keeps a field's path free of positions.
+  // A position past `prefixItems` holds what `items` allows.
   const at = (schema, index) => schema.prefixItems?.[index] ?? schema.items ?? true;
-  for (const item of [...(old.prefixItems ?? []), ...(now.prefixItems ?? [])])
-    if (fields(item).size)
-      throw new Error("The protocol check can't read fields inside `prefixItems`");
   const positions = Math.max(
     old.prefixItems?.length ?? 0,
     now.prefixItems?.length ?? 0,
@@ -240,8 +261,11 @@ const READ = { newConsumes: true, validates: false };
  * `protocolSchemas` readings. */
 export function protocolBreaks(baseline, current) {
   const found = [];
-  const compare = (where, old, now, ...sides) =>
+  const compare = (where, old, now, ...sides) => {
+    readable(old);
+    readable(now);
     found.push(...sides.flatMap((side) => diff(old, now, where, side)));
+  };
   if (baseline.protocol === current.protocol) {
     const [kinds, now] = [baseline.events.kinds, current.events.kinds];
     for (const kind of new Set([...Object.keys(kinds), ...Object.keys(now)])) {

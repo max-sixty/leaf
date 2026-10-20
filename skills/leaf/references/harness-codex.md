@@ -60,10 +60,10 @@ checks the reply and posts it at once, and your final message then posts nothing
 Leaf may title an untitled thread from your opening message, and that title stays.
 
 If the user resolves the thread before the turn completes, the reserved reply still
-posts and reopens it. Before finishing a turn that changed `index.html`, run
-`leaf page check <page>` and fix every error. If Leaf refuses to post your final
-message, it starts a correction turn with the error and the same reply address;
-fix the problem and complete the answer.
+posts and reopens it. Your final message publishes your saved page edits with it,
+so end the turn without running `leaf page check` first. If Leaf refuses to post it,
+as it does over a saved edit with errors, it starts a correction turn with the error
+and the same reply address; fix the problem and complete the answer.
 
 A hook or queued pointer can carry an `"agent"` reply even in a task connected to
 App Server. The supplied writer determines the reply route for that delivery.

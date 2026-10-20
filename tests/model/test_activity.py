@@ -442,7 +442,15 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         "condition": None,
         "response": None,
     }
-    reply = {"state": "partial", "session": "session-1", "responds": "input-1"}
+    reply = {
+        "state": "partial",
+        "session": "session-1",
+        "responds": "input-1",
+        "turn": "turn-1",
+        "attempt": "reply-attempt",
+        "settles": False,
+        "updated_at": now.isoformat(),
+    }
     owed = obligations_model.update_obligation(
         "input-1",
         {"kind": "thread", "id": "input-1"},

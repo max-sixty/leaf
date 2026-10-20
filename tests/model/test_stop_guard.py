@@ -83,11 +83,8 @@ def test_a_completed_stream_answers_its_event_even_when_the_reply_address_differ
         "response": {
             "state": "active",
             "settles": True,
-            "has_text": True,
-            "session": "codex-thread",
+            "attempt": "leaf-delivery-1",
             "turn": "leaf-turn",
-            "parent": "widget-owner-thread",
-            "responds": "widget-action",
         },
     }
 

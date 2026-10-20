@@ -58,11 +58,11 @@ def canonical_stream_reply(
     if reply is None:
         return None
     result = dict(reply)
-    if result.get("state") == "active" and (
-        result.get("session") != present.get("claim_session")
+    if result["state"] == "active" and (
+        result["session"] != present.get("claim_session")
         or not present["listening"]
         or _quiet(
-            result.get("updated_at") or result.get("ts"),
+            result["updated_at"],
             datetime.fromisoformat(now_iso),
             WORKING_GRACE,
         )
@@ -73,13 +73,7 @@ def canonical_stream_reply(
 
 def _reply_evidence(reply: dict) -> dict:
     """Keep response settlement evidence in activity without duplicating its text."""
-    return {
-        key: reply.get(key)
-        for key in ("state", "session", "turn", "parent", "responds", "settles")
-    } | {
-        **({"attempt": reply["attempt"]} if reply.get("attempt") else {}),
-        "has_text": bool(reply.get("text")),
-    }
+    return {key: reply[key] for key in ("state", "turn", "settles", "attempt")}
 
 
 def _receipt_bindings(workflows: list[dict], present: dict) -> dict[str, dict]:
@@ -103,10 +97,10 @@ def _bind_reply(workflows: list[dict], reply: dict | None) -> None:
 
     A durable response outranks it: a harness's failure reply has already answered
     the input, and the turn's leftover stream must not paint it as still replying."""
-    if reply is None or not reply.get("responds"):
+    if reply is None:
         return
     workflow = next(
-        (item for item in workflows if item.get("input") == reply["responds"]), None
+        (item for item in workflows if item["input"] == reply["responds"]), None
     )
     if workflow is None or workflow["stage"] == "answered":
         return
@@ -116,9 +110,9 @@ def _bind_reply(workflows: list[dict], reply: dict | None) -> None:
         {
             "kind": "replying",
             "detail": None,
-            "ts": reply.get("updated_at") or reply.get("ts"),
-            "session": reply.get("session"),
-            "turn": reply.get("turn"),
+            "ts": reply["updated_at"],
+            "session": reply["session"],
+            "turn": reply["turn"],
         }
     ]
     # `partial` is a turn that completed without a final answer: it ended with
@@ -128,7 +122,7 @@ def _bind_reply(workflows: list[dict], reply: dict | None) -> None:
         "interrupted": "interrupted",
         "failed": "failed",
         "partial": "ended",
-    }.get(reply.get("state"))
+    }.get(reply["state"])
     workflow["condition"] = (
         {"kind": condition, "operation": "response"} if condition else None
     )
@@ -212,13 +206,13 @@ def _turn_wrote(obligation: dict, state: dict) -> bool:
     client commits it once the turn ends, after the agent's last command. So the
     update is answered now when the turn's final message is complete, with text, in
     the reply draft bound to it."""
-    draft = obligation.get("response") or {}
+    draft = obligation["response"]
     return bool(
-        obligation["answer"].get("writer") == "turn"
-        and draft.get("state") == "active"
-        and draft.get("settles")
-        and draft.get("has_text")
-        and draft.get("turn") == state["claim_turn"]
+        draft
+        and obligation["answer"].get("writer") == "turn"
+        and draft["state"] == "active"
+        and draft["settles"]
+        and draft["turn"] == state["claim_turn"]
     )
 
 
@@ -589,10 +583,8 @@ def canonical_activity(
     ]
     if stream and stream.get("kind") not in AWAITING_KINDS:
         lapses.append((_moment(stream.get("ts")), WORKING_GRACE))
-    if reply and reply.get("state") == "active":
-        lapses.append(
-            (_moment(reply.get("updated_at") or reply.get("ts")), WORKING_GRACE)
-        )
+    if reply and reply["state"] == "active":
+        lapses.append((_moment(reply["updated_at"]), WORKING_GRACE))
     deadlines = [
         moment + grace for moment, grace in lapses if moment and moment + grace > now
     ]
@@ -741,5 +733,4 @@ def canonical_activity(
             }
             for item in obligations
         ],
-        **({"reply": _reply_evidence(reply)} if reply is not None else {}),
     }

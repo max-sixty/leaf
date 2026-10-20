@@ -364,8 +364,7 @@
           "description": "The ids of the update records whose next actor is the agent: the answers it owes (`activity.canonical_activity`).",
           "type": "array",
           "items": { "type": "string" }
-        },
-        "reply": { "$ref": "#/$defs/ReplyEvidence" }
+        }
       },
       "required": [
         "kind",
@@ -399,24 +398,12 @@
       "description": "A provisional reply's settlement evidence, without its text (`activity._reply_evidence`).",
       "type": "object",
       "properties": {
-        "state": { "type": ["string", "null"] },
-        "session": { "type": ["string", "null"] },
-        "turn": { "type": ["string", "null"] },
-        "parent": { "type": ["string", "null"] },
-        "responds": { "type": ["string", "null"] },
-        "settles": { "type": ["boolean", "null"] },
-        "attempt": { "type": "string" },
-        "has_text": { "type": "boolean" }
+        "state": { "type": "string" },
+        "turn": { "type": "string" },
+        "settles": { "type": "boolean" },
+        "attempt": { "type": "string" }
       },
-      "required": [
-        "state",
-        "session",
-        "turn",
-        "parent",
-        "responds",
-        "settles",
-        "has_text"
-      ],
+      "required": ["state", "turn", "settles", "attempt"],
       "additionalProperties": false
     },
     "Workflow": {
@@ -486,10 +473,9 @@
               "properties": {
                 "id": { "type": "string" },
                 "attempt": { "type": ["string", "null"] },
-                "state": { "const": "failed" },
-                "responds": { "type": "string" }
+                "state": { "const": "failed" }
               },
-              "required": ["id", "attempt", "state", "responds"],
+              "required": ["id", "attempt", "state"],
               "additionalProperties": false
             },
             { "$ref": "#/$defs/ReplyEvidence" },

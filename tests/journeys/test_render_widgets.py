@@ -955,9 +955,6 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     page.mouse.move(1200, 700)
     expect(prepare).to_have_css("opacity", "0")
     page.evaluate(RELEASE_FOCUS)
-    # Twice: the layer's skip link is the document's first stop, and the map is what the
-    # page itself opens with.
-    page.keyboard.press("Tab")
     page.keyboard.press("Tab")
     expect(start).to_be_focused()
     expect(start).to_have_css("opacity", "1")

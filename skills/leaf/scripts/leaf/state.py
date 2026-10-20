@@ -616,24 +616,24 @@ def _session_paths(session_id: str) -> list[Path]:
 def _retire(session_id: str) -> None:
     """Remove what an ended session no longer needs, under its lock.
 
-    While a claim names the session, its pages read the lifecycle for the turn they
-    show, a resumed session's hooks read its reconnect notices
-    (`session-lifetime.md`, "Reconnect notices"), and only the observations that
-    end with it go. Once none does, nothing reads any of its files, and each goes
-    that no process holds a lock on, such as a wait lease of a watch still running:
-    a lease taker checks the name it locked (`leases.take_lease`), so none starts
-    on a file removed under it. Directories, such as a Codex task's delivery
-    records, are their owner's to retire. The session lock goes last, while it is
-    held, since a taker checks its name as well (`flocked`)."""
+    The lifecycle and its lock stay: a claim can name the session again after its
+    end, since a failed takeover restores the claim it replaced
+    (`service.restore_page_claim`), and that page shows the session's turn from the
+    lifecycle. While a claim names the session, a resumed session's hooks also read
+    its reconnect notices (`session-lifetime.md`, "Reconnect notices"), and only the
+    observations that end with it go. Once none does, each other file goes that no
+    process holds a lock on, such as a wait lease of a watch still running: a lease
+    taker checks the name it locked (`leases.take_lease`), so none starts on a file
+    removed under it. Directories, such as a Codex task's delivery records, are
+    their owner's to retire."""
     if holds_claims(session_id):
         for suffix in (HOOKS_SUFFIX, STEP_HOOK_SUFFIX, TITLES_SUFFIX):
             session_file(session_id, suffix).unlink(missing_ok=True)
         return
-    lock = session_file(session_id, "delivery.lock")
+    kept = {session_file(session_id, SESSION_SUFFIX), session_lock_path(session_id)}
     for path in _session_paths(session_id):
-        if path != lock and not path.is_dir():
+        if path not in kept and not path.is_dir():
             _unlink_unheld(path)
-    lock.unlink(missing_ok=True)
 
 
 def _unlink_unheld(path: Path) -> None:

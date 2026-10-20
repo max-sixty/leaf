@@ -130,15 +130,16 @@
               ></lf-atlas-worker>
               <lf-ask id="decision-dedupe-region">
                 <h3>What should the host do with the stalled work?</h3>
+                <p>
+                  I recommend restarting, which keeps the durable work and replaces the
+                  stalled process.
+                </p>
                 <lf-options id="decision-dedupe" choose>
                   <lf-option id="dedupe-restart">
+                    <small class="tag ok">recommended</small>
                     <strong>Restart with a fresh worker</strong> Preserve tree-w-5
                     (atlas/dedupe-attempt), its commits, and comments; reap w-5 and
                     start a new worker on it.
-                    <em
-                      >My take: keep the durable work and replace the stalled
-                      process.</em
-                    >
                   </lf-option>
                   <lf-option id="dedupe-park">
                     <strong>Park it for tomorrow</strong> Keep tree-w-5
@@ -160,11 +161,15 @@
               enough to wait for an explicit choice.
               <lf-ask id="decision-zero-region">
                 <h3>What should happen when a nightly imports zero rows?</h3>
+                <p>
+                  I recommend failing and paging, since zero rows is a failure until
+                  proved otherwise.
+                </p>
                 <lf-options id="decision-zero" choose>
                   <lf-option id="zero-alert" for="parser-zero">
+                    <small class="tag ok">recommended</small>
                     <strong>Fail and page</strong> Preserve the export and stop the
                     downstream publish.
-                    <em>My take: zero rows is a failure until proved otherwise.</em>
                   </lf-option>
                   <lf-option id="zero-warn" for="parser-zero">
                     <strong>Warn and continue</strong> Record the empty import but
@@ -202,12 +207,13 @@
               ></lf-atlas-worker>
               <lf-ask id="decision-schema-region">
                 <h3>What should the host do with the schema branch?</h3>
+                <p>I recommend landing it now, while the evidence is current.</p>
                 <lf-options id="decision-schema" choose>
                   <lf-option id="schema-land">
+                    <small class="tag ok">recommended</small>
                     <strong>Land it now</strong> Merge tree-w-8 (atlas/schema) from w-8.
                     Tests are green, it unblocks the dependent work, and shadow reads
                     begin before anything depends on it.
-                    <em>My take: land while the evidence is current.</em>
                   </lf-option>
                   <lf-option id="schema-hold">
                     <strong>Hold for the backfill</strong> Keep tree-w-8 (atlas/schema)
@@ -277,11 +283,12 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
               ></lf-atlas-worker>
               <lf-ask id="decision-api-region">
                 <h3>What should the host do with atlas/public-api?</h3>
+                <p>I recommend landing it, since the public contract is ready.</p>
                 <lf-options id="decision-api" choose>
                   <lf-option id="api-land">
+                    <small class="tag ok">recommended</small>
                     <strong>Land</strong> Merge tree-w-3 (atlas/public-api) from w-3.
                     The compatibility suite is green.
-                    <em>My take: the public contract is ready.</em>
                   </lf-option>
                   <lf-option id="api-revise">
                     <strong>Request changes</strong> Restate this card and start a fresh

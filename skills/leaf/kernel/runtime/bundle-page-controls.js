@@ -40,8 +40,7 @@ var PAGE_CONTROL_RANK = Object.freeze({
   versions: 90,
   keyboard: 95,
   // The next steps in the mode or picker the user stands in, and its way out.
-  steps: 120,
-  commentSelection: 130
+  steps: 120
 });
 var GROUPS = Object.freeze(["page", "navigate", "annotate", "about", "keys"]);
 var rows = /* @__PURE__ */ new Map();
@@ -58,11 +57,7 @@ function registerPageControl(row) {
   pageControlsChanged();
 }
 function pageControls() {
-  const offered = [...rows.values()].sort((a, b) => a.rank - b.rank || a.sequence - b.sequence).filter((row) => read(row.offered) ?? true);
-  const nearest = Math.max(
-    ...offered.filter((row) => row.gesture).map((row) => row.rank)
-  );
-  return offered.filter((row) => !row.gesture || row.rank === nearest).map((row) => {
+  return [...rows.values()].sort((a, b) => a.rank - b.rank || a.sequence - b.sequence).filter((row) => read(row.offered) ?? true).map((row) => {
     const group = read(row.group);
     if (!GROUPS.includes(group))
       throw new TypeError(

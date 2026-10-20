@@ -13,11 +13,10 @@
  * view of the panel's own, such as Threads, has no press: the panel opens the view.
  *
  * A `gesture` row is the next step of something the user is doing right now, such as
- * commenting on the words a touch just selected, or selecting a search's match. It
- * stands in the panel's row while that gesture holds it, and the higher rank is the
- * nearer gesture: one contributor's steps stand at a time. An `exit` row is the way out
- * of the stance the user stands in (keyboard/touch-controls.js), which stands at the
- * row's end beside whatever else does.
+ * selecting a search's match or undoing a stroke in Draw mode, which the innermost
+ * active scope supplies (keyboard/touch-controls.js). It stands in the panel's row while
+ * that gesture holds it. An `exit` row is the way out of the stance the user stands in,
+ * which stands at the row's end beside whatever else does.
  *
  * Each field may be a value or a function read when the rows are read, so a paint that
  * reads them through `watchProjection` (projection-watch.js) follows what they read.
@@ -44,7 +43,6 @@ export const PAGE_CONTROL_RANK = Object.freeze({
   keyboard: 95,
   // The next steps in the mode or picker the user stands in, and its way out.
   steps: 120,
-  commentSelection: 130,
 });
 
 // What a row is about, which decides where a menu built from rows puts it: on the menu
@@ -89,17 +87,11 @@ export function registerPageControl(row) {
   pageControlsChanged();
 }
 
-/** The rows offered now, in rank order, each read as it reads now. Of the gesture rows,
- * only the nearest gesture's stand. */
+/** The rows offered now, in rank order, each read as it reads now. */
 export function pageControls() {
-  const offered = [...rows.values()]
+  return [...rows.values()]
     .sort((a, b) => a.rank - b.rank || a.sequence - b.sequence)
-    .filter((row) => read(row.offered) ?? true);
-  const nearest = Math.max(
-    ...offered.filter((row) => row.gesture).map((row) => row.rank),
-  );
-  return offered
-    .filter((row) => !row.gesture || row.rank === nearest)
+    .filter((row) => read(row.offered) ?? true)
     .map((row) => {
       const group = read(row.group);
       if (!GROUPS.includes(group))

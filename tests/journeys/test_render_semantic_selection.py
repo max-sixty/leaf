@@ -1,5 +1,7 @@
 """Keyboard semantic-selection browser journeys."""
 
+import re
+
 import pytest
 from leaf import event_log as events_model
 from playwright.sync_api import expect
@@ -12,6 +14,8 @@ from render_harness import (
     expect_panel_offers,
     open_page,
     panel_control,
+    panel_field,
+    selection_field,
     sending,
     write,
 )
@@ -23,8 +27,9 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     """Undo, Draw mode, Design mode and search have no key under a finger, so the leaf's
     menu holds each, read off the command's own row. What a finger does inside one
     stands as a step in the panel's row, in the marks' place, while it holds, and the
-    way out of each is one ✕ at the row's end. Design mode leaves Leaf's own chrome
-    working, that ✕ included."""
+    way out of each is one ✕ at the row's end. Words a finger selects, in a mode too,
+    are quoted in the panel's field, a tap on which comments on them. Design mode
+    leaves Leaf's own chrome working, that ✕ included."""
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
     )
@@ -102,23 +107,32 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     # A finger does not hover, so no name stays where the last tap was.
     expect(page.locator(".lf-inspect")).to_be_hidden()
 
-    # Prose still selects in Design mode. The selection's step stands on the narrowest
-    # phone row beside the mode's way out until the words are let go, and the row holds
-    # both whole.
+    # Prose still selects in Design mode. On the narrowest phone row the panel's field
+    # quotes the words in the mode's name's place, beside the mode's way out, until the
+    # words are let go, and a tap on it comments on them.
     page.set_viewport_size({"width": 320, "height": 700})
+    field = panel_field(page)
     page.locator("#h").evaluate("el => getSelection().selectAllChildren(el)")
-    comment = step("Comment on selection")
-    expect(comment).to_be_visible()
+    comment = selection_field(page)
+    expect(comment).to_have_attribute("placeholder", re.compile("^“"))
     expect(exit_design).to_be_visible()
     assert row.evaluate("el => el.scrollWidth <= el.clientWidth"), (
-        "the selection's step overflows a 320px row"
+        "the selection's field overflows a 320px row"
     )
     page.evaluate("getSelection().removeAllRanges()")
     expect(comment).to_have_count(0)
+    expect(field).to_have_attribute("placeholder", re.compile("^In Design mode"))
     expect(exit_design).to_be_visible()
     assert row.evaluate("el => el.scrollWidth <= el.clientWidth"), (
         "the mode's way out overflows a 320px row"
     )
+    page.locator("#h").evaluate("el => getSelection().selectAllChildren(el)")
+    comment.tap()
+    composer = page.locator(".lf-fab-input")
+    expect(composer).to_be_focused()
+    expect(exit_design).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(composer).to_be_hidden()
     exit_design.tap()
     expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
 
@@ -138,13 +152,13 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     next_match.tap()
     expect(page.locator(".lf-live")).to_contain_text("Match 2 of 3")
     expect(box).to_be_focused()
-    # A press on the marked match takes it as the selection, whose own step then stands
-    # on the row.
+    # A press on the marked match takes it as the selection, which the panel's field
+    # then quotes.
     mark = page.locator(".lf-page-search-match").first.bounding_box()
     page.touchscreen.tap(mark["x"] + mark["width"] / 2, mark["y"] + mark["height"] / 2)
     expect(box).to_be_hidden()
     expect(next_match).to_be_hidden()
-    expect(comment).to_be_visible()
+    expect(comment).to_have_attribute("placeholder", "“mounts”")
     assert page.evaluate("getSelection().toString()") == "mounts"
     page.evaluate("getSelection().removeAllRanges()")
     expect(comment).to_be_hidden()

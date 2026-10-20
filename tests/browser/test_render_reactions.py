@@ -47,6 +47,7 @@ from render_harness import (
     round_trip,
     scroll_settled,
     select,
+    selection_field,
     sending,
     suggestion_control,
     told,
@@ -2010,18 +2011,18 @@ def test_a_selection_change_offers_a_visual_target_without_replacing_an_open_com
             }"""
         )
     bar = page.locator(".lf-fab-bar")
-    expect(page.get_by_role("button", name="Comment on selection")).to_be_visible()
+    expect(selection_field(page)).to_be_visible()
     expect(bar).to_have_attribute("aria-label", re.compile("Start request"))
     expect(bar).to_be_visible()
 
     page.evaluate(
         "() => { document.activeElement.blur(); getSelection().removeAllRanges(); }"
     )
-    expect(page.get_by_role("button", name="Comment on selection")).to_be_hidden()
+    expect(selection_field(page)).to_be_hidden()
     expect(bar).to_be_visible()
 
     page.locator("h1").select_text()
-    page.get_by_role("button", name="Comment on selection").click()
+    selection_field(page).click()
     expect(bar).to_have_attribute("aria-label", re.compile("Request path"))
     expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
 

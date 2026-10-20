@@ -286,13 +286,19 @@ def test_a_transient_margin_entry_label_avoids_the_next_margin_entry(browser, se
 
 def test_a_finger_holding_a_margin_entry_reads_its_label_above_it(browser, serve):
     """A margin entry's label and status show to a resting pointer and the keyboard,
-    and a finger holds the entry to read them. The label stands above the entry,
-    clear of the finger, while the press lasts, and an action's release still presses
-    it. After the release the label is the platform's: a phone keeps the tapped entry
-    hovered, so its label may stay until the next tap elsewhere."""
+    and a finger holds the entry to read them, with whatever else its title says. The
+    label stands clear of the finger, above the entry or else beside it, while the
+    press lasts, and a row arriving meanwhile doesn't move it. An
+    action's release presses it once, and the browser's own click after it reaches
+    nothing the press put under the finger. After the release the label is the
+    platform's: a phone keeps the tapped entry hovered, so its label may stay until the
+    next tap elsewhere."""
     lead = "<p>Text before the target, so the label has room above it.</p>" * 4
     url = serve(
-        leaf_page("Held margin labels", f'{lead}<p id="target">Read this target.</p>')
+        leaf_page(
+            "Held margin labels",
+            f'{lead}<p id="before">Just before.</p><p id="target">Read this target.</p>',
+        )
     )
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
@@ -307,12 +313,20 @@ def test_a_finger_holding_a_margin_entry_reads_its_label_above_it(browser, serve
             read: () => ({entries: [
               contributionEntry({key: 'sent', behavior: 'status', icon: 'sent',
                 label: 'Sent', context: '2m ago'}),
-              contributionEntry({key: 'act', icon: 'dot', label: 'Act on it'}),
-            ]}), activate: (key) => window.pressed.push(key)});
+              contributionEntry({key: 'act', icon: 'dot', label: 'Act on it',
+                title: 'Acts at once'}),
+            ]}), activate: (key) => {
+              window.pressed.push(key);
+              // What the press opens lands under the finger.
+              const beneath = document.createElement('button');
+              beneath.style = 'position: fixed; inset: 0; z-index: 2147483647';
+              beneath.onclick = () => window.pressed.push('beneath');
+              document.body.append(beneath);
+            }});
         }"""
     )
     cdp = context.new_cdp_session(page)
-    for name, words in (("Sent", "Sent2m ago"), ("Act on it", "Act on it")):
+    for name, words in (("Sent", "Sent2m ago"), ("Act on it", "Act on itActs at once")):
         entry = page.locator(".lf-margin-entry").filter(has_text=name)
         expect(entry).to_be_visible()
         label = entry.locator(":scope > .lf-margin-entry-label")
@@ -324,11 +338,37 @@ def test_a_finger_holding_a_margin_entry_reads_its_label_above_it(browser, serve
         )
         expect(label).to_be_visible()
         expect(label).to_have_text(words)
-        expect(entry).to_have_attribute("data-lf-label-side", "above")
+        expect(entry).to_have_attribute(
+            "data-lf-label-side",
+            "above" if name == "Sent" else re.compile("above|before"),
+        )
         held = label.bounding_box()
-        assert held["y"] + held["height"] <= box["y"], (held, box)
+        # Clear of the finger: wholly above the entry, or wholly left of it.
+        assert (
+            held["y"] + held["height"] <= box["y"]
+            or held["x"] + held["width"] <= box["x"]
+        ), (held, box)
+        if name == "Sent":
+            # A row arriving beside the held one leaves the label where it is.
+            page.evaluate(
+                """async () => {
+                  const {contributionEntry, registerContribution} =
+                    await window.__lfWidgetApi();
+                  registerContribution({key: 'arriving',
+                    target: document.getElementById('before'),
+                    read: () => ({entries: [contributionEntry({key: 'note',
+                      icon: 'dot', label: 'Arrived'})]}), activate: () => {}});
+                }"""
+            )
+            expect(
+                page.locator(".lf-margin-entry").filter(has_text="Arrived")
+            ).to_be_visible()
+            rendered(page)
+            expect(entry).to_have_attribute("data-lf-label-side", "above")
+            assert label.bounding_box() == held
         cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
         expect(entry).not_to_have_attribute("data-lf-held-word", "")
+    rendered(page)
     assert page.evaluate("window.pressed") == ["act"]
 
 

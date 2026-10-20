@@ -7,7 +7,7 @@ import { iconElement } from "./icons.js";
 import { HOLDS_WORD } from "./held-word.js";
 import { progressFace, workflowLabel } from "./thread/workflow.js";
 import { elementDirective, offer } from "./widget-elements.js";
-import { keeps } from "./keeps.js";
+import { keeps, keepsText } from "./keeps.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { focusDestination } from "./focus.js";
 import { agentArrivalDuration, reducedMotion } from "./motion.js";
@@ -193,8 +193,20 @@ function paintAgentDescription(control) {
   if (!reading) {
     control.removeAttribute("aria-description");
     control.removeAttribute("title");
+    paintLabelMore(control, null);
     return;
   }
+  const record = records.get(control);
+  // What the title says beyond the label, which a margin entry's label says too, so a
+  // finger holding the entry reads all of it.
+  const more = [
+    reading.title !== record?.label && reading.title,
+    reading.stage && reading.word,
+    reading.stage && reading.detail,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  paintLabelMore(control, more);
   if (!reading.stage) {
     for (const [attribute, value] of [
       ["aria-description", reading.description],
@@ -205,7 +217,6 @@ function paintAgentDescription(control) {
     return;
   }
   const work = [reading.word, reading.detail].filter(Boolean).join(" · ");
-  const record = records.get(control);
   keeps(
     control,
     "aria-description",
@@ -222,6 +233,13 @@ function paintAgentDescription(control) {
       .filter(Boolean)
       .join(" · "),
   );
+}
+
+function paintLabelMore(control, more) {
+  const line = control.querySelector(
+    ":scope > .lf-margin-entry-label > .lf-margin-entry-more",
+  );
+  if (line) keepsText(line, more ?? "");
 }
 
 function syncAgentDescriptionBase(control, description, title) {
@@ -406,7 +424,7 @@ export function presentContributionEntry(control, offered, options = {}) {
           record.context
             ? html`<span class="lf-margin-entry-context">${record.context}</span>`
             : null
-        }</span
+        }<span class="lf-margin-entry-more"></span></span
       >${
         record.count > 1
           ? html`<span class="lf-margin-count" aria-hidden="true"
@@ -416,6 +434,7 @@ export function presentContributionEntry(control, offered, options = {}) {
       }`,
     control,
   );
+  paintAgentDescription(control);
   return control;
 }
 

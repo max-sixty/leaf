@@ -17,7 +17,9 @@
    The release presses by dispatching the control's click, counted as the pointer's
    (surfaces read the count to tell a pointer from the keyboard), and the browser's own
    click after it is swallowed: a finger held long enough to read may get none, so the
-   release, not the click, is the commit. A keyboard press carries no count and passes
+   release, not the click, is the commit. The swallowed click is the next pointer click
+   wherever it lands, since the press may have put something else under the finger,
+   such as the thread a margin entry opens. A keyboard press carries no count and passes
    untouched; the keyboard reads a word by focusing its control, which paints the same.
    Touch capture is released at the press so the slide is heard over each control. A
    finger that starts scrolling instead ends the press with `pointercancel`, which
@@ -106,13 +108,7 @@ export function holdToRead() {
   document.addEventListener(
     "click",
     (event) => {
-      if (
-        !released ||
-        !event.isTrusted ||
-        pressIsKeyboardActivation(event) ||
-        !holderIn(event)
-      )
-        return;
+      if (!released || !event.isTrusted || pressIsKeyboardActivation(event)) return;
       released = null;
       event.preventDefault();
       event.stopImmediatePropagation();

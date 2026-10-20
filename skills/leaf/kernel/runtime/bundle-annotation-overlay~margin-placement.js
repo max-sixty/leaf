@@ -225,7 +225,7 @@ function watchGeometry(geometry) {
 }
 var GAP = 4;
 var THREAD_CARD = "lf-margin-preview";
-var HELD = `:hover, :focus-within, [data-lf-options-expanded], :has([aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
+var HELD = `:hover, :focus-within, :has([data-lf-held-word]), [data-lf-options-expanded], :has([aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
 var pending = 0;
 var observer = null;
 var observedColumn = null;
@@ -389,18 +389,13 @@ function placeMarginEntryLabel(control) {
   const clusterLeft = Math.min(...clusterMarginEntries.map((box) => box.left));
   const clusterRight = Math.max(...clusterMarginEntries.map((box) => box.right));
   const centered = (marginEntryBox.top + marginEntryBox.bottom - labelBox.height) / 2;
-  const below = labelRect("below", edgeAligned, marginEntryBox.bottom + 6, labelBox);
-  const above = labelRect(
-    "above",
-    edgeAligned,
-    marginEntryBox.top - 6 - labelBox.height,
-    labelBox
-  );
-  const candidates = [
-    ...coarsePointer.matches ? [above, below] : [below, above],
+  const [below, above, after, before] = [
+    labelRect("below", edgeAligned, marginEntryBox.bottom + 6, labelBox),
+    labelRect("above", edgeAligned, marginEntryBox.top - 6 - labelBox.height, labelBox),
     labelRect("after", clusterRight + 6, centered, labelBox),
     labelRect("before", clusterLeft - 6 - labelBox.width, centered, labelBox)
   ];
+  const candidates = coarsePointer.matches ? [above, before, after, below] : [below, above, after, before];
   const blockers = [
     ...document.querySelectorAll(".lf-margin-projection .lf-margin-entry")
   ].filter((candidate) => candidate !== control && candidate.checkVisibility()).map((candidate) => candidate.getBoundingClientRect());

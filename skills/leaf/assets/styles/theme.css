@@ -2143,7 +2143,8 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
     visibility 0s linear 90ms;
 }
 .lf-margin-entry-label-word,
-.lf-margin-entry-context {
+.lf-margin-entry-context,
+.lf-margin-entry-more {
   display: block;
 }
 /* The label is one line, cut where the tooltip's width runs out: most are a kind's
@@ -2153,12 +2154,17 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.lf-margin-entry-context {
+.lf-margin-entry-context,
+.lf-margin-entry-more {
   margin-block-start: 2px;
   color: color-mix(in srgb, var(--paper) 72%, transparent);
   font-size: 10px;
   line-height: 1.25;
   font-weight: 450;
+}
+/* What the entry's title says beyond the label, such as an agent's work on it. */
+.lf-margin-entry-more:empty {
+  display: none;
 }
 /* Inline controls keep their native label. Physical margin controls take the
    geometry owner's placement, whose readiness gates their first visible paint. */

@@ -140,14 +140,15 @@ const GAP = 4;
 // The id of the thread card a margin row opens (thread-preview.js).
 export const THREAD_CARD = "lf-margin-preview";
 // A row the user holds, which packing seats before every other (`packRows`): one under
-// the pointer, with focus in it, with its options open, or whose entry has the thread
+// the pointer, with focus in it, with an entry a finger holds to read (held-word.js),
+// with its options open, or whose entry has the thread
 // card open, as that entry's disclosure relation says (margin-projection.js,
 // `syncReadingRelation`). Opening options can move focus before the next layout pass;
 // the open face itself keeps its controls reachable. The card stands relative to its
 // row (thread-preview.js), so a seated row whose target moves into it would
 // otherwise push the row down and the card the user is reading with it.
 // `optionsOpen` includes ordinary inline peers; only a requested expansion holds a seat.
-const HELD = `:hover, :focus-within, [data-lf-options-expanded], :has([aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
+const HELD = `:hover, :focus-within, :has([data-lf-held-word]), [data-lf-options-expanded], :has([aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
 let pending = 0;
 let observer = null;
 let observedColumn = null;
@@ -400,19 +401,16 @@ function placeMarginEntryLabel(control) {
   const clusterLeft = Math.min(...clusterMarginEntries.map((box) => box.left));
   const clusterRight = Math.max(...clusterMarginEntries.map((box) => box.right));
   const centered = (marginEntryBox.top + marginEntryBox.bottom - labelBox.height) / 2;
-  const below = labelRect("below", edgeAligned, marginEntryBox.bottom + 6, labelBox);
-  const above = labelRect(
-    "above",
-    edgeAligned,
-    marginEntryBox.top - 6 - labelBox.height,
-    labelBox,
-  );
-  // A finger holding the entry to read its label covers what lies below it.
-  const candidates = [
-    ...(coarsePointer.matches ? [above, below] : [below, above]),
+  const [below, above, after, before] = [
+    labelRect("below", edgeAligned, marginEntryBox.bottom + 6, labelBox),
+    labelRect("above", edgeAligned, marginEntryBox.top - 6 - labelBox.height, labelBox),
     labelRect("after", clusterRight + 6, centered, labelBox),
     labelRect("before", clusterLeft - 6 - labelBox.width, centered, labelBox),
   ];
+  // A finger holding the entry to read its label covers what lies below it.
+  const candidates = coarsePointer.matches
+    ? [above, before, after, below]
+    : [below, above, after, before];
   const blockers = [
     ...document.querySelectorAll(".lf-margin-projection .lf-margin-entry"),
   ]

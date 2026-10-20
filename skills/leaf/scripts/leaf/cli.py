@@ -1186,7 +1186,9 @@ def thread_reply(dir: str, thread: str, **options) -> dict | None:
     """
     from leaf.thread import post_reply
 
-    return post_reply(resolve_dir(dir), {"to": thread}, validate_source=True, **options)
+    return post_reply(
+        resolve_dir(dir), {"parent": thread}, validate_source=True, **options
+    )
 
 
 @thread.command("edit", short_help="Edit a message's text, or its thread's title.")

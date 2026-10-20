@@ -207,7 +207,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     assert (
         post_reply(
             page_dir,
-            {"to": comment["id"], "for": comment["id"]},
+            {"parent": comment["id"], "responds": comment["id"]},
             "deployment verified",
             settlement=ProviderFinal("test-final"),
             attempt=answer["attempt"],

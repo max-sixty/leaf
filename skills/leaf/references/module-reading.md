@@ -51,16 +51,20 @@ message's markup first and then in the page, as the server does; a keyed contrac
 inside the widget's enclosing owner. Both helpers below throw for an undeclared
 attribute.
 
-`navigateToDatum(this, attribute, key, {success, missing})` takes the user to the first
+`navigateToDatum(this, attribute, key, {success, missing, focus})` takes the user to the first
 element `key` names in the referenced widget. The key is a visual part's id, a projected
 datum's key, or whatever the target's `lfElementsFor(key)` maps it to; `lf-code` takes
 line ranges, so `"3-5,8"` names those lines. Leaf has the target load or draw the datum,
-opens any disclosure around it, focuses it, updates the fragment, and announces
+opens any disclosure around it, reveals its start, focuses it, updates the fragment, and announces
 `success` or `missing`. A lazy target can implement `lfRevealDatum(key)`, returning a
 promise that resolves once the datum is loaded, `lfDataDatum(key)` to map a key to its
 projected element, and `lfDatumLabel(key)` to name a datum not yet drawn. Where your key
 is a source location rather than the datum's lasting identity, translate it and read
 `projectedDatum(widget, key)`, which returns the one matching element or `null`.
+
+Pass `focus: false` when the source remains the user's input surface, as a file
+navigator does while selecting evidence beside it. The destination is still revealed;
+the navigator keeps focus so the next arrow or activation continues there.
 
 #### Indicating (experimental)
 

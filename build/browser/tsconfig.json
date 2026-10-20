@@ -1,4 +1,5 @@
 {
+  "extends": "./tsconfig.paths.json",
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2022", "ES2023.Array", "ES2024.Promise", "DOM", "DOM.Iterable"],
@@ -11,24 +12,7 @@
     "exactOptionalPropertyTypes": true,
     "noEmit": true,
     "verbatimModuleSyntax": true,
-    "skipLibCheck": false,
-    "paths": {
-      "/vendor/browser-runtime.js": ["./index.ts"],
-      "/vendor/*": [
-        "../../skills/leaf/assets/vendor/*",
-        "../../skills/leaf/packages/default/vendor/*",
-        "../../skills/leaf/packages/diagram/vendor/*",
-        "../../skills/leaf/packages/diff/vendor/*",
-        "../../skills/leaf/packages/file-editor/vendor/*",
-        "../../skills/leaf/packages/playwright/vendor/*"
-      ],
-      "/widgets/*": [
-        "../../skills/leaf/assets/widgets/*",
-        "../../skills/leaf/packages/default/widgets/*"
-      ],
-      "/runtime/*": ["../../skills/leaf/assets/runtime/*"],
-      "/checks/*": ["../../skills/leaf/scripts/leaf/render-checks/*"]
-    }
+    "skipLibCheck": false
   },
   "include": ["*.ts", "../../skills/leaf/assets/runtime/**/*.js"]
 }

@@ -150,8 +150,9 @@ def test_folds_without_summary_prose_keep_corrected_originals():
 
 
 def test_ephemeral_updates_wait_for_an_answer_and_preserve_user_interjections():
-    """Only marked progress folds, including one-message runs split by the user, and
-    no progress is unread, pending or folded."""
+    """Only marked progress folds, a one-message run included, and no progress is
+    unread, pending or folded. Progress the user spoke after stays where it was said:
+    the answer folds only the run it follows."""
     identity = {"author": "agent", "agent": "Codex", "session": "session-1"}
     messages = (
         {"kind": "comment", "text": "Check the schedule."},
@@ -189,10 +190,7 @@ def test_ephemeral_updates_wait_for_an_answer_and_preserve_user_interjections():
     assert [
         (fold["covers"], fold["label"], fold["text"], fold["trigger"])
         for fold in completed["summaries"]
-    ] == [
-        (["e2"], "Previous progress messages", "", "e5"),
-        (["e4"], "Previous progress messages", "", "e5"),
-    ]
+    ] == [(["e4"], "Previous progress messages", "", "e5")]
     assert [message["text"] for message in completed["msgs"]] == [
         "Check the schedule.",
         "Checking mounts.",

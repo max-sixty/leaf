@@ -377,8 +377,12 @@ SESSION = Record(
             # What keeps the session alive (`Harness.lifetime`).
             "lifetime": {"type": "object"},
         },
-        # The native chat a desktop Codex lifetime stands on (`chat_exists`).
-        {"transcript_path": STRING},
+        {
+            # The native chat a desktop Codex lifetime stands on (`chat_exists`).
+            "transcript_path": STRING,
+            # The developer-selected delivery runtime (`session_runtime`).
+            "launcher": STRING,
+        },
     ),
     since=13,
 )
@@ -528,8 +532,8 @@ def start_session_turn(
         ):
             return None
         if current != expected:
-            # The provider may run its synchronous prompt hook before replying
-            # to turn/start. That exact publication is the successful adoption,
+            # The provider may run its synchronous prompt hook before Leaf reads
+            # the turn's start. That exact publication is the successful adoption,
             # not a competing turn; no identity or revision is rewritten here.
             if (
                 current

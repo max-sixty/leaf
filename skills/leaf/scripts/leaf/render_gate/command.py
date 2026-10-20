@@ -15,7 +15,6 @@ from .browser import (
     DriverNotStarted,
     browser_hint,
     driver_hint,
-    ending,
     launch_browser,
     playwright_driver,
 )
@@ -58,7 +57,7 @@ def _launch(read):
                     f"no browser launched: {str(error).strip().splitlines()[0]}. "
                     f"{browser_hint()}"
                 )
-            with ending(browser):
+            with browser:
                 return read(browser), browser_name
     except DriverNotStarted as error:
         return f"Playwright's driver did not start: {error}. {driver_hint()}"

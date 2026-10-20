@@ -37,6 +37,11 @@
        quote's and each message's, so all three start on one edge. What marks them
        off, the quote's rule and a rewrite's frame, stands at the padding. */
     --lf-fp-inset: 8px;
+    /* The page's words in the panel, an On me question's and a thread's messages,
+       rewrites included: the page's serif, a step above the panel's own sans, on a
+       whole-pixel line, so a fold opening over several lines moves nothing by a
+       fraction. */
+    --lf-fp-words: 15px / 22px var(--serif);
     /* The panel is as wide as its measure (`--lf-fp-max`, wider while the field has
        more room) where the window holds it, and the window less a gutter where not. */
     --lf-fp-max: 540px;
@@ -1360,7 +1365,7 @@
   }
   .lf-fp-prompt {
     margin: 0;
-    font: 15px / 1.45 var(--serif);
+    font: var(--lf-fp-words);
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 4;
@@ -1407,6 +1412,10 @@
   .lf-fp-messages > .lf-primary-part {
     --lf-thread-text-inset: var(--lf-fp-inset);
     padding-inline-start: 0;
+  }
+  /* The working line is drawn as a message is, so it takes the messages' face. */
+  .lf-fp-messages :is(.lf-msg-body, .lf-thread-working-words) {
+    font: var(--lf-fp-words);
   }
   /* A rewrite in a thread's view is the reply box of the field below it, at the field's
      height, frame included: its words keep the message's face, set in the field's

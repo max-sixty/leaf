@@ -383,16 +383,16 @@ summary {
   font: 600 11px/1.4 var(--sans);
   cursor: pointer;
 }
-.lf-msg-head:has(> .lf-summary-expand) {
+:is(.lf-msg-head, .lf-thread-working-head):has(> .lf-summary-expand) {
   flex-wrap: wrap;
   overflow: visible;
   white-space: normal;
   row-gap: 0;
 }
-.lf-msg-head > .lf-thread-disclosure {
+:is(.lf-msg-head, .lf-thread-working-head) > .lf-thread-disclosure {
   padding-block: 0;
 }
-.lf-msg-head > .lf-progress-expand {
+:is(.lf-msg-head, .lf-thread-working-head) > .lf-progress-expand {
   margin-inline-start: auto;
 }
 .lf-thread-disclosure:hover {
@@ -617,7 +617,7 @@ button.lf-thread-notice[data-lf-focus] {
   border: 1px solid var(--code-border);
   border-radius: var(--r);
   padding: 12px var(--pre-inset);
-  overflow-x: auto;
+  overflow: auto hidden;
   font-size: var(--code-size);
   line-height: var(--code-line);
   font-family: var(--mono);
@@ -663,15 +663,17 @@ button.lf-thread-notice[data-lf-focus] {
 }
 :where(:root, .lf-thread-transcript) table {
   display: block;
-  overflow-x: auto;
+  overflow: auto hidden;
   --lf-table-edge: max(var(--focus-ring-room), var(--raise-1-blur));
   container-type: inline-size;
   container-type: inline-size scroll-state;
-  --lf-top: 0px;
   border-collapse: collapse;
   font: var(--t-5)/1.5 var(--sans);
   margin: 18px 0;
   font-variant-numeric: tabular-nums;
+}
+:where(:root, .lf-thread-transcript) table > * {
+  --lf-top: 0px;
 }
 :where(:root, .lf-thread-transcript) :is(th, td) code:not(pre code) {
   padding: 0;
@@ -1100,37 +1102,33 @@ svg[data-lf-icon] {
 [data-lf-holds] {
   position: relative;
 }
+@property --lf-more-across { syntax: "*"; inherits: false; }
+@property --lf-more-down { syntax: "*"; inherits: false; }
 @media screen {
   [data-lf-more-after]:where([data-lf-scroll-direction=ltr]:not([data-lf-more-before])),
   [data-lf-more-before]:where([data-lf-scroll-direction=rtl]:not([data-lf-more-after])) {
-    mask-image:
-      linear-gradient(
-        to right,
-        #000 calc(100% - var(--lf-more-fade, 24px)),
-        var(--lf-more-fade-to, transparent));
+    --lf-more-across: #000 calc(100% - var(--lf-more-fade, 24px)), var(--lf-more-fade-to, transparent);
   }
   [data-lf-more-before]:where([data-lf-scroll-direction=ltr]:not([data-lf-more-after])),
   [data-lf-more-after]:where([data-lf-scroll-direction=rtl]:not([data-lf-more-before])) {
-    mask-image:
-      linear-gradient(
-        to right,
-        var(--lf-more-fade-to, transparent),
-        #000 var(--lf-more-fade, 24px));
+    --lf-more-across: var(--lf-more-fade-to, transparent), #000 var(--lf-more-fade, 24px);
   }
   [data-lf-more-before][data-lf-more-after] {
-    mask-image:
-      linear-gradient(
-        to right,
-        var(--lf-more-fade-to, transparent),
-        #000 var(--lf-more-fade, 24px),
-        #000 calc(100% - var(--lf-more-fade, 24px)),
-        var(--lf-more-fade-to, transparent));
-  }
-  :is([data-lf-more-before], [data-lf-more-after]):is([data-lf-focus], :has([data-lf-focus])) {
-    mask-image: none;
+    --lf-more-across:
+      var(--lf-more-fade-to, transparent),
+      #000 var(--lf-more-fade, 24px),
+      #000 calc(100% - var(--lf-more-fade, 24px)),
+      var(--lf-more-fade-to, transparent);
   }
   [data-lf-more-below] {
-    box-shadow: inset 0 -8px 8px -8px var(--shade);
+    --lf-more-down: #000 calc(100% - var(--lf-more-fade, 24px)), var(--lf-more-fade-to, transparent);
+  }
+  :is([data-lf-more-before], [data-lf-more-after], [data-lf-more-below]) {
+    mask-image: linear-gradient(to right, var(--lf-more-across, #000, #000)), linear-gradient(var(--lf-more-down, #000, #000));
+    mask-composite: intersect;
+  }
+  :is([data-lf-more-before], [data-lf-more-after], [data-lf-more-below]):is([data-lf-focus], :has([data-lf-focus])) {
+    mask-image: none;
   }
 }
 @media print {

@@ -91,7 +91,11 @@ export function createDataProjection({ invalidateDom }) {
     const declaredInputs = registry[root.localName]?.["x-data"] ?? {};
     if (
       snapshot === undefined &&
-      Object.values(declaredInputs).some(({ source }) => root.hasAttribute(source))
+      Object.values(declaredInputs).some(
+        ({ source, reference }) =>
+          (source && root.hasAttribute(source)) ||
+          (reference && root.hasAttribute(reference)),
+      )
     )
       throw new Error(
         `projectData(${root.id}) must receive the snapshot that supplied its records`,

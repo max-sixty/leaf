@@ -14,6 +14,7 @@ from conftest import LEAF_COMMAND
 from interact_support import (
     PAGE,
     _codex_delivery,
+    _delivery_item,
     _observer,
     append_carried_log_record,
     append_command,
@@ -253,7 +254,7 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
     # A widget input is answered on its frozen message, not on its own event id.
     selected_ref = response_reference(page_dir, selected)
     destination = delivery_model.response_address(selected_ref)
-    assert destination["to"] == asked["id"]
+    assert destination["parent"] == asked["id"]
     questioned = CliRunner().invoke(
         cli_model.cli,
         [
@@ -541,6 +542,60 @@ def _reserved_author_response(page_dir):
     return comment, target, prepared.payload["id"], stream
 
 
+def test_a_turns_opening_posts_as_progress_where_it_was_said(page_dir):
+    """A provider turn's opening is the agent's progress line, as any harness's first
+    line is: once complete it posts once, taking the update in hand, so a message the
+    user sends during the turn follows it, and the answer the turn commits is its
+    final message alone. An opening of several paragraphs posts as the one line
+    progress is, and one whose completion a reconnect missed posts as the next item
+    begins."""
+    comment, _target, _delivery_id, stream = _reserved_author_response(page_dir)
+    fold = codex_model.AppServerEvents("codex-thread", "author-turn")
+    opening = {
+        "id": "opening",
+        "type": "agentMessage",
+        "phase": "commentary",
+        "text": "Comparing the options.\n\nThen the pricing.",
+    }
+
+    def told(method, item, **at):
+        params = {"threadId": "codex-thread", "turnId": "author-turn", "item": item}
+        return stream.update(fold.read({"method": method, "params": params | at}))
+
+    assert not told("item/started", opening, startedAtMs=1)
+    # The connection drops before the opening's completion arrives; the snapshot shows
+    # it as the turn's last item, so nothing says yet that it is complete.
+    fold.restore_turn({"id": "author-turn", "items": [opening]})
+    assert not fold.said_opening()
+    tool = {"id": "tool", "type": "commandExecution", "command": "ls"}
+    assert told("item/started", tool, startedAtMs=2)
+    assert not told("item/completed", opening, completedAtMs=3)
+    asked = append_command(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": comment["id"],
+            "revision": 1,
+            "text": "And the cost?",
+        },
+    )
+    assert stream.finish("completed", "Option B, at half the cost.") is None
+    replies = [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "reply"
+    ]
+    assert [(event["author"], event["text"]) for event in replies] == [
+        ("agent", "Comparing the options. Then the pricing."),
+        ("user", "And the cost?"),
+        ("agent", "Option B, at half the cost."),
+    ]
+    progress, _, answer = replies
+    assert progress["ephemeral"] and progress["start"]["item"] == comment["id"]
+    assert answer["responds"] in {comment["id"], asked["id"]}
+
+
 @pytest.mark.parametrize("rich", ["question", "markup"])
 @pytest.mark.parametrize("author", ["codex-thread", "worker-1"])
 def test_provider_response_commits_full_content_before_reconnect(
@@ -649,12 +704,7 @@ def test_history_recovery_and_author_retry_survive_owner_process_restart(
                     "status": "completed",
                     "itemsView": "full",
                     "items": [
-                        {
-                            "id": "delivery",
-                            "type": "functionCallOutput",
-                            "name": "leaf_delivery",
-                            "output": json.dumps(payload),
-                        },
+                        _delivery_item(payload),
                         {
                             "id": "final",
                             "type": "agentMessage",
@@ -732,7 +782,7 @@ def test_addressed_progress_is_one_atomic_message_and_work_start(page_dir):
     # A proactive command cannot infer which pending input this progress means.
     with pytest.raises(Refused) as refused:
         thread_model.post_reply(
-            page_dir, {"to": comment["id"]}, "Proactive", ephemeral=True
+            page_dir, {"parent": comment["id"]}, "Proactive", ephemeral=True
         )
     assert refused_on(refused.value).code == "owed-response"
     answer = thread_model.post_response(reference, "The durable answer.")
@@ -974,7 +1024,7 @@ def test_retry_identity_cannot_take_an_open_reply_reservation(
     with pytest.raises(Refused, match="leaf response reply"):
         thread_model.post_reply(
             page_dir,
-            {"to": comment["id"], "for": comment["id"]},
+            {"parent": comment["id"], "responds": comment["id"]},
             "Premature",
             attempt=attempt,
             identity=identity,

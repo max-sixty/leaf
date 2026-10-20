@@ -583,10 +583,10 @@ leaf page stamp ./review --text "Queue policy: drop oldest"</code></pre>
               <details id="delivery-example">
                 <summary>Delivery fields and answer semantics</summary>
                 <p id="answer-addresses">
-                  In a delivery requiring a thread reply, <code>answer.to</code> is the
-                  thread id used to read the conversation. The event's
-                  <code>id</code> identifies the update to start, and
-                  <code>answer.for</code> identifies the update the reply answers. The
+                  In a delivery requiring a thread reply, <code>answer.parent</code> is
+                  the message it threads under. The event's <code>id</code> identifies
+                  the update to start, and <code>answer.responds</code> identifies the
+                  update the reply answers. The
                   <a href="#handling-example">example batch</a> uses
                   <code>9d41b20f</code> for all three because the comment opens a new
                   thread. A later message has its own event id within that thread.
@@ -681,8 +681,8 @@ leaf page stamp ./review --text "Queue policy: drop oldest"</code></pre>
       "handling": ["c1", "c2"],
       "answer": {
         "kind": "reply",
-        "to": "9d41b20f",
-        "for": "9d41b20f",
+        "parent": "9d41b20f",
+        "responds": "9d41b20f",
         "ref": "6ba31df0:0:9d41b20f",
         "writer": "agent"
       }
@@ -1058,7 +1058,8 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   <td>Codex App Server</td>
                   <td>
                     Leaf starts an agent turn with the updates and confirms receipt.
-                    That turn's opening and final messages become the thread reply.
+                    That turn's opening posts as its progress line, and its final
+                    message becomes the thread reply.
                   </td>
                 </tr>
                 <tr>

@@ -3858,7 +3858,7 @@ function messageReading(message, { nativeAuthored = false, reactions, workflows,
     // A reply still streaming, which the answer it stands for completes in place.
     provisional: Boolean(message.provisional),
     // The agent's progress message (`ephemeral`): a step of work in hand, which the
-    // thread shows as its working message until an answer folds it (thread-card.js).
+    // thread shows as its run's face until an answer folds it (transcript.js).
     progress: Boolean(message.ephemeral),
     // What an answer leaves standing, while it stands: "Waiting on me" for the question the
     // user owes words to, "To-do open" for work it promised and has not ended
@@ -6007,27 +6007,50 @@ function withPendingProgress(ranges) {
     )
   );
 }
+function workingPlace(ranges, after) {
+  const at = ranges.findIndex(
+    (range) => range.kind === "message" ? range.message.key === after : range.messages.some((message) => message.key === after)
+  );
+  if (at < 0)
+    throw new Error(`The working message follows ${after}, which no range holds`);
+  return at;
+}
 
 // runtime/thread/transcript.js
-function workingView(working) {
+function workingView(working, controls2 = nothing) {
   return html`<div class="lf-thread-working-head">
       ${working.who ? html`<b>${working.who}</b>` : nothing}
       ${working.timestamp || working.condition ? html`<span class="lf-msg-meta"
               >${working.timestamp ? html`<time datetime=${working.timestamp}>${working.age}</time>` : nothing}
               ${working.condition}</span
             >` : nothing}
+      ${controls2}
     </div>
     <div class="lf-thread-working-words">${working.words}</div>`;
 }
+var stepOf = (message) => Object.freeze({
+  who: message.by,
+  timestamp: message.timestamp,
+  age: message.age,
+  words: message.body.plainText.trim().replace(/\.$/, ""),
+  live: false,
+  condition: null
+});
 var nextTranscriptId = 0;
-var Transcript = class {
+var Transcript = class _Transcript {
   #commands;
   #messageCommands;
   #repaint;
   #home;
   #model = null;
   #messages = /* @__PURE__ */ new Map();
-  #working = document.createElement("div");
+  // Each unfolded progress run's face, by the run's id, and the working message where
+  // no run holds its words.
+  #faces = /* @__PURE__ */ new Map();
+  // The face each message stands behind as drawn, by the message's key: the last step
+  // of its run, whose words the face shows.
+  #facing = /* @__PURE__ */ new Map();
+  #working = _Transcript.#face("working");
   #stopWorkingExposure = null;
   // Each pending progress range's covered message ids, as last drawn, so a fold that
   // takes the range over can take its disclosure state with it.
@@ -6053,9 +6076,6 @@ var Transcript = class {
     this.#home = home2;
     this.node = document.createElement("div");
     this.node.className = "lf-thread-transcript";
-    this.#working.className = "lf-thread-working";
-    this.#working.dataset.lfAppendTail = "";
-    this.#working.setAttribute("aria-live", "polite");
     this.node.addEventListener("lf-reveal", (event) => {
       const message = event.detail?.target?.closest?.(".lf-msg[data-lf-summary]");
       const id = message?.dataset.lfSummary;
@@ -6078,9 +6098,9 @@ var Transcript = class {
   summaryNode(id) {
     return this.#checkpoints.get(id)?.node ?? null;
   }
-  // The last node the transcript shows, which is the working message while one stands.
-  // Progress behind the working message and originals behind a closed checkpoint stand
-  // in the transcript unrendered, so the last message alone may have no box.
+  // The last node the transcript shows. Progress behind its run's face and originals
+  // behind a closed checkpoint stand in the transcript unrendered, so the last message
+  // alone may have no box.
   get foot() {
     return [...this.node.children].findLast((node) => node.checkVisibility()) ?? null;
   }
@@ -6093,10 +6113,15 @@ var Transcript = class {
   // Whether held news (held-news.js) would move what the reader sees of the
   // transcript: a message it changes, or the transcript's end it adds to, with growth
   // after it in sight, unless that end is `followed`, as by a reply pinned below it; or
-  // a fold that comes or goes over what is in sight.
+  // a fold that comes or goes over what is in sight. The working message changes words
+  // only at the run the newest step joins, the transcript's end; a run the work leaves
+  // keeps its face's words where they stand.
   newsMoves({ news, changed: changed2, folds }, { followed = null } = {}) {
     return [
-      ...[...changed2].map((key) => this.messageNode(key)),
+      ...[...changed2].flatMap((key) => [
+        this.#facing.get(key),
+        this.messageNode(key)
+      ]),
       (news.appended || news.settled || news.working) && this.foot
     ].some((node) => node && node !== followed && growthAfterIsSeen(node)) || [
       ...folds.messages.map((key) => this.messageNode(key)),
@@ -6178,8 +6203,11 @@ var Transcript = class {
     this.#pendingOpen = pendingRanges.some((range) => range.expanded);
     const progressByReply = /* @__PURE__ */ new Map();
     const streaming = model.messages.at(-1);
-    if (streaming?.provisional && pendingRanges.length)
-      progressByReply.set(streaming.id, pendingRanges);
+    const spoke = model.messages.findLastIndex(({ author }) => author === "user");
+    const streamed = streaming?.provisional ? pendingRanges.filter(
+      (range) => model.messages.indexOf(range.messages[0]) > spoke
+    ) : [];
+    if (streamed.length) progressByReply.set(streaming.id, streamed);
     for (const range of rangeState) {
       if (range.kind !== "summary" || !range.summary.trigger || range.forced) continue;
       const trigger = range.summary.trigger;
@@ -6211,31 +6239,53 @@ var Transcript = class {
       return [node];
     };
     const checkpoints = /* @__PURE__ */ new Map();
+    const faces = /* @__PURE__ */ new Map();
     const transcript = [];
     const transcriptLists = [[this.node, transcript]];
-    for (const range of rangeState) {
-      if (range.kind === "message") {
-        transcript.push(...placed2(range.message.key, null));
-        continue;
+    const workingAt = model.working ? workingPlace(rangeState, model.working.after) : -1;
+    let working = null;
+    const facing = /* @__PURE__ */ new Map();
+    const face = (node, reading, controls2) => {
+      keeps(node, "data-lf-live", reading.live ? "" : null);
+      render(workingView(reading, controls2), node);
+      transcript.push(node);
+      return node;
+    };
+    for (const [at, range] of rangeState.entries()) {
+      if (range.kind === "message") transcript.push(...placed2(range.message.key, null));
+      else {
+        const id = range.summary.id;
+        const checkpoint = this.#checkpoints.get(id) ?? this.#checkpoint(id);
+        checkpoints.set(id, checkpoint);
+        this.#paintCheckpoint(checkpoint, range);
+        transcript.push(checkpoint.node);
+        transcriptLists.push([
+          checkpoint.originals,
+          range.messages.flatMap((message) => placed2(message.key, id))
+        ]);
       }
-      const id = range.summary.id;
-      const checkpoint = this.#checkpoints.get(id) ?? this.#checkpoint(id);
-      checkpoints.set(id, checkpoint);
-      this.#paintCheckpoint(checkpoint, range);
-      transcript.push(checkpoint.node);
-      transcriptLists.push([
-        checkpoint.originals,
-        range.messages.flatMap((message) => placed2(message.key, id))
-      ]);
+      const hosts = at === workingAt;
+      if (range.summary?.pending && !streamed.includes(range)) {
+        const id = range.summary.id;
+        const node = this.#faces.get(id) ?? _Transcript.#face(id);
+        faces.set(id, node);
+        const kept = range.messages.length > 1 && model.messages.indexOf(range.messages[0]) < spoke;
+        face(
+          node,
+          hosts ? model.working : stepOf(range.messages.at(-1)),
+          kept ? this.#summaryToggle([range], true) : nothing
+        );
+        facing.set(range.messages.at(-1).key, node);
+        if (hosts) working = node;
+      } else if (hosts) working = face(this.#working, model.working);
     }
-    if (model.working) {
-      keeps(this.#working, "data-lf-live", model.working.live ? "" : null);
-      render(workingView(model.working), this.#working);
-      transcript.push(this.#working);
-    }
+    this.#faces = faces;
+    this.#facing = facing;
+    for (const node of [...faces.values(), this.#working])
+      keeps(node, "data-lf-append-tail", node === transcript.at(-1) ? "" : null);
     this.#stopWorkingExposure?.();
     this.#stopWorkingExposure = model.working?.feedback ? this.#commands.read.observeFeedback(
-      this.#working.querySelector(".lf-thread-working-words"),
+      working.querySelector(".lf-thread-working-words"),
       {
         ...model.working.feedback,
         presentation_kind: "working_words",
@@ -6251,6 +6301,15 @@ var Transcript = class {
     );
     const succeeded = standingToggle.dataset.summaryToggle;
     return [succeeded, ...(successors.get(succeeded) ?? []).map(({ summary }) => summary.id)].map(toggleFor).find(Boolean) ?? null;
+  }
+  // A progress run's face (`workingView`), retained while its run stands, and named
+  // by it.
+  static #face(id) {
+    const node = document.createElement("div");
+    node.className = "lf-thread-working";
+    node.dataset.face = id;
+    node.setAttribute("aria-live", "polite");
+    return node;
   }
   // A summary's checkpoint: a retained section whose head the template draws, and
   // whose originals hold the retained messages the summary covers.
@@ -6368,6 +6427,7 @@ function workingMessage(thread, attention, messages) {
     (message) => message.progress && !covered2.has(message.id)
   );
   const said2 = pending.at(-1)?.body.plainText ?? "";
+  const saidAt = new Map(thread.msgs.map(({ id, seq }) => [id, seq ?? Infinity]));
   const workflows = thread.workflows ?? [];
   const running = workflows.find(
     (workflow) => !workflow.condition && ["working", "replying"].includes(workflow.stage)
@@ -6376,7 +6436,13 @@ function workingMessage(thread, attention, messages) {
     (workflow) => STOPPED.has(workflow.condition?.kind) && workflow.detail
   );
   const todo = thread.todos.find((open2) => open2.running);
-  const [words, live, condition, agent] = running ? [running.detail || said2, true, null, running.agent] : todo ? [todo.running.text, true, null, null] : stopped ? [stopped.detail, false, workflowLabel(stopped), stopped.agent] : [said2, false, null, null];
+  const [words, at, live, condition, agent] = running?.detail ? [running.detail, running.detail_seq, true, null, running.agent] : running ? [said2, saidAt.get(pending.at(-1)?.id), true, null, running.agent] : todo ? [todo.running.text, todo.running.seq, true, null, null] : stopped ? [
+    stopped.detail,
+    stopped.detail_seq,
+    false,
+    workflowLabel(stopped),
+    stopped.agent
+  ] : [said2, saidAt.get(pending.at(-1)?.id), false, null, null];
   if (!words || !pending.length && !live && !condition) return null;
   const agentMessage = messages.findLast((message) => message.author === "agent");
   const work = running?.detail ? running : !running && !todo ? stopped : null;
@@ -6393,6 +6459,7 @@ function workingMessage(thread, attention, messages) {
   } : null;
   return Object.freeze({
     who: work?.agent || progress?.by || agent || agentMessage?.by || "Agent",
+    after: messages.findLast((message) => saidAt.get(message.id) <= at).key,
     timestamp,
     age: timestamp ? ago(timestamp) : null,
     words: words.trim().replace(/\.$/, ""),

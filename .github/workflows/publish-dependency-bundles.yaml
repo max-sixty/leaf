@@ -15,7 +15,7 @@ jobs:
     if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-24.04
     environment:
-      name: tend
+      name: release
       deployment: false
     steps:
       # Always load the publisher from the trusted default branch. Never check out
@@ -43,8 +43,8 @@ jobs:
         if: steps.artifact.outputs.present == 'true'
         with:
           # A bot token starts ordinary PR CI on the generated commit; GITHUB_TOKEN
-          # would suppress those workflow events. Reuse the maintenance bot.
-          github-token: ${{ secrets.TEND_BOT_TOKEN }}
+          # would suppress those workflow events.
+          github-token: ${{ secrets.BUNDLE_PUBLISH_TOKEN }}
           script: |
             const { readFileSync } = await import('node:fs');
             const { publish } = await import(`${process.env.GITHUB_WORKSPACE}/.github/scripts/dependency-bundles.mjs`);

@@ -27,7 +27,9 @@ pnpm run eval:view
 - **Arms.** The working tree always runs. `--base` adds the merge base with `main`
   as a second arm, and `--base REF` adds that ref; put cases before it. An arm
   holds only the plugin payload, with no git history, so an agent can't look up
-  another version of Leaf through it.
+  another version of Leaf through it. The hosted `website-replies` experiment
+  requires producer-owned hosted-turn diagnostics in each arm; an arm without
+  them is refused before a native turn starts.
 - **Harnesses.** `--harness claude-code`, `codex` or `both`, with no default. Run
   the harness the motivating failure came from, or the one you are working in when
   no session failed. Run `both` when the change is about how the harnesses differ,
@@ -67,13 +69,25 @@ unobserved. The judge follows the requested output's scope.
 ## Desktop comparisons and exploratory discovery
 
 Routine authored-task comparisons use a 1600 × 1000 CSS-pixel desktop window.
+`evals/workflows/eval.yaml` owns the available viewport presets and default.
+Case definitions do not select resolutions. Use `--viewport short` or
+`--viewport phone` for an explicitly chosen alternative; repeat the option to
+inspect several sizes within each sample. The first selected size is used for
+the comment and decision journey, and all selected sizes reach the author’s
+window preference, report captures and final judge. This does not multiply
+author runs or judges.
+
+```bash
+uv run leaf-dev eval patch-review --harness codex --condition both
+uv run leaf-dev eval patch-review --harness codex --condition both --viewport short --repeat 3
+```
+
 The core loop keeps the task, screen size and requested journey fixed while
 changing the Leaf implementation or authoring guidance. `--base` compares a
 candidate against current Leaf. Occasional `--condition both` runs compare Leaf
 against ordinary HTML to check the product's value. Completion and preserved
 user decisions remain part of the judgment. Phone behavior stays visible in
-exploratory observations rather than contributing to a combined desktop/phone
-score.
+exploratory observations unless explicitly selected for a scored run.
 
 An optional relative quality comparison is `uv run leaf-dev eval-pairs RUN...`, which
 judges its samples in two columns side by side, each pair in both orders, and counts
@@ -256,7 +270,7 @@ declaring both on a case, including through inherited variant metadata, is an er
 | `arrangement_eval` | One live author builds the page, receives the width preference and passage comment, and applies the browser user's decision. Leaf uses its installed plugin and anchored comments; HTML uses chat and the page's copy route or a typed decision. Python retains the revisions, native traces, final/predecision screenshots and author accounting. One final live judge checks the outcome and operates the earlier decision controls. Optional `eval-pairs` compares saved samples.                                                              |
 | `usability_eval`   | Seeded pages read, resumed and revised, and live handoffs where the driver posts user updates through the served page. One agent rubric judges the task from canonical page state, active markup, data, events, delivery envelopes and the full native trace. The driver retains exact input, turn and progress observations as metadata; it does not grade per-case tags, card counts or word ratios. Fixtures are in `usability/fixtures/`.                                                                                                     |
 | `delivery_eval`    | Comments posted between turns and mid-turn through the shared live session. `parent-keeps-leaf-responsive/during-work` adds a repair task and consecutive comments. The response-times query retains exact first feedback, answers and missing observations at a fixed cutoff. The fixture checks the retained repair; semantic rubrics judge answers and the published result. A completed addressed reply checks thread closure separately from task correctness and page content. Native parent and worker traces are retained by the session. |
-| `website_eval`     | Runs the arm's hosted App Server adapter and installed plugin on its configured model and reasoning effort. Asks a page question and a contextual follow-up, without requesting page construction. Retains native notifications, the opening and final reply updates actually published, and exact-input completed replies. Checks successful turns, replies and an unchanged page; judges whether the answers and visible openings address the user.                                                                                             |
+| `website_eval`     | Runs the arm's hosted App Server adapter and installed plugin on its configured model and reasoning effort. Asks a page question and a contextual follow-up, without requesting page construction. Queries the adapter's private page diagnostics for native turn status, the opening and final reply updates actually published, and follower completion after cleanup. Retains exact-input completed replies. Checks successful turns, replies and an unchanged page; judges whether the answers and visible openings address the user.         |
 | `reader_eval`      | Calibrates the screenshot judge: `dashboard/reader-seeded` and `reader-clean` each show it one triage board, with a seeded count defect or the correct count, and ask both whether the count matches the cards.                                                                                                                                                                                                                                                                                                                                   |
 
 The responsiveness workload uses the same stream session as other live evals.

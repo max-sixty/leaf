@@ -893,7 +893,7 @@ customElements.define(TAG, class extends LeafElement {
     )
     thread_model.post_reply(
         serve.page_dir,
-        {"to": "question", "for": "question"},
+        {"responds": "question"},
         "Frozen feed.",
         '<lf-object-feed id="thread-feed" source="shared"></lf-object-feed>',
     )

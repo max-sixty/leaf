@@ -1,6 +1,8 @@
 """How a thread folds earlier messages under an agent summary or behind an answer's
 progress, and how a direct reply link reveals what a fold hides."""
 
+import re
+
 import pytest
 from interact_support import append_carried_log_record, append_command
 from leaf import thread as thread_model
@@ -51,7 +53,7 @@ def test_an_inline_reply_link_reveals_its_thread(browser, serve, resolved):
     )
     reply = thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "Choose the first job.",
         '<lf-ask id="first-job-decision"><h3>Which job first?</h3>'
         '<lf-options id="first-job" choose>'
@@ -112,7 +114,7 @@ def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser,
     )
     first = thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "The first job establishes the dependency.",
     )
     middle = append_user_reply(
@@ -234,18 +236,20 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     browser, serve, interleaved
 ):
     """The answer and its fold arrive together; originals remain a keyboard route.
-    Pending progress stands hidden behind the working message. In the page thread the
+    Pending progress stands hidden behind its run's face. In the page thread the
     answer would grow the thread's foot under the reader, so it waits behind the
-    thread's notice."""
+    thread's notice. The answer folds the run it follows; a run the user spoke after
+    stays where it was said, above their message."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Check the schedule.", {"section": "jobs"})
     progress = thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "Checking the camera.",
         ephemeral=True,
     )
     owed = root
+    folded = progress
     if interleaved:
         intervening = append_command(
             serve.page_dir,
@@ -257,9 +261,9 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
             },
         )
         owed = intervening["id"]
-        thread_model.post_reply(
+        folded = thread_model.post_reply(
             serve.page_dir,
-            {"to": owed, "for": owed},
+            {"responds": owed},
             "Checking the mount.",
             ephemeral=True,
         )
@@ -271,14 +275,14 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     page = open_page(browser, url)
     card = show(page)
     identity = "data-event"
-    original = card.locator(f'.lf-msg[{identity}="{progress["id"]}"]')
+    original = card.locator(f'.lf-msg[{identity}="{folded["id"]}"]')
     expect(original).to_be_hidden()
     runs = 2 if interleaved else 1
     expect(card.locator(".lf-thread-checkpoint")).to_have_count(runs)
     expect(card.locator(".lf-thread-working").get_by_role("button")).to_have_count(0)
 
     answer = thread_model.post_reply(
-        serve.page_dir, {"to": owed, "for": owed}, "The schedule works."
+        serve.page_dir, {"responds": owed}, "The schedule works."
     )
     told(page)
     card.get_by_role("button", name="1 new reply", exact=True).click()
@@ -290,12 +294,10 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     # A fresh reading starts folded, independent of the live reader's protected focus.
     fresh = open_page(browser, url)
     fresh_card = show(fresh)
-    fresh_original = fresh_card.locator(f'.lf-msg[{identity}="{progress["id"]}"]')
+    fresh_original = fresh_card.locator(f'.lf-msg[{identity}="{folded["id"]}"]')
     expect(fresh_original).to_be_hidden()
-    count = 2 if interleaved else 1
-    noun = "messages" if interleaved else "message"
     expand = fresh_card.get_by_role(
-        "button", name=f"Show {count} progress {noun}", exact=True
+        "button", name="Show 1 progress message", exact=True
     )
     answer_header = fresh_card.locator(
         f'.lf-msg[{identity}="{answer["id"]}"] > .lf-msg-head'
@@ -315,6 +317,9 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
         expect(
             fresh_card.get_by_text("Check the mount too.", exact=True)
         ).to_be_visible()
+        expect(fresh_card.locator(".lf-thread-working")).to_have_text(
+            re.compile("Checking the camera$")
+        )
     expand.focus()
     fresh.keyboard.press("Shift+Tab")
     fresh.keyboard.press("Tab")
@@ -322,19 +327,13 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     assert expand.evaluate("node => node.matches(':focus-visible')")
     fresh.keyboard.press("Enter")
     expect(fresh_original).to_be_visible()
-    expect(fresh_original).to_contain_text("Checking the camera.")
-    if interleaved:
-        expect(
-            fresh_card.get_by_text("Checking the mount.", exact=True)
-        ).to_be_visible()
+    expect(fresh_original).to_contain_text(folded["text"])
     collapse = fresh_card.get_by_role(
-        "button", name=f"Hide {count} progress {noun}", exact=True
+        "button", name="Hide 1 progress message", exact=True
     )
     expect(collapse).to_be_in_viewport()
     collapse.press("Enter")
     expect(fresh_original).to_be_hidden()
-    if interleaved:
-        expect(fresh_card.get_by_text("Checking the mount.", exact=True)).to_be_hidden()
 
 
 @pytest.mark.parametrize(("width", "touch"), [(390, False), (311, True)])
@@ -350,7 +349,7 @@ def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
     root = roots[0]
     progress = [
         thread_model.post_reply(
-            serve.page_dir, {"to": root, "for": root}, text, ephemeral=True
+            serve.page_dir, {"responds": root}, text, ephemeral=True
         )
         for text in (
             "I'm checking the afternoon schedule against the break.",
@@ -360,7 +359,7 @@ def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
     ]
     thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "Three sessions, a fifteen-minute break, and the closing discussion fit before five.",
     )
     context = browser.new_context(
@@ -511,7 +510,9 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(
         serve.page_dir, "Start with the measured constraint.", {"section": "how-store"}
     )
     reply = thread_model.post_reply(
-        serve.page_dir, {"to": root, "for": root}, "The constraint still applies."
+        serve.page_dir,
+        {"responds": root},
+        "The constraint still applies.",
     )
     end = reply["id"]
     for number in range(count - 2):
@@ -599,7 +600,7 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
         serve.page_dir, "Start with the measured constraint.", {"section": "how-store"}
     )
     first = thread_model.post_reply(
-        serve.page_dir, {"to": root, "for": root}, "The first constraint."
+        serve.page_dir, {"responds": root}, "The first constraint."
     )
     second = append_agent_reply(serve.page_dir, root, "The second constraint.")
     third = append_agent_reply(serve.page_dir, root, "The third constraint.")

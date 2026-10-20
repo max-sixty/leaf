@@ -319,7 +319,7 @@ def datum_anchor_error(view, event: dict, page_by_id: dict, registry: dict):
     bindings = [
         spec
         for spec in entry.get("x-data", {}).values()
-        if rec["attrs"].get(spec["source"]) == source
+        if rec["attrs"].get(spec.get("source")) == source
     ]
     if not bindings:
         return Finding("datum-unbound-source", values=named)
@@ -779,7 +779,7 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
     if progress_parent is not None and not any(
         record["source"]["id"] == event["item"]
         and record["next_actor"] == "agent"
-        and response_address(record).get("to") == progress_parent
+        and response_address(record).get("parent") == progress_parent
         for record in readings.work.updates["all"]
     ):
         return Finding("progress-parent", values={"parent": progress_parent})

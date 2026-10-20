@@ -285,9 +285,12 @@ function passing() {
   const message = goTo ?? (walk?.shown ? walk.text : "");
   return { message, visible: Boolean(message) };
 }
-// The working message in a thread's view, standing for the work under way where the
-// view reads the answer to the user's turn (`fitAnswer`).
+// A progress run's face in a thread's view (transcript.js), the working message among
+// them, standing for the work under way where the view reads the answer to the user's
+// turn (`fitAnswer`); and the key each is drawn under there, by the run it faces.
 const WORKING = ".lf-thread-working";
+const FACE = "face:";
+const isFace = (key) => key.startsWith(FACE);
 const clock = (at) =>
   new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
@@ -1317,13 +1320,16 @@ export function createFloatingPanel({
     return true;
   }
   // The open thread's messages as last drawn in its view, those its folds leave in
-  // sight and the working message (`WORKING`), and how far its content then reached;
-  // and the answer waiting below the fold behind New reply, by its first message.
+  // sight and the faces of its progress runs (`FACE`), and how far its content then
+  // reached; and the answer waiting below the fold behind New reply, by its first
+  // message.
   let drawnThread = null;
   let waiting = null;
   const drawnNode = (within, key) =>
     within?.querySelector(
-      key === WORKING ? WORKING : `.lf-msg[data-message="${CSS.escape(key)}"]`,
+      isFace(key)
+        ? `${WORKING}[data-face="${CSS.escape(key.slice(FACE.length))}"]`
+        : `.lf-msg[data-message="${CSS.escape(key)}"]`,
     ) ?? null;
   let fitted = null;
   // Where the panel itself last scrolled the open thread's view, which is not the user
@@ -1340,7 +1346,7 @@ export function createFloatingPanel({
     }
     const keys = [...outlet.querySelectorAll(`.lf-msg[data-message], ${WORKING}`)]
       .filter((node) => node.checkVisibility())
-      .map((node) => node.dataset.message ?? WORKING);
+      .map((node) => node.dataset.message ?? FACE + node.dataset.face);
     const before = drawnThread?.key === top.thread ? drawnThread : null;
     const msgs = threadByKey(top.thread)?.msgs ?? [];
     const message = (key) => msgs.find((each) => each.key === key);
@@ -1350,8 +1356,7 @@ export function createFloatingPanel({
       key: top.thread,
       keys,
       coming: keys.filter(
-        (key) =>
-          key === WORKING || message(key)?.ephemeral || message(key)?.provisional,
+        (key) => isFace(key) || message(key)?.ephemeral || message(key)?.provisional,
       ),
       extent: view.scrollHeight,
       limit: scrollLimit(view),
@@ -1371,7 +1376,7 @@ export function createFloatingPanel({
       !answer?.keys.length ||
       asked?.turn !== answer.turn ||
       !asked.keys.every((key) => before.coming.includes(key)) ||
-      !answer.keys.every((key) => key === WORKING || message(key)?.author === "agent")
+      !answer.keys.every((key) => isFace(key) || message(key)?.author === "agent")
     )
       return;
     // An answer folding the work before it into less room moves nothing either, though
@@ -1397,7 +1402,7 @@ export function createFloatingPanel({
       scrollToEnd(view);
       return;
     }
-    const reply = answer.keys.find((key) => key !== WORKING && !message(key).ephemeral);
+    const reply = answer.keys.find((key) => !isFace(key) && !message(key).ephemeral);
     const next = reply
       ? { key: top.thread, message: reply, label: "New reply" }
       : { key: top.thread, message: answer.keys[0], label: "New message" };

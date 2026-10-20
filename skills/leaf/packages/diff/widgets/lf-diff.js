@@ -1,6 +1,7 @@
 /* lf-diff uses Pierre's static renderer rather than hydrating Pierre's custom
  * element. Its ordinary DOM can live in Leaf's declared shadow root, so the
- * rendered lines support selection anchors. A source revision updates evidence
+ * rendered lines support selection anchors. `view="file"` draws one active file
+ * for a separate navigator; datum reveal selects it without changing file or line identities. A source revision updates evidence
  * under stable file owners: reader controls, disclosure and code scrollports stay
  * connected. The search reserves its current source's longest count label, so
  * filtering files leaves its field and controls in place. A quiet press after the count
@@ -56,6 +57,7 @@ import {
   LeafElement,
   paintKeys,
   projectData,
+  publishOutput,
   projectedDatum,
   threadSurface,
   readingPaint,
@@ -980,7 +982,10 @@ customElements.define(
   class extends LeafElement {
     revealPassage = ({ detail }) => {
       const entry = this.fileEntries?.find(({ node }) => node.contains(detail.target));
-      if (entry?.filtered) this.clearFilter();
+      if (entry?.filtered) {
+        if (this.singleFile) this.selectFile(entry);
+        else this.clearFilter();
+      }
     };
 
     // The bound delivery the last render read, and the one whose rendering last
@@ -992,6 +997,7 @@ customElements.define(
     threadSizeManagers = new Map();
 
     setup() {
+      this.singleFile = this.getAttribute("view") === "file";
       commands(
         this,
         "In a diff review",
@@ -1024,21 +1030,22 @@ customElements.define(
             keys: ["}"],
             title: "next file",
             description: "Go to the next file's header",
-            when: () => this.shownEntries().length > 1,
-            run: () => this.stepFile(false),
+            when: () => this.navigationEntries().length > 1,
+            run: () => this.present(this.stepFile(false)),
           },
           {
             id: "diff.previous-file",
             keys: ["{"],
             title: "previous file",
             description: "Go to the previous file's header",
-            when: () => this.shownEntries().length > 1,
-            run: () => this.stepFile(true),
+            when: () => this.navigationEntries().length > 1,
+            run: () => this.present(this.stepFile(true)),
           },
           {
             id: "diff.search",
             keys: ["/"],
             title: "filter files",
+            when: () => !this.singleFile,
             description: "Filter the files in this diff",
             run: () => {
               const search = this.diffTools?.search;
@@ -1152,6 +1159,7 @@ customElements.define(
         if (source === null) {
           releaseOutlets(this);
           this.fileEntries = null;
+          this.publishFiles();
           this.sharedStyles = null;
           this.diffTools = null;
           this.filesBody = null;
@@ -1162,6 +1170,12 @@ customElements.define(
           return;
         }
         const records = await sourceRecords(source);
+        // Navigation is mechanical and can move while source evidence prepares.
+        // Each pass reads the latest surviving selection; preparation never owns it.
+        const currentPath = () =>
+          records.some((record) => record.path === this.activePath)
+            ? this.activePath
+            : records[0]?.path;
         const prior = new Map(
           (this.fileEntries ?? []).map((entry) => [entry.record.path, entry]),
         );
@@ -1184,10 +1198,14 @@ customElements.define(
         // outlets. A disclosure opened while another file loads joins this same commit.
         for (;;) {
           if (rendering !== this.rendering || !this.isConnected) return;
+          const activePath = currentPath();
           const pending = plans.filter(
             ({ record, previous, prepared }) =>
               !prepared &&
-              (record.hunkCount === 0 || (previous?.details?.open ?? open)),
+              (record.hunkCount === 0 ||
+                (this.singleFile
+                  ? record.path === activePath
+                  : (previous?.details?.open ?? open))),
           );
           if (!pending.length) break;
           await Promise.all(
@@ -1202,6 +1220,7 @@ customElements.define(
             }),
           );
         }
+        const activePath = currentPath();
         const fresh = [];
         const restores = [];
         const resume = this.controller.defer();
@@ -1220,7 +1239,9 @@ customElements.define(
                 ? metadataNode(record)
                 : summaryNode(
                     record,
-                    !!prepared?.error || record.hunkCount === 0 || open,
+                    !!prepared?.error ||
+                      record.hunkCount === 0 ||
+                      (this.singleFile ? record.path === activePath : open),
                     !prepared?.error,
                   );
               if (entry) restores.push(replaceFileRendering(entry, row));
@@ -1249,8 +1270,9 @@ customElements.define(
           });
           this.snapshot = snapshot;
           this.fileEntries = entries;
+          this.activePath = activePath;
           this.sharedStyles = sharedStyles;
-          this.diffTools ??= diffTools(this);
+          if (!this.singleFile) this.diffTools ??= diffTools(this);
           for (const entry of fresh) this.attachEntryControls(entry);
           for (const entry of entries) this.attachDisclosure(entry);
           this.filesBody ??= diffBody([]);
@@ -1258,7 +1280,7 @@ customElements.define(
           for (const entry of prior.values())
             if (!entries.includes(entry)) releaseOutlets(entry.node);
           setChildren(this.filesBody, [
-            this.diffTools.search,
+            ...(this.diffTools ? [this.diffTools.search] : []),
             ...entries.map(({ node }) => node),
           ]);
           this.replaceChildren();
@@ -1266,7 +1288,8 @@ customElements.define(
           this.stageFiles();
           this.projectFiles();
           this.classList.toggle("lf-rendered", true);
-          this.filterFiles(this.diffTools.search.value);
+          this.filterFiles(this.diffTools?.search.value ?? "");
+          this.publishFiles();
           for (const restore of restores) restore?.();
         } finally {
           resume();
@@ -1274,6 +1297,7 @@ customElements.define(
       } catch (err) {
         if (rendering !== this.rendering || !this.isConnected) return;
         this.fileEntries = null;
+        this.publishFiles();
         this.sharedStyles = null;
         this.diffTools = null;
         this.filesBody = null;
@@ -1284,6 +1308,34 @@ customElements.define(
         failSoft(this, err, typeof source === "string" ? source : undefined);
         if (snapshot !== undefined) projectData(this, [], { snapshot });
       }
+    }
+
+    // The inventory belongs to this parse, rather than to any particular navigator.
+    // Keys are opaque addresses in this widget's existing datum space; consumers
+    // neither parse patches nor know how a diff encodes a file identity.
+    publishFiles() {
+      const status = {
+        add: "added",
+        delete: "deleted",
+        modify: "modified",
+        rename: "renamed",
+      };
+      publishOutput(
+        this,
+        "files",
+        this.fileEntries
+          ? {
+              ...(this.singleFile ? { current: this.activePath } : {}),
+              files: this.fileEntries.map(({ record }) => ({
+                path: record.path,
+                key: diffDatumKey({ path: record.path, file: true }),
+                ...(status[record.operation]
+                  ? { status: status[record.operation] }
+                  : {}),
+              })),
+            }
+          : null,
+      );
     }
 
     // A patch that fails to load may load on Retry. One this widget cannot draw never
@@ -1641,10 +1693,11 @@ customElements.define(
       const coordinate = readDiffCoordinate(key);
       const entry = findDiffFile(this.fileEntries, coordinate);
       if (!entry) return null;
-      if (entry.filtered) this.clearFilter();
-      if (coordinate.file) return null;
-      if (!entry.details || entry.loaded || entry.failed) return null;
+      if (this.singleFile) this.selectFile(entry);
+      else if (entry.filtered) this.clearFilter();
+      if (!entry.details) return null;
       entry.details.toggleAttribute("open", true);
+      if (entry.loaded || entry.failed) return null;
       return this.loadEntry(entry);
     }
 
@@ -1731,13 +1784,24 @@ customElements.define(
         const paths = [entry.record.path, entry.record.previousPath ?? ""]
           .join("\n")
           .toLocaleLowerCase();
-        entry.filtered = Boolean(needle && !paths.includes(needle));
+        entry.filtered = this.singleFile
+          ? entry.record.path !== this.activePath
+          : Boolean(needle && !paths.includes(needle));
         entry.node.classList.toggle("lf-diff-filtered", entry.filtered);
       }
       this.markRuns();
       this.refreshDiffTools();
       layoutChanged(this);
       threadSurface(this).update();
+    }
+
+    // The file view keeps every datum under its retained owner; only the active
+    // file is visible. A thread or any navigator can reveal another through the
+    // same datum route, without knowing which presentation the page chose.
+    selectFile(entry) {
+      this.activePath = entry.record.path;
+      this.filterFiles("");
+      this.publishFiles();
     }
 
     // The files the filter shows are drawn as one bordered list, which a file's own
@@ -1809,6 +1873,10 @@ customElements.define(
       return (this.fileEntries ?? []).filter((entry) => !entry.filtered);
     }
 
+    navigationEntries() {
+      return this.singleFile ? (this.fileEntries ?? []) : this.shownEntries();
+    }
+
     hasHunks() {
       return this.shownEntries().some((entry) => entry.details);
     }
@@ -1851,7 +1919,7 @@ customElements.define(
 
     markFileWalk() {
       beginWalk("diff-file", "File", () => {
-        const entries = this.shownEntries();
+        const entries = this.navigationEntries();
         return listWalkPosition(
           entries.map(({ node }) => node),
           this.entryAroundFocus()?.node,
@@ -1895,9 +1963,11 @@ customElements.define(
       this.markHunkWalk();
     }
 
-    stepFile(back) {
+    async stepFile(back) {
+      const mayLand = retainUserIntent();
       const here = this.hereNode();
-      const order = back ? [...this.shownEntries()].reverse() : this.shownEntries();
+      const entries = this.navigationEntries();
+      const order = back ? [...entries].reverse() : entries;
       // The whole file is the unit, so a step out of one starts past it rather than at
       // its own header — and a user standing in the tools row, which belongs to no
       // file, steps to the first (or, walking back, the last).
@@ -1907,6 +1977,11 @@ customElements.define(
       const entry = order[standing + 1];
       if (!entry) return this.markFileWalk();
       this.fileCursor = entry;
+      if (this.singleFile) {
+        this.selectFile(entry);
+        await this.openEntry(entry);
+        if (!mayLand()) return;
+      }
       // The box rather than the header, which is what the generated fold target settled for
       // the same shape: a header pinned to the window's top is already where it is going, so
       // aligning it moves nothing, while aligning the file it heads starts the file at

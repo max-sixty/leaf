@@ -444,7 +444,9 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
     )
     events = events_model.read_events(page_dir)
     pressed = next(event for event in events if event["kind"] == "action")
-    assert current_responses(page_dir, events)[pressed["id"]]["for"] == pressed["id"]
+    assert (
+        current_responses(page_dir, events)[pressed["id"]]["responds"] == pressed["id"]
+    )
     mistaken = CliRunner().invoke(
         cli_model.cli,
         [

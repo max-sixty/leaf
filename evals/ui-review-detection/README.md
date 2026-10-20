@@ -18,6 +18,11 @@ Leaf's standard isolated screenshot-judge configuration. A run includes candidat
 inference and automatic correctness grading; it needs neither the projects repo
 nor a supervising session.
 
+`dev/leaf_dev/screenshot_judge.py` owns the native profile and login setup;
+its Promptfoo adapter retires each judge's home after the call. UI-review judges
+read only their anonymous packet; standard screenshot assertions retain access
+to their run's screenshot tree.
+
 ## Run
 
 From the checkout, install the eval dependencies and check the fixtures without

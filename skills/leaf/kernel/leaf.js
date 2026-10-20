@@ -6317,6 +6317,8 @@ function passing() {
   return { message, visible: Boolean(message) };
 }
 var WORKING = ".lf-thread-working";
+var FACE = "face:";
+var isFace = (key) => key.startsWith(FACE);
 var clock = (at) => new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 function createFloatingPanel({
   wireInput,
@@ -6995,7 +6997,7 @@ function createFloatingPanel({
   let drawnThread = null;
   let waiting = null;
   const drawnNode = (within, key) => within?.querySelector(
-    key === WORKING ? WORKING : `.lf-msg[data-message="${CSS.escape(key)}"]`
+    isFace(key) ? `${WORKING}[data-face="${CSS.escape(key.slice(FACE.length))}"]` : `.lf-msg[data-message="${CSS.escape(key)}"]`
   ) ?? null;
   let fitted = null;
   let placed = null;
@@ -7007,7 +7009,7 @@ function createFloatingPanel({
       drawnThread = null;
       return;
     }
-    const keys2 = [...outlet.querySelectorAll(`.lf-msg[data-message], ${WORKING}`)].filter((node) => node.checkVisibility()).map((node) => node.dataset.message ?? WORKING);
+    const keys2 = [...outlet.querySelectorAll(`.lf-msg[data-message], ${WORKING}`)].filter((node) => node.checkVisibility()).map((node) => node.dataset.message ?? FACE + node.dataset.face);
     const before = drawnThread?.key === top.thread ? drawnThread : null;
     const msgs = threadByKey(top.thread)?.msgs ?? [];
     const message = (key) => msgs.find((each) => each.key === key);
@@ -7015,7 +7017,7 @@ function createFloatingPanel({
       key: top.thread,
       keys: keys2,
       coming: keys2.filter(
-        (key) => key === WORKING || message(key)?.ephemeral || message(key)?.provisional
+        (key) => isFace(key) || message(key)?.ephemeral || message(key)?.provisional
       ),
       extent: view.scrollHeight,
       limit: scrollLimit(view)
@@ -7029,7 +7031,7 @@ function createFloatingPanel({
     };
     const answer = answerIn(keys2);
     const asked2 = before && answerIn(before.keys);
-    if (!answer?.keys.length || asked2?.turn !== answer.turn || !asked2.keys.every((key) => before.coming.includes(key)) || !answer.keys.every((key) => key === WORKING || message(key)?.author === "agent"))
+    if (!answer?.keys.length || asked2?.turn !== answer.turn || !asked2.keys.every((key) => before.coming.includes(key)) || !answer.keys.every((key) => isFace(key) || message(key)?.author === "agent"))
       return;
     if (!waiting && view.scrollHeight <= before.extent + 0.5) return;
     const atEnd = before.limit - view.scrollTop <= SCROLL_SLACK;
@@ -7042,7 +7044,7 @@ function createFloatingPanel({
       scrollToEnd(view);
       return;
     }
-    const reply = answer.keys.find((key) => key !== WORKING && !message(key).ephemeral);
+    const reply = answer.keys.find((key) => !isFace(key) && !message(key).ephemeral);
     const next = reply ? { key: top.thread, message: reply, label: "New reply" } : { key: top.thread, message: answer.keys[0], label: "New message" };
     if (waiting?.message === next.message) return;
     const arriving = !waiting;

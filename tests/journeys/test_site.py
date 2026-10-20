@@ -279,7 +279,7 @@ def served_example(site, tmp_path):
 
 def product_url(hosted, name):
     """The canonical route for one product source."""
-    return hosted + site_build.PRODUCT_ROUTES[name]
+    return hosted + site_build.product_route(Path(name))
 
 
 media_url = site_build.media_url
@@ -357,7 +357,6 @@ def test_published_example_has_the_normal_leaf_layout(hosted, browser, serve):
 def test_product_pages_are_published_as_complete_page_records(site):
     """Each page retains its layer, history, and every captured media input."""
     sources = pages_under(DOCS)
-    assert {source.name for source in sources} == set(site_build.PRODUCT_ROUTES)
     for source in sources:
         page = site_build.product_page(site, source.name)
         expected = authored_markup(source)
@@ -1084,7 +1083,7 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
     takes its paper from the theme in both schemes, and nothing scrolls sideways at
     390px: the nav wraps, the screenshots scale, and a command too long for the
     column scrolls inside its own block, as the architecture diagram fits its box."""
-    names = list(site_build.PRODUCT_ROUTES)
+    names = [source.name for source in site_build.product_sources()]
     page = browser.new_page()
     failed = []
     page.on(

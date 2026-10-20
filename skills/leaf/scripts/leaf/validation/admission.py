@@ -14,7 +14,7 @@ from leaf.registry.kernel import kinds_declaring
 from leaf.registry.storage import require_registry
 from leaf.revision_artifact import read_revision
 from leaf.structure import SourceDocument
-from leaf.thread_context import thread_names, thread_structure
+from leaf.thread_context import thread_ids, thread_names, thread_structure
 
 from ..refusals import Refused
 from .instances import (
@@ -65,7 +65,7 @@ def thread_obligation(events: list, responses: dict, message: str) -> dict | Non
             response
             for response in responses.values()
             if response["kind"] == "reply"
-            and names.get(response["to"], response["to"]) == thread
+            and names.get(response["parent"], response["parent"]) == thread
         ),
         None,
     )
@@ -220,6 +220,7 @@ def message_markup_errors(
         registry,
         page.ids | thread.ids | frag.ids,
         {**page.by_id, **thread.by_id, **frag.by_id},
+        thread_ids=thread_ids(events),
     ):
         return reference_errs
     # A child selecting the thread this message joins would hold this sample again,

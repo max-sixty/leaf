@@ -32,7 +32,7 @@ def _owed_answers(page_dir, reading):
             {
                 key: value
                 for key, value in item["answer"].items()
-                if key in {"kind", "to", "for", "action"}
+                if key in {"kind", "parent", "responds", "action"}
             },
         )
         for item in reading(state, watched=False)
@@ -66,7 +66,9 @@ def test_two_messages_in_a_row_publish_one_record_both_workflows_name(page_dir):
     assert [item["id"] for item in state["activity"]["obligations"]] == [record["id"]]
 
     thread_model.post_reply(
-        page_dir, {"to": second["id"], "for": second["id"]}, "Answered together"
+        page_dir,
+        {"parent": second["id"], "responds": second["id"]},
+        "Answered together",
     )
     answered = state_json(page_dir)
     assert answered["workflows"] == []
@@ -187,7 +189,7 @@ def test_stop_and_idle_hold_the_agent_to_the_answers_it_owed_before(claimed):
     )
     thread_model.post_reply(
         claimed,
-        {"to": handed_back["id"], "for": handed_back["id"]},
+        {"parent": handed_back["id"], "responds": handed_back["id"]},
         "The agent's turn ended without an answer. Send it again to retry.",
         failure="turn_failed",
     )
@@ -246,9 +248,15 @@ def test_stop_and_idle_hold_the_agent_to_the_answers_it_owed_before(claimed):
     receive_through(claimed, last_deliverable_seq(claimed))
 
     expected = [
-        (second["id"], {"kind": "reply", "to": second["id"], "for": second["id"]}),
+        (
+            second["id"],
+            {"kind": "reply", "parent": second["id"], "responds": second["id"]},
+        ),
         *(
-            (move["id"], {"kind": "reply", "to": board["id"], "for": move["id"]})
+            (
+                move["id"],
+                {"kind": "reply", "parent": board["id"], "responds": move["id"]},
+            )
             for move in moves
         ),
         (picked["id"], {"kind": "markup", "action": picked["id"]}),

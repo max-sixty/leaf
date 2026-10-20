@@ -9,7 +9,7 @@ settled, and emits two readings of them, each the one home of its facts:
   the update an answer, the user once a harness handed the update back, and nobody once a
   reply answered it. `obligations.response_address` derives the operation, one of:
 
-  - `{"kind": "reply", "to": <message>, "for": <event>}` — a thread message, or an
+  - `{"kind": "reply", "parent": <message>, "responds": <event>}` — a thread message, or an
     action in an answered obligation in frozen thread markup. The agent answers it with
     `leaf response reply <answer.ref>`.
   - `{"kind": "markup", "action": <action>}` — a page action that is part of its
@@ -382,6 +382,7 @@ def handed_over(
             "delivery_turn": fallback.get("turn") if fallback else None,
             "receipt_refs": refs.get(source["id"], {}),
             "detail": start["text"] if start else None,
+            "detail_seq": start["seq"] if start else None,
             "agent": start.get("agent") if start else None,
             "session": start.get("session") if start else None,
             "activity": (
@@ -424,6 +425,7 @@ def handed_over(
                 "stage": "answered",
                 "ts": record["ts"],
                 "detail": None,
+                "detail_seq": None,
                 "agent": record.get("agent"),
                 "session": record.get("session"),
                 "activity": [

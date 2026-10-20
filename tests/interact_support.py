@@ -2678,12 +2678,13 @@ def _observer() -> codex_adapter_model.TaskConnection:
 
 
 def _delivery_item(payload: dict) -> dict:
-    """The transcript item a turn carrying one App Server delivery holds."""
+    """The user message a turn that took one queued App Server delivery holds."""
+    [text] = codex_model.app_server_queue_params("codex-thread", payload)["input"]
     return {
         "id": "delivery",
-        "type": "functionCallOutput",
-        "name": "leaf_delivery",
-        "output": json.dumps(payload),
+        "type": "userMessage",
+        "clientId": payload["id"],
+        "content": [text],
     }
 
 

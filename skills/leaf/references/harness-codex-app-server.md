@@ -1,10 +1,10 @@
 # Codex App Server handoff and delivery
 
 Use this reference when the main skill's "Harness selection" picks Codex App Server.
-Leaf starts a turn for each delivery of user input and writes that turn's opening and
-final messages to the thread it answers. A harness that starts the task, such as
-leaf.page, has already handed the page over; a terminal task hands it over as "Hand a
-page over from a terminal" says.
+Leaf queues each delivery of user input as a turn of its own and writes that turn's
+opening and final messages to the thread it answers. A harness that starts the task,
+such as leaf.page, has already handed the page over; a terminal task hands it over as
+"Hand a page over from a terminal" says.
 
 ## Delivery
 
@@ -12,17 +12,20 @@ While a task with Leaf's trusted tool hook is working, new input can arrive betw
 steps as a `leaf-delivery` pointer. Read it and answer with explicit commands, as
 `harness-codex.md`, "Delivery", describes.
 
-Otherwise, once the task is idle, Leaf starts a turn whose input is the delivery as a
-`leaf_delivery` tool output, one slice per turn. Leaf acknowledges it, so run no
-acknowledgement command, `leaf wait` or `leaf wait --ack`.
+Otherwise, once no turn is running, Leaf adds the delivery to the task's queue, behind
+any input the user queued, and App Server starts it as its own turn. The turn's user
+message is from Leaf: a line saying Leaf has new input, then the delivery envelope as
+JSON, one slice per turn. Leaf acknowledges it, so run no acknowledgement command,
+`leaf wait` or `leaf wait --ack`.
 
 ## Replies
 
 A slice holds at most one thread reply for the turn to write, marked `kind: "reply"`
 and `writer: "turn"`. Before your first tool call, write a short message to the user:
-the answer, or what you are about to do. Leaf streams this opening into the thread at
-once, and later working messages stay in Codex. When the turn completes, your final
-message joins the opening as one reply. A turn with no final message posts none.
+the answer, or what you are about to do. Leaf posts this opening in the thread as
+your progress line once you finish it, and later working messages stay in Codex. When
+the turn completes, your final message posts as the reply and folds the opening behind
+it. A turn with no final message posts no reply.
 
 When the reply needs widgets, a question for the user (an `lf-ask`), work promised
 beyond this turn (`--todo`), a title or a changed anchor, write it with
@@ -51,8 +54,9 @@ step appears in the status's full text, which the user reads by pointing at it.
 ## Hand a page over from a terminal
 
 A terminal task reaches App Server through a background adapter that serving starts.
-It connects to the task's App Server as a second client and starts a turn for each
-delivery once the task is idle. This route is experimental.
+It connects to the task's App Server as a second client and queues each delivery once
+no turn is running, so the user sees Leaf's submissions in the task's queue. This
+route is experimental.
 
 If the user gave you an endpoint and `LEAF_CODEX_APP_SERVER` isn't set, bind it before
 serving:

@@ -142,30 +142,37 @@ def shift_watch_source():
             "--input-type=module",
             "--eval",
             (
-                'import { WORKS } from "./skills/leaf/assets/runtime/control-selectors.js";'
+                'import { WORKS, PRESSES } from "./skills/leaf/assets/runtime/control-selectors.js";'
                 'import { clippingAxes } from "./skills/leaf/assets/runtime/rect.js";'
                 'import { elementAxes, scrollAxes } from "./skills/leaf/assets/runtime/element-frame.js";'
                 'import { shadowHost, upFrom, renderedParent } from "./skills/leaf/assets/runtime/shadow.js";'
-                "process.stdout.write(JSON.stringify([WORKS,...[clippingAxes,shadowHost,upFrom,renderedParent,elementAxes,scrollAxes].map(fn=>fn.toString())]));"
+                "process.stdout.write(JSON.stringify([WORKS,PRESSES,...[clippingAxes,shadowHost,upFrom,renderedParent,elementAxes,scrollAxes].map(fn=>fn.toString())]));"
             ),
         ],
         cwd=ROOT,
         text=True,
         timeout=STATED_TIMEOUT,
     )
-    interactive, clipping, host, parent, rendered_parent, element_axes, axes = (
-        json.loads(controls)
-    )
+    (
+        interactive,
+        presses,
+        clipping,
+        host,
+        parent,
+        rendered_parent,
+        element_axes,
+        axes,
+    ) = json.loads(controls)
     return (
         WATCH_PLATFORM_SOURCE.read_text()
         + "\n"
         + "const nativePerformance = window.lfWatchPlatform.performance;\n"
         + "const nativeFrame = callback => window.lfWatchPlatform.frame(callback);\n"
         + "const nativeTask = (callback, ...args) => window.lfWatchPlatform.later(callback, ...args);\n"
-        + f"((interactive, clippingAxes) => {{\n"
+        + f"((interactive, pressControls, clippingAxes) => {{\n"
         f"const shadowHost = {host};\nconst upFrom = {parent};\n"
         f"const renderedParent = {rendered_parent};\nconst elementAxes = {element_axes};\nconst scrollAxes = {axes};\n"
-        f"{SHIFT_WATCH_SOURCE.read_text()}\n}})({json.dumps(interactive)}, {clipping});"
+        f"{SHIFT_WATCH_SOURCE.read_text()}\n}})({json.dumps(interactive)}, {json.dumps(presses)}, {clipping});"
     )
 
 

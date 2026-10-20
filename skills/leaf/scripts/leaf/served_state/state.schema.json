@@ -402,7 +402,7 @@
         "state": { "type": ["string", "null"] },
         "session": { "type": ["string", "null"] },
         "turn": { "type": ["string", "null"] },
-        "reply_to": { "type": ["string", "null"] },
+        "parent": { "type": ["string", "null"] },
         "responds": { "type": ["string", "null"] },
         "settles": { "type": ["boolean", "null"] },
         "attempt": { "type": "string" },
@@ -412,7 +412,7 @@
         "state",
         "session",
         "turn",
-        "reply_to",
+        "parent",
         "responds",
         "settles",
         "has_text"
@@ -443,6 +443,10 @@
         "delivery_session": { "type": ["string", "null"] },
         "delivery_turn": { "type": ["string", "null"] },
         "detail": { "type": ["string", "null"] },
+        "detail_seq": {
+          "description": "The log position of the start whose line `detail` is, which places the thread's working message among its messages.",
+          "type": ["integer", "null"]
+        },
         "agent": { "type": ["string", "null"] },
         "session": { "type": ["string", "null"] },
         "activity": {
@@ -531,6 +535,7 @@
         "delivery_session",
         "delivery_turn",
         "detail",
+        "detail_seq",
         "agent",
         "session",
         "activity",

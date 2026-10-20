@@ -40,16 +40,19 @@ def call_api(prompt: str, options: dict, context: dict) -> dict:
         response.setdefault("metadata", {})["work"] = str(work)
         return response
     executor = import_module(metadata["executor"])
-    captures = (
+    parameters = signature(executor.execute_scenario).parameters
+    inputs = (
         {"shots": Path(config["screenshots"]) / work.name}
-        if "shots" in signature(executor.execute_scenario).parameters
+        if "shots" in parameters
         else {}
     )
+    if "viewports" in parameters:
+        inputs["viewports"] = tuple(config["viewports"])
     response = executor.execute_scenario(
         metadata["scenario"],
         Path(config["payload"]),
         work,
-        **captures,
+        **inputs,
         harness=config["harness"],
         condition=config["condition"],
     )

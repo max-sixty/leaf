@@ -45,7 +45,6 @@ def setup() -> None:
                 "chromium",
                 "webkit",
                 "firefox",
-                "--only-shell",
             )
             run("uv", "run", "--frozen", "playwright", "install", "chrome")
             if sys.platform == "linux":

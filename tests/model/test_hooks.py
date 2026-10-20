@@ -399,7 +399,7 @@ def test_codex_stop_leaves_quiet_input_but_delivers_the_whole_batch_with_owed_in
         )
         receive_through(page_dir, last_deliverable_seq(page_dir))
         thread_model.post_reply(
-            page_dir, {"to": asked["id"], "for": asked["id"]}, "Because."
+            page_dir, {"parent": asked["id"], "responds": asked["id"]}, "Because."
         )
         cursor = events_model.read_cursor(page_dir)
         quiet = [
@@ -796,7 +796,7 @@ def test_prompt_and_stop_reuse_the_original_unanswered_delivery(claimed, capsys)
 def inline_delivery(context: str) -> dict:
     """The delivery a hook handed over inline, from the context it added."""
     opening, envelope, *_ = context.split("\n")
-    assert opening == hook_transport_model.INLINE_OPENING
+    assert opening == delivery_model.INLINE_OPENING
     return json.loads(envelope)
 
 
@@ -883,7 +883,7 @@ def test_hook_snapshot_serializes_receipt_and_reply(claimed, monkeypatch):
                 delivery_model.receive_one(frozen, "s1")
                 thread_model.post_reply(
                     page_dir,
-                    {"to": asked["id"], "for": asked["id"]},
+                    {"parent": asked["id"], "responds": asked["id"]},
                     "Because B preserves the invariant",
                 )
             except Exception as error:  # noqa: BLE001 - forward worker failures to assertion
@@ -921,7 +921,9 @@ def test_prompt_pickup_does_not_restamp_a_response_settled_after_planning(claime
     delivery_model.receive_one(frozen, "s1")
     plans = hook_transport_model.read_plans("s1")
     assert plans[0].acknowledged
-    thread_model.post_reply(claimed, {"to": asked["id"], "for": asked["id"]}, "Handled")
+    thread_model.post_reply(
+        claimed, {"parent": asked["id"], "responds": asked["id"]}, "Handled"
+    )
     before = events_model.read_events(claimed)
     hook_transport_model.pick_up_acknowledged("s1", plans)
     assert events_model.read_events(claimed) == before
@@ -1091,7 +1093,7 @@ def test_a_prompt_re_vendors_a_page_an_older_leaf_vendored_and_hands_over_its_in
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
         "additionalContext"
     ]
-    assert context.startswith(hook_transport_model.INLINE_OPENING)
+    assert context.startswith(delivery_model.INLINE_OPENING)
     assert "page protocol" not in context
     assert events_model.read_cursor(claimed) >= comment["seq"]
     assert event_contracts_model.write_refusal(claimed) is None
@@ -1200,11 +1202,11 @@ def test_a_prompt_offers_no_new_input_from_a_page_its_leaf_cannot_write(
 
     refused = prompt()
     assert "page protocol" in refused
-    assert hook_transport_model.INLINE_OPENING not in refused
+    assert delivery_model.INLINE_OPENING not in refused
     assert events_model.read_cursor(claimed) < comment["seq"]
 
     cleanup_model.write_json(stamp, json.loads(vendored))
-    assert prompt().startswith(hook_transport_model.INLINE_OPENING)
+    assert prompt().startswith(delivery_model.INLINE_OPENING)
     assert events_model.read_cursor(claimed) >= comment["seq"]
 
 

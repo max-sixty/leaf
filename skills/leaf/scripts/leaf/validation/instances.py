@@ -78,6 +78,11 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
             instance[name] = True if value in (None, "") and is_flag else (value or "")
         for err in sorted(json_validator(entry).iter_errors(instance), key=str):
             errors.append(found_at("attribute-schema", rec, **schema_reading(err)))
+        for input_name, spec in entry.get("x-data", {}).items():
+            if rec["attrs"].get(spec.get("source")) and rec["attrs"].get(
+                spec.get("reference")
+            ):
+                errors.append(found_at("ambiguous-data-binding", rec, input=input_name))
         # A member stands directly in an owner; one declaring x-within may also stand
         # at any depth inside one of the regions it names. It belongs to its nearest
         # owner, so going outward it must meet such a region before any owner.
@@ -364,14 +369,12 @@ def unique_errors(lf_elements: list, registry: dict) -> list[Finding]:
 
 
 def reference_errors(
-    lf_elements: list, registry: dict, ids: set, by_id: dict
+    lf_elements: list, registry: dict, ids: set, by_id: dict, *, thread_ids: set[str]
 ) -> list[Finding]:
-    """An attribute the registry marks as naming another element (x-refers) that names
-    nothing this version holds. The user follows it, so a typo is a reference to
-    nowhere and the markup around it is perfectly well-formed — visible to them and to
-    nobody else. Asked of the version rather than of a fragment: a reply's markup
-    carries no page to check against, and one of its widgets pointing at the version
-    beside it is exactly right.
+    """Validate declared references against the supplied element and thread namespaces.
+
+    A message widget may point into the page beside it, so its caller supplies the
+    page's ids alongside the fragment's own.
 
     An `owns` reference is narrower, since its referrer fills the target and the
     browser looks for that target in the referrer's own document: each names an
@@ -382,13 +385,28 @@ def reference_errors(
     A keyed reference names a member rather than an id: the `tag` member, inside the
     referrer's own nearest owner of the tag its `key` is unique within (x-unique),
     whose `key` attribute holds the value, as a playground preset's setting names a
-    control of the same playground."""
+    control of the same playground.
+
+    The reserved `resolves` attribute names a thread in the document's history,
+    rather than a markup id, on any widget that declares the capability."""
     errors = []
     own = {rec["attrs"].get("id") for rec in lf_elements}
     owners = {}
     keyed = None
     for rec in lf_elements:
-        for attr, reference in registry.get(rec["tag"], {}).get("x-refers", {}).items():
+        entry = registry.get(rec["tag"], {})
+        resolves = rec["attrs"].get("resolves")
+        if (
+            "resolves" in entry.get("properties", {})
+            and resolves
+            and resolves not in thread_ids
+        ):
+            errors.append(
+                found_at(
+                    "unknown-thread", rec, rec["attrs"].get("id", ""), resolves=resolves
+                )
+            )
+        for attr, reference in entry.get("x-refers", {}).items():
             target = rec["attrs"].get(attr)
             if not target:
                 continue
@@ -420,6 +438,27 @@ def reference_errors(
                 errors.append(found_at("outside-reference", rec, **reference_to))
             elif reference.get("owns"):
                 owners.setdefault((rec["tag"], attr, target), []).append(rec)
+        for input_name, spec in registry.get(rec["tag"], {}).get("x-data", {}).items():
+            target = rec["attrs"].get(spec.get("reference"))
+            producer = by_id.get(target)
+            if not target or not producer:
+                continue  # The ordinary relation check names a missing target.
+            output = (
+                registry.get(producer["tag"], {})
+                .get("x-output", {})
+                .get(spec["output"])
+            )
+            if output is None or output["contract"] != spec["contract"]:
+                errors.append(
+                    found_at(
+                        "output-contract",
+                        rec,
+                        input=input_name,
+                        target=target,
+                        output=spec["output"],
+                        contract=spec["contract"],
+                    )
+                )
     owned = [
         (tag, attr, reference)
         for tag, entry in registry.items()
@@ -512,12 +551,9 @@ def declared_word_errors(lf_elements: list, registry: dict) -> list[Finding]:
     return errors
 
 
-def suggestion_errors(
-    lf_elements: list, registry: dict, thread_ids: set
-) -> list[Finding]:
+def suggestion_errors(lf_elements: list, registry: dict) -> list[Finding]:
     """What the registry's schema can't say about a suggestion: it holds at most
-    one of each slot and at least one of them, it doesn't nest, and `resolves`
-    names a thread in the document's thread namespace. A family lint, named
+    one of each slot and at least one of them, and it doesn't nest. A family lint, named
     for its family — and it reads even its own slots out of the merged registry,
     so a layer that adds one to the family is linted for it rather than around it."""
     tags = {
@@ -542,9 +578,6 @@ def suggestion_errors(
                         "repeated-slot", rec, own, slot=tag, count=carried.count(tag)
                     )
                 )
-        resolves = rec["attrs"].get("resolves")
-        if resolves and resolves not in thread_ids:
-            errors.append(found_at("unknown-thread", rec, own, resolves=resolves))
     return errors
 
 

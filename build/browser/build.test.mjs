@@ -4,10 +4,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
 import { parse } from "acorn";
 import { build } from "esbuild";
 import { adapt, seam } from "../vendor.mjs";
-import { buildOutputs, checkOutputs } from "./build.mjs";
+import { buildOutputs, checkOutputs, compilerPaths } from "./build.mjs";
 import { bundledPackages, checkModule } from "./shipped.mjs";
 import { createApplicationPublisher, share } from "./snapshot.ts";
 
@@ -20,6 +21,81 @@ const exportsOf = (code) =>
     .body.filter((node) => node.type === "ExportNamedDeclaration")
     .flatMap((node) => node.specifiers.map((specifier) => specifier.exported.name))
     .sort();
+
+test("compiler paths discover package modules and keep the facade's source types", async (context) => {
+  const scratch = await mkdtemp(path.join(tmpdir(), "leaf-compiler-paths-"));
+  context.after(() => rm(scratch, { recursive: true }));
+  const put = async (name, text) => {
+    const destination = path.join(scratch, name);
+    await mkdir(path.dirname(destination), { recursive: true });
+    await writeFile(destination, text);
+  };
+  const config = JSON.parse(
+    await readFile(new URL("./tsconfig.json", import.meta.url)),
+  );
+  config.compilerOptions.types = [];
+  config.compilerOptions.noUncheckedSideEffectImports = true;
+  config.include = ["imports.ts"];
+  await put("build/browser/tsconfig.json", JSON.stringify(config));
+  await put(
+    "build/browser/index.ts",
+    "export const count = (value: number) => value;\n",
+  );
+  await put(
+    "skills/leaf/packages/playground/vendor/lf-playground-initial.js",
+    "void 0;\n",
+  );
+  await put(
+    "skills/leaf/packages/playwright/widgets/lf-trace.js",
+    "export const trace = 1;\n",
+  );
+  await put(
+    "build/browser/imports.ts",
+    `
+import { count } from "/vendor/browser-runtime.js";
+import "/vendor/lf-playground-initial.js";
+import { trace } from "/widgets/lf-trace.js";
+import { future } from "/vendor/lf-future.js";
+import { widget } from "/widgets/lf-future.js";
+count(trace + future + widget);
+// @ts-expect-error The facade retains the TypeScript source signature.
+count("wrong");
+`,
+  );
+  const check = () =>
+    spawnSync(
+      process.execPath,
+      [
+        path.join(root, "node_modules/typescript/bin/tsc"),
+        "--project",
+        path.join(scratch, "build/browser/tsconfig.json"),
+        "--pretty",
+        "false",
+      ],
+      { encoding: "utf8" },
+    );
+  await put("build/browser/tsconfig.paths.json", await compilerPaths(scratch));
+  const missing = check();
+  assert.equal(missing.status, 1, missing.stdout + missing.stderr);
+  assert.match(missing.stdout, /Cannot find module '\/vendor\/lf-future.js'/);
+  assert.match(missing.stdout, /Cannot find module '\/widgets\/lf-future.js'/);
+  assert.doesNotMatch(
+    missing.stdout,
+    /Cannot find module '\/(?:vendor\/lf-playground-initial|widgets\/lf-trace)/,
+  );
+
+  await put(
+    "skills/leaf/packages/future/vendor/lf-future.js",
+    "export const future = 2;\n",
+  );
+  await put(
+    "skills/leaf/packages/future/widgets/lf-future.js",
+    "export const widget = 3;\n",
+  );
+  await put("build/browser/tsconfig.paths.json", await compilerPaths(scratch));
+  const discovered = check();
+  assert.equal(discovered.status, 0, discovered.stdout + discovered.stderr);
+});
 
 test("locked source reproduces the complete committed output", async () => {
   const rebuilt = await buildOutputs();
@@ -108,6 +184,11 @@ test("checking stale output refuses it without changing any bytes", async (conte
     await writeFile(destination, bytes);
   }
   await checkOutputs(outputs, scratch);
+  const paths = "build/browser/tsconfig.paths.json";
+  await writeFile(path.join(scratch, paths), "{}\n");
+  await assert.rejects(checkOutputs(outputs, scratch), /tsconfig\.paths\.json/);
+  assert.equal(await readFile(path.join(scratch, paths), "utf8"), "{}\n");
+  await writeFile(path.join(scratch, paths), outputs.get(paths));
   const module = path.join(scratch, vendor, "browser-runtime.js");
   const stale = Buffer.from("export const stale = true;\n");
   await writeFile(module, stale);
@@ -194,6 +275,35 @@ test("the bundle gate reads the parsed module, not its text", () => {
   checkModule('import { html } from "/vendor/lit.js"; export * from "../a.js";');
   // Pierre's TextMate grammars carry it as data.
   checkModule('export const grammar = { begin: "import\\\\(", end: "require(x)" };');
+});
+
+test("Trees search hides every nonmatch and restores an empty query", async () => {
+  // Exercise the actual shipped dependency, including its build adaptations.
+  const bundle = outputs.get(
+    "skills/leaf/packages/file-tree/vendor/pierre-trees.esm.js",
+  );
+  const { FileTree } = await import(
+    `data:text/javascript;base64,${bundle.toString("base64")}`
+  );
+  const tree = new FileTree({
+    paths: ["README.md", "src/main.py"],
+    initialExpansion: "open",
+    search: true,
+  });
+  try {
+    const visible = () =>
+      tree.getVisibleRows(0, tree.getVisibleCount() - 1).map(({ path }) => path);
+    const unfiltered = visible();
+    tree.setSearch("main");
+    assert.deepEqual(visible(), ["src/", "src/main.py"]);
+    tree.setSearch("not-a-file");
+    assert.deepEqual(tree.getSearchMatchingPaths(), []);
+    assert.deepEqual(visible(), []);
+    tree.setSearch("");
+    assert.deepEqual(visible(), unfiltered);
+  } finally {
+    tree.cleanUp();
+  }
 });
 
 test("notices name the packages whose code reached an output", () => {

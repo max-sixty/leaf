@@ -65,6 +65,7 @@ export {
   focused,
   handBack,
   holdFocus,
+  onStanding,
   openLayer,
   openerOf,
   rove,
@@ -182,7 +183,7 @@ export { ago, clockValue, quietSince, readingPaint, shortAgo } from "./presence.
 export { shadowStage } from "./shadow-stage.js";
 export { inBaseLayer } from "./stylesheets.js";
 export { revisionLabel } from "./context.js";
-export { loadDeferred } from "./data.js";
+export { loadDeferred, publishOutput } from "./data.js";
 export { boundFile } from "./file-api.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
 export {

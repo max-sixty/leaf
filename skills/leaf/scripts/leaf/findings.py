@@ -895,6 +895,12 @@ _TEXT = {
         f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names no element in this version'
     ),
     "reference-contract": _reference_contract,
+    "ambiguous-data-binding": lambda at, v: (
+        f"{_line(at, v)}: input {v['input']!r} binds both an external source and widget output"
+    ),
+    "output-contract": lambda at, v: (
+        f"{_line(at, v)}: input {v['input']!r} requires output {v['output']!r} of {v['target']!r} with contract {v['contract']!r}"
+    ),
     "outside-reference": lambda at, v: (
         f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names an element outside its'
         " own document, which it fills"
@@ -1143,6 +1149,14 @@ _TEXT = {
     "data-contract": _declared(
         lambda v: (
             f"x-data input `{v['input']}` names unknown contract {v['contract']!r}"
+        )
+    ),
+    "unknown-output-contract": _declared(
+        lambda v: f"x-output `{v['output']}` names unknown contract {v['contract']!r}"
+    ),
+    "data-reference": _declared(
+        lambda v: (
+            f"x-data input `{v['input']}` reference `{v['attr']}` must name an x-refers element relation"
         )
     ),
     "data-source": _declared(
@@ -1932,7 +1946,7 @@ _TEXT = {
         + (v.get("held") or f"this page's log holds no event {v['event']!r}")
     ),
     "superseded-reply": lambda at, v: (
-        f"event {v['event']!r} no longer requires a reply to {v['to']!r}; "
+        f"event {v['event']!r} no longer requires a reply to {v['parent']!r}; "
         + (v.get("held") or "read the current delivery or thread state")
     ),
     "reserved-answer": lambda at, v: (

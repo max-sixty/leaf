@@ -2575,7 +2575,9 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     )
 
     thread_model.post_reply(
-        serve.page_dir, {"to": reaction["id"]}, "Which part — the case, or the answer?"
+        serve.page_dir,
+        {"parent": reaction["id"]},
+        "Which part — the case, or the answer?",
     )
     told(page)
     expect(page.locator(".lf-fp-threads")).to_have_attribute(

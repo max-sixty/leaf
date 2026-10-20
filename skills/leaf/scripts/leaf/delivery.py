@@ -40,6 +40,7 @@ session's process keeps it working. An update still owed then reaches the new
 owner in its next delivery, with a ref of its own (`deliverable`).
 """
 
+import json
 import re
 import secrets
 import time
@@ -104,7 +105,7 @@ DELIVERY = Record(
             )
         },
     ),
-    since=13,
+    since=14,
 )
 DELIVERY_ID = re.compile(r"[0-9a-f]{8}")
 _BATCH_FIELDS = (
@@ -124,6 +125,19 @@ class DeliveryIdConflict(RuntimeError):
 def new_delivery_id() -> str:
     """Mint one candidate in the agent-facing delivery-id vocabulary."""
     return secrets.token_hex(4)
+
+
+# The words that open a delivery handed over whole.
+INLINE_OPENING = (
+    "Leaf has new input for your turn. Read this complete delivery before answering."
+)
+
+
+def inline_delivery(delivery: dict) -> str:
+    """A whole delivery as one message: the opening line, then the envelope as
+    one line of JSON. A hook's context and an App Server turn's user message carry
+    it in this form."""
+    return f"{INLINE_OPENING}\n{json.dumps(delivery, ensure_ascii=False)}"
 
 
 def delivery_pointer_prompt(delivery_id: str) -> str:
@@ -338,14 +352,9 @@ def response_address(reference: str) -> dict:
 
 
 def stream_reply_target(payload: dict) -> dict | None:
-    """The sole reply whose final text belongs to this delivery's provider turn."""
+    """The delivery's sole turn-written reply address, including its capture fences."""
     targets = [
-        {
-            "page": address["page"],
-            "reply_to": address["to"],
-            "responds": address["for"],
-            "ref": address["ref"],
-        }
+        address
         for address in response_addresses(payload)
         if address.get("writer") == "turn"
     ]

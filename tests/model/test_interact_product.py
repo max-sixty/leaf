@@ -399,7 +399,9 @@ def test_command_references_preserve_the_package_owned_subject_roles(page_dir):
         "</lf-test-worker></lf-test-task></lf-test-plan>"
     )
 
-    errors = reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
+    errors = reference_errors(
+        parser.lf_elements, registry, parser.ids, parser.by_id, thread_ids=set()
+    )
 
     assert [(e.code, e.values["via"], e.values["where"]) for e in errors] == [
         ("reference-contract", "$work.widgets", {"role": "readings"}),
@@ -421,7 +423,9 @@ def test_a_readings_seat_answers_to_one_command(page_dir):
         '<lf-test-summary id="orphan"></lf-test-summary>'
     )
 
-    errors = reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
+    errors = reference_errors(
+        parser.lf_elements, registry, parser.ids, parser.by_id, thread_ids=set()
+    )
 
     assert errors == [
         Finding(
@@ -825,9 +829,10 @@ def test_a_playground_control_stands_in_the_rail_or_inside_its_preview():
         '<lf-playground-output><lf-playground-value for="item-tone">'
         "</lf-playground-value></lf-playground-output></lf-playground>"
     ).lf_elements
-    assert [e.code for e in reference_errors(quoted_records, registry, set(), {})] == [
-        "unmatched-member"
-    ]
+    assert [
+        e.code
+        for e in reference_errors(quoted_records, registry, set(), {}, thread_ids=set())
+    ] == ["unmatched-member"]
     assert [
         e.code
         for e in errors(
@@ -1542,7 +1547,7 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
         (
             edit["id"],
             asked["id"],
-            {"kind": "reply", "to": asked["id"], "for": edit["id"]},
+            {"kind": "reply", "parent": asked["id"], "responds": edit["id"]},
         )
     ]
     with service_model.PageTransaction(page_dir) as page:

@@ -5,8 +5,9 @@ A reply is timed from the comment's admission to the reply's, both on the page
 server's clock. The harness's record splits that span into phases (`turn_phases`):
 
 - `busy`: the harness was in a turn at the admission, on other work, until that
-  turn's first tool boundary or its end, where the harness can take the comment.
-  Only a comment that arrives while the harness works has it;
+  turn's next tool boundary, where every call out has returned, or its end, where
+  the harness can take the comment. Only a comment that arrives while the harness
+  works has it;
 - `delivery`: Leaf handing the comment over, until the harness records it in the
   agent's context (its opened pickup), whether that opened a turn or entered a
   running one. Where the agent runs tools before that pickup, the harness handed it
@@ -98,6 +99,26 @@ def _phases(
             None,
         )
 
+    def drained(after: float, until: float) -> float:
+        """The first tool boundary after `after` and by `until` where no call is
+        out, or the turn's end, whichever comes first; `after` where neither does."""
+        out: set[str] = set()
+        for at, record in timed:
+            if at > until:
+                break
+            if after < at and record["type"] == "turn_end":
+                return at
+            if record["type"] not in ("assistant", "user"):
+                continue
+            for part in record["message"]["content"]:
+                if part["type"] == "tool_use":
+                    out.add(part["id"])
+                elif part["type"] == "tool_result":
+                    out.discard(part["tool_use_id"])
+                    if after < at and not out:
+                        return at
+        return after
+
     def turns_until(until: float) -> list[str]:
         return [
             record["type"]
@@ -108,7 +129,7 @@ def _phases(
     phases: list[tuple[str, float, float, list[str]]] = []
     boundary = start
     if turns_until(start)[-1:] == ["turn_start"]:
-        boundary = first(start, began, "tool_result", "turn_end") or start
+        boundary = drained(start, began)
         if boundary > start:
             phases.append(("busy", start, boundary, []))
         took = boundary if boundary > start else None

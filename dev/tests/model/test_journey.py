@@ -470,6 +470,16 @@ def test_a_reply_taken_while_working_splits_into_leaf_share_and_model_calls():
     ]
     later = reply_breakdown(ended, at(1), at(34), at(35))
     assert (later["busyMs"], later["idleMs"], later["modelMs"]) == (1000, 30000, 2500)
+    # Calls out together at the admission hold the harness until the last returns.
+    batch = [
+        {"type": "turn_start", "received_at": at(0)},
+        use(0.5, "a", "sleep 2"),
+        use(0.5, "b", "sleep 10"),
+        result(2, "a"),
+        result(10, "b"),
+    ]
+    drained = reply_breakdown(batch, at(1), at(10.2), at(12))
+    assert (drained["busyMs"], drained["deliveryMs"]) == (9000, 200)
 
 
 def test_pis_events_give_the_turn_phases(monkeypatch):

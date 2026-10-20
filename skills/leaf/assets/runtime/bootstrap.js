@@ -123,7 +123,7 @@
       });
     }
     window.addEventListener("lf-startup-failed", () =>
-      root.lfDocumentLifetime.whenActive(() =>
+      root.lfDocumentLifetime.whenActive("sample error", () =>
         root.lfSample.send({
           type: "error",
           detail: root.lfStartupException ?? {

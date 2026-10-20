@@ -860,13 +860,13 @@ async function startPage() {
   app.startFeed(presentPage, initialStateRead);
 }
 
-startPage().catch((error) =>
-  document.documentElement.lfDocumentLifetime.whenActive(() => {
-    const reason = `page failed to start: ${error?.message ?? error}`;
+startPage().catch((error) => {
+  const reason = `page failed to start: ${error?.message ?? error}`;
+  document.documentElement.lfDocumentLifetime.whenActive(`start ${reason}`, () => {
     window.dispatchEvent(
       new CustomEvent("lf-startup-failed", { detail: { reason, error } }),
     );
     reportPageError(error, "page failed to start");
     applicationState.setReach("broken");
-  }),
-);
+  });
+});

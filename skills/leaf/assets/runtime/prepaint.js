@@ -23,28 +23,28 @@
   // or edit shows the document stayed, and the fault is reported then. A wheel turn
   // shows nothing, since a reader may scroll a page they are leaving while its
   // destination loads, and neither does the document's own first `pageshow`, which
-  // can follow a prompt the user stayed at. Only the first faults wait: the earliest
-  // is the evidence, and a fault that repeats while the user does nothing would
-  // otherwise pile up. A persisted `pageshow` reopens the lifetime when the browser
-  // restores the same document from its page cache, the faults that waited having
-  // gone with the `pagehide`.
+  // can follow a prompt the user stayed at. Each report names the fault it reports,
+  // and only the first report of a fault waits, so a read that keeps failing while
+  // the user does nothing adds nothing. A persisted `pageshow` reopens the lifetime
+  // when the browser restores the same document from its page cache, the faults that
+  // waited having gone with the `pagehide`.
   let swapped = false;
   let leaving = false;
-  /** @type {(() => void)[]} */
-  let waiting = [];
+  /** @type {Map<string, () => void>} */
+  let waiting = new Map();
   root.lfDocumentLifetime = Object.freeze({
-    /** Run `report` now, once the document is known to have stayed, or never. */
-    whenActive(report) {
+    /** Run `report` of `fault` now, once the document is known to have stayed, or never. */
+    whenActive(fault, report) {
       if (!swapped && !leaving) report();
-      else if (!swapped && waiting.length < 20) waiting.push(report);
+      else if (!swapped && !waiting.has(fault)) waiting.set(fault, report);
     },
   });
   const stayed = () => {
     if (!leaving) return;
     leaving = false;
     const reports = waiting;
-    waiting = [];
-    for (const report of reports) report();
+    waiting = new Map();
+    for (const report of reports.values()) report();
   };
   window.addEventListener("beforeunload", () => {
     leaving = true;
@@ -52,7 +52,7 @@
   for (const type of ["pageswap", "pagehide"])
     window.addEventListener(type, () => {
       swapped = true;
-      waiting = [];
+      waiting = new Map();
     });
   window.addEventListener("pageshow", (event) => {
     if (!event.persisted) return;
@@ -107,7 +107,7 @@
   // mark off where it is incomplete. The first is the earliest evidence and a later one
   // is often its consequence; the bootstrap's report keeps the first as well.
   const fault = (reason, incomplete, error = null, page = false) =>
-    root.lfDocumentLifetime.whenActive(() => {
+    root.lfDocumentLifetime.whenActive(`fault ${reason}`, () => {
       if (incomplete) root.toggleAttribute("data-lf-interactive", false);
       if (root.hasAttribute("data-lf-startup-error")) return;
       root.dataset.lfStartupError = reason;

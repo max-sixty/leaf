@@ -3306,8 +3306,8 @@ var reportedErrors = /* @__PURE__ */ new Set();
 function reportPageError(reason, context = "") {
   if (typeof reason === "object" && reason !== null) reportedReasons.add(reason);
   else reportedPrimitives.add(String(reason));
-  document.documentElement.lfDocumentLifetime.whenActive(() => {
-    const text = exceptionText(reason, context);
+  const text = exceptionText(reason, context);
+  document.documentElement.lfDocumentLifetime.whenActive(`report ${text}`, () => {
     console.error(`leaf: ${text}`);
     if (offlineInteractive) return;
     if (reportedErrors.has(text) || reportedErrors.size >= 20) return;

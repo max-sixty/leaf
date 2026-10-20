@@ -92,12 +92,12 @@ test("a departing document holds its faults until it stays, and drops them as it
     window.dispatchEvent(new Event("beforeunload", { cancelable: true }));
   // Firefox rejects the loads a navigation aborts before any swap, and the navigation
   // may still leave the document in place, as a download or a stay at the prompt does.
-  // A fault then waits, and so does no more than the first few that keep coming. Neither
-  // a wheel turn nor the document's own first pageshow says the reader stayed.
+  // A fault then waits, once however often it repeats. Neither a wheel turn nor the
+  // document's own first pageshow says the reader stayed.
   leave();
   reportPageError(new Error("load a download aborted"));
-  startupFault("startup a download aborted");
   for (let poll = 0; poll < 100; poll++) reportPageError(new Error("read failed"));
+  startupFault("startup a download aborted");
   window.dispatchEvent(new Event("wheel"));
   window.dispatchEvent(new Event("pageshow"));
   assert.deepEqual(errors, []);
@@ -106,7 +106,7 @@ test("a departing document holds its faults until it stays, and drops them as it
   window.dispatchEvent(new Event("keydown"));
   assert.match(errors[0], /load a download aborted/);
   assert.deepEqual(faults, ["startup a download aborted"]);
-  assert.ok(errors.length < 100);
+  assert.equal(errors.length, 2);
   root.removeAttribute("data-lf-startup-error");
   errors.length = faults.length = 0;
   // A departure drops what waited with it.

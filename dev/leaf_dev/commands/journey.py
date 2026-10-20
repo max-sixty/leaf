@@ -101,6 +101,7 @@ from leaf.event_log import read_events
 from leaf.events import build_threads
 from leaf.files import revision_path
 from leaf.findings import Finding
+from leaf.leases import titles_log
 from leaf.server import running_server
 from leaf.structure import SourceDocument
 from leaf.thread import successful_replies
@@ -875,6 +876,26 @@ class Terminal:
                 if self.idle() and done():
                     return
         raise self.failure(what, STEP_LIMIT)
+
+    def page_server_title(self, session: str, thread: str) -> dict | None:
+        """The record the page server of `session`'s page made of the title it
+        generated for `thread`, hearing the session for as long as the request may
+        take, or None where it made none. A thread's title says nothing of who made
+        it; this says the page server did."""
+        log = titles_log(session)
+        deadline = time.monotonic() + TITLE_PATIENCE
+        while True:
+            records = log.read_text().splitlines() if log.exists() else []
+            for line in records:
+                record = json.loads(line)
+                if (record["event"], record["thread"]) == (
+                    "thread_title_generated",
+                    thread,
+                ):
+                    return record
+            if time.monotonic() > deadline:
+                return None
+            self.hear(0.5)
 
     def await_command(self, text: str, what: str) -> None:
         """Hear the session until it runs a shell command containing `text`."""

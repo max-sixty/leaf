@@ -1934,6 +1934,32 @@ def claimed(page_dir, monkeypatch):
     return page_dir
 
 
+def _launched_as(monkeypatch, argv: list[str]) -> None:
+    """Read this process, the CLAUDE_PID `claimed` names, as a Claude Code launched
+    with `argv`, which is what says whether a watch follows its turns
+    (`ClaudeCodeHarness.watches_between_turns`). Other processes read as they run."""
+    launched = harness_model.process_argv
+    monkeypatch.setattr(
+        harness_model,
+        "process_argv",
+        lambda pid: argv if pid == os.getpid() else launched(pid),
+    )
+
+
+@pytest.fixture
+def interactive(monkeypatch):
+    """Claude Code at its terminal, where a watch follows each turn and gives input
+    that arrives as the turn ends a turn of its own."""
+    _launched_as(monkeypatch, ["claude"])
+
+
+@pytest.fixture
+def printing(monkeypatch):
+    """Claude Code under plain `--print`, where no watch follows the run, so its Stop
+    hook hands over the input pending as the turn ends."""
+    _launched_as(monkeypatch, ["claude", "-p", "review the page"])
+
+
 @pytest.fixture(scope="session")
 def codex_program(tmp_path_factory):
     """A program named `codex` to run a session under, which is the whole of what

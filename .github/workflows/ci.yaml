@@ -70,10 +70,11 @@ jobs:
       # included, so wall time reads back by function. py-spy reads a process it did
       # not start only where Yama allows any same-user trace. The package's daily cron
       # job would restart accounting onto its own file at 06:25 UTC, ending the
-      # suite's record partway through any run that crosses that time.
-      - name: Install the suite's profilers
+      # suite's record partway through any run that crosses that time. eatmydata is
+      # for the suite's own run below.
+      - name: Install the suite's profilers and eatmydata
         run: |
-          sudo apt-get install -y acct
+          sudo apt-get install -y acct eatmydata
           sudo rm /etc/cron.daily/acct
           sudo sysctl -w kernel.yama.ptrace_scope=0
           uvx py-spy@0.4.2 --version
@@ -136,7 +137,12 @@ jobs:
             sudo touch /var/log/account/suite
             sudo accton /var/log/account/suite
           fi
-          env --default-signal=INT uv run pytest tests -n 3 -v --junitxml=.tmp/test-results/results.xml \
+          # eatmydata makes fsync a no-op in every process the suite starts. Leaf
+          # syncs each file it stages or replaces, which no test can observe short
+          # of a crash, and on the runner's disk they cost a pull request's suite
+          # minutes of worker time (#3243). eatmydata execs its command, so py-spy
+          # still follows the tree from this PID.
+          env --default-signal=INT eatmydata uv run pytest tests -n 3 -v --junitxml=.tmp/test-results/results.xml \
             ${{ github.event_name == 'pull_request' && '--changed-since HEAD^1' || github.event_name == 'push' && '--run-main' || '--run-nightly' }} &
           tests=$!
           until pgrep -P "$tests" >/dev/null || ! kill -0 "$tests" 2>/dev/null; do

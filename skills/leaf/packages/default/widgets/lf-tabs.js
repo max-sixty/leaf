@@ -522,11 +522,15 @@ export class TabSet extends HTMLElement {
     const wasFlow = this.#pageFlow;
     // The first tab set directly in the page is its navigation, whatever else the page
     // holds beside it; a later one is a tabbed section like any nested set. A page's
-    // parts are its navigation wherever they stand in it.
+    // parts are its navigation where the page lays them out, in a `main` that is no
+    // Layout's box (layouts.css, `--lf-layout-box`), as the theme and the prepaint
+    // read it; in any other `main` they stand as if placed anywhere else.
     const main = this.parentElement;
     this.#root =
       Boolean(main?.matches("body > main")) &&
-      (this.#parts || main.querySelector(":scope > lf-tabs") === this);
+      (this.#parts
+        ? getComputedStyle(main).getPropertyValue("--lf-layout-box").trim() !== "1"
+        : main.querySelector(":scope > lf-tabs") === this);
     this.#pageFlow = this.#root && !this.#side;
     if (!this.#parts) keeps(this, "data-lf-tabs-flow", this.#pageFlow ? "page" : "box");
     this.#declareHeader();

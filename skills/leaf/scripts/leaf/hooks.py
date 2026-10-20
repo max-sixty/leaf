@@ -70,10 +70,6 @@ from .state import (
 def cmd_hook(harness: str, payload: dict) -> None:
     """Answer one hook of `harness`, the name its registration passes."""
     started = time.monotonic()
-    if payload.get("leaf_watch") == "module":
-        # The Claude Code module marks Stop beneath it and runs it itself,
-        # unmarked, for the final handover (`hooks/claude-code.ts`).
-        return
     event, sid = payload.get("hook_event_name"), payload.get("session_id") or ""
     if (
         harness == "claude-code"

@@ -3,6 +3,7 @@
 import { anchoringIsReady } from "../anchor-resolution.js";
 import { bindings, bindingEnabled, cycledRow } from "../keyboard/bindings.js";
 import { el, LAYOUT, searchField } from "../widget-elements.js";
+import { iconElement } from "../icons.js";
 import { coarsePointer } from "../pointer.js";
 import { html, nothing, render } from "/vendor/browser-runtime.js";
 
@@ -74,7 +75,24 @@ pageSearchStatus.setAttribute("role", "status");
 pageSearchStatus.slot = "end";
 const pageSearchWords = el("span");
 pageSearchStatus.append(pageSearchWords);
-pageSearchInput.append(pageSearchStatus);
+// The box walks its own matches, as a browser's find bar does: up and down beside the
+// count they move, the walk's one control for a finger and a mouse. A press leaves focus
+// in the field, so a phone's keyboard stays up and the next letter still edits the query.
+// Tab is their key, so they are no stop of its own.
+const matchStep = (icon, name) => {
+  const control = el("button", "lf-btn lf-icon-action lf-page-search-step");
+  control.type = "button";
+  control.tabIndex = -1;
+  control.slot = "end";
+  control.append(iconElement(icon, "lf-action-icon"));
+  control.setAttribute("aria-label", name);
+  control.title = name;
+  control.addEventListener("mousedown", (event) => event.preventDefault());
+  return control;
+};
+const previousMatchControl = matchStep("up", "Previous match");
+const nextMatchControl = matchStep("down", "Next match");
+pageSearchInput.append(pageSearchStatus, previousMatchControl, nextMatchControl);
 pageSearchSurface.append(pageSearchInput);
 const noMatches = "No matches";
 const searchCount = (position, total) => `${position} of ${total}`;
@@ -707,18 +725,19 @@ export function createTargetPicker({
       {
         id: "page.search.match.walk",
         keys: ["Tab", "Shift+Tab"],
+        touch: false,
         routes: [
           {
             id: "page.search.match.previous",
             binding: "Shift+Tab",
             title: "Go to the previous search match",
-            touch: "Previous",
+            control: previousMatchControl,
           },
           {
             id: "page.search.match.next",
             binding: "Tab",
             title: "Go to the next search match",
-            touch: "Next",
+            control: nextMatchControl,
           },
         ],
         title: "matches",

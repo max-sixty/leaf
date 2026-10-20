@@ -141,29 +141,31 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
 
     # Selecting words reaches only what is on screen; search finds the rest, and its
-    # walk stands on the row beside its ✕.
+    # walk stands in its own box, beside the count, with the box still taking letters.
     panel_control(page, "command:page.search.open", at="navigate").tap()
     box = page.get_by_role("searchbox", name="Search page text")
     expect(box).to_be_focused()
     box.fill("mounts")
     expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
-    next_match = step("Next")
-    expect(step("Previous")).to_be_visible()
+    search = page.locator(".lf-page-search")
+    next_match = search.get_by_role("button", name="Next match")
+    expect(search.get_by_role("button", name="Previous match")).to_be_visible()
     assert row.evaluate("el => el.scrollWidth <= el.clientWidth"), (
         "search's steps overflow a 320px row"
     )
     next_match.tap()
     expect(page.locator(".lf-live")).to_contain_text("Match 2 of 3")
+    expect(box).to_be_focused()
     # Select takes the match as the selection, which the panel's field then quotes.
     step("Select").tap()
     expect(box).to_be_hidden()
-    expect(next_match).to_have_count(0)
+    expect(next_match).to_be_hidden()
     expect(comment).to_have_attribute("placeholder", "“mounts”")
     assert page.evaluate("getSelection().toString()") == "mounts"
     page.evaluate("getSelection().removeAllRanges()")
     expect(comment).to_be_hidden()
 
-    # Searching inside a mode puts search's steps on the row in place of the mode's, and
+    # Searching inside a mode puts search's step on the row in place of the mode's, and
     # its ✕ closes search, after which the ✕ leaves the mode.
     panel_control(page, "command:draw.mode.enter", at="annotate").tap()
     exit_draw = leave("Exit Draw mode")
@@ -171,9 +173,7 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     panel_control(page, "command:page.search.open", at="navigate").tap()
     expect(next_match).to_be_visible()
     expect(exit_draw).to_have_count(0)
-    expect(row.locator(".lf-fp-step:visible")).to_have_text(
-        ["Select", "Previous", "Next"]
-    )
+    expect(row.locator(".lf-fp-step:visible")).to_have_text(["Select"])
     leave("Close search").tap()
     exit_draw.tap()
     expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")

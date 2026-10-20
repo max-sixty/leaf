@@ -622,7 +622,7 @@ test("a superseded claim releases its hold without painting", async () => {
   const schedule = createPresentationSchedule((callback) => callback);
   const painted = [];
   const presenter = schedule.presenter({
-    attach: () => coordinator.attach("items", {}),
+    attach: () => coordinator.attach("obligations", {}),
     paint: (value) => {
       painted.push(value);
       return value;

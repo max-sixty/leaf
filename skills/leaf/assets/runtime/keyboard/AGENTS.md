@@ -55,7 +55,7 @@ innermost step as one `navigation.back` command.
   title, never on the page. The panel's field keeps focus after Send for the next turn.
   A box that stays open for more messages, such as a widget's thread box
   (`x-thread-seat`), keeps focus in the box.
-- A selected destination (a thread, an item, a heading) steps back to the document
+- A selected destination (a thread, an obligation, a heading) steps back to the document
   through `letGo` (`focus.js`), landing on the visible block rather than on the control
   that opened it. Page Map returns focus to whatever opened it.
 
@@ -68,10 +68,10 @@ reopens it.
 
 Page scope holds commands about the page; a surface's scope holds commands about its
 contents. A page-level letter must be useful on every page; any other control is
-reachable by Tab, native activation, item digits or Go-to hints. `PAGE_COMMANDS` lists
+reachable by Tab, native activation, obligation digits or Go-to hints. `PAGE_COMMANDS` lists
 the page commands in the order the menu and the reference list them. A lowercase letter steps a walk forward and
 Shift steps it back, wrapping at either end. A surface may reuse a page key for the same
-intent with a nearer destination. While the user is on an item, or its margin or thread
+intent with a nearer destination. While the user is on an obligation, or its margin or thread
 representative, core forwards only the widget's declared `contextKeys`; widgets assign their own `1`–`9`.
 
 ## Touch routes
@@ -81,9 +81,14 @@ the page's controls (`page-controls.js`), for a finger and a mouse alike. The ro
 that control in `touch`, and `touch-controls.js` builds it from the same row the key
 uses: a page command's control is a row of the floating panel's menu, and a page-scope
 row's control stands in the panel's row as a gesture's step while its scope is the
-innermost one offering steps. A mode a finger can enter declares its
-way out. The register refuses a page command without `touch`; `false` says a finger
-reaches the result directly, as it does for walks and Go-to by scrolling and tapping.
+innermost one offering steps. A stance a finger can enter, such as page search, the
+target picker or Draw mode, marks its way out `exit` instead of giving it words: while
+it is the innermost stance standing, the panel says the scope's title and offers that
+row as one ✕ at the row's end, beside the counts or the steps. The ✕ runs that row,
+which leaves the stance, even where Escape would first close something inside it; the
+picker's, while a typed hint prefix stands, takes back a letter, as its title says. The
+register refuses a page command without `touch`; `false` says a finger reaches the
+result directly, as it does for walks and Go-to by scrolling and tapping.
 
 The comment field has one primary action, Dictate while empty and Send once it has
 words; Suggest and reactions open by Tab from the field. The field deliberately has no
@@ -103,7 +108,7 @@ activation), `layer-stack.js` (popovers and dialogs over the page), `page.js` (t
 page's own scope and the last Escape step), `go-to-sequence.js` (the `g` keys),
 `hints.js` and `command-hints.js` (hint chips), `chip-seats.js` and
 `key-badge-placement.js` (where chips sit), `touch-controls.js` (a finger's controls
-for the keys), `status-context.js` (what the panel says of a walk or a Go-to filter),
+for the keys), `status-context.js` (what the panel says of a walk, a Go-to filter or a stance),
 and `control-keys.js`, `key-sequence.js`, `command-reference.js`, `disclosure.js`.
 
 Test a changed binding inside and outside its scope and inside any native editor the

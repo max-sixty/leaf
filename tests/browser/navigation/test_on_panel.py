@@ -42,7 +42,7 @@ ON_ME = """async () => {
 
 
 def expect_on_me(page, count):
-    """Wait until On me counts `count` items waiting on the user."""
+    """Wait until On me counts `count` obligations waiting on the user."""
     page.evaluate(ON_ME)
     page.wait_for_function("count => window.__lfOnMe() === count", arg=count)
 
@@ -64,7 +64,7 @@ QUEUE_PAGE = leaf_page(
 
 def test_m_walks_what_waits_on_you_and_on_me_counts_it(browser, serve):
     """`m` stops, in page order, at a thread whose question waits on the user as well
-    as at an open item, and passes a thread waiting on the agent; `t` still walks both
+    as at an open obligation, and passes a thread waiting on the agent; `t` still walks both
     threads. The panel's On me mark counts what waits on the user. A reply the user
     sends takes its thread off that count and out of the walk once the server has read
     the reply."""
@@ -171,12 +171,12 @@ def test_m_walks_what_waits_on_you_and_on_me_counts_it(browser, serve):
     counts(1)
 
 
-def test_a_tally_counts_its_regions_items_and_walks_them(browser, serve):
-    """An `lf-tally` counts the items its region holds, by the rule a queue row's mark
+def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
+    """An `lf-tally` counts the obligations its region holds, by the rule a queue row's mark
     reads, and leaves out one outside it. Its Next on me is `m` within the region: a
     press keeps the user standing where they are and steps on, coming round at the end,
-    and the walk announces its place among the region's items. Reached by Shift+Tab from
-    an item, through the queue's own rows, Enter counts from that item, so the keyboard
+    and the walk announces its place among the region's obligations. Reached by Shift+Tab from
+    an obligation, through the queue's own rows, Enter counts from that obligation, so the keyboard
     steps on too. An answer leaves the count once the log admits it; with none left the
     tally says so and Next on me is disabled."""
 
@@ -211,7 +211,7 @@ def test_a_tally_counts_its_regions_items_and_walks_them(browser, serve):
     expect(words).to_have_text("2 of 2 to answer")
     box = page.locator("#left").bounding_box()
 
-    # The row opens the item the user reads. Enter its item before deciding: the
+    # The row opens the obligation the user reads. Enter its obligation before deciding: the
     # strip itself precedes every panel in DOM order, but is not the walk's origin.
     page.get_by_role("tab", name="Second", exact=True).click()
     page.keyboard.press("Shift+m")
@@ -277,7 +277,7 @@ def test_a_tally_counts_its_regions_items_and_walks_them(browser, serve):
 def test_a_todo_on_you_ends_at_its_done_where_m_lands_and_in_the_panel(browser, serve):
     """A task the agent put on the user ends at their Done. Where `m` lands on it, `x`
     is Done; its card in On me carries a Done button. Either leaves the user's queue
-    in the turn it is pressed, and writes the user's `todo_end`; the item beside them
+    in the turn it is pressed, and writes the user's `todo_end`; the obligation beside them
     has no Done, since its widget answers it."""
     url = serve(QUEUE_PAGE)
     d = serve.page_dir
@@ -548,8 +548,8 @@ def test_an_m_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, se
 
 
 @pytest.mark.parametrize("width", [1200, 390])
-def test_a_completed_item_stays_reachable_through_on_me(browser, serve, width):
-    """An answered item stays in On me under Done, which closes and reopens through its
+def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, width):
+    """An answered obligation stays in On me under Done, which closes and reopens through its
     routes."""
     page = open_page(
         browser,
@@ -591,7 +591,7 @@ def test_a_completed_item_stays_reachable_through_on_me(browser, serve, width):
     expect(done).to_have_count(1)
 
 
-def test_a_completed_item_keeps_its_answer_in_the_on_panel(browser, serve):
+def test_a_completed_obligation_keeps_its_answer_in_the_on_panel(browser, serve):
     """Finishing a page preserves the On panel's route back through the answer."""
     page = open_page(
         browser,
@@ -605,7 +605,7 @@ def test_a_completed_item_keeps_its_answer_in_the_on_panel(browser, serve):
             )
         ),
     )
-    # `m` travels to the item and Tab steps onto a mark, whose digit answers it. Tab
+    # `m` travels to the obligation and Tab steps onto a mark, whose digit answers it. Tab
     # rather than the digit straight off the arrival, because where an arrival lands is
     # not this test's subject and it should not go red when that moves.
     page.keyboard.press("m")
@@ -616,8 +616,8 @@ def test_a_completed_item_keeps_its_answer_in_the_on_panel(browser, serve):
     holding(page, held, 1, "the option answer")
     pending = page.evaluate(
         """async () => {
-          const {readItems} = await window.__lfWidgetApi();
-          const reading = readItems();
+          const {readObligations} = await window.__lfWidgetApi();
+          const reading = readObligations();
           const item = reading.all.find(q => q.id === 'widget:only');
           return {
             value: item.answer.value,
@@ -638,8 +638,8 @@ def test_a_completed_item_keeps_its_answer_in_the_on_panel(browser, serve):
 
     reading = page.evaluate(
         """async () => {
-          const {readItems} = await window.__lfWidgetApi();
-          const item = readItems().all.find(q => q.id === 'widget:only');
+          const {readObligations} = await window.__lfWidgetApi();
+          const item = readObligations().all.find(q => q.id === 'widget:only');
           return {
             id: item.id,
             source: item.source,
@@ -659,14 +659,14 @@ def test_a_completed_item_keeps_its_answer_in_the_on_panel(browser, serve):
     page.locator("h1").focus()
     assert page.evaluate(
         """async () => {
-          const {itemActions} = await window.__lfWidgetApi();
-          return itemActions.open('widget:only');
+          const {obligationActions} = await window.__lfWidgetApi();
+          return obligationActions.open('widget:only');
         }"""
     )
     expect(page.locator("#only-decision")).to_be_focused()
 
 
-def test_on_me_says_when_a_revision_removes_its_last_item(browser, serve):
+def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):
     """An empty On me list says the panel rendered, rather than looking broken."""
     source = leaf_page(
         "One decision",
@@ -688,7 +688,7 @@ def test_on_me_says_when_a_revision_removes_its_last_item(browser, serve):
     stamp_page(
         serve.page_dir,
         leaf_page("No decisions", "<h1>No decisions remain</h1>"),
-        "remove the last item",
+        "remove the last obligation",
     )
     wait_for_revision(page, 2)
     expect(cards).to_have_count(0)

@@ -2,8 +2,9 @@
 
 This module owns fixture setup, native resumed/live execution and user-input
 injection. It retains page state, active markup, data, events, delivery envelopes
-and the full native trace for the judge. Task correctness belongs to one YAML
-llm-rubric per case, not a parallel Python grader or markup-shape rules.
+and the full native trace for the judge, less the images the agent read. Task
+correctness belongs to one YAML llm-rubric per case, not a parallel Python grader or
+markup-shape rules.
 """
 
 import json
@@ -21,7 +22,7 @@ from leaf.delivery import opened_input_ids
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
 from leaf.passages import SourceReading
-from leaf.schema import MESSAGE_KINDS
+from leaf.registry.kernel import kinds_declaring
 from leaf.service import requires_agent_attention
 from leaf.structure import SourceDocument
 
@@ -394,6 +395,38 @@ def build_elided(run: Run, page: Path) -> None:
     run.leaf("status", str(page), "waiting", "", check=True)
 
 
+def build_plan(run: Run, page: Path) -> None:
+    """A stamped rollout page whose work the user is about to lay out: a table to
+    refresh, a choice of first region, and a schedule still to write."""
+    run.leaf("page", "init", str(page), check=True)
+    (page / "index.html").write_text((FIXTURES / "rollout.html").read_text())
+    run.leaf(
+        "page", "stamp", str(page), "--text", FIXTURE_INPUTS["plan"]["stamp"],
+        check=True,
+    )  # fmt: skip
+
+
+def build_plan_resume(run: Run, page: Path) -> None:
+    """The rollout page midway through another session's plan: the table refreshed,
+    the user's first-region choice in, and the schedule and rollback steps still open,
+    recorded nowhere but the plan."""
+    inputs = FIXTURE_INPUTS["plan-resume"]
+    html = (FIXTURES / "rollout.html").read_text()
+    for old, new in inputs["latency"].items():
+        html = html.replace(old, new)
+    run.leaf("page", "init", str(page), check=True)
+    (page / "index.html").write_text(html)
+    run.leaf("page", "stamp", str(page), "--text", inputs["stamp"], check=True)
+    run.leaf(
+        "task", "plan", str(page), input_text=json.dumps(inputs["plan"]), check=True
+    )
+    run.leaf("status", str(page), "waiting", inputs["status"], check=True)
+    admit(run, page, {
+        "kind": "action", "revision": 1, "widget": "first-region", "action": "choose",
+        "detail": {"value": [inputs["choice"]]},
+    })  # fmt: skip
+
+
 def append_elided_history(run: Run, page: Path) -> None:
     """Admit and acknowledge the historical conversation in one transaction.
 
@@ -425,6 +458,8 @@ BUILDERS = {
     "handoff": build_handoff,
     "mixed": build_mixed,
     "elided": build_elided,
+    "plan": build_plan,
+    "plan-resume": build_plan_resume,
 }
 
 
@@ -613,7 +648,7 @@ def post_round(
             event["undoes"] = posted_event(page, attempt_key(n, i - 1))["id"]
         if move.get("parent") == "latest":
             event["parent"] = [
-                e for e in page_events(page) if e["kind"] in MESSAGE_KINDS
+                e for e in page_events(page) if e["kind"] in kinds_declaring("message")
             ][-1]["id"]
         if "text" in move:
             event["text"] = move["text"].format(
@@ -749,9 +784,22 @@ def evidence(run: Run, traces: list[list[dict]]) -> dict:
             if record["type"].startswith("eval_")
         ],
         "trace": [
-            {"phase": phase, "records": trace} for phase, trace in enumerate(traces, 1)
+            {"phase": phase, "records": without_images(trace)}
+            for phase, trace in enumerate(traces, 1)
         ],
     }
+
+
+def without_images(value):
+    """`value` with each image block the agent read reduced to a marker. The text
+    judge reads no images, and a few screenshots' base64 overflow its prompt."""
+    if isinstance(value, dict):
+        if value.get("type") in ("image", "input_image"):
+            return {"type": value["type"], "omitted": True}
+        return {key: without_images(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [without_images(item) for item in value]
+    return value
 
 
 def execute_scenario(

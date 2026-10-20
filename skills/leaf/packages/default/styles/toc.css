@@ -100,7 +100,7 @@
   color: var(--accent);
 }
 
-/* The core sidebar states its actual posture after viewport and drawer-room decisions.
+/* The core sidebar states its actual posture after viewport and room decisions.
  * Only a fine-pointer margin form fixes itself into a viewport map; generic sidebars keep
  * their sticky behavior and an in-flow ToC keeps its native disclosure.
  *
@@ -120,7 +120,10 @@
     @container style(--lf-sidebar-slot: margin) {
       :scope:is(lf-toc) {
         position: fixed;
-        left: var(--sp-4);
+        /* From the start of the shell its column stands in (`--lf-shell-left`,
+         * prepaint.js), which the window's edge is unless the page puts something
+         * before it, as a page's list of parts does. */
+        left: calc(var(--lf-shell-left, 0px) + var(--sp-4));
         top: var(--lf-head-room, 0px);
         z-index: 4;
         /* At rest only the spine has a box. The invisible labels keep their full
@@ -128,9 +131,9 @@
         width: var(--sp-4);
         box-sizing: border-box;
         pointer-events: none;
-        /* Between the banner and the bottom bar, as every region is: the bar is
-                * attached to the window's foot at one stated height, so the map ends above
-                * it rather than losing its last entry under the keyboard's line. */
+        /* Between the head room and the foot room, as every region is: the floating
+         * panel's row rests at the window's foot at one stated height, so the map ends
+         * above it rather than losing its last entry under the row. */
         height: var(--lf-view-height);
         margin: 0;
       }

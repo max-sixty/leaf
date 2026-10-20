@@ -20,11 +20,17 @@ from leaf.render_gate.scheme import console_finding
 from PIL import Image, ImageChops, ImageStat
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    SEATED_ITEM_LAYER,
-    SEATED_ITEM_WIDGETS,
+    SEATED_OBLIGATION_LAYER,
+    SEATED_OBLIGATION_WIDGETS,
     live_url,
 )
-from render_cases_layout import toggle_queue, with_one_item
+from render_cases_layout import (
+    SHOT_SRC,
+    SHOTS,
+    standing_ring,
+    toggle_queue,
+    with_one_obligation,
+)
 from render_cases_navigation import (
     composer_quote,
 )
@@ -322,8 +328,8 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
             "Inline rollback",
             '<h1>Review</h1><lf-verdict id="proposal" asks>Ship it?</lf-verdict>',
         ),
-        layer_registry=SEATED_ITEM_LAYER,
-        layer_widgets=SEATED_ITEM_WIDGETS,
+        layer_registry=SEATED_OBLIGATION_LAYER,
+        layer_widgets=SEATED_OBLIGATION_WIDGETS,
     )
     page = open_page(browser, live_url(url))
     seat = page.locator("#proposal > .lf-thread-seat")
@@ -400,8 +406,8 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
             "Inline reply rollback",
             '<h1>Review</h1><lf-verdict id="proposal" asks>Ship it?</lf-verdict>',
         ),
-        layer_registry=SEATED_ITEM_LAYER,
-        layer_widgets=SEATED_ITEM_WIDGETS,
+        layer_registry=SEATED_OBLIGATION_LAYER,
+        layer_widgets=SEATED_OBLIGATION_WIDGETS,
     )
     root = append_carried_log_record(
         serve.page_dir,
@@ -1135,8 +1141,7 @@ def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
     reach it: an overflow off the start edge is unreachable in any direction, and the
     drawing's first node is the one a user follows the graph from."""
     page = open_page(browser, serve(DIAGRAM_AND_RAIL_PAGE))
-    # Linux's DejaVu labels draw this graph at 1217px. Use a width where the drawing
-    # fits the room after a classic scrollbar has been taken, with the rail shown.
+    # Check both a roomy page and one whose available width is shorter than the drawing.
     resized(page, 1920, 900)
     at = page.evaluate(DRAWING_PLACEMENT)
 
@@ -1173,7 +1178,7 @@ def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
         "axis"
     )
 
-    resized(page, 1200, 900)
+    resized(page, 1000, 900)
     at = page.evaluate(DRAWING_PLACEMENT)
     assert at["flow"]["scrolls"], (
         "this drawing outgrows the narrow page's room, so its box must scroll"
@@ -1414,14 +1419,14 @@ def test_a_boards_minimum_keeps_the_room_the_column_can_grant(browser, serve):
                 assert at["room"]["width"] > at["wide"]["width"], at
 
 
-def test_an_item_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
+def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     browser, serve
 ):
-    """On a sidebar page an item and a callout keep the prose's width and left edge, so
-    the item's ring and pin stand beside what it asks, as on a column page. One granted
+    """On a sidebar page an obligation and a callout keep the prose's width and left edge, so
+    the obligation's ring and pin stand beside what it asks, as on a column page. One granted
     `data-width`, or holding a block of its own that declares one, takes that room for
     the evidence. On a column page the wide block breaks out of the column, as it would
-    from a section, and the item spans it, so the ring it wears goes round the block
+    from a section, and the obligation spans it, so the ring it wears goes round the block
     rather than cutting across it, while its heading keeps the column; the table's
     twelve columns need the room, since a table granted it takes only what its columns
     need. A workspace states neither width, so there every one of them, and a board,
@@ -1463,12 +1468,12 @@ def test_an_item_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     # A granted callout's padding and border fall inside the wide measure.
     for wide in ("granted", "granted-c", "holds"):
         assert at[wide] == {"width": 1080, "left": edge}, (wide, at)
-    # The widened item frames its table, which stands wider than the measure.
+    # The widened obligation frames its table, which stands wider than the measure.
     assert at["holds-t"]["width"] > 720, at
 
-    # The item spans its block wherever the block breaks out, and an item granted the
-    # room itself holds its block in that room. In a list item, which stands in from the
-    # column, and where the page arranged the item, in a grid track, neither grows.
+    # The obligation spans its block wherever the block breaks out, and an obligation granted the
+    # room itself holds its block in that room. In a list obligation, which stands in from the
+    # column, and where the page arranged the obligation, in a grid track, neither grows.
     extras = (
         "<ol><li>"
         + item.format(id="listed", width="", table=table.format(id="listed"))
@@ -1519,10 +1524,10 @@ def test_an_item_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
         at
     )
     assert at["tracked"]["width"] == 350, at
-    # An item inside a breakout takes its holder's room, as any block
+    # An obligation inside a breakout takes its holder's room, as any block
     # there does, however much room its own block asks for.
     assert at["wrapped"] == at["wrapper"], at
-    # An item that spans its block is a breakout the theme grows, so the gate reads it
+    # An obligation that spans its block is a breakout the theme grows, so the gate reads it
     # as one, even where it reaches further than a table of two columns does; a box the
     # page pulls out of the column by its margins, an inline one, or one it grows round
     # its block by margins and padding of its own, still stands in the margin.
@@ -1728,13 +1733,112 @@ def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
     assert root_overflow(page) == 0
 
 
+@pytest.mark.parametrize("direction", ["ltr", "rtl"])
+def test_what_an_outer_column_draws_outside_itself_stays_whole(
+    browser, serve, direction
+):
+    """A table clips to its own edges, since it scrolls its columns, so whatever a cell
+    in its first or last column draws outside its box keeps its outer side only if the
+    cell keeps room for it: a capture's frame, a shadow reaching 8px beside the image,
+    alone, linked or in a figure, and the ring on a link the keyboard stands on, in
+    either direction. A focused link in the first column lost its ring's outer side."""
+    src = SHOT_SRC["before"]
+    capture = f'<img src="{src}" width="300" height="150" alt="A capture.">'
+    body = (
+        "<h1>Captures</h1><p>A paragraph at the measure.</p>"
+        f'<table id="captures"><tr><td>{capture}</td>'
+        f'<td><a href="{src}">{capture}</a></td>'
+        f"<td><figure>{capture}<figcaption>After.</figcaption></figure></td></tr>"
+        "</table>"
+        '<table id="links"><tr><td><a id="first" href="#a">#3189</a></td>'
+        '<td>A note on the change.</td><td><a id="last" href="#b">#3190</a></td></tr>'
+        "</table>"
+    )
+    source = leaf_page("Captures", body).replace(
+        '<html lang="en">', f'<html lang="en" dir="{direction}">', 1
+    )
+    page = open_page(browser, serve(source, media={src: SHOTS["before"]}))
+    at = page.locator("#captures").evaluate("""t => {
+      const box = t.getBoundingClientRect();
+      return {table: [box.left, box.right], scrolls: t.scrollWidth > t.clientWidth,
+        images: [...t.querySelectorAll('img')].map(i => {
+          const r = i.getBoundingClientRect();
+          return [r.left, r.right];
+        })};
+    }""")
+    assert not at["scrolls"], at
+    left = min(image[0] for image in at["images"])
+    right = max(image[1] for image in at["images"])
+    assert left - at["table"][0] >= 8 - 0.5, at
+    assert at["table"][1] - right >= 8 - 0.5, at
+
+    page.keyboard.press("Tab")  # keyboard modality, so focus draws its ring
+    for link in ("#first", "#last"):
+        page.locator(link).focus()
+        ring = standing_ring(page)
+        assert ring, f"the link {link} the keyboard stands on wears no ring"
+        assert ring["cuts"] == [], (link, ring["cuts"])
+
+
+@pytest.mark.parametrize("direction", ["ltr", "rtl"])
+def test_a_tables_rows_span_the_prose_and_its_outer_words_stand_in_alike(
+    browser, serve, direction
+):
+    """A table as wide as the column runs its row lines from where the prose starts to
+    where it ends, and sets its first column's words, a short heading's included, as far
+    inside the start as its last column's stop inside the end, in either direction. A
+    right-to-left table kept the left-to-right gutter on its first column's right and set
+    its words from the left."""
+    words = "Each column holds enough words to fill its share of the measure. "
+    body = (
+        f"<h1>Columns</h1><p id='prose'>{words * 4}</p>"
+        '<table id="columns"><thead><tr><th scope="col">Name</th>'
+        '<th scope="col">Note</th><th scope="col">More</th></tr></thead>'
+        f"<tbody><tr><td>{words}</td><td>{words}</td><td>{words}</td></tr></tbody>"
+        "</table>"
+    )
+    source = leaf_page("Columns", body).replace(
+        '<html lang="en">', f'<html lang="en" dir="{direction}">', 1
+    )
+    page = open_page(browser, serve(source))
+    at = page.evaluate("""() => {
+      const rtl = getComputedStyle(document.getElementById('columns')).direction === 'rtl';
+      const sign = rtl ? -1 : 1;
+      const prose = document.getElementById('prose').getBoundingClientRect();
+      const [from, to] = rtl ? [prose.right, prose.left] : [prose.left, prose.right];
+      const ink = node => {
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        const r = range.getBoundingClientRect();
+        return rtl ? r.right : r.left;
+      };
+      const content = cell => {
+        const r = cell.getBoundingClientRect(), cs = getComputedStyle(cell);
+        return rtl ? r.left + parseFloat(cs.paddingLeft) : r.right - parseFloat(cs.paddingRight);
+      };
+      return [...document.querySelectorAll('#columns tr')].map(row => {
+        const first = row.firstElementChild.getBoundingClientRect();
+        const last = row.lastElementChild.getBoundingClientRect();
+        return {
+          line: rtl ? [first.right - from, last.left - to] : [first.left - from, last.right - to],
+          inset: [sign * (ink(row.firstElementChild) - from), sign * (to - content(row.lastElementChild))],
+        };
+      });
+    }""")
+    for row in at:
+        assert row["line"] == [pytest.approx(0, abs=0.5)] * 2, at
+        start, end = row["inset"]
+        assert start > 0.5, at
+        assert start == pytest.approx(end, abs=0.5), at
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
 def test_a_table_of_prose_wraps_inside_its_box_in_every_engine(request, serve, engine):
     """A table whose cells hold sentences wraps them inside the box it stands in, and
-    scrolls nothing: in an item, in a panel, and in a figure granted the page's room.
+    scrolls nothing: in an obligation, in a panel, and in a figure granted the page's room.
     Firefox and WebKit have no scroll-state container and dropped the table's
     `container-type: inline-size scroll-state` whole, so the width its caption reads
-    (100cqi) was the window's: an item's two-column table laid its rows out 1728px wide
+    (100cqi) was the window's: an obligation's two-column table laid its rows out 1728px wide
     in a 720px column and cut its second column off."""
     sentence = (
         "When a new copy is installed, the update copies each commit and records it. "
@@ -2402,7 +2506,7 @@ def test_a_drawing_cut_at_its_edge_fades_toward_the_ground_and_still_reaches_it(
     drawn at throughout, and the same five steps drawn top-down fit the column and fade
     nothing."""
     page = open_page(browser, serve(LONG_CHAIN_PAGE))
-    resized(page, 850, 900)
+    resized(page, 950, 900)
     rendered(page)
     sizes = page.evaluate("""() => Object.fromEntries(['chain', 'stack'].map((id) => {
         const el = document.getElementById(id), svg = el.querySelector('svg');
@@ -2427,11 +2531,11 @@ def test_a_drawing_cut_at_its_edge_fades_toward_the_ground_and_still_reaches_it(
             """(side) => {
             const el = document.getElementById('chain'), r = el.getBoundingClientRect();
             const x = side === 'end' ? r.right - 1 : r.left + 1;
-            const node = [...el.querySelectorAll('g.node')]
+            const node = [...el.querySelectorAll('g.pele-node')]
                 .map((n) => n.getBoundingClientRect())
                 .find((n) => n.left < x && n.right > x);
             return node && { x: r.left, y: r.top, width: r.width,
-                             height: node.bottom - r.top, row: node.top + 3 - r.top };
+                             height: node.bottom - r.top, row: node.top + 10 - r.top };
             }""",
             side,
         )
@@ -2463,7 +2567,7 @@ def test_a_drawing_cut_at_its_edge_fades_toward_the_ground_and_still_reaches_it(
     )
     chain = page.locator("#chain")
     chain.evaluate("""(el) => {
-        const node = el.querySelectorAll('g.node')[1].getBoundingClientRect();
+        const node = el.querySelectorAll('g.pele-node')[1].getBoundingClientRect();
         el.scrollLeft += (node.left + node.right) / 2 - el.getBoundingClientRect().left;
     }""")
     expect(chain).to_have_attribute("data-lf-more-before", "")
@@ -2876,6 +2980,38 @@ def test_a_sidebar_pages_track_is_its_aside_in_the_order_it_is_written(browser, 
         assert (track_box["top"] < body_box["top"]) is first
 
 
+def test_a_sidebar_pages_items_trim_their_words_at_both_edges(browser, serve):
+    """Each item in a sidebar page's row trims its words' outer margins, through any
+    wrapper, as a column does at its edges: beside the body, a track whose heading sits in
+    a wrapper starts level with a body whose heading doesn't, and stacked, the body ends
+    at its last line, so only the row's gap stands before the track. Only an item's own
+    first child was trimmed, so a wrapped heading stood its margin lower, and every item
+    but the last kept its last paragraph's margin."""
+    source = leaf_page(
+        "a sidebar page",
+        "<header><h1>Review</h1></header>"
+        "<div id='body'><h2 id='body-head'>Findings</h2>"
+        + "<p>Body paragraph. "
+        * 40
+        + "</p><p id='last'>The last line.</p></div>"
+        "<aside id='track'><div><h2 id='track-head'>Summary</h2>"
+        "<p>Summary and contents.</p></div></aside>",
+        layout="sidebar",
+    )
+    page = open_page(browser, serve(source))
+    box = "(id) => document.getElementById(id).getBoundingClientRect()"
+    resized(page, 1440, 900)
+    body_head, track_head = (
+        page.evaluate(box, "body-head"),
+        page.evaluate(box, "track-head"),
+    )
+    assert track_head["x"] > body_head["x"]
+    assert track_head["top"] == pytest.approx(body_head["top"], abs=0.5)
+    resized(page, 390, 844)
+    body, last = page.evaluate(box, "body"), page.evaluate(box, "last")
+    assert body["bottom"] == pytest.approx(last["bottom"], abs=0.5)
+
+
 def test_a_sidebar_pages_track_stays_in_view_only_beside_the_body(browser, serve):
     """Beside the body, the one block a track holds stays in view at the window's head as the
     body scrolls, scrolls what it holds so its end is reachable, and is the reading
@@ -3204,6 +3340,109 @@ def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve
         assert left <= edges[0] and edges[1] <= right, in_child
 
 
+def test_each_part_of_a_page_of_parts_is_laid_out_as_a_page_of_its_own(browser, serve):
+    """A page of parts stands its title and, under it, the list of parts in a column down
+    the left, and lays the open part out beside them from the top of the page, as a page
+    of its own with that part's Layout: a column part takes the column, margin residents,
+    contents map and breakouts a column page takes in a window as wide as the room beside
+    the list, and a workspace part fills that room from the top of the window to its
+    foot, so neither it nor a short part leaves the page anything to scroll. On a phone
+    the title, the list and the part stack."""
+    column_body = """
+<h1>Migration plan</h1>
+<aside class="sidebar" id="route"><lf-toc id="contents"></lf-toc></aside>
+<aside class="sidenote" id="frequency">Support runs this twice a month.</aside>
+<h2 id="move">Move</h2>
+<p>Shift one cohort at a time while keeping the old readers available.</p>
+<div id="room" data-width="available">Available evidence.</div>
+<div style="height: 1200px"></div>
+"""
+    parts = leaf_page(
+        "parts",
+        f"""<header id="title"><h1>Release review</h1></header>
+<lf-parts id="parts">
+<lf-part id="plan" label="Plan"><article id="box" class="layout-column">{column_body}</article></lf-part>
+<lf-part id="queue" label="Queue"><div id="work" class="layout-workspace">
+<header><h1>Queue</h1></header><div id="regions"><p>Work one item at a time.</p></div>
+</div></lf-part>
+<lf-part id="note" label="Note"><article class="layout-column"><p>One line.</p></article></lf-part>
+</lf-parts>""",
+        layout=None,
+    )
+    reading = """() => {
+      const box = document.getElementById('box') ?? document.querySelector('main');
+      const shell = box.parentElement;
+      const origin = shell.getBoundingClientRect().left + shell.clientLeft;
+      const rect = (node) => {
+        const b = node.getBoundingClientRect();
+        return [Math.round(b.left - origin), Math.round(b.right - origin)];
+      };
+      const measured = {
+        width: shell.clientWidth,
+        box: rect(box),
+        margin: box.getAttribute('data-lf-margin'),
+      };
+      for (const id of ['route', 'frequency', 'room', 'contents']) {
+        const node = document.getElementById(id);
+        const style = getComputedStyle(node);
+        measured[id] = [rect(node), style.float, style.position];
+      }
+      return measured;
+    }"""
+    page = open_page(browser, serve(parts))
+    resized(page, 1600, 900)
+    page.get_by_role("tab", name="Plan").click()
+    in_part = page.evaluate(reading)
+    list_box = page.locator("#parts > [role=tablist]").bounding_box()
+    title_box = page.locator("#title h1").bounding_box()
+    view_box = page.locator("#plan").bounding_box()
+    assert title_box["y"] + title_box["height"] <= list_box["y"], (title_box, list_box)
+    assert title_box["x"] + title_box["width"] <= view_box["x"], (title_box, view_box)
+    assert list_box["x"] + list_box["width"] <= 1600 - in_part["width"], list_box
+    assert in_part["margin"] == "rail map note", in_part
+    assert root_overflow(page) == 0
+
+    alone = open_page(browser, serve(leaf_page("parts", column_body, layout="column")))
+    resized(alone, in_part["width"], 900)
+    assert {**alone.evaluate(reading), "width": in_part["width"]} == in_part
+    alone.close()
+
+    fits = """() => {
+      const scroller = document.scrollingElement;
+      return scroller.scrollHeight - scroller.clientHeight;
+    }"""
+    page.get_by_role("tab", name="Queue").click()
+    work = page.evaluate(
+        """() => {
+          const work = document.getElementById('work').getBoundingClientRect();
+          const main = document.querySelector('main').getBoundingClientRect();
+          return {width: Math.round(work.width), top: Math.round(work.top),
+                  bottom: Math.round(work.bottom), mainBottom: Math.round(main.bottom),
+                  box: document.documentElement.lfInitial.layoutBox().id};
+        }"""
+    )
+    assert work["box"] == "work", work
+    assert work["width"] == in_part["width"], work
+    assert work["top"] == round(view_box["y"]), work
+    assert work["bottom"] == work["mainBottom"] > 700, work
+    assert page.evaluate(fits) == 0
+    page.get_by_role("tab", name="Note").click()
+    assert page.evaluate(fits) == 0
+
+    resized(page, 390, 800)
+    stacked = page.evaluate(
+        """() => ['#title', '#parts > [role=tablist]', '#work'].map(selector => {
+          const box = document.querySelector(selector).getBoundingClientRect();
+          return [Math.round(box.top), Math.round(box.bottom), Math.round(box.width)];
+        })"""
+    )
+    (title, strip, view) = stacked
+    assert title[1] <= strip[0] and strip[1] <= view[0], stacked
+    assert view[2] == 390, stacked
+    assert root_overflow(page) == 0
+    page.close()
+
+
 def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
     browser, serve
 ):
@@ -3230,7 +3469,7 @@ def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
 <div style="height: 1500px"></div>
 """,
     )
-    url = serve(with_one_item(source))
+    url = serve(with_one_obligation(source))
 
     reading = """() => {
       const main = document.querySelector('main'), ms = getComputedStyle(main);

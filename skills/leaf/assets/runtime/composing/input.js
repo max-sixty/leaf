@@ -157,6 +157,7 @@ class AttachedMediaShelf extends LitElement {
               </button>
               <button
                 type="button"
+                class="lf-composer-drawing-undo"
                 aria-label="Undo last stroke"
                 title="Undo last stroke"
                 @mousedown=${(event) => event.preventDefault()}

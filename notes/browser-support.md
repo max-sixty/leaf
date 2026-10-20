@@ -23,65 +23,6 @@ gesture are functional failures and need a fix or an explicit support decision.
 An unsupported API alone does not justify blocking the whole browser: record
 what fails and what still works.
 
-## Tooling limitations
-
-### Print-media emulation can leave screen container styles stale
-
-- **Owners:** `styles/chrome.css`'s banner container query and
-  `styles/theme.css`'s screen-only phone posture; the observed boundary is CSS
-  invalidation, reproduced without Leaf runtime or banner measurement code.
-- **Observed 2026-10-15:** pinned, installed Playwright Chromium
-  153.0.8010.12. At 390px, print→screen media emulation leaves a hidden chrome
-  subtree's two-row styles applied after its queried property returns to one.
-  Leaf's More control is then clipped. A code page and a plain prose page
-  reproduce it; this is not established as a current-stable
-  browser or user print failure.
-- **Print distinction:** emulation emits `matchMedia` changes but no
-  `beforeprint`/`afterprint`. Headless `page.pdf()` (printToPDF) emits those
-  events and restores the measured layout. The native print dialog was not
-  tested. Restricting the banner query to screen prevents stale wrapping but
-  does not repair all full-page geometry left by emulation.
-- **Disposition:** no product fallback or new automated test. No currently
-  failing maintained gate was identified. Some tests intentionally interact
-  after emulation; retain their media-change claims, but do not interpret them
-  as print-event coverage. For a confirmed false positive, isolate print-style
-  inspection from unrelated subsequent screen interaction and check printing
-  separately.
-
-Standalone reproduction from the checkout (no Leaf page or server needed):
-
-```sh
-uv run python - <<'PYCODE'
-from leaf_dev.browser import headless_shell
-
-with headless_shell() as browser:
-    page = browser.new_page(viewport={"width": 390, "height": 844})
-    page.set_content('''
-      <style>
-      @property --rows { syntax: "<integer>"; inherits: true; initial-value: 1; }
-      :root { --rows: 2; }
-      body { container-type: inline-size; }
-      header { display: flex; flex-wrap: nowrap; }
-      @media screen and (width <= 480px) { :root { --rows: 1; } }
-      @media print { .chrome { display: none; } }
-      @container style(--rows: 2) { header { flex-wrap: wrap; } }
-      </style><div class="chrome"><header>Status <button>More</button></header></div>
-    ''')
-    page.evaluate("""() => {
-      window.changes = [];
-      matchMedia('print').addEventListener('change', e => changes.push(e.matches));
-    }""")
-    for media, printing in [("print", True), ("screen", False)]:
-        page.emulate_media(media=media)
-        page.wait_for_function("value => changes.at(-1) === value", arg=printing)
-        print(media, page.evaluate("""() => [
-          getComputedStyle(document.documentElement).getPropertyValue('--rows'),
-          getComputedStyle(document.querySelector('header')).flexWrap
-        ]"""))
-    # Observed screen result: ['1', 'wrap']; expected wrap is 'nowrap'.
-PYCODE
-```
-
 ## Supported APIs checked
 
 ### Adaptive contents disclosure
@@ -447,12 +388,6 @@ PYCODE
 - **Lit adoption:** `build/browser/build.mjs` routes keyed and child-part moves
   through the shared primitive. The Chrome test above exercises both
   child reconciliation and Lit rendering, with native moves and forced fallback.
-  The thread list retains the measured allocation of a passively withdrawn root
-  while its removal would disturb the reader. It disconnects the former content
-  and shows “Thread withdrawn” with Dismiss; counts and navigation reflect current
-  threads. Selection stays with that allocation until dismissal, another choice,
-  a view change, or safe departure. Complete-list rollback restores native content
-  and editors from the same committed reading.
 - **Stale native `:focus-within`, observed 2026-10-12 in Playwright's Chromium
   153.0.8010.12:** a focused element that `moveBefore` carries into a hidden
   (`display: none`) parent and out again still matches `:focus`, and its new
@@ -708,3 +643,26 @@ container: "nearest"})` on a button in a sideways strip whose foot stands 1 px
 - **Recheck:** a 600 px scroller holding a 300 px `overflow-x: auto` strip of
   twenty 120 px buttons; scroll so the strip's foot is just past the band, call
   the native reveal on the sixteenth button, and read both scroll offsets.
+
+### Reveal of a Tab's arrival
+
+- **Disposition: worked around in Leaf.** Once the browser's own reveal has run,
+  `runtime/landing-scroll.js` lands a Tab's arrival the browser left not already
+  shown, nearest, reading the same scroll margins and padding. Revisit if both
+  engines reveal a partly hidden arrival on both axes.
+- **Affected:** Tab onto a control partly past a scroller's edge: a playground's
+  radio at its controls pane's foot in Firefox, a link at a wide table's end in
+  both engines.
+- **Observed, 2026-10-19 (Chromium 153, Firefox 155):** Firefox scrolls a
+  sequentially focused element only once less than about a line of its
+  margin-inflated box shows in its scroller, on either axis: a 13 px radio 2 to
+  6 px past a bounded block's foot or top stayed cut, and one 10 px past was
+  centred. Chromium reveals a partly hidden arrival nearest on the block axis, but
+  across only once none of it shows: a 69 px link 6 to 62 px past a table's end
+  stayed cut, and one wholly past it was centred. Firefox left the same link cut
+  at 50 px past and centred it at 56.
+- **Recheck:** a 100 px `overflow: auto` box holding a 13 px radio whose foot
+  stands 6 px past the box's foot, and a sideways box holding a 69 px link 6 px
+  past its end; Tab onto each from the control before it and read the scroll
+  offset. `test_tab_onto_a_control_partly_past_a_scrollers_edge_brings_it_in`
+  reads Leaf's correction, so it passes whatever the engines do.

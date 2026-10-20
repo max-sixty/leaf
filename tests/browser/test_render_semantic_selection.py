@@ -168,11 +168,11 @@ def test_select_element_obeys_covering_surfaces_and_pointer_modes(browser, serve
         page.keyboard.press("Escape")
 
 
-def test_selection_cancel_stays_available_across_pointer_changes(browser, serve):
-    """The selection's Cancel stays in the panel's row as the primary pointer
-    changes under it."""
+def test_the_picker_s_way_out_stays_available_across_pointer_changes(browser, serve):
+    """The picker's ✕ stays in the panel's row as the primary pointer changes under
+    it."""
     page = open_page(browser, serve(TARGETS_PAGE))
-    cancel = page.locator(".lf-fp-step", has_text="Cancel selection")
+    cancel = page.locator('.lf-fp-exit[aria-label="Close picker"]')
     page.keyboard.press("s")
     expect(page.locator(".lf-target-picker-hint")).to_have_count(3)
     expect(cancel).to_be_visible()
@@ -1315,11 +1315,11 @@ def test_a_partly_clipped_passage_keeps_its_hint_in_sight(browser, serve):
     expect(page.locator(".lf-target-picker-hint")).to_have_count(1)
     geometry = page.evaluate(
         """() => ({
-          shortcutBarTop: document.querySelector('.lf-fp-row').getBoundingClientRect().top,
+          rowTop: document.querySelector('.lf-fp-row').getBoundingClientRect().top,
           hintBottom: document.querySelector('.lf-target-picker-hint').getBoundingClientRect().bottom,
         })"""
     )
-    assert geometry["hintBottom"] <= geometry["shortcutBarTop"], geometry
+    assert geometry["hintBottom"] <= geometry["rowTop"], geometry
 
 
 def test_the_panel_only_hides_targets_in_the_lane_it_paints(browser, serve):
@@ -1328,7 +1328,7 @@ def test_the_panel_only_hides_targets_in_the_lane_it_paints(browser, serve):
     band's top dropped both targets, while a center left on their covered part put
     replacement hints on the band or below the viewport."""
     html = leaf_page(
-        "target beside the shortcut bar",
+        "target beside the panel's row",
         """
 <section id="right-edge"
   style="position: fixed; left: 250px; bottom: 35px; width: 500px; padding-bottom: 1px">

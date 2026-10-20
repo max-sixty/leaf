@@ -6,6 +6,7 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record, element_declaration
+from leaf import data as data_model
 from leaf.render_checks import rendered
 from PIL import Image
 from playwright.sync_api import expect
@@ -25,6 +26,7 @@ from render_harness import (
     open_page,
     page_comment,
     panel_settled,
+    scroll_settled,
 )
 
 from browser.controls import (
@@ -32,6 +34,89 @@ from browser.controls import (
 )
 
 pytestmark = pytest.mark.shifts_unsurveyed
+
+
+@pytest.mark.parametrize("reading", ["markdown", "boxed-tab", "page-tab"])
+def test_a_scrolled_tab_keeps_its_focus_ring_at_the_viewport(browser, serve, reading):
+    """Code cannot cover the ring or carry it away with the scrolling content."""
+    code = "".join(f"const result_{i} = await compute({i});\n" for i in range(100))
+    if reading == "markdown":
+        content = (
+            '<lf-text-document id="document" source="draft" preview="markdown" '
+            'label="Draft"></lf-text-document>'
+        )
+        ident = "document--preview"
+    else:
+        content = (
+            '<lf-tabs id="readings"><lf-tab id="log" label="Log" data-bound="start">'
+            f"<pre>{code}</pre></lf-tab>"
+            '<lf-tab id="notes" label="Notes"><p>Notes.</p></lf-tab></lf-tabs>'
+        )
+        if reading == "boxed-tab":
+            content = f"<section>{content}</section>"
+        ident = "log"
+    url = serve(leaf_page("Read the code", "<h1>Read the code</h1>" + content))
+    if reading == "markdown":
+        data_model.cmd_data_set(serve.page_dir, "draft", f"```js\n{code}```\n")
+    page = open_page(browser, url)
+    page.get_by_role("tab").first.click()
+    page.keyboard.press("Tab")
+    panel = page.locator(f"#{ident}")
+    expect(panel).to_be_focused()
+    page.keyboard.press("PageDown")
+    page.wait_for_function(
+        "id => document.getElementById(id).scrollTop > 100", arg=ident
+    )
+    scroll_settled(page, f"#{ident}")
+    accent = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--accent")))
+    edges = mark_edges(page, ident, accent)
+    assert all(min(widths) >= 1 for widths in edges.values()), edges
+
+
+def test_an_open_part_wears_a_tab_panels_ring_on_its_own_edge(browser, serve):
+    """A part is a tab panel under another tag, so it is ringed as one is: inset from
+    its border box, whose start edge here is the rule between the list and the part.
+
+    The holder draws that ring while it lays out as `display: contents`, so the ring
+    reading must still find and measure it: a cover over the run is reported."""
+    para = "<p>" + "Words that fill the part's measure. " * 30 + "</p>"
+    url = serve(
+        leaf_page(
+            "Parts",
+            '<h1>Parts</h1><lf-parts id="parts">'
+            f'<lf-part id="first" label="First"><article class="layout-column">{para}'
+            "</article></lf-part>"
+            '<lf-part id="second" label="Second"><article class="layout-column">'
+            "<p>Second.</p></article></lf-part></lf-parts>",
+            layout=None,
+        )
+    )
+    page = open_page(browser, url)
+    page.get_by_role("tab", name="First").click()
+    page.keyboard.press("Tab")
+    expect(page.locator("#first")).to_be_focused()
+    rendered(page)
+    drawn = rings_drawn(page)
+    ring = next((seen for seen in drawn if seen["sample"] and seen["here"]), None)
+    assert ring, drawn
+    assert ring["cuts"] == ring["covers"] == [], ring
+
+    box = page.locator("#first").bounding_box()
+    clip = {"x": round(box["x"]), "y": round(box["y"] + 40), "width": 4, "height": 1}
+    shot = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+    accent = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--accent")))
+    assert shot.getpixel((0, 0)) == accent, [shot.getpixel((x, 0)) for x in range(4)]
+
+    page.evaluate(
+        """(x) => {
+      const band = document.body.appendChild(document.createElement('div'));
+      band.style.cssText = `position: absolute; z-index: 99999; background: red;
+        left: ${x}px; top: 0; width: 2px; height: 100vh;`;
+    }""",
+        box["x"],
+    )
+    covered = next(seen for seen in rings_drawn(page) if seen["who"] == ring["who"])
+    assert any("left edge is under" in cover for cover in covered["covers"]), covered
 
 
 def test_controls_share_pointer_and_keyboard_focus_rings(browser, serve):
@@ -472,9 +557,9 @@ def test_the_ring_reading_still_sees_what_is_painted_over_a_ring(browser, serve)
     outline is painted by its control at its control's level while an outline's pixels
     are not hit-testable — so a sample outside the control's box returns whatever is
     beneath. That is sound while the control's surface takes hits and unsound inside one
-    that does not, where the answer comes back inverted: the shortcut bar stands over the
-    page at z-index 8940 with `pointer-events: none`, and the code under its More button
-    read as standing over it.
+    that does not, where the answer comes back inverted: the old shortcut bar stood over
+    the page at z-index 8940 with `pointer-events: none`, and the code under its More
+    button read as standing over it.
 
     So the reading declines inside such a surface, and that is a way for it to go quiet
     everywhere by accident. The plant is the population assertion: thin enough to lie
@@ -877,3 +962,32 @@ def test_the_focus_sweep_distinguishes_stops_inside_a_live_frame(browser):
     assert page.evaluate(RING_NEW_STOP) == "new"
     page.frame_locator("iframe").locator("#second").focus()
     assert page.evaluate(RING_NEW_STOP) == "new"
+
+
+def test_the_ring_reading_measures_a_displaced_pseudo_element(browser, serve):
+    """A pseudo's ring is checked where it paints, even outside its originating box."""
+    page = open_page(browser, serve(RING_PROBE_PAGE))
+    page.evaluate("""() => {
+      const sheet = document.head.appendChild(document.createElement('style'));
+      sheet.textContent = `
+        #ring-holder { position: relative; height: 200px; }
+        #ring-control { outline: none; }
+        #ring-control::after {
+          content: ''; position: absolute; pointer-events: none;
+          left: 80px; top: 80px; width: 120px; height: 30px;
+          outline: var(--focus-ring); outline-offset: -2px;
+        }`;
+      document.getElementById('ring-control').focus();
+    }""")
+    standing = standing_ring(page)
+    assert standing and standing["pseudo"] == "after", standing
+    assert standing["cuts"] == standing["covers"] == [], standing
+
+    page.evaluate("""() => {
+      const holder = document.getElementById('ring-holder').getBoundingClientRect();
+      const band = document.body.appendChild(document.createElement('div'));
+      band.style.cssText = `position: fixed; z-index: 99999; background: red;
+        left: ${holder.left + 80}px; top: ${holder.top + 80}px;
+        width: 120px; height: 2px;`;
+    }""")
+    assert any("top edge is under" in c for c in standing_ring(page)["covers"])

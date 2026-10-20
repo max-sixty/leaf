@@ -483,7 +483,7 @@ def state(dir: str, target: str | None, after: int | None, limit: int | None) ->
     one, names its thread: the output is that thread with a page of its messages,
     their frozen markup, and the state of its widgets, paged by --after and
     --limit. A widget on the page names itself: its element, its current actions
-    and reports, its items and to-dos, and its workflows."""
+    and reports, its obligations and to-dos, and its workflows."""
     from leaf.agent_state import cmd_page_state
 
     if target is None and (after is not None or limit is not None):
@@ -1231,7 +1231,7 @@ def task() -> None:
     session that opened it, until `leaf task end` or a stamp that `--completes` its
     widget ends it. A to-do you open `--on user` goes on the user's On me list
     instead, until they press its Done or you end it. `leaf task plan` arranges
-    to-dos, items and plain steps into one outline of the work. Every write prints
+    to-dos, obligations and plain steps into one outline of the work. Every write prints
     the record it appended, one JSON line, as `page events` prints it.
     """
 
@@ -1294,7 +1294,7 @@ def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> dict:
     TODO may also be the id of a question the user answers in words, such as an
     `lf-ask` in a reply (`widget:<id>`): `done` records that the user answered it
     elsewhere, DETAIL saying where, and `dropped` withdraws it. Neither records an
-    answer from the user. An item a widget's state answers ends through that state
+    answer from the user. An obligation a widget's state answers ends through that state
     or an authored withdrawal."""
     from leaf.todos import cmd_end
 
@@ -1315,7 +1315,7 @@ def task_plan(dir: str, input_file) -> dict:
 
     Each step has a `depth`, 0 for a goal and one more for each level under it.
     A plain step has a `title` and a `state`: open, working, done or dropped.
-    A step can instead name an `item`, a to-do's id or an item's id, and shows
+    A step can instead name an `item`, a to-do's id or an obligation's id, and shows
     that item's title and state, so work that stays owed past your turn is a
     to-do the plan names:
 

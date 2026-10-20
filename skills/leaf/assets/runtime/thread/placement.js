@@ -1,13 +1,11 @@
 /* Placement for threads: the page's order, which every reading of the threads
-   shares, and the panel's Recent order. */
+   shares. */
 import { addressableLabel, addressableWord } from "../addressable-names.js";
 import { sectionOf } from "../anchor-resolution.js";
-import { pageParts, pageReadingVersion } from "../passages.js";
+import { leafSurface, pageParts, pageReadingVersion } from "../passages.js";
 import { documentChanged } from "../semantic-state.js";
-import { serverNow } from "../presence.js";
 import { readingRegionFor } from "../reading-regions.js";
 import { byRenderedOrder, upFrom } from "../shadow.js";
-import { lastMovedAt } from "./model.js";
 // ---------- where the panel puts a thread ----------
 // The list reads in the page's order, not the log's. A page is a document with a
 // beginning and an end, and the user walks the thread the way they walk the
@@ -16,10 +14,6 @@ import { lastMovedAt } from "./model.js";
 // say the same order. Log order answered a different question — when a
 // thread was opened — which is a question about one thread rather than about a list, and
 // the message clocks already answer it.
-//
-// The panel's Recent order (below) is the one exception, and only the panel's: the
-// user asked the list the other question, which thread moved last. The marks and the
-// walk with the panel shut keep the page's order.
 //
 // Where a thread stands is where the anchor pass resolved its passage to (`placed`) — the
 // same resolution the marks are drawn from, so the list and the page cannot disagree about
@@ -32,9 +26,13 @@ import { lastMovedAt } from "./model.js";
 // It reads as detached in the list and keeps its place in the page's order, which are two
 // true things rather than one true and one lost.
 //
-// What is left resolves nowhere at all: a general comment, which names nowhere, and an
-// anchor whose element this version no longer holds either. Both go under the list rather
-// than at some point in the middle of it.
+// What is left resolves nowhere on the page: a general comment, which names nowhere; an
+// anchor whose element this version no longer holds either; and an anchor in another
+// thread's message, such as a comment on a widget an agent's reply carries. Such a
+// message is drawn in a Leaf surface only while something shows it, and the walk itself
+// opens and closes those views, so a place there would move the thread up and down the
+// list between presses and `t` would visit it twice and skip its neighbour. They all go
+// under the list, in log order, rather than at some point in the middle of it.
 // Where a thread stands, for every reading of the page's order of threads: the list's
 // sort and both walks' steps (`threadPlace` in destination.js). A passage a widget renders into a declared shadow root is
 // placed inside that root, and the page's order is read across those trees
@@ -43,7 +41,7 @@ import { lastMovedAt } from "./model.js";
 // is no place, which is the same answer an anchor that resolves nowhere gets.
 export const threadPlace = (t, placedAt) => {
   const place = placedAt(t.id)?.place ?? (t.anchor ? sectionOf(t.anchor) : null);
-  return place?.isConnected ? place : null;
+  return place?.isConnected && !leafSurface(place) ? place : null;
 };
 
 // The log's order is the tiebreak, so two threads on one paragraph read in the order they
@@ -104,21 +102,4 @@ function regionLabel(node) {
     if (label) return label;
   }
   return "";
-}
-
-// ---------- the panel's Recent order ----------
-// A thread's latest message is when it last moved. A message still being sent has no
-// clock yet and is moving now. Ties keep the log's order.
-const lastMoved = (thread, now) => {
-  const latest = lastMovedAt(thread);
-  return latest ? Date.parse(latest) : now;
-};
-
-export function inRecentOrder(threads) {
-  const now = serverNow();
-  const seat = new Map(threads.map((t, i) => [t, i]));
-  const moved = new Map(threads.map((t) => [t, lastMoved(t, now)]));
-  return [...threads].sort(
-    (a, b) => moved.get(b) - moved.get(a) || seat.get(a) - seat.get(b),
-  );
 }

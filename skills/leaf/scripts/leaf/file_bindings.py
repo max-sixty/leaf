@@ -25,12 +25,25 @@ from contextlib import contextmanager
 from pathlib import Path
 from stat import S_ISREG
 
-from .files import file_stamp, read_json
+from .files import file_stamp
 from .leases import page_locked
 from .locations import canonical_path
 from .refusals import Refused
 from .schema import FILE_BINDINGS_FILE, HTML_NAME
-from .state import flocked, replace_bytes, state_home_path, write_json
+from .state import (
+    STRING,
+    Record,
+    flocked,
+    object_schema,
+    replace_bytes,
+    state_home,
+)
+
+# Each binding id's file, by its canonical absolute path.
+BINDINGS = Record(
+    "file-bindings",
+    object_schema({"bindings": {"type": "object", "additionalProperties": STRING}}),
+)
 
 MAX_FILE_BYTES = 256 * 1024
 BINDING_ID = re.compile(HTML_NAME)
@@ -58,12 +71,8 @@ def _access(page_dir: Path):
 
 
 def _bindings(page_dir: Path) -> dict:
-    record = read_json(page_dir / FILE_BINDINGS_FILE)
-    if record is None:
-        return {}
-    if not isinstance(record, dict) or not isinstance(record.get("bindings"), dict):
-        raise FileBindingError("Invalid file bindings; bind the file again.")
-    return record["bindings"]
+    record = BINDINGS.read(page_dir / FILE_BINDINGS_FILE)
+    return record["bindings"] if record else {}
 
 
 def _target(page_dir: Path, binding: str) -> Path | None:
@@ -157,7 +166,7 @@ def bind_file(page_dir: Path, binding: str, file: Path) -> dict:
             raise FileBindingError(str(error)) from error
         bindings = _bindings(page_dir)
         bindings[binding] = str(path)
-        write_json(page_dir / FILE_BINDINGS_FILE, {"bindings": bindings})
+        BINDINGS.write(page_dir / FILE_BINDINGS_FILE, {"bindings": bindings})
     return snapshot
 
 
@@ -182,7 +191,7 @@ def save_file(page_dir: Path, binding: str, posted: dict) -> dict:
         if path is None:
             raise FileBindingError(f"No file is bound as {binding!r}.")
         key = hashlib.sha256(os.fsencode(path)).hexdigest()
-        locks = state_home_path() / "files"
+        locks = state_home() / "files"
         locks.mkdir(parents=True, exist_ok=True)
         with flocked(locks / f"{key}.lock"):
             current = _read(path)

@@ -62,10 +62,11 @@ import { SCROLL_SLACK, atScrollEnd as atEnd, scrollToEnd } from "./scrolling.js"
 import { watchArrivals } from "./arrivals.js";
 import { authoredScope, pageDocument } from "./passages.js";
 import { compoundReadingRegionId, registerReadingRegion } from "./reading-regions.js";
+import { marks } from "./marks.js";
 
-// The bound's paint (`schema.DECLARED_MARKS`), read by name as the theme's bound rule
-// reads it: the watch starts at boot, before any registry has loaded.
-const BOUND = "data-lf-bound";
+// The bound's paint (`$marks`), read from the generated table rather than the registry,
+// since the watch starts at boot, before any registry has loaded.
+const BOUND = marks["x-bound"].paint;
 const BOUNDED = `[${BOUND}]`;
 const FOLLOWING = `[${BOUND}="end"]`;
 // Each block's hold, for the element's life, and the holds registered now.

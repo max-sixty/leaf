@@ -17,6 +17,7 @@ from interact_support import (
     STATED_TIMEOUT,
     _interaction_prompt_evidence,
     _watched,
+    activity_reading,
     append_carried_log_record,
     codex_records,
     continued,
@@ -27,6 +28,7 @@ from interact_support import (
     last_deliverable_seq,
     page_state,
     publish,
+    read_record,
     receive_through,
     record_claim,
     said,
@@ -144,7 +146,9 @@ def test_receiving_a_batch_observes_the_session_turn_on_every_owned_page(
     serving(others, 3)
     assert service_model.claim_page(others)
     claim = service_model.page_claim(others)
-    record_claim(others, **{**claim, "id": "s2", "turn_closed": "then"})
+    record_claim(
+        others, **{**claim, "id": "s2", "turn_closed": "2026-01-01T00:00:00+00:00"}
+    )
     append_carried_log_record(
         claimed, {"kind": "comment", "id": "c2", "author": "user", "text": "two"}
     )
@@ -153,7 +157,9 @@ def test_receiving_a_batch_observes_the_session_turn_on_every_owned_page(
     reason = continued(capsys.readouterr().out)
     [batch] = json.loads(reason.split("\n")[1])["batches"]
     assert [event["id"] for event in batch["events"]] == ["c2"]
-    assert service_model.page_claim(others)["turn_closed"] == "then"
+    assert (
+        service_model.page_claim(others)["turn_closed"] == "2026-01-01T00:00:00+00:00"
+    )
     declare_idle(sibling)
     declare_idle(others)
 
@@ -162,7 +168,7 @@ def test_the_prompt_hook_opens_the_turn_on_every_page_the_session_holds(
     claimed, tmp_path, capsys
 ):
     """A delivery is not the only observable opening, and it is not the one the
-    banner sends the user to. The `quiet` banner says to nudge in the terminal;
+    panel sends the user to. The `quiet` status says to nudge in the terminal;
     a user who does that answers where no batch is written, so no transport ever
     hands one over and nothing would clear the stamp — the page would go on telling
     them to do the thing they just did.
@@ -185,7 +191,7 @@ def test_the_prompt_hook_opens_the_turn_on_every_page_the_session_holds(
     assert service_model.page_claim(claimed)["turn_closed"]
     assert service_model.page_claim(sibling)["turn_closed"]
 
-    status_before = files_model.read_json(claimed / "status.json")
+    status_before = read_record(claimed / "status.json")
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
     )
@@ -193,7 +199,7 @@ def test_the_prompt_hook_opens_the_turn_on_every_page_the_session_holds(
     assert service_model.page_claim(claimed)["turn_closed"] is None
     assert service_model.page_claim(sibling)["turn_closed"] is None
     # Only the stamp moves: what the agent said it was doing stays the agent's.
-    assert files_model.read_json(claimed / "status.json") == status_before
+    assert read_record(claimed / "status.json") == status_before
 
     # Another session's prompt says nothing about this one's pages.
     hooks_model.cmd_hook(
@@ -230,13 +236,13 @@ def test_a_named_wait_does_not_invent_turn_entry(claimed, capsys):
     append_carried_log_record(
         claimed, {"kind": "comment", "id": "c1", "author": "user", "text": "one"}
     )
-    status_before = files_model.read_json(claimed / "status.json")
+    status_before = read_record(claimed / "status.json")
 
     assert session_model.cmd_wait(claimed) == 0
     capsys.readouterr()
     assert service_model.page_claim(claimed)["turn_closed"]
-    assert files_model.read_json(claimed / "status.json") == status_before
-    assert files_model.read_json(claimed / "cursor.json") is None
+    assert read_record(claimed / "status.json") == status_before
+    assert read_record(claimed / "cursor.json") is None
     assert not any(
         event["kind"] == "pickup" for event in events_model.read_events(claimed)
     )
@@ -316,7 +322,7 @@ def test_a_repeated_stop_is_held_open_only_by_the_users_input(claimed, capsys):
 
     hooks_model.cmd_hook("claude-code", repeated)
     assert capsys.readouterr().out == ""
-    assert files_model.read_json(claimed / "cursor.json") is None
+    assert read_record(claimed / "cursor.json") is None
     assert [
         event["id"]
         for event in service_model.unacknowledged(events_model.read_events(claimed), 0)
@@ -332,7 +338,7 @@ def test_a_repeated_stop_is_held_open_only_by_the_users_input(claimed, capsys):
     envelope = json.loads(continued(answer).split("\n")[1])
     [batch] = envelope["batches"]
     assert [event["id"] for event in batch["events"]] == [error["id"], comment["id"]]
-    assert files_model.read_json(claimed / "cursor.json") == {
+    assert read_record(claimed / "cursor.json") == {
         "seq": last_deliverable_seq(claimed)
     }
 
@@ -456,7 +462,7 @@ def test_a_page_that_changed_hands_before_receipt_keeps_its_input(
         str(claimed),
     ]
     assert service_model.page_claim(moved)["id"] == "s2"
-    assert files_model.read_json(moved / "cursor.json") is None
+    assert read_record(moved / "cursor.json") is None
     assert all(e["kind"] != "pickup" for e in events_model.read_events(moved))
     assert events_model.read_cursor(claimed) >= comments[claimed]["seq"]
 
@@ -504,7 +510,7 @@ def test_input_too_large_for_the_turn_goes_as_a_pointer_its_reader_confirms(
         "id": delivery_id,
         "inline": False,
     }
-    assert files_model.read_json(claimed / "cursor.json") is None
+    assert read_record(claimed / "cursor.json") is None
     assert all(e["kind"] != "pickup" for e in events_model.read_events(claimed))
 
     # Confirmed by a command the model runs anyway, and which only confirms: the
@@ -518,7 +524,7 @@ def test_input_too_large_for_the_turn_goes_as_a_pointer_its_reader_confirms(
     assert confirmed.exit_code == 0, confirmed.output
     [batch] = pointer["batches"]
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
-    assert files_model.read_json(claimed / "cursor.json") == {
+    assert read_record(claimed / "cursor.json") == {
         "seq": last_deliverable_seq(claimed)
     }
 
@@ -659,7 +665,7 @@ def test_a_prompt_reopens_the_acknowledged_move_it_carries_into_the_new_turn(
     prompt = json.loads(capsys.readouterr().out)
     assert asked["id"] in prompt["hookSpecificOutput"]["additionalContext"]
     claim = service_model.page_claim(claimed)
-    activity = page_state(claimed)["activity"]
+    activity = activity_reading(claimed)
     assert activity["kind"] == "working"
     assert activity["obligations"][0]["stage"] == "picked_up"
     assert activity["obligations"][0]["delivery_turn"] == claim["turn"]

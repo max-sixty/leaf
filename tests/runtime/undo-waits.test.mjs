@@ -20,7 +20,7 @@ const action = (attempt, extra = {}) => ({
   ...extra,
 });
 const earlier = action("earlier", { id: "e0", seq: 1 });
-const noItems = () => ({ all: [], user: [], unanswered: [] });
+const noObligations = () => ({ all: [], user: [], unanswered: [] });
 let taken = 0;
 // A reading whose log holds `events`, each in force and each the user's to take back.
 const reading = (events) => ({
@@ -41,14 +41,14 @@ const reading = (events) => ({
         thread: {
           threads: [],
           projection: { entries: [], actions: [], reports: [], desired: [] },
-          items: noItems(),
+          obligations: noObligations(),
         },
         coverage: [],
         undo: events.map((event) => ({ event })).reverse(),
         queues: { on_user: [], on_agent: [], done: [] },
         approval_blocking: [],
         document: {
-          items: noItems(),
+          obligations: noObligations(),
           projection: {
             entries: events.map((event) => ({
               event,

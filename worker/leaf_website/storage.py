@@ -31,7 +31,6 @@ from urllib.parse import urlencode, urlsplit
 from leaf.data import deferred_records
 from leaf.files import latest_revision, revision_path
 from leaf.layer import running_leaf
-from leaf.machine import state_home
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.revision_artifact import read_revision
 from leaf.revisioning import activate_source
@@ -42,7 +41,7 @@ from leaf.schema import (
 )
 from leaf.served_state.reading import record_reading
 from leaf.service import PageTransaction
-from leaf.state import page_key, write_json
+from leaf.state import STRING, Record, object_schema, page_key, state_home
 from starlette.requests import Request
 
 CHUNK_BYTES = 1024 * 1024
@@ -215,7 +214,7 @@ def _responses(
         process=False,
     )
     snapshot = replace(snapshot, source_error=source_error)
-    paths = {"", "api/state", "api/news", "api/user-view", "registry.json"}
+    paths = {"", "api/state", "api/news", "registry.json"}
     paths.update(f"api/state?revision={item}" for item in snapshot.artifacts)
     for source_name, reading in snapshot.context.data["sources"].items():
         value = reading.get("value")
@@ -290,6 +289,11 @@ def _responses(
     return result
 
 
+# The page reading a page's last publication was made from (`record_reading`), so
+# an unchanged page is not published again.
+PUBLISHED = Record("website-publication", object_schema({"fingerprint": STRING}))
+
+
 def publish(page: PageTransaction) -> None:
     """Publish under the caller's append lease; failure remains a failed commit."""
     if not os.environ.get("LEAF_PAGE_STORE_URL"):
@@ -311,7 +315,7 @@ def publish(page: PageTransaction) -> None:
     activation = activate_source(page.page_dir, transaction=page)
     fingerprint = record_reading(page.page_dir)
     token = state_home() / "website-publications" / f"{page_key(page.page_dir)}.json"
-    if token.is_file() and json.loads(token.read_text())["fingerprint"] == fingerprint:
+    if (published := PUBLISHED.read(token)) and published["fingerprint"] == fingerprint:
         return
     files = _record_files(
         page.page_dir, set(map(int, manifest["pages"][root]["states"]))
@@ -334,4 +338,4 @@ def publish(page: PageTransaction) -> None:
         with _request("/publication", publication):
             pass
     token.parent.mkdir(parents=True, exist_ok=True)
-    write_json(token, {"fingerprint": fingerprint})
+    PUBLISHED.write(token, {"fingerprint": fingerprint})

@@ -27,14 +27,12 @@ from datetime import datetime
 from pathlib import Path
 
 from .file_changes import page_changes
-from .files import read_json
 from .page_memory import memory_of
 from .presence import PRESENCE_CACHE_S, live_facts
-from .registry.schema import json_validator
 from .served_state.reading import page_reading
 from .served_state.service import PageStateService
 from .service import page_claim
-from .state import page_key, state_home_path, write_json
+from .state import STRING, Record, object_schema, page_key, state_home
 
 ACTIVITY_FIELDS = frozenset(
     {
@@ -61,42 +59,44 @@ def compact_activity(activity: dict) -> dict:
 
 
 def row_path(page_dir: Path) -> Path:
-    return state_home_path() / "rows" / f"{page_key(page_dir)}.json"
+    return state_home() / "rows" / f"{page_key(page_dir)}.json"
 
 
-_STRING = {"type": "string"}
-# Open objects: a neighbor's leaf may publish fields this version ignores.
-ROW_RECORD_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "page": _STRING,
-        "page_key": _STRING,
-        "server_id": _STRING,
-        "row": {
-            "type": "object",
-            "properties": {
-                "title": _STRING,
-                "activity": {
-                    "type": "object",
-                    "properties": {
-                        "counts": {"type": "object", "required": sorted(COUNT_FIELDS)}
+# A serving page's row, under the server incarnation that published it.
+ROW = Record(
+    "row",
+    object_schema(
+        {
+            "page": STRING,
+            "page_key": STRING,
+            "server_id": STRING,
+            "row": object_schema(
+                {
+                    "title": STRING,
+                    "session_cwd": {"type": ["string", "null"]},
+                    "activity": {
+                        "type": "object",
+                        "properties": {
+                            "counts": {
+                                "type": "object",
+                                "required": sorted(COUNT_FIELDS),
+                            }
+                        },
+                        "required": sorted(ACTIVITY_FIELDS),
                     },
-                    "required": sorted(ACTIVITY_FIELDS),
-                },
-            },
-            "required": ["title", "session_cwd", "activity"],
-        },
-    },
-    "required": ["page", "page_key", "server_id", "row"],
-}
+                }
+            ),
+        }
+    ),
+)
 
 
 def read_row(page_dir: Path, service: dict, *, record=None) -> dict | None:
-    """Read compatible output from this live service's own publication."""
+    """The row this live service's own incarnation published for the page, from
+    `record` where the caller has already read it."""
     if record is None:
-        record = read_json(row_path(page_dir))
-    readable = json_validator(ROW_RECORD_SCHEMA).is_valid(record)
-    if not readable or record["server_id"] != service.get("server_id"):
+        record = ROW.read(row_path(page_dir))
+    if record is None or record["server_id"] != service["server_id"]:
         return None
     return record["row"]
 
@@ -158,7 +158,7 @@ class RowPublisher:
             datetime.fromisoformat(deadline).timestamp() if deadline else None
         )
         if row != self.row or not self.path.is_file():
-            write_json(
+            ROW.write(
                 self.path,
                 {
                     "page": str(self.page_dir),

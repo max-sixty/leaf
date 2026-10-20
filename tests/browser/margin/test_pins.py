@@ -459,8 +459,10 @@ def test_o_hides_what_is_drawn_over_the_page_and_moves_nothing(browser, serve):
     assert page.evaluate(wash) == ""
 
 
-def test_an_item_arrival_reveals_its_pin_while_annotations_are_hidden(browser, serve):
-    """An explicit item walk reveals its pin until the user leaves that item."""
+def test_an_obligation_arrival_reveals_its_pin_while_annotations_are_hidden(
+    browser, serve
+):
+    """An explicit obligation walk reveals its pin until the user leaves that obligation."""
     page = open_page(
         browser,
         serve(
@@ -478,7 +480,7 @@ def test_an_item_arrival_reveals_its_pin_while_annotations_are_hidden(browser, s
     expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
     expect(pin).to_be_hidden()
 
-    # The passage follows both items, so a step back lands on the last one.
+    # The passage follows both obligations, so a step back lands on the last one.
     page.locator("#gap").click()
     page.keyboard.press("Shift+m")
     expect(page.locator("#sug-card")).to_be_focused()
@@ -527,7 +529,7 @@ def test_a_finger_hides_the_annotations_from_the_leaf_s_menu(browser, serve):
     expect(pin).to_be_visible()
 
 
-FOOTER_ITEM_PAGE = leaf_page(
+FOOTER_OBLIGATION_PAGE = leaf_page(
     "an Ask in a pane's footer",
     """
   <div id="ask-split">
@@ -564,14 +566,14 @@ FOOTER_ITEM_PAGE = leaf_page(
 
 def test_a_pin_keeps_clear_only_of_controls_the_user_can_see(browser, serve):
     """A pin goes below a control of the page level with it rather than take its
-    presses. The controls were read at their whole boxes, so a body item's controls
+    presses. The controls were read at their whole boxes, so a body obligation's controls
     scrolled behind the pane's footer, where nobody can see or press them, pushed the
-    footer item's marker below the heading it stands beside."""
-    page = open_page(browser, serve(FOOTER_ITEM_PAGE))
+    footer obligation's marker below the heading it stands beside."""
+    page = open_page(browser, serve(FOOTER_OBLIGATION_PAGE))
     resized(page, 1440, 900)
     pane_posture(page, page.locator("#ask-pane"), "bounded")
-    # Scroll the body until its item's last control, at the item's right edge where a
-    # pin stands, is behind the footer item's heading, with the body item's heading in
+    # Scroll the body until its obligation's last control, at the obligation's right edge where a
+    # pin stands, is behind the footer obligation's heading, with the body obligation's heading in
     # view.
     page.evaluate(
         """() => {
@@ -606,7 +608,7 @@ def test_a_pin_keeps_clear_only_of_controls_the_user_can_see(browser, serve):
 
 
 def test_a_pin_keeps_clear_of_controls_slotted_into_its_reading_region(browser, serve):
-    """A native control in a slotted item takes presses before the item's overlay
+    """A native control in a slotted obligation takes presses before the obligation's overlay
     pin."""
     source = leaf_page(
         "A slotted Ask",

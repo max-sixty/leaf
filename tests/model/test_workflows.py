@@ -4,7 +4,9 @@ thread reads from them."""
 
 import json
 from datetime import datetime, timedelta
+from pathlib import Path
 
+import pytest
 from interact_support import (
     _start,
     append_carried_log_record,
@@ -13,21 +15,26 @@ from interact_support import (
     declare_work,
     delivered,
     freeze_events,
-    items_on_user,
     last_deliverable_seq,
+    obligations_on_user,
     owed,
+    owed_answers,
     page_state,
     publish,
     receive_through,
+    served_obligations,
     served_thread,
+    served_updates,
     serving,
     state_json,
 )
 from leaf import activity as activity_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
+from leaf import events as event_folds_model
 from leaf import hooks as hooks_model
 from leaf import leases as leases_model
+from leaf import obligations as obligations_model
 from leaf import projection as projection_model
 from leaf import revisioning as revisioning_model
 from leaf import service as service_model
@@ -36,6 +43,26 @@ from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf.served_state import browser as browser_served_model
 from leaf.served_state import work as work_served_model
+
+
+@pytest.mark.parametrize(
+    "case",
+    json.loads(Path(__file__).parents[1].joinpath("turn_cases.json").read_text()),
+    ids=lambda case: case["id"],
+)
+def test_a_users_turns_are_the_gestures_the_browser_hands_over(case):
+    """The user's turns in a thread, each with the message it shows on, are the
+    gestures the browser's `isTurnEvent` and `turnMessage` take for its own sends."""
+    events = [
+        {"author": "user", "seq": seq, "ts": "2026-10-19T00:00:00+00:00", **event}
+        for seq, event in enumerate(case["events"], 1)
+    ]
+    turns = [
+        [turn["id"], event_folds_model.turn_message(turn)]
+        for thread in event_folds_model.build_threads(events, {}).values()
+        for turn in event_folds_model.exchange(thread)
+    ]
+    assert turns == case["turns"]
 
 
 def test_consecutive_user_inputs_share_one_exact_response_obligation(page_dir):
@@ -56,19 +83,12 @@ def test_consecutive_user_inputs_share_one_exact_response_obligation(page_dir):
     )
 
     state = page_state(page_dir)
-    assert [
-        (item["input"], item["answer"], item["next_actor"])
-        for item in state["workflows"]
-    ] == [
-        (first["id"], None, "agent"),
-        (
-            second["id"],
-            {"kind": "reply", "to": second["id"], "for": second["id"]},
-            "agent",
-        ),
+    assert [(item["input"], item["obligation"]) for item in state["workflows"]] == [
+        (first["id"], f"update:{second['id']}"),
+        (second["id"], f"update:{second['id']}"),
     ]
-    assert [item["input"] for item in state["activity"]["obligations"]] == [
-        second["id"]
+    assert [(item["input"], item["answer"]) for item in owed_answers(page_dir)] == [
+        (second["id"], {"kind": "reply", "to": second["id"], "for": second["id"]})
     ]
 
     append_carried_log_record(
@@ -105,15 +125,19 @@ def test_terminal_harness_failure_keeps_exact_user_recovery_without_stop_obligat
     assert (
         workflow["input"],
         workflow["stage"],
-        workflow["answer"],
-        workflow["next_actor"],
+        workflow["obligation"],
         workflow["condition"],
     ) == (
         source["id"],
         "answered",
-        None,
-        "user",
+        f"update:{source['id']}",
         {"kind": "failed", "operation": "response"},
+    )
+    [record] = served_updates(state["browser"])
+    assert (record["id"], record["status"], record["next_actor"]) == (
+        f"update:{source['id']}",
+        "open",
+        "user",
     )
     assert workflow["activity"] == [
         {
@@ -124,8 +148,8 @@ def test_terminal_harness_failure_keeps_exact_user_recovery_without_stop_obligat
             "turn": failure.get("turn"),
         }
     ]
-    assert state["activity"]["obligations"] == []
-    # The move is the user's to resend, so the banner counts nothing as saved for
+    assert owed_answers(page_dir) == []
+    # The move is the user's to resend, so the panel counts nothing as saved for
     # the agent to pick up.
     assert set(state["activity"]["counts"].values()) == {0}
     [thread] = served_thread(state["browser"])["threads"]
@@ -160,8 +184,8 @@ def test_user_resend_clears_terminal_failure_recovery(page_dir):
     )
 
     state = page_state(page_dir)
-    assert [(item["input"], item["next_actor"]) for item in state["workflows"]] == [
-        (resent["id"], "agent")
+    assert [(item["input"], item["obligation"]) for item in state["workflows"]] == [
+        (resent["id"], f"update:{resent['id']}")
     ]
     [thread] = served_thread(state["browser"])["threads"]
     assert thread["attention"] == {
@@ -200,13 +224,13 @@ def test_answering_an_older_input_leaves_the_newer_response_obligation(page_dir)
 
     state = page_state(page_dir)
     [workflow] = state["workflows"]
-    assert (workflow["input"], workflow["answer"]["for"]) == (
+    assert (workflow["input"], workflow["obligation"]) == (
         second["id"],
-        second["id"],
+        f"update:{second['id']}",
     )
-    assert [item["input"] for item in state["activity"]["obligations"]] == [
-        second["id"]
-    ]
+    assert [
+        (item["input"], item["answer"]["for"]) for item in owed_answers(page_dir)
+    ] == [(second["id"], second["id"])]
 
 
 def test_input_after_a_settled_response_batch_does_not_revive_older_inputs(page_dir):
@@ -247,12 +271,12 @@ def test_input_after_a_settled_response_batch_does_not_revive_older_inputs(page_
     )
 
     state = page_state(page_dir)
-    assert [(item["input"], item["answer"]["for"]) for item in state["workflows"]] == [
-        (third["id"], third["id"])
+    assert [(item["input"], item["obligation"]) for item in state["workflows"]] == [
+        (third["id"], f"update:{third['id']}")
     ]
 
 
-def test_unrelated_agent_update_does_not_clear_an_open_user_item(page_dir):
+def test_unrelated_agent_update_does_not_clear_an_open_user_obligation(page_dir):
     publish(page_dir)
     root = append_carried_log_record(
         page_dir,
@@ -282,8 +306,10 @@ def test_unrelated_agent_update_does_not_clear_an_open_user_item(page_dir):
         },
     )
 
-    [thread] = served_thread(page_state(page_dir)["browser"])["threads"]
-    assert thread["user_prompt"]["message"] == question["id"]
+    browser = page_state(page_dir)["browser"]
+    [thread] = served_thread(browser)["threads"]
+    [owed] = served_obligations(browser)["user"]
+    assert owed["message"] == question["id"]
     assert thread["attention"] == {
         "kind": "needs_user",
         "reason": "widget",
@@ -291,13 +317,15 @@ def test_unrelated_agent_update_does_not_clear_an_open_user_item(page_dir):
     }
 
 
-def test_settling_reaction_closes_an_agent_root_item(page_dir):
+def test_settling_reaction_closes_an_agent_root_obligation(page_dir):
     publish(page_dir)
     question = thread_model.cmd_comment(
         page_dir, "", "", "", "One question:", '<lf-ask id="forty">Forty?</lf-ask>'
     )
-    [before] = served_thread(page_state(page_dir)["browser"])["threads"]
-    assert before["user_prompt"]["message"] == question["id"]
+    browser = page_state(page_dir)["browser"]
+    [before] = served_thread(browser)["threads"]
+    [owed] = served_obligations(browser)["user"]
+    assert owed["message"] == question["id"]
     assert before["attention"]["kind"] == "needs_user"
 
     append_carried_log_record(
@@ -310,8 +338,9 @@ def test_settling_reaction_closes_an_agent_root_item(page_dir):
         },
     )
 
-    [after] = served_thread(page_state(page_dir)["browser"])["threads"]
-    assert after["user_prompt"] is None
+    browser = page_state(page_dir)["browser"]
+    [after] = served_thread(browser)["threads"]
+    assert served_obligations(browser)["user"] == []
     assert after["attention"] is None
 
 
@@ -354,7 +383,7 @@ def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
         },
     )
     # The move owes a reply in its thread, and the agent starts the move itself.
-    [owed] = page_state(page_dir)["workflows"]
+    [owed] = owed_answers(page_dir)
     assert owed["answer"]["to"] == asked["id"]
     claimed = _start(page_dir, answered["id"], "Checking East")
     assert claimed.exit_code == 0, claimed.output
@@ -393,12 +422,14 @@ def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
     )
     state = page_state(page_dir)
     [workflow] = state["workflows"]
-    assert (workflow["input"], workflow["next_actor"], workflow["condition"]) == (
+    assert (workflow["input"], workflow["obligation"], workflow["condition"]) == (
         answered["id"],
-        "user",
+        f"update:{answered['id']}",
         {"kind": "failed", "operation": "response"},
     )
-    assert state["activity"]["obligations"] == []
+    [record] = served_updates(state["browser"])
+    assert record["id"] == f"update:{answered['id']}"
+    assert owed_answers(page_dir) == []
     [thread] = served_thread(state["browser"])["threads"]
     assert thread["attention"] == {
         "kind": "needs_user",
@@ -407,13 +438,13 @@ def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
     }
 
 
-def test_a_frozen_move_that_answers_no_item_keeps_a_receipt_and_owes_nothing(
+def test_a_frozen_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothing(
     page_dir,
 ):
     """A card moved on a board sent in a reply is a page move in another document:
-    it keeps its delivery receipt, owes the agent nothing, and leaves the thread
-    nobody's turn. A claim makes it Working, and the agent's next turn in the
-    thread takes it in."""
+    it keeps its delivery receipt, owes the agent nothing, publishes no obligation
+    and leaves the thread nobody's turn. A start makes it Working without making the
+    thread the agent's, and the agent's next turn in the thread takes it in."""
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     registry = json.loads((page_dir / "registry.json").read_text())
@@ -461,25 +492,21 @@ def test_a_frozen_move_that_answers_no_item_keeps_a_receipt_and_owes_nothing(
         {"kind": "widget", "id": "feeder-board"},
         "sent",
     )
-    assert workflow["answer"] is None
-    assert state["activity"]["obligations"] == []
+    assert workflow["obligation"] is None
+    assert owed_answers(page_dir) == []
     assert attention is None
 
     delivery = freeze_events(page_dir, [moved])
     [event] = delivery["batches"][0]["events"]
     assert "answer" not in event
-    # A move that owes nothing is still on the agent once it is started, and holds
-    # the board's thread while it is.
+    # A move that owes nothing can be started, and reads Working on its receipt; the
+    # thread holds no record on the agent, so it stays nobody's turn.
     claimed = _start(page_dir, moved["id"], "Rearranging the cards")
     assert claimed.exit_code == 0, claimed.output
     state, attention = reading()
     [workflow] = state["workflows"]
     assert workflow["stage"] == "working"
-    assert attention == {
-        "kind": "waiting",
-        "reason": "workflow",
-        "workflow": moved["id"],
-    }
+    assert attention is None
 
     # Moving the card again supersedes that move, whose receipt goes with it; the
     # agent starts the newer one.
@@ -536,7 +563,7 @@ def test_a_frozen_move_that_answers_no_item_keeps_a_receipt_and_owes_nothing(
     )
     state, attention = reading()
     [workflow] = state["workflows"]
-    assert (workflow["input"], workflow["stage"], workflow["answer"]) == (
+    assert (workflow["input"], workflow["stage"], workflow["obligation"]) == (
         later["id"],
         "sent",
         None,
@@ -545,43 +572,45 @@ def test_a_frozen_move_that_answers_no_item_keeps_a_receipt_and_owes_nothing(
 
 
 def test_thread_attention_names_the_workflow_the_thread_waits_on():
-    """A thread's status reads the workflows that keep it the agent's turn. An input
-    a newer one covers still does, so its pickup or a reply streaming to it keeps
-    reading on the thread; a frozen move that owes nothing does not, so its further
-    stage never stands in for the owed reply's."""
+    """A thread's status reads the records open in it, and names the strongest
+    workflow serving the one it waits on. An input a newer one covers serves the newer
+    one's record, so its pickup or a reply streaming to it keeps reading on the thread;
+    a frozen move that owes nothing serves none, so its further stage never stands in
+    for the owed reply's."""
 
-    def workflow(id, seq, subject, stage, answer=None):
+    def workflow(id, seq, subject, stage, obligation=None):
         return {
             "id": id,
             "seq": seq,
             "subject": subject,
             "stage": stage,
-            "answer": answer,
+            "obligation": obligation,
             "condition": None,
-            "next_actor": "agent",
         }
 
     thread = {"id": "root", "kind": "thread"}
     board = {"kind": "widget", "id": "board"}
-    owed = {"kind": "reply", "to": "newer", "for": "newer"}
+    owed = obligations_model.update_obligation(
+        "newer", thread, "root", "newer", next_actor="agent"
+    )
     cases = [
         (
             [
-                workflow("older", 1, thread, "replying"),
-                workflow("newer", 2, thread, "sent", owed),
+                workflow("older", 1, thread, "replying", owed["id"]),
+                workflow("newer", 2, thread, "sent", owed["id"]),
             ],
             "older",
         ),
         (
             [
-                workflow("older", 1, thread, "picked_up"),
-                workflow("newer", 2, thread, "sent", owed),
+                workflow("older", 1, thread, "picked_up", owed["id"]),
+                workflow("newer", 2, thread, "sent", owed["id"]),
             ],
             "older",
         ),
         (
             [
-                workflow("newer", 1, thread, "sent", owed),
+                workflow("newer", 1, thread, "sent", owed["id"]),
                 workflow("card-move", 2, board, "picked_up"),
             ],
             "newer",
@@ -600,20 +629,24 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
         }
     ]
     thread = {"id": "root", "resolved": None}
+    records = obligations_model.collection([owed])
     for workflows, expected in cases:
         assert browser_served_model._thread_attention(
-            thread, False, work_served_model.served_workflows(workflows, frozen), todos
+            thread,
+            [owed],
+            work_served_model.served_workflows(workflows, frozen, records),
+            todos,
         ) == {
             "kind": "waiting",
             "reason": "workflow",
             "workflow": expected,
         }
-    # With no workflow holding it, an open task keeps the thread on the agent.
-    assert browser_served_model._thread_attention(thread, False, [], todos) == {
+    # With no record open in it, an open task keeps the thread on the agent.
+    assert browser_served_model._thread_attention(thread, [], [], todos) == {
         "kind": "waiting",
         "reason": "todo",
         "workflow": None,
-        "todo": {"id": "t1", "title": "Rebuild", "line": None},
+        "todo": "t1",
     }
 
 
@@ -623,16 +656,19 @@ def test_served_workflows_list_the_strongest_first():
     then an uncertain one, then plain delivery by stage, then the newer input. A
     failed response is the furthest stage a move reaches."""
 
-    def workflow(id, seq, stage, condition=None, next_actor="agent"):
+    def workflow(id, seq, stage, condition=None, obligation=None):
         return {
             "id": id,
             "seq": seq,
             "subject": {"kind": "thread", "id": "root"},
             "stage": stage,
-            "answer": None,
+            "obligation": obligation,
             "condition": condition,
-            "next_actor": next_actor,
         }
+
+    handed_back = obligations_model.update_obligation(
+        "back", {"kind": "thread", "id": "root"}, "root", "back", next_actor="user"
+    )
 
     stale = {"kind": "stale", "operation": "work"}
     failed = {"kind": "failed", "operation": "response"}
@@ -652,7 +688,7 @@ def test_served_workflows_list_the_strongest_first():
         (
             [
                 workflow("work", 1, "working"),
-                workflow("back", 2, "answered", failed, "user"),
+                workflow("back", 2, "answered", failed, handed_back["id"]),
             ],
             ["back", "work"],
         ),
@@ -669,8 +705,9 @@ def test_served_workflows_list_the_strongest_first():
         ),
     ]
     frozen = projection_model.FrozenThreadReading(None, {}, {}, {}, None)
+    records = obligations_model.collection([handed_back])
     for workflows, expected in cases:
-        served = work_served_model.served_workflows(workflows, frozen)
+        served = work_served_model.served_workflows(workflows, frozen, records)
         assert [item["id"] for item in served] == expected
 
 
@@ -723,7 +760,7 @@ def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
         "input": "input-1",
         "seq": 1,
         "coordinate": ["thread", "input-1"],
-        "answer": {"kind": "reply", "to": "input-1", "for": "input-1"},
+        "obligation": "update:input-1",
         "stage": "working",
         "ts": (now - timedelta(minutes=20)).isoformat(),
         "detail": "Old work",
@@ -731,7 +768,6 @@ def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
         "session": "session-1",
         "activity": [],
         "condition": None,
-        "next_actor": "agent",
         "response": None,
     }
     present = {
@@ -754,8 +790,20 @@ def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
         "updated_at": now.isoformat(),
     }
 
+    record = obligations_model.update_obligation(
+        "input-1",
+        {"kind": "thread", "id": "input-1"},
+        "input-1",
+        "input-1",
+        next_actor="agent",
+    )
     activity = activity_model.canonical_activity(
-        present, [workflow], [], now.isoformat(), reply=reply
+        present,
+        [workflow],
+        [],
+        now.isoformat(),
+        reply=reply,
+        updates=obligations_model.collection([record]),
     )
     [projected] = activity["workflows"]
     assert (projected["stage"], projected["condition"]) == ("replying", None)
@@ -815,7 +863,7 @@ def test_a_widget_reply_does_not_settle_newer_thread_input(page_dir):
             "text": "Wait, do not deploy yet.",
         },
     )
-    before = state_json(page_dir)["activity"]["obligations"]
+    before = [item["input"] for item in owed(state_json(page_dir))]
     assert before == [chose["id"], newer["id"]]
 
     replied = thread_model.post_reply(
@@ -823,7 +871,7 @@ def test_a_widget_reply_does_not_settle_newer_thread_input(page_dir):
     )
     assert replied["responds"] == chose["id"]
     after = state_json(page_dir)
-    assert after["activity"]["obligations"] == [newer["id"]]
+    assert [item["input"] for item in owed(after)] == [newer["id"]]
     assert owed(after)[0]["answer"] == {
         "kind": "reply",
         "to": newer["id"],
@@ -868,8 +916,8 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
         },
     )
     selecting = state_json(page_dir)
-    assert [item["widget"] for item in items_on_user(selecting)] == ["regions"]
-    assert selecting["activity"]["obligations"] == []
+    assert [item["widget"] for item in obligations_on_user(selecting)] == ["regions"]
+    assert owed(selecting) == []
     assert selecting["workflows"] == []
     assert service_model.unacknowledged(events_model.read_events(page_dir), 0) == []
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
@@ -887,8 +935,8 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
         },
     )
     completed = state_json(page_dir)
-    assert items_on_user(completed) == []
-    assert completed["activity"]["obligations"] == [answered["id"]]
+    assert obligations_on_user(completed) == []
+    assert [item["input"] for item in owed(completed)] == [answered["id"]]
     cleanup_model.prompt_turn("s1")
     receive_through(page_dir, last_deliverable_seq(page_dir))
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
@@ -902,8 +950,8 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
         {"kind": "undo", "author": "user", "undoes": answered["id"]},
     )
     resumed = state_json(page_dir)
-    assert [item["widget"] for item in items_on_user(resumed)] == ["regions"]
-    assert resumed["activity"]["obligations"] == []
+    assert [item["widget"] for item in obligations_on_user(resumed)] == ["regions"]
+    assert owed(resumed) == []
     answered = append_command(
         page_dir,
         {
@@ -915,10 +963,9 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
             "detail": {},
         },
     )
-    assert state_json(page_dir)["activity"]["obligations"] == [answered["id"]]
+    assert [item["input"] for item in owed(state_json(page_dir))] == [answered["id"]]
 
     thread_model.post_reply(
         page_dir, {"to": asked["id"], "for": answered["id"]}, "East noted."
     )
-    after = state_json(page_dir)["activity"]["obligations"]
-    assert after == []
+    assert owed(state_json(page_dir)) == []

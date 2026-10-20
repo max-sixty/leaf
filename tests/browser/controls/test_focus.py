@@ -474,6 +474,74 @@ def test_a_control_tab_skips_leaves_a_scrolling_box_its_own_stop(browser, serve)
     expect(inside).not_to_have_attribute("tabindex", "0")
 
 
+EDGES_PAGE = leaf_page(
+    "controls at scrollers' edges",
+    '<h1 id="t">Edges</h1>\n<ul id="log" data-bound="start">'
+    + "".join(f'<li><a href="#log-{i}">Entry {i}</a></li>' for i in range(30))
+    + '<li><label><input type="radio" name="pick" checked> Pick</label></li>'
+    + "".join(f'<li><a href="#log-{i}">Entry {i}</a></li>' for i in range(30, 60))
+    + '</ul>\n<table id="wide"><tbody><tr>'
+    + "".join(
+        f'<td><a href="#cell-{i}">Cell&nbsp;link&nbsp;{i}</a></td>' for i in range(30)
+    )
+    + "</tr></tbody></table>",
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize(
+    ("target", "side"),
+    [("#log input", "bottom"), ("#wide td:nth-child(11) a", "right")],
+    ids=["foot", "inline-end"],
+)
+def test_tab_onto_a_control_partly_past_a_scrollers_edge_brings_it_in(
+    request, serve, engine, target, side
+):
+    """The browser reveals a Tab's arrival only when it counts it out of view: Firefox
+    when less than about a line of it shows, Chromium across only when none of it does.
+    A radio 6px past a bounded log's foot stayed cut in Firefox, as a playground's
+    radio did at its controls pane's foot, and a link 6px past a wide table's end
+    stayed cut in both. Each now comes in with its focus ring's room at that edge."""
+    page = open_page(request.getfixturevalue(engine), serve(EDGES_PAGE))
+    resized(page, 1280, 560)
+    page.evaluate(
+        """([selector, side]) => {
+          const el = document.querySelector(selector);
+          const box = el.closest(side === 'bottom' ? '#log' : '#wide');
+          const before = [...document.querySelectorAll('#log a, #log input, #wide a')];
+          before[before.indexOf(el) - 1].focus({preventScroll: true});
+          const port = box.getBoundingClientRect();
+          if (side === 'bottom')
+            box.scrollTop += el.getBoundingClientRect().bottom
+              - (port.top + box.clientTop + box.clientHeight) - 6;
+          else
+            box.scrollLeft += el.getBoundingClientRect().right
+              - (port.left + box.clientLeft + box.clientWidth) - 6;
+        }""",
+        [target, side],
+    )
+    scroll_settled(page)
+    page.keyboard.press("Tab")
+    expect(page.locator(target)).to_be_focused()
+    rendered(page)
+    read = page.locator(target).evaluate(
+        """(el, side) => {
+          const box = el.closest(side === 'bottom' ? '#log' : '#wide');
+          const port = box.getBoundingClientRect();
+          const at = el.getBoundingClientRect();
+          const style = getComputedStyle(el);
+          return {
+            room: side === 'bottom'
+              ? port.top + box.clientTop + box.clientHeight - at.bottom
+              : port.left + box.clientLeft + box.clientWidth - at.right,
+            ring: parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset),
+          };
+        }""",
+        side,
+    )
+    assert read["room"] >= read["ring"], read
+
+
 # One step of `handBack`, run as a layer closes with the user inside it: `layer` holds
 # the button they stand on, and hiding it drops their focus. `shut` is a hidden button
 # and `open` a shown one, both at the end of `main`.

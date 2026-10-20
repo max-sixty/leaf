@@ -3,14 +3,14 @@
    actions withdrawn by undo, member-unit records and complete position maps. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { foldWidgetStates, itemValue } from "/runtime/projection/model.js";
+import { foldWidgetStates, obligationValue } from "/runtime/projection/model.js";
 
-import { servedItemValues } from "../served.mjs";
+import { servedObligationValues } from "../served.mjs";
 
-const cases = servedItemValues();
+const cases = servedObligationValues();
 
 for (const fixture of cases) {
-  test(`Item value agrees with Python: ${fixture.name}`, () => {
+  test(`Obligation value agrees with Python: ${fixture.name}`, () => {
     const authored = new Map([
       [
         "owner",
@@ -25,7 +25,7 @@ for (const fixture of cases) {
     };
     const widgets = foldWidgetStates(authored, projection);
     assert.deepEqual(
-      itemValue(widgets.get("owner"), "set", fixture.answered),
+      obligationValue(widgets.get("owner"), "set", fixture.answered),
       fixture.expected,
     );
   });

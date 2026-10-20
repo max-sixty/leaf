@@ -126,8 +126,14 @@ customElements.define(
         this.#rememberFocus();
     };
 
+    // The outline is of the document it stands in: the page's `main`, or the part of a
+    // page made of parts that holds it (`data-lf-views="parts"`, lf-tabs.js).
+    #document() {
+      return this.closest('body > main > [data-lf-views="parts"] > *, main');
+    }
+
     connectedCallback() {
-      const main = this.closest("main");
+      const main = this.#document();
       if (!once(this) && main === this.#main && scrollerFor(this) === this.#scroller)
         return;
       // Moving to another reading region changes the resources, even if the
@@ -257,7 +263,7 @@ customElements.define(
     }
 
     #watch(signal) {
-      this.#main = this.closest("main");
+      this.#main = this.#document();
       if (!this.#main) return;
       this.#scroller = scrollerFor(this);
       // Root scrolling is reported on Document; nested scrollports report on the
@@ -550,8 +556,8 @@ customElements.define(
         keeps(this.#lens, "style", "display: none;");
         return;
       }
-      // What the user can read is the scroller's landing band, clear of the banner over
-      // its top and the bottom bar over its bottom.
+      // What the user can read is the scroller's landing band, clear of whatever stands
+      // over its top and the floating panel's row over its bottom.
       const clear = landingInsets(this.#scroller);
       const visibleStart = this.#scroller.scrollTop + clear.top;
       const visibleEnd =

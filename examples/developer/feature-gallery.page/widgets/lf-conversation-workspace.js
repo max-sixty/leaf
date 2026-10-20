@@ -11,7 +11,7 @@ import {
   queueActions,
   queueItemKey,
   queueTitle,
-  readItems,
+  readObligations,
   answerWords,
   answeredInWords,
   readQueues,
@@ -270,9 +270,9 @@ customElements.define(
       return JSON.parse(shown);
     }
     paintObligations() {
-      const items = readItems();
+      const items = readObligations();
       const answered = items.all.filter((item) => item.status === "answered");
-      // Counts cover every item; this summary lists completed widget choices, not the
+      // Counts cover every obligation; this summary lists completed widget choices, not the
       // words that answered a question (an lf-ask).
       const labels = items.all
         .filter(

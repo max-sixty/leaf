@@ -17,7 +17,7 @@
   },
   "lf-ask": {
     "description": "A question for the user. Around decision widgets it gives their heading and context, each widget answered separately; with no widget inside, it is a question the user answers in words.",
-    "x-instructions": "Around decision widgets, give it a heading that states the shared question or context without leaning on the prose around it, with any eyebrow beside it in an `<hgroup>`. Include the evidence the user needs to answer. Each widget inside that asks for input stays its own item with its own answer, and the frame asks nothing itself. With no widget inside, it is a question answered in words: in a reply's markup, by the user's next message in that thread; on the page, by their comment on it. Write the question itself as its content, with no heading needed. Wrap the context in a `section` when the document needs a section landmark.",
+    "x-instructions": "Around decision widgets, give it a heading that states the shared question or context without leaning on the prose around it, with any eyebrow beside it in an `<hgroup>`. Include the evidence the user needs to answer. Each widget inside that asks for input stays its own obligation with its own answer, and the frame asks nothing itself. With no widget inside, it is a question answered in words: in a reply's markup, by the user's next message in that thread; on the page, by their comment on it. Write the question itself as its content, with no heading needed. Wrap the context in a `section` when the document needs a section landmark.",
     "type": "object",
     "properties": {
       "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
@@ -179,7 +179,7 @@
   },
   "lf-options": {
     "description": "Alternatives the user can choose individually or as a set to answer a question.",
-    "x-instructions": "Keep shared premises and evidence with the group (lf-ask can frame its question and context), and each alternative's own case inside its lf-option. For an accept-or-reject proposal, a figure of today beside the change compares both answers, so it stays with the group. Use `multiple` when the picks form one answer because they depend on each other, such as a limit on how many; leave it off for mutually exclusive alternatives. Choices the user can answer independently are separate decisions (references/authoring-decisions.md). The built-in Another option field takes unlisted answers, so add no catch-all option. Use `for` only to point at sections or work items that exist apart from the decision. An option the user adds stays in the group from the log, where the user put it; leave it out of revisions. A `multiple` group needs the user's Done even when `chosen` is authored. `settled` collapses a decided group while keeping its options and anchors.",
+    "x-instructions": "Keep shared premises and evidence with the group (lf-ask can frame its question and context), and each alternative's own case and picture inside its lf-option. Use `multiple` when the picks form one answer because they depend on each other, such as a limit on how many; leave it off for mutually exclusive alternatives. Choices the user can answer independently are separate decisions (references/authoring-decisions.md). The built-in Another option field takes unlisted answers, so add no catch-all option. Use `for` only to point at sections or work items that exist apart from the decision. An option the user adds stays in the group from the log, where the user put it; leave it out of revisions. A `multiple` group needs the user's Done even when `chosen` is authored. `settled` collapses a decided group while keeping its options and anchors.",
     "type": "object",
     "properties": {
       "id": {
@@ -269,7 +269,7 @@
   },
   "lf-option": {
     "description": "One alternative in a decision: a compact label, or a card showing what choosing it gives the user.",
-    "x-instructions": "Start a card with small.tag labels naming the facts that tell the alternatives apart, then a `<strong>` title and a sentence giving its consequence. Mark the option you recommend with `<small class=\"tag ok\">recommended</small>` after its labels, and give the reason in prose. `chosen` records the user's pick. Below, show what choosing it gives the user (references/authoring-decisions.md): where options differ in arrangement, structure or mechanism, an svg.drawing thumbnail of each in the same frame, alike except where they differ; where they differ in how an existing interface looks, a capture of each; where they differ in behavior, that behavior working inside each; where they differ in wording, the words as they would appear. Add paragraphs or a fact rail only when that is not enough; a bare label suits an option that needs no case. Direct text takes inline Markdown; block content needs HTML children. A `for` target must stay useful whatever is decided, and does not supply the option's words. Rewriting a picked option needs `restated` ($restated).",
+    "x-instructions": "Word the alternatives as `references/authoring-decisions.md` says. For a card, start with small.tag labels naming the facts that tell the alternatives apart, then a `<strong>` title and its concrete consequence. Mark the option you recommend with `<small class=\"tag ok\">recommended</small>` after its labels, and give the reason in prose. `chosen` records the user's pick. Below, show what choosing it gives the user (references/authoring-decisions.md): where options differ in arrangement, structure or mechanism, an svg.drawing thumbnail of each in the same frame, alike except where they differ; where they differ in how an existing interface looks, a capture of each, today's in the option that keeps it; where they differ in behavior, that behavior working inside each; where they differ in wording, the words as they would appear. Add paragraphs or a fact rail only when that is not enough. Direct text takes inline Markdown; block content needs HTML children. A `for` target must stay useful whatever is decided, and does not supply the option's words. Rewriting a picked option needs `restated` ($restated).",
     "type": "object",
     "properties": {
       "id": {
@@ -493,8 +493,8 @@
     "x-example": "<lf-tabs id=\"views\">\n  <lf-tab id=\"tab-implementation\" label=\"Implementation\">\n    <p id=\"rollout-plan\">Wire the first site this week.</p>\n  </lf-tab>\n  <lf-tab id=\"tab-vision\" label=\"Vision\">\n    <p id=\"product-vision\">Keep the original outcome and constraints in reach.</p>\n  </lf-tab>\n</lf-tabs>"
   },
   "lf-tally": {
-    "description": "A count of the open items in one region, such as the decisions left in a queue, with an optional control that goes to the next one.",
-    "x-instructions": "Write it empty with a stable id, and set `for` to the region whose items it counts, such as a side-list `lf-tabs` queue. Place it where the reader looks for the queue's state, such as a workspace header beside its `.tag` chips. Add `next` for a Next on me control that steps through the items waiting on the user. Don't also state the count in prose or chips; the tally keeps it current.",
+    "description": "A count of the open obligations in one region, such as the decisions left in a queue, with an optional control that goes to the next one.",
+    "x-instructions": "Write it empty with a stable id, and set `for` to the region whose obligations it counts, such as a side-list `lf-tabs` queue. Place it where the reader looks for the queue's state, such as a workspace header beside its `.tag` chips. Add `next` for a Next on me control that steps through the obligations waiting on the user. Don't also state the count in prose or chips; the tally keeps it current.",
     "type": "object",
     "properties": {
       "id": {
@@ -518,7 +518,7 @@
       "for": {}
     },
     "x-upgrade": true,
-    "x-example": "<header>\n  <h1>Release triage</h1>\n  <p><lf-tally id=\"triage-left\" for=\"triage-queue\" next></lf-tally></p>\n</header>\n<lf-tabs id=\"triage-queue\" list=\"side\">\n  <lf-tab id=\"triage-retries\" label=\"Retry storm\">\n    <lf-ask id=\"retries-ask\">\n      <h3>Ship the retry cap?</h3>\n      <lf-options id=\"retries-choice\" choose>\n        <lf-option id=\"retries-ship\">Ship it</lf-option>\n        <lf-option id=\"retries-hold\">Hold for a canary</lf-option>\n      </lf-options>\n    </lf-ask>\n  </lf-tab>\n  <lf-tab id=\"triage-flag\" label=\"Stale flag\">\n    <lf-ask id=\"flag-ask\">\n      <h3>Remove the flag?</h3>\n      <lf-options id=\"flag-choice\" choose>\n        <lf-option id=\"flag-remove\">Remove it</lf-option>\n        <lf-option id=\"flag-keep\">Keep it a release</lf-option>\n      </lf-options>\n    </lf-ask>\n  </lf-tab>\n</lf-tabs>"
+    "x-example": "<header>\n  <h1>Release triage</h1>\n  <p><lf-tally id=\"triage-left\" for=\"triage-queue\" next></lf-tally></p>\n</header>\n<lf-tabs id=\"triage-queue\" list=\"side\">\n  <lf-tab id=\"triage-retries\" label=\"Retry storm\">\n    <lf-ask id=\"retries-ask\">\n      <h3>Ship the retry cap?</h3>\n      <lf-options id=\"retries-choice\" choose>\n        <lf-option id=\"retries-ship\">Ship the retry cap</lf-option>\n        <lf-option id=\"retries-hold\">Canary the retry cap first</lf-option>\n      </lf-options>\n    </lf-ask>\n  </lf-tab>\n  <lf-tab id=\"triage-flag\" label=\"Stale flag\">\n    <lf-ask id=\"flag-ask\">\n      <h3>Remove the flag?</h3>\n      <lf-options id=\"flag-choice\" choose>\n        <lf-option id=\"flag-remove\">Remove the stale flag</lf-option>\n        <lf-option id=\"flag-keep\">Keep the flag for another release</lf-option>\n      </lf-options>\n    </lf-ask>\n  </lf-tab>\n</lf-tabs>"
   },
   "lf-tab": {
     "description": "One labeled view in a tab set, optionally summarized and grouped in a side-list queue.",
@@ -543,6 +543,47 @@
     "required": ["id", "label"],
     "additionalProperties": false,
     "x-owners": ["lf-tabs"],
+    "x-content": "markup",
+    "x-upgrade": false
+  },
+  "lf-parts": {
+    "description": "A page made of parts, each laid out by a Layout of its own and shown one at a time, listed down the window's left edge under the page's title.",
+    "x-instructions": "Use it where a page holds work of different shapes, such as a workspace and the reading behind it, that each want a Layout of their own (`page-layout.md`, \"A page of parts\"). Write it directly in a `main` that carries no Layout, after one `header` holding the page's short title, and give each `lf-part` one child carrying that part's Layout, such as `<article class=\"layout-column\">`. Put the main current part first. History, threads, versions and sign-off belong to the whole page. When current work no longer needs a part, remove it, moving any passage an open thread or an unretracted decision is anchored to into a `details` in the relevant part. Where the parts share one Layout, use page tabs (`lf-tabs`) in a `main` that carries it instead.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      }
+    },
+    "required": ["id"],
+    "additionalProperties": false,
+    "x-content": "members",
+    "x-upgrade": true,
+    "x-patch": "members",
+    "x-views": "parts",
+    "x-example": "<header>\n  <h1>Retry storm</h1>\n</header>\n<lf-parts id=\"parts\">\n  <lf-part id=\"part-decide\" label=\"Decide\" summary=\"Ship the retry cap?\">\n    <div class=\"layout-workspace density-working\">\n      <p id=\"decide-intro\">Compare the two caps.</p>\n    </div>\n  </lf-part>\n  <lf-part id=\"part-background\" label=\"Background\">\n    <article class=\"layout-column\">\n      <p id=\"storm-history\">The storm started with the 2.3 release.</p>\n    </article>\n  </lf-part>\n</lf-parts>"
+  },
+  "lf-part": {
+    "description": "One labeled part of a page, holding the box its own Layout arranges.",
+    "x-instructions": "Hold exactly one child, carrying the part's Layout. Its `summary` shows under its label in the list, so the user can tell the parts apart before opening one; start it with what the part holds unless the label already says so. Keep ids distinct across parts, which share the page's id space.",
+    "x-name": "label",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "label": {
+        "type": "string"
+      },
+      "summary": {
+        "type": "string"
+      }
+    },
+    "required": ["id", "label"],
+    "additionalProperties": false,
+    "x-owners": ["lf-parts"],
     "x-content": "markup",
     "x-upgrade": false
   },

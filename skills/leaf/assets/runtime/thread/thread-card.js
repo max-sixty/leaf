@@ -57,6 +57,7 @@ import { TEXT_FIELD } from "../control-selectors.js";
 import { atScrollEnd } from "../scrolling.js";
 import { settleThread } from "./folding.js";
 import { iconTemplate } from "../icons.js";
+import { answeredInWords } from "../obligations/model.js";
 import { SAY_BOX } from "./selectors.js";
 import { renderMarkdown } from "../markdown.js";
 import { summaryRanges, withPendingProgress } from "./summary-ranges.js";
@@ -118,7 +119,7 @@ export function quoteReading(thread, anchors) {
 // work, which is the request's state (a start, `todos.py`), so they agree with the
 // page's status and the agent's On count. The work is read from the thread's workflows
 // and to-dos, not from whose turn the thread is, since the agent can be working on one
-// message while an item in the same thread waits on the user. A message's work speaks before a to-do's, and
+// message while an obligation in the same thread waits on the user. A message's work speaks before a to-do's, and
 // a proactive progress message, which takes no request in hand, gives its own words.
 // `live` while the work runs; work whose turn ended or went stale without an answer
 // says so beside its last line. The progress messages behind it are gathered by
@@ -196,12 +197,16 @@ export function threadReading(thread, surface, commands) {
   const label = resolved ? word : "Resolve thread";
   const attention = threadAttention(thread);
   // An answer says what it leaves (an lf-ask, `--todo`); its head says so while that
-  // stands: the question the user still owes words to, the to-do still open on the
+  // stands: a question the user still owes words to, a to-do still open on the
   // thread.
-  const asking = thread.user_prompt?.message;
+  const asking = new Set(
+    thread.obligations
+      .filter((item) => item.next_actor === "user" && answeredInWords(item))
+      .map((item) => item.message),
+  );
   const openTodos = new Set(thread.todos.map(({ id }) => id));
   const leaves = (message) =>
-    message.id === asking
+    asking.has(message.id)
       ? "Waiting on me"
       : message.todo && openTodos.has(message.id)
         ? "To-do open"

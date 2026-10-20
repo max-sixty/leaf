@@ -10,7 +10,7 @@ from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
-from render_cases_interaction import ITEM_PAGE, PANEL_PAGE, SUGGESTION_PAGE
+from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, SUGGESTION_PAGE
 from render_cases_layout import standing_ring
 from render_harness import (
     PANEL,
@@ -30,12 +30,12 @@ from render_harness import (
 )
 
 from browser.margin import (
-    ACTION_ON_ITEM,
+    ACTION_ON_OBLIGATION,
     ACTION_PAGE,
-    COMMENT_ON_ITEM,
+    COMMENT_ON_OBLIGATION,
     COMMENT_ON_SUGGESTION,
     ON_THE_PAGE,
-    PARAGRAPH_ON_ITEM,
+    PARAGRAPH_ON_OBLIGATION,
     WORDS_RIGHT,
     _comment_on,
     leave_card_by_its_target,
@@ -288,7 +288,8 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
 def test_one_information_margin_entry_does_not_raise_a_preview(browser, serve):
     """A single non-thread reading travels directly; cards are reserved for threads."""
     page = open_page(
-        browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM])
+        browser,
+        serve(OBLIGATION_PAGE, events=[ACTION_ON_OBLIGATION, COMMENT_ON_OBLIGATION]),
     )
     resized(page, 1600, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="on-me"]').first
@@ -306,7 +307,8 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
 ):
     """One location groups its thread and engaged handoff without moving the page."""
     page = open_page(
-        browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM])
+        browser,
+        serve(OBLIGATION_PAGE, events=[ACTION_ON_OBLIGATION, COMMENT_ON_OBLIGATION]),
     )
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
@@ -351,7 +353,9 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(marker).to_have_attribute("aria-expanded", "true")
     expect(preview).to_be_visible()
     expect(marker.locator(".lf-margin-entry-label")).to_be_hidden()
-    expect(page.locator('.lf-target-trace[data-for="bracket"]')).to_be_visible()
+    # The thread the user now stands in marks its element; no trace doubles it.
+    expect(page.locator(".lf-visual-mark-here")).to_be_visible()
+    expect(page.locator('.lf-target-trace[data-for="bracket"]')).to_be_hidden()
     preview_box = preview.bounding_box()
     assert preview_box["x"] >= page.evaluate(WORDS_RIGHT) + 7.5
     assert preview_box["x"] >= 0
@@ -473,7 +477,8 @@ def test_design_mode_retires_and_suppresses_the_top_layer_margin_preview(
 ):
     """Ordinary design paint never promises to rise above the browser's top layer."""
     page = open_page(
-        browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM])
+        browser,
+        serve(OBLIGATION_PAGE, events=[ACTION_ON_OBLIGATION, COMMENT_ON_OBLIGATION]),
     )
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
@@ -506,7 +511,7 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(browser,
 
     Where the card stands belongs to the placement tests beside this one; how a send
     is delivered belongs to the `margin` case of `test_render_thread_snapshots.py`."""
-    page = open_page(browser, serve(ITEM_PAGE, events=[PARAGRAPH_ON_ITEM]))
+    page = open_page(browser, serve(OBLIGATION_PAGE, events=[PARAGRAPH_ON_OBLIGATION]))
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
     preview = page.locator(".lf-margin-preview")
@@ -515,7 +520,7 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(browser,
 
     marker.click()
     expect(thread.locator(".lf-page-thread")).to_be_focused()
-    expect(thread.locator(".lf-msg-body")).to_have_text(PARAGRAPH_ON_ITEM["text"])
+    expect(thread.locator(".lf-msg-body")).to_have_text(PARAGRAPH_ON_OBLIGATION["text"])
     expect(preview.get_by_role("button", name=re.compile(r"Threads?"))).to_have_count(0)
     page.keyboard.press("c")
     expect(reply).to_be_focused()
@@ -552,12 +557,12 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(browser,
 def test_a_thread_margin_entry_opens_inline_when_the_panel_is_closed(browser, serve):
     """A marker opens its thread in a card beside the passage, even where a sidebar
     takes the room the margin would have."""
-    sidebar_page = ITEM_PAGE.replace(
+    sidebar_page = OBLIGATION_PAGE.replace(
         '<main class="layout-column">',
         '<main class="layout-column"><aside class="sidebar">Page reference</aside>',
         1,
     )
-    page = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_ITEM]))
+    page = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_OBLIGATION]))
     resized(page, 1200, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
 
@@ -584,7 +589,7 @@ def test_a_new_anchored_comment_keeps_the_users_thread_view(
     """A send continues beside the passage, keeping the page put, whether or not the
     panel's Threads view stood open: the panel shows a passage's thread only where the
     page draws it nowhere."""
-    page = open_page(browser, serve(ITEM_PAGE))
+    page = open_page(browser, serve(OBLIGATION_PAGE))
     resized(page, width, 900)
     if threads_open:
         page.locator(".lf-fp-threads").click()
@@ -648,7 +653,7 @@ def test_a_comment_sent_from_a_control_is_left_by_the_levels_it_opened(
     view stood open. The thread hands them to the page it is about. The control `c` was
     pressed from is not a landing.
     """
-    page = open_page(browser, serve(ITEM_PAGE))
+    page = open_page(browser, serve(OBLIGATION_PAGE))
     resized(page, 1440, 900)
     if threads_open:
         page.locator(".lf-fp-threads").click()
@@ -685,7 +690,7 @@ def test_standing_on_a_commented_element_shows_its_thread_beside_it(browser, ser
     on the element leaves the card, since the user is still there, while a press
     anywhere else on the page, or letting go, takes it down.
     """
-    page = open_page(browser, serve(ITEM_PAGE))
+    page = open_page(browser, serve(OBLIGATION_PAGE))
     resized(page, 1201, 900)
     sent = seeded_thread(page, serve.page_dir, "#mounts-p")
     preview = page.locator(".lf-margin-preview")
@@ -744,7 +749,7 @@ def test_a_card_stays_its_press_to_take_off_when_it_moves_on(browser, serve, ent
     was pressed from is standing any more, and the margin entry the card now hangs from
     is one the user never stood on.
     """
-    page = open_page(browser, serve(ITEM_PAGE))
+    page = open_page(browser, serve(OBLIGATION_PAGE))
     resized(page, 1440, 900)
     seeded_thread(page, serve.page_dir, "#mounts-p")
     seeded_thread(page, serve.page_dir, "#heater-p")
@@ -782,7 +787,7 @@ def test_a_comment_raised_inside_a_card_s_target_takes_the_card_down(browser, se
     box and covers the margin beside the target, so leaving it up hid the field the
     user was typing into. The box on a new target takes the card down instead.
     """
-    page = open_page(browser, serve(ITEM_PAGE))
+    page = open_page(browser, serve(OBLIGATION_PAGE))
     resized(page, 1440, 900)
     seeded_thread(page, serve.page_dir, "#mounts-p")
     preview = page.locator(".lf-margin-preview")
@@ -903,7 +908,7 @@ def test_a_second_press_into_an_open_card_leaves_one_level_to_take_off(
     leaves one card open. Its way out is the target it is anchored to and then the
     page: neither note nor marker is a place the user was standing.
     """
-    page = open_page(browser, serve(ITEM_PAGE))
+    page = open_page(browser, serve(OBLIGATION_PAGE))
     resized(page, 1440, 900)
     seeded_thread(page, serve.page_dir, "#mounts-p")
     seeded_thread(page, serve.page_dir, "#heater-p")
@@ -940,7 +945,7 @@ def test_a_shared_passage_steps_between_single_thread_cards(browser, serve):
         "anchor": {"section": "bracket"},
     }
     page = open_page(
-        browser, serve(ITEM_PAGE, events=[COMMENT_ON_ITEM, second_comment])
+        browser, serve(OBLIGATION_PAGE, events=[COMMENT_ON_OBLIGATION, second_comment])
     )
     resized(page, 1440, 900)
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
@@ -987,11 +992,11 @@ def test_a_shared_passage_steps_between_single_thread_cards(browser, serve):
         )
         == disabled_style
     )
-    expect(preview).to_contain_text(COMMENT_ON_ITEM["text"])
+    expect(preview).to_contain_text(COMMENT_ON_OBLIGATION["text"])
     next_thread.click()
     expect(preview.locator(".lf-margin-preview-position")).to_have_text("2/2")
     expect(preview).to_contain_text(second_comment["text"])
-    expect(preview).not_to_contain_text(COMMENT_ON_ITEM["text"])
+    expect(preview).not_to_contain_text(COMMENT_ON_OBLIGATION["text"])
     expect(previous).to_be_enabled()
     expect(next_thread).to_be_disabled()
     expect(preview.locator(".lf-page-thread")).to_be_focused()
@@ -1003,7 +1008,7 @@ def test_a_shared_passage_steps_between_single_thread_cards(browser, serve):
     page.keyboard.press("r")
     told(page)
     expect(preview.locator(".lf-margin-preview-nav")).to_be_hidden()
-    expect(preview).to_contain_text(COMMENT_ON_ITEM["text"])
+    expect(preview).to_contain_text(COMMENT_ON_OBLIGATION["text"])
     expect(preview).not_to_contain_text(second_comment["text"])
     expect(preview.locator(".lf-page-thread-open")).to_have_count(0)
     expect(preview.get_by_role("button", name=re.compile(r"Threads?"))).to_have_count(0)
@@ -1032,7 +1037,8 @@ def test_an_open_thread_refresh_keeps_the_current_margin_entry_target_highlighte
 def test_focusing_a_thread_margin_entry_does_not_open_its_card(browser, serve):
     """Walking the Page Map never inserts an unrequested thread into the Tab order."""
     page = open_page(
-        browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM])
+        browser,
+        serve(OBLIGATION_PAGE, events=[ACTION_ON_OBLIGATION, COMMENT_ON_OBLIGATION]),
     )
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
@@ -1097,10 +1103,10 @@ def test_an_open_desktop_preview_reconciles_arriving_meanings(browser, serve):
     page = open_page(
         browser,
         serve(
-            ITEM_PAGE,
+            OBLIGATION_PAGE,
             events=[
-                ACTION_ON_ITEM,
-                {**COMMENT_ON_ITEM, "id": "f" * 32},
+                ACTION_ON_OBLIGATION,
+                {**COMMENT_ON_OBLIGATION, "id": "f" * 32},
             ],
         ),
     )

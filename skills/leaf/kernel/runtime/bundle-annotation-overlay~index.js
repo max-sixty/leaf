@@ -67,6 +67,7 @@ import {
   rowWalk,
   selectionAnchor,
   showLatestTurn,
+  standingThreadId,
   strongestWorkflow,
   tabStore,
   threadFocusDestination,
@@ -76,7 +77,9 @@ import {
 } from "./bundle-user-intent.js";
 import "./bundle-widget-upgrade.js";
 import "./bundle-media.js";
-import "./bundle-motion.js";
+import {
+  reducedMotion
+} from "./bundle-motion.js";
 import {
   THREAD_CARD,
   cardMeasure,
@@ -290,6 +293,12 @@ function surfaceGrip({ surface, bounds, dropped }) {
 
 // runtime/annotation-overlay/thread-preview.js
 var REPLY_BOX = `.lf-thread-reply ${TEXT_FIELD}`;
+var CUT_EDGES = [
+  "--lf-cut-top",
+  "--lf-cut-right",
+  "--lf-cut-bottom",
+  "--lf-cut-left"
+];
 function createThreadPreview({
   inventory,
   renderMarginThread,
@@ -448,6 +457,7 @@ function createThreadPreview({
     carry.placed();
     const session = previewSession;
     if (!session) return;
+    keeps(preview, "data-lf-grows", null);
     session.positionResult?.resolve(false);
     cancelRender(session.positionFrame);
     placementDriver.supersede();
@@ -647,16 +657,16 @@ function createThreadPreview({
       const card = placementDriver.clientBox(position);
       session.away = card.bottom <= boundary.top || card.top >= boundary.bottom;
       const region = boundary.inRegion;
-      if (region) {
-        const reach = -paintReach(preview);
-        const inset = [
-          (region.top - card.top) / scale.y,
-          (card.right - region.right) / scale.x,
-          (card.bottom - region.bottom) / scale.y,
-          (region.left - card.left) / scale.x
-        ].map((cut) => Math.max(cut, reach));
-        preview.style.clipPath = `inset(${inset.map(layoutPx).join(" ")})`;
-      } else preview.style.removeProperty("clip-path");
+      const cuts = region ? [
+        (region.top - card.top) / scale.y,
+        (card.right - region.right) / scale.x,
+        (card.bottom - region.bottom) / scale.y,
+        (region.left - card.left) / scale.x
+      ].map((cut) => layoutPx(Math.max(cut, -paintReach(preview)))) : [];
+      CUT_EDGES.forEach((edge, i) => {
+        if (region) preview.style.setProperty(edge, cuts[i]);
+        else preview.style.removeProperty(edge);
+      });
       keeps(preview, "data-lf-thread-placement", THREAD_SIDES[side]);
       keepThreadLanding(previewList.querySelector(".lf-page-thread"));
       session.positionResult?.resolve(true);
@@ -886,8 +896,19 @@ function createThreadPreview({
     }
     keepsHidden(preview, false);
     buildThreadCard(entry, selected.id);
-    return placedThreadPreview();
+    const positioned = placedThreadPreview();
+    return session.sent ? growOut(session, positioned) : positioned;
   }
+  function growOut(session, positioned) {
+    return positioned.then((placed) => {
+      if (placed && previewSession === session && !reducedMotion())
+        keeps(preview, "data-lf-grows", "");
+      return placed;
+    });
+  }
+  preview.addEventListener("animationend", (event) => {
+    if (event.target === preview) keeps(preview, "data-lf-grows", null);
+  });
   function refresh(entry, control, carry2 = focused() === previewSession?.control) {
     if (!previewSession || previewSession.preparing) return;
     transferThreadCard(control, carry2);
@@ -900,7 +921,7 @@ function createThreadPreview({
     retirePreviewSession();
     placementDriver.stop();
     delete preview.dataset.lfThreadPlacement;
-    preview.style.removeProperty("clip-path");
+    for (const edge of CUT_EDGES) preview.style.removeProperty(edge);
     keepsHidden(preview, true);
     onClose(closed);
   }
@@ -1213,6 +1234,7 @@ function createMarginProjection({
   scrollThreadIntoView,
   renderMarginThread,
   placedAt,
+  marksFor,
   scrollToElement
 }) {
   const {
@@ -1951,14 +1973,19 @@ function createMarginProjection({
     const focusedHost = closestAcross(active, "[data-lf-margin-for]");
     const pointerHost = hoveredHost?.isConnected ? hoveredHost : null;
     const onTarget = previewOpen() && active && active === targetFor(card.selection()?.entry);
-    const source = pointerHost ?? focusedHost ?? ((renderedUnder(active, preview) || previewOpen()) && !onTarget ? hosts.get(card.selection()?.entry?.key) : null);
+    const marker = pointerHost ?? focusedHost;
+    const source = marker ?? ((renderedUnder(active, preview) || previewOpen()) && !onTarget ? hosts.get(card.selection()?.entry?.key) : null);
     const entry = pageInventory.find(
       (candidate) => candidate.key === source?.lfEntry?.key
     );
     const drawingOnly = entry?.items.length && entry.items.every(
       (item) => item.kind === "comment" && Boolean(sourceItem(item).thread?.root.drawing)
     );
-    highlight(drawingOnly ? null : targetFor(entry) ?? null);
+    const standing = standingThreadId();
+    const standingShown = !marker && entry && marksFor(standing).length > 0 && threadReading(entry)?.items.some(
+      (item) => sourceItem(item).thread.id === standing
+    );
+    highlight(drawingOnly || standingShown ? null : targetFor(entry) ?? null);
   }
   function previewChanged() {
     refreshHighlight();
@@ -2162,6 +2189,7 @@ function createMarginProjection({
     return thread && positioned && { thread, presented: positioned };
   }
   function paintSelectedMarginEntries(selections) {
+    refreshHighlight();
     const selected = /* @__PURE__ */ new Set();
     for (const selection of selections)
       for (const entry of pageInventory) {
@@ -2176,6 +2204,13 @@ function createMarginProjection({
   }
   const threadIdOf = (entry) => sourceItem(threadReading(entry).items[0]).thread.id;
   const entryThread = (node) => {
+    if (under(node, preview) && previewOpen()) {
+      const selected = card.selection();
+      const item = selected && threadReading(selected.entry)?.items.find(
+        (candidate) => candidate.id === selected.threadItem
+      );
+      if (item) return sourceItem(item).thread.id;
+    }
     const entry = closestAcross(node, ".lf-margin-entry")?.lfEntry;
     return entry && threadReading(entry) ? threadIdOf(entry) : null;
   };
@@ -2401,7 +2436,7 @@ var PENDING = "lf-pending";
 var REACT = "lf-react";
 var HOVER = "lf-mark-hover";
 var HERE = "lf-mark-here";
-function createAnchorPaint({ targetPaint, pointer, standingThreadId }) {
+function createAnchorPaint({ targetPaint, pointer, standingThreadId: standingThreadId2 }) {
   const marked = /* @__PURE__ */ new Map();
   const visualTargets = /* @__PURE__ */ new Map();
   let pendingMarks = [];
@@ -2469,7 +2504,7 @@ function createAnchorPaint({ targetPaint, pointer, standingThreadId }) {
     );
   }
   function paintStanding(repaintVisuals = true) {
-    const where = marksFor(standingThreadId());
+    const where = marksFor(standingThreadId2());
     const parts = where.filter((mark) => mark instanceof Element);
     for (const part of hereParts)
       if (!parts.includes(part)) part.classList.toggle(HERE, false);

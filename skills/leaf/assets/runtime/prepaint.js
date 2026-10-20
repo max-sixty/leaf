@@ -3,8 +3,13 @@
 // the browser paints what has arrived well before that. Delivery places this script
 // after the head's canonical link, so the page root that link declares is in the
 // document when it runs, and before the bootstrap and the theme (`compose_document`).
+/** @typedef {import("../../../../build/browser/contract.js").AuthoredAllocations} Allocations */
 (() => {
   const root = document.documentElement;
+  // A page-wide allocation `body` states (`$authored`), or null where it states none.
+  /** @template {keyof Allocations} A @param {A} name @returns {Allocations[A] | null} */
+  const pageAllocation = (name) =>
+    /** @type {any} */ (document.body.getAttribute(name));
   // A cross-document swap commits departure before Chrome rejects its aborted
   // fetches. Those rejections belong to the old document, not its replacement.
   // beforeunload is cancelable and therefore cannot end this lifetime; pageshow
@@ -429,19 +434,25 @@
   };
   // The box the page's Layout arranges (layouts.css, `--lf-layout-box`): the page's
   // `main` (passages.js, `pageDocument`), or the shown child of a `main` that carries no
-  // Layout itself. Its parent is the shell the Layout places it in. CSS declares the box,
-  // so the runtime reads no Layout class. Without a Layout, the box is `main`.
+  // Layout itself, or the shown child of a part of such a `main`, a member of its child
+  // that holds the page's parts (`data-lf-views="parts"`). A part not shown hides what
+  // it holds (`hidden="until-found"`), so a box in it is not shown. Its parent is the shell the
+  // Layout places it in. CSS declares the box, so the runtime reads no Layout class.
+  // Without a Layout, the box is `main`.
   const isLayoutBox = (box) =>
     getComputedStyle(box).getPropertyValue("--lf-layout-box").trim() === "1";
   const layoutBox = () => {
     const main = document.querySelector("body > main");
     if (!main || isLayoutBox(main)) return main;
-    for (const child of main.children)
-      if (child.checkVisibility() && isLayoutBox(child)) return child;
-    return main;
+    const parts = main.querySelector(':scope > [data-lf-views="parts"]');
+    const boxes = [
+      ...main.children,
+      ...[...(parts?.children ?? [])].flatMap((part) => [...part.children]),
+    ];
+    return boxes.find((box) => box.checkVisibility() && isLayoutBox(box)) ?? main;
   };
   // The shell that last held the column, so a column that moves to another shell, as
-  // when another view is shown, leaves none of its tracks behind.
+  // when another part is shown, leaves none of its tracks behind.
   let lastShell = null;
   const seat = () => {
     const body = document.body;
@@ -471,8 +482,11 @@
     // The shift is written on `body` whatever the shell, and the shell's tracks inherit
     // it: `body` is root state, whose runtime styles a revision keeps (version.js).
     if (!box) {
-      const shifted = body.style.getPropertyValue("--lf-column-shift") !== "";
+      const shifted =
+        body.style.getPropertyValue("--lf-column-shift") !== "" ||
+        body.style.getPropertyValue("--lf-shell-left") !== "";
       removeRuntimeRootStyle(body, "--lf-column-shift");
+      removeRuntimeRootStyle(body, "--lf-shell-left");
       return shellChanged || shifted;
     }
     const style = getComputedStyle(box);
@@ -497,6 +511,13 @@
     const scale = shellRect.width / shellNode.offsetWidth || 1;
     const shellLeft = shellRect.left + shellNode.clientLeft * scale;
     const shell = { left: shellLeft, right: shellLeft + shellNode.clientWidth * scale };
+    // A resident fixed to the window, as the contents map is (toc.css), stands from the
+    // shell's left edge rather than the window's, which differ where the page puts
+    // something before the shell, as a page's list of parts does.
+    const left = Math.round(shellLeft) ? `${Math.round(shellLeft)}px` : "";
+    const moved = body.style.getPropertyValue("--lf-shell-left") !== left;
+    if (left) setRuntimeRootStyle(body, "--lf-shell-left", left);
+    else removeRuntimeRootStyle(body, "--lf-shell-left");
     const room = {
       left: column.left - gridShift - shell.left,
       right: shell.right - column.right + gridShift,
@@ -551,9 +572,11 @@
     const allocate = (room, movable) => {
       const taken = { left: 0, right: 0 };
       const granted = [];
+      /** @type {Allocations["data-annotations"]} */
+      const annotations = pageAllocation("data-annotations") ?? "overlay";
       if (
-        (document.body.dataset.annotations ?? "overlay") === "overlay" &&
-        document.body.getAttribute("data-rail") !== "none" &&
+        annotations === "overlay" &&
+        pageAllocation("data-rail") !== "none" &&
         room.right >= need("--rail")
       ) {
         granted.push("rail");
@@ -618,7 +641,7 @@
     const { shift, granted } = allocation;
     const tokens = granted.join(" ");
     const seated = (box.getAttribute("data-lf-margin") ?? "") !== tokens;
-    if (!seated && shift === shellWritten) return shellChanged;
+    if (!seated && shift === shellWritten) return shellChanged || moved;
     // Source copies keep the authored shell before initial geometry writes to it;
     // children still follow their original routes as the parser continues.
     if (!sourceShells.has(box)) sourceShells.set(box, box.cloneNode(false));
@@ -818,11 +841,37 @@
     }
     return changed;
   };
+  // A page of parts' title, which its list sticks under (layouts.css, "A page of
+  // parts"): no CSS stacks one sticking box under another of unknown height. The title
+  // is what stands before the parts, in the one row above the list.
+  const TITLE = "--lf-parts-title-h";
+  const title = () => {
+    const body = document.body;
+    const main = document.querySelector("body > main");
+    if (!body) return false;
+    const parts =
+      main && !isLayoutBox(main)
+        ? main.querySelector(':scope > [data-lf-views="parts"]')
+        : null;
+    let height = 0;
+    for (
+      let node = parts?.previousElementSibling;
+      node;
+      node = node.previousElementSibling
+    )
+      height = Math.max(height, node.getBoundingClientRect().height);
+    const value = height ? `${Math.round(height)}px` : "";
+    if (body.style.getPropertyValue(TITLE) === value) return false;
+    if (value) setRuntimeRootStyle(body, TITLE, value);
+    else removeRuntimeRootStyle(body, TITLE);
+    return true;
+  };
   const residency = () => {
     const seated = seat();
+    const titled = title();
     const stood = stand();
     const reading = breakouts();
-    return { ...reading, changed: reading.changed || seated || stood };
+    return { ...reading, changed: reading.changed || seated || titled || stood };
   };
 
   // The id a URL fragment spells, for location.hash and for a link's href alike, from

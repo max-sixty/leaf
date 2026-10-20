@@ -43,6 +43,7 @@ import turbohtml
 from .layer import CASCADE_LAYERS
 from .passages import markdown_markup
 from .registry.contract import is_element_name, prepaint_markup
+from .registry.kernel import kernel_marks
 from .revision_artifact import (
     Resource,
     RevisionArtifact,
@@ -52,7 +53,6 @@ from .revision_artifact import (
 )
 from .schema import (
     BROWSER_DIRS,
-    DECLARED_MARKS,
     MEDIA_DIR,
     RENDER_CHECKS_DIR,
     VENDORED_FILES,
@@ -356,8 +356,8 @@ def mark_declared(
     *,
     initial: bool = False,
 ) -> str:
-    """Paint each element's declared marks (`DECLARED_MARKS`) onto its start tag, the
-    rest byte-for-byte, the size of the page media it names, and its declared
+    """Paint each element's declared marks (`registry.kernel.kernel_marks`) onto its
+    start tag, the rest byte-for-byte, the size of the page media it names, and its declared
     `x-prepaint` as its first child. With `initial`, an `x-initial` host receives
     an inert source template and a parser invocation immediately after that template
     closes. The complete host is then inserted and drawn in one synchronous turn;
@@ -398,7 +398,7 @@ def mark_declared(
             element.closest("main") is not None
         )
         marks = {}
-        for key, mark in DECLARED_MARKS.items():
+        for key, mark in kernel_marks().items():
             declared = declaration.get(key)
             means = {"content": content, "declared": bool(declared)}
             authored = mark.get("authored")
@@ -855,7 +855,7 @@ def compose_document(
             )
         )
     root = dict(delivery.html_attributes)
-    if (layout := page_layout(document)) is not None:
+    if (layout := page_layout(document, registry)) is not None:
         root["data-lf-layout"] = layout
     if root:
         attributes = _attributes(root)

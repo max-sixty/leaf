@@ -124,7 +124,7 @@ import {
 import { commandScope, projectCommandScope } from "../keyboard/scopes.js";
 import { under, upFrom } from "../shadow.js";
 import { nativeLayers } from "../keyboard/layer-stack.js";
-import { heldItem } from "../standing-target.js";
+import { heldObligation } from "../standing-target.js";
 
 import { coarsePointer, pointerAt, pressIsKeyboardActivation } from "../pointer.js";
 import { anchorLabel } from "../thread/messages.js";
@@ -354,9 +354,9 @@ export function createResponseSurface({
     }) ?? null;
   // An element response exits to its subject, or the declared proxy representing it
   // where the subject cannot take focus. Resolve that structural parent from the current
-  // anchor, so c from an item and an aimed press on the same item unwind alike.
-  // There is no saved pre-command focus: standing on an option comments on its item,
-  // and closing returns to the item itself. A drawing's proxy is the fallback, not
+  // anchor, so c from an obligation and an aimed press on the same obligation unwind alike.
+  // There is no saved pre-command focus: standing on an option comments on its obligation,
+  // and closing returns to the obligation itself. A drawing's proxy is the fallback, not
   // the parent, even for a user who pressed it: focused, its face stands at the
   // window's head, away from the drawing it is about (chrome.css). A quoted selection clears to
   // the page; a removed subject has no parent to land on.
@@ -1118,8 +1118,8 @@ export function createResponseSurface({
       // A press that ends holding words it did not begin with took them, and is that
       // selection's mouseup rather than a click on whatever lies under it: the user was
       // reaching for the words, and the 💬 is already up on them (updateFab, on the same
-      // mouseup). The same complaint `offer` answers for a press on a control and the
-      // thread list for a press on a card (reachedForWords), and it governs the whole of
+      // mouseup). The same complaint `offer` answers for a press on a control
+      // (reachedForWords), and it governs the whole of
       // what a click on prose means — the block design mode comments on, and the thread a
       // mark opens. Marked words are where it showed: a gesture inside one travelled to its
       // thread, and with Threads open the reply box it landed in collapsed the selection
@@ -1203,10 +1203,10 @@ export function createResponseSurface({
     const here = standingTarget();
     const anchor = fabAnchorAt();
     // The thread the user is at continues where it is about what they stand on: they
-    // are in it, or its target lies within the element they stand at — the item holding
-    // focus, answered or not, else the element itself — as an item's options group does
+    // are in it, or its target lies within the element they stand at — the obligation holding
+    // focus, answered or not, else the element itself — as an obligation's options group does
     // when the user holds one of its marks. A card showing an enclosing block's thread is
-    // about that block, so an element inside it, such as an item in a commented task,
+    // about that block, so an element inside it, such as an obligation in a commented task,
     // takes a thread of its own, and a selection still starts one on its words.
 
     const inline = threadHere();
@@ -1218,12 +1218,13 @@ export function createResponseSurface({
       drawnThreadId(inline) === threadId &&
       (!here ||
         standingIn(inline) ||
-        (target && under(target, heldItem() ?? here.element))) &&
+        (target && under(target, heldObligation() ?? here.element))) &&
       threadInput(inline);
     const said =
       standingThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
     const subject =
-      threadId && (!here || (target && under(target, heldItem() ?? here.element)));
+      threadId &&
+      (!here || (target && under(target, heldObligation() ?? here.element)));
     const replySubject = subject && replyId;
     // A captured passage outranks the focus it preceded, but a kept draft is not a
     // standing target. Read both page and thread standing before choosing the aim.

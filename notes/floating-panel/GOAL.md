@@ -1,12 +1,13 @@
 # Goal: the floating Leaf panel
 
-> **Status (2026-10-16): Leaf's only chrome (TODO #28).** Checkpoints 1–3 landed
+> **Status (2026-10-19): Leaf's only chrome (TODO #28).** Checkpoints 1–3 landed
 > on `main` behind a preference, off by default. The user disliked their look, so
 > a second round redesigned it from a sketch they tried and configured (below, "The
 > overhaul"). On 16 October the user made the rebuilt panel the default, and later
-> that day removed the banner, the bottom bar and the switch between them: "we'd
-> like to remove the banner. it's useful as reference code, but we don't need to
-> support users switching to it." The old chrome survives only in Git history.
+> that day asked to remove the banner, the bottom bar and the switch between them:
+> "we'd like to remove the banner. it's useful as reference code, but we don't need
+> to support users switching to it." That removal landed on 19 October (#3100). The
+> old chrome survives only in Git history; `b5b6153c4` is the last commit holding it.
 >
 > On 13 October the user retired the Codex reference: the panel is judged by Leaf's
 > own aesthetic and the user's eye, not against the Codex app. The phone waits until
@@ -227,9 +228,10 @@ shortfall. Add each improvement you make, with its reason. Where an item here an
   opens or closes, since the user found views slow to appear (15 October). (The first
   build tweened the card's height; a layout tween's last frame landed outside CI's
   input window as a shift.)
-- **The focused field shows no frame and no ground**: one quiet line opens above it,
-  with the keys that send. A dark frame around the field was the previous attempt's
-  "form" look.
+- **The focused field shows no ground, and wears the anchored comment box's focus
+  ring** while it holds the caret, so a key that moves the caret there, `c` among
+  them, shows where the words will go (the user's pick, #3097). A dark frame around
+  the field at rest was the previous attempt's "form" look.
 - **While the user types, Send floats in the field's end corner,** as an anchored
   comment box's does, and the counts step aside for the field; they come back when
   the caret leaves, and the line naming where the words go stays while the field holds
@@ -247,7 +249,7 @@ shortfall. Add each improvement you make, with its reason. Where an item here an
 - **The answer the user waits for grows the thread's view,** up to its height limit,
   with New reply only past it; other news in an open thread still moves nothing. The
   user chose growth over a reserved New reply slot on 14 October (#2916).
-- **Answers are the widget's own choices** (a multiple-choice item shows its options and
+- **Answers are the widget's own choices** (a multiple-choice obligation shows its options and
   Done), recorded exactly as on the page; the On view has On me / On {agent} / Done.
 - **Messages draw with Leaf's own reader** (the panel is a registered thread
   presentation), so questions, reactions and HTML replies work in the panel.
@@ -322,7 +324,7 @@ comments as they arrive. Give them a new checkpoint at each milestone:
 
 - the resting panel, the leaf mark's status, and the menu;
 - Threads, opening, answering and resolving a thread, and writing in the one box;
-- items answered inline in the On view, Versions, approval, modes, and the Moderate display;
+- obligations answered inline in the On view, Versions, approval, modes, and the Moderate display;
 - motion and polish.
 
 Budget about eight hours of work. If the user hasn't answered a checkpoint

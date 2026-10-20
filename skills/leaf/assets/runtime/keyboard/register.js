@@ -70,7 +70,7 @@ const STACK = [
   "draw mode",
   "design mode",
   PAGE,
-  // Outermost, so a page command still ranks ahead of the way out on the line.
+  // Outermost, so a page command still ranks ahead of the way out.
   RUNGS,
 ];
 
@@ -101,14 +101,13 @@ const PAGE_COMMANDS = [
   "reading.align.top",
   "thread.unread.first",
   "navigation.panel.threads",
-  "navigation.drawer.queue",
-  "navigation.drawer.leaves",
+  "navigation.panel.queue",
+  "navigation.panel.leaves",
   "navigation.page-map",
   "version.open",
   "history.undo",
   // Below the walks that reach one list at a time, because `g` opens a door to all of
-  // them: on a narrow window the sequence hides a second way to somewhere the user can
-  // already get to, where a walk it crowded out would be the only one.
+  // them: a second way to somewhere the user can already get to.
   "navigation.go-to.open",
   "draw.mode.enter",
   "capture.region.open",
@@ -116,8 +115,7 @@ const PAGE_COMMANDS = [
   "annotations.toggle",
   "panel.floating.fold",
   COMMAND_REFERENCE,
-  // A real key the browser owns, and one gesture that is not a key at all. Neither says a
-  // word for the line, so neither is ever promised as the next press.
+  // A real key the browser owns, and one gesture that is not a key at all.
   "browser.caret",
   "aim.comment",
 ];
@@ -202,10 +200,10 @@ function rung() {
   const holds = (step) => renderedUnder(step.root ?? document, surface);
   return (surface && steps.find(holds)) ?? steps[0] ?? null;
 }
-// The page's own Escape, said and run off that one object: each rung states the act, the
-// word the line paints over it, and the sentence the reference lists. The sentence is the
-// rung's for the reason `c`'s is the destination's — the user can see which branch they
-// are in, so a word covering all of them tells them nothing.
+// The page's own Escape, said and run off that one object: each rung states the act, its
+// word, and the sentence the reference lists. The sentence is the rung's for the reason
+// `c`'s is the destination's — the user can see which branch they are in, so a word
+// covering all of them tells them nothing.
 const BACK_OUT = {
   id: "navigation.back",
   keys: ["Escape"],
@@ -254,25 +252,33 @@ export function pageScopes() {
   }
   return resolved;
 }
+const namedScopes = () =>
+  STACK.flatMap((name) => (typeof name === "string" ? (scopes.get(name) ?? []) : []));
+const exitOf = (scope) => scope.rows.find((row) => row.exit) ?? null;
 // The presses a finger reaches through a row of the page's controls rather than a key (AGENTS.md,
 // "Touch routes"): each a page command declares, in line order, and each a page scope's
 // rows declare, scope by scope in STACK order, so the first that stands is the one the
-// user is innermost in. Read from the live register, since a scope may join or leave it.
+// user is innermost in. A stance takes its place in that order with no steps of its
+// own, so it stands down the steps of scopes outside it. Read from the live register,
+// since a scope may join or leave it.
 export function touchPresses() {
   pageScopes();
   return {
     commands: PAGE_COMMANDS.flatMap((id) =>
       commands.has(id) ? pressesOf(commands.get(id)) : [],
     ),
-    steps: STACK.flatMap((name) =>
-      typeof name === "string"
-        ? (scopes.get(name) ?? []).map((scope) => ({
-            scope,
-            presses: scope.rows.flatMap(pressesOf),
-          }))
-        : [],
-    ).filter(({ presses }) => presses.length),
+    steps: namedScopes()
+      .map((scope) => ({ scope, presses: scope.rows.flatMap(pressesOf) }))
+      .filter(({ scope, presses }) => presses.length || exitOf(scope)),
   };
+}
+// The stances, innermost first: each scope with a row marked `exit`, its way out.
+export function stances() {
+  pageScopes();
+  return namedScopes().flatMap((scope) => {
+    const exit = exitOf(scope);
+    return exit ? [{ scope, exit }] : [];
+  });
 }
 export const universalCommandReference = () =>
   offlineInteractive ? undefined : commands.get(COMMAND_REFERENCE);

@@ -12,6 +12,7 @@ import select
 import shlex
 import shutil
 import socket
+import stat
 import subprocess
 import sys
 import threading
@@ -35,6 +36,7 @@ from interact_support import (
     PAGE,
     STATED_TIMEOUT,
     TOKEN,
+    activity_reading,
     append_carried_log_record,
     append_command,
     check,
@@ -48,6 +50,7 @@ from interact_support import (
     page_state,
     publish,
     read_page_data,
+    read_record,
     record_claim,
     refused_on,
     release_codex_command,
@@ -55,10 +58,13 @@ from interact_support import (
     retire_test_services,
     running_http_server,
     said,
+    served_state_error,
     spawn_probe,
     vendored_at_another_protocol,
     vendored_before_a_key_rename,
     wait_for,
+    write_record,
+    write_row,
 )
 from leaf import activity as activity_model
 from leaf import cli as cli_model
@@ -75,7 +81,6 @@ from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import interaction_log as interaction_model
 from leaf import leases as leases_model
-from leaf import machine as machine_model
 from leaf import media as media_model
 from leaf import page_snapshot as page_snapshot_model
 from leaf import passages as passages_model
@@ -109,7 +114,7 @@ def browser_observation(kind, sequence=1, **fields):
     """A browser observation whose wall clock is deliberately ahead of the host."""
     return {
         "type": kind,
-        "observed_at": "2099-01-01T00:00:00Z",
+        "observed_at": "2099-01-01T00:00:00.000Z",
         "sequence": sequence,
         "monotonic_ms": sequence * 10,
         "visibility": "visible",
@@ -120,8 +125,9 @@ def browser_observation(kind, sequence=1, **fields):
 def test_interaction_trace_records_browser_entries_and_every_request_outcome(
     server, page_dir
 ):
+    tab = "1" * 32
     payload = {
-        "session": "tab-1",
+        "session": tab,
         "entries": [
             browser_observation(
                 "click", target="#approve", source="forged", ts="forged"
@@ -134,12 +140,15 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
         b"",
     )
     assert (
-        fetch(f"{server}/api/interaction", data=b'{"session":"tab-1","entries":[]}')[0]
+        fetch(
+            f"{server}/api/interaction",
+            data=json.dumps({"session": tab, "entries": []}).encode(),
+        )[0]
         == 400
     )
     for invalid in (
         {"type": ""},
-        {"observed_at": "2026-10-14T12:00:00"},
+        {"observed_at": "2026-10-14T12:00:00.000"},
         {"sequence": True},
         {"monotonic_ms": -1},
         {"visibility": "unknown"},
@@ -148,7 +157,7 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
         assert (
             fetch(
                 f"{server}/api/interaction",
-                data=json.dumps({"session": "malformed", "entries": [entry]}).encode(),
+                data=json.dumps({"session": tab, "entries": [entry]}).encode(),
             )[0]
             == 400
         )
@@ -157,10 +166,16 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
     assert (
         fetch(
             f"{server}/api/interaction",
-            data=json.dumps({"session": "missing", "entries": [missing_time]}).encode(),
+            data=json.dumps({"session": tab, "entries": [missing_time]}).encode(),
         )[0]
         == 400
     )
+    # A clock past a double's range, which the browser and the Worker read as infinity.
+    overflowing = json.dumps(
+        {"session": tab, "entries": [browser_observation("x")]}
+    ).replace('"monotonic_ms": 10', '"monotonic_ms": 1e400')
+    assert "1e400" in overflowing
+    assert fetch(f"{server}/api/interaction", data=overflowing.encode())[0] == 400
     assert (
         fetch(
             f"{server}/api/interaction", data=json.dumps(payload).encode(), token=None
@@ -178,11 +193,11 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
     client = [row for row in rows if row["source"] == "client"]
     assert len(client) == 2
     assert [(row["session"], row["type"]) for row in client] == [
-        ("tab-1", "click"),
-        ("tab-1", "input"),
+        (tab, "click"),
+        (tab, "input"),
     ]
     assert client[0]["source"] == "client"
-    assert all(row["observed_at"] == "2099-01-01T00:00:00Z" for row in client)
+    assert all(row["observed_at"] == "2099-01-01T00:00:00.000Z" for row in client)
     assert all(datetime.fromisoformat(row["ts"]).year != 2099 for row in client)
     assert all("received" not in row for row in client)
     server_rows = [row for row in rows if row["source"] == "server"]
@@ -225,14 +240,14 @@ def test_interaction_trace_is_writable_from_a_read_only_page_preview(page_dir):
         status, body = fetch(
             f"{preview.origin}/api/interaction",
             data=json.dumps(
-                {"session": "preview", "entries": [browser_observation("click")]}
+                {"session": "2" * 32, "entries": [browser_observation("click")]}
             ).encode(),
         )
         assert (status, body) == (204, b"")
         assert fetch(f"{preview.origin}/api/event", data=b"{}")[0] == 403
     assert event_model.read_events(page_dir) == before
     assert any(
-        row["source"] == "client" and row["session"] == "preview"
+        row["source"] == "client" and row["session"] == "2" * 32
         for row in map(
             json.loads,
             (page_dir / interaction_model.INTERACTIONS_FILE).read_text().splitlines(),
@@ -266,7 +281,7 @@ def test_a_session_write_does_not_revalidate_the_source(page_dir, monkeypatch, n
     """Declaring status, acknowledging a delivery, or taking a wait writes a session
     file, and the next state read holds the activation it had rather than validating
     the whole page again: on a large page that re-validation was most of the time a
-    status took to reach the banner."""
+    status took to reach the panel."""
     assert revisioning_model.activate_source(page_dir).error is None
 
     def revalidated(*_args, **_kwargs):
@@ -342,7 +357,7 @@ def test_samples_use_captured_resources_and_independent_event_logs(server, page_
     assert fetch(
         child + "/api/interaction",
         data=json.dumps(
-            {"session": "child-tab", "entries": [browser_observation("click")]}
+            {"session": "c" * 32, "entries": [browser_observation("click")]}
         ).encode(),
     ) == (204, b"")
     status, answer = fetch(
@@ -373,7 +388,7 @@ def test_samples_use_captured_resources_and_independent_event_logs(server, page_
     assert fetch(child + "/api/state")[0] == 404
     assert any(
         row["source"] == "client"
-        and row["session"] == "child-tab"
+        and row["session"] == "c" * 32
         and row["page"] == allocated["page"]
         for row in map(
             json.loads,
@@ -664,7 +679,7 @@ def test_sample_capability_authorizes_only_its_live_descendants(page_dir, routed
                 token=None,
                 data=json.dumps(
                     {
-                        "session": "routed-sample",
+                        "session": "a" * 32,
                         "entries": [browser_observation("checkpoint")],
                     }
                 ).encode(),
@@ -679,7 +694,7 @@ def test_sample_capability_authorizes_only_its_live_descendants(page_dir, routed
                 .read_text()
                 .splitlines(),
             )
-            if row.get("session") == "routed-sample"
+            if row.get("session") == "a" * 32
         )
         assert routed_trace["page"] == first.removeprefix(origin)
         assert fetch(origin + "/api/state", token=None)[0] == 401
@@ -692,7 +707,7 @@ def test_sample_capability_authorizes_only_its_live_descendants(page_dir, routed
                 token=None,
                 data=json.dumps(
                     {
-                        "session": "nested-sample",
+                        "session": "b" * 32,
                         "entries": [browser_observation("checkpoint")],
                     }
                 ).encode(),
@@ -728,7 +743,7 @@ def test_sample_capability_authorizes_only_its_live_descendants(page_dir, routed
                 .read_text()
                 .splitlines(),
             )
-            if row.get("session") == "nested-sample"
+            if row.get("session") == "b" * 32
         )
         assert (
             nested_trace["page"]
@@ -1077,6 +1092,53 @@ def test_a_datum_comment_names_the_source_revision_its_section_displayed(
     assert (unbound.code, unbound.values["section"]) == (
         "datum-unbound-source",
         "patch",
+    )
+
+
+def test_every_state_answer_holds_the_served_state_schema(server, page_dir):
+    """`/api/state`, the state an event's answer carries and `/api/view` hold
+    `served_state/state.schema.json`: before the page has a revision, whose `active`
+    and `browser` are null, and once it has one, with a neighbor beside it, a claim
+    on it, a thread and a published version."""
+    index = page_dir / "index.html"
+    source = index.read_text()
+    index.write_text(
+        source.replace("</main>", "<lf-unknown-tag></lf-unknown-tag></main>")
+    )
+    status, raw = fetch(f"{server}/api/state")
+    assert status == 200, raw
+    unrevised = json.loads(raw)
+    assert unrevised["active"] is None and unrevised["browser"] is None
+    assert unrevised["source_error"]
+    assert served_state_error(unrevised, "answer") is None, served_state_error(
+        unrevised, "answer"
+    )
+
+    index.write_text(source)
+    publish(page_dir)
+    neighbor = cleanup_model.state_home() / "pages" / "schema-neighbor"
+    neighbour_page(neighbor, title="Neighbor")
+    server_rows_model.RowPublisher(neighbor, "fixture-server").refresh()
+    record_claim(page_dir, id="schema-session", cwd="/work/page")
+    sent = {"kind": "comment", "revision": 1, "text": "Is this right?"}
+    status, raw = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
+    assert status == 200, raw
+    answered = json.loads(raw)["state"]
+    status, raw = fetch(f"{server}/api/state")
+    assert status == 200, raw
+    served = json.loads(raw)
+    assert served["others"] and served["browser"]["views"]
+    for state in (answered, served):
+        assert served_state_error(state, "answer") is None, served_state_error(
+            state, "answer"
+        )
+    latest = served["browser"]["basis"]["through_seq"]
+    status, raw = fetch(f"{server}/api/view?revision=1&through_seq={latest}")
+    assert status == 200, raw
+    viewed = json.loads(raw)
+    assert set(viewed["browser"]["views"]) == {"1"}
+    assert served_state_error(viewed, "ViewAnswer") is None, served_state_error(
+        viewed, "ViewAnswer"
     )
 
 
@@ -1735,7 +1797,7 @@ def test_a_revision_s_resources_are_cached_and_its_document_is_not(server, page_
 def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     server, page_dir
 ):
-    """The declaration is the decision, and the door holds anything posting past the banner
+    """The declaration is the decision, and the door holds anything posting past the panel
     to it: a version that never asked has no approval to record."""
     publish(page_dir)
 
@@ -1758,8 +1820,8 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     )
     assert status == 400
     unanswered = refused_on(body)
-    assert (unanswered.code, unanswered.values["items"]) == (
-        "unanswered-items",
+    assert (unanswered.code, unanswered.values["obligations"]) == (
+        "unanswered-obligations",
         ["widget:choice"],
     )
 
@@ -1811,7 +1873,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
         data=json.dumps({"kind": "done", "version": 2}).encode(),
     )
     assert status == 400
-    assert refused_on(body).values["items"] == ["widget:thread-approval"]
+    assert refused_on(body).values["obligations"] == ["widget:thread-approval"]
 
     status, body = fetch(
         f"{server}/api/event",
@@ -2976,7 +3038,7 @@ def test_a_stated_host_restates_the_address_and_nothing_else(page_dir):
     """--host is the recovery for an unroutable name, and the record's other
     facts restate nothing: dropping them re-derived the exact port an open tab
     polls and demoted the persistent lifetime to the recovering session's."""
-    cleanup_model.write_json(
+    write_record(
         page_dir / "service.json",
         {
             "host": "10.0.0.5",
@@ -3018,7 +3080,7 @@ def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir, sessio
     # The page error was an acknowledgeable target, so the cursor moved and the
     # re-armed wait ended on its own 2; a refused acknowledgement would be 1.
     assert result.exit_code == 2, result.output
-    assert files_model.read_json(page_dir / "cursor.json") == {"seq": error["seq"]}
+    assert read_record(page_dir / "cursor.json") == {"seq": error["seq"]}
 
 
 def _news(server):
@@ -3080,9 +3142,9 @@ def test_unchanged_presence_observation_is_shared_and_file_changes_refresh_it(
     assert reading() == first
     assert calls == 1
 
-    cleanup_model.write_json(
+    write_record(
         page_dir / "status.json",
-        {"state": "waiting", "detail": "measuring", "ts": "now"},
+        {"state": "waiting", "detail": "measuring", "ts": cleanup_model.now_iso()},
     )
     refreshed = reading()
     assert refreshed == first
@@ -3095,10 +3157,10 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     The publication carries real owed-move counts. Changing a declaration alone
     cannot change that delivered row, and another server cannot inherit it.
     """
-    neighbor = machine_model.state_home() / "pages" / "canonical"
+    neighbor = cleanup_model.state_home() / "pages" / "canonical"
     neighbour_page(neighbor, title="Canonical neighbor")
     record_claim(neighbor, id="neighbor", cwd="/work/neighbor")
-    cleanup_model.write_json(
+    write_record(
         neighbor / "status.json",
         {"state": "waiting", "detail": "", "ts": cleanup_model.now_iso()},
     )
@@ -3108,24 +3170,20 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     )
     publisher = server_rows_model.RowPublisher(neighbor, "fixture-server")
     publisher.refresh()
-    activity = page_state(neighbor)["activity"]
+    activity = activity_reading(neighbor)
     assert activity["detail_source"] is not None
     expected = server_rows_model.compact_activity(activity)
     reads = []
-    read_json = files_model.read_json
+    read = server_model.SERVICE.read
 
     def small_read(path):
-        if path == machine_model.state_home() / "access.json":
-            return read_json(path)
-        assert path in {neighbor / "service.json", publisher.path}
         reads.append(path)
-        return read_json(path)
+        return read(path)
 
     def no_fold(*_args, **_kwargs):
         pytest.fail("a neighbor scan folded another page")
 
-    monkeypatch.setattr(server_model, "read_json", small_read)
-    monkeypatch.setattr(server_rows_model, "read_json", small_read)
+    monkeypatch.setattr(server_model.SERVICE, "read", small_read)
     monkeypatch.setattr(served_service.PageStateService, "activity_row", no_fold)
     monkeypatch.setattr(service_model, "read_status", no_fold)
     monkeypatch.setattr(artifact_model, "read_revision", no_fold)
@@ -3137,21 +3195,19 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     assert row["activity"]["counts"]["pending"] == 1
     assert row["session_cwd"] == "/work/neighbor"
     assert reads == [neighbor / "service.json"]
-    cleanup_model.write_json(neighbor / "status.json", {"state": "idle"})
+    write_record(neighbor / "status.json", {"state": "idle", "detail": ""})
     assert presence_model.other_leaves(page_dir) == [row]
     # Shared-home records from an incompatible producer stay absent, including
     # a row with the outer envelope but without the activity/count contract.
-    record = read_json(publisher.path)
+    record = files_model.read_json(publisher.path)
     for activity in ({}, {**row["activity"], "counts": {}}):
         cleanup_model.write_json(
             publisher.path, {**record, "row": {**row, "activity": activity}}
         )
         assert presence_model.other_leaves(page_dir) == []
     cleanup_model.write_json(publisher.path, record)
-    service = read_json(neighbor / "service.json")
-    cleanup_model.write_json(
-        neighbor / "service.json", {**service, "server_id": "replacement"}
-    )
+    service = read_record(neighbor / "service.json")
+    write_record(neighbor / "service.json", {**service, "server_id": "replacement"})
     assert presence_model.other_leaves(page_dir) == []
 
 
@@ -3164,7 +3220,7 @@ def test_a_pages_own_row_publications_do_not_rescan_its_neighbors(
     own publications must reuse the neighbor observation; another producer's
     changed row must invalidate it immediately and preserve its new content.
     """
-    neighbor = machine_model.state_home() / "pages" / "row-neighbor"
+    neighbor = cleanup_model.state_home() / "pages" / "row-neighbor"
     neighbour_page(neighbor, title="Neighbor")
     own = server_rows_model.RowPublisher(page_dir, "own-server")
     own.refresh()
@@ -3178,7 +3234,7 @@ def test_a_pages_own_row_publications_do_not_rescan_its_neighbors(
     monkeypatch.setattr(presence_model, "other_leaves", observe)
     presence_model.neighbor_reading(page_dir)
     for n in range(20):
-        cleanup_model.write_json(
+        write_record(
             page_dir / "status.json",
             {"state": "waiting", "detail": str(n), "ts": cleanup_model.now_iso()},
         )
@@ -3211,14 +3267,14 @@ def test_neighbor_discovery_needs_no_native_subscription(
         raise RuntimeError("native watch unavailable")
 
     monkeypatch.setattr(watchfiles.main, "RustNotify", no_watcher)
-    rows = machine_model.state_home() / "rows"
+    rows = cleanup_model.state_home() / "rows"
     assert not rows.exists()
     assert presence_model.neighbor_candidates() == ()
     neighbor = tmp_path / "new-neighbor"
     neighbour_page(neighbor, title="New neighbor")
     assert presence_model.neighbor_candidates()
     second = tmp_path / "second"
-    cleanup_model.write_json(rows / "second.json", {"page": str(second)})
+    write_row(rows / "second.json", second)
     assert second in [page for page, _record in presence_model.neighbor_candidates()]
 
 
@@ -3230,10 +3286,8 @@ def test_a_reader_retires_rows_no_server_lease_holds(page_dir, tmp_path):
     neighbour_page(live, title="Live")
     reserved = tmp_path / "reserved"
     neighbour_page(reserved, title="Reserved")
-    service = files_model.read_json(reserved / "service.json")
-    cleanup_model.write_json(
-        reserved / "service.json", {**service, "server_id": "successor"}
-    )
+    service = read_record(reserved / "service.json")
+    write_record(reserved / "service.json", {**service, "server_id": "successor"})
     stopped = tmp_path / "stopped"
     neighbour_page(stopped, title="Stopped", dead=True)
     deleted = tmp_path / "deleted"
@@ -3264,7 +3318,7 @@ def test_native_watcher_failure_reaches_its_owner(tmp_path, monkeypatch):
 def test_a_row_ages_at_the_canonical_deadline_and_recovers_after_cache_loss(
     page_dir, monkeypatch
 ):
-    """Clock-only aging uses the banner's deadline, with no file or live change.
+    """Clock-only aging uses the activity's own deadline, with no file or live change.
 
     Quiet checks retain the delivered row without folding again; deleting this
     output regenerates it from the page, leaving the canonical inputs untouched.
@@ -3272,7 +3326,7 @@ def test_a_row_ages_at_the_canonical_deadline_and_recovers_after_cache_loss(
     now = datetime.now().astimezone().replace(microsecond=0)
     stamp = (now - activity_model.WORKING_GRACE + timedelta(seconds=1)).isoformat()
     record_claim(page_dir, turn_opened=stamp)
-    cleanup_model.write_json(
+    write_record(
         page_dir / "status.json",
         {"state": "waiting", "detail": "", "ts": stamp},
     )
@@ -3383,7 +3437,7 @@ def test_a_failed_row_producer_retires_and_revives_with_its_service(page_dir):
     Repairing the invalid input then uses the existing enabled-service revival,
     with a new serving identity and a newly computed row.
     """
-    neighbor = machine_model.state_home() / "pages" / "broken-row"
+    neighbor = cleanup_model.state_home() / "pages" / "broken-row"
     neighbour_page(neighbor, title="Repairable", dead=True, port=0)
     hosting_model.start_server(neighbor, persistent=True, harness=None)
     wait_for(
@@ -3401,8 +3455,8 @@ def test_a_failed_row_producer_retires_and_revives_with_its_service(page_dir):
         failure="the failed producer left a live server lease",
     )
     assert presence_model.other_leaves(page_dir) == []
-    assert files_model.read_json(neighbor / "service.json")["enabled"]
-    cleanup_model.write_json(
+    assert read_record(neighbor / "service.json")["enabled"]
+    write_record(
         neighbor / "status.json",
         {"state": "waiting", "detail": "", "ts": cleanup_model.now_iso()},
     )
@@ -3952,7 +4006,7 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir, monkeypatch):
     now = datetime.now().astimezone().replace(microsecond=0)
     monkeypatch.setattr(served_context, "now_iso", lambda: now.isoformat())
     monkeypatch.setattr(page_snapshot_model, "now_iso", lambda: now.isoformat())
-    cleanup_model.write_json(
+    write_record(
         page_dir / "status.json",
         {"state": "waiting", "detail": "", "ts": now.isoformat()},
     )
@@ -4211,14 +4265,14 @@ def test_neighbour_discovery_sees_a_row_made_in_one_clock_tick(page_dir, monkeyp
     discovered: the scan is keyed on the directory's stamp, and a stamp the second
     change left in place would hide the new page until some later write moved it."""
     written = _coarse_write_clock(monkeypatch)
-    rows = machine_model.state_home() / "rows"
+    rows = cleanup_model.state_home() / "rows"
     rows.mkdir(parents=True, exist_ok=True)
-    cleanup_model.write_json(rows / "first.json", {"page": str(page_dir / "first")})
+    write_row(rows / "first.json", page_dir / "first")
     (rows / "placeholder").write_text("")
     written(rows)
     before = presence_model.neighbor_candidates()
     (rows / "placeholder").unlink()
-    cleanup_model.write_json(rows / "second.json", {"page": str(page_dir / "second")})
+    write_row(rows / "second.json", page_dir / "second")
     written(rows)
     assert page_dir / "second" not in [page for page, _record in before]
     assert page_dir / "second" in [
@@ -4495,7 +4549,7 @@ def test_a_server_start_re_vendors_an_older_page_and_refuses_a_newer_one(page_di
     assert refused.exit_code != 0, refused.output
     assert f"Use a Leaf at protocol {foreign} or later" in refused.output
     assert not service_model.claim_path(page_dir).exists()
-    assert files_model.read_json(page_dir / "service.json") is None
+    assert read_record(page_dir / "service.json") is None
     assert not leases_model.lock_is_held(page_dir / "server.lock")
 
     # A newer protocol may reshape the layer past this Leaf's schema, which reads
@@ -4619,7 +4673,7 @@ def test_a_revision_saved_before_a_key_was_renamed_neither_opens_nor_takes_input
 ):
     """A Leaf that renamed an x- key reads only the new name, so a page an older Leaf
     vendored, at the same protocol, would lose what it declares under the old one: a
-    framed item its prompt and landing region. The page is refused until a re-vendor,
+    framed obligation its prompt and landing region. The page is refused until a re-vendor,
     which the refusal names. Afterwards the revision saved since serves with the
     prompt, while the one saved before neither opens nor takes input, as a revision
     saved at another protocol does."""
@@ -4648,9 +4702,7 @@ def _serve_after_a_key_rename(page_dir):
     # Re-vendoring activates valid source with the renamed vocabulary itself.
     [item] = [
         item
-        for item in page_state(page_dir)["browser"]["views"]["2"]["document"]["items"][
-            "all"
-        ]
+        for item in page_state(page_dir)["browser"]["views"]["2"]["obligations"]
         if item["source"]["id"] == "route"
     ]
     assert item["prompt"] == {"text": "Which route?", "target": "route-ask"}
@@ -4713,8 +4765,8 @@ def test_a_stated_host_binds_every_interface_without_recording_before_serve(
         "enabled": False,
         "lifetime": "persistent",
     }
-    cleanup_model.write_json(page_dir / "service.json", service)
-    assert server_model.page_access(page_dir) == service
+    write_record(page_dir / "service.json", service)
+    assert server_model.page_access(page_dir).items() >= service.items()
 
 
 def test_a_start_waits_for_uncommitted_preparation_before_reusing(page_dir, spawn):
@@ -4750,7 +4802,7 @@ def test_a_start_waits_for_uncommitted_preparation_before_reusing(page_dir, spaw
     starting = threading.Thread(target=start, daemon=True)
     try:
         assert "url" in json.loads(caller.makefile("rb").readline())
-        assert files_model.read_json(page_dir / "service.json") is None
+        assert read_record(page_dir / "service.json") is None
         assert not server_rows_model.row_path(page_dir).exists()
         starting.start()
         assert attempting.wait(STATED_TIMEOUT), (
@@ -4781,7 +4833,7 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
     page_dir, spawn, accepted
 ):
     """The held reservation cannot impersonate a dead committed incarnation."""
-    neighbor = machine_model.state_home() / "pages" / "private-revival"
+    neighbor = cleanup_model.state_home() / "pages" / "private-revival"
     neighbour_page(neighbor, title="Private revival", dead=True, port=0)
     record_claim(neighbor, id="private-revival")
     hosting_model.start_server(neighbor, persistent=True, harness=None)
@@ -4792,8 +4844,8 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
         failure="the original server did not publish its row",
     )
     hosting_model.cmd_stop(neighbor)
-    desired = {**files_model.read_json(neighbor / "service.json"), "enabled": True}
-    cleanup_model.write_json(neighbor / "service.json", desired)
+    desired = {**read_record(neighbor / "service.json"), "enabled": True}
+    write_record(neighbor / "service.json", desired)
     assert presence_model.other_leaves(page_dir) == []
     # The stopped incarnation's row is retired by that reading, so a row present
     # later is one the reservation published.
@@ -4822,7 +4874,7 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
         with caller.makefile("rb") as announcements:
             assert json.loads(announcements.readline())["url"] == previous["url"]
             assert leases_model.lock_is_held(neighbor / "server.lock")
-            assert files_model.read_json(neighbor / "service.json") == desired
+            assert read_record(neighbor / "service.json") == desired
             assert not server_rows_model.row_path(neighbor).exists()
             assert server_model.running_server(neighbor) is None
             assert presence_model.other_leaves(page_dir) == []
@@ -4846,7 +4898,7 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
         if not accepted:
             caller.close()
             assert child.wait(timeout=STATED_TIMEOUT) == 0
-            assert files_model.read_json(neighbor / "service.json") == desired
+            assert read_record(neighbor / "service.json") == desired
             assert not server_rows_model.row_path(neighbor).exists()
             assert presence_model.other_leaves(page_dir) == []
     finally:
@@ -4867,8 +4919,8 @@ def test_failed_row_preparation_preserves_the_previous_desired_service(
         failure="the original server did not publish its row",
     )
     hosting_model.cmd_stop(page_dir)
-    desired = {**files_model.read_json(page_dir / "service.json"), "enabled": True}
-    cleanup_model.write_json(page_dir / "service.json", desired)
+    desired = {**read_record(page_dir / "service.json"), "enabled": True}
+    write_record(page_dir / "service.json", desired)
     row_before = server_rows_model.row_path(page_dir).read_bytes()
 
     def failed_constructor(*_args):
@@ -4878,7 +4930,7 @@ def test_failed_row_preparation_preserves_the_previous_desired_service(
     monkeypatch.setattr(server_rows_model, "RowPublisher", failed_constructor)
     with pytest.raises(RuntimeError, match="row producer cannot be prepared"):
         hosting_model.cmd_serve(page_dir, persistent=True, revive=True, harness=None)
-    assert files_model.read_json(page_dir / "service.json") == desired
+    assert read_record(page_dir / "service.json") == desired
     assert server_rows_model.row_path(page_dir).read_bytes() == row_before
     assert not leases_model.lock_is_held(page_dir / "server.lock")
     assert server_model.running_server(page_dir) is None
@@ -4906,7 +4958,7 @@ def test_a_private_lease_is_not_reported_as_a_serving_server(page_dir, monkeypat
     try:
         stopping.start()
         assert entered.wait(STATED_TIMEOUT), "stop never checked the held lease"
-        assert files_model.read_json(page_dir / "service.json") is None
+        assert read_record(page_dir / "service.json") is None
     finally:
         leases_model.release_lease(lease)
         proceed.set()
@@ -4943,14 +4995,14 @@ def test_a_stop_waits_for_private_preparation_before_disabling(page_dir, spawn):
     try:
         assert "url" in json.loads(caller.makefile("rb").readline())
         stopping.start()
-        assert files_model.read_json(page_dir / "service.json") is None
+        assert read_record(page_dir / "service.json") is None
     finally:
         caller.close()
     stopping.join(timeout=STATED_TIMEOUT)
     assert not stopping.is_alive(), "server stop never returned"
     assert stopped == [False]
     assert child.wait(timeout=STATED_TIMEOUT) == 0
-    assert files_model.read_json(page_dir / "service.json") is None
+    assert read_record(page_dir / "service.json") is None
 
 
 def test_a_start_whose_caller_left_before_committing_leaves_no_service(
@@ -4978,7 +5030,7 @@ def test_a_start_whose_caller_left_before_committing_leaves_no_service(
         bool,
         failure="the server stayed up after its caller left uncommitted",
     )
-    assert files_model.read_json(page_dir / "service.json") is None
+    assert read_record(page_dir / "service.json") is None
 
 
 @pytest.mark.parametrize(
@@ -5035,9 +5087,9 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
         assert bool(server_model.running_server(page_dir)) == owned
     finally:
         resume.set()
-        cleanup_model.write_json(
+        write_record(
             page_dir / "service.json",
-            {**files_model.read_json(page_dir / "service.json"), "enabled": False},
+            {**read_record(page_dir / "service.json"), "enabled": False},
         )
         stopping.join(timeout=STATED_TIMEOUT)
 
@@ -5279,11 +5331,30 @@ def test_the_address_and_key_outlive_the_session_that_first_served(
         "enabled": False,
         "lifetime": "session",
     }
-    cleanup_model.write_json(page_dir / "service.json", service)
+    write_record(page_dir / "service.json", service)
 
     monkeypatch.setenv("SSH_CONNECTION", "10.1.1.9 51235 172.16.0.1 22")
-    assert server_model.page_access(page_dir) == service
+    assert server_model.page_access(page_dir).items() >= service.items()
     assert server_model.host_key() == minted
+
+
+def test_the_state_home_and_its_key_stay_owner_only():
+    """The host key is all that stands between another local user and every page
+    this machine serves, so the state home stays 0700 and `access.json` 0600 even
+    where something else, such as an earlier Leaf or a loose umask, made them
+    wider. Any path into the home returns it to 0700, not only the key's."""
+    home = cleanup_model.state_home()
+    home.chmod(0o755)
+    cleanup_model.session_file("widened", "lifecycle")
+    assert stat.S_IMODE(home.stat().st_mode) == 0o700
+
+    home.chmod(0o755)
+    key = home / "access.json"
+    key.write_text(json.dumps({"token": "minted-elsewhere"}))
+    key.chmod(0o644)
+    assert server_model.host_key() == "minted-elsewhere"
+    assert stat.S_IMODE(home.stat().st_mode) == 0o700
+    assert stat.S_IMODE(key.stat().st_mode) == 0o600
 
 
 def test_a_failed_host_key_publish_removes_its_staged_secret(monkeypatch):
@@ -5303,7 +5374,7 @@ def test_a_failed_host_key_publish_removes_its_staged_secret(monkeypatch):
         server_model.host_key()
 
     assert len(staged) == 1 and not staged[0].exists()
-    assert not (machine_model.state_home() / "access.json").exists()
+    assert not (cleanup_model.state_home() / "access.json").exists()
 
 
 def test_start_server_forwards_its_flags_to_the_serving_child(page_dir, monkeypatch):
@@ -5367,7 +5438,7 @@ while json.loads((page / "service.json").read_text())["enabled"]:
 def hold_persistent(page: Path, start) -> subprocess.Popen:
     """A persistent page with its lease held, as `server run --persistent` leaves one."""
     page.mkdir(parents=True)
-    cleanup_model.write_json(
+    write_record(
         page / "service.json",
         {
             "host": "127.0.0.1",
@@ -5391,7 +5462,7 @@ def test_a_page_left_running_is_the_sweeps_to_stop():
     ends it, and `test_a_run_ends_only_the_servers_it_started` runs this test to
     watch that happen. Not `spawn`, whose teardown would end the holder before
     the sweep reached it."""
-    hold_persistent(machine_model.state_home() / "pages" / "left", subprocess.Popen)
+    hold_persistent(cleanup_model.state_home() / "pages" / "left", subprocess.Popen)
 
 
 def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
@@ -5432,7 +5503,7 @@ def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
         check=False,
     )
     assert run.returncode == 0, run.stdout + run.stderr
-    assert files_model.read_json(review / "service.json")["enabled"]
+    assert read_record(review / "service.json")["enabled"]
     assert holder.poll() is None
     assert sorted(path.relative_to(home) for path in home.rglob("*")) == planted
     (left,) = nested.rglob("left/service.json")
@@ -5492,7 +5563,7 @@ def test_a_claimed_page_without_a_declaration_serves_its_state(page_dir, server)
 def test_others_ships_on_a_network_facing_bind_too(page_dir):
     """Neighbour discovery is independent of the server's network-facing bind."""
     neighbour_page(
-        machine_model.state_home() / "pages" / "live", title="The other page"
+        cleanup_model.state_home() / "pages" / "live", title="The other page"
     )
     httpd = hosting_model.LeafHTTPServer(
         ("0.0.0.0", 0), http_model.page_endpoint(page_dir, TOKEN)

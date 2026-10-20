@@ -1,13 +1,15 @@
 /* The page walks' one step (`stepFrom`, standing-target.js) over the page's rendered
    order (`renderedOrder`, shadow-tree.js): `t` and `m` step from the same place the same
    way, a place holding the user's is where they already are, and words a widget renders
-   in a shadow tree keep their order among the places beside them. */
+   in a shadow tree keep their order among the places beside them. The threads `t` walks
+   keep one order (`inPageOrder`, thread/placement.js) whatever surface draws them. */
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { renderedOrder } from "/runtime/shadow.js";
 import { stepFrom } from "/runtime/standing-target.js";
+import { inPageOrder } from "/runtime/thread/placement.js";
 
 // <main><p first/><section><p held/></section><x-widget>#shadow<p inner-a/><p inner-b/></x-widget><p last/></main>
 function page() {
@@ -100,7 +102,7 @@ test("entering a region reaches its first or last stop before leaving it", () =>
   const origin = { place: widget, kind: "enter" };
   assert.equal(stepFrom(items, origin, 1, at).row, innerA);
   assert.equal(stepFrom(items, origin, -1, at).row, innerB);
-  // A visible item is a point to arrive at, even when it contains another item.
+  // A visible obligation is a point to arrive at, even when it contains another obligation.
   assert.equal(
     stepFrom(
       [first, widget, innerA, innerB, last],
@@ -111,4 +113,24 @@ test("entering a region reaches its first or last stop before leaving it", () =>
     widget,
   );
   main.remove();
+});
+
+test("a thread on another thread's message keeps its order whether or not it is drawn", () => {
+  // A reply carrying a widget is drawn in a Leaf surface only while a view shows it, and
+  // the thread walk opens and closes those views, so the order must not move with them.
+  document.body.innerHTML =
+    '<main><p id="on-page">Page</p></main><div class="lf-chrome"><section id="in-reply">Reply widget</section></div>';
+  const threads = [
+    { id: "on-page", anchor: { section: "on-page" } },
+    { id: "general", anchor: null },
+    { id: "on-reply", anchor: { section: "in-reply" } },
+  ];
+  const order = () => inPageOrder(threads, () => null).map((thread) => thread.id);
+  try {
+    assert.deepEqual(order(), ["on-page", "general", "on-reply"]);
+    document.querySelector(".lf-chrome").remove();
+    assert.deepEqual(order(), ["on-page", "general", "on-reply"]);
+  } finally {
+    document.body.replaceChildren();
+  }
 });

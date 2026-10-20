@@ -24,6 +24,7 @@ from interact_support import (
     STATED_TIMEOUT,
     _observer,
     _watched,
+    activity_reading,
     append_carried_log_record,
     append_command,
     available_loopback_port,
@@ -34,6 +35,7 @@ from interact_support import (
     last_deliverable_seq,
     page_state,
     publish,
+    read_record,
     receive_through,
     record_claim,
     refused_on,
@@ -44,6 +46,7 @@ from interact_support import (
     vendored_at_another_protocol,
     wait_for,
     working,
+    write_record,
 )
 from leaf import cli as cli_model
 from leaf import codex as codex_model
@@ -57,7 +60,6 @@ from leaf import hook_transport as hook_transport_model
 from leaf import hooks as hooks_model
 from leaf import hosting as hosting_model
 from leaf import leases as leases_model
-from leaf import machine as machine_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
@@ -185,8 +187,8 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
     }
     assert (claim["turn"], claim["turn_closed"]) == ("app-turn", None)
     assert accepted == {"page": page_dir, "events": (comment["id"],)}
-    assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
-    activity = page_state(page_dir)["activity"]
+    assert read_record(page_dir / "cursor.json") == {"seq": 1}
+    activity = activity_reading(page_dir)
     assert activity["kind"] == "working"
     assert activity["dropped"] is False
     assert activity["counts"]["handling"] == 1
@@ -418,11 +420,24 @@ def test_a_delivery_and_its_codex_records_go_once_their_pages_do(
         cleanup_model.write_json(path, value)
         return path
 
-    def envelope(delivery_id, page, format=delivery_model.DELIVERY_FORMAT):
-        batches = [{"page": str(page)}]
+    def envelope(delivery_id, page, format=delivery_model.DELIVERY.format):
+        batch = {
+            "page": str(page),
+            "claim": None,
+            "through_seq": 1,
+            "threads": [],
+            "handling": {},
+            "events": [],
+        }
         return record(
             delivery_model.delivery_path(delivery_id),
-            {"format": format, "id": delivery_id, "batches": batches},
+            {
+                "format": format,
+                "id": delivery_id,
+                "created_at": 0,
+                "acknowledge": None,
+                "batches": [batch],
+            },
         )
 
     kept = envelope("0000000a", claimed)
@@ -432,7 +447,7 @@ def test_a_delivery_and_its_codex_records_go_once_their_pages_do(
         record(delivery_model.delivery_path("00000012"), {"batches": []}),
         record(
             delivery_model.delivery_path("00000013"),
-            {"format": delivery_model.DELIVERY_FORMAT},
+            {"format": delivery_model.DELIVERY.format},
         ),
     ]
     serving(claimed, 1)
@@ -448,7 +463,7 @@ def test_a_delivery_and_its_codex_records_go_once_their_pages_do(
 
     def task_record(delivery_id, page, **fields):
         return {
-            "format": codex_model.RECORD_FORMAT,
+            "format": codex_model.RECORD.format,
             "state": "queued",
             "created_at": 0,
             "pending": [],
@@ -475,7 +490,7 @@ def test_a_delivery_and_its_codex_records_go_once_their_pages_do(
     archived_gone = record(history / "0000000f.json", task_record("f", gone))
     archived_other = record(history / "00000010.json", {"batches": []})
     archived_incomplete = record(
-        history / "00000012.json", {"format": codex_model.RECORD_FORMAT}
+        history / "00000012.json", {"format": codex_model.RECORD.format}
     )
     archived_kept = record(history / "00000011.json", task_record("g", claimed))
     archived_foreign = record(
@@ -609,9 +624,10 @@ def test_a_new_codex_adapter_observes_ordinary_turns_without_a_prior_hook(
         generation = claim["generation"]
         begin.set()
         observed = wait_for(
-            lambda: files_model.read_json(page_dir / "status.json"),
+            lambda: read_record(page_dir / "status.json"),
             lambda status: (
-                status.get("stream", {}).get("activity", {}).get("detail")
+                status is not None
+                and (status["stream"]["activity"] or {}).get("detail")
                 == "Running uv run pytest tests"
             ),
             failure="the newly subscribed adapter did not project ordinary provider activity",
@@ -642,16 +658,8 @@ def test_a_new_codex_adapter_observes_ordinary_turns_without_a_prior_hook(
     )
 
 
-@pytest.mark.parametrize(
-    ("invalid", "raised", "says"),
-    [
-        ("old-format", Refused, "another page protocol"),
-        ("incomplete-correction", RuntimeError, "invalid envelope"),
-    ],
-)
-def test_codex_drops_a_record_whose_delivery_it_cannot_read(
-    page_dir, invalid, raised, says
-):
+@pytest.mark.parametrize("invalid", ["old-format", "incomplete-correction"])
+def test_codex_drops_a_record_whose_delivery_it_cannot_read(page_dir, invalid):
     append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "hello"}
     )
@@ -667,7 +675,7 @@ def test_codex_drops_a_record_whose_delivery_it_cannot_read(
     else:
         payload["correction"] = {"delivery": "12345678"}
     cleanup_model.write_json(delivery_model.delivery_path(payload["id"]), payload)
-    with pytest.raises(raised, match=says):
+    with pytest.raises(Refused, match="written by another Leaf"):
         delivery_model.read_delivery(payload["id"])
     assert codex_model.delivery_records("handling-test") == []
 
@@ -708,7 +716,7 @@ def test_codex_receipt_leaves_input_for_the_new_page_owner(page_dir):
         epoch_path, 0, batch, codex_model.Accepted(0, (batch,), (0,))
     )
 
-    assert files_model.read_json(page_dir / "cursor.json") is None
+    assert read_record(page_dir / "cursor.json") is None
     assert service_model.page_claim(page_dir) == successor
     status = service_model.read_status(page_dir)
     assert (status["state"], status["detail"]) == (
@@ -750,7 +758,7 @@ def test_codex_ignores_delivery_records_from_the_previous_id_vocabulary(state):
     cleanup_model.write_json(
         legacy,
         {
-            "format": codex_model.RECORD_FORMAT,
+            "format": codex_model.RECORD.format,
             "state": state,
             "created_at": 0,
             "batches": [],
@@ -778,7 +786,7 @@ def test_codex_retires_a_receipt_on_a_page_its_leaf_cannot_write(codex_claimed_p
     cleanup_model.write_json(
         directory / "bbbbbbbb.json",
         {
-            "format": codex_model.RECORD_FORMAT,
+            "format": codex_model.RECORD.format,
             "state": "queued",
             "created_at": 1,
             "pending": [0],
@@ -817,7 +825,7 @@ def test_codex_recovers_page_receipts_in_sequence_order(codex_claimed_page):
 
     def epoch(event, *, created_at):
         return {
-            "format": codex_model.RECORD_FORMAT,
+            "format": codex_model.RECORD.format,
             "state": "queued",
             "created_at": created_at,
             "pending": [0],
@@ -841,7 +849,7 @@ def test_codex_recovers_page_receipts_in_sequence_order(codex_claimed_page):
     cleanup_model.write_json(directory / "ffffffff.json", epoch(first, created_at=1))
     cleanup_model.write_json(directory / "aaaaaaaa.json", epoch(second, created_at=2))
 
-    cleanup_model.write_json(page / "cursor.json", {"seq": second["seq"]})
+    write_record(page / "cursor.json", {"seq": second["seq"]})
     assert codex_model.recover_codex_receipt("codex-thread")
     assert codex_model.recover_codex_receipt("codex-thread")
     pickups = [
@@ -869,7 +877,7 @@ def test_a_codex_receipt_holds_while_the_claim_still_names_its_session(
     cleanup_model.write_json(
         directory / "aaaaaaaa.json",
         {
-            "format": codex_model.RECORD_FORMAT,
+            "format": codex_model.RECORD.format,
             "state": "queued",
             "created_at": 1,
             "pending": [0],
@@ -959,7 +967,7 @@ def test_a_reinitialized_page_does_not_starve_later_codex_receipts(tmp_path):
 
     history = epoch_path.parent / "history" / epoch_path.name
     assert files_model.read_json(history)["pending"] == []
-    assert files_model.read_json(kept / "cursor.json") == {"seq": 1}
+    assert read_record(kept / "cursor.json") == {"seq": 1}
     pickups = [
         event for event in events_model.read_events(kept) if event["kind"] == "pickup"
     ]
@@ -1013,12 +1021,12 @@ def test_a_receipted_codex_batch_ignores_a_reinitialized_page_cursor(
 
     # Reinitializing a page path starts its cursor again. Its batch is recovery
     # history, while the other page's batch is still live transport work.
-    cleanup_model.write_json(Path(received["page"]) / "cursor.json", {"seq": 0})
+    write_record(Path(received["page"]) / "cursor.json", {"seq": 0})
     assert codex_model.recover_codex_receipt("codex-thread")
     history = epoch_path.parent / "history" / epoch_path.name
     assert files_model.read_json(history)["pending"] == []
     assert files_model.read_json(history)["batches"] == batches
-    assert files_model.read_json(Path(pending["page"]) / "cursor.json") == {"seq": 1}
+    assert read_record(Path(pending["page"]) / "cursor.json") == {"seq": 1}
     assert codex_model.delivery_records("codex-thread") == []
 
 
@@ -1145,12 +1153,22 @@ def test_a_codex_adapter_retiring_with_no_page_leaves_only_records_a_page_needs(
         ("codex-thread", persistent, "eeeeeeee"),
     ):
         delivery_model.delivery_path(identity).parent.mkdir(parents=True, exist_ok=True)
-        cleanup_model.write_json(
+        delivery_model.DELIVERY.write(
             delivery_model.delivery_path(identity),
             {
-                "format": delivery_model.DELIVERY_FORMAT,
                 "id": identity,
-                "batches": [{"page": str(page)}],
+                "created_at": 0,
+                "acknowledge": None,
+                "batches": [
+                    {
+                        "page": str(page),
+                        "claim": None,
+                        "through_seq": 1,
+                        "threads": [],
+                        "handling": {},
+                        "events": [],
+                    }
+                ],
             },
         )
         path = codex_model.record_path(task, identity)
@@ -1158,7 +1176,7 @@ def test_a_codex_adapter_retiring_with_no_page_leaves_only_records_a_page_needs(
         cleanup_model.write_json(
             path,
             {
-                "format": codex_model.RECORD_FORMAT,
+                "format": codex_model.RECORD.format,
                 "state": "queued",
                 "created_at": 0,
                 "pending": [],
@@ -2064,7 +2082,7 @@ def test_a_codex_hook_read_survives_page_loss_after_offer(
     resolved = append_carried_log_record(
         sibling, {"kind": "resolve", "author": "user", "parent": settled["id"]}
     )
-    cleanup_model.write_json(sibling / "cursor.json", {"seq": settled["seq"]})
+    write_record(sibling / "cursor.json", {"seq": settled["seq"]})
     codex_model.offer_hook_delivery(
         "codex-thread", cleanup_model.session_record("codex-thread")
     )
@@ -2445,7 +2463,7 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
 
     try:
         wait_for(
-            lambda: files_model.read_json(page / "cursor.json"),
+            lambda: read_record(page / "cursor.json"),
             lambda cursor: cursor == {"seq": delivered["seq"]},
             failure="the accepted delivery cursor was not recovered",
         )
@@ -2475,7 +2493,7 @@ def test_a_later_codex_start_names_the_running_transport(
     environment = codex_env | {
         "CODEX_THREAD_ID": "codex-thread",
         "FAKE_CODEX_LOG": str(log),
-        "FAKE_CODEX_EXPECT_CWD": str(machine_model.state_home()),
+        "FAKE_CODEX_EXPECT_CWD": str(cleanup_model.state_home()),
     }
 
     # All three tool calls belong to one persistent harness process. Three separate
@@ -2650,7 +2668,7 @@ def test_an_offline_sibling_does_not_stop_browser_comments_reaching_codex(
     offline = tmp_path / "a-offline-page"
     vendoring_model.cmd_init(offline)
     session_model.cmd_waiting(offline, "earlier review")
-    cleanup_model.write_json(
+    write_record(
         offline / "service.json",
         {
             "host": "127.0.0.1",
@@ -2715,7 +2733,7 @@ start_server(live, harness=session_harness())
         claim = service_model.page_claim(live)
         record_claim(offline, **{**claim, "page": str(offline.resolve())})
         assert set(service_model.owned_pages("codex-thread")) == {live, offline}
-        service = files_model.read_json(live / "service.json")
+        service = read_record(live / "service.json")
         origin = f"http://{service['host']}:{service['port']}"
         status, body = fetch(
             f"{origin}/api/event",
@@ -2733,7 +2751,7 @@ start_server(live, harness=session_harness())
         comment = json.loads(body)["state"]["events"][-1]
 
         wait_for(
-            lambda: files_model.read_json(live / "cursor.json"),
+            lambda: read_record(live / "cursor.json"),
             lambda cursor: cursor == {"seq": comment["seq"]},
             failure=lambda: (
                 "the browser comment did not reach the Codex queue: "
@@ -2874,7 +2892,7 @@ def test_codex_adapter_exits_when_delivery_retries_outlive_its_claim(
         )
         assert adapter.wait(timeout=STATED_TIMEOUT) == 0
         assert codex_records("codex-thread")[0][1]["state"] == "offering"
-        assert files_model.read_json(page / "cursor.json") is None
+        assert read_record(page / "cursor.json") is None
         calls = [json.loads(line) for line in log.read_text().splitlines()]
         assert len(calls) == 2
     finally:
@@ -2921,7 +2939,7 @@ def test_codex_adapter_keeps_transferred_input_unreceived(
     queue_wait.with_name(f"{queue_wait.name}.release").write_text("", encoding="utf-8")
     assert adapter.wait(timeout=STATED_TIMEOUT) == 0
 
-    assert files_model.read_json(page / "cursor.json") is None
+    assert read_record(page / "cursor.json") is None
     assert page_state(page)["pending"] == 1
     assert service_model.page_claim(page) == successor
     pickups = [
@@ -2986,13 +3004,13 @@ def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_in_place(
             page, {"kind": "comment", "author": "user", "text": "hello adapter"}
         )
         wait_for(
-            lambda: files_model.read_json(page / "cursor.json"),
+            lambda: read_record(page / "cursor.json"),
             lambda cursor: cursor == {"seq": hello["seq"]},
             failure="the queued delivery cursor did not advance",
         )
 
         assert service_model.page_claim(page)["turn_closed"] == closed
-        queued = page_state(page)["activity"]
+        queued = activity_reading(page)
         assert queued["kind"] == "working"
         assert [item["stage"] for item in queued["obligations"]] == ["queued"]
 

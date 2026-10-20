@@ -7,6 +7,7 @@ from click.testing import CliRunner
 from leaf.cli import cli
 from leaf.interaction_log import (
     INTERACTIONS_FILE,
+    admit_batch,
     append_interactions,
     client_records,
     interaction_time,
@@ -137,19 +138,31 @@ def test_required_transport_is_validated_once_and_torn_lines_are_skipped(tmp_pat
         target=[{}],
         nodes={"custom": 1},
     )
+    session = "0" * 32
     for changed in (
         {"observed_at": 42},
+        {"observed_at": "2099-01-01T00:00:00Z"},
         {"sequence": True},
         {"monotonic_ms": "4"},
         {"monotonic_ms": -1},
-        {"monotonic_ms": float("nan")},
         {"visibility": "unknown"},
+        {"type": "Click"},
     ):
-        with pytest.raises((TypeError, ValueError)):
-            client_records("bad", "/", [{**valid, **changed}])
-    for field in ("observed_at", "sequence", "monotonic_ms", "visibility"):
-        with pytest.raises((TypeError, ValueError)):
-            client_records("bad", "/", [{k: v for k, v in valid.items() if k != field}])
+        with pytest.raises(ValueError):
+            admit_batch({"session": session, "entries": [{**valid, **changed}]})
+    for field in ("observed_at", "sequence", "monotonic_ms", "visibility", "type"):
+        entry = {k: v for k, v in valid.items() if k != field}
+        with pytest.raises(ValueError):
+            admit_batch({"session": session, "entries": [entry]})
+    for batch in (
+        {"session": "tab", "entries": [valid]},
+        {"session": session, "entries": []},
+        {"session": session, "entries": [valid] * 101},
+        {"session": session, "entries": [valid], "page": "/"},
+    ):
+        with pytest.raises(ValueError):
+            admit_batch(batch)
+    admit_batch({"session": session, "entries": [valid]})
     [admitted] = append_interactions(tmp_path, client_records("good", "/", [valid]))
     with (tmp_path / INTERACTIONS_FILE).open("ab") as stream:
         stream.write(b'{"source": "client", "text": "\xc3\n')

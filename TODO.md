@@ -134,15 +134,6 @@ has tried; settle that before building it.
   default registry's `lf-options` example writes the reason into the recommended
   card (`<em>My take: …</em>`). The user accepted moving it into prose beside the
   options on 2026-10-12. Score the change with `evals/` before and after.
-- **Draw the agent's plan, and tell agents to write one.** `leaf task plan` records
-  the agent's breakdown as one outline whose steps are plain or name a to-do or item
-  (`plans.py`), served as `plan` in the browser state and `page state`. Nothing draws
-  it yet. Draw it on the floating panel's On view: the goal, its steps in order with
-  done ones ticked in place, the current one marked, "2 of 5" and its elapsed time,
-  and an item on On me with its plan as context. In the same change, add the
-  instruction to write a plan to `conversation-loop.md` and score it with `evals/`,
-  since a plan nobody draws shows the user nothing. affectUI's
-  [Agent Plan](https://www.affectui.com/components/agent-plan) is the reference.
 - **Keep agent activity intelligible throughout a task.** Run the
   [status evaluations](notes/user-feedback-responsiveness.md) for delivery,
   multi-step work, and delegation. Show the plan as well as the current step;
@@ -228,7 +219,7 @@ has tried; settle that before building it.
   overflowing children and content an attribute revealed. A comment box already
   refuses a covered seat (`underOccluder`, `geometry.js`). The two routes weighed
   before were laying the page out in the width a panel leaves, which reverses
-  "auxiliary surfaces never change the page's geometry", and Leaf owning Tab beside a
+  "the chrome opens over the page and never changes its geometry", and Leaf owning Tab beside a
   panel. The redesign also gives a thread's header controls a box no wider than they
   are: `.lf-thread-controls` stands transparent over the first message's author and
   time, so axe reads no contrast for those words, and the chrome's axe sweep cannot
@@ -472,11 +463,11 @@ on 2026-10-07.
   them, but nothing runs them first. Write `evals/` cases in which agents author each
   kind and measure how often what they write fails to draw, then run the kinds agents
   get wrong and stop running those they reliably get right.
-- **Derive the waiting status from the page's open item.** Consider using the item's
+- **Derive the waiting status from the page's open obligation.** Consider using the obligation's
   words when no explicit waiting detail is needed. **Unconfirmed:** try pages with
-  several open items and an informational page before choosing how the panel's
+  several open obligations and an informational page before choosing how the panel's
   status explains who owes the next move. Keep explicit agent status available when the
-  item alone does not explain the wait.
+  obligation alone does not explain the wait.
 
 ### Development velocity
 

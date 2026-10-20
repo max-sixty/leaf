@@ -17,7 +17,7 @@ import { inChrome, pageQueryAll } from "../passages.js";
 import { inUi } from "../shadow.js";
 import { pageSelection } from "../composing/capture.js";
 import { heldThread } from "../thread/focus.js";
-import { heldItem } from "../standing-target.js";
+import { heldObligation } from "../standing-target.js";
 import { leavesBox } from "../thread/landing.js";
 import { claimsEsc } from "./scopes.js";
 import { DISCLOSE, DISCLOSURE_SELECTOR, disclosed } from "./disclosure.js";
@@ -51,7 +51,7 @@ function standingOn(name, title, sel, rows) {
     },
     // Across the declared shadow roots, where the addresses stop at the document: a row on
     // a staged disclosure names a key the browser does not answer, so a scope that could
-    // not see one would leave the line promising a press nothing makes.
+    // not see one would leave the reference promising a press nothing makes.
     when: () => pageQueryAll(sel).some((el) => !inChrome(el)),
     rows,
   });
@@ -127,7 +127,7 @@ export function declareStanding({ pageState }) {
     if (inChrome(focused(document))) return null;
     const thread = heldThread();
     if (pageSelection() || pageState()) return null;
-    return thread || heldItem() || !inUi(focused()) ? document.body : null;
+    return thread || heldObligation() || !inUi(focused()) ? document.body : null;
   };
   pageScope("standing", {
     title: "Standing on something",

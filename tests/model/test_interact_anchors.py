@@ -594,9 +594,9 @@ def test_reply_replacement_precedes_automatic_fallback_for_other_threads(page_di
 
 
 def test_a_reply_names_the_threads_a_save_already_moved(page_dir):
-    """The server activates a valid save before the agent replies, so the moves are
-    in the log by then; the reply still names every thread its revision moved,
-    except the one it moves itself."""
+    """The server activates a valid save before anyone checks it, so the moves are
+    in the log by then. `page check` still names every thread the active revision
+    moved, and so does the reply, except the one it moves itself."""
     from leaf.revisioning import activate_source
 
     original = PAGE.replace(
@@ -613,6 +613,17 @@ def test_a_reply_names_the_threads_a_save_already_moved(page_dir):
     )
     assert activate_source(page_dir).created
 
+    def checked():
+        result = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
+        assert result.exit_code == 0, result.output
+        return [
+            finding["values"]
+            for finding in json.loads(result.stdout)["findings"]
+            if finding["code"] == "relocated-anchor"
+        ]
+
+    assert checked() == [{"thread": root["id"], "section": "wording"} for root in roots]
+
     def reply(*options):
         result = CliRunner().invoke(
             cli_model.cli,
@@ -627,6 +638,9 @@ def test_a_reply_names_the_threads_a_save_already_moved(page_dir):
         {"thread": roots[1]["id"], "section": "wording"},
     )
     assert reply("--text", "And checked it.") == []
+    # The reply placed the first thread itself, so only the second still stands
+    # where the move put it.
+    assert checked() == [{"thread": roots[1]["id"], "section": "wording"}]
 
     # Two saves move the first thread twice before the next reply, which names each
     # thread once, where it stands now.

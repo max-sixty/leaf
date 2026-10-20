@@ -391,6 +391,7 @@ button.lf-media-open {
   outline: var(--focus-ring);
   outline-offset: 0;
   border-color: transparent;
+  --lf-wears-ring: 1;
 }
 /* Floating comment surfaces have one elevation. The page card reserves the ring's
    room inside its scrollport; a filter lets its shadow extend beyond that clip. */

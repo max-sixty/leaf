@@ -35,10 +35,10 @@ from datetime import datetime
 from pathlib import Path
 
 import click
+from leaf.events import is_answer
 from leaf.interaction_log import interaction_time, read_interactions
-from leaf.schema import MESSAGE_KINDS
+from leaf.registry.kernel import kinds_declaring
 from leaf.state import now_iso
-from leaf.thread import is_answer
 from leaf.todos import start_reading
 
 
@@ -143,7 +143,7 @@ def page_timings(page: Path, *, since: datetime | None, until: datetime) -> dict
         stamp = interaction_time(event["ts"])
         in_cohort = since is None or stamp >= since
         identity, kind = event["id"], event["kind"]
-        if event["author"] == "user" and kind in MESSAGE_KINDS | {"edit"}:
+        if event["author"] == "user" and kind in kinds_declaring("message") | {"edit"}:
             if kind == "edit" and event["base"] in rows:
                 rows[event["base"]]["superseded_by_edit"] = identity
             if not event.get("attention") or not in_cohort:

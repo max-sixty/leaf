@@ -21,20 +21,40 @@ from render_cases_navigation import (
     actions,
 )
 from render_harness import (
+    PANEL,
+    RELEASE_FOCUS,
     compare_with,
     draft_control,
     open_page,
+    panel_menu,
+    panel_settled,
     round_trip,
     told,
     undo,
+    wait_for_check_api,
     wait_for_revision,
     write,
 )
+
+from browser.threads import open_panel_thread
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
 DRAG_HELD = "async () => (await window.__lfCheckApi()).dragHeld()"
+
+
+def expect_resolved(page, thread_id, resolved=True):
+    """Read whether the panel's Threads lists the thread `thread_id` under Resolved."""
+    if page.locator(PANEL).get_attribute("data-open") != "threads":
+        page.locator(".lf-fp-threads").click()
+        panel_settled(page, view="threads")
+    page.locator(".lf-fp-filters button").filter(has_text="Resolved").click()
+    expect(
+        page.locator(
+            f".lf-fp-view[data-view='threads'] .lf-fp-thread[data-key='{thread_id}']"
+        )
+    ).to_have_count(1 if resolved else 0)
 
 
 def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
@@ -133,14 +153,20 @@ def test_user_overrides_identify_state_that_differs_from_authored_inputs(
         "honors the move and the edit",
     )
     wait_for_revision(page, 3)
-    page.wait_for_function("() => document.querySelector('.lf-banner') !== null")
+    page.wait_for_function(
+        "() => document.querySelector('.lf-floating-panel') !== null"
+    )
     wait_until_ready(page)
     expect(page.locator("[data-lf-user-override]")).to_have_count(0)
 
     # The diff's state half is quiet about the honored move: base state is the
     # base markup plus the fold as of it, which already has the card in Done.
     compare_with(page)
-    page.wait_for_function("() => document.querySelector('.lf-version.on') !== null")
+    # Versions says the comparison is on by its Compare standing pressed.
+    expect(
+        panel_menu(page, "versions").locator('.lf-fp-compare[aria-pressed="true"]')
+    ).to_have_count(1)
+    page.locator(".lf-fp-leaf").click()
     assert not page.evaluate(
         "document.getElementById('card-x').classList.contains('lf-ins-block')"
     ), "the user's own honored drag marked as a change"
@@ -168,7 +194,7 @@ def test_foreign_state_draws_beside_a_live_drag(browser, serve):
     page.mouse.move(
         done["x"] + done["width"] / 2, done["y"] + done["height"] / 2, steps=8
     )
-    page.wait_for_function(DRAG_HELD)
+    wait_for_check_api(page, "(api) => api.dragHeld()")
     before = page.locator("#draft-ops").bounding_box()["height"]
 
     foreign = "\n\n".join(
@@ -280,8 +306,7 @@ def test_accepting_a_suggestion_resolves_its_thread_in_one_event(browser, serve)
     d = serve.page_dir
     page = open_page(browser, url)
     page.get_by_role("button", name=re.compile("^Accept the suggested change")).click()
-    page.locator(".lf-threads-toggle").click()
-    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
+    expect_resolved(page, "c1")
     events = events_model.read_events(d)
     accept = next(e for e in events if e.get("kind") == "action")
     assert accept["action"] == "decide" and accept["detail"] == {"outcome": "accept"}
@@ -318,8 +343,7 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     d = serve.page_dir
     page = open_page(browser, url)
     page.get_by_role("button", name=re.compile("^Accept the suggested change")).click()
-    page.locator(".lf-threads-toggle").click()
-    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
+    expect_resolved(page, "c1")
 
     # What the other tab's press leaves in the log, made against the same version:
     # its own accept and reject controls are still shown, because it has not
@@ -337,23 +361,22 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     )
     told(page)
     expect(page.locator("#sug-fix")).to_have_attribute("data-lf-state", "reject")
-    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (0)")
-    reopened = page.locator('.lf-threads > .lf-thread[data-id="c1"]')
-    expect(reopened.locator(".lf-resolve")).to_have_count(1)
+    expect_resolved(page, "c1", resolved=False)
+    open_panel_thread(page, "c1")
+    expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Resolve")
 
     # Offered here because the log says the user made the reject; which tab they
     # were in is not something the log records, and not something a withdrawal
     # could turn on. The widget goes back to the markup and the surviving log is
     # replayed onto it, so what the press restores is the accept, not a blank slate.
+    page.evaluate(RELEASE_FOCUS)
     undo(page)
     expect(page.locator("#sug-fix")).to_have_attribute("data-lf-state", "accept")
-    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
-    # The undo concerns this thread, so its resolved card leaves Open as the user's
-    # own move. Resolved still offers the conversation and its settled state.
-    expect(reopened).not_to_be_visible()
-    page.locator(".lf-thread-filter-toggle").click()
-    page.locator('[data-filter-value="resolved"]').click()
-    expect(reopened).to_have_attribute("data-resolved", "true")
+    # The open thread says it is resolved, and Threads lists it under Resolved.
+    expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Reopen")
+    page.locator(".lf-fp-close").click()
+    panel_settled(page, open=False)
+    expect_resolved(page, "c1")
     # What the log holds is the three gestures and not one word about the thread:
     # it was reopened and closed again by that log being read.
     assert [

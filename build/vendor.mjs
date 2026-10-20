@@ -5,7 +5,7 @@
  * `skills/leaf/assets/vendor/` and each package's own `vendor/` are page payload:
  * `page init` copies them into a page directory and a user's browser runs them. A
  * vendored library is payload of the package whose widget draws with it, not of the
- * layer: Mermaid and Pierre reach a page only when it selects `diagram` or `diff`.
+ * layer: Pele and Pierre reach a page only when it selects `diagram` or `diff`.
  *
  * Each row of `bundles` bundles only what its consumer needs, from the installed
  * packages and the registry's declarations; a directory under `build/` named after a
@@ -169,6 +169,13 @@ const bundles = {
   // Leaf captures without `reconcile` (`runtime/composing/page-image.js` says why), and
   // SnapDOM then warns on the console that text may wrap differently. The capture's own
   // `warnings` keep that notice; the console copy would read as a page problem.
+  //
+  // SnapDOM sends a resource's cookies when its origin is `location.origin`, which is
+  // the URL's origin rather than the document's. In a live sample's sandboxed child the
+  // document's origin is opaque, so every request is cross-origin and Leaf's server
+  // answers it `Access-Control-Allow-Origin: *`, which a credentialed request may not
+  // read: the child's own icon.svg mask failed with a CORS error in every capture.
+  // Compare with the document's origin, `self.origin`, instead (SnapDOM 3.3.4).
   snapdom: () => ({
     out: `${assets}/vendor/snapdom.esm.js`,
     entry: 'export { snapdom } from "@zumer/snapdom";\n',
@@ -179,7 +186,12 @@ const bundles = {
           seam(
             seam(
               seam(
-                source,
+                seam(
+                  source,
+                  'y.origin===location.origin?"include":"omit"',
+                  'y.origin===self.origin?"include":"omit"',
+                  "SnapDOM credentials origin",
+                ),
                 "for(;r;r=r.parentElement||r.getRootNode?.()?.host)",
                 "for(;r;r=r.parentElement||(r.parentNode?.nodeType===11?r.parentNode.host:null))",
                 "SnapDOM mutation-ancestor",
@@ -351,18 +363,32 @@ const bundles = {
       ),
   }),
 
-  // Bundle the canonical Mermaid parser and renderers for offline use. Upstream loads
-  // its diagram families with dynamic imports; statically including them keeps the
-  // bundle self-contained in an export, and the widget still imports this optional
-  // package only when it draws a diagram.
-  mermaid: () => ({
-    out: `${packageVendor("diagram")}/mermaid.esm.js`,
-    entry: 'export { default } from "mermaid";\n',
+  // Pele owns Mermaid parsing and rendering. Keep every diagram family in one
+  // optional module, so offline exports share the browser's complete vocabulary
+  // without fetching per-family chunks. The widget imports it only when it draws.
+  pele: () => ({
+    out: `${packageVendor("diagram")}/pele.esm.js`,
+    entry: 'export { parse, render } from "pele";\n',
+    adapt: [
+      {
+        file: /pele\/dist\/pele\.js$/,
+        // Pele 1.6.0 consumes every HTML-looking label tag, discarding unsupported
+        // tags such as a literal <img> code sample. Consume only the formatting
+        // tags its tokenizer recognizes; other characters stay in its text buffer
+        // and the SVG builder escapes them. Breaks are handled before this scan.
+        edit: (source) =>
+          seam(
+            source,
+            "h&&(l(),o=m?o&~h|r&h:o|h),i+=p[0].length;continue",
+            "if(h){l();o=m?o&~h|r&h:o|h;i+=p[0].length;continue}",
+            "Pele literal unsupported label tags",
+          ),
+      },
+    ],
     platform: "browser",
     target: "chrome105",
-    supported: { "dynamic-import": false },
     banner: {
-      js: `/*! mermaid ${version("mermaid")} — MIT — licenses: mermaid.LICENSES.txt */`,
+      js: `/*! pele ${version("pele")} — MIT — licenses: pele.LICENSES.txt */`,
     },
   }),
 
@@ -736,7 +762,27 @@ const bundles = {
     splitting: true,
     chunkNames: "webawesome/[name]-[hash]",
     external: ["/runtime/shadow-stage.js"],
-    adapt: [{ file: /webawesome\/dist\/chunks\/.*\.js$/, edit: patchTransitions }],
+    // Web Awesome 3.14.0 prepends a comment naming its docs to an element's shadow root
+    // on every `connectedCallback`, so an element the chrome keeps and connects again,
+    // as the floating panel's menu does its copy rows, grows by a node each time it
+    // shows. The element module's adaptation, listed first so it wins its chunk, keeps
+    // the one comment the first connection writes.
+    adapt: [
+      {
+        file: /webawesome\/dist\/chunks\/chunk\.AOKMSJXD\.js$/,
+        edit: (source) =>
+          patchTransitions(
+            seam(
+              source,
+              "this.shadowRoot?.prepend(",
+              "this.shadowRoot?.firstChild?.nodeType !== Node.COMMENT_NODE && this.shadowRoot?.prepend(",
+              "Web Awesome docs comment",
+              2,
+            ),
+          ),
+      },
+      { file: /webawesome\/dist\/chunks\/.*\.js$/, edit: patchTransitions },
+    ],
     platform: "browser",
     target: "chrome105",
     banner: {

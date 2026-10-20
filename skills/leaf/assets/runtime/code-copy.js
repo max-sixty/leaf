@@ -3,22 +3,16 @@
    draft's Markdown. Document controls stand in chrome so authored sibling selectors
    keep their meaning. Their sources read their current text on activation; widgets
    supply their source before rendering line numbers, annotations, or other words. CSS
-   anchors keep the control at the block's right edge without wrapping authored nodes
-   or moving them on arrival. Widgets connect their final styled block before
-   requesting the control.
+   anchors keep the control at the block's right edge (block-controls.js). Widgets
+   connect their final styled block before requesting the control.
    Enter on a block the user stands on copies it. That press is a register row
-   projected onto the block beside any scope its owner declares, so the shortcut bar, the
+   projected onto the block beside any scope its owner declares, so the hints, the
    command reference and `aria-keyshortcuts` name it. A link or button inside the block
    keeps its own Enter (`nativeActivationAt`), and a document block's control stays out
    of the Tab sequence. Focus need not be on the control, so every copy's result also
    takes the status line.
-   A document block's control passes under the sticky headers the page declares over its
-   block, as the block's own words do, standing in the frames that cut every box
-   following scrolled content (css-anchors.js, `headerLevels`), so a block scrolled
-   under a stuck toolbar offers no Copy over the toolbar's controls.
-   Document copies share one stable chrome child, including their clipping frames.
-   Making every copy a sibling of transient chrome lets a new margin measurement
-   invalidate structural selectors on every block's control in a long page.
+   A document block's control stands in chrome and passes under the page's sticky
+   headers as block-controls.js says.
    The control follows the common pattern for code copy: hidden at rest, so it covers no
    words, and shown while a pointer is over the block or the user stands on it. A finger
    has no hover, so a tap on the block stands the user on it and shows the control in
@@ -28,75 +22,21 @@
 import { copyControl } from "./copy-control.js";
 import { watchArrivals } from "./arrivals.js";
 import {
-  anchorBox,
-  anchorReading,
-  cutFrames,
-  headerLevels,
-  nameAnchor,
-  anchorView,
-  refreshAnchorView,
-} from "./css-anchors.js";
+  aimControl,
+  anchorControl,
+  releaseControl,
+  revealControl,
+  standInChrome,
+  tabFromBlock,
+} from "./block-controls.js";
+import { headerLevels } from "./css-anchors.js";
 import { focusDestination, onStanding } from "./focus.js";
 import { upFrom } from "./shadow.js";
-import { chromeRoot } from "./chrome.js";
-import { move } from "./dom-move.js";
-import { layoutPx } from "./keeps.js";
-import { nextRender } from "./rendering.js";
 import { claimReachStop, releaseReachStop } from "./reach.js";
 import { commandScope, projectCommandScope } from "./keyboard/scopes.js";
 
 const controls = new WeakMap();
 const wired = new WeakMap();
-const documentCopies = document.createElement("div");
-documentCopies.className = "lf-code-copy-home";
-// The frames each document control stands in, under its block's sticky headers.
-const cuts = new WeakMap();
-const makeCut = () => {
-  const frame = document.createElement("div");
-  frame.className = "lf-code-copy-cut";
-  return frame;
-};
-// Stands a document control in the frames its block's headers cut (`headerLevels`),
-// read again each time the control is revealed and once a frame after a resize, since a
-// header can come, go or change height while the control shows or while it hides.
-const placed = new Map(); // document control → its block
-let resized = 0;
-addEventListener("resize", () => {
-  resized ||= nextRender(() => {
-    resized = 0;
-    // Every reading before any write, as on arrival.
-    const read = [...placed].map(([copy, pre]) => [copy, pre, headerLevels(pre)]);
-    for (const [copy, pre, levels] of read) standUnderHeaders(copy, pre, levels);
-  });
-});
-function standUnderHeaders(copy, pre, levels) {
-  const frames = cutFrames(levels, cuts.get(copy) ?? [], makeCut);
-  cuts.set(copy, frames);
-  placed.set(copy, pre);
-  if (documentCopies.parentNode !== chromeRoot) move(chromeRoot, documentCopies, null);
-  if (frames[0] && frames[0].parentNode !== documentCopies)
-    move(documentCopies, frames[0], null);
-  const home = frames.at(-1) ?? documentCopies;
-  if (copy.parentNode !== home) move(home, copy, null);
-}
-// The control's anchor insets carry how far `anchor()` reads the block from where it
-// shows, which only an engine that leaves transforms out makes other than nothing
-// (css-anchors.js, `anchorBox`), such as Firefox on a block in a table granted room.
-// Read on each reveal, since only a shown control needs it.
-const revealed = (pre, copy) => {
-  if (cuts.has(copy)) standUnderHeaders(copy, pre, headerLevels(pre));
-  const box = pre.getBoundingClientRect();
-  const at = anchorBox(pre);
-  for (const [property, length] of [
-    ["--lf-code-copy-dx", box.left - at.left],
-    ["--lf-code-copy-dy", box.top - at.top],
-  ]) {
-    const value = length ? layoutPx(length) : "";
-    if (copy.style.getPropertyValue(property) !== value)
-      copy.style.setProperty(property, value);
-  }
-  refreshAnchorView(copy);
-};
 // The key this module projects its Copy scope under, beside the block's other owners.
 const COPY_SCOPE = Symbol("code copy");
 
@@ -119,7 +59,7 @@ addEventListener(
 onStanding((node) => {
   for (let at = node; at; at = upFrom(at)) {
     const copy = controls.get(at);
-    if (copy) return revealed(at, copy);
+    if (copy) return revealControl(copy, at);
   }
 });
 
@@ -146,20 +86,10 @@ function prepareCodeBlock(pre, source, noun) {
       if (event.pointerType === "touch" && copy.isConnected)
         focusDestination(pre, "move");
     });
-    pre.addEventListener("pointerenter", () => revealed(pre, copy));
+    pre.addEventListener("pointerenter", () => revealControl(copy, pre));
     controls.set(pre, copy);
   }
-  const place = () =>
-    copy.classList.toggle("lf-code-copy-away", !anchorView(copy, pre, place));
-  const near = anchorView(copy, pre, place);
-  return { copy, near, anchor: anchorReading(pre) };
-}
-
-function positionCodeBlock({ copy, near, anchor }) {
-  copy.classList.toggle("lf-code-copy-away", !near);
-  const name = nameAnchor(anchor);
-  if (copy.style.positionAnchor !== name) copy.style.positionAnchor = name;
-  return copy;
+  return anchorControl(copy, pre);
 }
 
 // Declared on each arrival, since leaving withdraws it. A widget renders a new block
@@ -181,7 +111,7 @@ function declareCopy(pre, copy, noun) {
 }
 
 export function copyBlock(block, source, noun) {
-  const copy = positionCodeBlock(prepareCodeBlock(block, source, noun));
+  const copy = aimControl(prepareCodeBlock(block, source, noun));
   declareCopy(block, copy, noun);
   return copy;
 }
@@ -207,11 +137,8 @@ export function watchCodeBlocks() {
             ]),
         );
       for (const [pre, pending, levels] of prepared) {
-        const copy = positionCodeBlock(pending);
-        // Keep the page's authored sibling and child selectors intact. The anchor
-        // still positions this control at its source when it lives in chrome, in the
-        // frames its block's headers cut.
-        standUnderHeaders(copy, pre, levels);
+        const copy = aimControl(pending);
+        standInChrome(copy, pre, levels);
         copy.tabIndex = -1;
         claimReachStop(pre);
         if (!wired.has(pre)) {
@@ -219,15 +146,7 @@ export function watchCodeBlocks() {
           wired.set(pre, events);
           declareCopy(pre, copy, "code");
           const options = { signal: events.signal };
-          // Let the browser continue Tab from the source's document position,
-          // rather than from this control's later position in chrome.
-          copy.addEventListener(
-            "keydown",
-            (event) => {
-              if (event.key === "Tab") focusDestination(pre, "step");
-            },
-            options,
-          );
+          tabFromBlock(copy, pre, events.signal);
           pre.addEventListener(
             "pointerenter",
             () => copy.classList.add("lf-code-copy-hover"),
@@ -257,10 +176,7 @@ export function watchCodeBlocks() {
       const copy = controls.get(pre);
       if (copy?.matches(".lf-code-copy-hover, .lf-code-copy-focused"))
         copy.classList.remove("lf-code-copy-hover", "lf-code-copy-focused");
-      copy?.remove();
-      cuts.get(copy)?.[0]?.remove();
-      cuts.delete(copy);
-      placed.delete(copy);
+      if (copy) releaseControl(copy);
       releaseReachStop(pre);
       projectCommandScope(pre, COPY_SCOPE, null);
     },

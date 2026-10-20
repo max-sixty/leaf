@@ -117,29 +117,25 @@
   text-transform: uppercase;
   color: var(--muted);
 }
+/* The label names what the sample is, quoted or live, and then its own label: from the
+ * attribute, or from an authored label child, which takes the word itself. */
+:scope:is(lf-sample) {
+  --lf-sample-word: "quoted";
+}
+:scope:is(lf-sample)[data-lf-sample-live] {
+  --lf-sample-word: "live sample";
+}
 :scope:is(lf-sample)::before {
-  content: "quoted";
+  content: var(--lf-sample-word);
 }
 :scope:is(lf-sample)[label]::before {
-  content: "quoted · " attr(label);
+  content: var(--lf-sample-word) " · " attr(label);
 }
 :scope:is(lf-sample):has(> [data-lf-said="label"])::before {
   content: none;
 }
 :scope:is(lf-sample) > [data-lf-said="label"]::before {
-  content: "quoted · ";
-}
-:scope:is(lf-sample)[data-lf-sample-live]::before {
-  content: "live sample";
-}
-:scope:is(lf-sample)[data-lf-sample-live][label]::before {
-  content: "live sample · " attr(label);
-}
-:scope:is(lf-sample)[data-lf-sample-live]:has(> [data-lf-said="label"])::before {
-  content: none;
-}
-:scope:is(lf-sample)[data-lf-sample-live] > [data-lf-said="label"]::before {
-  content: "live sample · ";
+  content: var(--lf-sample-word) " · ";
 }
 /* Like the label, host controls describe the exhibit; they stand outside its gutter.
  * A table lays out only its first caption in Firefox, so the controls cannot be a
@@ -233,7 +229,7 @@
 }
 /* A window sample keeps its outer height rather than its page's, and scrolls inside.
  * Three quarters of the viewport leaves its label, Reset, and the containing page's
- * banner and bottom bar in view with the whole frame. */
+ * floating panel in view with the whole frame. */
 :scope:is(lf-sample)[window] .lf-sample-frame {
   box-sizing: border-box;
   height: min(75vh, 48rem);

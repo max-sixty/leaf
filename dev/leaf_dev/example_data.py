@@ -7,12 +7,36 @@ import sys
 from html.parser import HTMLParser
 from pathlib import Path
 
+from jsonschema import Draft202012Validator
 from leaf.structure import SourceDocument
 
 from leaf_dev import ROOT
 from leaf_dev.leaf_assets import pinned_copy
 
 TEST_PAGES = ROOT / "tests" / "fixtures" / "pages"
+
+# Captures are live authored inputs: an intermediate JSON save must fail through
+# the preview's refusal path, rather than a missing key stopping its watcher.
+_DATA_COMPANION = Draft202012Validator(
+    {
+        "type": "object",
+        "properties": {
+            "$captures": {
+                "type": "object",
+                "additionalProperties": {
+                    "type": "object",
+                    "properties": {
+                        "file": {"type": "string"},
+                        "asset": {"type": "string"},
+                        "lines": {"type": "string"},
+                        "format": {"type": "string"},
+                    },
+                    "anyOf": [{"required": ["file"]}, {"required": ["asset"]}],
+                },
+            },
+        },
+    }
+)
 
 
 # Where a page named on a command line is looked up.
@@ -184,7 +208,10 @@ def data_companion(source: Path) -> dict:
     companion = data_file(source)
     if not companion.exists():
         return {}
-    return json.loads(companion.read_text(encoding="utf-8"))
+    document = json.loads(companion.read_text(encoding="utf-8"))
+    if error := next(_DATA_COMPANION.iter_errors(document), None):
+        raise ValueError(f"{companion}: {error.json_path}: {error.message}")
+    return document
 
 
 def capture_file(source: Path, spec: dict) -> Path:

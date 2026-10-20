@@ -6,7 +6,7 @@ registry-declared widget gets a widget controller. Then read the sections your
 behavior needs in the files beside this one:
 
 - [module-reading.md](module-reading.md): the page's words, elements and declarations,
-  content helpers, and page readings such as items and history;
+  content helpers, and page readings such as obligations and history;
 - [module-state.md](module-state.md): the widget controller, declared state, data
   subscriptions, and editing a bound file;
 - [module-input.md](module-input.md): commands and keyboard routes, focus, pointer
@@ -175,7 +175,10 @@ the box it keeps. `leaf package check --render` reports a widget that moves as
   read nothing from the log; it may move authored nodes within the host, and returns the
   node references the module needs. The module calls `initialRender(host)` to get that
   result, drawn on demand for a host that arrived later, and adds behavior to those
-  nodes. `x-initial` requires `x-upgrade: true` and excludes `x-prepaint`.
+  nodes. A drawing that reads markup after its host, as `lf-toc` reads the headings
+  below it, finishes inside the host when the document has parsed
+  (`readystatechange`), before any module runs. `x-initial` requires `x-upgrade: true`
+  and excludes `x-prepaint`.
 - Where the markup can't say how tall the drawing will be, declare `x-height` and add
   the class `lf-rendered` once drawn. For a drawing that can't fit any height,
   `page check --render` tells the author what height to state.
@@ -207,7 +210,7 @@ A widget extends `LeafElement`, a `LitElement` base class that draws everything 
 its authored children. One-time building goes in `setup()`, in place of `once(this)`;
 a `setup()` that throws shows its failure and the widget draws nothing after it.
 `render()` reads through Leaf's readers: `this.reading` and `this.state`,
-`this.data(input)` for a bound source, and page readings such as `readItems`,
+`this.data(input)` for a bound source, and page readings such as `readObligations`,
 `reportSequence` or `ago`. The element redraws whenever anything it read changes, in one
 ordered pass after the publication that moved it, parents before children. Return a
 template, `nothing` when the render places retained nodes itself, or `noChange`. Work

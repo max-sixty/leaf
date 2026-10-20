@@ -30,6 +30,7 @@ import {
 export { ContainerProxy } from "@cloudflare/containers";
 import { type DurableObject } from "cloudflare:workers";
 import * as z from "zod/mini";
+import type { Event, ServedState } from "../../build/browser/contract.js";
 import {
   CHUNK_BYTES,
   PageStore,
@@ -116,24 +117,9 @@ const PAGE_FAULT_REASON_CHARS = 300;
 const MAX_INTERACTION_BYTES = 128 * 1024;
 const CODEX_PROXY_CREDENTIAL = "leaf-outbound-proxy";
 const CLOUDFLARE_CONTAINER_CA = "/etc/cloudflare/certs/cloudflare-containers-ca.crt";
-interface LeafEvent {
-  id: string;
-  attempt?: string;
-  kind: string;
-  action?: string;
-  revision?: number;
-}
-
 interface AcceptedEvent {
-  event: LeafEvent;
+  event: Event;
   needsReply: boolean;
-}
-
-interface LeafStateAnswer {
-  state?: {
-    events?: LeafEvent[];
-    activity?: { obligations?: Array<{ input: string | null }> };
-  };
 }
 
 export class LeafWebsiteSession extends Container<Env> {
@@ -426,17 +412,17 @@ async function acceptedEvent(
   try {
     const posted = (await postedRequest.json()) as { attempt?: unknown };
     if (typeof posted.attempt !== "string") return null;
-    const answer = (await response.clone().json()) as LeafStateAnswer;
-    const event = answer.state?.events?.find(
+    // An accepted event's answer carries the page's state (`event_endpoint.accept_event`).
+    const { state } = (await response.clone().json()) as { state: ServedState };
+    const event = state.events.find(
       (candidate) => candidate.attempt === posted.attempt,
     );
     if (!event) return null;
+    // An update the agent owes an answer publishes its own obligation, on the agent
+    // until it answers (`obligations.update_obligation`).
     return {
       event,
-      needsReply:
-        answer.state?.activity?.obligations?.some(
-          (obligation) => obligation.input === event.id,
-        ) ?? false,
+      needsReply: state.activity.obligations.includes(`update:${event.id}`),
     };
   } catch {
     return null;
@@ -529,7 +515,7 @@ async function staticState(
   const url = new URL(statePath, request.url);
   const response = await env.ASSETS.fetch(new Request(url));
   if (!response.ok) return new Response("state unavailable", { status: 503 });
-  const state = (await response.json()) as Record<string, unknown>;
+  const state = (await response.json()) as ServedState;
   dateStateDelivery(state);
   const answer = Response.json(state, {
     headers: { "Cache-Control": "no-store", "Leaf-Session": "passive" },

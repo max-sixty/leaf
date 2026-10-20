@@ -2,7 +2,13 @@
 
 from leaf.findings import Finding, element_at
 from leaf.gesture_words import leading_title_node
-from leaf.items import asking, encloses, local_item_entry, quoted_in, replied
+from leaf.obligations import (
+    asking,
+    encloses,
+    local_obligation_entry,
+    quoted_in,
+    replied,
+)
 from leaf.projection import enclosing_widgets, recorded_owner
 from leaf.registry.contract import (
     is_element_name,
@@ -189,11 +195,29 @@ def layout_errors(lf_elements: list, registry: dict) -> list[Finding]:
     return errors
 
 
+def parts_errors(document: SourceDocument, registry: dict) -> list[Finding]:
+    """A page's parts (`x-views: "parts"`) written directly in `main` lay the page out
+    themselves, each part's child carrying its own Layout, so the `main` holding them
+    carries none. With one, its Layout and the parts' both arrange the page, and the
+    page renders with nothing out of reach, so the render check passes it."""
+    main = document.tree.select_one("body > main")
+    classes = main.attrs.get("class", []) if main else []
+    layouts = [token for token in classes if token.startswith("layout-")]
+    if not layouts:
+        return []
+    return [
+        found_at("parts-in-layout", rec, rec["attrs"].get("id", ""), layout=layouts[0])
+        for rec in document.lf_elements
+        if rec["parent"] == "main"
+        and registry.get(rec["tag"], {}).get("x-views") == "parts"
+    ]
+
+
 def unasked(rec: dict, entry: dict) -> dict:
     """The `x-awaits.when` conditions a widget never met, as attribute and the values
     it would ask at, or none where it asks, was asked, or can be made to ask.
 
-    The flag `x-awaits.retired` names is how an author ends an item already
+    The flag `x-awaits.retired` names is how an author ends an obligation already
     asked, such as a settled decision kept with its context, so failing on it alone
     leaves the widget counted. A condition a recorded value writes can still be met
     by a gesture."""
@@ -213,19 +237,20 @@ def unasked(rec: dict, entry: dict) -> dict:
     }
 
 
-def item_context_errors(document: SourceDocument, registry: dict) -> list[Finding]:
-    """A context supplies a leading title and arrival region for nested items.
+def enclosing_errors(document: SourceDocument, registry: dict) -> list[Finding]:
+    """An enclosing widget (`x-awaits.encloses`) supplies a leading title and
+    arrival region for the obligations inside it.
 
-    Context never owns item identity or registration. Any number of sources
-    can select it, and each source retains its independent answer and lifecycle.
-    A context framing widgets none of which asks shows a question the On me list
-    never counts and the user can't answer, so the error names what each framed
-    widget lacks to ask (`unasked`). A context framing no widget asks only if it
-    declares its own reply-answered item (`x-awaits.reply`), and then needs no
-    heading: its words are the question.
+    It never owns obligation identity or registration. Any number of sources can select
+    it, and each source retains its independent answer and lifecycle. An enclosing
+    widget whose widgets none ask shows a question the On me list never counts and
+    the user can't answer, so the error names what each enclosed widget lacks to
+    ask (`unasked`). One holding no widget asks only if it declares its own
+    reply-answered obligation (`x-awaits.reply`), and then needs no heading: its words
+    are the question.
     """
 
-    def context_of(rec):
+    def encloser_of(rec):
         return next(
             (
                 holder
@@ -240,13 +265,13 @@ def item_context_errors(document: SourceDocument, registry: dict) -> list[Findin
     framed = {id(region): [] for region in regions}
     for rec in lf_elements:
         entry = registry.get(rec["tag"], {})
-        region = context_of(rec)
-        if local_item_entry(entry) and region and not quoted_in(rec, registry):
+        region = encloser_of(rec)
+        if local_obligation_entry(entry) and region and not quoted_in(rec, registry):
             framed[id(region)].append((rec, unasked(rec, entry)))
     errors = []
     for region in regions:
         held = framed[id(region)]
-        # The item's title is what the shared name rule reads, so this asks that rule
+        # The obligation's title is what the shared name rule reads, so this asks that rule
         # rather than restating a shape it accepts. It must be a heading as well, the
         # question's place in the outline and in heading navigation.
         title = leading_title_node(document.authoring.node_of(region))
@@ -255,7 +280,7 @@ def item_context_errors(document: SourceDocument, registry: dict) -> list[Findin
         # widget is missing, as when a revision drops the decision it framed.
         if not held and replied(registry[region["tag"]]) and not titled:
             continue
-        # A quoted context is a mention whose widgets ask nothing by design.
+        # A quoted enclosing widget is a mention whose widgets ask nothing by design.
         if not quoted_in(region, registry) and all(lacks for _, lacks in held):
             widgets = [
                 {
@@ -453,7 +478,7 @@ def reference_errors(
 
 
 def addressable_instance_errors(lf_elements: list, registry: dict) -> list[Finding]:
-    """Conditional items and thread seats need an id when they are live.
+    """Conditional obligations and thread seats need an id when they are live.
 
     Requiring every instance globally would outlaw inert option groups; checking the
     declared predicate here gives the runtime exactly the addressability it consumes.
@@ -556,8 +581,9 @@ def instance_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     return (
         widget_errors(lf_elements, registry)
         + layout_errors(lf_elements, registry)
+        + parts_errors(document, registry)
         + addressable_instance_errors(lf_elements, registry)
-        + item_context_errors(document, registry)
+        + enclosing_errors(document, registry)
         + declared_word_errors(lf_elements, registry)
         + unique_errors(lf_elements, registry)
     )

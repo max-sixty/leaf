@@ -97,7 +97,6 @@ from .leases import (
     step_hook_ran,
     take_lease,
 )
-from .machine import state_home
 from .refusals import Refused
 from .service import (
     claim_page,
@@ -105,14 +104,27 @@ from .service import (
 )
 from .session import Watch, read_watch_pass
 from .state import (
+    Record,
     ensure_session,
     flocked,
+    object_schema,
     session_record,
     start_session_turn,
+    state_home,
 )
 from .thread import delivery_reply_reserved
 
 QUEUE_TIMEOUT = 20
+# The adapter's transport and the immutable runtime running it. A session can
+# select a replacement runtime while this lease remains held (`_running_adapter`).
+ADAPTER = Record(
+    "codex-adapter",
+    object_schema(
+        {"app_server": {"type": ["string", "null"]}},
+        {"launcher": {"type": "string"}},
+    ),
+    since=13,
+)
 
 
 def _run_codex(codex_path: str, *arguments: str) -> None:
@@ -436,7 +448,7 @@ class TaskConnection:
             for delivery_id in pending:
                 codex.abandon_uncertain_delivery(
                     self.thread_id,
-                    codex.read_json(codex.delivery_path(delivery_id)),
+                    codex.stored_delivery(delivery_id),
                 )
 
     def _resume(self, thread: dict, expected: dict | None | object = ...) -> set[str]:
@@ -837,9 +849,7 @@ def run_adapter(
         resources.callback(release_lease, lease)
         lease.truncate(0)
         lease.write(
-            json.dumps(
-                {"app_server": app_server, "launcher": str(own_launcher())}
-            ).encode()
+            ADAPTER.encode({"app_server": app_server, "launcher": str(own_launcher())})
         )
         lease.flush()
         watch = Watch(harness)
@@ -1038,10 +1048,7 @@ def _running_adapter(session_id: str) -> dict | None:
     it; that reads as no adapter."""
     if not adapter_is_live(session_id):
         return None
-    try:
-        return json.loads(adapter_lease_path(session_id).read_text())
-    except FileNotFoundError:
-        return None
+    return ADAPTER.read(adapter_lease_path(session_id))
 
 
 def cmd_codex_launch(codex_path: str | None = None) -> int:

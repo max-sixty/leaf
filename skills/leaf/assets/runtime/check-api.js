@@ -25,11 +25,11 @@ export {
 export {
   shownBand,
   shownBox,
+  skipped,
   shownRect,
   visibleBand,
   landingBand,
   userScrollport,
-  bannerFoot,
   seenRect,
   growthAfterIsSeen,
   stuckBox,
@@ -71,18 +71,13 @@ export {
   live,
 } from "./keyboard/bindings.js";
 export { availableCommandRoutes, stack, executeCommand } from "./keyboard/dispatch.js";
-export {
-  whereDraft,
-  storedDraft,
-  captureDraftEditing,
-  draftEditingStands,
-} from "./drafts.js";
+export { whereDraft, storedDraft, captureDraftEditing } from "./drafts.js";
 export { onStanding, releaseFocus, takesLetters, tabStops } from "./focus.js";
 export { selectionAnchor } from "./composing/capture.js";
 export { TEXT_BLOCK } from "./passage-facts.js";
 export { renderingState } from "./rendering.js";
 export { readingBlock, blocksOnScreen } from "./reading-place.js";
-export { walkOrigin, heldItem, placeOf } from "./standing-target.js";
+export { walkOrigin, heldObligation, placeOf } from "./standing-target.js";
 export { walkPosition } from "./walk-position.js";
 export { nativeLayers } from "./keyboard/layer-stack.js";
 export { scrollAxes, elementFrame } from "./element-frame.js";
@@ -98,17 +93,13 @@ export {
 export { surfaceFocusTarget, claimed } from "./thread/surfaces.js";
 export { runtimeRootState } from "./root-state.js";
 export { tabStore, draftStore, userStore, PAGE_SCOPE } from "./storage.js";
-export { sampleVisibility, readSampleVisibility } from "./sample-visibility.js";
+export {
+  frameVisibility,
+  onFrameVisibility,
+  readSampleVisibility,
+} from "./frame-visibility.js";
 export { observeQueuedWork, bindQueuedWork } from "./queued-work.js";
 export { createPresentationSchedule } from "/vendor/browser-runtime.js";
-export {
-  BANNER_CONTROL_RANK,
-  registerBannerControl,
-  showBannerControl,
-  showNews,
-  markBannerControl,
-  returnToBannerControl,
-} from "./banner-toolbar.js";
 export { reachScrollers, releaseReachStop } from "./reach.js";
 export { reveal, dragHeld } from "./widget-elements.js";
 export { flashDuration, agentArrivalDuration } from "./motion.js";
@@ -117,8 +108,6 @@ export { THREAD, SAY_BOX } from "./thread/selectors.js";
 export { alignInlineText, sentenceUnits } from "./text-alignment.js";
 export { registerSampleCommand } from "./sample-child.js";
 export { recordInteraction } from "./interaction-log.js";
-export { heldThreadId, replyDestination } from "./thread/focus.js";
-export { restrictUserIntent } from "./user-intent.js";
 export { bringBackSurfaceOf } from "./off-flow.js";
 export { WORKS } from "./control-selectors.js";
 export { readingReturn, completeReadingReturn } from "./reading-continuity.js";

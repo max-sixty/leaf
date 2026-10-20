@@ -29,13 +29,16 @@ from interact_support import (
     delivered_ref,
     delivery_through,
     end_work,
-    items_on_user,
+    freeze_events,
     last_deliverable_seq,
     let_a_pick_settle_a_thread,
+    obligations_on_user,
     owed,
+    owed_answers,
     page_state,
     publish,
     queue_board_registry,
+    read_record,
     receive_through,
     record_claim,
     response_reference,
@@ -44,6 +47,7 @@ from interact_support import (
     state_json,
     woken,
     working,
+    write_record,
     yaml_document,
 )
 from leaf import activity as activity_model
@@ -287,12 +291,10 @@ def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
 
     assert str(claimed) in reason and str(second) in reason
     assert reason.count("acknowledged user update with no answer") == 2
-    assert reason.count(schema_model.ANSWER_ITEM_INSTRUCTION) == 1
+    assert reason.count(schema_model.ANSWER_INSTRUCTION) == 1
     # The lines stand together, so the user reaches every page before the
     # first protocol rather than one page per protocol.
-    assert reason.index(str(second)) < reason.index(
-        schema_model.ANSWER_ITEM_INSTRUCTION
-    )
+    assert reason.index(str(second)) < reason.index(schema_model.ANSWER_INSTRUCTION)
     for identity, label in deliveries.items():
         reason = reason.replace(identity, label)
     snapshot.check(
@@ -330,14 +332,14 @@ def test_a_preview_owes_no_watcher_but_still_carries_its_user(claimed, capsys):
     hooks_model.cmd_hook("codex", {"hook_event_name": "Stop", "session_id": "s1"})
     assert "no delivery adapter" in json.loads(capsys.readouterr().out)["reason"]
 
-    cleanup_model.write_json(
+    write_record(
         claimed / schema_model.PREVIEW_FILE,
         {
-            "kind": "example",
             "example": "triage-board",
             "checkout": "leaf",
             "interaction": "user",
             "started": "2026-09-01T10:00:00+00:00",
+            "input": {"source": "triage-board", "authored": "leaf"},
         },
     )
     hooks_model.cmd_hook("codex", {"hook_event_name": "Stop", "session_id": "s1"})
@@ -356,16 +358,17 @@ def test_a_preview_owes_no_watcher_but_still_carries_its_user(claimed, capsys):
         claimed,
         {"kind": "comment", "author": "user", "revision": 1, "text": "is this right?"},
     )
-    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
-    reason = continued(capsys.readouterr().out)
-    [batch] = json.loads(reason.split("\n")[1])["batches"]
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    [batch] = json.loads(context.split("\n")[1])["batches"]
     assert batch["page"] == str(claimed)
     assert [event["text"] for event in batch["events"]] == ["is this right?"]
-    assert "no watcher" not in reason
-    # Handed over, the comment is owed an answer, and a later Stop holds for it.
-    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
-    reason = continued(capsys.readouterr().out)
-    consume_pending_input("s1")
+    assert "no watcher" not in context
+    # Handed over, the comment is owed an answer, and the turn's Stop holds for it.
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     reason = continued(capsys.readouterr().out)
     assert f"{claimed}: 1 acknowledged user update with no answer" in reason
@@ -474,7 +477,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     # An id is all this can name, to a session that may no longer hold a word of
     # what was said under it, so the instruction that reaches it has to carry the
     # reading that recovers the exchange.
-    assert schema_model.ANSWER_ITEM_INSTRUCTION in continued(answer)
+    assert schema_model.ANSWER_INSTRUCTION in continued(answer)
     # The receipt recorded the delivery's reference, so the reminder names the
     # complete command rather than a placeholder nothing on hand fills.
     assert f"`leaf response reply {delivered_ref(claimed, asked['id'])}`" in continued(
@@ -525,14 +528,16 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
             "text": "but why not C?",
         },
     )
-    # The harness opens the follow-up turn; its Stop carries the new input, and a
-    # later Stop holds for an answer to the last word.
-    cleanup_model.prompt_turn("s1")
-    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
-    reason = continued(capsys.readouterr().out)
-    [batch] = json.loads(reason.split("\n")[1])["batches"]
+    # The watch opens the follow-up turn, whose prompt hook carries the new input,
+    # and that turn's Stop holds for an answer to the last word.
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    [batch] = json.loads(context.split("\n")[1])["batches"]
     assert [event["id"] for event in batch["events"]] == [follow["id"]]
-    consume_pending_input("s1")
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     assert delivered_ref(claimed, follow["id"]) in continued(capsys.readouterr().out)
     thread_model.post_reply(
@@ -713,14 +718,20 @@ def test_idle_and_the_stop_hook_hold_the_agent_to_the_same_moves(claimed, capsys
         claimed, {"kind": "comment", "author": "user", "text": "one more thing"}
     )
     [comment] = events_model.read_events(claimed)
-    batch = {"events": [{"seq": comment["seq"], "id": comment["id"]}]}
+    [batch] = freeze_events(claimed, [comment])["batches"]
 
     def pickup(phase: str) -> None:
         with (
             service_model.PageTransaction(claimed) as page,
             delivery_model.receive_batch(page, batch, session_id="s1") as delivered,
         ):
-            delivery_model.record_pickup(page, delivered, phase=phase, session="s1")
+            delivery_model.record_pickup(
+                page,
+                delivered,
+                phase=phase,
+                session="s1",
+                refs=delivery_model.batch_refs(batch),
+            )
 
     def idle() -> str | None:
         result = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
@@ -812,10 +823,10 @@ cli_model.cli()
     out, err = process.communicate(timeout=STATED_TIMEOUT)
     assert process.returncode == 1, f"{out}{err}"
     assert "1 event nobody has picked up" in err
-    assert files_model.read_json(page_dir / "status.json")["state"] == "waiting"
+    assert read_record(page_dir / "status.json")["state"] == "waiting"
 
 
-def test_a_reaction_holds_no_turn_as_an_unanswered_item(claimed, capsys):
+def test_a_reaction_holds_no_turn_as_an_unanswered_obligation(claimed, capsys):
     """A reaction is a mark, not a question: the agent answers it by acting, so an
     acknowledged one nobody replied to does not hold the turn the way a comment
     does. Nor does an `ok` the user put on the agent's answer hand the thread back
@@ -980,7 +991,7 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, capsys):
 
 
 def test_each_owed_move_in_a_thread_takes_a_start_of_its_own(claimed, capsys):
-    """A thread's messages share one reply, but a move on an item frozen in one of its
+    """A thread's messages share one reply, but a move on an obligation frozen in one of its
     messages owes an answer of its own, so each is started on its own id. Once their
     replies settle them, a later move in the thread is offered no start in place of
     its answer."""
@@ -1064,7 +1075,7 @@ def test_a_stop_keeps_the_turn_going_only_for_owed_input(claimed, capsys):
         event["id"]
         for event in service_model.unacknowledged(
             events_model.read_events(claimed),
-            files_model.read_json(claimed / "cursor.json")["seq"],
+            read_record(claimed / "cursor.json")["seq"],
         )
     ] == [resolve["id"]]
 
@@ -1143,10 +1154,13 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
                 set(delivery_model.delivery_path(envelope["id"]).parent.glob("*.json"))
                 == deliveries
             )
+            assert not codex_records("codex-thread")
         else:
+            # The new owner is offered the update as Codex offers new input.
             assert envelope["id"] != original["id"]
+            [(offered, _)] = codex_records("codex-thread")
+            assert offered.stem == envelope["id"]
         assert events_model.read_cursor(page_dir) == cursor
-        assert not codex_records("codex-thread")
         [batch] = envelope["batches"]
         [event] = batch["events"]
         assert event["id"] == latest["id"]
@@ -1163,7 +1177,7 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
             ],
         )
         assert reply.exit_code == 0, reply.output
-        assert not page_state(page_dir)["activity"]["obligations"]
+        assert not owed_answers(page_dir)
         cleanup_model.prompt_turn("codex-thread", "active")
         hooks_model.cmd_hook(
             "codex",
@@ -1180,7 +1194,7 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
 
 
 def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys):
-    """A pick on a page item is owed a version that writes it in. The delivery says
+    """A pick on a page obligation is owed a version that writes it in. The delivery says
     so, the Stop hook and `idle` hold the agent to it, and the stamped version whose
     markup records the pick settles it — one rule, read by every consumer. An edit
     to a draft that asks nothing is carried by the log and owes nothing: it keeps a
@@ -1205,7 +1219,7 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys)
     )
     edited = state_json(claimed)
     [receipt] = edited["workflows"]
-    assert (receipt["input"], receipt["stage"], receipt["answer"]) == (
+    assert (receipt["input"], receipt["stage"], receipt["obligation"]) == (
         edit["id"],
         "sent",
         None,
@@ -1346,12 +1360,12 @@ def test_done_hands_over_a_pick_the_markup_must_still_record(claimed):
 
 @pytest.mark.parametrize("declared", ["shipped", "done-only"])
 def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared):
-    """A multiple-choice item finishes with Done. Until then a tick is the user's
-    own unfinished answer: it is not agent work, the banner does not count it as an
+    """A multiple-choice obligation finishes with Done. Until then a tick is the user's
+    own unfinished answer: it is not agent work, the panel does not count it as an
     update waiting, no delivery is prepared, and Stop does not
-    hold the turn. Done hands the item over, and the answer it owes is a version.
+    hold the turn. Done hands the obligation over, and the answer it owes is a version.
 
-    The tick is held because it is a move on a widget whose item stands open, not
+    The tick is held because it is a move on a widget whose obligation stands open, not
     because `choose` happens to answer some other group: a layer answering the
     group only by its Done holds the tick the same way."""
     if declared == "done-only":
@@ -1374,7 +1388,7 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared
         },
     )
     ticked = state_json(claimed)
-    assert [item["widget"] for item in items_on_user(ticked)] == ["choice"]
+    assert [item["widget"] for item in obligations_on_user(ticked)] == ["choice"]
     assert ticked["workflows"] == []
     assert ticked["activity"]["counts"]["total"] == 0
     assert ticked["activity"]["counts"]["pending"] == 0
@@ -1394,7 +1408,7 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared
         },
     )
     finished = state_json(claimed)
-    assert items_on_user(finished) == []
+    assert obligations_on_user(finished) == []
     [workflow] = owed(finished)
     assert workflow["answer"] == {"kind": "markup", "action": done["id"]}
     delivery = delivery_through(claimed, done["seq"])
@@ -1452,7 +1466,7 @@ def test_a_finished_queue_owes_every_card_the_user_moved(page_dir):
 
 
 def test_a_queue_in_a_thread_owes_nothing_until_it_is_finished(page_dir):
-    """A move leaving cards queued keeps the thread's item on the user."""
+    """A move leaving cards queued keeps the thread's obligation on the user."""
     (page_dir / "registry.json").write_text(
         json.dumps(
             queue_board_registry(json.loads((page_dir / "registry.json").read_text()))
@@ -1494,11 +1508,11 @@ def test_a_queue_in_a_thread_owes_nothing_until_it_is_finished(page_dir):
     sort("card-a", "i")
     sorting = state_json(page_dir)
     assert sorting["workflows"] == []
-    assert [item["widget"] for item in items_on_user(sorting)] == ["triage"]
+    assert [item["widget"] for item in obligations_on_user(sorting)] == ["triage"]
 
     sort("card-b", "r")
     finished = state_json(page_dir)
-    assert items_on_user(finished) == []
+    assert obligations_on_user(finished) == []
     assert sorted(item["coordinate"][1] for item in owed(finished)) == [
         "card-a",
         "card-b",

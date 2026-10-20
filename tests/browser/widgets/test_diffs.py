@@ -1,6 +1,7 @@
 """Diffs: comments, filtering and refreshes that keep the reader's inspection, file rows
 and their paths, the pinned file header, hunk landing, and print."""
 
+import json
 import re
 
 import pytest
@@ -30,6 +31,7 @@ from render_harness import (
     said,
     scroll_settled,
     select,
+    selection_field,
     sending,
     told,
     write,
@@ -37,6 +39,7 @@ from render_harness import (
 
 from browser.widgets import (
     _bound_diff,
+    expect_walk_says,
 )
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -55,6 +58,56 @@ LONG_DIFF_PATCH = (
 
 def long_diff(id):
     return f'<lf-diff id="{id}"><pre>{LONG_DIFF_PATCH}</pre></lf-diff>'
+
+
+def test_diff_wraps_prose_by_default_and_accepts_an_overflow_choice(browser, serve):
+    paragraph = "A changed paragraph should stay within the reader's width. " * 12
+
+    def patch(path):
+        return (
+            f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+            f"@@ -1 +1 @@\n-old\n+{paragraph}\n"
+        )
+
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Diff wrapping",
+                "".join(
+                    f'<lf-diff id="{name}"{attribute}><pre>{patch(path)}</pre></lf-diff>'
+                    for name, path, attribute in (
+                        ("prose", "README.md", ""),
+                        ("plain-text", "notes.txt", ""),
+                        ("code", "src/app.py", ""),
+                        ("forced-wrap", "src/long.py", ' overflow="wrap"'),
+                        ("forced-scroll", "notes.md", ' overflow="scroll"'),
+                    )
+                ),
+            )
+        ),
+    )
+    resized(page, 800, 900)
+    page.wait_for_function(
+        "() => document.querySelectorAll('lf-diff.lf-rendered').length === 5"
+    )
+    modes = page.evaluate("""() => Object.fromEntries(
+      [...document.querySelectorAll('lf-diff')].map(diff => {
+        const code = diff.shadowRoot.querySelector('code[data-code]');
+        return [diff.id, code.scrollWidth > code.clientWidth + 1];
+      })
+    )""")
+    assert modes == {
+        "prose": False,
+        "plain-text": False,
+        "code": True,
+        "forced-wrap": False,
+        "forced-scroll": True,
+    }, modes
+    prose_line = page.locator('lf-diff#prose [data-lf-datum=\'["README.md","new",1]\']')
+    prose_line.hover()
+    page.locator("lf-diff#prose .lf-diff-line-comment").last.click()
+    expect(page.locator(".lf-composer")).to_be_visible()
 
 
 # Scrolls the box with the given id 400px down and reads how far below the top of its
@@ -77,10 +130,12 @@ PINNED_IN_BOX = """async (id) => {
 def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve):
     """A diff's file header pins at the top of the box that scrolls it, whoever made the
     box scroll: a page rule, an inline style, `overflow: hidden`, and a column's sticky
-    sidebar each start `--lf-top` again, where each pinned the header the banner's
-    height below the box's top. The root keeps the banner's height though a page rule
-    makes it scroll, and a page's sticky box keeps the slot it met though another rule
-    makes it scroll, so both still stop at the banner's foot."""
+    sidebar each start `--lf-top` again, where each pinned the header the root's slot
+    below the box's top. The root keeps its slot though a page rule makes it scroll,
+    and a page's sticky box keeps the slot it met though another rule makes it scroll,
+    so both still stop at the slot's foot. No chrome stands at the window's head, so
+    the root's slot is the top safe-area inset, which the page stands in for here as a
+    notched phone would give it."""
     page = open_page(
         browser,
         serve(
@@ -95,7 +150,8 @@ def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve
                 '<div id="panel" class="tall"><p>Panel.</p></div>'
                 + "<p>Filler.</p>"
                 * 60,
-                head="<style>html { overflow-y: scroll; }"
+                head="<style>:root:root { --lf-safe-top: 40px; }"
+                "html { overflow-y: scroll; }"
                 "#box, .tall { max-height: 320px; overflow: auto; }"
                 "#panel { position: sticky; top: var(--lf-top); }</style>",
             )
@@ -124,14 +180,14 @@ def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve
     for box in ("box", "inline", "hidden", "side"):
         assert read[box]["scrolled"] == 400, read
         assert read[box]["gap"] == pytest.approx(0, abs=1.5), read
-    assert read["root"] != "0px" and read["panel"] == read["root"], read
+    assert read["root"] == "40px" and read["panel"] == read["root"], read
 
 
 def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve):
     """A page tab panel the page makes scroll is the box its diff's header pins to, though
     the tab strip stacks its height onto what the panel holds: the panel's own scroll
     restarts `--lf-top`. An undecided option card clips its rounded corners and scrolls
-    nothing, so a diff in an option pins under the banner as the page scrolls past it."""
+    nothing, so a diff in an option pins at the root's slot as the page scrolls past it."""
     page = open_page(
         browser,
         serve(
@@ -163,14 +219,14 @@ def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve
         return {{
             tab,
             option: head.getBoundingClientRect().top,
-            banner: parseFloat(getComputedStyle(document.documentElement)
+            top: parseFloat(getComputedStyle(document.documentElement)
                 .getPropertyValue('--lf-top')),
         }};
     }}"""
     )
     assert read["tab"]["scrolled"] == 400, read
     assert read["tab"]["gap"] == pytest.approx(0, abs=1.5), read
-    assert read["option"] == pytest.approx(read["banner"], abs=1), read
+    assert read["option"] == pytest.approx(read["top"], abs=1), read
 
 
 def test_inline_diff_lines_and_files_can_start_comments(browser, serve):
@@ -780,7 +836,7 @@ def test_a_diff_row_fills_to_the_end_of_its_line_and_to_the_end_of_a_narrow_box(
     page.locator('lf-diff [data-lf-datum=\'["app/routes.py","new",201]\']').evaluate(
         _SELECT_IN_ROW, "new route"
     )
-    page.get_by_role("button", name="Comment on selection").click()
+    selection_field(page).click()
     write(
         page.locator(".lf-composer leaf-text"),
         "A remark of the ordinary length a reviewer writes, long enough that the line it "
@@ -850,9 +906,9 @@ def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_tha
     nothing on screen saying whose lines these were, because the file's header stood in
     flow and scrolled away with its own first rows.
 
-    Pinned, the header stands exactly where the banner ends. A press then has to land
-    past it:
-    `scrollIntoView` reads the document's scroll-padding, which reserves the banner, and
+    Pinned, the header stands exactly at the root's sticky slot (`--lf-top`), the
+    window's head where no chrome stands over it. A press then has to land past it:
+    `scrollIntoView` reads the document's scroll-padding, which reserves that slot, and
     the header's own height is added to that as the rows' scroll-margin — measured,
     because a long path wraps and no stylesheet can work that number out.
 
@@ -862,9 +918,13 @@ def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_tha
     page = _bound_diff(browser, serve)
     page.emulate_media(reduced_motion="reduce")
 
+    slot = page.evaluate(
+        "() => parseFloat(getComputedStyle(document.documentElement)"
+        ".getPropertyValue('--lf-top'))"
+    )
     in_flow = page.evaluate(DIFF_LANDING)
-    assert in_flow["headTop"] > in_flow["bannerBottom"], (
-        f"the header already meets the banner before anything scrolled: {in_flow}"
+    assert in_flow["headTop"] > slot, (
+        f"the header already meets the slot before anything scrolled: {in_flow}"
     )
     page.evaluate(
         """() => {
@@ -875,15 +935,10 @@ def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_tha
         }"""
     )
     pinned = page.evaluate(DIFF_LANDING)
-    assert pinned["headTop"] == pinned["bannerBottom"], (
-        f"the file's name is not against the banner: {pinned}"
-    )
-    assert pinned["bannerBottom"] == in_flow["bannerBottom"], (
-        "the banner moved, so the header meeting it says nothing"
-    )
+    assert pinned["headTop"] == slot, f"the file's name is not at the slot: {pinned}"
     # The press drawn onto that line came with it. It stands outside the disclosure, so
     # nothing about the summary pinning moves it; placed against the file's top it stayed
-    # there and scrolled off under the banner, leaving the pinned header's column empty
+    # there and scrolled off past the slot, leaving the pinned header's column empty
     # and the file comment out of reach for the whole of the file it names. Reached by a
     # pointer as well as measured, because a box can stand on the line and still be
     # painted under the header.
@@ -898,19 +953,19 @@ def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_tha
     # its margin box, so a negative margin on the press lent it that much travel past
     # the file's end: with the header unpinned and gone, the press stood on for 32px of
     # scroll over the next file's header and that file's own press. Scrolled to where
-    # the file's foot is 15px under the banner's edge, the press's foot is no lower than
+    # the file's foot is 15px under the slot, the press's foot is no lower than
     # the file's.
     page.evaluate(
-        """() => {
+        """(slot) => {
             const file = document.querySelector('lf-diff').shadowRoot
                 .querySelector('.lf-diff-file').getBoundingClientRect();
-            const banner = document.querySelector('.lf-banner').getBoundingClientRect();
-            window.scrollBy(0, file.bottom - banner.bottom + 15);
-        }"""
+            window.scrollBy(0, file.bottom - slot + 15);
+        }""",
+        slot,
     )
     leaving = page.evaluate(DIFF_PRESS)
-    assert leaving["fileBottom"] < pinned["bannerBottom"], (
-        f"the file has not left the banner's edge, so nothing is being measured: {leaving}"
+    assert leaving["fileBottom"] < slot, (
+        f"the file has not left the slot, so nothing is being measured: {leaving}"
     )
     assert leaving["bottom"] <= leaving["fileBottom"], (
         f"the comment press outlives its file: {leaving}"
@@ -921,11 +976,11 @@ def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_tha
     page.keyboard.press("]")
     first = page.evaluate(DIFF_LANDING)
     assert first["line"] == "1", f"the first hunk of the first file: {first}"
-    expect(page.locator(".lf-walk-position")).to_have_text("Hunk 1 of 3")
+    expect_walk_says(page, "Hunk 1 of 3")
 
     page.keyboard.press("]")
     landed = page.evaluate(DIFF_LANDING)
-    expect(page.locator(".lf-walk-position")).to_have_text("Hunk 2 of 3")
+    expect_walk_says(page, "Hunk 2 of 3")
     assert landed["line"] == "40", (
         f"the next hunk starts at new line 40, which its @@ header says: {landed}"
     )
@@ -933,20 +988,69 @@ def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_tha
     assert landed["top"] >= landed["headBottom"], (
         f"the row it landed on is behind the file's own pinned header: {landed}"
     )
-    assert landed["headTop"] == landed["bannerBottom"], (
+    assert landed["headTop"] == slot, (
         f"the header is not pinned where the landing was measured against: {landed}"
     )
     page.keyboard.press("}")
-    expect(page.locator(".lf-walk-position")).to_have_text("File 2 of 2")
+    expect_walk_says(page, "File 2 of 2")
     page.keyboard.press("{")
-    expect(page.locator(".lf-walk-position")).to_have_text("File 1 of 2")
+    expect_walk_says(page, "File 1 of 2")
+
+
+def test_tab_onto_a_seat_under_the_pinned_file_name_brings_it_out(browser, serve):
+    """A thread seated in a diff stands in the code's sideways scroller, which starts
+    the sticky-header slot again for whatever sticks inside it but lands nothing down,
+    so the browser's own focus scroll still reads the file name pinned over the seat.
+    Tab from the seat's reply field onto the control beside it, both under the pinned
+    name, brings the control out from under it, where it had stayed hidden."""
+    datum = json.dumps([LONG_DIFF_PATH, "new", 3], separators=(",", ":"))
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Seated", f"<h1>Seated</h1>{long_diff('patch')}" + "<p>.</p>" * 40
+            ),
+            events=[
+                {
+                    "kind": "comment",
+                    "author": "user",
+                    "revision": 1,
+                    "text": "Why this value?",
+                    "anchor": {"section": "patch", "datum": datum},
+                }
+            ],
+        ),
+    )
+    resized(page, 1280, 720)
+    reply = page.locator("lf-diff .lf-diff-thread-outlet .lf-thread-reply leaf-text")
+    expect(reply).to_be_visible()
+    # The field just below the window's top, where the pinned name stands over it.
+    reply.evaluate(
+        "el => scrollBy({top: el.getBoundingClientRect().top - 4, behavior: 'instant'})"
+    )
+    scroll_settled(page)
+    reply.evaluate("el => el.focus({preventScroll: true})")
+    page.keyboard.press("Tab")
+    rendered(page)
+    read = page.evaluate(
+        """() => {
+        const root = document.getElementById('patch').shadowRoot;
+        const head = root.querySelector('.lf-diff-file > details > summary');
+        const seat = root.querySelector('.lf-diff-thread-outlet');
+        const focused = root.activeElement;
+        return {inSeat: seat.contains(focused), top: focused.getBoundingClientRect().top,
+                head: head.getBoundingClientRect().bottom};
+    }"""
+    )
+    assert read["inSeat"], read
+    assert read["top"] >= read["head"], read
 
 
 def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(
     browser, serve
 ):
     """The same two halves inside a full-height workspace pane, whose body is the box that
-    scrolls the rows. The header used to stop the banner's height below the pane's top,
+    scrolls the rows. The header used to stop the window's slot below the pane's top,
     because the offset it pinned at was the window's: rows scrolled past in the 42px
     above the name that headed them, and a `]` landing, which aligns to the pane's own
     top, put the row above its header. Where a sticking box stops is `--lf-top`, and a
@@ -981,7 +1085,7 @@ def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(
     page.locator("lf-diff").evaluate("node => { node.tabIndex = -1; node.focus(); }")
     page.keyboard.press("]")
     page.keyboard.press("]")
-    expect(page.locator(".lf-walk-position")).to_have_text("Hunk 2 of 3")
+    expect_walk_says(page, "Hunk 2 of 3")
     landed = page.evaluate(DIFF_LANDING)
     assert landed["line"] == "40", landed
     assert landed["headTop"] == pane["top"], (
@@ -1055,44 +1159,54 @@ _RING_WITHIN = """(el, frame) => {
 
 
 @pytest.mark.parametrize(
-    "engine, wide_host",
-    [("browser", True), ("webkit_browser", False), ("webkit_browser", True)],
-    ids=["chromium-outer-reader", "webkit-code", "webkit-outer-reader"],
+    "engine, hosts",
+    [("browser", ("wide",)), ("webkit_browser", ("narrow", "wide"))],
+    ids=["chromium", "webkit"],
 )
-def test_horizontal_wheel_reaches_the_diff_reader(request, serve, engine, wide_host):
-    """A fitting code box lets horizontal input reach its enclosing reader in WebKit too."""
-    source = leaf_page(
-        "Nested patch reader",
-        '<h1>Review</h1><div id="reader" data-bound="start">'
-        '<lf-diff id="patch"><pre>'
+def test_horizontal_wheel_reaches_the_diff_reader(
+    request, serve, subtests, engine, hosts
+):
+    """A fitting code box lets horizontal input reach its enclosing reader in WebKit too.
+    A narrow host scrolls its own code; a wide one fits it, so its reader scrolls."""
+    patch = (
         "diff --git a/reading.py b/reading.py\n"
         "--- a/reading.py\n+++ b/reading.py\n@@ -1 +1 @@\n"
         '-return "The previous release remains available for inspection."\n'
         '+return "The current release remains available for inspection."\n'
-        "</pre></lf-diff></div>",
-        head="<style>#reader { width: 500px; }"
-        f"#patch {{ width: {1000 if wide_host else 300}px; }}</style>",
     )
-    driver = request.getfixturevalue(engine)
-    url = serve(source)
-    page = open_page(driver, url)
+    source = leaf_page(
+        "Nested patch reader",
+        "<h1>Review</h1>"
+        + "".join(
+            f'<div id="reader-{host}" class="reader" data-bound="start">'
+            f'<lf-diff id="patch-{host}"><pre>{patch}</pre></lf-diff></div>'
+            for host in hosts
+        ),
+        head="<style>.reader { width: 500px; }"
+        "#patch-wide { width: 1000px; } #patch-narrow { width: 300px; }</style>",
+    )
+    page = open_page(request.getfixturevalue(engine), serve(source))
     resized(page, 1000, 900)
-    code = page.locator("#patch code[data-code]")
-    reader = page.locator("#reader") if wide_host else code
-    assert reader.evaluate("el => el.scrollWidth > el.clientWidth")
-    if wide_host:
-        assert code.evaluate("el => el.scrollWidth === el.clientWidth")
-    box = code.bounding_box()
-    assert box is not None
-    page.mouse.move(box["x"] + 120, box["y"] + 25)
-    page.mouse.wheel(200, 0)
-    page.wait_for_function(
-        "wide => { const host = document.querySelector('#patch'); "
-        "const box = wide ? document.querySelector('#reader') : "
-        "host.shadowRoot.querySelector('code[data-code]'); return box.scrollLeft > 0; }",
-        arg=wide_host,
-    )
-    assert reader.evaluate("el => el.scrollLeft") > 0
+    for host in hosts:
+        with subtests.test(host=host):
+            wide_host = host == "wide"
+            code = page.locator(f"#patch-{host} code[data-code]")
+            reader = page.locator(f"#reader-{host}") if wide_host else code
+            reader.scroll_into_view_if_needed()
+            assert reader.evaluate("el => el.scrollWidth > el.clientWidth")
+            if wide_host:
+                assert code.evaluate("el => el.scrollWidth === el.clientWidth")
+            box = code.bounding_box()
+            assert box is not None
+            page.mouse.move(box["x"] + 120, box["y"] + 25)
+            page.mouse.wheel(200, 0)
+            page.wait_for_function(
+                """host => { const patch = document.querySelector(`#patch-${host}`);
+                const box = host === 'wide' ? document.querySelector('#reader-wide') :
+                patch.shadowRoot.querySelector('code[data-code]'); return box.scrollLeft > 0; }""",
+                arg=host,
+            )
+            assert reader.evaluate("el => el.scrollLeft") > 0
 
 
 def test_a_diff_hunk_landing_preserves_sideways_reading_outside_its_shadow_tree(
@@ -1120,7 +1234,7 @@ def test_a_diff_hunk_landing_preserves_sideways_reading_outside_its_shadow_tree(
         before = page.locator("#sideways").evaluate("el => el.scrollLeft")
         assert before == left
         page.keyboard.press("]")
-        expect(page.locator(".lf-walk-position")).to_have_text("Hunk 1 of 3")
+        expect_walk_says(page, "Hunk 1 of 3")
         scroll_settled(page)
         assert page.locator("#sideways").evaluate("el => el.scrollLeft") == before
 

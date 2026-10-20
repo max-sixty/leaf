@@ -6,12 +6,11 @@ import {
 } from "./bundle-sample-child.js";
 import {
   USER_VIEW_RESTORE_CASES
-} from "./bundle-auxiliary-surfaces.js";
+} from "./bundle-restore-state.js";
 import {
   shallowSigs
 } from "./bundle-projection~presentation.js";
 import {
-  BANNER_CONTROL_RANK,
   PAGE_SCOPE,
   SAY_BOX,
   THREAD,
@@ -21,24 +20,15 @@ import {
   captureDraftEditing,
   claimed,
   completeReadingReturn,
-  draftEditingStands,
   draftStore,
   fitsWhole,
-  heldItem,
-  heldThreadId,
-  markBannerControl,
+  heldObligation,
   pageScopes,
   placeOf,
   readingBlock,
   readingReturn,
-  registerBannerControl,
-  replyDestination,
   replyIsEditing,
-  restrictUserIntent,
-  returnToBannerControl,
   selectionAnchor,
-  showBannerControl,
-  showNews,
   storedDraft,
   surfaceFocusTarget,
   tabStore,
@@ -47,7 +37,6 @@ import {
   walkPosition,
   whereDraft
 } from "./bundle-user-intent.js";
-import "./bundle-errors.js";
 import {
   domValue
 } from "./bundle-widget-upgrade.js";
@@ -107,7 +96,6 @@ import {
 } from "./bundle-passage-facts.js";
 import {
   allBindings,
-  bannerFoot,
   commandDeclarationsWithin,
   commandEntries,
   commandPresentations,
@@ -125,6 +113,7 @@ import {
   shownBand,
   shownBox,
   shownRect,
+  skipped,
   stackLevel,
   stuckBox,
   uiInside,
@@ -143,16 +132,17 @@ import {
 } from "./bundle-semantic-state.js";
 import {
   WORKS,
+  frameVisibility,
+  onFrameVisibility,
   onStanding,
   readSampleVisibility,
   releaseFocus,
   renderedParent,
   renderingState,
-  sampleVisibility,
   tabStops,
   takesLetters,
   upFrom
-} from "./bundle-sample-visibility.js";
+} from "./bundle-frame-visibility.js";
 import {
   bindQueuedWork,
   createPresentationSchedule,
@@ -163,6 +153,7 @@ import "./bundle-__export.js";
 // runtime/validation.js
 function validationWidgetStates(eventIds = null) {
   return [...selectWidgets(eventIds)].map(([id, { state, specs }]) => ({
+    id,
     get widget() {
       return elementById(id);
     },
@@ -172,7 +163,6 @@ function validationWidgetStates(eventIds = null) {
 }
 export {
   ADDRESSABLE,
-  BANNER_CONTROL_RANK,
   PAGE_SCOPE,
   SAY_BOX,
   TEXT_BLOCK,
@@ -190,7 +180,6 @@ export {
   annotationSheets,
   applicationPresented,
   availableCommandRoutes,
-  bannerFoot,
   bindQueuedWork,
   blocksOnScreen,
   bringBackSurfaceOf,
@@ -205,7 +194,6 @@ export {
   commandRoutes,
   completeReadingReturn,
   createPresentationSchedule,
-  draftEditingStands,
   draftStore,
   dragHeld,
   effectiveScroller,
@@ -216,16 +204,16 @@ export {
   findQuote,
   fitsWhole,
   flashDuration,
+  frameVisibility,
   growthAfterIsSeen,
-  heldItem,
-  heldThreadId,
+  heldObligation,
   landingBand,
   layoutBox,
   live,
-  markBannerControl,
   marksSheet,
   nativeLayers,
   observeQueuedWork,
+  onFrameVisibility,
   onStanding,
   pageDocument,
   pageRange,
@@ -243,20 +231,15 @@ export {
   readingRegions,
   readingReturn,
   recordInteraction,
-  registerBannerControl,
   registerSampleCommand,
   releaseFocus,
   releaseReachStop,
   renderedParent,
   renderingState,
-  replyDestination,
   replyIsEditing,
   resolveAnchor,
-  restrictUserIntent,
-  returnToBannerControl,
   reveal,
   runtimeRootState,
-  sampleVisibility,
   scrollAxes,
   scrollersOf,
   seenRect,
@@ -265,12 +248,11 @@ export {
   sentenceUnits,
   settledAway,
   shallowSigs,
-  showBannerControl,
-  showNews,
   shownBand,
   shownBox,
   shownRect,
   shownRegionBounds,
+  skipped,
   spanIn,
   stack,
   stackLevel,

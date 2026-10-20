@@ -88,9 +88,10 @@ import {
 } from "./margin-placement.js";
 import { clamp, clippingAxes, overlaps, union } from "../rect.js";
 import { passageBoxes, targetRange, targetSegments } from "../resolved-target.js";
-import { residencyStarted } from "../content-layout.js";
+import { railStands } from "../content-layout.js";
 import { keeps, layoutPx } from "../keeps.js";
 import { move } from "../dom-move.js";
+import { coarsePointer } from "../pointer.js";
 import { LAYOUT } from "../widget-elements.js";
 import { inChrome } from "../passages.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
@@ -139,14 +140,15 @@ const GAP = 4;
 // The id of the thread card a margin row opens (thread-preview.js).
 export const THREAD_CARD = "lf-margin-preview";
 // A row the user holds, which packing seats before every other (`packRows`): one under
-// the pointer, with focus in it, with its options open, or whose entry has the thread
+// the pointer, with focus in it, with an entry a finger holds to read (held-word.js),
+// with its options open, or whose entry has the thread
 // card open, as that entry's disclosure relation says (margin-projection.js,
 // `syncReadingRelation`). Opening options can move focus before the next layout pass;
 // the open face itself keeps its controls reachable. The card stands relative to its
 // row (thread-preview.js), so a seated row whose target moves into it would
 // otherwise push the row down and the card the user is reading with it.
 // `optionsOpen` includes ordinary inline peers; only a requested expansion holds a seat.
-const HELD = `:hover, :focus-within, [data-lf-options-expanded], :has([aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
+const HELD = `:hover, :focus-within, :has([data-lf-held-word]), [data-lf-options-expanded], :has([aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
 let pending = 0;
 let observer = null;
 let observedColumn = null;
@@ -260,9 +262,6 @@ function carrierAnchor(subject, sources, scroller) {
 // The margin follows `main` or, on a page without one, the body.
 export const marginColumn = () => layoutBox() || document.body;
 
-const railStands = (main) =>
-  (main.getAttribute("data-lf-margin") ?? "").split(" ").includes("rail");
-
 // The rail lies beside the column, so it stands beside the rows of what flows in the
 // column: the document's own, and a bounded block's, which scrolls inside the document
 // as a paragraph does. A pane is not in that flow, so its rows pin wherever it stands.
@@ -365,19 +364,8 @@ function samePassage(passage, words) {
   );
 }
 
-// Said on the chrome root where the margin's residency is decided: where the markers are
-// pins, the banner offers the Page Map in their place (chrome.css). Until the residency
-// is decided it says nothing, rather than one answer the decision then takes back.
 export function syncMarginResidency(changed) {
-  paintPins();
   if (changed) scheduleMarginLayout();
-}
-function paintPins() {
-  if (!residencyStarted()) return;
-  const main = layoutBox();
-  layer?.root
-    .closest(".lf-chrome")
-    .toggleAttribute("data-lf-pins", !main || !railStands(main));
 }
 
 const labelRect = (name, left, top, label) => ({
@@ -398,7 +386,7 @@ function placeMarginEntryLabel(control) {
   }
   const marginEntryBox = control.getBoundingClientRect();
   const labelBox = label.getBoundingClientRect();
-  // The window the page shows, under the banner and over the bottom bar (geometry.js).
+  // The window the page shows, over the floating panel's room (geometry.js).
   const room = shownWindow({ gap: 4 });
   const edgeAligned = Math.max(
     room.left,
@@ -413,12 +401,16 @@ function placeMarginEntryLabel(control) {
   const clusterLeft = Math.min(...clusterMarginEntries.map((box) => box.left));
   const clusterRight = Math.max(...clusterMarginEntries.map((box) => box.right));
   const centered = (marginEntryBox.top + marginEntryBox.bottom - labelBox.height) / 2;
-  const candidates = [
+  const [below, above, after, before] = [
     labelRect("below", edgeAligned, marginEntryBox.bottom + 6, labelBox),
     labelRect("above", edgeAligned, marginEntryBox.top - 6 - labelBox.height, labelBox),
     labelRect("after", clusterRight + 6, centered, labelBox),
     labelRect("before", clusterLeft - 6 - labelBox.width, centered, labelBox),
   ];
+  // A finger holding the entry to read its label covers what lies below it.
+  const candidates = coarsePointer.matches
+    ? [above, before, after, below]
+    : [below, above, after, before];
   const blockers = [
     ...document.querySelectorAll(".lf-margin-projection .lf-margin-entry"),
   ]
@@ -482,7 +474,6 @@ export function scheduleMarginEntryLabels() {
 // here, rather than per lane: a table or a board scrolled sideways is no lane of its own.
 export function mountMarginLayer(root) {
   layer = { root, lanes: new Map(), sizes: sizeObserver(layoutMarginRows) };
-  paintPins();
   hearTargetChanges(document);
 }
 

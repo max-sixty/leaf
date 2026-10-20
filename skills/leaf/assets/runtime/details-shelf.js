@@ -27,7 +27,7 @@
  *
  * Nothing on the shelf is a Tab stop: from the chrome it would come after the whole
  * page, away from the element it is about, so each owner takes its controls out of the
- * Tab order. The shelf stands fixed under the banner, so a note focused at rest moves
+ * Tab order. The shelf stands fixed at the window's head, so a note focused at rest moves
  * nothing (chrome.css). Focus on a note stands at its element (standing-target.js).
  */
 import { chromeRoot } from "./chrome.js";

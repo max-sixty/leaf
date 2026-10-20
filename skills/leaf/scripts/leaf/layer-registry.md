@@ -42,8 +42,8 @@ records its identities under `$layer`:
   Claude Code's Git-versioned plugin cache, and how old that commit is: `committed`,
   its committer date, where Git can read it, or `installed`, when the plugin cache
   copied it without `.git`, one update sweep after it landed. The page exposes that
-  identity and its age in its low-frequency banner controls; a press copies the full
-  layer diagnostics. A harness can ask its running payload for the same source identity
+  identity and its age in the floating panel's menu (Copy Leaf version); a press
+  copies the full layer diagnostics. A harness can ask its running payload for the same source identity
   and date with `leaf --version`.
 - `server` is the SHA-256 identity of the payload's Python serving code,
   `pyproject.toml`, and `uv.lock`. It excludes the interpreter version because a site
@@ -92,28 +92,44 @@ page an older one vendored. Bump the number when a page an older Leaf vendored a
 would break under this one: the served state, a runtime module the server relies on,
 or an event drops, renames or changes the meaning of something the other side reads,
 or a field the page's runtime sends becomes required.
-Adding a field or kind the older code ignores needs no bump. The browser build holds
-the event contract to this: it keeps the contract as it last stood at the current
-number (`build/browser/protocol-contract.d.ts`), and `protocol.test.ts` fails a
-change that drops a kind or a field at any depth, requires a new one, or narrows a
-value's type or constant, until the change takes what it took or the number moves.
+Adding a field the older code ignores needs no bump. The browser build holds the
+event records and the served state to this. It keeps `$events`,
+`served_state/state.schema.json`, the one declaration of the served state and of the
+`/api/view` answer, and `schema.VERB_SCHEMA` for the x-state verb the state carries,
+as they last stood at the current number (`build/browser/protocol-baseline.json`), and
+`build/browser/protocol.mjs` compares each build's schemas with them. It fails a change
+to what a page sends or holds that drops a kind or a field at any depth, requires a new
+field, or tightens a constraint, such as a narrower type, enum or constant, a changed
+pattern or a lower maximum, until the change takes what it took or the number moves.
+The served state runs the other way, since a page's older runtime reads what this Leaf
+serves: the check fails a change that stops serving a field or loosens a constraint,
+such as one that makes a field nullable, raises a maximum or adds an event kind. An
+event record holds both ways, since the state carries every kind. The check lays each
+schema beside its baseline keyword by keyword, comparing a reference by its text and
+its target where it is declared, and compares patterns and conditional clauses only
+for equality, so changing one fails even where it loosens.
 
-The check reads the types generated from the schemas, which carry no patterns,
-bounds or conditional clauses, so a change to one of those is the author's to judge. The promise runs one
-way: an older Leaf serving a page a newer one vendored may refuse a field it does not
-know. Every page vendored before a bump, and one vendored before the number was
+The promise runs one way: an older Leaf serving a page a newer one vendored may refuse
+a field it does not know. Every page vendored before a bump, and one vendored before the number was
 declared, is refused until `leaf page init` re-vendors it, which the first command or
 hook of the session holding the page runs itself (`vendoring.renew_layer`).
 
 The number is also the only version of what Leaf keeps outside a page's log and
-document: the delivery envelope and the Codex record of one in the state home, which
-every installed Leaf on the machine shares, the page's `user-views.json`, and the
-composer's draft in browser storage, which outlives a re-vendor. Each carries
-`leaf-<kind>/<protocol>` in its `format` (`registry.kernel.record_format`, and
-`runtime/protocol.js` generated from the same number), and a reader at another number
-leaves it alone: it ignores the record, or keeps a draft's words without its drawing.
-So a change to one of those shapes that an older reader would misread bumps the number
-too.
+document: every JSON record in a page directory or in the state home, which every
+installed Leaf on the machine shares (`state.Record`), and the composer's draft in
+browser storage, which outlives a re-vendor. Each carries `leaf-<kind>/<number>`
+in its `format`, and a reader at another format leaves it alone: it reads the record
+as absent, or keeps a draft's words without its drawing.
+A record's number is its `since`, the protocol at which its own shape last changed,
+so a bump for another change leaves a session's claim, its delivery cursor and a
+page's port readable. A change to a record's shape that a reader at the same format
+would misread sets its `since` to the current protocol, bumping the protocol first
+where `since` already names it. The same build check holds this: the baseline keeps
+each record's schema at its `since`, and fails a change at the same `since` that a
+reader at either end would misread, or a `since` moved anywhere but the current
+protocol. The composer's draft is held the same way: its format names
+`$events.draft_since`, and the baseline keeps the comment record's `drawing`, the part
+of a draft its format guards, beside the records.
 
 The render gate's probes are outside the number. They come from the Leaf running the
 check and import `check-api.js` and `widget-api.js` from the page's runtime, so a
@@ -130,12 +146,16 @@ Every composition writes these facts the browser reads instead of deriving
 - `$decisions`, each widget's deciding `x-state` verb and the member tags each of its
   outcomes retires;
 - `$states`, each `x-state` verb's writer and the operation definition an admitted
-  event records, which the browser compares a recorded definition with;
-- `$marks`, each declaration a stylesheet reads, with the attribute it is painted as,
-  the attribute an occurrence overrides it with, and whether it holds in a thread
-  message (`schema.DECLARED_MARKS`).
+  event records, which the browser compares a recorded definition with.
 
 `page init` stamps them into the layer, and a page's composition stamps them again
-over its own declarations, overwriting any declared `$decisions`, `$states` or
-`$marks`.
-Delivery paints a page document's marks from the same table.
+over its own declarations, overwriting any declared `$decisions` or `$states`.
+
+The kernel registry declares the rest of what both runtimes read, and the build
+generates the browser's copy of each (`build/registry.mjs`), so none is stamped and
+a layer that changes one is refused (`registry.layer.KERNEL_FACTS`):
+`$marks`, each declaration a stylesheet reads with the attribute it is painted as,
+which delivery paints into a page's document and the runtime into a message it
+renders; `$names`, the widget and attribute name grammars; `$authored`, the page-wide
+declarations an author writes for the runtime, whose values type the runtime's
+readers; and the classifications on each `$events.kinds` entry (`registry.kernel`).

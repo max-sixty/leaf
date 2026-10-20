@@ -85,7 +85,7 @@ def test_a_visual_review_in_flow_takes_its_evidence_height(browser, serve):
 
 def test_a_visual_review_in_flow_keeps_its_navigation_over_a_tall_pair(browser, serve):
     """Scrolling a document through a pair taller than the window keeps the case
-    navigation stuck under the banner and the view controls under it, and focusing
+    navigation stuck at the window's head and the view controls under it, and focusing
     either where it sticks leaves the page where it is."""
     url = serve(VISUAL_REVIEW_GALLERY)
     stamp_page(
@@ -116,13 +116,12 @@ def test_a_visual_review_in_flow_keeps_its_navigation_over_a_tall_pair(browser, 
     scroll_settled(page)
     read = """() => {
       const box = (selector) => document.querySelector(selector).getBoundingClientRect();
-      const banner = document.querySelector('.lf-banner').getBoundingClientRect().bottom;
-      return {banner, queue: box('#visual-review-run .lf-vr-queue'),
+      return {queue: box('#visual-review-run .lf-vr-queue'),
               toolbar: box('#visual-review-run .lf-vr-case[data-selected] .lf-vr-toolbar-slot'),
               y: document.scrollingElement.scrollTop};
     }"""
     stuck = page.evaluate(read)
-    assert stuck["queue"]["top"] == pytest.approx(stuck["banner"], abs=1), stuck
+    assert stuck["queue"]["top"] == pytest.approx(0, abs=1), stuck
     assert stuck["toolbar"]["top"] == pytest.approx(stuck["queue"]["bottom"], abs=1), (
         stuck
     )

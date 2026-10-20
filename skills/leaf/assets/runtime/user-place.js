@@ -75,8 +75,7 @@ import { recentPlaceInput, focused } from "./focus.js";
 // them (geometry.js, `seenRect`), and it is not riding in a stuck sticky box
 // (`stuckBox`) or the window's chrome (`inWindowChrome`). A user who scrolled away from
 // the control they stand on is reading something else, though the control keeps focus,
-// and a stuck tab strip, title or reply row, like the banner and the floating panel's
-// row, stays in view over whatever they scroll to, so it names no place in what it holds.
+// and a stuck tab strip, title or reply row, like the floating panel's row, stays in view over whatever they scroll to, so it names no place in what it holds.
 // A reflow then holds, and a landing returns them to, what they see instead. A render
 // holding the box they type in (reply-landing.js, `holdBox`), a reading place
 // (reading-place.js, `capturePlace`), and revision continuity (version.js), for the

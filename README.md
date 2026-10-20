@@ -9,14 +9,14 @@ or follow live work in a page you can comment on and change. The agent responds 
 revising the page.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/4fb9a89655ddd7a0e04af34f2818f27d4b7e79c9/demo/session-dark.png">
-  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/4fb9a89655ddd7a0e04af34f2818f27d4b7e79c9/demo/session-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/c68879580a891f99ada806e89ec8aec1cdc41e78/demo/session-dark.png">
+  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/c68879580a891f99ada806e89ec8aec1cdc41e78/demo/session-light.png">
 </picture>
 
 <details>
 <summary>Watch the comment-and-revision loop</summary>
 
-![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/4fb9a89655ddd7a0e04af34f2818f27d4b7e79c9/demo/demo.gif)
+![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/c68879580a891f99ada806e89ec8aec1cdc41e78/demo/demo.gif)
 
 </details>
 
@@ -103,17 +103,17 @@ Allowing `127.0.0.1` lets every sandboxed command reach any server listening on
 this machine's loopback, Leaf's bridge among them, and through the bridge run
 `leaf` commands with your own access, as Leaf's hooks already run.
 
-Codex's sandbox gives a command no such route. To have `leaf` commands run outside
-it without asking, add a rules file, such as `~/.codex/rules/leaf.rules`, and
-restart Codex:
+Codex's sandbox gives a command no such route, so Leaf's Codex plugin adds an MCP
+server, `leaf`, which Codex starts outside the sandbox. In the sandbox the agent runs
+`leaf` commands with the server's `run` tool. The first time, Codex asks whether to
+allow the tool, for the session or always. Allowing it lets the agent run any `leaf`
+command with your own access, including a package's scripts, with arguments it
+chooses. To allow it without being asked, add this to `~/.codex/config.toml`:
 
+```toml
+[plugins."leaf@leaf".mcp_servers.leaf]
+default_tools_approval_mode = "approve"
 ```
-prefix_rule(pattern = ["leaf"], decision = "allow")
-```
-
-The agent still chooses each command's arguments, such as the directory `page init`
-writes to. The rule applies only where the whole command line is `leaf` commands,
-so one chained after `cd` or piped into another program stays in the sandbox.
 
 </details>
 

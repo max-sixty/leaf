@@ -53,7 +53,7 @@ The optional bundled packages are:
 | Package         | Adds                                                                                                                              |
 | --------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | `code-review`   | Instructions for writing a review; select it with the evidence packages the page needs.                                           |
-| `diagram`       | `lf-diagram` and its Mermaid renderer.                                                                                            |
+| `diagram`       | `lf-diagram`, rendering Mermaid syntax with Pele.                                                                                 |
 | `diff`          | `lf-diff` (`unified-diff` data) and `lf-call-diff` (`calldiff` JSON), linked to exact patch lines.                                |
 | `file-editor`   | `lf-file-editor`, a CodeMirror editor for a bound local text file.                                                                |
 | `file-tree`     | `lf-file-tree`, a searchable navigator for a file list or another widget’s typed file inventory, following its opaque datum keys. |
@@ -137,7 +137,7 @@ Custom properties come in four kinds:
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Theme inputs        | Page authors and themes set them on the root, or on a subtree: colours (`--paper`, `--ink`, `--muted`, `--accent`, `--ok`, `--danger`), faces (`--serif`, `--sans`, `--mono`), type scales, radius (`--r`), the code palette (`--code-*`), focus (`--focus-ring` and `--focus-shadow`, set together), and page geometry (`--col`, `--wide`, `--sidebar`, `--page-pad-start`, `--page-pad-end`). A value derived from an input is computed where it is declared, so setting the input on a subtree doesn't change a derived value it inherits. |
 | Layout declarations | The box that allocates space sets `--lf-full-height`, `--lf-density`, `--lf-block-frame` and `--lf-holds-edge`, as `package-themes.md`, "A theme change", describes.                                                                                                                                                                                                                                                                                                                                                                          |
-| Runtime outputs     | Leaf writes values such as `--lf-thread-panel-width` and anchor geometry. Read them; don't set them.                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Runtime outputs     | Leaf writes values such as `--lf-root-headers` and anchor geometry. Read them; don't set them.                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | Vendor bridges      | An adapter maps Leaf inputs to a dependency's properties, such as `--diffs-*` and `--plot-background`. Change the Leaf input, not each use.                                                                                                                                                                                                                                                                                                                                                                                                   |
 
 A `--lf-` prefix doesn't make a property an input; most are outputs. A package
@@ -184,8 +184,8 @@ colours with the page's status.
 
 An element declaration is a JSON Schema over the element's attributes, plus `x-` keys
 that say how Leaf treats the tag, such as whether a module upgrades it, its action verbs
-and whether it puts an item on On me. The merged registry's `$keys` entry defines each
-key; `$state` defines the members of `x-state`, and `$awaits` an item's answer. Every
+and whether it puts an obligation on On me. The merged registry's `$keys` entry defines each
+key; `$state` defines the members of `x-state`, and `$awaits` an obligation's answer. Every
 declaration has a `description` saying what the widget is for and when to use it, and a
 valid `x-example`. The optional `x-instructions` gives the choices and obligations of
 using it.

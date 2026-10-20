@@ -1,12 +1,5 @@
 /* Focus readings shared by thread paint and commands. */
-import {
-  drawn,
-  focusDestination,
-  holdStanding,
-  forwardFocus,
-  focused,
-  onPress,
-} from "../focus.js";
+import { drawn, focusDestination, holdStanding, focused, onPress } from "../focus.js";
 import { shownBox } from "../geometry.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { closestAcross } from "../passages.js";
@@ -18,16 +11,9 @@ import { allThreads } from "./state.js";
 import { replyAvailable, replyControlDestination, replyThreadKey } from "./replies.js";
 import { threadKey } from "./model.js";
 
-// Native disclosure owns the panel thread's focus stop. Inline divs have no summary,
-// so their established root remains the destination.
-export const threadFocusStop = (thread) =>
-  thread.querySelector(":scope > summary:not([hidden])") ?? thread;
+// A drawn thread's root is where the user stands on it.
 export function focusThread(thread, cause) {
-  focusDestination(threadFocusStop(thread), cause);
-}
-// The Threads list handing the focus it is gaining on to the open thread's title.
-export function forwardToThread(thread) {
-  forwardFocus(threadFocusStop(thread));
+  focusDestination(thread, cause);
 }
 
 // A drawn thread's own parts: the box its reply is written in, and the control that
@@ -81,35 +67,17 @@ export function threadPart(thread, name) {
 
 export const threadReplyInput = (thread) => {
   const input = thread && threadPart(thread, "reply");
-  return input && (shownBox(input).height || input.lfRevealReply) ? input : null;
+  return input && shownBox(input).height ? input : null;
 };
 
-// A closed native disclosure is its own first stop. An explicit reply can name a
-// compact editor before it has height: the editor's reveal owns opening it on focus.
 export function threadFocusDestination(thread, { part = "reply" } = {}) {
-  const summary = thread?.querySelector(":scope > summary");
-  return (
-    (part === "thread" ? threadFocusStop(thread) : null) ??
-    (summary && !thread.hasAttribute("open") ? summary : null) ??
-    threadReplyInput(thread) ??
-    threadFocusStop(thread)
-  );
+  return (part === "thread" ? thread : null) ?? threadReplyInput(thread) ?? thread;
 }
 
-// An inline thread root may itself hold focus. A control inside it keeps its own
-// command scope, while panel summaries are mapped by focusedThreadTarget below.
-function focusedThread() {
-  const active = focused();
-  return active?.matches?.(THREAD) ? active : null;
-}
-
-// A native panel summary stands for its details in commands that move the whole
-// thread. Controls deeper in the thread keep their own command scope.
+// The thread whose root holds focus. A control inside it keeps its own command scope.
 export function focusedThreadTarget() {
   const active = focused();
-  return active?.matches?.(".lf-thread-summary")
-    ? active.closest(".lf-thread")
-    : focusedThread();
+  return active?.matches?.(THREAD) ? active : null;
 }
 
 // The thread the user is in, wherever it is drawn — the Threads list, the margin card, a
@@ -218,8 +186,17 @@ async function threadDestination(id, open, may) {
 
 const carried = new WeakSet();
 let carrying = null;
+// A seat can appear later in the pass, after its former margin card closes. The
+// close must defer its landing while the thread and the user's intent still stand;
+// `may` checks for the new seat only when the pass chooses its destination. A reply
+// already has its own availability rule, including a draft in a resolved thread.
 export const carryingThreadPlace = (node) =>
-  Boolean(node) && carrying?.node === node && carrying.may();
+  Boolean(node) &&
+  carrying?.node === node &&
+  (carrying.reply
+    ? carrying.may()
+    : carrying.intent() &&
+      allThreads().some((thread) => thread.id === carrying.id && !thread.resolved));
 export function holdThreadPlace(open, { threadAt, seated }) {
   carrying = null;
   const held = holdStanding();
@@ -248,7 +225,7 @@ export function holdThreadPlace(open, { threadAt, seated }) {
         () =>
           allThreads().some((each) => each.id === id && !each.resolved) && seated(id),
       );
-  const carry = { node, may };
+  const carry = { node, id, intent, may, reply: Boolean(destination) };
   carrying = carry;
   return async () => {
     try {

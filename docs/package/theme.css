@@ -1,6 +1,6 @@
 /* Product-site furniture. Published examples keep their authored Leaf layer. */
 
-/* Leaf's banner already opens every product page, so the column starts at the runtime's
+/* The site's nav opens every product page, so the column starts at the runtime's
  * narrow-screen top padding at every width. Every Layout reads the room above the page
  * from this token. */
 body.site-page {

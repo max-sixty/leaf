@@ -43,6 +43,7 @@ import turbohtml
 from .layer import CASCADE_LAYERS
 from .passages import markdown_markup
 from .registry.contract import is_element_name, prepaint_markup
+from .registry.kernel import kernel_marks
 from .revision_artifact import (
     Resource,
     RevisionArtifact,
@@ -52,7 +53,6 @@ from .revision_artifact import (
 )
 from .schema import (
     BROWSER_DIRS,
-    DECLARED_MARKS,
     MEDIA_DIR,
     RENDER_CHECKS_DIR,
     VENDORED_FILES,
@@ -65,7 +65,6 @@ from .structure import (
     element_attrs,
     page_layout,
     rel_tokens,
-    review_mode,
     rewrite_attribute_references,
     script_kind,
     source_index,
@@ -276,9 +275,22 @@ def rebase_document(
                 if delivered != body:
                     edits.append((start, end, delivered))
 
-    for start, end, value in sorted(edits, reverse=True):
-        source = source[:start] + value + source[end:]
-    return source
+    return _spliced(source, edits)
+
+
+def _spliced(source: str, edits: list[tuple[int, int, str]]) -> str:
+    """`source` with each `(start, end, text)` edit's range replaced by its text.
+
+    The ranges must not overlap. Edits at one offset land in the order their texts
+    sort. Joining the pieces once keeps delivery linear in the page's size, where
+    splicing each of a large page's thousands of marks into a fresh copy was not."""
+    pieces = []
+    at = 0
+    for start, end, text in sorted(edits):
+        pieces += (source[at:start], text)
+        at = end
+    pieces.append(source[at:])
+    return "".join(pieces)
 
 
 def media_size(data: bytes) -> tuple[int, int] | None:
@@ -334,15 +346,17 @@ def mark_declared(
     *,
     initial: bool = False,
 ) -> str:
-    """Paint each element's declared marks (`DECLARED_MARKS`) onto its start tag, the
-    rest byte-for-byte, the size of the page media it names, and its declared
+    """Paint each element's declared marks (`registry.kernel.kernel_marks`) onto its
+    start tag, the rest byte-for-byte, the size of the page media it names, and its declared
     `x-prepaint` as its first child. With `initial`, an `x-initial` host receives
     an inert source template and a parser invocation immediately after that template
     closes. The complete host is then inserted and drawn in one synchronous turn;
     nested initial hosts share the outer template and draw deepest-first.
 
     The opening script writes only the fixed template delimiter at the parser's
-    active insertion point. With scripts disabled, or in a DOMParser source reading,
+    active insertion point. Each script removes itself as it runs, so the host keeps
+    its authored siblings, and a rule for the first or last child still finds it. With
+    scripts disabled, or in a DOMParser source reading,
     no template opens and the unmatched closing delimiter is ignored: the one raw
     authored host remains readable, including code containing raw-text delimiters.
 
@@ -376,7 +390,7 @@ def mark_declared(
             element.closest("main") is not None
         )
         marks = {}
-        for key, mark in DECLARED_MARKS.items():
+        for key, mark in kernel_marks().items():
             declared = declaration.get(key)
             means = {"content": content, "declared": bool(declared)}
             authored = mark.get("authored")
@@ -452,7 +466,7 @@ def mark_declared(
                     (
                         "<script data-lf-runtime data-lf-initial>"
                         'document.write("<template data-lf-runtime data-lf-initial-source>");'
-                        "</script>"
+                        "document.currentScript.remove();</script>"
                     ),
                 )
             )
@@ -468,9 +482,7 @@ def mark_declared(
                     ),
                 )
             )
-    for offset, text in sorted(edits, reverse=True):
-        source = source[:offset] + text + source[offset:]
-    return source
+    return _spliced(source, [(offset, offset, text) for offset, text in edits])
 
 
 def initial_scripts(
@@ -747,9 +759,7 @@ def compose_document(
     hears of it, so it comes before that. Used `x-initial` bundles follow it and
     register the package producers that the body's parser invocations run; and it
     stands before the theme, since a
-    script after a stylesheet still loading waits for it. The root carries the host's attributes, the page's
-    declared review (`data-lf-review`), which the render-blocking theme reads to
-    reserve the banner a sign-off page will draw before the runtime draws it, and the
+    script after a stylesheet still loading waits for it. The root carries the host's attributes and the
     page's Layout (`data-lf-layout`), whose body rules must hold before `main` is parsed. The
     import map precedes every script, since a browser reads no map once a module has
     begun to load.
@@ -835,9 +845,7 @@ def compose_document(
             )
         )
     root = dict(delivery.html_attributes)
-    if (review := review_mode(document)) is not None:
-        root["data-lf-review"] = review
-    if (layout := page_layout(document)) is not None:
+    if (layout := page_layout(document, registry)) is not None:
         root["data-lf-layout"] = layout
     if root:
         attributes = _attributes(root)

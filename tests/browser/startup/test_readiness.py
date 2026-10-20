@@ -22,19 +22,28 @@ from render_harness import (
     EXAMPLES,
     LONG_PAGE,
     consume_browser_errors,
-    expect_banner_control_offered,
-    expect_items_answered,
+    expect_obligations_answered,
+    expect_panel_offers,
     leaf_page,
     open_page,
     open_versions,
     page_comment,
+    panel_field,
+    panel_menu,
+    panel_settled,
     refuse,
     reported_browser_errors,
+    selection_field,
     sending,
     watched,
 )
 
+from browser.threads import open_panel_thread
+
 pytestmark = pytest.mark.shifts_unsurveyed
+
+# The status the panel's empty field says while the first state answer is held.
+LOADING = re.compile("^Loading saved state…")
 
 
 VISUAL_ACTION_TIMING = """
@@ -183,9 +192,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
     authored_note.select_text()
     # A script-selected passage offers the explicit route; only a completed native
     # selection gesture raises the adjacent field automatically.
-    comment_selection = page.get_by_role(
-        "button", name="Comment on selection", exact=True
-    )
+    comment_selection = selection_field(page)
     expect(comment_selection).to_be_visible()
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     comment_selection.click()
@@ -250,7 +257,7 @@ def test_playground_joins_initial_widget_settlement(browser, serve):
     expect(playground.locator(".lf-playground-actions")).to_be_visible()
     submit = playground.get_by_role("button", name="Create notification")
     expect(submit).to_be_disabled()
-    expect(page.locator(".lf-status-text")).to_have_text("Loading saved state…")
+    expect(panel_field(page)).to_have_attribute("placeholder", LOADING)
 
     playground.get_by_role("button", name="Needs attention").click()
     compact = playground.get_by_role("switch", name="Compact spacing")
@@ -261,7 +268,7 @@ def test_playground_joins_initial_widget_settlement(browser, serve):
     wait_until_ready(page)
     expect(submit).to_be_enabled()
     expect(compact).to_be_checked()
-    expect(page.locator(".lf-status-text")).not_to_have_text("Loading saved state…")
+    expect(panel_field(page)).not_to_have_attribute("placeholder", LOADING)
 
 
 def test_a_broken_optional_page_interface_does_not_withhold_presentation(
@@ -286,18 +293,13 @@ def test_a_broken_optional_page_interface_does_not_withhold_presentation(
     assert len(errors) == 1, errors
 
 
-def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
-    browser, serve
-):
-    """Restored chrome may neither publish stale items nor replace a current choice.
+def test_on_me_claims_nothing_before_the_first_replay(browser, serve):
+    """Chrome may not publish stale obligations before the log has answered.
 
-    The drawer was open on the prior visit and the log has since accepted its one
-    suggestion. Holding the first replay makes the dangerous interval deterministic:
-    discussion stays available, but the stale count, row, and bulk action stay withheld.
-    Opening Threads during that interval replaces the remembered drawer. Replay leaves
-    that Thread panel open while it paints the accepted state and exposes the completed
-    item as a closed route for review.
-    """
+    The log has accepted the page's one suggestion. Holding the first replay makes the
+    dangerous interval deterministic: discussion stays available, but the On me mark
+    claims no count, and the stale bulk action stays withheld. Replay then paints the
+    accepted state, counts nothing on the user and offers no Accept all."""
     url = serve(SHORT_SUGGESTION)
     append_command(
         serve.page_dir,
@@ -310,53 +312,35 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
             "detail": {"outcome": "accept"},
         },
     )
-    context = browser.new_context(viewport={"width": 1200, "height": 900})
-    priming = context.new_page()
-    priming.goto(url, wait_until="load")
-    wait_until_ready(priming)
-    priming.evaluate("localStorage.setItem('lf-auxiliary-surface', 'queue')")
-    priming.close()
-
     held = []
-    page = context.new_page()
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
     page.route("**/api/state*", lambda route: held.append(route))
     page.goto(url, wait_until="load")
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     assert held, "the positive control did not hold the first state response"
-    body = page.locator("body")
-    expect(body).to_have_attribute("data-lf-auxiliary-surface", "queue")
-    # The door stands on every page, and claims no count before the log has answered.
-    expect(page.locator(".lf-queue")).to_have_text("On me")
+    # The mark stands on every page, and claims no count before the log has answered:
+    # not the authored suggestion's 1, which the log has already decided.
+    on_me = page.locator(".lf-fp-on-user")
+    expect(on_me).to_have_attribute("title", "On me")
+    # The blanket answer claims no action before the first state answer.
+    expect_panel_offers(page, "blanket:accept", offered=False)
 
-    expect(page.locator(".lf-queue-panel")).to_be_hidden()
-    # The stable blanket control claims no action before the first state answer.
-    expect(page.locator(".lf-answer-all:visible")).to_have_count(0)
-    # Opened by hand, the panel counts nothing yet either.
-    page.locator(".lf-queue").click()
-    expect(page.locator(".lf-queue-panel")).to_contain_text("Loading…")
-    expect(page.locator(".lf-queue-panel")).not_to_contain_text("On me · 0")
-
-    comments = page.locator(".lf-threads-toggle")
-    expect(comments).to_be_enabled()
-    comments.click()
-    expect(body).not_to_have_attribute("data-lf-auxiliary-surface", "queue")
-    expect(page.locator(".lf-thread-panel")).to_be_visible()
-    # The page's box takes words while the first state answer is still held.
+    threads = page.locator(".lf-fp-threads")
+    expect(threads).to_be_enabled()
+    threads.click()
+    panel_settled(page, view="threads")
+    # The page's field takes words while the first state answer is still held.
     expect(page_comment(page)).to_be_editable()
     page.keyboard.press("Escape")
 
     held.pop(0).continue_()
     wait_until_ready(page)
     expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
-    decisions = page.locator(".lf-queue")
-    expect(decisions).to_have_text("On me: 0")
-    expect_items_answered(page, "1/1")
-    expect(decisions).to_have_attribute("aria-expanded", "false")
-    expect(page.locator(".lf-queue-panel")).to_be_hidden()
-    expect(page.locator(".lf-thread-panel")).to_be_visible()
-    expect(page.locator("button.lf-queue-row")).to_have_count(0)
-    expect_banner_control_offered(page.locator(".lf-answer-all"), offered=False)
+    # Nothing waits on the user, which the mark says by counting nothing.
+    expect(on_me).to_have_attribute("title", "On me")
+    expect_obligations_answered(page, "1/1")
+    expect_panel_offers(page, "blanket:accept", offered=False)
 
 
 def test_comments_wait_for_the_first_log_to_be_renderable(browser, serve):
@@ -380,22 +364,23 @@ def test_comments_wait_for_the_first_log_to_be_renderable(browser, serve):
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     assert held, "the positive control did not hold the Markdown renderer"
 
-    page.locator(".lf-threads-toggle").click()
-    expect(page.locator(".lf-empty")).to_have_text("Loading current threads…")
-    expect(page.locator(".lf-thread")).to_have_count(0)
+    rows = page.locator(".lf-fp-view[data-view='threads'] .lf-fp-thread")
+    page.locator(".lf-fp-threads").click()
+    panel_settled(page, view="threads")
+    expect(rows).to_have_count(0)
 
     held.pop(0).continue_()
     wait_until_ready(page)
-    expect(page.locator(".lf-empty")).to_have_count(0)
-    expect(page.locator(".lf-thread")).to_have_count(1)
-    expect(page.locator(".lf-msg-body strong")).to_have_text("comment")
+    expect(rows).to_have_count(1)
+    view = open_panel_thread(page, "c1")
+    expect(view.locator(".lf-msg-body strong")).to_have_text("comment")
 
 
 def test_an_unavailable_first_poll_releases_a_useful_page(browser, serve):
     """Presentation waits for an answer, not necessarily state.
 
     When the first poll cannot reach the server there is no log to apply, so the honest
-    page is the authored one under an offline banner. It must be visible rather than
+    page is the authored one under an offline status. It must be visible rather than
     stranded behind the replay boundary, and the one failed answer releases it once."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
@@ -407,8 +392,8 @@ def test_an_unavailable_first_poll_releases_a_useful_page(browser, serve):
         " && document.body.dataset.lfPresented === '1'"
     )
     expect(page.locator("main")).to_be_visible()
-    expect(page.locator(".lf-status-detail")).to_have_text(
-        "Server offline — reconnecting. Keep this page open so pending changes can send."
+    expect(panel_field(page)).to_have_attribute(
+        "placeholder", re.compile("^Server offline")
     )
     assert page.locator("body").get_attribute("data-lf-applied") is None
     assert page.evaluate("() => window.__lfPresentation.releases") == 1
@@ -439,7 +424,7 @@ def test_a_startup_failure_keeps_authored_page_readable(browser, serve):
         predicate=lambda message: "page failed to start" in message.text
     ):
         page.goto(url, wait_until="load")
-    expect(page.locator(".lf-status-detail")).to_contain_text("reload")
+    expect(panel_field(page)).to_have_attribute("placeholder", re.compile("reload"))
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     expect(page.locator("#sug lf-old")).to_be_visible()
     assert (
@@ -486,7 +471,7 @@ def test_invalid_visual_part_ids_report_the_package_error(browser, serve):
             ),
             wait_until="load",
         )
-    expect(page.locator(".lf-status-detail")).to_contain_text("reload")
+    expect(panel_field(page)).to_have_attribute("placeholder", re.compile("reload"))
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     consume_browser_errors(page, "Visual part 1 has no single-token id")
 
@@ -522,13 +507,16 @@ def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
         ):
             page.goto(url, wait_until="load")
         page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
-        expect(page.locator(".lf-status-detail")).to_have_text(
-            "Page couldn't apply current state — reload"
+        expect(panel_field(page)).to_have_attribute(
+            "placeholder", re.compile("^Page couldn't apply current state — reload")
         )
         expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
         expect(page.locator("body")).not_to_have_attribute("data-lf-applied", "1")
         expect(page.locator("#sug lf-old")).to_be_visible()
-        expect(page.locator(".lf-signoff")).to_be_disabled()
+        # Versions, where the approval stands, is out of reach until state applies.
+        expect(
+            panel_menu(page).locator('.lf-fp-item[data-row="versions"]')
+        ).to_be_disabled()
         # No producer below the feed saw the body, so the feed's report is the one
         # that reaches the agent.
         wait_for(
@@ -656,7 +644,7 @@ def test_a_page_the_suite_opens_has_read_the_log(browser, serve):
     )
     page = open_page(browser, url.replace("v1.html", "v2.html"), context=context)
     open_versions(page)
-    expect(page.locator(".lf-version-menu")).to_be_visible()
+    expect(page.locator('.lf-fp-menu[data-level="versions"]')).to_be_visible()
 
 
 def test_unavailable_optional_user_view_checks_create_no_agent_work(browser, serve):
@@ -678,3 +666,44 @@ def test_unavailable_optional_user_view_checks_create_no_agent_work(browser, ser
         if event["kind"] == "error"
     ]
     assert not page.lf_errors
+
+
+def test_a_firefox_departure_reports_none_of_the_loads_it_aborts(
+    firefox_browser, serve
+):
+    """Firefox aborts a document's loads as a navigation lets it go, and keeps the
+    document running until the destination answers (prepaint.js, the document's
+    lifetime). A widget module that fails that way is the departure's, not a startup
+    fault the page reports or posts to the log."""
+    page = firefox_browser.new_page()
+    # Neither request is answered: the module stays in flight, and the departing
+    # document stays shown and running while its destination is awaited.
+    for held in ("**/widgets/lf-options.js", "**/elsewhere"):
+        page.route(held, lambda route: None)
+    with page.expect_request("**/widgets/lf-options.js"):
+        page.goto(
+            serve(
+                leaf_page(
+                    "Departing",
+                    '<lf-options id="ship" choose><lf-option id="now">Now</lf-option>'
+                    '<lf-option id="later">Later</lf-option></lf-options>',
+                )
+            ),
+            wait_until="commit",
+        )
+    with page.expect_event(
+        "requestfailed",
+        predicate=lambda request: request.url.endswith("/widgets/lf-options.js"),
+    ):
+        page.evaluate("location.href = 'elsewhere'")
+    # The import's rejection settles startup within the task that delivers it.
+    page.evaluate("() => new Promise(done => setTimeout(() => setTimeout(done)))")
+    assert page.evaluate("document.documentElement.dataset.lfStartupError") is None
+    # Firefox's own word on the aborted request is all the console holds.
+    consume_browser_errors(page, "Loading failed for the module")
+    assert not page.lf_errors
+    assert not [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "error"
+    ]

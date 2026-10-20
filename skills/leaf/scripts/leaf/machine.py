@@ -19,7 +19,7 @@ import errno
 import os
 from pathlib import Path
 
-from .state import state_home_path
+from .state import state_home
 
 
 def pid_alive(pid: int) -> bool:
@@ -49,26 +49,40 @@ def pid_alive(pid: int) -> bool:
     return True
 
 
-# What a harness's sandbox sets in each command it confines: the sandbox runtime
-# Claude Code runs its shell commands under (`SANDBOX_RUNTIME=1`), and Codex's
-# (`CODEX_SANDBOX=seatbelt`). Each is the harness's own statement, as CLAUDE_PID
-# is, rather than a guess from what a refusal looked like.
-SANDBOX_VARIABLES = ("SANDBOX_RUNTIME", "CODEX_SANDBOX")
+# What a harness's sandbox sets in each command it confines, and the way out of it:
+# the sandbox runtime Claude Code runs its shell commands under
+# (`SANDBOX_RUNTIME=1`), which the README's settings let reach Leaf's bridge, and
+# Codex's, which Leaf's plugin leaves through the `run` tool of its MCP server
+# (`codex_tool.py`). Codex names its macOS sandbox (`CODEX_SANDBOX=seatbelt`) and,
+# on every platform, a sandbox that denies the network
+# (`CODEX_SANDBOX_NETWORK_DISABLED=1`). Each variable is the harness's own
+# statement, as CLAUDE_PID is, rather than a guess from what a refusal looked like.
+_CODEX_REMEDY = (
+    "rerun it with the `run` tool of the `leaf` MCP server, which runs leaf outside "
+    "the sandbox; if Codex refuses that call for want of approval, ask the user to "
+    'allow the tool ("Agent sandboxes" in '
+    f"{Path(__file__).resolve().parents[4] / 'README.md'})"
+)
+SANDBOX_REMEDIES = {
+    "SANDBOX_RUNTIME": (
+        'rerun it outside the sandbox; "Agent sandboxes" in '
+        f"{Path(__file__).resolve().parents[4] / 'README.md'} says how leaf runs "
+        "from that sandbox without asking"
+    ),
+    "CODEX_SANDBOX": _CODEX_REMEDY,
+    "CODEX_SANDBOX_NETWORK_DISABLED": _CODEX_REMEDY,
+}
 
 
 def sandbox_remedy() -> str | None:
     """Where an agent harness's sandbox confines this command, the clause a refusal
     the sandbox explains ends with, or None where no harness says so: the variable
-    that says it, and to rerun the command outside the sandbox, so the agent does
-    not read the refusal as the host's. It points at the README's section on running
-    `leaf` from each harness's sandbox without asking, for the agent to pass on."""
-    for name in SANDBOX_VARIABLES:
+    that says it, so the agent does not read the refusal as the host's, and the
+    harness's way to run the command outside the sandbox."""
+    for name, remedy in SANDBOX_REMEDIES.items():
         if value := os.environ.get(name):
-            readme = Path(__file__).resolve().parents[4] / "README.md"
             return (
-                f"this command runs in an agent's sandbox ({name}={value}), so rerun "
-                f'it outside the sandbox; "Agent sandboxes" in {readme} says how '
-                "leaf runs from that sandbox without asking"
+                f"this command runs in an agent's sandbox ({name}={value}), so {remedy}"
             )
     return None
 
@@ -135,26 +149,6 @@ def process_argv(pid: int) -> list[str] | None:
         return psutil.Process(pid).cmdline()
     except (psutil.NoSuchProcess, psutil.AccessDenied):
         return None
-
-
-def state_home() -> Path:
-    """$XDG_STATE_HOME/leaf (~/.local/state/leaf/) — pages/ holds page
-    directories by convention, claims/ the last claimant of every known page,
-    sessions/ the live watcher leases, packages/ the packages `package install` copied here,
-    screens/ the last render check's screens of each page, pictures/ the
-    pictures `page picture` drew of its drawing comments, and access.json
-    the one key every page here is served with (`host_key`). State, not config:
-    claim records carry pids and absolute paths, while page service records
-    carry ports, so this state is bound to this machine, as is the key that
-    reaches it.
-
-    Created here, owner-only: the key is what stands between another local user
-    and a log that outranks the document, and a 0644 file under a traversable
-    path hands it to anyone on a shared machine. One writer for the mode, since
-    every path into the state home resolves through this call."""
-    home = state_home_path()
-    home.mkdir(mode=0o700, parents=True, exist_ok=True)
-    return home
 
 
 def package_store() -> Path:

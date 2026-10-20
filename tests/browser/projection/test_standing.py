@@ -1,5 +1,5 @@
-"""Where the user stands (the ring, Escape, travel, the item walk) and the presses,
-items, controls and drafts they keep across a revision."""
+"""Where the user stands (the ring, Escape, travel, the obligation walk) and the presses,
+obligations, controls and drafts they keep across a revision."""
 
 import json
 import re
@@ -9,17 +9,16 @@ from interact_support import append_carried_log_record
 from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    ITEMS_IN_ORDER,
-    ITEMS_PAGE,
     LIVE_KEYS_APPARATUS,
     LIVE_KEYS_APPARATUS_REWRITTEN,
-    LIVE_KEYS_ITEM_REWRITTEN,
-    LIVE_KEYS_ITEM_WITHDRAWN,
+    LIVE_KEYS_OBLIGATION_REWRITTEN,
+    LIVE_KEYS_OBLIGATION_WITHDRAWN,
     LIVE_KEYS_V1,
     LIVE_KEYS_V2,
     LIVE_KEYS_V3,
+    OBLIGATIONS_IN_ORDER,
+    OBLIGATIONS_PAGE,
     RING,
-    TRAVEL_PAGE,
     answered_comment,
     live_url,
 )
@@ -28,14 +27,16 @@ from render_cases_navigation import address_code, go_to_address
 from render_harness import (
     active_digit_bindings,
     draft_control,
-    expect_items_answered,
+    expect_obligations_answered,
+    expect_panel_offers,
     leaf_page,
     open_page,
+    panel_field,
+    panel_settled,
     resized,
     round_trip,
     scroll_settled,
     sending,
-    shortcut_bar_text,
     stamp_page,
     suggestion_control,
     take_browser_errors,
@@ -43,6 +44,8 @@ from render_harness import (
     wait_for_revision,
     write,
 )
+
+from browser.threads import PANEL_REPLY, open_panel_thread, thread_row
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -56,9 +59,9 @@ def test_the_presses_a_user_is_mid_way_through_survive_the_page_following(
     names the visible targets, and the chips are read off whichever document is current,
     so the window holds through the revision and the hints land on the new page — minus
     the hint for a link the revision took away, which is the honest reading. The user's
-    standing is the document's: the item's actions remain live over a focused pick mark,
+    standing is the document's: the obligation's actions remain live over a focused pick mark,
     and a revision that leaves that widget's markup alone leaves the mark itself alone,
-    so the digit still picks and the bottom status acknowledges it. One revision arrives
+    so the digit still picks and the panel's field acknowledges it. One revision arrives
     as a draft and the next as a stamped version, since both bring the page to the user
     by the same door."""
     version_url = serve(LIVE_KEYS_V1)
@@ -72,9 +75,7 @@ def test_the_presses_a_user_is_mid_way_through_survive_the_page_following(
     told(page)
     expect(page).to_have_title("Live keys second")
     expect(link_chips).to_have_count(2)
-    assert "visible target" in shortcut_bar_text(page), (
-        "the sequence did not follow the new document"
-    )
+    # The sequence followed the new document: its address reaches the new page.
     page.keyboard.type(address_code(page, "Link", "lk-link-three"))
     expect(page.locator("#lk-para")).to_be_focused()
     expect(chips).to_have_count(0)
@@ -84,8 +85,8 @@ def test_the_presses_a_user_is_mid_way_through_survive_the_page_following(
     expect(mark).to_be_focused()
     assert active_digit_bindings(page) == "1–3"
     # A stamped version this time, which is the other way a page moves under a user.
-    # Its announcement arrives immediately; the bottom status may queue it behind the
-    # earlier draft notice, so that line need not change before the next press.
+    # Its announcement arrives immediately; the panel may queue it behind the
+    # earlier draft notice, so the field need not change before the next press.
     stamp_page(serve.page_dir, LIVE_KEYS_V3, "third")
     told(page)
     expect(page).to_have_title("Live keys third")
@@ -99,25 +100,25 @@ def test_the_presses_a_user_is_mid_way_through_survive_the_page_following(
     )
     page.keyboard.press("2")
     expect(page.locator("#lk-two")).to_have_attribute("chosen", "")
-    expect(page.locator(".lf-bottom-status .lf-notice")).to_have_text(
-        "Chose “Two” — sent"
+    expect(panel_field(page)).to_have_attribute(
+        "placeholder", re.compile("^Chose “Two” — sent")
     )
     round_trip(page)
 
 
-def test_a_revision_that_restates_an_item_leaves_the_user_standing_in_it(
+def test_a_revision_that_restates_an_obligation_leaves_the_user_standing_in_it(
     browser, serve
 ):
-    """The item a user is working survives the revision that rewrites it.
+    """The obligation a user is working survives the revision that rewrites it.
 
     A patch keeps every node the revision did not rewrite, so an untouched control is
     still holding the focus the user put on it. The question they are answering is the
     one thing a revision is most likely to rewrite, and rewriting it replaced every node
     inside — which used to drop the user onto `body` in the same breath as "Updated
-    to …". An item is named by a declared id rather than by a control's shape, so the
-    standing is a lookup: the user is put back on the item, or on the control that
+    to …". An obligation is named by a declared id rather than by a control's shape, so the
+    standing is a lookup: the user is put back on the obligation, or on the control that
     answers it, according to which of the two they held. A revision that withdraws the
-    item has nowhere to put them back, which the tests below cover along with the user
+    obligation has nowhere to put them back, which the tests below cover along with the user
     who was holding one of its controls.
     """
     version_url = serve(LIVE_KEYS_V1)
@@ -126,30 +127,30 @@ def test_a_revision_that_restates_an_item_leaves_the_user_standing_in_it(
 
     page.keyboard.press("m")
     expect(decision).to_be_focused()
-    (serve.page_dir / "index.html").write_text(LIVE_KEYS_ITEM_REWRITTEN)
+    (serve.page_dir / "index.html").write_text(LIVE_KEYS_OBLIGATION_REWRITTEN)
     told(page)
     expect(page).to_have_title("Live keys rewritten")
-    expect(page.locator(".lf-bottom-status .lf-notice")).to_have_text(
-        "Updated to Draft after v1"
+    expect(panel_field(page)).to_have_attribute(
+        "placeholder", re.compile("^Updated to Draft after v1")
     )
     expect(decision).to_be_focused()
-    # Standing, not a bare tab stop: the item's own action routes are live over the user
+    # Standing, not a bare tab stop: the obligation's own action routes are live over the user
     # again, and the third option the revision brought is among them.
     assert active_digit_bindings(page) == "1–4"
     page.keyboard.press("3")
     expect(page.locator("#lk-three")).to_have_attribute("chosen", "")
 
 
-def test_a_restated_item_returns_a_user_to_the_question_not_to_a_control(
+def test_a_restated_obligation_returns_a_user_to_the_question_not_to_a_control(
     browser, serve
 ):
-    """A user inside the item comes back to its opening, never to a guessed control.
+    """A user inside the obligation comes back to its opening, never to a guessed control.
 
-    Which control they were holding is not a thing the item can answer: the controls are
-    the widget's, most carry no id, and the first one that answers the item is the
+    Which control they were holding is not a thing the obligation can answer: the controls are
+    the widget's, most carry no id, and the first one that answers the obligation is the
     walk's landing rule rather than a restore. Handing that back is the failure
     version.js names — a user holding the second option would be given the first, and
-    their next press would choose it. The item's opening holds a lent tab stop rather
+    their next press would choose it. The obligation's opening holds a lent tab stop rather
     than a decision, so the digits still reach the option they meant and Space decides
     nothing. Where the revision withdraws the question there is nothing to come back to,
     and `body` is the honest answer.
@@ -160,7 +161,7 @@ def test_a_restated_item_returns_a_user_to_the_question_not_to_a_control(
     mark.focus()
     expect(mark).to_be_focused()
 
-    (serve.page_dir / "index.html").write_text(LIVE_KEYS_ITEM_REWRITTEN)
+    (serve.page_dir / "index.html").write_text(LIVE_KEYS_OBLIGATION_REWRITTEN)
     told(page)
     expect(page).to_have_title("Live keys rewritten")
     expect(page.locator("#lk-decision")).to_be_focused()
@@ -206,7 +207,7 @@ def test_a_revision_gives_back_the_apparatus_the_user_was_working_with(browser, 
     assert page.locator("#lk-note").evaluate("el => el.selectionStart") == 4
     assert page.locator("#lk-why").evaluate("el => el.open") is True
     assert page.locator("#lk-evidence").evaluate("el => el.scrollTop") == 40
-    # Standing in the item is where the user already is, so the item restore has nothing
+    # Standing in the obligation is where the user already is, so the obligation restore has nothing
     # to do and does not pull them out of the field onto the question.
     assert page.locator("#lk-note").evaluate("el => el === document.activeElement")
 
@@ -374,9 +375,6 @@ def test_replacing_document_yields_to_input_before_runtime_loads(browser, serve,
         '<input id="second" type="text" aria-label="Second"></section>',
     )
     page = open_page(browser, live_url(serve(html)))
-    panel = page.locator(".lf-threads-toggle")
-    panel.click()
-    expect(panel).to_have_attribute("aria-expanded", "true")
     first = page.locator(
         "#feed .lf-activity-news" if start == "generated" else "#first"
     )
@@ -404,7 +402,6 @@ def test_replacing_document_yields_to_input_before_runtime_loads(browser, serve,
         route.continue_()
     wait_for_revision(page, 2)
     wait_until_ready(page)
-    expect(panel).to_have_attribute("aria-expanded", "true")
     expect(second).to_be_focused()
     expect(second).to_have_value("Keep this input")
 
@@ -457,7 +454,7 @@ def test_replacing_document_keeps_typing_while_presentation_is_held(browser, ser
     expect(note).to_be_focused()
 
 
-def test_a_withdrawn_item_leaves_the_user_on_the_page(browser, serve):
+def test_a_withdrawn_obligation_leaves_the_user_on_the_page(browser, serve):
     """A revision that takes the question away has nowhere to put the user back."""
     version_url = serve(LIVE_KEYS_V1)
     page = open_page(browser, live_url(version_url))
@@ -465,18 +462,20 @@ def test_a_withdrawn_item_leaves_the_user_on_the_page(browser, serve):
     mark.focus()
     expect(mark).to_be_focused()
 
-    (serve.page_dir / "index.html").write_text(LIVE_KEYS_ITEM_WITHDRAWN)
+    (serve.page_dir / "index.html").write_text(LIVE_KEYS_OBLIGATION_WITHDRAWN)
     told(page)
     expect(page).to_have_title("Live keys without it")
     expect(page.locator("body")).to_be_focused()
 
 
-def test_a_user_working_an_item_keeps_it_across_a_replacing_document(browser, serve):
+def test_a_user_working_an_obligation_keeps_it_across_a_replacing_document(
+    browser, serve
+):
     """The fresh-document install hands back the same standing the patch does.
 
     A revision whose executable identity differs cannot be patched in, so the user
     arrives in a new document where nothing they held exists. They were told the same
-    "Updated to …" either way and cannot tell the two installs apart, so the item rides
+    "Updated to …" either way and cannot tell the two installs apart, so the obligation rides
     across in the one-use handoff beside their reading position.
     """
     module = """<script type="module">
@@ -485,7 +484,7 @@ customElements.define('page-counter', class extends HTMLElement {
 });
 </script>"""
     first = LIVE_KEYS_V1.replace("</head>", module + "</head>")
-    second = LIVE_KEYS_ITEM_REWRITTEN.replace(
+    second = LIVE_KEYS_OBLIGATION_REWRITTEN.replace(
         "</head>", module.replace("count 0", "count 10") + "</head>"
     )
     page = open_page(browser, live_url(serve(first)))
@@ -504,48 +503,50 @@ customElements.define('page-counter', class extends HTMLElement {
     assert active_digit_bindings(page) == "1–4"
 
 
-def test_the_item_walk_keeps_its_place_when_a_version_lands(browser, serve):
+def test_the_obligation_walk_keeps_its_place_when_a_version_lands(browser, serve):
     """A stamped version follows by navigation, and the user's place rides across.
     The passage they were reading did; where the walk had got to was a variable in a
     module the navigation threw away, so it did not, and the user was demoted without
     a word from the most exact reading of where they stand to the coarsest. Standing on
-    the third of four items when v2 landed, they pressed `m` and were handed the third
-    again — after looking slightly back above that item, the block at the top of the
+    the third of four obligations when v2 landed, they pressed `m` and were handed the third
+    again — after looking slightly back above that obligation, the block at the top of the
     window is somewhere they had already walked past.
 
     So the walk's place travels in the same record as the passage, and the press after
     the version lands is the press they would have made before it. The ring is not owed a
     record of its own: it is painted from the focus, and the activation hands the user
-    back the control they were standing on, so the item they were in wears it still."""
-    url = serve(ITEMS_PAGE)
+    back the control they were standing on, so the obligation they were in wears it still."""
+    url = serve(OBLIGATIONS_PAGE)
     d = serve.page_dir
     page = open_page(browser, live_url(url))
-    # Short enough that an item in the middle of the window has page text above it,
+    # Short enough that an obligation in the middle of the window has page text above it,
     # which is the whole of what makes the coarse reading the wrong one.
     resized(page, 900, 400)
 
-    for item in ITEMS_IN_ORDER[:3]:
+    for item in OBLIGATIONS_IN_ORDER[:3]:
         page.keyboard.press("m")
-        expect(page.locator(f"#{item}")).to_have_attribute("data-lf-item", "1")
+        expect(page.locator(f"#{item}")).to_have_attribute("data-lf-obligation", "1")
     scroll_settled(page)
 
-    # Item travel now starts at the item's opening, which normally makes the coarse
+    # Obligation travel now starts at the obligation's opening, which normally makes the coarse
     # reading agree with the saved landing. Look back just far enough to make the two
     # meanings diverge: the scroll position says the preceding change, while the walk's
-    # exact record still says the third item.
+    # exact record still says the third obligation.
     page.evaluate("""() => {
         const earlier = document.getElementById('refill-now').getBoundingClientRect();
         document.scrollingElement.scrollBy({top: earlier.bottom - 220, behavior: 'instant'});
     }""")
 
-    stamp_page(d, ITEMS_PAGE, "two")
+    stamp_page(d, OBLIGATIONS_PAGE, "two")
     wait_for_revision(page, 2)
 
-    expect(page.locator("#t-baffles-decision")).to_have_attribute("data-lf-item", "1")
-    expect(page.locator("[data-lf-item]")).to_have_count(1)
-    # The condition the restore is for, stated rather than assumed: an earlier item's
+    expect(page.locator("#t-baffles-decision")).to_have_attribute(
+        "data-lf-obligation", "1"
+    )
+    expect(page.locator("[data-lf-obligation]")).to_have_count(1)
+    # The condition the restore is for, stated rather than assumed: an earlier obligation's
     # own prose is on screen above the one the user was standing on, so a walk reading
-    # the page alone starts behind them and steps forward onto the item they just left.
+    # the page alone starts behind them and steps forward onto the obligation they just left.
     position = page.evaluate("""() => {
             const decision = document.getElementById('t-baffles-decision').getBoundingClientRect();
         const earlier = document.getElementById('refill-now').getBoundingClientRect();
@@ -554,7 +555,9 @@ def test_the_item_walk_keeps_its_place_when_a_version_lands(browser, serve):
     }""")
     assert 42 < position["earlierBottom"] <= position["decisionTop"], position
     page.keyboard.press("m")
-    expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-item", "1")
+    expect(page.locator("#t-bath-decision")).to_have_attribute(
+        "data-lf-obligation", "1"
+    )
 
 
 def test_the_ring_says_where_the_user_is_standing(browser, serve):
@@ -578,10 +581,10 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
     row the keyboard is on carries the band alone. Which row, in the same band — one ring
     still meaning one thing. An arrival is the other side of that: it stands the user on
     the decision rather than in the control, so there the decision's own ring is the one."""
-    page = open_page(browser, serve(ITEMS_PAGE))
+    page = open_page(browser, serve(OBLIGATIONS_PAGE))
     question = page.locator("#live-question-decision")
     page.keyboard.press("m")
-    expect(question).to_have_attribute("data-lf-item", "1")
+    expect(question).to_have_attribute("data-lf-obligation", "1")
     arrival_ring = question.evaluate(RING)
     assert arrival_ring == [
         "solid",
@@ -612,7 +615,7 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
     # Real presses verify the keyboard route as well as its focus treatment.
     page.keyboard.press("m")
     suggestion = page.locator("#sug-refill")
-    expect(suggestion).to_have_attribute("data-lf-item", "1")
+    expect(suggestion).to_have_attribute("data-lf-obligation", "1")
     accept = suggestion_control(page, "sug-refill", "accept")
     accept.focus()
     # Tab inside the margin reaches the same suggestion's ✗ Reject, rendered from the
@@ -652,25 +655,25 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
 
     # Standing somewhere that asks nothing takes it off, rather than leaving it behind.
     page.locator("#h").click()
-    expect(page.locator("[data-lf-item]")).to_have_count(0)
+    expect(page.locator("[data-lf-obligation]")).to_have_count(0)
 
     # A pointer landing inside an open decision is standing in it, though no walk brought
     # them there: the ring renders the focus rather than remembering a press.
     page.locator("#live-question .lf-another leaf-text").click()
-    expect(question).to_have_attribute("data-lf-item", "1")
+    expect(question).to_have_attribute("data-lf-obligation", "1")
 
     # Answering takes it off with the focus still inside: the ring is for the question
     # the user is working, and an answered one is no longer a question.
     page.locator("#lq-token .lf-pick").click()
-    expect_items_answered(page, "2/5")
-    expect(page.locator("[data-lf-item]")).to_have_count(0)
+    expect_obligations_answered(page, "2/5")
+    expect(page.locator("[data-lf-obligation]")).to_have_count(0)
     expect(page.locator("#lq-token .lf-pick")).to_be_focused()
 
-    # The chrome's own control, which the user reaches by Tab or by the banner's own
+    # The chrome's own control, which the user reaches by Tab or by the panel's own
     # keys rather than by backing out of the panel — a surface lands them on the page,
     # never on the control that reopens it. What is asserted here is the band the ring
     # is drawn in while they stand there.
-    toggle = page.locator(".lf-threads-toggle")
+    toggle = page.locator(".lf-fp-threads")
     toggle.focus()
     # Return by keyboard to exercise the same focus band through sequential navigation.
     page.keyboard.press("Tab")
@@ -682,12 +685,145 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
     )
 
 
-def test_escape_lets_go_of_the_item_the_user_is_standing_on(browser, serve):
-    """Escape closes the command reference, then lets go of the item and focuses body.
-    The next item walk reads the visible page place, returning to the first item before
+STORE_ASK_PAGE = leaf_page(
+    "Session store",
+    '<h1 id="h">Where sessions live</h1>'
+    '<lf-ask id="store-ask"><h3>Which store should hold sessions?</h3>'
+    '<lf-options id="store" choose>'
+    '<lf-option id="store-redis">Redis</lf-option>'
+    '<lf-option id="store-cookie">Signed cookie</lf-option>'
+    '<lf-option id="store-db">The main database</lf-option>'
+    "</lf-options></lf-ask>",
+)
+
+
+def seed_thread_about_the_ask(page_dir, root, *, resolved=False):
+    """A thread on the ask the agent has answered, so the ask stays On me's."""
+    append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": root,
+            "author": "user",
+            "revision": 1,
+            "text": f"A question about the store ({root})",
+            "anchor": {"section": "store-ask"},
+        },
+    )
+    append_carried_log_record(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "responds": root,
+            "revision": 1,
+            "text": "An answer.",
+        },
+    )
+    if resolved:
+        append_carried_log_record(
+            page_dir,
+            {"kind": "resolve", "author": "user", "parent": root, "revision": 1},
+        )
+
+
+def test_a_thread_about_an_ask_stands_at_the_ask_from_the_panel(browser, serve):
+    """A thread's view in the panel stands at what the thread is about, open or
+    resolved, as the side panel's cards did: the ask it is about wears the ring, and
+    its digits answer it from the view. Opening a resolved thread left focus nowhere,
+    and nothing about the view said where the user stood, so the ask stayed plain and
+    2 chose nothing. A digit typed in the reply is still a word in the reply."""
+    url = serve(STORE_ASK_PAGE)
+    seed_thread_about_the_ask(serve.page_dir, "t-done", resolved=True)
+    seed_thread_about_the_ask(serve.page_dir, "t-open")
+    page = open_page(browser, url)
+    ask = page.locator("#store-ask")
+
+    view = open_panel_thread(page, "t-done")
+    expect(view).to_be_focused()
+    expect(ask).to_have_attribute("data-lf-obligation", "1")
+    page.keyboard.press("2")
+    expect(page.locator("#store-cookie")).to_have_attribute("chosen", "")
+
+    page.keyboard.press("Escape")
+    view = open_panel_thread(page, "t-open")
+    reply = page.locator(PANEL_REPLY)
+    expect(reply).to_be_focused()
+    expect(ask).to_have_attribute("data-lf-obligation", "1")
+    page.keyboard.type("3")
+    expect(reply).to_have_js_property("value", "3")
+    expect(page.locator("#store-db")).not_to_have_attribute("chosen", "")
+    view.focus()
+    page.keyboard.press("3")
+    expect(page.locator("#store-db")).to_have_attribute("chosen", "")
+
+
+def test_a_thread_opened_in_the_panel_by_the_keyboard_opens_no_card_beside_it(
+    browser, serve
+):
+    """A thread the keyboard opens from Threads shows in the panel alone, and Escape
+    from its reply leaves it so. Its view stands at the ask the thread is about, and the
+    margin read the keyboard arriving there as an arrival at the ask, so it opened the
+    thread's card beside the ask as well: the same thread twice, the card left standing
+    after the panel closed."""
+    url = serve(STORE_ASK_PAGE)
+    seed_thread_about_the_ask(serve.page_dir, "t-open")
+    page = open_page(browser, url)
+    resized(page, 1400, 900)
+    card = page.locator(".lf-margin-preview")
+
+    row = thread_row(page, "t-open")
+    row.focus()
+    page.keyboard.press("Enter")
+    panel_settled(page, view="thread")
+    expect(page.locator(PANEL_REPLY)).to_be_focused()
+    expect(page.locator("#store-ask")).to_have_attribute("data-lf-obligation", "1")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-fp-view[data-thread='t-open']")).to_be_focused()
+    rendered(page)
+    expect(card).to_be_hidden()
+    page.keyboard.press("Escape")
+    panel_settled(page, open=False)
+    expect(card).to_be_hidden()
+
+
+def test_a_finger_opening_a_thread_about_an_ask_stands_in_its_view(browser, serve):
+    """A finger opening a thread reads it first, so no keyboard rises: the view holds
+    focus rather than the reply, and the ask it is about wears the ring. The view held
+    nothing under a finger, so the ask stayed dark there."""
+    url = serve(STORE_ASK_PAGE)
+    seed_thread_about_the_ask(serve.page_dir, "t-open")
+    context = browser.new_context(
+        viewport={"width": 1280, "height": 800}, has_touch=True
+    )
+    page = open_page(browser, url, context=context)
+    assert page.evaluate("() => matchMedia('(pointer: coarse)').matches")
+    view = open_panel_thread(page, "t-open")
+    expect(view).to_be_focused()
+    expect(page.locator("#store-ask")).to_have_attribute("data-lf-obligation", "1")
+
+
+def test_an_on_me_card_stands_at_its_ask(browser, serve):
+    """On me's card for an ask stands at the ask, as an On row did: standing on the
+    card rings the ask, and its digits answer it there."""
+    page = open_page(browser, serve(STORE_ASK_PAGE))
+    page.locator(".lf-fp-on-user").click()
+    panel_settled(page, view="queue")
+    card = page.locator(""".lf-fp-on-item[data-key='["widget","widget:store"]']""")
+    card.focus()
+    expect(page.locator("#store-ask")).to_have_attribute("data-lf-obligation", "1")
+    page.keyboard.press("2")
+    expect(page.locator("#store-cookie")).to_have_attribute("chosen", "")
+
+
+def test_escape_lets_go_of_the_obligation_the_user_is_standing_on(browser, serve):
+    """Escape closes the command reference, then lets go of the obligation and focuses body.
+    The next obligation walk reads the visible page place, returning to the first obligation before
     advancing. Letting go also works on a page with no scroll range and after a Page
     Map action leaves focus in a margin cluster."""
-    url = serve(ITEMS_PAGE)
+    url = serve(OBLIGATIONS_PAGE)
     # A third action puts the suggestion's cluster beyond its two resting controls.
     answered_comment(
         serve.page_dir,
@@ -696,35 +832,32 @@ def test_escape_lets_go_of_the_item_the_user_is_standing_on(browser, serve):
     )
     page = open_page(browser, url)
     page.keyboard.press("m")
-    expect(page.locator("#live-question-decision[data-lf-item]")).to_have_count(1)
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("let go")
-    # And the reference says the same press in its own words. It said "Back out one
-    # layer" for every rung, which was true while every rung took a layer of chrome off
-    # the page: standing on a decision is the user holding something, with no layer over
-    # the page at all, so the two surfaces named one press two ways.
-    page.keyboard.press("?")
+    expect(page.locator("#live-question-decision[data-lf-obligation]")).to_have_count(1)
+    # The reference says the press in its own words. It said "Back out one layer" for
+    # every rung, which was true while every rung took a layer of chrome off the page:
+    # standing on a decision is the user holding something, with no layer over the
+    # page at all.
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_contain_text(
         "Let go of the current item"
     )
     page.keyboard.press("Escape")  # the reference's own rung, which hands focus back
     expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
-    expect(page.locator("#live-question-decision[data-lf-item]")).to_have_count(1)
+    expect(page.locator("#live-question-decision[data-lf-obligation]")).to_have_count(1)
 
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
-    expect(page.locator("[data-lf-item]")).to_have_count(0)
+    expect(page.locator("[data-lf-obligation]")).to_have_count(0)
     assert page.evaluate("() => document.activeElement === document.body")
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("let go")
 
     # The directional walk reads the user's current visible place after Escape.
-    # Reenter the first item from there, then move to the next one.
+    # Reenter the first obligation from there, then move to the next one.
     page.keyboard.press("m")
     expect(page.locator("#live-question-decision")).to_be_focused()
     # The suggestion's thread comes up beside it, hung from its own entry, which the
     # cluster unfolds to show for as long as the card stands there.
     page.keyboard.press("m")
-    expect(page.locator("#sug-refill[data-lf-item]")).to_have_count(1)
+    expect(page.locator("#sug-refill[data-lf-obligation]")).to_have_count(1)
     walked_item = page.locator('[data-lf-margin-for="sug-refill"]')
     expect(page.locator(".lf-margin-preview")).to_contain_text("Check this wording")
     expect(walked_item.locator(":scope > .lf-margin-options")).to_be_visible()
@@ -733,7 +866,7 @@ def test_escape_lets_go_of_the_item_the_user_is_standing_on(browser, serve):
     # only the new destination's Tab-style arrival. The two halves share one native
     # focus transition, whose focusout and focusin both fire inside focus().
     page.keyboard.press("m")
-    expect(page.locator("#t-baffles-decision[data-lf-item]")).to_have_count(1)
+    expect(page.locator("#t-baffles-decision[data-lf-obligation]")).to_have_count(1)
     expect(walked_item.locator(":scope > .lf-margin-more")).to_be_visible()
     expect(walked_item.locator(":scope > .lf-margin-options")).to_be_hidden()
 
@@ -764,75 +897,10 @@ def test_escape_lets_go_of_the_item_the_user_is_standing_on(browser, serve):
     assert page.evaluate("() => document.activeElement === document.body")
 
 
-def test_travelling_to_an_element_lands_where_it_was_aimed(browser, serve):
-    """Clicking a quoteless thread's § label brings its element to the middle — the
-    promise made by callers that travel to a document anchor.
-
-    It was 27px short of the middle in every one of them, and invisibly so: the
-    scroller declares `scroll-padding-top` to keep a native fragment jump clear of
-    the banner, and scrollIntoView's own "center" measures against the padded box
-    rather than the viewport. So the arithmetic is the painted-range branch's, which
-    never went through scrollIntoView and never drifted.
-
-    A section taller than the viewport is the case centring cannot serve at all:
-    put its middle in the middle and the heading the user was sent to is above
-    the top edge. It takes the banner clearance instead — read from the same
-    declaration, so the number lives in one place — and the user starts at the
-    start."""
-    url = serve(TRAVEL_PAGE)
-    thread = {
-        section: append_carried_log_record(
-            serve.page_dir,
-            {
-                "kind": "comment",
-                "author": "user",
-                "revision": 1,
-                "text": f"About {section}.",
-                "anchor": {"section": section},
-            },
-        )["id"]
-        for section in ("flow", "long-part")
-    }
-    page = open_page(browser, live_url(url))
-    page.locator(".lf-threads-toggle").click()
-
-    def quote(section):
-        card = page.locator(f'.lf-thread[data-id="{thread[section]}"]')
-        card.locator(".lf-thread-summary").click()
-        return card.locator(".lf-quote")
-
-    # Centred: the destination the travel computed, which a glide toward it passes
-    # through no earlier position that could be mistaken for. Put it wholly out of sight
-    # first: a readable destination now keeps the user's place.
-    page.evaluate(
-        "() => document.scrollingElement.scrollTo(0, document.scrollingElement.scrollHeight)"
-    )
-    assert page.locator("#flow").evaluate(
-        "el => el.getBoundingClientRect().bottom <= 0"
-    )
-    quote("flow").click()
-    page.wait_for_function(
-        """() => { const r = document.getElementById('flow').getBoundingClientRect();
-                   return r.height > 0
-                       && Math.abs(r.top + r.height / 2 - innerHeight / 2) < 2; }"""
-    )
-
-    page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
-    assert page.locator("#long-part").evaluate(
-        "el => el.getBoundingClientRect().top >= innerHeight"
-    )
-    quote("long-part").click()
-    page.wait_for_function(
-        """() => { const r = document.getElementById('long-part').getBoundingClientRect();
-                   const clear = parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop);
-                   return r.height > innerHeight && Math.abs(r.top - clear) < 2; }"""
-    )
-
-
-def test_the_item_walk_follows_registry_declarations(browser, serve):
-    """Removing an open-request declaration removes that widget from every item
-    surface without changing the runtime, banner, or keyboard walk."""
-    url = serve(ITEMS_PAGE)
+def test_the_obligation_walk_follows_registry_declarations(browser, serve):
+    """Removing an open-request declaration removes that widget from every obligation
+    surface without changing the runtime, panel, or keyboard walk."""
+    url = serve(OBLIGATIONS_PAGE)
     registry = json.loads((serve.page_dir / "registry.json").read_text())
     del registry["lf-suggestion"]["x-awaits"]
     del registry["lf-suggestion"]["properties"]["resolves"]
@@ -844,16 +912,18 @@ def test_the_item_walk_follows_registry_declarations(browser, serve):
     )
 
     page = open_page(browser, live_url(url))
-    expect_items_answered(page, "1/4")
+    expect_obligations_answered(page, "1/4")
     # The blanket answer went with the declaration that named its verb.
-    expect(page.locator(".lf-answer-all")).to_have_count(0)
+    expect_panel_offers(page, "blanket:accept", offered=False)
     for expected in [
         "live-question-decision",
         "t-baffles-decision",
         "t-bath-decision",
     ]:
         page.keyboard.press("m")
-        expect(page.locator(f"#{expected}")).to_have_attribute("data-lf-item", "1")
+        expect(page.locator(f"#{expected}")).to_have_attribute(
+            "data-lf-obligation", "1"
+        )
 
 
 def test_live_revision_drafts_wait_for_the_complete_controller_publication(

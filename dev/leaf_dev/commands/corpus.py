@@ -1,6 +1,6 @@
 """Generate examples/corpus.html: the composable authored fixtures on one page.
 
-The corpus is derived test content — edit a listed example, regression page, or
+The corpus is derived test content — edit an example, regression page, or
 developer gallery and rerun `leaf-dev corpus` (tests fail on a stale corpus). Each page's
 <main> body keeps its ids but not its document-level contents sidebar. Every source
 must therefore keep its ids disjoint, which this command enforces.
@@ -25,59 +25,43 @@ from leaf.structure import SourceDocument
 from leaf.thread_context import sample_events, thread_ids
 
 from leaf_dev import ROOT
-from leaf_dev.example_data import data_file, page_files, regression_sources, seed_log
+from leaf_dev.example_data import (
+    catalog_sources,
+    data_file,
+    page_files,
+    regression_sources,
+    seed_log,
+)
 
 EXAMPLES_DIR = ROOT / "examples"
 CORPUS = EXAMPLES_DIR / "corpus.html"
 CORPUS_DATA = EXAMPLES_DIR / "corpus.data.json"
 CORPUS_EVENTS = EXAMPLES_DIR / "corpus.jsonl"
 CORPUS_PAGE = EXAMPLES_DIR / "corpus.page"
-# Keep the short core pages first; specialist and regression surfaces follow.
-PUBLIC_TABS = [
-    ("review-a-plan", "Plan review"),
-    ("triage-board", "Triage"),
-    ("ideas-to-implement", "Ideas"),
-    ("release-notes", "Notes"),
-    ("log-retention", "Retention"),
-    ("ship-review", "Ship review"),
-    ("heat-loss", "Heat"),
-    ("notification-playground", "Notification"),
-    ("data-explorer", "Data explorer"),
-    ("code-comparison", "Code comparison"),
-    ("alert-thresholds", "Thresholds"),
-    ("live-progress", "Live"),
-    ("alert-review", "Alerts"),
-    ("pr-walkthrough", "PR"),
-    ("review-a-fix", "Fix recordings"),
-    ("wt-merge", "Merge film"),
-    ("rust-sort", "Sort film"),
-    ("security-boundary", "Security"),
-    ("command-hub", "Command"),
-]
 # Focused chrome galleries with several live child pages stay separate; their
 # underlying widget and thread states already stand in the feature gallery.
-DEVELOPER_TABS = [
-    (EXAMPLES_DIR / "developer" / "file-editor.html", "File editor package"),
-    (EXAMPLES_DIR / "developer" / "file-tree.html", "File tree package"),
-    (EXAMPLES_DIR / "developer" / "file-tree-input.html", "Independent file list"),
-    (EXAMPLES_DIR / "developer" / "diff-thread-gallery.html", "Diff conversations"),
-    (EXAMPLES_DIR / "developer" / "feature-gallery.html", "Core features"),
-    (
-        EXAMPLES_DIR / "developer" / "visual-review-gallery.html",
-        "Visual review package",
-    ),
-    (
-        EXAMPLES_DIR / "developer" / "playwright-trace-gallery.html",
-        "Playwright trace package",
-    ),
+DEVELOPER_SOURCES = [
+    EXAMPLES_DIR / "developer" / "file-editor.html",
+    EXAMPLES_DIR / "developer" / "file-tree.html",
+    EXAMPLES_DIR / "developer" / "file-tree-input.html",
+    EXAMPLES_DIR / "developer" / "diff-thread-gallery.html",
+    EXAMPLES_DIR / "developer" / "feature-gallery.html",
+    EXAMPLES_DIR / "developer" / "visual-review-gallery.html",
+    EXAMPLES_DIR / "developer" / "playwright-trace-gallery.html",
 ]
-TABS = [
-    *((EXAMPLES_DIR / f"{stem}.html", label) for stem, label in PUBLIC_TABS),
-    *(
-        (source, source.stem.replace("-", " ").title())
-        for source in regression_sources()
+# Keep catalog order first, then include every other example, even one whose
+# catalog card is absent or commented out. The generated corpus never includes itself.
+SOURCES = [
+    *dict.fromkeys(
+        [
+            *catalog_sources(),
+            *sorted(
+                source for source in EXAMPLES_DIR.glob("*.html") if source != CORPUS
+            ),
+        ]
     ),
-    *DEVELOPER_TABS,
+    *regression_sources(),
+    *DEVELOPER_SOURCES,
 ]
 
 HEAD = """\
@@ -113,7 +97,7 @@ def build_data() -> dict:
     """Compose corpus inputs with captures relative to the generated page."""
     sources = {}
     captures = {}
-    for source, _ in TABS:
+    for source in SOURCES:
         companion = data_file(source)
         if not companion.exists():
             continue
@@ -146,8 +130,8 @@ def main_body(source: Path, parsed: SourceDocument) -> str:
 
     A page's own Layout (the class on its `<main>`) is its document's to declare; a tab
     in the corpus is part of the corpus's column page, so only the body carries over.
-    The tab's label is the example's own eyebrow, title-cased, so embedding both makes
-    the panel say its name twice. On screen the strip carries it; wherever there is no
+    The tab's label is the page's title, so its opening eyebrow repeats the page's
+    context. On screen the strip carries it; wherever there is no
     strip (unupgraded, in print, in a copy) the theme paints the label back onto the
     panel. The eyebrow is the copy that has nowhere to be. lf-toc maps its closest
     main, which after composition is the corpus's outer document, so a source page's
@@ -201,20 +185,14 @@ def main_body(source: Path, parsed: SourceDocument) -> str:
 
 
 def build() -> str:
-    on_disk = {p.name for p in EXAMPLES_DIR.glob("*.html")} - {CORPUS.name}
-    in_table = {stem + ".html" for stem, _ in PUBLIC_TABS}
-    if on_disk != in_table:
-        sys.exit(
-            "public examples and the PUBLIC_TABS table disagree: "
-            f"{sorted(on_disk ^ in_table)}"
-        )
     owner = {"corpus": CORPUS.name, "corpus-lede": CORPUS.name}
     tabs = []
     authored_assets = []
-    for source, label in TABS:
+    for source in SOURCES:
         stem = source.stem
         text = source.read_text(encoding="utf-8")
         parsed = SourceDocument(text)
+        label = html.escape(parsed.authoring.title.strip(), quote=True)
         for sheet in parsed.authoring.style_blocks:
             if sheet["css"].strip():
                 css = "\n".join(line.rstrip() for line in sheet["css"].splitlines())
@@ -260,7 +238,7 @@ def build_page() -> dict[str, bytes]:
     """
     declarations = {}
     files = {}
-    for source, _ in TABS:
+    for source in SOURCES:
         page = page_files(source)
         if not page.is_dir():
             continue
@@ -305,7 +283,7 @@ def build_events() -> str:
     settle unrelated controls before the corpus can exercise them.
     """
     combined = {}
-    for source, _ in TABS:
+    for source in SOURCES:
         document = SourceDocument(source.read_text(encoding="utf-8"))
         selected = {
             thread

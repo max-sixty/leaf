@@ -8,6 +8,7 @@
  */
 
 import { anchorKey } from "./anchor-coordinate.js";
+import { documentChanged } from "./semantic-state.js";
 import {
   resolvedElement,
   resolvedPassage,
@@ -96,9 +97,11 @@ export const projectedDatum = (source, key) => {
 // What an anchor's datum is called: the label its projection gave the element drawn
 // for it, found as resolution finds it, or for a datum its lazy widget has not drawn,
 // what that widget calls it (`lfDatumLabel`), so a thread on a line of a closed file
-// is named as its row would be.
+// is named as its row would be. It reads the page's nodes, so a paint that draws it
+// follows the document changing (`documentChanged`), as a projection relabelling it does.
 export function datumLabel(anchor) {
   if (!anchor?.datum) return "";
+  documentChanged();
   const source = sectionOf(anchor);
   const datums = currentDatums(
     source,

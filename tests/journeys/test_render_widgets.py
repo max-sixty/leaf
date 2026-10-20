@@ -25,7 +25,7 @@ from render_cases_interaction import (
 from render_cases_layout import (
     toggle_queue,
     unfolded_button,
-    with_one_item,
+    with_one_obligation,
 )
 from render_cases_navigation import (
     actions,
@@ -34,15 +34,16 @@ from render_cases_widgets import (
     BAD_CHARTS,
 )
 from render_harness import (
+    AVAILABLE_COMMANDS,
     BOARD_PAGE,
     RELEASE_FOCUS,
     CutOff,
     consume_browser_errors,
-    expect_banner_control_offered,
     holding,
     leaf_page,
     open_page,
     opened_tab,
+    panel_menu,
     resized,
     round_trip,
     scroll_settled,
@@ -57,6 +58,18 @@ from render_harness import (
 pytestmark = pytest.mark.shifts_unsurveyed
 
 from browser.widgets import PLAYGROUND_PAGE
+
+from journeys import first_thread_quote
+
+
+def expect_accept_all(page, words):
+    """The leaf's menu offers accepting every remaining suggestion, by its count; read
+    the row enabled and put the menu away."""
+    row = panel_menu(page).locator('.lf-fp-item[data-row="blanket:accept"]')
+    expect(row).to_have_text(words)
+    expect(row).to_be_enabled()
+    page.locator(".lf-fp-leaf").click()
+
 
 MOTION_SAMPLE_CONTENT = """
 <lf-code id="card-code" language="python"><pre>print("retained")</pre></lf-code>
@@ -82,8 +95,8 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     one at a time. Where the set holds both the list is a column left of the open panel,
     walked down as well as across; on a phone it is one row above the panel, scrolled
     sideways, so the open item never lands below the whole queue. A row carries its
-    panel's summary under its name, and beside the name its item's state: an open
-    mark while the item is unanswered, then a check and the picked option's title, said
+    panel's summary under its name, and beside the name its obligation's state: an open
+    mark while the obligation is unanswered, then a check and the picked option's title, said
     in the tab's description too. Answered is the log's reading, so an undo puts the
     open mark back once its answer is adopted, and the agent settling the question
     keeps the check. Answering moves no row. A tab's name is its label whatever the row shows, and a panel bounds what it
@@ -139,9 +152,9 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
 
     tabs = page.get_by_role("tab")
     expect(tabs.first).to_have_accessible_name("Ticket a")
-    expect(tabs.first).to_have_text("Ticket asev a · suggested fix")
+    expect(tabs.first).to_have_text("Ticket asev a · suggested fixTo answer")
     expect(tabs.first).to_have_accessible_description(
-        "sev a · suggested fix. Unanswered"
+        "sev a · suggested fix. To answer"
     )
     rows = (
         "() => [...document.querySelectorAll('#queue .lf-tab-btn')]"
@@ -155,8 +168,8 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     expect(tabs.first).to_have_attribute("aria-selected", "true")
 
     answer = page.locator("#queue .lf-tab-btn").first.locator(".lf-tab-answer")
-    expect(answer).to_have_attribute("data-lf-items", "open")
-    expect(answer).to_have_text("")
+    expect(answer).to_have_attribute("data-lf-obligations", "open")
+    expect(answer).to_have_text("To answer")
     page.locator("#o-a-fix .lf-pick").click()
     told(page)
     expect(answer).to_be_visible()
@@ -166,7 +179,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
         "sev a · suggested fix. Answered: Fix"
     )
     expect(tabs.nth(1)).to_have_accessible_description(
-        "sev b · suggested fix. Unanswered"
+        "sev b · suggested fix. To answer"
     )
     assert page.evaluate(rows) == heights
     page.keyboard.press("Tab")
@@ -202,19 +215,22 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
         "sev a · suggested fix. Answered: Fix"
     )
 
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
+    page.evaluate(AVAILABLE_COMMANDS)
+    page.wait_for_function(
+        "() => window.__lfAvailableCommands()['history.undo']?.includes('z') ?? false"
+    )
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.keyboard.press("z")
     holding(page, held, 1, "the undo")
-    expect(answer).to_have_attribute("data-lf-items", "answered")
+    expect(answer).to_have_attribute("data-lf-obligations", "answered")
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
-    expect(answer).to_have_attribute("data-lf-items", "open")
-    expect(answer).to_have_text("")
+    expect(answer).to_have_attribute("data-lf-obligations", "open")
+    expect(answer).to_have_text("To answer")
     expect(tabs.first).to_have_accessible_description(
-        "sev a · suggested fix. Unanswered"
+        "sev a · suggested fix. To answer"
     )
 
     page.locator("#o-a-fix .lf-pick").click()
@@ -285,10 +301,10 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     assert 0 <= top < 200, top
 
 
-def test_an_ordinary_two_part_item_retains_document_flow(browser, serve):
-    """An item in a document is prose and a control, not a workspace's region.
+def test_an_ordinary_two_part_obligation_retains_document_flow(browser, serve):
+    """An obligation in a document is prose and a control, not a workspace's region.
 
-    The control is the same item as a full-height workspace's body, which hands its height to
+    The control is the same obligation as a full-height workspace's body, which hands its height to
     the answer."""
     source = leaf_page(
         "Session-store follow-ups",
@@ -328,7 +344,7 @@ def test_an_ordinary_two_part_item_retains_document_flow(browser, serve):
     expect(page.locator("#session-triage-decision")).to_have_css("display", "flex")
     page.close()
 
-    # The workspace's full height reaches every item in it; an item held in a pane is
+    # The workspace's full height reaches every obligation in it; an obligation held in a pane is
     # that pane's content, not the body, and keeps its document flow.
     in_pane = held.replace(
         '<lf-ask id="session-triage-decision">',
@@ -388,7 +404,7 @@ def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(
     )
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
-    expect(page.locator(".lf-thread .lf-quote").first).to_contain_text("src/summary.rs")
+    expect(first_thread_quote(page, serve.page_dir)).to_contain_text("src/summary.rs")
     comments = [
         event
         for event in events_model.read_events(serve.page_dir)
@@ -457,8 +473,9 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     reveal without moving the map or changing the item under the pointer. Outside
     the margin posture, the same links open through a native disclosure.
 
-    The map fills the space between the banner and shortcut bar. Its rows keep the
-    last section in view while the document scrolls."""
+    The map fills the space between the window's top, where no chrome stands, and
+    the room the floating panel keeps at its foot. Its rows keep the last section in
+    view while the document scrolls."""
     source = leaf_page(
         "contents map",
         """
@@ -483,7 +500,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
 <div style="height: 380px"></div>
 """,
     )
-    url = serve(with_one_item(source))
+    url = serve(with_one_obligation(source))
     page = open_page(browser, url)
     resized(page, 1400, 900)
     nav = page.get_by_role("navigation", name="On this page")
@@ -526,22 +543,20 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     nav_box = nav.bounding_box()
     rows_box = nav.locator(".lf-toc-rows").bounding_box()
     toc_box = toc.bounding_box()
-    banner_box = page.locator(".lf-banner").bounding_box()
     assert nav_box is not None
     assert rows_box is not None
     assert toc_box is not None
-    assert banner_box is not None
     assert 23 <= nav_box["x"] <= 25
-    assert nav_box["y"] == pytest.approx(banner_box["y"] + banner_box["height"], abs=1)
+    assert nav_box["y"] == pytest.approx(0, abs=1)
     assert nav_box["height"] >= 740, f"the reading map used only {nav_box['height']}px"
     padding = nav.evaluate(
         "node => parseFloat(getComputedStyle(node).paddingBlockStart)"
     )
-    assert toc_box["y"] == pytest.approx(banner_box["y"] + banner_box["height"], abs=1)
-    # The map ends where the bottom bar starts.
-    assert toc_box["y"] + toc_box["height"] == pytest.approx(
-        page.locator(".lf-shortcut-bar").bounding_box()["y"], abs=1
-    )
+    assert toc_box["y"] == pytest.approx(0, abs=1)
+    # The map ends above the room the panel keeps at the window's foot, its last entry
+    # in view, as every region does.
+    panel_box = page.locator(".lf-fp-card").bounding_box()
+    assert toc_box["y"] + toc_box["height"] <= panel_box["y"] + 1, (toc_box, panel_box)
     assert nav_box["y"] == pytest.approx(toc_box["y"], abs=1)
     assert nav_box["y"] + nav_box["height"] == pytest.approx(
         toc_box["y"] + toc_box["height"], abs=1
@@ -550,7 +565,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
 
     # At rest the map takes the pointer on its spine alone, so the words beside it stay
     # the page's; once entered, the whole map keeps the pointer across its labels and
-    # the padding that keeps it clear of the banner.
+    # the padding over its first row.
     page.mouse.move(rows_box["x"] + 100, rows_box["y"] + 20)
     assert not toc.evaluate("node => node.matches(':hover')")
     page.mouse.move(rows_box["x"] + 2, rows_box["y"] + 20, steps=4)
@@ -559,19 +574,9 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     expect(prepare).to_have_css("pointer-events", "auto")
     page.mouse.move(nav_box["x"] + 100, rows_box["y"] - 8, steps=8)
     assert toc.evaluate("node => node.matches(':hover')")
-    page.mouse.move(nav_box["x"] + 100, toc_box["y"] - 2)
-    assert page.evaluate(
-        "point => document.elementFromPoint(point.x, point.y)?.closest('.lf-banner') !== null",
-        {"x": nav_box["x"] + 100, "y": toc_box["y"] - 2},
-    )
+    # Leaving the map returns it to its spine.
+    page.mouse.move(1200, 700)
     expect(prepare).to_have_css("opacity", "0")
-    # The bottom bar is attached to the window's foot, so the map ends above it with its
-    # last entry in view, as every region does.
-    line_box = page.locator(".lf-shortcut-bar").bounding_box()
-    assert line_box is not None, "the fixture drew no shortcut bar"
-    assert nav_box["y"] + nav_box["height"] <= line_box["y"] + 1, (
-        f"the bottom bar stands over the map's foot: map {nav_box}, band {line_box}"
-    )
     assert nav_box["width"] == pytest.approx(24, abs=1)
 
     resized(page, 1800, 900)
@@ -705,7 +710,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     )
     assert 14 <= lens_before["height"] < nav_box["height"]
 
-    # A Mermaid render, image load, disclosure, or other late block can change the
+    # A diagram render, image load, disclosure, or other late block can change the
     # document after upgrade. Growing one such block must move the later sections in
     # the map without changing the rail's own box.
     move_before = markers[4]["y"]
@@ -2070,7 +2075,9 @@ def test_suggestion_emphasis_skips_generated_interface_between_changed_words(
     ) == [
         False,
         False,
-    ], "the authored change's emphasis crossed into the item's generated key hints"
+    ], (
+        "the authored change's emphasis crossed into the obligation's generated key hints"
+    )
 
 
 def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, serve):
@@ -2102,8 +2109,7 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     # Its pair leaves; the surviving content and Undo carry the settled state.
     rejected = second.locator("[data-lf-margin-for='sug-refill'] .lf-sug-reject")
     expect(rejected).to_be_hidden()
-    expect(second.locator(".lf-answer-all")).to_have_text("Accept all (2)")
-    expect_banner_control_offered(second.locator(".lf-answer-all"))
+    expect_accept_all(second, "Accept all (2)")
 
     # Now the race the controls make possible: a window cut off from the log still
     # shows both buttons, so the user can decide the other way there. Two
@@ -2115,8 +2121,7 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     # In the log before the reject is clicked, so which one is later is this test's
     # to decide rather than the network's.
     told(second)
-    expect(second.locator(".lf-answer-all")).to_have_text("Accept all (1)")
-    expect_banner_control_offered(second.locator(".lf-answer-all"))
+    expect_accept_all(second, "Accept all (1)")
     unfolded_button(
         third.locator("[data-lf-margin-for='sug-thistle'] .lf-sug-reject")
     ).click()

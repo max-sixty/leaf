@@ -6,10 +6,17 @@ import re
 import pytest
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
-from render_cases_interaction import ITEMS_PAGE
-from render_cases_layout import banner_control
+from render_cases_interaction import OBLIGATIONS_PAGE
 from render_cases_navigation import CONTROL_LABEL_PAGE, NOTED_PAGE
-from render_harness import LONG_PAGE, open_page, resized, round_trip
+from render_harness import (
+    LONG_PAGE,
+    PANEL_THREAD,
+    open_page,
+    panel_control,
+    panel_field,
+    resized,
+    round_trip,
+)
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -33,7 +40,6 @@ def test_only_controls_and_boxes_with_something_out_of_sight_take_a_tab_stop(
     the members were wrong: every stop in the overlay has to be a control the reference
     offers or a box that really scrolls."""
     page = open_page(browser, serve(CONTROL_LABEL_PAGE))
-    page.keyboard.press("?")
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_be_visible()
 
@@ -106,12 +112,12 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
           }));
         }"""
     )
-    opener = page.get_by_role("button", name="? more", exact=True)
-    opener.click()
-    opener = page.get_by_role("button", name="? command reference", exact=True)
-    opener.click()
+    panel_control(page, "keyboard").click()
+    # The leaf's menu goes away as its row opens the reference, so the leaf is the door
+    # the reference returns to.
+    opener = page.locator(".lf-fp-leaf")
     help_el = page.locator(".lf-command-reference")
-    close = page.get_by_role("button", name="Back to more shortcuts")
+    close = page.get_by_role("button", name="Close the command reference")
     expect(close).to_be_visible()
     expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
     search = page.get_by_role("combobox", name="Search commands")
@@ -121,7 +127,7 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     page.keyboard.press("Escape")
     expect(help_el).to_be_hidden()
     expect(opener).to_be_focused()
-    opener.click()
+    panel_control(page, "keyboard").click()
     expect(search).to_be_focused()
     for command in [
         "test.projected-only",
@@ -156,7 +162,7 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
         )
         assert active["inside"], f"Tab left the command reference for {active['name']}"
         seen.add(active["name"])
-    assert "Back to more shortcuts" in seen, seen
+    assert "Close the command reference" in seen, seen
 
     page.keyboard.press("Shift+Tab")
     assert page.evaluate(
@@ -170,7 +176,7 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     # The native modal makes the page behind it inert. Its reachable light-dismiss gesture
     # is the backdrop, which closes the reference and returns to the door rather than
     # pretending a page control can be pressed through the modal layer.
-    opener.click()
+    panel_control(page, "keyboard").click()
     page.mouse.click(2, 2)
     expect(help_el).to_be_hidden()
     expect(opener).to_be_focused()
@@ -180,7 +186,6 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     page.keyboard.press("Escape")
     page_control = page.locator("#projected-only-command")
     page_control.click()
-    page.keyboard.press("?")
     page.keyboard.press("?")
     expect(search).to_be_focused()
     page.mouse.click(2, 2)
@@ -201,19 +206,19 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     search = page.get_by_role("combobox", name="Search commands")
 
     page.keyboard.press("?")
-    page.keyboard.press("?")
     commands = help_el.locator(".lf-command-reference-command:visible")
     assert commands.count() > 1, "the command grid has no pair of rows to walk"
-    # The head's hint and the rows share their verbs: "choose" and "activate" here,
-    # and on the expanded shortcut bar, one register for one press.
+    # The head's hint and the rows share their verbs, "choose" and "activate".
     expect(help_el.locator(".lf-command-reference-meta")).to_have_text(
         re.compile(r"^\d+ commands · ↑↓ choose · ⏎ activate$")
     )
     page.keyboard.press("ArrowDown")
     expect(search).to_be_focused()
     expect(commands.first).to_have_attribute("data-lf-selected", "true")
-    expect(page.locator(".lf-walk-position")).to_have_text(
-        f"Command 1 of {commands.count()}"
+    # The walk says its position where the panel says what passes, in the empty
+    # field's place.
+    expect(panel_field(page)).to_have_attribute(
+        "placeholder", f"Command 1 of {commands.count()}"
     )
     expect(help_el.locator(".lf-command-reference-meta")).to_have_text(
         re.compile(r" · ⏎ activate$")
@@ -224,7 +229,6 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     ) == first_row.get_attribute("id")
     page.keyboard.press("ArrowUp")
     expect(commands.first).to_have_attribute("data-lf-selected", "true")
-    expect(page.locator(".lf-walk-position")).to_have_attribute("data-lf-boundary", "")
 
     page.keyboard.press("Escape")
     page.keyboard.press("?")
@@ -335,13 +339,13 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
         )
     ).to_have_attribute("data-lf-selected", "true")
     expect(help_el.locator(".lf-command-reference-meta")).to_have_text(
-        "Threads panel · g · ⏎ activate"
+        "Threads · g · ⏎ activate"
     )
     search.fill("Tab")
     tab_matches = help_el.locator(
         ".lf-command-reference-binding-matches tr[data-lf-command]:visible"
     ).evaluate_all("rows => rows.map(row => row.dataset.lfCommand)")
-    assert "version.leave-forward" in tab_matches, tab_matches
+    assert "panel.floating.menu.leave-forward" in tab_matches, tab_matches
     search.fill("w")
     w_results = help_el.locator("tr[data-lf-command]:visible").evaluate_all(
         "rows => rows.map(row => row.dataset.lfCommand)"
@@ -351,7 +355,6 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
         ".lf-command-reference-binding-matches tr[data-lf-command]:visible"
     ).evaluate_all("rows => rows.map(row => row.dataset.lfCommand)")
     assert "draw.mode.exit" in w_matches, w_matches
-    assert "thread.waiting.toggle" in w_matches, w_matches
     assert w_results.index("page.down") >= len(w_matches), w_results
 
     search.fill("resolve it")
@@ -403,9 +406,8 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     expect(search).to_be_focused()
     expect(previous).to_have_attribute("data-lf-selected", "true")
     page.keyboard.press("Enter")
-    thread = page.locator(".lf-thread").last
-    expect(thread.locator(":scope > .lf-thread-summary")).to_be_focused()
-    page.keyboard.press("?")
+    # The last thread, which has no card on the page, opens in the panel.
+    expect(page.locator(PANEL_THREAD)).to_be_focused()
     page.keyboard.press("?")
     search.fill("resolve it")
     page.keyboard.press("ArrowDown")
@@ -413,16 +415,18 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     expect(result).to_have_attribute("data-lf-selected", "true")
     page.keyboard.press("Enter")
     expect(help_el).to_be_hidden()
-    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
+    panel_control(page, "threads").click()
+    page.locator(".lf-fp-filters button").filter(has_text="Resolved").click()
+    expect(page.locator(".lf-fp-thread")).to_have_count(1)
 
 
-# Threads stands for the two banner toggles, whose branch the On panel shares.
+# Threads stands for the panel's two marks, whose branch On me shares.
 @pytest.mark.parametrize(
     ("command", "suffix", "surface"),
     [
-        ("navigation.panel.threads", "T", ".lf-thread-panel"),
+        ("navigation.panel.threads", "T", '.lf-fp-view[data-view="threads"]'),
         ("navigation.page-map", "P", ".lf-page-map-dialog"),
-        ("version.open", "V", ".lf-version-menu"),
+        ("version.open", "V", '.lf-fp-menu[data-level="versions"]'),
     ],
 )
 def test_the_reference_enters_named_go_to_destinations(
@@ -430,17 +434,16 @@ def test_the_reference_enters_named_go_to_destinations(
 ):
     """A named destination is one capability whether a keyboard sequence or the
     command reference reaches it; native controls keep their own activation."""
-    page = open_page(browser, serve(ITEMS_PAGE, comments=2))
+    page = open_page(browser, serve(OBLIGATIONS_PAGE, comments=2))
     destination = page.locator(surface)
     if suffix in ("T", "M"):
-        control = ".lf-threads-toggle" if suffix == "T" else ".lf-queue"
-        banner_control(page, control).click()
+        control = "threads" if suffix == "T" else "queue"
+        panel_control(page, control).click()
         expect(destination).to_be_visible()
-        assert not destination.evaluate("node => node.contains(document.activeElement)")
         page.keyboard.press("g")
         page.keyboard.press(f"Shift+{suffix.lower()}")
         expect(destination).to_be_hidden()
-        banner_control(page, control).press("Enter")
+        panel_control(page, control).press("Enter")
         expect(destination).to_be_visible()
         page.wait_for_function(
             "selector => document.querySelector(selector).contains(document.activeElement)",
@@ -464,7 +467,6 @@ def test_the_reference_enters_named_go_to_destinations(
     expect(destination).to_be_hidden()
 
     page.keyboard.press("?")
-    page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
     page.get_by_role("combobox", name="Search commands").fill(command)
@@ -486,7 +488,6 @@ def test_the_reference_keeps_its_top_and_search_still_when_filtering(
     """Results shrink below the search field, including an empty result set."""
     page = open_page(browser, serve(NOTED_PAGE))
     resized(page, *viewport)
-    page.keyboard.press("?")
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
     search = page.get_by_role("combobox", name="Search commands")
@@ -531,7 +532,6 @@ def test_the_reference_keeps_local_search_state_on_one_lit_surface(browser, serv
     command, and filtering it back does not silently revive it.
     """
     page = open_page(browser, serve(NOTED_PAGE, comments=2))
-    page.keyboard.press("?")
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
     search = page.get_by_role("combobox", name="Search commands")
@@ -633,7 +633,6 @@ def test_the_reference_revalidates_a_captured_command_before_running_it(browser,
         }"""
     )
     page.keyboard.press("?")
-    page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
     first = reference.locator(
         '.lf-command-reference-command[data-lf-command="test.changing.first"]'
@@ -659,12 +658,11 @@ def test_the_reference_revalidates_a_captured_command_before_running_it(browser,
     )
 
 
-def test_the_reference_runs_the_exact_numbered_item_action(browser, serve):
-    """Each item digit is a distinct command when invoked without a keydown."""
-    page = open_page(browser, serve(ITEMS_PAGE))
+def test_the_reference_runs_the_exact_numbered_obligation_action(browser, serve):
+    """Each obligation digit is a distinct command when invoked without a keydown."""
+    page = open_page(browser, serve(OBLIGATIONS_PAGE))
 
     page.keyboard.press("m")
-    page.keyboard.press("?")
     page.keyboard.press("?")
 
     first = page.locator(
@@ -682,14 +680,15 @@ def test_the_reference_runs_the_exact_numbered_item_action(browser, serve):
     round_trip(page)
 
 
-def test_away_from_an_item_the_reference_names_widget_owned_options(browser, serve):
+def test_away_from_an_obligation_the_reference_names_widget_owned_options(
+    browser, serve
+):
     """The catalog keeps the widget's named commands and explicitly declared digits.
 
     Outside the widget those commands are unavailable; there is no synthetic page
     command claiming an undifferentiated digit range.
     """
-    page = open_page(browser, serve(ITEMS_PAGE))
-    page.keyboard.press("?")
+    page = open_page(browser, serve(OBLIGATIONS_PAGE))
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
@@ -724,7 +723,6 @@ def test_the_reference_reads_the_same_way_twice(browser, serve):
     for _ in range(2):
         page = open_page(browser, url)
         page.keyboard.press("?")
-        page.keyboard.press("?")
         expect(page.locator(".lf-command-reference")).to_be_visible()
         seen.append(
             page.evaluate(
@@ -737,6 +735,44 @@ def test_the_reference_reads_the_same_way_twice(browser, serve):
     assert "On a tab" in seen[0], seen[0]
 
 
+def test_the_reference_lists_each_of_the_panel_s_keys_once(browser, serve):
+    """The floating panel's section listed ↑ ↓ Home End twice, once for the leaf's menu
+    and once for the open view, under the same words, and gave ← and → a row each with
+    one description between them: twelve rows for seven keys' meanings. One walk over
+    whichever list is open, and ← / → on one row as the margin's reads, list each key
+    once."""
+    page = open_page(browser, serve(LONG_PAGE))
+    page.keyboard.press("?")
+    expect(page.locator(".lf-command-reference")).to_be_visible()
+    rows = page.evaluate(
+        """() => {
+          const listed = []; let inside = false;
+          for (const row of document.querySelectorAll('.lf-command-reference tr')) {
+            const heading = row.querySelector('h3');
+            if (heading) { inside = heading.textContent === 'In the floating panel'; continue; }
+            if (!inside || !row.dataset.lfCommand) continue;
+            listed.push([
+              row.dataset.lfCommand,
+              [...row.querySelectorAll('kbd')].map(key => key.textContent.trim()).join(' '),
+              row.querySelector('.lf-command-reference-command').textContent,
+            ]);
+          }
+          return listed;
+        }"""
+    )
+    assert [(command, title) for command, _, title in rows] == [
+        ("panel.floating.rows.previous", "Previous row"),
+        ("panel.floating.rows.next", "Next row"),
+        ("panel.floating.rows.first", "First row"),
+        ("panel.floating.rows.last", "Last row"),
+        ("panel.floating.menu.level", "Open or leave a list"),
+        ("panel.floating.menu.leave-forward", "Leave forward"),
+        ("panel.floating.menu.leave-backward", "Leave backward"),
+    ], rows
+    # The arrows' glyphs read the same on every platform; Tab's modifier does not.
+    assert [keys for _, keys, _ in rows[:5]] == ["↑", "↓", "home", "end", "← / →"], rows
+
+
 def test_the_reference_keeps_its_count_line_whole_above_the_results(browser, serve):
     """The reference is a column in a window-capped box, and only its results give up
     height to fit. Its count line was a shrinkable item too, squeezed to 13.8px under a
@@ -744,7 +780,6 @@ def test_the_reference_keeps_its_count_line_whole_above_the_results(browser, ser
     results' edge ran into the words above it. The line keeps a whole line, and the
     results start a step below it."""
     page = open_page(browser, serve(LONG_PAGE))
-    page.keyboard.press("?")
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_be_visible()
     reading = page.evaluate(

@@ -30,7 +30,6 @@ import {
   offer,
   quoted,
   says,
-  notice,
   announce,
   commands,
   labelOf,
@@ -470,12 +469,12 @@ customElements.define(
 
     // One completed move, drag or keyboard: the card's rank among the destination's
     // other cards, sent once, so the move stays put whichever other moves stand. The
-    // notice's word follows the branch the user can see — a card kept in its column
+    // gesture's name follows the branch the user can see — a card kept in its column
     // was reordered, not moved to where it already was. A refusal is restored by the
     // layer from the declared record plus its outbox, never from this gesture's DOM
     // snapshot: that snapshot may be another queued move the server also refused.
     #send(card, from, to) {
-      const sent = this.controller.dispatch({
+      this.controller.dispatch({
         kind: "action",
         verb: "move",
         detail: {
@@ -483,23 +482,12 @@ customElements.define(
           value: to.id,
           rank: rankAt(this.state.move, to.id, this.#cards(to).indexOf(card), card.id),
         },
+        says: `${to === from ? "Reordered in" : "Moved to"} ${to.getAttribute("label")}`,
       });
       // A gesture can outlive the reading that enabled it. If admission has already
       // closed by commit time, resuming the deferred controller repaints the moved
       // native node from current semantic state immediately.
-      if (!sent) {
-        this.#finishGesture();
-        return;
-      }
       this.#finishGesture();
-      sent.delivery.then((ok) => {
-        if (ok)
-          notice(
-            `${to === from ? "Reordered in" : "Moved to"} ${to.getAttribute(
-              "label",
-            )} — sent`,
-          );
-      });
     }
 
     #sortable(col) {

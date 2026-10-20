@@ -26,10 +26,10 @@ id of any message in the thread.
 
 When the user comments on repeated words that the surrounding text cannot tell
 apart, Leaf keeps the quote but not which copy they meant. The comment has
-`anchor.detached: true`, and the panel's **Not located** filter lists it.
+`anchor.detached: true`, and Threads keeps it with the quote it was about.
 
 When you open a thread, title it with `--title`, a few words naming its subject in
-the thread panel. When the user opens a thread, Leaf usually titles it as they post;
+Threads. When the user opens a thread, Leaf usually titles it as they post;
 if it is still untitled when you answer, the event's `handling` asks you to add
 `--title`.
 
@@ -58,8 +58,8 @@ Leaf checks markup when you post it but does not draw it. If a data widget, such
 chart, fails to draw, you get an `error` event when the user opens the thread; answer
 with a corrected reply.
 
-The thread panel is a narrow column, so a paragraph that reads fine in chat is a wall
-there. Say what changed or where to look in a sentence or two, or one short item per
+A thread shows in a narrow card or panel, so a paragraph that reads fine in chat is a
+wall there. Say what changed or where to look in a sentence or two, or one short item per
 point; the page carries the evidence. Record a decision, result, or deferred work on
 the page and link it from the reply with a fragment link such as
 `[the decision](#decision)`, which opens any tab or group hiding its target. Where
@@ -118,8 +118,8 @@ nearby content:
 leaf response reply <answer.ref> --done --detach --text "Removed this; the thread no longer has a page target."
 ```
 
-A detached thread stays open in the panel, its passage marked as gone from this
-version, and the **Not located** filter lists it. `page state` shows a null anchor,
+A detached thread stays open in Threads, its quote marked as gone from this
+version. `page state` shows a null anchor,
 with the old one in `detached_from`. A later reply may move it to a real replacement;
 open a new thread for a different subject. Don't resolve a thread to get rid of an
 anchor you removed: Leaf leaves a resolved thread's anchor as it was, so if the user
@@ -131,8 +131,8 @@ Every answer declares what it leaves the thread with:
 - `--todo "<what you owe>"`: it promises work it does not deliver, and opens that
   to-do on the thread under the reply's id until `leaf task end <page> <reply-id>`
   ([Long-running work](conversation-loop.md#long-running-work)).
-- A question back: put it in an `lf-ask` in `--markup`. It is an item on the user's
-  On me list, `widget:<its id>` in `page state`'s `items`, until their next message in
+- A question back: put it in an `lf-ask` in `--markup`. It is an obligation on the user's
+  On me list, `widget:<its id>` in `page state`'s `obligations`, until their next message in
   the thread answers it or you end it
   ([The On lists](conversation-loop.md#the-on-lists)). An answer that asks this way
   needs no flag.
@@ -161,7 +161,7 @@ leaf response reply <answer.ref> --ephemeral --text "Checking the keyboard route
 ```
 
 It does not answer the update, but on an update you owe it starts the update, and
-its text becomes the **Working** line in the banner, so keep it to one line
+its text becomes the **Working** status in Leaf's panel, so keep it to one line
 ([conversation loop, "When to write"](conversation-loop.md#when-to-write)). In a
 thread that owes no reply, use `leaf thread reply --ephemeral`.
 
@@ -172,8 +172,8 @@ questions, to-dos, markup, anchor moves and failure receipts each need a reply o
 their own.
 
 Any widget in a reply's markup whose registry entry declares `x-awaits`, such as an
-`lf-options` or an `lf-ask`, waits on the user and keeps its thread "My turn" until
-they answer it. A thread you open asks nothing by itself either: to wait on the
+`lf-options` or an `lf-ask`, waits on the user and keeps its thread at "My turn to answer"
+until they answer it. A thread you open waits on nobody by itself: to wait on the
 user's answer, its markup holds an `lf-ask`.
 
 Correct a message you or an earlier agent wrote, without adding a turn:

@@ -36,9 +36,8 @@ VIEWPORT = (1120, 700)
 # docs/index.html and docs/examples.html reserve this 8:5 box before a preview loads.
 OUTPUT_SIZE = (896, 560)
 REQUIRED_FONTS = {
-    # The default floating chrome hides the banner's .lf-status-text. Inspect
-    # its visible slotted status words: CDP reports fonts for direct text nodes.
-    ".lf-floating-panel .lf-compose-placeholder > span": ".SF NS",
+    # The floating panel's field, whose empty placeholder says the page's status.
+    ".lf-fp-field .lf-compose-placeholder": ".SF NS",
     ".lede": "Charter",
 }
 
@@ -48,7 +47,7 @@ def serve_examples(site: Path) -> Iterator[str]:
     """Host the capture scene through the production route adapter in isolation."""
     # As in the demo recorder, the host's open pages are not part of the scene.
     # Isolate their discovery before serving so `All leaves` cannot change the
-    # captured banner or expose the host's page titles.
+    # captured chrome or expose the host's page titles.
     previous_state_home = os.environ.get("XDG_STATE_HOME")
     with tempfile.TemporaryDirectory(prefix="leaf-preview-state-") as state_home:
         os.environ["XDG_STATE_HOME"] = state_home

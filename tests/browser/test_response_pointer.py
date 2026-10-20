@@ -6,7 +6,7 @@ import pytest
 from leaf import data as data_model
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE
-from render_harness import ROOT, leaf_page, open_page, rendered, write
+from render_harness import ROOT, leaf_page, open_page, rendered, selection_field, write
 
 from browser.test_render_reactions import select_paragraph
 
@@ -25,7 +25,7 @@ def test_comment_has_one_action_and_keys_preserve_its_other_responses(
         page = open_page(browser, serve(PANEL_PAGE), context=context)
         select_paragraph(page, "#how-cap")
         if touch:
-            page.get_by_role("button", name="Comment on selection", exact=True).tap()
+            selection_field(page).tap()
     else:
         registry = json.loads(
             (ROOT / "skills/leaf/packages/default/registry.json").read_text()

@@ -23,6 +23,8 @@ recor = "recor"
 # id the fixture holds, because a near-miss is the typo the gate exists to refuse —
 # "corrected", the id exists and the refusal under test never fires.
 backfil = "backfil"
+# The media element's `seeked` event, named by the platform.
+seeked = "seeked"
 
 [default.extend-identifiers]
 # typos splits the plural of PNG into `PN` + `Gs` and "corrects" it to ONGs.

@@ -92,6 +92,28 @@ def records_for(message: dict, session: str, final: str) -> list[dict]:
                     "message": {"content": [block]},
                 }
             ]
+        if item["type"] == "mcpToolCall":
+            block = (
+                {
+                    "type": "tool_use",
+                    "id": item["id"],
+                    "name": f"mcp__{item['server']}__{item['tool']}",
+                    "input": item["arguments"],
+                }
+                if method == "item/started"
+                else {
+                    "type": "tool_result",
+                    "tool_use_id": item["id"],
+                    "content": json.dumps(item.get("result") or item.get("error")),
+                    "is_error": item["status"] != "completed",
+                }
+            )
+            return [
+                {
+                    "type": "assistant" if method == "item/started" else "user",
+                    "message": {"content": [block]},
+                }
+            ]
         if item["type"] == "functionCallOutput" and method == "item/completed":
             return [
                 {
@@ -223,6 +245,7 @@ class CodexChild:
         temporary = cwd / "tmp"
         temporary.mkdir(exist_ok=True)
         config_home = home / ".codex"
+        self.native_sessions = config_home / "sessions"
         if not config_home.exists():
             codex_home(
                 config_home,

@@ -3,32 +3,22 @@ import assert from "node:assert/strict";
 import test from "node:test";
 // Importing the page's own parts declares "On a link".
 import "../../skills/leaf/assets/runtime/keyboard/page.js";
-import {
-  dispatchKey,
-  lineOwner,
-} from "../../skills/leaf/assets/runtime/keyboard/dispatch.js";
-import { registerCoveringAuxiliarySurface } from "../../skills/leaf/assets/runtime/keyboard/register.js";
+import { dispatchKey } from "../../skills/leaf/assets/runtime/keyboard/dispatch.js";
 import {
   keys,
   reflectFirstScopes,
 } from "../../skills/leaf/assets/runtime/keyboard/scopes.js";
 
-registerCoveringAuxiliarySurface(() => null);
-
-// One press from wherever focus stands: whether Leaf answered it, whether the browser's
-// own default survives, and which row the shortcut bar names for that key.
+// One press from wherever focus stands: whether Leaf answered it, and whether the
+// browser's own default survives.
 function press(key) {
   const event = new window.KeyboardEvent("keydown", {
     key,
     bubbles: true,
     cancelable: true,
   });
-  const handled = dispatchKey(event, {});
-  return {
-    handled,
-    prevented: event.defaultPrevented,
-    named: lineOwner(key)?.row.id ?? null,
-  };
+  const handled = dispatchKey(event);
+  return { handled, prevented: event.defaultPrevented };
 }
 
 test("Enter and Space on a link or button inside a container stay native", () => {
@@ -53,7 +43,7 @@ test("Enter and Space on a link or button inside a container stay native", () =>
   try {
     // The container answers its own presses.
     container.focus();
-    const own = { handled: true, prevented: true, named: "container.act" };
+    const own = { handled: true, prevented: true };
     assert.deepEqual(press("Enter"), own);
     assert.deepEqual(press(" "), own);
     assert.equal(acted, 2);
@@ -63,21 +53,20 @@ test("Enter and Space on a link or button inside a container stay native", () =>
     assert.deepEqual(press("Enter"), {
       handled: false,
       prevented: false,
-      named: "link.follow",
     });
     assert.deepEqual(press(" "), own);
     assert.equal(acted, 3);
 
     // Both press a button, and the bar promises nothing the button won't do.
     button.focus();
-    const native = { handled: false, prevented: false, named: null };
+    const native = { handled: false, prevented: false };
     assert.deepEqual(press("Enter"), native);
     assert.deepEqual(press(" "), native);
     assert.equal(acted, 3);
 
     // A disclosure's own scope speaks for the button: it keeps the press and its name.
     disclosure.focus();
-    const toggle = { handled: true, prevented: true, named: "disclosure.toggle" };
+    const toggle = { handled: true, prevented: true };
     assert.deepEqual(press("Enter"), toggle);
     assert.deepEqual(press(" "), toggle);
     assert.equal(toggled, 2);
@@ -104,7 +93,7 @@ test("a context alias on a button yields its Enter and Space, as dispatch and ar
   try {
     reflectFirstScopes();
     button.focus();
-    const native = { handled: false, prevented: false, named: null };
+    const native = { handled: false, prevented: false };
     assert.deepEqual(press("Enter"), native);
     assert.deepEqual(press(" "), native);
     assert.equal(acted, 0);

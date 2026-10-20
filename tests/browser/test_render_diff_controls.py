@@ -752,6 +752,59 @@ def test_resolved_file_threads_share_the_file_disclosure_edge(browser, serve):
     ).to_be_visible()
 
 
+def test_a_file_conversation_ends_the_list_past_files_the_filter_hides(browser, serve):
+    """The shown files are one bordered list, which a file's conversation box breaks.
+
+    The next file the filter shows starts a new run 8px below that box, with its own
+    corners, even when the files between are hidden; without a filter the hidden file
+    starts it and the one after joins on.
+    """
+    patch = "".join(
+        f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n@@ -1 +1 @@\n-old\n+new\n"
+        for path in ("app/models.py", "app/views.py", "docs/guide.md")
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "File conversations in a filtered list",
+                f'<h1>Review the change</h1><lf-diff id="patch" collapsed><pre>{escape(patch)}</pre></lf-diff>',
+            )
+        ),
+    )
+    diff = page.locator("#patch")
+    diff.locator(".lf-diff-file-comment").first.click()
+    field = diff.locator("leaf-text")
+    field.press("A")
+    with sending(page, "the file comment"):
+        field.press("ControlOrMeta+Enter")
+    expect(diff.locator(".lf-page-thread")).to_be_visible()
+    read = """diff => {
+      const box = node => node.getBoundingClientRect();
+      const files = [...diff.shadowRoot.querySelectorAll('.lf-diff-file')];
+      const head = file => file.querySelector(':scope > details');
+      const outlet = box(files[0].querySelector('.lf-diff-file-thread-outlet'));
+      return files.map(file => ({
+        shown: getComputedStyle(file).display !== 'none',
+        top: box(head(file)).top, bottom: box(head(file)).bottom, outlet: outlet.bottom,
+        corner: getComputedStyle(head(file)).borderTopLeftRadius,
+      }));
+    }"""
+    corner = diff.evaluate("d => getComputedStyle(d).getPropertyValue('--r').trim()")
+    models, views, guide = diff.evaluate(read)
+    assert views["top"] - views["outlet"] == pytest.approx(8, abs=0.5), views
+    assert views["corner"] == corner, views
+    assert guide["top"] == pytest.approx(views["bottom"] - 1, abs=0.5), guide
+    assert guide["corner"] == "0px", guide
+
+    diff.get_by_label("Filter diff files").fill("d")
+    rendered(page)
+    models, views, guide = diff.evaluate(read)
+    assert (models["shown"], views["shown"], guide["shown"]) == (True, False, True)
+    assert guide["top"] - guide["outlet"] == pytest.approx(8, abs=0.5), guide
+    assert guide["corner"] == corner, guide
+
+
 def test_a_live_line_reply_wraps_without_resize_observer_feedback(
     browser, serve, request
 ):

@@ -48,3 +48,7 @@ export function keepsText(node, text) {
 export const atLayoutPrecision = (length) => Math.round(length * 64) / 64;
 
 export const layoutPx = (length) => `${atLayoutPrecision(length)}px`;
+
+// A room a box must fit in, at layout precision and never past it: rounding a room
+// up would leave its box a fraction too large for the space it was measured from.
+export const roomPx = (length) => `${Math.floor(length * 64) / 64}px`;

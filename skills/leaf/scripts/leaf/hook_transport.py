@@ -1,9 +1,10 @@
-"""The prompt and Stop hooks' output for a session that owns pages.
+"""The prompt, tool-boundary and Stop hooks' output for a session that owns pages.
 
-`carry_turn` builds what the prompt hook (`UserPromptSubmit`) and the Stop hook add
-to a turn. On Claude Code and Pi these hooks carry the user's updates to the agent
-(`Harness.hook_delivers`): `carry_turn` freezes the input pending on the session's
-pages into a delivery and hands it over inline or as a pointer. Codex offers its
+`carry_turn` builds what the prompt hook (`UserPromptSubmit`), Claude Code's
+`PostToolBatch`, and Stop add to a turn. On Claude Code and Pi these hooks carry
+the user's updates to the agent (`Harness.hook_delivers`): `carry_turn` freezes
+the input pending on the session's pages into a delivery and hands it over inline
+or as a pointer. Codex offers its
 pointers through `codex.offer_hook_delivery` instead, but uses this module's Stop
 rule and reminders. `hooks` calls in here for pages the session owns and for a
 reconnect notice about a page it served before.
@@ -19,11 +20,19 @@ input pending or a status other than idle (`stop_continues`). A repeated Stop
 (`stop_hook_active`) continues only for a newly delivered update that owes an
 answer.
 
+Where a watch follows the turn (`Harness.watches_between_turns`), Stop hands no
+input over: the watch wakes once the turn closes and opens a turn whose prompt hook
+does. Continuing the turn for the input would have the agent write one more message,
+and a harness that shows each turn's final message alone, as Claude Code's focus
+view does, would show that reply in place of the answer the turn had written. Under
+plain `--print` nothing watches after the run, so Stop hands the input into the turn
+it continues.
+
 For an update already picked up and still owed an answer, the hook reminds the
-agent by naming the delivery that holds its answer reference. It captures the
-update again only when the page's current owner has no usable reference, as when
-another session took the page (`PagePlan.recovery`). A reminder does not make an
-update pending again or reserve a Codex offer.
+agent by naming the delivery that holds its answer reference. An update the page's
+current owner holds no usable reference for, as when another session received it
+before the page changed hands, is deliverable again (`delivery.deliverable`), so
+the hook hands it over with the owner's other input.
 
 The hook confirms an inline delivery itself (`receive_held`), so the updates read
 Picked up without waiting for the model, and the envelope's `acknowledge` is null.
@@ -46,13 +55,11 @@ timeout, and prints afterwards. It never waits for a lock past that deadline, an
 page whose lock is still held goes unconfirmed. If an interrupt ends a turn just
 after it starts, its updates still read Picked up; App Server turns behave the same.
 
-Confirmed input can still miss the context, as when Leaf's Claude Code hooks module
-runs this hook for a wake and finds the session ended before it appends the output
-(`hooks/claude-code.ts`). The input is not offered again as new. An update that owes
-an answer stays owed, and the owner's next prompt or first Stop hook names its
-original pointer or captures it again; an update that owes none is lost. Confirming
-only after the module appends was rejected: if that confirmation were refused or
-never ran, input the turn already holds would stay pending and be offered again.
+Confirmed input can still miss the context, as when the session ends after the hook
+confirms and before the harness reads its output. The input is not offered again as
+new. An update that owes an answer stays owed, and the owner's next prompt or first
+Stop hook names its original pointer, or hands it over again where that pointer is
+unreadable; an update that owes none is lost.
 """
 
 import json
@@ -75,7 +82,7 @@ from .event_contracts import write_refusal
 from .findings import Finding
 from .harness import Harness, claim_harness
 from .schema import (
-    ANSWER_ITEM_INSTRUCTION,
+    ANSWER_INSTRUCTION,
     PREVIEW_FILE,
 )
 from .served_state.context import read_page
@@ -113,9 +120,9 @@ def restart(obligations: list[dict]) -> str:
 class PagePlan:
     """A session-owned page read once under its transaction.
 
-    Pending and recovery batches, response debt and watcher readiness come from
-    one log, cursor, status and ownership snapshot. Planning never records a
-    pickup. The caller selects which pending batches its transport can hand over.
+    The deliverable batch, response debt and watcher readiness come from one log,
+    cursor, status and ownership snapshot. Planning never records a pickup. The
+    caller selects which pending batches its transport can hand over.
     `unwritable` says why this Leaf may record no pickup there, or is None
     (`event_contracts.write_refusal`). `unready` is what re-vendoring the page
     before the reading left for the agent, or None (`vendoring.renew_layer`).
@@ -128,7 +135,6 @@ class PagePlan:
     state: dict
     pending: list[dict]
     batch: dict | None
-    recovery: dict | None
     owed: list[dict]
     acknowledged: list[dict]
     watched: bool
@@ -168,10 +174,10 @@ def read_plans(session_id: str) -> list[PagePlan]:
                         break
                 if claim is None or claim["id"] != session_id:
                     continue
-                pending = deliverable(page)
+                pending = deliverable(page, work.obligations)
                 watched = harness.watcher_live(listening=state["listening"])
                 # A reference into a delivery an earlier Leaf wrote is no use to
-                # this one, which cannot read it, so its update is captured again.
+                # this one, which cannot read it, so its update is deliverable again.
                 owed = [
                     {
                         **item,
@@ -186,9 +192,6 @@ def read_plans(session_id: str) -> list[PagePlan]:
                     else item
                     for item in turn_obligations(state, watched=watched)
                 ]
-                recovery_ids = {
-                    item["input"] for item in owed if "ref" not in item["answer"]
-                }
                 responses = {item["input"]: item["answer"] for item in work.obligations}
                 plans.append(
                     PagePlan(
@@ -200,18 +203,6 @@ def read_plans(session_id: str) -> list[PagePlan]:
                         pending,
                         batch_data(page_dir, page, pending, responses=responses)
                         if pending
-                        else None,
-                        batch_data(
-                            page_dir,
-                            page,
-                            [
-                                event
-                                for event in page.events
-                                if event["id"] in recovery_ids
-                            ],
-                            responses=responses,
-                        )
-                        if recovery_ids
                         else None,
                         owed,
                         acknowledged_obligations(state),
@@ -234,7 +225,7 @@ def stop_continues(
     Repeated Stop ignores already reported housekeeping and response debt, but
     genuinely new input still enters the current turn and owes an answer.
     `handing` contains the complete pending batches this transport proposes to
-    offer; acknowledged recovery snapshots never count as new input.
+    offer.
     """
     newly_owed = any(
         "answer" in event for batch in handing for event in batch["events"]
@@ -265,11 +256,15 @@ def remedies(
     for plan in plans:
         if plan.unready or plan.unwritable:
             reasons.append((str(plan.unready or plan.unwritable), None))
-        if plan.owed:
+        # An owed update this output hands over is answered from that delivery.
+        owed = [
+            item for item in plan.owed if (str(plan.page), item["input"]) not in handed
+        ]
+        if owed:
             reasons.append(
                 (
-                    f"{plan.page}: {unanswered(plan.owed, plan.page, 'acknowledged')}{restart(plan.owed)}.",
-                    ANSWER_ITEM_INSTRUCTION,
+                    f"{plan.page}: {unanswered(owed, plan.page, 'acknowledged')}{restart(owed)}.",
+                    ANSWER_INSTRUCTION,
                 )
             )
         if not plan.watched:
@@ -359,26 +354,11 @@ HOOK_CONTEXT_LIMIT = 10_000
 CONFIRM_WITHIN = 10.0
 
 
-# The words that open a delivery's context, inline or by pointer: prose for the
-# model alone. What reads a hook's output for its delivery reads `DELIVERY_FIELD`.
-# TODO: without the hooks module, Claude Code prints a Stop hook's inline delivery
-# in full in the terminal. Hiding it there means handing over a pointer, which
-# needs a record of offered, unread deliveries that a repeated Stop and the watch
-# both respect; otherwise each re-offers it as new. Moot once the module is Claude
-# Code's only watcher and transport.
+# The words that open a delivery's context, inline or by pointer.
 INLINE_OPENING = (
     "Leaf has new input for your turn. Read this complete delivery before answering."
 )
 POINTED_OPENING = "Leaf has new input for this turn. Read it with"
-
-# The hook output's field naming the delivery its context hands the turn: its
-# `id`, and whether it went `inline` or as a pointer. Claude Code leaves a field
-# it does not know out of what it hands the model and a hooks module, and keeps
-# the hook's whole stdout in a trace's `hook_response` (measured at 2.1.296). So
-# the field reaches Leaf's hooks module, which runs the Stop hook itself to read
-# it (`hooks/claude-code.ts`), and an eval's reading of a trace
-# (`leaf_dev.arms.hook_delivered`).
-DELIVERY_FIELD = "leaf_delivery"
 
 
 def render(
@@ -393,7 +373,7 @@ def render(
     `delivery` over inline only where the whole message fits under
     `HOOK_CONTEXT_LIMIT` and `confirm` then confirms every batch; otherwise it hands
     over the pointer its reader's `leaf delivery ack` confirms after complete
-    reading. Either way `DELIVERY_FIELD` names what it handed over."""
+    reading."""
     if delivery is None:
         return harness.hook_context(event, "\n".join(attention)) if attention else None
     message = "\n".join(
@@ -410,10 +390,7 @@ def render(
                 *attention,
             ]
         )
-    return {
-        **harness.hook_context(event, message),
-        DELIVERY_FIELD: {"id": delivery["id"], "inline": inline},
-    }
+    return harness.hook_context(event, message)
 
 
 def carry_turn(
@@ -440,18 +417,26 @@ def carry_turn(
         plan.claim["turn"] != payload["turn_id"] for plan in plans
     ):
         return
+    carries = event in {"UserPromptSubmit", "PostToolBatch"} or (
+        event == "Stop" and not harness.watches_between_turns()
+    )
     batches = (
         [plan.batch for plan in plans if plan.batch and plan.harness.hooks_carry()]
-        if event in {"UserPromptSubmit", "Stop"}
+        if carries
         else []
     )
+    if event == "PostToolBatch" and not batches:
+        return
     if event == "UserPromptSubmit":
         pick_up_acknowledged(sid, plans)
     elif event == "Stop" and not stop_continues(
         plans, batches, repeated=bool(payload.get("stop_hook_active"))
     ):
         return True
-    reasons = remedies(plans, batches)
+    # A tool boundary carries only new input; response-debt and housekeeping
+    # reminders belong to prompt and Stop. It neither reopens nor ends a turn.
+    reminding = [] if event == "PostToolBatch" else plans
+    reasons = remedies(reminding, batches)
     # The message avoids "unattended": a page can be watched and still be owed
     # an answer, and the runtime spends that word on a different fact — a page
     # served to nobody at all.
@@ -470,16 +455,11 @@ def carry_turn(
     reminders = list(
         dict.fromkeys(
             item["answer"]["ref"].partition(":")[0]
-            for plan in plans
+            for plan in reminding
             for item in plan.owed
             if "ref" in item["answer"]
         )
     )
-    recovery = [plan.recovery for plan in plans if plan.recovery]
-    if recovery:
-        # The cursor already passed these inputs, but their receipts gave this
-        # owner no usable refs. Recovery advances no cursor or transport offer.
-        reminders.append(freeze_delivery(recovery)["id"])
     if reminders:
         attention.extend(
             [

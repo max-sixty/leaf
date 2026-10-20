@@ -1,10 +1,12 @@
-"""Dependency-free machine storage and the session lifecycle authority.
+"""Dependency-free machine storage, the persisted record (`Record`), and the
+session lifecycle authority.
 
 The standalone SessionEnd entry runs on system Python 3.9 without a managed
 Leaf environment. One atomic record owns harness lifetime, generation, turn identity
 and dated opening/ending evidence. Claims reference its generation; ending the
 generation invalidates them without page discovery, page locks or claim rewrites.
 Desktop instance unloading closes observations while retaining chat ownership.
+A session's end removes the files nothing will read again (`_retire`).
 
 The session lock also serializes Codex transport reservation, making its
 revision a compare-and-swap token for observations. Lock order is page then
@@ -17,6 +19,7 @@ from __future__ import annotations
 
 import contextlib
 import fcntl
+import functools
 import hashlib
 import json
 import os
@@ -30,9 +33,36 @@ from pathlib import Path
 EVENTS_FILE = "events.jsonl"
 
 
-def state_home_path() -> Path:
+def state_home() -> Path:
+    """$XDG_STATE_HOME/leaf (~/.local/state/leaf/) — pages/ holds page
+    directories by convention, claims/ the last claimant of every known page,
+    sessions/ the live watcher leases, packages/ the packages `package install` copied here,
+    screens/ the last render check's screens of each page, pictures/ the
+    pictures `page picture` drew of its drawing comments, and access.json
+    the one key every page here is served with (`server.host_key`), beside the
+    access.lock its first mint takes. State, not config: claim records carry pids
+    and absolute paths, while page service records carry ports, so this state is
+    bound to this machine, as is the key that reaches it.
+
+    Owner-only: the key is what stands between another local user and a log that
+    outranks the document, and a 0644 file under a traversable path hands it to
+    anyone on a shared machine. Every path into the state home resolves through
+    this call, which creates the home 0700 and returns an existing one to 0700, so
+    the mode holds whichever Leaf or tool made the directory."""
     root = os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state"
-    return Path(root) / "leaf"
+    home = Path(root) / "leaf"
+    if not home.is_dir():
+        home.mkdir(mode=0o700, parents=True, exist_ok=True)
+    hold_mode(home, 0o700)
+    return home
+
+
+def hold_mode(path: Path, mode: int) -> None:
+    """Give `path` exactly the permission bits `mode`, writing only when they
+    differ, so a reader confined to reads, such as a sandboxed command, can still
+    resolve a path whose mode already holds."""
+    if stat.S_IMODE(path.stat().st_mode) != mode:
+        path.chmod(mode)
 
 
 # A session's files that end with it: hook capability and turn observations,
@@ -52,7 +82,7 @@ def session_file(session_id: str, suffix: str) -> Path:
     suffix, in the state home's `sessions/`.
     """
     key = hashlib.sha256(session_id.encode()).hexdigest()[:32]
-    return state_home_path() / "sessions" / f"{key}.{suffix}"
+    return state_home() / "sessions" / f"{key}.{suffix}"
 
 
 def page_key(page_dir: Path) -> str:
@@ -194,21 +224,168 @@ def json_bytes(obj, *, indent=None) -> bytes:
 
 
 def write_json(path: Path, obj) -> None:
-    """Atomically replace a state record, preserving a regular target's mode."""
+    """Atomically replace a JSON file, preserving a regular target's mode."""
     replace_bytes([(path, json_bytes(obj), not path.is_symlink())])
 
 
-SESSION_FIELDS = {
-    "id",
-    "generation",
-    "ended",
-    "turn",
-    "turn_opened",
-    "turn_closed",
-    "revision",
-    "provider",
-    "lifetime",
-}
+@functools.cache
+def kernel_registry() -> dict:
+    """The running Leaf's shipped registry, whose `$events` state its page protocol
+    (`registry.kernel`)."""
+    path = Path(__file__).resolve().parents[2] / "assets" / "registry.json"
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+# Every declared `Record` by its kind, which names one shape.
+RECORDS: dict = {}
+
+
+class Record:
+    """One kind of JSON object Leaf keeps outside a page's log and document, such as
+    a page's status, a claim or a session's lifecycle.
+
+    Each kind is declared once, beside the module that owns it, whose functions are
+    its only writers, and `schema` declares the object. Objects stay open, so a
+    field another Leaf adds leaves a record readable. Leaf alone writes these files,
+    and the hooks that read several of them must not load a schema engine, so
+    nothing validates a record whole while Leaf runs; the suite checks every record
+    a test writes against its schema instead (`tests/conftest.py`).
+
+    Every installed Leaf on the machine shares the state home, any of them may serve
+    a page, and the worktrees writing them are each on their own commit. So a record
+    carries `format`, `leaf-<kind>/<since>`, where `since` is the page protocol at
+    which this kind's shape last changed, so a bump for anything else leaves the
+    record readable (`layer-registry.md`, "Page protocol", says when `since`
+    moves, which the browser build checks against every kind in `RECORDS`). `read`
+    takes only a record at this format that has every field this Leaf's schema
+    requires, at each level of its declared objects. Any other
+    record another Leaf wrote, at another format or with none, or one written before
+    a field was added, reads as absent, as a missing file does, and the next write
+    replaces it. Every write replaces the file whole, so a file that is not JSON no
+    Leaf wrote, and reading it raises, naming the file."""
+
+    def __init__(self, kind: str, schema: dict, *, since: int):
+        if kind in RECORDS:
+            raise ValueError(f"two records declare the kind {kind}")
+        RECORDS[kind] = self
+        self.kind = kind
+        self.schema = schema
+        self.since = since
+
+    @property
+    def format(self) -> str:
+        return f"leaf-{self.kind}/{self.since}"
+
+    def read(self, path: Path) -> dict | None:
+        """The record at `path`, less its `format`, or None where this Leaf reads
+        none there."""
+        try:
+            text = path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            return None
+        try:
+            stored = json.loads(text)
+        except ValueError as error:
+            raise ValueError(f"{path} is not a JSON record: {error}") from error
+        if (
+            not isinstance(stored, dict)
+            or stored.pop("format", None) != self.format
+            or not _complete(self.schema, stored)
+        ):
+            return None
+        return stored
+
+    def stored(self, value: dict) -> dict:
+        """`value` as `write` stores it, led by its `format`."""
+        return {"format": self.format} | {
+            name: item for name, item in value.items() if name != "format"
+        }
+
+    def encode(self, value: dict) -> bytes:
+        """The bytes `write` writes, for a writer that replaces several files at
+        once or writes through a lease it holds."""
+        return json_bytes(self.stored(value))
+
+    def write(self, path: Path, value: dict) -> dict:
+        """Atomically replace the record at `path`, preserving a regular target's
+        mode, and return `value` as `read` will."""
+        replace_bytes([(path, self.encode(value), not path.is_symlink())])
+        return value
+
+
+def _complete(schema: dict, value) -> bool:
+    """Whether `value` has each field `schema` requires, and so does every object
+    within it that the schema declares: through properties, maps and arrays, and
+    through each `allOf` clause, a conditional one where its `if` names, by `enum`
+    or `const`, the values `value` holds. Types and values are the writers' to hold
+    (`tests/conftest.py`)."""
+    if isinstance(value, list):
+        return all(_complete(schema.get("items", {}), item) for item in value)
+    if not isinstance(value, dict):
+        return True
+    properties = schema.get("properties", {})
+    others = schema.get("additionalProperties")
+    return (
+        set(schema.get("required", ())) <= value.keys()
+        and all(
+            _complete(properties[name], item)
+            if name in properties
+            else not isinstance(others, dict) or _complete(others, item)
+            for name, item in value.items()
+        )
+        and all(_clause_complete(clause, value) for clause in schema.get("allOf", ()))
+    )
+
+
+def _clause_complete(clause: dict, value: dict) -> bool:
+    if "if" not in clause:
+        return _complete(clause, value)
+    applies = all(
+        name in value and value[name] in declared.get("enum", [declared.get("const")])
+        for name, declared in clause["if"].get("properties", {}).items()
+    )
+    return not applies or _complete(clause.get("then", {}), value)
+
+
+def object_schema(required: dict, optional: dict | None = None) -> dict:
+    """The JSON Schema of an open object with these properties, each in `required`
+    required."""
+    return {
+        "type": "object",
+        "properties": {**required, **(optional or {})},
+        "required": list(required),
+    }
+
+
+STRING = {"type": "string"}
+TIME = {"type": "string", "format": "date-time"}
+_TIME_OR_NONE = {"anyOf": [{"type": "null"}, TIME]}
+SESSION = Record(
+    "session",
+    object_schema(
+        {
+            "id": STRING,
+            # Replaced when a claim made before can no longer name this lifetime.
+            "generation": STRING,
+            "ended": _TIME_OR_NONE,
+            "turn": {"type": ["string", "null"]},
+            "turn_opened": _TIME_OR_NONE,
+            "turn_closed": _TIME_OR_NONE,
+            "revision": {"type": "integer", "minimum": 1},
+            # Whether the harness, rather than Leaf, names the turn.
+            "provider": {"type": "boolean"},
+            # What keeps the session alive (`Harness.lifetime`).
+            "lifetime": {"type": "object"},
+        },
+        {
+            # The native chat a desktop Codex lifetime stands on (`chat_exists`).
+            "transcript_path": STRING,
+            # The developer-selected delivery runtime (`session_runtime`).
+            "launcher": STRING,
+        },
+    ),
+    since=13,
+)
 
 
 def session_lock_path(session_id: str) -> Path:
@@ -218,22 +395,14 @@ def session_lock_path(session_id: str) -> Path:
 
 
 def session_record(session_id: str) -> dict | None:
-    """Read one atomic lifecycle publication; incompatible records are absent."""
-    try:
-        record = json.loads(session_file(session_id, SESSION_SUFFIX).read_text())
-    except (FileNotFoundError, ValueError):
-        return None
-    return (
-        record if isinstance(record, dict) and SESSION_FIELDS <= record.keys() else None
-    )
+    """The session's lifecycle, or None for a session this Leaf has no record of."""
+    return SESSION.read(session_file(session_id, SESSION_SUFFIX))
 
 
 def write_session(record: dict) -> dict:
-    record = {**record, "revision": record["revision"] + 1}
     path = session_file(record["id"], SESSION_SUFFIX)
     path.parent.mkdir(parents=True, exist_ok=True)
-    write_json(path, record)
-    return record
+    return SESSION.write(path, {**record, "revision": record["revision"] + 1})
 
 
 def chat_exists(record: dict | None) -> bool:
@@ -435,8 +604,10 @@ def end_session(session_id: str) -> None:
     though while that generation runs the session may still record on such a page
     what its task took or answered there (`service.claim_names_session`).
     Capability files are observations, not lifecycle authority, and retire here.
+    A session that left no file, as most sessions of a harness Leaf is installed
+    in never use it, has nothing to end and is left without one.
     """
-    if not session_id:
+    if not session_id or not _session_paths(session_id):
         return
     with flocked(session_lock_path(session_id)):
         _end_session(session_id)
@@ -444,11 +615,55 @@ def end_session(session_id: str) -> None:
 
 def _end_session(session_id: str) -> None:
     """Publish the ending while the caller holds the session lock."""
-    record = session_record(session_id) or new_session(session_id, {})
-    ended = now_iso()
-    write_session({**record, "ended": ended, "turn_closed": ended})
-    for suffix in (HOOKS_SUFFIX, STEP_HOOK_SUFFIX, TITLES_SUFFIX):
-        session_file(session_id, suffix).unlink(missing_ok=True)
+    if record := session_record(session_id):
+        ended = now_iso()
+        write_session({**record, "ended": ended, "turn_closed": ended})
+    _retire(session_id)
+
+
+def _session_paths(session_id: str) -> list[Path]:
+    """Every file and directory in the state home's `sessions/` that belongs to the
+    session (`session_file`)."""
+    pattern = session_file(session_id, "*")
+    return list(pattern.parent.glob(pattern.name))
+
+
+def _retire(session_id: str) -> None:
+    """Remove what an ended session no longer needs, under its lock.
+
+    The records a claim naming the session reads stay, since a claim can name it
+    again after its end: a failed takeover restores the claim it replaced
+    (`service.restore_page_claim`). Its page shows the session's turn from the
+    lifecycle, and a resumed session's hooks read its reconnect notices
+    (`session-lifetime.md`, "Reconnect notices"). While a claim names the session,
+    only the observations that end with it go. Once none does, each other file goes
+    that no process holds a lock on, such as a wait lease of a watch still running:
+    a lease taker checks the name it locked (`leases.take_lease`), so none starts on
+    a file removed under it. Directories, such as a Codex task's delivery records,
+    are their owner's to retire."""
+    if holds_claims(session_id):
+        for suffix in (HOOKS_SUFFIX, STEP_HOOK_SUFFIX, TITLES_SUFFIX):
+            session_file(session_id, suffix).unlink(missing_ok=True)
+        return
+    kept = {session_file(session_id, SESSION_SUFFIX), session_lock_path(session_id)}
+    for path in _session_paths(session_id):
+        if path not in kept and path.suffix != ".reconnect" and not path.is_dir():
+            _unlink_unheld(path)
+
+
+def _unlink_unheld(path: Path) -> None:
+    try:
+        held = os.open(path, os.O_RDONLY)
+    except FileNotFoundError:
+        return
+    try:
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if still_named(held, path):
+            path.unlink(missing_ok=True)
+    except BlockingIOError:
+        pass
+    finally:
+        os.close(held)
 
 
 def end_harness_instance(session_id: str) -> None:
@@ -461,7 +676,7 @@ def end_harness_instance(session_id: str) -> None:
     record exists (`service.lifetime_is_live`); the instance's end closes only
     turn and hook observations.
     """
-    if not session_id:
+    if not session_id or not _session_paths(session_id):
         return
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
@@ -478,9 +693,7 @@ def end_harness_instance(session_id: str) -> None:
 
 def session_claims(session_id: str) -> Path:
     """This session's discovery locators; payloads remain canonical by page."""
-    return (
-        state_home_path().resolve() / "claims" / session_file(session_id, "claims").stem
-    )
+    return state_home().resolve() / "claims" / session_file(session_id, "claims").stem
 
 
 def holds_claims(session_id: str) -> bool:

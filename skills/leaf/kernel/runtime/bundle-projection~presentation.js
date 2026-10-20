@@ -27,7 +27,7 @@ import {
 } from "./bundle-semantic-state.js";
 import {
   keeps
-} from "./bundle-sample-visibility.js";
+} from "./bundle-frame-visibility.js";
 import {
   projectionOrigins
 } from "./bundle-queued-work.js";

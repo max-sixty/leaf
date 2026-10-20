@@ -1,131 +1,84 @@
-/* Mermaid owns parsing, semantic identities, layout and SVG generation. Leaf owns
- * the optional lazy load, theme integration and Comment coordinates. A source the
- * renderer refuses remains visible with its diagnostic; Leaf never salvages a
- * partial diagram by dropping statements. */
+/* Pele owns Mermaid parsing, semantic models, layout and SVG generation. Leaf
+ * loads it only when a diagram draws, supplies local font metrics and live palette
+ * roles, and registers Comment coordinates from the parsed model's named boxes.
+ * Named boxes have one authored identity across a diagram, including containers;
+ * ambiguous identities cannot supply a stable node:<id> Comment coordinate.
+ * Rendering is inert: source callbacks never execute, links and images are disabled,
+ * and Pele escapes labels and filters styles. A refused source remains visible with
+ * its diagnostic; Leaf never salvages a diagram by dropping statements. */
 import {
   bodyText,
   once,
   failSoft,
-  keeps,
   registerVisualParts,
   widgetController,
 } from "/runtime/widget-api.js";
 
 let rendererReady;
-const loadRenderer = () => (rendererReady ??= import("/vendor/mermaid.esm.js"));
+const loadRenderer = () => (rendererReady ??= import("/vendor/pele.esm.js"));
 
-/* Mermaid's parser databases are shared between diagrams. Keep parsing, drawing
- * and reading the inventory in one serialized operation, so a neighboring widget
- * cannot replace the identities behind the SVG we have just received. */
-/** @type {Promise<unknown>} */
-let drawing = Promise.resolve();
-const draw = (source, id) => {
-  const next = drawing.then(async () => {
-    const { default: mermaid } = await loadRenderer();
-    mermaid.initialize({
-      startOnLoad: false,
-      securityLevel: "strict",
-      suppressErrorRendering: true,
-      maxTextSize: Number.MAX_SAFE_INTEGER,
-      htmlLabels: false,
-      theme: "base",
-      look: "classic",
-      fontFamily: "var(--sans)",
-      // Bind terminal palette roles: Mermaid's seed colors undergo color arithmetic
-      // and cannot be CSS variables, while these roles pass straight to its SVG.
-      themeVariables: {
-        fontSize: "14px",
-        useGradient: false,
-        dropShadow: "none",
-        actorTextColor: "var(--lf-diagram-ink)",
-        actorBkg: "var(--lf-diagram-paper)",
-        actorBorder: "var(--lf-diagram-accent)",
-        actorLineColor: "var(--lf-diagram-muted)",
-        labelBoxBkgColor: "var(--lf-diagram-paper)",
-        labelBoxBorderColor: "var(--lf-diagram-muted)",
-        noteTextColor: "var(--lf-diagram-ink)",
-        noteBkgColor: "var(--lf-diagram-paper)",
-        noteBorderColor: "var(--lf-diagram-muted)",
-        activationBkgColor: "var(--lf-diagram-paper)",
-        activationBorderColor: "var(--lf-diagram-muted)",
-        stateLabelColor: "var(--lf-diagram-ink)",
-        stateBkg: "var(--lf-diagram-paper)",
-        compositeBackground: "var(--lf-diagram-paper)",
-        compositeTitleBackground: "var(--lf-diagram-paper)",
-        altBackground: "var(--lf-diagram-paper)",
-        stateBorder: "var(--lf-diagram-muted)",
-        specialStateColor: "var(--lf-diagram-ink)",
-        innerEndBackground: "var(--lf-diagram-ink)",
-        xyChart: {
-          backgroundColor: "var(--lf-diagram-paper)",
-          xAxisLineColor: "var(--lf-diagram-muted)",
-          xAxisTickColor: "var(--lf-diagram-muted)",
-          yAxisLineColor: "var(--lf-diagram-muted)",
-          yAxisTickColor: "var(--lf-diagram-muted)",
-          plotColorPalette: "var(--lf-diagram-accent)",
-        },
-      },
-      // These stay as CSS values, so a scheme change repaints rather than replacing
-      // nodes and losing their Comment coordinates. Authored class styles win.
-      themeCSS: `
-        text, tspan, .label, .nodeLabel, .edgeLabel, .messageText, .loopText,
-        .noteText, .node text, .node tspan, .cluster text, .cluster tspan,
-        .label text, .label tspan { fill: var(--lf-diagram-ink); color: var(--lf-diagram-ink); }
-        .node rect, .node polygon, .node circle, .node ellipse, .node path,
-        rect.actor, .actor-man line, .actor-man circle, .labelBox {
-          fill: color-mix(in srgb, var(--lf-diagram-accent) 10%, var(--lf-diagram-paper));
-          stroke: var(--lf-diagram-accent);
-        }
-        .cluster rect, .note { fill: var(--lf-diagram-paper); stroke: var(--lf-diagram-muted); }
-        .edgePaths path, .flowchart-link, .messageLine0, .messageLine1, .actor-line {
-          stroke: var(--lf-diagram-muted);
-        }
-        marker path { fill: var(--lf-diagram-muted); stroke: var(--lf-diagram-muted); }
-        .edgeLabel .label rect, .labelBkg { fill: var(--lf-diagram-paper); }
-        .edgeLabel, .labelBkg { background-color: var(--lf-diagram-paper); }
-      `,
-    });
-    const diagram = await mermaid.mermaidAPI.getDiagramFromText(source);
-    // Mermaid's graph layouts require each node and container to have one identity.
-    // Refuse a collision before layout, which otherwise cannot finish its traversal.
-    const identities = new Set();
-    for (const node of diagram.db.getData?.().nodes ?? []) {
-      if (identities.has(node.id))
-        throw new Error(`Mermaid declares diagram identity ${node.id} more than once`);
-      identities.add(node.id);
+/** Named boxes from Pele's semantic model, never reconstructed from source or labels. */
+function namedParts(model, drawn) {
+  const parts = new Map();
+  const add = (id, selector, label) => {
+    if (parts.has(id))
+      throw new Error(`Diagram declares comment identity ${id} more than once`);
+    parts.set(id, { id, selector, label });
+  };
+  switch (model.type) {
+    case "flowchart": {
+      // An edge to a subgraph also creates a node entry for the same box.
+      const groups = new Set(model.subgraphs.map((group) => group.id));
+      for (const id of model.nodes.keys()) if (!groups.has(id)) add(id, ".pele-node");
+      for (const group of model.subgraphs) add(group.id, ".pele-cluster");
+      break;
     }
-    const { svg } = await mermaid.render(id, source);
-    // Jison's parser keeps the database from its most recent parse in yy. Mermaid
-    // can instantiate a new database when rendering (class IDs advance globally),
-    // so read that actual render's inventory rather than the preflight instance.
-    const db = diagram.getParser().parser?.yy ?? diagram.db;
-    const parts = [];
-    if (diagram.type === "sequence") {
-      for (const key of db.getActors().keys()) parts.push({ id: key, dataId: key });
-    } else if (diagram.type === "er") {
-      for (const [key, entity] of db.getEntities())
-        parts.push({ id: key, domId: `${id}-${entity.id}`, label: key });
-    } else if (/^(flowchart|state|class)/.test(diagram.type)) {
-      for (const node of db.getData().nodes) {
-        if (["stateStart", "stateEnd", "divider", "note"].includes(node.shape))
-          continue;
-        // State layout writes its final prefixed domId back into its nodes; the
-        // flowchart and class databases retain the pre-layout local identifier.
-        const domId = diagram.type.startsWith("state")
-          ? node.domId
-          : `${id}-${node.domId || node.id}`;
-        parts.push({
-          id: node.id,
-          domId,
-          label: diagram.type.startsWith("class") ? node.id : null,
-        });
-      }
+    case "class":
+      for (const id of model.classes.keys()) add(id, ".pele-class", id);
+      // Pele draws implicit parent namespaces only in hierarchical mode. The
+      // parsed model keeps those parents in either mode; its renderer owns which
+      // become boxes, so read their presence from that render rather than repeat
+      // its private configuration rules.
+      for (const [id, namespace] of model.namespaces)
+        if (
+          namespace.explicit ||
+          drawn.querySelector(`g.pele-namespace[data-id="${CSS.escape(id)}"]`)
+        )
+          add(id, ".pele-namespace", id);
+      break;
+    case "er":
+      for (const id of model.entities.keys()) add(id, ".pele-entity", id);
+      for (const group of model.subgraphs) add(group.id, ".pele-cluster");
+      break;
+    case "sequence":
+      for (const id of model.actors.keys())
+        add(id, ".pele-actor:not(.pele-actor-footer)");
+      break;
+    case "state": {
+      // The top-level states map omits nested states. rootDoc contains every state
+      // declaration and transition endpoint, and marks synthetic start/end states.
+      const states = new Map();
+      const visitState = (state) => {
+        if (state.start === undefined && state.type !== "divider")
+          states.set(state.id, state);
+        if (state.doc) visit(state.doc);
+      };
+      const visit = (statements) => {
+        for (const statement of statements) {
+          if (statement.stmt === "state") visitState(statement);
+          else if (statement.stmt === "relation") {
+            visitState(statement.state1);
+            visitState(statement.state2);
+          }
+        }
+      };
+      visit(model.rootDoc);
+      for (const id of states.keys()) add(id, ":is(.pele-node,.pele-cluster)");
+      break;
     }
-    return { svg, parts };
-  });
-  drawing = next.catch(() => {});
-  return next;
-};
+  }
+  return parts.values();
+}
 
 let seq = 0;
 customElements.define(
@@ -144,42 +97,44 @@ customElements.define(
       const source = bodyText(this);
       const renderId = `lf-diagram-${++seq}`;
       try {
-        const { svg, parts } = await draw(source, renderId);
+        const [{ parse, render }] = await Promise.all([
+          loadRenderer(),
+          document.fonts.ready,
+        ]);
+        const style = getComputedStyle(this);
+        const model = parse(source);
+        const { svg } = render(model, {
+          idPrefix: renderId,
+          fontFamily: style.getPropertyValue("--sans").trim(),
+          fontFamilyMono: style.getPropertyValue("--mono").trim(),
+          fontSize: 14,
+          responsive: false,
+          links: false,
+          images: false,
+        });
         this.innerHTML = svg;
         const drawn = this.querySelector("svg");
-        const natural = drawn.viewBox.baseVal.width;
-        if (natural) {
-          keeps(drawn, "width", natural);
-          drawn.style.maxWidth = "";
-        }
-        this.visualParts.clear();
+        const parts = [...namedParts(model, drawn)];
+        const visualParts = new Map();
         for (const part of parts) {
-          const element = part.dataId
-            ? drawn.querySelector(`g[data-id="${CSS.escape(part.dataId)}"]`)
-            : drawn.querySelector(`[id="${CSS.escape(part.domId)}"]`);
-          if (!element)
-            throw new Error(`Mermaid did not draw the declared node ${part.id}`);
-          // The visual part's source identity is stable even when Mermaid changes
-          // its generated SVG ids and classes.
-          keeps(element, "data-id", part.id);
+          const elements = drawn.querySelectorAll(
+            `g${part.selector}[data-id="${CSS.escape(part.id)}"]`,
+          );
+          if (elements.length !== 1)
+            throw new Error(`Pele did not draw one named box for ${part.id}`);
+          const element = elements[0];
           const label =
             part.label || element.textContent.replace(/\s+/g, " ").trim() || part.id;
-          this.visualParts.set(`node:${encodeURIComponent(part.id)}`, {
+          visualParts.set(`node:${encodeURIComponent(part.id)}`, {
             element,
             label,
           });
         }
+        this.visualParts = visualParts;
         this.classList.add("lf-rendered");
         this.visualPartRegistration.update();
       } catch (err) {
-        // Mermaid's unknown-family error embeds the complete authored source.
-        // The fallback shows that source in the page; the agent's error report
-        // needs the reason without copying the authored body into the log.
-        const reportError =
-          err?.name === "UnknownDiagramError"
-            ? "No diagram type detected matching given configuration"
-            : err;
-        failSoft(this, reportError, source);
+        failSoft(this, err, source);
       }
     }
   },

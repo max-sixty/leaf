@@ -14,17 +14,19 @@ from render_cases_interaction import (
     LIVE_READING,
     LIVE_V1,
     LIVE_V2,
-    SEATED_ITEM_PAGE,
+    SEATED_OBLIGATION_PAGE,
     WRAP_TOP,
     live_url,
 )
-from render_cases_layout import banner_control
 from render_harness import (
     EXAMPLE_PACKAGES,
     LANDING_TOP,
     leaf_page,
     open_page,
     pane_posture,
+    panel_field,
+    panel_menu,
+    panel_settled,
     regions_side_by_side,
     resized,
     scroll_settled,
@@ -47,7 +49,7 @@ def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve):
     An unrelated source revision arrives while retaining the editor and restoring the
     page's reading position. Opening the reply proves the notice held genuine growth.
     """
-    source = SEATED_ITEM_PAGE.replace(
+    source = SEATED_OBLIGATION_PAGE.replace(
         "</main>",
         '<p id="reading">The next passage remains where I am reading.</p>'
         + "<p>Further context. "
@@ -103,7 +105,9 @@ def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve):
 
     declare_work(serve.page_dir, "Checking the order of these jobs", item=root["id"])
     told(page)
-    expect(page.locator(".lf-status-detail")).to_contain_text("Checking the order")
+    expect(panel_field(page)).to_have_attribute(
+        "placeholder", re.compile("Checking the order")
+    )
     expect(
         thread.get_by_role("button", name="Work in progress", exact=True)
     ).to_be_visible()
@@ -166,7 +170,7 @@ def test_live_revision_keeps_the_visible_semantic_reading(browser, serve, where)
 
     Native scroll anchoring is disabled by this page's layout, so it cannot conceal
     a broken semantic carry when five paragraphs arrive above the reader. Where the
-    reader stands partway into a long paragraph, its start under the banner, and the
+    reader stands partway into a long paragraph, its start above the window, and the
     revision also lengthens words of it above their line, the line they read stays
     where it was, not the paragraph's opening line. Where a figure taller than the
     window fills it, with no words on screen, the part of the figure at the edge stays
@@ -393,15 +397,15 @@ def test_a_revision_keeps_the_pane_read_over_a_pane_holding_offscreen_focus(
 
 
 def test_revision_changes_keep_the_complete_heading_below_user_chrome(browser, serve):
-    """A partly covered title is the page opening, not a reading place to preserve.
+    """A partly cut title is the page opening, not a reading place to preserve.
 
     A revision change used the heading as its semantic landmark and restored its exact
     viewport coordinate. When the user had moved just far enough for the first title
-    line to sit behind the fixed banner, both an arriving current revision and a chosen
-    historical version faithfully restored that broken view: the later line looked like
-    the whole heading. The scroller already declares its landable top through
-    scroll-padding, so a heading landmark must honor that edge while ordinary passage
-    landmarks retain their exact coordinate.
+    line to sit above the scroller's landable top (then under the fixed banner), both
+    an arriving current revision and a chosen historical version faithfully restored
+    that broken view: the later line looked like the whole heading. The scroller
+    declares its landable top through scroll-padding, so a heading landmark must honor
+    that edge while ordinary passage landmarks retain their exact coordinate.
     """
     title = "The page instance should own the complete one-off playground"
     revised_title = "The complete one-off playground belongs to the page instance"
@@ -420,39 +424,36 @@ def test_revision_changes_keep_the_complete_heading_below_user_chrome(browser, s
     page = open_page(browser, live_url(version_url))
     resized(page, 668, 704)
 
+    # The heading's first line stands 12px above the landable top the scroller's
+    # scroll-padding declares, the rest of it below.
     clip_heading = """() => {
           const heading = document.querySelector('#summary h1');
-          const banner = document.querySelector('.lf-banner');
           const inset = parseFloat(
             getComputedStyle(document.scrollingElement).scrollPaddingTop
           );
           document.scrollingElement.scrollBy({
-            top: heading.getBoundingClientRect().top - banner.getBoundingClientRect().bottom + 12,
+            top: heading.getBoundingClientRect().top - inset + 12,
             behavior: 'instant',
           });
           const title = heading.getBoundingClientRect();
-          const chrome = banner.getBoundingClientRect();
           const summary = document.getElementById('summary').getBoundingClientRect();
-          return {title: title.toJSON(), summary: summary.toJSON(),
-                  chrome: chrome.toJSON(), inset};
+          return {title: title.toJSON(), summary: summary.toJSON(), inset};
         }"""
     heading_position = """() => {
           const title = document.querySelector('#summary h1').getBoundingClientRect();
-          const chrome = document.querySelector('.lf-banner').getBoundingClientRect();
           const inset = parseFloat(
             getComputedStyle(document.scrollingElement).scrollPaddingTop
           );
           return {
             title: title.toJSON(),
-            chrome: chrome.toJSON(),
             inset,
             live: document.documentElement.hasAttribute('data-lf-live'),
           };
         }"""
 
     clipped = page.evaluate(clip_heading)
-    assert clipped["title"]["top"] < clipped["chrome"]["bottom"]
-    assert clipped["title"]["bottom"] > clipped["chrome"]["bottom"]
+    assert clipped["title"]["top"] < clipped["inset"], clipped
+    assert clipped["title"]["bottom"] > clipped["inset"], clipped
 
     # The producer owns the invariant: a saved semantic heading coordinate is never
     # inside the chrome, so in-place activation and document travel consume the same
@@ -484,12 +485,12 @@ def test_revision_changes_keep_the_complete_heading_below_user_chrome(browser, s
     assert live_landed["title"]["top"] >= live_landed["inset"], (
         f"the arriving revision left the heading under user chrome: {live_landed}"
     )
-    assert live_landed["title"]["top"] > live_landed["chrome"]["bottom"], live_landed
 
     clipped = page.evaluate(clip_heading)
-    assert clipped["title"]["top"] < clipped["chrome"]["bottom"]
-    banner_control(page, ".lf-version").click()
-    page.locator('.lf-version-row[data-lf-version="1"]').click()
+    assert clipped["title"]["top"] < clipped["inset"], clipped
+    panel_menu(page, "versions").locator(".lf-fp-version").filter(
+        has_text=re.compile(r"^\s*v1(?!\d)")
+    ).locator(".lf-fp-item").click()
     page.wait_for_url(re.compile(r"/versions/v1\.html"))
     wait_until_ready(page)
 
@@ -497,7 +498,6 @@ def test_revision_changes_keep_the_complete_heading_below_user_chrome(browser, s
     assert landed["title"]["top"] >= landed["inset"], (
         f"version travel left the heading under user chrome: {landed}"
     )
-    assert landed["title"]["top"] > landed["chrome"]["bottom"], landed
 
 
 def test_revision_changes_follow_authored_text_into_declared_shadow_trees(
@@ -626,7 +626,7 @@ def test_revision_remembers_the_active_region_when_a_workspace_reflows(browser, 
     stamp_page(serve.page_dir, revised, "put the workspace in the document")
     wait_for_revision(page, 2)
     pane_posture(page, right_pane, "flow")
-    # The page's band starts below the banner, where scroll-padding says; the landmark
+    # The page's band starts where scroll-padding says; the landmark
     # keeps its distance below the top of what the user can see.
     after = page.locator("#right-landmark").evaluate(
         """el => el.getBoundingClientRect().top -
@@ -748,10 +748,8 @@ def test_revision_reveals_an_active_region_without_any_reading_landmark(browser,
     expect(page.locator("#standing-control")).to_be_visible()
 
 
-def test_item_repaints_keep_the_queues_reading_until_an_explicit_arrival(
-    browser, serve
-):
-    """Item repaint keeps the list's reading; explicit arrival reveals its row."""
+def test_obligation_repaints_keep_the_on_me_view_s_reading(browser, serve):
+    """Obligation repaint keeps the reading of the panel's On me view the user scrolled."""
     questions = "".join(
         f'<lf-ask id="ask-{index}"><h2>Question {index} about this project</h2>'
         f'<lf-options id="options-{index}" choose>'
@@ -764,39 +762,31 @@ def test_item_repaints_keep_the_queues_reading_until_an_explicit_arrival(
         browser, serve(leaf_page("Reading the Question inventory", questions))
     )
     resized(page, 1200, 900)
+    # The walk starts from the Ask the reader stands at, the first, so it arrives at
+    # the second.
+    page.keyboard.press("m")
+    expect(page.locator("#ask-1")).to_be_focused()
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
-    page.locator('.lf-queue-row[data-lf-at="widget:options-0"]').click()
-    expect(page.locator("#ask-0")).to_be_focused()
-    list_selector = ".lf-queue-panel .lf-drawer-list"
-    drawer = page.locator(list_selector)
-    drawer.evaluate(
+    panel_settled(page, view="queue")
+    list_selector = '.lf-fp-view[data-view="queue"]:not([data-leaving])'
+    view = page.locator(list_selector)
+    view.evaluate(
         """list => list.addEventListener('scroll', () => {
-          if (list.scrollTop > 100) window.readLaterItems = true;
+          if (list.scrollTop > 100) window.readLaterObligations = true;
         })"""
     )
-    box = drawer.bounding_box()
+    box = view.bounding_box()
     page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     page.mouse.wheel(0, 700)
-    page.wait_for_function("() => window.readLaterItems")
+    page.wait_for_function("() => window.readLaterObligations")
     scroll_settled(page, list_selector)
-    reading = drawer.evaluate("list => list.scrollTop")
-    assert reading > 100, "painting the standing row must not undo scrolling the list"
+    reading = view.evaluate("list => list.scrollTop")
+    assert reading > 100, "painting the standing card must not undo scrolling the list"
 
     resized(page, 1180, 900)
     scroll_settled(page, list_selector)
-    assert drawer.evaluate("list => list.scrollTop") == reading
-    expect(page.locator("#ask-0")).to_be_focused()
-
-    page.keyboard.press("m")
-    expect(page.locator("#ask-1")).to_be_focused()
-    scroll_settled(page, list_selector)
-    assert drawer.evaluate("list => list.scrollTop") < reading
-    row = page.locator('.lf-queue-row[data-lf-at="widget:options-1"]')
-    assert row.locator(".lf-queue-title").evaluate(
-        "words => words.getBoundingClientRect().top >= "
-        "words.closest('.lf-drawer-list').getBoundingClientRect().top"
-    ), "explicit ask navigation still reveals its matching row"
+    assert view.evaluate("list => list.scrollTop") == reading
 
 
 @pytest.mark.parametrize("newer_reading", [False, True])
@@ -1026,10 +1016,13 @@ def test_the_reading_position_restores_onto_a_section_that_draws_no_box(browser,
     resized(page, 900, 600)
 
     # Read from inside the wrapper, so every block on screen is one of its own and the
-    # nearest id above them is the wrapper.
-    page.evaluate("""() => { const r = document.createRange();
-      r.selectNodeContents(document.getElementById('wrap'));
-      document.scrollingElement.scrollTop += r.getBoundingClientRect().top + 50; }""")
+    # nearest id above them is the wrapper: its second block's opening words stand at
+    # the top of the band the page shows, which scroll-padding declares.
+    page.evaluate("""() => {
+      const scroller = document.scrollingElement;
+      const block = document.querySelectorAll('#wrap p')[1];
+      scroller.scrollTop += block.getBoundingClientRect().top
+        - parseFloat(getComputedStyle(scroller).scrollPaddingTop); }""")
     before = page.evaluate(WRAP_TOP)
 
     # The branch under test, stated rather than assumed. In-place activation carries this

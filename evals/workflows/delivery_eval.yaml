@@ -1,3 +1,4 @@
+observation_seconds: 90
 prompts:
   initial:
     I wrote a Leaf page at ./page. Serve it so I can review it in my browser, and handle
@@ -21,3 +22,36 @@ cases:
       injection:
         - running
     assert: []
+  during-work:
+    inputs:
+      workload: true
+    assert:
+      - type: llm-rubric
+        metric: known-answer
+        transform: context.metadata.texts?.known || "No completed reply."
+        value: The completed Leaf reply says skipped tests do not count toward the total. An acknowledgement or promise alone fails.
+      - type: llm-rubric
+        metric: followup-answer
+        transform: context.metadata.texts?.followup || "No completed reply."
+        value: The completed Leaf reply identifies browser as the largest phase, at 30 seconds. A promise to inspect or answer later fails.
+      - type: llm-rubric
+        metric: reported-results
+        transform: context.metadata.texts?.page || "No retained page."
+        value: The authored Leaf page reports the repaired suite-cost result, with a 37 second executed total and browser as the largest phase at 30 seconds. An unchanged unrelated page fails. Judge the result content, not styling or markup choices.
+workload:
+  fixture: parent-keeps-leaf-responsive/suite_lab
+  prompt: >-
+    Repair the suite-cost report in suite_lab. Read its README and code, inspect
+    the current measurements using its inspect command, implement the report
+    contract, run verification and put the results on our Leaf page. Complete
+    the work and checks before handing it back.
+  comments:
+    - name: known
+      after_seconds: 0
+      text: Should skipped tests count toward the total?
+    - name: steer
+      after_seconds: 3
+      text: Please include the executed test rows under `tests` too, in their original order and with their fields intact; I need to trace the expensive cases.
+    - name: followup
+      after_seconds: 6
+      text: Which phase is the largest in the supplied measurements?

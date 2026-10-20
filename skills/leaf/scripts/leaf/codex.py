@@ -238,9 +238,9 @@ def private_app_server(
     The server runs in a session of its own and never exits by itself, and a block
     on a daemon thread, as a page server's title request is, never reaches its
     `finally` when the process exits. So each running server is also stopped at
-    exit (`_stop_private_app_servers`), and on a SIGTERM or SIGHUP in a process that
-    turns them into an exit (`leases.release_on_termination`), as a page server
-    does. A SIGKILL leaves one running.
+    exit (`stop_private_app_servers`), on a SIGTERM or SIGHUP in a process that
+    turns them into an exit (`leases.release_on_termination`), and as a page server
+    ends itself (`server.exit_serving`). A SIGKILL leaves one running.
     """
     with tempfile.TemporaryDirectory(prefix="leaf-codex-", dir="/tmp") as directory:
         path = Path(directory) / "app-server.sock"
@@ -267,7 +267,8 @@ _private_app_servers: set[subprocess.Popen] = set()
 
 
 @atexit.register
-def _stop_private_app_servers() -> None:
+def stop_private_app_servers() -> None:
+    """Stop every App Server `private_app_server` started in this process."""
     for server in list(_private_app_servers):
         stop_app_server(server)
 

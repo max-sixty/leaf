@@ -47,6 +47,7 @@ import {
 } from "./bundle-restore-state.js";
 import {
   anchorLabel,
+  arrivalOf,
   beginWalk,
   carryingThreadPlace,
   claimSeatReplies,
@@ -60,7 +61,6 @@ import {
   pageScope,
   pageSelection,
   placeKeeper,
-  placeOf,
   releaseReplies,
   retainUserIntent,
   revealHeld,
@@ -2244,7 +2244,7 @@ function createMarginProjection({
       expandedKey: expandedOptionsKey,
       expandedOwner: expandedOptionsOwner
     };
-    const place = active && !host && byKeyboard() && placeOf(active);
+    const place = active && !host && byKeyboard() && arrivalOf(active);
     const entry = place ? pageInventory.find(
       (candidate) => folded(candidate) && canFold(candidate, state) && under(place, targetFor(candidate))
     ) : null;
@@ -2267,7 +2267,7 @@ function createMarginProjection({
     awaitingRow = null;
     if (!node || focused() !== node || previewOpen() || annotationsHidden() || designModeActive())
       return;
-    const entry = threadEntryAt(node);
+    const entry = arrivalOf(node) && threadEntryAt(node);
     if (entry) accompany(node, entry);
   }
   function followStanding() {
@@ -2283,7 +2283,7 @@ function createMarginProjection({
         closePreview();
       return;
     }
-    const entry = threadEntryAt(active);
+    const entry = arrivalOf(active) && threadEntryAt(active);
     if (!entry) {
       if (previewOpen() && !inChrome(active)) closePreview();
       return;

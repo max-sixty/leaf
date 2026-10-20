@@ -699,13 +699,13 @@ def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path, headless_shell):
         )
         assert run.returncode == 1, run.stdout + run.stderr
         # "needs Playwright" here would mean the shim dispatched the plain `uv run`.
-        # The report names the widget and gives the renderer's reason.
+        # The report names the widget, gives Pele's reason and locates its call site.
         report = json.loads(run.stdout)
         assert report["browser"]["ran"] == ["page code"]
         [error] = [f["text"] for f in report["findings"] if f["severity"] == "error"]
         assert '<lf-diagram id="d-broken"> failed:' in error
         assert "No diagram type detected" in error
-        assert "/widgets/lf-diagram.js:" not in error
+        assert "/widgets/lf-diagram.js:" in error
         assert "leaf-unsupported" not in error
         assert "Ada,Review,3" not in error
 

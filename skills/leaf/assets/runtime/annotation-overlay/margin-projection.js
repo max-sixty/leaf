@@ -16,15 +16,15 @@
 
    thread-preview.js owns the contextual card and its selected conversation's
    lifetime. The margin supplies its anchor control and manages cluster disclosure.
-   A card accompanies the page target the user stands at, an obligation included: `m` lands
+   A card accompanies the page target the user arrives at (standing-target.js,
+   `arrivalOf`), an obligation included: `m` lands
    on an obligation and its discussion opens beside it, clear of its options. Keeping the card
    shut while the user works an obligation was tried and rejected, since the user walks to an
    obligation to read its discussion with it. followStanding and the
    shared keyboard ladder decide when that relationship ends. It is margin chrome:
-   target, cluster and card are one place. Standing elsewhere, releasing the target,
+   target, cluster and card are one place. Standing elsewhere on the page, releasing the target,
    or pressing outside that place dismisses it. Escape inside lands on the target;
-   Send keeps focus on its thread. With Threads open, the list's expanded thread
-   supplies the accompaniment and declares its own target association. The card shows
+   Send keeps focus on its thread. The card shows
    the threads of the innermost target holding the user's place that has any (its own,
    else an enclosing one's), never those of a target inside it: a thread on an obligation's
    options shows from the options, not from the obligation (`threadEntryAt`).
@@ -119,7 +119,7 @@ import { nativeLayerHolding } from "../shadow-tree.js";
 import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
 import { repaint } from "../repaint.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
-import { declareSide, placeOf } from "../standing-target.js";
+import { arrivalOf, declareSide } from "../standing-target.js";
 import { closestAcross, inChrome } from "../passages.js";
 import { visualAt } from "../anchor-resolution.js";
 import { paintTrace } from "../target-paint.js";
@@ -1582,7 +1582,7 @@ export function createMarginProjection({
       null
     );
   };
-  // A folded cluster opens while the keyboard stands at its target, as it does when
+  // A folded cluster opens while the keyboard arrives at its target, as it does when
   // the keyboard arrives on its toggle: what the user stands at offers its actions, and
   // an obligation's digits name them. It folds again when they stand anywhere else but in the
   // cluster itself, where standing keeps it open (the fold beside `arriveAtCluster`).
@@ -1601,7 +1601,7 @@ export function createMarginProjection({
       expandedKey: expandedOptionsKey,
       expandedOwner: expandedOptionsOwner,
     };
-    const place = active && !host && byKeyboard() && placeOf(active);
+    const place = active && !host && byKeyboard() && arrivalOf(active);
     const entry = place
       ? pageInventory.find(
           (candidate) =>
@@ -1639,7 +1639,7 @@ export function createMarginProjection({
       designModeActive()
     )
       return;
-    const entry = threadEntryAt(node);
+    const entry = arrivalOf(node) && threadEntryAt(node);
     if (entry) accompany(node, entry);
   }
   function followStanding() {
@@ -1660,7 +1660,7 @@ export function createMarginProjection({
         closePreview();
       return;
     }
-    const entry = threadEntryAt(active);
+    const entry = arrivalOf(active) && threadEntryAt(active);
     if (!entry) {
       if (previewOpen() && !inChrome(active)) closePreview();
       return;

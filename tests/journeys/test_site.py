@@ -34,7 +34,7 @@ from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
 from leaf import schema as schema_model
-from leaf.event_log import _parse_events, read_events
+from leaf.event_log import CURSOR, _parse_events, read_events
 from leaf.events import bare_reaction, build_threads
 from leaf.passages import enclosing_ids
 from leaf.render_checks import wait_until_ready
@@ -599,9 +599,7 @@ def test_every_published_page_keeps_its_canonical_page_record(site):
         seed = source.with_suffix(".jsonl")
         if seed.exists():
             assert seed.read_text() in (page_dir / "events.jsonl").read_text()
-            assert json.loads((page_dir / "cursor.json").read_text()) == {
-                "seq": len(events)
-            }
+            assert CURSOR.read(page_dir / "cursor.json") == {"seq": len(events)}
         else:
             assert not (page_dir / "cursor.json").exists()
         assert set(contracts) == {operation["source"] for operation in operations}

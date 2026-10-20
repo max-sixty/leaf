@@ -269,11 +269,6 @@ class Harness:
         dispatched to it, since only it can reach the App Server it owns."""
         return None
 
-    def prepare_titles(self, page_dir: Path) -> None:
-        """Start what the page's first title is asked on, as the page server starts
-        serving this session's page, where starting it is most of a title's time;
-        nothing for a harness whose title needs no start."""
-
     def live_turn(self) -> dict | None:
         """What the harness itself says about this session right now, or None where it
         says nothing a reader can take.
@@ -475,11 +470,6 @@ class CodexHarness(EnvironmentHarness):
         from leaf.thread_titles import codex_title
 
         return codex_title
-
-    def prepare_titles(self, page_dir: Path) -> None:
-        from leaf.thread_titles import prepare_codex_title
-
-        prepare_codex_title(page_dir)
 
     def ensure_delivery(self) -> None:
         with self.preparing_delivery():

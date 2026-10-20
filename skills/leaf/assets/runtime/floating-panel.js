@@ -2617,17 +2617,22 @@ export function createFloatingPanel({
   // about wears its ring and takes its digits there, whether the thread is open or
   // resolved. In a thread's view the thread's own keys stay its own, so only `m`, where
   // the thread is not a stop of its own, steps from the ask; from an On card `m`, `t`,
-  // `c` and `e` all start at its obligation. An ask in a reply stands for itself.
-  declareSide((node) => {
-    const part = [openView(), head, replyOutlet].find((at) => at && under(node, at));
-    const thread = part && openIn(part);
-    if (thread) return placedAt(thread.id)?.place ?? null;
-    const id = under(node, stage)
-      ? closestAcross(node, ".lf-fp-on-item[data-obligation]")?.dataset.obligation
-      : null;
-    const record = id && readObligations().all.find((item) => item.id === id);
-    return record ? obligationPlace(record).node : null;
-  });
+  // `c` and `e` all start at its obligation. An ask in a reply stands for itself. The
+  // panel shows them beside the page, so the user in it has not arrived at the ask
+  // (`beside`).
+  declareSide(
+    (node) => {
+      const part = [openView(), head, replyOutlet].find((at) => at && under(node, at));
+      const thread = part && openIn(part);
+      if (thread) return placedAt(thread.id)?.place ?? null;
+      const id = under(node, stage)
+        ? closestAcross(node, ".lf-fp-on-item[data-obligation]")?.dataset.obligation
+        : null;
+      const record = id && readObligations().all.find((item) => item.id === id);
+      return record ? obligationPlace(record).node : null;
+    },
+    { beside: true },
+  );
 
   // The version's approval is answered here: arriving at it, as `m` and an On me row
   // do, opens this view on its card and stands on its

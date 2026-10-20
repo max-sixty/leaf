@@ -297,25 +297,31 @@ HIDDEN_TAB_PAGE = leaf_page(
 )
 
 
-def test_a_thread_opened_where_the_user_stands_reveals_its_closed_tab(browser, serve):
-    """`travel: false` opens a thread without moving the page, but still reveals its
-    passage: a card stands beside the passage's margin row, which a closed tab hides, so
-    a card opened there never placed and the opening never answered."""
+@pytest.mark.parametrize(
+    "options",
+    [{"focus": False, "travel": False, "flash": False}, {"part": "thread"}],
+    ids=["where-the-user-stands", "travelling"],
+)
+def test_opening_a_thread_reveals_its_closed_tab(browser, serve, options):
+    """Opening a thread reveals its passage whether or not the page travels to it: its
+    card stands beside the passage's margin row, which a closed tab hides. Opened where
+    the user stands (`travel: false`), the card never placed and the opening never
+    answered."""
     page = open_page(
         browser, serve(HIDDEN_TAB_PAGE, events=[_comment_on("closed-words")])
     )
     resized(page, 1440, 900)
     expect(page.locator("#view-closed")).to_be_hidden()
     opened = page.evaluate(
-        """async () => {
+        """async options => {
           const {readThreads, threadActions} = await window.__lfWidgetApi();
           const [thread] = readThreads().threads;
-          const opening = threadActions.open(
-            thread.key, {focus: false, travel: false, flash: false});
+          const opening = threadActions.open(thread.key, options);
           const late = new Promise(resolve => setTimeout(() => resolve('late'), 5000));
           const shown = await Promise.race([opening, late]);
           return shown === 'late' ? shown : Boolean(shown);
-        }"""
+        }""",
+        options,
     )
     assert opened is True
     expect(page.locator("#closed-words")).to_be_visible()

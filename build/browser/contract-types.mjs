@@ -231,7 +231,23 @@ export async function protocolSchemas(root) {
     events: { ownership: $events.ownership, kinds: $events.kinds },
     served: await read("skills/leaf/scripts/leaf/served_state/state.schema.json"),
     verb,
-    records,
+    // The composer's draft beside the `state.Record`s: its format guards its drawing.
+    records: {
+      ...records,
+      draft: { since: $events.draft_since, schema: draftSchema($events) },
+    },
+  };
+}
+
+// What a draft's format guards: its drawing, the comment record's with the placement in
+// its section, `at`, that `captured` (runtime/composing/drawing.js) adds while it is a
+// draft.
+function draftSchema({ kinds }) {
+  const drawing = kinds.comment.record.properties.drawing;
+  const at = { type: "array", minItems: 6, maxItems: 6, items: { type: "number" } };
+  return {
+    type: "object",
+    properties: { drawing: { ...drawing, properties: { ...drawing.properties, at } } },
   };
 }
 

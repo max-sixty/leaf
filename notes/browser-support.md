@@ -299,20 +299,40 @@ what fails and what still works.
   pending; continuing the document triggers the swap and cancellation. The native
   loader/form/popup/nested-sample/reload journey and this held-destination control
   exercise the compiled kernel.
-- **Disposition:** prepaint owns one document fault lifetime. `pageswap` or
-  `pagehide` retires it, and `pageshow` restores it for a cached realm. Startup
-  fault intake, the sample error port, and runtime error reporting consume that
-  lifetime. A canceled `beforeunload` does not retire it. No error-text matching
-  or delayed fault reporting participates.
+- **Observed, 2026-10-19:** stock Firefox 158, driven over WebDriver BiDi, and
+  Playwright's Firefox abort a document's in-flight loads as soon as an uncanceled
+  `beforeunload` lets a navigation start, and keep the document running until the
+  destination answers. A registry, widget module or state body cut off that way
+  failed startup or a state read, and the page posted a state body's and a widget
+  module's failure to its log as `error` events. Chrome 155 keeps the old
+  document's loads until it commits. Removing a loading sample fires the child's
+  `pagehide` before its aborted fetches reject, in both engines.
+- **Disposition:** prepaint owns one document fault lifetime, and startup fault
+  intake, the sample error port and runtime error reporting report through it
+  (`lfDocumentLifetime.whenActive`). After a `beforeunload`, a fault waits, since
+  neither engine says whether the navigation will replace the document: a leave
+  prompt the user stays at, or a link answered with a download or a 204, leaves it
+  in place with its aborted requests failed for good. `pageswap` or `pagehide` drops
+  what waited; the user's next press, key or edit reports it, and a persisted
+  `pageshow` reopens the lifetime for a cached realm. A press during a slow
+  navigation that then commits still reports the aborted loads. No error-text
+  matching participates.
 - **Compatibility limit:** [MDN's compatibility data](https://raw.githubusercontent.com/mdn/browser-compat-data/main/api/Window.json)
   lists `pageswap` from Chrome 124, no Firefox support, and partial Safari 18.2
   support because cross-origin navigation omits it
-  ([WebKit issue](https://webkit.org/b/306447)). Installed Playwright Chromium 153
-  and WebKit 26.6 expose the event; Firefox 155 does not. The Firefox double-reload
-  probe failed with native `NS_BINDING_ABORTED` and dynamic-module cancellation;
-  it does not establish whether this differs from the source runtime. `pagehide`
-  still retires departed documents there, but does not promise Chromium's earlier
-  cancellation boundary. Safari's opaque-frame ordering has not been established.
+  ([WebKit issue](https://webkit.org/b/306447)). Safari's ordering of departure
+  and cancellation has not been established.
+- **Page cache, 2026-10-19:** neither Chrome 155 nor Firefox 158 keeps a served
+  Leaf page in its back/forward cache. The document and the API answers carry
+  `Cache-Control: no-store` (Chrome names `MainResourceHasCacheControlNoStore` and
+  `JsNetworkRequestReceivedCacheControlNoStoreResource`), and Firefox also refuses
+  a page holding a sample. With `no-store` removed by a proxy, Chrome restored a
+  page and its sample; the page caught up with the log and recorded gestures, but
+  the child had treated its persisted `pagehide` as a departure, leaving the host
+  waiting for a next document. The child now ignores a persisted `pagehide`, as
+  the host does. Playwright disables both page caches
+  (`--disable-back-forward-cache`, `fission.bfcacheInParent`), so the suite hands
+  the child a cached round trip's events instead. Safari has not been exercised.
 
 ### Back during smooth arrival
 

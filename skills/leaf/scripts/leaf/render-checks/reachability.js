@@ -1,8 +1,13 @@
 import { shownParts, TEXT_BOX } from "/runtime/widget-api.js";
 import { shownBox, userScrollport } from "/runtime/check-api.js";
-import { restsOverPage } from "./layout.js";
-import { at, unique } from "./locate.js";
+import { at, place, unique } from "./locate.js";
 import { coveredWords } from "./words.js";
+
+// An overlay that takes no presses at rest, such as the contents map's spine, stands
+// over the page by design and reveals over it when the user reaches for it, so the box
+// it has at rest is not the room it shows in.
+export const restsOverPage = (style) =>
+  style.position === "fixed" && style.pointerEvents === "none";
 
 // One read-only view of controls and words a reader cannot reach on the page as laid
 // out. The render gate takes this after its table experiment has restored wrapping; no
@@ -98,6 +103,7 @@ export function clippedControls() {
           out.push({
             code: "clipped-control",
             at: at(el),
+            place: place(el),
             control: el.className,
             id: el.id,
             by: `<${a.tagName.toLowerCase()}${a.id ? " id=" + a.id : ""}>`,

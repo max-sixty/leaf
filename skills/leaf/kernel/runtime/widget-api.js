@@ -116,7 +116,7 @@ import {
   reducedMotion,
   scrollBehavior
 } from "./bundle-motion.js";
-import "./bundle-content-layout.js";
+import "./bundle-page-controls.js";
 import {
   addressableLabel,
   addressableName,
@@ -668,8 +668,9 @@ var LeafElement = class extends LitElement {
     this.#following = this.#connected ? reads.map(
       ([reading, seen]) => reading.subscribe((now) => {
         if (now === seen) return;
-        if (readsProof(reading)) this.requestUpdate();
-        else if (stagesOnly(reading)) this.#stage();
+        if (readsProof(reading)) {
+          if (now) this.requestUpdate();
+        } else if (stagesOnly(reading)) this.#stage();
         else this.#moved();
       })
     ) : [];
@@ -955,13 +956,16 @@ function goalView(goal, open, read) {
     stoppedAt: reportedStoppedAt ?? (role.stoppedAt ? goal.getAttribute(role.stoppedAt) : null)
   };
 }
+var openWidgetObligations = readPart(
+  (root) => root.effective.obligations.user.filter((item) => item.source.kind === "widget")
+);
 function readWork(scope) {
   const readings = /* @__PURE__ */ new Map();
   const read = (element) => {
     if (!readings.has(element)) readings.set(element, widgetController(element).read());
     return readings.get(element);
   };
-  const open = readObligations().user.filter((item) => item.source.kind === "widget");
+  const open = openWidgetObligations();
   const goals = workElements(scope, "goal").map((goal) => goalView(goal, open, read));
   const byElement = new Map(goals.map((goal) => [goal.element, goal]));
   const workers = workElements(scope, "worker").map(

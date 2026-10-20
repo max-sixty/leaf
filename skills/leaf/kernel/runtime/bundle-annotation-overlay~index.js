@@ -105,7 +105,7 @@ import {
 import "./bundle-visible-target-parts.js";
 import {
   pointBand
-} from "./bundle-content-layout.js";
+} from "./bundle-page-controls.js";
 import {
   chromeForeground,
   chromeRoot,
@@ -2121,6 +2121,7 @@ function createMarginProjection({
     rows: [
       {
         id: "margin.back",
+        touch: false,
         keys: ["Escape"],
         description: () => pageMapRung(false)?.description,
         title: () => pageMapRung(false)?.title,

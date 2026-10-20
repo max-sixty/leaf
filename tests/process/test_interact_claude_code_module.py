@@ -287,6 +287,11 @@ def test_the_module_hands_input_to_a_running_turn_and_closes_an_interrupted_one(
         [batch] = json.loads(context.split("\n")[1])["batches"]
         assert comment["id"] in [event["id"] for event in batch["events"]]
 
+    # This one arrives during the turn's last tool, whose batch never ends.
+    append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "unread"}
+    )
+    listener = messaging_socket(claude_code, socket_dir)
     claude_code.end_turn(interrupted=True)
     interrupt = claude_code.watches.get(timeout=STATED_TIMEOUT)
     # The watch closes the turn after the ending, so it states when that was.
@@ -299,17 +304,9 @@ def test_the_module_hands_input_to_a_running_turn_and_closes_an_interrupted_one(
         bool,
         failure="the Escape left the turn open",
     )
-    # The opened receipt removed handed input from the pending batch; the stopped
-    # turn's debt waits for the next prompt (`session.watch_between_turns`).
-    wait_for(
-        lambda: leases_model.wait_is_live(None, claude_code.session),
-        bool,
-        failure="the module started no watch after the interrupted turn",
-    )
-    listener = messaging_socket(claude_code, socket_dir)
-    append_carried_log_record(
-        page_dir, {"kind": "comment", "author": "user", "text": "after"}
-    )
+    # The watch after Escape wakes for the unread comment at once. The opened
+    # receipt removed handed input from the pending batch, so the stopped turn's
+    # debt waits for the next prompt (`session.watch_between_turns`).
     assert claude_code.message()["dropped"].startswith(
         f"Leaf: {page_dir} has new input"
     )

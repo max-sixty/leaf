@@ -50,7 +50,7 @@ import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { scrollBehavior } from "../motion.js";
 import { OBLIGATION_CONTROL } from "./view-elements.js";
 import { obligationWord, ownedObligationControl } from "./answer.js";
-import { obligationHolding, placeOf, sideOf } from "../standing-target.js";
+import { obligationHolding, placeOf } from "../standing-target.js";
 import { PRESENTATION } from "../presentation.js";
 import { retainUserIntent } from "../user-intent.js";
 import { bindQueuedWork } from "../queued-work.js";
@@ -218,14 +218,14 @@ export function createObligationView({
     if (readObligations().unanswered.some((item) => item.id === record.id))
       return record;
     // An answered obligation is standing only on an explicit review route: the obligation element,
-    // or chrome whose owner declares it stands at that element (`sideOf`), as an On
-    // panel row does. A widget host can be the document's retargeted focus without being the
+    // or chrome that stands at that element (`placeOf`), as an On card, a thread's view
+    // or a control on a widget in its reply does. A widget host can be the document's retargeted focus without being the
     // obligation itself; treating that as an arrival would make an ordinary click on a chosen
     // option steal the option's own semantics.
     const answered = record;
     const item = obligationNode(answered);
     return held === item ||
-      (inChrome(held) && sideOf(held) === item) ||
+      (inChrome(held) && placeOf(held) === item) ||
       hasReviewedFocus()
       ? answered
       : null;

@@ -40,12 +40,6 @@ has tried; settle that before building it.
 
 ### User experience
 
-- **Verify cancellation when a browser document departs.** Reproduce navigation
-  away during registry loading, state response decoding, and presentation, plus
-  removal of a loading sample iframe. Confirm which work survives departure and
-  whether it produces errors before changing shared startup or presentation
-  lifetimes. Include real back/forward-cache restoration so cancellation cannot
-  break a returning page.
 - **#25 — Answer one decision beside its evidence and on a board.** A section's
   picker and its board card currently record independent facts. Choose the owner
   and test both views against one decision, including ordering, write-ins and
@@ -181,6 +175,14 @@ has tried; settle that before building it.
   buckets scroll horizontally and the release rationale sits below the board.
   Keep comparison context available during a move, preserving direct destination
   controls and undo.
+- **Decide whether Back may restore a served page whole.** Every served page and
+  API answer carries `Cache-Control: no-store`, so Chrome and Firefox load the page
+  afresh on Back rather than restoring it from their back/forward cache, and Firefox
+  also refuses a page holding a sample ([browser support](notes/browser-support.md),
+  "Page cache"). With `no-store` lifted, a Chrome probe restored a page that caught
+  up with the log and recorded gestures. Weigh an instant Back against what
+  `no-store` protects, a private page's copy in the browser's disk cache, and
+  exercise Safari.
 - **Consider automatic Leaf recovery on resume.** Reuse the reconnect notice's
   eligibility checks to restore serving, ownership, and feedback delivery, while
   respecting explicit stops and transfers to another session.
@@ -297,9 +299,6 @@ and its chrome coordinate.
 - **Decide whether a too-narrow table fails a page at the fixed widths.** It is
   advice at every width, the two fixed viewports included, where it once refused
   the page.
-- **Report a control clipped anywhere in the width sweep.** The clipped-control
-  check runs only at the two fixed viewports, so a control cut off only between
-  360 and 440px goes unreported.
 
 ### Layout stability
 
@@ -307,11 +306,25 @@ Boxes that still move without input, which the "Stability" rule in
 `skills/leaf/assets/AGENTS.md` forbids. `tests/known_widget_findings.py` lists each widget
 that changes size after first paint, with its cause.
 
-- **Size text documents at first paint.** `lf-text-document` draws its bound source's
-  value after the first state answer. Check whether the document can be laid out from
-  a synchronous source reading, or whether a summary can serve the reader who came
-  to read it. The activity feed now opens log-sized rows deliberately and holds later
-  growth with `HeldReading`.
+- **Size text documents at first paint.** An `lf-text-document` without `preview` is
+  as tall as its source's value wrapped at the column's width. `leaf data set` writes
+  that value to the page directory, and the browser reads it from `/api/state` (on
+  leaf.page, from the build's static state answer); only an export inlines it in the
+  document (`exporting.py`). A page that opens with a 20-line document first paints
+  before its state answer arrives, at about 200 ms against 300 ms in `leaf-dev probe`,
+  so the document draws later and pushes the paragraph below it down 470px at 1440px
+  wide and 850px at 390px (a 0.06 layout shift at each). A `preview` document's
+  height doesn't depend on its value (caption, tab strip and a `--lf-bound`
+  viewport), so an initial renderer can paint it final under any of the fixes below.
+  Choosing one is Max's decision:
+  - serve each value the document binds inside the document, as an export already
+    does, and draw it unhighlighted in Pierre's line geometry from an initial
+    renderer, so the box is final before highlighting loads;
+  - have the author state `data-height`, as `lf-diff` does (`x-height: true`), though
+    the stated height goes stale whenever the data or the width changes;
+  - give every text document a fixed height that scrolls inside, as a `preview`
+    document already has, or open it closed behind a one-line summary, as the
+    activity feed opens on a gesture and holds later growth with `HeldReading`.
 - **Draw the contents map's spine in its first frame.** `lf-toc`'s initial drawing
   (`initial/lf-toc.js`) gives it its final box and rows, but in the margin its
   disclosure stays closed until the module opens it, so the spine and its markers
@@ -401,6 +414,21 @@ on 2026-10-07.
   that turn's answer as its reply to the comment. The
   [Codex brief](notes/codex-integration.md#delivery-start-race) holds the
   measurements, the reproduction and the two options.
+- **Decide how a Claude Code hook delivery is confirmed.** `hook_transport` records a
+  pickup when the prompt hook returns, but Escape while any UserPromptSubmit hook is
+  still running drops the whole prompt, Leaf's output included. Measured on Claude
+  Code 2.1.304 with a second hook sleeping 6 s: the comment never reached the
+  transcript, nothing woke for it because it read as received, and it waited until
+  the user typed; an update that owes no reply (a resolve) never surfaced again.
+  #3272's re-offer covers only updates the owner holds no ref for. With Leaf's hook
+  alone the window is about 25–35 ms; another plugin's slow prompt hook widens it to
+  that hook's run. PostToolBatch likely shares the window (read from Claude Code's
+  source, not run); Pi commits the output itself and is safe. No hook event confirms
+  Claude Code accepted the output, so the options are: the agent confirms with
+  `leaf delivery ack`, as on Codex (a tool call, and Picked up waits for the model);
+  confirm at the turn's next hook and re-offer if the turn dies first (a "handed, not
+  confirmed" record); or keep it and document Escape beside the session-end case in
+  `hook_transport.py`'s header.
 
 - **Measure how often agents produce bad pages.** Write `evals/` cases in which agents
   author ordinary pages, and have a judge read each result at wide, middle and phone

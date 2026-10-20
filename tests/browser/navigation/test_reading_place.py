@@ -24,6 +24,7 @@ from render_harness import (
     resized,
     scroll_settled,
     select,
+    selection_field,
     stamp_page,
     take_browser_errors,
     told,
@@ -1290,9 +1291,7 @@ def test_restore_selection_has_touch_route_and_does_not_carry_draft(browser, ser
     page = open_page(browser, serve(RESTORE_SELECTION_PAGE), context=context)
     point = _word_point(page.locator("#remembered"), "amber")
     page.mouse.dblclick(point["x"], point["y"])
-    expect(
-        page.get_by_role("button", name="Comment on selection", exact=True)
-    ).to_be_visible()
+    expect(selection_field(page)).to_be_visible()
     selected = page.evaluate("() => getSelection().toString()")
     assert selected
     rendered(page)
@@ -1522,9 +1521,7 @@ def test_restore_selection_tracks_late_native_adjustment_and_retires_write_prove
     page = open_page(browser, serve(RESTORE_SELECTION_PAGE), context=context)
     point = _word_point(page.locator("#remembered"), "identity")
     page.mouse.dblclick(point["x"], point["y"])
-    expect(
-        page.get_by_role("button", name="Comment on selection", exact=True)
-    ).to_be_visible()
+    expect(selection_field(page)).to_be_visible()
     initial = page.evaluate("() => getSelection().toString()")
     assert initial and initial != "amber"
     page.evaluate("""async () => {

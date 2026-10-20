@@ -18,6 +18,7 @@ from render_harness import (
     RELEASE_FOCUS,
     compare_with,
     draft_control,
+    expect_panel_offers,
     held_frames,
     leaf_page,
     margins_laid_out,
@@ -1015,6 +1016,37 @@ def test_page_map_only_origins_do_not_count_as_margin_entries(browser, serve):
     page.keyboard.press("Enter")
     expect(page.locator("#t-mounts")).to_be_focused()
     expect(marker).not_to_be_focused()
+
+
+def test_a_mouse_finds_page_map_under_navigate_only_where_the_rail_falls(
+    browser, serve
+):
+    """A window too narrow for the margin's rail draws its markers as pins, so the
+    leaf's Navigate offers the whole map to a mouse too, with its count and keys. Where
+    the rail stands, the map stays a key's convenience the menu leaves out."""
+    page = open_page(
+        browser,
+        serve(OBLIGATION_PAGE, events=[ACTION_ON_OBLIGATION, COMMENT_ON_OBLIGATION]),
+    )
+    resized(page, 760, 900)
+    margins_laid_out(page)
+    expect(
+        page.locator('.lf-margin-cluster[data-lf-place="pin"]').first
+    ).to_be_visible()
+    row = panel_control(page, "map", at="navigate")
+    expect(row.locator(".lf-fp-value")).to_have_text(re.compile(r"^\d+$"))
+    expect(row.locator("kbd")).to_have_text(["g", "P"])
+    row.click()
+    expect(page.locator(".lf-page-map-dialog")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-page-map-dialog")).to_be_hidden()
+
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    expect(
+        page.locator('.lf-margin-cluster[data-lf-place="rail"]').first
+    ).to_be_visible()
+    expect_panel_offers(page, "map", offered=False, at="navigate")
 
 
 @pytest.mark.parametrize("opener", ["keyboard", "finger"])

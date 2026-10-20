@@ -97,6 +97,7 @@ pageScope("text entry", {
   rows: [
     {
       id: "text.leave",
+      touch: false,
       keys: ["Escape"],
       description: "Leave the box, keeping what is typed",
       title: () => backFromBox()?.line ?? "back",
@@ -202,6 +203,7 @@ export function declareThreadKeys(landIn) {
     rows: [
       {
         id: "thread.primary",
+        touch: false,
         keys: ["Enter"],
         description: () =>
           resolutionControl(cardThread())?.matches(".lf-reopen")
@@ -227,6 +229,7 @@ export function declareThreadKeys(landIn) {
       },
       {
         id: "thread.resolution.toggle",
+        touch: false,
         keys: ["r"],
         description: () =>
           resolutionControl(heldThread())?.matches(".lf-reopen")

@@ -31,6 +31,7 @@ from render_harness import (
     said,
     scroll_settled,
     select,
+    selection_field,
     sending,
     told,
     write,
@@ -835,7 +836,7 @@ def test_a_diff_row_fills_to_the_end_of_its_line_and_to_the_end_of_a_narrow_box(
     page.locator('lf-diff [data-lf-datum=\'["app/routes.py","new",201]\']').evaluate(
         _SELECT_IN_ROW, "new route"
     )
-    page.get_by_role("button", name="Comment on selection").click()
+    selection_field(page).click()
     write(
         page.locator(".lf-composer leaf-text"),
         "A remark of the ordinary length a reviewer writes, long enough that the line it "

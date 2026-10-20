@@ -449,11 +449,11 @@ def composer_resting(page: Page) -> None:
     page.mouse.down()
     page.mouse.move(box["x"] + 200, y, steps=8)
     page.mouse.up()
-    # Under a finger a selection offers Comment in the floating panel's row rather than
-    # a field. It arrives on a later frame, so the pointer decides, not whether it is
-    # there yet.
+    # Under a finger a selection is offered in the floating panel's field, which quotes
+    # it, rather than raising a field beside it. It arrives on a later frame, so the
+    # pointer decides, not whether it is there yet.
     if page.evaluate("matchMedia('(pointer: coarse)').matches"):
-        page.get_by_role("button", name="Comment on selection").click()
+        page.locator('.lf-fp-field leaf-text[data-says="selection"]').click()
 
 
 def composer_empty(page: Page) -> None:

@@ -12,6 +12,7 @@ import {
 import { laidOutItems } from "./framing.js";
 import { at as element, place } from "./locate.js";
 import { openRoots } from "./open-roots.js";
+import { clippedControls, restsOverPage } from "./reachability.js";
 import { scrollbarClearance } from "./scrollbars.js";
 import { shrunkLabelReading } from "./words.js";
 
@@ -24,12 +25,6 @@ const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
 // holding authored blocks (`data-lf-content="markup"`) break out.
 const breaksOut = (el) =>
   getComputedStyle(el).getPropertyValue("--lf-breakout").trim() === "1";
-
-// An overlay that takes no presses at rest, such as the contents map's spine, stands
-// over the page by design and reveals over it when the user reaches for it, so the box
-// it has at rest is not the room it shows in.
-export const restsOverPage = (style) =>
-  style.position === "fixed" && style.pointerEvents === "none";
 
 // The box a block's width and margins resolve against: its nearest ancestor that
 // generates a block, inside that ancestor's border, padding and any scrollbar gutter,
@@ -66,8 +61,8 @@ export function marginResidents() {
 // One settled-width geometry sample: the readings the gate reports across the width
 // sweep, each field read by its own consumer in render_gate/readings.py. Which findings
 // the gate answers for at every width is its choice, not a property of the reader:
-// reachabilityReading also moves with the width, and the gate reports it only at
-// the viewports it renders (validation.md). These readers are synchronous: taking them
+// covered words also move with the width, and the gate reports them only at the
+// viewports it renders (validation.md). These readers are synchronous: taking them
 // in one browser turn preserves their findings while removing the protocol round trips
 // between fields. All but `squeezedTables` are read-only; it adds and removes a
 // wrapping rule, so it reads last and the others read the page as laid out. Resize and
@@ -81,6 +76,7 @@ export function geometryReading(open) {
     margin: marginResidents(),
     arrangement: arrangedBoxes(open),
     labels: shrunkLabelReading(),
+    clipped: clippedControls(),
     squeezed: squeezedTables(),
   };
 }

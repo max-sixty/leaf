@@ -59,7 +59,7 @@ import { closestAcross, elementById, inChrome } from "../passages.js";
 
 import { notice } from "../notifications.js";
 import { sentDrawing } from "./drawing-record.js";
-import { recordFormat } from "../protocol.js";
+import { DRAFT_FORMAT } from "../protocol.js";
 import { commitPoint } from "../pointed-place.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
 import { textField } from "./text-field.js";
@@ -182,7 +182,6 @@ export function createSelectionComposer({
   // draft follows an identified subject across a data replacement as `sameAnchor` does;
   // reopened on the re-minted anchor, it posts that anchor, the rendering last aimed at.
   const COMPOSER_KEY = "composer:";
-  const DRAFT_FORMAT = recordFormat("draft");
   const composerCtx = (anchor) => COMPOSER_KEY + anchorKey(anchor);
   let syncComposer;
   let pendingRevision = null;
@@ -215,7 +214,7 @@ export function createSelectionComposer({
     try {
       record = JSON.parse(stored);
       if (!Number.isInteger(record?.revision)) record = null;
-      // Another protocol's draft keeps its words, which are only text, and loses its
+      // A draft at another format keeps its words, which are only text, and loses its
       // drawing, whose shape this runtime may not draw.
       else if (record.format !== DRAFT_FORMAT) record = { ...record, drawing: null };
     } catch {
@@ -789,6 +788,7 @@ export function createSelectionComposer({
   const RESPONSE_OPTIONS_TITLE = "With other responses open";
   const RESPONSE_REACTION = {
     id: "response.reaction.choose",
+    touch: false,
     ready: savedReadingSettled,
     keys: () =>
       reactionTokens()
@@ -812,6 +812,7 @@ export function createSelectionComposer({
   };
   const RESPONSE_MOVE = {
     id: "response.move",
+    touch: false,
     keys: ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
     description: "Move through other responses",
     title: "move",
@@ -821,6 +822,7 @@ export function createSelectionComposer({
   };
   const RESPONSE_ACTIVATE = {
     id: "response.activate",
+    touch: false,
     keys: PRESS,
     description: "Use the focused response",
     title: "choose",
@@ -831,6 +833,7 @@ export function createSelectionComposer({
   };
   const RESPONSE_CLOSE = {
     id: "response.close",
+    touch: false,
     keys: ["Escape"],
     description: "Close other responses",
     title: "close",

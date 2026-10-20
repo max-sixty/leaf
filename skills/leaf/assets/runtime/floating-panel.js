@@ -1139,17 +1139,29 @@ export function createFloatingPanel({
     return true;
   };
   // The press being judged: the control pressed, where it stood in the view's content,
-  // and how tall the view and what it holds stood. Once what the press grows has drawn,
-  // after the press's own handlers, or where the route it started opens what holds its
-  // destination (`lf-reveal`), as Next unread's opening a fold does, before the frame
-  // shows it, the view holds the height it stood at only where, growing up the window
-  // to hold what the press grew, it would carry the press away. A route that lands with
-  // nothing opened (`landed`) leaves the view as it stands.
+  // and how tall the view, what it holds and its scroll stood. Once what the press
+  // changed has drawn, after the press's own handlers, or where the route it started
+  // opens what holds its destination (`lf-reveal`), as Next unread's opening a fold
+  // does, and before the frame shows it, the press is put back where it stood. A
+  // change below it, or anywhere under a press in the head, would carry it as the view
+  // grows or shrinks from its head, so the view holds the height it stood at. A change
+  // above it, as progress opening over the answer whose head holds its disclosure,
+  // leaves it in place as far as the view's height takes the change up, so the view
+  // keeps growing or shrinking as it would, and scrolls by the rest. A route that lands
+  // with nothing changed (`landed`) leaves the view as it stands.
   let pressed = null;
   const contentTop = (node, view) =>
     node.getBoundingClientRect().top -
     view.getBoundingClientRect().top +
     view.scrollTop;
+  // How tall what the view holds stands, whatever height the view itself stands at.
+  const holding = (view) =>
+    Math.max(
+      0,
+      ...[...view.children].map(
+        (child) => contentTop(child, view) + child.getBoundingClientRect().height,
+      ),
+    );
   function pressAt(node, landed = null) {
     const top = trail.at(-1);
     const view = openView();
@@ -1160,8 +1172,9 @@ export function createFloatingPanel({
       inView,
       landed: Boolean(landed),
       at: inView ? contentTop(node, view) : 0,
-      height: stood,
-      holds: view.scrollHeight,
+      height: view.offsetHeight,
+      holds: holding(view),
+      scroll: view.scrollTop,
     };
     pressed = press;
     if (landed)
@@ -1173,13 +1186,15 @@ export function createFloatingPanel({
     if (!press || pressed !== press) return;
     pressed = null;
     const view = openView();
-    if (!view || !press.node.isConnected || view.scrollHeight - press.holds < 0.5)
+    if (!view || !press.node.isConnected) return;
+    if (Math.abs(holding(view) - press.holds) < 0.5) return;
+    const above = press.inView ? contentTop(press.node, view) - press.at : 0;
+    if (!press.inView || Math.abs(above) < 0.5) {
+      if (holdThread(press.height)) paint();
       return;
-    // How far the view would grow up the window to hold it, as far as its cap.
-    const cap = Number.parseFloat(getComputedStyle(view.parentElement).maxHeight);
-    const grows = Math.min(view.scrollHeight, cap) - press.height;
-    const moves = (press.inView ? contentTop(press.node, view) - press.at : 0) - grows;
-    if (Math.abs(moves) >= 0.5 && holdThread(press.height)) paint();
+    }
+    const grown = view.offsetHeight - press.height;
+    moveScrollerBy(view, press.scroll + above - grown - view.scrollTop);
   }
   opened.addEventListener("click", (event) => pressAt(event.target), { capture: true });
   opened.addEventListener("click", () => {

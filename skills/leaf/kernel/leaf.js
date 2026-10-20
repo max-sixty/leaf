@@ -6546,6 +6546,12 @@ function createFloatingPanel({
   };
   let pressed = null;
   const contentTop = (node, view) => node.getBoundingClientRect().top - view.getBoundingClientRect().top + view.scrollTop;
+  const holding3 = (view) => Math.max(
+    0,
+    ...[...view.children].map(
+      (child) => contentTop(child, view) + child.getBoundingClientRect().height
+    )
+  );
   function pressAt(node, landed = null) {
     const top = trail.at(-1);
     const view = openView();
@@ -6556,8 +6562,9 @@ function createFloatingPanel({
       inView,
       landed: Boolean(landed),
       at: inView ? contentTop(node, view) : 0,
-      height: stood,
-      holds: view.scrollHeight
+      height: view.offsetHeight,
+      holds: holding3(view),
+      scroll: view.scrollTop
     };
     pressed = press;
     if (landed)
@@ -6569,12 +6576,15 @@ function createFloatingPanel({
     if (!press || pressed !== press) return;
     pressed = null;
     const view = openView();
-    if (!view || !press.node.isConnected || view.scrollHeight - press.holds < 0.5)
+    if (!view || !press.node.isConnected) return;
+    if (Math.abs(holding3(view) - press.holds) < 0.5) return;
+    const above = press.inView ? contentTop(press.node, view) - press.at : 0;
+    if (!press.inView || Math.abs(above) < 0.5) {
+      if (holdThread(press.height)) paint();
       return;
-    const cap = Number.parseFloat(getComputedStyle(view.parentElement).maxHeight);
-    const grows = Math.min(view.scrollHeight, cap) - press.height;
-    const moves = (press.inView ? contentTop(press.node, view) - press.at : 0) - grows;
-    if (Math.abs(moves) >= 0.5 && holdThread(press.height)) paint();
+    }
+    const grown = view.offsetHeight - press.height;
+    moveScrollerBy(view, press.scroll + above - grown - view.scrollTop);
   }
   opened.addEventListener("click", (event) => pressAt(event.target), { capture: true });
   opened.addEventListener("click", () => {

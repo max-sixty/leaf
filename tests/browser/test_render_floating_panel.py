@@ -1447,6 +1447,7 @@ PRESS_AND_HEAD = """(toggle) => new Promise((done) =>
   requestAnimationFrame(() => requestAnimationFrame(() => done({
     toggle: document.querySelector(toggle).getBoundingClientRect().top,
     head: document.querySelector('.lf-fp-head').getBoundingClientRect().top,
+    page: scrollY,
   })))
 )"""
 
@@ -1542,6 +1543,107 @@ def test_an_answer_the_user_waits_for_grows_the_view_after_a_press_on_its_words(
     expect(messages).to_have_count(4)
     settled(page)
     assert view.bounding_box()["height"] > stood + 40, stood
+
+
+def long_progress_thread(page_dir, after=None):
+    """A thread whose answer folds two long progress steps, with `after` below it."""
+    root = panel_comment(page_dir, "Can you check that the workshop fits?")
+    for step in ("the total practice time", "the break and closing discussion"):
+        agent_said(
+            page_dir,
+            root,
+            f"Checking {step} against the booking. " * 22,
+            ephemeral=True,
+        )
+    agent_said(page_dir, root, "The workshop fits.", responds=root)
+    if after:
+        agent_said(page_dir, root, after)
+    return root
+
+
+PROGRESS_TOGGLE = ".lf-fp-view .lf-progress-expand"
+
+
+def test_progress_taller_than_the_view_can_grow_opens_under_the_press(browser, serve):
+    """Progress opens above the answer whose head holds its disclosure. Where it is
+    taller than the room the view can still grow into, the view grows to its cap and
+    scrolls by the rest, so Show 2 progress messages stays under the pointer."""
+    url = serve(LONG_PAGE)
+    long_progress_thread(serve.page_dir)
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    expect(page.locator(PROGRESS_TOGGLE)).to_be_visible()
+    settled(page)
+    stood = page.evaluate(PRESS_AND_HEAD, PROGRESS_TOGGLE)
+    page.locator(PROGRESS_TOGGLE).click()
+    expect(page.locator(PROGRESS_TOGGLE)).to_have_attribute("aria-expanded", "true")
+    settled(page)
+    after = page.evaluate(PRESS_AND_HEAD, PROGRESS_TOGGLE)
+    assert after["toggle"] == pytest.approx(stood["toggle"], abs=0.5), (stood, after)
+    assert after["page"] == stood["page"], (stood, after)
+    expect(page.locator(PROGRESS_TOGGLE)).to_be_in_viewport(ratio=1)
+
+
+def test_progress_opening_in_a_capped_view_at_its_top_stays_under_the_press(
+    browser, serve
+):
+    """A view at its cap, scrolled to its top, cannot grow, and scroll anchoring holds
+    nothing there: the progress opening above the press scrolls the view by all of
+    it, so the press stays where it stood."""
+    url = serve(LONG_PAGE)
+    long_progress_thread(
+        serve.page_dir, after="The room notes. " + "The projector is booked. " * 90
+    )
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    view = page.locator(".lf-fp-view[data-view=thread]")
+    expect(page.locator(PROGRESS_TOGGLE)).to_be_attached()
+    settled(page)
+    view.evaluate("view => view.scrollTop = 0")
+    expect(page.locator(PROGRESS_TOGGLE)).to_be_in_viewport(ratio=1)
+    stood = page.evaluate(PRESS_AND_HEAD, PROGRESS_TOGGLE)
+    page.locator(PROGRESS_TOGGLE).click()
+    expect(page.locator(PROGRESS_TOGGLE)).to_have_attribute("aria-expanded", "true")
+    settled(page)
+    assert page.evaluate(PRESS_AND_HEAD, PROGRESS_TOGGLE) == pytest.approx(
+        stood, abs=0.5
+    )
+
+
+def test_closing_a_fold_keeps_its_press_and_the_head_in_place(browser, serve):
+    """Closing a fold shrinks what the view holds below its press. After the user's turn
+    has let go of the height opening it held, the view holds its height again for the
+    close, so Collapse and the head stay where they were rather than dropping as the
+    view shrinks from its head."""
+    from browser.threads import summarize_thread
+
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Which jobs come first?")
+    first = agent_said(
+        serve.page_dir, root, "The mounts come first. " * 6, responds=root
+    )
+    then = agent_said(serve.page_dir, root, "Then the beds, once the frost lifts. " * 6)
+    summarize_thread(serve.page_dir, first, then, "Mounts, then beds.")
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    view = page.locator(".lf-fp-view[data-view=thread]")
+    toggle = ".lf-fp-view .lf-summary-checkpoint .lf-summary-expand"
+    page.locator(toggle).click()
+    expect(page.locator(toggle)).to_have_attribute("aria-expanded", "true")
+    write(field(page), "And the paths?")
+    with sending(page, "the reply"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    expect(view.locator(".lf-msg", has_text="And the paths?")).to_be_visible()
+    settled(page)
+    view.evaluate("view => view.scrollTop = 0")
+    stood = page.evaluate(PRESS_AND_HEAD, toggle)
+    page.locator(toggle).click()
+    expect(page.locator(toggle)).to_have_attribute("aria-expanded", "false")
+    settled(page)
+    assert page.evaluate(PRESS_AND_HEAD, toggle) == pytest.approx(stood, abs=0.5)
 
 
 def test_next_unread_into_a_closed_summary_stays_under_the_press(browser, serve):

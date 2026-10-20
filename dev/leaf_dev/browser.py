@@ -9,7 +9,6 @@ from functools import cache
 from pathlib import Path
 
 from leaf.render_checks import wait_for_probe, wait_until_ready
-from leaf.render_gate.browser import ending
 from playwright.sync_api import Browser, Page, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -56,8 +55,7 @@ def use_linux_fonts():
 @contextmanager
 def headless_shell(**options):
     """Playwright's pinned Chromium headless shell, the build the suite drives,
-    launched with Playwright's launch `options` and ended as the render gate ends its
-    browser (`ending`), however the block is left.
+    launched with Playwright's launch `options` and closed however the block is left.
 
     Not the host's browser that `launch_browser` finds for a user's `page check`:
     leaf-dev runs on a developer's machine or CI, where `leaf-dev setup` installs the
@@ -66,7 +64,7 @@ def headless_shell(**options):
     """
     with (
         sync_playwright() as playwright,
-        ending(playwright.chromium.launch(**options)) as browser,
+        playwright.chromium.launch(**options) as browser,
     ):
         yield browser
 
@@ -75,14 +73,9 @@ def headless_shell(**options):
 def headless_firefox():
     """Playwright's Firefox, for a probe of a Gecko-only difference: some readers use
     Leaf in Firefox, and the suite and `headless_shell` drive Chromium alone. A host
-    without it gets Playwright's own error, which names the install command. It ends
-    with a plain close: `ending` reads Chromium's process tree over CDP."""
-    with sync_playwright() as playwright:
-        browser = playwright.firefox.launch()
-        try:
-            yield browser
-        finally:
-            browser.close()
+    without it gets Playwright's own error, which names the install command."""
+    with sync_playwright() as playwright, playwright.firefox.launch() as browser:
+        yield browser
 
 
 @cache
@@ -92,9 +85,10 @@ def shell_executable() -> str:
     `page check` that runs a page's code or takes `--render` draws with the build
     `headless_shell` drives. Left unnamed, each would launch installed Google Chrome
     afresh: about three seconds apiece against the shell's 0.3 (measured over the
-    suite in #1488), and on macOS each new profile leaves a key in Chrome's keychain
-    group that every later Chrome launch makes `secd` read back, so that cost grows
-    with every launch.
+    suite in #1488). On macOS each Google Chrome launch also runs a Secure Enclave
+    self-test that creates two keychain keys and deletes them when it finishes, and a
+    Chrome that ends first leaves both behind for every later launch to make `secd`
+    read back. The shell has no keychain access and creates none.
 
     Playwright reports where its full Chromium build would be whether or not that
     build is installed, and `leaf-dev setup` installs the shell alone. Both sit under

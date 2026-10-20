@@ -1412,6 +1412,31 @@ def test_only_a_final_settling_failure_keeps_projection_findings(
     assert ("never-settled" in codes) is (failed_stage == "pageSettled")
 
 
+def test_a_transition_on_a_hidden_control_leaves_the_page_settled(
+    firefox_browser, serve
+):
+    """A scheme switch starts the colour transitions of controls inside a closed
+    disclosure too. Firefox never runs them while the disclosure stays closed, and they
+    move no box, so the page settles; reading them as motion held `leaf-dev probe
+    --firefox` on live-progress until its 120 s limit."""
+    page = open_page(
+        firefox_browser,
+        serve(
+            leaf_page(
+                "a transition in a closed disclosure",
+                "<h1>Settles</h1><details><summary>More</summary>"
+                '<input id="hidden-field" style="transition: color 150ms; '
+                'color: var(--ink)"></details>',
+            )
+        ),
+    )
+    page.emulate_media(color_scheme="dark")
+    assert page.evaluate(
+        "() => document.getElementById('hidden-field').getAnimations().length"
+    )
+    render_checks_model.wait_for_probe(page, "pageSettled", timeout_ms=5_000)
+
+
 def test_the_state_wait_follows_a_source_rewritten_under_it(browser, serve):
     """Any process may rewrite a source, so the answer the gate took can name a
     reading the page has already moved past. A reading is a digest with no order;

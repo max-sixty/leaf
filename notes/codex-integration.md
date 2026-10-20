@@ -29,10 +29,13 @@ Leaf's own start produces, so the order of messages cannot tell the two cases ap
 
 The race needs no coincidence of milliseconds. When the user queues a follow-up in
 Codex behind a running turn, App Server reports the task idle as the turn completes
-and starts the follow-up just after. Leaf holds a delivery back while a turn runs and
-starts it as soon as the turn completes, so in all three runs its `thread/resume` read
-idle and its `turn/start` joined the user's follow-up turn. The model received the
-delivery as a `leaf_delivery` tool output partway through that turn.
+and starts the follow-up shortly after, about 0.4 s later in the run that timed it.
+In all three runs, a Leaf start sent right after `turn/completed` read idle on
+`thread/resume`, and its `turn/start` joined the user's follow-up turn. The model
+received the delivery as a `leaf_delivery` tool output partway through that turn.
+The adapter holds a delivery back while a turn runs and checks again at least once a
+second (`run_adapter`), so a delivery waiting behind the turn starts inside that gap
+some of the time; how often is inferred from the timing, not measured.
 
 `TaskConnection._start_delivery` binds whatever turn the start returns to the
 delivery. Replaying the measured order against a fake App Server like those in

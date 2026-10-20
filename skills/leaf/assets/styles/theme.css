@@ -675,6 +675,17 @@ html:not([data-lf-live]) {
   inherits: false;
   initial-value: 0;
 }
+/* A box that wears the focus ring for a control inside it, as its face, says so in the
+ * rule that rings it: a playground's choice rings its radio and words together, a
+ * joined option group's row rings its pick. A landing then shows that box with the
+ * control's ring room (focus.js, `ringBox`): measuring the radio left the face's ring
+ * cut at its pane's foot. It does not inherit, so the control inside answers for
+ * itself. */
+@property --lf-wears-ring {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 0;
+}
 @container style(--lf-block-frame: 1) or style(--lf-block-frame: trim) {
   * {
     --lf-block-frame: 0;

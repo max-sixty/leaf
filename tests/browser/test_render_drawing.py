@@ -976,11 +976,11 @@ def test_an_unsent_drawing_survives_reload_before_it_has_words(browser, serve):
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "note"
 
 
-def test_another_protocols_anchored_drawing_draft_keeps_its_words_without_the_mark(
+def test_another_formats_anchored_drawing_draft_keeps_its_words_without_the_mark(
     browser, serve
 ):
-    """A draft a runtime at another protocol saved may hold a drawing this one cannot
-    draw, so its words come back and its mark neither shows nor sends."""
+    """A draft a runtime at another draft format saved may hold a drawing this one
+    cannot draw, so its words come back and its mark neither shows nor sends."""
     page = open_page(browser, serve(TARGETS_PAGE))
     # The composer's draft is keyed on the passage it is on.
     ctx = "composer:" + json.dumps([["section", "prose"]], separators=(",", ":"))

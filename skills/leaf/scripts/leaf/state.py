@@ -236,6 +236,10 @@ def kernel_registry() -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+# Every declared `Record` by its kind, which names one shape.
+RECORDS: dict = {}
+
+
 class Record:
     """One kind of JSON object Leaf keeps outside a page's log and document, such as
     a page's status, a claim or a session's lifecycle.
@@ -252,14 +256,18 @@ class Record:
     carries `format`, `leaf-<kind>/<since>`, where `since` is the page protocol at
     which this kind's shape last changed, so a bump for anything else leaves the
     record readable (`layer-registry.md`, "Page protocol", says when `since`
-    moves). `read` takes only a record at this format that has every field
-    this Leaf's schema requires, at each level of its declared objects. Any other
+    moves, which the browser build checks against every kind in `RECORDS`). `read`
+    takes only a record at this format that has every field this Leaf's schema
+    requires, at each level of its declared objects. Any other
     record another Leaf wrote, at another format or with none, or one written before
     a field was added, reads as absent, as a missing file does, and the next write
     replaces it. Every write replaces the file whole, so a file that is not JSON no
     Leaf wrote, and reading it raises, naming the file."""
 
     def __init__(self, kind: str, schema: dict, *, since: int):
+        if kind in RECORDS:
+            raise ValueError(f"two records declare the kind {kind}")
+        RECORDS[kind] = self
         self.kind = kind
         self.schema = schema
         self.since = since

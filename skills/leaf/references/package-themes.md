@@ -64,6 +64,10 @@ and `--lf-holds-height: 1`, which tells the render check the box keeps its heigh
 purpose (`packages.md`, "Seeing it", `grows-with-content`). A box that scrolls sideways
 needs nothing: Leaf fades its content at any edge with more beyond.
 
+A rule that draws a control's focus ring on a box around it, such as a choice's face
+holding its radio and words, declares `--lf-wears-ring: 1` beside the ring, so Leaf
+scrolls that box rather than the control into view with room for its ring.
+
 Turn off a widget's interactive styling inside `[data-lf-exhibit]`, where it is quoted
 rather than offered. An export inlines the stylesheet and opens offline, so use fonts on
 the user's machine, not remote ones.

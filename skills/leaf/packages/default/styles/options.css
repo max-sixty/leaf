@@ -592,6 +592,7 @@
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w));
     z-index: 1;
+    --lf-wears-ring: 1;
   }
   /* The add field's own outline is off, so its row answers the keyboard for it, in a
    * settled group opened by its disclosure as well. */
@@ -600,6 +601,7 @@
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w));
     z-index: 1;
+    --lf-wears-ring: 1;
   }
   .lf-another {
     --lf-option-action-size: max(28px, var(--aim-floor));

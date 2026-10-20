@@ -84,3 +84,44 @@ def test_sample_startup_exception_keeps_its_name_stack_and_document(browser, ser
     assert failure["sample"] in exception["stack"]
     assert records[-1]["sample"] == failure["sample"]
     consume_browser_errors(page, "Sample startup failed")
+
+
+def test_a_page_cache_round_trip_keeps_the_sample_connected(browser, serve):
+    """A persisted pagehide in the child is its containing page's, which the page cache
+    brings back together with the child and their port: the host keeps the child's
+    document and the child keeps watching where it stands. Playwright's browsers keep
+    no page cache, so the child is handed the events a cached round trip delivers."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Cached sample",
+                """
+<h1>Containing page</h1>
+<div style="height: 2000px"></div>
+<lf-sample id="practice" label="Practice">
+  <template id="practice-source" data-sample><h1>Practice page</h1></template>
+</lf-sample>
+""",
+            )
+        ),
+    )
+    sample = page.locator("#practice")
+    sample.evaluate("async sample => await sample.ready")
+    child = sample.locator("iframe").element_handle().content_frame()
+    child.evaluate("""async () => {
+      const module = await window.__lfCheckApi();
+      window.sampleIsVisible = () => module.sampleVisibility().visible;
+      for (const type of ['pagehide', 'pageshow'])
+        window.dispatchEvent(new PageTransitionEvent(type, {persisted: true}));
+    }""")
+    # A departure would have left the host waiting for the child's next document.
+    assert (
+        sample.evaluate("""sample => Promise.race([
+          sample.ready.then(() => 'presented'),
+          new Promise(done => setTimeout(() => done('awaiting another document'), 2000)),
+        ])""")
+        == "presented"
+    )
+    sample.scroll_into_view_if_needed()
+    child.wait_for_function("sampleIsVisible()")

@@ -7,12 +7,15 @@
    reaction chip, and a reaction strip each name an exact entry. All of them withdraw
    through `withdraw`.
 
-   A gesture that moves the user leaves, by its attempt, how to put them back
-   (`retainReversal`); a thread settlement's landing is the one that does
-   (thread/folding.js). A withdrawal the log admits runs that reversal once the page
-   presents it, under the intent of the press that asked for it. A reversal lives with
-   the page that made the gesture, so after a reload or from another tab the undo
-   changes the thread and moves nobody. */
+   A gesture leaves, by its attempt, what its undo needs from the page that made it
+   (`retainGesture`). One that moves the user leaves how to put them back; a thread
+   settlement's landing is the one that does (thread/folding.js). A withdrawal the log
+   admits runs that reversal once the page presents it, under the intent of the press
+   that asked for it. A widget's gesture leaves the words the widget named it by
+   (`says`, pending/dispatch.js), so its undo is announced by the name its own
+   acknowledgement used: "Chose “Fast” — sent", then "Undid: Chose “Fast” — sent". Both
+   live with the page that made the gesture, so after a reload or from another tab the
+   undo changes the thread and moves nobody, and is announced by its kind. */
 import { notice } from "./notifications.js";
 import {
   applicationState,
@@ -43,8 +46,9 @@ const words = {
 
 export function createUndo({ post, stateApplying, unaccountedGesture }) {
   // Kept while its gesture can still be taken back: in flight, or on the undo list.
-  const reversals = new Map();
-  function retainReversal(attempt, reverse) {
+  /** @type {Map<string, {reverse?: (mayLand: unknown) => unknown, says?: string}>} */
+  const gestures = new Map();
+  function retainGesture(attempt, facts) {
     const { effective, unresolved } = readApplication();
     // Between versions the page holds no undo list to prune against.
     if (effective.view) {
@@ -52,11 +56,18 @@ export function createUndo({ post, stateApplying, unaccountedGesture }) {
         ...effective.view.undo.map(({ event }) => event.attempt),
         ...unresolved.map((entry) => entry.event.attempt),
       ]);
-      for (const kept of reversals.keys())
-        if (!liveAttempts.has(kept)) reversals.delete(kept);
+      for (const kept of gestures.keys())
+        if (!liveAttempts.has(kept)) gestures.delete(kept);
     }
-    reversals.set(attempt, reverse);
+    gestures.set(attempt, { ...gestures.get(attempt), ...facts });
   }
+  // What an undo of `event` did, by the name its gesture was acknowledged by where this
+  // page made it.
+  const undone = (event) => {
+    if (event.token) return `Undid the ${event.token} reaction`;
+    const says = gestures.get(event.attempt)?.says;
+    return says ? `Undid: ${says}` : words[event.kind];
+  };
 
   function undoable() {
     if (stateApplying()) return null;
@@ -89,20 +100,20 @@ export function createUndo({ post, stateApplying, unaccountedGesture }) {
       raiseError(WAIT);
       return null;
     }
-    const reverse = reversals.get(event.attempt);
+    const reverse = gestures.get(event.attempt)?.reverse;
+    const said = undone(event);
     const mayLand = retainUserIntent();
     const answer = post({ kind: "undo", undoes: event.id }).then((accepted) => {
-      if (accepted)
-        notice(
-          `${event.token ? `Undid the ${event.token} reaction` : words[event.kind]} — sent`,
-        );
+      if (accepted) {
+        notice(`${said} — sent`);
+        gestures.delete(event.attempt);
+      }
       return accepted;
     });
     if (reverse)
       void answer
         .then(async (accepted) => {
           if (!accepted) return;
-          reversals.delete(event.attempt);
           await whenDocumentPresented();
           await reverse(mayLand);
         })
@@ -133,7 +144,10 @@ export function createUndo({ post, stateApplying, unaccountedGesture }) {
     id: "history.undo",
     ready: savedReadingSettled,
     keys: ["z"],
-    description: () => undoSentence(undoable),
+    description: () => {
+      const says = gestures.get(undoable()?.attempt)?.says;
+      return says ? `Undo: ${says}` : undoSentence(undoable);
+    },
     title: "undo",
     touch: "Undo",
     menu: "page",
@@ -145,7 +159,7 @@ export function createUndo({ post, stateApplying, unaccountedGesture }) {
   });
 
   return {
-    retainReversal,
+    retainGesture,
     undoable,
     undoLast,
     withdraw,

@@ -1,9 +1,10 @@
-/* Authored sidebar, sidenote and contents-outline residency after initial parsing.
+/* Authored sidebar, sidenote and contents-outline residency after initial parsing, and
+   the height of a Layout's sticky header.
    The initial coordinator owns the one computed residency reading, used before first
    paint and adopted here after upgrade. This owner schedules later reads and informs
    annotation geometry and reading-region discovery when that composition changes.
    Imports are inert; boot opens it once for every interactive document. */
-import { nextFrame, nextRender } from "./rendering.js";
+import { nextFrame, nextRender, sizeObserver } from "./rendering.js";
 import { repaintPage } from "./repaint.js";
 import { layoutChanged } from "./widget-elements.js";
 import { layoutBox, pageDocument } from "./passages.js";
@@ -31,8 +32,23 @@ function residencyPass(time) {
   residencyRead = time;
   readResidency();
 }
+// The Layout's header is read with the residents, and its height can change with no
+// resize or toggle, as a web font arriving rewraps its title, so its size is watched.
+let headSizes = null;
+let watchedHead = null;
+function watchHead() {
+  const header =
+    document.documentElement.lfInitial.layoutBox()?.querySelector(":scope > header") ??
+    null;
+  if (header === watchedHead) return;
+  headSizes ??= sizeObserver(() => scheduleResidency());
+  if (watchedHead) headSizes.unobserve(watchedHead);
+  if (header) headSizes.observe(header);
+  watchedHead = header;
+}
 function readResidency() {
   const { changed } = document.documentElement.lfInitial.residency();
+  watchHead();
   if (changed) layoutChanged(pageDocument());
   readFinished?.(changed);
   if (!changed) return;

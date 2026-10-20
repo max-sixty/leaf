@@ -6944,7 +6944,6 @@ function createFloatingPanel({
       ${entry.value ? html`<p class="lf-fp-copy-note">${entry.value}</p>` : nothing}
     </div>`;
   }
-  const versionKey = (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`;
   const showVersion = (entry) => putAwayThen(() => versionPicker.activate(entry));
   function versionsList() {
     const { rows: versions, picker, selection, latest } = versionsReading();
@@ -6957,13 +6956,8 @@ function createFloatingPanel({
             </div>` : nothing}
       ${repeat(
       versions,
-      versionKey,
-      (entry) => html`<div
-            class="lf-fp-version"
-            role="none"
-            ?data-current=${entry.current}
-            data-key=${versionKey(entry)}
-          >
+      (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`,
+      (entry) => html`<div class="lf-fp-version" role="none" ?data-current=${entry.current}>
             ${menuItem(
         html`${entry.name}${entry.note ? html`<span class="lf-fp-note">${entry.note}</span>` : nothing}`,
         entry.current ? html`<span class="lf-fp-value">Showing</span>` : nothing,
@@ -8033,13 +8027,22 @@ function createFloatingPanel({
   );
   leaf.addEventListener("blur", () => showPeek(null));
   pageRung("floating panel", () => {
-    if (query && focused()?.matches?.(".lf-fp-search"))
-      return {
+    if (focused()?.matches?.(".lf-fp-search"))
+      return query ? {
         root: host,
         title: "clear search",
         description: "Clear the search",
         out: () => {
           query = "";
+          paint();
+        }
+      } : {
+        root: host,
+        title: "close search",
+        description: "Close the search and return to Threads",
+        out: () => {
+          focusDestination(shownView(), "return");
+          searching = false;
           paint();
         }
       };
@@ -8140,10 +8143,6 @@ function createFloatingPanel({
   );
   const versionsShown = () => menuOpen && menuAt?.view === "versions";
   const numbered = () => versionsReading().rows.filter(({ version: version2 }) => version2 !== null && version2 <= 9).toSorted((a, b) => a.version - b.version);
-  const versionAt = () => {
-    const key = focused()?.closest?.(".lf-fp-version")?.dataset.key;
-    return versionsReading().rows.find((entry) => versionKey(entry) === key) ?? null;
-  };
   keys(
     menu,
     "In the floating panel",
@@ -8159,14 +8158,6 @@ function createFloatingPanel({
         title: "show version",
         when: () => numbered().length > 0,
         run: (binding) => showVersion(numbered().find(({ version: version2 }) => String(version2) === binding))
-      },
-      {
-        id: "panel.floating.versions.show",
-        keys: ["v"],
-        description: "Show the version you are on in Versions",
-        title: "show this version",
-        when: () => versionAt() !== null,
-        run: () => showVersion(versionAt())
       }
     ],
     {

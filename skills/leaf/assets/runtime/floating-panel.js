@@ -1683,8 +1683,6 @@ export function createFloatingPanel({
   // the note its stamp gave it after its name, cut to the row and whole on hover; with
   // Compare where the picker offers it; then the version's approval, where the page
   // asks for one, with why a press would not approve yet.
-  const versionKey = (entry) =>
-    `${entry.version === null ? "draft" : "version"}:${entry.revision}`;
   const showVersion = (entry) => putAwayThen(() => versionPicker.activate(entry));
   function versionsList() {
     const { rows: versions, picker, selection, latest } = versionsReading();
@@ -1701,14 +1699,9 @@ export function createFloatingPanel({
       }
       ${repeat(
         versions,
-        versionKey,
+        (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`,
         (entry) =>
-          html`<div
-            class="lf-fp-version"
-            role="none"
-            ?data-current=${entry.current}
-            data-key=${versionKey(entry)}
-          >
+          html`<div class="lf-fp-version" role="none" ?data-current=${entry.current}>
             ${menuItem(
               html`${entry.name}${
                 entry.note
@@ -3212,16 +3205,29 @@ export function createFloatingPanel({
   // (`panel.floating.leave`); with nothing open, the page's own foot of the ladder takes
   // the user from the panel back onto the page.
   pageRung("floating panel", () => {
-    if (query && focused()?.matches?.(".lf-fp-search"))
-      return {
-        root: host,
-        title: "clear search",
-        description: "Clear the search",
-        out: () => {
-          query = "";
-          paint();
-        },
-      };
+    // Threads' search box clears its words first, then, empty, returns to Threads,
+    // as a find box returns to its panel (keyboard/AGENTS.md, "Escape").
+    if (focused()?.matches?.(".lf-fp-search"))
+      return query
+        ? {
+            root: host,
+            title: "clear search",
+            description: "Clear the search",
+            out: () => {
+              query = "";
+              paint();
+            },
+          }
+        : {
+            root: host,
+            title: "close search",
+            description: "Close the search and return to Threads",
+            out: () => {
+              focusDestination(shownView(), "return");
+              searching = false;
+              paint();
+            },
+          };
     if (menuOpen && menuAt)
       return {
         root: host,
@@ -3337,17 +3343,13 @@ export function createFloatingPanel({
   );
   // Versions is a list for choosing, as the menu is, so while it holds focus the
   // page's character keys rest rather than move the page under it, and a version's
-  // number, or `v` on its row, shows it. Two doors stay open: `?`, and Go-to, whose
-  // `g V` puts Versions away as it opened it.
+  // number shows it. Two doors stay open: `?`, and Go-to, whose `g V` puts Versions
+  // away as it opened it.
   const versionsShown = () => menuOpen && menuAt?.view === "versions";
   const numbered = () =>
     versionsReading()
       .rows.filter(({ version }) => version !== null && version <= 9)
       .toSorted((a, b) => a.version - b.version);
-  const versionAt = () => {
-    const key = focused()?.closest?.(".lf-fp-version")?.dataset.key;
-    return versionsReading().rows.find((entry) => versionKey(entry) === key) ?? null;
-  };
   keys(
     menu,
     "In the floating panel",
@@ -3364,14 +3366,6 @@ export function createFloatingPanel({
         when: () => numbered().length > 0,
         run: (binding) =>
           showVersion(numbered().find(({ version }) => String(version) === binding)),
-      },
-      {
-        id: "panel.floating.versions.show",
-        keys: ["v"],
-        description: "Show the version you are on in Versions",
-        title: "show this version",
-        when: () => versionAt() !== null,
-        run: () => showVersion(versionAt()),
       },
     ],
     {

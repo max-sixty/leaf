@@ -1094,6 +1094,29 @@ def test_keys_in_threads_act_on_threads(browser, serve):
     expect(rows.locator(".lf-fp-label")).to_have_text(["Is lunch provided?"])
 
 
+def test_escape_from_threads_search_returns_to_threads(browser, serve):
+    """Escape in Threads' search clears its words, then, with the box empty, closes the
+    search and leaves the user in Threads, as a find box returns to its panel, where it
+    put Threads away; the next Escape closes Threads."""
+    url = serve(AGENDA_PAGE)
+    agenda_threads(serve.page_dir)
+    page = floating(browser, url)
+    rows = threads_rows(page)
+    view = page.locator(".lf-fp-view[data-view=threads]")
+    search = page.locator("input.lf-fp-search")
+    page.get_by_role("button", name="Find a thread or message").click()
+    search.fill("schedule leaves")
+    expect(rows).to_have_count(1)
+    page.keyboard.press("Escape")
+    expect(search).to_have_value("")
+    expect(rows).to_have_count(3)
+    page.keyboard.press("Escape")
+    expect(search).to_have_count(0)
+    expect(view).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(view).to_have_count(0)
+
+
 THREAD_FIT = """() => {
   const view = document.querySelector('.lf-fp-view[data-view=thread]');
   const box = view.getBoundingClientRect();
@@ -2401,8 +2424,7 @@ def test_versions_travel_and_approval_open_in_the_panel(browser, serve):
 def test_versions_rests_the_page_s_keys_and_takes_a_version_s_number(browser, serve):
     """While Versions holds focus the page's keys rest, where d and j scrolled the page
     under it and c left it for the field. A version's number shows that version, not
-    the row in that place, and `v` shows the version the user is on; `?` lists both
-    among the panel's keys."""
+    the row in that place, and `?` lists the numbers among the panel's keys."""
     url = serve(SIGN_OFF)
     for words, note in (("Paragraph zero.", "two"), ("Paragraph nought.", "three")):
         stamp_page(serve.page_dir, SIGN_OFF.replace("Paragraph 0.", words), note)
@@ -2426,13 +2448,9 @@ def test_versions_rests_the_page_s_keys_and_takes_a_version_s_number(browser, se
 
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
-    for command, keys in (
-        ("panel.floating.versions.pick", "1–3"),
-        ("panel.floating.versions.show", "v"),
-    ):
-        expect(reference.locator(f'tr[data-lf-command="{command}"] kbd')).to_have_text(
-            [keys]
-        )
+    expect(
+        reference.locator('tr[data-lf-command="panel.floating.versions.pick"] kbd')
+    ).to_have_text(["1–3"])
     page.keyboard.press("Escape")
     expect(reference).to_be_hidden()
 
@@ -2440,12 +2458,6 @@ def test_versions_rests_the_page_s_keys_and_takes_a_version_s_number(browser, se
     # v1 is the last row: the number names the version.
     page.keyboard.press("1")
     expect(page).to_have_url(re.compile(r"/versions/v1\b"))
-
-    wait_until_ready(page)
-    open_versions()
-    view.locator(".lf-fp-version", has_text="v2").locator(".lf-fp-item").focus()
-    page.keyboard.press("v")
-    expect(page).to_have_url(re.compile(r"/versions/v2\b"))
 
 
 def test_an_older_version_says_so_in_the_row_and_one_press_opens_the_latest(

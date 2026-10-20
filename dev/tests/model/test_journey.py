@@ -432,6 +432,11 @@ def test_a_reply_taken_while_working_splits_into_leaf_share_and_model_calls():
         "model",
     ]
     assert reply_breakdown(records, at(1), None, at(12.5)) is None
+    # Where the agent works before the pickup, the boundary handed it a pointer it
+    # read and acknowledged itself, and the delivery ended at that boundary.
+    acknowledged = reply_breakdown(records, at(1), at(9.2), at(12.5))
+    assert (acknowledged["busyMs"], acknowledged["deliveryMs"]) == (4000, 0)
+    assert acknowledged["modelMs"] == 5700
 
 
 def test_pis_events_give_the_turn_phases(monkeypatch):
@@ -445,7 +450,6 @@ def test_pis_events_give_the_turn_phases(monkeypatch):
     pi.running, pi.settled, pi.closed_watches = False, 0, 0
     for event in (
         {"type": "agent_start"},
-        {"type": "message_end", "message": {"role": "assistant"}},
         {
             "type": "tool_execution_start",
             "toolCallId": "s",
@@ -453,19 +457,20 @@ def test_pis_events_give_the_turn_phases(monkeypatch):
             "args": {"command": "sleep 1"},
         },
         {"type": "tool_execution_end", "toolCallId": "s"},
+        {"type": "turn_end"},
         {"type": "leaf_watch_closed", "code": 0},
         {"type": "agent_settled"},
     ):
         pi._hear(event)
     assert pi.commands == ["sleep 1"] and pi.running_commands == {}
     assert (pi.settled, pi.closed_watches, pi.idle()) == (1, 1, True)
-    assert pi.records()[0] == {"type": "model_response", "received_at": at(3)}
+    assert pi.records()[-1] == {"type": "model_response", "received_at": at(5)}
     phases = turn_phases(pi.records(), at(0), at(2), at(6))
     assert phases == [
         {"phase": "delivery", "startMs": 0, "ms": 2000},
-        {"phase": "model", "startMs": 2000, "ms": 2000},
-        {"phase": "tool", "startMs": 4000, "ms": 1000, "calls": ["sleep 1"]},
-        {"phase": "model", "startMs": 5000, "ms": 1000},
+        {"phase": "model", "startMs": 2000, "ms": 1000},
+        {"phase": "tool", "startMs": 3000, "ms": 1000, "calls": ["sleep 1"]},
+        {"phase": "model", "startMs": 4000, "ms": 2000},
     ]
 
 

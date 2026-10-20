@@ -4,12 +4,14 @@ log and the harness's record of the session.
 A reply is timed from the comment's admission to the reply's, both on the page
 server's clock. The harness's record splits that span into phases (`turn_phases`):
 
-- `busy`: the harness was on other work, a turn already running, until the tool
-  boundary at which it took the comment. Only a comment that arrives while the
-  harness works has it;
+- `busy`: the harness was on other work, a turn already running, until the first
+  tool boundary after the admission, where its hook takes the comment. Only a
+  comment that arrives while the harness works has it;
 - `delivery`: Leaf handing the comment over, until the harness records it in the
   agent's context (its opened pickup), whether that opened a turn or entered a
-  running one;
+  running one. Where the agent works between the boundary and the pickup, the
+  boundary handed it a pointer that it read and acknowledged itself, as on Codex
+  App Server, so delivery ends at the boundary and that work is the agent's;
 - then alternating `model`, from the last tool result to the next tool call, and
   `tool`, from that call until every call it started has returned, each naming its
   calls.
@@ -23,7 +25,8 @@ have to save.
 
 The records are the journey's normalized form: `assistant` and `user` records whose
 content holds `tool_use` and `tool_result` parts, and a `model_response` record where
-each model response ended, each stamped `received_at`. A harness that streams its
+each model response ended, at its last tool call or after the calls it started
+returned, as the harness reports it, each stamped `received_at`. A harness that streams its
 session stamps a record when the journey hears it; Claude Code's transcript stamps
 each record itself (`claude_code_records`).
 """
@@ -77,17 +80,22 @@ def _phases(
         and record["type"] in ("assistant", "user")
     ]
     phases: list[tuple[str, float, float, list[str]]] = []
-    # The harness was busy where a call returned between the admission and the
-    # pickup: it took the comment at that tool boundary.
-    boundary = max(
+
+    def holds(record: dict, kind: str) -> bool:
+        return any(part["type"] == kind for part in record["message"]["content"])
+
+    boundary = min(
         (
             at
             for at, record in timed
-            if start < at <= began
-            and any(p["type"] == "tool_result" for p in record["message"]["content"])
+            if start < at <= began and holds(record, "tool_result")
         ),
         default=start,
     )
+    if boundary > start and any(
+        boundary < at < began and holds(record, "tool_use") for at, record in timed
+    ):
+        began = boundary
     if boundary > start:
         phases.append(("busy", start, boundary, []))
     phases.append(("delivery", boundary, began, []))
@@ -151,10 +159,9 @@ def reply_breakdown(
 
     A tool phase counts toward Leaf's share when any of its calls ran `leaf`, so a
     batch mixing a read with a `leaf` command counts whole. A model call is the run
-    of model phases up to the harness's next `model_response`: phases with no
-    response ending after one began and by the next were one response, whose tool
-    calls ran while it still streamed. Each call names the tool calls it led to. Returns None for a
-    comment never picked up."""
+    of model phases that the same `model_response` is the first to follow: they were
+    one response, whose tool calls ran while it still streamed. Each call names the
+    tool calls it led to. Returns None for a comment never picked up."""
     if picked_up is None:
         return None
     phases = _phases(records, admitted, picked_up, replied)
@@ -178,14 +185,15 @@ def reply_breakdown(
         )
 
     model_calls: list[dict] = []
-    previous: float | None = None
+    response: float | None = None
     for phase, since, until, calls in phases:
         if phase == "model":
-            if previous is not None and not any(previous < e <= since for e in ends):
+            ended = next((at for at in ends if at >= until), None)
+            if model_calls and ended is not None and ended == response:
                 model_calls[-1]["ms"] += ms(until - since)
             else:
                 model_calls.append({"ms": ms(until - since), "calls": []})
-            previous = since
+            response = ended
         elif phase == "tool" and model_calls:
             model_calls[-1]["calls"].extend(call[:SHOWN] for call in calls)
     delivery = total("delivery")

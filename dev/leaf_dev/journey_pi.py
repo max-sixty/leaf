@@ -140,7 +140,8 @@ class Pi(Terminal):
                     "received_at": now(),
                 }
             )
-        elif kind == "message_end" and record["message"]["role"] == "assistant":
+        elif kind == "turn_end":
+            # One assistant response and the tool calls it started have finished.
             self.trace.append({"type": "model_response", "received_at": now()})
         elif kind == "tool_execution_end":
             if command := self.running_commands.pop(record["toolCallId"], None):

@@ -958,6 +958,113 @@ def test_threads_filter_in_place_and_hold_news_until_asked(browser, serve):
     expect(reader.locator(".lf-msg")).to_have_count(3)
 
 
+AGENDA_PAGE = titled_page(
+    "agenda",
+    """<h1 id="t">Workshop</h1>
+<p id="agenda">The sample agenda has room for one more topic.</p>
+<p id="lunch">The schedule leaves an hour at noon for lunch.</p>""",
+)
+
+
+def agenda_threads(page_dir):
+    """Three threads in the log in the order they were started: one on the later
+    passage, one on the page as a whole, then one on the earlier passage."""
+    panel_comment(
+        page_dir, "Is lunch provided?", {"section": "lunch", "quote": "schedule leaves"}
+    )
+    panel_comment(page_dir, "Who signs off?")
+    panel_comment(
+        page_dir, "Kickoff length", {"section": "agenda", "quote": "one more topic"}
+    )
+
+
+def threads_rows(page):
+    page.locator(".lf-fp-threads").click()
+    return page.locator(".lf-fp-view[data-view=threads] .lf-fp-thread")
+
+
+def test_threads_read_in_the_page_s_order(browser, serve):
+    """Threads lists its rows in the page's order, the one `t` walks, rather than the
+    order they were started: the thread on the earlier passage, started last, leads, and
+    a comment on the page as a whole stands under every thread on a passage."""
+    url = serve(AGENDA_PAGE)
+    agenda_threads(serve.page_dir)
+    page = floating(browser, url)
+    expect(threads_rows(page).locator(".lf-fp-label")).to_have_text(
+        ["Kickoff length", "Is lunch provided?", "Who signs off?"]
+    )
+
+
+HOVER_LIT = "() => [...(CSS.highlights.get('lf-mark-hover') ?? [])].map(String)"
+MARKED_ROW = re.compile(r"\blf-mark-hover\b")
+
+
+def test_a_thread_s_row_and_its_passage_light_each_other(browser, serve):
+    """In Threads, the pointer on a thread's row lights the words it is about, as the
+    pointer on those words does, and the pointer on those words, or on their margin
+    entry, marks the row. Neither moves anything or takes focus."""
+    url = serve(AGENDA_PAGE)
+    agenda_threads(serve.page_dir)
+    page = floating(browser, url)
+    rows = threads_rows(page)
+    kickoff = rows.filter(has_text="Kickoff length")
+    lunch = rows.filter(has_text="Is lunch provided?")
+    expect(lunch).to_be_visible()
+    settled(page)
+    page.evaluate("() => { window.focusBefore = document.activeElement; }")
+    boxes = "() => [...document.querySelectorAll('.lf-fp-thread, main p')].map(n => JSON.stringify(n.getBoundingClientRect()))"
+    before = page.evaluate(boxes)
+
+    kickoff.hover()
+    page.wait_for_function(f"() => ({HOVER_LIT})().join() === 'one more topic'")
+    expect(kickoff).to_have_class(MARKED_ROW)
+
+    words = page.evaluate(
+        """() => {
+          const range = [...CSS.highlights.get('lf-mark')]
+            .find((candidate) => String(candidate) === 'schedule leaves');
+          const box = range.getClientRects()[0];
+          return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+        }"""
+    )
+    page.mouse.move(words["x"], words["y"])
+    expect(lunch).to_have_class(MARKED_ROW)
+    expect(kickoff).not_to_have_class(MARKED_ROW)
+    page.wait_for_function(f"() => ({HOVER_LIT})().join() === 'schedule leaves'")
+
+    entry = page.evaluate(
+        """() => {
+          const passage = document.getElementById('agenda').getBoundingClientRect();
+          const entry = [...document.querySelectorAll('.lf-margin-entry')]
+            .map((node) => node.getBoundingClientRect())
+            .find((box) => box.width && box.top < passage.bottom && box.bottom > passage.top);
+          return { x: entry.left + entry.width / 2, y: entry.top + entry.height / 2 };
+        }"""
+    )
+    page.mouse.move(entry["x"], entry["y"])
+    expect(kickoff).to_have_class(MARKED_ROW)
+    expect(lunch).not_to_have_class(MARKED_ROW)
+
+    page.mouse.move(2, 2)
+    expect(rows.and_(page.locator(".lf-mark-hover"))).to_have_count(0)
+    page.wait_for_function(f"() => !({HOVER_LIT})().length")
+    assert page.evaluate(boxes) == before
+    assert page.evaluate("() => document.activeElement === window.focusBefore")
+
+
+def test_threads_search_finds_a_thread_by_the_words_it_quotes(browser, serve):
+    """Searching Threads finds a thread by the words it is about as well as by its
+    name and messages: words only the passage holds find the thread on it."""
+    url = serve(AGENDA_PAGE)
+    agenda_threads(serve.page_dir)
+    page = floating(browser, url)
+    rows = threads_rows(page)
+    expect(rows).to_have_count(3)
+    page.get_by_role("button", name="Find a thread or message").click()
+    page.locator("input.lf-fp-search").fill("schedule leaves")
+    expect(rows.locator(".lf-fp-label")).to_have_text(["Is lunch provided?"])
+
+
 THREAD_FIT = """() => {
   const view = document.querySelector('.lf-fp-view[data-view=thread]');
   const box = view.getBoundingClientRect();

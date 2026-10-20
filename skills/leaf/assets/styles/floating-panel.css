@@ -1158,6 +1158,11 @@
   .lf-fp-thread[data-resolved] .lf-fp-label {
     color: var(--lf-fp-muted);
   }
+  /* The row half of the mark the pointer is indicating (anchor-paint.js, `markRow`):
+     its passage's hover wash, so the row and the lit words read as one thread. */
+  .lf-fp-thread.lf-mark-hover {
+    background: var(--mark-hover);
+  }
   /* The words a thread in the panel is about, over its messages, as a card's head
      quotes them (chrome.css, `.lf-quote`): three lines, the whole on Full quote, its
      press above the words it grows (floating-panel.js, `quoteHead`). */

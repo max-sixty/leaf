@@ -8,8 +8,9 @@ sandbox, so the hook Claude Code runs before a shell command naming `leaf`
 command confined by Claude Code's sandbox (`SANDBOX_RUNTIME`) to it (`run`). The command then runs as an unsandboxed one
 would, with its arguments, working directory and environment. Its output and exit
 status pass as they come, and so does its stdin, read beside the command, so a
-command that never reads a stdin that never ends still finishes. A stdin that is a
-terminal or a socket reaches the command as an empty pipe (`piped_input`).
+command that never reads a stdin that never ends still finishes. The command reads
+that stdin through a pipe, so it learns from the client whether the caller's own
+was piped (`piped_input`).
 
 The only road out of that sandbox a command can take without settings is Claude
 Code's network proxy, which every sandboxed command's `HTTP_PROXY` names: a direct
@@ -60,7 +61,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 from .leases import release_lease, take_lease
-from .piped_input import piped
+from .piped_input import STDIN_PIPED, piped
 from .state import STRING, Record, object_schema, state_home
 
 # Where the running bridge listens, the token a request carries, and its process.
@@ -320,6 +321,12 @@ def run(argv: list[str]) -> int:
         for name, value in os.environ.items()
         if name != "SANDBOX_RUNTIME" and "proxy" not in name.lower()
     }
+    # The command reads the pipe this relays stdin over, so it learns from here
+    # whether the caller's own stdin was piped (`piped_input`).
+    try:
+        env[STDIN_PIPED] = "1" if piped(0) else "0"
+    except OSError:
+        env[STDIN_PIPED] = "0"
     request = {"argv": argv, "cwd": os.getcwd(), "env": env}
     # A bridge a hook has just started takes a moment to publish its address, and a
     # retiring one closes connections it has not accepted. Its pid may be in
@@ -356,14 +363,11 @@ def run(argv: list[str]) -> int:
 
     def feed() -> None:
         # Stdin may never end, as a harness's open socket doesn't, so it is read
-        # beside the command rather than before it, and relayed only from a pipe or
-        # a file (`piped_input`): the command reads the pipe this hands it, which
-        # ends only when this sends the end.
+        # beside the command rather than before it.
         with contextlib.suppress(OSError):
-            if piped(0):
-                while data := os.read(0, 65536):
-                    write(STDIN, data)
-        # A closed stdin fails both reads above, and the command still gets its end.
+            while data := os.read(0, 65536):
+                write(STDIN, data)
+        # A closed stdin fails the read above, and the command still gets its end.
         with contextlib.suppress(OSError):
             write(STDIN, b"")
 

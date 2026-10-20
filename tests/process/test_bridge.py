@@ -106,6 +106,26 @@ def test_a_bridged_command_refuses_a_socket_stdin_at_once(tmp_path):
     assert "no JSON given" in refused.stderr
 
 
+@pytest.mark.usefixtures("bridged")
+def test_a_bridged_command_reads_a_socket_stdin_it_names(tmp_path):
+    """A command that names stdin itself (`--file -`) reads it through the bridge
+    even from a socket, as a Node caller's piped stdin is."""
+    held, caller = socket.socketpair()
+    with held, caller:
+        caller.sendall(b"{")
+        caller.shutdown(socket.SHUT_WR)
+        read = subprocess.run(
+            [LAUNCHER, "data", "set", str(tmp_path), "source", "--file", "-"],
+            stdin=held,
+            capture_output=True,
+            text=True,
+            timeout=STATED_TIMEOUT,
+            check=False,
+        )
+    assert read.returncode == 1
+    assert "invalid JSON (Expecting property name" in read.stderr
+
+
 def test_a_background_job_keeps_the_bridge_while_the_job_stands(
     tmp_path, monkeypatch, dead_pid
 ):

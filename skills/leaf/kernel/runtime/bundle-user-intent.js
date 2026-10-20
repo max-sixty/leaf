@@ -980,19 +980,19 @@ function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
   placeKept(box, ...standing2 ? scrollersOf(standing2) : []);
 }
 
-// runtime/items/model.js
-var readItems = readPart((root) => root.effective.items);
-var itemEntry = (item) => registry[item?.source.tag]?.["x-awaits"];
-var answeredInWords = (item) => Boolean(itemEntry(item)?.reply);
-var approvalBlockingItems = readPart((root) => {
-  const { items, view } = root.effective;
-  if (items.phase !== "ready" || !view) return null;
+// runtime/obligations/model.js
+var readObligations = readPart((root) => root.effective.obligations);
+var obligationEntry = (obligation) => registry[obligation?.source.tag]?.["x-awaits"];
+var answeredInWords = (obligation) => Boolean(obligationEntry(obligation)?.reply);
+var approvalBlockingObligations = readPart((root) => {
+  const { obligations, view } = root.effective;
+  if (obligations.phase !== "ready" || !view) return null;
   const held = new Set(view.approval_blocking);
-  return items.all.filter((item) => held.has(item.id));
+  return obligations.all.filter((obligation) => held.has(obligation.id));
 });
 
-// runtime/items/place.js
-function itemPlace(item, items = readItems().all) {
+// runtime/obligations/place.js
+function obligationPlace(item, items = readObligations().all) {
   if (!item || item.source.kind !== "widget")
     return { source: null, context: null, node: null };
   const source = elementById(item.source.id);
@@ -1002,7 +1002,7 @@ function itemPlace(item, items = readItems().all) {
   );
   return { source, context, node: shared ? source : context };
 }
-function itemsIn(region, items = readItems().all) {
+function obligationsIn(region, items = readObligations().all) {
   return items.filter((item) => {
     if (item.source.kind !== "widget" || item.status === "withdrawn") return false;
     const source = elementById(item.source.id);
@@ -1016,14 +1016,17 @@ function declareSide(bridge) {
   sides.add(bridge);
   return () => sides.delete(bridge);
 }
-function itemHolding(items, node) {
+function obligationHolding(items, node) {
   if (!node) return null;
-  const places = items.filter((item) => item.source.kind === "widget").map((item) => ({ item, ...itemPlace(item, items) }));
-  const holds = (element) => element && (element === node || under(node, element));
-  const source = places.findLast((place2) => holds(place2.source));
-  if (source) return source.item;
-  const contexts = places.filter((place2) => holds(place2.node));
-  return contexts.length === 1 ? contexts[0].item : null;
+  const holds = (element) => element && under(node, element);
+  let held = null;
+  for (const item of items) {
+    if (item.source.kind !== "widget") continue;
+    const { source, node: stands } = obligationPlace(item, items);
+    const at = holds(source) ? source : holds(stands) ? stands : null;
+    if (at && (!held || under(at, held.at))) held = { item, at };
+  }
+  return held?.item ?? null;
 }
 function sideOf(node) {
   for (const side of sides) {
@@ -1035,11 +1038,11 @@ function sideOf(node) {
 function placeOf(node) {
   const at = node?.nodeType === 1 ? node : node?.parentElement;
   if (!at || at === document.body) return null;
-  if (itemHolding(readItems().all, at)) return at;
+  if (obligationHolding(readObligations().all, at)) return at;
   for (const side of sides) {
     const place2 = side(at);
     if (place2)
-      return inChrome(place2) && !itemHolding(readItems().all, place2) ? null : place2;
+      return inChrome(place2) && !obligationHolding(readObligations().all, place2) ? null : place2;
   }
   return inChrome(at) ? null : at;
 }
@@ -1071,9 +1074,9 @@ function stepFrom(list, { place: here, kind }, dir, placeOfItem) {
   const row = dir > 0 ? reach[0] : reach.at(-1);
   return row ? { row, wrapped: false } : { row: dir > 0 ? list[0] : list.at(-1), wrapped: true };
 }
-function heldItem(node = focused()) {
-  const item = itemHolding(readItems().all, placeOf(node));
-  return itemPlace(item).node;
+function heldObligation(node = focused()) {
+  const item = obligationHolding(readObligations().all, placeOf(node));
+  return obligationPlace(item).node;
 }
 
 // runtime/syntax-languages.js
@@ -3320,7 +3323,8 @@ var workflowTitle = (workflow) => {
 var progressFace = (workflow) => !workflow || workflow.condition ? null : workflow.stage === "picked_up" ? "picked_up" : ["working", "replying"].includes(workflow.stage) ? "working" : null;
 var isWorkflowProgress = (workflow) => progressFace(workflow) !== null;
 var isPageWidgetWorkflow = (workflow, revision) => workflow.subject.kind === "widget" && workflow.thread === null && workflow.revision <= revision;
-var tier = (workflow) => (workflow.next_actor === "user" ? 0 : 2) + Number(workflow.stage === "sending");
+var handedBack = (workflow) => workflow.stage === "answered" || workflow.stage === "sending" && workflow.condition?.kind === "failed";
+var tier = (workflow) => (handedBack(workflow) ? 0 : 2) + Number(workflow.stage === "sending");
 function strongestWorkflow(workflows) {
   let strongest = null;
   for (const candidate of workflows)
@@ -3336,9 +3340,12 @@ function threadAttention(thread) {
   if (thread.attention?.kind === "needs_user") {
     const answering = thread.attention.reason === "widget";
     const nextMove = answering ? "answer" : workflow?.subject.kind === "thread" ? "resend" : "retry";
+    const owed = new Set(
+      (thread.obligations ?? []).filter((item) => item.source.kind === "update" && item.next_actor === "agent").map((item) => item.id)
+    );
     const secondary = strongestWorkflow(
       thread.workflows.filter(
-        (candidate) => candidate.next_actor === "agent" && candidate.holds_thread && candidate.id !== workflow?.id
+        (candidate) => owed.has(candidate.obligation) && candidate.id !== workflow?.id
       )
     );
     return Object.freeze({
@@ -5764,7 +5771,7 @@ function threadReading(thread, surface, commands2) {
   const label = resolved2 ? word : "Resolve thread";
   const attention = threadAttention(thread);
   const asking = new Set(
-    thread.items.filter((item) => item.next_actor === "user" && answeredInWords(item)).map((item) => item.message)
+    thread.obligations.filter((item) => item.next_actor === "user" && answeredInWords(item)).map((item) => item.message)
   );
   const openTodos = new Set(thread.todos.map(({ id }) => id));
   const leaves = (message) => asking.has(message.id) ? "Waiting on me" : message.todo && openTodos.has(message.id) ? "To-do open" : null;
@@ -7194,19 +7201,19 @@ export {
   hasLandmark,
   rawOffsetFits,
   restorePlace,
-  readItems,
-  itemEntry,
+  readObligations,
+  obligationEntry,
   answeredInWords,
-  approvalBlockingItems,
-  itemPlace,
-  itemsIn,
+  approvalBlockingObligations,
+  obligationPlace,
+  obligationsIn,
   declareSide,
-  itemHolding,
+  obligationHolding,
   sideOf,
   placeOf,
   walkOrigin,
   stepFrom,
-  heldItem,
+  heldObligation,
   ensureSyntaxLanguage,
   syntax,
   synNodes,

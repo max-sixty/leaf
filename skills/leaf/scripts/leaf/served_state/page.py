@@ -21,7 +21,7 @@ class ServedPage(NamedTuple):
     the semantic readings, and the page's stored external data.
 
     `reading` is None before the page has an active revision, when there is no
-    document to read threads, items, or widgets against.
+    document to read threads, obligations, or widgets against.
     """
 
     state: dict
@@ -79,9 +79,14 @@ def read_served_page(
         "files": context.bound_files(),
         **context.presence,
         "activity": {
-            key: value
-            for key, value in work.activity.items()
-            if key not in {"workflows", "todos"}
+            **{
+                key: value
+                for key, value in work.activity.items()
+                if key not in {"workflows", "todos", "obligations"}
+            },
+            # The records of the updates the agent owes an answer, by id; their
+            # workflows are `workflows`, and the records each view's `obligations`.
+            "obligations": [item["obligation"] for item in work.obligations],
         },
         "workflows": work.workflows,
         "browser": browser,

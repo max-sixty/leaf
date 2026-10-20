@@ -113,59 +113,66 @@
   .lf-fp-inner > :not(.lf-fp-opened) {
     flex-shrink: 0;
   }
-  /* The panel's own controls share one face. What Leaf's reader draws in a view's
-     outlet, a thread's messages or an ask On shows as one, keeps the face its own
-     controls give it (controls.css): this face once reached a message's reaction
-     trigger there, under the aim floor, and took the fill off a chosen reaction. */
-  :where(.lf-floating-panel) :is(button, input, textarea):where(:not(.lf-fp-outlet *)) {
-    font: inherit;
-    color: inherit;
-  }
-  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *)) {
-    background: none;
-    border: 0;
-    border-radius: 6px;
-    cursor: pointer;
-    white-space: nowrap;
-    padding: 0 8px;
-    min-height: var(--lf-fp-press);
-  }
-  /* Each press reaches the pointer's floor (`--aim-floor`) above and below a face that
-     can be shorter: the crumb's back is a line of small words, and under a finger the
-     row's presses are its 34px line against a 44px floor. The reach is a box of the
-     press's own that paints nothing, so the line, and the face hover and pressing
-     paint, keep their height, and it lies in the room the row, the head and a menu's
-     rows already keep around their presses. Sideways a press is itself as wide as the
-     floor, since a reach there would lie over its neighbour's. The field's presses are
-     its editor's, which sizes and places them itself (response.css). */
-  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *, .lf-fp-field *)) {
-    position: relative;
-  }
-  :where(.lf-floating-panel)
-    button:where(:not(.lf-fp-outlet *, .lf-fp-field *))::after {
-    content: "";
-    position: absolute;
-    inset: min(0px, (100% - var(--aim-floor)) / 2) 0;
-  }
-  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *)):hover {
-    background: var(--lf-fp-hover);
-  }
-  :where(.lf-floating-panel)
-    button:where(:not(.lf-fp-outlet *)):is(:disabled, [aria-disabled="true"]) {
-    color: var(--lf-fp-muted);
-    cursor: default;
-    background: none;
-  }
-  :where(.lf-floating-panel)
-    :is(button, input, textarea, a, .lf-fp-on-item):where(
-      :not(.lf-fp-outlet *)
-    ):focus-visible {
-    outline: var(--focus-ring);
-    outline-offset: -2px;
-  }
-  .lf-floating-panel .lf-action-icon {
-    width: 16px;
-    height: 16px;
+  /* The panel's own controls share one face. It is a default, so it stands in the
+     components' layer (`lf-base`), as the marks sheet's indication default does
+     (runtime/stylesheets.js), at a plain selector's weight: the panel's own rules,
+     unlayered, outrank it, and so does a shared face a panel control wears, as Send
+     wears the composers' accent arrow, while it still outranks the chrome's control
+     reset (chrome.css) and the layer's focus band at no weight (surfaces.css). It
+     stops at the components the panel holds, which bring faces of their own: what
+     Leaf's reader draws in a view's outlet (controls.css), the comment box seated in
+     the row, and the attachment shelf (response.css). Unlayered and reaching them, it
+     took the fill off a chosen reaction in a thread, drew the shelf's × as a panel
+     press and stood the seated box's Send on a line under its field. */
+  @layer lf-base {
+    @scope (.lf-floating-panel) to (.lf-fp-outlet, .lf-fp-response, .lf-composer-media) {
+      :is(button, input, textarea) {
+        font: inherit;
+        color: inherit;
+      }
+      button {
+        background: none;
+        border: 0;
+        border-radius: 6px;
+        cursor: pointer;
+        white-space: nowrap;
+        padding: 0 8px;
+        min-height: var(--lf-fp-press);
+      }
+      /* Each press reaches the pointer's floor (`--aim-floor`) above and below a face
+         that can be shorter: the crumb's back is a line of small words, and under a
+         finger the row's presses are its 34px line against a 44px floor. The reach is
+         a box of the press's own that paints nothing, so the line, and the face hover
+         and pressing paint, keep their height, and it lies in the room the row, the
+         head and a menu's rows already keep around their presses. Sideways a press is
+         itself as wide as the floor, since a reach there would lie over its
+         neighbour's. The field's presses are its editor's, which sizes and places them
+         itself (response.css). */
+      button:where(:not(.lf-fp-field *)) {
+        position: relative;
+      }
+      button:where(:not(.lf-fp-field *))::after {
+        content: "";
+        position: absolute;
+        inset: min(0px, (100% - var(--aim-floor)) / 2) 0;
+      }
+      button:hover {
+        background: var(--lf-fp-hover);
+      }
+      button:is(:disabled, [aria-disabled="true"]) {
+        color: var(--lf-fp-muted);
+        cursor: default;
+        background: none;
+      }
+      :is(button, input, textarea, a, .lf-fp-on-item):focus-visible {
+        outline: var(--focus-ring);
+        outline-offset: -2px;
+      }
+      .lf-action-icon {
+        width: 16px;
+        height: 16px;
+      }
+    }
   }
 
   /* ---------- the row ---------- */
@@ -288,98 +295,26 @@
   /* What the field's draft carries, its attached images, hangs off the box rather
      than standing in it: the shelf stands just over the box's top edge, above the
      field's start, so attaching neither grows the box nor moves a word, in the page's
-     field and an open thread's reply alike. With a view open it hangs over the view's
-     head. The user chose this on 19 October, comparing it live with the shelf taking
+     field, an open thread's reply and the comment box seated in the field's place
+     (`.lf-fp-response`) alike, one of which shows at a time. With a view open it hangs
+     over the view's head. The user chose this on 19 October, comparing it live with the shelf taking
      a line of its own over the words, which grew the box by a line the one thumbnail
      left mostly empty, and with thumbnails shrunk into the row beside the words,
      which kept the box whole but made each picture a chip. */
-  .lf-fp-field {
+  :is(.lf-fp-field, .lf-fp-response) {
     anchor-name: --lf-fp-field;
+    --lf-media-ground: var(--lf-fp-surface);
+    --lf-media-ring: var(--lf-fp-ring);
   }
-  .lf-fp-field .lf-composer-media:not([hidden]) {
+  /* The shelf's padding holds its pictures' shadows and removal reach (response.css),
+     so the offsets take that padding back. */
+  :is(.lf-fp-field, .lf-fp-response) .lf-composer-media:not([hidden]) {
     position: fixed;
-    /* The shelf scrolls sideways when its images outrun the field, and a scroller cuts
-       what it holds at its padding box, so its padding holds each image's shadow and
-       the reach of its removal, which also keeps one image's removal off the next;
-       the offsets take that padding back. An image lies at --raise-1, whose shadow
-       reaches its drop and blur below it. */
-    --lf-fp-shelf-room: max(
-      calc(var(--raise-1-drop) + var(--raise-1-blur)),
-      calc(var(--aim-floor) / 2 - 3px)
-    );
-    bottom: calc(anchor(--lf-fp-panel top) + 8px - var(--lf-fp-shelf-room));
-    left: calc(anchor(--lf-fp-field left) - var(--lf-fp-shelf-room));
+    bottom: calc(anchor(--lf-fp-panel top) + 8px - var(--lf-media-room));
+    left: calc(anchor(--lf-fp-field left) - var(--lf-media-room));
     width: max-content;
-    max-width: calc(anchor-size(--lf-fp-field width) + 2 * var(--lf-fp-shelf-room));
-    gap: var(--lf-fp-shelf-room);
-    padding: var(--lf-fp-shelf-room);
-  }
-  /* Each image is its picture alone, at the shelf's height in its own proportions,
-     and its removal a mark on its corner, there under a finger and shown to a pointer
-     over the image or a key on it. The user asked for this on 19 October over each
-     image boxed on a shared ground with its removal a press the image's height. */
-  .lf-fp-field .lf-composer-media-item {
-    position: relative;
-    border: 0;
-    background: none;
-    overflow: visible;
-  }
-  .lf-fp-field .lf-composer-media-open {
-    width: auto;
-    height: 56px;
-    min-height: 0;
-    padding: 0;
-    background: none;
-    border-radius: 8px;
-    box-shadow:
-      0 0 0 1px var(--lf-fp-ring),
-      var(--raise-1);
-  }
-  .lf-fp-field .lf-composer-media-open img {
-    width: auto;
-    min-width: 40px;
-    max-width: 104px;
-    border-radius: inherit;
-  }
-  .lf-fp-field .lf-composer-media-item > button:not(.lf-media-open) {
-    position: absolute;
-    top: -6px;
-    right: -6px;
-    inline-size: 18px;
-    min-block-size: 0;
-    block-size: 18px;
-    padding: 0;
-    border: 0;
-    border-radius: 50%;
-    background: color-mix(in srgb, var(--ink) 72%, var(--lf-fp-surface));
-    color: var(--lf-fp-surface);
-    box-shadow: 0 0 0 2px var(--lf-fp-surface);
-  }
-  .lf-fp-field .lf-composer-media-item > button:not(.lf-media-open)::before {
-    content: "";
-    position: absolute;
-    inset: calc((18px - var(--aim-floor)) / 2);
-  }
-  .lf-fp-field .lf-composer-media-item > button:not(.lf-media-open):hover {
-    background: var(--ink);
-    color: var(--lf-fp-surface);
-  }
-  .lf-fp-field .lf-composer-media-item > button:not(.lf-media-open)[data-lf-focus] {
-    outline-offset: 2px;
-  }
-  .lf-fp-field .lf-composer-media-item > button:not(.lf-media-open) > svg {
-    inline-size: 10px;
-    block-size: 10px;
-  }
-  @media (hover: hover) {
-    .lf-fp-field
-      .lf-composer-media-item:not(:hover, :focus-within)
-      > button:not(.lf-media-open) {
-      opacity: 0;
-    }
-    .lf-fp-field .lf-composer-media-item > button:not(.lf-media-open) {
-      transition: opacity 120ms;
-    }
+    max-width: calc(anchor-size(--lf-fp-field width) + 2 * var(--lf-media-room));
+    margin: 0;
   }
   /* The anchored comment box on a page drawing its own annotations, standing in the
      field's place while its composer is open and no view is open above the row
@@ -1230,8 +1165,9 @@
   }
   /* The quote here only says what the thread is about: "On the page" in the head is the
      way to the words, so it takes no press, no aim's room and no title naming a jump; a
-     detached quote's title still says where its words went. */
-  .lf-fp-quote {
+     detached quote's title still says where its words went. The head names it, so the
+     rule outranks a card's `.lf-quote` (chrome.css), which this file comes ahead of. */
+  .lf-fp-quote-head > .lf-fp-quote {
     margin: 0;
     min-width: 0;
     min-height: 0;
@@ -1378,14 +1314,12 @@
   }
 
   /* An item reads as the thread it belongs to, its words in the page's serif, and the
-     answers it takes, answered here. */
+     answers it takes, answered here. The serif heading each item and the space between
+     them set items apart, so no rule runs between them. */
   .lf-fp-on-item {
     padding: 10px 8px 12px;
   }
-  .lf-fp-on-item + .lf-fp-on-item {
-    border-top: 1px solid var(--lf-fp-faint);
-  }
-  /* What left the list in view, under it. */
+  /* What left the list in view, under it: a section of its own, so a rule opens it. */
   .lf-fp-on-done {
     margin: 0 8px;
     padding-top: 10px;
@@ -1440,8 +1374,16 @@
     font-size: 12px;
     margin-right: 4px;
   }
+  /* The thread's messages, one part each, read as a card's transcript: a message's
+     words stand 16px over the next one's author, the parts' 4px insets included, and
+     the first author 16px under the quote, the quote head's 12px included. */
   .lf-fp-messages {
+    display: grid;
+    gap: 8px;
     padding: 0 8px;
+  }
+  .lf-fp-messages > .lf-primary-part > .lf-msg {
+    margin-top: 0;
   }
   /* A rewrite in a thread's view is the reply box of the field below it, at the field's
      height, frame included: its words keep the message's face, set in the field's
@@ -1597,14 +1539,13 @@
     width: min(360px, calc(100vw - 32px));
   }
   /* A list in the menu's place: its head, the way back, over its rows as the state
-     stands over the menu's. */
+     stands over the menu's. Its bold name and a space set it apart, as a view's crumb
+     stands over the view, so it hovers as any row does. */
   .lf-fp-menu-page {
     display: grid;
   }
   .lf-fp-menu-back {
-    margin-bottom: 4px;
-    border-bottom: 1px solid var(--lf-fp-faint);
-    border-radius: 6px 6px 0 0;
+    margin-bottom: 6px;
   }
   .lf-fp-menu-back .lf-fp-label {
     display: flex;
@@ -1626,8 +1567,7 @@
     display: grid;
     gap: 1px;
     padding: 6px 8px 8px;
-    margin-bottom: 4px;
-    border-bottom: 1px solid var(--lf-fp-faint);
+    margin-bottom: 6px;
     color: var(--lf-fp-muted);
     font-size: 12px;
   }

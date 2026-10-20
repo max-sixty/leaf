@@ -10,7 +10,7 @@ from dataclasses import replace
 
 import leaf_website as website_server
 import pytest
-from interact_support import running_http_server
+from interact_support import owed_answers, running_http_server
 from leaf.event_log import read_events
 from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
@@ -446,9 +446,9 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
             "revision": revision,
             "through_seq": state["events"][-1]["seq"] if state["events"] else 0,
         }
-        # The comparison base carries its own item records, because the browser reads
-        # which items a revision holds rather than folding the declarations again.
-        assert isinstance(view["browser"]["views"][str(revision)]["items"], list)
+        # The comparison base carries its own obligation records, because the browser reads
+        # which obligations a revision holds rather than folding the declarations again.
+        assert isinstance(view["browser"]["views"][str(revision)]["obligations"], list)
 
         posted = {
             "kind": "comment",
@@ -474,8 +474,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
             == comment["id"]
         )
         assert comment["id"] in {
-            obligation["input"]
-            for obligation in answer["state"]["activity"]["obligations"]
+            obligation["input"] for obligation in owed_answers(published)
         }
 
         started, _ = post(

@@ -26,6 +26,7 @@ from interact_support import (
     fragment_errors,
     fresh_process,
     live_versions,
+    owed,
     page_state,
     publish,
     published,
@@ -294,9 +295,9 @@ def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
     )
     assert fragment_errors(first, registry) == []
 
-    # Evidence can quote another item source without giving this item a
+    # Evidence can quote another obligation source without giving this obligation a
     # second live source. The runtime already excludes x-exhibit descendants from the
-    # item list, so the authored boundary must read the same relation.
+    # obligation list, so the authored boundary must read the same relation.
     with_evidence = (
         '<lf-ask id="decision-with-evidence"><h2>Choose</h2>'
         f'{first}<lf-sample id="quoted-example" label="another question">'
@@ -304,9 +305,9 @@ def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
     )
     assert fragment_errors(with_evidence, registry) == []
 
-    # The item's title is what the shared name rule reads, so a heading in an
+    # The obligation's title is what the shared name rule reads, so a heading in an
     # hgroup after its eyebrow, a subheading, or context before the heading all
-    # name the item. A frame whose leading title is not a heading is refused.
+    # name the obligation. A frame whose leading title is not a heading is refused.
     for titled in (
         f'<lf-ask id="d"><hgroup><p class="eyebrow">#5</p><h2>Choose</h2></hgroup>{first}</lf-ask>',
         f'<lf-ask id="d"><p class="eyebrow">#5</p><h2>Choose</h2>{first}</lf-ask>',
@@ -321,7 +322,7 @@ def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
         assert found(fragment_errors(untitled, registry), "untitled-question")
 
     # A context framing no widget is a question the user answers in words, and needs
-    # no heading. One framing only widgets that item nothing would show a question the
+    # no heading. One framing only widgets that obligation nothing would show a question the
     # On me list never counts. A retired source still counts: settling a decision
     # keeps its context.
     assert (
@@ -347,21 +348,23 @@ def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
         widgets=lacking({"choose": [True]}),
     )
     settled = first.replace(" choose", " choose settled")
-    settled_item = f'<lf-ask id="decision-settled"><h2>Chosen</h2>{settled}</lf-ask>'
-    assert fragment_errors(settled_item, registry) == []
-    # The registry's `retired` is what says the flag ended an item; a flag
+    settled_obligation = (
+        f'<lf-ask id="decision-settled"><h2>Chosen</h2>{settled}</lf-ask>'
+    )
+    assert fragment_errors(settled_obligation, registry) == []
+    # The registry's `retired` is what says the flag ended an obligation; a flag
     # that merely stops a widget asking leaves the context framing nothing.
     unretired = copy.deepcopy(registry)
     del unretired["lf-options"]["x-awaits"]["retired"]
     assert found(
-        fragment_errors(settled_item, unretired),
+        fragment_errors(settled_obligation, unretired),
         "empty-question",
         widgets=lacking({"settled": [False]}),
     )
-    # A quoted item is a mention, and its widgets ask nothing by design.
+    # A quoted obligation is a mention, and its widgets ask nothing by design.
     assert (
         fragment_errors(
-            '<lf-sample id="quoted-ask" label="an item">'
+            '<lf-sample id="quoted-ask" label="an obligation">'
             f'<lf-ask id="decision-quoted"><h2>Choose</h2>{second}</lf-ask>'
             "</lf-sample>",
             registry,
@@ -1226,7 +1229,7 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
     assert events_model.read_events(claimed)[-1] == update
     [working] = page_state(claimed)["workflows"]
     assert (working["stage"], working["detail"]) == ("working", "Checking the camera.")
-    assert working["answer"]["for"] == root["id"]
+    assert working["obligation"] == f"update:{root['id']}"
     # The same exact input remains owed; newer progress replaces the Working line.
     again = progress("Checking the clock.")
     assert again.exit_code == 0, again.output
@@ -1485,12 +1488,9 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
         return json.loads(result.output)
 
     def owed_answers():
-        state = state_json(page_dir)
-        owed = set(state["activity"]["obligations"])
         return [
             (item["input"], item["message"], item["answer"])
-            for item in state["workflows"]
-            if item["id"] in owed
+            for item in owed(state_json(page_dir))
         ]
 
     asked = append_command(

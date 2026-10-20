@@ -79,13 +79,24 @@ refuses. Housekeeping such as re-vendoring, restarting the server, or merging ne
 no to-do.
 
 When the work runs to several steps, some of which may wait on the user, write your plan
-so the user can follow it in the panel's Plan tab: the goal, its steps in order, the one
-under way, and those waiting on them. `leaf task plan <page>` takes the whole outline as
-a JSON list of steps: the goal at depth 0, each step one deeper than the step it belongs
-to, and each either a `title` and `state` or the `item` it names. Make each step that
-stays owed past your turn a to-do or item the plan names by id, so it follows that
-item's state; a plain step's state is yours to keep current. Write the plan again when a
-step finishes or the breakdown changes.
+before you start the first step, so the user can follow it in the panel's Plan tab: the
+goal, its steps in order, the one under way, and those waiting on them.
+`leaf task plan <page>` reads the whole outline from stdin as a JSON list of steps: the
+goal at depth 0, each step one deeper than the step it belongs to, and each either a
+`title` with a `state` (`open`, `working`, `done` or `dropped`) or the `item` it names:
+
+```bash
+leaf task plan <page> <<'EOF'
+[{"depth": 0, "title": "Move the billing exports", "state": "working"},
+ {"depth": 1, "item": "<to-do id>"},
+ {"depth": 1, "item": "widget:<widget-id>"},
+ {"depth": 1, "title": "Retire the old export job", "state": "open"}]
+EOF
+```
+
+Make each step that stays owed past your turn a to-do or obligation the plan names by
+id, so it follows that one's state; a plain step's state is yours to keep current. Write
+the plan again when a step finishes or the breakdown changes.
 
 When input arrives:
 
@@ -184,11 +195,11 @@ present for their judgment, not only the one you recommend. Ask each as a direct
 question by a route in the table below, grouped as `authoring-decisions.md` says, and keep
 it until the user decides or you withdraw it. A question written in prose, a heading,
 a status line or chat isn't on On me; only the routes in the table put it there.
-Information they may comment on but need not decide is not an item.
+Information they may comment on but need not decide is not an obligation.
 
 On me also lists any update of the user's that failed to send. Your own list shows as
 **On <your name>**. The user presses `m` to step through On me in page order. Each
-press lands where the item is answered; on a widget's item, its numbered actions
+press lands where the obligation is answered; on a widget's obligation, its numbered actions
 (`1`–`9`) answer it there.
 
 | Request                                                                         | Register it                                                                                                     | What answers it                                                                       |
@@ -198,9 +209,9 @@ press lands where the item is answered; on a widget's item, its numbered actions
 | Required version sign-off                                                       | Declare sign-off and stamp the version (`authoring-decisions.md`, "Sign-off")                                   | The user's approval of that version, its row in On me                                 |
 | An action neither route records, such as trying a build or connecting a browser | `leaf task open <page> <id> "<direct question naming the action>" --on user`, on its widget, section, or `page` | The user's Done; end it yourself when their action is established or no longer needed |
 
-Item ids are `widget:<widget-id>` for a widget, `lf-ask` included, and
-`approval:v<version>` for a version's sign-off. A to-do on the user keeps the id
-`task open` printed. It cannot sit on a thread, so in a thread ask with an `lf-ask`.
+Obligation ids are `widget:<widget-id>` for a widget, `lf-ask` included,
+`approval:v<version>` for a version's sign-off, and `update:<event-id>` for an update
+the user handed over. A to-do on the user keeps the id `task open` printed. It cannot sit on a thread, so in a thread ask with an `lf-ask`.
 The user's next message in a thread answers every question asked before it there.
 Ask a dependent question only once its prerequisite is answered. The user's Done on a
 to-do says they did it; it grants nothing its question did not ask.
@@ -209,17 +220,23 @@ Read the lists before a handoff, before waiting for the user, and after taking i
 answer:
 
 ```bash
-leaf page state <page> | jq '{source, items, todos, queues}'
+leaf page state <page> | jq '{source, obligations, todos, queues}'
 ```
 
-`queues.on_user` is On me: open items, to-dos on the user, and updates to resend.
-`queues.on_agent` is your list: answers you owe, updates you are working on, and your
-to-dos. Read them as given rather than rebuilding them from events. An item's row
-names it by `id`; its record in `items` holds its `prompt`, its `answer` once given,
-and its `status`, and a widget's item takes its answer
-from the widget's state. Read a thread or a widget with `leaf page state <page> <id>`,
-using a message id or a widget id; the widget's markup is in the HTML file named by
-`active.file`. Unsent drafts and tabs on older versions are not in this reading.
+`queues.on_user` is On me: the open obligations on the user, updates to resend among
+them, and to-dos on the user. `queues.on_agent` is your list: the updates you owe a
+reply or a version, and your to-dos. Read them as given rather than rebuilding them
+from events. A row names its obligation or to-do by `id`. An obligation's record in
+`obligations` holds its `prompt`, its `answer` once given, its `status` and its
+`next_actor`, and a widget's obligation takes its answer from the widget's state; a
+to-do's record in `todos` holds its `title` and the start `running` on it.
+`activity.obligations` lists each answer you owe as its record's `id` beside the
+`answer` that settles it: the reply to write, with the `ref` its delivery gave where
+you can still use it, or the action a stamped version must record. Recover what you
+owe there when no delivery is at hand. Read a thread or a widget with
+`leaf page state <page> <id>`, using a message id or a widget id; the widget's markup
+is in the HTML file named by `active.file`. Unsent drafts and tabs on older versions
+are not in this reading.
 Check `source` for an invalid or missing draft before taking an empty list as a
 clean handoff.
 
@@ -228,7 +245,7 @@ without asking again. Ask about a paused project only when resuming or dropping 
 needs the user's decision. Put a blocked action on the user only when they can
 unblock it, and leave questions about another session's work to that session.
 
-When the user answers in chat or elsewhere, use the answer and retire the page's item
+When the user answers in chat or elsewhere, use the answer and retire the page's obligation
 in a revision (`authoring-revisions.md`), or end their to-do with `leaf task end`. End
 a question in a thread answered elsewhere `done`, or `dropped` when it no longer
 applies:

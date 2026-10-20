@@ -48,12 +48,10 @@ from pathlib import Path
 from typing import Literal
 from xml.etree import ElementTree
 
-from .event_log import jsonl_line
-from .files import read_json
+from .event_log import jsonl_line, write_cursor
 from .harness import session_harness
 from .refusals import Refused
-from .registry.kernel import record_format, verb_writers
-from .schema import CURSOR_FILE
+from .registry.kernel import verb_writers
 from .service import (
     PageTransaction,
     may_receive,
@@ -61,15 +59,51 @@ from .service import (
     unacknowledged,
 )
 from .state import (
+    STRING,
+    Record,
     flocked,
+    object_schema,
     open_session_turn,
     session_lock_path,
     session_record,
     state_home,
-    write_json,
 )
 
-DELIVERY_FORMAT = record_format("delivery")
+# The immutable envelope `leaf delivery read` prints (`references/event-batches.md`).
+DELIVERY = Record(
+    "delivery",
+    object_schema(
+        {
+            "id": STRING,
+            "created_at": {"type": "number"},
+            "acknowledge": {"type": ["string", "null"]},
+            "batches": {
+                "type": "array",
+                "items": object_schema(
+                    {
+                        "page": STRING,
+                        # The session that owned the page at capture.
+                        "claim": {"type": ["string", "null"]},
+                        "through_seq": {"type": "integer"},
+                        "threads": {"type": "array"},
+                        "handling": {"type": "object"},
+                        "events": {"type": "array"},
+                    }
+                ),
+            },
+        },
+        # The receipt a corrected delivery replaces, and the claim it was under.
+        {
+            "correction": object_schema(
+                {
+                    "claim": object_schema(
+                        {"id": STRING, "generation": STRING, "acquisition": STRING}
+                    )
+                }
+            )
+        },
+    ),
+)
 DELIVERY_ID = re.compile(r"[0-9a-f]{8}")
 _BATCH_FIELDS = (
     "page",
@@ -122,27 +156,13 @@ def pages_gone(batches: list[dict]) -> bool:
     return bool(batches) and not any(Path(batch["page"]).is_dir() for batch in batches)
 
 
-def retire_if_gone(path: Path, record_format: str) -> None:
-    """Remove a readable record once every page it names is gone.
+def retire_if_gone(path: Path, kind: Record) -> None:
+    """Remove a record of `kind` once every page it names is gone.
 
-    Other installed versions share these directories. A format or shape this
-    version cannot read may still belong to one of their live sessions."""
-    try:
-        record = read_json(path)
-    except ValueError:
-        return
-    batches = record.get("batches") if isinstance(record, dict) else None
-    if (
-        not isinstance(record, dict)
-        or record.get("format") != record_format
-        or not isinstance(batches, list)
-        or any(
-            not isinstance(batch, dict) or not isinstance(batch.get("page"), str)
-            for batch in batches
-        )
-    ):
-        return
-    if pages_gone(batches):
+    Other installed versions share these directories, and a record this Leaf
+    does not read may still belong to one of their live sessions."""
+    record = kind.read(path)
+    if record is not None and pages_gone(record["batches"]):
         path.unlink(missing_ok=True)
 
 
@@ -152,7 +172,7 @@ def _retire_gone_deliveries() -> None:
     Envelopes are read one id at a time, so the only enumeration of them is here,
     under the lock every new one is written under."""
     for path in (state_home() / "deliveries").glob("*.json"):
-        retire_if_gone(path, DELIVERY_FORMAT)
+        retire_if_gone(path, DELIVERY)
 
 
 def _delivery_lock_path() -> Path:
@@ -186,9 +206,10 @@ def _subject(event: dict, threads: list[str], by_id: dict[str, dict]) -> dict:
 def current_responses(page_dir: Path, events: list[dict]) -> dict[str, dict]:
     """Map every event that owns an answer to its exact response address.
 
-    The address is the workflow's `answer`, so a delivery, a writer's refusal and
+    The address is the owed answer `activity` derives from the input's obligation
+    record (`obligations.response_address`), so a delivery, a writer's refusal and
     the Stop hook name the same operation. An input a newer one in its thread covers
-    owns none; the newest carries the thread's one answer.
+    publishes no record and owns none; the newest carries the thread's one answer.
     """
     from .served_state.context import read_page
 
@@ -294,12 +315,11 @@ def batch_refs(batch: dict) -> dict[str, dict]:
 
 
 def reads_reference(reference: str) -> bool:
-    """Whether this Leaf reads the delivery that emitted `reference`. One an earlier
-    Leaf wrote at another page protocol it does not (`read_delivery`), so the hooks
-    treat the update it owes an answer as having no usable reference and capture it
-    again (`hook_transport.read_plans`)."""
-    payload = read_json(delivery_path(reference.partition(":")[0]))
-    return isinstance(payload, dict) and payload.get("format") == DELIVERY_FORMAT
+    """Whether this Leaf reads the delivery that emitted `reference`. It may not
+    read one another Leaf wrote (`state.Record`), so the hooks treat the update it
+    owes an answer as having no usable reference and capture it again
+    (`hook_transport.read_plans`)."""
+    return stored_delivery(reference.partition(":")[0]) is not None
 
 
 def response_address(reference: str) -> dict:
@@ -425,12 +445,11 @@ def freeze_delivery(
             while True:
                 delivery_id = new_delivery_id()
                 path = delivery_path(delivery_id)
-                if read_json(path) is None:
+                if not path.exists():
                     break
         else:
             path = delivery_path(delivery_id)
         payload = {
-            "format": DELIVERY_FORMAT,
             "id": delivery_id,
             "created_at": created_at if created_at is not None else time.time(),
             "acknowledge": acknowledge(delivery_id) if acknowledge else None,
@@ -449,54 +468,40 @@ def freeze_delivery(
                 )
             ],
         }
-        existing = read_json(path)
-        if existing is not None:
-            if existing != payload:
+        if path.exists():
+            if DELIVERY.read(path) != payload:
                 raise DeliveryIdConflict(
                     f"delivery {delivery_id!r} already exists with other data"
                 )
-            return existing
-        path.parent.mkdir(parents=True, exist_ok=True)
-        write_json(path, payload)
-        return payload
+        else:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            DELIVERY.write(path, payload)
+        return DELIVERY.stored(payload)
 
 
-def readable_delivery(payload, delivery_id: str) -> bool:
-    """Whether this immutable identity has the envelope this version consumes."""
-    if isinstance(payload, dict) and "correction" in payload:
-        correction = payload["correction"]
-        if not isinstance(correction, dict):
-            return False
-        claim = correction.get("claim")
-        if not isinstance(claim, dict) or any(
-            not isinstance(claim.get(key), str) or not claim[key]
-            for key in ("id", "generation", "acquisition")
-        ):
-            return False
-    return bool(
-        isinstance(payload, dict)
-        and payload.get("format") == DELIVERY_FORMAT
-        and payload.get("id") == delivery_id
-    )
+def stored_delivery(delivery_id: str) -> dict | None:
+    """The envelope with this id, or None where this Leaf reads none. An envelope
+    names its `format` to whoever reads it (`references/event-batches.md`)."""
+    payload = DELIVERY.read(delivery_path(delivery_id))
+    return DELIVERY.stored(payload) if payload is not None else None
 
 
 def read_delivery(delivery_id: str) -> dict:
+    """The envelope with this id, refusing an id with none this Leaf reads."""
     try:
         path = delivery_path(delivery_id)
     except ValueError as error:
         raise Refused(str(error)) from error
-    payload = read_json(path)
+    payload = stored_delivery(delivery_id)
+    if payload is None and path.exists():
+        raise Refused(
+            f"delivery {delivery_id!r} was written by another Leaf, in a form this "
+            f"one does not read ({DELIVERY.format!r}). The updates it carried that "
+            "still owe an answer are captured again in a delivery this Leaf writes, "
+            "which the session's next prompt or Stop names."
+        )
     if payload is None:
         raise Refused(f"unknown delivery {delivery_id!r}")
-    if isinstance(payload, dict) and payload.get("format") != DELIVERY_FORMAT:
-        raise Refused(
-            f"delivery {delivery_id!r} is {payload.get('format')!r}, written by a Leaf "
-            f"at another page protocol, and this Leaf reads {DELIVERY_FORMAT!r}. The "
-            "updates it carried that still owe an answer are captured again in a "
-            "delivery this Leaf writes, which the session's next prompt or Stop names."
-        )
-    if not readable_delivery(payload, delivery_id):
-        raise RuntimeError(f"delivery {delivery_id!r} has an invalid envelope")
     return payload
 
 
@@ -621,7 +626,7 @@ def record_pickup(
     ``refs`` are the `answer.ref`s the receipt's envelope batch gave the inputs it
     owes, each with the claim the batch was captured under (`batch_refs`), which
     the record keeps for the inputs it names, so the page's workflows can name each
-    owed input's ref to the owner who can use it (`activity._bind_receipt_refs`). A
+    owed input's ref to the owner who can use it (`activity._receipt_bindings`). A
     transition that carries no envelope, such as the prompt re-presenting debt an
     earlier receipt recorded, passes none.
     """
@@ -744,7 +749,7 @@ def receive_batch(
             )
         yield [delivered[seq] for seq in expected]
         if max(expected) > page.cursor:
-            write_json(page.page_dir / CURSOR_FILE, {"seq": max(expected)})
+            write_cursor(page.page_dir, max(expected))
 
 
 def receive_delivery(delivery_id: str) -> list[Path]:

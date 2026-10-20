@@ -19,6 +19,7 @@ from interact_support import (
     available_loopback_port,
     serving,
     wait_for,
+    write_record,
 )
 from leaf import event_log as events_model
 from leaf import harness as harness_model
@@ -219,7 +220,7 @@ def test_the_pi_watch_restarts_a_session_server_that_died(page_dir, pi):
     would. The server it starts must serve as the Pi session the hook names,
     though nothing in the hook's environment names that session."""
     leases_model.release_lease(HELD_LEASES.pop())
-    cleanup_model.write_json(
+    write_record(
         page_dir / "service.json",
         {
             "host": "127.0.0.1",

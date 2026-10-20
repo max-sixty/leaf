@@ -35,14 +35,14 @@ import {
   fabInput,
   inPageOrder,
   initializeServedDocument,
-  itemEnding,
-  itemWord,
   keepPageRulesOffLayer,
   leavesBox,
   mountApplication,
   mountHistory,
   notifyDataSubscribers,
-  ownedItemControl,
+  obligationEnding,
+  obligationWord,
+  ownedObligationControl,
   pageControls,
   pageControlsChanged,
   paintBarReactions,
@@ -109,7 +109,7 @@ import {
   allThreads,
   anchorLabel,
   answeredInWords,
-  approvalBlockingItems,
+  approvalBlockingObligations,
   beginWalk,
   bringBackSurfaceOf,
   copyControl,
@@ -123,14 +123,10 @@ import {
   drawnThreadId,
   focusedThreadTarget,
   followBoxGrowth,
-  heldItem,
+  heldObligation,
   heldThread,
   holdToRead,
   isExternalPageLink,
-  itemEntry,
-  itemHolding,
-  itemPlace,
-  itemsIn,
   landingPlace,
   landingRoom,
   leftThePage,
@@ -139,6 +135,10 @@ import {
   messageHolding,
   messageReading,
   mirrorDraft,
+  obligationEntry,
+  obligationHolding,
+  obligationPlace,
+  obligationsIn,
   onReadingInterrupted,
   pageCommand,
   pageRung,
@@ -149,7 +149,7 @@ import {
   placeOf,
   quoteReading,
   readBoxPlace,
-  readItems,
+  readObligations,
   readThreads,
   readingBlock,
   readingIsContinuous,
@@ -496,7 +496,7 @@ import {
   LitElement,
   bareReaction,
   bindQueuedWork,
-  carriesItem,
+  carriesObligation,
   html,
   itemNoun,
   itemOutcome,
@@ -508,7 +508,8 @@ import {
   repeat,
   sameAnchor,
   threadKey,
-  threadNames
+  threadNames,
+  turns
 } from "./runtime/bundle-queued-work.js";
 import "./runtime/bundle-__export.js";
 
@@ -731,6 +732,7 @@ var AttachedMediaShelf = class extends LitElement {
               </button>
               <button
                 type="button"
+                class="lf-composer-drawing-undo"
                 aria-label="Undo last stroke"
                 title="Undo last stroke"
                 @mousedown=${(event) => event.preventDefault()}
@@ -2717,9 +2719,9 @@ function createResponseSurface({
     const threadId = threadAtStanding();
     const replyId = replyThreadAtStanding();
     const target = threadId && threadTarget(threadId);
-    const inlineBox = inline && drawnThreadId(inline) === threadId && (!here || standingIn(inline) || target && under(target, heldItem() ?? here.element)) && threadInput(inline);
+    const inlineBox = inline && drawnThreadId(inline) === threadId && (!here || standingIn(inline) || target && under(target, heldObligation() ?? here.element)) && threadInput(inline);
     const said = standingThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
-    const subject = threadId && (!here || target && under(target, heldItem() ?? here.element));
+    const subject = threadId && (!here || target && under(target, heldObligation() ?? here.element));
     const replySubject = subject && replyId;
     if (anchor && (pageSelection() || fabHoldsCapturedPassage() || !said && !subject && (!here || here.element === fabTargetAt())))
       return {
@@ -4796,7 +4798,7 @@ ${searchCount(maximum, maximum)}`
 }
 
 // runtime/composing/standing.js
-function createStandingTarget({ isItemControl, standingIn: standingIn2 }) {
+function createStandingTarget({ isObligationControl, standingIn: standingIn2 }) {
   return function standingTarget2() {
     const held = focused();
     if (!held || held === document.body) return null;
@@ -4804,7 +4806,7 @@ function createStandingTarget({ isItemControl, standingIn: standingIn2 }) {
     const place3 = placeOf(held);
     if (!place3 || inChrome(place3)) return null;
     if (place3 !== held) return aimTargetAt(place3);
-    const working = isItemControl(held) ? standingIn2() : null;
+    const working = isObligationControl(held) ? standingIn2() : null;
     return aimTargetAt(working ?? held);
   };
 }
@@ -5433,6 +5435,7 @@ var TONE = {
   closed: ""
 };
 var WORK_WORDS = {
+  working: "working",
   thinking: "thinking",
   tool: "using a tool",
   awaiting_approval: "waiting for approval",
@@ -5453,7 +5456,7 @@ function activityFacts({ activity }) {
   const { counts } = activity;
   return Object.freeze({
     tone: TONE[activity.kind],
-    work: WORK_WORDS[activity.observed_kind] || "working",
+    work: activity.observed_kind ? WORK_WORDS[activity.observed_kind] : "working",
     left: Boolean(activity.dropped),
     silentSince: ago(activity.ts),
     listening: Boolean(counts.pending || counts.queued),
@@ -5640,7 +5643,6 @@ var QUEUE_WORDS = Object.freeze({
   resend: ["update to send again", "updates to send again"],
   answer: ["answer", "answers"],
   reply: ["reply", "replies"],
-  work: ["update with work started", "updates with work started"],
   todo: ["to-do", "to-dos"]
 });
 function queueKinds(items2) {
@@ -5649,7 +5651,7 @@ function queueKinds(items2) {
     byKind.set(itemNoun(item), [...byKind.get(itemNoun(item)) ?? [], item]);
   return [...byKind].map(([kind, all]) => {
     const words = `${all.length} ${QUEUE_WORDS[kind][all.length === 1 ? 0 : 1]}`;
-    return kind === "todo" ? `${words} (${all.map((todo) => todo.title).join(" \xB7 ")})` : words;
+    return kind === "todo" ? `${words} (${all.map((row) => row.todo.title).join(" \xB7 ")})` : words;
   });
 }
 function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {
@@ -5792,9 +5794,11 @@ function paintStatus() {
   saidActionableWork = actionableWork;
   if (changed) announce(model.explanation);
 }
+var REVIEW = "lf-review";
+var SIGN_OFF = "sign-off";
 var isSignoffDeclared = () => (
   /** @type {HTMLMetaElement | null} */
-  document.querySelector('meta[name="lf-review"]')?.content === "sign-off"
+  document.querySelector(`meta[name="${REVIEW}"]`)?.content === SIGN_OFF
 );
 var signoff = false;
 var approving = false;
@@ -5808,15 +5812,15 @@ var presentedApproval = () => presentation;
 var paintApproval = () => presentation?.repaint();
 var approvalTarget = () => signoff ? presentation?.target() ?? null : null;
 var versionApproved = readPart(
-  (root) => root.effective.items.all.some(
+  (root) => root.effective.obligations.all.some(
     (item) => item.source.kind === "approval" && item.status === "answered"
   )
 );
 var approvalReading = () => {
   if (!signoff) return null;
   const approved = versionApproved();
-  const blockingItems = approvalBlockingItems();
-  const reason = approved ? "Approved. Press z to undo while approval is still the latest update" : runtime.currentStamp === null ? "There is no stamped version to approve yet" : !pagePresented() || blockingItems === null ? AWAITING_STATE : blockingItems.length ? "Answer every open widget before approving this work" : null;
+  const blockingObligations = approvalBlockingObligations();
+  const reason = approved ? "Approved. Press z to undo while approval is still the latest update" : runtime.currentStamp === null ? "There is no stamped version to approve yet" : !pagePresented() || blockingObligations === null ? AWAITING_STATE : blockingObligations.length ? "Answer every open widget before approving this work" : null;
   return {
     text: approved ? "\u2713 Version approved" : "Approve version",
     // A press already in flight is refused silently: its busy state says so.
@@ -5978,7 +5982,7 @@ function createFloatingPanel({
   threadActions,
   registerChromeThreadPresentation,
   observeFeedback,
-  items: itemView,
+  obligations: obligationView,
   queueActions,
   withdraw,
   settlement,
@@ -7086,7 +7090,7 @@ function createFloatingPanel({
       (candidate) => candidate.key === top.thread || candidate.id === top.thread
     );
     if (!outlet || !thread) return;
-    for (const message of thread.msgs) parts.message(thread.key, message.key, outlet);
+    for (const message of turns(thread)) parts.message(thread.key, message.key, outlet);
     const news = newsOutlet();
     if (news) parts.news(thread.key, news);
     if (replyOutlet.isConnected)
@@ -7294,7 +7298,7 @@ function createFloatingPanel({
         </section>`
   );
   function onItemCard(item, list) {
-    const record = carriesItem(item) ? item.item : null;
+    const record = carriesObligation(item) ? item.obligation : null;
     const thread = item.thread ? threadByKey(item.thread) : null;
     const inWords = record !== null && answeredInWords(record);
     const asking = inWords && thread ? thread.msgs.find((candidate) => candidate.id === record.message) : null;
@@ -7303,7 +7307,7 @@ function createFloatingPanel({
     const said = message ? "" : asking ? messageReading(asking, { reactions: [], workflows: [] }).body.plainText : record?.prompt?.text;
     const prompt = said && said.trim() !== title.trim() ? said : "";
     const answered = record && record.status !== "open";
-    const choices = record && !answered && record.source.kind === "widget" && !inWords ? itemView.choicesOf(record) : null;
+    const choices = record && !answered && record.source.kind === "widget" && !inWords ? obligationView.choicesOf(record) : null;
     const gesture = answered ? answerGesture(record) : null;
     const discuss = thread ? html`<button
           type="button"
@@ -7317,7 +7321,7 @@ function createFloatingPanel({
       class="lf-fp-quiet"
       @click=${() => {
       close();
-      void (record ? itemView.open(record.id) : queueActions.open(queueItemKey(item)));
+      void (record ? obligationView.open(record.id) : queueActions.open(queueItemKey(item)));
     }}
     >
       Show
@@ -7329,10 +7333,10 @@ function createFloatingPanel({
         >${thread ? discuss : nothing}`;
     else if (list !== "you" && !answered)
       answers = html`<span class="lf-fp-said"
-          >${item.running?.text ?? workflowLabel(item.workflow) ?? ""}</span
+          >${item.todo?.running?.text ?? workflowLabel(item.workflow) ?? ""}</span
         >${thread ? discuss : nothing}`;
     else if (answered)
-      answers = html`<span class="lf-fp-said">${itemEnding(record)}</span>${gesture ? html`<button
+      answers = html`<span class="lf-fp-said">${obligationEnding(record)}</span>${gesture ? html`<button
                 type="button"
                 class="lf-fp-quiet"
                 @click=${() => withdraw(gesture)}
@@ -8675,11 +8679,11 @@ function createPageMapDialog({
   };
 }
 
-// runtime/items/view-elements.js
-var ITEM_CONTROL = ":is(button[data-lf-offer], [data-lf-offer][tabindex])";
+// runtime/obligations/view-elements.js
+var OBLIGATION_CONTROL = ":is(button[data-lf-offer], [data-lf-offer][tabindex])";
 
-// runtime/items/view.js
-function createItemView({
+// runtime/obligations/view.js
+function createObligationView({
   prepareTrip,
   arrive,
   openPageThread,
@@ -8688,28 +8692,28 @@ function createItemView({
   announce: announce2,
   repaint: repaint2
 }) {
-  const itemNode = (item) => itemPlace(item).node;
-  const sourceNode = (item) => itemPlace(item).source;
-  const hasItem = (items2, candidate) => Boolean(candidate && items2.some((item) => item.id === candidate.id));
-  const unansweredIds = () => new Set(readItems().unanswered.map(({ id }) => id));
-  const itemNodes = (item) => ({
-    target: itemNode(item),
+  const obligationNode = (item) => obligationPlace(item).node;
+  const sourceNode = (item) => obligationPlace(item).source;
+  const hasObligation = (items2, candidate) => Boolean(candidate && items2.some((item) => item.id === candidate.id));
+  const unansweredIds = () => new Set(readObligations().unanswered.map(({ id }) => id));
+  const obligationNodes = (item) => ({
+    target: obligationNode(item),
     source: sourceNode(item)
   });
-  const reachItem = (item) => {
-    if (item.thread && !itemNode(item)) showHeld(item.thread);
-    return itemNodes(item);
+  const reachObligation = (item) => {
+    if (item.thread && !obligationNode(item)) showHeld(item.thread);
+    return obligationNodes(item);
   };
   const unbuilt = (item, { target, source }) => (!target || !source) && item.thread;
-  async function materializeItem(item, intent = null) {
-    reachItem(item);
+  async function materializeObligation(item, intent = null) {
+    reachObligation(item);
     await openPageThread(item.message, {
       part: "message",
       focus: false,
       travel: false,
       ...intent && { intent }
     });
-    return itemNodes(item);
+    return obligationNodes(item);
   }
   const presentedActionControl = (control) => presentedControl?.(control) ?? control;
   const answeringAll = /* @__PURE__ */ new Set();
@@ -8717,12 +8721,12 @@ function createItemView({
   async function answerAll(outcome) {
     if (answeringAll.has(outcome)) return;
     answeringAll.add(outcome);
-    void syncItems();
+    void syncObligations();
     try {
-      for (const item of readItems().user) {
-        if (itemEntry(item)?.all !== outcome) continue;
-        const nodes = reachItem(item);
-        const { source } = unbuilt(item, nodes) ? await materializeItem(item) : nodes;
+      for (const item of readObligations().user) {
+        if (obligationEntry(item)?.all !== outcome) continue;
+        const nodes = reachObligation(item);
+        const { source } = unbuilt(item, nodes) ? await materializeObligation(item) : nodes;
         const { tag } = (
           /** @type {{tag?: string}} */
           item.source
@@ -8731,16 +8735,16 @@ function createItemView({
       }
     } finally {
       answeringAll.delete(outcome);
-      void syncItems();
+      void syncObligations();
     }
   }
   let mounted = false;
   const presenter = applicationPresenter({
-    region: "items",
-    order: PRESENTATION_ORDER.items,
+    region: "obligations",
+    order: PRESENTATION_ORDER.obligations,
     reading: () => mounted ? true : null,
     paint: () => {
-      readItems();
+      readObligations();
       repaint2();
     }
   });
@@ -8750,7 +8754,7 @@ function createItemView({
       if (bulkAnswers.has(outcome)) continue;
       const label2 = outcome[0].toUpperCase() + outcome.slice(1);
       bulkAnswers.set(outcome, label2);
-      const waiting = () => readItems().user.filter((item) => itemEntry(item)?.all === outcome).length;
+      const waiting = () => readObligations().user.filter((item) => obligationEntry(item)?.all === outcome).length;
       registerPageControl({
         key: `blanket:${outcome}`,
         rank: PAGE_CONTROL_RANK.blanket,
@@ -8762,7 +8766,7 @@ function createItemView({
       });
     }
   }
-  function syncItems() {
+  function syncObligations() {
     return presenter.present();
   }
   let reviewedThrough = null;
@@ -8771,19 +8775,20 @@ function createItemView({
     reviewedThrough = null;
     return false;
   }
-  const itemAt = (items2, node) => itemHolding(items2, placeOf(node));
-  function standingItem(held = focused()) {
+  const obligationAt = (items2, node) => obligationHolding(items2, placeOf(node));
+  function standingObligation(held = focused()) {
     if (!held || held === document.body) return null;
-    const record = itemAt(readItems().all, held);
+    const record = obligationAt(readObligations().all, held);
     if (!record) return null;
-    if (readItems().unanswered.some((item2) => item2.id === record.id)) return record;
+    if (readObligations().unanswered.some((item2) => item2.id === record.id))
+      return record;
     const answered = record;
-    const item = itemNode(answered);
+    const item = obligationNode(answered);
     return held === item || inChrome(held) && sideOf(held) === item || hasReviewedFocus() ? answered : null;
   }
-  const standingIn2 = () => itemNode(standingItem());
-  const actionsFor = (source) => decisionControls(commandsWithin(source), `Item ${source.id}`).filter(
-    ({ source: commandSource, control }) => ownedItemControl(source, commandSource) && control.getAttribute("aria-busy") !== "true"
+  const standingIn2 = () => obligationNode(standingObligation());
+  const actionsFor = (source) => decisionControls(commandsWithin(source), `Obligation ${source.id}`).filter(
+    ({ source: commandSource, control }) => ownedObligationControl(source, commandSource) && control.getAttribute("aria-busy") !== "true"
   );
   const actionsOf = (item) => {
     const source = item && sourceNode(item);
@@ -8801,11 +8806,11 @@ function createItemView({
       })
     );
   }
-  function itemContext(origin) {
-    const record = itemAt(readItems().all, hostIn(origin, document));
+  function obligationContext(origin) {
+    const record = obligationAt(readObligations().all, hostIn(origin, document));
     let root = null;
     for (let node = origin; record && node; node = upFrom(node)) {
-      if (itemAt(readItems().all, node)?.id !== record.id) break;
+      if (obligationAt(readObligations().all, node)?.id !== record.id) break;
       root = node;
       if (node.hasAttribute("data-lf-thread-surface")) break;
     }
@@ -8815,35 +8820,37 @@ function createItemView({
       declarations: () => {
         const source = sourceNode(record);
         return source ? commandDeclarationsWithin(source).filter(
-          ({ source: commandSource }) => ownedItemControl(source, commandSource)
+          ({ source: commandSource }) => ownedObligationControl(source, commandSource)
         ) : [];
       }
     };
   }
   function markHere() {
-    const record = standingItem();
-    const here = itemNode(record);
+    const record = standingObligation();
+    const here = obligationNode(record);
     const wearing = new Set(here ? [here, ...shownParts(here)] : []);
-    for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.item}]`))
-      if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.item);
-    for (const marked of wearing) keeps(marked, PAGE_PAINT_ATTRIBUTE.item, "1");
+    for (const marked of document.querySelectorAll(
+      `[${PAGE_PAINT_ATTRIBUTE.obligation}]`
+    ))
+      if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.obligation);
+    for (const marked of wearing) keeps(marked, PAGE_PAINT_ATTRIBUTE.obligation, "1");
   }
   function arrivalFocus(record, review = false) {
-    const item = itemNode(record);
+    const item = obligationNode(record);
     const source = sourceNode(record);
     if (!item || !source) return null;
-    const target = [...item.getClientRects()].some((rect2) => rect2.width && rect2.height) ? item : source.querySelector(ITEM_CONTROL) ?? actionsFor(source).map(({ control }) => presentedActionControl(control))[0] ?? source;
+    const target = [...item.getClientRects()].some((rect2) => rect2.width && rect2.height) ? item : source.querySelector(OBLIGATION_CONTROL) ?? actionsFor(source).map(({ control }) => presentedActionControl(control))[0] ?? source;
     reviewedThrough = review ? target : null;
     return target;
   }
   function captureStanding() {
     const held = focused(document);
     if (!held || held === document.body || inChrome(held)) return null;
-    return standingItem()?.id ?? null;
+    return standingObligation()?.id ?? null;
   }
   function restoreStanding(item) {
-    if (!item || standingItem()?.id === item) return;
-    const record = readItems().all.find((candidate) => candidate.id === item);
+    if (!item || standingObligation()?.id === item) return;
+    const record = readObligations().all.find((candidate) => candidate.id === item);
     const target = record && arrivalFocus(record);
     if (target) focusForNavigation2(target, "return");
   }
@@ -8876,13 +8883,13 @@ function createItemView({
   }
   async function arriveAtRecordNow(next) {
     const mayArrive = retainUserIntent({
-      available: () => hasItem(readItems().all, next)
+      available: () => hasObligation(readObligations().all, next)
     });
     const arriveAtRecord2 = bindQueuedWork(arrive);
-    const { target } = next.thread ? await materializeItem(next, mayArrive) : reachItem(next);
+    const { target } = next.thread ? await materializeObligation(next, mayArrive) : reachObligation(next);
     if (!mayArrive() || !target) return false;
     const destination = () => {
-      const { node: target2, source, context: context2 } = itemPlace(next);
+      const { node: target2, source, context: context2 } = obligationPlace(next);
       if (!target2 || !source) return null;
       const box = !inChrome(target2) && scrollerFor(target2);
       return {
@@ -8895,7 +8902,7 @@ function createItemView({
     const initial = destination();
     if (!initial) return false;
     const departure = prepareTrip({
-      landing: () => itemNode(next),
+      landing: () => obligationNode(next),
       intent: mayArrive
     });
     const moving = Boolean(
@@ -8912,8 +8919,8 @@ function createItemView({
           where: target2,
           reveal: next.source.id !== next.prompt.target ? [sourceNode(next)] : [],
           focus: arrivalFocus(next, !unansweredIds().has(next.id)),
-          // Reveal the item through its own inner scrollports before aligning its
-          // context, which may stand outside them. A framed item requests no motion.
+          // Reveal the obligation through its own inner scrollports before aligning its
+          // context, which may stand outside them. A framed obligation requests no motion.
           scroll: !box ? [{ at: target2, behavior: scrollBehavior(), block: "center" }] : moving ? [
             {
               at: target2,
@@ -8935,12 +8942,12 @@ function createItemView({
     });
     return ready;
   }
-  function goToItem(next, items2) {
+  function goToObligation(next, items2) {
     const ready = arriveAtRecord(next).then((arrived) => {
       if (!arrived) return false;
       const state = unansweredIds().has(next.id) ? "waiting on me" : "answered";
       const index = items2.findIndex((item) => item.id === next.id);
-      announce2(walkPositionLabel(itemWord(next), index + 1, items2.length, state));
+      announce2(walkPositionLabel(obligationWord(next), index + 1, items2.length, state));
       return true;
     });
     void ready.catch(() => {
@@ -8948,12 +8955,12 @@ function createItemView({
     return ready;
   }
   let stopContextScopes = null;
-  const actionsChanged = () => mounted && void syncItems();
+  const actionsChanged = () => mounted && void syncObligations();
   function mount() {
     if (mounted) return;
     mounted = true;
-    stopContextScopes = contextScopes("While answering", itemContext);
-    void syncItems();
+    stopContextScopes = contextScopes("While answering", obligationContext);
+    void syncObligations();
     document.addEventListener(PRESENTATION, actionsChanged);
     addEventListener("resize", repaint2);
   }
@@ -8966,20 +8973,22 @@ function createItemView({
     stopContextScopes?.();
     stopContextScopes = null;
     presenter.disconnect();
-    for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.item}]`))
-      marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.item);
+    for (const marked of document.querySelectorAll(
+      `[${PAGE_PAINT_ATTRIBUTE.obligation}]`
+    ))
+      marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.obligation);
   }
   return {
     mount,
     destroy,
     buildBulkAnswers,
-    syncItems,
+    syncObligations,
     standingIn: standingIn2,
     captureStanding,
     restoreStanding,
     markHere,
     arriveAtRecord,
-    goToItem,
+    goToObligation,
     choicesOf
   };
 }
@@ -8993,8 +9002,13 @@ var NOUNS = Object.freeze({
   page: "To-do",
   approval: "Approval"
 });
-var nounOf = (item, stop) => carriesItem(item) && stop.kind !== "approval" ? itemWord(item.item) : stop.kind === "widget" && itemNoun(item) === "todo" ? "To-do" : NOUNS[stop.kind];
-var stopOf = (item) => item.kind === "approval" ? { kind: "approval", id: item.id, thread: null } : item.kind === "widget" && !(item.thread !== null && answeredInWords(item.item)) ? { kind: "item", id: item.id, thread: item.thread, item: item.item } : item.thread !== null ? { kind: "thread", id: item.thread, thread: item.thread } : item.subject.kind === "page" ? { kind: "page", id: "page", thread: null } : { kind: "widget", id: item.subject.id, thread: null };
+var nounOf = (item, stop) => carriesObligation(item) && stop.kind !== "approval" ? obligationWord(item.obligation) : stop.kind === "widget" && itemNoun(item) === "todo" ? "To-do" : NOUNS[stop.kind];
+var stopOf = (item) => item.kind === "approval" ? { kind: "approval", id: item.id, thread: null } : item.kind === "widget" && !(item.thread !== null && answeredInWords(item.obligation)) ? {
+  kind: "obligation",
+  id: item.id,
+  thread: item.thread,
+  obligation: item.obligation
+} : item.thread !== null ? { kind: "thread", id: item.thread, thread: item.thread } : item.subject.kind === "page" ? { kind: "page", id: "page", thread: null } : { kind: "widget", id: item.subject.id, thread: null };
 var sameStop = (a, b) => a.kind === b.kind && a.id === b.id;
 var pageHead = () => [...document.querySelectorAll("h1")].find((heading) => !inChrome(heading)) ?? pageDocument() ?? document.body.firstElementChild;
 function createQueueWalk({
@@ -9008,7 +9022,7 @@ function createQueueWalk({
   announce: announce2,
   actions
 }) {
-  const stopElement = (stop) => stop.kind === "approval" ? approvalTarget() : stop.kind === "item" ? stop.thread !== null ? threadPlace(stop.thread) : itemPlace(stop.item).node : stop.kind === "page" ? pageHead() : stop.thread !== null ? threadPlace(stop.thread) : elementById(stop.id);
+  const stopElement = (stop) => stop.kind === "approval" ? approvalTarget() : stop.kind === "obligation" ? stop.thread !== null ? threadPlace(stop.thread) : obligationPlace(stop.obligation).node : stop.kind === "page" ? pageHead() : stop.thread !== null ? threadPlace(stop.thread) : elementById(stop.id);
   function stops() {
     const list = [];
     const listed2 = /* @__PURE__ */ new Set();
@@ -9027,8 +9041,8 @@ function createQueueWalk({
     return byRenderedOrder(list, (stop) => stop.place);
   }
   function stopsWithin(region) {
-    const held = new Set(itemsIn(region).map((item) => item.id));
-    return stops().filter((stop) => stop.kind === "item" && held.has(stop.id));
+    const held = new Set(obligationsIn(region).map((item) => item.id));
+    return stops().filter((stop) => stop.kind === "obligation" && held.has(stop.id));
   }
   const stopsOf = (region) => region ? stopsWithin(region) : stops();
   function standingStop(list, { place: here, kind } = walkOrigin()) {
@@ -9044,10 +9058,10 @@ function createQueueWalk({
       if (stop) return stop;
     }
     if (!here) return null;
-    const item = itemHolding(readItems().all, placeOf(here));
+    const item = obligationHolding(readObligations().all, placeOf(here));
     if (item) {
       const stop = list.find(
-        (candidate) => candidate.kind === "item" && candidate.id === item.id
+        (candidate) => candidate.kind === "obligation" && candidate.id === item.id
       );
       if (stop) return stop;
     }
@@ -9083,8 +9097,8 @@ function createQueueWalk({
     );
   }
   function arriveAt(stop) {
-    if (stop.kind === "item") {
-      const record = readItems().all.find((item) => item.id === stop.id);
+    if (stop.kind === "obligation") {
+      const record = readObligations().all.find((item) => item.id === stop.id);
       return record ? arriveAtRecord(record) : Promise.resolve(false);
     }
     if (stop.kind === "thread") return arriveAtThread2(stop.id);
@@ -9202,20 +9216,23 @@ function createQueueWalk({
   onStanding((node, cause) => {
     if (cause === "step") return;
     const place3 = node && placeOf(node);
-    wentTo = (place3 && itemHolding(readItems().all, place3)?.id) ?? null;
+    wentTo = (place3 && obligationHolding(readObligations().all, place3)?.id) ?? null;
   });
   function nextWithin({ within, dir = 1 }) {
     if (!(within instanceof Element))
-      throw new TypeError("leaf: itemActions.next needs an element `within`");
+      throw new TypeError("leaf: obligationActions.next needs an element `within`");
     const here = walkOrigin();
-    const items2 = itemsIn(within);
+    const items2 = obligationsIn(within);
     const kept = items2.find((item) => item.id === wentTo);
     const toward = dir < 0 ? -1 : 1;
     if (under(here.place, within)) return walk(toward, within, here);
     if (kept)
-      return walk(toward, within, { place: itemPlace(kept).source, kind: "standing" });
+      return walk(toward, within, {
+        place: obligationPlace(kept).source,
+        kind: "standing"
+      });
     const clips = /* @__PURE__ */ new Map();
-    const shown = items2.map((item) => itemPlace(item).node).find((node) => node && seenRect(node, clips));
+    const shown = items2.map((item) => obligationPlace(item).node).find((node) => node && seenRect(node, clips));
     return shown ? walk(toward, within, { place: shown, kind: "at" }) : walk(toward, within, here);
   }
   return { mount, arriveAtItem, nextWithin };
@@ -10392,7 +10409,7 @@ function declareStanding({ pageState }) {
     if (inChrome(focused(document))) return null;
     const thread = heldThread();
     if (pageSelection() || pageState()) return null;
-    return thread || heldItem() || !inUi(focused()) ? document.body : null;
+    return thread || heldObligation() || !inUi(focused()) ? document.body : null;
   };
   pageScope("standing", {
     title: "Standing on something",
@@ -10699,7 +10716,7 @@ function stopGlide(box) {
 function createNavigation({ threadDestinations, placedAt, heldPlace }) {
   const currentItem = () => {
     const at = heldPlace()?.focus?.deref() ?? focused();
-    const item = heldItem(at);
+    const item = heldObligation(at);
     if (item && under(at, item)) return item;
     const thread = closestAcross(at, THREAD);
     if (thread) return thread;
@@ -10973,8 +10990,8 @@ var version = createVersionController({
     const panelShown = floatingPanel.restoreStanding(panel);
     return (app?.overlay?.restoreStanding(margin) ?? false) || panelShown;
   },
-  captureItemStanding: () => items.captureStanding(),
-  restoreItemStanding: (standing2) => items.restoreStanding(standing2),
+  captureObligationStanding: () => items.captureStanding(),
+  restoreObligationStanding: (standing2) => items.restoreStanding(standing2),
   versions: { press: () => floatingPanel.doors.versions.press() }
 });
 var inputs = createCompositionInputs({
@@ -10983,7 +11000,7 @@ var inputs = createCompositionInputs({
 });
 app = mountApplication({
   arriveAtQueueItem: (item) => queueWalk.arriveAtItem(item),
-  nextItemWithin: (options) => queueWalk.nextWithin(options),
+  nextObligationWithin: (options) => queueWalk.nextWithin(options),
   threadAvailable: !offlineInteractive,
   createEngagement,
   targetPickerOpen: () => targets.targetPickerOpen(),
@@ -11023,7 +11040,7 @@ app = mountApplication({
     pageMapDialogContains: (...args) => pageMapDialog.pageMapDialogContains(...args),
     renderPageMapDialog: (...args) => pageMapDialog.renderPageMapDialog(...args),
     scrollThreadIntoView,
-    goToItem: (...args) => items.goToItem(...args)
+    goToObligation: (...args) => items.goToObligation(...args)
   },
   state: {
     prepareActivation: (state) => version.prepareActivation(state),
@@ -11046,7 +11063,7 @@ pageMapDialog = createPageMapDialog({
   releaseAnnotations: app.overlay?.releaseForMap,
   annotationFocus: app.overlay?.mapFocusTarget
 });
-items = createItemView({
+items = createObligationView({
   focusForNavigation,
   presentedControl: app.overlay?.presentedControl,
   prepareTrip: anchorTravel.prepareTrip,
@@ -11070,7 +11087,7 @@ var commandHints = createCommandHints({
   presentedControl: (control) => app.overlay?.presentedControl(control) ?? control
 });
 var standingTarget = createStandingTarget({
-  isItemControl: (node) => node?.matches?.(ITEM_CONTROL),
+  isObligationControl: (node) => node?.matches?.(OBLIGATION_CONTROL),
   standingIn: items.standingIn
 });
 floatingPanel = createFloatingPanel({
@@ -11078,9 +11095,9 @@ floatingPanel = createFloatingPanel({
   observeFeedback: app.read.observeFeedback,
   threadActions: app.threadActions,
   registerChromeThreadPresentation: app.registerChromeThreadPresentation,
-  items: {
+  obligations: {
     choicesOf: items.choicesOf,
-    open: (id) => app.openItem(id)
+    open: (id) => app.openObligation(id)
   },
   queueActions: app.queueActions,
   withdraw: app.withdraw,
@@ -11398,7 +11415,7 @@ async function startPage() {
   if (!offlineInteractive) {
     layout.syncLayout();
     items.buildBulkAnswers();
-    items.syncItems();
+    items.syncObligations();
   }
   await settlePageInterface();
   landFragment();

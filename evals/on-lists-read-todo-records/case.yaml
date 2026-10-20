@@ -1,0 +1,88 @@
+# Added when `page state` stopped copying each to-do into its On list row and into
+# its thread's `attention`: a row names its to-do by `id`, and the record, with its
+# `title` and `running` start, is in `todos`. Scores conversation-loop.md, "The On
+# lists", reading those rows. The reading below lists `todos` in another order than
+# the rows, so only a join by id puts each to-do on its side. On Claude Code the merge
+# base passed 2 of 2 on the shrunk reading, both at 45ee9550e and again at b734b68b2
+# after items became obligations, and the change passed 2 of 2 each time.
+description: on-lists-read-todo-records
+metadata:
+  purpose: "Conversation loop: the agent reads On me and its own list from `page state`,
+    joining each to-do row to its record by id, and tells the user what waits on each
+    side by name."
+  tags:
+    - wait-loop
+vars:
+  prompt: |
+    You are a Claude Code session driving a live Leaf page at
+    ~/.local/state/leaf/pages/latency, served with `leaf server start`. You were
+    resumed after a break, and the user wrote in the terminal: "Where are we? What's
+    waiting on me, and what are you still doing?" You ran
+
+        leaf page state ~/.local/state/leaf/pages/latency | jq '{source, obligations, todos, queues, threads: [.threads[] | {id, title, attention}]}'
+
+    and it printed:
+
+    ```json
+    {
+      "source": {"error": null, "live": true},
+      "obligations": [
+        {"id": "widget:deploy-window", "source": {"kind": "widget", "id": "deploy-window", "tag": "lf-options"},
+         "thread": null, "message": null, "status": "open", "next_actor": "user",
+         "prompt": {"text": "Which window should the deploy go out in?", "target": "deploy-window"},
+         "answer": null, "end": null}
+      ],
+      "todos": [
+        {"id": "0d2c55aa", "owner": "agent", "subject": {"kind": "thread", "id": "c71e9b04"},
+         "title": "Write the migration note", "state": "open", "seq": 41, "ts": "2026-10-19T15:02:11+00:00",
+         "agent": "Claude", "session": "s-7731", "revision": 3, "running": null, "outcome": null, "thread": "c71e9b04"},
+        {"id": "9f3a21c0", "owner": "user", "subject": {"kind": "element", "id": "phone-build"},
+         "title": "Try the build on your phone", "state": "open", "seq": 37, "ts": "2026-10-19T14:40:52+00:00",
+         "agent": "Claude", "session": "s-7731", "revision": 3, "running": null, "outcome": null, "thread": null},
+        {"id": "4be81d02", "owner": "agent", "subject": {"kind": "widget", "id": "p95-chart"},
+         "title": "Rebuild the latency chart", "state": "open", "seq": 33, "ts": "2026-10-19T14:21:07+00:00",
+         "agent": "Claude", "session": "s-7731", "revision": 2,
+         "running": {"id": "e6610f3a", "item": "4be81d02", "text": "Re-running the benchmark", "seq": 44,
+                     "ts": "2026-10-19T15:10:30+00:00", "turn": "t-19", "agent": "Claude", "session": "s-7731"},
+         "outcome": null, "thread": null}
+      ],
+      "queues": {
+        "on_user": [
+          {"kind": "widget", "id": "widget:deploy-window", "owner": "user",
+           "subject": {"kind": "widget", "id": "deploy-window"}, "thread": null, "live": false},
+          {"kind": "todo", "id": "9f3a21c0", "owner": "user",
+           "subject": {"kind": "element", "id": "phone-build"}, "thread": null, "live": false}
+        ],
+        "on_agent": [
+          {"kind": "answer", "id": "a83f0e5d", "owner": "agent",
+           "subject": {"kind": "thread", "id": "5aa04c19"}, "thread": "5aa04c19", "live": false,
+           "answer": {"kind": "reply", "to": "5aa04c19", "for": "a83f0e5d", "ref": "8d1f22e0:0:a83f0e5d"},
+           "stage": "delivered"},
+          {"kind": "todo", "id": "4be81d02", "owner": "agent",
+           "subject": {"kind": "widget", "id": "p95-chart"}, "thread": null, "live": true},
+          {"kind": "todo", "id": "0d2c55aa", "owner": "agent",
+           "subject": {"kind": "thread", "id": "c71e9b04"}, "thread": "c71e9b04", "live": false}
+        ]
+      },
+      "threads": [
+        {"id": "5aa04c19", "title": "Why does p99 spike at 14:00?",
+         "attention": {"kind": "waiting", "reason": "workflow", "workflow": "a83f0e5d"}},
+        {"id": "c71e9b04", "title": "Schema change for the latency table",
+         "attention": {"kind": "waiting", "reason": "todo", "workflow": null, "todo": "0d2c55aa"}}
+      ]
+    }
+    ```
+
+    Read whatever instructions you need. Only Skill and Read run here, so write the
+    reply you would give the user in the terminal now.
+assert:
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Pass only if the reply puts on the user exactly the deploy-window question and
+      the phone-build to-do ("Try the build on your phone"), and on the agent the
+      reply owed in the p99 thread, the latency chart rebuild (with the benchmark
+      re-run under way), and the migration note (held on the schema-change thread,
+      not yet started). Fail if any to-do is placed on the wrong side, named by a
+      title that is not its own, left out, or named only by its id; or if the reply
+      says the chart rebuild is not under way or the migration note is.

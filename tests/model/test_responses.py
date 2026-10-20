@@ -21,12 +21,15 @@ from interact_support import (
     delivered_ref,
     delivery_through,
     last_deliverable_seq,
+    owed_answers,
     page_state,
     publish,
+    read_record,
     receive_through,
     record_claim,
     refused_on,
     response_reference,
+    served_updates,
 )
 from leaf import cli as cli_model
 from leaf import codex as codex_model
@@ -759,12 +762,12 @@ def test_codex_ignores_obsolete_addressed_envelopes_and_recaptures_input(
     cleanup_model.write_json(path, record)
     assert codex_model.read_record(path) is None
     assert not codex_model.recover_codex_receipt("codex-thread")
-    assert not files_model.read_json(page_dir / "cursor.json")
+    assert not read_record(page_dir / "cursor.json")
     fresh = codex_model.prepare_codex_delivery(
         page_dir, harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
     )
     assert fresh.payload["id"] != identity
-    assert fresh.payload["format"] == delivery_model.DELIVERY_FORMAT
+    assert fresh.payload["format"] == delivery_model.DELIVERY.format
     assert fresh.payload["batches"][0]["events"][0]["answer"]["ref"].startswith(
         fresh.payload["id"]
     )
@@ -818,7 +821,7 @@ def test_committed_answer_survives_a_newer_displayed_reply(page_dir):
         "Older question?",
         QUESTION,
     )
-    status = files_model.read_json(page_dir / "status.json")["stream"]
+    status = read_record(page_dir / "status.json")["stream"]
     assert status["reply"]["text"] == "Newer opening"
     assert newer["id"] in status["reply_reservations"]
     assert comment["id"] not in status["reply_reservations"]
@@ -931,10 +934,12 @@ def test_markup_obligation_cannot_be_discharged_by_reply_or_reply_failure(page_d
         delivery_model.record_pickup(
             page, [action], phase="failed", failure="turn_failed"
         )
-    [workflow] = page_state(page_dir)["workflows"]
-    assert workflow["next_actor"] == "user"
+    state = page_state(page_dir)
+    [workflow] = state["workflows"]
+    [record] = served_updates(state["browser"])
+    assert (workflow["obligation"], record["next_actor"]) == (record["id"], "user")
     assert workflow["condition"]["kind"] == "failed"
-    assert workflow["answer"] is None
+    assert owed_answers(page_dir) == []
     assert not any(
         event["kind"] == "reply" for event in events_model.read_events(page_dir)
     )

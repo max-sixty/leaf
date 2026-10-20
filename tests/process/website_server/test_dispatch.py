@@ -9,7 +9,13 @@ from types import SimpleNamespace
 
 import leaf_website as website_server
 import pytest
-from interact_support import STATED_TIMEOUT, refused_on, running_http_server, wait_for
+from interact_support import (
+    STATED_TIMEOUT,
+    activity_reading,
+    refused_on,
+    running_http_server,
+    wait_for,
+)
 from interact_support import append_carried_log_record as append_event
 from leaf import codex as leaf_codex
 from leaf.codex import AppServerRequestRejected, delivery_records
@@ -570,7 +576,7 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
     assert delivery_records("hosted-thread") == []
     assert competing_writer_rejected == [True]
     assert website_server.page_claim(page_dir) is None
-    activity = website_server.full_state(page_dir, read_events(page_dir))["activity"]
+    activity = activity_reading(page_dir)
     assert activity["observed_kind"] is None
     assert [item["stage"] for item in activity["obligations"]] == ["sent"]
     # The reply reservation is released, so the Worker's own receipt reaches the user.
@@ -655,7 +661,7 @@ def test_an_acknowledged_start_answers_a_user_with_no_turn_started_notification(
     )
     follow.follow()
     events = read_events(page_dir)
-    activity = website_server.full_state(page_dir, events)["activity"]
+    activity = activity_reading(page_dir)
     harness.close()
 
     [reply] = [event for event in events if event["kind"] == "reply"]

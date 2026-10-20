@@ -22,7 +22,7 @@ from render_harness import (
     EXAMPLES,
     LONG_PAGE,
     consume_browser_errors,
-    expect_items_answered,
+    expect_obligations_answered,
     expect_panel_offers,
     leaf_page,
     open_page,
@@ -295,7 +295,7 @@ def test_a_broken_optional_page_interface_does_not_withhold_presentation(
 
 
 def test_on_me_claims_nothing_before_the_first_replay(browser, serve):
-    """Chrome may not publish stale items before the log has answered.
+    """Chrome may not publish stale obligations before the log has answered.
 
     The log has accepted the page's one suggestion. Holding the first replay makes the
     dangerous interval deterministic: discussion stays available, but the On me mark
@@ -340,7 +340,7 @@ def test_on_me_claims_nothing_before_the_first_replay(browser, serve):
     expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
     # Nothing waits on the user, which the mark says by counting nothing.
     expect(on_me).to_have_attribute("title", "On me")
-    expect_items_answered(page, "1/1")
+    expect_obligations_answered(page, "1/1")
     expect_panel_offers(page, "blanket:accept", offered=False)
 
 

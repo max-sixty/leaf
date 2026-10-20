@@ -41,7 +41,7 @@ from leaf.schema import (
 )
 from leaf.served_state.reading import record_reading
 from leaf.service import PageTransaction
-from leaf.state import page_key, state_home, write_json
+from leaf.state import STRING, Record, object_schema, page_key, state_home
 from starlette.requests import Request
 
 CHUNK_BYTES = 1024 * 1024
@@ -289,6 +289,11 @@ def _responses(
     return result
 
 
+# The page reading a page's last publication was made from (`record_reading`), so
+# an unchanged page is not published again.
+PUBLISHED = Record("website-publication", object_schema({"fingerprint": STRING}))
+
+
 def publish(page: PageTransaction) -> None:
     """Publish under the caller's append lease; failure remains a failed commit."""
     if not os.environ.get("LEAF_PAGE_STORE_URL"):
@@ -310,7 +315,7 @@ def publish(page: PageTransaction) -> None:
     activation = activate_source(page.page_dir, transaction=page)
     fingerprint = record_reading(page.page_dir)
     token = state_home() / "website-publications" / f"{page_key(page.page_dir)}.json"
-    if token.is_file() and json.loads(token.read_text())["fingerprint"] == fingerprint:
+    if (published := PUBLISHED.read(token)) and published["fingerprint"] == fingerprint:
         return
     files = _record_files(
         page.page_dir, set(map(int, manifest["pages"][root]["states"]))
@@ -333,4 +338,4 @@ def publish(page: PageTransaction) -> None:
         with _request("/publication", publication):
             pass
     token.parent.mkdir(parents=True, exist_ok=True)
-    write_json(token, {"fingerprint": fingerprint})
+    PUBLISHED.write(token, {"fingerprint": fingerprint})

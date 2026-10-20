@@ -1,7 +1,8 @@
 /** Derive structural TypeScript records from the two schemas a page's protocol holds:
  * the kernel's admission schema for each event record (`$events.kinds` in
  * skills/leaf/assets/registry.json), and the state the server serves the page's
- * runtime (skills/leaf/scripts/leaf/served_state/state.schema.json). Value constraints
+ * runtime (skills/leaf/scripts/leaf/served_state/state.schema.json); and the values of
+ * each page-wide declaration an author writes (`$authored`). Value constraints
  * (patterns, ranges, and conditional clauses) stay with the schemas' readers. Widget
  * detail stays open: the page's registry, rather than the kernel, owns it.
  *
@@ -157,6 +158,20 @@ function eventTypes(registry) {
   return `${classified.join("")}export interface EventMap {\n${records.join("\n")}\n}\ntype Keys<T> = T extends unknown ? keyof T : never;\nexport type CompleteUnion<T, Whole = T> = T extends unknown ? T & Partial<Record<Exclude<Keys<Whole>, keyof T>, never>> : never;\nexport type Event = CompleteUnion<EventMap[keyof EventMap]>;\nexport interface BrowserCommandMap {\n${browser.join("\n")}\n}\nexport type BrowserCommand = CompleteUnion<BrowserCommandMap[keyof BrowserCommandMap]>;\n`;
 }
 
+// Each page-wide declaration an author writes (`$authored`), with the values the
+// runtime may read from it, so a reader comparing against another value fails to
+// type-check.
+function authoredTypes({ $authored: { allocations, meta } }) {
+  const table = (declared) =>
+    `{ ${Object.entries(declared)
+      .map(
+        ([name, values]) =>
+          `${JSON.stringify(name)}: ${values.map((value) => JSON.stringify(value)).join(" | ")};`,
+      )
+      .join(" ")} }`;
+  return `export type AuthoredAllocations = ${table(allocations)};\nexport type AuthoredMeta = ${table(meta)};\n`;
+}
+
 function servedTypes(schema, verb) {
   const { $defs, ...state } = schema;
   const definitions = Object.entries({ ...$defs, Verb: verb }).map(
@@ -187,5 +202,5 @@ export async function contractTypes(root) {
   const read = async (file) => JSON.parse(await readFile(new URL(file, root)));
   const registry = await read("skills/leaf/assets/registry.json");
   const served = await read("skills/leaf/scripts/leaf/served_state/state.schema.json");
-  return `/* @noformat Generated from registry.json, state.schema.json and schema.VERB_SCHEMA by build/browser/contract-types.mjs. */\n${eventTypes(registry)}${servedTypes(served, verbSchema(root))}`;
+  return `/* @noformat Generated from registry.json, state.schema.json and schema.VERB_SCHEMA by build/browser/contract-types.mjs. */\n${eventTypes(registry)}${authoredTypes(registry)}${servedTypes(served, verbSchema(root))}`;
 }

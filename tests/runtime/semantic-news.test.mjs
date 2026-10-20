@@ -42,7 +42,7 @@ const item = (id, thread = null) => ({
   next_actor: "user",
 });
 // A question asked in words, an lf-ask in the agent's message `id`.
-const replyItem = (id) => ({
+const replyObligation = (id) => ({
   id,
   thread: "t",
   message: id,
@@ -57,12 +57,12 @@ const activity = (kind = "away", extra = {}) => ({
 });
 const reading = ({
   threads = [],
-  pageItems = [],
-  threadItems = [],
+  pageObligations = [],
+  threadObligations = [],
   workflows = [],
   pageActivity = activity(),
 } = {}) => ({
-  items: [...pageItems, ...threadItems],
+  obligations: [...pageObligations, ...threadObligations],
   thread: { threads },
   workflows,
   activity: pageActivity,
@@ -76,17 +76,16 @@ const responseFailure = (source, kind = "failed") =>
     thread: "t",
     coordinate: ["thread", "t"],
     seq: 3,
-    answer: null,
+    obligation: "update:input",
     stage: "answered",
     condition: { kind, operation: "response" },
-    next_actor: "user",
     response: source,
   });
 
 test("accepted messages and user obligations arrive together after a quiet baseline", () => {
   const old = reading({
     threads: [thread("t", [message("old", { unread: false })])],
-    pageItems: [item("existing")],
+    pageObligations: [item("existing")],
   });
   const baseline = observeSemanticNews(null, old);
   assert.deepEqual(baseline.news, []);
@@ -99,8 +98,8 @@ test("accepted messages and user obligations arrive together after a quiet basel
         reason: "widget",
       }),
     ],
-    pageItems: [item("existing"), item("new")],
-    threadItems: [replyItem("new")],
+    pageObligations: [item("existing"), item("new")],
+    threadObligations: [replyObligation("new")],
   });
   const arrived = observeSemanticNews(baseline.observed, next);
   // A reply and both scopes of obligation may share a source id. Combining notices
@@ -123,8 +122,8 @@ test("structural questions own their thread obligation and reopening starts a ne
     threads: [
       thread("t", [message("question")], { kind: "needs_user", reason: "widget" }),
     ],
-    pageItems: [item("other")],
-    threadItems: [item("choice", "t")],
+    pageObligations: [item("other")],
+    threadObligations: [item("choice", "t")],
   });
   const first = observeSemanticNews(baseline.observed, owed);
   assert.deepEqual(
@@ -139,7 +138,7 @@ test("structural questions own their thread obligation and reopening starts a ne
     first.observed,
     reading({
       threads: [thread("t", [message("question", { unread: false })])],
-      pageItems: [item("other")],
+      pageObligations: [item("other")],
     }),
   );
   assert.deepEqual(answered.news, []);
@@ -168,7 +167,7 @@ test("structural questions own their thread obligation and reopening starts a ne
 
 test("a second question in the same waiting thread has its own source version", () => {
   const firstQuestion = reading({
-    threadItems: [replyItem("first")],
+    threadObligations: [replyObligation("first")],
     threads: [
       thread("t", [message("first")], { kind: "needs_user", reason: "widget" }),
     ],
@@ -177,7 +176,7 @@ test("a second question in the same waiting thread has its own source version", 
   const next = observeSemanticNews(
     baseline.observed,
     reading({
-      threadItems: [replyItem("second")],
+      threadObligations: [replyObligation("second")],
       threads: [
         thread("t", [message("first"), message("second", { seq: 2 })], {
           kind: "needs_user",
@@ -247,6 +246,26 @@ test("a failed answer to a move in a thread's markup is news about that thread",
     failed.news.map(({ kind, thread }) => [kind, thread]),
     [["response_failure", "t"]],
   );
+});
+
+test("an update handed back to the user is news once, as its failed response", () => {
+  const baseline = observeSemanticNews(null, reading());
+  const handedBack = observeSemanticNews(
+    baseline.observed,
+    reading({
+      threadObligations: [
+        {
+          id: "update:input",
+          thread: "t",
+          message: "input",
+          source: { kind: "update", id: "input" },
+          next_actor: "user",
+        },
+      ],
+      workflows: [responseFailure({ id: "failure" })],
+    }),
+  );
+  assert.deepEqual(kinds(handedBack), ["response_failure"]);
 });
 
 test("a response failure announces once per attempt and retrying is not recovery", () => {
@@ -367,29 +386,29 @@ test("agent availability is an episode, not a work-stage notice", () => {
 });
 
 test("page obligations come from the shown revision, not a waiting activation", () => {
-  const shown = reading({ pageItems: [item("shown")] });
-  const waiting = reading({ pageItems: [item("waiting")] });
+  const shown = reading({ pageObligations: [item("shown")] });
+  const waiting = reading({ pageObligations: [item("waiting")] });
   const selected = semanticNewsReading({
-    effective: { view: { items: shown.items, thread: shown.thread } },
+    effective: { view: { obligations: shown.obligations, thread: shown.thread } },
     authoritative: {
       active: { revision: 2 },
       browser: {
         views: {
-          1: { items: shown.items, thread: shown.thread },
-          2: { items: waiting.items, thread: waiting.thread },
+          1: { obligations: shown.obligations, thread: shown.thread },
+          2: { obligations: waiting.obligations, thread: waiting.thread },
         },
       },
       workflows: [],
       activity: shown.activity,
     },
   });
-  assert.deepEqual(selected.items, [item("shown")]);
+  assert.deepEqual(selected.obligations, [item("shown")]);
 });
 
 test("one producer notice states a reply and new obligation as separate facts", () => {
   const baseline = observeSemanticNews(null, reading());
   const current = reading({
-    threadItems: [replyItem("answer")],
+    threadObligations: [replyObligation("answer")],
     threads: [
       thread("t", [message("answer", { agent: "Sam" })], {
         kind: "needs_user",

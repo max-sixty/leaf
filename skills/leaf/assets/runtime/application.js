@@ -14,7 +14,7 @@ import {
   readPart,
 } from "./semantic-state.js";
 import { announce } from "./notifications.js";
-import { answeredInWords, readItems } from "./items/model.js";
+import { answeredInWords, readObligations } from "./obligations/model.js";
 import { watchPendingTraffic } from "./traffic.js";
 import { createCommandDispatch } from "./pending/dispatch.js";
 import { createDelivery, deliverBookkeeping } from "./delivery.js";
@@ -97,7 +97,7 @@ export function mountApplication(dependencies) {
         ),
       ]),
       whenApplicationRegionsPresented(
-        ["projection:chrome", "thread", "items"],
+        ["projection:chrome", "thread", "obligations"],
         stillCurrent,
       ),
     ]);
@@ -106,7 +106,7 @@ export function mountApplication(dependencies) {
     const released = ledger
       .releasable()
       .filter((entry) => attempts.has(entry.event.attempt));
-    // Widget updates and the thread, projection, and item owners have now committed
+    // Widget updates and the thread, projection, and obligation owners have now committed
     // this surviving semantic reading; removing an accounted record is a semantic no-op,
     // and a key whose liveness read the record hears it leave through its own reading.
     if (!released.length) return false;
@@ -234,10 +234,10 @@ export function mountApplication(dependencies) {
   };
 
   const annotations = createAnnotationInventory({
-    readItems,
+    readObligations,
     placedAt: dependencies.anchorPlacement.placedAt,
     openThread: openPageThread,
-    goToItem: dependencies.annotationCommands.goToItem,
+    goToObligation: dependencies.annotationCommands.goToObligation,
     scrollToElement: dependencies.anchorTravel.scrollToElement,
   });
   const inlineContributions = createInlineContributions(annotations);
@@ -306,6 +306,7 @@ export function mountApplication(dependencies) {
     renderMarginThread: (host, thread, controls) =>
       renderMarginThread(host, thread, inlineView, controls),
     placedAt: dependencies.anchorPlacement.placedAt,
+    marksFor: (id) => dependencies.anchorPaint?.marksFor(id) ?? [],
     scrollToElement: dependencies.anchorTravel.scrollToElement,
   });
   const threadDestinations = createThreadDestinations({
@@ -598,21 +599,24 @@ export function mountApplication(dependencies) {
     threadActions,
     queueActions,
     settlement: settlementView,
-    openItem(id) {
-      const item = readItems().all.find((item) => item.id === id);
+    openObligation(id) {
+      const item = readObligations().all.find((item) => item.id === id);
       if (!item) return Promise.resolve(false);
-      if (item.source.kind === "approval")
-        return queueActions.open(JSON.stringify(["approval", item.id]));
+      if (item.source.kind === "approval" || item.source.kind === "update")
+        return queueActions.open(JSON.stringify([item.source.kind, item.id]));
       if (item.thread !== null && answeredInWords(item)) {
         showHeld(item.thread);
         return threadDestinations.openPageThread(item.message, {
           part: "message",
         });
       }
-      return dependencies.annotationCommands.goToItem(item, readItems().all);
+      return dependencies.annotationCommands.goToObligation(
+        item,
+        readObligations().all,
+      );
     },
     // The On me walk within one region (queue-walk.js), the walk an `lf-tally` steps.
-    nextItem: (options) => dependencies.nextItemWithin(options),
+    nextObligation: (options) => dependencies.nextObligationWithin(options),
     startFeed: feed.startFeed,
     wireInput: dependencies.wireInput,
   };
@@ -638,9 +642,9 @@ export const threadActions = Object.freeze({
   reopen: (...args) => app().threadActions.reopen(...args),
   setReaction: (...args) => app().threadActions.setReaction(...args),
 });
-export const itemActions = Object.freeze({
-  open: (...args) => app().openItem(...args),
-  next: (...args) => app().nextItem(...args),
+export const obligationActions = Object.freeze({
+  open: (...args) => app().openObligation(...args),
+  next: (...args) => app().nextObligation(...args),
 });
 export const queueActions = Object.freeze({
   open: (...args) => app().queueActions.open(...args),

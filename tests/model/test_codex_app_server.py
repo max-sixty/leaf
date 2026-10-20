@@ -26,14 +26,17 @@ from interact_support import (
     append_command,
     codex_records,
     delivered_ref,
+    owed_answers,
     page_state,
     publish,
+    read_record,
     record_claim,
     refused_on,
     response_reference,
     served_thread,
     take_stream_activity,
     wait_for,
+    write_record,
 )
 from leaf import activity as activity_model
 from leaf import cli as cli_model
@@ -51,7 +54,6 @@ from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf.refusals import Refused
-from leaf.served_state import page as served_page
 
 
 def test_only_one_turn_reply_can_bind_the_app_server_final_message():
@@ -254,7 +256,7 @@ def test_app_server_delivery_id_reads_only_canonical_delivery_inputs():
     pointer = delivery_model.delivery_pointer_prompt("aaaaaaaa")
     invalid_pointer = delivery_model.delivery_pointer_prompt("../status")
     payload = {
-        "format": delivery_model.DELIVERY_FORMAT,
+        "format": delivery_model.DELIVERY.format,
         "id": "bbbbbbbb",
         "batches": [],
     }
@@ -1164,9 +1166,9 @@ def test_a_task_connection_streams_and_commits_its_delivery_reply(
                 for event in events_model.read_events(page_dir)
                 if event["kind"] == "reply"
             ],
-            files_model.read_json(page_dir / "status.json").get("stream") or {},
+            read_record(page_dir / "status.json")["stream"],
         ),
-        lambda reading: bool(reading[0]) and "reply" not in reading[1],
+        lambda reading: bool(reading[0]) and reading[1]["reply"] is None,
         failure="the streamed reply was not committed after completion",
     )
 
@@ -1315,9 +1317,7 @@ def test_an_observed_queue_pointer_leaves_its_reply_to_leaf_reply(page_dir):
         }
     )
     assert client.turns["queued-turn"].reply_stream is None
-    [workflow] = served_page.full_state(page_dir, events_model.read_events(page_dir))[
-        "activity"
-    ]["obligations"]
+    [workflow] = owed_answers(page_dir)
     assert workflow["stage"] == "picked_up"
     assert workflow["answer"] == {
         "kind": "reply",
@@ -1542,12 +1542,12 @@ def test_an_interrupted_stream_reply_finishes_after_the_claim_advances(page_dir)
 
     assert stream.finish("interrupted") is None
 
-    stream_state = files_model.read_json(page_dir / "status.json")["stream"]
+    stream_state = read_record(page_dir / "status.json")["stream"]
     assert (stream_state["reply"]["text"], stream_state["reply"]["state"]) == (
         "Partial answer",
         "interrupted",
     )
-    assert "reply_reservations" not in stream_state
+    assert stream_state["reply_reservations"] == {}
 
 
 def test_provider_reservation_refuses_unaddressed_competing_writes(page_dir):
@@ -1591,9 +1591,7 @@ def test_provider_reservation_refuses_unaddressed_competing_writes(page_dir):
         if event["kind"] == "reply"
     ]
     assert [reply["text"] for reply in replies] == ["Transcript closeout"]
-    assert "reply" not in (
-        files_model.read_json(page_dir / "status.json").get("stream") or {}
-    )
+    assert read_record(page_dir / "status.json")["stream"]["reply"] is None
 
 
 def test_a_delivery_reserves_its_final_before_provider_execution(page_dir):
@@ -1688,7 +1686,7 @@ def test_a_streamed_final_rejects_invalid_source_without_stranding_the_draft(pag
     error = stream.finish("completed", "I made the change.")
 
     assert isinstance(error, Refused)
-    reply = files_model.read_json(page_dir / "status.json")["stream"]["reply"]
+    reply = read_record(page_dir / "status.json")["stream"]["reply"]
     assert (reply["state"], reply["text"], reply["settles"]) == (
         "failed",
         "I made the change.",
@@ -1733,7 +1731,7 @@ def test_partial_text_is_not_committed_without_a_completed_final(page_dir):
     assert not any(
         event["kind"] == "reply" for event in events_model.read_events(page_dir)
     )
-    reply = files_model.read_json(page_dir / "status.json")["stream"]["reply"]
+    reply = read_record(page_dir / "status.json")["stream"]["reply"]
     assert (reply["state"], reply["text"], reply["settles"]) == (
         "partial",
         "Only a partial",
@@ -1784,9 +1782,7 @@ def test_a_stream_reply_refreshes_its_lease_without_changing_its_message_time(
 
 
 def _obligations(page_dir) -> list[dict]:
-    return served_page.full_state(page_dir, events_model.read_events(page_dir))[
-        "activity"
-    ]["obligations"]
+    return owed_answers(page_dir)
 
 
 def test_a_turn_that_ended_unseen_is_recorded_without_reopening(page_dir):
@@ -1988,7 +1984,7 @@ def test_the_prompt_hook_and_the_observer_open_one_codex_turn(page_dir, capsys):
     append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Handle me"}
     )
-    cleanup_model.write_json(
+    write_record(
         page_dir / "cursor.json", {"seq": events_model.read_events(page_dir)[-1]["seq"]}
     )
     cleanup_model.close_session_turn("codex-thread")
@@ -2276,9 +2272,7 @@ def test_a_reply_that_cannot_be_written_still_closes_its_turn(page_dir, monkeypa
         turn.commit({"id": "leaf-turn", "status": "completed", "items": []})
 
     assert service_model.page_claim(page_dir)["turn_closed"] is not None
-    assert (files_model.read_json(page_dir / "status.json").get("stream") or {}).get(
-        "activity"
-    ) is None
+    assert read_record(page_dir / "status.json")["stream"]["activity"] is None
     # The reservation is released too: a reply that faulted part-written holds one
     # nothing will ever commit, and every other writer waits behind it.
     assert not thread_model.delivery_reply_reserved(
@@ -3451,7 +3445,7 @@ def test_unloaded_running_metadata_preserves_the_disconnected_reply_draft(page_d
     )
     assert connection.turns["draft-turn"].events.text["draft"] == "Retained draft"
     assert (
-        files_model.read_json(page_dir / "status.json")["stream"]["reply"]["text"]
+        read_record(page_dir / "status.json")["stream"]["reply"]["text"]
         == "Retained draft"
     )
 

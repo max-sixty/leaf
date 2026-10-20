@@ -184,14 +184,11 @@ class Session(NamedTuple):
 
 
 def still_answering(state: dict, event_id: str) -> bool:
-    """Whether the page's `activity` says a working turn still owes this comment a
-    reply, which a wall clock cannot tell."""
+    """Whether the page's `activity` says a turn is working while the comment's own
+    obligation is still on the agent, which a wall clock cannot tell."""
     activity = state.get("activity") or {}
-    if activity.get("kind") != "working":
-        return False
-    return any(
-        obligation.get("input") == event_id and not obligation.get("dropped")
-        for obligation in activity.get("obligations") or ()
+    return activity.get("kind") == "working" and f"update:{event_id}" in (
+        activity.get("obligations") or ()
     )
 
 

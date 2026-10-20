@@ -19,8 +19,10 @@ from interact_support import (
     append_carried_log_record,
     codex_records,
     declare_idle,
+    owed_answers,
     page_state,
     publish,
+    read_record,
     release_codex_command,
     spawn_probe,
     wait_for,
@@ -184,7 +186,7 @@ def test_codex_app_server_restart_finishes_an_accepted_batch_without_starting_it
             failure="the restarted turn's answer did not reach the page",
         )
         wait_for(
-            lambda: files_model.read_json(page / "cursor.json"),
+            lambda: read_record(page / "cursor.json"),
             lambda cursor: cursor == {"seq": delivered["seq"]},
             failure="the accepted delivery cursor was not recovered",
         )
@@ -276,7 +278,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         )
         comments = [events_model.read_events(page)[-1]]
         wait_for(
-            lambda: files_model.read_json(page / "cursor.json"),
+            lambda: read_record(page / "cursor.json"),
             lambda cursor: cursor == {"seq": 1},
             failure=lambda: (
                 "the adapter did not acknowledge its batch: "
@@ -295,9 +297,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
             {"hook_event_name": "UserPromptSubmit", "session_id": "codex-thread"},
         )
         assert capsys.readouterr().out == ""
-        assert [
-            item["stage"] for item in page_state(page)["activity"]["obligations"]
-        ] == ["picked_up"]
+        assert [item["stage"] for item in owed_answers(page)] == ["picked_up"]
         hooks_model.cmd_hook(
             "codex", {"hook_event_name": "Stop", "session_id": "codex-thread"}
         )
@@ -310,7 +310,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
             )
             comments.append(events_model.read_events(page)[-1])
         wait_for(
-            lambda: files_model.read_json(page / "cursor.json"),
+            lambda: read_record(page / "cursor.json"),
             lambda cursor: cursor == {"seq": comments[-1]["seq"]},
             failure="the cursor did not reach the later delivery",
         )
@@ -332,7 +332,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
             payload_path = delivery_model.delivery_path(delivery.attrib["id"])
             assert payload_path.exists()
             payload = files_model.read_json(payload_path)
-            assert payload["format"] == delivery_model.DELIVERY_FORMAT
+            assert payload["format"] == delivery_model.DELIVERY.format
             assert all(
                 set(batch)
                 == {"page", "claim", "through_seq", "threads", "handling", "events"}
@@ -363,9 +363,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
             for batch in payload["batches"]
             for event in batch["events"]
         ] == [comment["id"] for comment in comments]
-        assert files_model.read_json(page / "cursor.json") == {
-            "seq": comments[-1]["seq"]
-        }
+        assert read_record(page / "cursor.json") == {"seq": comments[-1]["seq"]}
         assert codex_adapter_model.adapter_is_live("codex-thread")
 
         for comment in comments:

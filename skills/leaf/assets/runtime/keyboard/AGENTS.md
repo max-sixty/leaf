@@ -55,7 +55,7 @@ innermost step as one `navigation.back` command.
   title, never on the page. The panel's field keeps focus after Send for the next turn.
   A box that stays open for more messages, such as a widget's thread box
   (`x-thread-seat`), keeps focus in the box.
-- A selected destination (a thread, an item, a heading) steps back to the document
+- A selected destination (a thread, an obligation, a heading) steps back to the document
   through `letGo` (`focus.js`), landing on the visible block rather than on the control
   that opened it. Page Map returns focus to whatever opened it.
 
@@ -68,10 +68,10 @@ reopens it.
 
 Page scope holds commands about the page; a surface's scope holds commands about its
 contents. A page-level letter must be useful on every page; any other control is
-reachable by Tab, native activation, item digits or Go-to hints. `PAGE_COMMANDS` lists
+reachable by Tab, native activation, obligation digits or Go-to hints. `PAGE_COMMANDS` lists
 the page commands in the order the menu and the reference list them. A lowercase letter steps a walk forward and
 Shift steps it back, wrapping at either end. A surface may reuse a page key for the same
-intent with a nearer destination. While the user is on an item, or its margin or thread
+intent with a nearer destination. While the user is on an obligation, or its margin or thread
 representative, core forwards only the widget's declared `contextKeys`; widgets assign their own `1`–`9`.
 
 ## Touch routes

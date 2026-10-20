@@ -13,7 +13,7 @@
   overflow: clip;
   background: var(--pre-bg);
   border: 1px solid var(--code-border);
-  border-radius: var(--r);
+  border-radius: var(--lf-diff-r-start) var(--lf-diff-r-start) var(--lf-diff-r-end) var(--lf-diff-r-end);
 }
 :scope:host(.lf-rendered) {
   --lf-diff-head-inset: 10px;
@@ -115,11 +115,12 @@
 }
 :scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary[data-path-cut]:is([data-lf-held-word], [data-lf-focus]) {
   overflow: visible;
-  border-start-start-radius: calc(var(--r) - 1px);
-  border-start-end-radius: calc(var(--r) - 1px);
+  border-start-start-radius: calc(var(--lf-diff-r-start) - 1px);
+  border-start-end-radius: calc(var(--lf-diff-r-start) - 1px);
 }
 .lf-diff-fold:not([open]) > .lf-diff-head[data-path-cut]:is([data-lf-held-word], [data-lf-focus]) {
-  border-radius: calc(var(--r) - 1px);
+  border-end-start-radius: calc(var(--lf-diff-r-end) - 1px);
+  border-end-end-radius: calc(var(--lf-diff-r-end) - 1px);
 }
 .lf-diff-head[data-path-cut]:is([data-lf-held-word], [data-lf-focus]) > .lf-diff-path::after {
   content: attr(data-path) / "";
@@ -178,11 +179,22 @@
 .lf-diff-file {
   position: relative;
   display: flow-root;
-  margin: 8px 0 0;
+  margin: -1px 0 0;
+  --lf-diff-r-start: 0px;
+  --lf-diff-r-end: 0px;
   --lf-diff-action-h: max(26px, var(--aim-floor));
   --lf-diff-action-top: 6px;
   --lf-diff-actions: var(--lf-diff-action-h);
   --lf-diff-head-h: 35px;
+}
+.lf-diff-file:nth-child(1 of .lf-diff-file:not(.lf-diff-filtered)),
+.lf-diff-file:has(> .lf-diff-file-thread-outlet) + .lf-diff-file {
+  margin-top: 8px;
+  --lf-diff-r-start: var(--r);
+}
+.lf-diff-file:nth-last-child(1 of .lf-diff-file:not(.lf-diff-filtered)),
+.lf-diff-file:has(> .lf-diff-file-thread-outlet) {
+  --lf-diff-r-end: var(--r);
 }
 .lf-diff-file:has(> .lf-diff-file-actions > *) {
   --lf-diff-head-h: max( 35px, calc(var(--lf-diff-action-top) + var(--lf-diff-action-h)) );

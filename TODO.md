@@ -451,9 +451,9 @@ on 2026-10-07.
   a fresh start. Decide whether that coverage is worth the time before building it.
 - **Decide what plain `page check` runs in a browser from the mistakes agents make.**
   It runs a page once in the host's browser, about 1.3 s, where the page has a script
-  or places a page widget or a data widget (`needs_browser`,
+  or places a page widget, a data widget or a widget naming page media (`needs_browser`,
   `render_gate/page_code.py`); any other page checks in about 0.15 s. Widgets that fail on their attribute values
-  (`lf-playground`, `lf-shot`, `lf-visual-review`, `lf-text-document`)
+  (`lf-playground`, `lf-visual-review`, `lf-text-document`)
   and every widget in thread markup report through `leaf wait` once a browser draws
   them, but nothing runs them first. Write `evals/` cases in which agents author each
   kind and measure how often what they write fails to draw, then run the kinds agents

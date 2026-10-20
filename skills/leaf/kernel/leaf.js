@@ -166,6 +166,7 @@ import {
   settleThread,
   showHeld,
   snapSelection,
+  standingOrigin,
   standingThreadId,
   stepFrom,
   tabStore,
@@ -6068,8 +6069,7 @@ function createQueueWalk({
     return stops().filter((stop) => stop.kind === "obligation" && held.has(stop.id));
   }
   const stopsOf = (region) => region ? stopsWithin(region) : stops();
-  function standingStop(list, { place: here, kind } = walkOrigin()) {
-    if (kind !== "standing") return null;
+  function standingStop(list, origin = standingOrigin()) {
     if (focused(document) === approvalTarget())
       return list.find((stop) => stop.kind === "approval") ?? null;
     const held = threadHere();
@@ -6080,6 +6080,8 @@ function createQueueWalk({
       );
       if (stop) return stop;
     }
+    if (origin?.kind !== "standing") return null;
+    const { place: here } = origin;
     if (!here) return null;
     const item = obligationHolding(readObligations().all, placeOf(here));
     if (item) {
@@ -11046,7 +11048,6 @@ function createNavigation({ threadDestinations, placedAt, heldPlace }) {
     touch: "Align current item at top",
     menu: "keys",
     retainStanding: true,
-    when: () => Boolean(currentItem()),
     run: () => {
       const item = currentItem();
       if (!item) return;

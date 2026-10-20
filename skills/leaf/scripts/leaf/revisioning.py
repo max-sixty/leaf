@@ -12,7 +12,10 @@ the source, and the history (the log and the revisions). That is how a saved
 `index.html` reaches an open tab: the next read sees the source change and makes
 the revision. A cached "no new revision" stays valid while only the log grows,
 because admission checked each event against the revision it names. A refusal is
-checked again when the source or the history changes.
+checked again when the source or the history changes. The same reasoning holds
+across processes: a source that is the active revision's captured input, such as
+one `leaf page stamp` just activated, activates as that revision with no check
+(`validation.source.active_input`).
 
 When a revision drops the passage an open thread is anchored to, activation appends
 a `reanchor` event in the same log transaction, which moves the thread to the

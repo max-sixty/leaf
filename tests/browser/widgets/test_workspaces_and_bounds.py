@@ -6,7 +6,7 @@ import re
 import pytest
 from leaf import data as data_model
 from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
@@ -269,6 +269,8 @@ def test_a_flowing_workspace_keeps_its_header_over_what_a_next_lands_on(browser,
     scroll_settled(page)
     strip = page.locator("#views > .lf-tabstrip").bounding_box()
     assert strip["y"] >= header["y"] + header["height"] - 1, (strip, header)
+    # The stuck header covers the gutters with paint alone; its box stays in the column.
+    assert evaluate_probe(page, "misplacedBoxes") == []
 
 
 PANE_BAND_PAGE = leaf_page(

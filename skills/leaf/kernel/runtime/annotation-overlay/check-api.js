@@ -8,7 +8,6 @@ import {
   makeRoom,
   marginSpot
 } from "../bundle-annotation-overlay~margin-placement.js";
-import "../bundle-visible-target-parts.js";
 import "../bundle-page-controls.js";
 import "../bundle-chrome.js";
 import "../bundle-initial-render.js";

@@ -164,7 +164,8 @@ import {
   commitPoint,
   livePoint,
   registerPageControl,
-  settleResidency
+  settleResidency,
+  visibleTargetParts
 } from "./bundle-page-controls.js";
 import {
   ADDRESSABLE,
@@ -1153,7 +1154,7 @@ var LeafText = class extends HTMLElement {
     hint.append(this.#placeholderText);
     this.#placeholderLayer.append(hint);
     this.#rest.className = "lf-field-rest";
-    this.#rest.tabIndex = 0;
+    this.#rest.append(document.createElement("br"));
     this.#rest.addEventListener("focusin", () => this.#build());
     this.#frame.append(this.#placeholderLayer, this.#rest);
     this.#root.append(this.#frame);
@@ -1254,19 +1255,20 @@ var LeafText = class extends HTMLElement {
     this.#internals.states.add("ready");
   }
   // Until the field has an editor, its empty line's place stands in for the editor's
-  // content node to assistive technology: the same textbox, with the same name, hint
-  // and description (`#describe`).
+  // content node to assistive technology, so the tree reads the same before and after
+  // the editor builds. CodeMirror's node is a multiline textbox, `contenteditable` (its
+  // theme makes it plain text only) and `aria-readonly` while the field is read-only,
+  // and it wears the field's name, hint and description (`#describe`). This place
+  // declares the same, and being editable it is a tab stop where the editor's node is.
   #dressRest() {
     const wanted = {
+      ...this.#contentAttributes(),
       role: "textbox",
       "aria-multiline": "true",
-      ...Object.fromEntries(
-        Object.entries(this.#contentAttributes()).filter(
-          ([name]) => name.startsWith("aria-")
-        )
-      )
+      contenteditable: "plaintext-only",
+      ...this.#readOnly && { "aria-readonly": "true" }
     };
-    for (const name of ["aria-label", "aria-placeholder"])
+    for (const name of ["aria-label", "aria-placeholder", "aria-readonly"])
       if (!(name in wanted)) this.#rest.removeAttribute(name);
     for (const [name, value] of Object.entries(wanted))
       if (this.#rest.getAttribute(name) !== value) this.#rest.setAttribute(name, value);
@@ -1495,6 +1497,7 @@ var LeafText = class extends HTMLElement {
   }
   set readOnly(on) {
     this.#readOnly = Boolean(on);
+    this.#dressRest();
     this.#apply({
       effects: this.#editable.reconfigure(EditorState2.readOnly.of(this.#readOnly))
     });
@@ -6156,8 +6159,14 @@ function createThreadDestinations({
       if (surfaceFocusTarget(id, { part: localPart })) return openSurface();
       if (showHeldThread(id) && surfaceFocusTarget(id, { part: localPart }))
         return openSurface();
+      const place = preview && !trip ? threadTarget(id) : null;
+      const placeDrawn = () => visibleTargetParts(place).length > 0;
+      if (place && scroll && !placeDrawn()) {
+        await reveal(place, intent).ready;
+        if (!mayPresent()) return null;
+      }
       let opened = null;
-      if (preview)
+      if (preview && (!place || placeDrawn()))
         intent.handoff(() => {
           opened = preview.open(id, { origin });
         });

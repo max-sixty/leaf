@@ -102,7 +102,6 @@ import {
   syncMarginResidency,
   unregisterMarginRow
 } from "./bundle-annotation-overlay~margin-placement.js";
-import "./bundle-visible-target-parts.js";
 import {
   pointBand
 } from "./bundle-page-controls.js";

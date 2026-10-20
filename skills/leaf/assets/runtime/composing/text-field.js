@@ -472,7 +472,9 @@ class LeafText extends HTMLElement {
     hint.append(this.#placeholderText);
     this.#placeholderLayer.append(hint);
     this.#rest.className = "lf-field-rest";
-    this.#rest.tabIndex = 0;
+    // The break an empty editable line holds, as the editor's own empty line does, so
+    // the place reads the same value to assistive technology.
+    this.#rest.append(document.createElement("br"));
     // In `focusin`, never `focus`: Chrome and Firefox send no `focusin` for a node that
     // passes focus on in its own `focus` handler, and the move inside the closed root
     // reaches nothing outside it, so the page would never hear the field take focus.
@@ -595,19 +597,20 @@ class LeafText extends HTMLElement {
   }
 
   // Until the field has an editor, its empty line's place stands in for the editor's
-  // content node to assistive technology: the same textbox, with the same name, hint
-  // and description (`#describe`).
+  // content node to assistive technology, so the tree reads the same before and after
+  // the editor builds. CodeMirror's node is a multiline textbox, `contenteditable` (its
+  // theme makes it plain text only) and `aria-readonly` while the field is read-only,
+  // and it wears the field's name, hint and description (`#describe`). This place
+  // declares the same, and being editable it is a tab stop where the editor's node is.
   #dressRest() {
     const wanted = {
+      ...this.#contentAttributes(),
       role: "textbox",
       "aria-multiline": "true",
-      ...Object.fromEntries(
-        Object.entries(this.#contentAttributes()).filter(([name]) =>
-          name.startsWith("aria-"),
-        ),
-      ),
+      contenteditable: "plaintext-only",
+      ...(this.#readOnly && { "aria-readonly": "true" }),
     };
-    for (const name of ["aria-label", "aria-placeholder"])
+    for (const name of ["aria-label", "aria-placeholder", "aria-readonly"])
       if (!(name in wanted)) this.#rest.removeAttribute(name);
     for (const [name, value] of Object.entries(wanted))
       if (this.#rest.getAttribute(name) !== value) this.#rest.setAttribute(name, value);
@@ -884,6 +887,7 @@ class LeafText extends HTMLElement {
   }
   set readOnly(on) {
     this.#readOnly = Boolean(on);
+    this.#dressRest();
     this.#apply({
       effects: this.#editable.reconfigure(EditorState.readOnly.of(this.#readOnly)),
     });

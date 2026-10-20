@@ -43,7 +43,9 @@ what the module header of `runtime/floating-panel.js` now states:
   opens a list of its own ends in a chevron. Navigate holds All pages and Search
   page; Page Map, Resume writing, Restore selection and Align current item at top
   keep their keys and leave the menu (the row group `keys`); where no keyboard is
-  there to reach them, a finger finds them under Navigate.
+  there to reach them, a finger finds them under Navigate. Page Map is a key's
+  convenience only beside the margin's rail; where the window has no room for the
+  rail, Navigate offers it to a mouse too.
 - **Where the user is sits at a view's top edge**, with its filters, search,
   Resolve and Close beside it; the destination line and the thread-actions row went.
 - **Motion moves no layout**: every change of size takes effect in one step and a

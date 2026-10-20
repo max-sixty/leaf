@@ -111,6 +111,17 @@
     };
     const interactive = !host.closest("[data-lf-exhibit]");
     host.classList.toggle("lf-playground-quoted", !interactive);
+    if (!interactive) {
+      const bare = new Set(controls);
+      const holdsOnlyBare = (box) => [...box.childNodes].every(
+        (child) => child.nodeType === Node.TEXT_NODE ? !child.data.trim() : child.nodeType === Node.COMMENT_NODE || bare.has(child)
+      );
+      for (const control of controls)
+        for (let box = control.parentElement; box !== preview && box !== host && !bare.has(box) && holdsOnlyBare(box); box = box.parentElement) {
+          bare.add(box);
+          box.classList.add("lf-playground-control-box");
+        }
+    }
     const inputs = /* @__PURE__ */ new Map(), presetButtons = /* @__PURE__ */ new Map(), regions = [];
     const presetSettings = new Map(
       presets.map((preset) => {

@@ -92,22 +92,24 @@ page an older one vendored. Bump the number when a page an older Leaf vendored a
 would break under this one: the served state, a runtime module the server relies on,
 or an event drops, renames or changes the meaning of something the other side reads,
 or a field the page's runtime sends becomes required.
-Adding a field or kind the older code ignores needs no bump. The browser build holds
-the event records and the served state to this. It generates their types from `$events`,
-from `served_state/state.schema.json`, the one declaration of the served state and of
-the `/api/view` answer, and from `schema.VERB_SCHEMA` for the x-state verb the state
-carries, and keeps them as they last stood at the current number
-(`build/browser/protocol-contract.d.ts`). `protocol.test.ts` fails a change that drops
-a kind or a field at any depth, requires a new one, or narrows a value's type or
-constant, until the change takes what it took or the number moves. The served state
-runs the other way, since a page's older runtime reads what this Leaf serves: the test
-fails a change that stops serving a field or widens a value's type, such as one that
-makes a field nullable.
+Adding a field the older code ignores needs no bump. The browser build holds the
+event records and the served state to this. It keeps `$events`,
+`served_state/state.schema.json`, the one declaration of the served state and of the
+`/api/view` answer, and `schema.VERB_SCHEMA` for the x-state verb the state carries,
+as they last stood at the current number (`build/browser/protocol-baseline.json`), and
+`build/browser/protocol.mjs` compares each build's schemas with them. It fails a change
+to what a page sends or holds that drops a kind or a field at any depth, requires a new
+field, or tightens a constraint, such as a narrower type, enum or constant, a changed
+pattern or a lower maximum, until the change takes what it took or the number moves.
+The served state runs the other way, since a page's older runtime reads what this Leaf
+serves: the check fails a change that stops serving a field or loosens a constraint,
+such as one that makes a field nullable, raises a maximum or adds an event kind the
+state carries. An event record the page is also served holds both ways. The check
+compares patterns and conditional clauses only for equality, so changing one fails even
+where it loosens.
 
-The check reads the types generated from the schemas, which carry no patterns,
-bounds or conditional clauses, so a change to one of those is the author's to judge. The promise runs one
-way: an older Leaf serving a page a newer one vendored may refuse a field it does not
-know. Every page vendored before a bump, and one vendored before the number was
+The promise runs one way: an older Leaf serving a page a newer one vendored may refuse
+a field it does not know. Every page vendored before a bump, and one vendored before the number was
 declared, is refused until `leaf page init` re-vendors it, which the first command or
 hook of the session holding the page runs itself (`vendoring.renew_layer`).
 
@@ -121,7 +123,10 @@ A record's number is its `since`, the protocol at which its own shape last chang
 so a bump for another change leaves a session's claim, its delivery cursor and a
 page's port readable. A change to a record's shape that a reader at the same format
 would misread sets its `since` to the current protocol, bumping the protocol first
-where `since` already names it. The draft carries the current protocol
+where `since` already names it. The same build check holds this: the baseline keeps
+each record's schema at its `since`, and fails a change at the same `since` that a
+reader at either end would misread, or a `since` moved anywhere but the current
+protocol. The draft carries the current protocol
 (`runtime/protocol.js` is generated from it), so a bump drops a draft's drawing.
 
 The render gate's probes are outside the number. They come from the Leaf running the

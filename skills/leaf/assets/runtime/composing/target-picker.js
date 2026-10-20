@@ -757,26 +757,37 @@ export function createTargetPicker({
 
   // A press on the marked match selects it, as Enter does: the match is what the user is
   // looking at, and a phone's keyboard may offer no Enter. The press is the match's alone,
-  // taken at capture: its mousedown starts no selection of the browser's own, and its
-  // click follows no link the words stand in.
-  function pressMatch(ev) {
-    if (!pageSearchOpen || ev.button !== 0) return;
+  // as an aimed press is the aim's (aim.js): claimed at its pointerdown and taken at
+  // capture to its click, so no selection gesture of the page's or the browser's starts
+  // from it and no link the words stand in is followed. A press lands on the match only
+  // through the block holding its words, so a control painted over them keeps its own.
+  let pressOnMatch = false;
+  function onMarkedMatch(ev) {
+    if (!pageSearchOpen || !ev.isPrimary || ev.button !== 0) return false;
+    refreshMatches();
     const segments = matches[active];
-    if (!segments) return;
+    if (!segments || !ev.composedPath().includes(matchOwner(segments))) return false;
     const { clientX: x, clientY: y } = ev;
-    const pressed = [...rangeOf(segments).getClientRects()].some(
+    return [...rangeOf(segments).getClientRects()].some(
       (rect) => x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom,
     );
-    if (!pressed) return;
-    ev.preventDefault();
+  }
+  function pressMatch(ev) {
+    if (ev.type === "pointerdown") pressOnMatch = onMarkedMatch(ev);
+    if (!pressOnMatch) return;
+    if (ev.type === "pointercancel") pressOnMatch = false;
+    if (ev.type === "mousedown" || ev.type === "click") ev.preventDefault();
     ev.stopPropagation();
-    if (ev.type === "click") chooseMatch();
+    if (ev.type !== "click") return;
+    pressOnMatch = false;
+    chooseMatch();
   }
 
   function mount() {
     pageSearchInput.addEventListener("input", search);
-    for (const type of ["mousedown", "click"])
+    for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup", "click"])
       document.addEventListener(type, pressMatch, true);
+    document.addEventListener("pointercancel", pressMatch, true);
     hints.mount();
     addEventListener("resize", () => {
       if (pageSearchOpen) repaint();

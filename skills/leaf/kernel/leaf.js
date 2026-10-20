@@ -4778,23 +4778,32 @@ ${searchCount(maximum, maximum)}`
   const targetPickerOpen = () => pickerOpen;
   const openTargetPicker = () => setTargetPicker(true);
   const closeTargetPicker = () => setTargetPicker(false);
-  function pressMatch(ev) {
-    if (!pageSearchOpen || ev.button !== 0) return;
+  let pressOnMatch = false;
+  function onMarkedMatch(ev) {
+    if (!pageSearchOpen || !ev.isPrimary || ev.button !== 0) return false;
+    refreshMatches();
     const segments = matches[active];
-    if (!segments) return;
+    if (!segments || !ev.composedPath().includes(matchOwner(segments))) return false;
     const { clientX: x, clientY: y } = ev;
-    const pressed = [...rangeOf(segments).getClientRects()].some(
+    return [...rangeOf(segments).getClientRects()].some(
       (rect2) => x >= rect2.left && x <= rect2.right && y >= rect2.top && y <= rect2.bottom
     );
-    if (!pressed) return;
-    ev.preventDefault();
+  }
+  function pressMatch(ev) {
+    if (ev.type === "pointerdown") pressOnMatch = onMarkedMatch(ev);
+    if (!pressOnMatch) return;
+    if (ev.type === "pointercancel") pressOnMatch = false;
+    if (ev.type === "mousedown" || ev.type === "click") ev.preventDefault();
     ev.stopPropagation();
-    if (ev.type === "click") chooseMatch();
+    if (ev.type !== "click") return;
+    pressOnMatch = false;
+    chooseMatch();
   }
   function mount() {
     pageSearchInput.addEventListener("input", search);
-    for (const type of ["mousedown", "click"])
+    for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup", "click"])
       document.addEventListener(type, pressMatch, true);
+    document.addEventListener("pointercancel", pressMatch, true);
     hints.mount();
     addEventListener("resize", () => {
       if (pageSearchOpen) repaint();

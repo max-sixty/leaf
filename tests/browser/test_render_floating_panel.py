@@ -894,9 +894,27 @@ def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
     expect(count).to_have_text("11 of 11")
     page.keyboard.type("0")
     expect(count).to_have_text("1 of 1")
-    # A press on the marked match selects it, as Enter does.
+    # A press on the marked match selects it, as Enter does, even once focus has left
+    # the box; a control painted over the words keeps its own press.
     mark = page.locator(".lf-page-search-match").first.bounding_box()
-    page.mouse.click(mark["x"] + mark["width"] / 2, mark["y"] + mark["height"] / 2)
+    at = (mark["x"] + mark["width"] / 2, mark["y"] + mark["height"] / 2)
+    page.evaluate(
+        """([x, y]) => {
+          const cover = Object.assign(document.createElement("button"), { id: "cover" });
+          Object.assign(cover.style, {
+            position: "fixed", left: `${x - 4}px`, top: `${y - 4}px`, width: "8px",
+            height: "8px",
+          });
+          cover.addEventListener("click", () => cover.toggleAttribute("data-pressed"));
+          document.body.append(cover);
+        }""",
+        at,
+    )
+    page.mouse.click(*at)
+    expect(page.locator("#cover")).to_have_attribute("data-pressed", "")
+    expect(search).to_be_visible()
+    page.locator("#cover").evaluate("el => el.remove()")
+    page.mouse.click(*at)
     expect(search).to_be_hidden()
     assert page.evaluate("getSelection().toString()") == "Paragraph 10"
 

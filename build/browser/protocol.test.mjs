@@ -191,6 +191,10 @@ test("a keyword the comparison can't read fails loudly", () => {
     () => changed((s) => (note(s).slug.contentEncoding = "base64")),
     /can't read "contentEncoding"/,
   );
+  assert.throws(
+    () => changed((s) => (note(s).pair = { prefixItems: [{ properties: { x: {} } }] })),
+    /can't read fields inside `prefixItems`/,
+  );
 });
 
 test("the comparison sees through unions, references and maps", () => {
@@ -268,30 +272,6 @@ test("the comparison sees through unions, references and maps", () => {
   assert.deepEqual(
     changed((s) => s.served.properties.pick.anyOf.pop(), payloads),
     ["served state.pick.payload.x: the field is gone"],
-  );
-  const listed = structuredClone(payloads);
-  const listing = (field) => ({ type: "array", prefixItems: [payload(field)] });
-  listed.served.properties.pick = { anyOf: [listing("y"), listing("x")] };
-  assert.deepEqual(
-    changed((s) => s.served.properties.pick.anyOf.pop(), listed),
-    ["served state.pick[0].payload.x: the field is gone"],
-  );
-  // A field at one position is gone though another position names it, and kept where
-  // the remaining branch's `items` names it at every position.
-  const shifted = structuredClone(listed);
-  shifted.served.properties.pick.anyOf[0].prefixItems = [{}, payload("x")];
-  assert.deepEqual(
-    changed((s) => s.served.properties.pick.anyOf.pop(), shifted),
-    [
-      "served state.pick[0].payload: the field is gone",
-      "served state.pick[0].payload.x: the field is gone",
-    ],
-  );
-  const covered = structuredClone(listed);
-  covered.served.properties.pick.anyOf[0] = { type: "array", items: payload("x") };
-  assert.deepEqual(
-    changed((s) => s.served.properties.pick.anyOf.pop(), covered),
-    [],
   );
   const shared = structuredClone(payloads);
   shared.served.properties.pick.properties = payload("x").properties;

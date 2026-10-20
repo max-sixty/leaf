@@ -16,13 +16,15 @@
  *   reads what the others wrote.
  *
  * The comparison is by position, so it reads no reference and merges no union: a
- * reference compares by its text, and its target where it is declared; union, `allOf`,
- * `prefixItems` and `anyOf` branches compare by index. A field either side drops is
- * gone, whatever the direction. A field only the new schema names is one older writers
+ * reference compares by its text, and its target where it is declared; union, `allOf`
+ * and `prefixItems` entries compare by index. A field either side drops is gone,
+ * whatever the direction, and so is each field of a union branch the new schema drops
+ * that nothing left names. A field only the new schema names is one older writers
  * never wrote, unless its object named none or holds a map, whose values it must take.
  * `pattern`, `format`, `not`, `if`/`then`/`else`, and at the browser door `oneOf`,
  * whose exclusivity a branch-by-branch comparison can't show, compare only for
- * equality. The comparison throws on any keyword it doesn't read.
+ * equality. The comparison throws on any keyword it doesn't read, and on a field inside
+ * `prefixItems`, so a field's path names no position.
  */
 import { isDeepStrictEqual } from "node:util";
 
@@ -82,8 +84,6 @@ function fields(schema, path = "", found = new Set()) {
     Object.values(schema.dependentSchemas ?? {}),
   ].flat())
     fields(branch, path, found);
-  for (const [index, item] of (schema.prefixItems ?? []).entries())
-    fields(item, `${path}[${index}]`, found);
   fields(schema.items, `${path}[]`, found);
   fields(schema.additionalProperties, `${path}.*`, found);
   fields(schema.unevaluatedProperties, `${path}.*`, found);
@@ -188,8 +188,12 @@ function diff(old, now, path, side) {
   else if ([old, now].some((s) => typeof others(s) === "object"))
     nested(".*", unnamed(old), unnamed(now));
 
-  // A position past `prefixItems` holds what `items` allows.
+  // A position past `prefixItems` holds what `items` allows. A tuple's positions hold
+  // values, not fields, which keeps a field's path free of positions.
   const at = (schema, index) => schema.prefixItems?.[index] ?? schema.items ?? true;
+  for (const item of [...(old.prefixItems ?? []), ...(now.prefixItems ?? [])])
+    if (fields(item).size)
+      throw new Error("The protocol check can't read fields inside `prefixItems`");
   const positions = Math.max(
     old.prefixItems?.length ?? 0,
     now.prefixItems?.length ?? 0,
@@ -210,9 +214,7 @@ function diff(old, now, path, side) {
       nested(`|${index}`, before[index] ?? missing, after[index] ?? missing);
       if (!missing && !after[index])
         for (const field of fields(before[index]))
-          // `items` names a field at every position, `[]`.
-          if (!kept.has(field) && !kept.has(field.replace(/\[\d+\]/g, "[]")))
-            found.push([`${path}${field}`, "the field is gone"]);
+          if (!kept.has(field)) found.push([`${path}${field}`, "the field is gone"]);
     }
   }
   if (side.validates && !isDeepStrictEqual(old.oneOf, now.oneOf))

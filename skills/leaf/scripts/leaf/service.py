@@ -40,12 +40,15 @@ from leaf.state import (
     ensure_session,
     flocked,
     fsync_parents,
+    held_claims,
     now_iso,
     object_schema,
     page_key,
+    remove_claim,
     session_claims,
     session_lock_path,
     session_record,
+    standing_claims,
     state_home,
 )
 
@@ -247,21 +250,14 @@ def same_claim(left: dict | None, right: dict | None) -> bool:
 def claim_records(session_id: str | None = None) -> list:
     """Readable claims for pages still on this machine.
 
-    A scan observes ownership without changing it. A missing directory can be
-    recreated and claimed immediately after the observation, so removing its
-    claim here could erase the successor's ownership. Fresh page initialization
-    clears the prior claim under the page lock instead.
-
-    Payloads are canonical by page. A named lookup enumerates only that
-    session's locators, checking the canonical payload owner before admitting it.
-    No unrelated claim files are opened or page directories inspected."""
-    directory = (
-        session_claims(session_id) if session_id else state_home().resolve() / "claims"
-    )
-    if not directory.is_dir():
-        return []
+    Payloads are canonical by page. A named lookup reads only through the
+    locators whose payloads name that session (`state.held_claims`), and opens no
+    unrelated claim file; the unnamed scan reads every payload
+    (`state.standing_claims`). Each retires the claims it finds on pages that are
+    gone."""
+    paths = held_claims(session_id) if session_id else standing_claims()
     claims = []
-    for path in directory.glob("*.json"):
+    for path in paths:
         claim = claim_reading(CLAIM.read(path))
         if (
             claim is not None
@@ -378,8 +374,7 @@ class PageTransaction:
             return
         path = claim_path(self.page_dir)
         if previous is None:
-            path.unlink(missing_ok=True)
-            (session_claims(expected["id"]) / path.name).unlink(missing_ok=True)
+            remove_claim(path)
         else:
             publish_claim(
                 self.page_dir,

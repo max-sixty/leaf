@@ -94,7 +94,6 @@ from .delivery import (
     delivery_pointer_prompt,
     freeze_delivery,
     new_delivery_id,
-    pages_gone,
     read_delivery,
     receive_batch,
     record_pickup,
@@ -116,6 +115,7 @@ from .state import (
     close_session_turn,
     flocked,
     renew_turn,
+    retire_if_gone,
     session_lock_path,
     session_record,
     start_session_turn,
@@ -1745,8 +1745,8 @@ RECORD = Record("codex-delivery", RECORD_SCHEMA, since=14)
 def read_record(path: Path) -> DeliveryRecord | None:
     """Decode one task record, live or archived, or None where this Leaf reads
     none, as for one in a state this Leaf does not know, or an offered record
-    whose delivery this Leaf does not read. An unreadable record never authorizes
-    deletion."""
+    whose delivery this Leaf does not read. Only its pages being gone authorizes
+    deleting a record (`state.retire_if_gone`)."""
     record = RECORD.read(path)
     variant = RECORD_VARIANTS.get(record["state"]) if record else None
     if variant is None:
@@ -1760,13 +1760,6 @@ def read_record(path: Path) -> DeliveryRecord | None:
     return variant(**values)
 
 
-def _retire_record_if_gone(path: Path) -> None:
-    """Retire only task records this version reads, under the task's lock."""
-    record = read_record(path)
-    if record is not None and pages_gone(record.batches):
-        path.unlink(missing_ok=True)
-
-
 def archive_record(path: Path, record: DeliveryRecord) -> bool:
     """Move completed delivery records out of the adapter's hot scan.
 
@@ -1777,7 +1770,7 @@ def archive_record(path: Path, record: DeliveryRecord) -> bool:
     history = path.parent / "history"
     history.mkdir(parents=True, exist_ok=True)
     for archived in history.glob("*.json"):
-        _retire_record_if_gone(archived)
+        retire_if_gone(archived)
     path.replace(history / path.name)
     return True
 
@@ -1803,7 +1796,7 @@ def retire_gone_task_records() -> None:
         with flocked(directory.with_suffix(".delivery.lock")):
             history = directory / "history"
             for path in (*directory.glob("*.json"), *history.glob("*.json")):
-                _retire_record_if_gone(path)
+                retire_if_gone(path)
             for emptied in (history, directory):
                 if emptied.is_dir() and not any(emptied.iterdir()):
                     emptied.rmdir()
@@ -1811,7 +1804,7 @@ def retire_gone_task_records() -> None:
 
 def delivery_records(session_id: str) -> list[tuple[Path, DeliveryRecord]]:
     """Every current delivery record one task holds, oldest first, removing each
-    whose pages are all gone (`delivery.pages_gone`). Every caller holds the
+    whose pages are all gone (`state.retire_if_gone`). Every caller holds the
     task's delivery lock."""
     directory = delivery_dir(session_id)
     if not directory.is_dir():
@@ -1822,11 +1815,10 @@ def delivery_records(session_id: str) -> list[tuple[Path, DeliveryRecord]]:
             validate_delivery_id(path.stem)
         except ValueError:
             continue
+        if retire_if_gone(path):
+            continue
         record = read_record(path)
         if record is None:
-            continue
-        if pages_gone(record.batches):
-            path.unlink()
             continue
         if archive_record(path, record):
             continue

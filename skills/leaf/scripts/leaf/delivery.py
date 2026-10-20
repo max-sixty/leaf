@@ -65,6 +65,7 @@ from .state import (
     flocked,
     object_schema,
     open_session_turn,
+    retire_if_gone,
     session_lock_path,
     session_record,
     state_home,
@@ -148,33 +149,13 @@ def delivery_path(delivery_id: str) -> Path:
     return state_home() / "deliveries" / f"{delivery_id}.json"
 
 
-def pages_gone(batches: list[dict]) -> bool:
-    """Whether every page these captured batches came from is gone.
-
-    Nothing can answer a delivery once its pages are, so a record of one — the
-    envelope here, a Codex task's record of it — is removed by whoever next
-    enumerates its directory. Pages are usually deleted from outside leaf, with a
-    worktree or a scratch directory, so no leaf process sees the moment."""
-    return bool(batches) and not any(Path(batch["page"]).is_dir() for batch in batches)
-
-
-def retire_if_gone(path: Path, kind: Record) -> None:
-    """Remove a record of `kind` once every page it names is gone.
-
-    Other installed versions share these directories, and a record this Leaf
-    does not read may still belong to one of their live sessions."""
-    record = kind.read(path)
-    if record is not None and pages_gone(record["batches"]):
-        path.unlink(missing_ok=True)
-
-
 def _retire_gone_deliveries() -> None:
-    """Remove readable envelopes whose pages are all gone.
+    """Remove envelopes whose pages are all gone, whichever Leaf froze them.
 
     Envelopes are read one id at a time, so the only enumeration of them is here,
     under the lock every new one is written under."""
     for path in (state_home() / "deliveries").glob("*.json"):
-        retire_if_gone(path, DELIVERY)
+        retire_if_gone(path)
 
 
 def _delivery_lock_path() -> Path:

@@ -9,7 +9,8 @@ Each JSON record below is a `state.Record`, declared once with its schema beside
 the module named for it, whose functions are its only writers. The record carries
 the protocol at which its kind's shape last changed, and one this Leaf does not
 read, such as one an earlier Leaf wrote before that change, reads as absent
-(`state.Record`).
+(`state.Record`). A record in the state home whose pages are gone is removed
+whichever Leaf wrote it (`state.retire_if_gone`).
 
 - `index.html` — mutable author document. The server validates it before activation and
   never serves it directly. An invalid save creates no revision, leaves the previous
@@ -214,15 +215,17 @@ ID PATH` (`file_bindings.BINDINGS`).
   Named discovery reads only that session's partition; global observation reads
   the canonical payloads directly. Atomic updates by existing
   page-server writers retain the payload's path and leave discovery intact.
-  Scans ignore claims for missing pages; fresh page initialization clears
-  the prior claim under the page lock. [session-lifetime.md](session-lifetime.md) owns
+  A scan that finds a claim on a page that is gone removes it with its
+  locator, and puts back a successor's that took the path meanwhile
+  (`state.retire_claim`); fresh page initialization clears the prior claim and
+  its locator under the page lock. [session-lifetime.md](session-lifetime.md) owns
   claimant identity, harness, and lifetime.
 
 - `<state-home>/rows/<page-key>.json` — disposable delivery output of a serving
   page's own canonical activity. `server_rows.py` owns the record (`ROW`), producer and
   freshness contract. It is never read by a page's semantic fold; losing it only
   hides that neighbor until the server's next maintenance look. A neighbour
-  reading deletes a row whose server lease no process holds.
+  reading deletes a row whose server lease no process holds, at any format.
 
 ## Revision delivery
 

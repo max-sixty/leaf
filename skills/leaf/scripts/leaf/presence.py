@@ -25,7 +25,14 @@ from .service import (
     unacknowledged,
     undeclared,
 )
-from .state import Record, now_iso, object_schema, state_home
+from .state import (
+    Record,
+    named_pages,
+    now_iso,
+    object_schema,
+    state_home,
+    stored_record,
+)
 
 # Presence is deliberately a short-lived reading: process and lock leases can change
 # without touching a page file. Readers share one observation for two seconds, while
@@ -114,15 +121,28 @@ def neighbor_candidates() -> tuple:
                 _row_files.pop(path, None)
             elif path not in _row_files or _row_files[path][0] != key:
                 try:
-                    _row_files[path] = (key, ROW.read(path))
+                    record = ROW.read(path)
+                    if record is None:
+                        _retire_unread_row(path)
                 except (OSError, ValueError):
-                    _row_files[path] = (key, None)
+                    record = None
+                _row_files[path] = (key, record)
         found = []
         for _key, record in _row_files.values():
             if record is not None:
                 found.append((Path(record["page"]), record))
         _candidates = (stamp, tuple(found))
         return _candidates[1]
+
+
+def _retire_unread_row(path: Path) -> None:
+    """Remove a row at a format this Leaf doesn't read once no process holds the
+    server lease of the page it names: the lease, unlike the row, means the same
+    to every Leaf (`other_leaves` retires the rows this Leaf reads)."""
+    stored = stored_record(path)
+    pages = named_pages(stored) if stored else []
+    if pages and not any(lock_is_held(page / SERVER_LOCK) for page in pages):
+        path.unlink(missing_ok=True)
 
 
 def other_leaves(page_dir: Path) -> list:

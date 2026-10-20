@@ -79,10 +79,10 @@ def test_session_end_releases_the_page_and_its_session_server_retires(claimed):
 def test_a_session_keeps_its_files_only_while_something_can_read_them(page_dir):
     """A session's end removes the files nothing will read again
     (`session-lifetime.md`, "A session's files"). A session that never used Leaf,
-    as most sessions of a harness Leaf is installed in, ends without a file. Every
-    ended session keeps its lifecycle, lock and reconnect notices, since a claim can
-    name it again. One that holds no claim keeps besides only a lease another
-    process holds."""
+    as most sessions of a harness Leaf is installed in, ends without a file. An
+    ended session a claim still names keeps its lifecycle and lock, which that
+    claim reads. One whose page another session took keeps only a lease another
+    process holds, and then nothing."""
 
     def files(session):
         key = cleanup_model.session_file(session, cleanup_model.SESSION_SUFFIX).stem
@@ -104,11 +104,10 @@ def test_a_session_keeps_its_files_only_while_something_can_read_them(page_dir):
     record_claim(page_dir, id="holder")
     leases_model.mark_hooks("holder")
     cleanup_model.end_harness_instance("released")
-    kept = ["claude-code.reconnect", "delivery.lock", "lifecycle"]
-    assert files("released") == [*kept, "wait"]
+    assert files("released") == ["wait"]
     leases_model.release_lease(held)
     cleanup_model.end_harness_instance("released")
-    assert files("released") == kept
+    assert files("released") == []
 
     cleanup_model.end_harness_instance("holder")
     assert files("holder") == ["delivery.lock", "lifecycle"]

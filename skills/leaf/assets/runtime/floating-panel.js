@@ -2502,6 +2502,10 @@ export function createFloatingPanel({
     const thread = top.view === "thread" ? threadByKey(top.thread) : null;
     /** @type {unknown} */
     let aux = nothing;
+    // On me's tabs name its view, so they stand at the head's start, where every other
+    // view's name stands, rather than among the controls at its end.
+    /** @type {unknown} */
+    let named = nothing;
     if (top.view === "threads") {
       const news = newCount();
       aux = html`${tabs(
@@ -2532,7 +2536,7 @@ export function createFloatingPanel({
         </button>`;
     } else if (top.view === "queue") {
       const lists = queueLists();
-      aux = tabs(
+      named = tabs(
         queueTabs(),
         queueTab,
         tabLabel,
@@ -2608,7 +2612,7 @@ export function createFloatingPanel({
           ><span class="lf-fp-face" ?data-shown=${thread.resolved}>Reopen</span>
         </button>`;
     }
-    // On's name is its selected tab's, which the tabs beside it already show, so the
+    // On's name is its selected tab's, which the tabs after it already show, so the
     // heading names the view to assistive tech alone.
     const titleClass = top.view === "queue" ? "lf-fp-title lf-quiet" : "lf-fp-title";
     const crumb =
@@ -2637,7 +2641,7 @@ export function createFloatingPanel({
                 : nothing
             }
             <h2 class=${titleClass}>${titleOf(top)}</h2>
-            ${
+            ${named}${
               thread
                 ? html`<span class="lf-fp-facts"
                     >${keyedBy(

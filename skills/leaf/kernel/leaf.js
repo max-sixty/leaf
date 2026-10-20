@@ -7498,6 +7498,7 @@ function createFloatingPanel({
     const parent = trail.at(-2);
     const thread = top.view === "thread" ? threadByKey(top.thread) : null;
     let aux = nothing;
+    let named = nothing;
     if (top.view === "threads") {
       const news = newCount();
       aux = html`${tabs(
@@ -7528,7 +7529,7 @@ function createFloatingPanel({
         </button>`;
     } else if (top.view === "queue") {
       const lists = queueLists();
-      aux = tabs(
+      named = tabs(
         queueTabs(),
         queueTab,
         tabLabel,
@@ -7603,7 +7604,7 @@ function createFloatingPanel({
                       ${titleOf2(parent)}</button
                     ><span class="lf-fp-sep" aria-hidden="true">/</span>` : nothing}
             <h2 class=${titleClass}>${titleOf2(top)}</h2>
-            ${thread ? html`<span class="lf-fp-facts"
+            ${named}${thread ? html`<span class="lf-fp-facts"
                     >${keyed(
       thread.key,
       html`<span class="lf-fp-news-outlet"></span>`

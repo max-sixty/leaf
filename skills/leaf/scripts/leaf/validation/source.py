@@ -251,10 +251,11 @@ def _presentation_errors(parser) -> list[Finding]:
 
 
 def source_advice(page_dir: Path, checked: SourceCheck) -> list[Finding]:
-    """The source's non-blocking drift, which `page check` reports beside what
-    `check_source` found. It is read apart from the check because judging the
-    page's recorded data takes a cold process about 200 ms on a large page, and no
-    other caller of the check reports advice."""
+    """The source's non-blocking drift, which `page check` and the first reply on
+    a revision (`thread._revision_advice`) report beside what `check_source` found.
+    It is read apart from the check, which every reply and activation runs, because
+    judging the page's recorded data can take a cold process about 200 ms on a large
+    page."""
     parser = checked.document
     stored_data = read_data(page_dir, checked.registry)
     return [

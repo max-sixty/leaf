@@ -97,9 +97,10 @@ it the `answer.ref` as that package's coordinator instructions say.
 ## Preserve revised anchors
 
 When a revision rewrites a quoted passage, check every open thread on it, including
-ones you are not answering this turn. `leaf page check` lists each open thread whose
-anchor no longer resolves and where activation will move it: to its section if that
-survives, otherwise detached. The move adds no message and answers nothing.
+ones you are not answering this turn. `leaf page check`, and the first reply on a
+revision, list each open thread whose anchor no longer resolves and where the
+revision moves it: to its section if that survives, otherwise detached. The move adds no
+message and answers nothing.
 
 Where you know what replaced the passage, move the thread onto it in the reply that
 reports the change, with `--section`, narrowed by `--quote` or, in a diagram,

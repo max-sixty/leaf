@@ -107,8 +107,8 @@ When input arrives:
 3. If it interrupted other work, start that item again, so the panel's status
    describes the work that continues.
 
-Before replying about a page revision, run `leaf page check`, the only check the
-main skill's "Check the page" step requires for that reply.
+Reply about a page revision as soon as it is saved; the reply checks it (the main
+skill's "Check the page").
 
 ## Status and handoff
 

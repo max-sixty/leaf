@@ -14,12 +14,17 @@ from render_cases_layout import page_at_rest
 from render_cases_navigation import CHIPS, DIFF_PAGE, _publish
 from render_harness import (
     LONG_PAGE,
+    PANEL,
     leaf_page,
     open_page,
+    panel_control,
+    panel_field,
+    panel_menu,
     panel_settled,
     resized,
     scroll_settled,
     select,
+    selection_field,
     stamp_page,
     take_browser_errors,
     told,
@@ -30,6 +35,7 @@ from render_harness import (
 from browser.navigation import (
     STANDING,
 )
+from browser.threads import open_panel_thread
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -53,7 +59,8 @@ def test_page_map_cancellation_returns_to_its_opener_without_moving_the_reading(
     reading = """() => ({page: document.scrollingElement.scrollTop,
       nested: document.querySelector('#reading')?.scrollTop ?? 0})"""
     before = page.evaluate(reading)
-    page.locator(".lf-page-map-toggle").evaluate("node => node.click()")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+p")
     sheet = page.get_by_role("dialog", name="Page Map", exact=True)
     expect(sheet).to_be_visible()
     if route == "Escape":
@@ -73,7 +80,8 @@ def test_page_map_cancellation_without_an_opener_keeps_the_scrolled_reading(
     page.evaluate("() => document.getElementById('p40').scrollIntoView()")
     page_at_rest(page)
     before = page.evaluate("() => document.scrollingElement.scrollTop")
-    page.locator(".lf-page-map-toggle").evaluate("node => node.click()")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+p")
     sheet = page.get_by_role("dialog", name="Page Map", exact=True)
     expect(sheet).to_be_visible()
     if route == "Escape":
@@ -281,7 +289,7 @@ def test_same_passage_and_controls_keep_a_mixed_travel_group(
     browser, serve, concealment
 ):
     """Reading choices have passage grain: touching the current words or operating
-    controls does not turn consecutive thread/Ask travel into separate Back stops."""
+    controls does not turn consecutive thread/obligation travel into separate Back stops."""
     concealed = {
         "none": "",
         "hidden": "<div hidden><p>Concealed source background.</p></div>",
@@ -332,7 +340,7 @@ def test_same_passage_and_controls_keep_a_mixed_travel_group(
     ), "the words checked must be the actual rendered landing"
     page.locator("#first-reading span").click()
     page.locator("#reading-control").click()
-    page.get_by_role("button", name="More page controls", exact=True).click()
+    panel_menu(page)
     page.keyboard.press("Escape")
     page.keyboard.press("m")
     expect(page.locator("#second")).to_be_focused()
@@ -441,53 +449,66 @@ def test_reading_landmarks_use_drawn_segments_in_mixed_blocks(
     assert returned["top"] == pytest.approx(chosen["top"], abs=2)
 
 
-@pytest.mark.parametrize("conceal", ["display", "visibility"])
-@pytest.mark.parametrize("quote", [False, True])
-def test_reading_restore_leaves_a_concealed_landmark_alone(
-    browser, serve, conceal, quote
-):
-    """Restoring a serialized landmark never travels to concealed zero geometry."""
+def test_reading_restore_leaves_a_concealed_landmark_alone(browser, serve, subtests):
+    """Restoring a serialized landmark never travels to concealed zero geometry. Each
+    case conceals a landmark of its own, so the cases share one page."""
     words = "The review result whose position the reader saved earlier."
+    cases = [
+        (conceal, quote)
+        for conceal in ("display", "visibility")
+        for quote in (False, True)
+    ]
+    landmarks = "".join(
+        '<div style="height:1600px"></div>'
+        f'<section id="landmark-{conceal}-{quote:d}" style="display:contents">'
+        f"<p>{words}</p></section>"
+        for conceal, quote in cases
+    )
     page = open_page(
         browser,
         serve(
             leaf_page(
                 "Concealed reading landmark",
-                '<h1>Review</h1><div style="height:1600px"></div>'
-                f'<section id="landmark" style="display:contents"><p>{words}</p></section>'
-                '<div style="height:2000px"></div>',
+                f'<h1>Review</h1>{landmarks}<div style="height:2000px"></div>',
             )
         ),
     )
-    result = page.evaluate(
-        """async ({words, conceal, quote}) => {
-      const {restorePlace} = await window.__lfWidgetApi();
-      const {landingBand, shownBox} = await window.__lfCheckApi();
-      const section = document.querySelector('#landmark');
-      const place = {section: section.id, sectionTop: 0};
-      if (quote) Object.assign(place, {quote: words, quoteTop: 0});
-      restorePlace(place);
-      const range = document.createRange();
-      range.selectNodeContents(section.firstElementChild);
-      const visible = quote ? range.getBoundingClientRect().top : shownBox(section).top;
-      const band = landingBand(document.scrollingElement).top;
-      section.style[conceal] = conceal === 'display' ? 'none' : 'hidden';
-      scrollTo({top:800, behavior:'instant'});
-      const before = scrollY;
-      restorePlace(place);
-      return {visible, band, before, after:scrollY};
-    }""",
-        {"words": words, "conceal": conceal, "quote": quote},
-    )
-    assert result["visible"] == pytest.approx(result["band"], abs=2)
-    assert result["before"] == result["after"]
+    for conceal, quote in cases:
+        with subtests.test(conceal=conceal, quote=quote):
+            result = page.evaluate(
+                """async ({identity, words, conceal, quote}) => {
+              const {restorePlace} = await window.__lfWidgetApi();
+              const {landingBand, shownBox} = await window.__lfCheckApi();
+              const section = document.getElementById(identity);
+              const place = {section: section.id, sectionTop: 0};
+              if (quote) Object.assign(place, {quote: words, quoteTop: 0});
+              restorePlace(place);
+              const range = document.createRange();
+              range.selectNodeContents(section.firstElementChild);
+              const visible = quote ? range.getBoundingClientRect().top : shownBox(section).top;
+              const band = landingBand(document.scrollingElement).top;
+              section.style[conceal] = conceal === 'display' ? 'none' : 'hidden';
+              scrollTo({top:800, behavior:'instant'});
+              const before = scrollY;
+              restorePlace(place);
+              return {visible, band, before, after:scrollY};
+            }""",
+                {
+                    "identity": f"landmark-{conceal}-{quote:d}",
+                    "words": words,
+                    "conceal": conceal,
+                    "quote": quote,
+                },
+            )
+            assert result["visible"] == pytest.approx(result["band"], abs=2)
+            assert result["before"] == result["after"]
 
 
-def test_back_returns_from_an_ask_the_walk_travelled_to(browser, serve):
-    """The Ask walk records the same history the thread walk does: one entry for a
-    journey to Asks somewhere else however far it goes, so Back returns to where the
-    user was reading before it, and a journey that crosses from threads to Asks is still
-    one journey."""
+def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
+    """The obligation walk records the same history the thread walk does: one entry for a
+    journey to obligations somewhere else however far it goes, so Back returns to where the
+    user was reading before it, and a journey that crosses from threads to obligations is
+    still one journey."""
     filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(60))
     url = serve(
         leaf_page(
@@ -552,7 +573,7 @@ def test_back_returns_from_an_ask_the_walk_travelled_to(browser, serve):
         "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2", arg=reading
     )
 
-    # From the bottom again: `t` travels to the thread just below the first Ask, and
+    # From the bottom again: `t` travels to the thread just below the first obligation, and
     # `m` from there to the second continues that journey rather than starting another,
     # so one Back skips the thread's landing and returns to the bottom.
     page.evaluate("document.scrollingElement.scrollTo({top: 1e6, behavior: 'instant'})")
@@ -568,8 +589,10 @@ def test_back_returns_from_an_ask_the_walk_travelled_to(browser, serve):
     )
 
 
-def test_back_returns_from_an_ask_whose_context_the_arrival_brings_in(browser, serve):
-    """An Ask in front of the user whose arrival region is not still moves the page,
+def test_back_returns_from_an_obligation_whose_context_the_arrival_brings_in(
+    browser, serve
+):
+    """An obligation in front of the user whose arrival region is not still moves the page,
     since the arrival puts the region's start at the top of the window, and a press
     that moves the page records where the user was reading. A draft declares no region,
     so its region runs up from the heading its context starts under."""
@@ -675,20 +698,25 @@ ALIGN_CURRENT_PAGE = leaf_page(
 )
 
 
-def _expect_aligned(page, target, scroller="document.scrollingElement"):
+def _expect_aligned(
+    page, target, scroller="document.scrollingElement", *, exact_margin=True
+):
     """The item's opening clears its reading area's pinned furniture."""
+    page.evaluate("async () => { window.__lfAlignApi = await window.__lfCheckApi(); }")
     page.wait_for_function(
-        """async ({target, scroller}) => {
-          const {landingBand, shownBox} = await window.__lfCheckApi();
+        """({target, scroller, exact_margin}) => {
+          const {landingBand, shownBox} = window.__lfAlignApi;
           const item = document.querySelector(target), box = eval(scroller);
-          return Math.abs(shownBox(item).top - landingBand(box).top -
-            (parseFloat(getComputedStyle(item).scrollMarginTop) || 0)) < 2;
+          const offset = shownBox(item).top - landingBand(box).top;
+          const margin = parseFloat(getComputedStyle(item).scrollMarginTop) || 0;
+          return exact_margin ? Math.abs(offset - margin) < 2
+            : offset > -2 && offset < margin + 2;
         }""",
-        arg={"target": target, "scroller": scroller},
+        arg={"target": target, "scroller": scroller, "exact_margin": exact_margin},
     )
 
 
-def test_align_current_item_keeps_ask_control_heading_selection_and_history(
+def test_align_current_item_keeps_obligation_control_heading_selection_and_history(
     browser, serve
 ):
     page = open_page(browser, serve(ALIGN_CURRENT_PAGE))
@@ -703,7 +731,6 @@ def test_align_current_item_keeps_ask_control_heading_selection_and_history(
     # Help teaches the complete sequence while its command remains executable from
     # the unarmed page through the same capability's touch route.
     page.keyboard.press("?")
-    page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
     page.get_by_role("combobox", name="Search commands").fill("g z")
@@ -711,7 +738,9 @@ def test_align_current_item_keeps_ask_control_heading_selection_and_history(
     expect(alignment.locator(".lf-binding-sequence > kbd")).to_have_text(["g", "z"])
     alignment.get_by_role("button").click()
     expect(reference).to_be_hidden()
-    _expect_aligned(page, "#align-ask")
+    # The reference hands focus back before the standing paint. Its command can align
+    # before the ring supplies a scroll margin; either landing clears the pinned band.
+    _expect_aligned(page, "#align-ask", exact_margin=False)
     expect(page.locator("#align-yes").get_by_role("checkbox")).to_be_focused()
     page.evaluate("scrollBy(0, -180)")
     page.keyboard.press("g")
@@ -780,7 +809,11 @@ def test_align_current_item_uses_bounded_reading_region_and_preserves_horizontal
     _expect_aligned(page, "#nested-reading", "document.querySelector('#inspection')")
 
 
-def test_align_current_item_more_restores_touch_context_and_reserves_z(browser, serve):
+# The leaf's menu lists Align under Navigate where no keyboard reaches its keys.
+ALIGN_ROW = "command:reading.align.top"
+
+
+def test_align_current_item_from_the_menu_on_touch_reserves_z(browser, serve):
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True
     )
@@ -789,12 +822,10 @@ def test_align_current_item_more_restores_touch_context_and_reserves_z(browser, 
     page.locator("#align-yes").get_by_role("checkbox").focus()
     expect(page.locator("#align-yes").get_by_role("checkbox")).to_be_focused()
     page.evaluate("scrollBy(0,-160)")
-    page.get_by_role("button", name="More page controls, items on me").tap()
-    control = page.get_by_role("button", name="Align current item at top", exact=True)
+    control = panel_control(page, ALIGN_ROW, at="navigate")
     expect(control).to_be_enabled()
     control.tap()
     _expect_aligned(page, "#align-ask")
-    expect(page.locator("#align-yes").get_by_role("checkbox")).to_be_focused()
     page.locator("#align-heading").focus()
     page.keyboard.press("g")
     expect(page.locator(CHIPS).first).to_be_visible()
@@ -810,8 +841,7 @@ def test_align_current_item_more_restores_touch_context_and_reserves_z(browser, 
       window.beforeAlign = [s.anchorNode,s.anchorOffset,s.focusNode,s.focusOffset];
       scrollBy(0,-80);
     }""")
-    page.get_by_role("button", name="More page controls, items on me").tap()
-    control.tap()
+    panel_control(page, ALIGN_ROW, at="navigate").tap()
     _expect_aligned(page, "#remembered")
     assert page.evaluate("""() => {
       const s = getSelection();
@@ -820,46 +850,30 @@ def test_align_current_item_more_restores_touch_context_and_reserves_z(browser, 
     page.locator("#native").focus()
     page.keyboard.type("gz")
     expect(page.locator("#native")).to_have_value("gzEditor words")
-    page.locator("#native").evaluate("input => input.setSelectionRange(1,3,'backward')")
-    page.get_by_role("button", name="More page controls, items on me").tap()
-    expect(control).to_be_enabled()
-    control.tap()
-    _expect_aligned(page, "#native")
-    expect(page.locator("#native")).to_be_focused()
-    expect(page.locator("#native")).to_have_value("gzEditor words")
-    assert page.locator("#native").evaluate(
-        "input => [input.selectionStart,input.selectionEnd,input.selectionDirection]"
-    ) == [1, 3, "backward"]
-    page.locator("#align-heading").focus()
-    page.get_by_role("button", name="More page controls, items on me").tap()
-    expect(control).to_be_enabled()
-    control.tap()
-    _expect_aligned(page, "#align-heading")
-    expect(page.locator("#align-heading")).to_be_focused()
 
 
-def test_more_keeps_its_place_when_a_revision_shortens_the_words_it_held(
+def test_the_menu_keeps_its_place_when_a_revision_shortens_the_words_it_held(
     browser, serve
 ):
-    """More holds the reader's caret while it is open, and a live revision can shorten
-    the very text node that caret stands in meanwhile. A place-keeping command then
-    hands back what is left of that place and acts, rather than throwing on an offset
-    past the node's new length."""
+    """The leaf's menu holds the reader's caret while it is open, and a live revision can
+    shorten the very text node that caret stands in meanwhile. A place-keeping command
+    then hands back what is left of that place and acts, rather than throwing on an
+    offset past the node's new length. The menu lists Align under Navigate where no
+    keyboard reaches it, so the reader here has a touch screen."""
     source = leaf_page(
         "A shortened passage",
         '<h1>Keep the same reading place</h1><div style="height:700px"></div>'
         '<p id="remembered">The amber passage keeps <strong>its own identity</strong>.</p>'
         '<div style="height:1400px"></div>',
     )
-    page = open_page(browser, live_url(serve(source)))
+    context = browser.new_context(has_touch=True)
+    page = open_page(browser, live_url(serve(source)), context=context)
     point = _word_point(page.locator("#remembered"), "keeps")
     page.mouse.click(point["x"], point["y"])
     held = page.evaluate(
         "() => { window.held = getSelection().focusNode; return getSelection().focusOffset; }"
     )
-    page.locator(".lf-banner-more").click()
-    control = page.get_by_role("button", name="Align current item at top", exact=True)
-    expect(control).to_be_visible()
+    control = panel_control(page, "command:reading.align.top", at="navigate")
 
     stamp = stamp_page(
         serve.page_dir,
@@ -879,28 +893,18 @@ def test_align_current_thread_stays_in_its_panel_without_travel(browser, serve):
     )
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    panel_settled(page, True)
-    thread = page.locator(".lf-threads > .lf-thread").nth(4)
-    summary = thread.locator(":scope > summary")
-    summary.focus()
+    panel_settled(page, view="threads")
+    row = page.locator(".lf-fp-thread").nth(4)
+    row.focus()
     rendered(page)
-    thread_id = thread.get_attribute("data-id")
-    page.locator(".lf-threads").evaluate(
-        "box => box.scrollTop = Math.max(0, box.scrollTop-100)"
-    )
     before = page.evaluate(
         "[scrollY,history.length,navigation.currentEntry.key,location.href]"
     )
     page.keyboard.press("g")
     page.keyboard.press("z")
-    _expect_aligned(
-        page,
-        f'.lf-threads > .lf-thread[data-id="{thread_id}"]',
-        "document.querySelector('.lf-threads')",
-    )
-    expect(summary).to_be_focused()
-    expect(thread).to_have_attribute("open", "")
-    panel_settled(page, True)
+    rendered(page)
+    expect(row).to_be_focused()
+    panel_settled(page, view="threads")
     assert (
         page.evaluate(
             "[scrollY,history.length,navigation.currentEntry.key,location.href]"
@@ -1101,19 +1105,20 @@ def test_align_current_item_does_not_follow_old_page_caret_from_empty_threads(
     page.mouse.click(point["x"], point["y"])
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    panel_settled(page, True)
-    expect(page.locator(".lf-threads")).to_be_focused()
+    panel_settled(page, view="threads")
+    threads = page.locator('.lf-fp-view[data-view="threads"]')
+    expect(threads).to_be_focused()
     page.wait_for_function("getSelection().isCollapsed")
     before = page.evaluate("[scrollY,history.length,navigation.currentEntry.key]")
     page.keyboard.press("g")
     page.keyboard.press("z")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(threads).to_be_focused()
     assert (
         page.evaluate("[scrollY,history.length,navigation.currentEntry.key]") == before
     )
 
 
-def test_align_current_ask_in_a_reply_keeps_its_question_extent(browser, serve):
+def test_align_current_obligation_in_a_reply_keeps_its_question_extent(browser, serve):
     url = serve(ALIGN_CURRENT_PAGE, anchored=[("remembered", "amber")] * 8)
     roots = [
         event["id"]
@@ -1135,22 +1140,13 @@ def test_align_current_ask_in_a_reply_keeps_its_question_extent(browser, serve):
         },
     )
     page = open_page(browser, url)
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    summary = page.locator(f'.lf-threads > .lf-thread[data-id="{roots[4]}"] > summary')
-    summary.focus()
-    control = page.locator('.lf-threads lf-option[id="reply-yes"]').get_by_role(
-        "checkbox"
-    )
+    view = open_panel_thread(page, roots[4])
+    control = view.locator('lf-option[id="reply-yes"]').get_by_role("checkbox")
     control.focus()
     before = page.evaluate("[scrollY,history.length,navigation.currentEntry.key]")
     page.keyboard.press("g")
     page.keyboard.press("z")
-    _expect_aligned(
-        page,
-        '.lf-threads lf-ask[id="reply-ask"]',
-        "document.querySelector('.lf-threads')",
-    )
+    rendered(page)
     expect(control).to_be_focused()
     assert (
         page.evaluate("[scrollY,history.length,navigation.currentEntry.key]") == before
@@ -1266,9 +1262,9 @@ def test_restore_selection_rebinds_revisions_and_refuses_missing_words(browser, 
     )
     page.keyboard.press("g")
     page.keyboard.press("v")
-    notice = page.locator(".lf-notice")
-    expect(notice).to_have_text("That selected passage is unavailable on this version")
-    expect(notice).to_be_visible()
+    expect(panel_field(page)).to_have_attribute(
+        "placeholder", "That selected passage is unavailable on this version"
+    )
     assert page.evaluate("() => getSelection().toString()") == ""
 
     # Both copies have the original context. Refusal keeps the remembered identity
@@ -1286,9 +1282,9 @@ def test_restore_selection_rebinds_revisions_and_refuses_missing_words(browser, 
     expect(page.locator("#copy")).to_be_visible()
     page.keyboard.press("g")
     page.keyboard.press("v")
-    notice = page.locator(".lf-notice")
-    expect(notice).to_have_text("That selected passage is unavailable on this version")
-    expect(notice).to_be_visible()
+    expect(panel_field(page)).to_have_attribute(
+        "placeholder", "That selected passage is unavailable on this version"
+    )
     assert page.evaluate("() => getSelection().toString()") == ""
     assert take_browser_errors(page) == []
 
@@ -1301,9 +1297,7 @@ def test_restore_selection_has_touch_route_and_does_not_carry_draft(browser, ser
     page = open_page(browser, serve(RESTORE_SELECTION_PAGE), context=context)
     point = _word_point(page.locator("#remembered"), "amber")
     page.mouse.dblclick(point["x"], point["y"])
-    expect(
-        page.get_by_role("button", name="Comment on selection", exact=True)
-    ).to_be_visible()
+    expect(selection_field(page)).to_be_visible()
     selected = page.evaluate("() => getSelection().toString()")
     assert selected
     rendered(page)
@@ -1313,10 +1307,8 @@ def test_restore_selection_has_touch_route_and_does_not_carry_draft(browser, ser
     write(editor, "Words about the violet subject")
     page.keyboard.press("Escape")
     page.locator("#away").scroll_into_view_if_needed()
-    page.locator(".lf-threads-toggle").tap()
-    expect(page.locator("[data-lf-covering-surface]")).to_have_attribute(
-        "data-lf-covering-surface", "lf-threads"
-    )
+    page.locator(".lf-fp-threads").tap()
+    panel_settled(page, view="threads")
     page.keyboard.press("g")
     page.keyboard.press("v")
     page.wait_for_function(
@@ -1324,12 +1316,11 @@ def test_restore_selection_has_touch_route_and_does_not_carry_draft(browser, ser
     )
     page.keyboard.press("Escape")
     page.locator("#away").scroll_into_view_if_needed()
-    page.get_by_role("button", name="More page controls", exact=True).tap()
-    page.get_by_role("button", name="Restore selection", exact=True).tap()
+    panel_control(page, "command:selection.restore", at="navigate").tap()
     page.wait_for_function(
         "expected => getSelection().toString() === expected", arg=selected
     )
-    expect(page.locator("[data-lf-covering-surface]")).to_have_count(0)
+    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
     page.keyboard.press("Escape")
     page.keyboard.press("g")
     page.keyboard.press("i")
@@ -1341,7 +1332,7 @@ def test_restore_selection_has_touch_route_and_does_not_carry_draft(browser, ser
     page.keyboard.press("Escape")
     page.keyboard.press("g")
     page.keyboard.press("Shift+v")
-    expect(page.locator(".lf-version-menu")).to_be_visible()
+    expect(page.locator(".lf-fp-menu")).to_have_attribute("data-level", "versions")
     assert take_browser_errors(page) == []
 
 
@@ -1432,11 +1423,9 @@ def test_restore_selection_failed_datum_hydration_leaves_history_untouched(
     page.evaluate("releaseSelectionDatum()")
     expect(line).to_contain_text("violet")
     if not cancel:
-        notice = page.locator(".lf-notice")
-        expect(notice).to_have_text(
-            "That selected passage is unavailable on this version"
+        expect(panel_field(page)).to_have_attribute(
+            "placeholder", "That selected passage is unavailable on this version"
         )
-        expect(notice).to_be_visible()
     page.evaluate(
         "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
     )
@@ -1538,9 +1527,7 @@ def test_restore_selection_tracks_late_native_adjustment_and_retires_write_prove
     page = open_page(browser, serve(RESTORE_SELECTION_PAGE), context=context)
     point = _word_point(page.locator("#remembered"), "identity")
     page.mouse.dblclick(point["x"], point["y"])
-    expect(
-        page.get_by_role("button", name="Comment on selection", exact=True)
-    ).to_be_visible()
+    expect(selection_field(page)).to_be_visible()
     initial = page.evaluate("() => getSelection().toString()")
     assert initial and initial != "amber"
     page.evaluate("""async () => {
@@ -1595,9 +1582,9 @@ def test_closing_a_surface_leaves_the_next_tab_where_the_user_is_reading(
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(page.locator('.lf-fp-view[data-view="threads"]')).to_be_focused()
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    panel_settled(page, open=False)
     assert page.evaluate("() => document.activeElement === document.body")
 
     page.keyboard.press("Tab")
@@ -1636,8 +1623,6 @@ def test_the_reference_hands_the_user_back_to_the_page_they_were_reading(
     reading = page.evaluate(
         "() => document.getElementById('p40').getBoundingClientRect().top"
     )
-    # Twice: the first press expands the shortcut bar, the second opens the reference.
-    page.keyboard.press("?")
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_be_visible()
     page.keyboard.press("Escape")

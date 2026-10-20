@@ -16,7 +16,6 @@ from leaf.passages import (
     enclosing_of,
 )
 from leaf.registry.contract import (
-    WRITERS,
     decides,
     detail_schema,
     event_spec,
@@ -26,6 +25,7 @@ from leaf.registry.contract import (
     state_definition,
     state_specs,
 )
+from leaf.registry.kernel import verb_writers
 from leaf.registry.schema import schema_error
 from leaf.schema import agent_name
 from leaf.structure import SourceDocument
@@ -277,7 +277,7 @@ def state_projection(
     in_force = InForce(enclosing_of(spk), floors, withdrawn)
     specs = {}
     for event in events:
-        if event["kind"] not in WRITERS:
+        if event["kind"] not in verb_writers():
             continue
         if upto is not None and event["revision"] > upto:
             continue
@@ -595,8 +595,10 @@ def folded_value(e: dict, spec: dict):
     return value
 
 
-def ask_value(owner, verb, spec, byid, spk, registry, projection, *, answered=False):
-    """Read an ask's typed value and presence from the canonical state fold.
+def obligation_value(
+    owner, verb, spec, byid, spk, registry, projection, *, answered=False
+):
+    """Read an obligation's typed value and presence from the canonical state fold.
 
     Widget units use their declared record or custom action detail. Member units
     form one mapping; positions retain every container, including empty ones.
@@ -648,7 +650,7 @@ def page_reading(
     its authored construction; a stored revision's is held across reads, so only
     the fold over the log is taken here. Revision history is optional transaction
     input: this owner selects predecessors newest first and reads each under its
-    captured vocabulary, lazily when ask registration needs it."""
+    captured vocabulary, lazily when obligation registration needs it."""
     return PageReading(
         reading,
         revision,

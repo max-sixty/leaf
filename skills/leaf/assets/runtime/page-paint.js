@@ -9,7 +9,7 @@
 // must see it.
 export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   class: "class",
-  ask: "data-lf-ask",
+  obligation: "data-lf-obligation",
   done: "data-lf-done",
   restated: "data-lf-restated",
   retired: "data-lf-retired",
@@ -33,6 +33,8 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   goto: "data-lf-go-to-active",
   traffic: "data-lf-traffic",
   indicated: "data-lf-indicated",
+  // A recording playing through the runtime's controls (video-controls.js).
+  player: "data-lf-player",
   // A breakout that keeps to its holder (prepaint.js, `breakouts`).
   kept: "data-lf-kept",
   // Delivery's, not a runtime writer's: the size of the page media an element names

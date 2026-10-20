@@ -72,6 +72,7 @@ import {
   scrollIntoView,
   layoutPx,
   focused,
+  standingIn,
 } from "/runtime/widget-api.js";
 import {
   diffDatumKey,
@@ -98,8 +99,13 @@ const OPTIONS = Object.freeze({
   disableFileHeader: true,
   hunkSeparators: "line-info-basic",
   lineDiffType: "word-alt",
-  overflow: "scroll",
 });
+
+// Prose files usually keep a paragraph on one source line. Let the file path choose
+// the reading mode unless the page author chose one for the entire patch.
+const overflowFor = (path, authored) =>
+  authored ??
+  (langForPath(path) === "markdown" || /\.txt$/i.test(path) ? "wrap" : "scroll");
 
 // The records every source form renders from, in the shape of the contract's file
 // manifest. A patch text is parsed once, strictly, so a malformed hunk never becomes
@@ -371,7 +377,7 @@ function summaryNode(record, open, verified = true) {
 // control nested in one is announced as a single thing — the serious
 // `nested-interactive` finding the corpus's axe sweep reports, once per file. They are
 // siblings in this wrapper instead, the press first, and shadow.css draws it back onto
-// the summary line. First because the line pins: the summary sticks under the banner
+// the summary line. First because the line pins: the summary sticks at the window's top
 // while its rows go past, and the press sticks with it only as a box in the flow ahead
 // of the disclosure, since a box placed against the file's top would stay there and
 // drift off the header it belongs to.
@@ -820,14 +826,14 @@ function fileRecord(file, section) {
 
 // One file's evidence, the nodes that go under its disclosure's summary. Each kind of
 // Pierre stylesheet joins `sharedStyles` once, for the stage to hold.
-async function renderFile(file, sharedStyles) {
+async function renderFile(file, sharedStyles, overflow) {
   const lang = langForPath(file.name);
   const [{ preloadDiffHTML, ResizeManager }, { themeName, foreground }] =
     await Promise.all([pierre(), ensureSyntaxLanguage(lang)]);
   const template = document.createElement("template");
   template.innerHTML = await preloadDiffHTML({
     fileDiff: { ...file, lang: lang ?? "text" },
-    options: { ...OPTIONS, theme: themeName },
+    options: { ...OPTIONS, overflow, theme: themeName },
   });
   const rendered = template.content;
 
@@ -990,11 +996,9 @@ customElements.define(
         this,
         "In a diff review",
         [
-          // The walk leads the scope, because the shortcut bar's shortlist is its first
-          // two live rows and moving is what a user standing on a diff row does
-          // next, where "filter files" is the press for someone who has not started
-          // reading yet. The rest of the scope is one `?`
-          // away in the compact shortcut bar and complete in the reference dialog.
+          // The walk leads the scope, so the command reference lists it first: moving
+          // is what a user standing on a diff row does next, where "filter files" is
+          // the press for someone who has not started reading yet.
           //
           // `]` and `[` are the reviewer's own step, and `}` and `{` the same step one
           // unit out. Bracket pairs because that is what an editor and a review tool
@@ -1053,10 +1057,7 @@ customElements.define(
             when: () => {
               const search = this.diffTools?.search;
               if (!search) return false;
-              return Boolean(
-                this.matches(":focus-within") &&
-                (search.value || search.matches(":focus-within")),
-              );
+              return standingIn(this) && Boolean(search.value || standingIn(search));
             },
             title: () => (this.diffTools?.search.value ? "show all files" : "back"),
             description: () =>
@@ -1309,11 +1310,12 @@ customElements.define(
       if (reading.error) return reading;
       try {
         const { file } = reading;
-        const nextKey = JSON.stringify(file);
+        const overflow = overflowFor(file.name, this.getAttribute("overflow"));
+        const nextKey = JSON.stringify([file, overflow]);
         const rendered =
           !file.hunks.length || renderKey === nextKey
             ? null
-            : await renderFile(file, sharedStyles);
+            : await renderFile(file, sharedStyles, overflow);
         return { file, renderKey: nextKey, rendered };
       } catch (error) {
         return { error };
@@ -1459,8 +1461,10 @@ customElements.define(
 
     // Each line outlet takes a grid row of its own beside its line, in the content and
     // the gutter columns alike. A file drawn anew sets its columns' rows from the fresh
-    // render alone, so the outlets it kept take theirs again here.
+    // render alone, so the outlets it kept take theirs again here. A file outlet ends
+    // its file's run (`markRuns`).
     layoutThreadOutlets() {
+      this.markRuns();
       const counts = new Map();
       for (const { outlet, pair } of this.threadSeats?.values() ?? [])
         if (pair && outlet.parentNode === pair.content)
@@ -1730,9 +1734,27 @@ customElements.define(
         entry.filtered = Boolean(needle && !paths.includes(needle));
         entry.node.classList.toggle("lf-diff-filtered", entry.filtered);
       }
+      this.markRuns();
       this.refreshDiffTools();
       layoutChanged(this);
       threadSurface(this).update();
+    }
+
+    // The files the filter shows are drawn as one bordered list, which a file's own
+    // conversations break: they hang under that file in a box of their own, so the list
+    // runs on from the next file the filter shows (shadow.css). Only this pass knows
+    // which file that is, since CSS reads a file's sibling before it, which may be
+    // hidden, and not the nearest shown one. It runs whenever the shown files or a
+    // file's conversations change: on filtering, and on each outlet layout.
+    markRuns() {
+      const shown = this.fileEntries?.filter((entry) => !entry.filtered) ?? [];
+      const talks = (entry) =>
+        entry?.node.querySelector(":scope > .lf-diff-file-thread-outlet") != null;
+      shown.forEach((entry, index) => {
+        const { classList } = entry.node;
+        classList.toggle("lf-diff-run-start", index === 0 || talks(shown[index - 1]));
+        classList.toggle("lf-diff-run-end", index === shown.length - 1 || talks(entry));
+      });
     }
 
     clearFilter() {
@@ -1886,7 +1908,7 @@ customElements.define(
       if (!entry) return this.markFileWalk();
       this.fileCursor = entry;
       // The box rather than the header, which is what the generated fold target settled for
-      // the same shape: a header pinned to the banner is already where it is going, so
+      // the same shape: a header pinned to the window's top is already where it is going, so
       // aligning it moves nothing, while aligning the file it heads starts the file at
       // its start. The header is still what takes the focus.
       this.land(entry.node, entry.details?.firstElementChild ?? entry.node);

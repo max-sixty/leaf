@@ -11,11 +11,12 @@ from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_cases_navigation import _publish
 from render_harness import (
+    PANEL,
     consume_browser_errors,
     holding,
     http_error_console,
     leaf_page,
-    page_comment,
+    panel_settled,
     round_trip,
     select_words,
     stored_draft_text,
@@ -34,10 +35,6 @@ SAVED_COMMENT = {
     "revision": 1,
     "text": "A conversation from the previous visit.",
 }
-HISTORY_UNAVAILABLE = re.compile(
-    r"^(?:Loading current threads…|"
-    r"Current threads are unavailable while the server is offline\.)$"
-)
 
 
 def _clock_until_ready(page, through="rendering"):
@@ -96,7 +93,9 @@ def _cold_page(browser, url, *, touch=False, clock=False):
     else:
         wait_until_ready(page, through="upgraded")
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
-    expect(page.locator(".lf-status-text")).to_have_text("Loading saved state…")
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute(
+        "aria-label", "Page menu · Loading saved state…"
+    )
 
     def release():
         gate["open"] = True
@@ -134,7 +133,6 @@ def test_an_early_anchored_send_merges_history_and_keeps_its_seen_revision(
             else route.continue_()
         ),
     )
-    page.locator(".lf-threads-toggle").click()
     select_words(page, "#passage")
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     page.keyboard.press("c")
@@ -144,28 +142,20 @@ def test_an_early_anchored_send_merges_history_and_keeps_its_seen_revision(
     write(editor, words)
     page.keyboard.press("ControlOrMeta+Enter")
 
-    pending = page.locator('.lf-thread[data-id^="pending:"]')
+    # The anchored comment stands at its passage, in the margin's card, before the
+    # page has its saved history.
+    pending = page.locator('.lf-margin-thread .lf-page-thread[data-thread^="pending:"]')
     expect(pending.locator(".lf-msg-body")).to_have_text(words)
     expect(pending).to_be_visible()
-    expect(page.locator('.lf-thread[data-id="saved-comment"]')).to_have_count(0)
+    expect(page.locator('[data-thread="saved-comment"]')).to_have_count(0)
     _history_outstanding(page)
-    expect(page.locator(".lf-empty")).to_have_text(HISTORY_UNAVAILABLE)
-    expect(page.locator(".lf-threads-toggle")).not_to_have_attribute(
-        "data-lf-count", re.compile(".")
-    )
-    expect(page.locator(".lf-thread-view-summary")).not_to_have_text(
-        re.compile(r"\b\d+(?: of \d+)? open threads?\b")
-    )
 
-    # Send lands on the new conversation in Threads. Return to the document
-    # before invoking its Draw command, rather than racing that focus handoff.
-    page.locator(".lf-threads-toggle").click()
     draw_over(page, page.locator("#passage"))
     expect(page.locator(".lf-drawing-pending")).to_have_count(1)
     drawing_words = "This stroke is also local before history arrives."
     write(page.locator(".lf-fab-input"), drawing_words)
     page.keyboard.press("ControlOrMeta+Enter")
-    expect(pending).to_have_count(2)
+    # The margin's card stands the drawing's thread at the passage now.
     expect(pending.locator(".lf-msg-body", has_text=drawing_words)).to_have_count(1)
     expect(page.locator('.lf-drawing-posted[data-thread^="pending:"]')).to_have_count(1)
 
@@ -202,12 +192,17 @@ def test_an_early_anchored_send_merges_history_and_keeps_its_seen_revision(
     ]
     assert len(drawings) == 1
     assert drawings[0]["revision"] == 1
-    expect(
-        page.locator(".lf-thread .lf-msg-body", has_text=drawing_words)
-    ).to_have_count(1)
-    expect(page.locator(".lf-thread .lf-msg-body", has_text=words)).to_have_count(1)
-    expect(page.locator('.lf-thread[data-id="saved-comment"]')).to_have_count(1)
-    expect(page.locator('.lf-thread[data-id^="pending:"]')).to_have_count(0)
+    expect(page.locator('[data-thread^="pending:"]')).to_have_count(0)
+    # Threads lists the saved conversation beside the two the tab sent early.
+    # Draw mode's steps stand in the marks' place until the user leaves it.
+    page.locator('.lf-fp-exit[aria-label="Exit Draw mode"]').click()
+    page.locator(".lf-fp-threads").click()
+    panel_settled(page, view="threads")
+    rows = page.locator('.lf-fp-view[data-view="threads"] .lf-fp-thread')
+    expect(rows).to_have_count(3)
+    expect(rows.filter(has_text=words)).to_have_count(1)
+    expect(rows.filter(has_text=drawing_words)).to_have_count(1)
+    expect(rows.filter(has_text=SAVED_COMMENT["text"])).to_have_count(1)
 
 
 def test_first_history_preserves_the_early_anchored_editor_and_caret(browser, serve):
@@ -257,16 +252,12 @@ def test_an_early_touch_comment_returns_its_words_when_delivery_is_refused(
             else route.continue_()
         ),
     )
-    page.locator(".lf-banner-more").tap()
-    page.locator(".lf-page-comment").tap()
-    editor = page.locator(".lf-page-comment-card .lf-general leaf-text")
+    editor = page.locator('.lf-fp-field leaf-text[name="comment"]')
+    editor.tap()
     words = "A comment sent from the cold touch page."
     write(editor, words)
-    page.locator(".lf-general").get_by_role("button", name="Send", exact=True).tap()
-    page.locator(".lf-threads-toggle").tap()
-    pending = page.locator('.lf-thread[data-id^="pending:"]')
-    expect(pending.locator(".lf-msg-body")).to_have_text(words)
-    expect(pending).to_be_visible()
+    page.locator(".lf-fp-field").get_by_role("button", name="Send", exact=True).tap()
+    expect(page.locator(PANEL)).to_have_attribute("data-open", "thread")
     _history_outstanding(page)
 
     release_state()
@@ -283,10 +274,13 @@ def test_an_early_touch_comment_returns_its_words_when_delivery_is_refused(
                 "final": True,
             },
         )
-    expect(pending).to_have_count(0)
+    # The refusal puts the thread's view away and gives the words back to the page
+    # comment, which says why over them.
     expect(editor).to_have_js_property("value", words)
     assert stored_draft_text(page, "general") == words
-    expect(page.locator(".lf-notice")).to_contain_text("Couldn't send")
+    expect(page.locator(".lf-fp-field .lf-compose-error")).to_have_text(
+        "Couldn't send — The cold comment was refused before append"
+    )
     assert not [
         event
         for event in events_model.read_events(serve.page_dir)
@@ -295,7 +289,7 @@ def test_an_early_touch_comment_returns_its_words_when_delivery_is_refused(
     consume_browser_errors(page, http_error_console(400))
 
 
-COLD_ASK = leaf_page(
+COLD_OBLIGATION = leaf_page(
     "Cold decisions",
     """<h1>Cold decisions</h1><lf-ask id="cold-ask"><h2>What now?</h2>
 <lf-options id="cold-choice" choose>
@@ -308,8 +302,8 @@ COLD_ASK = leaf_page(
 def test_history_dependent_keys_keep_their_place_until_the_first_reading(
     browser, serve, key
 ):
-    """Ask walking, Decisions, and Undo wait for their own saved history."""
-    url = serve(COLD_ASK)
+    """Obligation walking, Decisions, and Undo wait for their own saved history."""
+    url = serve(COLD_OBLIGATION)
     if key != "m":
         append_command(
             serve.page_dir,
@@ -354,7 +348,10 @@ def test_history_dependent_keys_keep_their_place_until_the_first_reading(
         expect(page.locator("#cold-a")).to_have_attribute("chosen", "")
         round_trip(page)
     else:
-        expect(page.locator(".lf-notice")).to_contain_text("Undid")
+        # The passing notice says it where the empty field's placeholder would.
+        expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
+            "placeholder", re.compile("Undid")
+        )
         round_trip(page)
         expect(page.locator("#cold-b")).not_to_have_attribute("chosen", "")
         assert (
@@ -368,58 +365,3 @@ def test_history_dependent_keys_keep_their_place_until_the_first_reading(
             == 1
         )
     expect(page.locator(".lf-held-keys")).to_have_count(0)
-
-
-def test_a_known_local_thread_accepts_reply_search_and_resolve_before_history(
-    browser, serve
-):
-    """Known local messages stay operable while the saved inventory is unknown."""
-    page, release_state = _cold_page(browser, serve(EARLY_PAGE))
-    held_posts = []
-    page.route("**/api/event", lambda route: held_posts.append(route))
-    page.locator(".lf-threads-toggle").click()
-    root_words = "A known local conversation."
-    write(page_comment(page), root_words)
-    page.locator(".lf-general").get_by_role("button", name="Send", exact=True).click()
-    pending = page.locator('.lf-thread[data-id^="pending:"]')
-    expect(pending.locator(".lf-msg-body")).to_have_text(root_words)
-    reply_words = "An early reply to that conversation."
-    write(pending.locator(".lf-thread-reply leaf-text"), reply_words)
-    pending.locator(".lf-thread-send").click()
-    expect(pending.locator(".lf-msg-body")).to_have_text([root_words, reply_words])
-
-    search = page.get_by_role("searchbox", name="Find in threads")
-    search.fill("a phrase absent from both messages")
-    expect(pending).to_be_hidden()
-    expect(page.locator(".lf-empty", has_text=HISTORY_UNAVAILABLE)).to_be_visible()
-    search.fill("")
-    expect(pending).to_be_visible()
-    expect(pending.locator(".lf-msg-body")).to_have_text([root_words, reply_words])
-    pending.get_by_role("button", name="Resolve thread", exact=True).click()
-    expect(pending).to_have_attribute("data-resolved", "true")
-    _history_outstanding(page)
-
-    release_state()
-    holding(page, held_posts, 1, "the known local conversation")
-    page.unroute("**/api/event")
-    while held_posts:
-        held_posts.pop(0).continue_()
-    round_trip(page)
-    wait_until_ready(page)
-    records = events_model.read_events(serve.page_dir)
-    roots = [event for event in records if event.get("text") == root_words]
-    replies = [event for event in records if event.get("text") == reply_words]
-    assert len(roots) == len(replies) == 1
-    assert roots[0]["kind"] == "comment"
-    assert replies[0]["kind"] == "reply"
-    assert replies[0]["parent"] == roots[0]["id"]
-    assert (
-        len(
-            [
-                event
-                for event in records
-                if event["kind"] == "resolve" and event["parent"] == roots[0]["id"]
-            ]
-        )
-        == 1
-    )

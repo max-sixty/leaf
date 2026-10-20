@@ -35,13 +35,15 @@ from interact_support import (
     lock_contention,
     package_findings,
     publish,
+    read_record,
     record_claim,
     registry_refusal,
     shipped_payload,
     vendored_at_another_protocol,
-    vendored_before_the_ask_rename,
+    vendored_before_a_key_rename,
     wait_for,
     words,
+    write_record,
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -373,8 +375,8 @@ def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed, reshape):
 
 
 def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(claimed):
-    """A layer vendored before an x- key was renamed (`x-question-context`, now
-    `x-ask-context`) declares nothing under the new name, so this Leaf would quietly
+    """A layer vendored before an x- key was renamed (`x-noun`, say, now `x-word`)
+    declares nothing under the new name, so this Leaf would quietly
     drop what the key said. The layer still reads, but the one reading every server
     and writer refuses on (`layer.incompatible_layer`) names the re-vendor, and so
     does `page check` from a session that may not make it, as one that does not
@@ -392,12 +394,10 @@ def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(claimed)
         path.unlink()
         path.write_text(json.dumps(registry))
 
-    vendored(
-        lambda keys: keys.update({"x-question-context": keys.pop("x-ask-context")})
-    )
+    vendored(lambda keys: keys.update({"x-noun": keys.pop("x-word")}))
     revendor = f"leaf page init {page_dir}"
     assert registry_storage.load_registry(page_dir) is not None
-    assert write_refusal(page_dir).values["retired"] == ["x-question-context"]
+    assert write_refusal(page_dir).values["retired"] == ["x-noun"]
     checked = CliRunner().invoke(
         cli_model.cli, ["page", "check", str(page_dir)], env=other
     )
@@ -406,9 +406,9 @@ def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(claimed)
     assert report["status"] == 1 and report["browser"] is None
     [finding] = report["findings"]
     assert finding["code"] == "retired-layer"
-    assert "x-question-context" in finding["text"] and revendor in finding["text"]
+    assert "x-noun" in finding["text"] and revendor in finding["text"]
 
-    vendored(lambda keys: keys.pop("x-question-context"))
+    vendored(lambda keys: keys.pop("x-noun"))
     assert write_refusal(page_dir) is None
 
 
@@ -416,7 +416,7 @@ def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(claimed)
     ("vendored", "named"),
     [
         (vendored_at_another_protocol, "page protocol"),
-        (vendored_before_the_ask_rename, "x-question-context"),
+        (vendored_before_a_key_rename, "x-noun"),
     ],
 )
 def test_page_state_reports_a_layer_this_leaf_cannot_serve(claimed, vendored, named):
@@ -459,9 +459,9 @@ def test_response_reply_names_a_published_page_vendored_before_a_key_was_renamed
     revision is published as well as before: here the layer and the revision it
     captured both use the key's old name, in `$keys` and on `lf-ask`, as the older
     Leaf left them."""
-    replied = _replying_after(claimed, server, vendored_before_the_ask_rename)
+    replied = _replying_after(claimed, server, vendored_before_a_key_rename)
     assert replied.returncode != 0, replied.stdout
-    assert "x-question-context" in replied.stderr
+    assert "x-noun" in replied.stderr
     assert f"leaf page init {claimed}" in replied.stderr
     # The re-vendor it names repairs the page: init runs on it, and the reply goes.
     for command in (["page", "init", str(claimed)], replied.args[len(LEAF_COMMAND) :]):
@@ -670,10 +670,10 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     leaves it to guess at the id it needs next.
 
     Every write prints what it wrote, as JSON: an appended event exactly as `page
-    events` reads it back, `seq` included, one line per record, and a status as the
-    status file holds it. A command that also names its thread prints both records.
-    `test_receipt_settles_one_known_request_once` holds the receipt's, since it needs
-    a page with a request seat.
+    events` reads it back, `seq` included, one line per record, and a status as its
+    declaration stands in the status file. A command that also names its thread
+    prints both records. `test_receipt_settles_one_known_request_once` holds the
+    receipt's, since it needs a page with a request seat.
 
     The default layer declares no instructions audiences, which is why the page is
     built here rather than taken from the packaged fixture.
@@ -712,7 +712,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     assert "already stamped as v1" in again.output
 
     [waiting] = written(["status", str(page_dir), "waiting", "pick a storage engine"])
-    assert waiting == json.loads((page_dir / schema_model.STATUS_FILE).read_text())
+    assert waiting.items() <= read_record(page_dir / schema_model.STATUS_FILE).items()
     assert (waiting["state"], waiting["detail"]) == ("waiting", "pick a storage engine")
 
     # The comment's id is the thread's; --title names it in the same command.
@@ -1052,7 +1052,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "hooks/codex.json",
         "hooks/scripts/background-watch.py",
         "skills/leaf/SKILL.md",
-        "skills/leaf/references/authoring-asks.md",
+        "skills/leaf/references/authoring-decisions.md",
         "skills/leaf/references/authoring-evidence.md",
         "skills/leaf/references/authoring-revisions.md",
         "skills/leaf/references/codex-watcher.md",
@@ -1246,8 +1246,8 @@ def test_init_vendors_the_layer(page_dir):
     # which is what lets a widget import `/vendor/…` without knowing where it came
     # from page_packages().
     assert (page_dir / "widgets" / "lf-diagram.js").is_file()
-    assert (page_dir / "vendor" / "mermaid.esm.js").is_file()
-    assert (page_dir / "vendor" / "mermaid.LICENSES.txt").is_file()
+    assert (page_dir / "vendor" / "pele.esm.js").is_file()
+    assert (page_dir / "vendor" / "pele.LICENSES.txt").is_file()
     assert (page_dir / "widgets" / "lf-diff.js").is_file()
     assert (page_dir / "vendor" / "pierre-diffs.esm.js").is_file()
 
@@ -1320,7 +1320,7 @@ def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypa
     (first / "leaf.js").symlink_to(tmp_path / "nowhere")
     (first / "widgets" / "lf-planted.js").symlink_to(tmp_path / "nowhere")
     (first / "media" / "elsewhere").symlink_to(tmp_path, target_is_directory=True)
-    cleanup_model.write_json(first / "status.json", {"state": "idle"})
+    (first / "status.json").write_text("{}")
     pool.give_back("plain", first)
 
     second = pool.lend("plain", tmp_path / "second", initialize)
@@ -1894,28 +1894,17 @@ def test_the_injected_control_face_is_a_default_only_the_document_reads():
 def test_layer_style_sources_consume_the_runtime_layout_names():
     """CSS and runtime agree on shared property and attribute names. Read editable
     sources; the stylesheet freshness gate holds their generated delivery copies."""
-    runtime = schema_model.ASSETS / "runtime"
-    edges, page_paint, surfaces = (
-        runtime / name
-        for name in ("drawn-edge.js", "page-paint.js", "auxiliary-surfaces.js")
-    )
-    read = json.loads(js_facts("literals", [edges, page_paint, surfaces]))
+    page_paint = schema_model.ASSETS / "runtime" / "page-paint.js"
+    read = json.loads(js_facts("literals", [page_paint]))
     styles = schema_model.ASSETS / "styles"
     sheet = (styles / "theme.css").read_text() + (styles / "chrome.css").read_text()
 
-    [[read_property]] = read[str(surfaces)]["calls"]["getPropertyValue"]
-    for spelling in (
-        read_property + ":",
-        "var(" + read[str(edges)]["constants"]["THREAD_PANEL_PROP"] + ")",
-        "var(" + read[str(edges)]["constants"]["DRAWER_SLOT_PROP"] + ")",
-        "[" + read[str(page_paint)]["constants"]["PAGE_PAINT_ATTRIBUTE.ask"] + "]",
-    ):
-        assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
-    for spelling in (
-        '[data-lf-auxiliary-surface="queue"]',
-        '[data-lf-auxiliary-surface="threads"]',
-    ):
-        assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
+    spelling = (
+        "["
+        + read[str(page_paint)]["constants"]["PAGE_PAINT_ATTRIBUTE.obligation"]
+        + "]"
+    )
+    assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
 
 
 def test_prepaint_marks_the_state_the_stylesheet_reads():
@@ -2266,8 +2255,8 @@ def test_page_check_names_an_older_leaf_beside_its_own(page_dir):
 
 def test_a_server_names_its_leaf_where_another_vendored_the_page(page_dir):
     """The served state names the Leaf the server runs only where it is another than
-    the page's, so the banner sets the two side by side exactly when they differ,
-    judged by the commit the Leaf records rather than its short label."""
+    the page's, so the leaf's About menu sets the two side by side exactly when they
+    differ, judged by the commit the Leaf records rather than its short label."""
     from leaf import hosting as hosting_model
 
     (page_dir / "index.html").write_text(PLAIN_PAGE, encoding="utf-8")
@@ -2485,7 +2474,7 @@ def test_the_layer_composer_is_the_browser_module_population():
 
 def test_every_test_runs_against_a_throwaway_state_home(tmp_path_factory):
     """Fixture claims and installed packages stay outside the developer's state."""
-    assert machine_model.state_home().is_relative_to(tmp_path_factory.getbasetemp())
+    assert cleanup_model.state_home().is_relative_to(tmp_path_factory.getbasetemp())
 
 
 @pytest.mark.parametrize("launcher_ends", ["wait", "exit"])
@@ -3227,13 +3216,13 @@ def test_a_fresh_log_starts_without_the_cursor_of_the_log_it_replaced(page_dir):
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
     )
-    cleanup_model.write_json(page_dir / "cursor.json", {"seq": 1})
+    write_record(page_dir / "cursor.json", {"seq": 1})
     (page_dir / "events.jsonl").unlink()
 
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
 
     assert result.exit_code == 0, result.output
-    assert interact_files.read_json(page_dir / "cursor.json") is None
+    assert read_record(page_dir / "cursor.json") is None
     assert events_model.read_cursor(page_dir) == 0
 
 
@@ -4624,7 +4613,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     key; the same listener handles pointer input. prepaint.js records inputs
     from the document's first script. focus.js reads keys as the end of a label press
     and as a Tab's step; neither answers a command. The
-    interaction log records keys and answers none. The code block's copy control hands Tab back to its source. Another is how every
+    interaction log records keys and answers none. A control standing over a page block, such as a code block's Copy, hands Tab back to its block. Another is how every
     drift this register replaced began — a
     `keydown` beside a display list, the two of them free to disagree about which keys the
     widget answers."""
@@ -4647,7 +4636,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
         "prepaint.js": 1,
         "focus.js": 2,
         "interaction-log.js": 1,
-        "code-copy.js": 1,
+        "block-controls.js": 1,
     }, (
         f"the runtime's keydown listeners changed: {listed}. A key belongs in the "
         "register (keys(el, title, rows)), which is what lets a surface promise it."

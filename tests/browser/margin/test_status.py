@@ -14,7 +14,7 @@ from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf.served_state import context as served_context
 from playwright.sync_api import expect
-from render_cases_interaction import ASK_PAGE, PANEL_PAGE, live_url
+from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, live_url
 from render_cases_layout import token_colour
 from render_cases_navigation import go_to_address
 from render_cases_widgets import (
@@ -37,9 +37,10 @@ from render_harness import (
 )
 
 from browser.margin import (
-    COMMENT_ON_ASK,
+    COMMENT_ON_OBLIGATION,
     leave_card_by_its_target,
 )
+from browser.threads import open_panel_thread
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -198,11 +199,11 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
         browser,
         live_url(
             serve(
-                ASK_PAGE,
+                OBLIGATION_PAGE,
                 events=[
-                    {**COMMENT_ON_ASK, "id": "1" * 32},
+                    {**COMMENT_ON_OBLIGATION, "id": "1" * 32},
                     {
-                        **COMMENT_ON_ASK,
+                        **COMMENT_ON_OBLIGATION,
                         "id": "2" * 32,
                         "text": "Check the return visit too.",
                     },
@@ -335,12 +336,12 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect(preview).to_be_visible()
     expect(preview.locator(".lf-margin-thread")).to_have_count(1)
     expect(preview.locator(".lf-margin-preview-position")).to_have_text("1/2")
-    expect(preview).to_contain_text(COMMENT_ON_ASK["text"])
+    expect(preview).to_contain_text(COMMENT_ON_OBLIGATION["text"])
     preview.get_by_role("button", name="Next thread").click()
     expect(preview.locator(".lf-margin-preview-position")).to_have_text("2/2")
     expect(preview.locator(".lf-margin-thread")).to_have_count(1)
     expect(preview).to_contain_text("Check the return visit too.")
-    expect(preview).not_to_contain_text(COMMENT_ON_ASK["text"])
+    expect(preview).not_to_contain_text(COMMENT_ON_OBLIGATION["text"])
     leave_card_by_its_target(page)
     page.keyboard.press("g")
     page.keyboard.press("Shift+p")
@@ -418,12 +419,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     }""")
     expect(marker).to_be_visible()
     resized(page, 390, 760)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    working_thread = page.locator(".lf-thread").filter(
-        has=page.locator(".lf-thread-status", has_text="Working")
-    )
-    working_thread.locator(".lf-thread-summary").click()
+    working_thread = open_panel_thread(page, roots[0]["id"])
     workflow = working_thread.locator(".lf-msg-sending", has_text="Working")
     expect(workflow).to_have_text("Working")
     expect(workflow).to_have_attribute("title", f"Working · {detail}")
@@ -440,7 +436,7 @@ def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(
     primary seat: it goes back to its own receipt, and the new primary takes the work,
     in the margin or a page's own annotation view as in the Page Map.
     """
-    source = ASK_PAGE
+    source = OBLIGATION_PAGE
     if annotations == "page":
         source = source.replace("<body>", '<body data-annotations="page">')
     page = open_page(
@@ -449,9 +445,9 @@ def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(
             serve(
                 source,
                 events=[
-                    {**COMMENT_ON_ASK, "id": "1" * 32},
+                    {**COMMENT_ON_OBLIGATION, "id": "1" * 32},
                     {
-                        **COMMENT_ON_ASK,
+                        **COMMENT_ON_OBLIGATION,
                         "id": "2" * 32,
                         "text": "Check the return visit too.",
                     },
@@ -575,11 +571,11 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     only thing that changes between the two readings is who spoke last. Pickup and work
     remain secondary when another thread on the same target still needs the user.
     Rails and pins keep that priority in both color schemes, including a target
-    whose authored Ask has been handed to the agent by its comment.
+    whose authored obligation has been handed to the agent by its comment.
     """
-    comment = {**COMMENT_ON_ASK, "anchor": {"section": target}}
+    comment = {**COMMENT_ON_OBLIGATION, "anchor": {"section": target}}
     page = open_page(
-        browser, live_url(serve(ASK_PAGE, events=[comment])), color_scheme=scheme
+        browser, live_url(serve(OBLIGATION_PAGE, events=[comment])), color_scheme=scheme
     )
     resized(page, 1440, 900)
     cluster = page.locator(f'[data-lf-margin-for="{target}"]')
@@ -632,7 +628,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     assert _margin_entry_paint(marker) == {
         "background": with_agent["background"],
         "icon": token_colour(page, "--accent"),
-    }, "the answered thread lost its blue cue after the Ask handoff"
+    }, "the answered thread lost its blue cue after the obligation handoff"
     append_carried_log_record(
         serve.page_dir,
         {
@@ -751,11 +747,11 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
     opening renders, not that opening's Markdown, until a title names it on all of
     them."""
     comment = {
-        **COMMENT_ON_ASK,
+        **COMMENT_ON_OBLIGATION,
         "text": "Can **these** share one visit?",
         "anchor": {"section": "bracket"},
     }
-    source = ASK_PAGE.replace(
+    source = OBLIGATION_PAGE.replace(
         '<h1 id="h">Three jobs</h1>',
         '<h1 id="h">Three jobs</h1><lf-activity id="feed"></lf-activity>',
     )
@@ -767,11 +763,15 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
         if event["kind"] == "comment"
     )
     named = "Can these share one visit?"
-    # Until the agent answers, the On panel lists the answer it owes by the same name.
+    # Until the agent answers, On the agent lists the answer it owes by the same name.
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
-    page.locator(".lf-queue-tab").nth(1).click()
-    expect(page.locator(".lf-queue-panel .lf-queue-title")).to_have_text([named])
+    panel_settled(page, view="queue")
+    page.locator(".lf-floating-panel .lf-fp-filters button").nth(1).click()
+    queue = page.locator('.lf-fp-view[data-view="queue"]:not([data-leaving])')
+    owed = queue.locator('.lf-fp-on-item[data-list="agent"]')
+    expect(owed).to_have_count(1)
+    expect(owed.locator(".lf-fp-on-title, .lf-fp-prompt").first).to_have_text(named)
     page.keyboard.press("Escape")
     # The agent's answer settles the comment and opens the to-do that holds it.
     append_carried_log_record(
@@ -805,9 +805,10 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
     expect(dialog).to_be_hidden()
     page.keyboard.press("g")
     page.keyboard.press("Shift+T")
-    card = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
-    expect(card.locator(".lf-thread-topic")).to_have_text(named)
-    expect(card.locator(".lf-thread-status")).to_have_text("To-do open")
+    panel_settled(page, view="threads")
+    listed = page.locator(f'.lf-fp-thread[data-key="{root["id"]}"]')
+    expect(listed.locator(".lf-fp-label")).to_have_text(named)
+    expect(listed.locator(".lf-fp-value")).to_contain_text("To-do open")
 
     # A title names it on every surface, the margin's included.
     append_carried_log_record(
@@ -820,7 +821,7 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
         },
     )
     told(page)
-    expect(card.locator(".lf-thread-topic")).to_have_text("Visit windows")
+    expect(listed.locator(".lf-fp-label")).to_have_text("Visit windows")
     # The renamed row is news the feed holds until the reader asks for it.
     page.locator("#feed .lf-activity-news").click()
     expect(feed).to_contain_text("replied in “Visit windows”")
@@ -951,10 +952,10 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     seat, so the cluster's identity survives the change of promise. Once the handoff and
     claim are complete, the margin entry leaves instead of restating widget state.
 
-    The group is single-choice so the pick itself answers the Ask: a tick in a
+    The group is single-choice so the pick itself answers the obligation: a tick in a
     group that waits for Done hands the agent nothing, so it has no receipt.
     """
-    single = ASK_PAGE.replace(
+    single = OBLIGATION_PAGE.replace(
         '<lf-options id="jobs" choose multiple>', '<lf-options id="jobs" choose>'
     )
     page = open_page(browser, live_url(serve(single)))

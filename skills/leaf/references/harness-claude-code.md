@@ -25,8 +25,10 @@ holds. New input wakes the session: it opens a turn, or joins a running one at i
 next tool result. If the user turned on Leaf's hooks module, the module watches
 instead, and its wake arrives as a message from the leaf plugin.
 
-Leaf's prompt hook, or the Stop hook for input that arrives as a turn ends, puts the
-whole delivery in your context. Either hook also confirms receipt, so `acknowledge`
+Leaf's prompt hook, or the tool-batch boundary while you work, puts the whole
+delivery in your context; input that arrives after your last tool call opens the
+next turn. The tool-batch boundary owns mid-turn
+delivery under either watcher. The delivering hook confirms receipt, so `acknowledge`
 is null and you run no acknowledgement command. A delivery the hook could not
 confirm, or one too large for the context, arrives as a pointer instead: read every
 part with `leaf delivery read <id>` before working, then follow the confirmation
@@ -54,7 +56,8 @@ line, outside a code block.
 
 ## Subagents
 
-A subagent runs with this session's id, so Leaf takes it for this session. A page it
+A subagent runs with this session's id; its native tool-batch hooks carry an
+`agent_id` and leave your input for you. A page it
 claims belongs to this session, and your Stop hook holds your turns open for its
 updates. A `leaf wait` it runs is refused while your Stop hook watches, and otherwise
 takes input from every page you hold away from you. So keep the page with you

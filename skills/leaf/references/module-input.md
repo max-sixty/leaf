@@ -5,9 +5,9 @@ Read with [module-authoring.md](module-authoring.md), which holds what every beh
 ## Commands and keyboard routes
 
 A widget declares each command once, at upgrade, with
-`commands(element, title, rows, options)`. The key handler, shortcut bar, command
-reference, `aria-keyshortcuts` and inline hints all read that one declaration. `options`
-is the scope's `when`, alone or as `{when}`.
+`commands(element, title, rows, options)`. The key handler, command reference,
+`aria-keyshortcuts`, announcements and inline hints all read that one declaration.
+`options` is the scope's `when`, alone or as `{when}`.
 
 For controls Leaf draws, such as margin entries, build the scope as a value with
 `commandScope(title, rows, options)` and put it on the entry's `scope`
@@ -42,8 +42,7 @@ Leaf checks each row as it is registered and throws for a malformed one.
 
 A row's `id` is a stable, lowercase dotted name such as `draft.save`; keep it when keys
 or words change. `title` names the command, `description` adds detail for the command
-reference, `line` gives the shortcut bar a shorter word (`false` keeps the row off the
-bar), and `label` replaces the keycap. `title` may be a function where state changes it.
+reference, and `label` replaces the keycap. `title` may be a function where state changes it.
 
 `keys` lists bindings in canonical spelling, such as `"a"`, `"Shift+a"` or
 `"Mod+Enter"`, or is a function returning them. `repeat: true` also runs on a held key's
@@ -93,13 +92,13 @@ tooltip, and `saying(rows)` words what a set of rows answers, for an announcemen
 ### Decisions and forwarded keys
 
 `keys` work inside the widget. `contextKeys` work there too, and Leaf also forwards them
-from the enclosing ask's question and from its margin controls and threads. Number a
-widget's choices by the choice, not by what is available: a classifier declares Pass as
-`1` and Keep as `2`, and disabling `1` must not turn `2` into something else. The page
-keeps `m` and `Shift+m` for moving through On me.
+from the enclosing `lf-ask`'s question and from its margin controls and threads. Number
+a widget's choices by the choice, not by what is available: a classifier declares Pass
+as `1` and Keep as `2`, and disabling `1` must not turn `2` into something else. The
+page keeps `m` and `Shift+m` for moving through On me.
 
 `decision: true`, which needs a `control`, marks a command that starts, advances,
-answers or revises the ask holding it; it forwards no keys by itself. A forwarded key
+answers or revises the obligation holding it; it forwards no keys by itself. A forwarded key
 runs the original row, if available. Register each command once, not on every nearby
 button.
 
@@ -229,7 +228,7 @@ element drawn on; a moving visual listens for it and freezes what it shows.
 A widget's own text box is `offer(TEXT_FIELD)`, Leaf's Markdown editor, which shows the
 draft as the sent message will read, behaves like a textarea, and fires `input` only for
 the user's edits. `TEXT_FIELD` is its tag, and `TEXT_BOX` matches it or a native
-textarea. The field matches `:state(ready)` once its editor exists. When the field
+textarea. The field matches `:state(ready)` once it draws its words. When the field
 replaces text the user was reading, leave that text in place until the field is ready,
 so the scroller doesn't shrink.
 

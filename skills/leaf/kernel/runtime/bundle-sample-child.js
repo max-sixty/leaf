@@ -1,6 +1,7 @@
 import {
   ELEMENTS,
   pageScopes,
+  stances,
   textEntryScope,
   universalCommandReference
 } from "./bundle-user-intent.js";
@@ -20,7 +21,6 @@ import {
   declaredBindings,
   descriptionOf,
   excludedByInert,
-  lineOf,
   live,
   nativeActivationAt,
   nativeClaimAt,
@@ -50,7 +50,7 @@ import {
   renderedUnder,
   sizeObserver,
   takesLetters
-} from "./bundle-sample-visibility.js";
+} from "./bundle-frame-visibility.js";
 
 // runtime/sample-child.js
 var child = document.documentElement.lfSample;
@@ -178,6 +178,7 @@ var userIn = (scope) => {
   return !scope.at || scope.at();
 };
 var standing = (scope) => userIn(scope) && pageHas(scope);
+var innermostStance = () => stances().find(({ scope }) => standing(scope)) ?? null;
 var nativeBoundary = (claims) => ({
   get rows() {
     const reference = universalCommandReference();
@@ -347,33 +348,12 @@ function announceInvocation(invocation) {
     })
   );
 }
-function invokeCommand(command, beforeCommand) {
+function invokeCommand(command) {
   const invocation = invocationFor(command.row, command.binding, command.entry);
   if (!invocation) return false;
-  beforeCommand?.(invocation.row);
   announceInvocation(invocation);
   invocation.run();
   return true;
-}
-function lineOwner(binding) {
-  const nearer = shadow();
-  for (const scope of stack(binding)) {
-    const owners = scope.rows.filter(
-      (row) => bindings(row).includes(binding) && !nearer.takes(binding, row, scope) && commandEntries(row, [binding]).length > 0 && lineOf(row) !== false
-    );
-    if (owners.length > 1)
-      throw new Error(
-        `leaf: ${scope.title ?? "a scope"} has two live meanings for ${binding}: ` + owners.map(titleOf).join("; ")
-      );
-    if (owners.length)
-      return {
-        scope,
-        row: owners[0],
-        visible: !scope.sequence && word(owners[0].lineWhen) === false ? false : true
-      };
-    nearer.past(scope);
-  }
-  return null;
 }
 function unclaimedScopes(binding) {
   const unclaimed = /* @__PURE__ */ new Set();
@@ -412,12 +392,11 @@ function resolveKey(ev) {
   return null;
 }
 var keyReady = (ev) => resolveKey(ev) !== INPUT_PENDING;
-function dispatchKey(ev, { beforeCommand }) {
+function dispatchKey(ev) {
   const matched = resolveKey(ev);
   if (!matched || matched === INPUT_PENDING) return false;
   if (!matched.native) ev.preventDefault();
   if (ev.repeat && !matched.row.repeat) return true;
-  beforeCommand?.(matched.row);
   announceInvocation(matched);
   matched.run();
   return true;
@@ -491,10 +470,10 @@ function invokePress({ id, row, binding }) {
   invocation.run();
   return true;
 }
-function executeCommand(id, beforeCommand) {
+function executeCommand(id) {
   const command = commandFor(id);
   if (!command) return false;
-  return invokeCommand(command, beforeCommand);
+  return invokeCommand(command);
 }
 
 export {
@@ -502,10 +481,8 @@ export {
   registerSampleCommand,
   sampleNotice,
   userIn,
-  standing,
+  innermostStance,
   stack,
-  shadow,
-  lineOwner,
   keyReady,
   dispatchKey,
   activeCommandLabel,

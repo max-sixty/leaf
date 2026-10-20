@@ -4,10 +4,13 @@ saving and its controls, Enter, and comparing versions."""
 import re
 
 import pytest
-from interact_support import append_command
+from click.testing import CliRunner
+from interact_support import append_command, response_reference
+from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
+from render_cases_interaction import panel_comment
 from render_cases_navigation import DRAFT_TEXT, JOURNEY_V1, _publish
 from render_harness import (
     compare_with,
@@ -25,15 +28,18 @@ from render_harness import (
     write,
 )
 
+from browser.threads import open_panel_thread
+
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
 def test_double_clicking_a_draft_keeps_its_frame_and_selected_word(browser, serve):
     """The draft stays in place and double-click keeps the selected word on edit.
 
-    The editor leaves room for Copy beside the caret. The frame's inset focus paint
-    changes without reaching outside the reading box, and print keeps the saved body
-    while dropping the shared editor."""
+    The editor sets its words exactly where the prose stood, since the toolbar hovers
+    over the border rather than taking room beside the caret. The frame's inset focus
+    paint changes without reaching outside the reading box, and print keeps the saved
+    body while dropping the shared editor."""
     page = open_page(browser, serve(JOURNEY_V1))
     metrics = """(sel) => {
       const el = document.querySelector('#draft-ops ' + sel), s = getComputedStyle(el);
@@ -48,11 +54,12 @@ def test_double_clicking_a_draft_keeps_its_frame_and_selected_word(browser, serv
     # reach it: an outset ring is paint, so every rect stayed exactly as asserted
     # below while the frame the user sees grew 2px on every side, corners
     # rounding wider to match. Bytes, not pixels — the same encoder over the same
-    # content gives the same file, so identical files are identical paint.
+    # content gives the same file, so identical files are identical paint. The band
+    # stops at the box's middle, short of the toolbar that hovers over its top right.
     band = {
         "x": host["x"] - 4,
         "y": host["y"] - 4,
-        "width": host["width"] + 8,
+        "width": host["width"] / 2,
         "height": 4,
     }
     inside = {"x": host["x"], "y": host["y"], "width": 40, "height": 40}
@@ -87,10 +94,9 @@ def test_double_clicking_a_draft_keeps_its_frame_and_selected_word(browser, serv
         "the open editor is indistinguishable from the read view at the box's edge"
     )
     edited = page.evaluate(metrics, "leaf-text")
-    assert (edited[0], edited[1], edited[3]) == (read[0], read[1], read[3]), (
-        "the editor moved the draft's words or changed their line height"
+    assert edited == read, (
+        "the editor moved, narrowed or changed the height of the draft's words"
     )
-    assert edited[2] < read[2], "the editor left no room for Copy beside the caret"
     assert page.locator("#draft-ops").bounding_box() == host, (
         "the draft changed shape under the pointer when the editor opened"
     )
@@ -296,10 +302,37 @@ def test_a_rendered_continuation_click_edits_the_exact_source_position(browser, 
         draft_control(page, "cancel", f"continuation-{i}").click()
 
 
-def test_a_draft_in_an_ask_takes_no_digits_and_answers_from_its_controls(
+def test_a_click_on_a_reply_s_draft_opens_it_in_the_panel(browser, serve):
+    """A draft an agent sends in a reply opens at a click on its words in the panel's
+    thread, as one on the page does. The message the reader draws it in is Leaf's own
+    surface, marked as generated chrome, and the draft once took that mark for a press
+    of its own and left the click to it, so only its ✎ opened it."""
+    url = serve(leaf_page("Reply draft", "<h1>Reply draft</h1>"))
+    question = panel_comment(serve.page_dir, "Could you draft the note?")
+    replied = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "response",
+            "reply",
+            "--done",
+            response_reference(serve.page_dir, question),
+            "--text",
+            "Here it is:",
+            "--markup",
+            '<lf-draft id="reply-draft"><pre>The note to send.</pre></lf-draft>',
+        ],
+    )
+    assert replied.exit_code == 0, replied.output
+    page = open_page(browser, url)
+    draft = open_panel_thread(page, question).locator("lf-draft")
+    draft.locator(".lf-draft-body").get_by_text("The note to send.").click()
+    expect(draft.locator("leaf-text")).to_be_focused()
+
+
+def test_a_draft_in_an_obligation_takes_no_digits_and_answers_from_its_controls(
     browser, serve
 ):
-    """A draft lends its Ask no digits, so a digit typed while standing on the Ask
+    """A draft lends its obligation no digits, so a digit typed while standing on the obligation
     or in the editor is not a command; the user Tabs to Edit and saves with
     Mod+Enter."""
     original = "Keep **this** source editable."
@@ -472,7 +505,7 @@ def test_first_draft_save_and_refusal_keep_the_local_editor_controls(browser, se
 def test_draft_controls_survive_hiding_annotations_and_escape_discards(browser, serve):
     """Editing operations stay in their box while the annotation layer is hidden.
 
-    The footer offers Save and Cancel, and Escape cancels as the button does, so a
+    The toolbar offers Save and Cancel, and Escape cancels as the button does, so a
     closed box holds no unsent words. The box's Copy control copies the Markdown source
     the box shows, the open editor's while it stands."""
     context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])

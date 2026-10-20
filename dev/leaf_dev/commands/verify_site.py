@@ -57,7 +57,7 @@ from leaf_dev.arms import (
     install_codex_plugin,
     run_directory,
 )
-from leaf_dev.browser import CLASSIC_CHROME, headless_shell
+from leaf_dev.browser import headless_shell
 from leaf_dev.commands.site import asset_site, install_tree
 from leaf_dev.startup import observe_startup as record_startup
 from leaf_dev.startup import startup_reading
@@ -496,7 +496,6 @@ def user_session(
 ) -> AgentSession | str:
     """One activated user session, or why this allocation cannot admit a turn."""
     context = browser.new_context()
-    context.add_init_script(CLASSIC_CHROME)
     page = context.new_page()
     failures = observe_startup(page)
     response = page.goto(url, wait_until="load", timeout=120_000)
@@ -510,7 +509,13 @@ def user_session(
             return served_instead(reached, release)
         return AgentSession(context, page, failures, url, state_url, passive.json())
     activation = activation_url(url, passive.json())
-    activated = activation_read(context, activation)
+    try:
+        activated = activation_read(context, activation)
+    except PlaywrightError as error:
+        if "read ECONNRESET" not in str(error):
+            raise
+        context.close()
+        return "lost its activation connection"
     if activated is None:
         context.close()
         return STILL_STARTING
@@ -540,7 +545,8 @@ def agent_session(
 ) -> AgentSession:
     """Open one user session whose private container is serving `release`, retrying
     with a fresh context for up to 180 s while the rollout reaches allocations (they
-    answer as another release or as the edge's `503`). Nothing here writes."""
+    answer as another release or as the edge's `503`) or activation loses its
+    connection. Nothing here writes."""
     url = f"{origin}/examples/triage-board/"
     state_url = urljoin(url, "api/state")
     deadline = time.monotonic() + 180
@@ -745,7 +751,6 @@ def verify_saved_state(browser, worker: LocalWorker) -> dict[str, dict]:
     worker.stop(container)
     asleep = worker.containers()
     context = browser.new_context()
-    context.add_init_script(CLASSIC_CHROME)
     context.add_cookies(cookies)
     page = context.new_page()
     failures = observe_startup(page)
@@ -758,14 +763,12 @@ def verify_saved_state(browser, worker: LocalWorker) -> dict[str, dict]:
     await_presentation(page, url, failures)
     page.locator("#saved-state-recall").wait_for(state="visible")
     page.locator("#heat-opt-window[chosen]").wait_for(state="visible")
-    page.locator(".lf-threads-toggle").click()
-    thread = page.locator(f'.lf-threads > .lf-thread[data-id="{seeded["comment"]}"]')
-    thread.wait_for(state="visible")
-    if thread.get_attribute("open") is None:
-        thread.locator(".lf-thread-summary").click()
-    thread.get_by_text("Saved before the container stopped.", exact=True).wait_for(
-        state="visible"
-    )
+    page.locator(".lf-fp-threads").click()
+    page.locator(".lf-fp-filters button", has_text="Open").click()
+    page.locator(f'.lf-fp-thread[data-key="{seeded["comment"]}"]').click()
+    page.locator(".lf-fp-view[data-view=thread]").get_by_text(
+        "Saved before the container stopped.", exact=True
+    ).wait_for(state="visible")
     state_response = answered(context.request.get(state_url), state_url)
     check(
         state_response.headers.get("leaf-state-source") == "durable",

@@ -3,10 +3,10 @@
  *
  * A place is what an anchor names (anchor-resolution.js): an element with an id, a
  * passage inside one, or a part of a widget, such as a projected datum or a visual
- * part. A thread travels to its anchor's place, a fragment link to its element, an ask
+ * part. A thread travels to its anchor's place, a fragment link to its element, an obligation
  * to its own arrival region, and a module's `navigateToDatum` to the part its
- * reference names. Every route shares three steps: `revealAddressed` draws the part,
- * `reveal` opens what holds it, and `clearFor` clears the surface covering it. Each
+ * reference names. Every route shares two steps: `revealAddressed` draws the part,
+ * and `reveal` opens what holds it. Each
  * route says where it lands, what takes focus and how to scroll; `arrive` then does
  * the reveal, painting, focus and scrolling, and no route does them itself. When the
  * reveal replaces a visible view, the destination lands at once instead of scrolling
@@ -38,7 +38,6 @@ import {
 } from "./anchor-resolution.js";
 import {
   clippedPlace,
-  clipsPast,
   landingBand,
   placeBox,
   placeHolder,
@@ -72,7 +71,6 @@ export function scrollToFragment(element) {
 
 /** @param {{
  *   anchors: any,
- *   surfaces: any,
  *   refreshThread: () => unknown,
  *   focusForNavigation: any,
  *   threadFocusTarget: any,
@@ -80,7 +78,6 @@ export function scrollToFragment(element) {
  * }} travel */
 export function createAnchorTravel({
   anchors,
-  surfaces,
   refreshThread,
   focusForNavigation,
   threadFocusTarget,
@@ -96,7 +93,7 @@ export function createAnchorTravel({
   // commits that only once the trip arrives. A destination the user can already read
   // where they are is no departure. A trip that names its `landing` while part of the
   // last trip's landing still shows continues that journey, whether it goes to a
-  // thread or the On panel, and replaces the journey's entry, which already holds
+  // thread or On me, and replaces the journey's entry, which already holds
   // where the journey began. Choosing another authored passage by pointer or Tab, or
   // moving off the landing, ends the journey, and the next trip saves the new place.
   // A journey is not a walk: steps of the thread walk, of the queue walk and presses
@@ -124,14 +121,10 @@ export function createAnchorTravel({
   // Resolve fresh after exposure, presentation and focus. A replaced view lands
   // immediately so it never paints at the old view's offset; final placement alone
   // commits the prepared departure, after the destination still stands through focus.
-  async function arrive(
-    resolve,
-    { intent, present = null, keep = false, departure = null },
-  ) {
+  async function arrive(resolve, { intent, present = null, departure = null }) {
     const first = resolve();
     const holder = first && placeHolder(first.where);
     if (!holder || !intent()) return false;
-    if (!keep) intent.handoff(() => surfaces.clearFor(holder));
     const disclosures = [holder, ...(first.reveal ?? [])].map((target) =>
       reveal(target, intent),
     );
@@ -225,9 +218,11 @@ export function createAnchorTravel({
             where: current.where,
             focus: input,
             caret,
+            // The place the words are about comes into view first and the editor
+            // last, so a place taller than the window, as a reviewed case is on a
+            // phone, never scrolls the caret back out of it.
             scroll: input
               ? [
-                  { at: input, block: "nearest", behavior: "instant" },
                   {
                     at: current.where,
                     behavior: "instant",
@@ -266,11 +261,11 @@ export function createAnchorTravel({
   // or newer intent leaves history and the continuing journey untouched. A destination
   // not yet placed (a datum a widget has yet to hydrate) is somewhere else. `there` is the
   // caller's reading of already being there where it asks more than the destination's
-  // own (an ask's arrival region), built on the reading it is handed. Clearing a surface
+  // own (an obligation's arrival region), built on the reading it is handed. Clearing a surface
   // can take the focus out of it, so the caller's retained `intent` hands the gesture
   // over to where that leaves the user rather than reading the move as a newer one.
-  /** @param {{landing?: () => unknown, url?: URL, keep?: boolean, intent: any}} trip */
-  function prepareTrip({ landing = null, url, keep = false, intent }) {
+  /** @param {{landing?: () => unknown, url?: URL, intent: any}} trip */
+  function prepareTrip({ landing = null, url, intent }) {
     const write = prepareEntry();
     const continuing = landing && stillLanded();
     const arrival = landing && {
@@ -279,14 +274,7 @@ export function createAnchorTravel({
     };
     let moving;
     return {
-      plan(where, { there = (readable) => readable(where), required = [] } = {}) {
-        // A compound destination promises its answering or editing surface as well
-        // as the context the reader lands on. Apply the same clearance policy to
-        // each; a broad context can remain visible while its narrow control is hidden.
-        if (where && !keep)
-          intent.handoff(() => {
-            for (const place of new Set([where, ...required])) surfaces.clearFor(place);
-          });
+      plan(where, { there = (readable) => readable(where) } = {}) {
         moving = !(where && there(readableDestination));
         return moving;
       },
@@ -313,8 +301,7 @@ export function createAnchorTravel({
   // the browser's: the navigation has already added the entry Back returns to, whoever
   // followed it — a press on a page link or a reply's reference, a Go-to hint. What the
   // platform lacks for a page place is travel's to add, the same as for any other
-  // destination: clear the surface hiding it (a covering Threads panel left the page
-  // scrolling behind it, the link's own thread still in front), and reveal what holds
+  // destination: clear the surface hiding it, and reveal what holds
   // it, which reaches a widget's own disclosure as well as `hidden="until-found"` (a
   // worker in a shut goal is `display: none`, and the browser landed on nothing). It
   // then lands by the browser's fragment placement rule and puts focus
@@ -444,25 +431,19 @@ export function createAnchorTravel({
   }
 
   // A destination's box and what of it the user can see, which is that box less the
-  // window and whatever clips it, or null when none of it shows. The selected surface is
-  // read past: it can be cleared for travel; any other occluder is not.
+  // window and whatever clips it, or null when none of it shows.
   function seenOf(where) {
     const holder = placeHolder(where);
     if (!holder) return null;
     const destination = placeBox(where);
-    const selected = surfaces.selectedSurface();
-    const seen = clippedPlace(
-      where,
-      selected ? clipsPast([selected]) : new Map(),
-      destination,
-    );
+    const seen = clippedPlace(where, new Map(), destination);
     return seen && { holder, destination, seen };
   }
 
   // Whether travel to `where` would leave the page as it stands: the destination stands
   // whole inside the band a landing aims for (`landingBand`) and nothing cuts it. Being
   // in front of the user (`seenRect`) is not enough, since a destination half cut off or
-  // pressed against the banner is one a landing still moves.
+  // pressed against the window's head is one a landing still moves.
   function readableDestination(where) {
     const shown = seenOf(where);
     if (!shown) return false;
@@ -508,10 +489,10 @@ export function createAnchorTravel({
   };
 
   /** @param {string} id
-   * @param {{part?: any, focus?: boolean, keep?: boolean, presented?: any, intent?: any}} [options] */
+   * @param {{part?: any, focus?: boolean, presented?: any, intent?: any}} [options] */
   async function scrollToThread(
     id,
-    { part = null, focus = true, keep = false, presented = null, intent } = {},
+    { part = null, focus = true, presented = null, intent } = {},
   ) {
     const mayArrive = retainTravel(intent);
     const thread = threadNamed(id);
@@ -522,7 +503,7 @@ export function createAnchorTravel({
     // Decided before the trip awaits anything: a destination that is not readable now,
     // or one a widget has yet to hydrate, is somewhere else.
     const landing = () => threadDestination(id);
-    const departure = prepareTrip({ landing, keep, intent: mayArrive });
+    const departure = prepareTrip({ landing, intent: mayArrive });
     if (destination || hydrating) departure.plan(destination);
     if (hydrating) {
       const source = sectionOf(anchor);
@@ -561,7 +542,6 @@ export function createAnchorTravel({
           if (presented) await presented;
           if (mayArrive()) await refreshThread();
         },
-        keep,
       },
     );
   }

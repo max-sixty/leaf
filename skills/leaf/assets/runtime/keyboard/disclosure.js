@@ -3,7 +3,7 @@
    A disclosure adds ← and →, which no browser answers, so its row runs the press itself —
    through the element's own click, so keyboard and pointer stay one behaviour. They sit
    on the row that already carries Enter and Space rather than a row of their own, because
-   two rows changing one thing spend both of the shortcut bar's hints saying one word twice.
+   two rows changing one thing spend two hints saying one word twice.
 
    Only the direction that changes something is bound: → over a shut section, ← over an
    open one, mirrored in right-to-left text, where the marker points left; and both where
@@ -12,10 +12,8 @@
    three keys it binds.
 
    `DISCLOSE` answers that for an element, and every row over a disclosure reads it — this
-   scope's, and a widget's own row re-wording the same press. Two rows naming different
-   sets is not two promises but one: `lineRows` prints the nearer row and drops the other
-   whole, so a widget naming one key fewer takes the rest off the line, and one key more
-   promises what nothing runs. It also answers where the element stands, the arrows being
+   scope's, and a widget's own row re-wording the same press — so the two never name
+   different keys. It also answers where the element stands, the arrows being
    named only where this scope reaches: a widget's disclosure inside a comment message
    keeps the platform's pair alone.
 
@@ -38,18 +36,16 @@ import { inChrome } from "../passages.js";
 
 // Where a disclosure keeps which way it stands, in both spellings. Declared up here
 // because `shadowStage` calls it, far above the surfaces it repaints for.
-// This pair is what DISCLOSE reads, so a toggle moves every row bound through it — and a
-// row's keys are named on two surfaces, the line the user sees and the
-// `aria-keyshortcuts` a listener is read. Repainting the line alone left the attribute
-// saying whichever way the row was when its scope was declared, naming the arrow that no
-// longer moves the section and withholding the one that does. The watcher that already
-// hears this write repaints the keys of the disclosure that moved, and the shared line with
-// them, so it is the one place both surfaces are kept together, rather than a repaint each
-// DISCLOSE row has to remember for itself.
+// This pair is what DISCLOSE reads, so a toggle moves every row bound through it, and
+// with them the `aria-keyshortcuts` a listener is read. Unrepainted, the attribute said
+// whichever way the row was when its scope was declared, naming the arrow that no longer
+// moves the section and withholding the one that does. The watcher that already hears
+// this write repaints the keys of the disclosure that moved, so it is the one place they
+// are kept current, rather than a repaint each DISCLOSE row has to remember for itself.
 // A write that says what the attribute already said is not a disclosure changing, and
-// taking it for one closes a loop: renderShortcutBar paints `aria-expanded` on the shortcut bar's
-// More control, so every paint scheduled the next one and the page repainted for
-// as long as it was open. Reading the old value is what tells the two apart. A real
+// taking it for one closes a loop: a key paint that writes `aria-expanded` on a
+// control would schedule the next paint with every paint, and the page would repaint
+// for as long as the disclosure stood open. Reading the old value is what tells the two apart. A real
 // toggle still arrives, including one that lands back where it started, because the
 // record for its return leg carries the other value.
 const disclosureWatch = new MutationObserver((records) => {

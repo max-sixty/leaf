@@ -25,11 +25,15 @@ from render_harness import (
     draft_control,
     expect_comment_notes,
     open_page,
+    panel_menu,
     round_trip,
+    selection_field,
     stamp_page,
     told,
     write,
 )
+
+from browser.threads import open_panel_thread
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -49,9 +53,7 @@ def test_page_round_trip(browser, serve):
         getSelection().removeAllRanges();
         getSelection().addRange(range);
     }""")
-    expect(
-        page.get_by_role("button", name="Comment on selection", exact=True)
-    ).to_be_visible()
+    expect(selection_field(page)).to_be_visible()
     page.keyboard.press("c")
     expect(page.locator(".lf-fab-input")).to_be_focused()
     page.wait_for_selector(".lf-composer", state="visible")
@@ -103,14 +105,20 @@ def test_page_round_trip(browser, serve):
     # Claude ships v2 with the passage moved; the page follows on its next poll.
     stamp_page(d, JOURNEY_V2, "moved")
     told(page)
-    expect(page.locator(".lf-version")).to_contain_text("v2")
+    expect(
+        panel_menu(page).locator('.lf-fp-item[data-row="versions"]')
+    ).to_contain_text("v2")
+    page.locator(".lf-fp-leaf").click()
     assert "/versions/" not in page.url
     # The anchor pass runs at render: a mark now means the quote was re-found in
     # its new position; no mark within the wait means the anchor lost it.
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    assert not page.evaluate(
-        "document.querySelector('.lf-thread .lf-quote').classList.contains('detached')"
-    ), "the passage moved and the comment lost it"
+    # The passage moved; the comment's quote still names words the page holds.
+    comment = next(
+        e["id"] for e in events_model.read_events(d) if e["kind"] == "comment"
+    )
+    quote = open_panel_thread(page, comment).locator(".lf-fp-quote")
+    expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
     # v2's markup carries the original draft text — Claude hasn't honored the
     # edit — so the user's words must arrive by replay, not visibly revert.
     expect(draft.locator(".lf-draft-body")).to_have_text(DRAFT_EDITED)
@@ -441,6 +449,9 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
 
     page = open_page(browser, url)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    thread = page.locator(".lf-thread .lf-quote").first
-    expect(thread).not_to_have_class(re.compile(r"\bdetached\b"))
+    comment = next(
+        e["id"] for e in events_model.read_events(d) if e["kind"] == "comment"
+    )
+    quote = open_panel_thread(page, comment).locator(".lf-fp-quote")
+    expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
     assert painted(page, "lf-mark") == "It takes about a minute."

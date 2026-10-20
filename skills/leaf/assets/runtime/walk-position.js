@@ -3,7 +3,7 @@
    this module only a reader for the standing destination. Owners keep that
    reading current from the source's invalidation signal — directly on paint for cheap
    lists, or through a refreshed cache for an expensive source such as the page-text
-   index — so a resolved thread, answered ask, disappearing leaf, or replaced version
+   index — so a resolved thread, answered obligation, disappearing leaf, or replaced version
    cannot leave a stale denominator behind. An end of the list is news, so a landing
    briefly gives its ordinal an accent face where the walk met one: a clamped walk that
    reached the same destination twice could not move, and a cyclic walk that came round
@@ -53,6 +53,7 @@ export function walkPosition() {
   return {
     boundary: walking.boundary,
     kind: walking.key,
+    target: position.target,
     text: walkPositionLabel(
       walking.noun,
       position.position,
@@ -132,10 +133,6 @@ export function rowWalk({
       keys: ["Home", "End"],
       routes: [route("Home", home), route("End", end)],
       title: `${home} / ${end}`,
-      // Home and End answer as they do in any list, so the shortcut bar spends its
-      // slots on the walk and on what the list offers that no other list does; the
-      // command reference and `aria-keyshortcuts` still name them.
-      lineWhen: false,
       run: (binding) => land((list) => (binding === "Home" ? list[0] : list.at(-1))),
     },
   ];

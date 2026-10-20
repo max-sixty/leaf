@@ -7,8 +7,7 @@
  *
  * STACK orders ordinary dispatch, innermost first; the command reference reads it in
  * reverse. Escape additionally resolves inner claims and focused-surface containment.
- * PAGE_COMMANDS orders shortcut-bar hints. Escape is promoted unless its row waives
- * promotion; that waiver leaves its binding and reference entry available.
+ * PAGE_COMMANDS orders the page's commands wherever they are listed.
  *
  * RUNG_LADDER orders sibling fallback steps. `rung` selects the step inside the focused
  * surface first and exposes it as one navigation.back command, so dispatch and every
@@ -16,15 +15,12 @@
  * of a page destination before the fallback ladder.
  */
 import {
-  answersTouch,
   bindings,
   checked,
   declareCommandReadiness,
   touchPresses as pressesOf,
   titleOf,
   descriptionOf,
-  lineOf,
-  word,
 } from "./bindings.js";
 import { focused } from "../focus.js";
 import { paintKeys, watchCommandScopes } from "./scopes.js";
@@ -39,16 +35,15 @@ import { offlineInteractive } from "../context.js";
 
 export const ELEMENTS = Symbol("the scopes of the focused element");
 const PAGE = Symbol("the page's own keys");
-const COVERING = Symbol("the page's keys inside a covering auxiliary surface");
 const RUNGS = Symbol("Escape's fallback ladder");
 
 // The universal route out of a native layer's keyboard boundary, named here because the
-// boundary is the dispatcher's rather than the shortcut bar's.
+// boundary is the dispatcher's rather than a presentation's.
 const COMMAND_REFERENCE = "command.reference.open";
+const GO_TO = "navigation.go-to.open";
 
 const STACK = [
   "command reference",
-  "expanded shortcut bar",
   "page map",
   "go to",
   "response options",
@@ -66,18 +61,16 @@ const STACK = [
   "composer",
   "text entry",
   "thread",
-  "panel",
-  COVERING,
   "link",
   "disclosure",
   // The modes keep their own letters here and declare their Escape on the ladder,
   // because a mode is the stance the whole page is in and a surface opened while one
-  // holds is opened inside it: a send made in Design mode opens Threads, and the panel
-  // comes off first.
+  // holds is opened inside it: a view the floating panel opens in Design mode comes off
+  // first.
   "draw mode",
   "design mode",
   PAGE,
-  // Outermost, so a page command still ranks ahead of the way out on the line.
+  // Outermost, so a page command still ranks ahead of the way out.
   RUNGS,
 ];
 
@@ -87,10 +80,7 @@ const STACK = [
 const RUNG_LADDER = [
   "selection", // the selection, or the target a click captured
   "margin options", // the margin entry cluster the user unfolded
-  "drawer", // the drawer that holds the edge
   "floating panel", // the menu or view the floating panel opened above its row
-  "narrowing", // the narrowing the user put on the thread list
-  "panel", // the thread panel
   "draw mode", // the drawing surface over the page
   "design mode", // the mode that comments on the layer
   "page", // whatever is left, in the chrome, and back onto the page
@@ -106,33 +96,26 @@ const PAGE_COMMANDS = [
   "page.search.repeat",
   "thread.walk",
   "queue.walk",
-  // Scrolling is available in the page and in a covering auxiliary surface, which reuses
-  // the rows marked `covering` while the modal floor suspends the rest of page scope.
   "page.move",
   "scroll.move",
   "reading.align.top",
   "thread.unread.first",
   "navigation.panel.threads",
-  "navigation.drawer.queue",
-  "navigation.drawer.leaves",
+  "navigation.panel.queue",
+  "navigation.panel.leaves",
   "navigation.page-map",
   "version.open",
   "history.undo",
   // Below the walks that reach one list at a time, because `g` opens a door to all of
-  // them: on a narrow window the sequence hides a second way to somewhere the user can
-  // already get to, where a walk it crowded out would be the only one.
-  "navigation.go-to.open",
+  // them: a second way to somewhere the user can already get to.
+  GO_TO,
   "draw.mode.enter",
   "capture.region.open",
   "design.mode.enter",
   "annotations.toggle",
   "panel.floating.fold",
-  "chrome.switch",
-  // The reference's own binding. Its place here is nominal: renderShortcutBar gives it the
-  // permanent More control instead of spending a hint slot on it.
   COMMAND_REFERENCE,
-  // A real key the browser owns, and one gesture that is not a key at all. Neither says a
-  // word for the line, so neither is ever promised as the next press.
+  // A real key the browser owns, and one gesture that is not a key at all.
   "browser.caret",
   "aim.comment",
 ];
@@ -142,7 +125,6 @@ const commands = new Map();
 const rungs = new Map();
 let resolved = null;
 let validated = false;
-let coveringSurface = null;
 
 const place = (where, name) => {
   if (!where.includes(name))
@@ -173,8 +155,7 @@ export function pageScope(name, declaration) {
 }
 
 /** Declare one row of the page's own scope. `PAGE_COMMANDS` ranks it against every other
- * feature's; `covering: true` keeps it reachable while an auxiliary surface covers the
- * document. */
+ * feature's. */
 export function pageCommand(row) {
   place(PAGE_COMMANDS, row.id);
   if (commands.has(row.id)) throw new Error(`leaf: ${row.id} is declared twice`);
@@ -186,9 +167,8 @@ export function pageCommand(row) {
 }
 
 /** Declare one instance's step of Escape's fallback ladder: a function answering what the press would
- * take off right now, as `{title, description?, line?, out}` plus an optional `root` for the surface the
- * step is inside and the `lineWhen` and `promoteEscape` this step wants on the compact
- * line, or null where this step has nothing to take. `RUNG_LADDER` orders the steps. */
+ * take off right now, as `{title, description?, out}` plus an optional `root` for the surface the
+ * step is inside, or null where this step has nothing to take. `RUNG_LADDER` orders the steps. */
 export function pageRung(name, reading) {
   place(RUNG_LADDER, name);
   const readings = rungs.get(name) ?? [];
@@ -220,18 +200,15 @@ function rung() {
   const holds = (step) => renderedUnder(step.root ?? document, surface);
   return (surface && steps.find(holds)) ?? steps[0] ?? null;
 }
-// The page's own Escape, said and run off that one object: each rung states the act, the
-// word the line paints over it, and the sentence the reference lists. The sentence is the
-// rung's for the reason `c`'s is the destination's — the user can see which branch they
-// are in, so a word covering all of them tells them nothing.
+// The page's own Escape, said and run off that one object: each rung states the act, its
+// word, and the sentence the reference lists. The sentence is the rung's for the reason
+// `c`'s is the destination's — the user can see which branch they are in, so a word
+// covering all of them tells them nothing.
 const BACK_OUT = {
   id: "navigation.back",
   keys: ["Escape"],
   title: () => (rung() ? titleOf(rung()) : "Back"),
   description: () => (rung() ? descriptionOf(rung()) : undefined),
-  line: () => (rung() ? lineOf(rung()) : false),
-  lineWhen: () => word(rung()?.lineWhen) !== false,
-  promoteEscape: () => word(rung()?.promoteEscape) !== false,
   when: () => Boolean(rung()),
   run: () => rung().out(),
 };
@@ -240,28 +217,29 @@ function assemble() {
   const rows = PAGE_COMMANDS.flatMap((id) =>
     commands.has(id) ? [commands.get(id)] : [],
   );
-  // Every page command answers whether a finger needs a stand-in for its keys (AGENTS.md,
-  // "Touch routes"), so a new one meets the question where it is declared.
-  const unanswered = rows.filter((row) => !answersTouch(row)).map((row) => row.id);
+  // Every page command answers whether a finger needs a row of the menu for its keys,
+  // and every row of a page scope that makes a press how a finger reaches its result
+  // without one: it is its stance's way out, which the panel's ✕ runs, or `touch:
+  // false`, where a finger acts on what the row acts on (AGENTS.md, "Touch routes"). So
+  // a new one meets the question where it is declared, whatever keys it has now.
+  const unanswered = rows.filter((row) => row.touch === undefined).map((row) => row.id);
   if (unanswered.length)
     throw new Error(
       `leaf: ${unanswered.join(", ")} must declare \`touch\`: its words under a finger, or false where a finger reaches it directly`,
     );
-  const covering = rows.filter((row) => row.covering);
+  const scopeRows = [...scopes.values()].flat().flatMap((scope) => scope.rows);
+  const unreached = scopeRows
+    .filter((row) => row.run && !row.exit && row.touch !== false)
+    .map((row) => row.id);
+  if (unreached.length)
+    throw new Error(
+      `leaf: ${unreached.join(", ")} must be its stance's \`exit\` or declare \`touch: false\`: only a page command takes a finger's words`,
+    );
   return STACK.flatMap((name) => {
     if (name === PAGE) return { rows };
-    // Rooted at the surface the live step is inside, so a step off a covering panel or
-    // drawer survives the floor that surface establishes while the page below it does not.
+    // Rooted at the surface the live step is inside.
     if (name === RUNGS)
       return { root: () => rung()?.root ?? document, rows: [BACK_OUT] };
-    if (name === COVERING)
-      return {
-        title: "In the covering auxiliary surface",
-        root: coveringAuxiliarySurface,
-        when: () => Boolean(coveringAuxiliarySurface()),
-        at: () => Boolean(coveringAuxiliarySurface()),
-        rows: covering,
-      };
     if (typeof name !== "string") return name;
     return scopes.get(name) ?? [];
   });
@@ -285,25 +263,24 @@ export function pageScopes() {
   }
   return resolved;
 }
-// The presses a finger reaches through a banner control rather than a key (AGENTS.md,
-// "Touch routes"): each a page command declares, in line order, and each a page scope's
-// rows declare, scope by scope in STACK order, so the first that stands is the one the
-// user is innermost in. Read from the live register, since a scope may join or leave it.
+const namedScopes = () =>
+  STACK.flatMap((name) => (typeof name === "string" ? (scopes.get(name) ?? []) : []));
+const exitOf = (scope) => scope.rows.find((row) => row.exit) ?? null;
+// The presses a finger reaches through a row of the page's menu rather than a key
+// (AGENTS.md, "Touch routes"): each a page command declares, in line order.
 export function touchPresses() {
   pageScopes();
-  return {
-    commands: PAGE_COMMANDS.flatMap((id) =>
-      commands.has(id) ? pressesOf(commands.get(id)) : [],
-    ),
-    steps: STACK.flatMap((name) =>
-      typeof name === "string"
-        ? (scopes.get(name) ?? []).map((scope) => ({
-            scope,
-            presses: scope.rows.flatMap(pressesOf),
-          }))
-        : [],
-    ).filter(({ presses }) => presses.length),
-  };
+  return PAGE_COMMANDS.flatMap((id) =>
+    commands.has(id) ? pressesOf(commands.get(id)) : [],
+  );
+}
+// The stances, innermost first: each scope with a row marked `exit`, its way out.
+export function stances() {
+  pageScopes();
+  return namedScopes().flatMap((scope) => {
+    const exit = exitOf(scope);
+    return exit ? [{ scope, exit }] : [];
+  });
 }
 export const universalCommandReference = () =>
   offlineInteractive ? undefined : commands.get(COMMAND_REFERENCE);
@@ -313,11 +290,9 @@ export const textEntryScope = () => scopes.get("text entry")?.[0];
 // binding cannot correct it.
 export const allButCommandReference = (binding) =>
   !bindings(universalCommandReference()).includes(binding);
-
-// The auxiliary layer's surface reading, held here because the dispatcher's own closure
-// stops at this register: it resolves a press against the register and the focused scope,
-// and an edge to the surface owner would give it that owner's whole initialization graph.
-export function registerCoveringAuxiliarySurface(read) {
-  coveringSurface = read;
-}
-export const coveringAuxiliarySurface = () => coveringSurface();
+// What a surface resting the page's keys still lets through: the reference, and Go-to,
+// whose doors open a surface or put it away from inside it.
+export const pageDoor = (binding) =>
+  [COMMAND_REFERENCE, GO_TO].some(
+    (id) => commands.has(id) && bindings(commands.get(id)).includes(binding),
+  );

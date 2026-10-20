@@ -47,7 +47,7 @@ Usage: leaf page state [OPTIONS] PAGE [ID]
   one, names its thread: the output is that thread with a page of its messages,
   their frozen markup, and the state of its widgets, paged by --after and
   --limit. A widget on the page names itself: its element, its current actions
-  and reports, its asks and to-dos, and its workflows.
+  and reports, its obligations and to-dos, and its workflows.
 
 Options:
   --after SEQ            a thread's history after this sequence (default: from

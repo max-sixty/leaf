@@ -7,7 +7,7 @@ import pytest
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
-from render_cases_navigation import NOTED_PAGE, compose, go_to_address, pending_text
+from render_cases_navigation import compose, go_to_address, pending_text
 from render_harness import (
     LONG_PAGE,
     draft_control,
@@ -17,6 +17,7 @@ from render_harness import (
     open_page,
     scroll_settled,
     select_words,
+    selection_field,
     sending,
     write,
 )
@@ -114,7 +115,7 @@ def test_observed_selection_offers_comment_without_replacing_the_editor(
     field = page.locator(".lf-fab-input")
     write(field, words)
     field.evaluate("el => { window.heldSelectionEditor = el; }")
-    action = page.get_by_role("button", name="Comment on selection", exact=True)
+    action = selection_field(page)
 
     def select_in_browser():
         field.evaluate("el => el.blur()")
@@ -155,12 +156,11 @@ def test_observed_selection_offers_comment_without_replacing_the_editor(
     expect(action).to_be_hidden()
     select_in_browser()
 
-    # Both routes activate the same native banner control and its captured passage.
+    # A tap or a click on the panel's field comments on the captured passage.
     if touch:
         action.tap()
     else:
-        action.focus()
-        page.keyboard.press("Enter")
+        action.click()
     expect(field).to_be_focused()
     expect(field).to_have_js_property("value", "")
     assert pending_text(page) == selected.replace("\n", "")
@@ -195,7 +195,17 @@ def test_an_unsent_comment_stays_with_its_passage_when_another_is_selected(
 
     Each passage keeps its own durable draft: the newly selected passage starts empty,
     and returning to the original passage restores the words written about it."""
-    page = open_page(browser, serve(NOTED_PAGE))
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Two passages",
+                # Both selections have to reach words clear of the open comment card.
+                '<h1>Noted</h1><p id="p1">The first passage under discussion.</p>'
+                '<p id="p2" style="margin-top:180px">A second passage.</p>',
+            )
+        ),
+    )
     field = page.locator(".lf-fab-input")
     original = "These words belong to the first passage."
 

@@ -8,10 +8,11 @@
  * without writing them. This module owns its source root, outputs, and their layer
  * paths, and writes and checks every other committed Node-built output beside them:
  * the initial renderers (`build/initial.mjs`), the stylesheets (`build/styles.mjs`),
- * the modules generated from the registry (`build/registry.mjs`), the kernel
- * event contract and the protocol baseline `protocol.test.ts` holds it to
- * (`event-types.mjs`), the third-party bundles (`build/vendor.mjs`), and last the
- * kernel compiled from all of them (`build/runtime-bundle.mjs`). The kernel's
+ * the modules generated from the registry (`build/registry.mjs`), the page
+ * protocol's types, the event records and the served state (`contract-types.mjs`),
+ * and the baseline its schemas are held to (`protocol.mjs`), the third-party bundles
+ * (`build/vendor.mjs`), and last the kernel compiled from all of them
+ * (`build/runtime-bundle.mjs`). The kernel's
  * directory, the layer's `vendor/` and each package's hold nothing else, so a file
  * there that no build writes is stale. Leaf installation, vendoring, activation, and
  * export never invoke this tool.
@@ -41,7 +42,8 @@ import { fileURLToPath } from "node:url";
 import { parse } from "acorn";
 import { transformSync } from "amaro";
 import { build } from "esbuild";
-import { eventTypes } from "./event-types.mjs";
+import { contractTypes, protocolSchemas } from "./contract-types.mjs";
+import { protocolBreaks } from "./protocol.mjs";
 import { initialOutputs } from "../initial.mjs";
 import { litNamespace, litPath } from "../lit.mjs";
 import { registryOutputs } from "../registry.mjs";
@@ -186,29 +188,36 @@ async function litModule() {
   ];
 }
 
-// The event contract as it last stood at the current page protocol, which
-// `protocol.test.ts` holds every later contract at that protocol to taking. A build
-// whose typecheck passes moves it forward to the contract it built; a new protocol
-// starts it again (`layer-registry.md`, "Page protocol").
-const protocolContractPath = path.join(root, sourceRoot, "protocol-contract.d.ts");
+// Every schema a page vendored at the current protocol relies on, and every record's,
+// as it last stood (`protocol.mjs`). It is an output, so a build that passes moves it
+// forward, and one that finds a change breaking it refuses.
+const baselineName = `${sourceRoot}/protocol-baseline.json`;
 
-async function protocolContract(contract) {
-  const registry = JSON.parse(
-    await readFile(path.join(root, assets, "registry.json"), "utf8"),
+// JSON with a key per line to `depth` levels and each value below on one line, so the
+// baseline's diff names the event kinds, served definitions and records a change moved.
+function layout(value, depth, indent = "") {
+  if (!depth || value === null || typeof value !== "object" || Array.isArray(value))
+    return JSON.stringify(value);
+  const inner = `${indent}  `;
+  const entries = Object.entries(value).map(
+    ([key, item]) =>
+      `${inner}${JSON.stringify(key)}: ${layout(item, depth - 1, inner)}`,
   );
-  const protocol = registry.$events.protocol;
-  const header = `/* @noformat The event contract pages vendored at protocol ${protocol} speak, as it last stood (protocol.test.ts). */`;
-  return { header, text: `${header}\n${contract.slice(contract.indexOf("\n") + 1)}` };
+  return `{\n${entries.join(",\n")}\n${indent}}`;
 }
 
-async function protocolHeader() {
-  try {
-    const text = await readFile(protocolContractPath, "utf8");
-    return text.slice(0, text.indexOf("\n"));
-  } catch (error) {
-    if (error.code !== "ENOENT") throw error;
-    return null;
-  }
+async function protocolOutputs() {
+  const schemas = await protocolSchemas(new URL("../../", import.meta.url));
+  const baseline = JSON.parse(await readFile(path.join(root, baselineName), "utf8"));
+  const breaks = protocolBreaks(baseline, schemas);
+  if (breaks.length)
+    throw new Error(
+      `A page vendored at protocol ${baseline.protocol}, or a Leaf sharing a record's format, breaks on:\n${breaks.join("\n")}\nKeep what it took, or bump $events.protocol in skills/leaf/assets/registry.json (for a record, set its since to the current protocol), then run pnpm run build:browser.`,
+    );
+  return {
+    contract: await contractTypes(new URL("../../", import.meta.url), schemas),
+    baseline: `${layout(schemas, 3)}\n`,
+  };
 }
 
 // Two programs type-check the browser code, and each file has one checker.
@@ -262,16 +271,14 @@ function typecheck(config, reports = () => true) {
 }
 
 export async function buildOutputs() {
-  const contractPath = path.join(root, sourceRoot, "event-contract.d.ts");
-  const contract = await eventTypes(new URL("../../", import.meta.url));
-  if ((await readFile(contractPath, "utf8")) !== contract)
-    throw new Error("Stale kernel event types; run pnpm run build:browser");
-  if ((await protocolHeader()) !== (await protocolContract(contract)).header)
-    throw new Error("Stale protocol contract; run pnpm run build:browser");
+  const contractPath = path.join(root, sourceRoot, "contract.d.ts");
+  const protocol = await protocolOutputs();
+  if ((await readFile(contractPath, "utf8")) !== protocol.contract)
+    throw new Error("Stale protocol types; run pnpm run build:browser");
   typecheck("tsconfig.json");
   typecheck("tsconfig.runtime.json", runtimeChecks);
 
-  const outputs = new Map();
+  const outputs = new Map([[baselineName, Buffer.from(protocol.baseline)]]);
   const pending = [`${sourceRoot}/index.ts`];
   while (pending.length) {
     const source = pending.pop();
@@ -421,15 +428,14 @@ async function main(args) {
   if (args.length > 1 || (args.length && args[0] !== "--check")) {
     throw new Error("Usage: node build/browser/build.mjs [--check]");
   }
-  const contract = await eventTypes(new URL("../../", import.meta.url));
-  const protocol = await protocolContract(contract);
   if (args[0] !== "--check") {
-    await writeFile(path.join(root, sourceRoot, "event-contract.d.ts"), contract);
-    if ((await protocolHeader()) !== protocol.header)
-      await writeFile(protocolContractPath, protocol.text);
+    const { contract } = await protocolOutputs();
+    await writeFile(path.join(root, sourceRoot, "contract.d.ts"), contract);
+    // The modules generated from the registry are the typecheck's inputs too.
+    for (const [name, bytes] of await registryOutputs())
+      await writeFile(path.join(root, name), bytes);
   }
   const outputs = await buildOutputs();
-  if (args[0] !== "--check") await writeFile(protocolContractPath, protocol.text);
   if (args[0] === "--check") await checkOutputs(outputs);
   else {
     for (const owned of await ownedDirectories(root))

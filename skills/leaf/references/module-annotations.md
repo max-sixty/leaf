@@ -56,9 +56,9 @@ these entries calls `this.actions.activate(key)`, so a key and a press do the sa
 thing.
 
 `kind` says what the whole contribution is: `action` by default, or `change`, `comment`,
-`ask`, `activity` and the margin's other kinds. Where the margin is short of room, a pin
-with a primary control and one other folds into a single button with the kind's icon and
-name. `read()` may also return `readings`, items each with an `id` unique within the
+`on-me`, `activity` and the margin's other kinds. Where the margin is short of room, a
+pin with a primary control and one other folds into a single button with the kind's icon
+and name. `read()` may also return `readings`, items each with an `id` unique within the
 contribution and an optional `activate`, which the registration's `activateReading(id)`
 calls.
 
@@ -84,15 +84,15 @@ returns `null`. Call the returned `update()` after the parts or their positions 
 
 ### Reading and opening Threads from a widget
 
-`readThreads()` returns the `{phase, threads}` the Threads panel reads, and a paint that
-calls it repaints when it changes (`module-reading.md`, "Page readings"). A thread the
-user just started is there at once; only `phase === "ready"` means every saved thread is.
+`readThreads()` returns the `{phase, threads}` Leaf's Threads list reads, and a paint
+that calls it repaints when it changes (`module-reading.md`, "Page readings"). A
+thread the user just started is there at once; only `phase === "ready"` means every saved thread is.
 Each widget keeps its own search, filter and order. `threadTurns(thread)` returns a
 Thread's turns, and `threadSummary(thread)` its `topic`, the name Threads, the margin and
 Page Map show it under, and its `latest` activity.
 
 Address a Thread by its `key`, which stays the same after the server admits it. Its `id`
-is the name asks and workflows use. `root` is its opening message, `anchor` names the
+is the name obligations and workflows use. `root` is its opening message, `anchor` names the
 `section` and `datum` it is attached to, and `attention.kind` is `"needs_user"` when it
 waits on the user and `"waiting"` when it is with the agent. `offers: {open, reply,
 resolve, reopen}` says which actions are available now. A message's `reactions` lists
@@ -112,7 +112,9 @@ threadActions.setReaction(thread.key, agentMessage.key, token, true);
 
 `open(key, {part, focus, travel, message})` takes the user to the Thread wherever a
 margin mark would: the page's primary reader ("Owning the primary conversation
-presentation"), else the open Threads panel, else beside its passage, else Threads.
+presentation"), which is the Leaf panel unless a package registers one. The panel leaves
+a Thread about a passage beside its passage, and takes it where nothing on the page
+shows it.
 `part` is `"thread"` for the card, `"reply"` for the reply editor, or `"message"` with
 `message: message.key` for one message. `travel: false` keeps the page where it is, and
 `focus: false` leaves focus alone. It resolves to the element it landed on, or `null` if
@@ -151,11 +153,17 @@ A package that provides the page's main conversation reader, such as a shelf of
 conversations or a feed of turns, registers
 `registerThreadPresentation(owner, {render, reveal})`, in `whileConnected`. A page has
 at most one. Leaf then opens threads there instead of in its floating panel, and widgets
-inside messages live there, with the Threads panel as fallback.
+inside messages live there.
 
 `render(shownCollection, parts)` names outlets inside the widget: a whole conversation
 with `parts.thread(thread.key, outlet)`, or its parts with
-`parts.message(thread.key, message.key, outlet)` and `parts.reply(thread.key, outlet)`.
+`parts.message(thread.key, message.key, outlet)` for each of its `threadTurns` and
+`parts.reply(thread.key, outlet)`. `parts.transcript(thread.key, outlet)` draws all of
+its turns as a whole conversation does, with progress folded and work under way as one
+dim line, for a widget that draws the conversation's head itself; it takes the place of
+message parts. A reaction a thread opens on is its root turn; any
+later reaction is drawn as the chip on the message it answers, so naming one as a
+message part throws.
 Leaf fills them and keeps the rendering, reactions, read tracking and reply draft; the
 package keeps layout, order, selection, scroll and disclosure. `parts.reply` takes
 `{hint, accessibleName, sent}`, where `sent()` runs after a send instead of moving the
@@ -165,11 +173,16 @@ else at the end of the first part's head; `readThreads()` stays current for coun
 supplies Resolve and Reopen through `threadActions`.
 
 Await the handle's `update()` after a local layout change, or `update({release: true})`
-to show held news for a deliberate change of view. `reveal(key, request)` shows the
-requested part in the package's layout, or returns `false` to use the Threads panel;
-`request` carries `part`, `message`, `focus`, `signal` and `current()`. Leaf then handles
-focus, scrolling and arrival. The feature gallery's `lf-conversation-workspace` is the
-worked example.
+to show held news for a deliberate change of view. A pass in which `render` throws, or
+names an outlet outside the widget, rejects and hands the threads back to Leaf's
+floating panel, so their asks stay reachable; `primary` reads false until the next
+`update()` takes them back. `reveal(key, request)` shows the
+requested part in the package's layout, or returns `false` to leave a thread or reply
+part to the thread's place on the page, such as its margin card. Where nothing there
+shows it, Leaf asks again with `request.last` set, and a second `false` leaves the
+thread unopened. `request` also carries `part`, `message`, `focus`, `signal` and
+`current()`. Leaf then handles focus, scrolling and arrival. The feature gallery's
+`lf-conversation-workspace` is the worked example.
 
 ### Widget-local Thread placement
 
@@ -195,7 +208,7 @@ threadOutlets(targets, { onCommit }) {
 Return `null` for data that is filtered out, collapsed or not loaded, and its thread
 stays in the margin. A thread the agent starts on a visible datum with no thread yet
 also waits in the margin until the user opens it, so nothing moves under their reading.
-A placed thread leaves the margin; the Threads panel still lists it. Call
+A placed thread leaves the margin; Threads still lists it. Call
 `threadSurface(this).update()` after a change that only shows or hides data.
 
 The widget creates, lays out and removes its outlets, and Leaf fills them. An outlet you
@@ -218,7 +231,7 @@ the same targets and returns the same array as `threadOutlets`, for passages and
 parts as well as data; a widget's own outlet still wins. Outlets stay inside the
 element, and if `render` fails, presentation fails.
 
-The same element can show asks, updates, status and margin actions by registering
+The same element can show obligations, updates, status and margin actions by registering
 `consumeAnnotations(owner, render)`. `render` runs synchronously after the conversations
 are placed, with the current inventory and a view:
 
@@ -236,4 +249,5 @@ handles with `read()`, `update()` and `unregister()`; register them in `whileCon
 Keep rows keyed, and hold size changes back with `HeldReading`
 (`module-scroll-and-motion.md`, "Holding the reader's place"), while updating surviving
 controls at once. An owner that scrolls inside its own box registers it as a reading
-region. Whatever the owner doesn't show stays in Leaf's Threads and On panels.
+region. Whatever the owner doesn't show stays in Threads and the On lists of Leaf's
+panel.

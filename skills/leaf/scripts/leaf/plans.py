@@ -5,17 +5,17 @@ A plan is the newest `plan` event's `steps`, an outline in order. Each step has 
 nearest step above it at one less depth. The schema caps depth at 8, which keeps the
 served tree well within the nesting its readers and JSON encoders take. A step is either plain, a `title` with a
 `state` the agent sets (`open`, `working`, `done` or `dropped`), or it names an
-`item`, a to-do's id or an ask's id, and shows that item's title, owner and state.
+`item`, a to-do's id or an obligation's id, and shows that item's title, owner and state.
 `leaf task plan` writes the whole outline each time, so reshaping the breakdown is a
 rewrite, and an empty outline clears it.
 
-The plan keeps the breakdown apart from what is owed. A to-do or an ask keeps its own
-owner, rules and end (`todos`, `asks`); a plan only arranges them beside plain steps.
+The plan keeps the breakdown apart from what is owed. A to-do or an obligation keeps its own
+owner, rules and end (`todos`, `obligations`); a plan only arranges them beside plain steps.
 So a rewrite that leaves out an open to-do ends nothing: the to-do stays on its list,
 outside the plan. A plain step is no promise: work that must stay owed past the turn
 is a to-do the plan names. This is the shape the user chose on 2026-10-16 over giving
 to-dos a parent, which would have needed rules wherever a to-do ends (a stamp's
-`--completes`, undoing the user's Done) and left asks out of the tree, over grouping
+`--completes`, undoing the user's Done) and left obligations out of the tree, over grouping
 to-dos by the element they stand on, which shows no steps ahead, and over writing the
 plan into the page's markup, which makes every reshape a revision.
 
@@ -24,11 +24,12 @@ skips a level, and a step naming an item the page doesn't hold. Every reader tak
 plan from `plan_reading`: each step with its `state`, `owner`, the `item` it names,
 the start `running` on a named to-do, `since`, when a working step began, its
 `steps`, and `done` of `total`, its children that are done of those not dropped.
-A step naming an ask a later version removed reads as dropped.
+A step naming an obligation a later version removed reads as dropped.
 
-Nothing draws the plan yet, and the shipped instructions don't ask for one: drawing it
-and telling agents to write it are one change, since an undrawn plan shows the user
-nothing (TODO.md, "Draw the agent's plan").
+The floating panel draws the plan in a Plan tab of the On view, and an On me item the
+plan names says its goal and step there (`floating-panel.js`). `conversation-loop.md`,
+"When to write", asks an agent for a plan when its work runs to several steps, some of
+which may wait on the user.
 
 Experimental, like to-dos and the lists; nothing outside this repository depends on it.
 """
@@ -37,8 +38,8 @@ from pathlib import Path
 
 from .findings import Finding
 
-# What an ask's status reads as on a step.
-_ASK_STATES = {
+# What an obligation's status reads as on a step.
+_OBLIGATION_STATES = {
     "open": "open",
     "answered": "done",
     "answered_elsewhere": "done",
@@ -58,9 +59,9 @@ def latest_plan(events: list, withdrawn: set) -> dict | None:
     )
 
 
-def plan_error(event: dict, todos: list[dict], asks: list[dict]) -> Finding | None:
+def plan_error(event: dict, todos: list[dict], items: list[dict]) -> Finding | None:
     """Why the append door refuses a `plan` event, or None. `todos` are every to-do
-    on the page and `asks` every ask, open or not."""
+    on the page and `obligations` every obligation, open or not."""
     if event["kind"] != "plan":
         return None
     depth = -1
@@ -70,7 +71,7 @@ def plan_error(event: dict, todos: list[dict], asks: list[dict]) -> Finding | No
                 "plan-depth", values={"step": _label(step), "depth": step["depth"]}
             )
         depth = step["depth"]
-    known = {todo["id"] for todo in todos} | {ask["id"] for ask in asks}
+    known = {todo["id"] for todo in todos} | {item["id"] for item in items}
     for step in event["steps"]:
         if "item" in step and step["item"] not in known:
             return Finding("unknown-plan-item", values={"item": step["item"]})
@@ -82,15 +83,15 @@ def _label(step: dict) -> str:
 
 
 def plan_reading(
-    events: list, withdrawn: set, todos: list[dict], asks: list[dict]
+    events: list, withdrawn: set, todos: list[dict], items: list[dict]
 ) -> dict | None:
-    """The plan in force as a tree, its items read from `todos` and `asks`, or None
+    """The plan in force as a tree, its items read from `todos` and `obligations`, or None
     when the agent has written none or cleared it."""
     event = latest_plan(events, withdrawn)
     if event is None or not event["steps"]:
         return None
     todos_by_id = {todo["id"]: todo for todo in todos}
-    asks_by_id = {ask["id"]: ask for ask in asks}
+    obligations_by_id = {item["id"]: item for item in items}
     plans = [e for e in events if e["kind"] == "plan" and e["id"] not in withdrawn]
 
     def node(step: dict) -> dict:
@@ -115,14 +116,14 @@ def plan_reading(
                 "running": running,
                 "since": running["ts"] if running else None,
             }
-        # An ask whose source a later version removed is gone from `asks`, so it
+        # An obligation whose source a later version removed is gone from `obligations`, so it
         # reads as withdrawn.
-        ask = asks_by_id.get(step["item"])
+        item = obligations_by_id.get(step["item"])
         return {
-            "title": ask["prompt"]["text"] if ask else None,
-            "state": _ASK_STATES[ask["status"]] if ask else "dropped",
+            "title": item["prompt"]["text"] if item else None,
+            "state": _OBLIGATION_STATES[item["status"]] if item else "dropped",
             "owner": "user",
-            "item": {"kind": "ask", "id": step["item"]},
+            "item": {"kind": "obligation", "id": step["item"]},
             "running": None,
             "since": None,
         }

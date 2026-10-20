@@ -340,7 +340,7 @@ export function unreservedHeights(declarations) {
 // Each authored widget whose border box changed between the page's first paint and
 // now, with both sizes (`firstBoxes` in driver.js). A holder is left out only where
 // putting the changed widgets inside it back to their first sizes puts its own box
-// back, which proves the change was theirs: an Ask that grew by exactly what its
+// back, which proves the change was theirs: an lf-ask that grew by exactly what its
 // options grew is not named beside them, and one that also grew on its own, in its
 // flow or in a size it sets itself, is. An inline widget runs through its holder's
 // lines, which no size puts back, so nothing proves its holder's change was the
@@ -467,7 +467,7 @@ export function heldScrollers(tags) {
 
 // Each command in one of `tags`' widgets that declares context keys and no
 // `bindingBadge`. Context keys are the widget's aliases for pressing a control from
-// elsewhere, as an ask forwards its digits; a key the page never shows works only
+// elsewhere, as an obligation forwards its digits; a key the page never shows works only
 // for a user who already knows it (module-input.md, "Commands and keyboard
 // routes"). A route without its own `bindingBadge` takes its row's. The reading is the
 // declaration, not the keys reachable now, so a command whose keys depend on state is

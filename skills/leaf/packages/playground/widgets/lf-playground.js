@@ -28,7 +28,6 @@ import {
   dressSamples,
   focusDestination,
   layoutChanged,
-  notice,
   initialRender,
   LeafElement,
   nothing,
@@ -83,7 +82,7 @@ function jsonSnapshot(value, path = "configuration") {
 customElements.define(
   "lf-playground",
   class extends LeafElement {
-    // What the ask was answered with: the instruction the chosen configuration sent.
+    // What the obligation was answered with: the instruction the chosen configuration sent.
     static answerWords(value) {
       return value.instruction;
     }
@@ -438,12 +437,12 @@ customElements.define(
       this.#paintAvailability();
       this.#submit.setAttribute("aria-busy", "true");
       try {
-        const event = await this.controller.dispatch({
+        await this.controller.dispatch({
           kind: "action",
           verb: "choose",
           detail: { values: this.values, instruction: this.#instruction() },
+          says: "Playground settings",
         })?.delivery;
-        if (event) notice("Playground settings sent");
       } finally {
         this.#choosing = false;
         this.#submit.removeAttribute("aria-busy");

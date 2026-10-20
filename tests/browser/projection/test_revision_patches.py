@@ -5,13 +5,13 @@ import pytest
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import LIVE_V1, LIVE_V2, LIVE_V3, live_url
-from render_cases_layout import banner_control
 from render_harness import (
     EXAMPLE_PACKAGES,
-    expect_asks_answered,
-    expect_banner_control_offered,
+    expect_obligations_answered,
     leaf_page,
     open_page,
+    panel_menu,
+    panel_settled,
     round_trip,
     scroll_settled,
     stamp_page,
@@ -232,6 +232,37 @@ def test_a_revision_leaves_the_page_everything_it_did_not_write(browser, serve):
     }, f"the revision did not reach what it rewrote in place: {rewritten}"
 
 
+def test_a_revision_keeps_a_recording_on_leaf_s_play_bar(browser, serve):
+    """The runtime trades a video's `controls` for its own play bar before first paint
+    (video-controls.js). A revision that leaves the video as written keeps the node and
+    the bar, and hands the browser's controls back to nobody."""
+    body = """
+<p id="rv-edited">The recording is a draft.</p>
+<video id="rv-video" controls width="320" height="180" aria-label="Test pattern"
+  src="/media/2930ad3df7819c50.mp4"></video>
+"""
+    first = leaf_page("Recording first", body)
+    second = first.replace("Recording first", "Recording second").replace(
+        "is a draft.", "is final."
+    )
+    page = open_page(browser, live_url(serve(first)))
+    page.evaluate("() => { window.__video = document.getElementById('rv-video'); }")
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page.locator("#rv-edited")).to_have_text("The recording is final.")
+    state = page.evaluate(
+        """() => {
+          const video = document.getElementById('rv-video');
+          return {
+            same: video === window.__video,
+            controls: video.hasAttribute('controls'),
+            bars: document.querySelectorAll('.lf-video-controls').length,
+          };
+        }"""
+    )
+    assert state == {"same": True, "controls": False, "bars": 1}, state
+
+
 def test_a_revision_that_moves_the_block_the_user_types_in_keeps_them_there(
     browser, serve
 ):
@@ -395,8 +426,9 @@ def test_a_prose_revision_takes_only_the_words_it_rewrote(browser, serve):
     # The retained selection still names a commentable passage after the revision.
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_contain_text("account")
-    banner_control(page, ".lf-version").click()
-    expect(page.locator(".lf-version-menu")).to_contain_text("Current · Draft after v1")
+    expect(
+        panel_menu(page, "versions").locator(".lf-fp-version[data-current]")
+    ).to_contain_text("Current · Draft after v1")
 
 
 def test_a_revision_reaches_markup_wherever_its_source_holds_it(browser, serve):
@@ -609,7 +641,7 @@ def test_another_kind_of_sibling_above_an_edited_paragraph_keeps_the_user_on_it(
     told(page)
     expect(page).to_have_title("Kinds first")
     page.evaluate("() => { window.__kdFocus = document.activeElement; }")
-    page.locator(".lf-latest-chip").evaluate("el => el.click()")
+    page.locator("button.lf-fp-row-notice-press").evaluate("el => el.click()")
     expect(page).to_have_title("Kinds second")
 
     expect(page.locator("main h2")).to_have_text("Progress")
@@ -672,7 +704,7 @@ def test_a_paragraph_inserted_above_the_user_does_not_shift_the_ones_below(
     told(page)
     expect(page).to_have_title("Prose order first")
     page.evaluate("() => { window.__poFocus = document.activeElement; }")
-    page.locator(".lf-latest-chip").evaluate("el => el.click()")
+    page.locator("button.lf-fp-row-notice-press").evaluate("el => el.click()")
     expect(page).to_have_title("Prose order second")
 
     kept = page.evaluate(
@@ -892,8 +924,8 @@ def test_a_live_revision_updates_the_closed_on_me_door(browser, serve, subject):
     )
     second = first.replace(reading, questions + reading)
     page = open_page(browser, live_url(serve(first, packages=("diff",))))
-    door = page.locator(".lf-queue")
-    expect(door).to_have_text("On me: 0")
+    door = page.locator(".lf-fp-on-user")
+    expect(door).to_have_attribute("aria-label", "On me")
     target = (
         page.locator("#reading")
         if subject != "diff"
@@ -911,7 +943,6 @@ def test_a_live_revision_updates_the_closed_on_me_door(browser, serve, subject):
     # An empty but open composer was sufficient to hold the original report.
     (serve.page_dir / "index.html").write_text(second)
     expect(page.locator("lf-ask")).to_have_count(3)
-    expect(door).to_have_text("On me: 3")
     expect(door).to_have_attribute("aria-label", "On me: 3")
     if subject == "selection":
         assert (
@@ -927,7 +958,7 @@ def test_a_live_revision_updates_the_closed_on_me_door(browser, serve, subject):
     editor.evaluate("node => node.setSelectionRange(5, 9)")
     (serve.page_dir / "index.html").write_text(first)
     expect(page.locator("lf-ask")).to_have_count(0)
-    expect(door).to_have_text("On me: 0")
+    expect(door).to_have_attribute("aria-label", "On me")
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property(
         "value", "Keep this comment while questions change."
@@ -955,15 +986,16 @@ def test_a_live_revision_holds_a_changed_comment_anchor_scope(browser, serve):
     write(editor, "This occurrence matters.")
 
     (serve.page_dir / "index.html").write_text(second)
-    expect_banner_control_offered(page.locator(".lf-latest-chip"))
+    # The row offers the latest, without a press that would end the hold.
+    expect(page.locator("button.lf-fp-row-notice-press")).to_be_enabled()
     expect(page.locator("#subject p")).to_have_count(1)
-    expect(page.locator(".lf-queue")).to_have_text("On me: 0")
+    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On me")
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property("value", "This occurrence matters.")
 
     editor.press("Escape")
     expect(page.locator("#subject p")).to_have_count(2)
-    expect(page.locator(".lf-queue")).to_have_text("On me: 1")
+    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On me: 1")
 
 
 def test_a_live_revision_preserves_an_unchanged_authored_editor(browser, serve):
@@ -987,16 +1019,19 @@ def test_a_live_revision_preserves_an_unchanged_authored_editor(browser, serve):
 
     third = second.replace('id="note"', 'id="note" placeholder="New instruction"')
     (serve.page_dir / "index.html").write_text(third)
-    expect_banner_control_offered(page.locator(".lf-latest-chip"))
+    expect(page.locator("button.lf-fp-row-notice-press")).to_be_enabled()
     expect(editor).not_to_have_attribute("placeholder", "New instruction")
     expect(editor).to_have_value("Keep my words.")
     editor.press("Tab")
     expect(editor).to_have_attribute("placeholder", "New instruction")
 
 
-def test_a_live_revision_reorders_the_page_and_ask_inventory_together(browser, serve):
-    """Retained Ask descriptors follow the incoming document's order, and plain declared
-    elements a revision removes leave the semantic document with their upgraded owner."""
+def test_a_live_revision_reorders_the_page_and_obligation_inventory_together(
+    browser, serve
+):
+    """Retained obligation descriptors follow the incoming document's order, and plain
+    declared elements a revision removes leave the semantic document with their upgraded
+    owner."""
 
     def question(identity, label):
         return f"""<lf-ask id="{identity}-ask"><h2>{label}?</h2>
@@ -1018,10 +1053,11 @@ def test_a_live_revision_reorders_the_page_and_ask_inventory_together(browser, s
         "<p>The third decision is gone.</p>",
     )
     page = open_page(browser, live_url(serve(first)))
-    expect_asks_answered(page, "0/3")
-    banner_control(page, ".lf-queue").click()
-    rows = page.locator(".lf-queue-row")
-    expect(rows).to_have_count(3)
+    expect_obligations_answered(page, "0/3")
+    page.locator(".lf-fp-on-user").click()
+    panel_settled(page, view="queue")
+    cards = '.lf-fp-view[data-view="queue"]:not([data-leaving]) .lf-fp-on-item'
+    expect(page.locator(cards)).to_have_count(3)
 
     def identities(selector, attribute):
         return page.locator(selector).evaluate_all(
@@ -1029,8 +1065,13 @@ def test_a_live_revision_reorders_the_page_and_ask_inventory_together(browser, s
             attribute,
         )
 
+    def asked():
+        return page.locator(cards).evaluate_all(
+            "nodes => nodes.map(node => JSON.parse(node.dataset.key)[1])"
+        )
+
     assert identities("main > lf-ask", "id") == ["first-ask", "second-ask", "gone-ask"]
-    assert identities(".lf-queue-row", "data-lf-at") == [
+    assert asked() == [
         "widget:first-options",
         "widget:second-options",
         "widget:gone-options",
@@ -1040,7 +1081,15 @@ def test_a_live_revision_reorders_the_page_and_ask_inventory_together(browser, s
     wait_for_revision(page, 2)
 
     assert identities("main > lf-ask", "id") == ["second-ask", "first-ask"]
-    assert identities(".lf-queue-row", "data-lf-at") == [
+    # An open view keeps its cards where they stand while the user reads it; the
+    # inventory's new order shows at the next opening.
+    expect(page.locator(cards)).to_have_count(2)
+    page.locator(".lf-fp-close").click()
+    panel_settled(page, open=False)
+    page.locator(".lf-fp-on-user").click()
+    panel_settled(page, view="queue")
+    expect(page.locator(cards)).to_have_count(2)
+    assert asked() == [
         "widget:second-options",
         "widget:first-options",
     ]

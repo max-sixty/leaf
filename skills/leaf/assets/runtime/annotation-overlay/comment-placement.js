@@ -86,11 +86,13 @@
    in the rewrite for that one cause of shrinking.
 
    The comment box's frame reserves its card's head and reply rows around the editor,
-   and the boundary holds all of it, as it holds the card, so Send moves nothing. The
-   box paints that frame while it is written (annotation-chrome.css), so the edge it
-   rises against is one the user sees. Rejected: letting the reserved row the box grows
-   toward stand past the window's edge (#3139), which kept the words still while typing
-   but moved them at Send by that row.
+   unpainted, and the boundary holds all of it, as it holds the card, so the card Send
+   grows out of the field (annotation-chrome.css) stands where the frame stood and no
+   word moves. Near the window's foot the field therefore rises while room still shows
+   below it. Rejected: letting the reserved row the box grows toward stand past the
+   window's edge (#3139), which kept the words still while typing but moved them at
+   Send by that row; and painting the frame as the card while it is written (#3157),
+   which left Send nothing to grow.
 
    Send hands the editor's frame to the card (`adopt`). Its next choice keeps the
    frame's side and inline start where the boundary still matches, and returns its
@@ -393,10 +395,12 @@ export function commentPlacement() {
   let reading = null;
   // The tallest the surface has stood since its line last moved, and that line.
   let tallest = null;
-  // The edge the last `holding` answer held, the one the user's latest press in the
-  // surface chose for the change it made, and that press's input and the transcript
-  // extent its change left.
+  // The edge the last `holding` answer held; the edge it would hold but for the user's
+  // latest press, which a change they did not make holds (`edgeFor`); the one that press
+  // chose for the change it made; and that press's input and the transcript extent its
+  // change left.
   let edge = "top";
+  let unpressed = "top";
   let pressHeld = null;
   let pressAnswered = null;
   const forget = () => {
@@ -411,6 +415,7 @@ export function commentPlacement() {
     reading = null;
     tallest = null;
     edge = "top";
+    unpressed = "top";
     pressHeld = null;
     pressAnswered = null;
   };
@@ -488,19 +493,21 @@ export function commentPlacement() {
       // Adoption keeps the editor's attachment edge. Above its subject, a taller card
       // grows upward rather than crossing the block the editor stood clear of.
       // Later placements use the surface's own top/foot reading and reply-line holds.
-      edge = hold
+      unpressed = hold
         ? side === "top"
           ? "foot"
           : "top"
-        : (pressHeld ??
-          (keepReplyLine || (!drafting && side === "top") ? "foot" : "top"));
+        : keepReplyLine || (!drafting && side === "top")
+          ? "foot"
+          : "top";
+      edge = hold ? unpressed : (pressHeld ?? unpressed);
       return edge;
     },
     // The edge a change the user did not make would hold, read before it is drawn: a
     // turn joining while they read releases a hold on their own reply's line, so it
     // holds the foot only where the surface stands above what it is about; any other
-    // change keeps the edge held now.
-    edgeFor: (turn) => (turn ? (side === "top" ? "foot" : "top") : edge),
+    // change keeps the edge held now, but for a press's hold, which that change ends.
+    edgeFor: (turn) => (turn ? (side === "top" ? "foot" : "top") : unpressed),
     // The held edge's offset for `options`' `hold`.
     heldAt: (edge) => held && { [edge]: held[edge] },
     scrolled() {

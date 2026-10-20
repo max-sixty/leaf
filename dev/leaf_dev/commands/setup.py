@@ -7,11 +7,13 @@ each other's node_modules. A foreground caller waits, then refreshes against war
 caches; there is no separate readiness record to invalidate.
 """
 
+import os
 import shlex
 import subprocess
+import sys
 
 import click
-from leaf.state import flocked, state_home_path
+from leaf.state import flocked, state_home
 
 from leaf_dev import ROOT
 
@@ -28,7 +30,7 @@ def setup() -> None:
     Worktrunk's post-start hook runs this in the background. Invoke `wt setup`
     before testing to wait for other installs and verify the current checkout.
     """
-    lock = state_home_path() / "development-setup.lock"
+    lock = state_home() / "development-setup.lock"
     lock.parent.mkdir(parents=True, exist_ok=True)
     try:
         with flocked(lock):
@@ -46,6 +48,11 @@ def setup() -> None:
                 "--only-shell",
             )
             run("uv", "run", "--frozen", "playwright", "install", "chrome")
+            if sys.platform == "linux":
+                # Playwright installs browser libraries, but not the complete
+                # DejaVu faces the suite's fixed fontconfig requires.
+                privilege = () if os.geteuid() == 0 else ("sudo",)
+                run(*privilege, "apt-get", "install", "-y", "fonts-dejavu")
             run("pnpm", "install", "--frozen-lockfile")
     except subprocess.CalledProcessError as error:
         raise click.ClickException(

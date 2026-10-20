@@ -18,15 +18,14 @@
    - `keys` is a binding or computed list of bindings: "a", "Escape", "Mod+Enter",
      "Shift+a", "d"; a function where the set is the page's (an option group's 1–N).
    - `routes` are optional stable subcommands when those bindings mean different things.
-     The shortcut bar keeps the compact row; the command reference presents each route separately. A
-     route may override `title`, `description`, `line` and `label` for the case where a nearer scope shadows only
+     The command reference presents each route separately. A
+     route may override `title`, `description` and `label` for the case where a nearer scope shadows only
      its sibling binding. A route without a description of its own lists under the
      row's, so the row's says what every route shares ("Filter visible targets by kind"),
      never what tells them apart ("Next / previous match").
    - `title` is the command's required concise name, or a function when state changes
-     it. `description` optionally explains information the title cannot carry. The ask,
-     shortcut bar, reference, and announcements read these same words. `line` overrides
-     the bar's word only when it needs a shorter name; false makes a reference-only row.
+     it. `description` optionally explains information the title cannot carry. The obligation,
+     menu rows, reference, and announcements read these same words.
    - `label` overrides the compact keycap, independently of the action name. A keyless
      command remains named by its title in the reference.
    - `contextKeys` are explicit aliases that work inside the widget and may be forwarded
@@ -34,37 +33,25 @@
      including on an exact editor scope. A route declares its own aliases when one row
      owns several results. No caller allocates or renumbers another widget's bindings.
    - `control` is the visible element activating the command. `decision: true` marks a
-     command that starts, advances, answers, or revises an ask; the role does not assign
+     command that starts, advances, answers, or revises an obligation; the role does not assign
      bindings. `bindingBadge` independently requests an inline hint: an Element lends
      the widget's seat, null requests a corner badge, absence requests none. A route
      inherits its row's seat only when its own field is undefined.
-   - `lineWhen` is optional projection-only visibility on the shortcut bar. Unlike `when`, it
-     never changes whether the command dispatches or appears in the command reference, and an
-     active sequence offers every live row regardless of it.
-   - `promoteEscape` says whether an Escape row takes the line's second visible slot. On
-     by default; a local action that happens to clear state can leave the slot to the
-     next action on that state. A step of the ladder sets the same field for the shared
-     Escape row it answers through while it is the innermost one.
    - `when` says whether the capability exists. An owned native button derives its
      disabled state from this reading; a route may declare its own `when` for a sibling
      control. Associated controls retain platform and ARIA constraints; owned buttons
      retain their fieldset constraint and expose availability as ARIA output. When a destination surface is available
      independently of its members, its row stays live and opens the surface even when the
      collection is empty. Member-dependent rows use the collection as their capability.
-   - `covering`, on a row of the page's own scope, keeps that command reachable while an
-     auxiliary surface covers the document: the surface replaces the page the user is
-     reading rather than ending the reading, so travel and the go-to sequence answer
-     inside it while the rest of page scope stays under the modal floor.
    - `at`, expressed by the current `userIn` predicate, says whether this press can act
      at the user's current position.
    - `run` performs one result. A run-less row names a press it does not make: the
      platform's own on a link, or one another scope's row already runs.
-   - `touch` is the words of the banner control that stands in for a press under a
-     finger, or a function when state chooses them, on a page command or a page-scope row
-     a finger has no other way to reach (keyboard/AGENTS.md, "Touch routes"). A row with
-     `routes` makes a different press per route, so its words go on each route that needs
-     a control, and the row's own `touch` can only be `false`. Every page command
-     answers it, `false` where a finger reaches the result directly.
+   - `touch` is the words of the menu row that stands in for a page command's press
+     under a finger, or a function when state chooses them, and `false` where a finger
+     reaches the result directly (keyboard/AGENTS.md, "Touch routes"). Every page
+     command answers it, and so, with `false`, does every page-scope row with a `run`
+     that is not its stance's `exit`: a scope row takes no words.
    - A command that enters a layer declares no way back out of it. The layer's own
      owner declares that step, against the open layer rather than against the press
      that opened it, so one state has one way out however the user reached it.
@@ -78,8 +65,8 @@
 
    `live` answers the declared liveness once for every projection. Do not repeat a guard
    inside `run` if the guard changes whether the key should be shown. When the command reference
-   needs to describe a page capability while the shortcut bar needs to promise an immediate
-   press, keep `pageHas` and `userIn` separate.
+   needs to describe a page capability while a hint needs to promise an immediate press,
+   keep `pageHas` and `userIn` separate.
 
    `checked` validates declarations when they enter the register. `activeRows` also
    refuses two live meanings for one binding in the same scope; rows may reuse a binding
@@ -90,7 +77,7 @@
    controls, and `DISCLOSE` reads the whole set a disclosure answers off the element it is
    asked about; links retain their platform distinction from buttons.
 
-   A label names this press, not the broad feature. Prefer "Comment on selection" or "Hide
+   A label names this press, not the broad feature. Prefer "Resume writing" or "Hide
    comments" to "Comment" or "Toggle". Compute the word through `word` when visible state
    chooses the sentence. Request a repaint when any fact used by a word or
    liveness predicate changes.
@@ -172,8 +159,7 @@ export const submitBindings = () =>
   softKeyboard() ? ["Mod+Enter"] : ["Enter", "Mod+Enter"];
 export const submitLabel = () => spell(submitBindings()[0]);
 // Whether a surface advertises keys: a key drawn where the user has no keyboard names a
-// press they cannot make, and costs room on the smallest window there is. The same
-// finger reading hides the shortcut bar (chrome.css, `(pointer: coarse)`); every
+// press they cannot make, and costs room on the smallest window there is. Every
 // runtime surface that paints a key it was not asked for — a field's send key, the
 // contextual key that enters it — asks this rather than the pointer. A map the user
 // armed from a keyboard (Go-to, the target picker) is an answer, not an advert, and
@@ -206,7 +192,6 @@ export const titleOf = (row) => {
   return title;
 };
 export const descriptionOf = (row) => word(row.description) ?? "";
-export const lineOf = (row) => word(row.line) ?? titleOf(row);
 export const allBindings = (row) => [
   ...new Set([
     ...declaredBindings(row),
@@ -271,8 +256,9 @@ export const commandEntries = (
 };
 // The command identities a visual presentation gives one row. Rows whose bindings are
 // distinct commands expand into routes; a compact row and one deliberately unavailable
-// from the command reference keep their own identity. The command reference and shortcut bar both consume this
-// projection so route additions cannot reach one surface without the other.
+// from the command reference keep their own identity. The command reference and hints
+// both consume this projection so route additions cannot reach one surface without the
+// other.
 export const commandPresentations = (row, active = bindings(row), options = {}) => {
   if (row.runFromCommandReference === false) return [{ id: row.id, route: null }];
   return commandEntries(row, active, options);
@@ -286,9 +272,9 @@ export const labelOf = (row) => {
   if (label !== undefined && label !== null) return label;
   return bindings(row).map(spell).join(" / ");
 };
-// Whether a row is live right now, asked through one predicate by the dispatcher, the line
-// and the overlay alike, so no surface can promise a press the dispatcher refuses. A guard
-// inside `run` instead is a liveness no surface can see. A declared visible control's
+// Whether a row is live right now, asked through one predicate by the dispatcher and
+// every surface that names a press, so none can promise a press the dispatcher refuses.
+// A guard inside `run` instead is a liveness no surface can see. A declared visible control's
 // native or ARIA disabled state constrains associated controls; an executable command
 // owns its button's disabled fields as output rather than reading them back.
 // Native and contribution painters identify their derived fields here. Availability
@@ -386,27 +372,10 @@ export const live = (row) => {
 const availableBindings = (row, declared) =>
   declared.filter((binding) => commandEntries(row, [binding]).length > 0);
 
-// The presses a finger needs a control for: the row's one press, or each route of a routed
-// row that names its words. `id` is the command the press invokes.
+// The press a finger needs a row of the menu for: a page command's, under its `touch`
+// words. `id` is the command the press invokes.
 export const touchPresses = (row) =>
-  row.routes
-    ? commandRoutes(row)
-        .filter((route) => route.touch)
-        .map((route) => ({
-          id: route.id,
-          row,
-          binding: route.binding,
-          words: route.touch,
-        }))
-    : row.touch
-      ? [{ id: row.id, row, binding: undefined, words: row.touch }]
-      : [];
-// Whether a row has said which of its presses a finger needs: `false` on the row for none,
-// or an answer on every route.
-export const answersTouch = (row) =>
-  row.touch !== undefined ||
-  (commandRoutes(row).length > 0 &&
-    commandRoutes(row).every((route) => route.touch !== undefined));
+  row.touch ? [{ id: row.id, row, binding: undefined, words: row.touch }] : [];
 
 // Prose is allowed to change; a command's identity is not. The register uses this name
 // to merge repeated widget instances and to route an action chosen in the command reference back
@@ -475,13 +444,13 @@ export function activeRows(rows, where = "a scope") {
   return validateActive(active, where, (row) => availableBindings(row, bindings(row)));
 }
 
-// The controls one ordered command set contributes to an ask. `decision: true` marks
-// its answering role; the command's title supplies its name. The ask view reads these controls
+// The controls one ordered command set contributes to an obligation. `decision: true` marks
+// its answering role; the command's title supplies its name. The obligation view reads these controls
 // for arrival and visibility, while the shared compiler forwards context bindings from
 // the original declarations. Routes may name distinct controls when one compact row
 // owns a family of parameterized bindings. Each result retains its scoped identity so
 // two declarations cannot present different meanings through the same control.
-export function decisionControls(commands, where = "an ask") {
+export function decisionControls(commands, where = "an obligation") {
   const controls = new Map();
   for (const { source, scope, row } of commands) {
     const routes = commandRoutes(row);
@@ -504,7 +473,7 @@ export function decisionControls(commands, where = "an ask") {
         : allBindings(row);
       // A semantic command may temporarily have no presented control: a compact
       // margin cluster can give its seat to another contribution, or the owning
-      // widget can replace one state with the next. The ask projects only controls
+      // widget can replace one state with the next. The obligation projects only controls
       // that exist in this reading; a non-Element value is still a malformed
       // declaration and fails at its owner.
       if (control == null) continue;
@@ -659,15 +628,15 @@ export function checked(rows, where, ready) {
       throw new Error(
         `leaf: row ${i} of ${where} leaves the native press to the platform but runs no result`,
       );
+    if (row.exit && (!row.run || row.touch || row.routes))
+      throw new Error(
+        `leaf: ${row.id} is its stance's way out, which the panel's row offers in its own words, so it needs a run and no touch words or routes`,
+      );
     if (row.touch && (!row.run || row.routes))
       throw new Error(
-        `leaf: ${row.id} stands in for its keys under a finger, so it needs a run, and a routed row names its words on each route`,
+        `leaf: ${row.id} stands in for its keys under a finger, so it needs a run and makes one press, with no routes`,
       );
     const routes = commandRoutes(row);
-    if (routes.some((route) => route.touch) && (!row.run || row.touch === false))
-      throw new Error(
-        `leaf: ${row.id} gives a route a finger's words, so it needs a run and no row-level touch: false`,
-      );
     if (routes.length && contextBindings(row).length)
       throw new Error(
         `leaf: ${row.id} owns distinct routes; declare contextKeys on each route`,
@@ -726,18 +695,21 @@ export function checked(rows, where, ready) {
 // was invisible: the key worked and the page under-promised it.
 //
 // A link is the case that keeps this honest. Enter follows an <a> and Space scrolls the
-// page, so the leaves drawer binds Enter alone and is right to — the shared fact is what a
+// page, so All pages binds Enter alone and is right to — the shared fact is what a
 // button answers, not what a control does.
 export const PRESS = ["Enter", " "];
 
 // The arrows that step back and ahead along a row of controls, as `[back, ahead]`. Back
 // is the side the row's words run from: left in left-to-right text and right in
 // right-to-left text, where the first item stands at the right, as the ARIA tabs,
-// toolbar and slider patterns ask. Read from the node the row lays out in.
+// toolbar and slider patterns ask. Read from the directionality of the node the row
+// lays out in (`:dir()`), which the `dir` attributes around it decide, as the theme's
+// direction rules read it; a `direction` set in CSS alone moves neither. Key
+// availability asks this of every disclosure on the page, in the frame's pass after
+// other work has written to the document, so reading the computed `direction` made it
+// recalculate style for those writes, several times a comment on a page of diffs.
 export const rowArrows = (node) =>
-  getComputedStyle(node).direction === "rtl"
-    ? ["ArrowRight", "ArrowLeft"]
-    : ["ArrowLeft", "ArrowRight"];
+  node.matches(":dir(rtl)") ? ["ArrowRight", "ArrowLeft"] : ["ArrowLeft", "ArrowRight"];
 
 // The one-dimensional list policy. Every step inside the list clamps; a caller may name
 // the row where its own off-list arrival enters. The page walks cycle (`cycledRow`), and

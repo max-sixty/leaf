@@ -19,7 +19,13 @@ def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatc
     cases = module.catalog()
     assert cases
     config = module.prepare(
-        ["todo-outlasts-the-turn", "configuration", "dashboard/reader-clean"],
+        [
+            "todo-outlasts-the-turn",
+            "configuration",
+            "dashboard/reader-clean",
+            "parent-keeps-leaf-responsive/during-work",
+            "page-reads-at-every-width/queue",
+        ],
         {"candidate": tmp_path / "arm"},
         tmp_path / "scratch",
         ("claude-code",),
@@ -32,7 +38,16 @@ def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatc
         "todo-outlasts-the-turn",
         "configuration",
         "dashboard/reader-clean",
+        "parent-keeps-leaf-responsive/during-work",
+        "page-reads-at-every-width/queue",
     }
+    # A prompt may reuse another task's request by naming its file.
+    queue = next(
+        test
+        for test in config["tests"]
+        if test["metadata"]["case"] == "page-reads-at-every-width/queue"
+    )
+    assert "ESC-4107" in queue["vars"]["prompt"]
 
 
 def test_eval_command_delegates_configuration_and_status_to_promptfoo(

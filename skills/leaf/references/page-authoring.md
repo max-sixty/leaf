@@ -9,10 +9,12 @@ Before writing a view's words, decide what it shows. Ask what the user would oth
 have to picture from a description, and put that thing on the page in its own form:
 
 - An existing interface is a screenshot, cropped or marked so the eye lands on the
-  point, with crops cutting through background rather than text. A visual change
-  between two versions is an `lf-shot` before-and-after pair, and captures that vary
-  along other axes go in a table of captures (`authoring-evidence.md`, "Source files
-  and media").
+  point, with crops cutting through background rather than text. Leaf frames every
+  image, so capture a panel, card or menu with enough of the page around it to hold
+  its whole shadow: a clip at its bounding box cuts the shadow off and squares its
+  rounded corners against the frame. A visual change between two versions is an
+  `lf-shot` before-and-after pair, and captures that vary along other axes go in a
+  table of captures (`authoring-evidence.md`, "Source files and media").
 - A behavior, such as an interaction, a motion or a process over time, runs: in a live
   sample the user operates (`live-samples.md`), or in a page module that draws it with
   controls to pause and scrub, so each moment stays readable and commentable.
@@ -28,8 +30,8 @@ have to picture from a description, and put that thing on the page in its own fo
   show that effect in one of the forms above, with the code beside it.
 
 Pages that decide, plan or review show their subject the same way: a work item that
-fixes a visible fault shows the fault, and an ask's options show what each answer gives
-the user (`authoring-asks.md`). A table or list whose rows say where things sit, how
+fixes a visible fault shows the fault, and a decision's options show what each answer gives
+the user (`authoring-decisions.md`). A table or list whose rows say where things sit, how
 large they are or what connects to what should be a drawing.
 
 A drawing or chart makes its point through its geometry: where its marks sit, their
@@ -91,18 +93,24 @@ table (`page-layout.md`, "Bounds and widths"). Compose the page from these:
   window from the title's left edge. Broken out of a column, the same surface would sit
   below the opening prose, with edges that match neither the title nor the prose, which
   suits a figure a document cites but not the page's main item. Reading that supports the
-  surface, such as the review behind a design the reader tunes, goes in page tabs after
-  the surface's own. A document read top to bottom beside a panel kept in view, such as
-  a postmortem beside its timeline, is a `layout-sidebar` page (`page-layout.md`, "A
-  sidebar page").
+  surface, such as the review behind a design the reader tunes, goes in parts of its own
+  after the surface's, on a page of parts (below). A document read top to bottom beside a
+  panel kept in view, such as a postmortem beside its timeline, is a `layout-sidebar` page
+  (`page-layout.md`, "A sidebar page").
 - **Several views of one artifact** are one `lf-tabs` set. Page tabs hold project-scale
-  views that share one history, Threads panel and set of asks; a tabbed section holds
+  views that share one history, Threads list and On me list; a tabbed section holds
   local alternatives within a view. The `lf-tabs` entry says which placement makes
   which.
+- **Parts of one subject that each want their own Layout**, such as a playground to try
+  beside the proposal it argues for and the reasoning behind it, are a page of parts:
+  one `lf-parts` in a `main` with no Layout, each part with a Layout of its own
+  (`page-layout.md`, "A page of parts"). Where the views share the page's Layout and
+  a header across the top, such as one shared with a site's other pages, they are page
+  tabs instead.
 
 A page can grow without changing its Layout: a report that gains live status gains a
-row of tiles. Leaf's banner and bottom bar take their own space, and comment markers go
-in the margin or over their targets, so leave room for neither.
+row of tiles. Leaf's panel takes its own room at the window's foot, and comment markers
+go in the margin or over their targets, so leave room for neither.
 
 ## Contents navigation
 
@@ -112,7 +120,7 @@ none. The outline should be reachable from the top of the page on a desktop and 
 the document scrolls, and in a narrow window it comes before the main reading.
 
 Write an empty `lf-toc` with a stable id. On a column page, put it in an
-`aside.sidebar` directly inside `main`, near the top:
+`aside.sidebar` directly inside the box carrying `layout-column`, near the top:
 
 ```html
 <aside class="sidebar" id="contents-sidebar">
@@ -125,7 +133,8 @@ disclosure in the page's flow when there isn't. The same links remain available 
 keyboard and touch; printing shows the complete outline. On a sidebar page, put the
 contents and a short verdict or status at the top of the `aside` (`page-layout.md`, "A sidebar page"), short enough
 to fit the window, and put detailed evidence and history in the body or behind a
-disclosure. Workspaces and root page tabs have their own navigation.
+disclosure. Workspaces and root page tabs have their own navigation, and so does a
+page of parts, whose column parts each take their own outline.
 
 ## Read the registry
 
@@ -211,7 +220,9 @@ line, and keep it working when you reformat it. Quote source verbatim when quoti
 logs and transcripts that aren't source code stay literal and uncoloured.
 
 The theme scrolls a `<pre>` or table wider than its container and fits an image or SVG
-to it, so none needs a width. In a table that scrolls sideways, prose wraps a word per
+to it, so none needs a width. It scrolls them sideways only: one given just a
+`max-height` clips what runs past it, so add `overflow-y: auto` to let it scroll down
+too. In a table that scrolls sideways, prose wraps a word per
 line, and the render check reports each width from a 360px phone up where that happens.
 Put identifiers in `<code>`, which can break inside a cell, and keep the columns to
 what fits at the narrowest width the page's readers use. Keep a diagram's detail rather

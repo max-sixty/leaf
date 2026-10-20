@@ -2,7 +2,6 @@
 Send press, where a sent message lands, and its delivery receipt."""
 
 import io
-import re
 
 import pytest
 from click.testing import CliRunner
@@ -12,311 +11,43 @@ from leaf import event_log as events_model
 from leaf.render_checks import one_frame, rendered
 from PIL import Image
 from playwright.sync_api import expect
-from render_cases_interaction import PANEL_PAGE, live_url, panel_comment
-from render_cases_layout import in_threads_scrollport
+from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_harness import (
     LONG_PAGE,
-    admit_before_presenting_comment,
     consume_browser_errors,
-    example_media,
-    hold_pending_thread_presentation,
     holding,
     http_error_console,
     leaf_page,
     open_page,
     page_comment,
-    panel_settled,
     resized,
     round_trip,
     scroll_settled,
     sending,
-    stamp_page,
     told,
-    wait_for_revision,
     write,
 )
 
 from browser.threads import (
-    IN_LANDING_BAND,
     THIRTY_LINES,
     bounded_seat_page,
-    clear_of_the_bar,
+    clear_of_the_panel,
     long_diff_thread,
-    open_threads_list,
     paste,
-    paste_image,
     pressed_send_surface,
-    reply_by_keyboard,
     seated_page,
-    seed_panel_threads,
+    thread_row,
     to_window_foot,
 )
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-def test_a_sent_page_comment_closes_and_a_refusal_restores_its_draft(browser, serve):
-    """Long comments and attachments leave no empty card after Send. Refusal restores
-    the editor and its media while the send still owns the user's intent. The card
-    hangs from the banner, so an attachment joins below the words, leaving them put."""
-    page = open_page(browser, serve(LONG_PAGE))
-    card = page.locator(".lf-page-comment-card")
-    box = page_comment(page)
-    send = card.locator(".lf-compose-submit")
-    draft = "\n".join(f"Page comment line {n}" for n in range(14))
-    write(box, draft)
-    field = card.locator(".lf-compose-field")
-    written = field.bounding_box()
-    paste_image(box, (example_media() / "051bee487bfb5d13.png").read_bytes())
-    expect(card.locator(".lf-composer-media img")).to_be_visible()
-    shelf = card.locator(".lf-composer-media").bounding_box()
-    attached = field.bounding_box()
-    assert attached["y"] == written["y"], "the attachment moved the words"
-    assert shelf["y"] >= attached["y"] + attached["height"], "the shelf is not below"
-    held = []
-
-    def hold(route):
-        if route.request.post_data_json.get("kind") == "comment":
-            held.append(route)
-        else:
-            route.continue_()
-
-    page.route("**/api/event", hold)
-    send.click()
-    holding(page, held, 1, "the page comment before refusal")
-    expect(card).to_be_hidden()
-    expect(page.locator(".lf-page-comment")).to_be_focused()
-    expect(box).to_have_js_property("value", "")
-    held.pop().fulfill(
-        status=400, json={"ok": False, "final": True, "error": "refused before append"}
-    )
-    expect(box).to_be_focused()
-    expect(box).to_have_js_property("value", draft)
-    expect(card.locator(".lf-composer-media img")).to_be_visible()
-    # The words are back in front of the user, so the refusal names no address for them.
-    expect(page.locator(".lf-notice")).to_have_text(
-        "Couldn't send — refused before append"
-    )
-    page.unroute("**/api/event", hold)
-    consume_browser_errors(page, http_error_console(400))
-
-    with sending(page, "the retried comment with its image"):
-        page.keyboard.press("ControlOrMeta+Enter")
-    expect(card).to_be_hidden()
-    page.keyboard.press("c")
-    expect(box).to_be_focused()
-    expect(box).to_have_js_property("value", "")
-    expect(card.locator(".lf-composer-media img")).to_have_count(0)
-
-
-def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
-    """A send is the one gesture that produces a thread, so it gets the same answer a
-    click on a page mark does: an open panel scrolls the new thread into its scrollport.
-    On a list long enough to scroll, the old rebuild appended the comment below the
-    fold and put the scroll back where it was — the user's own words landed out of
-    sight, silently. Both send routes close the composer and return to its banner
-    control; `c` opens it again, with the panel still open."""
-    page = open_page(browser, serve(LONG_PAGE, comments=30))
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    assert page.evaluate(
-        "() => { const t = document.querySelector('.lf-threads');"
-        "        return t.scrollTop === 0 && t.scrollHeight > t.clientHeight; }"
-    ), "this list starts revealed or doesn't scroll, so it proves nothing"
-
-    box = page_comment(page)
-    write(box, "Where did my words go?")
-    with sending(page, "the first comment"):
-        page.locator(".lf-general .lf-compose-submit").click()
-    sent = events_model.read_events(serve.page_dir)[-1]
-    assert (sent["kind"], sent["text"]) == ("comment", "Where did my words go?")
-    in_threads_scrollport(page, f'.lf-thread[data-id="{sent["id"]}"]')
-    assert page.evaluate("() => document.querySelector('.lf-threads').scrollTop") > 0, (
-        "the new thread was in view without scrolling, so the reveal proved nothing"
-    )
-    card = page.locator(".lf-page-comment-card")
-    expect(card).to_be_hidden()
-    expect(page.locator(".lf-page-comment")).to_be_focused()
-    expect(box).to_have_js_property("value", "")
-
-    page.keyboard.press("c")
-    expect(box).to_be_focused()
-    write(box, "And the second thought lands the same way.")
-    with sending(page, "the second comment"):
-        page.keyboard.press("ControlOrMeta+Enter")  # the other route, same destination
-    second = events_model.read_events(serve.page_dir)[-1]
-    in_threads_scrollport(page, f'.lf-thread[data-id="{second["id"]}"]')
-    expect(card).to_be_hidden()
-    expect(page.locator(".lf-page-comment")).to_be_focused()
-    expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
-
-
-def test_comment_on_the_page_starts_a_thread_from_a_card_under_the_banner(
-    browser, serve
-):
-    """The banner's Comment on the page starts a page thread with Threads shut: a card
-    hangs flush from the control, and its send closes it and flashes Threads,
-    whose count takes the new thread, without opening the panel. `c` on the floor goes
-    to the same card, with Threads open or shut."""
-    page = open_page(browser, serve(LONG_PAGE))
-    control = page.locator(".lf-banner-actions > .lf-page-comment")
-    card = page.locator(".lf-page-comment-card")
-    box = card.locator("leaf-text")
-    toggle = page.locator(".lf-threads-toggle")
-    is_open = "node => node.matches(':popover-open')"
-    expect(control).to_have_attribute("title", "Comment on the page (c)")
-
-    control.click()
-    assert card.evaluate(is_open)
-    expect(box).to_be_focused()
-    hung = page.evaluate(
-        """() => {
-          const card = document.querySelector('.lf-page-comment-card')
-            .getBoundingClientRect();
-          const control = document.querySelector('.lf-banner-actions > .lf-page-comment')
-            .getBoundingClientRect();
-          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
-          return [card.top - banner.bottom, card.right - control.right];
-        }"""
-    )
-    assert [round(edge) for edge in hung] == [0, 0], hung
-
-    # The editor and Send share the only frame. The popover ends at that frame's
-    # focused paint, rather than adding a padded box around the comment box.
-    edges = card.evaluate("""el => {
-      const card = el.getBoundingClientRect();
-      const field = el.querySelector('.lf-compose-field');
-      const box = field.getBoundingClientRect();
-      const ring = parseFloat(getComputedStyle(field).outlineWidth);
-      return [box.left - ring - card.left, box.right + ring - card.right,
-              box.top - ring - card.top, box.bottom + ring - card.bottom];
-    }""")
-    assert edges == pytest.approx([0, 0, 0, 0]), edges
-
-    # A crowded toolbar can put the anchor left of the space the card needs.
-    # Native placement then uses the window, and returns to the anchor when it fits.
-    original_viewport = page.viewport_size
-    resized(page, 500, original_viewport["height"])
-    assert control.evaluate("""el => el.getBoundingClientRect().right <
-      document.querySelector('.lf-page-comment-card').getBoundingClientRect().width""")
-    bounds = card.bounding_box()
-    assert bounds["x"] >= 8 and bounds["x"] + bounds["width"] <= 500 - 8, bounds
-    resized(page, original_viewport["width"], original_viewport["height"])
-    assert card.evaluate("""el => Math.abs(el.getBoundingClientRect().right -
-      document.querySelector('.lf-page-comment').getBoundingClientRect().right) < 1""")
-
-    # Both axes stay usable when a real attachment and draft share a short window.
-    draft = "\n".join(f"Page draft line {n}" for n in range(20))
-    write(box, draft)
-    paste_image(box, (example_media() / "051bee487bfb5d13.png").read_bytes())
-    resized(page, 500, 240)
-    bounds = card.bounding_box()
-    assert bounds["x"] >= 0 and bounds["x"] + bounds["width"] <= 500, bounds
-    assert bounds["y"] + bounds["height"] <= 240, bounds
-    # The editor gives way first: its words scroll while the card around it does not.
-    assert box.evaluate("el => el.scrollHeight > el.clientHeight")
-    assert card.evaluate("el => el.scrollHeight <= el.clientHeight")
-    resized(page, 500, 180)
-    box.press("Tab")
-    send_button = card.locator(".lf-compose-submit")
-    expect(send_button).to_be_focused()
-    assert send_button.evaluate("""el => {
-      const b = el.getBoundingClientRect();
-      return el.contains(document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2));
-    }""")
-    expect(box).to_have_js_property("value", draft)
-    resized(page, original_viewport["width"], original_viewport["height"])
-    card.get_by_role("button", name="Remove attached image 1", exact=True).click()
-
-    count = toggle.get_attribute("data-lf-count")
-    write(box, "Does the plan cover the self-hosted runners?")
-    with sending(page, "the page comment"):
-        page.keyboard.press("Enter")
-    sent = events_model.read_events(serve.page_dir)[-1]
-    assert (sent["kind"], sent["text"], sent.get("anchor")) == (
-        "comment",
-        "Does the plan cover the self-hosted runners?",
-        None,
-    )
-    assert not card.evaluate(is_open)
-    assert toggle.evaluate("t => t.getAnimations().length") == 1, (
-        "Threads did not flash"
-    )
-    expect(toggle).to_have_attribute("data-lf-count", str(int(count) + 1))
-    assert not page.locator(".lf-thread-panel").evaluate(
-        "p => p.classList.contains('open')"
-    )
-    expect(control).to_be_focused()
-    page.keyboard.press("c")
-    expect(box).to_be_focused()
-    page.keyboard.press("Escape")
-    expect(card).to_be_hidden()
-    expect(control).to_be_focused()
-
-    page.locator("main").click(position={"x": 4, "y": 4})
-    page.keyboard.press("c")
-    assert card.evaluate(is_open)
-    expect(box).to_be_focused()
-    expect(box).to_have_js_property("value", "")
-    page.keyboard.press("Escape")
-    # Words typed straight after `c` land in the box rather than on the page's keys.
-    page.keyboard.press("c")
-    page.keyboard.type("Kept for later")
-    expect(box).to_have_js_property("value", "Kept for later")
-    page.keyboard.press("Escape")
-    assert not card.evaluate(is_open)
-    # A press elsewhere puts it away too, as the browser's light dismissal, keeping
-    # the words.
-    control.click()
-    page.locator("main").click(position={"x": 4, "y": 4})
-    assert not card.evaluate(is_open)
-    expect(box).to_have_js_property("value", "Kept for later")
-    # A second press on the control puts the card away, and it stays away: the press
-    # is on the card's own opener, so it is not also a press outside the card that
-    # closes it before the control's press opens it again.
-    control.click()
-    expect(box).to_be_focused()
-    control.click()
-    one_frame(page)
-    assert not card.evaluate(is_open)
-    expect(control).to_have_attribute("aria-expanded", "false")
-    expect(control).to_be_focused()
-
-    # A refused send restores the editor on the words it handed back.
-    page.route(
-        "**/api/event",
-        lambda route: route.fulfill(
-            status=400,
-            json={"ok": False, "final": True, "error": "refused before append"},
-        ),
-    )
-    # Pressed straight after the press that opens the card, Enter sends from its box.
-    control.click()
-    page.keyboard.press("Enter")
-    expect(box).to_be_focused()
-    expect(box).to_have_js_property("value", "Kept for later")
-    assert card.evaluate(is_open)
-    page.unroute("**/api/event")
-    consume_browser_errors(page, http_error_console(400))
-    page.keyboard.press("Escape")
-
-    # With Threads open, the card is still where a page thread starts: it hangs over
-    # the panel, holding the same draft.
-    toggle.click()
-    panel_settled(page)
-    expect(page.locator(".lf-thread-panel .lf-general")).to_have_count(0)
-    control.click()
-    assert card.evaluate(is_open)
-    expect(box).to_be_focused()
-    expect(box).to_have_js_property("value", "Kept for later")
-
-
 def test_a_refused_page_comment_respects_newer_reading_input(browser, serve):
-    """A late refusal restores words without taking focus after a newer wheel gesture."""
+    """A late refusal restores words without taking focus after a newer wheel gesture,
+    or moving the page the wheel moved."""
     page = open_page(browser, serve(LONG_PAGE))
-    page.locator(".lf-page-comment").click()
-    card = page.locator(".lf-page-comment-card")
-    box = card.locator("leaf-text")
+    box = page_comment(page)
     write(box, "Keep my place while delivery finishes.")
     held = []
 
@@ -329,62 +60,21 @@ def test_a_refused_page_comment_respects_newer_reading_input(browser, serve):
     page.route("**/api/event", hold)
     page.keyboard.press("Enter")
     holding(page, held, 1, "the page comment before refusal")
-    expect(card).to_be_hidden()
-    expect(page.locator(".lf-page-comment")).to_be_focused()
-    page.mouse.move(300, 550)
+    page.mouse.move(300, 300)
     page.mouse.wheel(0, 350)
     page.wait_for_function("scrollY > 0")
-    expect(card).to_be_hidden()
-    expect(page.locator(".lf-page-comment")).to_be_focused()
+    scroll_settled(page)
+    place = page.evaluate("scrollY")
     held.pop().fulfill(
         status=400,
         json={"ok": False, "final": True, "error": "refused before append"},
     )
     expect(box).to_have_js_property("value", "Keep my place while delivery finishes.")
-    expect(card).to_be_hidden()
-    expect(page.locator(".lf-page-comment")).to_be_focused()
+    expect(box).not_to_be_focused()
+    rendered(page)
+    assert page.evaluate("scrollY") == place
     page.unroute("**/api/event", hold)
     consume_browser_errors(page, http_error_console(400))
-    page.keyboard.press("c")
-    expect(box).to_be_focused()
-
-
-def test_comment_on_the_page_stands_in_more_on_a_phone(browser, serve):
-    """A phone's banner keeps one row, so Comment on the page is a row of More in its
-    words; its press takes More down and opens the card across the window."""
-    context = browser.new_context(
-        is_mobile=True, has_touch=True, viewport={"width": 390, "height": 844}
-    )
-    page = open_page(browser, serve(LONG_PAGE), context=context)
-    expect(page.locator(".lf-banner-actions > .lf-page-comment")).to_have_count(0)
-    page.get_by_role("button", name="More page controls", exact=True).click()
-    page.locator(".lf-banner-menu .lf-page-comment").click()
-    card = page.locator(".lf-page-comment-card")
-    assert card.evaluate("node => node.matches(':popover-open')")
-    assert not page.locator(".lf-banner-menu").evaluate(
-        "node => node.matches(':popover-open')"
-    )
-
-    write(card.locator("leaf-text"), "A page comment from the phone.")
-    with sending(page, "the phone page comment"):
-        card.locator(".lf-compose-submit").tap()
-    expect(card).to_be_hidden()
-    expect(
-        page.get_by_role("button", name="More page controls", exact=True)
-    ).to_be_focused()
-    page.keyboard.press("c")
-    expect(card.locator("leaf-text")).to_be_focused()
-    box = card.bounding_box()
-    assert round(box["x"]) == 8 and round(box["width"]) == 390 - 16, box
-
-    # `c` with More open takes More down too, rather than opening the card inside it.
-    page.keyboard.press("Escape")
-    page.get_by_role("button", name="More page controls", exact=True).click()
-    page.keyboard.press("c")
-    assert card.evaluate("node => node.matches(':popover-open')")
-    assert not page.locator(".lf-banner-menu").evaluate(
-        "node => node.matches(':popover-open')"
-    )
 
 
 def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, serve):
@@ -396,10 +86,8 @@ def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, se
     )
     assert active.exit_code == 0, active.output
     page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    status = page.locator(f'.lf-thread[data-id="{root}"] .lf-thread-status')
-    expect(status).to_have_text("Working")
+    expect(thread_row(page, root).locator(".lf-fp-value")).to_have_text("Working")
+    page.locator('[data-lf-margin-for="how-cap"] .lf-margin-marker').click()
     later = append_carried_log_record(
         serve.page_dir,
         {
@@ -411,13 +99,15 @@ def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, se
         },
     )
     told(page)
-    workflow = page.locator(f'.lf-msg[data-mid="{later["id"]}"] .lf-msg-sending')
+    workflow = page.locator(
+        f'.lf-margin-preview .lf-msg[data-event="{later["id"]}"] .lf-msg-sending'
+    )
     expect(workflow).to_have_text("Sent")
     assert workflow.evaluate(
         "node => node.parentElement.matches('.lf-msg-meta') "
         "&& node.previousElementSibling.matches('time')"
     ), "the message status did not follow its relative timestamp"
-    expect(status).to_have_text("Working")
+    expect(thread_row(page, root).locator(".lf-fp-value")).to_have_text("Working")
 
 
 # Paragraphs that give a page length before the thread it is about.
@@ -517,131 +207,6 @@ def test_sends_from_a_page_threads_box_hold_its_foot_at_the_bands(
         sends.append(send_reply(page, thread, box, words))
     for before, after in sends:
         assert abs(after["foot"] - before["foot"]) < 1, sends
-
-
-def test_a_panel_send_with_room_below_moves_only_the_box(browser, serve):
-    """A send from a Threads panel card with room below its box draws the turn where
-    the box stood and moves the box down by it, and the list stays where it is: the
-    card's transcript is an append region, whose earlier turns stay put."""
-    url = serve(PANEL_PAGE)
-    root = seed_panel_threads(serve.page_dir, 2)[0]
-    page = open_page(browser, url)
-    open_threads_list(page, 1200, 900)
-    card = reply_by_keyboard(page, root)
-    box = card.locator("leaf-text")
-    list_top = "() => document.querySelector('.lf-threads').scrollTop"
-    scrolled = page.evaluate(list_top)
-    before, after = send_reply(page, card, box, "Reply with room below")
-    scroll_settled(page, ".lf-threads")
-    assert page.evaluate(list_top) == scrolled
-    grew = after["within"] - before["within"]
-    assert grew > 0 and abs(after["foot"] - before["foot"] - grew) < 1, (before, after)
-
-
-def test_a_growing_panel_reply_keeps_the_previous_turn_visible(browser, serve):
-    url = serve(PANEL_PAGE)
-    root = panel_comment(serve.page_dir, "A question with a reply.")
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "agent": "Codex",
-            "parent": root,
-            "text": "The last answer remains useful while composing a response.",
-        },
-    )
-    page = open_page(browser, url)
-    resized(page, 800, 520)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    card = page.locator(f'.lf-thread[data-id="{root}"]')
-    card.locator(".lf-thread-summary").click()
-    reply = card.locator("leaf-text")
-    write(reply, "A reply that grows.\n" * 30)
-    latest = card.locator(".lf-msg.agent").last
-    visible = latest.evaluate(
-        """message => {
-          const list = document.querySelector('.lf-threads');
-          const band = list.getBoundingClientRect();
-          const style = getComputedStyle(list);
-          return {
-            tail: message.getBoundingClientRect().bottom,
-            top: band.top + parseFloat(style.scrollPaddingTop),
-            editor: list.querySelector('.lf-thread[open] leaf-text').getBoundingClientRect().top,
-          };
-        }"""
-    )
-    assert visible["tail"] >= visible["top"] + 20, visible
-    assert visible["tail"] < visible["editor"], visible
-    assert reply.evaluate("input => input.scrollTop > 0")
-    in_threads_scrollport(page, f'.lf-thread[data-id="{root}"] .lf-thread-send')
-
-
-@pytest.mark.parametrize("edit", ["backspace", "replace"])
-def test_a_panel_reply_keeps_its_first_line_when_the_draft_shrinks(
-    browser, serve, edit
-):
-    """A short reply grows and shrinks below its first line, including after paint.
-
-    Message continuity must not turn a draft's former height into space above it.
-    Backspace removes the lines the user just added; replacing the draft exercises
-    the same layout through a single native input instead of repeated key presses.
-    """
-    url = serve(PANEL_PAGE)
-    root = panel_comment(serve.page_dir, "A short thread with room below its reply.")
-    page = open_page(browser, url)
-    open_threads_list(page, 1400, 900)
-    card = reply_by_keyboard(page, root)
-    editor = card.locator("leaf-text")
-    page.keyboard.type("First line")
-    rendered(page)
-    first = editor.bounding_box()
-    for _ in range(4):
-        page.keyboard.press("Shift+Enter")
-        rendered(page)
-    grown = editor.bounding_box()
-    assert grown["height"] > first["height"] + 50, (first, grown)
-    assert grown["y"] == pytest.approx(first["y"], abs=0.5), (first, grown)
-
-    if edit == "backspace":
-        for _ in range(4):
-            page.keyboard.press("Backspace")
-            rendered(page)
-            now = editor.bounding_box()
-            assert now["y"] == pytest.approx(first["y"], abs=0.5), (first, now)
-    else:
-        write(editor, "First line")
-        rendered(page)
-    shrunk = editor.bounding_box()
-    assert shrunk["height"] == pytest.approx(first["height"], abs=0.5), (first, shrunk)
-    assert shrunk["y"] == pytest.approx(first["y"], abs=0.5), (first, shrunk)
-    expect(editor).to_have_js_property("value", "First line")
-    expect(editor).to_be_focused()
-
-
-def test_a_page_comment_sent_beside_open_threads_lands_in_view(browser, serve):
-    """The list's place hold finishing a render cancelled the smooth landing already
-    under way, leaving the new thread below the list's foot."""
-    # The short window, where the landing has the furthest to go.
-    size = (800, 520)
-    url = serve(PANEL_PAGE)
-    seed_panel_threads(serve.page_dir, 8 if size[1] < 600 else 20, long_index=0)
-    page = open_page(browser, url)
-    open_threads_list(page, *size)
-    page.locator(".lf-threads").evaluate("list => list.scrollTop = list.scrollHeight")
-    scroll_settled(page, ".lf-threads")
-    write(page_comment(page), "What the general box says.")
-    with sending(page, "the page comment"):
-        page.keyboard.press("Enter")
-    rendered(page)
-    scroll_settled(page, ".lf-threads")
-    sent = events_model.read_events(serve.page_dir)[-1]
-    card = page.locator(f'.lf-thread[data-id="{sent["id"]}"]')
-    landed = card.locator(":scope > .lf-thread-summary").evaluate(IN_LANDING_BAND)
-    assert landed["inside"], f"the new thread was left outside the band: {landed}"
-    expect(page.locator(".lf-page-comment-card")).to_be_hidden()
-    expect(page.locator(".lf-page-comment")).to_be_focused()
 
 
 @pytest.mark.parametrize("touch", [False, True], ids=["desktop", "touch"])
@@ -824,8 +389,6 @@ def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface
     comment that starts a thread, finishes what they were writing: they stand on the
     thread's card or title on every surface, and `c` writes the follow-up."""
     page, box, send, after, reply = pressed_send_surface(browser, serve, surface)
-    if surface.startswith("composer"):
-        hold_pending_thread_presentation(page)
     if how == "keyboard":
         # Tab reaches the control from the box; `Send & pause` stands one past `Send`.
         for _ in range(2 if surface == "pause" else 1):
@@ -843,15 +406,11 @@ def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface
             expect(box).to_be_focused()
             page.mouse.up()
     if surface.startswith("composer"):
-        sent = admit_before_presenting_comment(
-            page, serve.page_dir, "Sent from the box."
+        sent = next(
+            event
+            for event in events_model.read_events(serve.page_dir)
+            if event.get("text") == "Sent from the box."
         )
-        thread = page.locator(
-            f'.lf-thread[data-id="{sent["id"]}"]'
-            if surface == "composer-panel"
-            else f'.lf-page-thread[data-thread="{sent["id"]}"]'
-        )
-        expect(thread).to_be_visible()
         if surface == "composer-widget":
             # Exact message navigation belongs to Threads, not the local reply box.
             assert page.evaluate(
@@ -901,9 +460,10 @@ def test_a_pointer_send_finishes_the_words_an_input_method_holds(browser, serve)
     rendered(page)
     assert ended.evaluate("ended => ended.count") == 1
     expect(after).to_be_focused()
-    expect(box).to_have_js_property("value", "")
     sent = events_model.read_events(serve.page_dir)
     assert any(event.get("text") == "Sent from the box.にほ" for event in sent), sent
+    # The page comment's box the send emptied stays empty.
+    expect(page_comment(page)).to_have_js_property("value", "")
 
 
 def test_a_seat_send_puts_the_user_on_the_thread_it_started(browser, serve):
@@ -938,18 +498,18 @@ def test_a_seat_send_at_the_window_foot_shows_the_thread_it_started(
     scroll_settled(page)
     sent = page.locator(f"{host} .lf-page-thread .lf-msg").last
     expect(sent).to_contain_text("First thought.")
-    assert clear_of_the_bar(page, sent), "the sent message was left below the fold"
+    assert clear_of_the_panel(page, sent), "the sent message was left below the fold"
     # Where the send left the user: the box a task seat keeps, or the thread a verdict
     # seat gave its box up to.
     focused = page.locator(f"{host} :is(leaf-text, .lf-page-thread):focus")
     expect(focused).to_have_count(1)
     if kind == "task":
-        assert clear_of_the_bar(page, focused), "the box went below the fold"
+        assert clear_of_the_panel(page, focused), "the box went below the fold"
 
 
 def shown_in(page, node, scroller):
     """Whether `node` shows whole inside `scroller`'s box and inside the window above
-    the shortcut bar."""
+    the floating panel."""
     return page.evaluate(
         """([node, box, bar]) => {
           const at = node.getBoundingClientRect();
@@ -961,7 +521,7 @@ def shown_in(page, node, scroller):
         [
             node.element_handle(),
             scroller.element_handle(),
-            page.locator(".lf-shortcut-bar").element_handle(),
+            page.locator(".lf-fp-card").element_handle(),
         ],
     )
 
@@ -1007,9 +567,9 @@ def test_a_seat_send_in_a_bounded_block_moves_the_block_and_not_the_page(
         assert shown_in(page, focused, hub), f"send {n + 1} left the box out of view"
 
 
-def test_a_seat_box_grown_by_a_paste_keeps_its_send_above_the_bar(browser, serve):
+def test_a_seat_box_grown_by_a_paste_keeps_its_send_above_the_panel(browser, serve):
     """The growth reveal lived in the reply wiring alone, so a seat's own box grew
-    under the shortcut bar, CodeMirror's caret scrolling knowing nothing of it."""
+    under the window's foot chrome, CodeMirror's caret scrolling knowing nothing of it."""
     url, host = seated_page(serve, "verdict")
     page = open_page(browser, url)
     box = page.locator(f"{host} > .lf-thread-seat > .lf-say leaf-text")
@@ -1018,52 +578,7 @@ def test_a_seat_box_grown_by_a_paste_keeps_its_send_above_the_bar(browser, serve
     to_window_foot(page, box, 60)
     paste(page, THIRTY_LINES)
     send = page.locator(f"{host} > .lf-thread-seat > .lf-say .lf-compose-submit")
-    assert clear_of_the_bar(page, send)
-
-
-def annotation_mode_source(mode):
-    return leaf_page(
-        "Mode switch",
-        '<h1>Mode switch</h1><p id="subject">A passage with stable words.</p>',
-    ).replace("<body>", f'<body data-annotations="{mode}">')
-
-
-@pytest.mark.parametrize(
-    "initial,next_mode", [("overlay", "page"), ("page", "overlay")]
-)
-def test_actual_mode_switch_carries_native_composer(browser, serve, initial, next_mode):
-    root = "0123456789abcdef0123456789abcdef"
-    event = {
-        "id": root,
-        "kind": "comment",
-        "author": "user",
-        "revision": 1,
-        "text": "A current thread",
-        "anchor": {"section": "subject"},
-    }
-    page = open_page(
-        browser, live_url(serve(annotation_mode_source(initial), events=[event]))
-    )
-    page.locator(".lf-threads-toggle").click()
-    thread = page.locator(f'.lf-thread[data-id="{root}"]')
-    thread.locator(":scope > summary").click()
-    editor = thread.locator(".lf-thread-reply leaf-text")
-    editor.click()
-    expect(editor).to_be_focused()
-    editor.evaluate("el=>el.setSelectionRange(0,0,'none')")
-    birth = page.evaluate("performance.timeOrigin")
-    stamp_page(
-        serve.page_dir,
-        annotation_mode_source(next_mode),
-        "Change actual annotation mode",
-    )
-    wait_for_revision(page, 2)
-    assert page.evaluate("performance.timeOrigin") != birth
-    expect(editor).to_be_focused()
-    assert editor.evaluate(
-        "el=>[el.value,el.selectionStart,el.selectionEnd,el.selectionDirection]"
-    ) == ["", 0, 0, "none"]
-    assert page.locator(".lf-margin-projection").count() == (next_mode == "overlay")
+    assert clear_of_the_panel(page, send)
 
 
 @pytest.mark.parametrize("surface", ["composer-widget", "composer-panel"])
@@ -1094,8 +609,6 @@ def test_pending_messages_stay_readable_through_admission(browser, serve, surfac
         page.locator("lf-diff .lf-page-thread")
         if surface == "composer-widget"
         else page.locator(".lf-margin-preview .lf-page-thread")
-        if surface == "composer"
-        else page.locator(".lf-threads > .lf-thread", has_text="Sent from the box.")
     )
     expect(region.locator(".lf-msg")).to_have_count(2)
     assert region.locator(".lf-msg-head").evaluate_all(

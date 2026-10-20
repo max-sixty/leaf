@@ -31,9 +31,9 @@ import {
   programmaticSelection,
   selectEnds,
   says,
-  watchPassageRoot,
 } from "/runtime/passages.js";
 import { upFrom } from "/runtime/shadow.js";
+import { shadowStage } from "/runtime/shadow-stage.js";
 
 test("no node means no passage location, rather than a runtime error", () => {
   assert.equal(closestAcross(null, "main"), null);
@@ -60,7 +60,7 @@ test("a document host value does not become a shadow-tree ancestor", () => {
 });
 
 // A detached subtree's root is an element, and an <a> or <area> has a `host` of its own:
-// its URL's. The Leaves drawer's other-page rows are such links, and the reading watcher
+// its URL's. All pages' other-page rows are such links, and the reading watcher
 // climbs from the one a removal record names once it has left.
 test("a detached link's URL host is not a shadow-tree ancestor", () => {
   document.body.innerHTML =
@@ -149,8 +149,8 @@ test("the runtime's chrome repainting is not a change to what the page says", ()
     '<main><p>Alpha beta</p></main><div class="lf-ui" id="panel"><p>Panel</p></div>';
   const first = pageText();
   assert.doesNotMatch(first.raw, /Panel/);
-  // The panel, the banner and the shortcut bar re-render on nearly every gesture — a drag
-  // on a large page wrote dozens of records, all under `.lf-ui`. The reading skips those
+  // The floating panel re-renders on nearly every gesture — a drag on a large page
+  // wrote dozens of records, all under `.lf-ui`. The reading skips those
   // words, so their churn is no reason to walk the page again.
   const panel = document.querySelector("#panel");
   panel.innerHTML = "<p>Panel again</p><button>Reply</button>";
@@ -200,13 +200,13 @@ test("a declared shadow tree's words are read, and its changes are seen", () => 
     $layer: { generation: "passage-doors" },
   });
   document.body.innerHTML = "<main><p>Alpha</p><lf-staged></lf-staged></main>";
-  const root = document.querySelector("lf-staged").attachShadow({ mode: "open" });
-  root.append(Object.assign(document.createElement("p"), { textContent: "Beta" }));
-  // Attaching the root and filling it reached no node the document observes.
-  watchPassageRoot(root);
+  // Staging the root and filling it reaches no node the document observes.
+  const root = shadowStage(document.querySelector("lf-staged"), [
+    Object.assign(document.createElement("p"), { textContent: "Beta" }),
+  ]);
   assert.match(pageText().raw, /Alpha.*Beta/s);
   // And the door leaves the tree watched, rather than forgetting the reading once.
-  root.firstElementChild.textContent = "Gamma";
+  root.querySelector("p").textContent = "Gamma";
   assert.match(pageText().raw, /Alpha.*Gamma/s);
 });
 
@@ -221,9 +221,9 @@ test("chrome over a declared tree stops at its root, and not for what it slots",
   });
   document.body.innerHTML =
     '<main><p>Page</p></main><div class="lf-ui"><lf-staged><b>Slotted</b> loose</lf-staged></div>';
-  const root = document.querySelector("lf-staged").attachShadow({ mode: "open" });
-  root.innerHTML = "<p>Staged</p><p><slot></slot></p>";
-  watchPassageRoot(root);
+  const staged = document.createElement("template");
+  staged.innerHTML = "<p>Staged</p><p><slot></slot></p>";
+  shadowStage(document.querySelector("lf-staged"), [...staged.content.childNodes]);
   const raw = pageText().raw;
   assert.match(raw, /Staged/, "the chrome above the host is not the tree's");
   assert.doesNotMatch(
@@ -240,7 +240,9 @@ test("a line break assigned to a shadow slot separates its words", () => {
   });
   document.body.innerHTML = "<main><lf-staged>Alpha<br>Beta</lf-staged></main>";
   const host = document.querySelector("lf-staged");
-  host.attachShadow({ mode: "open" }).innerHTML = "<p><slot></slot></p>";
+  const staged = document.createElement("template");
+  staged.innerHTML = "<p><slot></slot></p>";
+  shadowStage(host, [...staged.content.childNodes]);
   assert.equal(says(host.shadowRoot), "Alpha Beta");
   assert.equal(pageText().raw, "Alpha Beta");
 });

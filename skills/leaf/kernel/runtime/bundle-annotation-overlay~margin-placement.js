@@ -1,10 +1,8 @@
 import {
-  visibleTargetParts
-} from "./bundle-visible-target-parts.js";
-import {
   pointBand,
-  residencyStarted
-} from "./bundle-content-layout.js";
+  railStands,
+  visibleTargetParts
+} from "./bundle-page-controls.js";
 import {
   anchorBox,
   anchorElement,
@@ -40,6 +38,7 @@ import {
   LAYOUT,
   clamp,
   clippingAxes,
+  coarsePointer,
   overlaps,
   overlapsAcross,
   renderedChildren,
@@ -68,7 +67,7 @@ import {
   sizeObserver,
   under,
   upFrom
-} from "./bundle-sample-visibility.js";
+} from "./bundle-frame-visibility.js";
 
 // runtime/annotation-overlay/margin-placement.js
 function rowPosture({
@@ -226,7 +225,7 @@ function watchGeometry(geometry) {
 }
 var GAP = 4;
 var THREAD_CARD = "lf-margin-preview";
-var HELD = `:hover, :focus-within, [data-lf-options-expanded], :has([aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
+var HELD = `:hover, :focus-within, :has([data-lf-held-word]), [data-lf-options-expanded], :has([aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
 var pending = 0;
 var observer = null;
 var observedColumn = null;
@@ -297,7 +296,6 @@ function carrierAnchor(subject, sources, scroller) {
   return carriedAnchor(inner) ?? own();
 }
 var marginColumn = () => layoutBox() || document.body;
-var railStands = (main) => (main.getAttribute("data-lf-margin") ?? "").split(" ").includes("rail");
 var railBeside = (scroller) => {
   if (scroller === pageScroller) return true;
   const block = boundedBlockOf(scroller);
@@ -360,13 +358,7 @@ function samePassage(passage, words) {
   return range.startContainer === words.startContainer && range.startOffset === words.startOffset && range.endContainer === words.endContainer && range.endOffset === words.endOffset;
 }
 function syncMarginResidency(changed) {
-  paintPins();
   if (changed) scheduleMarginLayout();
-}
-function paintPins() {
-  if (!residencyStarted()) return;
-  const main = layoutBox();
-  layer?.root.closest(".lf-chrome").toggleAttribute("data-lf-pins", !main || !railStands(main));
 }
 var labelRect = (name, left, top, label) => ({
   name,
@@ -397,12 +389,13 @@ function placeMarginEntryLabel(control) {
   const clusterLeft = Math.min(...clusterMarginEntries.map((box) => box.left));
   const clusterRight = Math.max(...clusterMarginEntries.map((box) => box.right));
   const centered = (marginEntryBox.top + marginEntryBox.bottom - labelBox.height) / 2;
-  const candidates = [
+  const [below, above, after, before] = [
     labelRect("below", edgeAligned, marginEntryBox.bottom + 6, labelBox),
     labelRect("above", edgeAligned, marginEntryBox.top - 6 - labelBox.height, labelBox),
     labelRect("after", clusterRight + 6, centered, labelBox),
     labelRect("before", clusterLeft - 6 - labelBox.width, centered, labelBox)
   ];
+  const candidates = coarsePointer.matches ? [above, before, after, below] : [below, above, after, before];
   const blockers = [
     ...document.querySelectorAll(".lf-margin-projection .lf-margin-entry")
   ].filter((candidate) => candidate !== control && candidate.checkVisibility()).map((candidate) => candidate.getBoundingClientRect());
@@ -443,7 +436,6 @@ function scheduleMarginEntryLabels() {
 }
 function mountMarginLayer(root) {
   layer = { root, lanes: /* @__PURE__ */ new Map(), sizes: sizeObserver(layoutMarginRows) };
-  paintPins();
   hearTargetChanges(document);
 }
 var heard = /* @__PURE__ */ new WeakSet();
@@ -1673,6 +1665,7 @@ function commentPlacement() {
   let reading = null;
   let tallest = null;
   let edge = "top";
+  let unpressed = "top";
   let pressHeld = null;
   let pressAnswered = null;
   const forget = () => {
@@ -1687,6 +1680,7 @@ function commentPlacement() {
     reading = null;
     tallest = null;
     edge = "top";
+    unpressed = "top";
     pressHeld = null;
     pressAnswered = null;
   };
@@ -1740,14 +1734,15 @@ function commentPlacement() {
         replyTurn: keepReplyLine ? latest.key : null,
         draftText
       };
-      edge = hold ? side === "top" ? "foot" : "top" : pressHeld ?? (keepReplyLine || !drafting && side === "top" ? "foot" : "top");
+      unpressed = hold ? side === "top" ? "foot" : "top" : keepReplyLine || !drafting && side === "top" ? "foot" : "top";
+      edge = hold ? unpressed : pressHeld ?? unpressed;
       return edge;
     },
     // The edge a change the user did not make would hold, read before it is drawn: a
     // turn joining while they read releases a hold on their own reply's line, so it
     // holds the foot only where the surface stands above what it is about; any other
-    // change keeps the edge held now.
-    edgeFor: (turn) => turn ? side === "top" ? "foot" : "top" : edge,
+    // change keeps the edge held now, but for a press's hold, which that change ends.
+    edgeFor: (turn) => turn ? side === "top" ? "foot" : "top" : unpressed,
     // The held edge's offset for `options`' `hold`.
     heldAt: (edge2) => held2 && { [edge2]: held2[edge2] },
     scrolled() {

@@ -2327,7 +2327,7 @@ describe("website page agent", () => {
             ok: true,
             state: {
               events: [{ id: eventId, attempt, kind: "comment", revision: 1 }],
-              activity: { obligations: [{ input: eventId }] },
+              activity: { obligations: [`update:${eventId}`] },
             },
           });
         }
@@ -2410,7 +2410,7 @@ describe("website page agent", () => {
           ok: true,
           state: {
             events: [{ id: eventId, attempt, kind: "comment", revision: 1 }],
-            activity: { obligations: [{ input: eventId }] },
+            activity: { obligations: [`update:${eventId}`] },
           },
         }),
       )
@@ -2457,7 +2457,7 @@ describe("website page agent", () => {
           ok: true,
           state: {
             events: [{ id: eventId, attempt, kind: "comment", revision: 1 }],
-            activity: { obligations: [{ input: eventId }] },
+            activity: { obligations: [`update:${eventId}`] },
           },
         }),
       )

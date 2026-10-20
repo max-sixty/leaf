@@ -19,10 +19,11 @@ from render_harness import (
     leaf_page,
     names,
     open_page,
-    panel_settled,
     plant_quiet_word,
     resized,
 )
+
+from browser.threads import open_panel_thread
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -465,13 +466,12 @@ def test_a_chart_in_a_closed_thread_draws_at_its_visible_width_when_opened(
     browser, serve
 ):
     """A chart an agent sends in a reply is markup like any other, which is why the body
-    is JSON rather than a script: a message carries no module. It connects inside a
-    closed panel and must draw at its visible width once the user opens the panel and
-    the thread.
+    is JSON rather than a script: a message carries no module. While its thread is
+    closed it has no box, and it must draw at its visible width once the user opens the
+    thread in the panel.
 
-    A closed native details element can answer layout queries with a nonzero width.
-    Read the visible drawing after opening both disclosures; an intermediate absence
-    of SVG cannot distinguish a closed card from a drawing that has not finished.
+    Read the visible drawing after the thread opens; an intermediate absence of SVG
+    cannot distinguish a closed thread from a drawing that has not finished.
     """
     url = serve(CHART_IN_A_MESSAGE_PAGE)
     d = serve.page_dir
@@ -498,12 +498,11 @@ def test_a_chart_in_a_closed_thread_draws_at_its_visible_width_when_opened(
     )
     page = open_page(browser, url)
     assert (
-        page.evaluate("() => document.getElementById('msg-chart').clientWidth") == 0
-    ), "the panel must be shut, or there was a box all along"
+        page.evaluate("() => document.getElementById('msg-chart')?.clientWidth ?? 0")
+        == 0
+    ), "the thread must be closed, or there was a box all along"
 
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    page.locator(".lf-thread-summary").click()
+    open_panel_thread(page, "c-chart")
     expect(page.locator("#msg-chart svg[role=img]")).to_be_visible()
     page.wait_for_function(
         """() => {

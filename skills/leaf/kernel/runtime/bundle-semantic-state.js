@@ -55,8 +55,7 @@ var queueWidgetUpdate = (widget, update) => schedule.enqueue(
 var PRESENTATION_ORDER = Object.freeze({
   projection: 0,
   thread: 1,
-  asks: 2,
-  queue: 3
+  obligations: 2
 });
 var documentPresenters = [];
 var publications = applicationState.select((root) => root);
@@ -142,19 +141,23 @@ var applicationPresenter = ({
   return Object.freeze({ present, disconnect });
 };
 var documentChanges = 0;
-var documentChanged = () => documentChanges;
+var documentListeners = /* @__PURE__ */ new Set();
+var documentReading = outsideReading(
+  () => documentChanges,
+  (moved) => {
+    documentListeners.add(moved);
+    return () => documentListeners.delete(moved);
+  }
+);
+var documentChanged = () => documentReading.read();
 var presentDocument = () => {
   documentChanges += 1;
   for (const present of documentPresenters) void present();
+  const round = {};
+  for (const moved of [...documentListeners]) moved(round);
   return schedule.passed();
 };
 var whenDocumentPresented = () => schedule.passed();
-var PresentationRetentionError = class extends AggregateError {
-};
-var failSoftAfterRetention = (proof) => (reason) => {
-  if (reason instanceof PresentationRetentionError) throw reason;
-  return proof;
-};
 var currentEpoch = () => untracked(() => readApplication().semanticEpoch);
 var currentApplicationPresentation = () => ({
   document: documentToken,
@@ -201,16 +204,16 @@ var PAGE_ROOT = (
 );
 var served = (
   /** @type {HTMLScriptElement | null} */
-  document.querySelector("script[data-lf-runtime][data-lf-server]")?.dataset
+  document.querySelector("script[data-lf-runtime][data-lf-server]")
 );
 var DELIVERY = Object.freeze({
-  layer: served?.lfLayer,
-  release: served?.lfRelease,
-  probe: served?.lfProbe
+  layer: served?.dataset.lfLayer,
+  release: served?.dataset.lfRelease,
+  probe: served?.dataset.lfProbe
 });
 var WEBSITE_DELIVERY = DELIVERY.release !== void 0;
 var layerRoot = (doc) => doc.querySelector("script[data-lf-runtime][data-lf-entry]")?.dataset.lfEntry.replace(/leaf\.js$/, "") ?? "";
-var SHARE_ROOT = served?.lfShareUrl;
+var SHARE_ROOT = served?.dataset.lfShareUrl;
 function shareUrl() {
   const url = new URL(SHARE_ROOT);
   url.pathname = location.pathname;
@@ -225,7 +228,11 @@ var offlineMarker = document.querySelector(
   'script[type="application/json"][data-lf-runtime][data-lf-offline]'
 );
 var offlinePayload = offlineMarker ? JSON.parse(offlineMarker.textContent || "null") : null;
-var annotationMode = document.body.getAttribute("data-annotations") ?? "overlay";
+var allocation = (name) => (
+  /** @type {any} */
+  document.body.getAttribute(name)
+);
+var annotationMode = allocation("data-annotations") ?? "overlay";
 var offlineInteractive = offlinePayload !== null;
 var offlineState = () => offlineInteractive ? structuredClone(offlinePayload.state) : null;
 var offlineData = () => offlineInteractive ? offlinePayload.data : null;
@@ -345,8 +352,6 @@ export {
   documentChanged,
   presentDocument,
   whenDocumentPresented,
-  PresentationRetentionError,
-  failSoftAfterRetention,
   whenApplicationPresented,
   applicationPresented,
   whenWidgetsPresented,

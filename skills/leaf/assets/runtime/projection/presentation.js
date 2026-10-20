@@ -171,7 +171,7 @@ export function createProjectionPresentation() {
 
   // `present` is not returned. The region repaints from its own subscription above, or
   // from `presentDocument` when a caller has changed the document. Handing one caller
-  // a third way in is how the ask inventory once got left out of a document-wide
+  // a third way in is how the obligation inventory once got left out of a document-wide
   // repaint.
   return {
     retireProjectionCoverage,

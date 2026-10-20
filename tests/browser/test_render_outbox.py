@@ -32,23 +32,24 @@ from render_cases_navigation import (
     composer_quote,
     mark_shows_beside_composer,
 )
-from render_cases_widgets import (
-    _painted_line,
-)
 from render_harness import (
+    AVAILABLE_COMMANDS,
     BOARD_PAGE,
     EXAMPLE_PACKAGES,
     INLINE_PAGE,
     LONG_PAGE,
+    PANEL_THREAD,
     RELEASE_FOCUS,
     REPLAYED_PAGE,
     SETTLED_PAGE,
     CutOff,
     Traffic,
     _traffic,
+    available_commands,
     consume_browser_errors,
     draft_control,
-    expect_asks_answered,
+    expect_obligations_answered,
+    expect_panel_says,
     holding,
     http_error_console,
     is_problem,
@@ -57,6 +58,7 @@ from render_harness import (
     open_page,
     page_comment,
     pane_posture,
+    panel_control,
     panel_settled,
     refuse,
     reported_browser_errors,
@@ -71,9 +73,13 @@ from render_harness import (
     take_browser_errors,
     told,
     undo,
+    wait_for_check_api,
     wait_for_revision,
     write,
 )
+
+from browser.test_render_application_boundary import long_thread
+from browser.threads import open_panel_thread
 
 DRAG_HELD = "async () => (await window.__lfCheckApi()).dragHeld()"
 
@@ -103,19 +109,28 @@ def fail_reading_commit(page, reading, fault):
     )
 
 
+def undo_offered(page, offered=True):
+    """Wait until the dispatcher would, or would not, take `z` for Undo where focus
+    stands: the reading the leaf's menu greys its Undo row by."""
+    page.evaluate(AVAILABLE_COMMANDS)
+    page.wait_for_function(
+        "offered => (window.__lfAvailableCommands()['history.undo']?.includes('z')"
+        " ?? false) === offered",
+        arg=offered,
+    )
+
+
 def test_a_refused_message_cannot_present_before_its_thread_reconciles(
     serve, held_events
 ):
     """The rejection publication owes new chrome, even without any widget renderer."""
     browser, held = held_events
     page = open_page(browser, serve(INLINE_PAGE))
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
     field = page_comment(page)
     write(field, "A message the server will refuse")
     field.press("ControlOrMeta+Enter")
     holding(page, held, 1, "the optimistic message")
-    expect(page.locator(".lf-thread")).to_contain_text(
+    expect(page.locator(PANEL_THREAD)).to_contain_text(
         "A message the server will refuse"
     )
     # Observe the instant after the immutable rejection publishes and seals, before
@@ -141,18 +156,16 @@ def test_a_refused_message_cannot_present_before_its_thread_reconciles(
     reading = page.evaluate("window.rejectionPresentation")
     assert reading["presentedEpoch"] < reading["semanticEpoch"], reading
     assert "thread" in reading["pending"], reading
-    expect(page.locator(".lf-thread")).to_have_count(0)
+    expect(page.locator(PANEL_THREAD)).to_have_count(0)
 
 
 def test_z_takes_back_the_thread_the_user_just_resolved(browser, serve):
-    """The gesture with no reverse in front of the user: a resolved thread folds
-    into the disclosure at the foot of the list, so putting it back by hand means
-    opening that, finding it, and pressing Reopen. What `z` writes is a withdrawal
+    """The gesture with no reverse in front of the user: resolving a thread moves the
+    user on from it, so putting it back by hand means finding it under Resolved and
+    pressing Reopen. What `z` writes is a withdrawal
     naming the resolve — not a second settlement, which would read as the user
     deciding to reopen a thread they had only meant not to close."""
     page = open_page(browser, serve(LONG_PAGE, comments=3))
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
     comments = [
         e["id"]
         for e in events_model.read_events(serve.page_dir)
@@ -166,17 +179,17 @@ def test_z_takes_back_the_thread_the_user_just_resolved(browser, serve):
         {"kind": "resolve", "author": "agent", "agent": "A", "parent": comments[1]},
     )
     told(page)
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
+    undo_offered(page, offered=False)
 
-    thread = page.locator(f'.lf-thread[data-id="{comment}"]')
-    thread.locator(".lf-thread-summary").click()
-    thread.locator(".lf-resolve").click()
+    open_panel_thread(page, comment)
+    page.locator(".lf-fp-settle").click()
     round_trip(page)
 
     undo(page)
-    expect(
-        page.locator(f'.lf-threads > .lf-thread[data-id="{comment}"]')
-    ).to_have_count(1)
+    # Back among the open threads: the user's own and the third, the agent's closed.
+    expect(page.locator(".lf-fp-threads")).to_have_attribute(
+        "title", re.compile("^Threads, 2 open")
+    )
     log = events_model.read_events(serve.page_dir)
     assert log[-1] == {
         **log[-1],
@@ -188,35 +201,31 @@ def test_z_takes_back_the_thread_the_user_just_resolved(browser, serve):
     }
     assert [e["kind"] for e in log if e["kind"] == "unresolve"] == []
     # The undo is not itself a gesture to take back, so the offer goes with it.
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
+    undo_offered(page, offered=False)
 
 
 def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
     """Resolve and reopen are undoable gestures too. While a second resolve is in
     the outbox, undo cannot name the older resolve still visible in the log."""
     page = open_page(browser, serve(LONG_PAGE, comments=3))
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
     comment_ids = [
         event["id"]
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     ]
-    first = page.locator(f'.lf-threads > .lf-thread[data-id="{comment_ids[0]}"]')
-    second = page.locator(f'.lf-threads > .lf-thread[data-id="{comment_ids[1]}"]')
-    expect(first).to_have_attribute("open", "")
-    first.locator(".lf-resolve").click()
+    open_panel_thread(page, comment_ids[0])
+    page.locator(".lf-fp-settle").click()
     round_trip(page)
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
+    undo_offered(page)
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     sent = _traffic(page).sends
-    # Resolving the expanded thread hands expansion to the next visible one.
-    expect(second).to_have_attribute("open", "")
-    second.locator(".lf-resolve").click()
+    # Resolving the thread open from Threads moves the user on to the next one.
+    expect(page.locator(PANEL_THREAD)).to_have_attribute("data-thread", comment_ids[1])
+    page.locator(".lf-fp-settle").click()
     holding(page, held, 1, "the second resolution")
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
+    undo_offered(page, offered=False)
     page.keyboard.press("z")
     assert _traffic(page).sends == sent + 1
 
@@ -236,23 +245,22 @@ def test_z_stops_at_a_newer_gesture_it_cannot_take_back(browser, serve):
     resolve cannot be unsaid, so the resolve behind it is no longer the last change
     the user made, and the press reopens nothing."""
     page = open_page(browser, serve(LONG_PAGE, comments=3))
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
     first, second = [
         event["id"]
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     ][:2]
-    page.locator(f'.lf-threads > .lf-thread[data-id="{first}"] .lf-resolve').click()
+    open_panel_thread(page, first)
+    page.locator(".lf-fp-settle").click()
     round_trip(page)
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
+    undo_offered(page)
 
     append_carried_log_record(
         serve.page_dir,
         {"kind": "reply", "author": "user", "parent": second, "text": "And this?"},
     )
     told(page)
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
+    undo_offered(page, offered=False)
     page.keyboard.press("z")
     told(page)
     assert [
@@ -315,7 +323,7 @@ def test_z_reaches_the_gestures_made_on_the_version_being_read(browser, serve):
     page.keyboard.press("ArrowRight")
     page.keyboard.press("Enter")
     round_trip(page)
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
+    undo_offered(page)
 
     d = serve.page_dir
     carried = BOARD_PAGE.replace(
@@ -328,7 +336,7 @@ def test_z_reaches_the_gestures_made_on_the_version_being_read(browser, serve):
     stamp_page(d, carried, "carried")
     wait_for_revision(page, 2)
     expect(page.locator("#col-done #card-baffle")).to_have_count(1)
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
+    undo_offered(page, offered=False)
     page.keyboard.press("z")
     told(page)
     # An undo posts no action, so counting actions says nothing about whether the
@@ -353,7 +361,7 @@ def test_z_waits_for_the_gesture_the_log_has_not_taken(browser, serve):
     for key in move:
         page.keyboard.press(key)
     round_trip(page)
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
+    undo_offered(page)
 
     held = []
 
@@ -370,7 +378,7 @@ def test_z_waits_for_the_gesture_the_log_has_not_taken(browser, serve):
     for key in move:
         page.keyboard.press(key)
     holding(page, held, 1, "the move it was asked for")
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
+    undo_offered(page, offered=False)
     page.keyboard.press("z")
     assert _traffic(page).sends == 2, (
         "the press took back a gesture read off a log missing the one before it"
@@ -410,9 +418,6 @@ def test_an_action_response_accounts_for_its_gesture_without_a_follow_up_poll(
     page.wait_for_function("() => document.body.dataset.lfApplied === '2'")
 
     expect(page.locator("#col-done #card-baffle")).to_have_count(1)
-    # The shortcut bar has only two contextual slots, and the focused grip's nearer commands
-    # may occupy both; waiting for the word "undo" there observes a transient repaint, not
-    # liveness.
     # The withdrawal entering the wire is the durable edge that proves the press worked.
     with sending(page, "the withdrawal"):
         page.keyboard.press("z")
@@ -452,7 +457,7 @@ def test_one_supplied_attempt_cannot_name_two_queued_actions(browser, serve):
         "card-heater"
     ]
     assert _traffic(page).sends == 1
-    expect(page.locator(".lf-notice")).to_contain_text("is already in use")
+    expect_panel_says(page, "is already in use")
 
 
 def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
@@ -493,7 +498,7 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
 
     suggestion_control(page, "sug-refill", "accept").click()
     round_trip(page)
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
+    undo_offered(page)
 
     requests = []
     first_attempt = []
@@ -548,7 +553,7 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     # response must not release the hold because the accepted view never completed
     # presentation.
     assert first_attempt[0] not in _traffic(page).pending
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
+    undo_offered(page, offered=False)
     sent = _traffic(page).sends
     page.keyboard.press("z")
     assert _traffic(page).sends == sent
@@ -569,14 +574,14 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     expect(page.locator("#sug-in-card")).not_to_have_attribute(
         "data-lf-state", "accept"
     )
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
+    undo_offered(page, offered=False)
 
     # A complete poll proves presentation of the older acceptance and refused correction.
     # The re-offered action can then send under a fresh attempt, whose valid answer
     # includes both accepted gestures and makes the newest one safe to undo.
     lifted = True
     told(page)
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
+    undo_offered(page)
     page.locator("[data-lf-margin-for='sug-in-card']").get_by_role(
         "button", name="Retry", exact=True
     ).click()
@@ -672,7 +677,7 @@ def test_a_failed_background_presentation_keeps_the_new_undo_authority(browser, 
       return {accepted: root.authoritative.reading, committed: document.body.dataset.lfReading};
     }""")
     assert commit["committed"] != commit["accepted"], commit
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
+    undo_offered(page)
     with page.expect_response(
         lambda response: (
             "/api/event" in response.url
@@ -1302,7 +1307,7 @@ def test_accounting_an_action_projects_newer_same_widget_news_before_release(
     assert page.eval_on_selector_all(
         "#col-done > lf-card", "cards => cards.map(card => card.id)"
     ) == ["card-baffle", "card-heater"]
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
+    undo_offered(page)
     cut.cut()
 
     with page.expect_response(lambda response: "/api/event" in response.url):
@@ -1312,7 +1317,7 @@ def test_accounting_an_action_projects_newer_same_widget_news_before_release(
     assert page.eval_on_selector_all(
         "#col-done > lf-card", "cards => cards.map(card => card.id)"
     ) == ["card-baffle", "card-heater"]
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
+    undo_offered(page)
     assert [event["detail"]["unit"] for event in actions(serve.page_dir)] == [
         "card-heater",
         "card-baffle",
@@ -1355,7 +1360,7 @@ def test_accounting_an_action_also_applies_the_undo_that_arrived_with_it(
     cut.cut()
     expect(page.locator("#col-todo #card-heater")).to_have_count(1)
     expect(page.locator("#col-done #card-heater")).to_have_count(0)
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
+    undo_offered(page, offered=False)
     held[0].fulfill(response=accepted_answer)
     page.unroute("**/api/event")
 
@@ -1436,7 +1441,7 @@ def test_a_complete_read_does_not_repaint_an_already_undone_settlement(browser, 
     expect(page.locator("#sug-refill")).not_to_have_attribute("aria-busy", "true")
     expect(page.locator("#sug-refill")).not_to_have_attribute("data-lf-state", "accept")
     expect(page.locator("#sug-refill lf-old")).to_be_visible()
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
+    undo_offered(page, offered=False)
     held[0].fulfill(response=accepted_answer)
     page.wait_for_timeout(100)
     expect(page.locator(".lf-live")).not_to_contain_text("Accepted suggested change")
@@ -1517,7 +1522,7 @@ def test_a_server_that_cannot_take_a_gesture_yet_says_so_and_keeps_it(browser, s
     for key in ["Enter", "ArrowRight", "Enter"]:
         page.keyboard.press(key)
     holding(page, refused, 2, "the move the rollout would not take")
-    expect(page.locator(".lf-notice")).to_contain_text("isn't ready yet")
+    expect_panel_says(page, "isn't ready yet")
     # The same gesture throughout: a refusal that admits nothing cannot mint a second.
     assert len(set(refused)) == 1
 
@@ -1599,7 +1604,7 @@ def test_a_refused_action_waits_for_a_live_gesture_before_reconciling(browser, s
 
     baffle.focus()
     page.keyboard.press("Enter")
-    page.wait_for_function(DRAG_HELD)
+    wait_for_check_api(page, "(api) => api.dragHeld()")
     attempt = held[0].request.post_data_json["attempt"]
     with page.expect_response(lambda response: "/api/event" in response.url):
         held[0].fulfill(
@@ -1889,22 +1894,22 @@ def test_z_returns_a_recordless_decision_to_undecided(browser, serve):
     old = page.locator("#sug-refill lf-old")
     accept = suggestion_control(page, "sug-refill", "accept")
     expect(old).to_be_visible()
-    expect_asks_answered(page, "0/3")
+    expect_obligations_answered(page, "0/3")
 
     accept.click()
     round_trip(page)
     expect(old).to_be_hidden()
-    expect_asks_answered(page, "1/3")
+    expect_obligations_answered(page, "1/3")
 
     undo(page)
     # Pending again, in every reading of it: the retired half is back on the page,
-    # the control offers the decision rather than recording it, and the banner
+    # the control offers the decision rather than recording it, and the page
     # counts the question among the ones still waiting on the user.
     expect(page.locator("#sug-refill lf-old")).to_be_visible()
     expect(suggestion_control(page, "sug-refill", "accept")).to_have_attribute(
         "aria-label", re.compile(r"^Accept the suggested change")
     )
-    expect_asks_answered(page, "0/3")
+    expect_obligations_answered(page, "0/3")
     assert suggestion_control(page, "sug-refill", "accept").count() == 1, (
         "undo left more than one Accept record for the same suggestion"
     )
@@ -1963,7 +1968,7 @@ def test_a_held_suggestion_delivery_does_not_reclaim_focus(held_events, serve):
     holding(page, held, 1, "the accepted suggestion")
     expect(suggestion_control(page, "sug-refill", "undo")).to_be_focused()
 
-    elsewhere = page.locator(".lf-threads-toggle")
+    elsewhere = page.locator(".lf-fp-threads")
     elsewhere.focus()
     held.pop(0).continue_()
     round_trip(page)
@@ -2106,7 +2111,7 @@ def test_a_second_tab_takes_the_decision_back_too(browser, serve):
 
     undo(one)
     expect(two.locator("#sug-refill lf-old")).to_be_visible()
-    expect_asks_answered(two, "0/3")
+    expect_obligations_answered(two, "0/3")
     # Everything the change had when it was pending, including what the theme paints
     # from ranges the module registers — a rebuild that dropped those would leave a
     # proposal on the page with nothing marking what it changes.
@@ -2163,13 +2168,13 @@ def test_a_withdrawn_decision_is_still_withdrawn_after_a_reload(browser, serve):
 
     again = open_page(browser, url)
     expect(again.locator("#sug-refill lf-old")).to_be_visible()
-    expect_asks_answered(again, "0/3")
+    expect_obligations_answered(again, "0/3")
 
 
 def test_the_composer_never_stands_on_its_own_mark(browser, serve):
     """The mark is the only thing naming the passage the box is about, so a box covering
     all of it is a box about nothing. That is not hypothetical: a restored draft reappears
-    just under the banner, and the reading position puts the passage it was made on back
+    near the window's head, and the reading position puts the passage it was made on back
     where it was — which, for a passage that was near the top of a narrow column, is
     exactly there. The box has to move off it.
 
@@ -2183,7 +2188,7 @@ def test_the_composer_never_stands_on_its_own_mark(browser, serve):
 
     page.locator(".lf-settled").click()  # open the settled group, as a user would
     page.wait_for_selector("#opt-strict:visible")
-    # A card in the middle column, scrolled just under the banner: narrower than the 320px
+    # A card in the middle column, scrolled near the window's head: narrower than the 320px
     # box and centred on it, which is the geometry the box can swallow whole.
     page.evaluate("""() => {
         const r = document.querySelector('#opt-strict').getBoundingClientRect();
@@ -2394,9 +2399,9 @@ def test_the_comment_field_stands_in_the_margin_beside_the_passage(browser, serv
 def test_opening_the_panel_stands_down_the_field_without_losing_its_draft(
     browser, serve
 ):
-    """Opening the thread panel stands the compact field down, so its old absolute
-    position cannot create sideways overflow after the page narrows. The words remain
-    the passage's draft and return when the user selects that passage again."""
+    """Opening Threads in the panel stands the compact field down, so its old absolute
+    position cannot be left standing over the page. The words remain the passage's
+    draft and return when the user selects that passage again."""
     page = open_page(browser, serve(LONG_PAGE))
     # Start with enough room for the field beside the passage; opening the panel then
     # changes the body's available right edge around that float.
@@ -2407,13 +2412,14 @@ def test_opening_the_panel_stands_down_the_field_without_losing_its_draft(
     page.locator(".lf-fab-input").click()
     expect(page.locator(".lf-composer")).to_be_visible()
     write(page.locator(".lf-composer leaf-text"), "held open across the panel opening")
-    # A press on the banner's own button gives the Thread panel the screen and focus.
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
+    # A press on the panel's Threads mark gives the Threads view focus.
+    page.locator(".lf-fp-threads").click()
+    panel_settled(page, view="threads")
     expect(page.locator(".lf-composer")).to_be_hidden()
     assert root_overflow(page) == 0
 
-    page.get_by_role("button", name="Close threads").click()
+    page.locator(".lf-fp-close").click()
+    panel_settled(page, open=False)
     page.locator("#p30").click(click_count=3)
     expect(page.locator(".lf-fab-input")).to_be_visible()
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
@@ -2453,7 +2459,7 @@ def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, se
     page.wait_for_function(
         "() => document.getElementById('card-heater').getAnimations().length === 0"
     )
-    assert "z undo" in _painted_line(page)
+    assert "z" in available_commands(page).get("history.undo", [])
     sent = _traffic(page).sends
 
     # The mousedown lands on an already-focused control and fires no focusin, so the
@@ -2467,102 +2473,23 @@ def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, se
     page.mouse.move(*start)
     page.mouse.down()
     page.mouse.move(start[0], start[1] + 24, steps=8)  # past fallbackTolerance
-    page.wait_for_function(DRAG_HELD)  # the gesture is live in the page
+    wait_for_check_api(
+        page, "(api) => api.dragHeld()"
+    )  # the gesture is live in the page
     # Read once, on the frame the paint coalesces to, rather than through `expect`:
     # a heartbeat two seconds out repaints the line whatever this drag did, so an
     # assertion that re-decisions passes on the poll and says nothing about the edge.
-    assert "z undo" not in _painted_line(page), (
+    assert "z" not in available_commands(page).get("history.undo", []), (
         "the line offered a press the dispatcher refuses for the length of a drag"
     )
 
     page.mouse.up()
     assert not page.evaluate(DRAG_HELD)
-    assert "z undo" in _painted_line(page), (
+    assert "z" in available_commands(page).get("history.undo", []), (
         "the drop that sent nothing left the line refusing a press that is live"
     )
     assert _traffic(page).sends == sent, "the drop that moved nothing sent a move"
     expect(page.locator("#col-done #card-heater")).to_have_count(1)
-
-
-def test_pending_gestures_survive_an_accepted_view_waiting_for_a_thread_widget(
-    browser, serve
-):
-    """A preparation await does not freeze the set of unresolved user gestures."""
-    url = _serve_preparing_thread(serve)
-    page = open_page(browser, url)
-    resized(page, 1920, 900)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    page.route("**/api/state*", refuse)
-    preparations = []
-    page.route("**/preparation-content", lambda route: preparations.append(route))
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "question",
-            "author": "user",
-            "revision": 1,
-            "text": "Please add the supporting detail.",
-        },
-    )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "revision": 1,
-            "parent": "question",
-            "text": "Here is the detail.",
-            "markup": '<lf-preparation id="detail"><p>Supporting detail</p></lf-preparation>',
-        },
-    )
-    # Only the first accepted answer may reach application until its preparation finishes.
-    # Later gestures can enter delivery, but none can repair a stale candidate for us.
-    first_reading = []
-    later_posts = []
-
-    def first_answer_only(route):
-        event = route.request.post_data_json
-        if not event.get("attempt"):
-            route.continue_()
-        elif not first_reading:
-            response = route.fetch()
-            answer = response.json()
-            first_reading.append(answer["state"]["reading"])
-            route.fulfill(response=response, json=answer)
-        else:
-            later_posts.append(route)
-
-    page.route("**/api/event", first_answer_only)
-    with page.expect_request("**/preparation-content"):
-        suggestion_control(page, "sug-refill", "accept").click()
-    assert page.locator("#detail").get_attribute("data-ready") is None
-    assert len(preparations) == 1
-
-    suggestion_control(page, "sug-thistle", "accept").click()
-    expect(page.locator("#sug-thistle")).to_have_attribute("data-lf-state", "accept")
-    write(page_comment(page), "Keep this newer comment visible.")
-    page.keyboard.press("ControlOrMeta+Enter")
-    message = page.locator(".lf-threads .lf-msg-body").filter(
-        has_text="Keep this newer comment visible."
-    )
-    expect(message).to_have_count(1)
-
-    preparations[0].fulfill(status=204)
-    page.wait_for_function(
-        "reading => document.body.dataset.lfReading === reading", arg=first_reading[0]
-    )
-    # The only applied answer predates both gestures. Their immediate state must stand
-    # throughout that commit, with no second answer available to repaint it afterward.
-    expect(page.locator("#sug-thistle")).to_have_attribute("data-lf-state", "accept")
-    expect(message).to_have_count(1)
-    expect(page.locator("#detail")).to_have_attribute("data-ready", "yes")
-
-    page.unroute("**/api/event", first_answer_only)
-    for route in later_posts:
-        route.continue_()
-    round_trip(page)
 
 
 def _serve_preparing_thread(serve, page=SUGGESTION_PAGE):
@@ -2596,6 +2523,17 @@ customElements.define('lf-preparation', class extends HTMLElement {
     )
 
 
+def approval(page):
+    """The version's approval, in the leaf's menu under Versions, read from a fresh
+    opening of the menu, which holds the rows it opened with."""
+    if page.locator(".lf-floating-panel").get_attribute("data-menu") is not None:
+        page.locator(".lf-fp-leaf").click()
+        expect(page.locator(".lf-floating-panel")).not_to_have_attribute(
+            "data-menu", ""
+        )
+    return panel_control(page, "approval")
+
+
 def test_a_failed_candidate_presentation_keeps_version_approval(browser, serve):
     """Approval follows accepted truth even when the reading stamp cannot present."""
     signoff_page = LONG_PAGE.replace(
@@ -2603,24 +2541,18 @@ def test_a_failed_candidate_presentation_keeps_version_approval(browser, serve):
         '<title>long</title><meta name="lf-review" content="sign-off">',
     )
     page = open_page(browser, _serve_preparing_thread(serve, signoff_page))
-    approval = page.locator(".lf-signoff")
-    expect(approval).to_have_text("Approve version")
+    expect(approval(page)).to_contain_text("Approve version")
+    long_thread(
+        serve.page_dir, "approval-question", "Please add the supporting detail."
+    )
+    told(page)
+    open_panel_thread(page, "approval-question")
     before = page.locator("body").get_attribute("data-lf-reading")
     held_states = []
     page.route("**/api/state*", lambda route: held_states.append(route))
     preparations = []
     page.route("**/preparation-content", lambda route: preparations.append(route))
 
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "approval-question",
-            "author": "user",
-            "revision": 1,
-            "text": "Please add the supporting detail.",
-        },
-    )
     append_carried_log_record(
         serve.page_dir,
         {
@@ -2645,7 +2577,7 @@ def test_a_failed_candidate_presentation_keeps_version_approval(browser, serve):
     with page.expect_request("**/preparation-content"):
         held_states.pop(0).fulfill(json=candidate)
     holding(page, preparations, 1, "approval thread preparation")
-    expect(approval).to_have_text("✓ Version approved")
+    expect(approval(page)).to_contain_text("✓ Version approved")
 
     fail_reading_commit(page, candidate["reading"], "injected approval commit fault")
     with page.expect_console_message(
@@ -2654,14 +2586,13 @@ def test_a_failed_candidate_presentation_keeps_version_approval(browser, serve):
         preparations.pop(0).fulfill(status=204)
 
     expect(page.locator("body")).to_have_attribute("data-lf-reading", before)
-    expect(approval).to_have_text("✓ Version approved")
-    expect(approval).to_be_disabled()
+    expect(approval(page)).to_contain_text("✓ Version approved")
 
     page.unroute("**/api/state*")
     for route in held_states:
         route.continue_()
     nudge(serve.page_dir)
-    expect(approval).to_have_text("✓ Version approved")
+    expect(approval(page)).to_contain_text("✓ Version approved")
     reported_browser_errors(
         page,
         "leaf: State presentation failed: injected approval commit fault",
@@ -2676,9 +2607,10 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
     page = open_page(browser, url)
     suggestion_control(page, "sug-refill", "accept").click()
     round_trip(page)
+    long_thread(serve.page_dir, "question", "Please add the supporting detail.")
+    told(page)
+    open_panel_thread(page, "question")
     before = page.locator("body").get_attribute("data-lf-reading")
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
     held_states = []
     page.route("**/api/state*", lambda route: held_states.append(route))
     preparations = []
@@ -2690,16 +2622,6 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
         route.continue_()
 
     page.route("**/api/event", record_post)
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "question",
-            "author": "user",
-            "revision": 1,
-            "text": "Please add the supporting detail.",
-        },
-    )
     append_carried_log_record(
         serve.page_dir,
         {
@@ -2731,7 +2653,7 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
     with page.expect_request("**/preparation-content"):
         held_states.pop(0).fulfill(json=candidate)
     holding(page, preparations, 1, "thread preparation")
-    page.keyboard.press("Escape")
+    page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("z")
     page.title()
     assert not [event for event in posts if event.get("kind") == "undo"]

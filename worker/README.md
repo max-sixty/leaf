@@ -103,7 +103,7 @@ of the host's Codex login and the website's Codex config. It prints the containe
 records and keeps them, with the plugin install's output, under
 `.tmp/verify-site/run-*/` (`website-adapter.log`, `plugin-install.log`). In its JSON
 result, `sinceSendMs.responseVisible` is when the
-open Threads panel first showed a non-empty agent reply; `sinceAdmissionMs.replied` is
+open Threads view first showed a non-empty agent reply; `sinceAdmissionMs.replied` is
 when the container admitted that reply, not when the user could see it.
 
 ## Dev environment
@@ -251,14 +251,14 @@ pnpm exec wrangler tail --config worker/wrangler.toml
 
 ### Find a session's records
 
-A user reports the 12-digit number in the page banner, the session's public
-`reference`. It is a support handle, stable for the browser identity's lifetime, and no
+A user reports the 12-digit session reference the leaf's menu copies, the session's
+public `reference`. It is a support handle, stable for the browser identity's lifetime, and no
 endpoint accepts it as identity. Start from it:
 
 1. Run the [support query](#product-events) to get the session's accepted events, each
    with its `timestamp` and event id (`index1`).
 2. Query Observability from one minute before an event's timestamp to twenty minutes
-   after it, with `lookup_key=reference` and the banner number as `lookup_value`. Change
+   after it, with `lookup_key=reference` and that number as `lookup_value`. Change
    `component` in the filter to the record type you need.
 3. For one request, query again with `lookup_key=eventId`. The event id follows a
    request across the Worker and container datasets.

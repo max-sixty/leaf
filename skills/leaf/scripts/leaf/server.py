@@ -6,11 +6,11 @@ import re
 import secrets
 import time
 from pathlib import Path
+from typing import NoReturn
 
 from .file_changes import page_changes
 from .files import read_json
 from .leases import lock_is_held
-from .machine import state_home
 from .page_memory import memory_of
 from .refusals import Refused
 from .schema import (
@@ -20,29 +20,59 @@ from .schema import (
     SERVICE_FILE,
 )
 from .service import PageTransaction, claim_is_active, page_claim
-from .state import json_bytes
+from .state import (
+    STRING,
+    Record,
+    flocked,
+    hold_mode,
+    object_schema,
+    state_home,
+)
 
-# What a service record needs for this version to act on it, and the lifetimes it serves.
-SERVICE_KEYS = ("host", "bind", "port", "enabled", "lifetime")
-LIFETIMES = ("session", "persistent")
+# The page's desired service (`hosting.py` writes it).
+SERVICE = Record(
+    "service",
+    object_schema(
+        {
+            # The address a URL names, and the one the server binds.
+            "host": STRING,
+            "bind": STRING,
+            "port": {"type": "integer"},
+            "enabled": {"type": "boolean"},
+            "lifetime": {"enum": ["session", "persistent"]},
+            # The Leaf that served it (`hosting.payload_provenance`).
+            "runtime": {"type": "object"},
+            # The serving incarnation the server lease names.
+            "server_id": STRING,
+        },
+        # The mark `page init` leaves while it holds a served page down to
+        # re-vendor it (`hosting.restarting_server`).
+        {"restart": STRING},
+    ),
+    since=13,
+)
+# The key every page this machine serves is read with (`host_key`).
+ACCESS = Record("access", object_schema({"token": STRING}), since=13)
+# What a developer preview shows in browser chrome, as `leaf-dev preview` writes it.
+# The page receives it whole, so its shape is the served state's `preview`.
+PREVIEW = Record(
+    "preview",
+    read_json(Path(__file__).with_name("served_state") / "state.schema.json")["$defs"][
+        "Reading"
+    ]["properties"]["preview"],
+    since=13,
+)
 
 
 def read_service(page_dir: Path) -> dict | None:
     """The page's desired service (`service.json`), or None where there is none this
-    version can read.
+    version can read."""
+    return SERVICE.read(page_dir / SERVICE_FILE)
 
-    A record lacking a field above, or naming a lifetime this version does not serve
-    (an older Leaf wrote `"standing"` for `"persistent"`), describes nothing this
-    version could keep, so it reads as absent rather than as some other lifetime
-    (root AGENTS.md, "Stage"). Every reader of the record goes through here."""
-    service = read_json(page_dir / SERVICE_FILE)
-    if (
-        not isinstance(service, dict)
-        or not all(key in service for key in SERVICE_KEYS)
-        or service["lifetime"] not in LIFETIMES
-    ):
-        return None
-    return service
+
+def write_service(page_dir: Path, service: dict) -> None:
+    """The one writer of the page's desired service."""
+    SERVICE.write(page_dir / SERVICE_FILE, service)
 
 
 def running_server(page_dir: Path):
@@ -57,14 +87,11 @@ def running_server(page_dir: Path):
     service = read_service(page_dir)
     if not service or not service["enabled"]:
         return None
-    incarnation = service.get("server_id")
-    if not isinstance(incarnation, str) or not incarnation:
-        return None
     try:
         held_incarnation = (page_dir / SERVER_LOCK).read_bytes()
     except FileNotFoundError:
         return None
-    if held_incarnation != incarnation.encode():
+    if held_incarnation != service["server_id"].encode():
         return None
     return {
         **service,
@@ -76,7 +103,7 @@ def preview_metadata(page_dir: Path) -> dict | None:
     """The identity a developer preview shows in browser chrome, as
     `leaf-dev preview` wrote it, or None for a page that is not a preview.
     The script writes only what the chrome shows."""
-    return read_json(page_dir / PREVIEW_FILE)
+    return PREVIEW.read(page_dir / PREVIEW_FILE)
 
 
 def served_lifetime(page_dir: Path) -> str:
@@ -92,9 +119,8 @@ def served_lifetime(page_dir: Path) -> str:
     Read from service.json, the one place a lifetime is written down. The record
     lands before the URL is printed and survives an explicit stop, so a restart
     restores the same lifetime as well as the same URL."""
-    if (read_service(page_dir) or {}).get("lifetime") == "persistent":
-        return "persistent"
-    return "session"
+    service = read_service(page_dir)
+    return service["lifetime"] if service else "session"
 
 
 def loopback_only(page_dir: Path) -> bool:
@@ -112,21 +138,38 @@ def loopback_only(page_dir: Path) -> bool:
     record is what the server bound: a restart re-serving a loopback record says
     the same thing in an environment that would derive something else. A stated
     host binds the wildcard, which is not loopback, and says nothing."""
-    bind = (read_service(page_dir) or {}).get("bind")
+    service = read_service(page_dir)
+    if service is None:
+        return False
     try:
-        return ipaddress.ip_address(bind).is_loopback
+        return ipaddress.ip_address(service["bind"]).is_loopback
     except ValueError:
         return False
 
 
-def stop_when_service_ends(page_dir: Path) -> None:
-    """Apply desired state and session ownership from inside the server.
+def exit_serving(status: int) -> NoReturn:
+    """End the serving process at once, which closes its listening socket, every
+    accepted keep-alive socket and its live lease together; a graceful `shutdown()`
+    can release the lease while a handler thread still owns an accepted connection.
 
-    The process exits as the shutdown operation. That closes the listening
-    socket, every accepted keep-alive socket, and the live lease together; a
-    graceful `shutdown()` can release the lease while a handler thread still
-    owns an accepted connection.
-    """
+    That exit runs no exit handler, so the App Servers the process started, each in
+    a session of its own, are stopped first (`codex.stop_private_app_servers`)."""
+    from .codex import stop_private_app_servers
+
+    stop_private_app_servers()
+    os._exit(status)
+
+
+def stop_when_service_ends(page_dir: Path) -> None:
+    """Apply desired state and session ownership from inside the server, exiting
+    as the shutdown operation (`exit_serving`).
+
+    Each pass also holds the next title's App Server for the page's claimant
+    (`thread_titles.prepare_for_claimant`), whatever the server's lifetime. A pass
+    runs on each write to the page's inputs and at least every two seconds, since a
+    claimant that dies without ending its session writes nothing."""
+    from .thread_titles import prepare_for_claimant
+
     # Keep the shared native owner through neighboring gallery reads and LRU
     # eviction for this independent supervisor's entire service lifetime.
     _memory = memory_of(page_dir)
@@ -136,7 +179,8 @@ def stop_when_service_ends(page_dir: Path) -> None:
         mark = changes.mark()
         service = read_service(page_dir)
         if not service or not service["enabled"]:
-            os._exit(0)
+            exit_serving(0)
+        prepare_for_claimant(page_dir)
         if service["lifetime"] == "persistent":
             changes.wait(mark, 2.0)
             continue
@@ -153,15 +197,15 @@ def stop_when_service_ends(page_dir: Path) -> None:
                 with PageTransaction(page_dir) as page:
                     service = read_service(page_dir)
                     if not service or not service["enabled"]:
-                        os._exit(0)
+                        exit_serving(0)
                     if service["lifetime"] == "persistent" or page.active_claim:
                         orphaned_at = None
                         continue
-                    os._exit(0)
+                    exit_serving(0)
             except FileNotFoundError:
                 # Deleting the page removes its successful-init identity. The
                 # service has nothing left to preserve and must not recreate it.
-                os._exit(0)
+                exit_serving(0)
         changes.wait(mark, min(2.0, ORPHAN_GRACE_SECS))
 
 
@@ -259,22 +303,19 @@ def host_key() -> str:
     it, so the added cost is that same-host servers keep receiving the key for
     that long after the last handover, rather than until the browser quits.
 
-    Linked into place rather than written over, so two first serves racing on a
-    fresh machine agree on whichever won. Each keeping its own would have their
-    servers overwrite the one shared cookie in turn, for as long as both ran."""
+    Minted under a lock, so two first serves racing on a fresh machine agree on
+    whichever won. Each keeping its own would have their servers overwrite the one
+    shared cookie in turn, for as long as both ran. A file holding a record this
+    Leaf doesn't read, at another `ACCESS` format, is replaced, which signs out the
+    tabs that held its key."""
     path = state_home() / "access.json"
-    if not path.exists():
-        staged = path.with_name(f".{secrets.token_hex(8)}.tmp")
-        try:
-            staged.write_bytes(json_bytes({"token": secrets.token_urlsafe(16)}))
-            staged.chmod(0o600)
-            try:
-                os.link(staged, path)
-            except FileExistsError:
-                pass  # someone minted first; theirs is the key, read below
-        finally:
-            staged.unlink(missing_ok=True)
-    return read_json(path)["token"]
+    if (access := ACCESS.read(path)) is None:
+        with flocked(path.with_name("access.lock")):
+            if (access := ACCESS.read(path)) is None:
+                access = ACCESS.write(path, {"token": secrets.token_urlsafe(16)})
+    # Whoever made the file, only the user reads the key.
+    hold_mode(path, 0o600)
+    return access["token"]
 
 
 def page_url(host: str, port: int, token: str) -> str:

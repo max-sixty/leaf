@@ -1,6 +1,5 @@
 """External data replacement and shared validation caching keep complete readings."""
 
-import json
 import os
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
@@ -18,17 +17,23 @@ def test_data_delivery_tracks_contract_and_validity_without_revising_the_bytes(
 ):
     source = data_model.source_file(tmp_path, "numbers")
     source.parent.mkdir()
-    source.write_text(
-        json.dumps({"run": "1" * 32, "updated": "2026-01-01T00:00:00Z", "value": 1})
+    source.write_bytes(
+        data_model.PUBLICATION.encode(
+            {"run": "1" * 32, "updated": "2026-01-01T00:00:00Z", "value": 1}
+        )
     )
     index = tmp_path / "data.json"
-    index.write_text(json.dumps({"sources": {"numbers": {"contract": "integer"}}}))
+    index.write_bytes(
+        data_model.CONTRACTS.encode({"sources": {"numbers": {"contract": "integer"}}})
+    )
     original = data_model.read_data(tmp_path, REGISTRY)
     revision = original["sources"]["numbers"]["revision"]
 
     replacement = source.with_name("replacement.json")
-    replacement.write_text(
-        json.dumps({"run": "2" * 32, "updated": "2026-01-01T00:00:00Z", "value": 1})
+    replacement.write_bytes(
+        data_model.PUBLICATION.encode(
+            {"run": "2" * 32, "updated": "2026-01-01T00:00:00Z", "value": 1}
+        )
     )
     os.replace(replacement, source)
     refreshed = data_model.read_data(tmp_path, REGISTRY)
@@ -42,7 +47,9 @@ def test_data_delivery_tracks_contract_and_validity_without_revising_the_bytes(
     )
     assert refreshed["version"] != original["version"]
 
-    index.write_text(json.dumps({"sources": {"numbers": {"contract": "count"}}}))
+    index.write_bytes(
+        data_model.CONTRACTS.encode({"sources": {"numbers": {"contract": "count"}}})
+    )
     registry = {"$data": {"contracts": {"count": {"schema": {"type": "integer"}}}}}
     rebound = data_model.read_data(tmp_path, registry)
     assert rebound["sources"]["numbers"] == {
@@ -66,12 +73,16 @@ def test_data_delivery_tracks_contract_and_validity_without_revising_the_bytes(
 def test_a_source_read_keeps_one_complete_publication(tmp_path, monkeypatch):
     source = data_model.source_file(tmp_path, "numbers")
     source.parent.mkdir()
-    source.write_text(
-        json.dumps({"run": "1" * 32, "updated": "2026-01-01T00:00:00Z", "value": 1})
+    source.write_bytes(
+        data_model.PUBLICATION.encode(
+            {"run": "1" * 32, "updated": "2026-01-01T00:00:00Z", "value": 1}
+        )
     )
     replacement = source.with_name("replacement.json")
-    replacement.write_text(
-        json.dumps({"run": "2" * 32, "updated": "2026-01-02T00:00:00Z", "value": 2})
+    replacement.write_bytes(
+        data_model.PUBLICATION.encode(
+            {"run": "2" * 32, "updated": "2026-01-02T00:00:00Z", "value": 2}
+        )
     )
     open_path = Path.open
 

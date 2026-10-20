@@ -1,26 +1,34 @@
 /* Where the user stands: the page node a focused node stands at, one reading every
    feature takes (glossary, Standing target).
 
-   An ordinary node on the page stands at itself. So does a node inside any ask source in the inventory,
-   answered or not, wherever it is drawn: an ask frozen into a reply is where a user
-   working it is, never the page ask its thread is about. A presentation can stand at the
+   An ordinary node on the page stands at itself. So does a node inside any obligation source in the inventory,
+   answered or not, wherever it is drawn: an obligation frozen into a reply is where a user
+   working it is, never the page obligation its thread is about. A presentation can stand at the
    source target it shows in authored flow or chrome, as its owner declares (`declareSide`): the margin for its
-   cluster controls, the thread card, and a thread in the Threads panel; the On panel
-   for its rows; the details shelf for the elements that name its notes. A side's answer
-   drawn in the chrome itself, such as a margin control on a widget frozen into a reply,
-   stands only where an ask holds it. Chrome no side
-   claims — the banner, a drawer's own controls, the panel's list — stands nowhere, and a
+   cluster controls and the thread card; the details shelf for the elements that name its notes; the
+   floating panel for a thread's view, at what the thread is about, open or resolved, and an On
+   card, at its obligation. A side's answer drawn in the chrome itself, such as a margin
+   control's widget frozen into a reply, is where the user stands only where an obligation
+   holds it; else the user stands where that answer does, by the same reading, so a control
+   on a widget in a reply the panel or a card shows stands at what the thread is about,
+   whichever side is asked first. Chrome no side
+   claims — the floating panel's row, menu and lists — stands nowhere, and a
    press made from it means the page whole.
 
-   Each feature takes what it needs from that place by its own rule: the ask view the
-   ask source or unique context holding it, `c` and `e` its semantic target, the walks its place
-   in the page's order. Every side answers alike: an open ask stood at from its card still wears its
+   Each feature takes what it needs from that place by its own rule: the obligation view the
+   obligation source or unique enclosing widget holding it, `c` and `e` its semantic target, the walks its place
+   in the page's order. Every side answers alike: an open obligation stood at from its card still wears its
    ring and takes its digits, `c` at an element whose own thread is shown continues it,
    and `m` and `t` step from the target.
 
+   Standing is not arriving. The floating panel shows its thread or obligation beside
+   the page (`declareSide`'s `beside`), so the user in it has not arrived at the target,
+   and what follows an arrival, the margin's card and its folded pins, reads `arrivalOf`,
+   which leaves such sides out.
+
    The chrome stands over the page rather than in it and is appended after it,
-   so a chrome node measured as a place would put the user behind every ask and thread
-   there is; no reader measures from one that does not stand in an ask.
+   so a chrome node measured as a place would put the user behind every obligation and thread
+   there is; no reader measures from one that does not stand in an obligation.
 
    Page walks share `walkOrigin`: focus, then the selection's ends, then the first
    visible reading block. A selected tab starts a walk at its controlled panel,
@@ -33,61 +41,69 @@
 import { cycledRow } from "./keyboard/bindings.js";
 import { focused, standingNodes } from "./focus.js";
 import { inChrome } from "./passages.js";
-import { readAsks } from "./asks/model.js";
-import { askPlace } from "./asks/place.js";
+import { readObligations } from "./obligations/model.js";
+import { obligationPlace } from "./obligations/place.js";
 import { renderedOrder, renderedUnder, under } from "./shadow.js";
 import { pageReadingBlock } from "./reading-place.js";
 
-const sides = new Set();
+// Each side's reading, and whether it shows its target beside the page.
+const sides = new Map();
 
 // A presentation owner's reading of the source target one of its nodes shows, or null.
-export function declareSide(bridge) {
-  sides.add(bridge);
+// A side is asked of the node the user stands on, inside any shadow tree it is in, so
+// each climbs across shadow roots to its own surface. A side `beside` the page, as the
+// floating panel is, shows its target away from it: the user there stands at the target
+// but has not arrived at it (`arrivalOf`).
+export function declareSide(bridge, { beside = false } = {}) {
+  sides.set(bridge, beside);
   return () => sides.delete(bridge);
 }
 
-// Source containment identifies the ask before its context does. A context
-// shared by several sources cannot identify one of them on its own.
-export function askHolding(asks, node) {
+// The innermost obligation whose source, or whose own enclosing widget, is or holds `node`.
+// An enclosing widget shared by several sources cannot identify one of them on its own,
+// so only a source stands for such an obligation (`obligationPlace`). Obligations nest, as a question
+// inside a proposal's new text does, so the nearest place holding the node names the
+// obligation rather than the kind of place: on the inner question's enclosing widget the user
+// stands on that question, not on the proposal whose source holds it.
+export function obligationHolding(items, node) {
   if (!node) return null;
-  const places = asks
-    .filter((ask) => ask.source.kind === "widget")
-    .map((ask) => ({ ask, ...askPlace(ask, asks) }));
-  const holds = (element) => element && (element === node || under(node, element));
-  const source = places.findLast((place) => holds(place.source));
-  if (source) return source.ask;
-  const contexts = places.filter((place) => holds(place.node));
-  return contexts.length === 1 ? contexts[0].ask : null;
-}
-
-// The source target a presentation node shows, by its owner's declaration, or null
-// for a node no side claims. A side is asked of the node the user stands on, inside any
-// shadow tree it is in, so each climbs across shadow roots to its own surface.
-export function sideOf(node) {
-  for (const side of sides) {
-    const place = side(node);
-    if (place) return place;
+  const holds = (element) => element && under(node, element);
+  let held = null;
+  for (const item of items) {
+    if (item.source.kind !== "widget") continue;
+    const { source, node: stands } = obligationPlace(item, items);
+    const at = holds(source) ? source : holds(stands) ? stands : null;
+    if (at && (!held || under(at, held.at))) held = { item, at };
   }
-  return null;
+  return held?.item ?? null;
 }
 
-export function placeOf(node) {
+export const placeOf = (node) => placeFrom(node, new Set(), true);
+// Where the user has arrived on the page: where they stand, unless a side beside the
+// page shows the node, which arrives nowhere.
+export const arrivalOf = (node) => placeFrom(node, new Set(), false);
+
+function placeFrom(node, visited, countBeside) {
   const at = node?.nodeType === 1 ? node : node?.parentElement;
-  if (!at || at === document.body) return null;
-  // An ask is the user's current action wherever it is rendered. A source-linked
+  if (!at || at === document.body || visited.has(at)) return null;
+  visited.add(at);
+  // An obligation is the user's current action wherever it is rendered. A source-linked
   // presentation may otherwise stand in authored flow as well as fixed chrome.
-  if (askHolding(readAsks().all, at)) return at;
-  for (const side of sides) {
+  if (obligationHolding(readObligations().all, at)) return at;
+  for (const [side, beside] of sides) {
     const place = side(at);
+    if (place && beside && !countBeside) return null;
     if (place)
-      return inChrome(place) && !askHolding(readAsks().all, place) ? null : place;
+      return inChrome(place) && !obligationHolding(readObligations().all, place)
+        ? placeFrom(place, visited, countBeside)
+        : place;
   }
   return inChrome(at) ? null : at;
 }
 
 // A standing origin can step off its current stop. An `at` origin arrives at
 // its place; an `enter` origin starts inside its region, from either direction.
-// A selected tab enters its panel instead of standing on an ask it may hold.
+// A selected tab enters its panel instead of standing on an obligation it may hold.
 export function walkOrigin() {
   for (const node of standingNodes()) {
     const place = placeOf(node);
@@ -130,9 +146,9 @@ export function stepFrom(list, { place: here, kind }, dir, placeOfItem) {
     : { row: dir > 0 ? list[0] : list.at(-1), wrapped: true };
 }
 
-// The ask the user stands in, answered or not: where letting go lands, and the extent
+// The obligation the user stands in, answered or not: where letting go lands, and the extent
 // of what `c` counts as the element they stand at.
-export function heldAsk(node = focused()) {
-  const ask = askHolding(readAsks().all, placeOf(node));
-  return askPlace(ask).node;
+export function heldObligation(node = focused()) {
+  const item = obligationHolding(readObligations().all, placeOf(node));
+  return obligationPlace(item).node;
 }

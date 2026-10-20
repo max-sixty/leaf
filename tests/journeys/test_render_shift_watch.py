@@ -7,7 +7,7 @@ import pytest
 from browser.test_render_shift_watch import held_stretch, paint, shift_evidence
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
-from render_cases_interaction import ASK_PAGE
+from render_cases_interaction import OBLIGATION_PAGE
 from render_harness import (
     is_problem,
     judge_watches,
@@ -37,7 +37,7 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
             "<strong>Which jobs can share a visit?</strong></lf-test-task></lf-test-plan>",
         )
         if surface == "inline"
-        else ASK_PAGE
+        else OBLIGATION_PAGE
     )
     page = open_page(
         browser,

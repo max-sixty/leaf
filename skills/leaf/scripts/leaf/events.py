@@ -5,7 +5,7 @@ from itertools import groupby
 from typing import NamedTuple
 
 from leaf.findings import Finding
-from leaf.schema import MESSAGE_KINDS, UNDOABLE_KINDS
+from leaf.registry.kernel import kinds_declaring
 
 
 def taken_back(events: list) -> set:
@@ -57,6 +57,21 @@ def approvals_in_force(events: list, *, withdrawn: set | None = None) -> list:
 def is_reaction(event: dict) -> bool:
     """A message carrying a token in place of words ($events, $reactions)."""
     return bool(event.get("token"))
+
+
+def is_answer(event: dict) -> bool:
+    """Whether an event is an agent's answer to the input its ``responds`` names.
+
+    A thread parent locates presentation; only ``responds`` names the input an
+    answer settles. User replies and progress carry none. A failure receipt names the
+    input it gives up on without answering it, so an answer may still follow it.
+    """
+    return (
+        event["kind"] == "reply"
+        and event["author"] == "agent"
+        and event.get("responds") is not None
+        and "failure" not in event
+    )
 
 
 def spoken_turns(thread: dict) -> list:
@@ -137,7 +152,7 @@ class UndoReading:
                 if any(
                     event.get("token")
                     for event in events
-                    if event["kind"] in MESSAGE_KINDS
+                    if event["kind"] in kinds_declaring("message")
                 )
                 else {}
             )
@@ -147,7 +162,7 @@ class UndoReading:
             event["id"]
             for event in events
             if event["id"] not in self.withdrawn
-            and event["kind"] in MESSAGE_KINDS
+            and event["kind"] in kinds_declaring("message")
             and is_reaction(event)
         }
         for thread in threads.values():
@@ -173,16 +188,17 @@ class UndoReading:
             return Finding("foreign-gesture", values=named)
         if target["id"] in self.withdrawn:
             return Finding("withdrawn-gesture", values=named)
-        if target["kind"] in MESSAGE_KINDS:
+        if target["kind"] in kinds_declaring("message"):
             if not is_reaction(target):
                 return Finding("said-message", values=named)
             if target["id"] in self.answered_reactions:
                 return Finding("answered-reaction", values=named)
             if target["id"] in self.resolved_reactions:
                 return Finding("resolved-reaction", values=named)
-        elif target["kind"] not in UNDOABLE_KINDS:
+        elif target["kind"] not in kinds_declaring("undoable"):
             return Finding(
-                "unundoable", values={**named, "undoable": sorted(UNDOABLE_KINDS)}
+                "unundoable",
+                values={**named, "undoable": sorted(kinds_declaring("undoable"))},
             )
         elif target["kind"] == "action" and target["id"] in self.absorbed:
             # The newest revision's markup places the unit
@@ -241,7 +257,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     turn of its own (`exchange`), so it resumes the thread as a reply does.
 
     Each thread is keyed by, and carries as ``id``, the id of the comment that
-    opened it, its ``root``: the name every ask, workflow, summary, and title
+    opened it, its ``root``: the name every obligation, workflow, summary, and title
     uses for it. Admission keeps each message's parent in force while the message is
     (`event_contracts._parent_error`), so each reply it admits lands in a thread.
     """
@@ -317,11 +333,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 message["text"] = e["text"]
             continue
         if e["kind"] == "reply":
-            # Admission keeps a reply's parent in force, but a Leaf older than that
-            # rule could answer a withdrawn message; the reply then stands on nothing
-            # (root `AGENTS.md`, "Stage").
-            if (thread := thread_for.get(e["parent"])) is None:
-                continue
+            thread = thread_for[e["parent"]]
             message = dict(e)
             messages[e["id"]] = message
             thread["msgs"].append(message)
@@ -520,7 +532,7 @@ def awaits_agent(thread: dict) -> bool:
     message may leave the open thread awaiting nobody, while one holding a widget
     that asks, such as an `lf-ask`, awaits the user. The browser
     does not receive it: each browser Thread's `attention` aggregates this turn with
-    the workflows and asks open on the thread, so the panel, its filters and the
+    the workflows and obligations open on the thread, so the panel, its filters and the
     margin read one answer to whose turn it is."""
     return bool(not thread["resolved"] and unanswered_turns(thread))
 

@@ -133,7 +133,7 @@ export const tabStops = (root) =>
 // that already declares a stop keeps its own. What wants this is an arrival at an
 // element nobody owns — a go-to hint completing on a fold, a heading or a link's
 // fragment; the reference handing a user back to the block they were reading; the skip
-// link landing on the banner when none of its controls will take them. Each is "the
+// link landing on the floating panel when none of its controls will take them. Each is "the
 // user is now here", and each needs the browser's sequential focus navigation starting
 // point to move with them, which is what `focus()` does and what nothing else does.
 //
@@ -164,16 +164,6 @@ export function focusDestination(
     if (!landedOn(destination) && lendable(destination)) lendStop(destination);
   });
   if (caret && holdsCaret(destination)) destination.setSelectionRange(...caret);
-}
-// A node handing on the focus it is gaining, from inside its own `focus` handler, to a
-// node of its own, as the Threads list hands it to the title the user stood on: the
-// arrival is the one that gave the node its focus, so the node it lands on takes that
-// arrival's cause, whether a placement or the user's own Tab or press gave it.
-export function forwardFocus(destination) {
-  if (!canPlaceFocus()) return;
-  placed(placing ?? cause(destination), () =>
-    destination.focus({ preventScroll: true }),
-  );
 }
 // The cause of the placement running now, null outside one. The outermost placement
 // names it, since whatever focus runs inside it is part of the same act.
@@ -489,7 +479,15 @@ function paintFocus(node) {
     paintedFocus = next;
   }
   const within = new Set();
-  for (let owner = next; owner; owner = renderedParent(owner)) within.add(owner);
+  // The document roots are in every element's ancestry, but no control draws
+  // their marks. Leaving them out also avoids withdrawing and restoring the
+  // same root marks when focus passes through a native drop in one gesture.
+  for (
+    let owner = next;
+    owner && owner !== document.body && owner !== document.documentElement;
+    owner = renderedParent(owner)
+  )
+    within.add(owner);
   for (const owner of paintedWithin) {
     if (!within.has(owner)) markFocus(owner, "focus-within", false);
   }
@@ -501,8 +499,16 @@ function paintFocus(node) {
 // Retained moves preserve native focus without emitting a focus event. Recompute
 // only its derived ancestry when the rendered tree changes, including slot moves.
 // Attribute paint is outside this observation, so it cannot schedule itself.
+//
+// A destination still drawn into the tree but no longer holding focus, and not held
+// by a label press, has had focus leave it for nowhere, and the `focusout` reading
+// that decides whether that was a drop or a move has yet to run. Its ancestry is no
+// standing until then, so the paint keeps what it drew and that reading repaints:
+// painting the node where a change has just moved it would draw marks the reading
+// takes straight back off.
 const refreshFocusPaint = () => {
   const node = paintDestination?.deref();
+  if (node?.isConnected && node !== deepFocus() && node !== heldByLabel()) return;
   if (node?.isConnected) watchStandingAround(node);
   paintFocus(node?.isConnected ? node : null);
 };
@@ -867,6 +873,30 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
     },
     { capture: true, passive: true },
   );
+// The box that wears the focus ring for `node`. A rule that rings a control's face
+// rather than the control declares it there, `--lf-wears-ring: 1` (theme.css), as a
+// playground's choice rings its radio and words together; the nearest such box around
+// the control is the one. Anything else wears its own. Those rules ring the face of the
+// control the focus paint marks, so only that control has one. A move paints after its
+// script, and a landing in that script, as an option walk's End is, reads the paint
+// now; a return's paint still waits for its frame.
+export function ringBox(node) {
+  if (
+    node &&
+    node !== paintedFocus &&
+    node === paintDestination?.deref() &&
+    !returnPaintPending
+  )
+    refreshFocusPaint();
+  if (!node?.matches?.("[data-lf-focus]")) return node;
+  for (
+    let box = renderedParent(node);
+    box instanceof Element;
+    box = renderedParent(box)
+  )
+    if (getComputedStyle(box).getPropertyValue("--lf-wears-ring") === "1") return box;
+  return node;
+}
 // Drawn counts `visibility: hidden` as hidden: a node under it keeps focus for a frame
 // and then the browser blurs it to the body, as it does a node under `display: none`.
 export const drawn = (node) =>
@@ -990,7 +1020,7 @@ export function rove(items, stop) {
 }
 
 // Where a layer hands the user back when it closes: the control they stood on as it
-// opened, or the one its opener names, as a drawer's door. Recorded once at the opening
+// opened, or the one its opener names, as a menu row's door. Recorded once at the opening
 // (`openLayer`) and read by the close (`openerOf`), so no layer keeps its own record.
 // The body is nowhere, so a layer opened from it hands back nothing and lets go.
 const openers = new WeakMap();
@@ -1007,10 +1037,7 @@ export const openerOf = (layer) => openers.get(layer) ?? null;
 // heard and counted as any is. Where `land` names none and the close left the user on
 // another node, as a platform hand-back does, readers hear it once as a `return`, which
 // is the layer's own and no newer word to a hold. One the close hid them under and no
-// landing put right is a drop, as any is. A native layer closed and shown again in one
-// act, as a modal posture change re-seats the auxiliary dialog and the layers above it
-// (layer-stack.js, `transitionNativeAncestor`), is such a close with no landing, after
-// which a hold put across it puts the user back.
+// landing put right is a drop, as any is.
 //
 // A close inside another, as a card closing while the page map that holds it closes,
 // is part of that act: it lands nobody and tells nobody. The outer close's landing
@@ -1200,10 +1227,10 @@ export function controlNavigationKeys(node) {
 
 // Landing the user in the document. One act at both ends of the ladder, and for every
 // step that would otherwise leave them on Leaf's own apparatus, because standing on an
-// ask out on the page and standing on a banner button are the same state — the user
+// item out on the page and standing on a panel button are the same state — the user
 // holding something — reached from either side of the chrome. What those rungs do not
 // share is the word, and neither word is the other's: leaving the chrome names where the
-// user lands, since that is the whole of what the rung is for, and letting go of an ask
+// user lands, since that is the whole of what the rung is for, and letting go of an obligation
 // names the act, since they were on the page all along.
 //
 // Where they land is the block they are reading in the page region they last acted in
@@ -1225,35 +1252,10 @@ export function controlNavigationKeys(node) {
 // such as a run of figures, where the honest answer is that the user has no reading
 // position for the browser to continue from. A region in that state still has one: the
 // declared reading lands on its body (reading-place.js, `landingPlace`).
-//
-// A surface covering the page makes it inert, so neither half of this reaches it: the
-// page is not somewhere the user can be while it is covered, and the surface is the
-// floor they are standing on. The closing layer often leaves focus inside that surface on
-// its own — the platform hands a popover's focus back to whoever held it when the popover
-// showed — but that is the platform's courtesy rather than a landing, and where it does
-// not arrive focus falls to the body, which no let-go on an inert page can take back. So
-// letting go asks the covering surface before the page.
-//
-// Two readings, not one. The surface is the whole of what covers, and answers whether the
-// user is already somewhere inside it — a drawer's close button, the panel's find box —
-// where nothing is owed them. The landing is the one place within it that takes a user
-// who is nowhere. Both are the modality's, which is the thing that inerted the page: a
-// layout predicate of its own would be a second answer, disagreeing with it across a
-// width change until the next sync, and it would know only the surfaces it was written
-// for rather than every one that covers.
 let readingBlock = () => null;
 export function declareReading(read) {
   readingBlock = read;
 }
-let coveringSurface = () => null;
-let coveringLanding = () => null;
-export function declareCovering({ surface, landing }) {
-  coveringSurface = surface;
-  coveringLanding = landing;
-}
-// The modality's declared destination, or null while the page is available. A
-// displaced editor uses this same landing rather than guessing from the surface root.
-export const coveringFocus = () => coveringLanding();
 //
 // It is the same pair on the body, which carries no tab stop of its own. A permanent
 // `tabindex` on body was once how the let-go worked on a page too short to scroll, but it
@@ -1286,15 +1288,6 @@ export function release() {
 // A landing on the page is the user going on to it, a `move`.
 export function letGo() {
   letGoes++;
-  const covering = coveringSurface();
-  if (covering) {
-    // `contains` stops at a shadow boundary and `document.activeElement` is the host of
-    // the tree holding focus, so the two meet: a user standing inside a widget's shadow
-    // tree reads as inside the surface holding that widget, which is what is being asked.
-    if (!covering.contains(document.activeElement))
-      focusDestination(coveringFocus(), "move");
-    return;
-  }
   const block = readingBlock();
   if (!block?.isConnected) {
     releaseFocus();

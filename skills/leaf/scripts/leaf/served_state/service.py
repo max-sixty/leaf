@@ -29,7 +29,6 @@ from ..registry.storage import require_registry
 from ..revision_artifact import Resource, RevisionArtifact, read_artifact, read_revision
 from ..revisioning import activate_source
 from ..service import PageTransaction
-from ..user_views import read_user_views
 from . import browser as served_browser
 from . import page as served_page
 from . import reading as served_reading
@@ -61,8 +60,6 @@ class PageSource(Protocol):
     def sample_inputs(self, revision: int) -> tuple[RevisionArtifact, list, dict]:
         """A revision's artifact with the log and data a sample's child starts
         from, read together."""
-
-    def user_views(self) -> dict: ...
 
     def news(self) -> str:
         """The freshness token a visible tab polls (`PageEndpoint._news`)."""
@@ -134,9 +131,6 @@ class LivePage:
         with PageTransaction(self.page_dir) as page:
             artifact = read_artifact(self.page_dir, revision)
             return artifact, page.events, read_data(self.page_dir, artifact.registry)
-
-    def user_views(self) -> dict:
-        return read_user_views(self.page_dir, latest_revision(self.page_dir))
 
     def news(self) -> str:
         """The token, after renewing the user lease: only this explicit attention
@@ -213,7 +207,7 @@ class PageStateService:
         return state
 
     def activity_row(self) -> tuple[dict, str, dict]:
-        """Compact delivery output of the same transaction and fold as the banner.
+        """Compact delivery output of the same transaction and fold as the page's status.
 
         No neighboring-page discovery runs here. The reading and live facts
         name the inputs the publisher keeps, so a concurrent writer invalidates
@@ -256,6 +250,4 @@ class PageStateService:
             if projected is None:
                 raise ValueError("page registry cannot be projected")
             view, _reading = projected
-        # Activity belongs to complete state, not a historical document fetch.
-        view.pop("activity", None)
         return view

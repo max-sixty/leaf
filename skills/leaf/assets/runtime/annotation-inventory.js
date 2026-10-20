@@ -36,7 +36,7 @@ import {
 } from "./thread/workflow.js";
 import { renderedOrder, shadowHost, under } from "./shadow.js";
 import { placeOf } from "./standing-target.js";
-import { askPlace } from "./asks/place.js";
+import { obligationPlace } from "./obligations/place.js";
 import { scrollBehavior } from "./motion.js";
 import {
   comparisonBase,
@@ -52,17 +52,17 @@ import {
 // commits.
 export const annotationSelection = (root) => ({
   projection: root.effective.projection,
-  asks: root.effective.asks,
+  obligations: root.effective.obligations,
   workflows: root.effective.workflows,
   revision: root.document.revision,
   todos: root.authoritative?.browser.todos ?? null,
 });
 
 export function createAnnotationInventory({
-  readAsks,
+  readObligations,
   placedAt,
   openThread,
-  goToAsk,
+  goToObligation,
   scrollToElement,
 }) {
   const humanized = (value) =>
@@ -164,7 +164,7 @@ export function createAnnotationInventory({
   // One group per target, one more for each row inside it that pointing gestures stood
   // threads at (pointed-place.js), and one more for each passage threads quote: those
   // threads stand there together, by what they are about, and everything else about the
-  // target (its other threads, an ask's marker, a widget's actions) keeps the target's
+  // target (its other threads, an obligation's marker, a widget's actions) keeps the target's
   // own row. `pointed` is `{ key, element, passage, words }`: the row's key (a pointed
   // row's its first comment gave it, a passage's from its words, `passageRow`), the
   // element it is or the passage it stands by (a resolved anchor), and its words, which
@@ -228,7 +228,8 @@ export function createAnnotationInventory({
     if (!label) return null;
     return {
       kind:
-        receipt.next_actor === "user" || receipt.condition
+        // A receipt handed back to the user always carries its failure.
+        receipt.condition
           ? "waiting"
           : receipt.at_work
             ? "activity"
@@ -326,24 +327,26 @@ export function createAnnotationInventory({
       );
     }
 
-    // Only a widget ask has a place on the page; the rest have no node.
-    for (const ask of readAsks().user) {
-      const id = ask.id;
-      const target = askPlace(ask).node;
+    // Only a widget obligation has a place on the page; the rest have no node.
+    for (const item of readObligations().user) {
+      const id = item.id;
+      const target = obligationPlace(item).node;
       if (!target) continue;
       add(groups, target, {
-        kind: "ask",
-        id: `ask:${id}`,
-        // The group this row stands in already names the ask; the row says why it is
-        // there, since these are the asks the user owes.
+        kind: "on-me",
+        id: `on-me:${id}`,
+        // The group this row stands in already names the obligation; the row says why it is
+        // there, since these are the obligations the user owes.
         text: "Waiting on me",
         // The marker's own label is the question, which says more than the kind its
         // glyph already shows.
         label: addressableLabel(target) || null,
         activate: () => {
-          const asks = readAsks().user.filter((ask) => ask.source.kind === "widget");
-          const next = asks.find((candidate) => candidate.id === id);
-          if (next) goToAsk(next, asks);
+          const items = readObligations().user.filter(
+            (item) => item.source.kind === "widget",
+          );
+          const next = items.find((candidate) => candidate.id === id);
+          if (next) goToObligation(next, items);
         },
       });
     }
@@ -430,7 +433,7 @@ export function createAnnotationInventory({
         // passage and paints additions there, so the user learns what changed without
         // travelling to the other version and back. Where it kept none, the press is the
         // travel it always was, and `discloses` answering null is what says so — to the
-        // margin entry's relation, to the shortcut bar's word for the press, and to the
+        // margin entry's relation, to the hint's word for the press, and to the
         // reference.
         discloses: () => inlineComparison(target),
         activate: () => {
@@ -446,7 +449,7 @@ export function createAnnotationInventory({
 
     // A to-do the agent opened on a page widget or element stands beside it, as Working
     // with the line of the start running on it, or as an open to-do under its title.
-    // A thread's to-do is its thread's attention (above); the page's is the banner's. A
+    // A thread's to-do is its thread's attention (above); the page's is the floating panel's. A
     // to-do on the user is on their list, On me, instead.
     for (const todo of runtime.todos) {
       if (

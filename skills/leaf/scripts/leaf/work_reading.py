@@ -1,4 +1,4 @@
-"""`WorkReading`: the to-dos, asks, plan and workflows one document and its log hold.
+"""`WorkReading`: the to-dos, obligations, plan and workflows one document and its log hold.
 
 Its readings come from the event log and one revision's document and registry.
 Admission builds it against the newest revision, under the registry of the page that
@@ -12,12 +12,11 @@ state. A `WorkReading` lasts for one transaction and is never written to disk.
 
 from functools import cached_property
 
-from .asks import collection, replied, thread_ask_readings
 from .document_reading import read_document
 from .events import approvals_in_force, build_threads
+from .obligations import collection, thread_obligation_readings
 from .plans import plan_reading
 from .projection import frozen_thread_reading
-from .read_state import content_version
 from .todos import TodoReading
 
 
@@ -46,8 +45,8 @@ class WorkReading:
     def viewing(self, page) -> "WorkReading":
         """This log read beside another revision's document, as a view pinned to that
         revision shows it. That revision captured its frozen thread widgets under its
-        own registry, so their decisions, the asks they answer and the attention those
-        asks give a thread are classified under it, as the page's own are. The threads
+        own registry, so their decisions, the obligations they answer and the attention those
+        obligations give a thread are classified under it, as the page's own are. The threads
         themselves fold as every reading of them does, under the published page's
         containment (`events.build_threads`)."""
         if page is self.page:
@@ -71,47 +70,25 @@ class WorkReading:
         )
 
     @cached_property
-    def widget_asks(self) -> dict:
-        return thread_ask_readings(
+    def widget_obligations(self) -> dict:
+        return thread_obligation_readings(
             self.events,
             self.registry,
             self.threads,
-            self.log.ends,
+            self.log,
             reading=self.thread,
         )
 
     @property
-    def asks(self) -> dict:
-        return self.widget_asks
+    def items(self) -> dict:
+        return self.widget_obligations
 
     @cached_property
-    def prompts(self) -> dict:
-        """Each thread's question the user owes words to: the latest open
-        reply-answered ask on them there, by its message and that message's content
-        version, which the thread's head marks Waiting on me."""
-        prompts = {}
-        for ask in self.widget_asks["user"]:
-            if not replied(self.registry[ask["source"]["tag"]]):
-                continue
-            message = next(
-                message
-                for message in self.threads[ask["thread"]]["msgs"]
-                if message["id"] == ask["message"]
-            )
-            held = prompts.get(ask["thread"])
-            if held is None or held[0]["seq"] < message["seq"]:
-                prompts[ask["thread"]] = (message, ask)
-        return {
-            thread: {"message": message["id"], "version": content_version(message)}
-            for thread, (message, _ask) in prompts.items()
-        }
-
-    @cached_property
-    def all_asks(self) -> dict:
+    def all_obligations(self) -> dict:
         return collection(
             [
-                *(self.document.asks["all"] if self.document is not None else []),
-                *self.asks["all"],
+                *(self.document.items["all"] if self.document is not None else []),
+                *self.items["all"],
             ]
         )
 
@@ -122,28 +99,41 @@ class WorkReading:
     @cached_property
     def document(self):
         return (
-            read_document(self.page, self.threads, self.log.ends)
+            read_document(self.page, self.threads, self.log)
             if self.page is not None
             else None
         )
 
     @cached_property
-    def workflows(self) -> list[dict]:
-        from .workflows import canonical_workflows
+    def _handover(self):
+        from .workflows import handed_over
 
-        return canonical_workflows(
+        return handed_over(
             self.threads,
             self.thread if self.page is not None else None,
             page=self.page,
             events=self.events,
             todo_reading=self.log,
-            asks=self.all_asks,
+            items=self.all_obligations,
         )
+
+    @property
+    def workflows(self) -> list[dict]:
+        """Every unsettled update's delivery, each naming the record it serves."""
+        return self._handover.workflows
+
+    @property
+    def updates(self) -> dict:
+        """The obligations the user's updates publish (`workflows.handed_over`), as an
+        `obligations.collection`. They are read beside `all_obligations`, which they
+        depend on: whether a widget's obligation is answered decides whether an action
+        on it is owed."""
+        return self._handover.records
 
     @cached_property
     def plan(self) -> dict | None:
         return plan_reading(
-            self.events, self.log.withdrawn, self.log.todos, self.all_asks["all"]
+            self.events, self.log.withdrawn, self.log.todos, self.all_obligations["all"]
         )
 
     def page_todos(self, aged: list[dict]) -> list[dict]:

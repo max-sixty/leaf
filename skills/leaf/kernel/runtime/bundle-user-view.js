@@ -26,7 +26,7 @@ import {
   runtime,
   watchSemantic
 } from "./bundle-semantic-state.js";
-import "./bundle-sample-visibility.js";
+import "./bundle-frame-visibility.js";
 import "./bundle-queued-work.js";
 import "./bundle-__export.js";
 

@@ -13,23 +13,23 @@ from leaf import render_checks as render_checks_model
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    ASK_PAGE,
+    OBLIGATION_PAGE,
 )
 from render_cases_layout import (
-    banner_control,
+    toggle_queue,
 )
 from render_cases_navigation import (
     go_to_address,
 )
 from render_harness import (
     LONG_PAGE,
+    PANEL_THREAD,
     RELEASE_FOCUS,
     draft_control,
     margins_laid_out,
     navigate,
     open_page,
     pane_posture,
-    panel_settled,
     resized,
     sending,
     ticked,
@@ -40,9 +40,9 @@ from render_harness import (
 pytestmark = pytest.mark.shifts_unsurveyed
 
 from browser.margin import (
-    ACTION_ON_ASK,
+    ACTION_ON_OBLIGATION,
     CARD_AND_REPLY,
-    COMMENT_ON_ASK,
+    COMMENT_ON_OBLIGATION,
     DRAFTING_CARD,
     LONG_THREAD_ROOT,
     MARGIN_ACTIONS_PAGE,
@@ -56,7 +56,6 @@ from browser.margin import (
     drafting_in_a_short_card,
     open_long_thread,
     resized_shell,
-    seeded_thread,
     send_anchored_comment,
 )
 from render_harness import comment_note, example_media, leaf_page
@@ -92,9 +91,9 @@ SUGGESTION_PINS = """(ids) => ids.map((id) => {
 })"""
 
 
-# An Ask in the middle of a long page, so its margin host can be scrolled out from under
+# An obligation in the middle of a long page, so its margin host can be scrolled out from under
 # a parked pointer and back.
-ASK_IN_LONG_PAGE = LONG_PAGE.replace(
+OBLIGATION_IN_LONG_PAGE = LONG_PAGE.replace(
     "<p id='p20'>",
     """<lf-ask id="route-ask"><h2>Which route should the walk follow?</h2>
 <lf-options id="route" choose>
@@ -482,7 +481,7 @@ def test_a_decision_undone_leaves_every_suggestion_pin_where_it_stood(browser, s
 
 def test_margin_target_hover_requires_pointer_movement(browser, serve):
     """Page motion under a parked pointer cannot take ownership from the keyboard."""
-    page = open_page(browser, serve(ASK_IN_LONG_PAGE))
+    page = open_page(browser, serve(OBLIGATION_IN_LONG_PAGE))
     resized(page, 1280, 720)
     page.locator("#route-ask").scroll_into_view_if_needed()
     go_to_address(page, "Margin entry", "route-ask")
@@ -499,7 +498,7 @@ def test_margin_target_hover_requires_pointer_movement(browser, serve):
     margins_laid_out(page)
     parked = host.bounding_box()
     assert not parked["y"] < pointer["y"] < parked["y"] + parked["height"], (
-        "the pointer starts inside the Ask margin host"
+        "the pointer starts inside the obligation margin host"
     )
     page.mouse.move(pointer["x"], pointer["y"])
 
@@ -612,8 +611,7 @@ def test_a_forced_inline_thread_keeps_its_control_reachable_on_a_crowded_cluster
             .filter(node => node.checkVisibility())
             .map(node => node.getBoundingClientRect())
             .filter(other => other.width && other.height && overlaps(card, other)).length;
-          const bottomChrome = [...document.querySelectorAll(
-              '.lf-shortcut-bar, .lf-bottom-status')]
+          const bottomChrome = [...document.querySelectorAll('.lf-fp-card')]
             .filter(node => node.checkVisibility())
             .map(node => node.getBoundingClientRect());
           const words = document.querySelector('#crowded').getBoundingClientRect();
@@ -685,8 +683,7 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
                   cardTop: card.top, cardWidth: card.width, coveredControls,
                   targetTop: target.top, targetBottom: target.bottom,
                   preferred: parseFloat(getComputedStyle(cardNode)
-                    .getPropertyValue('--thread-card')),
-                  bannerBottom: rect(document.querySelector('.lf-banner')).bottom};
+                    .getPropertyValue('--thread-card'))};
         }"""
     )
     # With room for its whole measure, the card clears both its words and its cluster,
@@ -700,7 +697,7 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
         geometry
     )
     assert geometry["coveredControls"] == 0, geometry
-    assert geometry["targetTop"] >= geometry["bannerBottom"], geometry
+    assert geometry["targetTop"] >= 0, geometry
     assert geometry["targetBottom"] <= 900, geometry
 
     # The card's top edge stands a gap over its words' first line while the whole card
@@ -711,9 +708,7 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
         """async () => {
           const positions = () => {
             const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
-            const foot = Math.min(...[...document.querySelectorAll(
-              '.lf-shortcut-bar, .lf-bottom-status')].filter(node => node.checkVisibility())
-              .map(node => node.getBoundingClientRect().top));
+            const foot = document.querySelector('.lf-fp-card').getBoundingClientRect().top;
             return {
               card: card.top, cardBottom: card.bottom, foot,
               // The words the thread quotes start the paragraph's first line.
@@ -727,7 +722,7 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
           };
           const placed = () => new Promise(resolve => requestAnimationFrame(
             () => requestAnimationFrame(resolve)));
-          // Keep the first two positions below the banner's 8px boundary, so
+          // Keep the first two positions below the window's 8px boundary, so
           // these readings exercise following the words rather than clamping.
           scrollBy(0, 180);
           await placed();
@@ -762,11 +757,10 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
           return {
             card: document.querySelector('.lf-margin-preview').getBoundingClientRect().top,
             controls: range.getClientRects()[0].top,
-            head: document.querySelector('.lf-banner').getBoundingClientRect().bottom,
           };
         }"""
     )
-    assert gone["controls"] < gone["head"], gone
+    assert gone["controls"] < 0, gone
     assert gone["card"] == pytest.approx(gone["controls"], abs=0.5), gone
 
 
@@ -907,94 +901,20 @@ def test_agent_status_leaves_the_margin_transcript_where_the_user_scrolled_it(
     }
 
 
-def test_standing_on_a_commented_element_opens_its_thread_in_threads(browser, serve):
-    """With Threads open, the panel's one expanded thread is the element's card.
-
-    Arriving at a commented element by keyboard expands that element's thread in the
-    list, brings it into the list's view, and leaves the user on the element, with no
-    margin card beside it. A thread of that element already expanded is where the user
-    is on it, perhaps mid-reply, so it stays. A pointer that lands on an element asked
-    for nothing there, and the list stays as it is.
-    """
-    page = open_page(browser, serve(ASK_PAGE))
-    resized(page, 1440, 380)
-    first = seeded_thread(page, serve.page_dir, "#mounts-p")
-    second = seeded_thread(page, serve.page_dir, "#heater-p")
-    third = seeded_thread(page, serve.page_dir, "#mounts-p")
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    threads = page.locator(".lf-thread-panel")
-    expanded = threads.locator(".lf-thread[open]")
-    # Its title whole in the list's view: the thread the list shows is the one it names.
-    in_view = """thread => {
-      const list = thread.closest('leaf-thread-list').getBoundingClientRect();
-      const box = thread.querySelector(':scope > .lf-thread-summary')
-        .getBoundingClientRect();
-      return box.top >= list.top && box.bottom <= list.bottom;
-    }"""
-
-    def card(sent):
-        return threads.locator(f'.lf-thread[data-id="{sent["id"]}"]')
-
-    # Keyboard modality without Tab, whose own landing in the list would scroll it. A
-    # second arrival leaves the stop the first lent, which a restated value would rewrite.
-    def arrive(selector):
-        page.keyboard.press("Shift")
-        page.locator(selector).evaluate(
-            "node => { if (node.getAttribute('tabindex') !== '-1') node.tabIndex = -1;"
-            " node.focus(); }"
-        )
-        expect(page.locator(selector)).to_be_focused()
-        assert page.locator(selector).evaluate("node => node.matches(':focus-visible')")
-
-    for passage, sent in (("#heater-p", second), ("#mounts-p", first)):
-        # Out of the list's view first, so the arrival has to bring it back.
-        card(sent).evaluate(
-            """thread => {
-              const list = thread.closest('leaf-thread-list');
-              list.scrollTop = thread.offsetTop > list.scrollHeight / 2
-                ? 0 : list.scrollHeight;
-            }"""
-        )
-        assert not card(sent).evaluate(in_view)
-        arrive(passage)
-        expect(expanded).to_have_attribute("data-id", sent["id"])
-        expect(page.locator(passage)).to_be_focused()
-        expect(page.locator(".lf-margin-preview")).to_be_hidden()
-        page.wait_for_function(
-            f"() => ({in_view})(document.querySelector("
-            f"'.lf-thread-panel .lf-thread[data-id=\"{sent['id']}\"]'))"
-        )
-
-    # The user opens the element's other thread; arriving back at the element keeps it.
-    card(third).locator(":scope > .lf-thread-summary").click()
-    expect(expanded).to_have_attribute("data-id", third["id"])
-    arrive("#mounts-p")
-    expect(expanded).to_have_attribute("data-id", third["id"])
-
-    # A pointer on the other element focuses it without keyboard arrival.
-    page.locator("#heater-p").click()
-    expect(page.locator("#heater-p")).to_be_focused()
-    assert not page.locator("#heater-p").evaluate(
-        "node => node.matches(':focus-visible')"
-    )
-    expect(expanded).to_have_attribute("data-id", third["id"])
-
-
 @pytest.mark.parametrize("wrapping", [False, True])
 def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
     browser, serve, wrapping
 ):
     """An accepted comment preserves its editor frame, wrapping and reply, using
     the marker strip where clearing it would narrow the message."""
-    sidebar_page = ASK_PAGE.replace(
+    sidebar_page = OBLIGATION_PAGE.replace(
         '<main class="layout-column">',
         '<main class="layout-column"><aside class="sidebar">Page reference</aside>',
         1,
     )
     page = open_page(
         browser,
-        serve(sidebar_page, events=[COMMENT_ON_ASK]),
+        serve(sidebar_page, events=[COMMENT_ON_OBLIGATION]),
         init_script=MARGIN_EDITOR_ROOTS,
     )
     resized(page, 1200, 900)
@@ -1032,7 +952,7 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
 
     page = open_page(
         browser,
-        serve(ASK_PAGE, events=[COMMENT_ON_ASK]),
+        serve(OBLIGATION_PAGE, events=[COMMENT_ON_OBLIGATION]),
         init_script=MARGIN_EDITOR_ROOTS,
     )
     resized(page, 1920, 900)
@@ -1059,7 +979,7 @@ def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
     of the reply: the thread being answered and the reply's first line stay where the
     user reads them, and Send moves down a line per wrap until the window's foot.
     After that the editor scrolls internally, keeping the card and its first line still."""
-    page = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
+    page = open_page(browser, serve(OBLIGATION_PAGE, events=[COMMENT_ON_OBLIGATION]))
     resized(page, 1920, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
     marker.evaluate("node => scrollBy(0, node.getBoundingClientRect().top - 160)")
@@ -1251,27 +1171,25 @@ def test_continued_margin_draft_grows_below_its_first_line_after_agent_reply(
     expect(editor).to_be_focused()
 
 
-def test_the_thread_card_survives_drawers_and_authored_sidebars(browser, serve):
-    """The On panel or an authored sidebar does not turn the contextual card into
-    the Threads panel. The On panel stands on the right edge, over the rail at a
-    desk's width, so the window is wide enough to leave the marker clear of it."""
-    page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
+def test_the_thread_card_survives_the_on_view_and_authored_sidebars(browser, serve):
+    """The On view or an authored sidebar does not turn the contextual card into a
+    thread view in the panel."""
+    page = open_page(
+        browser,
+        serve(OBLIGATION_PAGE, events=[ACTION_ON_OBLIGATION, COMMENT_ON_OBLIGATION]),
+    )
     resized(page, 2100, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     marker.click()
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
 
-    banner_control(page, ".lf-queue").click()
-    expect(page.locator("body")).to_have_attribute("data-lf-auxiliary-surface", "queue")
+    toggle_queue(page)
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    # The press on the marker puts On me away and opens the card, not a thread view.
     marker.click()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    expect(page.locator(PANEL_THREAD)).to_have_count(0)
     marker.click()
-    banner_control(page, ".lf-queue").click()
-    expect(page.locator("body")).not_to_have_attribute(
-        "data-lf-auxiliary-surface", "queue"
-    )
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     marker.click()
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
@@ -1279,20 +1197,20 @@ def test_the_thread_card_survives_drawers_and_authored_sidebars(browser, serve):
 
     page.close()
 
-    sidebar_page = ASK_PAGE.replace(
+    sidebar_page = OBLIGATION_PAGE.replace(
         '<main class="layout-column">',
         '<main class="layout-column"><aside class="sidebar">Page reference</aside>',
         1,
     )
     page = open_page(
         browser,
-        serve(sidebar_page, events=[ACTION_ON_ASK, COMMENT_ON_ASK]),
+        serve(sidebar_page, events=[ACTION_ON_OBLIGATION, COMMENT_ON_OBLIGATION]),
     )
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     marker.click()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    expect(page.locator(PANEL_THREAD)).to_have_count(0)
     marker.click()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     resized_shell(page, 1472, 900)

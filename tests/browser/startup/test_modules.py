@@ -18,6 +18,8 @@ from render_cases_widgets import MANIFEST_DIFF_PAGE, MULTI_HUNK_PATCH, TYPED_PAR
 from render_harness import (
     EXAMPLES,
     LONG_PAGE,
+    PANEL,
+    PANEL_THREAD,
     RELEASE_FOCUS,
     consume_browser_errors,
     holding,
@@ -33,6 +35,8 @@ from render_harness import (
     watched,
     write,
 )
+
+from browser.threads import open_panel_thread
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -90,31 +94,27 @@ Two classic models.</pre></lf-code>
         page.evaluate("() => getComputedStyle(document.body, '::after').content")
         == "none"
     )
-    expect(page.locator(".lf-banner")).to_be_visible()
-    expect(page.locator(".lf-threads-toggle")).to_be_enabled()
+    expect(page.locator(PANEL)).to_be_visible()
+    expect(page.locator(".lf-fp-threads")).to_be_enabled()
     expect(page.locator("#gate-code .lf-code-line")).to_have_count(0)
     expect(page.locator("#draft-ops .lf-draft-body")).to_have_count(0)
 
-    page.locator(".lf-threads-toggle").click()
-    expect(page.locator(".lf-thread-panel")).to_be_visible()
-    expect(page.locator(".lf-empty")).to_have_text("Loading current threads…")
-    expect(page.locator(".lf-thread")).to_have_count(0)
+    rows = page.locator(".lf-fp-view[data-view='threads'] .lf-fp-thread")
+    page.locator(".lf-fp-threads").click()
+    panel_settled(page, view="threads")
+    expect(rows).to_have_count(0)
     write(page_comment(page), "General comment during startup")
-    page.locator(".lf-page-comment-card .lf-general").get_by_role(
-        "button", name="Send"
-    ).click()
-    expect(page.locator(".lf-thread")).to_have_count(1)
-    expect(page.locator(".lf-thread .lf-msg-body")).to_have_text(
-        "General comment during startup"
-    )
-    expect(page.locator(".lf-empty")).to_have_text("Loading current threads…")
+    page.keyboard.press("ControlOrMeta+Enter")
+    expect(page.locator(".lf-live")).to_have_text("Message sent")
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
 
     # The visible document has not upgraded yet, so anchored capture is not ready.
     expect(page.locator(".lf-composer")).to_be_hidden()
 
     page.evaluate("window.lfReleaseRegistry()")
-    expect(page.locator(".lf-thread")).to_have_count(2)
+    page.locator(".lf-fp-threads").click()
+    panel_settled(page, view="threads")
+    expect(rows).to_have_count(2)
     expect(page.locator("#gate-code .lf-code-line")).to_have_count(2)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     page.wait_for_function("() => document.body.dataset.lfPresented === '1'")
@@ -131,8 +131,14 @@ Two classic models.</pre></lf-code>
     write(page.locator(".lf-composer leaf-text"), "Still anchored?")
     page.keyboard.press("ControlOrMeta+Enter")
 
-    expect(page.locator(".lf-thread")).to_have_count(3)
-    expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(0)
+    page.locator(".lf-fp-threads").click()
+    panel_settled(page, view="threads")
+    expect(rows).to_have_count(3)
+    # The comment on the code's words found them: its quote is no detached one.
+    rows.filter(has_text="Still anchored?").click()
+    quote = page.locator(f"{PANEL_THREAD} .lf-fp-quote")
+    expect(quote).to_be_visible()
+    expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
 
 
 def _asked(context):
@@ -180,7 +186,7 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
         "/widgets/lf-board.js",
     ], modules
     assert not [p for p in asked if "pierre-diffs" in p], asked
-    assert not [p for p in asked if "mermaid" in p], asked
+    assert not [p for p in asked if "pele" in p], asked
     assert asked.count("/theme.css") == 1, [p for p in asked if p == "/theme.css"]
     assert "/shadow.css" not in asked, asked
     assert asked.count("/registry.json") == 1, [
@@ -191,15 +197,14 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
 
 
 def test_composers_take_their_fields_when_they_first_open(browser, serve):
-    """The comment composer and the page comment card hold no field on the page until
-    each first opens, since a field on the page builds its editor
-    (composing/selection.js, thread/page-comment.js). Each open places its field in the
-    same turn, so the words typed straight after it land there, and a draft kept from
-    before a reload reaches the field when its composer opens again."""
+    """The comment composer holds no field on the page until it first opens, since a
+    field on the page builds its editor (composing/selection.js). Its open, and `c` into
+    the panel's page comment, place the caret in the same turn, so the words typed
+    straight after land there, and a draft kept from before a reload reaches the field
+    when its composer opens again."""
     page = open_page(browser, serve(LONG_PAGE))
-    card_box = page.locator(".lf-page-comment-card leaf-text")
+    card_box = page.locator('.lf-fp-field leaf-text[name="comment"]')
     composer_box = page.locator("#lf-composer leaf-text")
-    expect(card_box).to_have_count(0)
     expect(composer_box).to_have_count(0)
 
     page.keyboard.press("c")
@@ -218,7 +223,6 @@ def test_composers_take_their_fields_when_they_first_open(browser, serve):
     page.reload()
     wait_until_ready(page)
     expect(composer_box).to_have_js_property("value", "Words for the passage")
-    expect(card_box).to_have_count(0)
     page_comment(page)
     expect(card_box).to_have_js_property("value", "Words for the page")
 
@@ -230,7 +234,7 @@ def test_diagrams_load_one_renderer_bundle_when_they_draw(browser, serve):
     page = open_page(browser, serve(TYPED_PARTS_PAGE), context=context)
 
     expect(page.locator("lf-diagram svg")).to_have_count(6)
-    assert [p for p in asked if "mermaid" in p] == ["/vendor/mermaid.esm.js"]
+    assert [p for p in asked if "pele" in p] == ["/vendor/pele.esm.js"]
 
 
 def test_comment_focus_waits_for_the_lazy_placement_module(browser, serve):
@@ -399,11 +403,7 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
     assert "/widgets/lf-options.js" in asked
     assert page.evaluate("() => !!customElements.get('lf-options')")
 
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    options = page.locator(".lf-thread-panel lf-options#store-pick")
-    # The sole visible thread is expanded as soon as the panel opens.
-    expect(page.locator('.lf-thread[data-id="c-store"]')).to_have_attribute("open", "")
+    options = open_panel_thread(page, "c-store").locator("lf-options#store-pick")
     expect(options).to_be_visible()
     # Its module's own work, not the markup's: the pick control each option is chosen by.
     expect(options.locator("lf-option [data-lf-offer='checkbox']")).to_have_count(2)
@@ -425,8 +425,8 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
         ),
         serve(LONG_PAGE),
     )
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
+    page.locator(".lf-fp-threads").click()
+    panel_settled(page, view="threads")
     page.evaluate(
         "() => { window.__lfWidgetApi().then((markdown) => markdown.loadMarkdown()); }"
     )
@@ -460,15 +460,18 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
 
     write(page_comment(page), "Newest **snapshot**")
     with sending(page, "the newer comment"):
-        page.locator(".lf-page-comment-card .lf-general .lf-compose-submit").click()
+        page.keyboard.press("ControlOrMeta+Enter")
 
     old_route.fulfill(json=old_state)
     page.title()  # let the old response join the shared import before releasing it
     marked[0].continue_()
     page.unroute("**/vendor/markdown-it.esm.js")
 
-    expect(page.locator(".lf-thread", has_text="Older snapshot")).to_have_count(1)
-    expect(page.locator(".lf-thread", has_text="Newest snapshot")).to_have_count(1)
+    page.locator(".lf-fp-threads").click()
+    panel_settled(page, view="threads")
+    rows = page.locator(".lf-fp-view[data-view='threads'] .lf-fp-thread")
+    expect(rows.filter(has_text="Older")).to_have_count(1)
+    expect(rows.filter(has_text="Newest")).to_have_count(1)
 
 
 def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser, serve):

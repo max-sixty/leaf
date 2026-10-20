@@ -403,7 +403,7 @@ READING = """async (anchors) => {
   };
   const target = document.getElementById(anchors[0].section);
   const box = target.closest('.pin-case');
-  // Below the banner, with room above the case for a pin seated over it; a case taller
+  // Near the window's top, with room above the case for a pin seated over it; a case taller
   // than the window is scrolled to its first passage instead, mid-window.
   const first = anchors[0].quote
     ? quoted(target, anchors[0].quote).getBoundingClientRect().top

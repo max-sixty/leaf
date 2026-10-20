@@ -120,7 +120,7 @@ function toRanges(segments, spans) {
 customElements.define(
   "lf-suggestion",
   class extends LeafElement {
-    // What the ask was answered with: the decision.
+    // What the obligation was answered with: the decision.
     static answerWords(value) {
       return value.outcome === "accept" ? "Accepted" : "Rejected";
     }
@@ -283,10 +283,10 @@ customElements.define(
           ? [
               {
                 id: `suggestion:${this.id}`,
-                // Before settlement this contribution is the ask, so suppress the shared
+                // Before settlement this contribution is the obligation, so suppress the shared
                 // ask at the same target. Afterwards Undo remains without inventing a
                 // second page-map reading.
-                kind: outcome ? "action" : "ask",
+                kind: outcome ? "action" : "on-me",
                 ...(outcome ? {} : { represents: true }),
                 text: outcome
                   ? `${outcome === "accept" ? "Accepted" : "Rejected"} suggested change`
@@ -361,7 +361,7 @@ customElements.define(
       return before || after || this.id;
     }
 
-    // The banner's blanket answer (x-awaits.all) calls the deciding verb by name.
+    // The page's blanket answer (x-awaits.all) calls the deciding verb by name.
     decide(outcome) {
       return this.#decide(outcome);
     }
@@ -535,7 +535,7 @@ customElements.define(
     // looking at.
     //
     // Chosen before the decision and played after it, so the state the rest of the
-    // page reads is true from the first frame — the log has it, the banner's count has
+    // page reads is true from the first frame — the log has it, the panel's count has
     // it, a second tab converging on it has it — while the pixels catch up. The
     // animation's display outranks the rule that hides the slot for exactly as long as
     // its pixels fold. The browser supplies its intrinsic size and releases every
@@ -601,7 +601,7 @@ customElements.define(
     }
 
     // Which of the three changes this is, for anything naming it away from the page:
-    // a row in the On panel, the label on a comment anchored here. The slots are the
+    // a row in the panel's On view, the label on a comment anchored here. The slots are the
     // whole of the answer — both is a rewrite, lf-new alone inserts, lf-old alone
     // deletes — and it is the reading #voice already speaks on the slots themselves,
     // said once for the element. A settled suggestion keeps the word it had: the

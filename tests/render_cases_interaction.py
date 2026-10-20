@@ -48,10 +48,16 @@ diff --git a/gateway/limits.py b/gateway/limits.py
 """,
 )
 
-# The panel's list, in the order it stands: each thread by its id.
-LIST_ORDER = """() => [...document.querySelector(".lf-threads").children]
-  .map((n) => n.dataset.id)
-  .filter(Boolean)"""
+# The panel's Threads view, in the order its rows stand: each thread by its id. A row is
+# keyed by the thread's key, which for a thread this tab started is the attempt that
+# sent it (thread/model.js, `threadKey`), so the page's own reading names its id.
+LIST_ORDER = """async () => {
+  const {readThreads} = await window.__lfWidgetApi();
+  const ids = new Map(readThreads().threads.map((t) => [t.key, t.id]));
+  return [...document.querySelectorAll(
+    '.lf-fp-view[data-view="threads"]:not([data-leaving]) .lf-fp-thread')]
+    .map((row) => ids.get(row.dataset.key));
+}"""
 
 
 def panel_comment(d, text, anchor=None, author="user", *, question=None):
@@ -69,8 +75,8 @@ def panel_comment(d, text, anchor=None, author="user", *, question=None):
 
 
 def answered_comment(d, text, anchor):
-    """A user's thread the agent has replied to, so an ask it is about waits on the
-    user again rather than on that reply (`asks.sections_with_agent`)."""
+    """A user's thread the agent has replied to, so an obligation it is about waits on the
+    user again rather than on that reply (`obligations.sections_with_agent`)."""
     root = panel_comment(d, text, anchor)
     append_carried_log_record(
         d,
@@ -87,34 +93,6 @@ def answered_comment(d, text, anchor):
     return root
 
 
-# What the list is holding, from the one query that answers both halves of the
-# question a departing thread raises: what stands where, and what the keys can still
-# reach. The two lists differ by exactly the thread on its way out.
-LIST_STATE = """() => {
-  const list = document.querySelector(".lf-threads");
-  return {
-    listed: [...list.children].filter((n) => !n.hidden)
-      .map((n) => n.dataset.id).filter(Boolean),
-    walkable: [...list.querySelectorAll(":scope > .lf-thread:not([hidden])")].map(
-      (n) => n.dataset.id,
-    ),
-  };
-}"""
-# Every frame the fold paints, sampled from the page because there is nowhere else to
-# sample it: what a motion looks like is a sequence, and every other check here reads a
-# state. One height per animation frame until the node leaves the page, which is the
-# fold's own end and so the wait's fact.
-FRAME_BY_FRAME = """(sel) => {
-  window.__seen = [];
-  window.__done = false;
-  const tick = () => {
-    const el = document.querySelector(sel);
-    if (!el) return void (window.__done = true);
-    window.__seen.push(+el.getBoundingClientRect().height.toFixed(1));
-    requestAnimationFrame(tick);
-  };
-  requestAnimationFrame(tick);
-}"""
 STACKED_OPTIONS_PAGE = leaf_page(
     "stacked options",
     """
@@ -161,9 +139,9 @@ STACKED_OPTIONS_PAGE = leaf_page(
 </div>
 """,
 )
-# A heading-first Ask in every shape its choice group takes: cards, rows, and a settled
+# A heading-first obligation in every shape its choice group takes: cards, rows, and a settled
 # collapse. The question belongs to the document region; the group only owns answers.
-ASK_SHAPES_PAGE = leaf_page(
+OBLIGATION_SHAPES_PAGE = leaf_page(
     "asked",
     """
 <h1 id="t">Asked</h1>
@@ -198,8 +176,8 @@ ASK_SHAPES_PAGE = leaf_page(
 # (#bracket). Which is what makes a claim about arity testable on its own — #jobs against
 # #bracket differs in two things at once, and a rule that was really the list form's
 # would pass that pair either way.
-ASK_PAGE = leaf_page(
-    "ask",
+OBLIGATION_PAGE = leaf_page(
+    "obligation",
     """
 <h1 id="h">Three jobs</h1>
 <lf-ask id="jobs-decision"><h2>Which jobs are worth starting?</h2>
@@ -236,7 +214,7 @@ mornings last winter.</p></section>
 # cell in the page and the row in the panel — which is the whole of what those tests
 # compare. `jobs` names the seat, so the `say:jobs` draft key and a comment anchored to
 # `{section: "jobs"}` are the one coordinate the panel and the page share.
-SEATED_ASK_PAGE = leaf_page(
+SEATED_OBLIGATION_PAGE = leaf_page(
     "seated question",
     """
 <h1 id="h">Three jobs</h1>
@@ -249,7 +227,7 @@ SEATED_ASK_PAGE = leaf_page(
 )
 
 
-NESTED_ASK_PAGE = leaf_page(
+NESTED_OBLIGATION_PAGE = leaf_page(
     "nested",
     """
 <h1 id="h">Two jobs</h1>
@@ -311,7 +289,7 @@ CHIP_PAGE = leaf_page(
 <dl class="facts"><dt>Owner</dt><dd id="owner-fact"><span class="tag">finch</span></dd></dl>
 """,
 )
-SETTLED_ASK_PAGE = ASK_PAGE.replace(
+SETTLED_OBLIGATION_PAGE = OBLIGATION_PAGE.replace(
     '<lf-options id="jobs" choose multiple>',
     '<lf-options id="jobs" choose multiple settled>',
 )
@@ -463,11 +441,10 @@ SHORT_SUGGESTION = leaf_page(
 """,
 )
 # Every animation the page starts, held at time zero so a test can read it rather than
-# race it. What it catches is everything through `motion()`, which is the layer's only
-# caller of `animate` — folds and the board's FLIP, each started synchronously inside
-# the gesture that causes it. Opening a panel or drawer starts none. CSS animations run outside it
-# and are never seen, `grow` among them. Installed before anything runs, so the first
-# frame is already held.
+# race it. What it catches is every `Element.animate` call: `motion()`'s folds and the
+# board's FLIP, each started synchronously inside the gesture that causes it, and the
+# floating panel's own motion. CSS animations run outside it and are never seen.
+# Installed before anything runs, so the first frame is already held.
 #
 # `__lfHeld` is what is still held, which is what a test asks it: a count is "the gesture
 # started one motion", an index is "the motion this gesture started", and a sweep over it
@@ -502,8 +479,8 @@ HOLD_MOTION = """
 # Every shape the decision predicate has to tell apart, on one page: four things the page is
 # waiting on the user for, and, beneath them, one of each way of not being one. The
 # four are in document order, because that is the order the walk below must take them in.
-ASKS_PAGE = leaf_page(
-    "asks",
+OBLIGATIONS_PAGE = leaf_page(
+    "obligations",
     """
 <h1 id="h">What is still open</h1>
 <lf-ask id="live-question-decision"><h2>Where should sessions live?</h2>
@@ -559,16 +536,16 @@ ASKS_PAGE = leaf_page(
 </lf-sample>
 """,
 )
-ASKS_IN_ORDER = [
+OBLIGATIONS_IN_ORDER = [
     "live-question-decision",
     "sug-refill",
     "t-baffles-decision",
     "t-bath-decision",
 ]
-ALL_ASKS_IN_ORDER = [*ASKS_IN_ORDER, "honored-decision"]
+ALL_OBLIGATIONS_IN_ORDER = [*OBLIGATIONS_IN_ORDER, "honored-decision"]
 
 
-ASK_WITH_CONTEXT_PAGE = leaf_page(
+OBLIGATION_WITH_CONTEXT_PAGE = leaf_page(
     "ask with context",
     f"""
 <h1 id="h">A decision with context</h1>
@@ -592,8 +569,8 @@ ASK_WITH_CONTEXT_PAGE = leaf_page(
 )
 
 
-# An ask that cannot declare an arrival region of its own: the change is a phrase inside a
-# sentence, and what explains it is that sentence and the heading over it. One ask, so the
+# An obligation that cannot declare an arrival region of its own: the change is a phrase inside a
+# sentence, and what explains it is that sentence and the heading over it. One obligation, so the
 # walk stays on it and a second press can be asked what it does to a page the user has
 # already adjusted.
 SUGGESTION_IN_CONTEXT_PAGE = leaf_page(
@@ -614,13 +591,13 @@ SUGGESTION_IN_CONTEXT_PAGE = leaf_page(
 )
 
 
-# Two asks written one after the other, which is the ordinary way to write two. The change
+# Two obligations written one after the other, which is the ordinary way to write two. The change
 # has no heading of its own under its container, so the nearest heading written before it
-# is the previous ask's own — a different question, and not this change's context. The
+# is the previous obligation's own — a different question, and not this change's context. The
 # suggestion is a sibling of the decision rather than nested in a section for exactly that
 # reason: with a section heading of its own there would be a nearer candidate and the
 # container bound would never be asked.
-ASKS_IN_A_ROW_PAGE = leaf_page(
+OBLIGATIONS_IN_A_ROW_PAGE = leaf_page(
     "asks in a row",
     f"""
 <h1 id="ar-h">What is still open</h1>
@@ -641,16 +618,16 @@ ASKS_IN_A_ROW_PAGE = leaf_page(
 )
 
 
-# An ask inside a scroller of its own, below that scroller's own band. The arrival places
+# An obligation inside a scroller of its own, below that scroller's own band. The arrival places
 # the region, and the box that moves for a region is whichever one scrolls it — for a
-# region out on the page, never this card's. So the ask has to be brought into its card by
+# region out on the page, never this card's. So the obligation has to be brought into its card by
 # the reveal that runs first, or the ring and focus land on a change the card hides.
 #
-# The card holds no text block before the ask, which is what puts the region outside it:
+# The card holds no text block before the obligation, which is what puts the region outside it:
 # the spacer is a bare div, so the nearest candidate is the section's own heading. With a
 # paragraph in there the region would be inside the card and that region's own reveal
 # would scroll the card, whatever the arrival did — the shape this page exists to avoid.
-ASK_IN_A_CARD_PAGE = leaf_page(
+OBLIGATION_IN_A_CARD_PAGE = leaf_page(
     "ask in a card",
     f"""
 <h1 id="ac-h">Bracket order</h1>
@@ -673,7 +650,9 @@ ASK_IN_A_CARD_PAGE = leaf_page(
 # hangs it on the boxes its contents make — so what says the walk is in one place is
 # the outermost page element wearing it, never the count of elements that do. Scoped to
 # main because the On panel's row mirrors the same fact in the chrome.
-STANDING_ASK = "main [data-lf-ask]:not([data-lf-ask] [data-lf-ask])"
+STANDING_OBLIGATION = (
+    "main [data-lf-obligation]:not([data-lf-obligation] [data-lf-obligation])"
+)
 # The shipped board measures its grip from a live box. Author it into the page and
 # send it in a reply with the same words, so the two readings can be compared.
 ROOM_WIDGETS = """<lf-board id="{id}-b">
@@ -703,17 +682,20 @@ MESSAGE_ROOM_PAGE = leaf_page(
 )
 
 
-# What each On panel row says, with the list it stands in ("you", "agent" or "done").
-# Rows under a closed Done fold are in the document and measure as nothing.
-QUEUE_ROW_SAYS = """() => [...document.querySelectorAll('button.lf-queue-row')].map((r) => ({
-  at: r.getAttribute('data-lf-at'),
-  list: r.closest('[data-lf-queue]').dataset.lfQueue,
-  kind: r.dataset.lfKind,
-  word: r.querySelector('.lf-queue-kind').textContent,
-  title: r.querySelector('.lf-queue-title').textContent,
-  where: r.querySelector('.lf-queue-where').textContent,
-  w: Math.round(r.getBoundingClientRect().width),
-  h: Math.round(r.getBoundingClientRect().height),
+# What each card of the panel's On me view says: its obligation's kind and id (queue-api.js,
+# `queueItemKey`), the list it stands in ("you", "agent" or "done"), its title, its
+# prompt and what it says of its ending (such as "Answered: …"), each null where the
+# card has none, and its box.
+ON_ITEM_SAYS = """() => [...document.querySelectorAll(
+    '.lf-fp-view[data-view="queue"]:not([data-leaving]) .lf-fp-on-item')].map((c) => ({
+  kind: JSON.parse(c.dataset.key)[0],
+  id: JSON.parse(c.dataset.key)[1],
+  list: c.dataset.list,
+  title: c.querySelector('.lf-fp-on-title')?.textContent ?? null,
+  prompt: c.querySelector('.lf-fp-prompt')?.textContent ?? null,
+  said: c.querySelector('.lf-fp-said')?.textContent ?? null,
+  w: Math.round(c.getBoundingClientRect().width),
+  h: Math.round(c.getBoundingClientRect().height),
 }))"""
 CHANGE_SHAPES_PAGE = leaf_page(
     "retry policy",
@@ -840,7 +822,7 @@ def live_url(version_url):
 
 
 # A live page a user is mid-press on when the next revision lands: hyperlinks for the
-# generated target map, and a decision whose pick mark the shortcut bar offers digits over.
+# generated target map, and a decision whose pick marks take digits.
 # The second revision adds a paragraph above everything and takes the middle link away,
 # so a restored place has moved and a target has gone; the third adds another.
 #
@@ -887,9 +869,9 @@ LIVE_KEYS_DECISION = """<lf-ask id="lk-decision"><h2>Which one?</h2>
 </lf-options></lf-ask>"""
 
 # A revision that restates the question the user is answering, which is the revision
-# they most need to stay with. The Ask keeps its id and its options keep theirs, but every
+# they most need to stay with. The obligation keeps its id and its options keep theirs, but every
 # element in it is rewritten, so nothing inside it is the node the user was holding.
-LIVE_KEYS_ASK_REWRITTEN = LIVE_KEYS_V1.replace(
+LIVE_KEYS_OBLIGATION_REWRITTEN = LIVE_KEYS_V1.replace(
     "<title>Live keys first</title>", "<title>Live keys rewritten</title>"
 ).replace(
     LIVE_KEYS_DECISION,
@@ -919,7 +901,7 @@ LIVE_KEYS_APPARATUS_REWRITTEN = LIVE_KEYS_APPARATUS.replace(
 
 # And a revision that withdraws the question, which is the one with nowhere to put the
 # user back.
-LIVE_KEYS_ASK_WITHDRAWN = LIVE_KEYS_V1.replace(
+LIVE_KEYS_OBLIGATION_WITHDRAWN = LIVE_KEYS_V1.replace(
     "<title>Live keys first</title>", "<title>Live keys without it</title>"
 ).replace(LIVE_KEYS_DECISION, '<p id="lk-settled">That one is settled.</p>')
 
@@ -966,24 +948,6 @@ WRAP_TOP = """() => { const r = document.createRange();
 # that matched in width and not in colour would be two rings that look like one.
 RING = """(el) => { const s = getComputedStyle(el);
     return [s.outlineStyle, s.outlineWidth, s.outlineColor]; }"""
-# One target of ordinary height and one taller than any viewport, both far enough down
-# that arriving at either is a real scroll.
-TRAVEL_PAGE = leaf_page(
-    "travel",
-    f"""
-<h1 id="h">Placement</h1>
-{"".join(f"<p>Fill paragraph {i}, long enough to take a line of its own.</p>" for i in range(10))}
-<lf-diagram id="flow"><pre>
-graph LR
-  Cart --&gt; Pay
-</pre></lf-diagram>
-{"".join(f"<p>More fill, paragraph {i}.</p>" for i in range(10))}
-<section id="long-part">
-<h2>The long tail</h2>
-{"".join(f"<p>Tail fill, paragraph {i}, deep enough that the section outgrows any viewport.</p>" for i in range(24))}
-</section>
-""",
-)
 # One parent over two leaves, so a status report has to move both the marker and
 # the parent's computed done-fraction — the state a stylesheet cannot recount.
 REPORT_PAGE = leaf_page(
@@ -1325,7 +1289,7 @@ REF_PAGE = leaf_page(
 </section>
 """,
 )
-THREAD_ASKS = [
+THREAD_OBLIGATIONS = [
     {
         "kind": "comment",
         "id": "c-which",
@@ -1353,16 +1317,16 @@ THREAD_ASKS = [
 ]
 
 # A widget the shipped packages no longer have: one the user owes an answer on that
-# also seats a thread of its own. A thread anchored on any ask splits the user's list
-# from the unanswered decisions while the agent has the next word, taking the ask off
-# the list without answering it (`asks.sections_with_agent`); a seat is where a
+# also seats a thread of its own. A thread anchored on any obligation splits the user's list
+# from the unanswered decisions while the agent has the next word, taking the obligation off
+# the list without answering it (`obligations.sections_with_agent`); a seat is where a
 # user most often starts one. `lf-options` supplied the pair until 292de9c made the
 # user's cell an add form and dropped `x-thread-seat`, so the pair is declared here
 # rather than borrowed from whichever shipped entry happens to carry it: the reading
 # under test is the layer's, and the tag it runs on is the layer's business rather than
 # the test's.
-SEATED_ASK_TAG = "lf-verdict"
-SEATED_ASK_ENTRY = {
+SEATED_OBLIGATION_TAG = "lf-verdict"
+SEATED_OBLIGATION_ENTRY = {
     "description": (
         "A proposal the user settles with one press and may talk over first in a seat "
         "of its own. `asks` opens the decision; the press settles it."
@@ -1402,12 +1366,14 @@ SEATED_ASK_ENTRY = {
 # reason the browser door matters as much as the POST one: with the wrong list read here
 # the answer is already on the page, so a refusal is not a refusal the user can see —
 # the control flips, nothing is logged, and the next poll puts it back saying nothing.
-SEATED_ASK_MODULE = browser_source("widgets/seated-ask.js") + "\ndefineSeatedAsk();\n"
-SEATED_ASK_LAYER = {SEATED_ASK_TAG: SEATED_ASK_ENTRY}
-SEATED_ASK_WIDGETS = {f"{SEATED_ASK_TAG}.js": SEATED_ASK_MODULE}
+SEATED_OBLIGATION_MODULE = (
+    browser_source("widgets/seated-ask.js") + "\ndefineSeatedObligation();\n"
+)
+SEATED_OBLIGATION_LAYER = {SEATED_OBLIGATION_TAG: SEATED_OBLIGATION_ENTRY}
+SEATED_OBLIGATION_WIDGETS = {f"{SEATED_OBLIGATION_TAG}.js": SEATED_OBLIGATION_MODULE}
 
 
-# A block proposal whose new text holds an ask of its own.
+# A block proposal whose new text holds an obligation of its own.
 NESTED_PROPOSAL_PAGE = leaf_page(
     "nested proposal",
     """

@@ -1,6 +1,5 @@
 """What an agent's writer hands in: message markup, bodies, and the ids it names."""
 
-import sys
 from pathlib import Path
 
 from leaf.activity import answer_command
@@ -10,9 +9,10 @@ from leaf.events import build_threads
 from leaf.files import list_revisions
 from leaf.findings import Finding, Rejected
 from leaf.passages import SourceReading
+from leaf.piped_input import piped_stdin
+from leaf.registry.kernel import kinds_declaring
 from leaf.registry.storage import require_registry
 from leaf.revision_artifact import read_revision
-from leaf.schema import MESSAGE_KINDS
 from leaf.structure import SourceDocument
 from leaf.thread_context import thread_names, thread_structure
 
@@ -39,7 +39,7 @@ def read_text_arg(page_dir: Path, text, *, allow_empty: bool = False) -> str:
     page exists. `check_markup` asks that of `--markup` and runs only when one is
     given; this asks it of the link and image destinations beside it, which is where
     the runtime resolves one — a path quoted in a sentence stays the author's words."""
-    body = text if text is not None else sys.stdin.read()
+    body = text if text is not None else piped_stdin()
     if not body and not allow_empty:
         raise Refused("empty text (pass --text or pipe via stdin)")
     if errs := text_media_errors(body, page_dir):
@@ -99,7 +99,7 @@ def logged_id(page_dir: Path, events: list, value: str, responses: dict) -> str 
     article = "an" if kind[:1] in "aeiou" else "a"
     held = f"{value} is {article} {kind} in this page's log"
     owed = responses.get(value)
-    if owed is None and kind in MESSAGE_KINDS:
+    if owed is None and kind in kinds_declaring("message"):
         owed = thread_obligation(events, responses, value)
         if owed is None:
             thread = build_threads(events, {}).get(thread_names(events)[value])

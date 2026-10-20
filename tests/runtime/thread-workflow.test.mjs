@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   isPageWidgetWorkflow,
@@ -7,15 +8,31 @@ import {
   workflowLabel,
 } from "../../skills/leaf/assets/runtime/thread/workflow.js";
 import {
-  awaitsAgent,
-  awaitsUser,
   foldThreads,
   readThreadRecords,
 } from "../../skills/leaf/assets/runtime/thread/model.js";
+import {
+  isTurnEvent,
+  turnMessage,
+} from "../../skills/leaf/assets/runtime/pending/model.js";
 import { servedReading, servedThread, servedWorkflow } from "../served.mjs";
 
-// A workflow for an input in the thread `root` opened, which the agent owes a reply
-// and which holds the thread.
+// The user's turns, which `events.exchange` and `events.turn_message` read off the log
+// by the same cases (`tests/turn_cases.json`).
+const TURN_CASES = JSON.parse(
+  readFileSync(new URL("../turn_cases.json", import.meta.url), "utf8"),
+);
+
+for (const { id, events, turns } of TURN_CASES)
+  test(`a gesture this tab sends hands over the turn the server reads: ${id}`, () => {
+    assert.deepEqual(
+      events.filter(isTurnEvent).map((event) => [event.id, turnMessage(event)]),
+      turns,
+    );
+  });
+
+// A workflow for an input in the thread `root` opened, which serves the record of the
+// reply the agent owes it.
 const workflow = (id, stage, changes = {}) =>
   servedWorkflow({
     id,
@@ -25,7 +42,7 @@ const workflow = (id, stage, changes = {}) =>
     subject: { kind: "thread", id: "root" },
     thread: "root",
     coordinate: ["thread", "root"],
-    answer: { kind: "reply", to: id, for: id },
+    obligation: `update:${id}`,
     stage,
     ...changes,
   });
@@ -73,16 +90,17 @@ test("workflow labels retain exact input progress and positive conditions", () =
   );
 });
 
-test("thread attention gives an open user ask precedence over agent work", () => {
+test("thread attention gives an open user obligation precedence over agent work", () => {
   const work = workflow("a", "working");
   const recovery = workflow("recovery", "sent", {
     condition: { kind: "failed" },
-    next_actor: "user",
   });
   const thread = {
     resolved: null,
     workflows: [recovery, work],
-    attention: { kind: "needs_user", reason: "ask", workflow: "recovery" },
+    // The record the agent's work serves, which it still owes.
+    obligations: [{ id: "update:a", source: { kind: "update" }, next_actor: "agent" }],
+    attention: { kind: "needs_user", reason: "widget", workflow: "recovery" },
   };
   assert.deepEqual(threadAttention(thread), {
     kind: "needs_user",
@@ -106,7 +124,6 @@ test("a thread an open to-do holds waits on the agent under the to-do's title", 
     workflow: null,
     secondary: "Rebuild the banner quieter",
   });
-  assert.ok(awaitsAgent(thread));
 });
 
 test("a frozen move that owes nothing leaves an owed thread on the user alone", () => {
@@ -126,7 +143,6 @@ test("a send this tab has not delivered ranks below the served workflows of its 
   // Served strongest first; the server's order is taken as given.
   const recovery = workflow("recovery", "answered", {
     condition: { kind: "failed", operation: "response" },
-    next_actor: "user",
   });
   const older = workflow("older", "sent", { seq: 1 });
   const newer = workflow("newer", "sent", { seq: 2 });
@@ -134,7 +150,6 @@ test("a send this tab has not delivered ranks below the served workflows of its 
   const refused = workflow("rejected:retry", "sending", {
     seq: 4,
     condition: { kind: "failed", operation: "delivery" },
-    next_actor: "user",
   });
   assert.equal(strongestWorkflow([recovery, older, pending, refused]), recovery);
   assert.equal(strongestWorkflow([newer, older, pending, refused]), refused);
@@ -206,7 +221,6 @@ test("a pending reply shows on its message and leaves whose turn it is to the lo
     [
       workflow("failed", "answered", {
         condition: { kind: "failed", operation: "response" },
-        next_actor: "user",
       }),
       workflow("pending:retry", "sending"),
     ],
@@ -219,7 +233,6 @@ test("a pending reply shows on its message and leaves whose turn it is to the lo
     ],
   );
   assert.deepEqual(record.attention, thread.attention);
-  assert.equal(awaitsUser(record), true);
 });
 
 test("a local rewrite shows on its message and reopens a closed thread", () => {
@@ -298,7 +311,7 @@ test("pending thread gestures fold in the order the user made them, as the log w
   const undo = { id: "pending:undo", kind: "undo", author: "user", undoes: "kept" };
   const resolve = { kind: "resolve", parent: "root", author: "user" };
   const unresolve = { ...resolve, kind: "unresolve" };
-  const owed = { kind: "needs_user", reason: "ask", workflow: null };
+  const owed = { kind: "needs_user", reason: "widget", workflow: null };
   const fold = (changes, ...gestures) =>
     foldThreads([servedThread([asked, question], changes)], gestures)[0];
 
@@ -333,7 +346,7 @@ test("a frozen message widget keeps its exact workflow in the message and thread
 
 test("a thread this tab opened carries every field a served thread does", () => {
   const root = {
-    id: "pending:ask",
+    id: "pending:question",
     kind: "comment",
     author: "user",
     text: "Question",

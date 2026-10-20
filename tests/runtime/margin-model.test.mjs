@@ -177,7 +177,7 @@ test("threads aggregate into one control and retain captured thread order", () =
   const entry = inventory({
     items: [
       marker("z-newest", "comment"),
-      marker("ask", "ask"),
+      marker("item", "on-me"),
       marker("a-older", "comment"),
       marker("revision", "change"),
     ],
@@ -185,14 +185,14 @@ test("threads aggregate into one control and retain captured thread order", () =
   const choices = readingChoices(entry);
   assert.deepEqual(
     choices.map((choice) => choice.kind),
-    ["change", "comment", "ask"],
+    ["change", "comment", "on-me"],
   );
   assert.deepEqual(
     choices[1].items.map((item) => item.id),
     ["z-newest", "a-older"],
   );
   const cluster = clusterProjection(entry, { expandedKey: entry.key });
-  assert.deepEqual(choiceNames(cluster.options.visible), ["threadList", "ask"]);
+  assert.deepEqual(choiceNames(cluster.options.visible), ["threadList", "item"]);
 });
 
 test("an open thread stays reachable while Page Map retains every action in order", () => {
@@ -217,16 +217,16 @@ test("an open thread stays reachable while Page Map retains every action in orde
   );
 });
 
-test("thread aggregation preserves canonical user attention and ask precedence", () => {
+test("thread aggregation preserves canonical user attention and obligation precedence", () => {
   const recovery = marker("recovery", "comment", {
     userAttention: { label: "Not answered", reason: "workflow" },
   });
-  const ask = marker("question", "comment", {
-    userAttention: { label: "On you", reason: "ask" },
+  const item = marker("question", "comment", {
+    userAttention: { label: "On you", reason: "widget" },
   });
   assert.equal(awaitingUser([recovery]), true);
   assert.equal(readingContext({ items: [recovery] }), "Not answered");
-  assert.equal(readingContext({ items: [recovery, ask] }), "On you");
+  assert.equal(readingContext({ items: [recovery, item] }), "On you");
 });
 
 test("a thread's margin entry and Page Map row say the word Threads gives it", () => {
@@ -286,12 +286,12 @@ test("a thread's margin entry and Page Map row say the word Threads gives it", (
     ["Not answered", "Not answered"],
   );
   const onUser = thread(
-    { kind: "needs_user", reason: "ask", workflow: null },
+    { kind: "needs_user", reason: "widget", workflow: null },
     { unread: 1 },
   );
   assert.deepEqual(threadMarks(onUser).userAttention, {
     label: "My turn to answer",
-    reason: "ask",
+    reason: "widget",
   });
   assert.deepEqual(said(onUser), ["My turn to answer", "My turn to answer"]);
 });
@@ -425,7 +425,7 @@ test("placement counts every secondary control beside the primary", () => {
       offer("direct", [control("primary"), control("peer")]),
       offer("after", [control("after-peer")], { side: "after" }),
     ],
-    items: [marker("ask", "ask")],
+    items: [marker("item", "on-me")],
   });
   assert.equal(secondaryCount(entry, choosePrimary(entry)), 3);
   assert.equal(entryHasMarginHost(entry), true);
@@ -467,7 +467,7 @@ test("focused owner exposes only its complete declared controls", () => {
 
 test("reading IDs belong to their contribution in both margin and Page Map", () => {
   const entry = inventory({
-    items: [null, "first", "second"].map((owner) => marker("same", "ask", { owner })),
+    items: [null, "first", "second"].map((owner) => marker("same", "on-me", { owner })),
   });
   const choices = readingChoices(entry);
   assert.equal(new Set(choices.map((choice) => choice.key)).size, 3);

@@ -46,7 +46,7 @@
    This module is the stages' one registry (`liveStages`), held weakly: a stage outlives
    its widget only as garbage. A stage built while its host was detached arrives with the
    host. */
-import { under } from "./shadow.js";
+import { under } from "./shadow-tree.js";
 import { cancelRender, nextRender } from "./rendering.js";
 
 const watches = new Set();
@@ -160,6 +160,8 @@ export function liveStages() {
   }
   return live;
 }
+
+export const isStage = (root) => stages.has(root);
 
 const stands = (el) => {
   const root = el.getRootNode();

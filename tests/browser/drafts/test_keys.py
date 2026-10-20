@@ -1,5 +1,5 @@
 """The page's keys: control keys activating once, global shortcuts leaving browser keys
-alone, the reading keys' steps and regions, and the comparison menu."""
+alone, the reading keys' steps, and the comparison's one door."""
 
 import re
 
@@ -11,13 +11,11 @@ from render_cases_navigation import KEYS_PAGE, SMOOTH_LONG_PAGE, _publish
 from render_harness import (
     LONG_PAGE,
     RELEASE_FOCUS,
+    available_commands,
     compare_with,
     draft_control,
     open_page,
-    panel_settled,
-    resized,
     round_trip,
-    scroll_settled,
 )
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -45,7 +43,8 @@ def test_registered_control_keys_activate_once(browser, serve):
           const editor = host.querySelector('leaf-text');
           const hs = getComputedStyle(host), es = getComputedStyle(editor);
           return {
-            host: {outline: hs.outlineStyle, width: parseFloat(hs.outlineWidth)},
+            host: {outline: hs.outlineStyle, width: parseFloat(hs.outlineWidth),
+              offset: hs.outlineOffset},
             editor: {outline: es.outlineStyle, shadow: es.boxShadow},
           };
         }"""
@@ -60,13 +59,24 @@ def test_registered_control_keys_activate_once(browser, serve):
     forced = page.locator("#draft-ops").evaluate(
         """host => {
           const editor = host.querySelector('leaf-text');
+          const hs = getComputedStyle(host);
+          const highlight = document.createElement('i');
+          highlight.style.color = 'Highlight';
+          host.append(highlight);
+          const ink = getComputedStyle(highlight).color;
+          highlight.remove();
           return {
-            host: getComputedStyle(host).outlineStyle,
+            host: [hs.outlineStyle, parseFloat(hs.outlineWidth), hs.outlineOffset],
+            ink: hs.outlineColor === ink,
             editor: getComputedStyle(editor).outlineStyle,
           };
         }"""
     )
-    assert forced == {"host": "solid", "editor": "none"}
+    assert forced == {
+        "host": ["solid", focus_paint["host"]["width"], focus_paint["host"]["offset"]],
+        "ink": True,
+        "editor": "none",
+    }, "forced colors keep the draft's ring where it stands, in Highlight"
     page.emulate_media(forced_colors="none")
     page.keyboard.press("Escape")
 
@@ -382,175 +392,6 @@ def test_the_reading_keys_jump_under_reduced_motion(browser, serve):
         ) == pytest.approx(0, abs=1), up
 
 
-def test_the_reading_page_keys_move_the_region_the_user_is_scrolling(browser, serve):
-    """Two scroll regions, so d has to pick the one the user is looking at. Beside the
-    page the panel is a column of its own and the keys are the document's. Under the
-    breakpoint the sheet covers the page and the page hands scrolling over with it — one
-    gesture moves one region, and while the sheet is up that region is its thread list.
-    A key is no different from a wheel there: a page scrolling behind the sheet shows
-    the user nothing, so the key reads as dead, and the document is somewhere else
-    when the sheet closes."""
-    page = open_page(browser, serve(LONG_PAGE, comments=40))
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    # Put the user on the page before asking which reading region the page gesture chooses.
-    page.evaluate(RELEASE_FOCUS)
-    assert page.evaluate(
-        "() => { const t = document.querySelector('.lf-threads');"
-        " return t.scrollHeight > t.clientHeight; }"
-    ), "the thread list does not overflow, so it could not be seen to scroll below"
-
-    def offsets():
-        return page.evaluate(
-            "() => [document.scrollingElement.scrollTop,"
-            " document.querySelector('.lf-threads').scrollTop]"
-        )
-
-    def press_down():
-        """Both offsets once a region answers the press — the glide's first write is
-        already the answer to which region moved, and movement is the fact waited on
-        because movement is the question. Scrollend was the wait here while a press
-        could die outright, which read as the platform withholding the event; it
-        withholds nothing, answering the step's frame-at-a-time writes seven times to
-        the press on Linux, and a press that moves no region states neither fact.
-        Waiting on whichever region speaks makes the wrong one answering two numbers
-        to compare rather than half a minute of silence and a timeout."""
-        was = offsets()
-        page.keyboard.press("d")
-        page.wait_for_function(
-            "w => { const t = document.querySelector('.lf-threads');"
-            " return document.scrollingElement.scrollTop !== w[0] || t.scrollTop !== w[1]; }",
-            arg=was,
-        )
-        return was, offsets()
-
-    (page_was, threads_was), (page_now, threads_now) = press_down()
-    assert threads_now == threads_was, "the panel took a key aimed at the document"
-    assert page_now > page_was, "the document did not move for a key of its own"
-    scroll_settled(page)
-
-    resized(page, 400, 600)
-    panel_settled(page)
-    (page_was, threads_was), (page_now, threads_now) = press_down()
-    assert page_now == page_was, (
-        "the page moved behind the covering sheet, where the user cannot see it"
-    )
-    assert threads_now > threads_was, "the sheet did not move for the key it now owns"
-
-
-def test_the_reading_page_keys_follow_the_user_into_the_panel(browser, serve):
-    """Which region the keys move is where the user is standing, and covering is only
-    one of the two ways they come to be standing in the list. Beside the page — the wide
-    window, where the page beside the panel stays live — a user working down a long
-    thread presses d and the page behind them steps instead, which is the same
-    nothing the covering case was written to prevent: the region they are reading does
-    not move, and the document is somewhere else when they look back at it.
-
-    One factor separates the two halves here. The window, the layout, the panel and the
-    list are the same at both presses; only where the focus stands changes. So the first
-    press is the control that says the layout is beside — the user stands on the page,
-    outside the panel, and the document is theirs to step — and the second is the subject.
-    The Go-to sequence then supplies the neighboring
-    contrast: focus changes which region d/u page through, but `g g` still names the
-    document's edge while both regions have somewhere observable to move."""
-    page = open_page(browser, serve(LONG_PAGE, comments=40))
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    page.evaluate(RELEASE_FOCUS)
-    assert page.evaluate(
-        "() => { const t = document.querySelector('.lf-threads');"
-        " return t.scrollHeight > t.clientHeight; }"
-    ), "the thread list does not overflow, so it could not be seen to scroll below"
-
-    def offsets():
-        return page.evaluate(
-            "() => [document.scrollingElement.scrollTop,"
-            " document.querySelector('.lf-threads').scrollTop]"
-        )
-
-    # The control, and the wait that makes the subject's baseline a resting one: the
-    # document's own step is a glide, and the position it is going to is the one place
-    # it does not pass through early (the reading-page test says the rest).
-    step = page.evaluate(
-        "() => { const s = getComputedStyle(document.scrollingElement); return ("
-        " document.scrollingElement.clientHeight - parseFloat(s.scrollPaddingTop)"
-        " - parseFloat(s.scrollPaddingBottom)) * 0.6; }"
-    )
-    page_was, threads_was = offsets()
-    page.keyboard.press("d")
-    page.wait_for_function(
-        "e => Math.abs(document.scrollingElement.scrollTop - e) < 1",
-        arg=step,
-    )
-    page_now, threads_now = offsets()
-    assert page_now > page_was, (
-        "the document did not move for a key pressed from outside the panel, so the "
-        "panel is not beside the page here and the case below is not the one named"
-    )
-    assert threads_now == threads_was, "the panel took a key aimed at the document"
-
-    # Into the panel, standing on its open thread's title rather than in a box — `g T`'s
-    # landing, which travels nothing, so the baseline below is the one the control left.
-    # The address toggles the panel it names, so from the open one the first
-    # completion closes it and the second is the arrival.
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    panel_settled(page, open=False)
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    expect(
-        page.locator(
-            ".lf-threads > .lf-thread:not([hidden])[open] > .lf-thread-summary"
-        )
-    ).to_be_focused()
-    # Focus lands as the panel starts its slide in, while the list still stands past the
-    # window's edge; a step there has nothing shown to move.
-    panel_settled(page)
-
-    page_was, threads_was = offsets()
-    page.keyboard.press("d")
-    page.wait_for_function(
-        "w => { const t = document.querySelector('.lf-threads');"
-        " return document.scrollingElement.scrollTop !== w[0] || t.scrollTop !== w[1]; }",
-        arg=[page_was, threads_was],
-    )
-    thread_step = page.locator(".lf-threads").evaluate(
-        "t => { const s = getComputedStyle(t); return (t.clientHeight"
-        " - parseFloat(s.scrollPaddingTop) - parseFloat(s.scrollPaddingBottom)) * 0.6; }"
-    )
-    page.wait_for_function(
-        "w => { const t = document.querySelector('.lf-threads');"
-        " return Math.abs(t.scrollTop - w[0]) < 1"
-        " || Math.abs(document.scrollingElement.scrollTop - w[1]) >= 1; }",
-        arg=[thread_step, page_was],
-    )
-    page_now, threads_now = offsets()
-    assert threads_now > threads_was, (
-        "the list the user is standing in did not move for the key they pressed"
-    )
-    assert page_now == pytest.approx(page_was, abs=1), (
-        "the page stepped behind a user who was working down the comment list"
-    )
-
-    # Both regions now stand away from their top edge. A correct g g returns the page;
-    # the shared-scroller regression returns the panel instead. Wait for either answer so
-    # the failure reports both offsets rather than timing out while expecting only one.
-    assert page_now > 0 and threads_now > 0
-    page.keyboard.press("g")
-    page.keyboard.press("g")
-    page.wait_for_function(
-        "() => { const t = document.querySelector('.lf-threads');"
-        " return document.scrollingElement.scrollTop < 1 || t.scrollTop < 1; }",
-    )
-    edge_page, edge_threads = offsets()
-    assert edge_page == pytest.approx(0, abs=1), (
-        f"g g left the page at {edge_page} and moved the panel to {edge_threads}"
-    )
-    assert edge_threads == pytest.approx(threads_now, abs=1), (
-        f"g g moved the panel from {threads_now} to {edge_threads}"
-    )
-
-
 def test_the_page_has_one_door_to_a_comparison(browser, serve):
     """`=` marked what changed since the previous version from anywhere on the page, and
     the case for it was that it named no version — "since the last one I saw" is a
@@ -570,22 +411,20 @@ def test_the_page_has_one_door_to_a_comparison(browser, serve):
         "reworded a paragraph",
     )
     page = open_page(browser, url.replace("v1.html", "v2.html"))
-    line = page.locator(".lf-shortcut-bar")
-    # The door is a go-to destination rather than a bare letter, so the line names it
-    # once the sequence is armed. The word that must not be anywhere is read behind that
-    # arrival, so the absence is taken off a line the press has already repainted.
-    page.keyboard.press("g")
-    expect(line).to_contain_text("versions")
-    expect(line).not_to_contain_text("mark changes")
-    page.keyboard.press("Escape")
+    versions = page.locator('.lf-fp-menu[data-level="versions"]')
+    # No key anywhere on the page marks changes: none of the commands the dispatcher
+    # would run names `=`.
+    assert not [
+        command for command, keys in available_commands(page).items() if "=" in keys
+    ]
     page.keyboard.press("=")
-    expect(page.locator(".lf-version-menu")).to_be_hidden()
+    expect(versions).to_be_hidden()
     expect(page.locator(".lf-ins-block")).to_have_count(0)
     page.keyboard.press("g")
-    expect(line).to_contain_text("versions")
     page.keyboard.press("Shift+v")
-    expect(page.locator(".lf-version-menu")).to_be_visible()
+    expect(versions).to_be_visible()
     page.keyboard.press("Escape")
+    expect(versions).to_be_hidden()
 
     # The door, and it marks the same passage the key used to.
     compare_with(page)

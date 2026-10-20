@@ -13,7 +13,7 @@ from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_harness import (
-    expect_asks_answered,
+    expect_obligations_answered,
     holding,
     open_page,
     resized,
@@ -29,7 +29,7 @@ def test_a_shipped_page_passes_the_real_browser_gate(browser, serve):
     assert render_gate_model.render_version(browser, serve(example)).failures == []
 
 
-def test_ship_review_asks_are_directly_answerable(browser, serve, tmp_path):
+def test_ship_review_obligations_are_directly_answerable(browser, serve, tmp_path):
     example = ROOT / "examples" / "ship-review.html"
     page = open_page(browser, serve(example))
 
@@ -43,25 +43,17 @@ def test_ship_review_asks_are_directly_answerable(browser, serve, tmp_path):
         assert not (directory / "runtime/semantic-state.js").exists()
         assert list((directory / "runtime").glob("bundle-*.js"))
 
-    expect_asks_answered(page, "1/2")
+    expect_obligations_answered(page, "1/2")
     expect(page.locator("#off-workaround-review .lf-pick")).to_have_count(2)
     expect(page.locator("#off-workaround-review .lf-pick").first).to_be_visible()
     expect(page.locator("#off-workaround-approve .lf-pick")).to_have_attribute(
         "aria-checked", "true"
     )
-    # A shortcut bar with no rows in it is silent: the chrome paints, the console stays
-    # clean, and every other everyday assertion holds while no user can see a key.
-    # The boot's own failure is loud and covered by `errors` below, so what is asked
-    # for here is the rows — the More control's keycap is static and would show
-    # whatever happened. At rest a page shows `c` and `e`.
-    expect(
-        page.locator(".lf-shortcut-bar .lf-shortcut:not([data-lf-off-line])")
-    ).not_to_have_count(0)
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
     page.locator("#off-workaround-review .lf-pick").first.click()
-    expect_asks_answered(page, "0/2")
+    expect_obligations_answered(page, "0/2")
     undo(page)
-    expect_asks_answered(page, "1/2")
+    expect_obligations_answered(page, "1/2")
 
 
 @pytest.mark.parametrize("size", [(1200, 520), (509, 429)])

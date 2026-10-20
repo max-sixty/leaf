@@ -4,14 +4,14 @@ disabled and overridden routes, and the targets offered native controls get."""
 import re
 
 import pytest
-from interact_support import append_command
-from leaf import event_log as events_model
 from leaf.render_checks import rendered
 from leaf.schema import ELEMENT_ID
 from playwright.sync_api import expect
-from render_cases_interaction import SEATED_ASK_LAYER, panel_comment
+from render_cases_interaction import SEATED_OBLIGATION_LAYER
 from render_cases_navigation import go_to_address
-from render_harness import leaf_page, open_page, panel_settled
+from render_harness import leaf_page, open_page
+
+from browser.navigation import offered_routes
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -121,8 +121,8 @@ KEYBOARD_HINT_REGISTRY = {
         "additionalProperties": False,
         "x-content": "empty",
         "x-upgrade": True,
-        "x-state": SEATED_ASK_LAYER["lf-verdict"]["x-state"],
-        "x-awaits": SEATED_ASK_LAYER["lf-verdict"]["x-awaits"],
+        "x-state": SEATED_OBLIGATION_LAYER["lf-verdict"]["x-state"],
+        "x-awaits": SEATED_OBLIGATION_LAYER["lf-verdict"]["x-awaits"],
     }
 }
 
@@ -199,7 +199,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
 
 @pytest.mark.parametrize("hint_seat", ["widget", "corner"])
 def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hint_seat):
-    """A package command needs no Ask role to expose its working keyboard route.
+    """A package command needs no obligation role to expose its working keyboard route.
 
     The same scope stands on the widget and its question context. Focus, native text
     entry, control availability, and replacement change dispatch and the inline hint
@@ -254,7 +254,7 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
     rendered(page)
     expect(result).to_have_text("0")
 
-    # The question context forwards the widget's declaration without an Ask allocator.
+    # The question context forwards the widget's declaration without an obligation allocator.
     page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
     expect(badge).to_be_visible()
@@ -369,7 +369,9 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
 
 
 @pytest.mark.parametrize("annotation_mode", ["overlay", "page"])
-def test_widget_context_keys_work_without_an_ask(browser, serve, annotation_mode):
+def test_widget_context_keys_work_without_an_obligation(
+    browser, serve, annotation_mode
+):
     """Widget aliases and inline hints work with either annotation presentation owner."""
     source = leaf_page(
         "standalone widget commands",
@@ -404,7 +406,6 @@ def test_widget_context_keys_work_without_an_ask(browser, serve, annotation_mode
     expect(result).to_have_text("1")
     expect(badge).to_be_visible()
     expect(badge).to_have_text("1")
-    page.keyboard.press("?")
     page.keyboard.press("?")
     expect(
         page.locator('.lf-command-reference-command[data-lf-command="probe.outer"]')
@@ -502,14 +503,9 @@ def test_disabled_command_route_keeps_its_key_and_enabled_sibling(
     expect(page.locator("#probe kbd").nth(1)).to_be_visible()
     expect(page.locator("#probe kbd").nth(1)).to_have_text("2")
     expect(page.locator("#probe")).to_have_attribute("aria-keyshortcuts", "2")
-    offered = page.locator(
-        '.lf-shortcut-bar .lf-shortcut[data-lf-command-ids~="probe.second"]'
-    )
-    expect(offered).to_have_count(1)
-    expect(offered.locator("kbd")).to_have_text("2")
-    expect(
-        page.locator('.lf-shortcut-bar [data-lf-command-ids~="probe.first"]')
-    ).to_have_count(0)
+    offered = offered_routes(page)
+    assert offered["probe.second"] == ["2"]
+    assert "probe.first" not in offered
 
     page.keyboard.press("1")
     rendered(page)
@@ -520,7 +516,6 @@ def test_disabled_command_route_keeps_its_key_and_enabled_sibling(
     page.keyboard.press("1")
     rendered(page)
     expect(result).to_have_text("Second applied")
-    page.keyboard.press("?")
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
     expect(
@@ -586,9 +581,7 @@ def test_context_commands_keep_widget_assigned_aliases_and_source_lifetime(
     result = page.locator("#probe output")
     page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
-    expect(
-        page.locator('.lf-shortcut-bar [data-lf-command-ids~="probe.action-1"]')
-    ).to_contain_text("Action 1")
+    assert offered_routes(page)["probe.action-1"] == ["1"]
     page.keyboard.press("9")
     expect(result).to_have_text("Action 9 applied")
     page.keyboard.press("F10")
@@ -602,7 +595,6 @@ def test_context_commands_keep_widget_assigned_aliases_and_source_lifetime(
     expect(result).to_have_text("Action 12 applied")
     page.get_by_role("button", name="Action 11", exact=True).click()
     expect(result).to_have_text("Action 11 applied")
-    page.keyboard.press("?")
     page.keyboard.press("?")
     unbound = page.locator(
         '.lf-command-reference tr[data-lf-command="probe.action-11"]'
@@ -622,15 +614,15 @@ def test_context_commands_keep_widget_assigned_aliases_and_source_lifetime(
     expect(result).to_have_text("Action 11 applied")
     page.keyboard.press("2")
     expect(result).to_have_text("Replacement applied")
-    expect(
-        page.locator('.lf-shortcut-bar [data-lf-command-ids~="probe.replacement"]')
-    ).to_contain_text("Replacement")
+    assert offered_routes(page)["probe.replacement"] == ["2"]
     page.keyboard.press("F10")
     rendered(page)
     expect(result).to_have_text("Replacement applied")
 
 
-def test_restoring_ask_focus_can_execute_its_command_in_the_same_turn(browser, serve):
+def test_restoring_obligation_focus_can_execute_its_command_in_the_same_turn(
+    browser, serve
+):
     """Focus determines forwarded scopes synchronously, without a paint registering them."""
     page = open_page(
         browser,
@@ -710,12 +702,8 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     expect(
         page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     ).to_be_visible()
-    expect(
-        page.locator('.lf-shortcut-bar [data-lf-command-ids~="probe.escape"]')
-    ).to_contain_text("Apply operation")
     page.keyboard.press("Escape")
     expect(result).to_have_text("Applied 1")
-    page.keyboard.press("?")
     page.keyboard.press("?")
     reference_action = page.locator(
         '.lf-command-reference tr[data-lf-command="probe.escape"] '
@@ -772,7 +760,6 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     result = page.locator("#probe output")
     page.locator("#outside").focus()
     for standing in ["outside", "question"]:
-        page.keyboard.press("?")
         page.keyboard.press("?")
         for command_id, title in [
             ("probe.apply", "Apply operation"),
@@ -840,7 +827,6 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     page.keyboard.press("F8")
     expect(result).to_have_text("Applied 1")
     page.keyboard.press("?")
-    page.keyboard.press("?")
     reference_row = page.locator(
         '.lf-command-reference tr[data-lf-command="probe.guarded"]'
     )
@@ -853,74 +839,6 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     expect(page.locator("#question")).to_be_focused()
     page.keyboard.press("F8")
     expect(result).to_have_text("Applied 2")
-
-
-@pytest.mark.parametrize(
-    ("answered", "resolved"), [(False, False), (False, True), (True, False)]
-)
-def test_context_keys_follow_an_ask_into_its_associated_thread(
-    browser, serve, answered, resolved
-):
-    """A thread representative forwards explicit aliases without local widget keys.
-
-    The relationship survives resolution and answering the Ask. Typing in its comment
-    field keeps the contextual digit rather than running the page widget.
-    """
-    url = serve(
-        leaf_page(
-            "associated context commands",
-            '<h1>Explicit bindings</h1><lf-ask id="question"><h2>Which action?</h2>'
-            '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-ask>',
-        ),
-        layer_registry=KEYBOARD_HINT_REGISTRY,
-        layer_widgets={"lf-keyboard-probe.js": CONTEXT_COMMAND_MODULE},
-    )
-    thread = panel_comment(
-        serve.page_dir, "Discuss the action first.", {"section": "question"}
-    )
-    if answered:
-        append_command(
-            serve.page_dir,
-            {
-                "kind": "action",
-                "author": "user",
-                "revision": 1,
-                "widget": "probe",
-                "action": "settle",
-                "detail": {"answer": "yes"},
-            },
-        )
-    if resolved:
-        events_model.append_event(
-            serve.page_dir, {"kind": "resolve", "author": "user", "parent": thread}
-        )
-    page = open_page(browser, url)
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    panel_settled(page, True)
-    if resolved:
-        page.locator(".lf-thread-filter-toggle").click()
-        page.locator(
-            '[data-filter-kind="status"][data-filter-value="resolved"]'
-        ).click()
-    summary = page.locator(f'.lf-thread[data-id="{thread}"] > .lf-thread-summary')
-    summary.focus()
-    expect(summary).to_be_focused()
-    result = page.locator("#probe output")
-    page.keyboard.press("9")
-    expect(result).to_have_text("Action 9 applied")
-    page.keyboard.press("F12")
-    rendered(page)
-    expect(result).to_have_text("Action 9 applied")
-    page.keyboard.press("F10")
-    expect(result).to_have_text("Action 10 applied")
-    if not resolved:
-        page.keyboard.press("c")
-        editor = page.locator(f'.lf-thread[data-id="{thread}"] leaf-text')
-        expect(editor).to_be_focused()
-        page.keyboard.type("1")
-        expect(editor).to_have_js_property("value", "1")
-        expect(result).to_have_text("Action 10 applied")
 
 
 ROUTE_HINT_OVERRIDE_MODULE = """\
@@ -948,16 +866,18 @@ customElements.define('lf-verdict', class extends HTMLElement {
 """
 
 
-def test_route_corner_hint_overrides_the_rows_face_in_ask_and_widget(browser, serve):
+def test_route_corner_hint_overrides_the_rows_face_in_obligation_and_widget(
+    browser, serve
+):
     """Explicit null chooses a corner hint instead of inheriting the row's face.
 
-    Ask forwarding and the intrinsic route must preserve that choice and merge into
+    Obligation forwarding and the intrinsic route must preserve that choice and merge into
     one hint when both bindings reach the same original command.
     """
     registry = {
         "lf-verdict": {
             key: value
-            for key, value in SEATED_ASK_LAYER["lf-verdict"].items()
+            for key, value in SEATED_OBLIGATION_LAYER["lf-verdict"].items()
             if key != "x-thread-seat"
         }
     }

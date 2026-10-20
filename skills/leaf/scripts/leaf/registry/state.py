@@ -70,7 +70,6 @@ def validate_widget_state_relations(
             owner_keys = (
                 "x-state",
                 "x-awaits",
-                "x-ask-context",
                 "x-work",
                 "x-history",
                 "x-thread-seat",
@@ -125,8 +124,8 @@ def validate_widget_record_contracts(
     path,
 ) -> None:
     # `resolves` is a reserved attribute: the comment thread an answer to this
-    # widget's own ask closes, which admission reads off the sending document into
-    # the answering action's meaning. On a widget with no local ask nothing would
+    # widget's own obligation closes, which admission reads off the sending document into
+    # the answering action's meaning. On a widget with no local obligation nothing would
     # ever read it, so the name means that or is refused here.
     if "resolves" in properties and not (entry.get("x-awaits") or {}).get("answered"):
         raise registry_error("reserved-resolves", path, tag)

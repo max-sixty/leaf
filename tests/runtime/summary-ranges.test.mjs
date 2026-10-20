@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { summaryRanges, withPendingProgress } from "/runtime/thread/summary-ranges.js";
-import { threadSearchReading } from "/runtime/thread/narrowing.js";
 
 const messages = ["a", "b", "c", "d", "e"].map((id) => ({ id, key: id }));
 
@@ -64,25 +63,4 @@ test("reaction ids inside canonical coverage do not break the visible range", ()
     ),
     ["a", ["b", "c"], "d", "e"],
   );
-});
-
-test("thread search identifies matching originals independently of summary prose", () => {
-  const thread = {
-    msgs: [
-      {
-        id: "a",
-        text: "opening words",
-        body: { kind: "prose", text: "opening words" },
-      },
-      {
-        id: "b",
-        text: "original camera detail",
-        body: { kind: "authored", text: "Measured in 18 minutes" },
-      },
-    ],
-    summaries: [{ id: "s1", text: "checkpoint about the schedule" }],
-  };
-  assert.deepEqual(threadSearchReading(thread, "camera").messages, ["b"]);
-  assert.deepEqual(threadSearchReading(thread, "schedule").messages, []);
-  assert.deepEqual(threadSearchReading(thread, "18 minutes").messages, ["b"]);
 });

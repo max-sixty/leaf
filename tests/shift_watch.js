@@ -37,9 +37,10 @@
 // scrollport by its measured suffix growth: new children, the existing ones retaining
 // their boxes, or, where none joins, its last child growing at its foot where that
 // child declares itself the growing tail (`data-lf-append-tail`), as a thread's
-// working message and a reply still streaming do. A scrollport that grows at its foot
-// by no more than that growth, as a floating card sized to its thread does, is
-// stationary for this: it keeps its other edges. One that declares it stands on its
+// working message and a reply still streaming do, or that tail giving way to the
+// children joining in its place, as the working message does to the answer. A
+// scrollport that grows at its foot by no more than that growth, as a floating card
+// sized to its thread does, is stationary for this: it keeps its other edges. One that declares it stands on its
 // foot (`data-lf-rises`), as the floating panel's thread view stands on its row, may
 // instead rise at its head by no more than that growth, carrying all it holds, and its
 // own head, up by its rise: the one case where news may carry controls (`appendGrowth`).
@@ -98,18 +99,33 @@
 // the frame after one that read an announced change, since native anchoring
 // follows its scroller a frame late. Each announcement is made in the task of the
 // change it covers: DOM writes in the document and every shadow root; a running
-// animation anywhere in the composed tree, or one that stopped or left the set;
-// input, focus, scroll, drag, resize, load, reset and beforetoggle events; the
-// emulated media tests change; this frame's own visibility; and the calls that
-// restyle without a DOM write (custom states, constructed and adopted sheets,
-// form-control values and ranges, animation mutators). A child cannot observe every
-// change in its embedding page, so child-frame readings remain complete. Every
+// animation anywhere in the composed tree, or one that stopped or left the set,
+// except a scroll-driven one, which moves only as the scroll and layout announced
+// here move it; input, focus, scroll, drag, resize, load, reset and beforetoggle
+// events; the emulated media tests change; this frame's own visibility; and the
+// calls that restyle without a DOM write (custom states, constructed and adopted
+// sheets, form-control values and ranges, animation mutators). A child cannot
+// observe every change in its embedding page, so child-frame readings remain
+// complete. Every
 // VERIFY-th unannounced frame, and the first one once the fixture asks for the test's
 // verdict, reads completely and fails where any reading differs, naming the innermost
 // node that changed, so a source missing from this list is found rather than
 // leaving the readings between entries stale. A page that writes while it is read
 // announces its change by that write. A change to this gate runs the suite with
 // VERIFY = 1, which checks every frame.
+//
+// Unpresented frames. Until the runtime stamps `data-lf-presented`, movement without
+// input is exempt (Scope: the page before it presents). While such a page is still
+// changing, with nothing focused and no input's rendering retained, a frame takes no
+// complete reading and leaves its changes unread. The first frame in which the page
+// rests reads them, and so does a trusted input before any of the page's handlers
+// run; focus, an input's rendering or the stamp then ends the deferral. So
+// verification and the poses an input's verdicts look back to are read as before,
+// with one known exception: on a page that never rests, a script that scrolls and
+// focuses in one task moves an anchored field before the watch first sees it, and
+// that scroll goes uncredited if typing follows within a frame. A page still
+// upgrading changes in nearly every frame, and each of those readings forced a style
+// and layout pass of its own.
 //
 // Movement findings retain the exact comparison and credits that decided them,
 // alongside the sampled scroll/attachment/animation inputs. Only admitted failures
@@ -338,8 +354,13 @@
   // complete one (the header's "Unchanged frames"). Each source sets it in the same
   // task as the change it announces, so it is set before the next frame's reading.
   let unread = true;
+  // Whether anything was announced since the last frame's reading, which tells a frame
+  // where the page is still changing from one where it has come to rest.
+  let fresh = true;
+  // Whether a frame has left changes unread before the page presented.
+  let deferring = false;
   const announce = () => {
-    unread = true;
+    unread = fresh = true;
   };
   const writes = new MutationObserver(announce);
   // Input, scrolling, loads and native element state, heard in each tree they are
@@ -869,20 +890,31 @@
     const nativeCameras = readCameras(selections);
     readMotion(at);
     // A running animation changes poses on every frame, and the frame after it stops
-    // or leaves the set settles the last of them.
+    // or leaves the set settles the last of them. A scroll-driven one moves only as
+    // its scroller scrolls or its layout changes, which announce themselves, so it
+    // reads completely only on those frames, as the contents' window does in lf-toc.
     const animations = allAnimations();
-    const running = animations.some(({ playState }) => playState === "running");
-    if (writes.takeRecords().length) unread = true;
-    // An embedding page can hide this document's frame without telling it.
-    const drawn = drawing();
-    const announced =
-      unread ||
-      window !== top ||
+    const running = animations.some(
+      ({ playState, timeline }) =>
+        playState === "running" &&
+        !(
+          typeof window.ScrollTimeline === "function" &&
+          timeline instanceof ScrollTimeline
+        ),
+    );
+    if (writes.takeRecords().length) unread = fresh = true;
+    // A child frame reads completely on every frame, since its embedding page can
+    // hide or move it without telling it; only a hidden tab announces itself here.
+    const drawn = !document.hidden;
+    const active =
+      fresh ||
       drawn !== wasDrawn ||
       running ||
       wasRunning ||
       animations.length !== seenAnimations.length ||
       animations.some((animation, i) => animation !== seenAnimations[i]);
+    if (frame) fresh = false;
+    const announced = unread || window !== top || active;
     // Native anchoring follows its scroller one frame late, so the frame after the
     // one that reads an announced change reads completely too.
     const changing = announced || (frame && owed > 0);
@@ -891,8 +923,12 @@
     wasRunning = running;
     wasDrawn = drawn;
     seenAnimations = animations;
-    const verifying = !changing && frame && ++quiet % VERIFY === 0;
-    if (!changing && !verifying) {
+    // A page still changing before it presents leaves its changes unread for the
+    // first frame where it rests ("Unpresented frames" above).
+    const deferred = frame && active && unpresented();
+    if (deferred) unread = deferring = true;
+    const verifying = !deferred && !changing && frame && ++quiet % VERIFY === 0;
+    if (deferred || (!changing && !verifying)) {
       if (frame)
         frames.push({
           at,
@@ -904,7 +940,7 @@
         });
       return at;
     }
-    unread = false;
+    unread = deferring = false;
     if (changing) quiet = 0;
     const misses = [];
     const nodes = everything();
@@ -1131,7 +1167,7 @@
     if (entry) entry.written = written;
     // A page that wrote while it was read, as a reading that patches the DOM API
     // does, announced its own change.
-    if (writes.takeRecords().length) unread = true;
+    if (writes.takeRecords().length) unread = fresh = true;
     else if (misses.length) missed(misses);
     return at;
   };
@@ -1290,6 +1326,7 @@
   // Shifts whose frame has no reading after it yet.
   const waiting = [];
   const tick = (time) => {
+    presentationChanged();
     const at = read(time);
     if (open) {
       // Effects begun before news retain their exact property evidence below.
@@ -1361,9 +1398,10 @@
     );
   });
   // Resizing and media preferences change the browser's presentation. Their new
-  // state is the fact: layout can precede the native event, and a shift record
-  // delivered between them already reads the new presentation, so the observer checks
-  // it before reading. The preceding pose seals typing; taking a new pose here would
+  // state is the fact: layout can precede the native event, as when an embedding page
+  // resizes a frame and the frame lays out and paints before its resize event, so each
+  // frame checks it before reading, and so does the observer before a shift record
+  // delivered meanwhile. The preceding pose seals typing; taking a new pose here would
   // attribute the presentation change to the key.
   const presentationState = () => [
     innerWidth,
@@ -1403,6 +1441,25 @@
     );
     if (event.type === "click") presses.delete(event.pointerId);
   };
+  // An input's credits look back to the poses it began from, so where frames left
+  // changes unread, read them before any handler of the page's can move anything.
+  for (const type of [
+    "keydown",
+    "pointerdown",
+    "pointermove",
+    "pointerup",
+    "click",
+    "wheel",
+  ])
+    listen(
+      window,
+      type,
+      (event) => {
+        if (deferring && event.isTrusted && (type !== "pointermove" || event.buttons))
+          read(nativePerformance.now(), false);
+      },
+      true,
+    );
   for (let view = window; ; view = view.parent) {
     let held;
     try {
@@ -1424,6 +1481,14 @@
     listen(held, "pointercancel", (event) => presses.delete(event.pointerId), true);
     if (view === view.parent) break;
   }
+  // An embedding page this document cannot read, as an opaque sample's host is, sends
+  // its input here only as work its port carries under that input's source, which
+  // input_work_watch.js marks `carried`. The first such work opens the input's
+  // rendering here, as hearing the input would have.
+  window.lfInputWork.subscribe((source) => {
+    if (source?.carried && !inputRenderings.has(source.event))
+      begin(nativePerformance.now(), null, new Set(), source.event);
+  });
   // Each finding goes to the fixture as a record (`leaf/findings.py` words it),
   // once per `key`, with every node in it named.
   const reported = new Set();
@@ -1489,6 +1554,11 @@
     (presented === null ||
       startTime < presented ||
       returns.some(({ start, through }) => startTime >= start && startTime <= through));
+  const unpresented = () =>
+    presented === null &&
+    renderings.length === 0 &&
+    (document.activeElement ?? document.body) === document.body &&
+    document.querySelector("script[data-lf-entry]") !== null;
   const permittedReflow = ({ node, previousRect, currentRect }, around) => {
     const element = node?.nodeType === Node.TEXT_NODE ? up(node) : node;
     if (around.length !== 3) return false;
@@ -1635,26 +1705,55 @@
       // where none joins, the last old one grows at its foot where it declares itself
       // the region's growing tail (`data-lf-append-tail`), as a thread's working
       // message does, taking a longer step, and a streaming reply, taking more words.
+      // A tail may also give way to what it stood for, as the working message does to
+      // the answer: it leaves, the others keep their boxes, and what joins stands
+      // from where it stood. A child with no box, such as a thread's folded
+      // checkpoint, has nothing to keep, so another may take its place.
+      const tail = before.at(-1);
+      const tailBox = tail && read(tail, first);
+      const boxless = (node, at) => {
+        const box = read(node, at);
+        return box && box.bottom - box.top < 0.5;
+      };
+      const replaced =
+        Boolean(tailBox) &&
+        paintAt(tail, first)?.appendTail &&
+        !after.includes(tail) &&
+        after.length >= before.length &&
+        before
+          .slice(0, -1)
+          .every(
+            (child, i) =>
+              (readings.every((paint) => paint.appendChildren[i] === child) &&
+                stable(child)) ||
+              (boxless(child, first) && boxless(after[i], last)),
+          ) &&
+        after.slice(before.length - 1).every((child) => {
+          const box = read(child, last);
+          return box && box.top >= tailBox.top - 1;
+        });
       if (
         !before.length ||
-        after.length < before.length ||
-        !before.every(
-          (child, i) =>
-            readings.every((paint) => paint.appendChildren[i] === child) &&
-            (stable(child) ||
-              (after.length === before.length &&
-                i === before.length - 1 &&
-                // Read before the growth: a streaming reply that completes drops
-                // the mark in the render that adds its last words.
-                paintAt(child, first)?.appendTail &&
-                footGrowth(child, grown) &&
-                // The tail's own growth is the region's whole growth.
-                Math.abs(read(child, last).bottom - read(child, first).bottom - grown) <
-                  1)),
-        ) ||
-        // Where none joins, the growth is the tail's: the region's own box growing
-        // around unchanged children is no arrival.
-        (after.length === before.length && stable(before.at(-1))) ||
+        (!replaced &&
+          (after.length < before.length ||
+            !before.every(
+              (child, i) =>
+                readings.every((paint) => paint.appendChildren[i] === child) &&
+                (stable(child) ||
+                  (after.length === before.length &&
+                    i === before.length - 1 &&
+                    // Read before the growth: a streaming reply that completes drops
+                    // the mark in the render that adds its last words.
+                    paintAt(child, first)?.appendTail &&
+                    footGrowth(child, grown) &&
+                    // The tail's own growth is the region's whole growth.
+                    Math.abs(
+                      read(child, last).bottom - read(child, first).bottom - grown,
+                    ) < 1)),
+            ) ||
+            // Where none joins, the growth is the tail's: the region's own box growing
+            // around unchanged children is no arrival.
+            (after.length === before.length && stable(before.at(-1))))) ||
         !footGrowth(source, grown)
       )
         return [];
@@ -2213,6 +2312,16 @@
     };
   };
   const pendingMotion = [];
+  // Whether a frame's reading held `node`. A node that left the page keeps its last
+  // reading in the ledger, so a node that returns elsewhere, as a notice taken down
+  // and later shown again does, would otherwise read as carried from where it last
+  // stood; what returns is a new reading, which no motion compares.
+  const frameNodes = new WeakMap();
+  const readIn = (frame, node) => {
+    let held = frameNodes.get(frame.nodes);
+    if (!held) frameNodes.set(frame.nodes, (held = new Set(frame.nodes)));
+    return held.has(node);
+  };
   const protectedMotion = (around) => {
     const growth = appendGrowth(around);
     for (const node of new Set(around.flatMap(({ nodes }) => nodes))) {
@@ -2275,6 +2384,8 @@
             fromPaint.paintable &&
             toPaint.paintable &&
             (fromPaint.visible || toPaint.visible) &&
+            readIn(around[before], node) &&
+            readIn(around[after], node) &&
             !permittedAppend(node, previousRect, currentRect, around, growth) &&
             !permittedReflow({ node, previousRect, currentRect }, around)
           )
@@ -2563,14 +2674,6 @@
     );
   };
   checkpoint();
-  const drawing = () => {
-    if (document.hidden) return false;
-    // Frame-owner visibility belongs to the driver, which can read across
-    // origins and refreshes this fact while draining. A document's ancestor
-    // window walk can lose access when a same-origin blank frame is sandboxed.
-    if (window.lfWatchJudgement?.ancestorsDrawn === false) return false;
-    return true;
-  };
   // The fixture awaits actual paint and observer drainage. An outer hang watchdog
   // may fail this wait; no elapsed-time fallback can turn unfinished paint green.
   window.lfShiftsJudged = () => {
@@ -2578,36 +2681,65 @@
     // periodic check still has its last change compared.
     quiet = VERIFY - 1;
     const through = nativePerformance.now();
-    const hidden = () => {
-      // Hidden documents have no pending native paint. Their existing records are
-      // still judged against a fresh pose; visibility is a fact, not a time limit.
+    // A document nobody can see has no paint pending on screen: Chrome stops
+    // rendering a hidden tab, and a child frame its embedding page hides, clips or
+    // scrolls out of the viewport, as it does a gallery's samples below the fold.
+    // Its existing records are still judged against a fresh pose; whether it is on
+    // screen is a native fact, not a time limit.
+    const unseen = () => {
       read(nativePerformance.now());
       drained(through);
     };
-    if (!drawing()) {
-      hidden();
+    if (document.hidden) {
+      unseen();
       return Promise.resolve();
     }
     return new Promise((resolve) => {
       let complete = false;
-      let visibilityTask;
+      const leftScreen = () => {
+        if (complete) return;
+        try {
+          unseen();
+        } finally {
+          finish();
+        }
+      };
+      const tabHidden = () => {
+        if (document.hidden) leftScreen();
+      };
+      // Intersection with the top-level viewport covers every way an embedding page
+      // takes a frame off screen, across origins, and Chrome delivers it to a frame
+      // whose rendering it has stopped. It is read through a box the watch stands
+      // over the frame's own viewport while it waits, since the root's box can scroll
+      // out of that viewport, as a live page's does. Its first entry reports the
+      // present state. The runtime instead asks the page holding the frame
+      // (runtime/frame-visibility.js), which no page's own styles can mislead; the
+      // watch runs in every frame, Leaf's or not, before that runtime, and has no
+      // holder to ask. A page whose styles transform `html` carries this box off
+      // screen with its root, so the watch judges it as hidden.
+      let screen = null;
+      let onScreen = null;
+      if (window !== top) {
+        screen = document.createElement("lf-shift-screen");
+        screen.style.cssText =
+          "all:initial;position:fixed;inset:0;visibility:hidden;pointer-events:none";
+        cameraNodes.add(screen);
+        document.documentElement.append(screen);
+        onScreen = new IntersectionObserver((entries) => {
+          if (!entries.at(-1).isIntersecting) leftScreen();
+        });
+        onScreen.observe(screen);
+      }
       const finish = () => {
         if (complete) return;
         complete = true;
-        window.lfWatchPlatform.cancelLater(visibilityTask);
+        onScreen?.disconnect();
+        screen?.remove();
+        cameraNodes.delete(screen);
+        document.removeEventListener("visibilitychange", tabHidden);
         resolve();
       };
-      // Display can change through CSSOM, media queries or ancestor layout without
-      // a DOM mutation or visibility event. Poll its platform fact while paint is
-      // pending; the interval schedules a reading and never decides the result.
-      const visibility = () => {
-        if (complete) return;
-        if (!drawing()) {
-          hidden();
-          finish();
-        } else visibilityTask = nativeTask(visibility, 100);
-      };
-      visibilityTask = nativeTask(visibility, 100);
+      document.addEventListener("visibilitychange", tabHidden);
       nativeFrame(() =>
         nativeFrame(() =>
           nativeTask(() => {

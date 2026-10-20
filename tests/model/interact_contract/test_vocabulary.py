@@ -237,17 +237,17 @@ def test_a_page_with_no_revision_reads_its_candidate_vocabulary(page_dir):
         assert vocabulary["lf-local"] == declaration
 
 
-@pytest.mark.parametrize("active_ask", [True, False])
-def test_late_gesture_wakes_for_the_active_vocabulary(page_dir, active_ask):
+@pytest.mark.parametrize("active_obligation", [True, False])
+def test_late_gesture_wakes_for_the_active_vocabulary(page_dir, active_obligation):
     """An old tab validates under its capture and changes the current page's debt."""
     from leaf.state import write_json
 
     layer = deepcopy(registry_storage.load_registry(page_dir))
     awaits = layer["lf-options"].pop("x-awaits")
 
-    def publish_choice(has_ask):
+    def publish_choice(has_obligation):
         vocabulary = deepcopy(layer)
-        if has_ask:
+        if has_obligation:
             vocabulary["lf-options"]["x-awaits"] = awaits
         write_json(page_dir / "registry.json", vocabulary)
         group = (
@@ -255,14 +255,14 @@ def test_late_gesture_wakes_for_the_active_vocabulary(page_dir, active_ask):
             '<lf-option id="first">First</lf-option>'
             '<lf-option id="second">Second</lf-option></lf-options>'
         )
-        if has_ask:
+        if has_obligation:
             group = '<lf-ask id="ask"><h2>Which one?</h2>' + group + "</lf-ask>"
         (page_dir / "index.html").write_text(model.leaf_page("Choice", group))
         publish(page_dir)
 
-    publish_choice(not active_ask)
+    publish_choice(not active_obligation)
     original = files_model.latest_revision(page_dir)
-    publish_choice(active_ask)
+    publish_choice(active_obligation)
     assert files_model.latest_revision(page_dir) > original
 
     action = append_command(
@@ -276,10 +276,10 @@ def test_late_gesture_wakes_for_the_active_vocabulary(page_dir, active_ask):
             "detail": {"value": ["first"]},
         },
     )
-    assert action["attention"] is active_ask
-    assert ("answer" in action["meaning"]) is not active_ask
+    assert action["attention"] is active_obligation
+    assert ("answer" in action["meaning"]) is not active_obligation
     assert service_model.unacknowledged(events_model.read_events(page_dir), 0) == (
-        [action] if active_ask else []
+        [action] if active_obligation else []
     )
 
 

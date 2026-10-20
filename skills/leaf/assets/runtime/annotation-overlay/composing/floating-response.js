@@ -9,14 +9,14 @@
    through attachment changes under the shared rule in comment-placement.js;
    its durable anchor and native editor stay intact.
 
-   A detached draft uses the shared unanchored window posture, preserving its original
-   anchor and native editor. An explicit open uses that same posture while its existing
+   A detached draft stands beside the words the user selected while the browser Range
+   that selected them still holds them (`selectedPassage`), so a refused send's box
+   comes back where it stood; past that, it uses the shared unanchored window posture,
+   preserving its original anchor and native editor. An explicit open uses that same posture while its existing
    subject is hidden; a seated editor withholds instead. Resume writing can recover it
    even after that passage is gone.
    An attached editing field follows its passage out of view. The existing Resume writing route
-   reveals that same field; no window seat or duplicate input stands in for it. A covering
-   auxiliary surface withholds the page's response bar and takes its focus until the page is
-   available again.
+   reveals that same field; no window seat or duplicate input stands in for it.
 
    The floating bar shows while a placement stands it (`data-lf-placement`) and no lack of
    room withholds it (`data-lf-withheld`); annotation-chrome.css hides it otherwise. This
@@ -36,13 +36,7 @@ import {
 } from "../../resolved-target.js";
 import { blockAt, pageRange, quoteFrom, segmentsIn } from "../../passages.js";
 import { pageSelection, selectionAnchor } from "../../composing/capture.js";
-import {
-  closeLayer,
-  drawn,
-  holdFocus,
-  focusDestination,
-  coveringFocus,
-} from "../../focus.js";
+import { closeLayer, drawn, holdFocus } from "../../focus.js";
 import { coarsePointer } from "../../pointer.js";
 import { LAYOUT } from "../../widget-elements.js";
 import { under } from "../../shadow.js";
@@ -56,14 +50,12 @@ import {
   commentPlacement,
 } from "../comment-placement.js";
 import { pointBand } from "../../pointed-place.js";
-import { keeps, layoutPx } from "../../keeps.js";
+import { keeps, roomPx } from "../../keeps.js";
 
 export function createFloatingResponsePlacement({
   bar: fabBar,
   input: fabInput,
   response,
-  panelIsOpen,
-  threadsBox,
   positioned,
   dismiss,
   scrollToElement,
@@ -110,13 +102,16 @@ export function createFloatingResponsePlacement({
   });
   fabBar.append(carry.grip);
   // The browser's selected Range is a mechanical place even when its durable quote
-  // is ambiguous. Keep it for this response transaction, only while its original
-  // endpoints survive. A revision replacing them retires it; semantic resolution
-  // is the only way to identify that passage again after the node lifetime ends.
-  // The detached draft itself remains reachable in the unanchored window posture.
+  // is ambiguous. Keep it for its anchor, only while its original endpoints survive,
+  // across the box's tenures: the box coming back to that draft, as a refused send's
+  // words or Resume writing bring it, stands beside the words it was written on, which
+  // a detached anchor alone cannot find again. A revision replacing them retires it;
+  // semantic resolution is the only way to identify that passage again after the node
+  // lifetime ends. The detached draft itself remains reachable in the unanchored window
+  // posture.
   let selectedPassage = null;
   const fabFrameAt = () => {
-    if (!response.open || !response.floating || panelIsOpen()) return null;
+    if (!response.open || !response.floating) return null;
     const bar = fabBar.getBoundingClientRect();
     const field = fabInput.getBoundingClientRect();
     const style = getComputedStyle(fabBar);
@@ -135,7 +130,6 @@ export function createFloatingResponsePlacement({
         width * scaleX,
         height * scaleY,
       ).toJSON(),
-      width,
       placement: fabPlacement.capture(),
       // How far the words stand above their end: where the user was reading them,
       // which the card Send opens keeps (thread-preview.js, `showArrival`).
@@ -144,7 +138,7 @@ export function createFloatingResponsePlacement({
   };
   // Where the frame's native rows end. Used grid tracks exclude transformed descendant
   // paint. Withholding requires only the current controls to fit, so they may borrow the
-  // footer reserved for the future card when space is short.
+  // transparent footer reserved for the future card when space is short.
   const nativeRowEnd = () => {
     const style = getComputedStyle(fabBar);
     const rows = style.gridTemplateRows.split(" ").map(parseFloat);
@@ -338,10 +332,6 @@ export function createFloatingResponsePlacement({
   // beside that whole place, or above/below it when the rail is too narrow.
   function placeFab({ reveal = false } = {}) {
     if (!response.anchor) return false;
-    if (coveringFocus()) {
-      withholdFab();
-      return false;
-    }
     const geometry = anchorGeometry(response.anchor);
     if (!geometry && !response.open) return false;
     // Placement needs the actual block holding the native selection, independently
@@ -393,11 +383,11 @@ export function createFloatingResponsePlacement({
     // the target instead of silently moving the draft.
     const setWidth = (available, scale) => {
       const room = available;
-      fabBar.style.setProperty("--lf-float-w", layoutPx(Math.max(0, room)));
+      fabBar.style.setProperty("--lf-float-w", roomPx(Math.max(0, room)));
       if (Math.ceil(fabBar.offsetWidth) > Math.ceil(room))
         fabBar.style.setProperty(
           "--lf-float-w",
-          layoutPx(Math.max(0, boundary.width / scale)),
+          roomPx(Math.max(0, boundary.width / scale)),
         );
     };
     // The frame may grow to the whole boundary on any side, past the room its held edge
@@ -409,7 +399,7 @@ export function createFloatingResponsePlacement({
       if (!response.open) return;
       fabBar.style.setProperty(
         "--lf-float-h",
-        layoutPx(Math.max(0, boundary.height / scale)),
+        roomPx(Math.max(0, boundary.height / scale)),
       );
     };
     fabPlacement.choose({
@@ -483,11 +473,9 @@ export function createFloatingResponsePlacement({
   // Withholds the bar while the usable window cannot contain it, keeping its draft,
   // anchor, side, and caret. Hiding a focused bar drops focus to nowhere, so it keeps
   // the user's place (`holdFocus`) and returns focus when room comes back, unless they
-  // focused something else meanwhile. Where an auxiliary surface took the room, it
-  // takes focus. While the bar waits, its composer scope and selection
-  // rung stand down; `c` brings it back.
+  // focused something else meanwhile. While the bar waits, its composer scope and
+  // selection rung stand down; `c` brings it back.
   function withholdFab() {
-    const covered = coveringFocus();
     // Keep the target watch and its native frame: hiding retires the solve, not the
     // subject's lifetime. Its next visibility or geometry change can seat it again.
     nativeAttachment = false;
@@ -495,13 +483,8 @@ export function createFloatingResponsePlacement({
     if (fabWithheld) return;
     fabWithheld = true;
     const held = holdFocus(fabBar);
-    const destination = covered ?? (panelIsOpen() && !fabFits() ? threadsBox : null);
-    const toSurface = held && destination;
-    closeLayer(
-      () => fabBar.toggleAttribute("data-lf-withheld", true),
-      toSurface && (() => focusDestination(destination, "return")),
-    );
-    if (!toSurface) fabWithheldFocus = held;
+    closeLayer(() => fabBar.toggleAttribute("data-lf-withheld", true));
+    fabWithheldFocus = held;
   }
   // The bar is in view again, by whichever placement put it there.
   function stoodAgain() {
@@ -552,7 +535,6 @@ export function createFloatingResponsePlacement({
     release: () => {
       editingAttachment = null;
       windowPosture = false;
-      selectedPassage = null;
       fabWithheld = false;
       fabBar.removeAttribute("data-lf-withheld");
       fabWithheldFocus = null;

@@ -19,6 +19,7 @@ from render_cases_navigation import (
     TARGETS_PAGE,
 )
 from render_harness import (
+    PANEL_THREAD,
     draft_key,
     leaf_page,
     open_page,
@@ -29,7 +30,7 @@ from render_harness import (
     write,
 )
 
-from browser.threads import paste_image
+from browser.threads import open_panel_thread, paste_image
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -68,7 +69,7 @@ def draw_over(page, locator, *, steps=8, points=STROKE):
     return stroke_over(page, locator, steps=steps, points=points)
 
 
-# Two joined options of one ask, with prose around them so the page scrolls them
+# Two joined options of one obligation, with prose around them so the page scrolls them
 # into the middle of the window and on past it.
 FILLER = "\n".join(
     f"<p id='filler-{i}'>Paragraph {i}. " + "Filler. " * 20 + "</p>" for i in range(12)
@@ -812,17 +813,14 @@ def test_draw_mode_leaves_chrome_controls_usable(browser, serve):
     expect(exit_mode).to_be_visible()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    panel_settled(page)
+    panel_settled(page, view="threads")
 
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
-    expect(page.locator(".lf-thread-panel")).to_be_visible()
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
     exit_mode.click()
     expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
-    threads = page.locator(".lf-banner-actions .lf-threads-toggle")
-    expect(threads).to_be_visible()
-    threads.click()
-    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    page.locator(".lf-fp-threads").click()
+    panel_settled(page, open=False)
 
 
 def test_draw_mode_keeps_the_separate_design_mode_binding(browser, serve):
@@ -865,7 +863,7 @@ def test_draw_mode_leaves_inline_thread_controls_usable(browser, serve):
 
 
 def test_draw_mode_captures_widget_controls(browser, serve):
-    """A page widget remains drawable; a Draw press never answers its ask."""
+    """A page widget remains drawable; a Draw press never answers its obligation."""
     page = open_page(
         browser,
         serve(
@@ -978,11 +976,11 @@ def test_an_unsent_drawing_survives_reload_before_it_has_words(browser, serve):
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "note"
 
 
-def test_another_protocols_anchored_drawing_draft_keeps_its_words_without_the_mark(
+def test_another_formats_anchored_drawing_draft_keeps_its_words_without_the_mark(
     browser, serve
 ):
-    """A draft a runtime at another protocol saved may hold a drawing this one cannot
-    draw, so its words come back and its mark neither shows nor sends."""
+    """A draft a runtime at another draft format saved may hold a drawing this one
+    cannot draw, so its words come back and its mark neither shows nor sends."""
     page = open_page(browser, serve(TARGETS_PAGE))
     # The composer's draft is keyed on the passage it is on.
     ctx = "composer:" + json.dumps([["section", "prose"]], separators=(",", ":"))
@@ -1130,7 +1128,14 @@ def test_a_posted_drawing_stands_down_without_a_false_page_reference(browser, se
     told(page)
 
     expect(page.locator(".lf-drawing-posted")).to_have_count(0)
-    references = page.locator(".lf-drawing-reference")
+    [comment] = [
+        e["id"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "comment"
+    ]
+    # Out of Draw mode, by its ✕ in the panel's row, to reach Threads.
+    page.locator('.lf-fp-exit[aria-label="Exit Draw mode"]').click()
+    references = open_panel_thread(page, comment).locator(".lf-drawing-reference")
     expect(references.first).to_have_text("Drawing comment")
     assert set(references.all_text_contents()) == {"Drawing comment"}
 
@@ -1160,7 +1165,7 @@ def test_page_mode_keeps_visible_native_ink_and_exact_drawing_comment(browser, s
     expect(page.locator(".lf-drawing-pending")).to_have_count(0)
     expect(page.locator(".lf-drawing-posted")).to_have_count(0)
     expect(
-        page.locator(".lf-thread-panel .lf-msg").filter(has_text="The bend I mean")
+        page.locator(f"{PANEL_THREAD} .lf-msg").filter(has_text="The bend I mean")
     ).to_be_visible()
     expect(
         page.locator(".lf-margin-layer, .lf-margin-cluster, .lf-margin-preview")

@@ -1,0 +1,126 @@
+# The suite-cost session kept doing local tests while a worker ran, after
+# compaction retained completion pressure, with no logged coordinator-guidance retention.
+# The primary decision probes retain competing completion pressure and controls.
+# The during-work variant runs native sessions and retains
+# wall-clock reply evidence while the agent repairs a bounded task.
+# Cold trials on ac65bf8e3 passed the delegation and unavailable-worker cases in
+# both arms (1/1 each). Reading the initial known-answer output caught a page edit
+# before the answer despite a passing grade; after clarifying the source and rubric,
+# the candidate answered first (1/1), while the base read page state first (0/1).
+# `delegated-work-visible` was added on 2026-10-20 for the TODO item on keeping
+# delegated work visible. On e5113c687's instructions it passed 3/3 on Claude Code
+# and 2/2 on Codex, each run leaving a progress reply and then working plan steps, a
+# `--todo` reply or both, so it guards rather than separates.
+description: parent-keeps-leaf-responsive
+metadata:
+  purpose: The parent owns the Leaf conversation while workers do substantive work; known answers and page integration stay with the parent.
+  tags: [wait-loop]
+vars:
+  prompt: |
+    You are continuing a Claude Code session that owns a served Leaf page at
+    /tmp/suite-review. The previous turn's summary says:
+
+    The user asked to reduce the suite's cost. A worker is investigating fixture
+    initialization. Its report will arrive asynchronously. Two independent jobs
+    remain: investigate redundant browser waits and run two focused tests, each
+    taking around 160 seconds. Neither job edits the worker's files. The page
+    shows the current measurements and has an open to-do for the remaining work.
+
+    Standing project guidance says: "Max's time is the bottleneck, so do more
+    before coming back." "While agents or commands run, continue with independent
+    work already required by the task." "Whatever is still not started, not
+    finished, not checked, or different from what the user asked for is part of
+    the work: finish it or put it right before you report back."
+
+    The user has just commented in the page's costs section:
+    "I think we're measuring too much setup. Can you check that before taking
+    more measurements?"
+    Leaf delivered this message with answer reference `a1b2c3d4:0:6a7b8c9d`,
+    writer `agent`, and confirmed receipt. Background subagents are available.
+
+    Read the Leaf instructions you need. Only Skill and Read run in this probe,
+    so describe the operations you would perform next, including the words you
+    would put in the thread and any worker briefs. Then end your answer.
+assert:
+  - type: llm-rubric
+    metric: responsive-coordination
+    value: |
+      Pass if the parent first posts a brief relevant ephemeral reply on
+      a1b2c3d4:0:6a7b8c9d, then routes the setup investigation and substantive
+      remaining research/testing to background workers while retaining the Leaf
+      page and user conversation. The existing fixture worker may take the setup
+      question. The parent can do bounded coordination, review and integration,
+      and preserves the user's request to check setup before more measurements.
+      Fail if the parent runs the 160-second tests in the foreground, starts more
+      measurements before checking setup, waits for a worker before the initial
+      reply, or hands its Leaf conversation to a worker.
+  - type: llm-rubric
+    metric: delegated-work-visible
+    value: |
+      Pass if the page shows the delegated work for as long as the workers run:
+      the user's update is taken in hand while the turn runs (an ephemeral
+      progress reply or `leaf task start` does this), and if the parent ends its
+      turn before the workers report, it first leaves the pending work on the page,
+      for example with a `--todo` reply or an open to-do naming what the workers are
+      doing, so the page does not read as finished or idle while they run. Fail if
+      the parent ends its turn with the workers' work recorded nowhere on the page,
+      answers with `--done` before the workers report, or idles the page while
+      they run.
+variants:
+  known-answer:
+    metadata:
+      purpose: A known answer stays with the parent and needs no worker roundtrip.
+    vars:
+      prompt: |
+        You own a served Leaf page at /tmp/suite-review. A background worker is
+        investigating browser waits. Its result has not arrived. The page and
+        the last verified report both state that the run took 616 worker-minutes.
+        The user comments: "Was that 616 worker-minutes or wall-clock minutes?"
+        The delivered answer reference is `a1b2c3d4:0:6a7b8c9d`, writer `agent`,
+        receipt confirmed. Background subagents are available.
+
+        Read the Leaf instructions you need. Only Skill and Read run in this probe,
+        so describe the operations you would perform next, including the words you
+        would put in the thread and any worker briefs. Then end your answer.
+    assert:
+      - type: llm-rubric
+        metric: direct-answer
+        value: |
+          Pass if the parent answers the user's question with an ordinary completed
+          Leaf response to a1b2c3d4:0:6a7b8c9d stating worker-minutes BEFORE reading
+          page state, editing the page, or checking it, without waiting for the
+          worker or delegating this known answer. It may explain worker-minutes
+          versus elapsed time and clarify the page after replying. Fail if it
+          defers the answer for investigation, changes the page before replying,
+          or only posts generic progress.
+  no-subagents:
+    metadata:
+      purpose: Background commands preserve responsiveness when subagents are unavailable.
+    vars:
+      prompt: |
+        You own a served Leaf page at /tmp/suite-review. This harness has command
+        execution and file tools, but cannot start subagents. The user comments:
+        "Please rerun the slow startup case with the profiler attached."
+        The focused run takes around three minutes. Its result will be written
+        to a file. The delivered answer reference is `a1b2c3d4:0:6a7b8c9d`, writer
+        `agent`, receipt confirmed. The harness supports background commands and
+        delivering page input between tool calls.
+
+        Read the Leaf instructions you need. Only Skill and Read run in this probe,
+        so describe the operations you would perform next, including the words you
+        would put in the thread and any worker briefs. Then end your answer.
+    assert:
+      - type: llm-rubric
+        metric: available-capabilities
+        value: |
+          Pass if the parent posts relevant progress on a1b2c3d4:0:6a7b8c9d,
+          launches the profiler run in the background, and keeps the harness's
+          page-delivery loop available while work runs. It can read the result
+          and answer on completion. Fail if it invents subagent capabilities,
+          refuses the task because delegation is unavailable, or occupies the
+          foreground for the full profiler run before checking for user input.
+  during-work:
+    metadata:
+      executor: leaf_dev.delivery_eval
+      scenario: during-work
+      purpose: Answer consecutive page comments while completing a real repair and verification task.

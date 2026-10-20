@@ -38,6 +38,10 @@ hooks reach `hook_transport`; Codex's tool and Stop hooks reach its delivery
 records in `codex`; a second Claude Code Stop hook watches between turns (`cmd_watch`). The
 application entry routes `leaf hook` here before loading the CLI.
 
+Claude Code's PostToolBatch carries pending input before the next model call,
+after successful or failed tools, using the same envelope and receipt as its
+prompt hook. A boundary with nothing pending adds no response-debt reminders.
+
 Resume and prompt hooks also inspect retained claims for disconnected pages
 (`reconnect`), including inactive ownership. That notice does not reclaim a
 page or reopen a turn at SessionStart, and it persists across session generations.
@@ -66,12 +70,16 @@ from .state import (
 def cmd_hook(harness: str, payload: dict) -> None:
     """Answer one hook of `harness`, the name its registration passes."""
     started = time.monotonic()
-    if payload.get("leaf_watch") == "module":
-        # Claude Code's hooks module marks the Stop payload it passes to the
-        # registrations beneath it, and runs this hook itself, unmarked, to read
-        # the delivery its output names (`hooks/claude-code.ts`).
-        return
     event, sid = payload.get("hook_event_name"), payload.get("session_id") or ""
+    if (
+        harness == "claude-code"
+        and event == "PostToolBatch"
+        and payload.get("agent_id")
+    ):
+        # Claude Code's tool hooks name the parent session even inside a worker;
+        # agent_id is its native subagent/teammate identity. Only the parent
+        # receives the input its session claimed.
+        return
     if sid:
         # Capability evidence for hook transport and open-turn activity. An
         # explicit wait carries its own input even if later hooks fail.

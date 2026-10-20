@@ -18,6 +18,7 @@
 
 import * as z from "zod/mini";
 import { createTarPacker } from "modern-tar";
+import type { ServedState } from "../../build/browser/contract.js";
 
 export const CHUNK_BYTES = 1024 * 1024;
 const digest = z.string().check(z.regex(/^[0-9a-f]{64}$/));
@@ -64,7 +65,7 @@ function responseEntries(publication: PagePublication) {
 /** Delivery dates calibrate the browser clock and order answers; folded content
  * and its event timestamps stay exactly as Python captured them.
  */
-export function dateStateDelivery(state: Record<string, unknown>): void {
+export function dateStateDelivery(state: Pick<ServedState, "now" | "taken">): void {
   const delivered = new Date();
   state.now = delivered.toISOString();
   state.taken = delivered.getTime() / 1000;
@@ -384,7 +385,7 @@ export class PageStore {
     }
     const body = this.body(JSON.parse(response.chunks));
     if (path === "api/state" || path.startsWith("api/state?")) {
-      const state = (await new Response(body).json()) as Record<string, unknown>;
+      const state = (await new Response(body).json()) as ServedState;
       dateStateDelivery(state);
       headers.delete("Content-Length");
       return Response.json(state, { status: response.status, headers });

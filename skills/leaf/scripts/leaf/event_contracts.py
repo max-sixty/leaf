@@ -10,11 +10,6 @@ domains: undo in `events` and widget meaning in `event_meaning`.
 
 from pathlib import Path
 
-from leaf.asks import (
-    approval_blocking,
-    asking,
-    quoted_in,
-)
 from leaf.event_log import APPEND_STAMPED, EventRefused, new_event_id
 from leaf.event_meaning import AdmissionReadings, admit_widget_event
 from leaf.events import (
@@ -27,6 +22,12 @@ from leaf.events import (
 from leaf.files import version_revisions
 from leaf.findings import Finding
 from leaf.layer import incompatible_layer, incompatible_revision
+from leaf.obligations import (
+    approval_blocking,
+    asking,
+    quoted_in,
+    response_address,
+)
 from leaf.page_view import CandidatePageView, PageView
 from leaf.plans import plan_error
 from leaf.projection import (
@@ -38,7 +39,6 @@ from leaf.projection import (
 )
 from leaf.read_state import read_contract_error
 from leaf.registry.contract import (
-    WRITERS,
     RegistryError,
     created_child,
     detail_schema,
@@ -47,17 +47,21 @@ from leaf.registry.contract import (
     verb_writer,
     visual_parts,
 )
-from leaf.registry.kernel import kernel_event_kinds, kernel_event_ownership
+from leaf.registry.kernel import (
+    kernel_event_kinds,
+    kernel_event_ownership,
+    kinds_declaring,
+    verb_writers,
+)
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.schema import schema_complaint
 from leaf.registry.storage import IncompatibleLayer, load_registry
-from leaf.schema import MESSAGE_KINDS, WIDGET_KINDS
 from leaf.structure import review_mode
 from leaf.todos import todo_error
 from leaf.validation.instances import attribute_slot_errors
 from leaf.work import widget_seat_error
 from leaf.work_reading import WorkReading
-from leaf.workflows import obligation_reading
+from leaf.workflows import agent_inputs, obligation_reading
 
 
 def event_record_error(contract: dict, event: dict) -> Finding | None:
@@ -140,10 +144,14 @@ def declared_event_error(event: dict, tag: str, registry: dict):
         if other is not None:
             return Finding(
                 "foreign-verb",
-                values={**named, "writer": verb_writer(other), "sender": WRITERS[kind]},
+                values={
+                    **named,
+                    "writer": verb_writer(other),
+                    "sender": verb_writers()[kind],
+                },
             )
         declared = sorted(
-            verb for verb, _spec in state_specs(entry, writer=WRITERS[kind])
+            verb for verb, _spec in state_specs(entry, writer=verb_writers()[kind])
         )
         return Finding("undeclared-verb", values={**named, "declared": declared})
     if complaint := schema_complaint(detail_schema(entry, spec), event["detail"]):
@@ -546,12 +554,12 @@ def _approval_error(view, event: dict, events: list, registry: dict):
     page = AdmissionReadings(view, events, registry).page(revision)
     work = WorkReading(events, registry, page)
     unanswered = approval_blocking(
-        [*work.document.asks["all"], *work.widget_asks["all"]]
+        [*work.document.items["all"], *work.widget_obligations["all"]]
     )
     if unanswered:
         return Finding(
-            "unanswered-asks",
-            values={**version, "asks": [ask["id"] for ask in unanswered]},
+            "unanswered-obligations",
+            values={**version, "obligations": [item["id"] for item in unanswered]},
         )
     return None
 
@@ -621,7 +629,8 @@ def _parent_error(event: dict, events: list) -> Finding | None:
         return None
     parent = event["parent"]
     if not any(
-        logged["id"] == parent and logged["kind"] in MESSAGE_KINDS for logged in events
+        logged["id"] == parent and logged["kind"] in kinds_declaring("message")
+        for logged in events
     ):
         return Finding("unknown-parent", values={"parent": parent})
     if parent in taken_back(events):
@@ -646,7 +655,7 @@ def _edit_error(event: dict, events: list) -> Finding | None:
         (
             logged
             for logged in events
-            if logged["kind"] in MESSAGE_KINDS and logged["id"] == name
+            if logged["kind"] in kinds_declaring("message") and logged["id"] == name
         ),
         None,
     )
@@ -744,14 +753,14 @@ def _plan_error(event: dict, readings) -> Finding | None:
     holds (`plans.plan_error`)."""
     if event["kind"] != "plan":
         return None
-    return plan_error(event, readings.log.todos, readings.work.all_asks["all"])
+    return plan_error(event, readings.log.todos, readings.work.all_obligations["all"])
 
 
 def _todo_error(view, event: dict, readings) -> Finding | None:
     """A `todo` event stands on a widget that seats work, an element, or the page; a
     to-do on a thread comes from the reply that promises it. A completing note and
     `todo_end` share completion authority.
-    A `todo_end` also admits an agent's end of an ask answered in words; a
+    A `todo_end` also admits an agent's end of a question answered in words; a
     start names explicit agent work or an owed update (`todos.todo_error`)."""
     from leaf.todos import start_reading
 
@@ -765,13 +774,13 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
             return None
     elif event["kind"] not in {"todo", "todo_end"}:
         return None
-    workflows = readings.work.workflows if event["kind"] in {"todo", "start"} else []
+    held = event["kind"] in {"todo", "start"}
+    workflows = readings.work.workflows if held else []
     if progress_parent is not None and not any(
-        item["input"] == event["item"]
-        and item["next_actor"] == "agent"
-        and item["answer"]["kind"] == "reply"
-        and item["answer"]["to"] == progress_parent
-        for item in workflows
+        record["source"]["id"] == event["item"]
+        and record["next_actor"] == "agent"
+        and response_address(record).get("to") == progress_parent
+        for record in readings.work.updates["all"]
     ):
         return Finding("progress-parent", values={"parent": progress_parent})
 
@@ -791,21 +800,24 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
     def user_widget_error(widget: str) -> Finding | None:
         if error := element_error(widget):
             return error
-        ask = next(
+        item = next(
             (
                 item
-                for item in readings.work.all_asks["all"]
+                for item in readings.work.all_obligations["all"]
                 if item["source"]["kind"] == "widget"
                 and item["source"]["id"] == widget
                 and item["status"] == "open"
             ),
             None,
         )
-        if ask is not None:
-            return Finding("duplicate-ask", values={"widget": widget, "ask": ask["id"]})
+        if item is not None:
+            return Finding(
+                "duplicate-obligation",
+                values={"widget": widget, "obligation": item["id"]},
+            )
         return None
 
-    owed = {item["input"] for item in workflows if item["next_actor"] == "agent"}
+    owed = agent_inputs(readings.work) if held else set()
     return todo_error(
         event,
         readings.log,
@@ -813,7 +825,7 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
         element_error=element_error,
         user_widget_error=user_widget_error,
         owed=owed,
-        asks=lambda: readings.work.all_asks["all"],
+        items=lambda: readings.work.all_obligations["all"],
         registry=readings.work.registry,
     )
 
@@ -890,7 +902,7 @@ def admitted_event(view, events: list, event: dict) -> dict:
     readings = AdmissionReadings(view, events, registry)
     if error := admission_error(view, events, event, registry, readings):
         raise EventRefused(error, event)
-    if kind in WIDGET_KINDS:
+    if kind in verb_writers():
         event = admit_widget_event(view.document(event["revision"]), event, readings)
     if opens_on_newest(event):
         # The revision the to-do was opened against, which the stamp that completes

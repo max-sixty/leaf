@@ -36,9 +36,10 @@ actually changed; identical saves leave the browser and server alone. A source o
 (a vendored file, the runtime's Python, its lock)
 re-vendors through `page init`, which mints a new layer generation the browser follows
 into a fresh document. A refused update is printed and retried after the next edit.
-Fixture history, data and earlier versions initialize a fresh slot. Live updates
-follow current markup, page-owned files, media and the runtime; restarting a user
-preview preserves the history and data its page already holds.
+Fixture history, literal data seeds and earlier versions initialize a fresh slot.
+Live updates follow current markup, page-owned files, captured data files, media
+and the runtime; restarting preserves the page's history and current seed data,
+while captures continue following their authored companion declarations.
 
     uv run leaf-dev preview [EXAMPLE] [--source FILE] [--runtime CHECKOUT]
         [--slot NAME] [--user] [--export]
@@ -77,7 +78,13 @@ from leaf_dev.commands.distribution import (
     cached_installation,
     compiler_root,
 )
-from leaf_dev.example_data import named_source, page_files
+from leaf_dev.example_data import (
+    capture_file,
+    data_companion,
+    data_file,
+    named_source,
+    page_files,
+)
 from leaf_dev.leaf_assets import CACHE as ASSETS_CACHE
 from leaf_dev.leaf_assets import assets_lock
 from leaf_dev.page_fixtures import (
@@ -90,6 +97,7 @@ from leaf_dev.page_fixtures import (
     prepare_page,
     read_fixture,
     record_run_context,
+    refresh_captures,
     source_manifest,
     source_manifest_candidates,
     source_packages,
@@ -187,9 +195,9 @@ def mark_preview(
     watcher can distinguish source edits from competing page edits. The page's own
     authored files and event log remain authoritative.
     """
-    from leaf.state import write_json
+    from leaf.server import PREVIEW
 
-    write_json(
+    PREVIEW.write(
         page / "preview.json",
         {
             "example": source.stem,
@@ -435,6 +443,7 @@ def refresh_preview(
     """
     try:
         launcher = cached_installation(runtime) / "bin/leaf"
+        fixture = read_fixture(source, runtime=launcher.parent.parent)
         incoming = incoming_files(source)
         incoming_digest = authored_digest(incoming)
         source_changed = incoming_digest != state["authored"]
@@ -482,7 +491,11 @@ def refresh_preview(
                 # Media's ordinary CLI door needs an initialized, isolated log.
                 # The candidate holds no history or feedback from the served page.
                 (candidate / "events.jsonl").write_text("")
+                (candidate / "data").mkdir()
                 write_authored_files(candidate, incoming, {})
+                # Check capture bindings and values against the complete candidate
+                # before replacing the source that the reader currently has.
+                refresh_captures(fixture, candidate, partial(leaf, launcher, runtime))
                 refresh_media(source, candidate, partial(leaf, launcher, runtime))
                 copy_media(candidate / "media", page)
                 leaf(
@@ -500,6 +513,11 @@ def refresh_preview(
                 )
         else:
             refresh_media(source, page, partial(leaf, launcher, runtime))
+        refresh_captures(
+            fixture,
+            page,
+            partial(leaf, launcher, runtime),
+        )
         state["authored"] = incoming_digest
         mark_preview(source, page, runtime, service.user, state["authored"])
     except (
@@ -565,6 +583,12 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path]) -> Watched:
         path.resolve()
         for path in (
             source,
+            data_file(source),
+            *(
+                capture_file(source, spec)
+                for spec in data_companion(source).get("$captures", {}).values()
+                if "asset" not in spec
+            ),
             *composition_inputs(source),
             companions,
             *companions.rglob("*"),
@@ -707,6 +731,7 @@ def serve_preview(
     """Build this slot's page, serve it, and follow its inputs until stopped."""
     from leaf.files import read_json
     from leaf.layer import layer_inputs
+    from leaf.server import PREVIEW
 
     # Fixture progress is distinct from the page's own authored inputs: an agent
     # may have revised those while this watcher was absent.
@@ -715,18 +740,16 @@ def serve_preview(
     }
     resumed = user and page.exists()
     if resumed:
-        record = read_json(page / "preview.json")
-        inputs = record.get("input") if isinstance(record, dict) else None
+        record = PREVIEW.read(page / "preview.json")
         if (
-            not isinstance(inputs, dict)
-            or inputs.get("source") != fixture_identity(source)
-            or not isinstance(inputs.get("authored"), str)
-            or record.get("interaction") != "user"
+            record is None
+            or record["input"]["source"] != fixture_identity(source)
+            or record["interaction"] != "user"
         ):
             raise ValueError(
                 f"{page} belongs to another preview; choose another --slot"
             )
-        state["authored"] = inputs["authored"]
+        state["authored"] = record["input"]["authored"]
     service = None
     changes = None
     try:
@@ -799,7 +822,11 @@ def serve_preview(
                 # An added input is only in the reading taken after it arrived, and a
                 # deleted one only in the reading taken while it was still there.
                 if not reported & watched.paths:
-                    current = watch_paths(source, runtime, roots)
+                    try:
+                        current = watch_paths(source, runtime, roots)
+                    except (ValueError, OSError) as error:
+                        refused(error)
+                        continue
                     if not reported & current.paths:
                         continue
             refreshed = refresh_preview(source, page, launcher, runtime, state, service)
@@ -809,7 +836,13 @@ def serve_preview(
             roots = layer_inputs(
                 tuple(read_json(page / "registry.json")["$layer"]["packages"])
             )
-            rebuilt = watch_paths(source, runtime, roots)
+            try:
+                rebuilt = watch_paths(source, runtime, roots)
+            except (ValueError, OSError) as error:
+                # A companion being edited can be temporarily unreadable. Keep
+                # its previous subscription so its repair reaches this preview.
+                refused(error)
+                continue
             if not changes.matches(watch_roots(rebuilt)):
                 # A refresh can change which packages the page vendors, and a
                 # subscription is fixed for its lifetime. Holding the old one

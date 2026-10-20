@@ -247,6 +247,15 @@ export function createThreadDestinations({
       // A thread a seat holds whole has no node until the seat shows it (held-news.js).
       if (showHeldThread(id) && surfaceFocusTarget(id, { part: localPart }))
         return openSurface();
+      // A card stands beside its passage's margin row, which a closed tab or disclosure
+      // holding the passage hides, and a card with nowhere to stand never places. A trip
+      // reveals the passage as it arrives; a thread opened where the user stands reveals
+      // it here.
+      const place = threadTarget(id);
+      if (preview && !trip && place) {
+        await reveal(place, intent).ready;
+        if (!mayPresent()) return null;
+      }
       let opened = null;
       if (preview)
         intent.handoff(() => {

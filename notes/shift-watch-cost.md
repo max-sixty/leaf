@@ -28,6 +28,21 @@ measured and dropped in October 2026, and what would make it worth revisiting.
   the watch's own tests) saved 1–2%.
 - **CI barely notices.** Browser tests run on pushes to main and nightly, about 3% of
   runner-hours. The saving matters to an agent running a watched test locally.
+- **Opening a page cost most on CI's runner before it presented.** Each frame of a
+  page still upgrading read every node, and each reading forced a style and layout
+  pass, though no movement without input is judged before presentation. While such a
+  page keeps changing, its frames now leave their readings for the first frame where
+  it rests (`shift_watch.js`, "Unpresented frames"). In one CI job of #3281, which
+  opened a small page 8 times under each watch, the renderer's main thread spent
+  0.63 s from navigation to readiness with the earlier watch, 0.55 s with this one
+  and 0.47 s without a watch. CPU across every process per open fell from 1.18 s to
+  1.10 s. Deferring every reading until presentation saved twice as much, but lost
+  the poses an input's credits look back to and the verification of a page that
+  never presents.
+- **An idle watched page keeps costing.** `tick` and the paint checkpoint each ask for
+  the next frame on every frame, so Chrome renders a still page continuously. In two
+  CI jobs that cost 0.03–0.05 s of main-thread time, and 0.04–0.065 s of CPU across
+  processes, for each second the page stayed open.
 
 ## The gate that was dropped
 
@@ -70,3 +85,13 @@ that enforces Stability:
 - **Most browser tests are unwatched.** Whether each `shifts_unsurveyed` module still
   needs its exemption hasn't been reviewed. Watching more tests costs time, at the rates
   above.
+- **The idle cost has a fix that changes the watch's self-check.** Stopping the frame
+  loop while nothing is announced or running, and restarting it on the next
+  announcement or layout-shift entry, would let a still page stop rendering. The
+  VERIFY reading would then run only at judgement rather than every 30th quiet frame,
+  so the user would decide whether that self-check is worth the idle cost.
+- **Unconfirmed: a reading may lay a frame out twice.** `tick` runs in the frame's
+  first callback, before the page's own frame callbacks write, so where those write,
+  the browser lays the frame out once for the reading and again to paint it. Reading
+  after layout would change which pose a frame records, which the ledger's frame
+  pairing rests on.

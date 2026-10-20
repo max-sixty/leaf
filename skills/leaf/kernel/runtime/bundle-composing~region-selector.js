@@ -202,6 +202,8 @@ function createRegionSelector({
     },
     {
       id: "capture.region.adjust",
+      // A pointer drags the area it wants instead.
+      touch: false,
       keys: [
         "ArrowLeft",
         "ArrowRight",

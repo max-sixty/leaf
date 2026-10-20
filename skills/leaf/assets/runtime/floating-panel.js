@@ -244,11 +244,9 @@ const OWN_VIEWS = Object.freeze(["leaves", "versions"]);
 const FOLD = "panel.floating.fold";
 const HELD_ELSEWHERE = Object.freeze(["keyboard", `command:${FOLD}`]);
 const PICK = "command:target.picker.open";
-// A row the menu or a group lists: neither held elsewhere, nor the next step of a
-// gesture, which stands in the counts' place instead, nor a stance's way out, at the
+// A row the menu or a group lists: neither held elsewhere nor a stance's way out, at the
 // row's end.
 const listed = (entry) =>
-  !entry.gesture &&
   !entry.exit &&
   !HELD_ELSEWHERE.includes(entry.key) &&
   !(entry.key === PICK && advertisesKeys());
@@ -449,8 +447,8 @@ export function createFloatingPanel({
   lengthWatch.observe(field);
   const rowNoticeSeat = el("div", "lf-fp-row-notice");
   const quick = el("div", "lf-fp-quick");
-  // The way out of the stance the user stands in, at the row's end beside the counts or
-  // a gesture's steps, and there while the user types (touch-controls.js, `stance`).
+  // The way out of the stance the user stands in, at the row's end beside the counts,
+  // and there while the user types (touch-controls.js, `stance`).
   const exitSeat = el("div", "lf-fp-exit-seat");
   // The anchored comment box's home on a page that draws its own annotations
   // (`data-annotations="page"`), where the page gives the box no seat of its own
@@ -3203,10 +3201,7 @@ export function createFloatingPanel({
     keepsHidden(rowNoticeSeat, !standing);
     render(standing ? rowNoticeTemplate(standing) : nothing, rowNoticeSeat);
 
-    // The next step of what the user is doing now, such as selecting a search's match or
-    // undoing a stroke in Draw mode, stands in the counts' place while that gesture
-    // holds it (page-controls.js, `gesture`).
-    const steps = rows().filter((entry) => entry.gesture);
+    // The way out of the stance the user stands in, beside the counts.
     const exit = rows().find((entry) => entry.exit);
     render(
       exit
@@ -3225,27 +3220,6 @@ export function createFloatingPanel({
       exitSeat,
     );
     keepsHidden(exitSeat, !exit);
-    keeps(quick, "data-steps", steps.length ? "" : null);
-    if (steps.length) {
-      render(
-        html`${repeat(
-          steps,
-          (entry) => entry.key,
-          (entry) =>
-            html`<button
-              type="button"
-              class="lf-fp-chip lf-fp-step"
-              ?disabled=${entry.disabled}
-              @mousedown=${(event) => event.preventDefault()}
-              @click=${() => entry.press()}
-            >
-              ${entry.label}
-            </button>`,
-        )}`,
-        quick,
-      );
-      return;
-    }
     // Each mark keeps its room whether or not it has a number, so a count arriving or
     // leaving moves nothing beside it.
     // A mark's name is its tooltip too, as an icon control's title is elsewhere in Leaf.

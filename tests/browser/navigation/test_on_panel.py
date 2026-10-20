@@ -384,7 +384,6 @@ def test_a_finger_ends_a_todo_on_you_from_the_panel_s_row(browser, serve):
     card = page.locator(".lf-fp-on-item", has_text="Check the notes")
     card.get_by_role("button", name="Show", exact=True).tap()
     expect(page.locator("#notes")).to_be_focused()
-    expect(page.locator(".lf-fp-step")).to_have_count(0)
     expect(page.locator(".lf-fp-on-user")).to_be_visible()
     page.locator(".lf-fp-on-user").tap()
     panel_settled(page, view="queue")

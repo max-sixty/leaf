@@ -474,58 +474,127 @@ def test_a_control_tab_skips_leaves_a_scrolling_box_its_own_stop(browser, serve)
     expect(inside).not_to_have_attribute("tabindex", "0")
 
 
-EDGES_PAGE = leaf_page(
-    "controls at scrollers' edges",
-    '<h1 id="t">Edges</h1>\n<ul id="log" data-bound="start">'
-    + "".join(f'<li><a href="#log-{i}">Entry {i}</a></li>' for i in range(30))
-    + '<li><label><input type="radio" name="pick" checked> Pick</label></li>'
-    + "".join(f'<li><a href="#log-{i}">Entry {i}</a></li>' for i in range(30, 60))
-    + '</ul>\n<table id="wide"><tbody><tr>'
-    + "".join(
-        f'<td><a href="#cell-{i}">Cell&nbsp;link&nbsp;{i}</a></td>' for i in range(30)
+# Controls to Tab onto at a scroller's edge. Each wears its ring on a different box:
+# the radio on itself, a playground choice on its face, a joined option group's pick on
+# its row.
+EDGE_CONTROLS = {
+    "radio": '<p><label><input id="at" type="radio" name="r" checked> Pick</label></p>',
+    "playground": (
+        '<lf-playground id="pg"><lf-playground-control name="tone" label="Tone" kind="choice"'
+        ' value="quiet"><lf-playground-choice value="quiet" label="Quiet">'
+        '</lf-playground-choice><lf-playground-choice value="bold" label="Bold">'
+        "</lf-playground-choice></lf-playground-control><lf-playground-preview>"
+        "<p>Preview</p></lf-playground-preview><lf-playground-output>Use"
+        ' <lf-playground-value for="tone"></lf-playground-value></lf-playground-output>'
+        "</lf-playground>"
+    ),
+    "options": (
+        '<lf-options id="op" choose><lf-option id="op-a">Alpha</lf-option>'
+        '<lf-option id="op-b">Beta, the second choice</lf-option></lf-options>'
+    ),
+}
+EDGE_TARGETS = {
+    "radio": "#at",
+    "playground": "#pg input:checked",
+    "options": "#op-b .lf-pick",
+    "table": "#wide td:nth-child(11) a",
+}
+
+
+def edges_page(control):
+    entries = [f'<p><a href="#log-{i}">Entry {i}</a></p>' for i in range(60)]
+    return leaf_page(
+        "controls at scrollers' edges",
+        '<h1 id="t">Edges</h1>\n<div id="log" data-bound="start">'
+        + "".join(entries[:30])
+        + EDGE_CONTROLS.get(control, "")
+        + "".join(entries[30:])
+        + '</div>\n<table id="wide"><tbody><tr>'
+        + "".join(
+            f'<td><a href="#cell-{i}">Cell&nbsp;link&nbsp;{i}</a></td>'
+            for i in range(30)
+        )
+        + "</tr></tbody></table>",
     )
-    + "</tr></tbody></table>",
-)
 
 
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 @pytest.mark.parametrize(
-    ("target", "side"),
-    [("#log input", "bottom"), ("#wide td:nth-child(11) a", "right")],
-    ids=["foot", "inline-end"],
+    ("control", "past", "key", "engine"),
+    [
+        *(
+            pytest.param(
+                control, past, key, engine, id=f"{control}-{name}-{key}-{engine}"
+            )
+            for control, past, name, key in [
+                ("radio", 6, "past", "Tab"),
+                ("radio", -2, "inside", "Tab"),
+                ("options", 6, "past", "Tab"),
+                ("options", 6, "past", "End"),
+                ("table", 6, "past", "Tab"),
+            ]
+            for engine in ["browser", "firefox_browser"]
+        ),
+        # Firefox logs a warning of its own on any playground page.
+        pytest.param(
+            "playground", 6, "Tab", "browser", id="playground-past-Tab-browser"
+        ),
+    ],
 )
-def test_tab_onto_a_control_partly_past_a_scrollers_edge_brings_it_in(
-    request, serve, engine, target, side
+def test_a_key_onto_a_control_at_a_scrollers_edge_shows_its_ring(
+    request, serve, control, past, key, engine
 ):
-    """The browser reveals a Tab's arrival only when it counts it out of view: Firefox
-    when less than about a line of it shows, Chromium across only when none of it does.
-    A radio 6px past a bounded log's foot stayed cut in Firefox, as a playground's
-    radio did at its controls pane's foot, and a link 6px past a wide table's end
-    stayed cut in both. Each now comes in with its focus ring's room at that edge."""
-    page = open_page(request.getfixturevalue(engine), serve(EDGES_PAGE))
+    """The browser reveals a Tab's arrival only when it counts it out of view, Firefox
+    when less than about a line of it shows and Chromium across only when none of it
+    does, and neither it nor Leaf's landing knew a box that wears the control's ring.
+    So a radio 6px past a bounded log's foot stayed cut in Firefox, and one 2px inside
+    it kept its ring cut; a link 6px past a wide table's end stayed cut in both
+    engines; and a joined option group's row and a playground choice's face, each
+    wearing its control's ring, stayed cut in both, the face once its radio stood 7px
+    inside, the row whether Tab or End reached it. `past` is how far beyond the edge
+    the box wearing the ring stood before the key; each now shows its ring."""
+    page = open_page(request.getfixturevalue(engine), serve(edges_page(control)))
     resized(page, 1280, 560)
+    side = "right" if control == "table" else "bottom"
+    target = page.locator(EDGE_TARGETS[control])
+    # Which box wears the ring is the paint's answer: the nearest box out from the
+    # control whose outline is the ring.
+    target.evaluate("el => el.focus({preventScroll: true})")
+    rendered(page)
+    target.evaluate(
+        """(el) => {
+          const w = getComputedStyle(el).getPropertyValue('--focus-ring-w').trim();
+          for (let n = el; n; n = n.parentElement) {
+            const cs = getComputedStyle(n);
+            if (cs.outlineStyle === 'solid' && cs.outlineWidth === w)
+              return void (window.ringed = n);
+          }
+        }"""
+    )
+    if key == "Tab":
+        page.keyboard.press("Shift+Tab")
+    else:
+        page.locator("#op-a .lf-pick").evaluate("el => el.focus({preventScroll: true})")
     page.evaluate(
-        """([selector, side]) => {
-          const el = document.querySelector(selector);
-          const box = el.closest(side === 'bottom' ? '#log' : '#wide');
-          const before = [...document.querySelectorAll('#log a, #log input, #wide a')];
-          before[before.indexOf(el) - 1].focus({preventScroll: true});
+        """([side, past]) => {
+          const box = window.ringed.closest(side === 'bottom' ? '#log' : '#wide');
           const port = box.getBoundingClientRect();
+          const at = window.ringed.getBoundingClientRect();
           if (side === 'bottom')
-            box.scrollTop += el.getBoundingClientRect().bottom
-              - (port.top + box.clientTop + box.clientHeight) - 6;
+            box.scrollTop += at.bottom - (port.top + box.clientTop + box.clientHeight)
+              - past;
           else
-            box.scrollLeft += el.getBoundingClientRect().right
-              - (port.left + box.clientLeft + box.clientWidth) - 6;
+            box.scrollLeft += at.right - (port.left + box.clientLeft + box.clientWidth)
+              - past;
         }""",
-        [target, side],
+        [side, past],
     )
     scroll_settled(page)
-    page.keyboard.press("Tab")
-    expect(page.locator(target)).to_be_focused()
+    page.keyboard.press(key)
+    expect(target).to_be_focused()
     rendered(page)
-    read = page.locator(target).evaluate(
-        """(el, side) => {
+    read = page.evaluate(
+        """(side) => {
+          const el = window.ringed;
           const box = el.closest(side === 'bottom' ? '#log' : '#wide');
           const port = box.getBoundingClientRect();
           const at = el.getBoundingClientRect();

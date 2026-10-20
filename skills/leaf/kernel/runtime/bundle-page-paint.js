@@ -2343,8 +2343,8 @@ var shownExtent = (el2) => union(shownParts(el2).map((part) => part.getBoundingC
 function shownRect(item, clips) {
   return clippedRect(shownBox(item), item, clips);
 }
-function seenRect(item, clips) {
-  const shown = shownRect(item, clips);
+function seenRect(item, clips, box = shownBox(item)) {
+  const shown = clippedRect(box, item, clips);
   if (!shown) return null;
   const room = shownWindow({ within: shown, item });
   return room.width > 0 && room.height > 0 ? { left: shown.left, top: room.top, right: shown.right, bottom: room.bottom } : null;

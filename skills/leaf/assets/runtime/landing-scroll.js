@@ -40,23 +40,32 @@
  * layout first, as opening a disclosure hands a region to a scroller of its own, and
  * the keeper's restore for that change runs before the motion ends.
  *
+ * A destination the user stands on is measured by the box that wears its focus ring
+ * (focus.js, `ringBox`), with its own margins, the ring's room: a playground's choice
+ * rings its radio and words together, and a landing that measured the radio left the
+ * face's ring cut at its pane's foot. Where that box is longer than its room, the
+ * destination is its own box again, so the user still sees the control. Every other
+ * destination is its own box.
+ *
  * A Tab's arrival lands here too, after the browser's own reveal. The browser reveals a
  * focus arrival only when it counts it out of view: Firefox when less than about a line
- * of it shows, on either axis, and Chromium across only when none of it shows. So a
- * control partly past a scroller's edge stayed cut there, a playground's radio at its
- * pane's foot in Firefox and a link at a wide table's end in both. An arrival the
- * browser leaves not already shown lands nearest, reading the margins and padding the
- * browser's reveal reads; one it showed moves nothing, so a control in a stuck header,
- * whose margin counts it as shown, stays put.
+ * of it shows, on either axis, and Chromium across only when none of it shows; and
+ * neither knows the box that wears its ring. So a control partly past a scroller's edge
+ * stayed cut there, a link at a wide table's end in both engines, and in Firefox a
+ * radio whose box showed whole while its ring was cut. An arrival whose ring the user
+ * does not see, its box out to its margins on each axis where that fits the room a
+ * landing has, lands nearest, reading the margins and padding the browser's reveal
+ * reads. One whose ring shows moves nothing, so a control in a stuck header, whose
+ * margin counts it as shown, stays put, as does a box longer than its room that shows
+ * in part.
  */
 import { localScrollBy, scrollAxes } from "./element-frame.js";
-import { deepFocus, onStanding } from "./focus.js";
+import { deepFocus, onStanding, ringBox } from "./focus.js";
 import {
   landingBand,
   placeBox,
   placeHolder,
   seenRect,
-  shownBox,
   shownWindow,
   visibleBand,
 } from "./geometry.js";
@@ -76,14 +85,30 @@ const scrollMargin = (where, side = "Top") =>
     ? 0
     : Number.parseFloat(getComputedStyle(where)[`scrollMargin${side}`]) || 0;
 
-// A sideways scroller restarts the header slot without becoming the vertical reading
-// region; `visibleBand` reads the headers outside it.
-const readingTop = (where, box) =>
-  visibleBand(box, placeHolder(where))?.top ?? landingBand(box).top;
+// The element a landing shows of `where` (see the header): the box wearing its ring
+// where that fits the room a landing has, and otherwise `where` itself, since a ring
+// box longer than its room never shows whole and the user must still see the control
+// they stand on. Every walk out to the scrollers that move starts there, so a scroller
+// between the control and that box, such as a file editor's, is never moved to show it.
+function shownFor(where) {
+  const ring = ringBox(where);
+  if (ring === where) return where;
+  const box = placeBox(ring);
+  const room = roomAround(ring, where);
+  return box.height <= room.height && box.width <= room.width ? ring : where;
+}
+const destinationBox = (where) => placeBox(shownFor(where));
+const holderOf = (where) => placeHolder(shownFor(where));
 
-function topMargin(where, box) {
+// What stands over `holder` in `box`. A sideways scroller restarts the header slot
+// without becoming the vertical reading region; `visibleBand` reads the headers outside
+// it.
+const readingTop = (holder, box) =>
+  visibleBand(box, holder)?.top ?? landingBand(box).top;
+
+function topMargin(where, box, holder = holderOf(where)) {
   const band = landingBand(box);
-  return Math.max(scrollMargin(where), readingTop(where, box) - band.top);
+  return Math.max(scrollMargin(where), readingTop(holder, box) - band.top);
 }
 
 // The room a landing has for `where`, as a width and a height (see the header). Each box
@@ -93,11 +118,16 @@ function topMargin(where, box) {
 // `scrollIntoReadingBand` reads it. With `until`, the height is the room for the run
 // from `where`'s top to `until`'s foot, which is what a landing at `where`'s start
 // promises of a later node; only the boxes holding the whole run bound it.
-export function landingRoom(where, until = where) {
-  const regions = [...scrollersOf(placeHolder(where))];
+export const landingRoom = (where, until = where) =>
+  roomAround(shownFor(where), where, until);
+
+// The same room for `where` shown as `shown`, the box it or its ring stands in.
+function roomAround(shown, where, until = where) {
+  const holder = placeHolder(shown);
+  const regions = [...scrollersOf(holder)];
   let { width, height } = shownWindow();
   for (
-    let box = renderedParent(where);
+    let box = renderedParent(shown);
     box instanceof Element;
     box = renderedParent(box)
   ) {
@@ -110,7 +140,7 @@ export function landingRoom(where, until = where) {
       const at = regions.indexOf(box);
       const clearance =
         at === 0
-          ? topMargin(where, box) + scrollMargin(until, "Bottom")
+          ? topMargin(where, box, holder) + scrollMargin(until, "Bottom")
           : at > 0
             ? Math.max(0, readingTop(regions[at - 1], box) - band.top)
             : 0;
@@ -123,24 +153,49 @@ export function landingRoom(where, until = where) {
 }
 
 export function fitsWhole(where) {
-  const box = shownBox(where);
+  const box = destinationBox(where);
   const room = landingRoom(where);
   return box.height <= room.height && box.width <= room.width;
 }
 
-export function alreadyShown(where) {
-  const seen = seenRect(where, new Map());
+// Whether the user sees `out` of `where` along each axis where its box fits the room,
+// and any of it along one where it does not (see the header).
+function seesWhole(where, box, out) {
+  const seen = seenRect(shownFor(where), new Map(), out);
   if (!seen) return false;
-  const box = shownBox(where);
   const room = landingRoom(where);
   return (
-    (box.height > room.height || (seen.top <= box.top && seen.bottom >= box.bottom)) &&
-    (box.width > room.width || (seen.left <= box.left && seen.right >= box.right))
+    (box.height > room.height || (seen.top <= out.top && seen.bottom >= out.bottom)) &&
+    (box.width > room.width || (seen.left <= out.left && seen.right >= out.right))
+  );
+}
+
+export function alreadyShown(where) {
+  const box = destinationBox(where);
+  return seesWhole(where, box, box);
+}
+
+// Whether the user sees the ring of the control they stand on: its box out to its
+// margins.
+function ringShown(where) {
+  const box = destinationBox(where);
+  const [top, right, bottom, left] = ["Top", "Right", "Bottom", "Left"].map((side) =>
+    scrollMargin(where, side),
+  );
+  return seesWhole(
+    where,
+    box,
+    new DOMRect(
+      box.left - left,
+      box.top - top,
+      box.width + left + right,
+      box.height + top + bottom,
+    ),
   );
 }
 
 function placementBy(where, block, box, margin) {
-  const rect = placeBox(where);
+  const rect = destinationBox(where);
   const band = landingBand(box);
   const room = band.bottom - band.top;
   const place =
@@ -170,7 +225,7 @@ function verticalTravel(box, movement) {
 export function scrollIntoReadingBand(where, holder, block, behavior) {
   const [box, ...around] = scrollersOf(holder);
   if (!box) return;
-  const rect = placeBox(where);
+  const rect = destinationBox(where);
   const margin = topMargin(where, box);
   let { top, bottom } = rect;
   if (block === "start") {
@@ -219,22 +274,18 @@ export function scrollIntoView(
   { alignment = where, behavior = "auto", block = "start", within = null } = {},
 ) {
   if (!where) return;
-  const holder = placeHolder(alignment);
+  const holder = holderOf(alignment);
   if (!holder) return;
   const targetScroller = within ? null : scrollersOf(holder).next().value;
   // Horizontal inspection can belong to any ancestor, the owning region included.
   // Only inner scrollports prepare Y; the region and its outers glide below.
   let inside = true;
-  for (
-    let box = placeHolder(where);
-    box instanceof Element;
-    box = renderedParent(box)
-  ) {
+  for (let box = holderOf(where); box instanceof Element; box = renderedParent(box)) {
     if (box === targetScroller) inside = false;
     const band = landingBand(box);
     if (band) {
       const { left, right, top, bottom } = band;
-      const destination = where.getBoundingClientRect();
+      const destination = destinationBox(where);
       const byX = nearestScrollBy(
         destination.left - scrollMargin(where, "Left"),
         destination.right + scrollMargin(where, "Right"),
@@ -260,7 +311,7 @@ export function scrollIntoView(
 onStanding((node, cause) => {
   if (cause !== "step" || !node) return;
   nextRender(() => {
-    if (deepFocus() === node && !alreadyShown(node))
+    if (deepFocus() === node && !ringShown(node))
       scrollIntoView(node, { block: "nearest" });
   });
 });

@@ -865,6 +865,30 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
     },
     { capture: true, passive: true },
   );
+// The box that wears the focus ring for `node`. A rule that rings a control's face
+// rather than the control declares it there, `--lf-wears-ring: 1` (theme.css), as a
+// playground's choice rings its radio and words together; the nearest such box around
+// the control is the one. Anything else wears its own. Those rules ring the face of the
+// control the focus paint marks, so only that control has one. A move paints after its
+// script, and a landing in that script, as an option walk's End is, reads the paint
+// now; a return's paint still waits for its frame.
+export function ringBox(node) {
+  if (
+    node &&
+    node !== paintedFocus &&
+    node === paintDestination?.deref() &&
+    !returnPaintPending
+  )
+    refreshFocusPaint();
+  if (!node?.matches?.("[data-lf-focus]")) return node;
+  for (
+    let box = renderedParent(node);
+    box instanceof Element;
+    box = renderedParent(box)
+  )
+    if (getComputedStyle(box).getPropertyValue("--lf-wears-ring") === "1") return box;
+  return node;
+}
 // Drawn counts `visibility: hidden` as hidden: a node under it keeps focus for a frame
 // and then the browser blurs it to the body, as it does a node under `display: none`.
 export const drawn = (node) =>

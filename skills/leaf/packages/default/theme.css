@@ -2719,6 +2719,9 @@
     display: flex;
     flex-direction: column;
   }
+  :scope:is(lf-ask) > * {
+    flex: none;
+  }
   :scope:is(lf-ask):has(> :nth-last-child(1 of :not(script, style, template)):not(:nth-child(1 of :not(script, style, template)))) {
     --lf-full-height: inherit;
   }

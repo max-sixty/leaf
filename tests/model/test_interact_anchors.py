@@ -578,8 +578,14 @@ def test_reply_replacement_precedes_automatic_fallback_for_other_threads(page_di
         ],
     )
     assert result.exit_code == 0, result.output
-    reply = json.loads(result.output)
+    reply = json.loads(result.stdout)
     assert reply["anchor"]["quote"] == "Beta"
+    # The reply tells its author where the revision moved the thread it left alone.
+    [moved] = [json.loads(line) for line in result.stderr.splitlines()]
+    assert (moved["code"], moved["values"]) == (
+        "relocated-anchor",
+        {"thread": roots[1]["id"], "section": "wording"},
+    )
     threads = {t["id"]: t for t in state_json(page_dir)["threads"]}
     assert threads[roots[0]["id"]]["anchor"] == reply["anchor"]
     assert threads[roots[1]["id"]]["anchor"] == {"section": "wording"}

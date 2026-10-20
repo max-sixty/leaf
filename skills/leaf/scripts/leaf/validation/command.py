@@ -70,12 +70,7 @@ def _check(page_dir: Path, render: bool) -> dict:
         return reported(1, [refusal])
     events = read_events(page_dir)
     result = check_source(page_dir, events)
-    found = [
-        *result.errors,
-        *source_advice(page_dir, result),
-        *result.advice,
-        *leaf_versions(page_dir),
-    ]
+    found = [*result.errors, *source_advice(page_dir, result), *leaf_versions(page_dir)]
     if result.errors:
         return reported(1, found)
     from leaf.render_gate.page_code import needs_browser

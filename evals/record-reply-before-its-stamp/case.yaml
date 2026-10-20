@@ -13,8 +13,8 @@
 description: record-reply-before-its-stamp
 metadata:
   purpose:
-    "Checks and checkpoints: a revision answering a message on a stamped record is checked
-    with `leaf page check` alone before the reply; the render check, reading and stamp wait for
+    "Checks and checkpoints: a revision answering a message on a stamped record goes
+    straight to the reply, which checks it; the render check, reading and stamp wait for
     the user's sign-off."
   tags:
     - wait-loop
@@ -41,13 +41,12 @@ assert:
     metric: reply-before-stamp
     value: |
       Read the first turn's commands. Pass only if they edit the heading in
-      `index.html`, run `leaf page check` on the page, and then run
-      `leaf response reply` answering 7c41d0e2, and if the first turn runs no
-      `leaf page check --render`, no screenshot or browser review, and no
-      `leaf page stamp` at any point, before or after that reply. Starting the
-      comment with `leaf task start`, or setting the page waiting after the reply, is
-      fine. Fail if a render check, a browser review or a stamp appears anywhere in
-      the first turn.
+      `index.html` and then run `leaf response reply` answering 7c41d0e2, and if the
+      first turn runs no `leaf page check` in any form, no screenshot or browser
+      review, and no `leaf page stamp` at any point, before or after that reply.
+      Starting the comment with `leaf task start` or a progress line, or setting the
+      page waiting after the reply, is fine. Fail if a page check, a browser review or
+      a stamp appears anywhere in the first turn.
   - type: llm-rubric
     metric: stamps-at-sign-off
     value: |

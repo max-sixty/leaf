@@ -20,7 +20,7 @@ from leaf.files import (
     latest_revision,
     require_revision,
 )
-from leaf.findings import Finding, Rejected
+from leaf.findings import Finding, Rejected, note
 from leaf.harness import message_identity
 from leaf.leases import contract_writer
 from leaf.obligations import asking, local_obligation_entry, quoted_in
@@ -750,8 +750,19 @@ def _compose_and_append(
         event["title"] = title
     if checked is not None:
         from leaf.revisioning import publish_checked_event
+        from leaf.validation.source import source_advice
 
+        # Every agent reply publishes the source it checked, so the first one on a
+        # revision reports the advice `page check` gives on that source, and a
+        # revision that answers a message needs no check before the reply.
+        announced = {
+            logged.get("revision")
+            for logged in events
+            if logged["kind"] == "reply" and logged["author"] == "agent"
+        }
         record = publish_checked_event(page, checked, event)
+        if record["revision"] not in announced:
+            note(*source_advice(page_dir, checked))
     else:
         record, _ = append_admitted(page, event)
     if in_hand is not None and page.status["state"] == "idle":

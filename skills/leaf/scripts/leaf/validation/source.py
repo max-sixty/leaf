@@ -53,7 +53,7 @@ class SourceCheck(NamedTuple):
     `reading` is the document under `registry` (none where the page has no
     vocabulary), read once for the whole check; the revision activation writes from
     it adopts it (`revision_artifact.write_artifact`). `advice` names the threads
-    the revision would relocate; `source_advice` reads the source's other drift."""
+    the revision would relocate, which `source_advice` reports with the source's drift."""
 
     reading: SourceReading
     registry: dict | None
@@ -251,13 +251,16 @@ def _presentation_errors(parser) -> list[Finding]:
 
 
 def source_advice(page_dir: Path, checked: SourceCheck) -> list[Finding]:
-    """The source's non-blocking drift, which `page check` reports beside what
-    `check_source` found. It is read apart from the check because judging the
-    page's recorded data takes a cold process about 200 ms on a large page, and no
-    other caller of the check reports advice."""
+    """What a check of the source advises beside its errors: the threads its
+    revision relocates, and its drift. `page check` reports it, and so does the
+    first reply on a revision (`thread._compose_and_append`), the only check a
+    revision answering the user's message gets. The drift is read apart from the
+    check, which publishing a revision also runs, because judging the page's recorded
+    data can take a cold process about 200 ms on a large page."""
     parser = checked.document
     stored_data = read_data(page_dir, checked.registry)
     return [
+        *checked.advice,
         *measurement_lag(parser.lf_elements, checked.registry or {}, stored_data),
         *(
             Finding(

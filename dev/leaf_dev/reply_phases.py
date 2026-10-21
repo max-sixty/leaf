@@ -206,13 +206,13 @@ def turn_phases(
 
 
 def command_spans(
-    commands: list[dict], admitted: str, replied: str
+    commands: list[dict], start: float, end: float
 ) -> list[tuple[float, float]]:
-    """When Leaf's `commands` records ran on a reply: each that started after the
-    comment's admission and before the reply's, up to the reply's admission, since
-    the command that replies exits after it. A command running from before the
-    comment, as a page server does, is no part of it."""
-    start, end = instant(admitted), instant(replied)
+    """When Leaf's `commands` records ran on a reply: each that started after
+    `start`, the comment's admission or the boundary where a working harness took
+    it, and before `end`, the reply's admission, up to that admission, since the
+    command that replies exits after it. A command running from before, as a page
+    server does or the harness's other work did, is no part of it."""
     return [
         (began, min(instant(command["ts"]), end))
         for command in commands
@@ -231,8 +231,10 @@ def covered(spans: list[tuple[float, float]]) -> float:
 
 
 def leaf_commands_ms(commands: list[dict], admitted: str, replied: str) -> int:
-    """The elapsed time Leaf's commands took on a reply (`command_spans`)."""
-    return round(covered(command_spans(commands, admitted, replied)) * 1000)
+    """The elapsed time Leaf's commands took on a reply from the comment's admission
+    (`command_spans`)."""
+    spans = command_spans(commands, instant(admitted), instant(replied))
+    return round(covered(spans) * 1000)
 
 
 def reply_breakdown(
@@ -280,8 +282,24 @@ def reply_breakdown(
         elif phase == "tool" and model_calls:
             model_calls[-1]["calls"].extend(call[:SHOWN] for call in calls)
     delivery = total("delivery")
-    spans = command_spans(commands, admitted, replied)
+    took = next(
+        (until for phase, _, until, _ in phases if phase == "busy"), instant(admitted)
+    )
+    spans = command_spans(commands, took, instant(replied))
     leaf_commands = ms(covered(spans))
+    # The tool time Leaf's commands didn't cover, phase by phase.
+    other_tools = sum(
+        (until - since)
+        - covered(
+            [
+                (max(a, since), min(b, until))
+                for a, b in spans
+                if a < until and b > since
+            ]
+        )
+        for phase, since, until, _ in phases
+        if phase == "tool"
+    )
     delivering = [
         (since, until) for phase, since, until, _ in phases if phase == "delivery"
     ]
@@ -291,7 +309,7 @@ def reply_breakdown(
         "busyMs": total("busy"),
         "deliveryMs": delivery,
         "leafCommandsMs": leaf_commands,
-        "otherToolsMs": max(total("tool") - leaf_commands, 0),
+        "otherToolsMs": ms(other_tools),
         "modelMs": total("model"),
         "idleMs": total("idle"),
         "modelCalls": model_calls,

@@ -12,7 +12,9 @@ share of an agent's reply on any harness. A command acts on the pages it names: 
 (`delivery.response_address`), or the pages a delivery it reads or acknowledges
 carries (`delivery.acting_on_delivery`); each notes its page (`acting_on`). A
 command that names none, as `leaf wait` watching every page a session owns,
-records nothing: its time is the agent waiting, not Leaf answering. Harness hooks
+records nothing: its time is the agent waiting, not Leaf answering. One that
+names a page and then waits, as `leaf wait --ack` does, records its own work as it
+starts waiting. Harness hooks
 don't pass through the CLI, and their time shows as delivery in the page's pickup
 receipts. A command's time runs from its launcher's start, `bin/leaf`'s uv
 included, to its exit; one the sandbox bridge runs for Claude Code is timed from
@@ -90,10 +92,11 @@ def launched() -> float:
 
 
 def record_command(command: str) -> None:
-    """Record in each page this command acted on how long it took, with the harness
-    session that ran it. A diagnostic the system won't let this process gather or
-    write, as a sandbox may refuse a session record or a page, is dropped, since
-    the command's own result has already been decided."""
+    """Record in each page this command acted on how long it has taken, with the
+    harness session that ran it, once: a later call records nothing. A diagnostic
+    the system won't let this process gather or write, as a sandbox may refuse a
+    session record or a page, is dropped, since the command's own result has
+    already been decided."""
     import psutil
 
     from .harness import session_harness
@@ -115,11 +118,14 @@ def record_command(command: str) -> None:
             "session": session,
             "context": session_context(session),
         }
-        for page_dir in pages:
-            if (page_dir / "events.jsonl").is_file():
-                append_interactions(page_dir, [record])
     except (OSError, psutil.Error):
         return
+    for page_dir in pages:
+        try:
+            if (page_dir / "events.jsonl").is_file():
+                append_interactions(page_dir, [record])
+        except OSError:
+            continue
 
 
 def admit_batch(batch: object) -> dict:

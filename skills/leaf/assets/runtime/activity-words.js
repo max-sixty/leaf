@@ -91,7 +91,7 @@ const publicationWords = (published) => [
     published.kind === "example"
       ? "This is an example on the Leaf website"
       : "This website is a Leaf page"
-  }, and this copy of it is yours alone. `,
+  }, and this copy is private to this browser. `,
   "Install Leaf",
 ];
 
@@ -307,7 +307,7 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
       answers: activity.counts.handling - activity.counts.handling_comments,
     },
     invite: publication
-      ? `Ask ${publication.agent} to revise your private copy`
+      ? `${publication.agent} awaits — comment to revise this copy`
       : `${agent} awaits — select text to comment`,
     kind,
     listening: facts.listening,

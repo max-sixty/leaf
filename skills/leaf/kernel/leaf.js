@@ -5574,7 +5574,7 @@ var OFFLINE_LINE = "Server offline \u2014 reconnecting. Keep this page open so p
 var KEY_REFUSED_LINE = "The server no longer accepts this tab's key. Open the link Leaf printed in a new tab, and keep this one open so pending changes can send.";
 var BROKEN_LINE = "Page couldn't apply current state \u2014 reload";
 var publicationWords = (published) => [
-  `${published.kind === "example" ? "This is an example on the Leaf website" : "This website is a Leaf page"}, and this copy of it is yours alone. `,
+  `${published.kind === "example" ? "This is an example on the Leaf website" : "This website is a Leaf page"}, and this copy is private to this browser. `,
   "Install Leaf"
 ];
 function pickedUpWords({ comments, answers }) {
@@ -5713,7 +5713,7 @@ function pageStatus(state, { reach: reach2 = "reached", fault: fault2 = null } =
       comments: activity.counts.handling_comments,
       answers: activity.counts.handling - activity.counts.handling_comments
     },
-    invite: publication ? `Ask ${publication.agent} to revise your private copy` : `${agent} awaits \u2014 select text to comment`,
+    invite: publication ? `${publication.agent} awaits \u2014 comment to revise this copy` : `${agent} awaits \u2014 select text to comment`,
     kind,
     listening: facts.listening,
     overdue: activity.counts.overdue,

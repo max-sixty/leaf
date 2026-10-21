@@ -360,7 +360,7 @@ test("a published page's agent is on call, and its explanation introduces the pa
     const status = published({ kind, detail });
     assert.equal(status.kind, "listening");
     assert.equal(status.tone, "listening");
-    assert.equal(status.summary, "Ask Agent to revise your private copy");
+    assert.equal(status.summary, "Agent awaits — comment to revise this copy");
     assert.equal(status.asks, false);
   }
   // A request it declared still stands.
@@ -375,11 +375,11 @@ test("a published page's agent is on call, and its explanation introduces the pa
   const model = statusModel(published({ kind: "closed" }), NO_QUEUES, "Agent");
   assert.equal(
     model.explanation,
-    "Ask Agent to revise your private copy. This website is a Leaf page, and this copy of it is yours alone. Install Leaf",
+    "Agent awaits — comment to revise this copy. This website is a Leaf page, and this copy is private to this browser. Install Leaf",
   );
   assert.equal(model.adds, "");
   assert.deepEqual(model.publication, {
-    copy: "This website is a Leaf page, and this copy of it is yours alone. ",
+    copy: "This website is a Leaf page, and this copy is private to this browser. ",
     examples: null,
     install: "Install Leaf",
     installUrl: "/#install",
@@ -392,7 +392,7 @@ test("a published page's agent is on call, and its explanation introduces the pa
   );
   assert.equal(
     example.explanation,
-    "Ask Agent to revise your private copy. This is an example on the Leaf website, and this copy of it is yours alone. Other examples Install Leaf",
+    "Agent awaits — comment to revise this copy. This is an example on the Leaf website, and this copy is private to this browser. Other examples Install Leaf",
   );
   assert.equal(example.publication.examplesUrl, "/examples/");
 });

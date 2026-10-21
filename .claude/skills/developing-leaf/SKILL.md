@@ -9,8 +9,9 @@ Resolve the repository root three directories above this `SKILL.md`, check that
 `<root>/bin/leaf --root` prints that root, and run every `leaf` command through that
 absolute launcher; a bare `leaf` may run the installed plugin instead.
 
-Before naming or renaming anything the user sees or operates, or an identifier for one,
-read `references/glossary.md`, Leaf's canonical vocabulary.
+Before writing words the user sees, such as a label, status line or placeholder, or
+naming anything they operate or an identifier for one, read `references/glossary.md`,
+Leaf's canonical vocabulary and the voice its visible copy speaks in.
 
 ## Read the owning contract
 

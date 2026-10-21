@@ -40,6 +40,7 @@ from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
+from leaf import file_changes as file_changes_model
 from leaf import files as files_model
 from leaf import harness as harness_model
 from leaf import hook_transport as hook_transport_model
@@ -52,6 +53,21 @@ from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
+
+
+def test_pages_follower_without_owned_pages_does_not_open_a_watcher(
+    claimed, monkeypatch, capsys
+):
+    cleanup_model.end_session("s1")
+    assert cleanup_model.holds_claims("s1")
+    assert service_model.owned_pages("s1") == []
+
+    def unexpected_watcher(*_args, **_kwargs):
+        raise AssertionError("a session with no owned pages opened a watcher")
+
+    monkeypatch.setattr(file_changes_model, "FileChanges", unexpected_watcher)
+    hooks_model.cmd_pages({"session_id": "s1"})
+    assert capsys.readouterr().out == "[]\n"
 
 
 def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, capsys):

@@ -1,10 +1,12 @@
 """HTTP event and service-address tests."""
 
+import builtins
 import errno
 import html
 import http.client
 import http.cookiejar
 import http.cookies
+import io
 import json
 import os
 import re
@@ -26,6 +28,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
+import anyio
 import pytest
 import tinycss2
 from click.testing import CliRunner
@@ -302,7 +305,9 @@ def test_a_staged_write_does_not_move_the_page_reading(page_dir):
     assert served_reading.page_reading(page_dir) == reading
 
 
-def test_samples_use_captured_resources_and_independent_event_logs(server, page_dir):
+def test_samples_use_captured_resources_and_independent_event_logs(
+    server, page_dir, monkeypatch
+):
     template = '<template id="practice" data-sample><h1>Practice</h1><p id="child-copy">Child text.</p><script type="module" src="/page/sample.js"></script></template>'
     (page_dir / "page").mkdir(exist_ok=True)
     module = b'document.getElementById("child-copy").dataset.module = "captured";'
@@ -383,7 +388,21 @@ def test_samples_use_captured_resources_and_independent_event_logs(server, page_
         data=b'{"kind":"unknown","attempt":"refused"}',
     )
     assert status == 400, answer
-    assert fetch(child + "/api/release", layer=generation, data=b"{}")[0] == 200
+    serve_file = http_model.FileResponse.__call__
+
+    async def release_before_file_read(response, *args):
+        if Path(response.path).name == "icon.svg":
+            released = await anyio.to_thread.run_sync(
+                lambda: fetch(child + "/api/release", data=b"{}")
+            )
+            assert released[0] == 200
+        await serve_file(response, *args)
+
+    monkeypatch.setattr(http_model.FileResponse, "__call__", release_before_file_read)
+    assert fetch(server + child_assets + "icon.svg", token=None) == (
+        200,
+        artifact_model.read_artifact(page_dir, 1).resources["/icon.svg"].data,
+    )
     assert fetch(child + "/api/state")[0] == 404
     assert any(
         row["source"] == "client"
@@ -751,7 +770,7 @@ def test_sample_capability_authorizes_only_its_live_descendants(page_dir, routed
         )
         assert fetch(second + "/api/state", token=None)[0] == 200
         assert fetch(second + "/api/release", data=b"{}", token=None)[0] == 200
-        assert preview.httpd.samples.pages == {}
+        assert all(not samples.pages for samples in preview.httpd.samples.values())
 
 
 @pytest.mark.parametrize("explicit_revision", [False, True])
@@ -886,21 +905,14 @@ def test_document_startup_and_media_ranges_do_not_read_whole_recordings(
     publish(page_dir)
     captured = "/revisions/" + files_model.revision_path(page_dir, 1).stem
     reads = []
-    original_open = Path.open
+    original_open = builtins.open
 
     class ObservedFile:
         def __init__(self, stream):
             self.stream = stream
 
-        def __enter__(self):
-            self.stream.__enter__()
-            return self
-
-        def __exit__(self, *args):
-            return self.stream.__exit__(*args)
-
-        def seek(self, offset):
-            return self.stream.seek(offset)
+        def __getattr__(self, name):
+            return getattr(self.stream, name)
 
         def read(self, amount=-1):
             result = self.stream.read(amount)
@@ -909,9 +921,14 @@ def test_document_startup_and_media_ranges_do_not_read_whole_recordings(
 
     def observe(file, *args, **kwargs):
         stream = original_open(file, *args, **kwargs)
-        return ObservedFile(stream) if file.suffix == ".mp4" else stream
+        return (
+            ObservedFile(stream)
+            if isinstance(file, (str, os.PathLike)) and Path(file).suffix == ".mp4"
+            else stream
+        )
 
-    monkeypatch.setattr(Path, "open", observe)
+    monkeypatch.setattr(builtins, "open", observe)
+    monkeypatch.setattr(io, "open", observe)
     assert fetch(server)[0] == 200
     assert reads == []
     for route in (path, captured + path):
@@ -929,6 +946,15 @@ def test_document_startup_and_media_ranges_do_not_read_whole_recordings(
             assert (response.status, response.read()) == (206, data[100:132])
             assert reads == [32]
             reads.clear()
+            for requested, status in (("bytes=9999999-", 416), ("bytes=wrong", 400)):
+                conn.request("GET", route + f"?t={TOKEN}", headers={"Range": requested})
+                response = conn.getresponse()
+                assert response.status == status
+                assert response.getheader("X-Content-Type-Options") == "nosniff"
+                assert response.getheader("Cache-Control")
+                response.read()
+                trace = (page_dir / interaction_model.INTERACTIONS_FILE).read_text()
+                assert json.loads(trace.splitlines()[-1])["status"] == status
         finally:
             conn.close()
 

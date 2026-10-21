@@ -237,7 +237,7 @@ class LeafHTTPServer:
     def server_close(self) -> None:
         """Release the listening socket after the serving loop has ended."""
         self.socket.close()
-        self.samples.close()
+        self.samples.clear()
 
 
 @functools.cache

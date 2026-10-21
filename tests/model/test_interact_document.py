@@ -261,9 +261,9 @@ def test_a_revision_keeps_its_bytes_when_a_layer_file_is_edited_in_place(page_di
 
 
 def test_a_sample_child_stages_its_revision_without_fsync(page_dir, monkeypatch):
-    """A sample's child is Leaf's own and deleted on release, so nothing reads its
-    revision after a crash and staging it pays for no fsync, while a page's own
-    revision is still made durable."""
+    """A sample's child lives only in this server, so nothing reads its revision
+    after a crash and staging it pays for no fsync, while a page's own revision
+    is still made durable."""
     template = (
         '<template id="practice" data-sample><h1>Practice</h1>'
         "<p>Child text.</p></template>"
@@ -292,12 +292,9 @@ def test_a_sample_child_stages_its_revision_without_fsync(page_dir, monkeypatch)
     identity = samples.create(
         page_dir, artifact, document, [], {"sources": {}}, "practice", None, None
     )
-    try:
-        child = samples.pages[identity].directory
-        assert files_model.latest_revision(child) == 1
-        assert synced == []
-    finally:
-        samples.close()
+    child = samples.pages[identity].directory
+    assert files_model.latest_revision(child) == 1
+    assert synced == []
 
 
 def test_the_captured_widget_digests_say_which_widgets_a_user_may_keep(page_dir):
@@ -4136,16 +4133,13 @@ def test_a_page_keeps_its_readings_while_its_samples_live(page_dir):
         held = artifact_model.read_revision(page_dir, revision)
         samples = samples_model.Samples()
         artifact = artifact_model.read_artifact(page_dir, revision)
-        try:
-            for _ in range(page_memory_model.PageMemories.LIMIT):
-                samples.create(
-                    page_dir, artifact, held.document, [], {"sources": {}},
-                    "practice", None, None,
-                )  # fmt: skip
-            gc.collect()
-            assert artifact_model.read_revision(page_dir, revision) is held
-        finally:
-            samples.close()
+        for _ in range(page_memory_model.PageMemories.LIMIT):
+            samples.create(
+                page_dir, artifact, held.document, [], {"sources": {}},
+                "practice", None, None,
+            )  # fmt: skip
+        gc.collect()
+        assert artifact_model.read_revision(page_dir, revision) is held
 
 
 def test_a_reading_under_outcomes_is_the_walk_under_them():

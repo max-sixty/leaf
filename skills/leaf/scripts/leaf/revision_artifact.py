@@ -129,33 +129,20 @@ class Resource:
     """Exact bytes or an immutable backing file, read only when a consumer needs them.
 
     Captured files belong to the revision bundle; callers never replace them with a
-    mutable page path. A full read is explicit in `data`, while transports use `size`
-    and `read` to answer HEAD and byte ranges without materializing the whole file.
+    mutable page path. A full read is explicit in `data`; HTTP passes backing files
+    directly to Starlette for streaming and byte ranges.
     """
 
     content: bytes | Path
     mime: str
 
     @property
-    def size(self) -> int:
-        return (
-            len(self.content)
-            if isinstance(self.content, bytes)
-            else self.content.stat().st_size
-        )
-
-    def read(self, window: slice = slice(0, None)) -> bytes:
-        if isinstance(self.content, bytes):
-            return self.content[window]
-        with self.content.open("rb") as stream:
-            stream.seek(window.start or 0)
-            return stream.read(
-                -1 if window.stop is None else window.stop - (window.start or 0)
-            )
-
-    @property
     def data(self) -> bytes:
-        return self.read()
+        return (
+            self.content
+            if isinstance(self.content, bytes)
+            else self.content.read_bytes()
+        )
 
     @property
     def digest(self) -> str:

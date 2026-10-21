@@ -2060,7 +2060,7 @@
       min-block-size: 0;
       --lf-tabstrip-flow: column;
       gap: 0;
-      padding: var(--sp-4) 8px calc(var(--sp-4) + var(--lf-foot-room));
+      padding: calc(var(--sp-4) - var(--focus-ring-room)) 8px calc(var(--sp-4) + var(--lf-foot-room));
       scroll-padding-block-end: var(--lf-foot-room);
       overflow-x: hidden;
       overflow-y: auto;

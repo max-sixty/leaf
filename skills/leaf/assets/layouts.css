@@ -138,7 +138,9 @@
       overflow-y: auto;
       --lf-holds-height: 1;
       margin: 0;
-      padding: var(--sp-4) 20px 0;
+      /* Room for a focus ring at its foot, where it scrolls, taken from the list's top
+       * (the package theme). */
+      padding: var(--sp-4) 20px var(--focus-ring-room);
       --lf-parts-title: 1;
     }
     html[data-lf-interactive]
@@ -231,6 +233,7 @@
         inline-size: auto;
         max-block-size: none;
         overflow-y: visible;
+        padding-block-end: 0;
       }
       html[data-lf-interactive]
         body

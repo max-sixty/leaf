@@ -26,12 +26,10 @@
     filter: drop-shadow(var(--raise-2));
   }
   .lf-fp-ground,
-  .lf-fp-ring,
-  .lf-fp-fill {
+  .lf-fp-ground > * {
     clip-path: inset(50%);
   }
-  .lf-fp-ring,
-  .lf-fp-fill {
+  .lf-fp-ground > * {
     position: absolute;
     inset: 0;
   }
@@ -128,7 +126,7 @@
     width: var(--lf-fp-line);
     height: var(--lf-fp-line);
   }
-  .lf-floating-panel[data-long] .lf-fp-row:has(> .lf-fp-expand) {
+  .lf-floating-panel[data-expanded] .lf-fp-row:has(> .lf-fp-expand) {
     min-height: calc(2 * var(--lf-fp-line) + 2 * var(--lf-fp-row-pad) + 4px);
   }
   .lf-fp-leaf {

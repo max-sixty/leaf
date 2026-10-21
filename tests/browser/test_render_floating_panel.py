@@ -4132,6 +4132,62 @@ def test_an_image_pasted_in_the_page_s_field_hangs_above_the_panel(browser, serv
     expect(field(page)).not_to_have_attribute("placeholder", re.compile("Image added"))
 
 
+def test_a_line_the_field_grows_rides_the_box_s_top_edge(browser, serve):
+    """The field growing a line moves the box's top edge up over the field's tween,
+    and what that line moved rides the edge rather than jumping ahead of it: the
+    tween's first frame shows the panel as it stood, attachment, words and the field's
+    ring included, and midway the attachment keeps its distance from the edge."""
+    from io import BytesIO
+
+    from PIL import Image, ImageChops
+
+    page = floating(browser, serve(LONG_PAGE))
+    page.emulate_media(reduced_motion="no-preference")
+    field(page).click()
+    page.keyboard.type("A first line")
+    paste_image(field(page), solid_png(40, 30, (255, 128, 64)))
+    shelf = page.locator(".lf-fp-box .lf-composer-media-item")
+    expect(shelf).to_have_count(1)
+    settled(page)
+    card, tile = page.locator(".lf-fp-card").bounding_box(), shelf.bounding_box()
+    region = {
+        "x": card["x"] - 8,
+        "y": tile["y"] - 8,
+        "width": card["width"] + 16,
+        "height": card["y"] + card["height"] - tile["y"] + 16,
+    }
+    gaps = r"""() => {
+      const top = Number.parseFloat(
+        /inset\(([-\d.]+)px/.exec(
+          getComputedStyle(document.querySelector('.lf-fp-ground > .lf-fp-fill')).clipPath,
+        )[1],
+      );
+      return Math.round(document.querySelector('.lf-fp-box .lf-composer-media-item')
+        .getBoundingClientRect().top - top);
+    }"""
+    resting = page.evaluate(gaps)
+    stood = Image.open(BytesIO(page.screenshot(clip=region))).convert("L")
+    page.keyboard.press("Shift+Enter")
+    page.wait_for_function(
+        "() => document.querySelector('.lf-fp-ground').getAnimations({subtree: true})"
+        ".some(motion => motion.playState === 'running')"
+    )
+    seek = "at => document.getAnimations().forEach(motion => {"
+    seek += " motion.pause(); motion.currentTime = at; })"
+    page.evaluate(seek, 0)
+    first = Image.open(BytesIO(page.screenshot(clip=region))).convert("L")
+    moved = ImageChops.difference(stood, first).point(lambda v: 255 if v > 16 else 0)
+    # Linux rasterizes the riding words and ring a little differently from the
+    # words at rest (~200 px); a shelf or line that jumped ahead moves thousands.
+    assert moved.histogram()[255] < 300, moved.getbbox()
+    page.evaluate(seek, 120)
+    assert page.evaluate(gaps) == resting
+    page.evaluate("() => document.getAnimations().forEach(motion => motion.play())")
+    settled(page)
+    assert page.locator(".lf-fp-card").bounding_box()["height"] > card["height"] + 15
+    assert page.evaluate(gaps) == resting
+
+
 def test_looking_at_an_attached_image_keeps_the_draft_where_it_stands(browser, serve):
     """The image viewer opened from a draft's attachment stands over the panel, and
     Escape hands the user back to the attachment: they never left what they were
@@ -4254,13 +4310,18 @@ def test_a_draft_draws_a_bullet_list_as_the_message_will(browser, serve):
 
 def test_send_stands_in_the_counts_place_while_the_field_holds_a_draft(browser, serve):
     """Typing puts Send where the counts stood, wearing every composer's accent arrow
-    rather than the panel's own press face. A press that takes the caret away leaves
-    the draft as it stands, Send and every line in place, and so does a press back
-    into it; the counts come back once the field empties."""
+    rather than the panel's own press face; a line break is a draft as a word is. A
+    press that takes the caret away leaves the draft as it stands, Send and every line
+    in place, and so does a press back into it; the counts come back once the field
+    empties."""
     page = floating(browser, serve(LONG_PAGE))
     field(page).click()
-    page.keyboard.type("Could the rollback cover the weekend, and the Monday after it?")
     send = page.locator(".lf-fp-send")
+    page.keyboard.press("Shift+Enter")
+    expect(page.locator(".lf-fp-on-user")).to_be_hidden()
+    page.keyboard.press("Backspace")
+    expect(page.locator(".lf-fp-on-user")).to_be_visible()
+    page.keyboard.type("Could the rollback cover the weekend, and the Monday after it?")
     expect(send).to_be_visible()
     accent = page.evaluate(
         "() => { const probe = document.createElement('span'); probe.style.color = 'var(--accent)';"

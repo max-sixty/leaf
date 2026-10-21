@@ -55,7 +55,9 @@
   /* The surface: a layer over the whole window, cut to the box's outline by the
      panel's script, with a ring a pixel outside it and one soft shadow around both,
      cast at the height of what opens over the page. The layer itself is cut to that
-     outline grown by its shadow's reach. */
+     outline grown by its shadow's reach. While the field grows or shrinks a line, the
+     field's focus ring stands on it too, a ring and a fill like the box's own, in the
+     colour of the ring it stands in for (floating-panel.js, `followBox`). */
   .lf-fp-ground {
     position: fixed;
     inset: 0;
@@ -64,12 +66,10 @@
     filter: drop-shadow(var(--raise-2));
   }
   .lf-fp-ground,
-  .lf-fp-ring,
-  .lf-fp-fill {
+  .lf-fp-ground > * {
     clip-path: inset(50%);
   }
-  .lf-fp-ring,
-  .lf-fp-fill {
+  .lf-fp-ground > * {
     position: absolute;
     inset: 0;
   }
@@ -198,8 +198,9 @@
   }
   /* With no view open the more-room mark stands over the leaf, in the corner a long
      draft leaves free beside the field's first line (floating-panel.js, `expand`). A
-     widened field may hold fewer lines than the two that corner needs, so the row keeps
-     their height while the mark stands. */
+     widened field may hold fewer lines than the two that corner needs, so the wide row
+     keeps their height. Only the wide row does, so the mark standing at the fourth line
+     resizes nothing and stands in the frame the line arrives. */
   .lf-fp-row > .lf-fp-expand {
     position: absolute;
     inset-block-start: var(--lf-fp-row-pad);
@@ -207,7 +208,7 @@
     width: var(--lf-fp-line);
     height: var(--lf-fp-line);
   }
-  .lf-floating-panel[data-long] .lf-fp-row:has(> .lf-fp-expand) {
+  .lf-floating-panel[data-expanded] .lf-fp-row:has(> .lf-fp-expand) {
     min-height: calc(2 * var(--lf-fp-line) + 2 * var(--lf-fp-row-pad) + 4px);
   }
   .lf-fp-leaf {

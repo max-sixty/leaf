@@ -162,12 +162,12 @@ has tried; settle that before building it.
   in Slack, Discord and Telegram, so an accidental press loses a long rewrite. Offer a
   way back, such as `g D` restoring the last discarded rewrite into its editor (the
   user's suggestion, 2026-10-06).
-- **Decide how far back `z` reaches.** `z` takes back the user's newest gesture
-  however old, so on a page left for weeks it can reopen a thread resolved then,
-  below the fold, and nothing puts back what an undo took. The
-  [undo-reach playground](notes/undo-reach/README.md) compares limits on that reach
-  with additions such as redo and a panel of the user's changes, and waits on the
-  user's pick.
+- **Show what `z` takes before it takes it.** `z` takes back the user's newest
+  gesture however old, so on a page left for weeks it can reopen a thread resolved
+  then, below the fold, and the notice names only the gesture's kind. The user chose
+  (2026-10-21) to keep the reach unlimited, name the gesture and its age, and spend
+  the first press revealing a target that is out of view or already picked up by
+  the agent. [The undo-reach note](notes/undo-reach/README.md) has the build.
 - **Decide when a page merits a separate phone composition.** Many pages are
   ephemeral and authored for a user reading on a large screen, so a bespoke phone
   animation may not repay its cost. Decide how the agent weighs the user's viewing
@@ -691,10 +691,6 @@ export` writes a file that boots the page's own runtime offline, and that file
   A disposable full-history rewrite saved about 27 MiB. Coordinate the rewrite
   across remote refs and local worktrees, retaining the commit mapping and testing
   that updates preserve active work without restoring the removed history.
-- **Calibrate agent-driven UI diagnosis.** Try one known miss and one intentional or
-  invalid control with a bounded explorer and cold user. The
-  [quality brief](notes/agent-driven-ui-quality.md) also proposes a Tend acceptance-policy
-  change; review that proposal with its owner before changing the policy.
 - **Set interaction-trace privacy before sharing pages.** Define who can inspect
   traces, consent or opt-out, sensitive-field redaction (including passwords,
   pasted text, and selection), and retention/deletion for page-local files and

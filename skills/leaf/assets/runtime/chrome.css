@@ -13,7 +13,6 @@
     --lf-fp-aim: 32px;
     --lf-fp-press: 28px;
     --lf-fp-inset: 8px;
-    --lf-fp-words: 15px / 22px var(--serif);
     --lf-fp-max: 540px;
     --lf-fp-gutter: 24px;
     --lf-fp-width: min( var(--lf-fp-max), calc(100vw - var(--lf-fp-gutter) - var(--lf-safe-left) - var(--lf-safe-right)) );
@@ -1095,7 +1094,7 @@
   }
   .lf-fp-prompt {
     margin: 0;
-    font: var(--lf-fp-words);
+    font: var(--msg-font);
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 4;
@@ -1137,9 +1136,6 @@
     --lf-thread-text-inset: var(--lf-fp-inset);
     padding-inline-start: 0;
   }
-  .lf-fp-messages :is(.lf-msg-body, .lf-thread-working-words) {
-    font: var(--lf-fp-words);
-  }
   .lf-fp-messages .lf-msg-editor {
     margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
   }
@@ -1158,7 +1154,8 @@
     align-items: baseline;
     gap: 8px;
     margin: 0 0 6px;
-    font: 600 15px / 1.4 var(--serif);
+    font: var(--msg-font);
+    font-weight: 600;
   }
   .lf-fp-plan-count {
     margin-left: auto;

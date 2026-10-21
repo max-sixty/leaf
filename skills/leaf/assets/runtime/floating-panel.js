@@ -95,7 +95,10 @@
  * the menu to the panel's top. A
  * keyboard's convenience for where the reader stands, such as Resume writing, stands
  * under Navigate only where no keyboard is there to reach it (page-controls.js, the
- * `keys` group). The field the user clicks in is the field they write in: a page
+ * `keys` group). The panel shows no key hints of its own: the menu's rows carry their
+ * keys and `?` opens the full reference, which the user chose on 13 October over a
+ * hint or two in the line over the field, to keep the panel quietest. The field the
+ * user clicks in is the field they write in: a page
  * comment where no thread is open, a reply where one is: the reply box every view of a
  * thread draws (thread/replies.js), with its ↑ to the user's last message, which Leaf's
  * reader draws in the field's place. Each destination keeps its own native editor (its
@@ -106,9 +109,8 @@
  * menu holds what it showed while it stands, and a control the user pressed stays where
  * it was. Every change of the box's size takes effect in
  * one step, and the surface behind it, a separate layer, follows by a clip from where it
- * stood to where it stands, the way the Codex app's floating panel moves
- * (`notes/floating-panel/GOAL.md`): nothing's layout tweens, so nothing a user aims at
- * travels after the gesture that moved it. */
+ * stood to where it stands, the way the Codex app's floating panel moves: nothing's
+ * layout tweens, so nothing a user aims at travels after the gesture that moved it. */
 import {
   html,
   keyed as keyedBy,

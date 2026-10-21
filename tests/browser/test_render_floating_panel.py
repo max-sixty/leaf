@@ -2745,15 +2745,24 @@ def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
     def words_follow_leaf():
         # The field shows nothing under the leaf: its words come out from behind its
         # trailing edge, which stands past the mark by between its two rests' margins.
-        edges = page.locator(".lf-fp-field").evaluate("""field => {
-          const sides = getComputedStyle(field).clipPath.match(/[-\\d.]+px/g);
-          return {field: field.getBoundingClientRect().left,
-            words: field.getBoundingClientRect().left + parseFloat(sides[3]),
+        # The attachment hanging over the field shows meanwhile, cut by no edge of it.
+        edges = field(page).evaluate("""editor => {
+          let cut = editor;
+          while (getComputedStyle(cut).clipPath === 'none') cut = cut.parentElement;
+          const sides = getComputedStyle(cut).clipPath.match(/[-\\d.]+px/g);
+          return {field: cut.getBoundingClientRect().left,
+            words: cut.getBoundingClientRect().left + parseFloat(sides[3]),
             mark: document.querySelector('.lf-fp-leaf .lf-dot').getBoundingClientRect().right};
         }""")
         assert edges["field"] < edges["mark"]
         past = edges["words"] - edges["mark"]
         assert min(margins) - 0.5 <= past <= max(margins) + 0.5, (past, margins)
+        attachment = shelf.bounding_box()
+        pixels = Image.open(BytesIO(page.screenshot(clip=attachment))).convert("RGB")
+        assert any(
+            r > 200 and 90 < g < 170 and b < 100
+            for r, g, b in pixels.get_flattened_data()
+        )
 
     row = reading()
     margins = [beyond_mark()]

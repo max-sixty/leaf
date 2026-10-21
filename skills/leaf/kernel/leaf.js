@@ -6530,6 +6530,11 @@ function boxMotion({
     }
     function reveal2(part, frame, siblings) {
       const to = part.box;
+      if (part.holdsWindow) {
+        motions.set(part.element, { from: to, to, revealed: true });
+        for (const inner of part.parts) reveal2(inner, frame, siblings);
+        return;
+      }
       const side = (inset, beyond) => beyond ? 0 : Math.max(0, inset);
       const from = [
         side(frame.from.top - to.top, to.top < frame.to.top - 0.5),

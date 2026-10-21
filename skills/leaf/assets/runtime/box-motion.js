@@ -32,7 +32,9 @@
  *   lasts. A side where it stands out of its frame, as the attachments hanging over the
  *   box's top do, is cut only at its own edge. A part carried past it in that frame
  *   cuts it too, so it comes out from behind that part, as the field does behind the
- *   leaf leaving the corner, rather than showing under it.
+ *   leaf leaving the corner, rather than showing under it. A new part holding one
+ *   placed against the window has its parts revealed one by one, as a part holding one
+ *   is never carried whole.
  *
  * Whose change it is decides what travels. The user's own change, a key, a press or
  * typing, owns what it sets going until that rendering settles, and carries what it
@@ -364,6 +366,13 @@ export function boxMotion({
     // part passes, so it comes out from behind the part rather than under it.
     function reveal(part, frame, siblings) {
       const to = part.box;
+      // A cut on a part holding one placed against the window would cut that one too,
+      // so its parts are revealed one by one.
+      if (part.holdsWindow) {
+        motions.set(part.element, { from: to, to, revealed: true });
+        for (const inner of part.parts) reveal(inner, frame, siblings);
+        return;
+      }
       const side = (inset, beyond) => (beyond ? 0 : Math.max(0, inset));
       /** @type {[number, number, number, number]} */
       const from = [

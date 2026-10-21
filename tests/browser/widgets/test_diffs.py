@@ -204,7 +204,7 @@ def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve
         ),
     )
     resized(page, 1280, 900)
-    expect(page.locator("lf-tabs")).to_have_attribute("data-lf-tabs-flow", "page")
+    expect(page.locator("lf-tabs")).to_have_attribute("data-lf-views-flow", "page")
     page.wait_for_function(
         "() => document.querySelectorAll('lf-diff.lf-rendered').length === 2"
     )

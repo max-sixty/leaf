@@ -3,9 +3,11 @@ import {
   commitWidgetDescriptors,
   dataBody,
   rememberAuthoredParents,
+  setChildLists,
+  setChildren,
   stageAuthoredStates,
   stageWidgetDescriptors
-} from "./bundle-widget-upgrade.js";
+} from "./bundle-stylesheets.js";
 import {
   isCanonicalMediaUrl,
   readAttachedMedia,
@@ -76,10 +78,6 @@ import {
   shownRegionBounds,
   startScroll
 } from "./bundle-presence.js";
-import {
-  setChildLists,
-  setChildren
-} from "./bundle-stylesheets.js";
 import {
   COLLAPSE,
   alignText,
@@ -175,20 +173,6 @@ import {
   whenNone
 } from "./bundle-page-paint.js";
 import {
-  applicationState,
-  attachApplicationPresentation,
-  offlineInteractive,
-  pageClaimed,
-  readApplication,
-  readPart,
-  runtime,
-  runtimeModule,
-  runtimeResource,
-  whenApplicationPresented,
-  whenDocumentPresented,
-  whenWidgetsPresented
-} from "./bundle-semantic-state.js";
-import {
   CARET_KEYS,
   TEXT_FIELD,
   afterScript,
@@ -226,6 +210,20 @@ import {
   under,
   upFrom
 } from "./bundle-frame-visibility.js";
+import {
+  applicationState,
+  attachApplicationPresentation,
+  offlineInteractive,
+  pageClaimed,
+  readApplication,
+  readPart,
+  runtime,
+  runtimeModule,
+  runtimeResource,
+  whenApplicationPresented,
+  whenDocumentPresented,
+  whenWidgetsPresented
+} from "./bundle-semantic-state.js";
 import {
   M,
   PENDING,
@@ -4088,17 +4086,6 @@ var MessageView = class {
           ${model.body.drawing ? html`<span class="lf-drawing-reference">Drawing comment</span>` : nothing}
           ${holds ? keyed(this.#authoredTake, this.#authored) : nothing}
         </div>
-        ${// Another drawing of this message holds its widgets, so this one offers the
-      // way there.
-      model.body.authored && !holds ? html`<button
-                type="button"
-                class="lf-btn lf-page-thread-open lf-ui"
-                data-lf-gen="1"
-                data-lf-offer="button"
-                @click=${() => this.#commands.openThread(this.#model.id, { part: "message" })}
-              >
-                Open interactive reply
-              </button>` : nothing}
         ${strip} ${rewrite}
       `,
       this.node

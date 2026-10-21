@@ -1,4 +1,8 @@
-/* Leaf tokens keep every third-party control in the active page theme. */
+/* Upstream's document-root theme supplies defaults through inheritance, including
+   declared shadow stages. Map Leaf tokens at that same root so upstream's derived
+   tokens resolve against them, and on controls so local Leaf palettes still apply.
+   Public parts carry Leaf's logical focus, rather than a second native focus ring. */
+:where(:root),
 :is(
   wa-copy-button,
   wa-comparison,
@@ -10,19 +14,20 @@
   wa-option,
   wa-input
 ) {
-  color-scheme: inherit;
   --wa-font-family-body: var(--sans);
   /* Controls inherit typography through their hosts. Reset the surrounding prose's
      face without overriding the component's size, weight, line height or state ink. */
-  font-family: var(--wa-font-family-body);
-  font-style: normal;
-  font-variant: normal;
-  font-stretch: normal;
-  font-feature-settings: normal;
-  font-variation-settings: normal;
-  letter-spacing: normal;
-  word-spacing: normal;
-  text-transform: none;
+  &:not(:root) {
+    font-family: var(--wa-font-family-body);
+    font-style: normal;
+    font-variant: normal;
+    font-stretch: normal;
+    font-feature-settings: normal;
+    font-variation-settings: normal;
+    letter-spacing: normal;
+    word-spacing: normal;
+    text-transform: none;
+  }
   --wa-color-surface-raised: var(--card);
   --wa-color-surface-default: var(--field);
   --wa-color-surface-lowered: var(--card);

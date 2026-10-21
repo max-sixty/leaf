@@ -2,8 +2,9 @@
 
 The corpus is derived test content — edit an example, regression page, or
 developer gallery and rerun `leaf-dev corpus` (tests fail on a stale corpus). Each page's
-<main> body keeps its ids but not its document-level contents sidebar. Every source
-must therefore keep its ids disjoint, which this command enforces.
+<main> body keeps its ids and content, including its contents outline: the surrounding
+corpus tab scopes that outline to its source page. Every source must therefore keep
+its ids disjoint, which this command enforces.
 An example that owns an element (a page/registry.json declaration with its module under
 page/widgets/) brings that element into the corpus through examples/corpus.page/, the
 corpus's own page directory, so its markup still names a declared element there.
@@ -21,7 +22,7 @@ import click
 import turbohtml
 from leaf.registry.contract import is_element_name
 from leaf.registry.layer import merge_layer_declarations
-from leaf.structure import SourceDocument
+from leaf.structure import SourceDocument, rel_tokens
 from leaf.thread_context import sample_events, thread_ids
 
 from leaf_dev import ROOT
@@ -48,6 +49,7 @@ DEVELOPER_SOURCES = [
     EXAMPLES_DIR / "developer" / "feature-gallery.html",
     EXAMPLES_DIR / "developer" / "visual-review-gallery.html",
     EXAMPLES_DIR / "developer" / "playwright-trace-gallery.html",
+    EXAMPLES_DIR / "developer" / "motion.html",
 ]
 # Keep catalog order first, then include every other example, even one whose
 # catalog card is absent or commented out. The generated corpus never includes itself.
@@ -133,10 +135,9 @@ def main_body(source: Path, parsed: SourceDocument) -> str:
     The tab's label is the page's title, so its opening eyebrow repeats the page's
     context. On screen the strip carries it; wherever there is no
     strip (unupgraded, in print, in a copy) the theme paints the label back onto the
-    panel. The eyebrow is the copy that has nowhere to be. lf-toc maps its closest
-    main, which after composition is the corpus's outer document, so a source page's
-    contents map would repeat one whole-corpus outline in every tab rather than
-    navigate that source page; the container holding only the map goes with it.
+    panel. The eyebrow is the copy that has nowhere to be. Contents outlines stay:
+    the enclosing corpus tab supplies their reading scope, and outlines inside a
+    live sample keep that sample's own document.
     """
     mains = parsed.tree.select("main")
     if len(mains) != 1:
@@ -146,42 +147,19 @@ def main_body(source: Path, parsed: SourceDocument) -> str:
     _, start = parsed.offsets(main.source_location.start_tag)
     end, _ = parsed.offsets(main.source_location.end_tag)
 
-    def span(element) -> tuple[int, int]:
-        return (
-            parsed.offsets(element.source_location.start_tag)[0],
-            parsed.offsets(element.source_location.end_tag)[1],
-        )
-
-    def children(element) -> list:
-        return [
-            child for child in element.children if isinstance(child, turbohtml.Element)
-        ]
-
-    cuts = []
-    first = next(iter(children(main)), None)
+    first = next(
+        (child for child in main.children if isinstance(child, turbohtml.Element)),
+        None,
+    )
     if (
         first is not None
         and first.tag == "p"
         and first.attrs.get("class") == ["eyebrow"]
     ):
-        cut_start, cut_end = span(first)
+        cut_start = parsed.offsets(first.source_location.start_tag)[0]
         if not text[start:cut_start].strip():
-            rest = text[cut_end:end]
-            cuts.append((cut_start, cut_end + len(rest) - len(rest.lstrip())))
-    for holder in main.select("aside, section"):
-        if [child.tag for child in children(holder)] != ["lf-toc"]:
-            continue
-        if holder.text.strip():
-            continue
-        cut_start, cut_end = span(holder)
-        before = text[start:cut_start]
-        cuts.append((cut_start - (len(before) - len(before.rstrip())), cut_end))
-    body, cursor = [], start
-    for cut_start, cut_end in sorted(cuts):
-        body.append(text[cursor : max(cursor, cut_start)])
-        cursor = max(cursor, cut_end)
-    body.append(text[cursor:end])
-    return "".join(body).strip()
+            start = parsed.offsets(first.source_location.end_tag)[1]
+    return text[start:end].strip()
 
 
 def build() -> str:
@@ -193,27 +171,12 @@ def build() -> str:
         text = source.read_text(encoding="utf-8")
         parsed = SourceDocument(text)
         label = html.escape(parsed.authoring.title.strip(), quote=True)
-        for sheet in parsed.authoring.style_blocks:
-            if sheet["css"].strip():
-                css = "\n".join(line.rstrip() for line in sheet["css"].splitlines())
-                attrs = "".join(
-                    f' {name}="{html.escape(value, quote=True)}"'
-                    for name, value in sheet["attrs"].items()
-                )
-                authored_assets.append(
-                    f"<!-- {source.name} authored styles -->\n<style{attrs}>{css}</style>"
-                )
+        # Keep source order: an inline override after a linked stylesheet must
+        # still win. Assets inside main already travel with the page body.
         authored_assets.extend(
-            f"<!-- {source.name} authored script -->\n<script"
-            + "".join(
-                f' {name}="{html.escape(value, quote=True)}"'
-                for name, value in script["attrs"].items()
-            )
-            + f">{script['body']}</script>"
-            for script in parsed.authoring.inline_scripts
-            # Scripts inside main already travel with its body. Hoisting them
-            # as well duplicates identities and the samples' event sources.
-            if script["early_head"]
+            f"<!-- {source.name} authored {asset.tag} -->\n{asset.html}"
+            for asset in parsed.tree.select("head > style, head > script, head > link")
+            if asset.tag != "link" or "stylesheet" in rel_tokens(asset.attrs)
         )
         for i in ["corpus-" + stem] + parsed.all_ids:
             if i in owner:
@@ -233,8 +196,8 @@ def build_page() -> dict[str, bytes]:
 
     An element is the example's own when it ships the module that defines it,
     `widgets/<tag>.js`; a declaration without one narrows a layer widget for that page
-    alone (a playground's fixed id) and stays out of the corpus. An owning example's
-    other page files come along, since its modules import them.
+    alone (a playground's fixed id) and stays out of the corpus. Every example's
+    other page files come along, including scripts that use only package widgets.
     """
     declarations = {}
     files = {}
@@ -242,7 +205,12 @@ def build_page() -> dict[str, bytes]:
         page = page_files(source)
         if not page.is_dir():
             continue
-        registry = json.loads((page / "registry.json").read_text(encoding="utf-8"))
+        registry_path = page / "registry.json"
+        registry = (
+            json.loads(registry_path.read_text(encoding="utf-8"))
+            if registry_path.is_file()
+            else {}
+        )
         owned = {
             tag: entry
             for tag, entry in registry.items()
@@ -251,8 +219,6 @@ def build_page() -> dict[str, bytes]:
         shared = {
             key: entry for key, entry in registry.items() if not is_element_name(key)
         }
-        if not owned and not shared:
-            continue
         merge_layer_declarations(declarations, shared)
         for tag, entry in owned.items():
             if tag in declarations:
@@ -271,7 +237,7 @@ def build_page() -> dict[str, bytes]:
                 sys.exit(f"corpus examples contribute conflicting page file {name!r}")
             files[name] = path.read_bytes()
     if not declarations:
-        return {}
+        return files
     registry = json.dumps(declarations, indent=2, ensure_ascii=False) + "\n"
     return {"registry.json": registry.encode(), **files}
 

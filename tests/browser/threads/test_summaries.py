@@ -80,10 +80,37 @@ def test_a_seated_reply_draws_its_widget_in_place(browser, serve, resolved):
         page.locator(".lf-resolved-summary").click()
     message = page.locator(f'#jobs .lf-msg[data-event="{reply["id"]}"]')
     expect(message.locator("#first-job")).to_be_visible()
-    expect(message.locator(".lf-page-thread-open")).to_have_count(0)
     with sending(page, "the first job"):
         message.locator("#mounts").click()
     expect(page.locator("#mounts [role=checkbox]")).to_be_checked()
+
+
+def test_a_seated_reply_lends_its_widget_to_the_panel_and_takes_it_back(browser, serve):
+    """A reply's widget stands in one drawing at a time: the panel's view of the thread
+    takes it from the seat while it shows the thread, the seat keeps the reply's words
+    with nothing in the widget's place, and going back gives the widget to the seat."""
+    url = serve(SEATED_OBLIGATION_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Which job should come first?", {"section": "jobs"}
+    )
+    reply = thread_model.post_reply(
+        serve.page_dir,
+        {"responds": root},
+        "Choose the first job.",
+        '<lf-ask id="first-job-decision"><h3>Which job first?</h3>'
+        '<lf-options id="first-job" choose>'
+        '<lf-option id="mounts">Put the mounts back</lf-option>'
+        '<lf-option id="camera">Install the camera</lf-option>'
+        "</lf-options></lf-ask>",
+    )
+    page = open_page(browser, url)
+    seated = page.locator(f'#jobs .lf-msg[data-event="{reply["id"]}"]')
+    expect(seated.locator("#first-job")).to_be_visible()
+    view = open_panel_thread(page, root)
+    expect(view.locator("#first-job")).to_be_visible()
+    expect(seated).to_have_text(re.compile(r"Choose the first job\.\s*$"))
+    page.locator(".lf-fp-back").click()
+    expect(seated.locator("#first-job")).to_be_visible()
 
 
 def test_a_reply_folded_in_one_view_keeps_its_widget_in_view_in_another(browser, serve):
@@ -112,7 +139,6 @@ def test_a_reply_folded_in_one_view_keeps_its_widget_in_view_in_another(browser,
     view = open_panel_thread(page, root)
     expect(view.locator(f'.lf-msg[data-event="{asked["id"]}"]')).to_be_hidden()
     expect(message.locator("#folded-note")).to_be_attached()
-    expect(message.locator(".lf-page-thread-open")).to_have_count(0)
 
 
 def test_a_summary_folds_originals_and_reveals_them(browser, serve):

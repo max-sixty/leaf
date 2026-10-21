@@ -5,7 +5,7 @@ import {
 import {
   authoredStates,
   widgetElement
-} from "./bundle-widget-upgrade.js";
+} from "./bundle-stylesheets.js";
 import {
   authored,
   elementById,
@@ -18,6 +18,9 @@ import {
   decisionFor
 } from "./bundle-page-paint.js";
 import {
+  keeps
+} from "./bundle-frame-visibility.js";
+import {
   PRESENTATION_ORDER,
   applicationPresenter,
   applicationState,
@@ -25,9 +28,6 @@ import {
   readPart,
   watchPresentation
 } from "./bundle-semantic-state.js";
-import {
-  keeps
-} from "./bundle-frame-visibility.js";
 import {
   projectionOrigins
 } from "./bundle-queued-work.js";

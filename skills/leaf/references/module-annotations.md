@@ -88,8 +88,8 @@ returns `null`. Call the returned `update()` after the parts or their positions 
 that calls it repaints when it changes (`module-reading.md`, "Page readings"). A
 thread the user just started is there at once; only `phase === "ready"` means every saved thread is.
 Each widget keeps its own search, filter and order. `threadTurns(thread)` returns a
-Thread's turns, and `threadSummary(thread)` its `topic`, the name Threads, the margin and
-Page Map show it under, and its `latest` activity.
+Thread's turns, and `threadSummary(thread)` its `topic`, its name in words (its title,
+else its opening words), and its `latest` activity.
 
 Address a Thread by its `key`, which stays the same after the server admits it. Its `id`
 is the name obligations and workflows use. `root` is its opening message, `anchor` names the

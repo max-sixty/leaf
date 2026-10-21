@@ -2,12 +2,10 @@
 
    A registered primary reader is asked first. Its `open(key, request)` may decline,
    returning false: Leaf's own chrome, the floating panel, declines a thread about a
-   passage, which opens beside its passage. A message whose widgets the primary holds
-   goes there even where it declines (messages.js, `authoredHolders`). A part the
-   primary declined uses the page's nearest drawing of its thread: the exact outlet,
-   then a page preview, then a deliberately revealed widget seat; a message part lands
-   on its message there. Where none of
-   those shows it, the primary is asked again with `request.last` set, which says
+   passage, which opens beside its passage. A part the primary declined uses the page's
+   nearest drawing of its thread: the exact outlet, then a page preview, then a
+   deliberately revealed widget seat; a message part lands on its message there. Where
+   none of those shows it, the primary is asked again with `request.last` set, which says
    nothing else will show the thread, so the floating panel takes any thread then; a
    second refusal leaves the thread unopened. A thread about an element an agent sent
    in a message has no drawing beside its subject: `openThreadSubject` opens that
@@ -53,7 +51,6 @@ import { closestAcross } from "../passages.js";
 import { renderedUnder } from "../shadow.js";
 import { discussed, threadKey } from "./model.js";
 import { openMessageEditIn } from "./message-edit.js";
-import { authoredHolder, messageHolding } from "./messages.js";
 import { drawnThreadId, THREAD } from "./selectors.js";
 import { threadPlace as placementOf } from "./placement.js";
 
@@ -146,10 +143,6 @@ export function createThreadDestinations({
     const selected = presentation?.owner.isConnected ? presentation : null;
     const thread = threadNamed(id);
     if (selected && (!thread || !discussed(thread))) return null;
-    // A message whose widgets the primary reader holds is reached there, in whichever
-    // of its views draws it, though the reader declines to show the thread.
-    const holder = part === "message" ? authoredHolder(id) : null;
-    const drawn = Boolean(selected && holder && renderedUnder(holder, selected.owner));
     // The registered primary reader, asked to show the thread: `last` says nothing on the
     // page will show it if the reader declines.
     function inPrimary(last) {
@@ -190,13 +183,13 @@ export function createThreadDestinations({
       // A reader that declines at once is answered at once, so the page's own drawing
       // of the thread opens in the task of the gesture that asked for it (`onPage`), as
       // a walk's card does, rather than after a wait that no longer belongs to it.
-      if (result === false && !drawn) return mayPresent() ? DECLINED : null;
+      if (result === false) return mayPresent() ? DECLINED : null;
       return taken(result);
       // The reader takes the thread: its layout, then its drawing of it.
       async function taken(result) {
         const selectedLayout = result?.then ? await whileCurrent(result) : result;
         if (!mayPresent()) return null;
-        if (selectedLayout === false && !drawn) return DECLINED;
+        if (selectedLayout === false) return DECLINED;
         await whileCurrent(selected.reader.update());
         if (!mayPresent()) return null;
         const destination = selected.reader.destination(thread.key, request);
@@ -349,14 +342,17 @@ export function createThreadDestinations({
   async function openThreadSubject(id, { intent = retainUserIntent() } = {}) {
     const message = placedAt(id)?.message;
     if (!message) return null;
-    const { element } = messageHolding(threadNamed(id).anchor.section);
     const shown = await openPageThread(message, {
       part: "message",
       focus: false,
       travel: false,
       intent,
     });
-    if (!shown || !element.isConnected) return null;
+    // The element in the drawing of the message the route opened, each drawing holding
+    // a copy of its own (messages.js, `authoredNodes`).
+    const subject = threadNamed(id).anchor.section;
+    const element = shown?.querySelector(`[id="${CSS.escape(subject)}"]`);
+    if (!element) return null;
     const arrived = await arrive(
       () =>
         element.isConnected && {

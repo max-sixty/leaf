@@ -66,7 +66,7 @@ import { threadIdNamed } from "../thread/state.js";
 import { turns } from "../thread/model.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { iconElement } from "../icons.js";
-import { anchorLabel, releaseAuthoredUnder } from "../thread/messages.js";
+import { anchorLabel } from "../thread/messages.js";
 import { coarsePointer } from "../pointer.js";
 import {
   cardMeasure,
@@ -930,8 +930,6 @@ export function createThreadPreview({
     delete preview.dataset.lfThreadPlacement;
     for (const edge of CUT_EDGES) preview.style.removeProperty(edge);
     keepsHidden(preview, true);
-    // The widgets of a reply the card held go back to another drawing of it.
-    releaseAuthoredUnder(preview);
     onClose(closed);
   }
 

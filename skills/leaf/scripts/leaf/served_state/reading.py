@@ -27,23 +27,19 @@ from ..files import STAGED, entry_stamps, file_stamp
 from ..schema import (
     DATA_DIR,
     INTERACTIONS_FILE,
-    LOG_STATE_FILES,
     PAGE_PROCESS_FILES,
     SESSION_FILES,
     USER_VIEWS_FILE,
     USER_VIEWS_LOCK,
-    VIEWED_FILE,
 )
 from ..service import claim_path, page_claim
 from ..state import EVENTS_FILE, SESSION_SUFFIX, flocked, session_file
 
-# Diagnostic writes cannot move application state. The server writes `viewed.json`
-# when a visible tab asks for its freshness reading and `observations.jsonl` for every request
-# it answers; counting either would make a read say it changed itself, and waking on
-# either would rouse every watcher of a page a tab is merely looking at.
-UNWATCHED = frozenset(
-    {VIEWED_FILE, INTERACTIONS_FILE, USER_VIEWS_FILE, USER_VIEWS_LOCK}
-)
+# Diagnostic writes cannot move application state. The server writes
+# `user-views.json` as a tab reports its view and `observations.jsonl` for every
+# request it answers; counting either would make a read say it changed itself, and
+# waking on either would rouse every watcher of a page a tab is merely looking at.
+UNWATCHED = frozenset({INTERACTIONS_FILE, USER_VIEWS_FILE, USER_VIEWS_LOCK})
 # The page's trees stamped file by file: the authored `page/` tree and `data/`.
 TREES = ("page", DATA_DIR)
 
@@ -143,9 +139,9 @@ def held_page_reading(page_dir: Path) -> str:
 def record_reading(page_dir: Path) -> str:
     """Name durable page inputs with the same file stamps as live readings.
 
-    Claim, lease, status and browser observations belong to a serving process.
-    A dormant publication excludes them, while log acknowledgement and bound
-    external files still change what its canonical state answers.
+    Claim, lease, stream and browser observations belong to a serving process.
+    A dormant publication excludes them, while bound external files still change
+    what its canonical state answers.
     """
     stamps = [
         stamp for stamp in _page_stamps(page_dir) if stamp[0] not in PAGE_PROCESS_FILES
@@ -163,16 +159,14 @@ def source_readings(page_dir: Path) -> tuple[str, str]:
     """The page's reading split in two: its source, and its history.
 
     The same stamps `page_reading` takes, less the claim and the session files
-    (`SESSION_FILES`), and its log acknowledgement (`LOG_STATE_FILES`).
-    History is `HISTORY`; source is every other stamp, so a file nothing names here
-    counts as source and moves the activation it could change. Leaving the session
-    out is what lets an agent declare its status, acknowledge a delivery, or take a
-    wait without the next state read validating the whole page again.
+    (`SESSION_FILES`). History is `HISTORY`; source is every other stamp, so a file
+    nothing names here counts as source and moves the activation it could change.
+    Leaving the session out is what lets a harness stream a turn or a wait take its
+    lease without the next state read validating the whole page again; declaring a
+    status and acknowledging a delivery append to the log, which is history.
     """
     stamps = [
-        stamp
-        for stamp in _page_stamps(page_dir)
-        if stamp[0] not in (*SESSION_FILES, *LOG_STATE_FILES)
+        stamp for stamp in _page_stamps(page_dir) if stamp[0] not in SESSION_FILES
     ]
     return (
         _token([stamp for stamp in stamps if stamp[0] not in HISTORY]),

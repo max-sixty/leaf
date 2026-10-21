@@ -3,7 +3,9 @@
 This suite protects shipped Leaf behavior. Tests of developer tools belong in
 `dev/tests/`, outside product CI and landing gates; `dev/AGENTS.md` owns their scope
 and opt-in commands. A product test may use `leaf_dev` to build or serve its fixture:
-what the test proves, rather than what it imports, decides where it belongs.
+what the test proves, rather than what it imports, decides where it belongs. A check
+that holds a product schema's consumers to it, eval fixtures included, lives here,
+since a change to the schema is what breaks it.
 PR CI time is scarce: add coverage there for consequential product failures that
 should block landing. A check being quick is not sufficient reason to include it.
 

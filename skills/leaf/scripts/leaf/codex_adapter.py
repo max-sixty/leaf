@@ -105,6 +105,7 @@ from .service import (
 from .session import Watch, read_watch_pass
 from .state import (
     Record,
+    described,
     ensure_session,
     flocked,
     object_schema,
@@ -115,13 +116,26 @@ from .state import (
 from .thread import delivery_reply_reserved
 
 QUEUE_TIMEOUT = 20
-# The adapter's transport and the immutable runtime running it. A session can
-# select a replacement runtime while this lease remains held (`_running_adapter`).
 ADAPTER = Record(
     "codex-adapter",
-    object_schema(
-        {"app_server": {"type": ["string", "null"]}},
-        {"launcher": {"type": "string"}},
+    described(
+        "A Codex task's running delivery adapter, written into the lease it holds "
+        "at the state home's `sessions/<digest>.adapter`. A session can select a "
+        "replacement runtime while this lease remains held (`_running_adapter`).",
+        object_schema(
+            {
+                "app_server": described(
+                    "The Codex App Server the adapter delivers through, or null for "
+                    "the task's queue.",
+                    {"type": ["string", "null"]},
+                )
+            },
+            {
+                "launcher": described(
+                    "The immutable runtime running the adapter.", {"type": "string"}
+                )
+            },
+        ),
     ),
     since=13,
 )

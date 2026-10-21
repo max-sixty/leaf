@@ -417,32 +417,67 @@ def object_schema(required: dict, optional: dict | None = None) -> dict:
     }
 
 
+def described(description: str, schema: dict) -> dict:
+    """`schema` with its JSON Schema `description`, the one home of what a field
+    means (the site's data-structures page renders it)."""
+    return {"description": description, **schema}
+
+
 STRING = {"type": "string"}
 TIME = {"type": "string", "format": "date-time"}
 _TIME_OR_NONE = {"anyOf": [{"type": "null"}, TIME]}
 SESSION = Record(
     "session",
-    object_schema(
-        {
-            "id": STRING,
-            # Replaced when a claim made before can no longer name this lifetime.
-            "generation": STRING,
-            "ended": _TIME_OR_NONE,
-            "turn": {"type": ["string", "null"]},
-            "turn_opened": _TIME_OR_NONE,
-            "turn_closed": _TIME_OR_NONE,
-            "revision": {"type": "integer", "minimum": 1},
-            # Whether the harness, rather than Leaf, names the turn.
-            "provider": {"type": "boolean"},
-            # What keeps the session alive (`Harness.lifetime`).
-            "lifetime": {"type": "object"},
-        },
-        {
-            # The native chat a desktop Codex lifetime stands on (`chat_exists`).
-            "transcript_path": STRING,
-            # The developer-selected delivery runtime (`session_runtime`).
-            "launcher": STRING,
-        },
+    described(
+        "One harness session's lifecycle, in the state home's "
+        "`sessions/<digest>.lifecycle` (`session_file`): the lifetime it lives by, "
+        "whether it has ended, and its current turn.",
+        object_schema(
+            {
+                "id": described("The harness's own session id.", STRING),
+                "generation": described(
+                    "Replaced when a claim made before can no longer name this "
+                    "lifetime.",
+                    STRING,
+                ),
+                "ended": described(
+                    "When the session ended, or null while it lives.", _TIME_OR_NONE
+                ),
+                "turn": described(
+                    "The id of the session's latest turn, or null before its first.",
+                    {"type": ["string", "null"]},
+                ),
+                "turn_opened": described(
+                    "When the latest turn opened or was last renewed.", _TIME_OR_NONE
+                ),
+                "turn_closed": described(
+                    "When the turn closed, or null while it is open.", _TIME_OR_NONE
+                ),
+                "revision": described(
+                    "Incremented by every write (`write_session`).",
+                    {"type": "integer", "minimum": 1},
+                ),
+                "provider": described(
+                    "Whether the harness, rather than Leaf, names the turn.",
+                    {"type": "boolean"},
+                ),
+                "lifetime": described(
+                    "What keeps the session alive (`Harness.lifetime`).",
+                    {"type": "object"},
+                ),
+            },
+            {
+                "transcript_path": described(
+                    "The native chat a desktop Codex lifetime stands on "
+                    "(`chat_exists`).",
+                    STRING,
+                ),
+                "launcher": described(
+                    "The developer-selected delivery runtime (`session_runtime`).",
+                    STRING,
+                ),
+            },
+        ),
     ),
     since=13,
 )

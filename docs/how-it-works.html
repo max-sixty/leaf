@@ -609,7 +609,10 @@ leaf page stamp ./review --text "Queue policy: drop oldest"</code></pre>
                   agent opens a delivery pointer with
                   <code>leaf delivery read &lt;delivery-id&gt;</code>, follows its
                   <code>next</code> commands through every part, then runs the displayed
-                  <code>acknowledge</code> instruction.
+                  <code>acknowledge</code> instruction. The table names the readings the
+                  agent acts on;
+                  <a href="/data-structures/#record-delivery">Data structures</a> lists
+                  every field.
                 </p>
                 <table id="delivery-fields">
                   <thead>
@@ -4104,6 +4107,11 @@ flowchart TD
                 </tr>
               </tbody>
             </table>
+            <p id="data-structures-link">
+              <a href="/data-structures/">Data structures</a> lists the fields of each
+              of these records, of every event kind, and of the state the server sends
+              the browser.
+            </p>
           </section>
 
           <section id="data-fold">

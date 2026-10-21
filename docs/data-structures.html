@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>leaf data structures</title>
+    <meta
+      name="description"
+      content="Reference for the JSON Leaf serves a page, the events its log records, and the records it keeps beside them, generated from their schemas."
+    />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <style>
+      .schema-entry {
+        margin: 0;
+        padding: 18px 0;
+        border-bottom: 1px solid var(--rule);
+        scroll-margin-top: 18px;
+      }
+      .schema-entry h3 {
+        margin: 0 0 8px;
+        font-size: var(--t-4);
+      }
+      .schema-entry > p {
+        margin: 0 0 8px;
+      }
+      .schema-notes {
+        color: var(--ink-2);
+        font-size: var(--t-5);
+      }
+      .schema-fields {
+        font-size: var(--t-5);
+      }
+      .schema-fields td:first-child code {
+        overflow-wrap: break-word;
+      }
+      .schema-variant td {
+        color: var(--ink-2);
+        font-style: italic;
+      }
+      .schema-entry:target h3 {
+        color: var(--accent);
+      }
+    </style>
+  </head>
+  <body class="site-page">
+    <main class="layout-column">
+      <nav class="sitenav" aria-label="Site"></nav>
+
+      <header id="top">
+        <p class="eyebrow">reference</p>
+        <h1>Data structures</h1>
+        <p class="lede" id="lede">
+          Leaf's state is JSON: the reading the server sends a page's browser, the
+          events a page's log records, and the records Leaf keeps beside the log. Each
+          table below lists one structure's fields with their types, whether each is
+          required, and what it means.
+        </p>
+        <p id="lede-source">
+          The tables are generated from the schemas Leaf validates and tests against, so
+          they change when the code does. An event kind's meaning is written once, in
+          <a
+            href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/scripts/leaf/events.md"
+            >Events and threads</a
+          >, which each kind below links to. How the pieces fit together is on
+          <a href="/how-it-works/">How it works</a>.
+        </p>
+      </header>
+
+      <aside class="sidebar" id="data-structures-route">
+        <lf-toc id="data-structures-contents"></lf-toc>
+      </aside>
+
+      <section id="served">
+        <h2>Served state</h2>
+        <p id="served-lede">
+          The page's runtime reads the state from <code>GET /api/state</code>, and each
+          <code>POST</code> answers with one of the definitions at the end of this
+          section. <code>leaf page state</code> prints a selection of the same reading.
+        </p>
+        <div class="schema-list" data-schemas="served"></div>
+      </section>
+
+      <section id="events">
+        <h2>Events</h2>
+        <p id="events-lede">
+          Each line of a page's <code>events.jsonl</code> is one event, admitted whole
+          against its kind's schema. The first table lists the fields every kind shares;
+          each kind's table lists the rest.
+        </p>
+        <div class="schema-list" data-schemas="events"></div>
+      </section>
+
+      <section id="records">
+        <h2>Records</h2>
+        <p id="records-lede">
+          Leaf keeps these JSON files outside a page's log and document, in the page
+          directory, the machine's state home, or the browser's storage. Each carries a
+          <code>format</code> naming the protocol at which its shape last changed.
+          <code>delivery</code> is the envelope an agent reads with
+          <code>leaf delivery read</code>.
+        </p>
+        <div class="schema-list" data-schemas="records"></div>
+      </section>
+
+      <section id="interactions">
+        <h2>Interaction batch</h2>
+        <p id="interactions-lede">
+          The browser posts what it observed of the user's session, such as DOM events,
+          to the page's diagnostic trace, <code>observations.jsonl</code>. Nothing in
+          the page's state is read from it.
+        </p>
+        <div class="schema-list" data-schemas="interactions"></div>
+      </section>
+
+      <footer class="site-footer" id="colophon">
+        <p id="links">
+          <a href="/">Home</a> · <a href="/examples/">Examples</a> ·
+          <a href="/how-it-works/">How it works</a> ·
+          <a href="/extending/">Extending</a> ·
+          <a href="https://github.com/max-sixty/leaf">GitHub</a> ·
+          <a href="https://github.com/max-sixty/leaf/blob/main/LICENSE">MIT license</a>
+        </p>
+      </footer>
+    </main>
+  </body>
+</html>

@@ -2979,8 +2979,8 @@ export function createFloatingPanel({
         (tab) => (tab === "plan" ? null : lists[tab].length),
       );
     } else if (thread) {
-      // Resolve and Reopen share one seat as wide as the wider of them, both drawn and
-      // one shown, so the agent settling the thread moves nothing beside it.
+      // Resolve is the check a thread card's head draws, and Reopen in its place is the
+      // same check drawn done, so the agent settling the thread moves nothing beside it.
       // Resolve says it is unavailable while a settling is pending rather than leaving
       // the tab order, so the user who pressed it, or `r` on it, stays standing on it;
       // the action itself refuses a press meanwhile (thread/actions.js, `settle`).
@@ -3039,7 +3039,11 @@ export function createFloatingPanel({
             : nothing
         }<button
           type="button"
-          class="lf-fp-settle ${thread.resolved ? "lf-reopen" : "lf-resolve"}"
+          class="lf-fp-icon-btn lf-fp-settle ${thread.resolved
+            ? "lf-reopen"
+            : "lf-resolve"}"
+          aria-label=${thread.resolved ? "Reopen" : "Resolve thread"}
+          title=${thread.resolved ? "Reopen" : "Resolve thread"}
           aria-disabled=${String(
             !(thread.resolved ? thread.offers.reopen : thread.offers.resolve),
           )}
@@ -3055,9 +3059,7 @@ export function createFloatingPanel({
             }).catch(() => {});
           }}
         >
-          <span class="lf-fp-face" ?data-shown=${!thread.resolved}
-            >${iconTemplate("check", "lf-action-icon")}Resolve</span
-          ><span class="lf-fp-face" ?data-shown=${thread.resolved}>Reopen</span>
+          ${iconTemplate("check", "lf-action-icon")}
         </button>`;
     }
     const crumb =

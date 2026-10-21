@@ -873,7 +873,7 @@ def test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it(
         # A resolved thread the page draws nowhere opens in the panel.
         open_panel_thread(page, root)
         settle = page.locator(".lf-fp-settle")
-        expect(settle).to_have_text("Reopen", use_inner_text=True)
+        expect(settle).to_have_accessible_name("Reopen")
         with sending(page, "reopen the thread with the saved reply"):
             settle.click()
         round_trip(page)

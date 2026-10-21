@@ -8150,7 +8150,9 @@ function createFloatingPanel({
                 ${inMessage ? "In its message" : "On the page"}
               </button>` : nothing}<button
           type="button"
-          class="lf-fp-settle ${thread.resolved ? "lf-reopen" : "lf-resolve"}"
+          class="lf-fp-icon-btn lf-fp-settle ${thread.resolved ? "lf-reopen" : "lf-resolve"}"
+          aria-label=${thread.resolved ? "Reopen" : "Resolve thread"}
+          title=${thread.resolved ? "Reopen" : "Resolve thread"}
           aria-disabled=${String(
         !(thread.resolved ? thread.offers.reopen : thread.offers.resolve)
       )}
@@ -8166,9 +8168,7 @@ function createFloatingPanel({
         });
       }}
         >
-          <span class="lf-fp-face" ?data-shown=${!thread.resolved}
-            >${iconTemplate("check", "lf-action-icon")}Resolve</span
-          ><span class="lf-fp-face" ?data-shown=${thread.resolved}>Reopen</span>
+          ${iconTemplate("check", "lf-action-icon")}
         </button>`;
     }
     const crumb = top.view === "threads" && searching ? html`<input

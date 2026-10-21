@@ -920,25 +920,14 @@
   .lf-fp-icon-btn[aria-pressed="true"] {
     color: var(--ink);
   }
-  /* Resolve and Reopen stand in one cell, the one shown over the other's room, so
-     the seat is as wide as the wider whichever the thread's state. */
-  .lf-fp-settle {
-    display: inline-grid;
-    color: var(--lf-fp-muted);
-  }
-  .lf-fp-face {
-    grid-area: 1 / 1;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-  }
-  .lf-fp-face:not([data-shown]),
   :is(.lf-fp-quiet, .lf-fp-next-unread)[data-unoffered] {
     visibility: hidden;
   }
-  .lf-fp-settle:hover {
-    color: var(--ink);
+  /* Resolve is the check, turning the ok ink on hover; Reopen in its place is the
+     check drawn done, as on a thread card's head (response.css). */
+  .lf-fp-settle.lf-resolve:not([aria-disabled="true"]):hover,
+  .lf-fp-settle.lf-reopen {
+    color: var(--ok-ink);
   }
   .lf-fp-settle .lf-action-icon {
     width: 14px;

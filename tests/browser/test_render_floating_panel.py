@@ -157,7 +157,7 @@ def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve
     row = page.locator(".lf-fp-view[data-view=threads] .lf-fp-thread")
     expect(row).to_be_focused()
     page.keyboard.press("Enter")
-    expect(settle).to_have_text("Resolve", use_inner_text=True)
+    expect(settle).to_have_accessible_name("Resolve thread")
 
     field(page).focus()
     page.keyboard.press("Escape")
@@ -292,7 +292,7 @@ def test_a_thread_s_keys_answer_in_its_view(browser, serve):
     expect(row).to_be_focused()
     page.keyboard.press("Enter")
     expect(thread).to_be_visible()
-    expect(settle).to_have_text("Resolve", use_inner_text=True)
+    expect(settle).to_have_accessible_name("Resolve thread")
 
     # A click on a message's words stands on the part of the thread drawing it.
     message = thread.locator(".lf-primary-part", has_text="Is the window long enough?")
@@ -312,12 +312,12 @@ def test_a_thread_s_keys_answer_in_its_view(browser, serve):
     # A resolved thread opened from Threads' Resolved list reopens on Enter.
     page.locator(".lf-fp-filters button", has_text="Resolved").click()
     page.locator(".lf-fp-view[data-view=threads] .lf-fp-thread").first.click()
-    expect(settle).to_have_text("Reopen", use_inner_text=True)
+    expect(settle).to_have_accessible_name("Reopen")
     thread.focus()
     with sending(page, "the reopen"):
         page.keyboard.press("Enter")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "unresolve"
-    expect(settle).to_have_text("Resolve", use_inner_text=True)
+    expect(settle).to_have_accessible_name("Resolve thread")
 
 
 def test_a_reaction_in_the_view_stands_as_its_chip_alone(browser, serve):
@@ -3402,7 +3402,7 @@ def test_a_resolved_thread_s_error_waits_in_the_leaf_menu(browser, serve):
         settle.click()
     page.locator(".lf-fp-filters button", has_text="Resolved").click()
     page.locator(".lf-fp-view[data-view=threads] .lf-fp-thread").first.click()
-    expect(settle).to_have_text("Reopen", use_inner_text=True)
+    expect(settle).to_have_accessible_name("Reopen")
     page.evaluate(
         "async () => (await window.__lfWidgetApi()).raiseError('Couldn\\'t load v1')"
     )

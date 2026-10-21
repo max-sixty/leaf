@@ -290,9 +290,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
             if not thread["resolved"]:
                 continue
             open_panel_thread(page, thread["id"])
-            expect(page.locator(".lf-fp-settle")).to_have_text(
-                "Reopen", use_inner_text=True
-            )
+            expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Reopen")
             page.locator(".lf-fp-close").click()
             panel_settled(page, open=False)
             anchor = thread["anchor"]

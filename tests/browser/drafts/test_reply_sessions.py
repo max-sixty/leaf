@@ -215,8 +215,8 @@ def expect_resolved(page, surface, thread, resolved):
     """The thread reads resolved, or not: the panel's by its head's Resolve or Reopen,
     a margin card by its own state."""
     if surface == "panel":
-        expect(page.locator(".lf-fp-settle")).to_have_text(
-            "Reopen" if resolved else "Resolve", use_inner_text=True
+        expect(page.locator(".lf-fp-settle")).to_have_accessible_name(
+            "Reopen" if resolved else "Resolve thread"
         )
     else:
         expect(thread).to_have_attribute("data-resolved", str(resolved).lower())

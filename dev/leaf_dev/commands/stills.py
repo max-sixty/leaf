@@ -1468,7 +1468,7 @@ STATES = (
         "trace-actions",
         "developer/playwright-trace-gallery",
         trace_controls,
-        region=".lf-trace-toolbar",
+        region=".lf-trace-transport",
     ),
     State(
         "trace-pace",

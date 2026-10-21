@@ -46,54 +46,38 @@ request. Retire one by removing its widget in a new version or marking it `resta
 (`authoring-revisions.md`). A to-do you put on the user is work for them to do, such as
 trying a build, not a question.
 
-When the user chooses which of several proposals to act on, and no proposal's answer
-depends on the others, give each proposal its own decision with explicit accept and
-reject choices, placed with that proposal's case, so the user can answer each as they
-review it. Either choice answers it. When many proposals are clear-cut, one decision can
-accept them together if it says for each why it is clear-cut; contested proposals keep
-their own decisions. Use one `lf-options` with `multiple` only when the answers depend
-on each other, such as a limit on how many.
+Each option is a result the user can pick, so its title says what choosing it does to
+the subject, keeping today's behavior included: “Generate shared types” and “Keep
+handwritten types”, rather than “Accept” and “Not now”. A compact title can be the
+whole option. The user should be able to compare the options down the group without
+reading their prose: where the options take different values of a fact the user
+weighs, such as effort, risk or cost, label it with a `small.tag` before every
+option's title, in the same order (“effort: small”, “risk: low”), and state a value
+they all share in the decision's context. Add words only for a consequence that no
+title or label shows.
 
-State what choosing each option does to the subject in its label or title, including
-the choice to keep today's behavior: “Generate shared types” or “Keep handwritten
-types”. Accepting or rejecting your advice is the gesture; name the result it records.
-A compact label can be the whole option. Where the alternatives take different values
-of facts the user weighs, such as the work each takes, its risk or its cost at runtime,
-label each such fact with a `small.tag` before every option's title, in the same order
-(“effort: small”, “risk: low”), so the user compares them down the group. A value every
-option shares belongs in the decision's context. Add words for a consequence or
-tradeoff that no title or label has shown. Show the result inside the decision,
-following `page-authoring.md`, "Show the subject". This holds on plans and work-item
-lists too:
+Let the user judge each option by its result rather than a description of it, on plans
+and work-item lists too: an interaction they can try, a drawing of an arrangement or
+mechanism in the same frame as the other options', a capture of today's interface
+beside the change, with a fault marked where it goes wrong, a wording as it would
+appear, or a code change's text or effect before and after. A change they would
+neither see nor picture, such as a refactor, needs only words. Each option holds its
+own picture, so nothing pairs it with another option's; a picture of both answers at
+once, such as an `lf-shot` pair, belongs to the group. Vary only what the decision
+changes, and show today in the option that keeps it, or above the options where none
+does.
 
-- For an interface or behavior choice, make the interaction work inside each option so
-  the user can try every alternative.
-- For arrangements or mechanisms nothing can run yet, draw each option, all in the
-  same frame at one scale.
-- For a proposal to accept or reject, show the change in the accepting option and
-  today in the option that keeps it. A visible fault is a capture marked where it goes
-  wrong, beside a drawing or demonstration of the fix.
-- For a code or data change, show the text before and after when the text is what the
-  user judges; otherwise show the change's effect before and after, with the code
-  beside it.
-- For a choice of wording, show each wording as it would appear.
-- For a change the user would neither see nor need to picture, such as a refactor
-  judged by its reasons and cost, give what it gives them in words.
+When the user decides several proposals independently, give each its own decision with
+accept and reject options, beside that proposal's case. One decision can accept a batch
+of clear-cut proposals if it says why each is clear-cut. Use `multiple` only when the
+picks depend on each other, such as a limit on how many.
 
-Put each option's picture, capture or demonstration inside that option, so nothing can
-pair it with another option. An `lf-shot` pair, which shows both answers to an
-accept-or-reject decision in one element, stays with the group. Vary only the treatment
-in question, and show today's version, or no change, in the option that keeps it, or
-above the options as a neutral baseline where none does. Put longer rationale in a
-disclosure after the decision. The `lf-ask`, `lf-options` and `lf-option` entries give
-their markup and presentation.
+When the page exists to choose among approaches, its title and headings ask the
+question without answering it. Give each alternative the same depth on the same
+example, with its own costs and open questions, and mark your recommendation as advice.
+How to build an alternative waits for the user's pick.
 
-When the page exists for the user to choose among approaches, organize it around that
-choice. The title and headings name the question and what the alternatives differ on,
-without answering it. Mark your recommendation on its option as your advice. Give each
-alternative the same depth on the same example. An alternative's costs and open
-questions belong in its case. How to build an alternative, and questions that arise
-only once it is chosen, wait for the user's pick, the one you recommend included.
+The `lf-ask`, `lf-options` and `lf-option` entries give their markup and presentation.
 
 ## Sign-off
 

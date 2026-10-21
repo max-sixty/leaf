@@ -6,7 +6,8 @@
 # read authoring-decisions.md alone, which said to add words for a tradeoff: base
 # f7750a988 labelled every differing fact in 0 of 10 Claude Code runs (most labelled
 # effort and left reach in prose). With the rule in authoring-decisions.md, 11 of 12
-# across three wordings of it, 3 of 3 for the one that shipped.
+# across three wordings of it, and 5 of 5 after that section was rewritten around its
+# goals. Runs that read no reference (2 of 9 there) can't see either wording.
 # Asked the same of the HTML rather than the script, base labelled both in 3 of 3,
 # so the script's unused labels argument is what reproduces the session.
 description: options-label-what-sets-them-apart

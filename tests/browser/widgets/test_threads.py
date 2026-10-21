@@ -314,7 +314,7 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
     page = open_page(browser, url)
     resized(page, 1200, 900)
     inline = page.locator(f'#cd-q .lf-msg[data-event="{message["id"]}"]')
-    expect(inline.locator(".lf-msg-body")).to_have_text("The north bracket fit.")
+    expect(inline.locator(".lf-msg-text")).to_have_text("The north bracket fit.")
     panel_thread = open_panel_thread(page, "edited-agent-message")
     panel = panel_thread.locator(f'.lf-msg[data-event="{message["id"]}"]')
     expect(panel.locator(".lf-msg-text")).to_have_text("The north bracket fit.")

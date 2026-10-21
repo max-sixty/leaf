@@ -35,6 +35,7 @@ import {
   alreadyShown,
   anchorLabel,
   answeredInWords,
+  authoredHolder,
   beginThreadSeats,
   beginWalk,
   blocksOnScreen,
@@ -131,6 +132,7 @@ import {
   tabStore,
   textBlocks,
   threadDraft,
+  threadIdNamed,
   threadList,
   threadName,
   threadNamed,
@@ -6122,7 +6124,7 @@ function createThreadDestinations({
     const thread = allThreads().find((candidate) => candidate.id === id);
     return thread && replyAvailable(thread) ? id : null;
   };
-  const threadFocusTarget = (id, { part = null } = {}) => part === "message" ? null : surfaceFocusTarget(id, { part }) ?? preview?.focusTarget(id, { part }) ?? null;
+  const threadFocusTarget = (id, { part = null } = {}) => surfaceFocusTarget(id, { part }) ?? preview?.focusTarget(id, { part }) ?? null;
   const DECLINED = /* @__PURE__ */ Symbol("declined");
   const UNDRAWN = /* @__PURE__ */ Symbol("undrawn");
   async function openPageThread(id, {
@@ -6139,7 +6141,9 @@ function createThreadDestinations({
     const selected = presentation?.owner.isConnected ? presentation : null;
     const thread = threadNamed(id);
     if (selected && (!thread || !discussed(thread))) return null;
-    function inPrimary(last) {
+    const holder = part === "message" ? authoredHolder(id) : null;
+    const drawn2 = Boolean(selected && holder && renderedUnder(holder, selected.owner));
+    function inPrimary(last2) {
       opening?.abort();
       const abort = new AbortController();
       opening = abort;
@@ -6149,7 +6153,7 @@ function createThreadDestinations({
         message: part === "message" ? thread.msgs.find((message) => message.id === id)?.key ?? null : null,
         part,
         focus,
-        last,
+        last: last2,
         signal: abort.signal,
         current: () => !abort.signal.aborted && presentation === selected && selected.owner.isConnected && (focus === false ? intent.available() : intent())
       };
@@ -6160,12 +6164,12 @@ function createThreadDestinations({
         intent: arriving
       }) : null;
       const result = selected.open(thread.key, request);
-      if (result === false) return mayPresent() ? DECLINED : null;
+      if (result === false && !drawn2) return mayPresent() ? DECLINED : null;
       return taken(result);
       async function taken(result2) {
         const selectedLayout = result2?.then ? await whileCurrent(result2) : result2;
         if (!mayPresent()) return null;
-        if (selectedLayout === false) return DECLINED;
+        if (selectedLayout === false && !drawn2) return DECLINED;
         await whileCurrent(selected.reader.update());
         if (!mayPresent()) return null;
         const destination = selected.reader.destination(thread.key, request);
@@ -6198,6 +6202,7 @@ function createThreadDestinations({
     async function onPage() {
       const mayPresent = () => focus === false ? intent.available() : intent();
       const localPart = part ?? "reply";
+      if (part === "message") showHeld(id);
       const openSurface = async () => {
         if (preview) intent.handoff(preview.close);
         if (trip) {
@@ -6260,7 +6265,7 @@ function createThreadDestinations({
         }
         return threadFocusTarget(id, { part });
       }
-      const held = revealHeld([id]);
+      const held = revealHeld([threadIdNamed(id)]);
       if (held) {
         await held.presented;
         if (!mayPresent()) return null;
@@ -6271,13 +6276,11 @@ function createThreadDestinations({
     const asked = selected ? inPrimary(false) : DECLINED;
     const first = asked instanceof Promise ? await asked : asked;
     if (first !== DECLINED && first !== UNDRAWN) return first;
-    if (part !== "message") {
-      const shown2 = await onPage();
-      if (shown2 !== DECLINED) return shown2;
-    }
+    const shown = await onPage();
+    if (shown !== DECLINED) return shown;
     if (!selected || first !== DECLINED) return null;
-    const shown = await inPrimary(true);
-    return shown === DECLINED || shown === UNDRAWN ? null : shown;
+    const last = await inPrimary(true);
+    return last === DECLINED || last === UNDRAWN ? null : last;
   }
   async function openThreadSubject(id, { intent = retainUserIntent() } = {}) {
     const message = placedAt(id)?.message;
@@ -6531,7 +6534,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
     const candidate = held.prepare(
       {
         threads: collection.threads.map(
-          (thread) => threadReading(thread, "outlet", { ...commands, nativeAuthored: true })
+          (thread) => threadReading(thread, "outlet", { ...commands, authoredRank: 3 })
         )
       },
       { row: false }
@@ -6646,7 +6649,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
       let view = views.get(item.identity);
       if (!view) {
         if (item.kind === "thread")
-          view = new ThreadView({ ...commands, nativeAuthored: true });
+          view = new ThreadView({ ...commands, authoredRank: 3 });
         else if (item.kind === "news") {
           const notice2 = newsNotice();
           view = { node: notice2.node, notice: notice2, dispose() {
@@ -6777,7 +6780,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
           const message = item.thread.msgs.find((entry) => entry.key === item.message);
           view.headNotice = !nominated;
           view.reading = messageReading(message, {
-            nativeAuthored: true,
+            authoredRank: 3,
             reactions: message.reactions,
             workflows: message.workflows
           });

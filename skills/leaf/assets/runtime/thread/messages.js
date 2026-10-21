@@ -14,7 +14,7 @@
    admission and later descriptor paints never replay the cue.
    The fragment is captured inertly before its first upgrade; presentation waits for
    preparation before capturing typed authored state. */
-import { html, render, nothing } from "/vendor/browser-runtime.js";
+import { html, keyed, render, nothing } from "/vendor/browser-runtime.js";
 import {
   loadMarkdown,
   markdownReady,
@@ -151,8 +151,7 @@ export const threadSummary = (thread) => ({
 });
 
 // A rollback can withdraw an authored island, but neither retry nor a prose edit
-// instantiates it again: each drawing keeps the nodes it first drew (`authoredNodes`).
-// Its native identity is independent of the prose cache.
+// may instantiate it twice. Its native identity is independent of the prose cache.
 const authoredMessages = new Map();
 export function prepareAuthoredMessage(message, thread) {
   const key = message.attempt ?? message.id;
@@ -171,8 +170,6 @@ export function prepareAuthoredMessage(message, thread) {
     rememberPassageParts(template.content, ["event", message.id]);
     const text = template.content.textContent;
     writePrepaint(template.content);
-    // Inert, never mounted: the markup every further drawing of the message copies.
-    const pristine = /** @type {DocumentFragment} */ (template.content.cloneNode(true));
     const nodes = Object.freeze([...template.content.childNodes]);
     authoredMessages.set(key, {
       message: message.id,
@@ -184,13 +181,6 @@ export function prepareAuthoredMessage(message, thread) {
       descriptors,
       nodes,
       root: template.content,
-      copy() {
-        const fragment = /** @type {DocumentFragment} */ (pristine.cloneNode(true));
-        rememberAuthoredParents(fragment);
-        rememberPassageParts(fragment, ["event", message.id]);
-        return Object.freeze([...fragment.childNodes]);
-      },
-      drawer: null,
     });
   }
   const prepared = authoredMessages.get(key);
@@ -209,20 +199,64 @@ const authoredMessage = (message) => {
   return prepared;
 };
 
-// The widgets of an authored message stand in every drawing of it (the primary
-// reader's, a margin card, a seat on the page), each drawing with its own copy, all
-// reading the one state their ids name. The first drawing takes the instance the markup
-// was prepared as, which names the message's elements while no drawing shows it
-// (`messageHolding`), and gives it to the next drawing to draw once it retires.
-function authoredNodes(prepared, view) {
-  if (prepared.drawer && prepared.drawer !== view) return prepared.copy();
-  prepared.drawer = view;
-  return prepared.nodes;
+// Which drawing of an authored message holds its widgets, the one instance above. A
+// message can stand in several drawings at once (the primary reader's, a margin card,
+// a seat on the page), and the shown one of highest `authoredRank` holds them, the
+// first to draw it among equals. Every other drawing draws only the message's words:
+// the holder is then the one shown, so the widgets already stand in view. A drawing
+// shown as it draws takes them where it should hold them, as does the first to draw
+// them, and after each draw the holder is settled again among the drawings shown, so
+// one hidden in a fold or a closed card gives them to one in view. A drawing not yet
+// placed in the page, as a card draws before its owner places it, is neither shown
+// nor hidden: it waits for that settling to take them, and keeps what it holds.
+// Whichever drawings gain or lose them draw again at once, as their own containers
+// would not.
+const authoredDrawings = new Map();
+const authoredHolders = new Map();
+const shown = (view) => view.node.isConnected && view.node.checkVisibility();
+const hidden = (view) => view.node.isConnected && !view.node.checkVisibility();
+const outranks = (a, b) => a.model.authoredRank > b.model.authoredRank;
+function settleAuthored(key) {
+  const drawings = authoredDrawings.get(key) ?? new Set();
+  const holder = authoredHolders.get(key);
+  const held = holder && drawings.has(holder) && !hidden(holder) ? holder : null;
+  let best = null;
+  for (const view of drawings)
+    if (shown(view) && (!best || outranks(view, best))) best = view;
+  if (!best || best === holder || (held && !outranks(best, held))) return;
+  authoredHolders.set(key, best);
+  best.present(best.model);
+  if (holder && drawings.has(holder)) holder.present(holder.model);
+}
+const unsettled = new Set();
+function settleAuthoredSoon(key) {
+  if (unsettled.has(key)) return;
+  unsettled.add(key);
+  queueMicrotask(() => {
+    unsettled.delete(key);
+    settleAuthored(key);
+  });
+}
+function releaseAuthored(key, view) {
+  if (authoredHolders.get(key) !== view) return;
+  authoredHolders.delete(key);
+  settleAuthored(key);
+}
+// Lets go of the widgets the drawings under `root` hold, as a card closing does.
+export function releaseAuthoredUnder(root) {
+  for (const [key, view] of [...authoredHolders])
+    if (root.contains(view.node)) releaseAuthored(key, view);
+}
+// The drawn message holding the widgets of the message `id`, if a drawing holds them.
+export function authoredHolder(id) {
+  for (const view of authoredHolders.values())
+    if (view.model.id === id && shown(view)) return view.node;
+  return null;
 }
 const FAILURE_LABEL = "Not answered";
 export function messageReading(
   message,
-  { reactions, workflows, leaves = null },
+  { authoredRank = 0, reactions, workflows, leaves = null },
 ) {
   const workflow = strongestWorkflow(workflows);
   const token = isReaction(message) ? tokenEntry(message.token) : null;
@@ -277,6 +311,9 @@ export function messageReading(
       glyph: token?.glyph ?? "",
       authored: message.body.kind === "authored",
     }),
+    // Where this drawing ranks among those that may hold the message's widgets
+    // (`authoredHolders`); 0 for one that never does.
+    authoredRank,
     reactions,
   });
 }
@@ -286,6 +323,8 @@ export class MessageView {
   #model = null;
   #reaction = null;
   #authored = null;
+  // Bumped each time this view takes the message's widgets back from another drawing.
+  #authoredTake = 0;
   #dressed = false;
   #arrivalMotion = null;
   #stopRead = null;
@@ -367,11 +406,34 @@ export class MessageView {
     keeps(this.node, "data-attempt", model.attempt || null);
     keeps(this.node, "aria-busy", model.pending ? "true" : null);
     keeps(this.node, "data-failure", model.failure || null);
-    if (model.body.authored)
-      this.#authored ??= authoredNodes(
-        authoredMessage({ id: model.id, attempt: model.attempt }),
-        this,
-      );
+    const authoredKey = model.attempt ?? model.id;
+    let displaced = null;
+    if (model.authoredRank && model.body.authored) {
+      this.#authored ??= authoredMessage({
+        id: model.id,
+        attempt: model.attempt,
+      }).nodes;
+      if (!authoredDrawings.has(authoredKey))
+        authoredDrawings.set(authoredKey, new Set());
+      authoredDrawings.get(authoredKey).add(this);
+      const holder = authoredHolders.get(authoredKey);
+      const holding = holder && authoredDrawings.get(authoredKey).has(holder);
+      if (
+        holder !== this &&
+        (holding
+          ? shown(this) && (hidden(holder) || outranks(this, holder))
+          : !hidden(this))
+      ) {
+        authoredHolders.set(authoredKey, this);
+        if (holding) displaced = holder;
+      }
+      settleAuthoredSoon(authoredKey);
+    }
+    const holds = authoredHolders.get(authoredKey) === this;
+    // Lit keeps nodes it already placed, so where another drawing took them since this
+    // one drew them, a new key puts them back here.
+    if (holds && this.#authored.some((node) => !this.node.contains(node)))
+      this.#authoredTake++;
     if (!model.reactions) this.#reaction?.retire();
     const strip = model.reactions
       ? (this.#reaction ??= new ReactionStripView(this.#commands.reaction)).present(
@@ -451,7 +513,7 @@ export class MessageView {
               ? html`<span class="lf-drawing-reference">Drawing comment</span>`
               : nothing
           }
-          ${this.#authored ?? nothing}
+          ${holds ? keyed(this.#authoredTake, this.#authored) : nothing}
         </div>
         ${strip} ${rewrite}
       `,
@@ -469,6 +531,8 @@ export class MessageView {
       this.node.querySelector(":scope > .lf-msg-body"),
       model,
     );
+    // The drawing these widgets left draws the way here instead.
+    displaced?.present(displaced.model);
     if (!prior && (model.pending || arrived)) {
       // One phase drives the message's ground and its sticky header. CSS resolves
       // the tint and resting colour at this message after insertion; Firefox's
@@ -541,9 +605,11 @@ export class MessageView {
   }
 
   retire() {
-    if (this.#model?.body.authored) {
-      const prepared = authoredMessage(this.#model);
-      if (prepared.drawer === this) prepared.drawer = null;
+    if (this.#model) {
+      const key = this.#model.attempt ?? this.#model.id;
+      authoredDrawings.get(key)?.delete(this);
+      if (!authoredDrawings.get(key)?.size) authoredDrawings.delete(key);
+      releaseAuthored(key, this);
     }
     this.#arrivalMotion?.cancel();
     this.#reaction?.retire();
@@ -556,9 +622,9 @@ export class MessageView {
   }
 }
 
-// Where an element an agent sent in a message stands, by its id: the instance of it the
-// message was prepared as (`prepareAuthoredMessage`), with the message and its thread. It
-// stands on the page only while the first drawing of that message does, as a margin card or the
+// Where an element an agent sent in a message stands, by its id: the one instance of it
+// the message keeps (`prepareAuthoredMessage`), with the message and its thread. It
+// stands on the page only while a drawing of that message does, as a margin card or the
 // floating panel's view of its thread, so a thread about it is named by its words, and
 // placed in its message (anchor-placement.js), while the message is put away.
 export function messageHolding(id) {

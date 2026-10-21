@@ -61,6 +61,7 @@ import {
   pageScope,
   pageSelection,
   placeKeeper,
+  releaseAuthoredUnder,
   releaseReplies,
   retainUserIntent,
   revealHeld,
@@ -922,6 +923,7 @@ function createThreadPreview({
     delete preview.dataset.lfThreadPlacement;
     for (const edge of CUT_EDGES) preview.style.removeProperty(edge);
     keepsHidden(preview, true);
+    releaseAuthoredUnder(preview);
     onClose(closed);
   }
   function focusThread(positioned, { closeControl: closeControl2 = false, cause = "move" } = {}) {

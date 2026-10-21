@@ -35,6 +35,7 @@ import {
   alreadyShown,
   anchorLabel,
   answeredInWords,
+  authoredHolder,
   beginThreadSeats,
   beginWalk,
   blocksOnScreen,
@@ -72,6 +73,7 @@ import {
   loadMarkdown,
   loadMessageMarkdown,
   markdownReady,
+  messageHolding,
   messageReading,
   messageText,
   mountFirstMessage,
@@ -6139,6 +6141,8 @@ function createThreadDestinations({
     const selected = presentation?.owner.isConnected ? presentation : null;
     const thread = threadNamed(id);
     if (selected && (!thread || !discussed(thread))) return null;
+    const holder = part === "message" ? authoredHolder(id) : null;
+    const drawn2 = Boolean(selected && holder && renderedUnder(holder, selected.owner));
     function inPrimary(last2) {
       opening?.abort();
       const abort = new AbortController();
@@ -6160,12 +6164,12 @@ function createThreadDestinations({
         intent: arriving
       }) : null;
       const result = selected.open(thread.key, request);
-      if (result === false) return mayPresent() ? DECLINED : null;
+      if (result === false && !drawn2) return mayPresent() ? DECLINED : null;
       return taken(result);
       async function taken(result2) {
         const selectedLayout = result2?.then ? await whileCurrent(result2) : result2;
         if (!mayPresent()) return null;
-        if (selectedLayout === false) return DECLINED;
+        if (selectedLayout === false && !drawn2) return DECLINED;
         await whileCurrent(selected.reader.update());
         if (!mayPresent()) return null;
         const destination = selected.reader.destination(thread.key, request);
@@ -6281,15 +6285,14 @@ function createThreadDestinations({
   async function openThreadSubject(id, { intent = retainUserIntent() } = {}) {
     const message = placedAt(id)?.message;
     if (!message) return null;
+    const { element } = messageHolding(threadNamed(id).anchor.section);
     const shown = await openPageThread(message, {
       part: "message",
       focus: false,
       travel: false,
       intent
     });
-    const subject = threadNamed(id).anchor.section;
-    const element = shown?.querySelector(`[id="${CSS.escape(subject)}"]`);
-    if (!element) return null;
+    if (!shown || !element.isConnected) return null;
     const arrived = await arrive(
       () => element.isConnected && {
         where: element,
@@ -6531,7 +6534,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
     const candidate = held.prepare(
       {
         threads: collection.threads.map(
-          (thread) => threadReading(thread, "outlet", commands)
+          (thread) => threadReading(thread, "outlet", { ...commands, authoredRank: 3 })
         )
       },
       { row: false }
@@ -6646,7 +6649,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
       let view = views.get(item.identity);
       if (!view) {
         if (item.kind === "thread")
-          view = new ThreadView(commands);
+          view = new ThreadView({ ...commands, authoredRank: 3 });
         else if (item.kind === "news") {
           const notice2 = newsNotice();
           view = { node: notice2.node, notice: notice2, dispose() {
@@ -6777,6 +6780,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
           const message = item.thread.msgs.find((entry) => entry.key === item.message);
           view.headNotice = !nominated;
           view.reading = messageReading(message, {
+            authoredRank: 3,
             reactions: message.reactions,
             workflows: message.workflows
           });

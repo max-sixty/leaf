@@ -23,8 +23,9 @@ import { turns } from "./model.js";
 
 /* A selected primary reader joins the required thread presentation. Packages nominate
    complete conversations or retained fragments; core owns their generated roots,
-   editors, exact-version read observation and the authored widgets each drawing of a
-   message carries (messages.js, `authoredNodes`). A message part is one of its thread's turns
+   editors, exact-version read observation and the single authored widget instances,
+   which stand here before any other drawing of their message (messages.js,
+   `authoredHolders`). A message part is one of its thread's turns
    (model.js, `turns`), the messages a card draws: its root, even a reaction, and its
    spoken messages. A later reaction stands as the pressed chip on the message it
    answers, so naming one as a part of its own is refused, as naming a message the
@@ -176,7 +177,7 @@ export function createPrimaryReader(
     const candidate = held.prepare(
       {
         threads: collection.threads.map((thread) =>
-          threadReading(thread, "outlet", commands),
+          threadReading(thread, "outlet", { ...commands, authoredRank: 3 }),
         ),
       },
       { row: false },
@@ -305,7 +306,7 @@ export function createPrimaryReader(
       let view = views.get(item.identity);
       if (!view) {
         if (item.kind === "thread")
-          view = new ThreadView(commands);
+          view = new ThreadView({ ...commands, authoredRank: 3 });
         else if (item.kind === "news") {
           const notice = newsNotice();
           view = { node: notice.node, notice, dispose() {} };
@@ -446,6 +447,7 @@ export function createPrimaryReader(
           const message = item.thread.msgs.find((entry) => entry.key === item.message);
           view.headNotice = !nominated;
           view.reading = messageReading(message, {
+            authoredRank: 3,
             reactions: message.reactions,
             workflows: message.workflows,
           });

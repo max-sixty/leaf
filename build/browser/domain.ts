@@ -108,7 +108,7 @@ export type Settlement = Extract<Command, { kind: "resolve" | "unresolve" }> & {
   localParent?: string;
 };
 type WidgetEvent = EventMap[WidgetKind];
-export type LocalAction = Extract<Command, { kind: "action" }> & {
+type LocalAction = Extract<Command, { kind: "action" }> & {
   id: string;
   seq?: never;
   meaning: { state: unknown };

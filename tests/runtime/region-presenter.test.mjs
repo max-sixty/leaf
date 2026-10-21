@@ -1,7 +1,7 @@
 /* A document region repaints for the parts its paint read, and for no others.
 
-   `applicationPresenter` collects what a region's reading and the synchronous part of
-   its paint read, and claims a paint when a publication moves one of those parts. These
+   Native effects follow a region's reading and each synchronous stretch of its paint,
+   claiming a paint when a publication moves one of those parts. These
    drive one region through the publisher's own phase. */
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -133,4 +133,22 @@ test("a region repaints when a time its paint shows ages, wherever the paint rea
   await whenApplicationPresented();
   assert.deepEqual(paints, { synchronous: [0, 1], resumed: [0, 1], bare: [0] });
   for (const region of regions) region.disconnect();
+});
+
+test("explicit presentation rereads mechanical inputs without duplicate claims", async () => {
+  let mounted = false;
+  const paints = [];
+  const region = applicationPresenter({
+    region: "probe-mechanical-reading",
+    reading: () => (mounted ? "mounted" : null),
+    paint: (value) => paints.push(value),
+  });
+  mounted = true;
+  await region.present();
+  await whenApplicationPresented();
+  assert.deepEqual(paints, ["mounted"]);
+  await region.present();
+  await whenApplicationPresented();
+  assert.deepEqual(paints, ["mounted", "mounted"]);
+  region.disconnect();
 });

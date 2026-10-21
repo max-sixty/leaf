@@ -142,7 +142,7 @@ function inputBinding(element, declaration) {
 // again when the source moves. Markup owns the binding, captured at the first read, so
 // module code cannot turn a live attribute mutation into an unvalidated rebind; a
 // revision that rebinds mounts a new element.
-export function dataReader(element, input) {
+export function dataReader(element, input, accepted) {
   const declaration = declaredInput(element, input);
   const { source, widget, selected, snapshot } = inputBinding(element, declaration);
   // What the element shows moves only as state application delivers, so a reading
@@ -159,17 +159,26 @@ export function dataReader(element, input) {
       return shown;
     },
     (moved) => {
+      // Acceptance belongs to the same observed input as delivery. If a render stops
+      // reading the input, it must not claim a region no delivery will redraw.
+      let seen = untracked(selected.read);
+      const stop = selected.subscribe((now) => {
+        if (now === seen) return;
+        seen = now;
+        accepted();
+      });
       deliveryListeners.add(moved);
-      return () => deliveryListeners.delete(moved);
+      return () => {
+        stop();
+        deliveryListeners.delete(moved);
+      };
     },
   );
-  if (!widget) stagedReadings.add(selected);
   let reported = null;
   let copied = { store: null, value: null };
   return () => {
     // The accepted reading claims the element's region inside the publication that
     // accepts it; the delivered one draws.
-    selected.read();
     const sourceStore = /** @type {{contract: string, revision?: string} | null} */ (
       widget ? selected.read() : delivered.read()
     );
@@ -198,9 +207,6 @@ export function dataReader(element, input) {
 // presents; its readers hear the delivery itself.
 let deliveries = 0;
 const deliveryListeners = new Set();
-// The accepted readings a `LeafElement` follows to claim its region, not to draw.
-const stagedReadings = new WeakSet();
-export const stagesOnly = (reading) => stagedReadings.has(reading);
 export function joinDataDelivery(region) {
   joined.add(region);
   return () => joined.delete(region);

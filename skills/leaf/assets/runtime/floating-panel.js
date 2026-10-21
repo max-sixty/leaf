@@ -155,7 +155,7 @@ import { keySequenceModel, keySequenceTemplate } from "./keyboard/key-sequence.j
 import { pageControls, watchPageControls } from "./page-controls.js";
 import { readPlace } from "./history.js";
 import { readThreads } from "./thread/state.js";
-import { discussed, hasUnread, threadCounts } from "./thread/model.js";
+import { hasUnread, threadCounts } from "./thread/model.js";
 import { watchProjection } from "./projection-watch.js";
 import { threadAttention, workflowStep } from "./thread/workflow.js";
 import { messageReading, threadName } from "./thread/messages.js";
@@ -285,12 +285,7 @@ const groupOf = (entry) =>
     : entry.copies && !canCopy()
       ? "about"
       : entry.group;
-// Threads' filters. Mine holds the open threads waiting on the user: a question to them,
-// a reply they haven't read, a draft they left. The user chose it on 20 October over an
-// Unread filter, under which a resolved thread's news outnumbered the open threads and an
-// asking thread already read went unlisted, and over grouping the list by whose move,
-// which regroups rows and parts the list from the `t` walk's page order.
-const FILTERS = Object.freeze(["mine", "open", "drafts", "resolved"]);
+const FILTERS = Object.freeze(["open", "unread", "drafts", "resolved"]);
 // The views a thread is opened from.
 const LISTS = Object.freeze(["threads", "queue"]);
 const capital = (word) => word[0].toUpperCase() + word.slice(1);
@@ -810,26 +805,19 @@ export function createFloatingPanel({
   };
   const newCount = () => (inventoried() ? threadCounts(threads()).unread : 0);
   const openCount = () => (inventoried() ? threadCounts(threads()).open : null);
-  const mine = (thread) =>
-    !thread.resolved &&
-    (hasUnread(thread) ||
-      threadAttention(thread)?.kind === "needs_user" ||
-      draftHasContent(replyContext(thread.key)));
-  const mineCount = () =>
-    inventoried() ? threads().filter(discussed).filter(mine).length : 0;
   const onUserCount = () => {
     const queues = readQueues();
     return queues.phase === "ready" ? queues.on_user.length : 0;
   };
   // A thread row's state in words, less the one the filter the list is shown by already
-  // says: under Open and Mine no row says "Open", under Drafts none "Draft".
+  // says: under Open no row says "Open", under Unread none "New".
   const threadStatus = (thread, shownBy) => {
     const state = thread.resolved
       ? "Resolved"
       : (threadAttention(thread)?.label ?? "Open");
     const said = {
+      unread: "New",
       open: "Open",
-      mine: "Open",
       resolved: "Resolved",
       drafts: "Draft",
     }[shownBy];
@@ -2154,7 +2142,7 @@ export function createFloatingPanel({
           .toLowerCase();
         return text.includes(words);
       }
-      if (filter === "mine") return mine(thread);
+      if (filter === "unread") return hasUnread(thread);
       if (filter === "drafts") return draftHasContent(replyContext(thread.key));
       if (filter === "resolved") return thread.resolved;
       return !thread.resolved;
@@ -2167,7 +2155,7 @@ export function createFloatingPanel({
       ? "Nothing matches."
       : {
           open: "No open threads. Comment below to start one.",
-          mine: "Nothing waiting on me.",
+          unread: "All caught up.",
           drafts: "No drafts.",
           resolved: "No resolved threads.",
         }[filter];
@@ -2948,6 +2936,7 @@ export function createFloatingPanel({
     /** @type {unknown} */
     let named = nothing;
     if (top.view === "threads") {
+      const news = newCount();
       aux = html`${tabs(
           FILTERS,
           filter,
@@ -2958,8 +2947,7 @@ export function createFloatingPanel({
             paint();
           },
           // Open counts what the thread mark counts, so the mark's number is found here.
-          (name) =>
-            name === "mine" ? mineCount() : name === "open" ? openCount() : null,
+          (name) => (name === "unread" ? news : name === "open" ? openCount() : null),
         )}<button
           type="button"
           class="lf-fp-icon-btn"
@@ -3445,7 +3433,7 @@ export function createFloatingPanel({
           aria-label=${threadsName}
           title=${threadsName}
           @click=${() => {
-            filter = mineCount() && !threadsOpen ? "mine" : "open";
+            filter = news && !threadsOpen ? "unread" : "open";
             query = "";
             refit();
             open({ view: "threads" });

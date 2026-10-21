@@ -947,12 +947,12 @@ def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
 
 
 def test_threads_filter_in_place_and_hold_news_until_asked(browser, serve):
-    """The thread mark opens Threads at Mine while a thread waits on the user. The
-    inventory fits the rows each filter the user presses shows, growing from its top
-    edge, so the filter just pressed and Close, among the controls at its foot, stay
-    under the pointer; a thread arriving after that moves none of its rows, the
-    inventory keeping its height. A reply that arrives while its thread is open waits
-    behind the thread's notice."""
+    """The thread mark opens Threads at Unread while a thread has news. The inventory
+    fits the rows each filter the user presses shows, growing from its top edge, so the
+    filter just pressed and Close, among the controls at its foot, stay under the
+    pointer; a thread arriving after that moves none of its rows, the inventory keeping
+    its height. A reply that arrives while its thread is open waits behind the thread's
+    notice."""
     url = serve(LONG_PAGE, comments=3)
     root = panel_comment(serve.page_dir, "Is the window long enough?")
     append_carried_log_record(
@@ -970,7 +970,7 @@ def test_threads_filter_in_place_and_hold_news_until_asked(browser, serve):
     page.locator(".lf-fp-threads").click()
     inventory = page.locator(".lf-fp-view[data-view=threads]")
     expect(page.locator(".lf-fp-filters [aria-pressed=true]")).to_have_text(
-        re.compile(r"^\s*Mine\b")
+        re.compile(r"^\s*Unread\b")
     )
     expect(inventory.locator(".lf-fp-thread")).to_have_count(1)
     settled(page)
@@ -3372,8 +3372,8 @@ def test_each_view_s_list_is_one_tab_stop_its_keys_walk(browser, serve):
     expect(rows.nth(1)).to_be_focused()
     expect(view.locator("[tabindex='0']")).to_have_count(1)
     expect(rows.nth(1)).to_have_attribute("tabindex", "0")
-    mine = page.locator(".lf-fp-filters button", has_text="Mine")
-    expect(mine.locator(".lf-fp-count[data-zero]")).to_have_text("0")
+    unread = page.locator(".lf-fp-filters button", has_text="Unread")
+    expect(unread.locator(".lf-fp-count[data-zero]")).to_have_text("0")
     # Open counts what the thread mark counts, so the mark's number is found here.
     open_tab = page.locator(".lf-fp-filters button", has_text="Open")
     expect(open_tab.locator(".lf-fp-count")).to_have_text("2")

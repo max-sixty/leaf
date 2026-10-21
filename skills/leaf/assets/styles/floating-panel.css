@@ -4,8 +4,9 @@
 
    The panel stands on the page's own ground, set off by a hairline and the faintest
    shadow, with 12px corners: part of the page rather than a widget laid on it. Its
-   controls are set in the sans at 13px, with 12px for what qualifies them, and the
-   page's words (questions, messages) in the page's serif; two inks, full and 72%, and
+   controls are set in the sans at 13px, with 12px for what qualifies them, and what
+   anyone wrote (questions, messages, a plan) in a thread's face, `--msg-font`; none of
+   it takes the page's prose face. Two inks, full and 72%, and
    the accent for what is on the user, with the empty field's status a step dimmer
    at 62%. The dim inks are as dim as WCAG AA's 4.5:1 for text lets them be on the
    panel's ground in the light scheme, whose paper is the brighter: 62% reads 4.7:1
@@ -1333,9 +1334,9 @@
     color: var(--ink);
   }
 
-  /* An item reads as the thread it belongs to, its words in the page's serif, and the
-     answers it takes, answered here. The serif heading each item and the space between
-     them set items apart, so no rule runs between them. */
+  /* An item reads as the thread it belongs to, its words in a thread's face, and the
+     answers it takes, answered here. The heading each item and the space between them
+     set items apart, so no rule runs between them. */
   .lf-fp-on-item {
     padding: 10px 8px 12px;
   }
@@ -1434,7 +1435,8 @@
     align-items: baseline;
     gap: 8px;
     margin: 0 0 6px;
-    font: 600 15px / 1.4 var(--serif);
+    font: var(--msg-font);
+    font-weight: 600;
   }
   .lf-fp-plan-count {
     margin-left: auto;

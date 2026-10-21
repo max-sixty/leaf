@@ -317,8 +317,8 @@
 }
 
 /* One owner for message type and spacing on every surface, including widget shadow
-   trees: a message reads in `--msg-font` (theme.css), while the comment field types
-   in the sans the layer talks in, as the floating panel's field does. A contextual
+   trees: a message and the comment field it is typed in read in `--msg-font`
+   (theme.css). A contextual
    card supplies its editor's vertical inset; retaining its viewport never changes
    these rules.
    Paragraphs keep the editor's whitespace and a blank line between them through
@@ -327,10 +327,7 @@
   --quote-inset: 10px;
   --pre-inset: 10px;
 }
-leaf-text.lf-fab-input {
-  font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans);
-  color: var(--ink);
-}
+leaf-text.lf-fab-input,
 .lf-msg-body {
   font: var(--msg-font);
   color: var(--ink);

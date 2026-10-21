@@ -1161,7 +1161,8 @@
     align-items: baseline;
     gap: 8px;
     margin: 0 0 6px;
-    font: 600 15px / 1.4 var(--serif);
+    font: var(--msg-font);
+    font-weight: 600;
   }
   .lf-fp-plan-count {
     margin-left: auto;

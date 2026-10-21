@@ -89,7 +89,7 @@
   --t-1: 31px;
   --code-size: 12.5px;
   --code-line: 19px;
-  --msg-font: max(var(--entry-floor), 15px) / 22px var(--serif);
+  --msg-font: max(var(--entry-floor), var(--t-5)) / 1.5 var(--sans);
   --code-inline-size: 82%;
   --code-inline-pad: 1px 5px;
   --code-inline-r: 4px;

@@ -2,7 +2,7 @@
 the page's own record and checked.
 
     uv run leaf-dev journey TARGET [--browser | --http] [--release RELEASE]
-                                   [--hooks-module] [--sandbox] [--preview]
+                                   [--sandbox] [--preview]
 
 The user tells the agent that a release passed its deployment checks, asking it to
 record that on the board. How the page records it is the agent's call, as with a
@@ -31,9 +31,8 @@ reply and entered the session's context, and that the page's claim names the ses
 with its turn closed. A website target runs `release` alone, since only a terminal
 can start a turn or interrupt one. What the harnesses share lives here: their
 isolation and its evidence (`isolated`), the session the journey hears through every
-wait (`Terminal`), and the user (`User`). `--hooks-module` turns on Claude Code's
-opt-in hooks module; `--sandbox` runs the session's shell commands in its harness's
-sandbox;
+wait (`Terminal`), and the user (`User`). `--sandbox` runs the session's shell
+commands in its harness's sandbox;
 `--preview` has Codex serve the page with the canonical
 `leaf-dev preview --user`. The journey stops at the first check that fails and keeps
 no sample.
@@ -1354,7 +1353,6 @@ def target_session(
     target: str,
     release: str | None,
     *,
-    hooks_module: bool,
     sandbox: bool,
     preview: bool,
 ) -> Iterator[tuple[User, dict, Callable[[], None]]]:
@@ -1366,8 +1364,7 @@ def target_session(
         if target == "claude-code":
             from leaf_dev.journey_claude_code import answering
 
-            harness = answering(browser, hooks_module=hooks_module, sandbox=sandbox)
-            named |= {"hooksModule": True} if hooks_module else {}
+            harness = answering(browser, sandbox=sandbox)
             named |= {"sandbox": True} if sandbox else {}
         elif target == "pi":
             from leaf_dev.journey_pi import answering
@@ -1425,11 +1422,6 @@ def target_session(
     help="At an origin, require this release (default: whichever it serves).",
 )
 @click.option(
-    "--hooks-module",
-    is_flag=True,
-    help="On claude-code, turn the plugin's hooks module on.",
-)
-@click.option(
     "--sandbox",
     is_flag=True,
     help="On claude-code or a codex target, run the session's shell commands in its "
@@ -1450,7 +1442,6 @@ def target_session(
 def journey(
     target: str,
     release: str | None,
-    hooks_module: bool,
     sandbox: bool,
     preview: bool,
     browser: bool | None,
@@ -1464,8 +1455,6 @@ def journey(
     or a website origin. A harness's user posts its comments over HTTP unless
     `--browser` puts them in Chrome.
     """
-    if hooks_module and target != "claude-code":
-        raise click.UsageError("--hooks-module is an option of claude-code")
     if sandbox and HARNESS_TARGETS.get(target, {}).get("harness") not in (
         "claude-code",
         "codex",
@@ -1487,7 +1476,6 @@ def journey(
                 chromium,
                 target,
                 release,
-                hooks_module=hooks_module,
                 sandbox=sandbox,
                 preview=preview,
             )

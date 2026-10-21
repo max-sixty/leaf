@@ -78,8 +78,27 @@
    * and before the list is drawn, so a short part leaves nothing to scroll and a
    * full-height workspace takes the whole window. The holder itself draws nothing. The
    * part is the shell its Layout's box stands in. On a phone the title, the list and the
-   * part stack. Before the module upgrades the holder, the column holds only the title. */
+   * part stack. Before the module upgrades the holder, the column holds only the title.
+   *
+   * The room the floating panel's row keeps at the window's foot (`--lf-foot-room`,
+   * theme.css) is the open part's own end rather than the body's, since the part is what
+   * reads to the page's end. So the part, the rule beside it and the column all reach
+   * the window's foot, and no band stands below them that belongs to neither. */
   @media screen {
+    html[data-lf-interactive]
+      body:has(
+        > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+          > [data-lf-views="parts"]
+      ) {
+      padding-bottom: 0;
+    }
+    html[data-lf-interactive]
+      body
+      > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+      > [data-lf-views="parts"]
+      > :not([role="tablist"], [hidden]) {
+      padding-block-end: var(--lf-foot-room);
+    }
     html[data-lf-interactive]
       body
       > main:not(.layout-column, .layout-sidebar, .layout-workspace):has(
@@ -91,7 +110,7 @@
       grid-template-rows: auto minmax(0, 1fr);
       align-items: start;
       box-sizing: border-box;
-      min-block-size: var(--lf-view-height);
+      min-block-size: calc(100dvh - var(--lf-head-room));
     }
     /* What the page writes before the parts, named from itself rather than by a `:has()`
      * on `main`, which would restyle the whole document on every write: what stands
@@ -141,8 +160,8 @@
       > :not([role="tablist"], [hidden]) {
       align-self: stretch;
     }
-    /* A full-height workspace's height is its part's, not its content's, so the part
-     * contributes none of its own to the row it fills. */
+    /* A full-height workspace's height is its part's, short of the foot's room, not its
+     * content's, so the part contributes none of its own to the row it fills. */
     @media (min-width: 720px) and (min-height: 480px) {
       html[data-lf-interactive]
         body

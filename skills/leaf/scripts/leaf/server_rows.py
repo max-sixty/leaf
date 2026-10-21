@@ -1,8 +1,9 @@
 """Disposable neighbor-row delivery, computed by each serving page alone.
 
 The document and log remain the authority. A server publishes their canonical
-activity fold to state-home rows/<page-key>.json, together with its title and
-working directory. The record is bound to service.server_id, so another server
+activity fold to state-home rows/<page-key>.json, together with its title, its
+working directory and the user's counts its Leaf panel marks (On me, open threads,
+threads with unread words), which neighbors and Leaf's Claude Code band show. The record is bound to service.server_id, so another server
 incarnation cannot inherit it; the server lease decides whether any row exists.
 Deleting every row only hides neighbors until their next maintenance look. No
 server removes its own row, since a server can die without a last word; the reader
@@ -62,6 +63,8 @@ def row_path(page_dir: Path) -> Path:
     return state_home() / "rows" / f"{page_key(page_dir)}.json"
 
 
+COUNT = {"type": "integer", "minimum": 0}
+
 # A serving page's row, under the server incarnation that published it.
 ROW = Record(
     "row",
@@ -84,11 +87,13 @@ ROW = Record(
                         },
                         "required": sorted(ACTIVITY_FIELDS),
                     },
+                    "on_user": COUNT,
+                    "threads": object_schema({"open": COUNT, "unread": COUNT}),
                 }
             ),
         }
     ),
-    since=13,
+    since=16,
 )
 
 

@@ -134,6 +134,22 @@ export const editable = (message) =>
 export const bareReaction = (thread) => thread.bare_reaction;
 /** @param {Pick<Thread, "bare_reaction">} thread */
 export const discussed = (thread) => !bareReaction(thread);
+/** Whether a thread holds words the user hasn't read.
+ * @param {Pick<Thread, "unread">} thread */
+export const hasUnread = (thread) => thread.unread.length > 0;
+/**
+ * What the panel's Threads mark counts of the threads it lists: those still open, and
+ * those holding words the user hasn't read. A page's served row counts the same way
+ * (`served_state.thread.thread_counts`); tests/thread_count_cases.json holds both.
+ * @param {readonly Pick<Thread, "bare_reaction" | "resolved" | "unread">[]} threads
+ */
+export function threadCounts(threads) {
+  const listed = threads.filter(discussed);
+  return {
+    open: listed.filter((thread) => !thread.resolved).length,
+    unread: listed.filter(hasUnread).length,
+  };
+}
 // Which widget's seat a pending thread stands in, by the rule `seat_root` reads the log
 // by: an element anchor naming that widget and carrying nothing else. Spelled again here
 // because the server has not seen this message yet, and a thread that seated itself

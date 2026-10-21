@@ -146,7 +146,8 @@
     while (list.length > 1 && list[1].at <= retainedFrom) list.shift();
   };
   const GEOMETRY =
-    /^(transform|translate|scale|rotate|inset|top|left|right|bottom|width|height|margin|padding)/;
+    /^(transform|translate|scale|rotate|inset|top|left|right|bottom|width|height|blockSize|inlineSize|minBlockSize|minInlineSize|maxBlockSize|maxInlineSize|margin|padding)/;
+  const SIZE_GEOMETRY = new Set(["blockSize", "height", "inlineSize", "width"]);
   // Use the runtime's rendered ancestry, including forwarding slots and shadow hosts.
   const up = renderedParent;
   // Decorative media is not an independent reading. Hidden accessibility trees
@@ -984,7 +985,11 @@
           start: time,
           nodes,
           motion: animations.filter(
-            (animation) => animated.get(animation)?.at(-1)?.scroll,
+            (animation) =>
+              animated.get(animation)?.at(-1)?.scroll ||
+              animationProperties(animation).some((property) =>
+                SIZE_GEOMETRY.has(property),
+              ),
           ),
           complete: true,
         }
@@ -2237,10 +2242,42 @@
   const animationMotion = (node, from, to, animations) => {
     const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
     const motion = { left: 0, top: 0, terms: [] };
+    if (!element) return motion;
     const seen = new Map();
     for (const animation of new Set(animations)) {
       const target = animation.effect.target;
-      if (!ancestryAt(element, to).includes(target)) continue;
+      if (!target) continue;
+      if (!ancestryAt(element, to).includes(target)) {
+        // A size animation can move boxes after its target. Credit only travel
+        // matching the target's measured size change; unrelated writes do not
+        // inherit credit merely because an animation is running.
+        const properties = animationProperties(animation);
+        if (
+          !properties.some((property) => SIZE_GEOMETRY.has(property)) ||
+          target.getRootNode() !== element.getRootNode() ||
+          !(target.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING)
+        )
+          continue;
+        const before = boxAt(target, from),
+          after = boxAt(target, to);
+        const first = layoutAt(element, from),
+          last = layoutAt(element, to);
+        if (!before || !after || !first || !last) continue;
+        for (const axis of ["left", "top"]) {
+          const size = axis === "top" ? "height" : "width";
+          const change = after[size] - before[size];
+          if (Math.abs(change) < 1 || Math.abs(last[axis] - first[axis] - change) >= 1)
+            continue;
+          credit(motion, "animation_reflow", target, axis, change, {
+            before,
+            after,
+            first,
+            last,
+            properties,
+          });
+        }
+        continue;
+      }
       const readings = animated.get(animation);
       const before = readings?.findLast((reading) => reading.at <= from);
       const after = readings?.findLast((reading) => reading.at <= to);

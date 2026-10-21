@@ -240,6 +240,7 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
             const label = tab.querySelector('[data-lf-said]');
             const labelStyle = style(label);
             const markStyle = style(label, '::before');
+            const underlineStyle = style(label.querySelector('.lf-tab-mark'));
             return {
               ground: tabStyle.backgroundColor,
               border: ['Top', 'Right', 'Bottom', 'Left'].map(
@@ -251,6 +252,11 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
               labelRule: {
                 width: parseFloat(labelStyle.borderBottomWidth),
                 color: labelStyle.borderBottomColor,
+              },
+              underline: {
+                height: parseFloat(underlineStyle.blockSize),
+                color: underlineStyle.backgroundColor,
+                visible: underlineStyle.visibility,
               },
               labelInk: labelStyle.color,
               labelDecoration: labelStyle.textDecorationLine,
@@ -304,11 +310,14 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
     assert boundary["selected"]["labelGround"] == "rgba(0, 0, 0, 0)", boundary
     assert boundary["inactive"]["labelGround"] == "rgba(0, 0, 0, 0)", boundary
     assert boundary["selected"]["labelShadow"] == "none", boundary
-    assert boundary["selected"]["labelRule"] == {
-        "width": 2,
-        "color": boundary["selected"]["labelInk"],
-    }, boundary
+    assert boundary["selected"]["labelRule"]["color"] == "rgba(0, 0, 0, 0)", boundary
     assert boundary["inactive"]["labelRule"]["color"] == "rgba(0, 0, 0, 0)", boundary
+    assert boundary["selected"]["underline"] == {
+        "height": 2,
+        "color": boundary["selected"]["labelInk"],
+        "visible": "visible",
+    }, boundary
+    assert boundary["inactive"]["underline"]["visible"] == "hidden", boundary
     assert boundary["selected"]["labelInk"] == boundary["palette"]["ink"], boundary
     assert (
         boundary["selected"]["labelPadding"] == boundary["inactive"]["labelPadding"]

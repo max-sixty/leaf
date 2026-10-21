@@ -71,7 +71,9 @@ export function disclose(details, open, event) {
 }
 
 export function disclosure(details) {
-  details.firstElementChild.addEventListener("click", (event) => {
+  // Summary listeners get first say, including a cancelled activation.
+  details.addEventListener("click", (event) => {
+    if (!details.firstElementChild.contains(event.target)) return;
     if (event.defaultPrevented || !plainPress(event)) return;
     event.preventDefault();
     disclose(details, !details.open, event);

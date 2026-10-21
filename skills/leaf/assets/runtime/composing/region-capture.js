@@ -107,7 +107,6 @@ export function createRegionCapture({
     id: "capture.region.open",
     keys: [],
     title: "Capture area",
-    description: "Select an area of the page and attach its image to a comment",
     touch: "Capture area",
     menu: "annotate",
     retainStanding: true,

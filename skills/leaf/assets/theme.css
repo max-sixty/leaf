@@ -1347,6 +1347,7 @@
   --quote-style: italic;
   --quote-inset: 18px;
   --pre-inset: 14px;
+  --list-inset: 24px;
   --link-underline: color-mix(in srgb, var(--accent) 35%, transparent);
   --link-underline-offset: 2px;
   --serif:
@@ -1573,7 +1574,8 @@ html[data-lf-interactive] [data-lf-arriving] {
   background: var(--card);
 }
 @property --lf-field-end-room { syntax: "<length>"; inherits: true; initial-value: 0px; }
-@property --lf-field-ride { syntax: "<length> | none"; inherits: true; initial-value: none; }
+@property --lf-field-carry { syntax: "<length>+ | none"; inherits: true; initial-value: none; }
+@property --lf-field-cut { syntax: "<length>+ | none"; inherits: true; initial-value: none; }
 .lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input)),
 :is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input)) {
   padding: var(--lf-compose-pad-block, 8px) var(--lf-compose-pad-inline-start, 10px);

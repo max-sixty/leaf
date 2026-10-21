@@ -393,7 +393,7 @@ place to recheck host support before experimenting.
 
 Leaf has no MCP Apps transport in the current tree. The remaining direct-resource
 experiment and its host-specific acceptance criteria belong to
-[notes/mcp-apps/PROJECT.md](mcp-apps/PROJECT.md); this comparison does not define a
+TODO.md's "MCP Apps" item; this comparison does not define a
 second rebuilding plan. Inline presentation is a possible host route, while the
 page directory and event log remain the durable record.
 

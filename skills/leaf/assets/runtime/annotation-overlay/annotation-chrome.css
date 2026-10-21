@@ -531,7 +531,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     outline: none;
     background: linear-gradient(var(--paper), transparent);
     pointer-events: none;
-    z-index: 1;
+    /* Keep the action strip above the fade without putting its ground above
+       a focused message control's ring. */
+    z-index: 0;
   }
   .lf-margin-thread
     .lf-page-thread:has(
@@ -628,7 +630,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     grid-column: 2;
     grid-row: 2;
     align-self: start;
-    z-index: 2;
+    z-index: 1;
     display: flex;
     align-items: center;
     gap: 4px;

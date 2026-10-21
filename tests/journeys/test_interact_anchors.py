@@ -329,7 +329,9 @@ def test_a_quote_without_a_section_detaches_when_its_words_disappear(page_dir):
         ],
     )
     assert moved.exit_code == 0, moved.output
-    assert json.loads(moved.output)["anchor"]["quote"] == "Beta"
+    advice, reply = [json.loads(line) for line in moved.output.splitlines()]
+    assert advice["code"] == "unpointable"
+    assert reply["anchor"]["quote"] == "Beta"
 
 
 def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir):

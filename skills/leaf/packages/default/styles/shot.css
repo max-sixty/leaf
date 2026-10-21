@@ -97,10 +97,13 @@
   ) {
   background: var(--ink-2);
 }
+/* The handle stays faint while the reader looks at the frames, pointer included,
+ * since it stands over them; it comes up fully only under the pointer itself, with
+ * focus or while dragging. At an endpoint it covers the frame's edge, so it fades
+ * further until the pointer enters the comparison. */
+:scope:is(lf-shot) .lf-shotcomparison::part(handle):hover,
 :scope:is(lf-shot)
-  .lf-shotcomparison:is(:hover, [data-lf-focus-within], :state(dragging))::part(
-    handle
-  ) {
+  .lf-shotcomparison:is([data-lf-focus-within], :state(dragging))::part(handle) {
   opacity: 1;
   scale: 1;
 }

@@ -485,8 +485,7 @@ export function newsNotice(header = false) {
     {
       id: "thread.news",
       keys: PRESS,
-      description: "Show what is waiting",
-      title: "show it",
+      title: "show what is waiting",
       control: node,
       run: show,
     },

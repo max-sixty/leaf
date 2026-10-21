@@ -41,7 +41,7 @@ def test_a_visible_datum_takes_over_pending_thread_motion(browser, serve):
     )
     page = open_page(browser, url)
     datum = page.locator('lf-diff [data-lf-datum=\'["app.py","new",1]\']')
-    expect(datum).to_be_in_viewport(timeout=5000)
+    expect(datum).to_be_in_viewport()
     page.locator("h1").click()
     page.evaluate("""async () => {
       const {navigateToDatum} = await window.__lfWidgetApi();
@@ -59,7 +59,7 @@ def test_a_visible_datum_takes_over_pending_thread_motion(browser, serve):
       };
     }""")
     page.keyboard.press("t")
-    page.wait_for_function("window.datumArrived !== undefined", timeout=10000)
+    page.wait_for_function("window.datumArrived !== undefined")
     assert page.evaluate("datumArrived")
     scroll_settled(page)
     expect(datum).to_be_focused()

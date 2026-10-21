@@ -103,7 +103,7 @@ test("Markdown body readings share file dialect, safe destinations and native st
   body.innerHTML = renderMarkdown("<div>\n**bold**\n</div>\n\n<div>\nHeading\n---");
   assert.equal(
     body.innerHTML,
-    "<p>&lt;div&gt;<br><strong>bold</strong><br>&lt;/div&gt;</p>\n<h2>&lt;div&gt;<br>Heading</h2>\n",
+    '<p data-lf-gap="0">&lt;div&gt;<br><strong>bold</strong><br>&lt;/div&gt;</p>\n<h2 data-lf-gap="1">&lt;div&gt;<br>Heading</h2>\n',
   );
   body.innerHTML = renderMarkdown("- [x] Done\n- [ ] Todo");
   assert.deepEqual(

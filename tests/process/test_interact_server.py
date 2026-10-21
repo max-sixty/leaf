@@ -5471,11 +5471,7 @@ def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
 
 
 def test_one_key_reads_every_page_this_machine_serves(page_dir, tmp_path):
-    """One machine key admits each listener through its own handover link.
-
-    A keyed arrival sets that listener's cookie; other ports need their own
-    arrival even when their server takes the same machine key.
-    """
+    """One keyed arrival lets a plain link reach another page with the same key."""
     second = tmp_path / "second-page"
     assert (
         CliRunner().invoke(cli_model.cli, ["page", "init", str(second)]).exit_code == 0
@@ -5495,14 +5491,32 @@ def test_one_key_reads_every_page_this_machine_serves(page_dir, tmp_path):
         )
         with opener.open(f"{first}/api/state?t={key}") as arrival:
             assert arrival.status == 200
-        with pytest.raises(urllib.error.HTTPError) as unvisited:
-            opener.open(f"{other}/api/state")
-        assert unvisited.value.code == 401
-        with opener.open(f"{other}/api/state?t={key}") as onward:
+        with opener.open(f"{other}/api/state") as onward:
             assert onward.status == 200
         for origin in (first, other):
             with opener.open(f"{origin}/api/state") as polled:
                 assert polled.status == 200
+
+
+def test_a_different_key_does_not_replace_a_page_cookie(page_dir):
+    """A preview with its own key leaves a machine page's bare URL authorized."""
+    servers = [
+        hosting_model.LeafHTTPServer(
+            ("127.0.0.1", 0), http_model.page_endpoint(page_dir, key)
+        )
+        for key in ("machine-key", "preview-key")
+    ]
+    with running_http_server(servers[0]), running_http_server(servers[1]):
+        first, preview = (f"http://127.0.0.1:{h.server_address[1]}" for h in servers)
+        opener = urllib.request.build_opener(
+            urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
+        )
+        for origin, key in ((first, "machine-key"), (preview, "preview-key")):
+            with opener.open(f"{origin}/api/state?t={key}") as arrival:
+                assert arrival.status == 200
+        for origin in (first, preview):
+            with opener.open(f"{origin}/api/state") as revisit:
+                assert revisit.status == 200
 
 
 def test_a_claimed_page_without_a_declaration_serves_its_state(page_dir, server):

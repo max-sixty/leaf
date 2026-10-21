@@ -755,7 +755,7 @@ button.lf-primary-news {
 }
 :where(:root, .lf-thread-transcript) :is(ul, ol) {
   margin: 10px 0;
-  padding-inline-start: 24px;
+  padding-inline-start: var(--list-inset);
 }
 :where(:root, .lf-thread-transcript) li {
   margin: 6px 0;
@@ -768,6 +768,7 @@ button.lf-primary-news {
 :is(.lf-msg-body, leaf-text) {
   --quote-inset: 10px;
   --pre-inset: 10px;
+  --pre-pad-block: 8px;
 }
 leaf-text.lf-fab-input,
 .lf-msg-body {
@@ -811,7 +812,29 @@ leaf-text.lf-fab-input,
   margin: 2px 0;
 }
 .lf-msg-body pre {
-  padding-block: 8px;
+  padding-block: var(--pre-pad-block);
+}
+@property --lf-msg-line { syntax: "<length>"; inherits: true; initial-value: 0px; }
+.lf-msg-text {
+  --lf-msg-line: 1lh;
+}
+.lf-msg-text :is([data-lf-gap], pre:has(> [data-lf-gap])) {
+  margin-block: 0;
+}
+.lf-msg-text blockquote[data-lf-gap] {
+  padding-block: 0;
+}
+.lf-msg-text pre:has(> [data-lf-gap]) {
+  padding-block: var(--code-line);
+}
+.lf-msg-text :is([data-lf-gap="1"], pre:has(> [data-lf-gap="1"])) {
+  margin-block-start: var(--lf-msg-line);
+}
+.lf-msg-text :is([data-lf-gap="2"], pre:has(> [data-lf-gap="2"])) {
+  margin-block-start: calc(2 * var(--lf-msg-line));
+}
+.lf-msg-text :is([data-lf-gap="3"], pre:has(> [data-lf-gap="3"])) {
+  margin-block-start: calc(3 * var(--lf-msg-line));
 }
 :where([data-lf-content=data]:not([data-lf-verbatim])) {
   display: block;

@@ -41,7 +41,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 # Where the leaf's peek says the status's whole sentence.
 PEEK = ".lf-fp-peek"
-LEAF_DOT = ".lf-fp-leaf-paint .lf-dot"
+LEAF_DOT = ".lf-fp-leaf .lf-dot"
 
 
 def expect_status_says(page, words):

@@ -443,6 +443,7 @@ import {
   TEXT_BOX,
   TEXT_FIELD,
   WORKS,
+  afterSettling,
   byRenderedOrder,
   cancelRender,
   closeLayer,
@@ -453,6 +454,7 @@ import {
   focused,
   handBack,
   holdFocus,
+  holdRendering,
   keeps,
   keepsHidden,
   keepsText,
@@ -587,17 +589,17 @@ function readPicture(drawing2, target) {
   const points = strokes.flat();
   const left = Math.min(...points.map(([x]) => x)) - CONTEXT_PAD;
   const top = Math.min(...points.map(([, y]) => y)) - CONTEXT_PAD;
-  const width = Math.max(...points.map(([x]) => x)) - left + CONTEXT_PAD;
-  const height = Math.max(...points.map(([, y]) => y)) - top + CONTEXT_PAD;
-  const scale = Math.min(1, PREVIEW_WIDTH / width, PREVIEW_HEIGHT / height);
+  const width2 = Math.max(...points.map(([x]) => x)) - left + CONTEXT_PAD;
+  const height2 = Math.max(...points.map(([, y]) => y)) - top + CONTEXT_PAD;
+  const scale = Math.min(1, PREVIEW_WIDTH / width2, PREVIEW_HEIGHT / height2);
   return {
     strokes,
     box: geometry?.box,
     target: geometry?.target,
     left,
     top,
-    width,
-    height,
+    width: width2,
+    height: height2,
     scale
   };
 }
@@ -608,17 +610,17 @@ function drawingThumbnail(drawing2, target) {
   canvas.style.color = "var(--accent)";
   let picture = readPicture(drawing2, target);
   const sizeCanvas = () => {
-    const width = Math.ceil(picture.width * picture.scale);
-    const height = Math.ceil(picture.height * picture.scale);
-    if (canvas.width !== width) canvas.width = width;
-    if (canvas.height !== height) canvas.height = height;
+    const width2 = Math.ceil(picture.width * picture.scale);
+    const height2 = Math.ceil(picture.height * picture.scale);
+    if (canvas.width !== width2) canvas.width = width2;
+    if (canvas.height !== height2) canvas.height = height2;
   };
   sizeCanvas();
   const paintInk = () => {
-    const { strokes, left, top, width, height } = picture;
+    const { strokes, left, top, width: width2, height: height2 } = picture;
     const ctx = canvas.getContext("2d");
     ctx.save();
-    ctx.scale(canvas.width / width, canvas.height / height);
+    ctx.scale(canvas.width / width2, canvas.height / height2);
     ctx.translate(-left, -top);
     ctx.strokeStyle = getComputedStyle(canvas).color;
     ctx.lineWidth = 3;
@@ -641,9 +643,9 @@ function drawingThumbnail(drawing2, target) {
     sizeCanvas();
     canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
     paintInk();
-    const { box, left, top, width, height } = picture;
+    const { box, left, top, width: width2, height: height2 } = picture;
     const { blob, warnings } = await pageImage(
-      { x: scrollX + box.left + left, y: scrollY + box.top + top, width, height },
+      { x: scrollX + box.left + left, y: scrollY + box.top + top, width: width2, height: height2 },
       { exclude: [LEAF_SURFACE] }
     );
     const image = await window.createImageBitmap(blob);
@@ -2320,23 +2322,23 @@ function createResponseSurface({
       clearFab();
     } else {
       const previousFloating = usesPlacement;
-      const same4 = sameAnchor(previous, anchor);
-      const keptInline = Boolean(fabInlineOutlet?.isConnected && previous && same4);
+      const same5 = sameAnchor(previous, anchor);
+      const keptInline = Boolean(fabInlineOutlet?.isConnected && previous && same5);
       if (fabInlineOutlet && !keptInline) restoreFab({ place: false });
-      if (!same4) {
+      if (!same5) {
         if (previous) composer.resetResponseOptions();
         placement?.release();
       }
-      const stands = point !== void 0 ? point : same4 ? fabPoint : null;
+      const stands = point !== void 0 ? point : same5 ? fabPoint : null;
       const pointMoved = stands !== fabPoint;
       fabPoint = stands;
-      if (!same4 || !place3 || pointMoved || !previousFloating && !keptInline)
+      if (!same5 || !place3 || pointMoved || !previousFloating && !keptInline)
         stopFabPositioning({ reset: true });
       fabAnchor.value = anchor;
       usesPlacement = Boolean(placement) && place3 && !keptInline;
       paintFab();
       if (usesPlacement && !placement.place({ reveal: reveal2 })) {
-        if (same4 && placement.stands()) placement.withhold();
+        if (same5 && placement.stands()) placement.withhold();
         else clearFab();
       }
     }
@@ -3034,15 +3036,15 @@ function createDrawingController({
     repaint2();
   }
   function targetNearest({ x, y }) {
-    const near = visibleTargets().filter(({ rect: rect2 }) => rect2?.width && rect2?.height).map((target) => ({
+    const near2 = visibleTargets().filter(({ rect: rect2 }) => rect2?.width && rect2?.height).map((target) => ({
       target,
       distance: Math.hypot(
         Math.max(target.rect.left - x, 0, x - target.rect.right),
         Math.max(target.rect.top - y, 0, y - target.rect.bottom)
       )
     }));
-    const nearest = Math.min(...near.map(({ distance }) => distance));
-    const close = near.filter(({ distance }) => distance <= nearest + NEAR_ENOUGH);
+    const nearest = Math.min(...near2.map(({ distance }) => distance));
+    const close = near2.filter(({ distance }) => distance <= nearest + NEAR_ENOUGH);
     return close.filter(
       ({ target }) => !close.some(
         (other) => other.target.element !== target.element && under(other.target.element, target.element)
@@ -3556,13 +3558,13 @@ function drawingFrame(strokes) {
   const right = Math.max(...xs);
   const top = Math.min(...ys);
   const bottom = Math.max(...ys);
-  const width = Math.max(right - left, FRAME_MIN);
-  const height = Math.max(bottom - top, FRAME_MIN);
+  const width2 = Math.max(right - left, FRAME_MIN);
+  const height2 = Math.max(bottom - top, FRAME_MIN);
   return {
-    x: (left + right - width) / 2,
-    y: (top + bottom - height) / 2,
-    width,
-    height
+    x: (left + right - width2) / 2,
+    y: (top + bottom - height2) / 2,
+    width: width2,
+    height: height2
   };
 }
 var pathData = (strokes) => strokes.flatMap(
@@ -3585,20 +3587,20 @@ function createDrawingInk({ drawings }) {
   let mounted = /* @__PURE__ */ new Map();
   let mounting = /* @__PURE__ */ new Map();
   const observed = /* @__PURE__ */ new Set();
-  const sizes = sizeObserver(() => shifted());
+  const sizes = sizeObserver(() => shifted2());
   function mark(drawing2, target, className, id = "") {
     if (!drawing2) return null;
     const geometry = drawingGeometry(drawing2, target);
     if (!geometry) return null;
     const { box, strokes } = geometry;
     const frame = drawingFrame(strokes);
-    const { width, height } = frame;
-    if (!width || !height) return null;
+    const { width: width2, height: height2 } = frame;
+    if (!width2 || !height2) return null;
     const rect2 = {
       left: box.left + frame.x,
       top: box.top + frame.y,
-      right: box.left + frame.x + width,
-      bottom: box.top + frame.y + height
+      right: box.left + frame.x + width2,
+      bottom: box.top + frame.y + height2
     };
     const data = pathData(strokes);
     const described = JSON.stringify([className, id, frame, data]);
@@ -3645,7 +3647,7 @@ function createDrawingInk({ drawings }) {
         observed.add(target);
       }
   }
-  function shifted() {
+  function shifted2() {
     if (paintFrame) return;
     paintFrame = nextRender(() => {
       paintFrame = 0;
@@ -3661,7 +3663,7 @@ function createDrawingInk({ drawings }) {
     mounting.clear();
     ink.clear();
   }
-  return { layer, paint, shifted, destroy };
+  return { layer, paint, shifted: shifted2, destroy };
 }
 
 // runtime/composing/aim.js
@@ -4548,8 +4550,8 @@ ${searchCount(maximum, maximum)}`
     const current = matches.value[active];
     if (!query || !current || pageText() === matchesIn) return false;
     const found = find(query);
-    const same4 = found.findIndex((candidate) => sameMatch(candidate, current));
-    active = same4 >= 0 ? same4 : found.length ? Math.min(active, found.length - 1) : -1;
+    const same5 = found.findIndex((candidate) => sameMatch(candidate, current));
+    active = same5 >= 0 ? same5 : found.length ? Math.min(active, found.length - 1) : -1;
     matches.value = found;
     if (repeatedSearch && !pageSearchOpen && active >= 0) repeatedSearch.index = active;
     return true;
@@ -6337,6 +6339,329 @@ function paintStatusContext(goToStatus) {
   if (!same2(context, before)) for (const invalidate of presenters) invalidate();
 }
 
+// runtime/box-motion.js
+var near = (a, b) => Math.abs(a - b) < 0.5;
+var boxOf = (rect2) => ({
+  left: rect2.left,
+  top: rect2.top,
+  right: rect2.right,
+  bottom: rect2.bottom
+});
+var width = (box) => box.right - box.left;
+var height = (box) => box.bottom - box.top;
+var same3 = (a, b) => ["left", "top", "right", "bottom"].every((side) => near(a[side], b[side]));
+var between = (from, to, progress) => Object.fromEntries(
+  Object.keys(to).map((side) => [
+    side,
+    from[side] + (to[side] - from[side]) * progress
+  ])
+);
+var shifted = (box, dx, dy) => ({
+  left: box.left + dx,
+  top: box.top + dy,
+  right: box.right + dx,
+  bottom: box.bottom + dy
+});
+var insetOf = ([top, right, bottom, left], radius = 0) => `inset(${top}px ${right}px ${bottom}px ${left}px round ${radius}px)`;
+var radiusOf = (style) => Number.parseFloat(style.borderTopLeftRadius) || 0;
+var paints = (style) => !/^(transparent|rgba\(.*,\s*0\))$/.test(style.backgroundColor) || style.backgroundImage !== "none" || style.boxShadow !== "none" || ["Top", "Right", "Bottom", "Left"].some(
+  (side) => Number.parseFloat(style[`border${side}Width`]) > 0
+);
+var rings = (style) => style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) > 0;
+function boxMotion({
+  root,
+  box,
+  room,
+  surface,
+  ring: [ringLayer, ringFill],
+  observer,
+  theirs
+}) {
+  let rests = null;
+  let motions = /* @__PURE__ */ new Map();
+  let running = [];
+  let observed = /* @__PURE__ */ new Set();
+  let wholes = /* @__PURE__ */ new WeakSet();
+  const insideWhole = (node) => {
+    for (let up = node.parentElement; up && up !== root; up = up.parentElement)
+      if (wholes.has(up)) return true;
+    return false;
+  };
+  function carriedBy(progress) {
+    const offsets = /* @__PURE__ */ new Map();
+    const offset = (carrier) => {
+      if (!offsets.has(carrier)) {
+        const { from, to } = motions.get(carrier);
+        const now = between(from, to, progress);
+        offsets.set(carrier, [now.left - to.left, now.top - to.top]);
+      }
+      return offsets.get(carrier);
+    };
+    return (element) => {
+      let dx = 0;
+      let dy = 0;
+      for (let up = element; up && up !== root; up = up.parentElement)
+        if (motions.get(up)?.carries) {
+          const [x, y] = offset(up);
+          dx += x;
+          dy += y;
+        }
+      return [dx, dy];
+    };
+  }
+  function read(element, into, carried) {
+    const style = getComputedStyle(element);
+    if (style.display === "contents") {
+      for (const child of element.children) read(child, into, carried);
+      return;
+    }
+    if (!element.checkVisibility()) return;
+    const [dx, dy] = carried(element);
+    const part = {
+      element,
+      style,
+      box: shifted(boxOf(element.getBoundingClientRect()), -dx, -dy),
+      window: style.position === "fixed",
+      parts: []
+    };
+    part.scrolls = /auto|scroll/.test(`${style.overflowX} ${style.overflowY}`);
+    part.whole = element.localName.includes("-") || element instanceof SVGElement || part.scrolls || element.childElementCount === 0 || [...element.childNodes].some(
+      (node) => node.nodeType === Node.TEXT_NODE && node.data.trim()
+    );
+    if (!part.whole)
+      for (const child of element.children) read(child, part.parts, carried);
+    part.holdsWindow = part.parts.some((inner) => inner.window || inner.holdsWindow);
+    if (part.whole) wholes.add(element);
+    into.push(part);
+  }
+  function drawn2(progress, carried) {
+    const at = /* @__PURE__ */ new Map();
+    for (const [element, rest] of rests) {
+      const motion = motions.get(element);
+      if (motion?.revealed && progress < 1) continue;
+      at.set(
+        element,
+        motion ? between(motion.from, motion.to, progress) : shifted(rest, ...carried(element))
+      );
+    }
+    return at;
+  }
+  const arrived = /* @__PURE__ */ new Set();
+  let watching = 0;
+  const watch = () => {
+    watching ||= nextRender(() => {
+      watching = 0;
+      const parts = /* @__PURE__ */ new Set([box, ...rests?.keys() ?? [], ...arrived]);
+      arrived.clear();
+      for (const element of observed)
+        if (!parts.has(element)) observer.unobserve(element);
+      for (const element of parts)
+        if (!observed.has(element)) observer.observe(element);
+      observed = parts;
+    });
+  };
+  new MutationObserver((records2) => {
+    for (const record of records2)
+      for (const node of record.type === "childList" ? record.addedNodes : [record.target])
+        if (node instanceof Element && !insideWhole(node)) arrived.add(node);
+    watch();
+  }).observe(root, { subtree: true, childList: true, attributeFilter: ["hidden"] });
+  function follow(timing) {
+    const progress = running[0]?.effect.getComputedTiming().progress ?? 1;
+    const carried = carriedBy(progress);
+    const parts = [];
+    wholes = /* @__PURE__ */ new WeakSet();
+    read(root, parts, carried);
+    const next = /* @__PURE__ */ new Map();
+    const note = (part) => {
+      next.set(part.element, part.box);
+      part.parts.forEach(note);
+    };
+    parts.forEach(note);
+    watch();
+    if (rests?.size === next.size && [...next].every(
+      ([element, at]) => rests.has(element) && same3(rests.get(element), at)
+    ))
+      return;
+    for (const animation of running) animation.cancel();
+    running = [];
+    if (!next.has(box)) {
+      rests = null;
+      motions = /* @__PURE__ */ new Map();
+      return;
+    }
+    const was = timing && rests ? drawn2(progress, carried) : null;
+    const gesture = theirs();
+    const framed = new Set(
+      [...motions].filter(([, motion]) => motion.frames).map(([element]) => element)
+    );
+    const before = rests;
+    motions = /* @__PURE__ */ new Map();
+    rests = next;
+    const space = boxOf(room.getBoundingClientRect());
+    const outline = (at, grow2, radius) => insetOf(
+      [
+        at.top - space.top - grow2,
+        space.right - at.right - grow2,
+        space.bottom - at.bottom - grow2,
+        at.left - space.left - grow2
+      ],
+      radius + grow2
+    );
+    const boxAt = rests.get(box);
+    const boxRadius = radiusOf(getComputedStyle(box));
+    for (const [layer, reach2] of surface())
+      keeps(layer, "style", `clip-path: ${outline(boxAt, reach2, boxRadius)}`);
+    if (!was?.has(box)) return;
+    const boxFrom = was.get(box);
+    const rtl = getComputedStyle(box).direction === "rtl";
+    const start = (element, keyframes) => running.push(element.animate(keyframes, timing));
+    const hold = (element, property, value) => start(element, [{ [property]: value }, { [property]: value }]);
+    const move2 = (element, dx, dy) => start(element, [{ translate: `${dx}px ${dy}px` }, { translate: "0px 0px" }]);
+    const cutFrom = (element, cut, radius = 0) => start(element, [
+      { clipPath: insetOf(cut, radius) },
+      { clipPath: insetOf([0, 0, 0, 0], radius) }
+    ]);
+    function carry(part, from) {
+      const dx = from.left - part.box.left;
+      const dy = from.top - part.box.top;
+      if (near(dx, 0) && near(dy, 0)) return;
+      motions.set(part.element, { from, to: part.box, carries: true });
+      move2(part.element, dx, dy);
+    }
+    function carryContent(part, from) {
+      const to = part.box;
+      if (part.scrolls && !part.element.matches(TEXT_FIELD)) return grow(part, from);
+      let dx = rtl ? from.right - to.right : from.left - to.left;
+      let dy = from.top - to.top;
+      const end = Math.max(0, width(to) - width(from));
+      const foot = Math.max(0, height(to) - height(from));
+      const cut = rtl ? [0, 0, foot, end] : [0, end, foot, 0];
+      const editor = part.element.matches(TEXT_FIELD);
+      const inside = (rtl ? dx <= 0 : dx >= 0) && dy >= 0;
+      if (!editor || !inside && gesture !== "typing") {
+        motions.set(part.element, { from, to, carries: true });
+        move2(part.element, dx, dy);
+        cutFrom(part.element, cut);
+        return;
+      }
+      motions.set(part.element, { from, to });
+      dx = rtl ? Math.min(0, dx) : Math.max(0, dx);
+      dy = Math.max(0, dy);
+      start(part.element, [
+        {
+          "--lf-field-carry": `${dx}px ${dy}px`,
+          "--lf-field-cut": cut.map((side) => `${side}px`).join(" ")
+        },
+        { "--lf-field-carry": "0px 0px", "--lf-field-cut": "0px 0px 0px 0px" }
+      ]);
+    }
+    function grow(part, from) {
+      const to = part.box;
+      motions.set(part.element, { from, to });
+      cutFrom(
+        part.element,
+        [
+          from.top - to.top,
+          to.right - from.right,
+          to.bottom - from.bottom,
+          from.left - to.left
+        ].map((inset) => Math.max(0, inset)),
+        radiusOf(part.style)
+      );
+    }
+    function reveal2(part, frame, siblings) {
+      const to = part.box;
+      if (part.holdsWindow) {
+        motions.set(part.element, { from: to, to, revealed: true });
+        for (const inner of part.parts) reveal2(inner, frame, siblings);
+        return;
+      }
+      const side = (inset, beyond) => beyond ? 0 : Math.max(0, inset);
+      const from = [
+        side(frame.from.top - to.top, to.top < frame.to.top - 0.5),
+        side(to.right - frame.from.right, to.right > frame.to.right + 0.5),
+        side(to.bottom - frame.from.bottom, to.bottom > frame.to.bottom + 0.5),
+        side(frame.from.left - to.left, to.left < frame.to.left - 0.5)
+      ];
+      const end = [0, 0, 0, 0];
+      const overlaps2 = (a, b, low, high) => a[low] < b[high] && b[low] < a[high];
+      for (const sibling of siblings) {
+        const motion = motions.get(sibling.element);
+        if (!motion || motion.revealed) continue;
+        const { from: then, to: at } = motion;
+        const across = overlaps2(at, to, "top", "bottom");
+        const along = overlaps2(at, to, "left", "right");
+        [
+          along && { then: then.bottom - to.top, rest: at.bottom - to.top },
+          across && { then: to.right - then.left, rest: to.right - at.left },
+          along && { then: to.bottom - then.top, rest: to.bottom - at.top },
+          across && { then: then.right - to.left, rest: at.right - to.left }
+        ].forEach((reach2, index) => {
+          if (reach2 && reach2.rest <= 0.5 && reach2.then > from[index]) {
+            from[index] = reach2.then;
+            end[index] = reach2.rest;
+          }
+        });
+      }
+      if (from.every((inset) => near(inset, 0))) return;
+      motions.set(part.element, { from: to, to, revealed: true });
+      start(part.element, [{ clipPath: insetOf(from) }, { clipPath: insetOf(end) }]);
+    }
+    function place3(part, frame, siblings = []) {
+      const { element, style, box: to } = part;
+      const from = was.get(element);
+      if (!from) return reveal2(part, frame, siblings);
+      const rest = before.get(element);
+      const sized = !framed.has(element) && near(width(rest), width(to)) && near(height(rest), height(to));
+      let within = frame;
+      if (element !== box && element !== root) {
+        const carries = gesture !== null;
+        if (sized && !part.holdsWindow)
+          return carries ? carry(part, from) : reveal2(part, frame, siblings);
+        if (part.whole) return carries ? carryContent(part, from) : grow(part, from);
+        if (!same3(from, to)) within = { from, to };
+        if (!sized && rings(style)) {
+          const reach2 = Number.parseFloat(style.outlineWidth) + Number.parseFloat(style.outlineOffset);
+          const radius = radiusOf(style);
+          keeps(ringLayer, "style", `background: ${style.outlineColor}`);
+          hold(element, "outlineColor", "transparent");
+          for (const [layer, grown] of [
+            [ringLayer, reach2],
+            [ringFill, 0]
+          ])
+            start(layer, [
+              { clipPath: outline(from, grown, radius) },
+              { clipPath: outline(to, grown, radius) }
+            ]);
+        } else if (!sized && paints(style) && !part.holdsWindow) grow(part, from);
+        if (!same3(from, to)) motions.set(element, { from, to, frames: true });
+      }
+      const placed = [...part.parts].sort(
+        (a, b) => Number(!was.has(a.element)) - Number(!was.has(b.element))
+      );
+      for (const inner of placed) place3(inner, within, part.parts);
+    }
+    for (const part of parts) place3(part, { from: boxFrom, to: boxAt });
+    if (running.length === 0 && same3(boxFrom, boxAt)) return;
+    motions.set(box, { from: boxFrom, to: boxAt });
+    for (const [layer, reach2] of surface())
+      start(layer, [
+        { clipPath: outline(boxFrom, reach2, boxRadius) },
+        { clipPath: outline(boxAt, reach2, boxRadius) }
+      ]);
+    hold(box, "backgroundColor", "transparent");
+    hold(box, "overflow", "visible");
+  }
+  return {
+    follow,
+    // The window changed size: the next reading takes the box as it stands.
+    forget() {
+      rests = null;
+    }
+  };
+}
+
 // runtime/floating-panel.js
 var prefs = () => document.documentElement.lfChrome;
 var EASE = "cubic-bezier(.23, 1, .32, 1)";
@@ -6388,7 +6713,6 @@ function createFloatingPanel({
   placedAt,
   openThreadSubject
 }) {
-  const scene = el("div", "lf-fp-scene");
   const host = el("section", "lf-ui lf-floating-panel");
   host.setAttribute("aria-label", "Leaf");
   const ground = el("div", "lf-ui lf-fp-ground");
@@ -6423,7 +6747,7 @@ function createFloatingPanel({
   context2.append(contextWords);
   inner.append(opened, context2, row);
   card.append(inner);
-  host.append(card, menu, peek);
+  host.append(card, menu, badge, newsDot, peek);
   const minimize = el("button", "lf-fp-minimize");
   minimize.type = "button";
   minimize.tabIndex = -1;
@@ -6461,12 +6785,9 @@ function createFloatingPanel({
   leaf.setAttribute("aria-controls", menu.id);
   leaf.setAttribute("aria-describedby", peek.id);
   const mark = el("span", "lf-dot");
-  const leafPaint = el("span", "lf-fp-leaf-paint");
-  leafPaint.setAttribute("aria-hidden", "true");
   const errorDot = el("span", "lf-fp-error-dot");
   errorDot.setAttribute("aria-hidden", "true");
-  leafPaint.append(mark, errorDot, badge, newsDot);
-  host.append(leafPaint);
+  leaf.append(mark, errorDot);
   const field = el("div", "lf-fp-field");
   const expand = el("button", "lf-fp-expand");
   expand.type = "button";
@@ -6867,209 +7188,62 @@ function createFloatingPanel({
     const target = level ? page?.querySelector(".lf-fp-item:not(.lf-fp-menu-back, :disabled)") : before && menu.querySelector(`[data-row="${levelRow(before)}"]`);
     if (target) focusDestination(target, "move");
   }
-  let outline = null;
-  let lastLeaf = null;
-  let endFoldTravel = null;
   let viewMovingUntil = 0;
-  let riding = [];
-  let lastEditor = null;
-  const outlineClip = (box, grow = 0) => `inset(${box.top - grow}px ${box.right - grow}px ${box.bottom - grow}px ${box.left - grow}px round ${box.radius + grow}px)`;
-  const clipTop = (clip) => Number.parseFloat(/inset\(([-\d.]+)px/.exec(clip)?.[1]);
-  const clipBox = (clip) => {
-    const [sides, radius] = clip.slice(6, -1).split(" round ");
-    const [top, right = top, bottom = top, left = right] = sides.split(" ").map(Number.parseFloat);
-    return { top, right, bottom, left, radius: Number.parseFloat(radius) };
-  };
-  const between = (from, to) => `calc(${from}px + ${to - from}px * var(--lf-fp-fold-progress))`;
-  const travellingClip = (from, to) => `inset(${["top", "right", "bottom", "left"].map((side) => between(from[side], to[side])).join(" ")} round ${between(from.radius, to.radius)})`;
-  const within = (room2, element) => {
-    const rect2 = element.getBoundingClientRect();
-    return {
-      top: rect2.top - room2.top,
-      right: room2.right - rect2.right,
-      bottom: room2.bottom - rect2.bottom,
-      left: rect2.left - room2.left,
-      width: rect2.width,
-      height: rect2.height,
-      radius: Number.parseFloat(getComputedStyle(element).borderTopLeftRadius) || 0
-    };
-  };
-  const near = (a, b) => Math.abs(a - b) < 0.5;
-  function followBox() {
-    const room2 = ground.getBoundingClientRect();
-    const next = within(room2, card);
-    const editor = [...row.querySelectorAll(":scope > .lf-fp-field leaf-text")].find(
-      (text) => text.checkVisibility()
-    );
-    const grew = lastEditor;
-    lastEditor = editor ? { editor, height: editor.getBoundingClientRect().height } : null;
-    const was = outline;
-    if (was && ["top", "right", "bottom", "left", "radius"].every(
-      (side) => near(was[side], next[side])
-    ))
-      return;
-    outline = next;
-    const leafBox = within(room2, leaf);
-    const priorLeaf = lastLeaf;
-    const rest = host.dataset.rest;
-    lastLeaf = { ...leafBox, rest };
-    const folding = priorLeaf && (priorLeaf.rest !== rest || endFoldTravel !== null);
-    const leafFrom = endFoldTravel ? getComputedStyle(leafPaint) : null;
-    const leafLeft = leafFrom ? Number.parseFloat(leafFrom.left) : priorLeaf?.left;
-    const leafTop = leafFrom ? Number.parseFloat(leafFrom.top) : priorLeaf?.top;
-    setRuntimeRootStyle(
-      document.documentElement,
-      "--lf-panel-reach",
-      layoutPx(next.height > 0 ? next.bottom + next.height : 0)
-    );
-    const duration = !folding && performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
-    const moving = Boolean(was) && !reducedMotion() && pagePresented();
-    const standing = moving && (endFoldTravel || fill.getAnimations().length) ? clipTop(getComputedStyle(fill).clipPath) : was?.top;
-    const revealing = card.getAnimations().some((running) => !riding.includes(running));
-    for (const running of [...riding, ...card.getAnimations()]) running.cancel();
-    riding = [];
-    const ride = moving && !revealing && lastEditor !== null && grew?.editor === lastEditor.editor && near(was.width, next.width) && near(was.bottom, next.bottom) && near(lastEditor.height - grew.height, next.height - was.height);
-    const lift = getComputedStyle(ground);
-    const shadowReach = ["--raise-2-drop", "--raise-2-blur"].map((token) => Number.parseFloat(lift.getPropertyValue(token))).reduce((reach2, part) => reach2 + part);
-    const timing = { duration, easing: EASE };
-    const contours = [
-      [ground, shadowReach],
-      [ring, 1],
-      [fill, 0]
-    ].map(([layer, grow]) => ({
-      layer,
-      from: was ? getComputedStyle(layer).clipPath : null,
-      to: outlineClip(next, grow)
-    }));
-    endFoldTravel?.();
-    for (const { layer, to } of contours) {
-      for (const running of layer.getAnimations()) running.cancel();
-      keeps(layer, "style", `clip-path: ${to}`);
-    }
-    const current = was ? clipBox(contours.at(-1).from) : null;
-    const inside = current && {
-      top: Math.max(0, current.top - next.top),
-      right: Math.max(0, current.right - next.right),
-      bottom: Math.max(0, current.bottom - next.bottom),
-      left: Math.max(0, current.left - next.left),
-      radius: current.radius
-    };
-    const reveal2 = was && (next.width > was.width + 0.5 || next.height > was.height + 0.5);
-    if (moving && folding) {
-      for (const { layer, from, to } of contours)
-        layer.style.clipPath = travellingClip(clipBox(from), clipBox(to));
-      const leafStart = leafLeft + (priorLeaf.width - leafBox.width) / 2;
-      leafPaint.style.left = between(leafStart, leafBox.left);
-      leafPaint.style.top = between(
-        leafTop + (priorLeaf.height - leafBox.height) / 2,
-        leafBox.top
-      );
-      if (reveal2)
-        card.style.clipPath = travellingClip(inside, {
-          top: 0,
-          right: 0,
-          bottom: 0,
-          left: 0,
-          radius: next.radius
-        });
-      if (rest !== "mark") {
-        const rowLeft = within(room2, row).left;
-        row.style.clipPath = `inset(${-room2.height}px 0 ${-room2.height}px ${between(
-          leafStart + leafBox.width - rowLeft,
-          leafBox.left + leafBox.width - rowLeft
-        )})`;
-      }
-      const played = scene.animate(
-        [{ "--lf-fp-fold-progress": 0 }, { "--lf-fp-fold-progress": 1 }],
-        timing
-      );
-      const finish = () => {
-        if (endFoldTravel !== finish) return;
-        endFoldTravel = null;
-        for (const { layer, to } of contours) layer.style.clipPath = to;
-        leafPaint.style.removeProperty("left");
-        leafPaint.style.removeProperty("top");
-        card.style.removeProperty("clip-path");
-        row.style.removeProperty("clip-path");
-        played.cancel();
-      };
-      endFoldTravel = finish;
-      played.finished.then(finish, () => {
-      });
-      return;
-    }
-    for (const { layer, from, to } of contours) {
-      if (moving) layer.animate([{ clipPath: from }, { clipPath: to }], timing);
-    }
-    if (!moving) return;
-    if (ride) {
-      const lag = standing - next.top;
-      const shifted = { translate: `0 ${lag}px` };
-      const rest2 = { translate: "0 0" };
-      const riders = [
-        opened,
-        context2,
-        ...row.querySelectorAll(":scope > .lf-fp-expand"),
-        ...row.querySelectorAll(".lf-composer-media:not([hidden])")
-      ];
-      for (const rider of riders) riding.push(rider.animate([shifted, rest2], timing));
-      if (lag > 0)
-        riding.push(
-          editor.animate(
-            [{ "--lf-field-ride": `${lag}px` }, { "--lf-field-ride": "0px" }],
-            timing
-          )
-        );
-      const hold = (property, value) => [{ [property]: value }, { [property]: value }];
-      riding.push(
-        card.animate(hold("backgroundColor", "transparent"), timing),
-        card.animate(hold("overflow", "visible"), timing)
-      );
-      let wearer = null;
-      for (let box = editor; box && box !== row; box = box.parentElement)
-        if (getComputedStyle(box).outlineStyle !== "none") wearer = box;
-      if (wearer) {
-        const { outlineColor, outlineWidth } = getComputedStyle(wearer);
-        const to = within(room2, wearer);
-        const from = { ...to, top: to.top + lag };
-        riding.push(wearer.animate(hold("outlineColor", "transparent"), timing));
-        keeps(fieldRing, "style", `background: ${outlineColor}`);
-        for (const [layer, grow] of [
-          [fieldRing, Number.parseFloat(outlineWidth)],
-          [fieldFill, 0]
-        ])
-          riding.push(
-            layer.animate(
-              [
-                { clipPath: outlineClip(from, grow) },
-                { clipPath: outlineClip(to, grow) }
-              ],
-              timing
-            )
-          );
-      }
-      return;
-    }
-    if (!reveal2) return;
-    card.animate(
-      [
-        { clipPath: outlineClip(inside) },
-        { clipPath: `inset(0 round ${next.radius}px)` }
-      ],
-      timing
-    );
-  }
   const fit = sizeObserver(() => {
     landReader();
     fitAnswer();
     stood = openView()?.offsetHeight ?? null;
+    followBox();
   });
   const follow = sizeObserver(() => {
     readCorner();
     followBox();
   });
+  const motion = boxMotion({
+    root: host,
+    box: card,
+    room: ground,
+    // The ground is cut too, to the outline grown by its shadow's reach (`--raise-2`'s
+    // blur dropped by its drop, theme.css), so it stands over nothing else in the
+    // window: a layer over the whole window that paints nothing left every word under
+    // it unmeasured by a contrast checker. Its cut moves with the ring's, so it holds
+    // the ring every frame.
+    surface: () => {
+      const lift = getComputedStyle(ground);
+      const shadowReach = ["--raise-2-drop", "--raise-2-blur"].map((token) => Number.parseFloat(lift.getPropertyValue(token))).reduce((reach2, part) => reach2 + part);
+      return [
+        [ground, shadowReach],
+        [ring, 1],
+        [fill, 0]
+      ];
+    },
+    ring: [fieldRing, fieldFill],
+    observer: follow,
+    theirs: () => gesture
+  });
+  let gesture = null;
+  let gestures = 0;
+  onUserInput((event) => {
+    if (!["keydown", "pointerdown", "input", "touchstart"].includes(event.type)) return;
+    gesture = event.type === "input" ? "typing" : "press";
+    const own = ++gestures;
+    afterSettling(() => {
+      if (gestures === own) gesture = null;
+    });
+  });
+  function followBox() {
+    const box = card.getBoundingClientRect();
+    setRuntimeRootStyle(
+      document.documentElement,
+      "--lf-panel-reach",
+      layoutPx(box.height > 0 ? ground.getBoundingClientRect().bottom - box.top : 0)
+    );
+    const moving = !reducedMotion() && pagePresented();
+    const duration = performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
+    motion.follow(moving ? { duration, easing: EASE } : null);
+  }
   addEventListener("resize", () => {
-    outline = null;
+    motion.forget();
     followBox();
   });
   let onPageSeat = false;
@@ -7090,10 +7264,10 @@ function createFloatingPanel({
   let drawnTop = null;
   let stood = null;
   let rewriting = false;
-  const holdThread = (height) => {
-    if (trail.value.at(-1)?.view !== "thread" || room !== null || height === null)
+  const holdThread = (height2) => {
+    if (trail.value.at(-1)?.view !== "thread" || room !== null || height2 === null)
       return false;
-    room = height;
+    room = height2;
     return true;
   };
   let pressed = null;
@@ -7171,7 +7345,7 @@ function createFloatingPanel({
   }
   let drawnThread = null;
   let waiting = null;
-  const drawnNode = (within2, key) => within2?.querySelector(
+  const drawnNode = (within, key) => within?.querySelector(
     isFace(key) ? `${WORKING}[data-face="${CSS.escape(key.slice(FACE.length))}"]` : `.lf-msg[data-message="${CSS.escape(key)}"]`
   ) ?? null;
   let fitted = null;
@@ -7319,12 +7493,16 @@ function createFloatingPanel({
       easing: "linear",
       fill: "forwards"
     });
+    const release2 = fade ? holdRendering() : null;
     const settle = () => {
       leaving = null;
       paint();
+      release2();
     };
-    if (fade) fade.finished.then(settle, () => {
-    });
+    if (fade)
+      fade.finished.then(settle, () => {
+        release2();
+      });
     else leaving = null;
     if (focus) focusView(after2, drawn2, stoodIn);
   }
@@ -8042,7 +8220,7 @@ function createFloatingPanel({
     const heading = thread && title === threadName(thread) ? threadHeading(thread) : title;
     const answered = record && record.status !== "open";
     const choices = record && !answered && record.source.kind === "widget" && !inWords ? obligationView.choicesOf(record) : null;
-    const gesture = answered ? answerGesture(record) : null;
+    const gesture2 = answered ? answerGesture(record) : null;
     const discuss = thread ? html`<button
           type="button"
           class="lf-fp-quiet"
@@ -8067,10 +8245,10 @@ function createFloatingPanel({
           >${item.todo?.running?.text ?? workflowStep(item.workflow)}</span
         >${thread ? discuss : nothing}`;
     else if (answered)
-      answers = html`<span class="lf-fp-said">${obligationEnding(record)}</span>${gesture ? html`<button
+      answers = html`<span class="lf-fp-said">${obligationEnding(record)}</span>${gesture2 ? html`<button
                 type="button"
                 class="lf-fp-quiet"
-                @click=${() => withdraw(gesture)}
+                @click=${() => withdraw(gesture2)}
               >
                 Undo
               </button>` : nothing}`;
@@ -8442,7 +8620,9 @@ function createFloatingPanel({
                 ${inMessage ? "In its message" : "On the page"}
               </button>` : nothing}<button
           type="button"
-          class="lf-fp-settle ${thread.resolved ? "lf-reopen" : "lf-resolve"}"
+          class="lf-fp-icon-btn lf-fp-settle ${thread.resolved ? "lf-reopen" : "lf-resolve"}"
+          aria-label=${thread.resolved ? "Reopen" : "Resolve thread"}
+          title=${thread.resolved ? "Reopen" : "Resolve thread"}
           aria-disabled=${String(
         !(thread.resolved ? thread.offers.reopen : thread.offers.resolve)
       )}
@@ -8458,9 +8638,7 @@ function createFloatingPanel({
         });
       }}
         >
-          <span class="lf-fp-face" ?data-shown=${!thread.resolved}
-            >${iconTemplate("check", "lf-action-icon")}Resolve</span
-          ><span class="lf-fp-face" ?data-shown=${thread.resolved}>Reopen</span>
+          ${iconTemplate("check", "lf-action-icon")}
         </button>`;
     }
     const crumb = top.view === "threads" && searching ? html`<input
@@ -9098,8 +9276,7 @@ function createFloatingPanel({
     }
   });
   function mount(parent) {
-    scene.append(ground, host);
-    parent.append(scene);
+    parent.append(ground, host);
     follow.observe(card);
     presentation2 = registerChromeThreadPresentation(host, {
       render: nominate,
@@ -11203,7 +11380,7 @@ function placeStanceExit() {
   });
 }
 var sameStance = (a, b) => a?.label === b?.label && a?.disabled === b?.disabled;
-var same3 = (a, b) => a?.label === b?.label && a?.disabled === b?.disabled && a?.shortcut.join(" ") === b?.shortcut.join(" ");
+var same4 = (a, b) => a?.label === b?.label && a?.disabled === b?.disabled && a?.shortcut.join(" ") === b?.shortcut.join(" ");
 function paintTouchControls() {
   const shown = new Set(touchPresses().map(place2));
   let changed = false;
@@ -11224,7 +11401,7 @@ function paintTouchControls() {
       shortcut: binding ? [spell(binding)] : [],
       disabled: !live(press.row)
     } : void 0;
-    if (same3(next, faces.get(id))) continue;
+    if (same4(next, faces.get(id))) continue;
     changed = true;
     if (next) faces.set(id, next);
     else faces.delete(id);

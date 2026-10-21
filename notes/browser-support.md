@@ -64,23 +64,6 @@ what fails and what still works.
   was found in the compatibility data. Native accessibility behavior in Firefox
   and Safari has not been exercised here.
 
-### Task group names
-
-- **Owner:** `lf-task.js` in the Command Hub package. `ariaLabelledByElements`
-  names each task group from its own visible title without adding identifiers or
-  copying the title into a second label.
-- **Compatibility checked 2026-10-08:** Chrome/Edge 135+, Firefox 136+, and
-  Safari/iOS Safari 16.4+, according to
-  [MDN's compatibility data](https://github.com/mdn/browser-compat-data/blob/main/api/Element.json).
-  The property is defined by
-  [WAI-ARIA's element-reference reflection](https://w3c.github.io/aria/#dom-ariamixin-arialabelledbyelements).
-- **Observed:** Chrome 155's native accessibility tree exposes the task names
-  and nested group ancestry, including after reports and title revisions.
-  Playwright's DOM-based `aria_snapshot` omits names supplied by this property;
-  `test_task_hierarchy_is_accessible_through_reports_and_revisions` therefore
-  reads Chrome's native accessibility tree. This is a test-tool limitation,
-  rather than an observed browser support gap.
-
 ### Contents spine lens
 
 - **Owner:** `lf-toc.js` in the default package. The lens, the darker stretch of
@@ -123,8 +106,7 @@ what fails and what still works.
 
 - **Owners:** widgets that fold with `hidden="until-found"` (`lf-tabs`,
   `lf-options`, `lf-trace-compare`); `runtime/passages.js` (`pageRange`, through
-  `Selection.getComposedRanges`); `runtime/css-anchors.js` (`anchor-scope`) and the
-  Page Map toggle in `styles/chrome.css` (anchor positioning).
+  `Selection.getComposedRanges`); `runtime/css-anchors.js` (`anchor-scope`).
 - **Compatibility checked 2026-10-14:** `hidden="until-found"` and `beforematch`
   support Chrome 102+, Firefox 139+ and Safari 26.2+; `getComposedRanges` Chrome
   137+, Firefox 142+ and Safari 17+; `anchor-name` Chrome 125+ and `anchor-scope`
@@ -141,8 +123,8 @@ what fails and what still works.
 ### The sheen over a line cut short
 
 - **Owner:** `@keyframes lf-sheen` in `styles/components/surfaces.css`, run by the
-  floating panel's field (`floating-panel.css`), the thread card's working words
-  (`surfaces.css`) and a pending thread title (`chrome.css`). It paints the words in
+  floating panel's field (`floating-panel.css`) and the thread card's working words
+  (`surfaces.css`). It paints the words in
   ink and dims them with a moving `mask-image` to each box's rest face.
 - **Observed 2026-10-15:** the sheen it replaced, a background clipped to the glyphs
   under a transparent fill, hid a cut line's ellipsis in Playwright Firefox 155, and
@@ -173,8 +155,7 @@ what fails and what still works.
 
 ### Intrinsic block retirement motion
 
-- **Owner:** `runtime/motion.js` (`foldBlock`), used by resolved thread cards and
-  block suggestion slots. The browser interpolates the ordinary intrinsic block
+- **Owner:** `runtime/motion.js` (`foldBlock`), used by block suggestion slots. The browser interpolates the ordinary intrinsic block
   size to zero with `calc-size(auto, size)`; the other block metrics start at their
   underlying CSS values. Neither caller measures or reconstructs the starting box.
 - **Checked 2026-10-14:** installed Playwright Chromium 153.0.8010.12 supports
@@ -358,7 +339,7 @@ what fails and what still works.
   bare wrappers, skips generated apparatus, and stops at a declared row boundary.
   Native `margin-trim` cannot replace that mechanism across the checked engines.
 - **Owner:** frame-edge rules in
-  [`theme.css`](../skills/leaf/assets/theme.css), with readings in
+  [`styles/theme.css`](../skills/leaf/assets/styles/theme.css), with readings in
   [`framing.js`](../skills/leaf/scripts/leaf/render-checks/framing.js).
 - **Observed, 2026-10-08:** installed Chrome 155 and Playwright WebKit 26.6 accept
   `margin-trim: block`; Playwright Chromium 153.0.8010.12 and Firefox 155 do not.
@@ -457,17 +438,6 @@ PY
 
 This checks API availability, not preservation behavior or the installed Safari
 application. Recheck the affected Leaf journey when resolving this entry.
-
-### Live sample host controls
-
-- **Owner:** `lf-sample.js` and the default theme's sample rules.
-- **Observed, 2026-10-10:** Firefox 157 and Playwright's Firefox lay out only a
-  table's first caption. The sample's label was the first and its Reset and Full
-  view controls a second, so Firefox drew the controls at zero size. A minimal
-  table with two captions reproduces it.
-- **Disposition:** fixed. A live sample keeps the label as its only caption; the
-  controls stand in the cell and the gutter is drawn on the exhibit around the
-  frame. Firefox, Chrome and WebKit show the controls above the gutter.
 
 ### Area capture rendering
 

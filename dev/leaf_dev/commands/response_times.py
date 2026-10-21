@@ -29,8 +29,10 @@ no current claim or timestamp proximity supplies this identity.
 Every answered input carries the time the answering session's `leaf` commands
 took on it (`leaf_commands_s`), from the `leaf_command` record each writes in the
 page (`leaf.interaction_log.record_command`), on any harness: those that started
-between the harness taking the input (its opened pickup, else its admission) and
-the answer. One whose answering
+between the harness taking the input and the answer. Where the reply's breakdown
+(below) reads the transcript, the harness took it at the boundary the breakdown
+finds; elsewhere at its opened pickup, else its admission, which leaves out a
+command the agent ran before acknowledging a pointer it read itself. One whose answering
 session is Claude Code's, with its transcript still in this machine's Claude Code
 projects, also carries its reply's breakdown (`reply`,
 `reply_phases.reply_breakdown`): the whole reply, Leaf's share of it (delivery and
@@ -300,15 +302,17 @@ def page_timings(page: Path, *, since: datetime | None, until: datetime) -> dict
             for command in commands
             if answered is not None and command["session"] == answered["session"]
         ]
+        row["reply"] = breakdown(row, mine)
         # From where the harness took the input, so a working harness's
         # commands for the work it was busy with stay out.
         took = row["milestones"].get("opened", {}).get("at", row["admitted_at"])
         row["leaf_commands_s"] = (
-            leaf_commands_ms(mine, took, answered["at"]) / 1000
-            if answered is not None
-            else None
+            None
+            if answered is None
+            else row["reply"]["leafCommandsMs"] / 1000
+            if row["reply"] is not None
+            else leaf_commands_ms(mine, took, answered["at"]) / 1000
         )
-        row["reply"] = breakdown(row, mine)
     return {
         "page": str(page),
         "unlinked_agent_replies": unlinked,

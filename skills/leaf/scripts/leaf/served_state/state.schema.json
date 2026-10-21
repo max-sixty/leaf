@@ -1036,7 +1036,10 @@
           "type": "object",
           "properties": {
             "text": { "type": ["string", "null"] },
-            "target": { "type": "string" }
+            "target": {
+              "description": "Where the user goes to answer: the id of a widget's prompt context, or of the thread or widget an update stands on; null for an approval, which asks about the version as a whole.",
+              "type": ["string", "null"]
+            }
           },
           "required": ["text", "target"],
           "additionalProperties": false

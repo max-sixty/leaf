@@ -61,14 +61,25 @@
  *   showed (#2902). The keys that send are Send's hover name, where Return sends with
  *   Shift+Return's new line beside it (composing/input.js).
  * - **Opened**: a view above the same row (On, Threads, a thread or All pages), what
- *   the user reads there, with where they are at its top edge. It lasts while it is
+ *   the user reads there, with its name over it and its controls at its foot, on the
+ *   row: the way back, its tabs or a thread's own presses, and Close. The panel stands
+ *   on the window's foot, so a view grows and shrinks from its top edge, and only its
+ *   name and what it holds move as it does, while every control at its foot stays
+ *   where the user aims at it. So a list fits what each tab, filter or search the user
+ *   presses shows. The user chose this on 20 October, comparing it with the whole head
+ *   at the foot and with the head at the top edge, where it stood from 12 October.
+ *   There a list kept the height it opened at across tabs, so a tab moved no control,
+ *   and hid what a longer tab showed past that height; and a press in a thread's head
+ *   and a refused turn each held the thread's height. Rejected with the whole head at
+ *   the foot: a tall view opening on what it holds with nothing naming it. It lasts
+ *   while it is
  *   used: Escape or a press on the page puts it away, Escape once the caret has
  *   left the field, since the caret is the innermost thing open. The view stands right
- *   on the row, with no line between them, so typing moves nothing at the view's head.
+ *   on the row, with no line between them that typing would show or hide.
  *   The user chose that (2026-10-14), reversing a blank line's room kept under every
  *   open view, which read in Threads as a missing row. Rejected there: the line pushing
  *   the view up as it comes. The view's last words scroll clear of New reply
- *   (`fitAnswer`), the one thing that stands at its foot. It is as tall as what it
+ *   (`fitAnswer`), the one thing that stands over its controls. It is as tall as what it
  *   holds, so a one-message thread opens one message tall, up to most of the window's
  *   height, the larger size a long thread or a long Threads list is read at; past that
  *   it scrolls. The user chose views that fit their content with a larger size for long
@@ -86,7 +97,8 @@
  * elsewhere each such row, the page's link and the Leaf version among them, is one press
  * in the menu, as the user chose on 15 October over an About view of one line). That
  * list takes the menu's place in the same box, sliding in from the side the chevron
- * points to, under a head naming it that goes back, as → and ← do (`menuAt`): those
+ * points to, under its name and over a way back to the menu, as → and ← go, which
+ * stands at the list's foot over the leaf as a view's controls do (`menuAt`): those
  * lists are for choosing, as the menu is, while what the user reads, Threads, On and
  * All pages, whose rows say what each page's agent is doing, opens as a view. The user
  * chose this on 15 October, reversing each list opening as a view rising from the
@@ -105,9 +117,9 @@
  * draft, caret and send), and the panel stands the current one in the field's place, so
  * words never move between editors.
  *
- * Nothing moves under the pointer: a filtered inventory keeps its height, the leaf's
- * menu holds what it showed while it stands, and a control the user pressed stays where
- * it was. Every change of the box's size takes effect in
+ * Nothing moves under the pointer: a view's controls stand at its foot, the leaf's
+ * menu holds what it showed while it stands, and a control the user pressed in a
+ * thread stays where it was. Every change of the box's size takes effect in
  * one step, and the surface behind it, a separate layer, follows by a clip from where it
  * stood to where it stands, the way the Codex app's floating panel moves: nothing's
  * layout tweens, so nothing a user aims at travels after the gesture that moved it. */
@@ -323,11 +335,13 @@ export function createFloatingPanel({
   ground.append(ring, fill);
   const card = el("div", "lf-fp-card");
   const inner = el("div", "lf-fp-inner");
-  // What stands above the row while a view is open: where the user is, and the view.
+  // What stands above the row while a view is open: its name, with nothing to press, the
+  // view, and its controls at its foot.
   const opened = el("div", "lf-fp-opened");
   const head = el("div", "lf-fp-head");
   const stage = el("div", "lf-fp-stage");
-  opened.append(head, stage);
+  const controls = el("div", "lf-fp-controls");
+  opened.append(head, stage, controls);
   const context = el("div", "lf-fp-context");
   const contextWords = el("span", "lf-fp-context-words");
   const row = el("div", "lf-fp-row");
@@ -415,7 +429,7 @@ export function createFloatingPanel({
   const field = el("div", "lf-fp-field");
   // A long draft offers more room, by the user's press rather than on its own: past
   // three lines a quiet mark stands over the leaf, in the corner the draft leaves free
-  // beside its first line, or in an open view's head, so it takes no room of its own
+  // beside its first line, or among an open view's controls, so it takes no room of its own
   // (assets/AGENTS.md, "A control takes only its own room"). It stood at the end of the
   // line over the field until, on 17 October, that line stopped saying where the words
   // go and so stopped standing over them. Pressing it widens the
@@ -512,8 +526,8 @@ export function createFloatingPanel({
   let leaving = null;
   const menuOpen = signal(false);
   // The list standing in the menu's place, a group or Versions, or null for the menu,
-  // and the height it first stood at, which it keeps while it stands, as a view keeps
-  // its room (`holdRoom`), so news changing the list moves none of the menu's rows.
+  // and the height it first stood at, which it keeps while it stands, so news changing
+  // the list moves none of the menu's rows.
   const menuAt = signal(null);
   let menuRoom = null;
   let filter = "open";
@@ -687,28 +701,14 @@ export function createFloatingPanel({
       replyOptions.set(key, {
         hint: () => saying(key, replyInput()),
         accessibleName: () => `Reply to ${threadTitle(key)}`,
-        sent: (flight) => {
+        sent: () => {
           // The user's turn lets go of the height a press held (`pressAt`).
-          rooms.delete(routeKey(trail.value.at(-1)));
+          room = null;
           rewriting = false;
           landAtEnd = { key, after: drawnTurns() };
           // The user's turn grows the view to show it and takes New reply away.
           waiting = null;
           queueMicrotask(paint);
-          // A refusal takes the turn back while the user may be aiming at the view's
-          // head, so the view keeps its head where it stood (`spare`). The refusal has
-          // drawn the thread without the turn, and the field with the words it hands
-          // back, by the time it settles the send.
-          const route = trail.value.at(-1);
-          void Promise.resolve(flight).then((ok) => {
-            const view = openView();
-            if (ok || trail.value.at(-1) !== route || !view || stoodAt === null) return;
-            const height =
-              view.offsetHeight + view.getBoundingClientRect().top - stoodAt;
-            if (!holdThread(height)) return;
-            spare = true;
-            paint();
-          });
         },
       });
     return replyOptions.get(key);
@@ -1122,9 +1122,7 @@ export function createFloatingPanel({
   const fit = sizeObserver(() => {
     landReader();
     fitAnswer();
-    const view = openView();
-    stood = view?.offsetHeight ?? null;
-    stoodAt = view?.getBoundingClientRect().top ?? null;
+    stood = openView()?.offsetHeight ?? null;
   });
   const follow = sizeObserver(() => {
     readCorner();
@@ -1135,26 +1133,28 @@ export function createFloatingPanel({
     followBox();
   });
 
-  // A view is as tall as what it first holds, up to its cap (floating-panel.css,
-  // `--lf-fp-view-height`). A list's room is then fixed for as long as it stays open, so
-  // news arriving in it, or a filter or tab changing what it shows, moves no control at
-  // its head; what does not fit scrolls inside it. A thread's view instead follows its
-  // messages, since its reader already holds back any news that would move what is read
-  // (thread/held-news.js) until the user asks for it, and what the user asks for, a
-  // reply they send or news they open, grows the view to show it. What the view first
-  // holds is what it shows, not what a filter hides, and a message Leaf's reader has
-  // yet to draw into it is not yet held.
+  // A view is as tall as what it holds, up to its cap (floating-panel.css,
+  // `--lf-fp-view-height`); what does not fit scrolls inside it. A list fits what the
+  // user chose it to show, as it opens and as a tab, filter or search they press changes
+  // it (`refit`), which moves only its top edge and its name, since its controls stand
+  // at its foot; between those presses it holds that height (`room`), so news arriving
+  // in it or leaving it moves none of the rows it shows. What a list first holds is what
+  // it shows, and a message Leaf's reader has yet to draw into it is not yet held. A
+  // thread's view follows its messages, whose reader holds back any news that would move
+  // what is read (thread/held-news.js) until the user asks for it, and what the user
+  // asks for, a reply they send or news they open, grows the view to show it.
   //
   // The agent's answer to the user's own last turn is the one news the reader hands the
   // view at once (`answersAtOnce`): the user is waiting for it. The view grows to hold
-  // it, work under way and a reply streaming included, up to its cap: the field stays
-  // put and the head rises, carrying the user's own turn up with it. Where the user
+  // it, work under way and a reply streaming included, up to its cap: the field and the
+  // view's controls stay put and its top edge rises, carrying the user's own turn up
+  // with it. Where the user
   // stood at the view's end and their turn and the answer together fit in the view, the
   // end follows the answer into sight, as a card's transcript follows a turn joining its
   // end. Otherwise the answer goes on below the fold, and New reply stands at the view's
   // foot until a press on it, or the user scrolling there, shows it; the user's turn
   // stays wholly in sight above the press, its head included (`fitAnswer`). The user
-  // chose this growth (2026-10-14), the one case where news may carry a view's head
+  // chose this growth (2026-10-14), the one case where news may carry what a view shows
   // without a gesture (`skills/leaf/assets/AGENTS.md`, "Stability"), reversing the view
   // holding its height while the user waited (#2892), which left a short thread's
   // answer behind New reply in a view one message tall. Rejected then and now: holding
@@ -1162,7 +1162,6 @@ export function createFloatingPanel({
   // for unseen. Other news in an open thread is still held. A thread's view declares
   // that it stands on its foot (`data-lf-rises`), which the shift watch credits for
   // exactly this growth (tests/shift_watch.js, `appendGrowth`).
-  const rooms = new Map();
   // Whether this opening of a thread has shown On the page, whose seat then stands
   // while the view does, so a revision detaching the thread moves nothing beside it.
   let onPageSeat = false;
@@ -1191,52 +1190,48 @@ export function createFloatingPanel({
   // then handed the panel as their last resort (`reveal`): On the page has nowhere to
   // take the user from those.
   const unplaced = new Set();
-  // A thread's view stands on its foot, so what grows in it carries its head, and all
+  // A thread's view stands on its foot, so what grows in it carries its name, and all
   // the view holds, up the window. That is the growth news and the user's own turns
   // make (`fitAnswer`), but a press keeps what it pressed under the pointer. So where
-  // what a press in the view or its head grows would carry the pressed control away,
-  // as Full quote, Show on a fold that opens below it, a rewrite's pencil, or Next
-  // unread opening a fold to reach its reply would, the view holds the height it stood
-  // at as the press came (`judgePress`, before the frame shows the growth) until the
-  // user's next turn, and what the press grew goes on inside the view, revealed by
-  // scrolling. A press whose growth leaves it in place, as Show on progress, which opens
-  // above it, holds nothing, so the view grows to show what opened; nor does a press
-  // that grows nothing, so an answer the user waits for still grows the view. The caret
-  // in a rewrite, which a key can open from the field, holds the view while it stays
-  // there, the rewrite's lower lines revealed by scrolling (thread/reply-landing.js,
-  // `revealEditor`). A card grows down from the same press, so there the press stays
-  // put by itself. Rejected: a hold for each control that grows the view, which missed
-  // each one added after it, as the folds did; and every press in the view holding it,
-  // which kept an awaited answer from growing it after a click on the words.
+  // what a press in the view grows would carry the pressed control away, as Full quote,
+  // Show on a fold that opens below it, or a rewrite's pencil would, the view holds the
+  // height it stood at as the press came (`judgePress`, before the frame shows the
+  // growth) until the user's next turn, and what the press grew goes on inside the
+  // view, revealed by scrolling. A press whose growth leaves it in place, as Show on
+  // progress, which opens above it, holds nothing, so the view grows to show what
+  // opened; nor does a press that grows nothing, so an answer the user waits for still
+  // grows the view, nor one among its controls, which its growth leaves in place. The
+  // caret in a rewrite, which a key can open from the field, holds the view while it
+  // stays there, so typing carries none of the rewrite's own presses, the rewrite's
+  // lower lines revealed by scrolling (thread/reply-landing.js, `revealEditor`). A card
+  // grows down from the same press, so there the press stays put by itself. Rejected: a
+  // hold for each control that grows the view, which missed each one added after it, as
+  // the folds did; and every press in the view holding it, which kept an awaited answer
+  // from growing it after a click on the words.
   //
-  // A turn the log refuses leaves the view, which would carry its head down from under
-  // the user's aim, as nothing they pressed. So the view keeps its head where it stood
-  // with the turn (`stoodAt`), the turn's room standing empty above the field, less
-  // what the words it hands back grow the field by, as a card keeps a refused turn's
-  // room (thread/reply-continuity.js), until the user's next send lands in it
-  // (`spare`, `landReader`).
+  // The height the open view holds, a list's or a thread's, or null where it fits what
+  // it holds.
+  let room = null;
+  // The view last drawn open, by its route's key.
+  let drawnTop = null;
+  // The open thread's view's height as last drawn, which the caret entering a rewrite
+  // holds.
   let stood = null;
-  let stoodAt = null;
   let rewriting = false;
-  let spare = false;
   const holdThread = (height) => {
-    const top = trail.value.at(-1);
-    if (top?.view !== "thread" || rooms.has(routeKey(top)) || height === null)
+    if (trail.value.at(-1)?.view !== "thread" || room !== null || height === null)
       return false;
-    rooms.set(routeKey(top), height);
+    room = height;
     return true;
   };
   // The press being judged: the control pressed, where it stood in the view's content,
   // and how tall the view, what it holds and its scroll stood. Once what the press
-  // changed has drawn, after the press's own handlers, or where the route it started
-  // opens what holds its destination (`lf-reveal`), as Next unread's opening a fold
-  // does, and before the frame shows it, the press is put back where it stood. A
-  // change below it, or anywhere under a press in the head, would carry it as the view
-  // grows or shrinks from its head, so the view holds the height it stood at. A change
-  // above it, as progress opening over the answer whose head holds its disclosure,
-  // leaves it in place as far as the view's height takes the change up, so the view
-  // keeps growing or shrinking as it would, and scrolls by the rest. A route that lands
-  // with nothing changed (`landed`) leaves the view as it stands.
+  // changed has drawn, after the press's own handlers, and before the frame shows it,
+  // the press is put back where it stood. A change below it would carry it as the view
+  // grows or shrinks from its top edge, so the view holds the height it stood at. A
+  // change above it, as progress opening over the answer whose head holds its
+  // disclosure, leaves it in place as far as the view's height takes the change up, so
+  // the view keeps growing or shrinking as it would, and scrolls by the rest.
   let pressed = null;
   const contentTop = (node, view) =>
     node.getBoundingClientRect().top -
@@ -1250,50 +1245,35 @@ export function createFloatingPanel({
         (child) => contentTop(child, view) + child.getBoundingClientRect().height,
       ),
     );
-  function pressAt(node, landed = null) {
+  function pressAt(node) {
     const top = trail.value.at(-1);
     const view = openView();
     if (top?.view !== "thread" || !view || !(node instanceof Element)) return;
-    const inView = renderedUnder(node, view);
-    const press = {
+    if (!renderedUnder(node, view)) return;
+    pressed = {
       node,
-      inView,
-      landed: Boolean(landed),
-      at: inView ? contentTop(node, view) : 0,
+      at: contentTop(node, view),
       height: view.offsetHeight,
       holds: holding(view),
       scroll: view.scrollTop,
     };
-    pressed = press;
-    if (landed)
-      void Promise.resolve(landed).finally(() => {
-        if (pressed === press) pressed = null;
-      });
   }
-  function judgePress(press) {
-    if (!press || pressed !== press) return;
+  function judgePress() {
+    const press = pressed;
     pressed = null;
     const view = openView();
-    if (!view || !press.node.isConnected) return;
+    if (!press || !view || !press.node.isConnected) return;
     if (Math.abs(holding(view) - press.holds) < 0.5) return;
-    const above = press.inView ? contentTop(press.node, view) - press.at : 0;
-    if (!press.inView || Math.abs(above) < 0.5) {
+    const above = contentTop(press.node, view) - press.at;
+    if (Math.abs(above) < 0.5) {
       if (holdThread(press.height)) paint();
       return;
     }
     const grown = view.offsetHeight - press.height;
     moveScrollerBy(view, press.scroll + above - grown - view.scrollTop);
   }
-  opened.addEventListener("click", (event) => pressAt(event.target), { capture: true });
-  opened.addEventListener("click", () => {
-    if (!pressed?.landed) judgePress(pressed);
-  });
-  // A route reveals its destination outside in, so the fold holding it opens after
-  // this hears it; the judgment waits for the route's task to finish.
-  stage.addEventListener("lf-reveal", () => {
-    const press = pressed;
-    if (press?.landed) queueMicrotask(() => judgePress(press));
-  });
+  stage.addEventListener("click", (event) => pressAt(event.target), { capture: true });
+  stage.addEventListener("click", judgePress);
   const inRewrite = (node) => Boolean(node && closestAcross(node, ".lf-msg-editor"));
   // A modal over the panel, such as the image viewer opened from a rewrite's attachment,
   // is a layer the user steps into from the panel, which hands them back as it closes:
@@ -1312,17 +1292,34 @@ export function createFloatingPanel({
       if (!rewriting) return;
     } else {
       rewriting = false;
-      rooms.delete(routeKey(top));
+      room = null;
     }
     paint();
   });
+  // A list takes its room as it stands before the paint that would change it, once
+  // drawn: what it holds then is what it fits, so taking it writes only the height the
+  // list already stands at.
   function holdRoom() {
     const top = trail.value.at(-1);
-    if (!top || top.view === "thread" || rooms.has(routeKey(top))) return false;
-    const view = stage.querySelector(".lf-fp-view:not([data-leaving])");
+    if (!top || top.view === "thread" || room !== null || refitting) return false;
+    if (drawnTop !== routeKey(top)) return false;
+    const view = shownView();
     if (!view || view.querySelector(".lf-fp-asked:empty")) return false;
-    rooms.set(routeKey(top), view.offsetHeight);
+    room = view.offsetHeight;
     return true;
+  }
+  // A tab, filter or search the user presses changes what the list shows, which it
+  // then fits, moving as one opening does; each such press repaints. The list takes
+  // its room again from the next frame, once it stands at what it now fits.
+  let refitting = false;
+  function refit() {
+    room = null;
+    viewMovingUntil = performance.now() + VIEW_RESIZE_MS;
+    if (refitting) return;
+    refitting = true;
+    nextRender(() => {
+      refitting = false;
+    });
   }
   // The open thread's messages as last drawn in its view, those its folds leave in
   // sight and the faces of its progress runs (`FACE`), and how far its content then
@@ -1420,7 +1417,7 @@ export function createFloatingPanel({
       if (waiting !== next || openView() !== view) return;
       paint();
       if (!arriving || !atEnd || !turn.isConnected) return;
-      // The user's turn stands wholly in sight, between the view's head and New
+      // The user's turn stands wholly in sight, between the view's top edge and New
       // reply's ground, its head first where it is taller than that.
       const foot = view.querySelector(".lf-fp-foot")?.getBoundingClientRect();
       const below = foot ? turn.getBoundingClientRect().bottom - foot.top : 0;
@@ -1503,10 +1500,9 @@ export function createFloatingPanel({
     const changed =
       (before ? routeKey(before) : null) !== (after ? routeKey(after) : null);
     if (changed) {
-      rooms.clear();
+      room = null;
       rewriting = false;
       pressed = null;
-      spare = false;
       quoteExpanded = false;
       waiting = null;
       placed = null;
@@ -1699,22 +1695,12 @@ export function createFloatingPanel({
       },
     );
   }
-  // The menu, or the list standing in its place under a head that goes back to it.
+  // The menu, or the list standing in its place under its name, over the way back to it.
   function menuTemplate() {
     if (!menuAt.value)
       return html`<div class="lf-fp-menu-page" role="none">${rootTemplate()}</div>`;
     return html`<div class="lf-fp-menu-page" role="none">
-      <button
-        type="button"
-        role="menuitem"
-        class="lf-fp-item lf-fp-menu-back"
-        aria-label=${`Back to the page menu from ${titleOf(menuAt.value)}`}
-        @click=${() => showMenuAt(null)}
-      >
-        <span class="lf-fp-label"
-          >${iconTemplate("next", "lf-fp-chevron")}<b>${titleOf(menuAt.value)}</b></span
-        >
-      </button>
+      <div class="lf-fp-menu-name" role="none">${titleOf(menuAt.value)}</div>
       ${
         menuAt.value.view === "versions"
           ? versionsList()
@@ -1722,6 +1708,16 @@ export function createFloatingPanel({
             ? errorsList()
             : groupList(menuAt.value.group)
       }
+      <div class="lf-fp-menu-rule" role="none"></div>
+      <button
+        type="button"
+        role="menuitem"
+        class="lf-fp-item lf-fp-menu-back"
+        aria-label=${`Back to the page menu from ${titleOf(menuAt.value)}`}
+        @click=${() => showMenuAt(null)}
+      >
+        <span class="lf-fp-label">${iconTemplate("next", "lf-fp-chevron")}Menu</span>
+      </button>
     </div>`;
   }
   function rootTemplate() {
@@ -1964,7 +1960,7 @@ export function createFloatingPanel({
   // The errors the user has met, newest first, each saying what failed and when, with
   // a press that dismisses it, whose name carries both, since a menu's keys reach only
   // its presses; an error whose cause ends leaves by itself (errors.js). A dismissal
-  // leaves the user on the next error's press, or on the head once none is left.
+  // leaves the user on the next error's press, or on the way back once none is left.
   function errorsList() {
     const errors = errorsReading();
     if (!errors.length) return html`<p class="lf-fp-empty" role="none">No errors</p>`;
@@ -2090,22 +2086,24 @@ export function createFloatingPanel({
   // reactions, rewrites and agent-authored widgets. The user chose that (2026-10-19)
   // over every message at full size, which stood each progress step as a reply and
   // marked nothing unread. The reader holds news that would move what the user is
-  // reading behind its notice, which the panel stands in the view's head (`newsOutlet`),
+  // reading behind its notice, which the panel stands among the view's controls
+  // (`newsOutlet`),
   // with Next unread beside it while a reply of the thread waits unread. The
   // reply is the thread's reply box, which the reader draws in the field below rather
   // than in the outlet. A thread anchored to a passage stays the page's where the page
   // draws it: its card opens beside the words it is about, and the panel shows it only
   // where nothing on the page does (`reveal`).
   let presentation = null;
-  // The thread's held news is a fact about the thread, so it reads in the head after
-  // its title, whole, and pressing it shows what was held. The title gives it the room
-  // it takes, so news arriving moves nothing else in the head or the messages below
-  // (floating-panel.css, `.lf-fp-facts`). The user chose this on 16 October over the notice at the end of the
+  // The thread's held news is a fact about the thread, so it reads whole after the way
+  // back, at the start of the view's controls, and pressing it shows what was held. The
+  // room the way back leaves gives it the room it takes, so news arriving moves nothing
+  // else among the controls or in the messages above (floating-panel.css,
+  // `.lf-fp-facts`). The user chose this on 16 October over the notice at the end of the
   // first message's head, cut to 5rem there ("2 new rep…"), and over the news joining
-  // New reply at the view's foot. Each thread's head draws an outlet of its own, so the
-  // notice of the thread the user leaves goes with its head rather than standing in the
+  // New reply at the view's foot. Each thread's controls draw an outlet of their own, so
+  // the notice of the thread the user leaves goes with them rather than standing in the
   // next one's until the reader draws that.
-  const newsOutlet = () => head.querySelector(".lf-fp-news-outlet");
+  const newsOutlet = () => controls.querySelector(".lf-fp-news-outlet");
   // The view standing open, rather than one still leaving.
   const shownView = () => stage.querySelector(".lf-fp-view:not([data-leaving])");
   // The rows of the open view's list, which the arrows walk and Tab stands at one of. A
@@ -2163,15 +2161,15 @@ export function createFloatingPanel({
       .catch(() => {});
   }
 
-  // A thread's reply and Resolve stand outside its view, in the field and the view's
-  // head, so the view declares them as its thread's own (thread/focus.js, `threadPart`):
-  // while it is the thread open, the reply box in the field where the thread takes a
-  // reply, and Resolve; and the view itself as the thread whole. The head is the
-  // thread's heading, as a card's title is, and the field's outlet holds its reply, so
-  // both are drawings of the thread too, declaring the same parts: `r` on the head's
-  // Resolve settles the thread as on a card's, `e` there finds the messages in the view
-  // below it, and Escape from the reply returns to the view, as a card's reply returns
-  // to the card.
+  // A thread's reply and Resolve stand outside its view, in the field and among the
+  // view's controls, so the view declares them as its thread's own (thread/focus.js,
+  // `threadPart`): while it is the thread open, the reply box in the field where the
+  // thread takes a reply, and Resolve; and the view itself as the thread whole. The
+  // controls are the thread's own, as a card's head is, and the field's outlet holds its
+  // reply, so both are drawings of the thread too, declaring the same parts: `r` on
+  // Resolve there settles the thread as on a card's, `e` there finds the messages in the
+  // view above it, and Escape from the reply returns to the view, as a card's reply
+  // returns to the card.
   const openIn = (view) => {
     const top = trail.value.at(-1);
     const thread = top?.view === "thread" ? threadByKey(top.thread) : null;
@@ -2186,7 +2184,8 @@ export function createFloatingPanel({
       const thread = openIn(view);
       return thread && replyAvailable(thread) ? replyInput() : null;
     },
-    settlement: (view) => (openIn(view) ? head.querySelector(".lf-fp-settle") : null),
+    settlement: (view) =>
+      openIn(view) ? controls.querySelector(".lf-fp-settle") : null,
     whole: (view) => (openIn(view) ? openView() : null),
   });
   const declareView = (view) => view && declareThreadParts(view, viewParts);
@@ -2212,7 +2211,7 @@ export function createFloatingPanel({
           }),
         );
   }
-  declareView(head);
+  declareView(controls);
   declareView(replyOutlet);
 
   // The words a thread is about, as its card's head quotes them (thread-card.js,
@@ -2320,12 +2319,13 @@ export function createFloatingPanel({
     readPlan()?.steps.length || queueTab === "plan"
       ? [...Object.keys(QUEUE_TABS), "plan"]
       : Object.keys(QUEUE_TABS);
-  // Turning to another list seats its items afresh.
+  // Turning to another list seats its items afresh, in a view that fits it.
   const chooseQueueTab = (tab) => {
     if (tab === queueTab) return false;
     queueTab = tab;
     seated = null;
     seatHeights.clear();
+    refit();
     return true;
   };
   // The On me door, as the mark and `g M` press it: the view on the
@@ -2429,7 +2429,7 @@ export function createFloatingPanel({
                 // The pressed step leaves with the plan, so focus moves to the list
                 // it turned to rather than falling to the page.
                 focusDestination(
-                  head.querySelector('.lf-fp-filters [aria-pressed="true"]'),
+                  controls.querySelector('.lf-fp-filters [aria-pressed="true"]'),
                   "move",
                 );
               }}
@@ -2636,7 +2636,9 @@ export function createFloatingPanel({
   // (`beside`).
   declareSide(
     (node) => {
-      const part = [openView(), head, replyOutlet].find((at) => at && under(node, at));
+      const part = [openView(), controls, replyOutlet].find(
+        (at) => at && under(node, at),
+      );
       const thread = part && openIn(part);
       if (thread) return placedAt(thread.id)?.place ?? null;
       const id = under(node, stage)
@@ -2752,7 +2754,7 @@ export function createFloatingPanel({
     return nothing;
   }
 
-  // ---------- the head: where the user is, at the view's top edge ----------
+  // ---------- the head and the controls: the view's name, and its presses ----------
   // A tab with a count (`count(name)` a number rather than null) says it even at zero,
   // in a quieter ink, in a room kept for two digits, so news changing the count moves
   // no tab beside it and no tab stands with a blank where its count would go.
@@ -2766,7 +2768,10 @@ export function createFloatingPanel({
         return html`<button
           type="button"
           aria-pressed=${String(current === name)}
-          @click=${() => choose(name)}
+          @click=${() => {
+            refit();
+            choose(name);
+          }}
         >
           ${label(name)}${
             counted === null
@@ -2784,17 +2789,24 @@ export function createFloatingPanel({
     if (!searching) {
       searching = true;
       query = "";
+      refit();
       paint();
     }
-    focusDestination(head.querySelector(".lf-fp-search"), "move");
+    focusDestination(controls.querySelector(".lf-fp-search"), "move");
   }
-  function headTemplate(top) {
+  // The view's name, over it. On's is its selected tab's, which the tabs at its foot
+  // already show, so the heading names the view to assistive tech alone.
+  const headTemplate = (top) =>
+    html`<h2 class=${top.view === "queue" ? "lf-fp-title lf-quiet" : "lf-fp-title"}>
+      ${titleOf(top)}
+    </h2>`;
+  function controlsTemplate(top) {
     const parent = trail.value.at(-2);
     const thread = top.view === "thread" ? threadByKey(top.thread) : null;
     /** @type {unknown} */
     let aux = nothing;
-    // On me's tabs name its view, so they stand at the head's start, where every other
-    // view's name stands, rather than among the controls at its end.
+    // On me's tabs name its view, so they stand at the controls' start, where every
+    // other view's way back stands, rather than among the presses at their end.
     /** @type {unknown} */
     let named = nothing;
     if (top.view === "threads") {
@@ -2822,6 +2834,7 @@ export function createFloatingPanel({
             }
             searching = false;
             query = "";
+            refit();
             paint();
           }}
         >
@@ -2834,7 +2847,8 @@ export function createFloatingPanel({
         queueTab,
         tabLabel,
         (tab) => {
-          if (chooseQueueTab(tab)) paint();
+          chooseQueueTab(tab);
+          paint();
         },
         (tab) => (tab === "plan" ? null : lists[tab].length),
       );
@@ -2861,8 +2875,7 @@ export function createFloatingPanel({
                 class="lf-fp-next-unread"
                 ?disabled=${!thread.unread.length}
                 ?data-unoffered=${!thread.unread.length}
-                @click=${(event) =>
-                  pressAt(event.currentTarget, firstUnread(thread.key))}
+                @click=${() => void firstUnread(thread.key)}
               >
                 ${iconTemplate("down", "lf-action-icon")}Next unread
               </button>`
@@ -2921,9 +2934,6 @@ export function createFloatingPanel({
           ><span class="lf-fp-face" ?data-shown=${thread.resolved}>Reopen</span>
         </button>`;
     }
-    // On's name is its selected tab's, which the tabs after it already show, so the
-    // heading names the view to assistive tech alone.
-    const titleClass = top.view === "queue" ? "lf-fp-title lf-quiet" : "lf-fp-title";
     const crumb =
       top.view === "threads" && searching
         ? html`<input
@@ -2934,32 +2944,32 @@ export function createFloatingPanel({
             .value=${query}
             @input=${(event) => {
               query = event.target.value;
+              refit();
               paint();
             }}
           />`
         : html`${
-              parent
-                ? html`<button
-                      type="button"
-                      class="lf-fp-back"
-                      aria-label=${`Back to ${titleOf(parent)}`}
-                      @click=${back}
-                    >
-                      ${titleOf(parent)}</button
-                    ><span class="lf-fp-sep" aria-hidden="true">/</span>`
-                : nothing
-            }
-            <h2 class=${titleClass}>${titleOf(top)}</h2>
-            ${named}${
-              thread
-                ? html`<span class="lf-fp-facts"
-                    >${keyedBy(
-                      thread.key,
-                      html`<span class="lf-fp-news-outlet"></span>`,
-                    )}</span
-                  >`
-                : nothing
-            }`;
+            parent
+              ? html`<button
+                  type="button"
+                  class="lf-fp-back"
+                  aria-label=${`Back to ${titleOf(parent)}`}
+                  @click=${back}
+                >
+                  ${iconTemplate("next", "lf-fp-chevron")}${titleOf(parent)}
+                </button>`
+              : nothing
+          }
+          ${named}${
+            thread
+              ? html`<span class="lf-fp-facts"
+                  >${keyedBy(
+                    thread.key,
+                    html`<span class="lf-fp-news-outlet"></span>`,
+                  )}</span
+                >`
+              : nothing
+          }`;
     return html`<div class="lf-fp-crumb">${crumb}</div>
       <div class="lf-fp-aux">${aux}</div>
       ${expand}
@@ -3009,8 +3019,9 @@ export function createFloatingPanel({
       // with its thread, as a card does (margin-projection.js), whoever opened it.
       const top = trail.value.at(-1);
       if (top?.view === "thread" && !threadByKey(top.thread)) close();
+      holdRoom();
       paintNow();
-      if ([holdRoom(), holdMenu()].some(Boolean)) paintNow();
+      if (holdMenu()) paintNow();
     } finally {
       painting = false;
     }
@@ -3054,11 +3065,6 @@ export function createFloatingPanel({
     );
     if (!view || drawnTurns() <= landAtEnd.after) return;
     landAtEnd = null;
-    if (spare) {
-      spare = false;
-      rooms.delete(routeKey(top));
-      paint();
-    }
     scrollToEnd(view);
     decideUnreadSeat();
   }
@@ -3134,11 +3140,7 @@ export function createFloatingPanel({
             ?data-lf-thread-view=${shows(route) !== null}
             ?data-lf-rises=${route.view === "thread"}
             ${ref(declareView)}
-            style=${
-              rooms.has(routeKey(route))
-                ? `height: ${rooms.get(routeKey(route))}px`
-                : nothing
-            }
+            style=${route === top && room !== null ? `height: ${room}px` : nothing}
             ?data-leaving=${route === leaving}
             @scroll=${sawAnswer}
           >
@@ -3148,6 +3150,7 @@ export function createFloatingPanel({
       stage,
     );
     if (restoreFocus && heldView === shownView()) restoreFocus(heldView);
+    drawnTop = top ? routeKey(top) : null;
     regionViews();
     // The open thread's messages are read where they land, and its view's height
     // whatever changes it (`fitAnswer`).
@@ -3165,11 +3168,12 @@ export function createFloatingPanel({
         : (listed.find((row) => row.getAttribute("tabindex") === "0") ?? listed[0]),
     );
     render(top ? headTemplate(top) : nothing, head);
-    // The more-room mark stands in the view's head while one is open, else over the
-    // leaf.
+    render(top ? controlsTemplate(top) : nothing, controls);
+    // The more-room mark stands among the view's controls while one is open, else over
+    // the leaf.
     if (!top) move(row, expand, leaf);
     const heading = top ? shows(top) : null;
-    for (const drawing of [head, replyOutlet]) {
+    for (const drawing of [controls, replyOutlet]) {
       keeps(drawing, "data-thread", heading);
       keeps(drawing, "data-lf-thread-view", heading === null ? null : "");
     }
@@ -3306,6 +3310,7 @@ export function createFloatingPanel({
           @click=${() => {
             filter = news && !threadsOpen ? "unread" : "open";
             query = "";
+            refit();
             open({ view: "threads" });
           }}
         >
@@ -3435,6 +3440,7 @@ export function createFloatingPanel({
             description: "Clear the search",
             out: () => {
               query = "";
+              refit();
               paint();
             },
           }
@@ -3545,8 +3551,8 @@ export function createFloatingPanel({
   );
   // A key the page has acts on the view standing open where the view has that act of
   // its own, as d and u already page the view the user is in (navigation.js): `/` in
-  // Threads finds a thread rather than the page's words. Rooted at the head and the
-  // view together, so the filters find too; the search box's own `/` is a character.
+  // Threads finds a thread rather than the page's words. Rooted at the view and its
+  // controls together, so the filters find too; the search box's own `/` is a character.
   keys(
     opened,
     "In the floating panel",
@@ -3684,6 +3690,7 @@ export function createFloatingPanel({
       press: () => {
         filter = "open";
         query = "";
+        refit();
         open({ view: "threads" });
       },
     },
@@ -3726,6 +3733,7 @@ export function createFloatingPanel({
     } else {
       filter = status === "resolved" ? "resolved" : "open";
       query = "";
+      refit();
       open({ view: "threads" }, { reopen: true, focus: false });
       paint();
     }

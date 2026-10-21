@@ -974,7 +974,7 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     expect(added).not_to_be_in_viewport()
     # The thread's view goes to the line it quotes with On the page.
     first_thread_quote(page, serve.page_dir)
-    page.locator(".lf-fp-head").get_by_role("button", name="On the page").click()
+    page.locator(".lf-fp-controls").get_by_role("button", name="On the page").click()
     expect(search).to_have_value("")
     expect(added).to_be_in_viewport()
     expect(added).to_have_class(re.compile(r"\blf-mark-here\b"))

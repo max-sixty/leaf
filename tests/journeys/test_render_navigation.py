@@ -1,12 +1,18 @@
-"""Comment marks, Go-to addresses, and keyboard navigation tests."""
+"""Comment marks, Go-to addresses, keyboard navigation, the feature gallery's
+journeys through its tabs and the core surfaces, and the keys each element names as
+the user moves through the examples."""
 
+import json
+import random
 import re
 
 import pytest
 from interact_support import append_carried_log_record
+from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import server as server_model
 from leaf.render_checks import rendered, wait_until_ready
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import expect
 from render_cases_interaction import (
     OBLIGATIONS_PAGE,
@@ -17,6 +23,7 @@ from render_cases_interaction import (
     live_url,
     panel_comment,
 )
+from render_cases_layout import token_colour
 from render_cases_navigation import (
     ADDRESSED_PAGE,
     CHIPS,
@@ -26,15 +33,19 @@ from render_cases_navigation import (
 )
 from render_harness import (
     CORPUS_SOURCES,
+    DEVELOPER_PAGES,
     EXAMPLES,
+    FEATURE_GALLERY,
     PANEL,
     PANEL_THREAD,
+    PUBLIC_EXAMPLES,
     RELEASE_FOCUS,
     ROOT,
     command_reference_rows,
     expect_comment_notes,
     expect_obligations_answered,
     leaf_page,
+    margins_laid_out,
     navigate,
     open_page,
     opened_tab,
@@ -50,6 +61,7 @@ from render_harness import (
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
+from browser.margin.test_entries import _refreshes_restate_no_margin_name
 from browser.navigation import (
     READING_REGIONS_PAGE,
 )
@@ -1691,3 +1703,605 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     rendered(page)
     expect(page.locator(".lf-target-picker-hint").first).to_be_visible()
     page.keyboard.press("Escape")
+
+
+# The gallery sections a preview may name, and the page tab each opens.
+GALLERY_DESTINATIONS = {
+    "bg-core-surfaces": "Decisions",
+    "bg-thread-states": "Threads",
+    "bg-panel-views": "Threads",
+    "bg-quoted-and-visual": "Page & layout",
+    "bg-external-data": "Data & work",
+    "bg-interactions": "Interactions",
+}
+
+
+@pytest.mark.watch_shifts
+def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_leaf):
+    """The gallery is a journey through the core, not merely its samples beside it.
+
+    A preview can name a gallery section directly: arriving at a fragment held in a
+    closed tab is one runtime path whichever section it names, so one arrival proves
+    it, and the same page answers which tab holds every other destination. Each core
+    surface then opens and shows the gallery's own content: its obligation in On me, its
+    open, resolved, and media threads in Threads, its earlier version, the other open
+    page, and at phone width its Page Map. Live external data and the Threads tab's
+    presets operating a sample's panel are real journeys on it too. The gallery also
+    draws every kind of margin entry at once, so the same page holds the margin
+    readings: the unchanged refresh watch, the margin entry atlas, and the
+    rail-and-pins sample.
+
+    One page carries all of them because opening the gallery, watched, is the suite's
+    most expensive page open, which puts this test over the `browser/` tier's budget;
+    how each surface behaves belongs to that surface's own tests."""
+    live_leaf("second", "A second Leaf page")
+    destination = "#bg-external-data"
+    root = live_url(serve(FEATURE_GALLERY))
+    page = open_page(browser, root + destination)
+    gallery_tab = page.locator("#bg-gallery-tabs").get_by_role
+    expect(gallery_tab("tab", name="Data & work")).to_have_attribute(
+        "aria-selected", "true"
+    )
+    # The handover key is exchanged for a cookie before the address is shown.
+    expect(page).to_have_url(root.split("?", 1)[0] + destination)
+    expect(page.locator(":target")).to_have_attribute("id", destination[1:])
+    expect(page.locator(destination)).to_be_in_viewport()
+
+    holders = page.evaluate(
+        """ids => Object.fromEntries(ids.map(id => {
+          const target = document.getElementById(id);
+          const panel = target?.closest('#bg-gallery-tabs > lf-tab');
+          const tab = panel && document.querySelector(
+            `#bg-gallery-tabs [role="tab"][aria-controls="${panel.id}"]`);
+          return [id, {tag: target?.localName || null,
+                       tab: tab?.textContent.trim() || null}];
+        }))""",
+        list(GALLERY_DESTINATIONS),
+    )
+    assert holders == {
+        id: {"tag": "section", "tab": view} for id, view in GALLERY_DESTINATIONS.items()
+    }
+
+    links = page.get_by_role("navigation", name="On this page").get_by_role(
+        "link", include_hidden=True
+    )
+    targets = links.evaluate_all(
+        """links => links.map(link => {
+          const href = link.getAttribute('href');
+          const target = document.getElementById(decodeURIComponent(href.slice(1)));
+          return {href, tag: target?.localName || null,
+                  generated: target?.dataset.lfGen === '1'};
+        })"""
+    )
+    assert targets[0] == {"href": "#bg-title", "tag": "hgroup", "generated": False}
+    assert all(
+        target["tag"] == "section" and not target["generated"] for target in targets[1:]
+    ), targets
+    assert len({target["href"] for target in targets}) == len(targets), targets
+
+    # One captured source supplies a following view under its authored label.
+    live = page.locator("#bg-source-live")
+    original = (
+        '[route]\nname = "covered terrace"\ndistance_km = 1.8\nstatus = "sample"\n'
+    )
+    expect(live.locator("code")).to_have_text(original)
+    expect(live.locator("figcaption")).to_have_text(
+        "feature-gallery-source.toml · lines 1–4"
+    )
+    changed = '[route]\nname = "river path"\ndistance_km = 2.1\nstatus = "updated"\n'
+    data_model.cmd_data_set(serve.page_dir, "gallery-source", changed)
+    expect(live.locator("code")).to_have_text(changed)
+    expect(page.locator("#bg-measurement-guide")).to_contain_text(
+        "measurement is behind its source"
+    )
+
+    # The gallery draws the margin entries the corpus has none of, and the writers that
+    # only run for those are watched nowhere else: readings whose move is made wear the
+    # `status` behavior on a span seat rather than a button.
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    _refreshes_restate_no_margin_name(
+        page,
+        {
+            ".lf-margin-cluster": 10,
+            '.lf-margin-entry[data-lf-behavior="status"]': 2,
+        },
+    )
+    _the_atlas_shows_every_margin_entry_face_in_its_treatment(page)
+    _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page)
+
+    # The core chrome, each surface showing the gallery's own content.
+    resized(page, 1600, 900)
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute(
+        "aria-label", re.compile(r"^Page menu · \S")
+    )
+    panel_control(page, "queue").click()
+    map_obligation = page.locator(".lf-fp-on-item").filter(
+        has_text="Which map should the sample team carry?"
+    )
+    expect(map_obligation).to_have_count(1)
+    expect(map_obligation).to_have_attribute(
+        "data-key", '["widget","widget:bg-choice"]'
+    )
+    page.locator(".lf-fp-close").click()
+    panel_settled(page, open=False)
+    gallery_tab("tab", name="Decisions").click()
+    page.locator("#bg-question-api > summary").click()
+    page.get_by_role("button", name="Read current obligation", exact=True).click()
+    reading = json.loads(page.locator("#bg-question-reading").inner_text())
+    assert reading["id"] == "widget:bg-choice"
+    assert reading["source"]["id"] == "bg-choice"
+    assert reading["prompt"]["target"] == "bg-choice-ask"
+    assert reading["status"] == "open"
+
+    gallery_tab("tab", name="Threads").click()
+    panel_control(page, "threads").click()
+    panel_settled(page, view="threads")
+    rows = page.locator(".lf-fp-thread")
+    filters = page.locator(".lf-fp-filters button")
+    filters.filter(has_text="Resolved").click()
+    expect(rows).not_to_have_count(0)
+    filters.filter(has_text="Open").click()
+    media_thread = open_panel_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
+    media_thread.locator(".lf-message-media").click()
+    viewer = page.get_by_role("dialog", name="Image preview")
+    expect(viewer.locator("img")).to_have_attribute(
+        "src", "/media/051bee487bfb5d13.png"
+    )
+    page.keyboard.press("Escape")
+    expect(viewer).to_be_hidden()
+    page.keyboard.press("Escape")
+    panel_settled(page, open=False)
+
+    # The Threads tab's presets each open a thread in a sample's panel, and the one
+    # chosen survives its Reset.
+    frame = page.frame_locator("#bg-panel-sample iframe")
+    shown = frame.locator('.lf-fp-view[data-view="thread"]:not([data-leaving])')
+    expect(shown).to_have_count(0)
+    page.locator('#bg-panel-presets [data-view="overview"]').click()
+    expect(shown).to_have_attribute("data-thread", "72e031c5bf0d485ba9054628e09869d4")
+
+    page.keyboard.press("Tab")
+    you_button = page.locator('#bg-panel-presets [data-view="you"]')
+    expect(you_button).to_be_focused()
+    assert you_button.evaluate("element => element.matches(':focus-visible')")
+    page.keyboard.press("Space")
+    expect(shown).to_have_attribute("data-thread", "2be2443f0bb6cc49fc86b52f340e6073")
+    expect(you_button).to_be_focused()
+
+    for view, thread, title in (
+        ("you", "2be2443f0bb6cc49fc86b52f340e6073", "Workshop room photo"),
+        ("resolved", "bab3cdfcfb8c02aacbb27da731de947a", "Projector map"),
+        ("summary", "9ee465bb3f9c1fa309ea9cb1767fa365", "Afternoon workshop"),
+        ("progress", "bg-progress-question", "Schedule checks"),
+        (
+            "overview",
+            "72e031c5bf0d485ba9054628e09869d4",
+            "Is lunch provided, or should attendees make their own plans?",
+        ),
+    ):
+        page.locator(f'#bg-panel-presets [data-view="{view}"]').click()
+        expect(shown).to_have_attribute("data-thread", thread)
+        expect(frame.locator(".lf-fp-title")).to_have_text(title)
+
+    page.locator('#bg-panel-presets [data-view="resolved"]').click()
+    expect(shown).to_have_attribute("data-thread", "bab3cdfcfb8c02aacbb27da731de947a")
+    page.locator("#bg-panel-sample").get_by_role(
+        "button", name="Reset", exact=True
+    ).click()
+    page.locator("#bg-panel-sample").evaluate("async sample => { await sample.ready; }")
+    expect(shown).to_have_attribute("data-thread", "bab3cdfcfb8c02aacbb27da731de947a")
+    # Latest commands and Reset cancel pending presentation across the port.
+    result = page.locator("#bg-panel-sample").evaluate(
+        """sample => Promise.all([
+          sample.showThread('2be2443f0bb6cc49fc86b52f340e6073',
+            {surface: 'panel', waiting: 'user'}),
+          sample.showThread('bab3cdfcfb8c02aacbb27da731de947a',
+            {surface: 'panel', status: 'resolved'})
+        ])"""
+    )
+    assert result == [False, True]
+    expect(frame.locator(".lf-fp-title")).to_have_text("Projector map")
+    result = page.locator("#bg-panel-sample").evaluate(
+        """async sample => {
+          const old = sample.showThread('2be2443f0bb6cc49fc86b52f340e6073',
+            {surface: 'panel', waiting: 'user'});
+          await sample.reset();
+          return old;
+        }"""
+    )
+    assert result is False
+    expect(frame.locator(".lf-fp-title")).to_have_text("Projector map")
+
+    panel_control(page, "versions").click()
+    expect(page.locator(".lf-fp-version").filter(has_text="v1")).to_be_visible()
+    page.locator(".lf-fp-leaf").click()
+
+    panel_control(page, "leaves", at="navigate").click()
+    expect(page.locator("a.lf-fp-page")).to_contain_text("A second Leaf page")
+    page.locator(".lf-fp-close").click()
+    panel_settled(page, open=False)
+
+    resized(page, 390, 900)
+    page.evaluate("scrollTo(0, 0)")
+    expect(page.locator("#bg-sidebar")).to_be_hidden()
+    # A phone drops the contents spine out of the flow rather than stacking it above
+    # the reading, so the page's first section still opens within the first screen;
+    # left in the flow it lands a screen below the fold. Which section that is belongs
+    # to the gallery's authored order: naming one heading here made a section added
+    # above it read as a layout failure.
+    expect(page.locator("#bg-view-threads > section").first).to_be_in_viewport()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+p")
+    page_map = page.get_by_role("dialog", name="Page Map", exact=True)
+    expect(page_map).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page_map).to_be_hidden()
+
+
+def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
+    """The atlas samples every declared behavior, tone and rank, each face in the
+    treatment its state takes, and its projection through the Page Map."""
+    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Page & layout").click()
+
+    atlas = page.locator("#bg-margin-controls-samples")
+    expect(atlas).to_be_visible()
+
+    def sample(name):
+        return atlas.locator(f'[data-margin-entry-sample="{name}"] > .lf-margin-entry')
+
+    for name in ("label + context", "hover or focus", "open"):
+        expect(sample(name)).to_have_css("cursor", "pointer")
+    for name in (
+        "save",
+        "cancel",
+        "accept",
+        "reject",
+        "thread",
+        "more",
+        "sent",
+        "waiting for pickup",
+        "queued",
+        "update stale",
+        "turn ended",
+        "glyph face",
+        "count badge",
+        "picked up",
+        "working",
+        "working · fallback",
+        "resting",
+        "selected",
+    ):
+        expect(sample(name)).to_have_css("cursor", "default")
+
+    axes = atlas.locator(".lf-margin-entry").evaluate_all(
+        """buttons => ({
+          behaviors: buttons.map(button => button.dataset.lfBehavior),
+          tones: buttons.map(button => button.dataset.lfTone),
+          ranks: buttons.map(button => button.dataset.lfRank),
+        })"""
+    )
+    grammar = page.evaluate(
+        """async () => {
+          const {CONTRIBUTION_ENTRY_SCHEMA} =
+            await window.__lfWidgetApi();
+          return CONTRIBUTION_ENTRY_SCHEMA;
+        }"""
+    )
+    for axis in ("behaviors", "tones", "ranks"):
+        assert set(axes[axis]) == set(grammar[axis]), (
+            f"the gallery shows {sorted(set(axes[axis]))} of the declared "
+            f"{axis} {grammar[axis]}"
+        )
+
+    glyph = sample("glyph face")
+    expect(glyph.locator(".lf-margin-entry-glyph")).to_have_text("🤔")
+    count = sample("count badge")
+    expect(count.locator(":scope > .lf-margin-count")).to_have_text("3")
+    label = sample("label + context")
+    label.hover()
+    expect(label.locator(".lf-margin-entry-label-word")).to_have_text(
+        "Label + context…"
+    )
+    expect(label.locator(".lf-margin-entry-context")).to_have_text("Patch ready")
+    expect(label.locator(".lf-margin-entry-label")).to_have_css("visibility", "visible")
+    page.mouse.move(0, 0)
+
+    resting = sample("resting")
+    picked_up = sample("picked up")
+    working = sample("working")
+    stale = sample("update stale")
+    fallback = sample("working · fallback")
+    expect(resting).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
+    expect(resting).not_to_have_attribute("data-lf-turn", re.compile(".+"))
+    expect(sample("my turn")).to_have_attribute("data-lf-turn", "user")
+    expect(picked_up).to_have_attribute("data-lf-agent-workflow", "picked_up")
+    expect(picked_up).to_have_css(
+        "border-top-color",
+        resting.evaluate("node => getComputedStyle(node).borderTopColor"),
+    )
+    expect(picked_up).to_have_css(
+        "background-color",
+        resting.evaluate("node => getComputedStyle(node).backgroundColor"),
+    )
+    expect(picked_up).to_have_css("box-shadow", "none")
+    picked_up_icon = picked_up.locator(".lf-margin-entry-icon")
+    expect(picked_up_icon).to_have_attribute("data-lf-icon", "comment")
+    expect(picked_up_icon).to_have_css("color", token_colour(page, "--accent"))
+    for control in (working, fallback):
+        expect(control).to_have_attribute("data-lf-agent-workflow", "working")
+        expect(control).to_have_css(
+            "border-top-color",
+            resting.evaluate("node => getComputedStyle(node).borderTopColor"),
+        )
+        expect(control).to_have_css(
+            "background-color",
+            resting.evaluate("node => getComputedStyle(node).backgroundColor"),
+        )
+        expect(control).to_have_css("box-shadow", "none")
+    expect(working.locator(".lf-margin-entry-icon")).to_have_attribute(
+        "data-lf-icon", "comment"
+    )
+    expect(fallback.locator(".lf-margin-entry-icon")).to_have_attribute(
+        "data-lf-icon", "activity"
+    )
+    expect(stale).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
+    expect(stale.locator(".lf-margin-entry-icon")).to_have_attribute(
+        "data-lf-icon", "activity"
+    )
+    for name, icon in (
+        ("sent", "sent"),
+        ("waiting for pickup", "waiting"),
+        ("queued", "pickup"),
+        ("turn ended", "waiting"),
+    ):
+        status = sample(name)
+        expect(status).to_have_attribute("role", "status")
+        expect(status.locator(".lf-margin-entry-icon")).to_have_attribute(
+            "data-lf-icon", icon
+        )
+    not_selected = sample("resting")
+    selected = sample("selected")
+    expect(not_selected).not_to_have_attribute(
+        "data-lf-target-selected", re.compile(".*")
+    )
+    expect(selected).to_have_attribute("data-lf-target-selected", "")
+    expect(selected).to_have_css("border-top-color", token_colour(page, "--accent"))
+    expect(selected).to_have_css(
+        "border-top-width",
+        not_selected.evaluate("node => getComputedStyle(node).borderTopWidth"),
+    )
+    expect(selected).to_have_css("box-shadow", "none")
+    expect(working.locator(".lf-margin-entry-icon")).to_have_css(
+        "color", token_colour(page, "--accent")
+    )
+
+    interactive = sample("hover or focus")
+    interactive.hover()
+    expect(interactive).to_have_css("background-color", token_colour(page, "--chip"))
+    expect(interactive).to_have_css("border-top-color", token_colour(page, "--accent"))
+    expect(interactive.locator(".lf-margin-entry-label")).to_have_css(
+        "visibility", "visible"
+    )
+    page.mouse.move(0, 0)
+    interactive.focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
+    expect(interactive).to_be_focused()
+    expect(interactive).to_have_css("outline-style", "solid")
+
+    opened = sample("open")
+    opened_result = atlas.locator(
+        '[data-margin-entry-sample="open"] .margin-entry-gallery-disclosure'
+    )
+    expect(opened).to_have_attribute("aria-expanded", "true")
+    expect(opened).to_have_css("border-top-color", token_colour(page, "--accent"))
+    expect(opened_result).to_be_visible()
+    opened.click()
+    expect(opened).to_have_attribute("aria-expanded", "false")
+    expect(opened_result).to_be_hidden()
+
+    projection = page.locator(
+        '[data-lf-margin-for="bg-margin-controls-samples"]'
+    ).get_by_role("button", name="Inspect projection", exact=True)
+    expect(projection).to_be_visible()
+    projection.focus()
+    expect(projection.locator(".lf-margin-entry-label-word")).to_have_text(
+        "Inspect projection…"
+    )
+    expect(projection.locator(".lf-margin-entry-context")).to_have_text(
+        "Compact face · full row"
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+p")
+    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
+    map_projection = dialog.get_by_role(
+        "button", name="Inspect projection, Compact face · full row", exact=True
+    )
+    expect(map_projection).to_be_visible()
+    expect(map_projection.locator(".lf-page-map-action-label-word")).to_have_text(
+        "Inspect projection…"
+    )
+    expect(map_projection.locator(".lf-page-map-action-context")).to_have_text(
+        "Compact face · full row"
+    )
+    map_projection.click()
+    expect(dialog).to_be_hidden()
+    expect(projection).to_have_attribute("aria-expanded", "true")
+    expect(atlas.locator(".margin-entry-gallery-projection-result")).to_be_visible()
+
+
+def _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page):
+    """The gallery's rail-and-pins sample: a comment on the schedule, which is wider
+    than the column, stands on it as a pin while the prose beside it keeps the rail, and
+    `o` hides the pin while the rail stays. The quiet-status example starts with
+    a visible receipt, without requiring a practice gesture to create it."""
+    resized(page, 1440, 900)
+    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Page & layout").click()
+    margins_laid_out(page)
+    pin = page.locator('.lf-margin-cluster[data-lf-margin-for="bg-margin-layer-table"]')
+    expect(pin).to_have_attribute("data-lf-place", "pin")
+    rail = page.locator('.lf-margin-cluster[data-lf-place="rail"]:visible')
+    assert rail.count() > 0
+    page.keyboard.press("Escape")
+    page.keyboard.press("o")
+    expect(pin).to_be_hidden()
+    expect(rail.first).to_be_visible()
+    page.keyboard.press("o")
+    expect(pin).to_be_visible()
+
+    sample = page.locator("#bg-margin-layer-status")
+    sample.scroll_into_view_if_needed()
+    child = sample.frame_locator("iframe")
+    # The receipt reads Sent, and Waiting for pickup two minutes after the gallery
+    # opened, which a slow runner can reach by now; either pins the same way.
+    status = child.locator(
+        '.lf-margin-entry:is([data-lf-kinds="sent"], [data-lf-kinds="waiting"])'
+    )
+    expect(status).to_be_visible()
+    expect(status.locator("..")).to_have_attribute("data-lf-place", "pin")
+    expect(child.get_by_role("button", name="On me", exact=True)).to_be_visible()
+    expect(child.get_by_role("button", name="Threads, 0 open")).to_be_visible()
+    for width in (720, 390):
+        resized(page, width, 900)
+        sample.scroll_into_view_if_needed()
+        expect(status).to_be_visible()
+        assert status.evaluate(
+            """el => {
+              const r = el.getBoundingClientRect();
+              const board = document.querySelector('lf-board');
+              return r.left >= 0 && r.right <= innerWidth && r.top >= 0
+                && r.bottom <= innerHeight && board.scrollWidth <= board.clientWidth;
+            }"""
+        )
+
+
+# The stale-keys sweep. Every control a pointer presses or typing fills, in the top
+# document and its open shadow roots; live samples run their own runtime in an opaque
+# frame and take no part.
+_SWEPT = (
+    "button:visible, [role=button]:visible, [role=tab]:visible, [role=radio]:visible, "
+    "[role=checkbox]:visible, input[type=checkbox]:visible, input[type=radio]:visible, "
+    "summary:visible, :is(textarea, input[type=search], input[type=text], "
+    "input:not([type])):not(:disabled, [readonly]):visible"
+)
+_FILLS = ("review", "", "a b c", "zzzz")
+_SWEEP_STEPS = 40
+_DESCRIBE = """element => {
+  const classes = [...element.classList].slice(0, 3).map(name => `.${name}`).join('');
+  const id = element.id ? `#${element.id}` : '';
+  const label = (element.getAttribute('aria-label') || element.title
+    || element.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 40);
+  return `${element.localName}${id}${classes} [${label}]`;
+}"""
+_CONTROL = (
+    """element => [("""
+    + _DESCRIBE
+    + """)(element), element.localName === 'textarea'
+  || (element.localName === 'input' && !['checkbox', 'radio'].includes(element.type))]"""
+)
+# Each element's painted keys and availability, held in the page as a Map keyed by
+# the element, so the reading after the repaint is compared node by node.
+_PAINTED_KEYS = """() => {
+  const painted = new Map();
+  const walk = root => {
+    for (const element of root.querySelectorAll('*')) {
+      painted.set(element, [element.getAttribute('aria-disabled'),
+                            element.getAttribute('aria-keyshortcuts')]);
+      if (element.shadowRoot) walk(element.shadowRoot);
+    }
+  };
+  walk(document);
+  return painted;
+}"""
+_REPAINTED_KEYS = (
+    """painted => {
+  const describe = """
+    + _DESCRIBE
+    + """;
+  const stale = [];
+  for (const [element, before] of painted) {
+    if (!element.isConnected) continue;
+    ['aria-disabled', 'aria-keyshortcuts'].forEach((attribute, index) => {
+      const now = element.getAttribute(attribute);
+      if (now !== before[index])
+        stale.push({element: describe(element), attribute,
+                    painted: before[index], repainted: now});
+    });
+  }
+  return stale;
+}"""
+)
+
+
+def _stale_keys(page):
+    """What a forced repaint of every element's keys changes, once the page has
+    rendered what the input so far asked for: each change is an attribute that was
+    stale. A control a send or a load holds unavailable is ready again once that
+    finishes, so the reading waits for both: for the page's readiness, which includes
+    every live sample's arrival, and for every send to come back."""
+    wait_until_ready(page)
+    round_trip(page)
+    rendered(page)
+    painted = page.evaluate_handle(_PAINTED_KEYS)
+    page.evaluate("async () => (await window.__lfWidgetApi()).paintKeys()")
+    rendered(page)
+    stale = page.evaluate(_REPAINTED_KEYS, painted)
+    painted.dispose()
+    return stale
+
+
+@pytest.mark.parametrize(
+    "example", (*PUBLIC_EXAMPLES, *DEVELOPER_PAGES), ids=lambda path: path.stem
+)
+def test_presses_and_fills_leave_no_element_naming_stale_keys(browser, serve, example):
+    """Each element's `aria-keyshortcuts` and a button's `aria-disabled` reflect its
+    rows, and a reflection is a tracked effect: it reads again when a signal it read
+    moves. So a module's own state that a row's `when` reads must be a signal
+    (`keyboard/scopes.js`); a plain variable leaves the attributes stale, and a screen
+    reader announces keys that no longer apply, until something else repaints them.
+
+    The sweep presses or fills a random visible control, in an order seeded by the
+    example's name, and after each step forces a repaint of every element's keys. Any
+    attribute that repaint changes was stale. The keys themselves still work, since a
+    press reads the rows afresh, so no other test fails on such a row. A page change
+    reshuffles the steps; the failure names the step and the control pressed."""
+    rng = random.Random(example.stem)
+    page = open_page(browser, serve(example))
+    stale = [{"step": "arrival", **finding} for finding in _stale_keys(page)]
+    for step in range(_SWEEP_STEPS):
+        # Handles rather than a locator's nth, so a page that changes between the
+        # reading and the input still takes the input on the control it chose.
+        controls = page.locator(_SWEPT).element_handles()
+        if not controls:
+            break
+        control = rng.choice(controls)
+        did, fillable = control.evaluate(_CONTROL)
+        if fillable:
+            control.fill(rng.choice(_FILLS), force=True)
+            did = f"fill {did}"
+        else:
+            try:
+                control.click(force=True)
+            except PlaywrightError as error:
+                # A pointer cannot reach a control that fixed chrome holds outside the
+                # viewport, or one that scrolling it into view hides, as a virtualized
+                # list does to a row it recycles.
+                if not any(
+                    reason in error.message
+                    for reason in ("outside of the viewport", "not visible")
+                ):
+                    raise
+                continue
+            did = f"press {did}"
+        if rng.random() < 0.15:
+            page.keyboard.press("Escape")
+            did += ", then Escape"
+        stale += [{"step": step, "did": did, **s} for s in _stale_keys(page)]
+    assert not stale, "\n".join(
+        f"step {s['step']}"
+        + (f" ({s['did']})" if "did" in s else "")
+        + f": {s['element']} {s['attribute']} painted {s['painted']!r},"
+        f" repainted {s['repainted']!r}"
+        for s in stale
+    )

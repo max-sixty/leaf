@@ -1,5 +1,5 @@
 """How a thread folds earlier messages under an agent summary or behind an answer's
-progress, and how a direct reply link reveals what a fold hides."""
+progress, and how it reveals what a fold hides."""
 
 import re
 
@@ -9,9 +9,7 @@ from leaf import thread as thread_model
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, SEATED_OBLIGATION_PAGE, panel_comment
 from render_harness import (
-    PANEL_THREAD,
     open_page,
-    panel_settled,
     resized,
     sending,
     told,
@@ -20,6 +18,7 @@ from render_harness import (
 from browser.threads import (
     append_agent_reply,
     append_user_reply,
+    open_panel_thread,
     summarize_thread,
 )
 
@@ -44,9 +43,9 @@ def open_margin_card(page, root):
 
 
 @pytest.mark.parametrize("resolved", [False, True])
-def test_an_inline_reply_link_reveals_its_thread(browser, serve, resolved):
-    """A direct reply link opens the exact message in the panel, in view and focused,
-    even in a long thread or in the Resolved state."""
+def test_a_seated_reply_draws_its_widget_in_place(browser, serve, resolved):
+    """A thread a widget seats on the page draws a reply's widget in place, where the
+    user answers it, even in a long thread or in the Resolved state."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
@@ -77,32 +76,72 @@ def test_an_inline_reply_link_reveals_its_thread(browser, serve, resolved):
             serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
         )
     page = open_page(browser, url)
-    # A passage's thread opens in the panel for one of its messages, which the
-    # panel's reader draws whole.
-    thread = page.locator(f'{PANEL_THREAD}[data-thread="{root}"]')
-    destination = page.locator(f'.lf-fp-view .lf-msg[data-event="{reply["id"]}"]')
     if resolved:
         page.locator(".lf-resolved-summary").click()
-    page.locator(".lf-page-thread-open").click()
-    panel_settled(page, view="thread")
-    expect(thread).to_be_visible()
-    expect(destination.locator("#first-job")).to_be_in_viewport()
-    expect(destination).to_be_focused()
-    sizes = page.evaluate(
-        """([thread, destination]) => ({
-          thread: thread.scrollHeight,
-          destination: destination.getBoundingClientRect().height,
-          shown: thread.clientHeight,
-        })""",
-        [thread.element_handle(), destination.element_handle()],
+    message = page.locator(f'#jobs .lf-msg[data-event="{reply["id"]}"]')
+    expect(message.locator("#first-job")).to_be_visible()
+    with sending(page, "the first job"):
+        message.locator("#mounts").click()
+    expect(page.locator("#mounts [role=checkbox]")).to_be_checked()
+
+
+def test_a_seated_reply_lends_its_widget_to_the_panel_and_takes_it_back(browser, serve):
+    """A reply's widget stands in one drawing at a time: the panel's view of the thread
+    takes it from the seat while it shows the thread, the seat keeps the reply's words
+    with nothing in the widget's place, and going back gives the widget to the seat."""
+    url = serve(SEATED_OBLIGATION_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Which job should come first?", {"section": "jobs"}
     )
-    assert sizes["thread"] > sizes["shown"], sizes
-    assert sizes["destination"] < sizes["shown"], sizes
-    page.keyboard.press("Tab")
-    expect(page.locator("#mounts [role=checkbox]")).to_be_focused()
+    reply = thread_model.post_reply(
+        serve.page_dir,
+        {"responds": root},
+        "Choose the first job.",
+        '<lf-ask id="first-job-decision"><h3>Which job first?</h3>'
+        '<lf-options id="first-job" choose>'
+        '<lf-option id="mounts">Put the mounts back</lf-option>'
+        '<lf-option id="camera">Install the camera</lf-option>'
+        "</lf-options></lf-ask>",
+    )
+    page = open_page(browser, url)
+    seated = page.locator(f'#jobs .lf-msg[data-event="{reply["id"]}"]')
+    expect(seated.locator("#first-job")).to_be_visible()
+    view = open_panel_thread(page, root)
+    expect(view.locator("#first-job")).to_be_visible()
+    expect(seated).to_have_text(re.compile(r"Choose the first job\.\s*$"))
+    page.locator(".lf-fp-back").click()
+    expect(seated.locator("#first-job")).to_be_visible()
 
 
-def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser, serve):
+def test_a_reply_folded_in_one_view_keeps_its_widget_in_view_in_another(browser, serve):
+    """A reply's markup, which stands in one drawing at a time, stays in a drawing that
+    shows it rather than one that folds the reply away: here the panel, which outranks
+    the page's seat but folds the reply under its summary, leaves it in the seat whose
+    fold the user opened."""
+    url = serve(SEATED_OBLIGATION_PAGE)
+    root = panel_comment(serve.page_dir, "Which job first?", {"section": "jobs"})
+    asked = append_agent_reply(
+        serve.page_dir,
+        root,
+        "Here is what each job takes.",
+        '<p id="folded-note">The mounts take an hour.</p>',
+    )
+    append_user_reply(serve.page_dir, root, "The mounts, then.")
+    last = append_agent_reply(serve.page_dir, root, "Mounts first.")
+    append_user_reply(serve.page_dir, root, "Keep the latest visible.")
+    summarize_thread(serve.page_dir, asked["id"], last["id"], "The mounts go first.")
+
+    page = open_page(browser, url)
+    seat = page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
+    seat.get_by_role("button", name="Show 3 earlier messages", exact=True).click()
+    message = seat.locator(f'.lf-msg[data-event="{asked["id"]}"]')
+    expect(message.locator("#folded-note")).to_be_visible()
+    view = open_panel_thread(page, root)
+    expect(view.locator(f'.lf-msg[data-event="{asked["id"]}"]')).to_be_hidden()
+    expect(message.locator("#folded-note")).to_be_attached()
+
+
+def test_a_summary_folds_originals_and_reveals_them(browser, serve):
     """A checkpoint shortens only its admitted range and remains a route to originals.
 
     The messages before and after the range are controls: hiding either would mean the
@@ -178,24 +217,22 @@ def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser,
     for message in (first, middle, last):
         expect(card.locator(f'.lf-msg[data-event="{message["id"]}"]')).to_be_visible()
     expect(checkpoint.locator(".lf-summary-refold")).to_have_count(0)
-    expect(expand).to_have_accessible_name("Collapse 3 earlier messages")
+    expect(expand).to_have_accessible_name("Hide 3 earlier messages")
     expand.focus()
     page.keyboard.press("Enter")
     expect(expand).to_have_attribute("aria-expanded", "false")
     expect(card.locator(f'.lf-msg[data-event="{last["id"]}"]')).to_be_hidden()
 
-    # The direct reply link opens the message in the panel, its fold open there.
+    # The open fold shows a reply's markup in place.
     card.get_by_role("button", name="Show 3 earlier messages", exact=True).click()
-    page.locator(".lf-page-thread-open").click()
-    destination = page.locator(f'.lf-fp-view .lf-msg[data-event="{last["id"]}"]')
-    expect(destination).to_be_visible()
-    expect(destination).to_be_focused()
+    expect(card.locator(f'.lf-msg[data-event="{last["id"]}"]')).to_contain_text(
+        "The measured result is 18 minutes."
+    )
 
 
 def test_previous_progress_messages_can_fold_without_summary_prose(browser, serve):
-    """The same disclosure keeps progress available without an authored digest."""
-    # The disclosure is the same at any width; the narrow one has the least room.
-    width = 390
+    """Progress stays available without a digest, including when the readable label
+    and disclosure need separate lines on a narrow screen."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(
         serve.page_dir, "Please check the schedule.", {"section": "jobs"}
@@ -208,7 +245,6 @@ def test_previous_progress_messages_can_fold_without_summary_prose(browser, serv
     )
 
     page = open_page(browser, url)
-    resized(page, width, 900)
     card = page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
     checkpoint = card.locator(
         f'.lf-thread-checkpoint[data-summary-id="{summary["id"]}"]'
@@ -219,15 +255,30 @@ def test_previous_progress_messages_can_fold_without_summary_prose(browser, serv
     expect(checkpoint.locator(".lf-summary-text")).to_have_count(0)
     expect(card.locator(f'.lf-msg[data-event="{answer["id"]}"]')).to_be_visible()
     expect(card.locator(f'.lf-msg[data-event="{first["id"]}"]')).to_be_hidden()
-    label_box = label.bounding_box()
-    control_box = expand.bounding_box()
-    assert label_box["x"] + label_box["width"] <= control_box["x"]
-    assert control_box["y"] <= label_box["y"] < control_box["y"] + control_box["height"]
+    # Font metrics decide whether they share a line; both arrangements must remain
+    # readable and inside the checkpoint. The narrower screen exercises wrapping
+    # even with macOS's smaller text metrics.
+    for width in (390, 320):
+        resized(page, width, 900)
+        expect(label).to_be_visible()
+        label_box = label.bounding_box()
+        control_box = expand.bounding_box()
+        bounds = checkpoint.bounding_box()
+        assert (
+            label_box["x"] + label_box["width"] <= control_box["x"]
+            or label_box["y"] + label_box["height"] <= control_box["y"]
+        ), (label_box, control_box)
+        for box in (label_box, control_box):
+            assert bounds["x"] <= box["x"]
+            assert box["x"] + box["width"] <= bounds["x"] + bounds["width"]
+        assert label.evaluate(
+            "e => e.scrollWidth <= e.clientWidth && e.scrollHeight <= e.clientHeight"
+        )
     expand.focus()
     page.keyboard.press("Enter")
     expect(card.locator(f'.lf-msg[data-event="{first["id"]}"]')).to_be_visible()
     expect(card.locator(f'.lf-msg[data-event="{last["id"]}"]')).to_be_visible()
-    checkpoint.get_by_role("button", name="Collapse 2 earlier messages").click()
+    checkpoint.get_by_role("button", name="Hide 2 earlier messages").click()
     expect(card.locator(f'.lf-msg[data-event="{first["id"]}"]')).to_be_hidden()
 
 

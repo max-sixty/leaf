@@ -783,7 +783,9 @@ def delivery_read(delivery_id: str, part: int) -> dict:
 @click.argument("delivery_id", metavar="DELIVERY_ID")
 def delivery_ack(delivery_id: str) -> None:
     """Confirm that every part of DELIVERY_ID is in your context, so its updates
-    read Picked up. Reread any part whose output is missing first."""
+    read Picked up. Reread any part whose output is missing first. Where an
+    earlier turn already picked it up, a note says so and names what its updates
+    still owe."""
     from leaf.delivery import cmd_delivery_ack
 
     cmd_delivery_ack(delivery_id)
@@ -959,7 +961,8 @@ def run(dir: str, host: str | None, persistent: bool, temporary: bool) -> None:
     from leaf.hosting import cmd_serve, cmd_serve_temporary
     from leaf.leases import release_on_termination
 
-    # As for `_serve`: a SIGTERM or a closed terminal's SIGHUP unwinds.
+    # As for `_serve`, except that a temporary server, which holds no lease,
+    # unwinds on every stop.
     release_on_termination()
     page_dir = resolve_dir(dir)
     if temporary:
@@ -996,9 +999,9 @@ def _serve(
     from leaf.hosting import cmd_serve
     from leaf.leases import release_on_termination
 
-    # Uvicorn answers SIGTERM by stopping, then raises it again under the handler
-    # it found, so this exit unwinds and runs the exit handlers, which stop a
-    # title request's App Server (`codex.private_app_server`).
+    # Until the server commits its service, a SIGTERM or SIGHUP unwinds and
+    # retires what preparation holds. From then on a stop signal ends the process
+    # through `exit_serving` (`server.exit_serving_on_signals`).
     release_on_termination()
     with Handshake(handshake) as answer:
         cmd_serve(

@@ -116,6 +116,23 @@ chooses. To allow it without being asked, add this to `~/.codex/config.toml`:
 default_tools_approval_mode = "approve"
 ```
 
+The agent's own edits to a page's files still run in Codex's sandbox, which lets
+them write only the task's directory and the temporary directories. So Codex
+refuses each edit to a page in Leaf's state home, or asks you to approve it. To let
+the agent edit pages there, add the state home's `pages` directory to the sandbox's
+writable roots in `~/.codex/config.toml`, inside the `[sandbox_workspace_write]`
+table if you already have one:
+
+```toml
+[sandbox_workspace_write]
+writable_roots = ["~/.local/state/leaf/pages"]
+```
+
+If you set `XDG_STATE_HOME`, the directory is `$XDG_STATE_HOME/leaf/pages`. Every
+command the sandbox runs can then write every page's files, as it can the task's
+directory. Where a task's sandbox lacks the line, the MCP server's first answer in
+that task gives it to the agent to pass on.
+
 </details>
 
 ## Explore and extend

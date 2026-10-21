@@ -172,6 +172,7 @@ import {
   tabStore,
   tellDraft,
   threadAttention,
+  threadHeading,
   threadList,
   threadName,
   touchPresses,
@@ -181,7 +182,16 @@ import {
   walkPositionLabel,
   workflowStep
 } from "./runtime/bundle-user-intent.js";
-import "./runtime/bundle-widget-upgrade.js";
+import {
+  DISCLOSE,
+  DISCLOSURE_SELECTOR,
+  annotationSheets,
+  chromeSheet,
+  disclosed,
+  marksSheet,
+  setChildren,
+  watchDisclosures
+} from "./runtime/bundle-stylesheets.js";
 import {
   mediaViewer,
   readAttachedMedia,
@@ -270,16 +280,6 @@ import {
   userReadingRegion,
   whenArrived
 } from "./runtime/bundle-presence.js";
-import {
-  DISCLOSE,
-  DISCLOSURE_SELECTOR,
-  annotationSheets,
-  chromeSheet,
-  disclosed,
-  marksSheet,
-  setChildren,
-  watchDisclosures
-} from "./runtime/bundle-stylesheets.js";
 import {
   COLLAPSE,
   LEAF_SURFACE,
@@ -432,22 +432,6 @@ import {
   word
 } from "./runtime/bundle-page-paint.js";
 import {
-  PRESENTATION_ORDER,
-  SHARE_ROOT,
-  WEBSITE_DELIVERY,
-  agentName,
-  annotationMode,
-  applicationPresenter,
-  applicationState,
-  documentChanged,
-  offlineInteractive,
-  readPart,
-  runtime,
-  runtimeResource,
-  shareUrl,
-  whenApplicationPresented
-} from "./runtime/bundle-semantic-state.js";
-import {
   CARET_KEYS,
   MODIFIER_KEYS,
   PRESSES,
@@ -495,6 +479,22 @@ import {
   under,
   upFrom
 } from "./runtime/bundle-frame-visibility.js";
+import {
+  PRESENTATION_ORDER,
+  SHARE_ROOT,
+  WEBSITE_DELIVERY,
+  agentName,
+  annotationMode,
+  applicationPresenter,
+  applicationState,
+  documentChanged,
+  offlineInteractive,
+  readPart,
+  runtime,
+  runtimeResource,
+  shareUrl,
+  whenApplicationPresented
+} from "./runtime/bundle-semantic-state.js";
 import {
   LitElement,
   M,
@@ -2787,7 +2787,7 @@ function createResponseSurface({
     const threadId = threadAtStanding();
     const replyId = replyThreadAtStanding();
     const target = threadId && threadTarget(threadId);
-    const inlineBox = inline && drawnThreadId(inline) === threadId && (!here || standingIn(inline) || target && under(target, heldObligation() ?? here.element)) && threadInput(inline);
+    const inlineBox = inline && (!here || standingIn(inline) || target && under(target, heldObligation() ?? here.element)) && threadInput(inline);
     const said = standingThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
     const subject = threadId && (!here || target && under(target, heldObligation() ?? here.element));
     const replySubject = subject && replyId;
@@ -6528,30 +6528,50 @@ function boxMotion({
         radiusOf(part.style)
       );
     }
-    function reveal2(part, frame) {
+    function reveal2(part, frame, siblings) {
       const to = part.box;
       const side = (inset, beyond) => beyond ? 0 : Math.max(0, inset);
-      const cut = [
+      const from = [
         side(frame.from.top - to.top, to.top < frame.to.top - 0.5),
         side(to.right - frame.from.right, to.right > frame.to.right + 0.5),
         side(to.bottom - frame.from.bottom, to.bottom > frame.to.bottom + 0.5),
         side(frame.from.left - to.left, to.left < frame.to.left - 0.5)
       ];
-      if (cut.every((inset) => near(inset, 0))) return;
+      const end = [0, 0, 0, 0];
+      const overlaps2 = (a, b, low, high) => a[low] < b[high] && b[low] < a[high];
+      for (const sibling of siblings) {
+        const motion = motions.get(sibling.element);
+        if (!motion || motion.revealed) continue;
+        const { from: then, to: at } = motion;
+        const across = overlaps2(at, to, "top", "bottom");
+        const along = overlaps2(at, to, "left", "right");
+        [
+          along && { then: then.bottom - to.top, rest: at.bottom - to.top },
+          across && { then: to.right - then.left, rest: to.right - at.left },
+          along && { then: to.bottom - then.top, rest: to.bottom - at.top },
+          across && { then: then.right - to.left, rest: at.right - to.left }
+        ].forEach((reach2, index) => {
+          if (reach2 && reach2.rest <= 0.5 && reach2.then > from[index]) {
+            from[index] = reach2.then;
+            end[index] = reach2.rest;
+          }
+        });
+      }
+      if (from.every((inset) => near(inset, 0))) return;
       motions.set(part.element, { from: to, to, revealed: true });
-      cutFrom(part.element, cut);
+      start(part.element, [{ clipPath: insetOf(from) }, { clipPath: insetOf(end) }]);
     }
-    function place3(part, frame) {
+    function place3(part, frame, siblings = []) {
       const { element, style, box: to } = part;
       const from = was.get(element);
-      if (!from) return reveal2(part, frame);
+      if (!from) return reveal2(part, frame, siblings);
       const rest = before.get(element);
       const sized = !framed.has(element) && near(width(rest), width(to)) && near(height(rest), height(to));
       let within = frame;
       if (element !== box && element !== root) {
         const carries = gesture !== null;
         if (sized && !part.holdsWindow)
-          return carries ? carry(part, from) : reveal2(part, frame);
+          return carries ? carry(part, from) : reveal2(part, frame, siblings);
         if (part.whole) return carries ? carryContent(part, from) : grow(part, from);
         if (!same3(from, to)) within = { from, to };
         if (!sized && rings(style)) {
@@ -6570,7 +6590,10 @@ function boxMotion({
         } else if (!sized && paints(style) && !part.holdsWindow) grow(part, from);
         if (!same3(from, to)) motions.set(element, { from, to, frames: true });
       }
-      for (const inner of part.parts) place3(inner, within);
+      const placed = [...part.parts].sort(
+        (a, b) => Number(!was.has(a.element)) - Number(!was.has(b.element))
+      );
+      for (const inner of placed) place3(inner, within, part.parts);
     }
     for (const part of parts) place3(part, { from: boxFrom, to: boxAt });
     if (running.length === 0 && same3(boxFrom, boxAt)) return;
@@ -6941,10 +6964,9 @@ function createFloatingPanel({
     return queues.phase === "ready" ? queues.on_user.length : 0;
   };
   const threadStatus = (thread, shownBy) => {
-    const state = thread.resolved ? "Resolved" : threadAttention(thread)?.label ?? "Open";
+    const state = thread.resolved ? "Resolved" : threadAttention(thread)?.label;
     const said = {
       unread: "New",
-      open: "Open",
       resolved: "Resolved",
       drafts: "Draft"
     }[shownBy];
@@ -7792,7 +7814,7 @@ function createFloatingPanel({
                   @click=${() => open({ view: "thread", thread: thread.key })}
                 >
                   <span class="lf-fp-news-mark" aria-hidden="true"></span>
-                  <span class="lf-fp-label">${threadName(thread)}</span>
+                  <span class="lf-fp-label">${threadHeading(thread)}</span>
                   <span class="lf-fp-value"
                     >${threadStatus(thread, query.trim() ? null : filter)}</span
                   >
@@ -8069,6 +8091,7 @@ function createFloatingPanel({
     const title = message ? thread.title ?? (thread.root.id === message.id ? "" : threadName(thread)) : asking ? threadName(thread) : queueTitle(item);
     const said = message ? "" : asking ? messageReading(asking, { reactions: [], workflows: [] }).body.plainText : record?.prompt?.text;
     const prompt = said && said.trim() !== title.trim() ? said : "";
+    const heading = thread && title === threadName(thread) ? threadHeading(thread) : title;
     const answered = record && record.status !== "open";
     const choices = record && !answered && record.source.kind === "widget" && !inWords ? obligationView.choicesOf(record) : null;
     const gesture2 = answered ? answerGesture(record) : null;
@@ -8161,13 +8184,13 @@ function createFloatingPanel({
       ?data-walked=${queueTab === "you" && walkedStop() === stop.key}
       style=${seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
     >
-      ${about.length ? html`<p class="lf-fp-on-kind">${about.join(" \xB7 ")}</p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${title}</h3>` : nothing}
+      ${about.length ? html`<p class="lf-fp-on-kind">${about.join(" \xB7 ")}</p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : nothing}
               <div
                 class="lf-fp-asked lf-fp-outlet"
                 data-thread=${thread.key}
                 data-message=${message.key}
-              ></div>` : prompt ? html`<h3 class="lf-fp-on-title">${title}</h3>
-                <p class="lf-fp-prompt">${prompt}</p>` : html`<p class="lf-fp-prompt">${title}</p>`}
+              ></div>` : prompt ? html`<h3 class="lf-fp-on-title">${heading}</h3>
+                <p class="lf-fp-prompt">${prompt}</p>` : html`<p class="lf-fp-prompt">${heading}</p>`}
       <div class="lf-fp-answers">${answers}${show}</div>
     </section>`;
   }
@@ -8285,9 +8308,14 @@ function createFloatingPanel({
     }
     focusDestination(controls.querySelector(".lf-fp-search"), "move");
   }
-  const headTemplate = (top) => html`<h2 class=${top.view === "queue" ? "lf-fp-title lf-quiet" : "lf-fp-title"}>
-      ${titleOf2(top)}
+  const headTemplate = (top) => {
+    const thread = top.view === "thread" ? threadByKey(top.thread) : null;
+    return html`<h2
+      class=${top.view === "queue" ? "lf-fp-title lf-quiet" : "lf-fp-title"}
+    >
+      ${thread ? threadHeading(thread) : titleOf2(top)}
     </h2>`;
+  };
   function controlsTemplate(top) {
     const parent = trail.value.at(-2);
     const thread = top.view === "thread" ? threadByKey(top.thread) : null;
@@ -9048,21 +9076,22 @@ function createFloatingPanel({
         return () => openInPackage(top.thread, { focus, message });
       },
       // A thread about the whole page opens here; one about a passage opens beside it,
-      // where the page draws it, and here only for one of its messages, which Leaf's
-      // reader alone draws whole, or where nothing on the page shows it, as on a page
-      // drawing no margin, the destination's last resort (`request.last`,
-      // thread/destination.js). Where the user lands in it is the route's
-      // (`request.part`), which Leaf's destinations take them to once it is drawn: the
-      // reply, a message, or the thread itself, the view, where the `t` walk goes on from.
+      // where the page draws it, widgets in its messages included, and here only where
+      // nothing on the page shows it, as on a page drawing no margin, the destination's
+      // last resort (`request.last`, thread/destination.js), or for one of its messages
+      // while the view already shows it, so a walk to an ask in it leaves the user
+      // where they read. Where the user lands in it is the route's (`request.part`),
+      // which Leaf's destinations take them to once it is drawn: the reply, a message,
+      // or the thread itself, the view, where the `t` walk goes on from.
       reveal: (key, { part, last }) => {
         const thread = threadByKey(key);
         if (!thread) return false;
-        if (thread.anchor && part !== "message") {
+        const top = trail.value.at(-1);
+        const shown = top?.view === "thread" && threadByKey(top.thread)?.key === thread.key;
+        if (thread.anchor && !(part === "message" && shown)) {
           if (!last) {
             unplaced.delete(thread.key);
-            const top = trail.value.at(-1);
-            if (top?.view === "thread" && threadByKey(top.thread)?.key === thread.key)
-              close();
+            if (shown) close();
             return false;
           }
           unplaced.add(thread.key);
@@ -9255,8 +9284,14 @@ function createPageMapDialog({
   function pageMapDialogContains(candidate, node) {
     return dialog.open && target === candidate && dialog.contains(node);
   }
-  const sheetFace = ({ icon, glyph, visibleLabel, context: context2 }) => html`${icon ? iconTemplate(icon, "lf-margin-kind") : html`<span class="lf-margin-kind">${glyph}</span>`}<span class="lf-page-map-action-label"
-        ><span class="lf-page-map-action-label-word">${visibleLabel}</span>${context2 ? html`<span class="lf-page-map-action-context">${context2}</span>` : nothing}</span
+  const sheetName = (item, visibleLabel) => {
+    const thread = item && inventory.sourceItem(item)?.thread;
+    return thread ? threadHeading(thread) : visibleLabel;
+  };
+  const sheetFace = ({ icon, glyph, item, visibleLabel, context: context2 }) => html`${icon ? iconTemplate(icon, "lf-margin-kind") : html`<span class="lf-margin-kind">${glyph}</span>`}<span class="lf-page-map-action-label"
+        ><span class="lf-page-map-action-label-word"
+          >${sheetName(item, visibleLabel)}</span
+        >${context2 ? html`<span class="lf-page-map-action-context">${context2}</span>` : nothing}</span
       >`;
   function activateSheetControl(event, action) {
     const { offered, record } = action;
@@ -10282,8 +10317,7 @@ function createDesignMode({
     press: designPress,
     open: openOnDesign,
     name: designName,
-    inspectElement: inspectEl,
-    legendElement: legendRoot
+    inspectElement: inspectEl
   };
 }
 
@@ -11541,7 +11575,7 @@ var anchorTravel = createAnchorTravel({
   announce
 });
 var landing = createThreadLanding();
-declareThreadKeys(landing.landIn);
+declareThreadKeys(landing.landIn, () => app.threadDestinations.threadHere());
 var anchorControls = createAnchorControls({
   commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
   openThread: (...args) => app.threadDestinations.openPageThread(...args),

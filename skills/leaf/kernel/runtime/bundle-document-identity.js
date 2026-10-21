@@ -35,6 +35,7 @@ import {
   alreadyShown,
   anchorLabel,
   answeredInWords,
+  authoredHolder,
   beginThreadSeats,
   beginWalk,
   blocksOnScreen,
@@ -131,6 +132,7 @@ import {
   tabStore,
   textBlocks,
   threadDraft,
+  threadIdNamed,
   threadList,
   threadName,
   threadNamed,
@@ -151,11 +153,15 @@ import {
   aborted,
   authoredStates,
   commitWidgetDescriptors,
+  orderChildren,
+  patchRetains,
+  patchTree,
   quoted,
   rememberAuthoredParents,
+  setChildren,
   stageAuthoredStates,
   stageWidgetDescriptors
-} from "./bundle-widget-upgrade.js";
+} from "./bundle-stylesheets.js";
 import {
   scrollBehavior
 } from "./bundle-motion.js";
@@ -223,12 +229,6 @@ import {
   unconcealedReadingRegions,
   watchReadingRegionTransitions
 } from "./bundle-presence.js";
-import {
-  orderChildren,
-  patchRetains,
-  patchTree,
-  setChildren
-} from "./bundle-stylesheets.js";
 import {
   DATUM,
   TEXT_BLOCK,
@@ -333,32 +333,6 @@ import {
   word
 } from "./bundle-page-paint.js";
 import {
-  LIVE_ROOT,
-  PRESENTATION_ORDER,
-  agentLabel,
-  annotationMode,
-  applicationPresenter,
-  applicationState,
-  documentChanged,
-  layerRoot,
-  offlineData,
-  offlineInteractive,
-  offlineState,
-  pageUrl,
-  presentDocument,
-  projectView,
-  projectionRegionsPresented,
-  readApplication,
-  readPart,
-  revisionLabel,
-  runtime,
-  setPresentationFailureReporter,
-  watchPresentation,
-  whenApplicationRegionsPresented,
-  whenDocumentPresented,
-  whenWidgetsPresented
-} from "./bundle-semantic-state.js";
-import {
   PRESSES,
   TEXT_BOX,
   TEXT_FIELD,
@@ -398,6 +372,32 @@ import {
   upFrom,
   whenLeft
 } from "./bundle-frame-visibility.js";
+import {
+  LIVE_ROOT,
+  PRESENTATION_ORDER,
+  agentLabel,
+  annotationMode,
+  applicationPresenter,
+  applicationState,
+  documentChanged,
+  layerRoot,
+  offlineData,
+  offlineInteractive,
+  offlineState,
+  pageUrl,
+  presentDocument,
+  projectView,
+  projectionRegionsPresented,
+  readApplication,
+  readPart,
+  revisionLabel,
+  runtime,
+  setPresentationFailureReporter,
+  watchPresentation,
+  whenApplicationRegionsPresented,
+  whenDocumentPresented,
+  whenWidgetsPresented
+} from "./bundle-semantic-state.js";
 import {
   M,
   PENDING,
@@ -6102,23 +6102,31 @@ function createThreadDestinations({
     const thread = allThreads().find((candidate) => candidate.id === id);
     return thread ? threadPlace(thread, placedAt) : null;
   };
-  const threadHere = () => heldThread() ?? preview?.accompanied() ?? null;
-  const threadAtStanding = () => {
+  const threadHere = () => {
     const held = heldThread();
-    if (held) return drawnThreadId(held);
+    if (held) return held;
+    const shown = preview?.accompanied() ?? null;
     const active = focused();
-    const ids = active ? threadIdsAt(active) : [];
-    const shown = threadHere();
-    const shownId = drawnThreadId(shown);
-    if ((!active || active === document.body) && shownId) return shownId;
-    return ids.includes(shownId) ? shownId : ids[0] ?? null;
+    if (!active || active === document.body) return shown;
+    const ids = threadIdsAt(active);
+    const drawn2 = [
+      shown,
+      ...ids.map((id) => surfaceFocusTarget(id, { part: "thread" }))
+    ].filter((thread) => thread && ids.includes(drawnThreadId(thread)));
+    return drawn2.length === 1 ? drawn2[0] : null;
+  };
+  const threadAtStanding = () => {
+    const here = drawnThreadId(threadHere());
+    if (here) return here;
+    const active = focused();
+    return (active && threadIdsAt(active)[0]) ?? null;
   };
   const replyThreadAtStanding = () => {
     const id = threadAtStanding();
     const thread = allThreads().find((candidate) => candidate.id === id);
     return thread && replyAvailable(thread) ? id : null;
   };
-  const threadFocusTarget = (id, { part = null } = {}) => part === "message" ? null : surfaceFocusTarget(id, { part }) ?? preview?.focusTarget(id, { part }) ?? null;
+  const threadFocusTarget = (id, { part = null } = {}) => surfaceFocusTarget(id, { part }) ?? preview?.focusTarget(id, { part }) ?? null;
   const DECLINED = /* @__PURE__ */ Symbol("declined");
   const UNDRAWN = /* @__PURE__ */ Symbol("undrawn");
   async function openPageThread(id, {
@@ -6135,7 +6143,9 @@ function createThreadDestinations({
     const selected = presentation?.owner.isConnected ? presentation : null;
     const thread = threadNamed(id);
     if (selected && (!thread || !discussed(thread))) return null;
-    function inPrimary(last) {
+    const holder = part === "message" ? authoredHolder(id) : null;
+    const drawn2 = Boolean(selected && holder && renderedUnder(holder, selected.owner));
+    function inPrimary(last2) {
       opening?.abort();
       const abort = new AbortController();
       opening = abort;
@@ -6145,7 +6155,7 @@ function createThreadDestinations({
         message: part === "message" ? thread.msgs.find((message) => message.id === id)?.key ?? null : null,
         part,
         focus,
-        last,
+        last: last2,
         signal: abort.signal,
         current: () => !abort.signal.aborted && presentation === selected && selected.owner.isConnected && (focus === false ? intent.available() : intent())
       };
@@ -6156,12 +6166,12 @@ function createThreadDestinations({
         intent: arriving
       }) : null;
       const result = selected.open(thread.key, request);
-      if (result === false) return mayPresent() ? DECLINED : null;
+      if (result === false && !drawn2) return mayPresent() ? DECLINED : null;
       return taken(result);
       async function taken(result2) {
         const selectedLayout = result2?.then ? await whileCurrent(result2) : result2;
         if (!mayPresent()) return null;
-        if (selectedLayout === false) return DECLINED;
+        if (selectedLayout === false && !drawn2) return DECLINED;
         await whileCurrent(selected.reader.update());
         if (!mayPresent()) return null;
         const destination = selected.reader.destination(thread.key, request);
@@ -6194,6 +6204,7 @@ function createThreadDestinations({
     async function onPage() {
       const mayPresent = () => focus === false ? intent.available() : intent();
       const localPart = part ?? "reply";
+      if (part === "message") showHeld(id);
       const openSurface = async () => {
         if (preview) intent.handoff(preview.close);
         if (trip) {
@@ -6256,7 +6267,7 @@ function createThreadDestinations({
         }
         return threadFocusTarget(id, { part });
       }
-      const held = revealHeld([id]);
+      const held = revealHeld([threadIdNamed(id)]);
       if (held) {
         await held.presented;
         if (!mayPresent()) return null;
@@ -6267,13 +6278,11 @@ function createThreadDestinations({
     const asked = selected ? inPrimary(false) : DECLINED;
     const first = asked instanceof Promise ? await asked : asked;
     if (first !== DECLINED && first !== UNDRAWN) return first;
-    if (part !== "message") {
-      const shown2 = await onPage();
-      if (shown2 !== DECLINED) return shown2;
-    }
+    const shown = await onPage();
+    if (shown !== DECLINED) return shown;
     if (!selected || first !== DECLINED) return null;
-    const shown = await inPrimary(true);
-    return shown === DECLINED || shown === UNDRAWN ? null : shown;
+    const last = await inPrimary(true);
+    return last === DECLINED || last === UNDRAWN ? null : last;
   }
   async function openThreadSubject(id, { intent = retainUserIntent() } = {}) {
     const message = placedAt(id)?.message;
@@ -6527,7 +6536,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
     const candidate = held.prepare(
       {
         threads: collection.threads.map(
-          (thread) => threadReading(thread, "outlet", { ...commands, nativeAuthored: true })
+          (thread) => threadReading(thread, "outlet", { ...commands, authoredRank: 3 })
         )
       },
       { row: false }
@@ -6642,7 +6651,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
       let view = views.get(item.identity);
       if (!view) {
         if (item.kind === "thread")
-          view = new ThreadView({ ...commands, nativeAuthored: true });
+          view = new ThreadView({ ...commands, authoredRank: 3 });
         else if (item.kind === "news") {
           const notice2 = newsNotice();
           view = { node: notice2.node, notice: notice2, dispose() {
@@ -6773,7 +6782,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
           const message = item.thread.msgs.find((entry) => entry.key === item.message);
           view.headNotice = !nominated;
           view.reading = messageReading(message, {
-            nativeAuthored: true,
+            authoredRank: 3,
             reactions: message.reactions,
             workflows: message.workflows
           });
@@ -6980,7 +6989,7 @@ function createReadTracking({ markRead, openThread }) {
         item
       ])
     );
-    const mayRead = threadsPresented && document.hasFocus();
+    const mayRead = threadsPresented && document.hasFocus() && sessionIsActive();
     const clips = /* @__PURE__ */ new Map();
     const completed = /* @__PURE__ */ new Map();
     const unseenWords = [];
@@ -7081,6 +7090,7 @@ function createReadTracking({ markRead, openThread }) {
     });
     addEventListener("blur", resetExposure);
     addEventListener("load", scheduleScan, true);
+    document.addEventListener("lf-session-active", scheduleScan);
     frameWatches.push(
       onFrameVisibility((visibility) => {
         if (visibility.visible) scheduleScan();
@@ -8137,12 +8147,12 @@ function createThreadLanding() {
   const landSent = standOnThread;
   return { landIn, landInThread: landInThread2, landSent };
 }
-function declareThreadKeys(landIn) {
+function declareThreadKeys(landIn, threadHere) {
   pageScope("thread", {
     title: "In a thread",
     root: focused,
     when: () => threadList().length > 0,
-    at: () => Boolean(heldThread()),
+    at: () => Boolean(threadHere()),
     rows: [
       {
         id: "thread.primary",
@@ -8166,12 +8176,12 @@ function declareThreadKeys(landIn) {
         id: "thread.resolution.toggle",
         touch: false,
         keys: ["r"],
-        description: () => resolutionControl(heldThread())?.matches(".lf-reopen") ? "Reopen it" : "Resolve it",
-        title: () => resolutionControl(heldThread())?.matches(".lf-reopen") ? "reopen" : "resolve",
-        when: () => resolutionControl(heldThread())?.matches(
+        description: () => resolutionControl(threadHere())?.matches(".lf-reopen") ? "Reopen it" : "Resolve it",
+        title: () => resolutionControl(threadHere())?.matches(".lf-reopen") ? "reopen" : "resolve",
+        when: () => resolutionControl(threadHere())?.matches(
           ':not(:disabled, [aria-disabled="true"])'
         ),
-        run: () => resolutionControl(heldThread()).click()
+        run: () => resolutionControl(threadHere()).click()
       }
     ]
   });

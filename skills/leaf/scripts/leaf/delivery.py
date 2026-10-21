@@ -831,11 +831,69 @@ def cmd_delivery_read(delivery_id: str, *, part: int = 1) -> dict:
 
 def cmd_delivery_ack(delivery_id: str) -> None:
     """Accept the reader's attestation that every part reached its context. A page
-    the delivery names that has gone refuses it in the system's own words."""
+    the delivery names that has gone refuses it in the system's own words. A
+    delivery an earlier turn already picked up is noted as a repeat
+    (`earlier_pickup`)."""
     try:
         receive_delivery(delivery_id)
     except FileNotFoundError as error:
         raise Refused(str(error)) from error
+    harness = session_harness()
+    if harness and (
+        repeat := earlier_pickup(read_delivery(delivery_id), harness.session)
+    ):
+        from .findings import note
+
+        note(repeat)
+
+
+def earlier_pickup(payload: dict, session_id: str):
+    """The note saying that an earlier turn of `session_id` already picked up the
+    delivery `payload`, or None where none did.
+
+    `codex queue` takes no message id, so a failure after it returns and before
+    Leaf records the acceptance queues the same pointer again, and Codex runs a
+    turn for each (`codex_adapter._offer_queued_delivery`). The page log's opened
+    pickups name the turns that took the delivery, and the note names them with
+    the answers its updates still owe, read from the page rather than the
+    agent's memory, so the turn acknowledging it again repeats no work and still
+    answers what the earlier turn left owed."""
+    from .activity import answer_command
+    from .findings import Finding
+    from .served_state.context import read_page
+
+    turn = session_record(session_id)["turn"]
+    turns, answers = set(), []
+    for batch in payload["batches"]:
+        page_dir = Path(batch["page"])
+        inputs = {event["id"] for event in batch["events"]}
+        with PageTransaction(page_dir) as page:
+            earlier = {
+                receipt["turn"]
+                for receipt in pickup_receipts(page.events, phase="opened")
+                if receipt["session"] == session_id
+                and receipt["turn"] != turn
+                and inputs.intersection(receipt["events"])
+            }
+            if not earlier:
+                continue
+            turns |= earlier
+            answers += [
+                answer_command(item["answer"], page_dir)
+                for item in read_page(page_dir, page.events).work.obligations
+                if item["input"] in inputs
+            ]
+    if not turns:
+        return None
+    return Finding(
+        "delivery-repeated",
+        values={
+            "delivery": payload["id"],
+            "turns": sorted(turns, key=str),
+            "answers": answers,
+        },
+        severity="advice",
+    )
 
 
 def pickup_receipts(
@@ -986,8 +1044,9 @@ def deliverable(
     Which updates are owed is the page's fold, whose page model costs about 70 ms
     of CPU to import. Codex's tool hook runs after every tool call, so it passes
     `received=False` and hands over only what the cursor has not passed, answered
-    without loading the page's layer where nothing is pending; its Stop hook hands
-    over the rest (`harness.CodexHarness.offer_at_step`)."""
+    without loading the page's layer where nothing is pending; the adapter, or the
+    Stop hook where no adapter runs, hands over the rest
+    (`harness.CodexHarness.offer_at_step`)."""
     pending = unacknowledged(page.events, page.cursor)
     owed = unreferenced(page, obligations) if received else []
     if not pending and not owed:

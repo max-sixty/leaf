@@ -161,7 +161,7 @@ faulthandler_exit_on_timeout = true
 # protocol fixes. A new framework gets its pattern here; a definition only a
 # removed caller used gets deleted.
 [tool.vulture]
-paths = ["build", "dev", "hooks", "skills", "tests", "worker"]
+paths = ["build", "dev", "evals", "hooks", "skills", "tests", "worker"]
 exclude = ["vendor/", "node_modules/"]
 min_confidence = 60
 ignore_decorators = [

@@ -30,8 +30,10 @@
  * The editor reads as an ordinary text box: its words stand in the field until Save
  * or Cancel, and the field's own undo walks them back. Save submits one absolute edit
  * through the shared send generation; Cancel and Escape close the editor, discarding
- * its changes, as a message rewrite's do. A saved edit is withdrawn with the page's
- * undo (`z`), and the log keeps every version for the agent. Rejected: Escape setting
+ * its changes, as a message rewrite's do. Pointer Cancel returns the frame
+ * over a short native size interpolation; its words and Edit focus return at once.
+ * Keyboard cancellation and reduced motion are instant; reopening cancels the effect.
+ * A saved edit is withdrawn with the page's undo (`z`), and the log keeps every version for the agent. Rejected: Escape setting
  * unsent words aside for the next opening, which needed a Close button beside Cancel
  * and left a closed box holding words it gave no sign of; and a Changes list that
  * restored earlier versions, which the page's undo already does.
@@ -45,6 +47,8 @@
  */
 import {
   commandScope,
+  motion,
+  returnDuration,
   iconTemplate,
   html,
   render,
@@ -119,6 +123,8 @@ customElements.define(
     #commandScope = null;
     #resumeProjection = null;
     #recovered = false;
+    #returnMotion = null;
+    #cancelSize = null;
 
     setup() {
       this.#body = this.querySelector(":scope > .lf-markdown-body");
@@ -132,6 +138,28 @@ customElements.define(
       if (quoted(this)) return;
 
       this.#offerControls();
+      // Capture only the pointer Cancel's old allocation. The command still owns
+      // closing, discarding and focus; its new reading is true before this effect.
+      this.addEventListener(
+        "click",
+        (event) => {
+          this.#cancelSize = null;
+          if (
+            event.button !== 0 ||
+            pressIsKeyboardActivation(event) ||
+            !(
+              /** @type {Element} */ (event.target).closest(
+                '[data-lf-draft-action="cancel"]',
+              )
+            ) ||
+            !this.#editor ||
+            !CSS.supports("block-size", "calc-size(auto, size)")
+          )
+            return;
+          this.#cancelSize = this.getBoundingClientRect().height;
+        },
+        { capture: true },
+      );
 
       // A click opens the exact source at its rendered caret. Presses, links and
       // completed word selections own their own gestures; Leaf's generated chrome that
@@ -166,6 +194,7 @@ customElements.define(
         )
           this.#resumeProjection = this.controller.defer();
         return () => {
+          this.#returnMotion?.cancel();
           stopDraft?.();
           this.#resumeProjection?.();
           this.#resumeProjection = null;
@@ -230,6 +259,7 @@ customElements.define(
         () => this.#editor?.value ?? this.controller.read().state.edit.value,
         "Markdown",
       );
+      this.#copy.classList.add("lf-quiet-action");
       this.#paintTools();
       this.#ensureCommands();
     }
@@ -292,7 +322,7 @@ customElements.define(
             const retry = key === "save" && this.#failed;
             const name = retry ? "Retry" : title;
             return html`<button
-              ${offered("lf-btn lf-draft-action")}
+              ${offered("lf-btn lf-quiet-action lf-draft-action")}
               data-lf-draft-action=${key}
               ?hidden=${key === "edit" ? editing : !editing}
               aria-expanded=${key === "edit" ? String(editing) : nothing}
@@ -323,6 +353,8 @@ customElements.define(
     }
 
     #open(seed, at, arrive = true) {
+      this.#returnMotion?.cancel();
+      this.#returnMotion = null;
       if (this.#editor) return;
       if (this.#sending) {
         raiseError("Wait for the current edit to finish sending");
@@ -366,6 +398,16 @@ customElements.define(
 
     #close(discard) {
       if (!this.#editor) return;
+      const before = this.#cancelSize;
+      this.#cancelSize = null;
+      // Hold the old allocation before any control repaint can read layout and
+      // clamp a reader at the document foot. Native auto follows the restored body.
+      if (before !== null)
+        this.#returnMotion = motion(
+          this,
+          [{ blockSize: `${before}px` }, { blockSize: "calc-size(auto, size)" }],
+          returnDuration(),
+        );
       if (discard) clearEdit(this.id);
       // Only where the user was standing in it. A close this tab's own gesture made
       // has focus in the box that is going, and the draft's one persistent control is

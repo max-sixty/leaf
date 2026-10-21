@@ -30,7 +30,9 @@
  * - A part new to the box is revealed: cut to the frame it stands in, the surface or
  *   the part holding it, as that frame's edges reach it, and still new while that
  *   lasts. A side where it stands out of its frame, as the attachments hanging over the
- *   box's top do, is cut only at its own edge.
+ *   box's top do, is cut only at its own edge. A part carried past it in that frame
+ *   cuts it too, so it comes out from behind that part, as the field does behind the
+ *   leaf leaving the corner, rather than showing under it.
  *
  * Whose change it is decides what travels. The user's own change, a key, a press or
  * typing, owns what it sets going until that rendering settles, and carries what it
@@ -358,25 +360,50 @@ export function boxMotion({
     }
 
     // Cut to the frame it stands in as the frame's edges reach it, on every side but
-    // one it stands out of.
-    function reveal(part, frame) {
+    // one it stands out of, and to each carried part beside it in that frame as that
+    // part passes, so it comes out from behind the part rather than under it.
+    function reveal(part, frame, siblings) {
       const to = part.box;
       const side = (inset, beyond) => (beyond ? 0 : Math.max(0, inset));
-      const cut = [
+      /** @type {[number, number, number, number]} */
+      const from = [
         side(frame.from.top - to.top, to.top < frame.to.top - 0.5),
         side(to.right - frame.from.right, to.right > frame.to.right + 0.5),
         side(to.bottom - frame.from.bottom, to.bottom > frame.to.bottom + 0.5),
         side(frame.from.left - to.left, to.left < frame.to.left - 0.5),
       ];
-      if (cut.every((inset) => near(inset, 0))) return;
+      /** @type {[number, number, number, number]} */
+      const end = [0, 0, 0, 0];
+      const overlaps = (a, b, low, high) => a[low] < b[high] && b[low] < a[high];
+      for (const sibling of siblings) {
+        const motion = motions.get(sibling.element);
+        if (!motion || motion.revealed) continue;
+        const { from: then, to: at } = motion;
+        const across = overlaps(at, to, "top", "bottom");
+        const along = overlaps(at, to, "left", "right");
+        // On each side the part stands beside it, how far in it reaches, then and at
+        // rest.
+        [
+          along && { then: then.bottom - to.top, rest: at.bottom - to.top },
+          across && { then: to.right - then.left, rest: to.right - at.left },
+          along && { then: to.bottom - then.top, rest: to.bottom - at.top },
+          across && { then: then.right - to.left, rest: at.right - to.left },
+        ].forEach((reach, index) => {
+          if (reach && reach.rest <= 0.5 && reach.then > from[index]) {
+            from[index] = reach.then;
+            end[index] = reach.rest;
+          }
+        });
+      }
+      if (from.every((inset) => near(inset, 0))) return;
       motions.set(part.element, { from: to, to, revealed: true });
-      cutFrom(part.element, cut);
+      start(part.element, [{ clipPath: insetOf(from) }, { clipPath: insetOf(end) }]);
     }
 
-    function place(part, frame) {
+    function place(part, frame, siblings = []) {
       const { element, style, box: to } = part;
       const from = was.get(element);
-      if (!from) return reveal(part, frame);
+      if (!from) return reveal(part, frame, siblings);
       const rest = before.get(element);
       const sized =
         !framed.has(element) &&
@@ -386,7 +413,7 @@ export function boxMotion({
       if (element !== box && element !== root) {
         const carries = gesture !== null;
         if (sized && !part.holdsWindow)
-          return carries ? carry(part, from) : reveal(part, frame);
+          return carries ? carry(part, from) : reveal(part, frame, siblings);
         if (part.whole) return carries ? carryContent(part, from) : grow(part, from);
         if (!same(from, to)) within = { from, to };
         if (!sized && rings(style)) {
@@ -408,7 +435,11 @@ export function boxMotion({
         } else if (!sized && paints(style) && !part.holdsWindow) grow(part, from);
         if (!same(from, to)) motions.set(element, { from, to, frames: true });
       }
-      for (const inner of part.parts) place(inner, within);
+      // What carries is placed first, so what is new beside it is revealed from it.
+      const placed = [...part.parts].sort(
+        (a, b) => Number(!was.has(a.element)) - Number(!was.has(b.element)),
+      );
+      for (const inner of placed) place(inner, within, part.parts);
     }
 
     for (const part of parts) place(part, { from: boxFrom, to: boxAt });

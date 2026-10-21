@@ -12,7 +12,7 @@
 // Parent input bridges belong to the child document. Pagehide releases them before
 // its realm goes away; a back-forward cache return reconnects the same bridges.
 // Explicitly enrolled document ports carry the exact scheduling source between
-// instrumented browser realms, including opaque frames. Their private envelope is
+// instrumented browser realms, including opaque frames. Its private field is
 // removed before application listeners run. Unclassified ports retain native traffic.
 // The watch's own scheduling uses the saved platform methods and is never counted.
 (() => {
@@ -399,25 +399,31 @@
   const nativeAdd = EventTarget.prototype.addEventListener;
   const post = MessagePort.prototype.postMessage;
   const onmessage = Object.getOwnPropertyDescriptor(MessagePort.prototype, "onmessage");
+  // Leaf's ports send plain objects, and the source rides on each as one extra field,
+  // which a peer this watch is not installed in reads past: Playwright's Firefox
+  // leaves some sample frames without init scripts, and a message wrapped whole
+  // would mean nothing there.
+  const CARRIED = "lfInputWorkSource";
   const adoptedPorts = new WeakSet();
   const adoptPort = (port) => {
     if (adoptedPorts.has(port)) return;
     adoptedPorts.add(port);
     nativeAdd.call(port, "message", (event) => {
-      const envelope = event.data;
-      if (envelope?.lfInputWorkMessage !== true) return;
-      Object.defineProperty(event, "data", { value: envelope.value });
-      sources.set(event, unpackSource(envelope.source));
+      const { data } = event;
+      if (!Object.hasOwn(Object(data), CARRIED)) return;
+      const { [CARRIED]: packed, ...value } = data;
+      Object.defineProperty(event, "data", { value });
+      sources.set(event, unpackSource(packed));
     });
     Object.defineProperty(port, "postMessage", {
       configurable: true,
       writable: true,
       value(value, ...args) {
-        return post.call(
-          this,
-          { lfInputWorkMessage: true, value, source: packSource(current()) },
-          ...args,
-        );
+        const carried =
+          value?.constructor === Object
+            ? { ...value, [CARRIED]: packSource(current()) }
+            : value;
+        return post.call(this, carried, ...args);
       },
     });
     Object.defineProperty(port, "onmessage", {

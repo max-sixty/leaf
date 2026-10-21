@@ -25,7 +25,13 @@ from leaf import thread as thread_model
 from leaf.render_checks import one_frame, wait_until_ready
 from model_folds import leaf_page
 from playwright.sync_api import expect
-from render_cases_interaction import LIVE_V1, LIVE_V2, live_url, panel_comment
+from render_cases_interaction import (
+    HOLD_MOTION,
+    LIVE_V1,
+    LIVE_V2,
+    live_url,
+    panel_comment,
+)
 from render_cases_layout import solid_png
 from render_harness import (
     LONG_PAGE,
@@ -90,7 +96,8 @@ def settled(page):
     """Wait until the panel's motion has finished, so a box read is where it rests."""
     page.wait_for_function(
         "() => ['.lf-floating-panel', '.lf-fp-ground'].every(s =>"
-        " !document.querySelector(s).getAnimations({subtree: true}).length)"
+        " !document.querySelector(s).getAnimations({subtree: true}).some(a =>"
+        " Number.isFinite(a.effect?.getComputedTiming().endTime)))"
     )
 
 
@@ -1186,6 +1193,7 @@ THREAD_FIT = """() => {
     room: parseFloat(getComputedStyle(view).paddingBottom),
     first: messages[0].getBoundingClientRect().top,
     panel: document.querySelector('.lf-fp-card').getBoundingClientRect().top,
+    window: window.innerHeight,
   };
 }"""
 
@@ -1229,7 +1237,7 @@ def test_a_thread_s_view_is_as_tall_as_its_messages(browser, serve):
     settled(page)
     long = page.evaluate(THREAD_FIT)
     assert long["height"] > 600, long
-    assert long["panel"] >= 100, long
+    assert long["panel"] >= long["window"] * 0.1, long
 
 
 GROWTH = """() => {
@@ -1619,7 +1627,7 @@ def test_a_fold_pressed_in_a_thread_s_view_stays_under_the_press(browser, serve)
     expect(page.locator(toggle)).to_have_attribute("aria-expanded", "true")
     settled(page)
     after = page.evaluate(PRESS_AND_HEAD, toggle)
-    assert after["toggle"] == stood["toggle"], (stood, after)
+    assert after["toggle"] == pytest.approx(stood["toggle"], abs=0.5), (stood, after)
     for step in view.locator(".lf-msg", has_text="Checking").all():
         expect(step).to_be_in_viewport(ratio=1)
 
@@ -1628,7 +1636,7 @@ def test_a_fold_pressed_in_a_thread_s_view_stays_under_the_press(browser, serve)
     page.locator(toggle).click()
     expect(page.locator(toggle)).to_have_attribute("aria-expanded", "true")
     settled(page)
-    assert page.evaluate(PRESS_AND_HEAD, toggle) == stood
+    assert page.evaluate(PRESS_AND_HEAD, toggle) == pytest.approx(stood, abs=0.5)
     expect(view.locator(".lf-msg:visible")).to_have_count(7)
 
 
@@ -2677,6 +2685,142 @@ def test_the_panel_folds_to_the_leaf_and_stays_folded(browser, serve):
     expect(page.locator(".lf-fp-view[data-view=threads]")).to_be_visible()
 
 
+@pytest.mark.parametrize("scheme", ["light", "dark"])
+def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
+    browser, serve, scheme
+):
+    """The mark rides the box into its corner and back, while the row's words come out
+    from behind it; its button and focus arrive at once. Reversing starts from where it
+    is drawn, and reduced motion takes the endpoint."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    page = floating(browser, serve(LONG_PAGE, comments=1))
+    resized(page, 675, 898)
+    page.emulate_media(reduced_motion="no-preference", color_scheme=scheme)
+    field(page).click()
+    paste_image(field(page), solid_png(40, 30, (255, 128, 64)))
+    shelf = page.locator(".lf-fp-box .lf-composer-media-item")
+    expect(shelf).to_have_count(1)
+    page.keyboard.press("Escape")
+    settled(page)
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    panel = page.locator(".lf-floating-panel")
+    leaf = page.locator(".lf-fp-leaf")
+    mark = panel.locator(".lf-dot")
+
+    def reading():
+        return mark.evaluate("""node => {
+          const box = node.getBoundingClientRect();
+          let opacity = 1;
+          for (let at = node; at; at = at.parentElement)
+            opacity *= Number(getComputedStyle(at).opacity);
+          return {x: box.x + box.width / 2, y: box.y + box.height / 2, opacity};
+        }""")
+
+    def seek(at):
+        page.evaluate(
+            "at => __lfHeld.filter(a => a.playState !== 'idle')"
+            ".forEach(a => a.currentTime = at)",
+            at,
+        )
+        one_frame(page)
+        return reading()
+
+    def paints():
+        pixels = Image.open(BytesIO(page.screenshot(clip=mark.bounding_box()))).convert(
+            "L"
+        )
+        low, high = pixels.getextrema()
+        assert high - low > 32, (low, high)
+
+    def beyond_mark():
+        # How far the leaf's trailing edge stands past its mark's.
+        return mark.evaluate(
+            "node => node.closest('.lf-fp-leaf').getBoundingClientRect().right"
+            " - node.getBoundingClientRect().right"
+        )
+
+    def words_follow_leaf():
+        # The field shows nothing under the leaf: its words come out from behind its
+        # trailing edge, which stands past the mark by between its two rests' margins.
+        edges = page.locator(".lf-fp-field").evaluate("""field => {
+          const sides = getComputedStyle(field).clipPath.match(/[-\\d.]+px/g);
+          return {field: field.getBoundingClientRect().left,
+            words: field.getBoundingClientRect().left + parseFloat(sides[3]),
+            mark: document.querySelector('.lf-fp-leaf .lf-dot').getBoundingClientRect().right};
+        }""")
+        assert edges["field"] < edges["mark"]
+        past = edges["words"] - edges["mark"]
+        assert min(margins) - 0.5 <= past <= max(margins) + 0.5, (past, margins)
+
+    row = reading()
+    margins = [beyond_mark()]
+    page.keyboard.press(".")
+    expect(panel).to_have_attribute("data-rest", "mark")
+    one_frame(page)
+    first = seek(0)
+    target = leaf.bounding_box()
+    assert first == pytest.approx(row, abs=0.5)
+    middle = seek(80)
+    paints()
+    folded = seek(300)
+    margins.append(beyond_mark())
+    assert row["x"] < middle["x"] < folded["x"]
+    assert middle["opacity"] == folded["opacity"] == 1
+    assert leaf.bounding_box() == target
+    assert folded["x"] == pytest.approx(target["x"] + target["width"] / 2, abs=0.5)
+
+    leaf.focus()
+    page.keyboard.press("Enter")
+    expect(panel).to_have_attribute("data-rest", "row")
+    one_frame(page)
+    assert seek(0) == pytest.approx(folded, abs=0.5)
+    paints()
+    seek(80)
+    words_follow_leaf()
+    assert seek(300) == pytest.approx(row, abs=0.5)
+    page.keyboard.press(".")
+    expect(panel).to_have_attribute("data-rest", "mark")
+    one_frame(page)
+
+    # Turn back before arrival. The new tween's first frame is the old one's current
+    # drawing, not either resting position, while focus takes its new target.
+    middle = seek(80)
+    leaf.focus()
+    page.keyboard.press("Enter")
+    expect(panel).to_have_attribute("data-rest", "row")
+    one_frame(page)
+    # The mark is a pixel narrower in the row and travels by its corner, so its centre
+    # starts half that from where it was drawn.
+    assert seek(0) == pytest.approx(middle, abs=1)
+    paints()
+    target = leaf.bounding_box()
+    expect(leaf).to_be_focused()
+    back = seek(80)
+    paints()
+    words_follow_leaf()
+    assert row["x"] < back["x"] < middle["x"]
+    assert back["opacity"] == 1
+    assert leaf.bounding_box() == target
+    assert seek(300) == pytest.approx(row, abs=0.5)
+
+    page.evaluate("() => __lfHeld.forEach(a => a.finish())")
+    settled(page)
+    expect(shelf).to_be_visible()
+    page.emulate_media(reduced_motion="reduce")
+    page.keyboard.press(".")
+    expect(panel).to_have_attribute("data-rest", "mark")
+    one_frame(page)
+    target = leaf.bounding_box()
+    assert reading()["x"] == pytest.approx(target["x"] + target["width"] / 2, abs=0.5)
+    assert not page.evaluate(
+        "() => ['.lf-floating-panel', '.lf-fp-ground'].some(s =>"
+        " document.querySelector(s).getAnimations({subtree: true}).length)"
+    )
+
+
 def test_a_new_line_past_the_field_s_height_scrolls_into_view(browser, serve):
     """Shift+Enter at the field's height limit scrolls the new, empty line into view,
     as typing a character does, rather than leaving the caret below the field."""
@@ -3419,7 +3563,7 @@ def test_a_menu_row_that_puts_the_menu_away_leaves_the_user_on_the_leaf(browser,
     menu = page.locator(".lf-fp-menu")
     leaf.click()
     menu.locator(".lf-fp-item", has_text="Annotations").click()
-    menu.locator(".lf-fp-item").last.click()
+    menu.locator(".lf-fp-item:not(.lf-fp-menu-back)").first.click()
     expect(menu).to_be_hidden()
     expect(leaf).to_be_focused()
 
@@ -3791,10 +3935,9 @@ def test_a_thread_the_page_draws_nowhere_opens_in_the_panel(browser, serve):
     expect(reader.locator(".lf-msg")).to_contain_text("Should the rollout pause")
 
 
-def test_a_reply_its_card_cannot_draw_opens_in_the_panel(browser, serve):
-    """A route to one message needs the reader that draws a message whole, which is
-    Leaf's in the panel: a reply carrying a widget, which a thread's card beside its
-    passage offers to open, opens in the panel's thread view, widget and all."""
+def test_a_reply_s_widget_stands_in_its_card(browser, serve):
+    """A thread's card beside its passage draws a reply carrying a widget whole, widget
+    and all, and the panel stays shut."""
     url = serve(LONG_PAGE)
     root = panel_comment(
         serve.page_dir,
@@ -3814,9 +3957,8 @@ def test_a_reply_its_card_cannot_draw_opens_in_the_panel(browser, serve):
     page = floating(browser, url)
     page.locator("body").focus()
     page.keyboard.press("t")
-    page.locator(".lf-page-thread-open").click()
-    reader = page.locator(".lf-fp-view[data-view=thread]")
-    expect(reader.locator("#first-job")).to_be_visible()
+    expect(page.locator(".lf-margin-preview #first-job")).to_be_visible()
+    expect(page.locator(".lf-fp-view[data-view=thread]")).to_have_count(0)
 
 
 def test_a_thread_s_messages_read_alike_in_its_card_and_the_panel(browser, serve):

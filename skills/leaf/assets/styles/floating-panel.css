@@ -1719,8 +1719,7 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .lf-floating-panel[data-rest="mark"]
-      :is(.lf-fp-leaf, .lf-fp-badge, .lf-fp-news-dot) {
+    .lf-floating-panel[data-rest="mark"] :is(.lf-fp-badge, .lf-fp-news-dot) {
       animation: none;
     }
     .lf-fp-peek,

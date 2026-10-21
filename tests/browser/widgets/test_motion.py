@@ -91,9 +91,9 @@ study.renderFrame = time => {
     expect(play).to_have_text("Replay")
     play.click()
     page.clock.run_for(160)
-    assert page.locator("#study").evaluate("study => study.currentTime") == pytest.approx(
-        40, abs=4
-    )
+    assert page.locator("#study").evaluate(
+        "study => study.currentTime"
+    ) == pytest.approx(40, abs=4)
     play.click()
     current = page.locator("#study").evaluate("study => study.currentTime")
 

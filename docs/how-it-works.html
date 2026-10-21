@@ -403,9 +403,6 @@
       .coherence-grid.two {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
-      .coherence-grid.three {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-      }
       .coherence-node {
         min-width: 0;
         padding: var(--sp-3);
@@ -466,8 +463,7 @@
         content: "→ ";
       }
       @media (width < 600px) {
-        .coherence-grid.two,
-        .coherence-grid.three {
+        .coherence-grid.two {
           grid-template-columns: minmax(0, 1fr);
         }
         .coherence-route {
@@ -1190,7 +1186,9 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
                   instructions. A delivery id supplied by the harness names this whole
                   envelope; an event’s <code>id</code> names one recorded event.
                   <a href="#wait-ack">Harness connections and receipt</a> describes how
-                  to read and confirm a delivery pointer. <a href="/data-structures/#record-delivery">Data structures</a> lists every field.
+                  to read and confirm a delivery pointer.
+                  <a href="/data-structures/#record-delivery">Data structures</a> lists
+                  every field.
                 </p>
                 <table id="delivery-fields">
                   <thead>
@@ -1223,7 +1221,10 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
                     <tr>
                       <td><code>answer</code></td>
                       <td>
-                        The response owed at capture, with its address and <code>ref</code>: a thread <code>reply</code>, whose <code>writer</code> is the agent or the turn’s final message, or a stamped <code>markup</code> revision.
+                        The response owed at capture, with its address and
+                        <code>ref</code>: a thread <code>reply</code>, whose
+                        <code>writer</code> is the agent or the turn’s final message, or
+                        a stamped <code>markup</code> revision.
                       </td>
                     </tr>
                     <tr>
@@ -1370,8 +1371,10 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   unanswered updates and delivery between turns. Claude Code shows a
                   reminder as context, not an error. A new update normally opens a turn
                   of its own after this one ends, preserving this turn’s final message
-                  as its answer. Where nothing watches afterward, as with Claude Code’s plain
-                  <code>--print</code> or a Codex task waiting with <code>leaf wait</code>, an update needing an answer enters the current
+                  as its answer. Where nothing watches afterward, as with Claude Code’s
+                  plain
+                  <code>--print</code> or a Codex task waiting with
+                  <code>leaf wait</code>, an update needing an answer enters the current
                   turn instead. An update needing no answer waits for the next turn.
                 </p>
                 <figure id="turn-end-check" class="decision-flow">
@@ -1596,11 +1599,11 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
           <section id="delivery">
             <h2>Harness connections and receipt</h2>
             <p id="wait-trick">
-              Claude Code’s hooks module watches between turns and wakes the agent;
-              its prompt hook puts the update into the new turn. Codex’s adapter queues
-              the update as the next message, or starts a turn when Leaf is an App
-              Server client. Pi’s experimental extension runs inside Pi. Each route
-              supplies the same delivery format and says who confirms receipt.
+              Claude Code’s hooks module watches between turns and wakes the agent; its
+              prompt hook puts the update into the new turn. Codex’s adapter queues the
+              update as the next message, or starts a turn when Leaf is an App Server
+              client. Pi’s experimental extension runs inside Pi. Each route supplies
+              the same delivery format and says who confirms receipt.
             </p>
             <ol id="wait-ack" class="steps">
               <li>
@@ -1657,16 +1660,20 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 <tr>
                   <td>Codex queue</td>
                   <td>
-                    Leaf's adapter queues a delivery id for the next turn and confirms
-                    it; a tool hook can pass a pointer during work.
+                    Leaf’s adapter queues a delivery pointer for the next turn. During
+                    work, hooks pass complete inline input or a pointer. The delivery’s
+                    acknowledgement instruction distinguishes transport confirmation
+                    from complete receipt.
                   </td>
                 </tr>
                 <tr>
                   <td>Codex App Server</td>
                   <td>
                     Leaf starts an agent turn with the updates and confirms receipt.
-                    That turn's opening posts as its progress line, and its final
-                    message becomes the thread reply.
+                    When a reply’s <code>answer.writer</code> is <code>turn</code>, its
+                    opening posts as progress and its final message becomes the thread
+                    reply. A reply whose writer is <code>agent</code> uses the reply
+                    command.
                   </td>
                 </tr>
                 <tr>
@@ -3159,7 +3166,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
             <p id="chrome-bars">
               The page leaves room at its foot for the panel's row, so its last lines
               scroll clear of it. A view opens above the row and covers the page beneath
-              it without moving it; Escape or a press on the page puts it away. The
+              it without moving it; Escape or a press on the page puts it away.
               <a href="#phone">Phones and touch screens</a> describes the panel on a
               touch screen.
             </p>
@@ -3775,8 +3782,8 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 </figcaption>
               </figure>
               <p id="data-bookkeeping-lede">
-                Delivery and diagnostic records support the conversation without
-                supplying widget values or thread messages:
+                Leaf also keeps records for live harness activity, browser presence,
+                delivery and diagnostics:
               </p>
               <table id="data-table">
                 <thead>
@@ -3787,19 +3794,20 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 </thead>
                 <tbody>
                   <tr id="data-row-viewed">
-                  <td><code>user-views.json</code></td>
-                  <td>
-                    Each open tab's view of the page, and the last time a tab showed it
-                  </td>
-                </tr>
-<tr id="data-row-stream">
-                  <td><code>stream.json</code></td>
-                  <td>
-                    What the agent's harness observes of a turn as it runs: its activity
-                    and the reply it is drafting
-                  </td>
-                </tr>
-<tr id="data-row-interactions">
+                    <td><code>user-views.json</code></td>
+                    <td>
+                      Each open tab's view of the page, and the last time a tab showed
+                      it
+                    </td>
+                  </tr>
+                  <tr id="data-row-stream">
+                    <td><code>stream.json</code></td>
+                    <td>
+                      What the agent's harness observes of a turn as it runs: its
+                      activity and the reply it is drafting
+                    </td>
+                  </tr>
+                  <tr id="data-row-interactions">
                     <td><code>observations.jsonl</code></td>
                     <td>A diagnostic trace of requests and browser interactions</td>
                   </tr>
@@ -3813,23 +3821,28 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 </tbody>
               </table>
               <p id="data-structures-link">
-              <a href="/data-structures/">Data structures</a> lists the fields of each
-              of these records, of every event kind, and of the state the server sends
-              the browser.
-            </p>
+                <a href="/data-structures/">Data structures</a> lists the fields of each
+                of these records, of every event kind, and of the state the server sends
+                the browser.
+              </p>
             </section>
             <section id="data-sources">
               <h2>External data</h2>
               <p id="data-sources-lede">
-External values, such as benchmarks or build status, use one JSON publication per named source. <code>leaf data set</code> validates the value against the page’s declaration, records the contract beside the value in the source file, and replaces the publication atomically. Any process can call it. Leaf validates the value against the recorded contract on read and displays a source error for a mismatch.
-</p>
+                External values, such as benchmarks or build status, use one JSON
+                publication per named source. <code>leaf data set</code> validates the
+                value against the page’s declaration, records the contract beside the
+                value in the source file, and replaces the publication atomically. Any
+                process can call it. Leaf validates the value against the recorded
+                contract on read and displays a source error for a mismatch.
+              </p>
               <p id="data-sources-live">
                 A source replacement updates the open page without creating a revision;
-                each publication holds its latest value. A later page revision may
-                bind the source to another contract, which its next write takes. An <code>lf-num</code> instead freezes a
-                number into authored text. It retains that number when the source
-                changes, and <code>leaf page check</code> reports when its source has
-                changed.
+                each publication holds its latest value. A later page revision may bind
+                the source to another contract, which its next write takes. An
+                <code>lf-num</code> instead freezes a number into authored text. It
+                retains that number when the source changes, and
+                <code>leaf page check</code> reports when its source has changed.
               </p>
             </section>
             <section id="data-survives">
@@ -4186,20 +4199,11 @@ External values, such as benchmarks or build status, use one JSON publication pe
                 <tr id="stages-answered">
                   <td>Answered (label clears)</td>
                   <td>
-                    <p>
-                      <strong
-                        >Claude Code, Pi, Codex, or a
-                        <code>leaf wait</code> loop.</strong
-                      >
-                      The agent replied with
-                      <code>leaf response reply &lt;answer.ref&gt;</code>, or published
-                      a version whose markup records the update.
-                    </p>
-                    <p>
-                      <strong>Codex App Server.</strong> The turn ended with a final
-                      message, which Leaf posts as the thread's reply, or the agent
-                      published a version whose markup records the update.
-                    </p>
+                    The answer required by the delivery is recorded: a
+                    <code>leaf response reply</code>, a turn’s final message when
+                    <code>answer.writer</code> is <code>turn</code>, or a version whose
+                    markup records the update. The supplied writer determines the reply
+                    route, including within a Codex task connected to App Server.
                   </td>
                 </tr>
                 <tr>

@@ -1106,10 +1106,10 @@ export function createFloatingPanel({
     theirs: () => gesture,
   });
   // The user's key, press or typing owns what it sets going until that rendering
-  // settles (rendering.js, `afterSettling`), the window the shift watch also gives a
-  // gesture: changes to the box meanwhile are theirs, and what changes it after, such
-  // as an answer arriving, is news. Typing is told apart, since the field it types in
-  // must not move under it.
+  // settles (rendering.js, `afterSettling`): changes to the box meanwhile are theirs,
+  // and what changes it after, such as an answer arriving, is news. News landing before
+  // the gesture's rendering settles, a reading back within a frame or two, is taken as
+  // theirs. Typing is told apart, since the field it types in must not move under it.
   let gesture = null;
   let gestures = 0;
   onUserInput((event) => {

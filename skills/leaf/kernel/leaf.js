@@ -6409,7 +6409,7 @@ function boxMotion({
   const watch = () => {
     watching ||= nextRender(() => {
       watching = 0;
-      const parts = /* @__PURE__ */ new Set([...rests?.keys() ?? [], ...arrived]);
+      const parts = /* @__PURE__ */ new Set([box, ...rests?.keys() ?? [], ...arrived]);
       arrived.clear();
       for (const element of observed)
         if (!parts.has(element)) observer.unobserve(element);

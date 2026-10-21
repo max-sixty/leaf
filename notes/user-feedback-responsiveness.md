@@ -214,10 +214,10 @@ commands took 0.3–0.9 s. In an earlier batch, Claude Code once ran
 `leaf page check --render` before a waiting reply, which no instruction asks for,
 and its commands took 8.3 s.
 
-Once the harness had the comment, neither case was consistently quicker: a
-working reply took 18–36 s against a waiting one's 12–13 s on Claude Code, 26–32 s
-against 18–33 s on Codex, and 27–31 s against 34–40 s on Pi. The wait for the
-boundary, the user's own command, made the difference in the whole reply. In the working case, Pi
+Once the harness had the comment, neither case was consistently quicker: a working
+reply took 18–36 s against a waiting one's 12–13 s on Claude Code, 26–32 s against
+18–33 s on Codex, and 27–31 s against 34–40 s on Pi. The wait for the boundary, the
+user's own command, made the difference in the whole reply. In the working case, Pi
 and Codex also ran the user's `printf` in a call of its own, which belongs to the
 user's task though it falls inside the reply's time.
 

@@ -608,6 +608,50 @@ def test_the_chosen_grouping_orders_on_me_and_the_m_walk_alike(browser, serve):
         expect(cards.nth((first + step) % 3)).to_have_attribute("data-walked", "")
 
 
+def test_an_answer_in_on_me_keeps_its_groups_and_the_m_walk_in_one_order(
+    browser, serve
+):
+    """An item answered in On me keeps its seat, and the groups keep their order, read
+    from everything On me has held rather than from what remains, so the list and the
+    `m` walk, which steps over the answered item, still agree. Grouped by kind, the
+    first question answered leaves Options above To-do, as the walk goes; its group
+    counts what still waits."""
+    url = serve(GROUPED_PAGE)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "todo",
+            "author": "agent",
+            "agent": "Agent",
+            "session": "grouped",
+            "owner": "user",
+            "subject": {"kind": "element", "id": "reap"},
+            "title": "Try the sandboxed run on a fork",
+        },
+    )
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    view = open_on_me(page)
+    page.get_by_role("combobox", name="Group On me").select_option("kind")
+    exit_code = opened(on_card(page, "widget:exit"))
+    exit_code.get_by_role("button", name="75").click()
+    round_trip(page)
+    expect(exit_code.locator(".lf-fp-said")).to_contain_text("Answered: 75")
+    groups = view.locator(".lf-fp-on-group")
+    expect(groups).to_have_text(
+        [re.compile(r"^\s*Options\s*1\s*$"), re.compile(r"^\s*To-do\s*1\s*$")]
+    )
+    runners = on_card(page, "widget:runners")
+    for _ in range(2):
+        page.keyboard.press("m")
+        if runners.get_attribute("data-walked") is not None:
+            break
+    expect(runners).to_have_attribute("data-walked", "")
+    expect_walk_position(page, "1 of 2 waiting on me · Options")
+    page.keyboard.press("m")
+    expect_walk_position(page, "2 of 2 waiting on me · To-do")
+
+
 def test_an_item_arriving_above_takes_its_walk_place_and_moves_no_card_read(
     browser, serve
 ):

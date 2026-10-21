@@ -599,7 +599,9 @@ def test_the_on_view_is_titled_by_its_tab_with_that_list_s_done_under_it(
 def test_on_shows_an_obligation_as_its_message_and_reply_comes_back(browser, serve):
     """A question the agent asked in a thread reads in the On view as its message, drawn
     whole as the thread draws it, so what it introduces after a colon is there with it.
-    Reply opens its thread with On behind it, where the back link returns."""
+    The view grows to show the card once the message is drawn, its Reply above the
+    view's foot. Reply opens its thread with On behind it, where the back link
+    returns."""
     url = serve(LONG_PAGE)
     panel_comment(
         serve.page_dir,
@@ -615,6 +617,10 @@ def test_on_shows_an_obligation_as_its_message_and_reply_comes_back(browser, ser
     expect(card.locator(".lf-msg")).to_have_count(1)
     expect(card.locator("li")).to_have_count(2)
     expect(card).to_contain_text("#4812 manual")
+    settled(page)
+    reply = card.locator(".lf-fp-answer", has_text="Reply").bounding_box()
+    view = page.locator(".lf-fp-view[data-view=queue]").bounding_box()
+    assert reply["y"] + reply["height"] <= view["y"] + view["height"], (reply, view)
 
     card.locator(".lf-fp-answer", has_text="Reply").click()
     expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()

@@ -11,7 +11,7 @@
    place. Groups stand in the order their first item comes in page order, a plan's
    goals in the plan's order and a goal's items in its steps' order, and the walk steps
    through the groups' items in that one order, so successive presses reach successive
-   rows of the list. The user chose groupings to choose from, the agent's plan among
+   rows of the list (`onMeGroups` says how answered items keep that order still). The user chose groupings to choose from, the agent's plan among
    them, on 21 October 2026, over Leaf ordering by what the plan waits on, an agent's
    note with picks, and a priority on every obligation, each of which needed a new
    contract or a guess. A step from no item on the list, from where the user reads,
@@ -57,7 +57,8 @@
    page. An item with no place on the page, a general thread or one whose passage is
    gone, comes after every placed one in the list's own order, as the t/T walk reaches
    such threads from its list's ends. A step past either end comes round to the other.
-   Each grouping orders its items within a group by page order (`inWalkOrder`).
+   Each grouping orders its items within a group by page order (`inWalkOrder`), but a
+   goal's by its steps' order.
 
    The walk can also step within one region of the page (`obligationActions.next`, as an
    `lf-tally`'s Next on me presses it): its stops are then the obligations waiting on the user
@@ -226,64 +227,117 @@ export function createQueueWalk({
     const heading = itemHeading(item);
     return heading ? addressableLabel(heading) : "";
   };
-  // `items` in On me's groups (`grouping`), each a heading's `title` over its items:
-  // the list's one order, which the walk follows too.
+  // Everything On me has held on this page: what waits on the user and what the user
+  // finished. It only grows as they answer, so an order read from it holds still while
+  // the list empties.
+  const heldOnMe = () => {
+    const reading = readQueues();
+    return [
+      ...reading.on_user,
+      ...reading.done.filter((item) => item.owner === "user"),
+    ];
+  };
+  // `items` in On me's groups (`grouping`), each a `title` over its items: the list's one
+  // order, which the walk follows too. The groups and their order are read from
+  // everything On me has held (`heldOnMe`), not from which items remain, so the list,
+  // which keeps an answered item in its seat, and the walk, which steps over it, stand
+  // in one order: a plan's goals in the plan's order, else each group where the first
+  // item it holds comes in page order. A group's items stand by their steps' order in
+  // a goal, else in page order. Items arrived at in one place, such as a thread's
+  // question and a to-do on that thread, are one stop of the walk, so they stand
+  // together in the first of their groups.
   function onMeGroups(items, by = grouping()) {
-    const ordered = inWalkOrder(items);
-    if (by === "plan") {
-      const goals = readPlan()?.steps ?? [];
-      const named = goals.map(namedIn);
-      const groups = goals.map((goal, at) => ({
-        key: `goal:${at}`,
-        title: goal.title ?? `Goal ${at + 1}`,
-        items: [],
-      }));
-      const rest = { key: "goal:none", title: "Not in the plan", items: [] };
-      for (const item of ordered) {
-        const at = named.findIndex((ids) => ids.includes(item.id));
-        (at < 0 ? rest : groups[at]).items.push(item);
-      }
-      groups.forEach((group, at) =>
-        group.items.sort((a, b) => named[at].indexOf(a.id) - named[at].indexOf(b.id)),
-      );
-      return [...groups, rest].filter((group) => group.items.length);
+    const keyed = new Map(
+      [...heldOnMe(), ...items].map((item) => [queueItemKey(item), item]),
+    );
+    const basis = inWalkOrder([...keyed.values()]);
+    const goals = by === "plan" ? (readPlan()?.steps ?? []) : [];
+    const named = goals.map(namedIn);
+    const groupOf = (item) => {
+      if (by === "kind") return queueStop(item).noun;
+      if (by !== "plan") return itemHeading(item);
+      const at = named.findIndex((ids) => ids.includes(item.id));
+      return at < 0 ? goals.length : at;
+    };
+    // Group by group, the place it stands at: a goal by the plan, with those no goal
+    // names after it, else where the first item it holds comes.
+    const order = new Map();
+    if (by === "plan") for (let at = 0; at <= goals.length; at += 1) order.set(at, at);
+    for (const item of basis) {
+      const group = groupOf(item);
+      if (!order.has(group)) order.set(group, order.size);
     }
-    // A group per heading, or per word, in the order its first item comes, keyed by
-    // the heading itself, so a heading moving keeps its group, and its lines, drawn.
+    const stops = new Map();
+    basis.forEach((item, at) => {
+      const key = queueStop(item).key;
+      if (!stops.has(key)) stops.set(key, { at, items: [] });
+      stops.get(key).items.push(item);
+    });
+    const shown = new Set(items.map(queueItemKey));
     const groups = new Map();
-    for (const item of ordered) {
-      const at = by === "kind" ? queueStop(item).noun : itemHeading(item);
-      if (!groups.has(at))
-        groups.set(at, {
-          key: by === "kind" ? `kind:${at}` : (at ?? "place"),
-          title: by === "kind" ? at : at ? addressableLabel(at) : "The whole page",
-          items: [],
-        });
-      groups.get(at).items.push(item);
+    for (const stop of stops.values()) {
+      const listed = stop.items.filter((item) => shown.has(queueItemKey(item)));
+      if (!listed.length) continue;
+      const group = stop.items
+        .map(groupOf)
+        .reduce((first, next) => (order.get(next) < order.get(first) ? next : first));
+      const rank =
+        by === "plan" && group < goals.length
+          ? Math.min(
+              ...stop.items
+                .map((item) => named[group].indexOf(item.id))
+                .filter((at) => at >= 0),
+            )
+          : stop.at;
+      if (!groups.has(group)) groups.set(group, []);
+      groups.get(group).push({ rank, items: listed });
     }
-    return [...groups.values()];
+    return [...groups.entries()]
+      .sort(([a], [b]) => order.get(a) - order.get(b))
+      .map(([group, held]) => ({
+        key:
+          by === "plan"
+            ? `goal:${group}`
+            : by === "kind"
+              ? `kind:${group}`
+              : (group ?? "place"),
+        title:
+          by === "plan"
+            ? group < goals.length
+              ? (goals[group].title ?? `Goal ${group + 1}`)
+              : "Not in the plan"
+            : by === "kind"
+              ? group
+              : group
+                ? addressableLabel(group)
+                : "The whole page",
+        items: held.sort((a, b) => a.rank - b.rank).flatMap((stop) => stop.items),
+      }));
   }
 
-  function stops() {
+  // The walk's stops among `items`, in their order: an item's stop, once, where its
+  // first item stands.
+  function stopsAmong(items) {
     const list = [];
     const listed = new Set();
-    for (const item of onMeGroups(readQueues().on_user).flatMap(
-      (group) => group.items,
-    )) {
+    for (const item of items) {
       const stop = queueStop(item);
-      // Two items arrived at in one place, such as two to-dos on one thread, are one
-      // stop.
       if (listed.has(stop.key)) continue;
       listed.add(stop.key);
       list.push({ ...stop, place: pagePlace(stop) });
     }
     return list;
   }
+  const stops = () =>
+    stopsAmong(onMeGroups(readQueues().on_user).flatMap((group) => group.items));
 
-  // The stops of a walk within `region`: the obligations waiting on the user it holds.
+  // The stops of a walk within `region`: the obligations waiting on the user it holds,
+  // in page order whatever On me's grouping, as the region is read on the page.
   function stopsWithin(region) {
     const held = new Set(obligationsIn(region).map((item) => item.id));
-    return stops().filter((stop) => stop.kind === "obligation" && held.has(stop.id));
+    return stopsAmong(inWalkOrder(readQueues().on_user)).filter(
+      (stop) => stop.kind === "obligation" && held.has(stop.id),
+    );
   }
   const stopsOf = (region) => (region ? stopsWithin(region) : stops());
 

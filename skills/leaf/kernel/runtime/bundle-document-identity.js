@@ -250,6 +250,7 @@ import {
   readingFrom,
   selectEnds,
   selectionBackward,
+  showsWords,
   textNodesUnder,
   wrote
 } from "./bundle-passage-facts.js";
@@ -4198,7 +4199,7 @@ function pageOutline() {
   return outline;
 }
 var headingOver = (node, outline = pageOutline()) => outline.findLast(
-  (heading) => renderedOrder(heading, node) < 0 && renderedUnder(node, upFrom(heading))
+  (heading) => renderedOrder(heading, node) < 0 && renderedUnder(node, upFrom(heading)) && showsWords(heading)
 ) ?? null;
 var subjectLabel = (target) => addressableLabel(target) || addressableWord(target);
 function outlineSubjectFor(target, peers = [target], outline = pageOutline()) {

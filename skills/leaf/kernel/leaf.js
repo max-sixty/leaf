@@ -366,7 +366,7 @@ import {
   labelOf,
   landingBand,
   layoutWindow,
-  live,
+  live as live2,
   liveEl,
   merge,
   mountRepaint,
@@ -512,6 +512,7 @@ import {
   itemNoun,
   itemOutcome,
   keyed,
+  live,
   nothing,
   observeQueuedWork,
   ref,
@@ -1055,18 +1056,18 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
       if (altBtn) keeps(altBtn, "aria-disabled", !canSend());
       if (mic) {
         const phase = dictationPhase();
-        const live2 = phase === "starting" || phase === "listening";
+        const live3 = phase === "starting" || phase === "listening";
         const failed = loadingFailure || dictation?.failure;
-        const action2 = live2 ? "Stop dictation" : phase === "stopping" ? "Finishing dictation" : failed ? "Retry dictation" : "Dictate";
+        const action2 = live3 ? "Stop dictation" : phase === "stopping" ? "Finishing dictation" : failed ? "Retry dictation" : "Dictate";
         keeps(
           mic,
           "data-dictation",
           phase !== "idle" ? phase : failed && dictation?.failure?.error !== "no-speech" ? "failed" : null
         );
         keeps(mic, "aria-label", action2);
-        keeps(mic, "aria-pressed", live2);
+        keeps(mic, "aria-pressed", live3);
         keeps(mic, "aria-description", status || null);
-        keeps(mic, "title", live2 || !status ? action2 : `${action2} (${status})`);
+        keeps(mic, "title", live3 || !status ? action2 : `${action2} (${status})`);
       }
     };
     inputPaints.set(ta, paint);
@@ -1495,7 +1496,7 @@ function captureCommandReferenceCatalog() {
   const referenceScopes = declaredStack(openerOf(commandReferenceDialog)).map((scope) => {
     const inScope = userIn(scope) || scope.liveInCommandReference;
     const rows = scope.rows.filter(
-      ({ row }) => !inScope || (row.commandReferenceWhen ? row.commandReferenceWhen() : live(row))
+      ({ row }) => !inScope || (row.commandReferenceWhen ? row.commandReferenceWhen() : live2(row))
     ).map(({ row, sequence: prefix }) => {
       const sequence = [...word(prefix) ?? []];
       const declared = [...allBindings(row)];
@@ -6067,45 +6068,60 @@ function createQueueWalk({
     const heading = itemHeading(item);
     return heading ? addressableLabel(heading) : "";
   };
+  const heldOnMe = () => {
+    const reading = readQueues();
+    return [
+      ...reading.on_user,
+      ...reading.done.filter((item) => item.owner === "user")
+    ];
+  };
   function onMeGroups(items2, by = grouping()) {
-    const ordered = inWalkOrder(items2);
-    if (by === "plan") {
-      const goals = readPlan()?.steps ?? [];
-      const named = goals.map(namedIn);
-      const groups2 = goals.map((goal, at) => ({
-        key: `goal:${at}`,
-        title: goal.title ?? `Goal ${at + 1}`,
-        items: []
-      }));
-      const rest = { key: "goal:none", title: "Not in the plan", items: [] };
-      for (const item of ordered) {
-        const at = named.findIndex((ids) => ids.includes(item.id));
-        (at < 0 ? rest : groups2[at]).items.push(item);
-      }
-      groups2.forEach(
-        (group, at) => group.items.sort((a, b) => named[at].indexOf(a.id) - named[at].indexOf(b.id))
-      );
-      return [...groups2, rest].filter((group) => group.items.length);
+    const keyed2 = new Map(
+      [...heldOnMe(), ...items2].map((item) => [queueItemKey(item), item])
+    );
+    const basis = inWalkOrder([...keyed2.values()]);
+    const goals = by === "plan" ? readPlan()?.steps ?? [] : [];
+    const named = goals.map(namedIn);
+    const groupOf2 = (item) => {
+      if (by === "kind") return queueStop(item).noun;
+      if (by !== "plan") return itemHeading(item);
+      const at = named.findIndex((ids) => ids.includes(item.id));
+      return at < 0 ? goals.length : at;
+    };
+    const order = /* @__PURE__ */ new Map();
+    if (by === "plan") for (let at = 0; at <= goals.length; at += 1) order.set(at, at);
+    for (const item of basis) {
+      const group = groupOf2(item);
+      if (!order.has(group)) order.set(group, order.size);
     }
+    const stops2 = /* @__PURE__ */ new Map();
+    basis.forEach((item, at) => {
+      const key = queueStop(item).key;
+      if (!stops2.has(key)) stops2.set(key, { at, items: [] });
+      stops2.get(key).items.push(item);
+    });
+    const shown = new Set(items2.map(queueItemKey));
     const groups = /* @__PURE__ */ new Map();
-    for (const item of ordered) {
-      const at = by === "kind" ? queueStop(item).noun : itemHeading(item);
-      if (!groups.has(at))
-        groups.set(at, {
-          key: by === "kind" ? `kind:${at}` : at ?? "place",
-          title: by === "kind" ? at : at ? addressableLabel(at) : "The whole page",
-          items: []
-        });
-      groups.get(at).items.push(item);
+    for (const stop of stops2.values()) {
+      const listed2 = stop.items.filter((item) => shown.has(queueItemKey(item)));
+      if (!listed2.length) continue;
+      const group = stop.items.map(groupOf2).reduce((first, next) => order.get(next) < order.get(first) ? next : first);
+      const rank = by === "plan" && group < goals.length ? Math.min(
+        ...stop.items.map((item) => named[group].indexOf(item.id)).filter((at) => at >= 0)
+      ) : stop.at;
+      if (!groups.has(group)) groups.set(group, []);
+      groups.get(group).push({ rank, items: listed2 });
     }
-    return [...groups.values()];
+    return [...groups.entries()].sort(([a], [b]) => order.get(a) - order.get(b)).map(([group, held]) => ({
+      key: by === "plan" ? `goal:${group}` : by === "kind" ? `kind:${group}` : group ?? "place",
+      title: by === "plan" ? group < goals.length ? goals[group].title ?? `Goal ${group + 1}` : "Not in the plan" : by === "kind" ? group : group ? addressableLabel(group) : "The whole page",
+      items: held.sort((a, b) => a.rank - b.rank).flatMap((stop) => stop.items)
+    }));
   }
-  function stops() {
+  function stopsAmong(items2) {
     const list = [];
     const listed2 = /* @__PURE__ */ new Set();
-    for (const item of onMeGroups(readQueues().on_user).flatMap(
-      (group) => group.items
-    )) {
+    for (const item of items2) {
       const stop = queueStop(item);
       if (listed2.has(stop.key)) continue;
       listed2.add(stop.key);
@@ -6113,9 +6129,12 @@ function createQueueWalk({
     }
     return list;
   }
+  const stops = () => stopsAmong(onMeGroups(readQueues().on_user).flatMap((group) => group.items));
   function stopsWithin(region) {
     const held = new Set(obligationsIn(region).map((item) => item.id));
-    return stops().filter((stop) => stop.kind === "obligation" && held.has(stop.id));
+    return stopsAmong(inWalkOrder(readQueues().on_user)).filter(
+      (stop) => stop.kind === "obligation" && held.has(stop.id)
+    );
   }
   const stopsOf = (region) => region ? stopsWithin(region) : stops();
   function standingStop(list, origin = standingOrigin()) {
@@ -8083,6 +8102,7 @@ function createFloatingPanel({
   const chooser = ({ label: label2, values, name: name2, current, choose }) => html`<span class="lf-fp-chooser"
       ><select
         aria-label=${label2}
+        .value=${live(current)}
         @change=${(event) => {
     choose(event.target.value);
     refit();
@@ -8184,6 +8204,10 @@ function createFloatingPanel({
     fitting = true;
     paint();
   }
+  function forgetOpened(items2) {
+    if (openItem && !items2.some((item) => queueItemKey(item) === openItem))
+      openItem = null;
+  }
   function foldItem() {
     const key = openItem;
     toggleItem(key);
@@ -8208,7 +8232,7 @@ function createFloatingPanel({
     }
     if (card2) scrollIntoView(card2, { block: "nearest", within: view });
   }
-  function onItemCard(item, list, says2 = null) {
+  function onItemCard(item, list, says2 = null, leads = true) {
     const record = carriesObligation(item) ? item.obligation : null;
     const thread = item.thread ? threadByKey(item.thread) : null;
     const inWords = record !== null && answeredInWords(record);
@@ -8325,7 +8349,7 @@ function createFloatingPanel({
       ?data-approval=${approval}
       ?data-open=${opened2}
       ?data-ended=${list === "done" || Boolean(answered)}
-      ?data-walked=${queueTab === "you" && walkedStop() === stop.key}
+      ?data-walked=${leads && queueTab === "you" && walkedStop() === stop.key}
       style=${opened2 && seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
     >
       <button
@@ -8358,7 +8382,9 @@ function createFloatingPanel({
     (row2) => row2.key,
     (row2) => row2.item ? line(row2.item, row2.group) : html`<h3 class="lf-fp-on-group">
                 <span class="lf-fp-on-group-name">${row2.group.title}</span
-                ><span class="lf-fp-on-count">${row2.group.items.length}</span>
+                ><span class="lf-fp-on-count"
+                  >${row2.group.count ?? row2.group.items.length}</span
+                >
               </h3>`
   )}
     </div>`;
@@ -8411,12 +8437,22 @@ function createFloatingPanel({
     const grouping = onMe.grouping();
     const says2 = grouping === "plan" ? null : grouping;
     const finished = lists.done.filter((item) => !seated.includes(queueItemKey(item)));
+    forgetOpened([...items2, ...finished]);
+    const waits = (item) => lists.you.includes(item);
+    const groups = onMe.groups(items2).map((group) => ({ ...group, count: group.items.filter(waits).length }));
+    const stops = /* @__PURE__ */ new Set();
+    const leading = /* @__PURE__ */ new Set();
+    for (const item of groups.flatMap((group) => group.items))
+      if (!stops.has(queueStop(item).key)) {
+        stops.add(queueStop(item).key);
+        leading.add(item);
+      }
     return html`${items2.length ? nothing : html`<p class="lf-fp-empty">Nothing waiting on me.</p>`}${groupedLines(
       [
-        ...onMe.groups(items2),
+        ...groups,
         ...finished.length ? [{ key: "done", title: "Done", items: finished }] : []
       ],
-      (item, group) => group.key === "done" ? onItemCard(item, "done") : onItemCard(item, listOf(item), says2)
+      (item, group) => group.key === "done" ? onItemCard(item, "done") : onItemCard(item, listOf(item), says2, leading.has(item))
     )}`;
   }
   function workView(lists) {
@@ -8427,6 +8463,7 @@ function createFloatingPanel({
       { key: "queued", title: "Queued", items: queued },
       { key: "done", title: "Done", items: lists.done }
     ].filter((group) => group.items.length);
+    forgetOpened([...lists.agent, ...lists.done]);
     return html`${planShown ? planCards() : nothing}${layoutOf() === "summary" ? workSummary(inHand, queued, lists.done) : html`${inHand.length || queued.length ? nothing : html`<p class="lf-fp-empty">Nothing waiting on ${agentName()}.</p>`}${groupedLines(
       groups,
       (item, group) => onItemCard(item, group.key === "done" ? "done" : "agent")
@@ -8734,7 +8771,11 @@ function createFloatingPanel({
       } else if (!seatHeights.has(card2.dataset.key))
         seatHeights.set(card2.dataset.key, card2.getBoundingClientRect().height);
     }
-    if (draw) void present({ release: true });
+    if (draw)
+      void present({ release: true }).then(() => {
+        fitting = true;
+        paint();
+      });
   }
   function landReader() {
     const top = trail.value.at(-1);
@@ -9046,7 +9087,7 @@ function createFloatingPanel({
         }
       };
     if (!trail.value.length) return null;
-    if (trail.value.at(-1).view === "queue" && openItem !== null)
+    if (trail.value.at(-1).view === "queue" && standingIn(host) && shownView()?.querySelector(".lf-fp-on-item[data-open]"))
       return { root: host, title: "fold item", out: foldItem };
     return {
       root: host,
@@ -9930,7 +9971,6 @@ function createObligationView({
     const target = record && arrivalFocus(record);
     if (target) focusForNavigation2(target, "return");
   }
-  const HEADING = "h1,h2,h3,h4,h5,h6";
   function arrivalRegion(item, context2, standing) {
     const declared = context2 && registry[context2.localName]?.["x-awaits"]?.encloses;
     if (declared && context2 === standing) return context2;
@@ -9945,10 +9985,9 @@ function createObligationView({
       const from = seenBy(block);
       return from && !inChrome(block) && showsWords(block) && !under(item, block) && block.parentElement && under(item, block.parentElement) && from.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_PRECEDING;
     });
-    const heading = before.findLast((block) => block.matches(HEADING));
     return [
       declared ? context2 : null,
-      heading,
+      headingOver(item),
       closestAcross(item, TEXT_BLOCK) ?? before.at(-1)
     ].find(fits) ?? item;
   }
@@ -11098,7 +11137,7 @@ function createGoToSequence({
         // A direct destination's finger route is its permanent page command in
         // More. Arming this keyboard sequence doesn't seat another gesture control.
         touch: false,
-        when: () => atGoToTargets() && live(destination),
+        when: () => atGoToTargets() && live2(destination),
         run: (binding) => {
           setGoToSequence(false);
           if (destination.run) destination.run(binding);
@@ -11356,7 +11395,7 @@ function place2(press) {
     press: (held) => {
       const current = presses.get(press.id);
       if (current.row.retainStanding && held) returnPlace(held);
-      if (live(current.row)) invokePress(current);
+      if (live2(current.row)) invokePress(current);
     }
   });
   return press.id;
@@ -11375,7 +11414,7 @@ function placeStanceExit() {
     offered: () => Boolean(stance),
     disabled: () => stance?.disabled ?? true,
     press: () => {
-      if (stance && live(stance.press.row)) invokePress(stance.press);
+      if (stance && live2(stance.press.row)) invokePress(stance.press);
     }
   });
 }
@@ -11389,7 +11428,7 @@ function paintTouchControls() {
   const title = held && titleOf(held.exit);
   const nextStance = held ? {
     label: title[0].toUpperCase() + title.slice(1),
-    disabled: !live(held.exit),
+    disabled: !live2(held.exit),
     press: { id: held.exit.id, row: held.exit, binding: void 0 }
   } : null;
   if (!sameStance(nextStance, stance)) changed = true;
@@ -11399,7 +11438,7 @@ function paintTouchControls() {
     const next = shown.has(id) ? {
       label: word(press.words),
       shortcut: binding ? [spell(binding)] : [],
-      disabled: !live(press.row)
+      disabled: !live2(press.row)
     } : void 0;
     if (same4(next, faces.get(id))) continue;
     changed = true;

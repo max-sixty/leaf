@@ -2,7 +2,7 @@
    shares. */
 import { addressableLabel, addressableWord } from "../addressable-names.js";
 import { sectionOf } from "../anchor-resolution.js";
-import { leafSurface, pageParts, pageReadingVersion } from "../passages.js";
+import { leafSurface, pageParts, pageReadingVersion, showsWords } from "../passages.js";
 import { documentChanged } from "../semantic-state.js";
 import { readingRegionFor } from "../reading-regions.js";
 import { byRenderedOrder, renderedOrder, renderedUnder, upFrom } from "../shadow.js";
@@ -72,16 +72,20 @@ export function pageOutline() {
 }
 
 // The heading of the part of the page a node stands in: the last of the outline's
-// headings the reader reaches before it whose container also holds it, or null where
-// none does. The container is what "the heading over this" means, as an obligation's
-// arrival reads it (obligations/view.js, `arrivalRegion`): a question's own heading
-// stands inside the question, so it heads neither the question, which it follows in
-// the rendered order (`renderedOrder`), nor the next question, which its container
-// does not hold.
+// headings the reader reaches before it whose container also holds it, and whose words
+// show, or null where none does. The container is what "the heading over this" means:
+// a question's own heading stands inside the question, so it heads neither the
+// question, which it follows in the rendered order (`renderedOrder`), nor the next
+// question, which its container does not hold; without that bound the nearest heading
+// before an obligation is often the previous obligation's own. A heading behind a shut
+// disclosure keeps its boxes but heads nothing the user can read. On me's place for an
+// item and an obligation's arrival (obligations/view.js, `arrivalRegion`) both ask it.
 export const headingOver = (node, outline = pageOutline()) =>
   outline.findLast(
     (heading) =>
-      renderedOrder(heading, node) < 0 && renderedUnder(node, upFrom(heading)),
+      renderedOrder(heading, node) < 0 &&
+      renderedUnder(node, upFrom(heading)) &&
+      showsWords(heading),
   ) ?? null;
 
 const subjectLabel = (target) => addressableLabel(target) || addressableWord(target);

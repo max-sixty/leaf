@@ -100,7 +100,7 @@
         cursor: default;
         background: none;
       }
-      :is(button, input, textarea, a, .lf-fp-on-item):focus-visible,
+      :is(button, input, textarea, a, select):focus-visible,
       .lf-fp-on-item[data-walked] {
         outline: var(--focus-ring);
         outline-offset: -2px;
@@ -1362,10 +1362,6 @@
   .lf-fp-chooser select:hover {
     color: var(--ink);
     background: var(--lf-fp-hover);
-  }
-  .lf-fp-chooser select:focus-visible {
-    outline: var(--focus-ring);
-    outline-offset: -2px;
   }
   .lf-fp-chooser .lf-action-icon {
     position: absolute;

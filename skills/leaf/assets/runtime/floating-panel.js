@@ -136,6 +136,7 @@
 import {
   html,
   keyed as keyedBy,
+  live,
   nothing,
   ref,
   render,
@@ -2440,6 +2441,7 @@ export function createFloatingPanel({
     html`<span class="lf-fp-chooser"
       ><select
         aria-label=${label}
+        .value=${live(current)}
         @change=${(event) => {
           choose(event.target.value);
           refit();
@@ -2582,6 +2584,12 @@ export function createFloatingPanel({
     fitting = true;
     paint();
   }
+  // The open item goes when it leaves what the view lists, so nothing stands open that
+  // is not drawn.
+  function forgetOpened(items) {
+    if (openItem && !items.some((item) => queueItemKey(item) === openItem))
+      openItem = null;
+  }
   // Escape folds the open card back to its line, where it leaves the user.
   function foldItem() {
     const key = openItem;
@@ -2617,8 +2625,9 @@ export function createFloatingPanel({
 
   // One item's line, opened into its card while it is the open item. `says` names what
   // the group's heading already says of it, its `place` or its `kind`, which the line
-  // leaves out.
-  function onItemCard(item, list, says = null) {
+  // leaves out; `leads` whether it is the first line of the walk's stop it stands at,
+  // which alone wears the walk's ring.
+  function onItemCard(item, list, says = null, leads = true) {
     const record = carriesObligation(item) ? item.obligation : null;
     const thread = item.thread ? threadByKey(item.thread) : null;
     // A question asked in words is a message in its thread, and reads as that message,
@@ -2788,7 +2797,7 @@ export function createFloatingPanel({
       ?data-approval=${approval}
       ?data-open=${opened}
       ?data-ended=${list === "done" || Boolean(answered)}
-      ?data-walked=${queueTab === "you" && walkedStop() === stop.key}
+      ?data-walked=${leads && queueTab === "you" && walkedStop() === stop.key}
       style=${
         opened && seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""
       }
@@ -2824,7 +2833,8 @@ export function createFloatingPanel({
       }
     </section>`;
   }
-  // Groups of lines, each under its heading, which counts them: one keyed list of
+  // Groups of lines, each under its heading, which counts them (`count`, else all of
+  // them): one keyed list of
   // headings and lines, so an item that moves to another group, as one whose place
   // leaves the page does, keeps its node, and the focus and drawing in it. `line`
   // draws an item's line, given the group it stands in.
@@ -2841,7 +2851,9 @@ export function createFloatingPanel({
             ? line(row.item, row.group)
             : html`<h3 class="lf-fp-on-group">
                 <span class="lf-fp-on-group-name">${row.group.title}</span
-                ><span class="lf-fp-on-count">${row.group.items.length}</span>
+                ><span class="lf-fp-on-count"
+                  >${row.group.count ?? row.group.items.length}</span
+                >
               </h3>`,
       )}
     </div>`;
@@ -2922,17 +2934,31 @@ export function createFloatingPanel({
     const grouping = onMe.grouping();
     const says = grouping === "plan" ? null : grouping;
     const finished = lists.done.filter((item) => !seated.includes(queueItemKey(item)));
+    forgetOpened([...items, ...finished]);
+    // A group counts what still waits in it; the lines answered here keep their seats.
+    const waits = (item) => lists.you.includes(item);
+    const groups = onMe
+      .groups(items)
+      .map((group) => ({ ...group, count: group.items.filter(waits).length }));
+    // Lines arrived at in one place are one stop of the walk, which rings the first.
+    const stops = new Set();
+    const leading = new Set();
+    for (const item of groups.flatMap((group) => group.items))
+      if (!stops.has(queueStop(item).key)) {
+        stops.add(queueStop(item).key);
+        leading.add(item);
+      }
     return html`${
       items.length ? nothing : html`<p class="lf-fp-empty">Nothing waiting on me.</p>`
     }${groupedLines(
       [
-        ...onMe.groups(items),
+        ...groups,
         ...(finished.length ? [{ key: "done", title: "Done", items: finished }] : []),
       ],
       (item, group) =>
         group.key === "done"
           ? onItemCard(item, "done")
-          : onItemCard(item, listOf(item), says),
+          : onItemCard(item, listOf(item), says, leading.has(item)),
     )}`;
   }
   // On <agent>: the plan's steps while its head discloses them, then the work as the
@@ -2945,6 +2971,7 @@ export function createFloatingPanel({
       { key: "queued", title: "Queued", items: queued },
       { key: "done", title: "Done", items: lists.done },
     ].filter((group) => group.items.length);
+    forgetOpened([...lists.agent, ...lists.done]);
     return html`${planShown ? planCards() : nothing}${
       layoutOf() === "summary"
         ? workSummary(inHand, queued, lists.done)
@@ -3377,7 +3404,13 @@ export function createFloatingPanel({
       } else if (!seatHeights.has(card.dataset.key))
         seatHeights.set(card.dataset.key, card.getBoundingClientRect().height);
     }
-    if (draw) void present({ release: true });
+    // The drawing grows the card after it was fitted, so it is fitted again once the
+    // drawing lands (`fitOpened`).
+    if (draw)
+      void present({ release: true }).then(() => {
+        fitting = true;
+        paint();
+      });
   }
   // A thread the reader opens, or answers, or asks to see the news of, stands at its end,
   // once the drawing it waits for lands: on the panel's paint, the reader's presentation,
@@ -3794,8 +3827,14 @@ export function createFloatingPanel({
         },
       };
     if (!trail.value.length) return null;
-    // An On item standing open folds back to its line before the view goes.
-    if (trail.value.at(-1).view === "queue" && openItem !== null)
+    // An On item standing open folds back to its line before the view goes, where the
+    // user is in the panel; from the page, where `m` took them, Escape puts the view
+    // away as it always has.
+    if (
+      trail.value.at(-1).view === "queue" &&
+      standingIn(host) &&
+      shownView()?.querySelector(".lf-fp-on-item[data-open]")
+    )
       return { root: host, title: "fold item", out: foldItem };
     return {
       root: host,

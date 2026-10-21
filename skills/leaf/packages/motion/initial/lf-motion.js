@@ -16,7 +16,7 @@ document.documentElement.lfInitial.register(
     play.append(room);
     const reset = offer("button", "lf-btn", "Reset");
     const time = offer("input", "lf-motion-time", null, "range");
-  time.name = "time";
+    time.name = "time";
     time.min = "0";
     time.max = host.getAttribute("duration");
     time.step = "1";
@@ -29,7 +29,7 @@ document.documentElement.lfInitial.register(
     );
     const speedLabel = offer("label", "lf-motion-speed", "Speed");
     const speed = offer("select", "", null);
-  speed.name = "speed";
+    speed.name = "speed";
     for (const rate of [1, 0.5, 0.25]) {
       const option = document.createElement("option");
       option.value = String(rate);

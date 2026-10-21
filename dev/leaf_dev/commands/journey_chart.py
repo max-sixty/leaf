@@ -38,7 +38,6 @@ def chart_target(sample: dict) -> str:
     user's end where that is not a browser."""
     return (
         TARGET_NAMES.get(sample["target"], sample["target"])
-        + (" with the hooks module" if sample.get("hooksModule") else "")
         + (" through a preview" if sample.get("preview") else "")
         + (" over HTTP" if sample.get("userEnd") == "http" else "")
     )

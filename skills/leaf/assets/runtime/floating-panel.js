@@ -139,6 +139,7 @@ import { keySequenceModel, keySequenceTemplate } from "./keyboard/key-sequence.j
 import { pageControls, watchPageControls } from "./page-controls.js";
 import { readPlace } from "./history.js";
 import { readThreads } from "./thread/state.js";
+import { hasUnread, threadCounts } from "./thread/model.js";
 import { watchProjection } from "./projection-watch.js";
 import { threadAttention, workflowStep } from "./thread/workflow.js";
 import { messageReading, threadName } from "./thread/messages.js";
@@ -787,10 +788,8 @@ export function createFloatingPanel({
     const thread = threadByKey(key);
     return thread ? threadName(thread) : "this thread";
   };
-  const unread = (thread) => thread.unread.length > 0;
-  const newCount = () => (inventoried() ? threads().filter(unread).length : 0);
-  const openCount = () =>
-    inventoried() ? threads().filter((thread) => !thread.resolved).length : null;
+  const newCount = () => (inventoried() ? threadCounts(threads()).unread : 0);
+  const openCount = () => (inventoried() ? threadCounts(threads()).open : null);
   const onUserCount = () => {
     const queues = readQueues();
     return queues.phase === "ready" ? queues.on_user.length : 0;
@@ -808,7 +807,7 @@ export function createFloatingPanel({
       drafts: "Draft",
     }[shownBy];
     return [
-      unread(thread) && "New",
+      hasUnread(thread) && "New",
       state,
       draftHasContent(replyContext(thread.key)) && "Draft",
     ]
@@ -2022,7 +2021,7 @@ export function createFloatingPanel({
           .toLowerCase();
         return text.includes(words);
       }
-      if (filter === "unread") return unread(thread);
+      if (filter === "unread") return hasUnread(thread);
       if (filter === "drafts") return draftHasContent(replyContext(thread.key));
       if (filter === "resolved") return thread.resolved;
       return !thread.resolved;
@@ -2050,7 +2049,7 @@ export function createFloatingPanel({
                   type="button"
                   class="lf-fp-thread"
                   data-key=${thread.key}
-                  ?data-unread=${unread(thread)}
+                  ?data-unread=${hasUnread(thread)}
                   ?data-resolved=${thread.resolved}
                   ?data-yours=${threadAttention(thread)?.kind === "needs_user"}
                   @click=${() => open({ view: "thread", thread: thread.key })}

@@ -6,7 +6,7 @@
  * Existing layer/scope wrappers remain with composition and their source owners.
  * `build/browser/build.mjs` writes and checks these outputs with its own.
  */
-import { build } from "esbuild";
+import { build } from "./esbuild.mjs";
 import { readdir } from "node:fs/promises";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";

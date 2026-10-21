@@ -77,8 +77,8 @@
    * stands still whichever part is open and wherever it is read, the rubber band at the
    * page's end included: every engine holds a fixed box still through overscroll, while
    * Firefox and Chrome move a stuck sticky one with the page (notes/browser-support.md).
-   * The runtime reads a fixed box as riding along with every scroll, as a stuck one
-   * (geometry.js, `stuckBox`). The page is at least the window's height, from first paint
+   * The runtime reads a box fixed in the window as riding along with every scroll, as a
+   * stuck one (geometry.js, `stuckBox`). The page is at least the window's height, from first paint
    * and before the list is drawn, so a short part leaves nothing to scroll and a
    * full-height workspace takes the whole window. The holder itself draws nothing. The
    * part is the shell its Layout's box stands in. On a phone the title, the list and the

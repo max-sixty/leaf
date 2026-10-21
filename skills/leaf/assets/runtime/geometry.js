@@ -302,9 +302,12 @@ export function headerCuts(item, clips = new Map()) {
       },
     }));
 }
-// The sticky box holding `node` while it is stuck, or the fixed box holding it, else
-// null. A fixed box stands in the window wherever the page is scrolled, as a page of
-// parts' column does (layouts.css), so it is always stuck. A stuck box stands at the
+// The sticky box holding `node` while it is stuck, or the box fixed in the window
+// holding it, else null. A box fixed in the window, as a page of parts' column is
+// (layouts.css), stands there wherever the page is scrolled, so it is always stuck; a
+// fixed box anchored to the page's words, as the inline thread card is
+// (annotation-overlay/floating.js), moves with them as they scroll, so it is not. A
+// stuck box stands at the
 // edge of the scroller it sticks in, or is pushed past it by its holder's end, rather
 // than at its own place in its holder, whose edge has scrolled beyond it: a page tab
 // strip over its panel's sixtieth paragraph, an open thread's title over the turns read
@@ -330,11 +333,13 @@ export function headerCuts(item, clips = new Map()) {
 // height whether it is stuck or not (`headerInset`, `footerInset`).
 export function stuckBox(node, within = null) {
   for (let el = node; el?.nodeType === 1 && el !== within; el = renderedParent(el)) {
-    const { position } = getComputedStyle(el);
-    if (position === "fixed" || (position === "sticky" && sticks(el))) return el;
+    const style = getComputedStyle(el);
+    if (style.position === "sticky" ? sticks(el) : inWindow(style)) return el;
   }
   return null;
 }
+const inWindow = (style) =>
+  style.position === "fixed" && !style.positionAnchor.startsWith("--");
 // Whether `sticky` stands where sticking holds it, in the scroller around it. A sticky
 // box that clips what it holds, as a tab strip does, still sticks in that scroller.
 function sticks(sticky) {

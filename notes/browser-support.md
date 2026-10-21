@@ -590,8 +590,8 @@ document, and the runtime relies on it (next entry).
 
 - **Disposition: answered for a page of parts.** Its title and list stand fixed in
   the window (layouts.css, "A page of parts"), which every engine holds still through
-  overscroll, and the runtime reads a fixed box as riding along with every scroll
-  (`stuckBox` in geometry.js). Other boxes stuck to the root, such as a column's
+  overscroll, and the runtime reads a box fixed in the window as riding along with
+  every scroll (`stuckBox` in geometry.js). Other boxes stuck to the root, such as a column's
   margin sidebar, still bounce. Revisit them if a reader notices, and drop the fixed
   column if the engines hold stuck sticky boxes still.
 - **Observed, 2026-10-20, Firefox on macOS:** a fast trackpad scroll to a page of

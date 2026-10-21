@@ -506,7 +506,13 @@ before/after screenshots of each state it touches, from `uv run leaf-dev stills`
 ## Working on the runtime
 
 A paint that must land in the current turn uses `render`; `LitElement` schedules
-updates on a microtask and suits only runtime views that can wait that long.
+updates on a microtask and suits only runtime views that can wait that long. The
+microtask costs no frame, but code that reads the document right after a paint, such
+as a focus move onto a control just drawn, a measurement, held news
+(`thread/held-news.js`) or a region committing in `PRESENTATION_ORDER`'s pass, would
+await `updateComplete` and let other work run in between: the margin's chip
+placement took three ordering bugs to settle when it went asynchronous. Tracking
+reads needs no microtask, since a Preact `effect` tracks in the current script.
 
 A watcher's paint subscribes to every selection it reads (`projection-watch.js`), so a
 reader called from a paint selects exactly what it returns (`readPart`) rather than

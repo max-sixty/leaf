@@ -3792,10 +3792,9 @@ def test_a_thread_the_page_draws_nowhere_opens_in_the_panel(browser, serve):
     expect(reader.locator(".lf-msg")).to_contain_text("Should the rollout pause")
 
 
-def test_a_reply_its_card_cannot_draw_opens_in_the_panel(browser, serve):
-    """A route to one message needs the reader that draws a message whole, which is
-    Leaf's in the panel: a reply carrying a widget, which a thread's card beside its
-    passage offers to open, opens in the panel's thread view, widget and all."""
+def test_a_reply_s_widget_stands_in_its_card(browser, serve):
+    """A thread's card beside its passage draws a reply carrying a widget whole, widget
+    and all, and the panel stays shut."""
     url = serve(LONG_PAGE)
     root = panel_comment(
         serve.page_dir,
@@ -3815,9 +3814,8 @@ def test_a_reply_its_card_cannot_draw_opens_in_the_panel(browser, serve):
     page = floating(browser, url)
     page.locator("body").focus()
     page.keyboard.press("t")
-    page.locator(".lf-page-thread-open").click()
-    reader = page.locator(".lf-fp-view[data-view=thread]")
-    expect(reader.locator("#first-job")).to_be_visible()
+    expect(page.locator(".lf-margin-preview #first-job")).to_be_visible()
+    expect(page.locator(".lf-fp-view[data-view=thread]")).to_have_count(0)
 
 
 def test_a_thread_s_messages_read_alike_in_its_card_and_the_panel(browser, serve):

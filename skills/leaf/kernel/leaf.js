@@ -2785,7 +2785,7 @@ function createResponseSurface({
     const threadId = threadAtStanding();
     const replyId = replyThreadAtStanding();
     const target = threadId && threadTarget(threadId);
-    const inlineBox = inline && drawnThreadId(inline) === threadId && (!here || standingIn(inline) || target && under(target, heldObligation() ?? here.element)) && threadInput(inline);
+    const inlineBox = inline && (!here || standingIn(inline) || target && under(target, heldObligation() ?? here.element)) && threadInput(inline);
     const said = standingThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
     const subject = threadId && (!here || target && under(target, heldObligation() ?? here.element));
     const replySubject = subject && replyId;
@@ -8829,21 +8829,22 @@ function createFloatingPanel({
         return () => openInPackage(top.thread, { focus, message });
       },
       // A thread about the whole page opens here; one about a passage opens beside it,
-      // where the page draws it, and here only for one of its messages, which Leaf's
-      // reader alone draws whole, or where nothing on the page shows it, as on a page
-      // drawing no margin, the destination's last resort (`request.last`,
-      // thread/destination.js). Where the user lands in it is the route's
-      // (`request.part`), which Leaf's destinations take them to once it is drawn: the
-      // reply, a message, or the thread itself, the view, where the `t` walk goes on from.
+      // where the page draws it, widgets in its messages included, and here only where
+      // nothing on the page shows it, as on a page drawing no margin, the destination's
+      // last resort (`request.last`, thread/destination.js), or for one of its messages
+      // while the view already shows it, so a walk to an ask in it leaves the user
+      // where they read. Where the user lands in it is the route's (`request.part`),
+      // which Leaf's destinations take them to once it is drawn: the reply, a message,
+      // or the thread itself, the view, where the `t` walk goes on from.
       reveal: (key, { part, last }) => {
         const thread = threadByKey(key);
         if (!thread) return false;
-        if (thread.anchor && part !== "message") {
+        const top = trail.value.at(-1);
+        const shown = top?.view === "thread" && threadByKey(top.thread)?.key === thread.key;
+        if (thread.anchor && !(part === "message" && shown)) {
           if (!last) {
             unplaced.delete(thread.key);
-            const top = trail.value.at(-1);
-            if (top?.view === "thread" && threadByKey(top.thread)?.key === thread.key)
-              close();
+            if (shown) close();
             return false;
           }
           unplaced.add(thread.key);
@@ -11322,7 +11323,7 @@ var anchorTravel = createAnchorTravel({
   announce
 });
 var landing = createThreadLanding();
-declareThreadKeys(landing.landIn);
+declareThreadKeys(landing.landIn, () => app.threadDestinations.threadHere());
 var anchorControls = createAnchorControls({
   commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
   openThread: (...args) => app.threadDestinations.openPageThread(...args),

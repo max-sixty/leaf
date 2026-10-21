@@ -1014,7 +1014,6 @@ export function createFloatingPanel({
   function showMenuAt(level) {
     const before = menuOpen.value ? menuAt.value : undefined;
     if (before && level && routeKey(before) === routeKey(level)) return;
-    const outside = !standingIn(host);
     if (renderedUnder(focused(), menu)) focusDestination(leaf, "return");
     menuOpen.value = true;
     menuAt.value = level;
@@ -1037,7 +1036,10 @@ export function createFloatingPanel({
         { duration: VIEW_RESIZE_MS, easing: EASE },
       );
     }
-    if (!keyed && !outside) return;
+    // A press on a menu row leaves focus on that row. A command-reference press
+    // originates outside the panel even when closing the reference hands focus back
+    // to the leaf before this door runs, so enter the menu in that case.
+    if (pointedInPanel) return;
     const target = level
       ? page?.querySelector(".lf-fp-item:not(.lf-fp-menu-back, :disabled)")
       : before && menu.querySelector(`[data-row="${levelRow(before)}"]`);
@@ -1702,14 +1704,18 @@ export function createFloatingPanel({
     if (target) focusDestination(target, "move");
   }
 
-  // Whether the gesture now under way is a key in the panel: a key arriving in a view
-  // stands on its first control, a pointer in the view itself, with no ring drawn. A
-  // gesture outside the panel, `g T` from the page among them, is neither, whatever the
-  // panel last heard, so the view it opens holds focus itself.
+  // Where the gesture now under way began: a key in a view stands on its first
+  // control, while a pointer in the panel leaves focus on the pressed control. A
+  // gesture outside the panel, `g T` from the page among them, is neither, whatever
+  // the panel last heard, so the view it opens holds focus itself.
   let keyed = false;
+  let pointedInPanel = false;
   onUserInput((event) => {
-    if (["keydown", "pointerdown"].includes(event.type))
-      keyed = event.type === "keydown" && event.composedPath().includes(host);
+    if (["keydown", "pointerdown"].includes(event.type)) {
+      const inPanel = event.composedPath().includes(host);
+      keyed = event.type === "keydown" && inPanel;
+      pointedInPanel = event.type === "pointerdown" && inPanel;
+    }
   });
 
   // ---------- the leaf's menu ----------

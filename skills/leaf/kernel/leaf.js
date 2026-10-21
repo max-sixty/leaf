@@ -6797,7 +6797,6 @@ function createFloatingPanel({
   function showMenuAt(level) {
     const before = menuOpen.value ? menuAt.value : void 0;
     if (before && level && routeKey(before) === routeKey(level)) return;
-    const outside = !standingIn(host);
     if (renderedUnder(focused(), menu)) focusDestination(leaf, "return");
     menuOpen.value = true;
     menuAt.value = level;
@@ -6819,7 +6818,7 @@ function createFloatingPanel({
         { duration: VIEW_RESIZE_MS, easing: EASE }
       );
     }
-    if (!keyed2 && !outside) return;
+    if (pointedInPanel) return;
     const target = level ? page?.querySelector(".lf-fp-item:not(.lf-fp-menu-back, :disabled)") : before && menu.querySelector(`[data-row="${levelRow(before)}"]`);
     if (target) focusDestination(target, "move");
   }
@@ -7236,9 +7235,13 @@ function createFloatingPanel({
     if (target) focusDestination(target, "move");
   }
   let keyed2 = false;
+  let pointedInPanel = false;
   onUserInput((event) => {
-    if (["keydown", "pointerdown"].includes(event.type))
-      keyed2 = event.type === "keydown" && event.composedPath().includes(host);
+    if (["keydown", "pointerdown"].includes(event.type)) {
+      const inPanel = event.composedPath().includes(host);
+      keyed2 = event.type === "keydown" && inPanel;
+      pointedInPanel = event.type === "pointerdown" && inPanel;
+    }
   });
   const menuItem = (label2, end, press, {
     urgent = false,

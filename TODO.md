@@ -92,16 +92,6 @@ has tried; settle that before building it.
   removed in October 2026 have been gone a while; if pages written since still
   carry the heading, remove this check too. It fired in 4 sessions, 2 of them on
   user pages, between 2026-07-22 and 2026-10-11.
-- **Decide where a sandboxed Codex task keeps its pages.** Leaf's MCP server
-  (`codex_tool.py`) runs `leaf` commands outside Codex's sandbox, but the agent
-  writes `index.html` with its own tools, which the sandbox confines to the task's
-  directory and the temporary directories. A page in the state home, where
-  `SKILL.md` says pages usually live, is outside them, so each write there asks
-  the user or, under `approval_policy = "never"`, fails. The sandboxed journey
-  (`leaf-dev journey codex-queue --sandbox`) passes because its page is in the
-  task's directory. Choose between pages in the task's directory under a sandbox,
-  a `leaf` command that writes the source, and asking users to add the state home
-  to `sandbox_workspace_write.writable_roots`.
 - **Consider a reminder when revising decided content.** An optional `--force`
   acknowledgment could make an agent pause over an existing decision. Revisions
   currently remain unrestricted; decide whether such a reminder helps before

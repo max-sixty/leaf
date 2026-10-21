@@ -172,6 +172,7 @@ import {
   tabStore,
   tellDraft,
   threadAttention,
+  threadHeading,
   threadList,
   threadName,
   touchPresses,
@@ -181,7 +182,16 @@ import {
   walkPositionLabel,
   workflowStep
 } from "./runtime/bundle-user-intent.js";
-import "./runtime/bundle-widget-upgrade.js";
+import {
+  DISCLOSE,
+  DISCLOSURE_SELECTOR,
+  annotationSheets,
+  chromeSheet,
+  disclosed,
+  marksSheet,
+  setChildren,
+  watchDisclosures
+} from "./runtime/bundle-stylesheets.js";
 import {
   mediaViewer,
   readAttachedMedia,
@@ -270,16 +280,6 @@ import {
   userReadingRegion,
   whenArrived
 } from "./runtime/bundle-presence.js";
-import {
-  DISCLOSE,
-  DISCLOSURE_SELECTOR,
-  annotationSheets,
-  chromeSheet,
-  disclosed,
-  marksSheet,
-  setChildren,
-  watchDisclosures
-} from "./runtime/bundle-stylesheets.js";
 import {
   COLLAPSE,
   LEAF_SURFACE,
@@ -432,22 +432,6 @@ import {
   word
 } from "./runtime/bundle-page-paint.js";
 import {
-  PRESENTATION_ORDER,
-  SHARE_ROOT,
-  WEBSITE_DELIVERY,
-  agentName,
-  annotationMode,
-  applicationPresenter,
-  applicationState,
-  documentChanged,
-  offlineInteractive,
-  readPart,
-  runtime,
-  runtimeResource,
-  shareUrl,
-  whenApplicationPresented
-} from "./runtime/bundle-semantic-state.js";
-import {
   CARET_KEYS,
   MODIFIER_KEYS,
   PRESSES,
@@ -493,6 +477,22 @@ import {
   under,
   upFrom
 } from "./runtime/bundle-frame-visibility.js";
+import {
+  PRESENTATION_ORDER,
+  SHARE_ROOT,
+  WEBSITE_DELIVERY,
+  agentName,
+  annotationMode,
+  applicationPresenter,
+  applicationState,
+  documentChanged,
+  offlineInteractive,
+  readPart,
+  runtime,
+  runtimeResource,
+  shareUrl,
+  whenApplicationPresented
+} from "./runtime/bundle-semantic-state.js";
 import {
   LitElement,
   M,
@@ -7573,7 +7573,7 @@ function createFloatingPanel({
                   @click=${() => open({ view: "thread", thread: thread.key })}
                 >
                   <span class="lf-fp-news-mark" aria-hidden="true"></span>
-                  <span class="lf-fp-label">${threadName(thread)}</span>
+                  <span class="lf-fp-label">${threadHeading(thread)}</span>
                   <span class="lf-fp-value"
                     >${threadStatus(thread, query.trim() ? null : filter)}</span
                   >
@@ -7850,6 +7850,7 @@ function createFloatingPanel({
     const title = message ? thread.title ?? (thread.root.id === message.id ? "" : threadName(thread)) : asking ? threadName(thread) : queueTitle(item);
     const said = message ? "" : asking ? messageReading(asking, { reactions: [], workflows: [] }).body.plainText : record?.prompt?.text;
     const prompt = said && said.trim() !== title.trim() ? said : "";
+    const heading = thread && title === threadName(thread) ? threadHeading(thread) : title;
     const answered = record && record.status !== "open";
     const choices = record && !answered && record.source.kind === "widget" && !inWords ? obligationView.choicesOf(record) : null;
     const gesture = answered ? answerGesture(record) : null;
@@ -7942,13 +7943,13 @@ function createFloatingPanel({
       ?data-walked=${queueTab === "you" && walkedStop() === stop.key}
       style=${seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
     >
-      ${about.length ? html`<p class="lf-fp-on-kind">${about.join(" \xB7 ")}</p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${title}</h3>` : nothing}
+      ${about.length ? html`<p class="lf-fp-on-kind">${about.join(" \xB7 ")}</p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : nothing}
               <div
                 class="lf-fp-asked lf-fp-outlet"
                 data-thread=${thread.key}
                 data-message=${message.key}
-              ></div>` : prompt ? html`<h3 class="lf-fp-on-title">${title}</h3>
-                <p class="lf-fp-prompt">${prompt}</p>` : html`<p class="lf-fp-prompt">${title}</p>`}
+              ></div>` : prompt ? html`<h3 class="lf-fp-on-title">${heading}</h3>
+                <p class="lf-fp-prompt">${prompt}</p>` : html`<p class="lf-fp-prompt">${heading}</p>`}
       <div class="lf-fp-answers">${answers}${show}</div>
     </section>`;
   }
@@ -8066,9 +8067,14 @@ function createFloatingPanel({
     }
     focusDestination(controls.querySelector(".lf-fp-search"), "move");
   }
-  const headTemplate = (top) => html`<h2 class=${top.view === "queue" ? "lf-fp-title lf-quiet" : "lf-fp-title"}>
-      ${titleOf2(top)}
+  const headTemplate = (top) => {
+    const thread = top.view === "thread" ? threadByKey(top.thread) : null;
+    return html`<h2
+      class=${top.view === "queue" ? "lf-fp-title lf-quiet" : "lf-fp-title"}
+    >
+      ${thread ? threadHeading(thread) : titleOf2(top)}
     </h2>`;
+  };
   function controlsTemplate(top) {
     const parent = trail.value.at(-2);
     const thread = top.view === "thread" ? threadByKey(top.thread) : null;
@@ -9037,8 +9043,14 @@ function createPageMapDialog({
   function pageMapDialogContains(candidate, node) {
     return dialog.open && target === candidate && dialog.contains(node);
   }
-  const sheetFace = ({ icon, glyph, visibleLabel, context: context2 }) => html`${icon ? iconTemplate(icon, "lf-margin-kind") : html`<span class="lf-margin-kind">${glyph}</span>`}<span class="lf-page-map-action-label"
-        ><span class="lf-page-map-action-label-word">${visibleLabel}</span>${context2 ? html`<span class="lf-page-map-action-context">${context2}</span>` : nothing}</span
+  const sheetName = (item, visibleLabel) => {
+    const thread = item && inventory.sourceItem(item)?.thread;
+    return thread ? threadHeading(thread) : visibleLabel;
+  };
+  const sheetFace = ({ icon, glyph, item, visibleLabel, context: context2 }) => html`${icon ? iconTemplate(icon, "lf-margin-kind") : html`<span class="lf-margin-kind">${glyph}</span>`}<span class="lf-page-map-action-label"
+        ><span class="lf-page-map-action-label-word"
+          >${sheetName(item, visibleLabel)}</span
+        >${context2 ? html`<span class="lf-page-map-action-context">${context2}</span>` : nothing}</span
       >`;
   function activateSheetControl(event, action) {
     const { offered, record } = action;
@@ -10064,8 +10076,7 @@ function createDesignMode({
     press: designPress,
     open: openOnDesign,
     name: designName,
-    inspectElement: inspectEl,
-    legendElement: legendRoot
+    inspectElement: inspectEl
   };
 }
 

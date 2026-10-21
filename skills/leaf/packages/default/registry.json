@@ -183,7 +183,7 @@
   },
   "lf-toc": {
     "description": "An outline of the document\u2019s h2\u2013h6 headings for navigating its sections and showing the reader\u2019s position.",
-    "x-instructions": "Write it empty with a stable id. Set `max-level` to leave out deeper headings that are local detail; by default it lists h2 to h6. Give sections or headings ids of your own where a link must keep its target across versions, since the ids Leaf generates aren't stable.",
+    "x-instructions": "Write it empty with a stable id. It outlines the nearest tab or part containing it, or the whole main when outside those views. Add `open` to show its compact inline links on arrival; the reader can still collapse them. Set `max-level` to leave out deeper headings that are local detail; by default it lists h2 to h6. Give sections or headings ids of your own where a link must keep its target across versions, since the ids Leaf generates aren't stable.",
     "type": "object",
     "properties": {
       "id": {
@@ -193,6 +193,9 @@
       "max-level": {
         "type": "string",
         "pattern": "^[2-6]$"
+      },
+      "open": {
+        "type": "boolean"
       }
     },
     "required": ["id"],

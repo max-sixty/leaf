@@ -9,11 +9,7 @@
  * registers one LitElement, one template cache, and one version. Both directions read
  * the same naming rule and the export list Lit itself publishes.
  */
-import { readFileSync, realpathSync } from "node:fs";
-import { createRequire } from "node:module";
-import path from "node:path";
-
-const require = createRequire(import.meta.url);
+import { readFileSync } from "node:fs";
 
 /** The layer path of the page's one Lit. */
 export const litPath = "vendor/lit.js";
@@ -60,13 +56,11 @@ export async function litNamespace() {
 /**
  * An esbuild plugin binding every Lit import to `/vendor/lit.js`.
  *
- * Binding is sound only where the importing package resolves the Lit `lit.js` was
- * built from, so a package that resolves another copy fails the build.
+ * Imports use the page's public namespace directly; the importing package's local
+ * Lit is never bundled or loaded.
  */
 export async function bindToVendoredLit() {
   const reverse = (await staticExports()).map(([from, to]) => [to, from]);
-  const leafLit = realpathSync(require.resolve("lit"));
-  const checked = new Set();
   return {
     name: "leaf-vendored-lit",
     setup(build) {
@@ -75,17 +69,11 @@ export async function bindToVendoredLit() {
         path: specifier,
         external: true,
       }));
-      build.onResolve({ filter: /^lit(\/|$)/ }, ({ path: specifier, resolveDir }) => {
-        if (!checked.has(resolveDir)) {
-          const lit = createRequire(path.join(resolveDir, "_")).resolve("lit");
-          if (realpathSync(lit) !== leafLit)
-            throw new Error(`${resolveDir} resolves another Lit than ${litPath}`);
-          checked.add(resolveDir);
-        }
-        return specifier === "lit/static-html.js"
+      build.onResolve({ filter: /^lit(\/|$)/ }, ({ path: specifier }) =>
+        specifier === "lit/static-html.js"
           ? { path: "static-html", namespace: "leaf-vendored-lit" }
-          : { path: `/${litPath}`, external: true };
-      });
+          : { path: `/${litPath}`, external: true },
+      );
       build.onLoad({ filter: /.*/, namespace: "leaf-vendored-lit" }, () => ({
         contents: `export { ${specifiers(reverse)} } from "/${litPath}";`,
       }));

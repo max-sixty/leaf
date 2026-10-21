@@ -30,6 +30,9 @@ var readPart = (derive) => applicationState.select(derive).read;
 var agent = readPart((root) => root.authoritative?.agent ?? null);
 var agentName = () => agent() || "the agent";
 var agentLabel = () => agentName().replace(/^./, (first) => first.toUpperCase());
+var pageClaimed = readPart(
+  (root) => root.authoritative?.claim_session != null
+);
 var projectView = applicationState.projectView;
 var selectWidgets = applicationState.selectWidgets;
 var attachApplicationPresentation = (region, renderer) => presentation.attach(region, renderer);
@@ -342,6 +345,7 @@ export {
   readPart,
   agentName,
   agentLabel,
+  pageClaimed,
   projectView,
   selectWidgets,
   attachApplicationPresentation,

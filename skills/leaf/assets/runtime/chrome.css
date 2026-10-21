@@ -497,7 +497,7 @@
     .lf-fp-leaf .lf-dot {
       --lf-mark-w: 20px;
     }
-    :is(.lf-fp-leaf, .lf-fp-badge, .lf-fp-news-dot) {
+    :is(.lf-fp-badge, .lf-fp-news-dot) {
       animation: lf-fp-arrive 160ms linear 140ms backwards;
     }
   }

@@ -690,8 +690,9 @@
     .lf-fp-leaf .lf-dot {
       --lf-mark-w: 20px;
     }
-    /* The leaf and what it carries show once the surface has nearly reached them. */
-    :is(.lf-fp-leaf, .lf-fp-badge, .lf-fp-news-dot) {
+    /* The leaf rides the box into the corner (runtime/box-motion.js); what it carries
+       there shows once the box has nearly arrived. */
+    :is(.lf-fp-badge, .lf-fp-news-dot) {
       animation: lf-fp-arrive 160ms linear 140ms backwards;
     }
   }

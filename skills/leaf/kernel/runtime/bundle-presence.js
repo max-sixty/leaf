@@ -17,9 +17,6 @@ import {
   watchOwner
 } from "./bundle-page-paint.js";
 import {
-  applicationPresented
-} from "./bundle-semantic-state.js";
-import {
   LENT_REACH_STOP,
   TEXT_BOX,
   afterScript,
@@ -38,6 +35,9 @@ import {
   upFrom,
   wearsLentStop
 } from "./bundle-frame-visibility.js";
+import {
+  applicationPresented
+} from "./bundle-semantic-state.js";
 import {
   outsideReading
 } from "./bundle-queued-work.js";

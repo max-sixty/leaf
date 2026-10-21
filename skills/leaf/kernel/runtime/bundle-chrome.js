@@ -57,9 +57,6 @@ import {
   watchArrivals
 } from "./bundle-page-paint.js";
 import {
-  documentChanged
-} from "./bundle-semantic-state.js";
-import {
   PRESSES,
   WORKS,
   keeps,
@@ -72,6 +69,9 @@ import {
   under,
   upFrom
 } from "./bundle-frame-visibility.js";
+import {
+  documentChanged
+} from "./bundle-semantic-state.js";
 import {
   anchorKey,
   isElementName

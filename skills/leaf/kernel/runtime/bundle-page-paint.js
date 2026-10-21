@@ -1,11 +1,4 @@
 import {
-  DELIVERY,
-  PAGE_ROOT,
-  offlineInteractive,
-  pageUrl,
-  runtime
-} from "./bundle-semantic-state.js";
-import {
   CARET_KEYS,
   TEXT_BOX,
   WORKS,
@@ -33,6 +26,13 @@ import {
   under,
   upFrom
 } from "./bundle-frame-visibility.js";
+import {
+  DELIVERY,
+  PAGE_ROOT,
+  offlineInteractive,
+  pageUrl,
+  runtime
+} from "./bundle-semantic-state.js";
 import {
   AsyncDirective,
   Directive,
@@ -3438,7 +3438,6 @@ export {
   watchOwner,
   whileConnected,
   frameFor,
-  liveStages,
   watchArrivals,
   watchArrivalsIn,
   watchScrolls,

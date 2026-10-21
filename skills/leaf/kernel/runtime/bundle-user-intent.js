@@ -3,9 +3,11 @@ import {
   commitWidgetDescriptors,
   dataBody,
   rememberAuthoredParents,
+  setChildLists,
+  setChildren,
   stageAuthoredStates,
   stageWidgetDescriptors
-} from "./bundle-widget-upgrade.js";
+} from "./bundle-stylesheets.js";
 import {
   isCanonicalMediaUrl,
   readAttachedMedia,
@@ -75,10 +77,6 @@ import {
   shownRegionBounds,
   startScroll
 } from "./bundle-presence.js";
-import {
-  setChildLists,
-  setChildren
-} from "./bundle-stylesheets.js";
 import {
   COLLAPSE,
   alignText,
@@ -174,20 +172,6 @@ import {
   whenNone
 } from "./bundle-page-paint.js";
 import {
-  applicationState,
-  attachApplicationPresentation,
-  offlineInteractive,
-  pageClaimed,
-  readApplication,
-  readPart,
-  runtime,
-  runtimeModule,
-  runtimeResource,
-  whenApplicationPresented,
-  whenDocumentPresented,
-  whenWidgetsPresented
-} from "./bundle-semantic-state.js";
-import {
   CARET_KEYS,
   TEXT_FIELD,
   afterScript,
@@ -225,6 +209,20 @@ import {
   under,
   upFrom
 } from "./bundle-frame-visibility.js";
+import {
+  applicationState,
+  attachApplicationPresentation,
+  offlineInteractive,
+  pageClaimed,
+  readApplication,
+  readPart,
+  runtime,
+  runtimeModule,
+  runtimeResource,
+  whenApplicationPresented,
+  whenDocumentPresented,
+  whenWidgetsPresented
+} from "./bundle-semantic-state.js";
 import {
   M,
   PENDING,

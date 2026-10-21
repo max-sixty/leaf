@@ -81,20 +81,6 @@ while it continues everywhere the check doesn't see. The rates inform the call
 rather than gate it: weigh what a missed failure costs as well as how often it
 happens, and whether agents improve the page after receiving the message.
 
-## Keep authoring a page fast
-
-Leaf is a developer tool: the user is usually one person waiting on the page in the
-middle of their own work, so the time an agent takes to produce it is part of its
-quality. Shipped instructions keep that path short: write the page, run
-`page check`, look it over and hand it over. Don't add a reviewer subagent, a render
-pass or a critique round to the path most pages take. Keep such a step for a page that
-has to be especially well made, such as one that will be published or read by many
-people, in the reference that owns that kind of page.
-
-When pages keep failing the same way, improve the guidance the author reads while
-writing, and measure it in `evals/`, where a judge reading the page cold stands in for
-the user.
-
 ## When to pass guidance back to the authoring agent
 
 Pass guidance back when it helps the author improve the user's result, weighed against
@@ -330,6 +316,20 @@ order that exercises each verb the page explains, undo included. Before handoff,
 the sample using only what that prose says, and read each line the feed prints: a
 probe that knows more than the prose shows that the sample works, not that a user can
 work it.
+
+## Keep authoring a page fast
+
+Leaf is often a developer tool, used by one person waiting on the page in the middle
+of their own work, so the time an agent takes to produce a page is usually part of
+its quality. Shipped instructions keep that path short: write the page, run
+`page check`, look it over and hand it over. Avoid adding a reviewer subagent, a
+render pass or a critique round to the path most pages take. Keep such a step for a
+page that has to be especially well made, such as one that will be published or read
+by many people, in the reference that owns that kind of page.
+
+When pages keep failing the same way, improve the guidance the author reads while
+writing, and measure it in `evals/`, where a judge reading the page cold can stand in
+for the user.
 
 ## Score an instruction change
 

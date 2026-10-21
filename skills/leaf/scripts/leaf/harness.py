@@ -540,6 +540,8 @@ class CodexHarness(EnvironmentHarness):
 
         An adapter takes its lease before it writes its transport there, and holds
         the start lock across that, so the record is read under the start lock."""
+        if not adapter_is_live(self.session):
+            return False
         from .codex_adapter import adapter_start_lock_path, running_adapter
         from .state import flocked
 
@@ -601,13 +603,13 @@ class CodexHarness(EnvironmentHarness):
             return None, expected
         if event == "PostToolUse":
             mark_step_hook(self.session)
-        elif self.later_turn_takes_input():
-            return None, expected
         from .service import owned_pages
 
         if not owned_pages(self.session):
             return None, expected
         if event == "Stop":
+            if self.later_turn_takes_input():
+                return None, expected
             from .hook_transport import read_plans, stop_continues
 
             plans = read_plans(self.session)

@@ -151,11 +151,15 @@ import {
   aborted,
   authoredStates,
   commitWidgetDescriptors,
+  orderChildren,
+  patchRetains,
+  patchTree,
   quoted,
   rememberAuthoredParents,
+  setChildren,
   stageAuthoredStates,
   stageWidgetDescriptors
-} from "./bundle-widget-upgrade.js";
+} from "./bundle-stylesheets.js";
 import {
   scrollBehavior
 } from "./bundle-motion.js";
@@ -221,12 +225,6 @@ import {
   tickClock,
   watchReadingRegionTransitions
 } from "./bundle-presence.js";
-import {
-  orderChildren,
-  patchRetains,
-  patchTree,
-  setChildren
-} from "./bundle-stylesheets.js";
 import {
   DATUM,
   TEXT_BLOCK,
@@ -331,32 +329,6 @@ import {
   word
 } from "./bundle-page-paint.js";
 import {
-  LIVE_ROOT,
-  PRESENTATION_ORDER,
-  agentLabel,
-  annotationMode,
-  applicationPresenter,
-  applicationState,
-  documentChanged,
-  layerRoot,
-  offlineData,
-  offlineInteractive,
-  offlineState,
-  pageUrl,
-  presentDocument,
-  projectView,
-  projectionRegionsPresented,
-  readApplication,
-  readPart,
-  revisionLabel,
-  runtime,
-  setPresentationFailureReporter,
-  watchPresentation,
-  whenApplicationRegionsPresented,
-  whenDocumentPresented,
-  whenWidgetsPresented
-} from "./bundle-semantic-state.js";
-import {
   PRESSES,
   TEXT_BOX,
   TEXT_FIELD,
@@ -397,6 +369,32 @@ import {
   upFrom,
   whenLeft
 } from "./bundle-frame-visibility.js";
+import {
+  LIVE_ROOT,
+  PRESENTATION_ORDER,
+  agentLabel,
+  annotationMode,
+  applicationPresenter,
+  applicationState,
+  documentChanged,
+  layerRoot,
+  offlineData,
+  offlineInteractive,
+  offlineState,
+  pageUrl,
+  presentDocument,
+  projectView,
+  projectionRegionsPresented,
+  readApplication,
+  readPart,
+  revisionLabel,
+  runtime,
+  setPresentationFailureReporter,
+  watchPresentation,
+  whenApplicationRegionsPresented,
+  whenDocumentPresented,
+  whenWidgetsPresented
+} from "./bundle-semantic-state.js";
 import {
   M,
   PENDING,

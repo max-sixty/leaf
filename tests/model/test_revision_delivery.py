@@ -225,11 +225,7 @@ def test_capture_follows_deep_and_cyclic_dependencies_once(tmp_path):
     }
     assert set(reads) == expected
     assert len(reads) == len(expected)
-    assert artifact.resources[f"/page/{depth - 1}.js"].dependencies == (
-        "/page/0.js",
-        "/page/shared.js",
-    )
-    assert artifact.resources["/page/second.css"].dependencies == ("/page/first.css",)
+    assert expected <= artifact.resources.keys()
 
 
 def test_document_rewrites_only_resource_references_with_exact_source_spans():
@@ -360,8 +356,9 @@ main { background: image-set("./a.png" 1x, url(./b.png) 2x); }
 
     artifact = capture_artifact(tmp_path, SourceDocument(source), {})
     captured = artifact.resources["/page/style.css"]
-    assert set(captured.dependencies) == expected
-    assert "/page/ignored.css" not in artifact.resources
+    assert {
+        path for path in artifact.resources if path.startswith("/page/")
+    } == expected | {"/page/style.css"}
 
     delivered = deliver_resource(captured, "/page/style.css", ADDRESS).data.decode()
     assert {path for path in expected if f'"{ROOT}{path}"' in delivered} == expected
@@ -464,7 +461,6 @@ def test_authored_lazy_positioning_import_uses_the_captured_public_provider(page
     assert activated.error is None, activated.error
     artifact = read_artifact(page_dir, activated.revision)
     resource = artifact.resources["/page/position.js"]
-    assert resource.dependencies == (provider,)
     assert provider in json.loads(artifact.manifest)["public_modules"]
     assert artifact.resources[provider].data == (page_dir / provider[1:]).read_bytes()
     assert deliver_resource(

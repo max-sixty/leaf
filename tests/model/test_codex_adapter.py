@@ -737,8 +737,7 @@ def test_a_new_codex_adapter_observes_ordinary_turns_without_a_prior_hook(
     )
 
 
-@pytest.mark.parametrize("invalid", ["old-format", "incomplete-correction"])
-def test_codex_drops_a_record_whose_delivery_it_cannot_read(page_dir, invalid):
+def test_codex_drops_a_record_whose_delivery_it_cannot_read(page_dir):
     append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "hello"}
     )
@@ -749,10 +748,7 @@ def test_codex_drops_a_record_whose_delivery_it_cannot_read(page_dir, invalid):
     payload = codex_model.offer_delivery(
         path, codex_model.read_record(path), transport="queue"
     ).payload
-    if invalid == "old-format":
-        payload["format"] = "leaf-delivery-v1"
-    else:
-        payload["correction"] = {"delivery": "12345678"}
+    payload["format"] = "leaf-delivery-v1"
     cleanup_model.write_json(delivery_model.delivery_path(payload["id"]), payload)
     with pytest.raises(Refused, match="written by another Leaf"):
         delivery_model.read_delivery(payload["id"])

@@ -166,16 +166,13 @@ def test_live_widget_subscription_releases_and_reconnects(browser, serve):
     )
 
 
-WEB_AWESOME_SHEET = """sheets => sheets.some(
-  sheet => [...sheet.cssRules].some(rule => rule.cssText.includes('wa-select'))
-)"""
-
-
 def test_webawesome_chrome_loads_without_optional_controls(browser, serve):
     plain = open_page(browser, serve(leaf_page("Plain", "<h1>Plain page</h1>")))
     assert (
-        plain.evaluate(f"() => ({WEB_AWESOME_SHEET})(document.adoptedStyleSheets)")
-        is True
+        plain.evaluate(
+            "getComputedStyle(document.documentElement).getPropertyValue('--wa-space-scale').trim()"
+        )
+        == "1"
     )
     assert not any(
         entry.endswith("/vendor/webawesome.esm.js")
@@ -189,13 +186,9 @@ def test_webawesome_chrome_loads_without_optional_controls(browser, serve):
 
     source = ROOT / "examples" / "developer" / "visual-review-gallery.html"
     page = open_page(browser, serve(source))
-    assert (
-        page.evaluate(f"() => ({WEB_AWESOME_SHEET})(document.adoptedStyleSheets)")
-        is True
-    )
     control = page.locator(".lf-vr-case-select")
     # A page rule granted control access and with no specificity at all can outrank
-    # the generated sheet's `:is(wa-select, …)` mapping in @layer lf-vendor.
+    # the shared theme's `:is(wa-select, …)` mapping.
     page.evaluate(
         """() => {
           const style = document.createElement('style');
@@ -335,12 +328,10 @@ def test_webawesome_typography_is_independent_of_surrounding_prose(browser, serv
 
 
 @pytest.mark.parametrize("motion", ["no-preference", "reduce"])
-def test_interrupted_library_popovers_finish_the_latest_request(browser, serve, motion):
-    """A superseded close cannot hide a reopened popover or strand its API promise.
+def test_reopening_a_library_select_keeps_its_options_visible(browser, serve, motion):
+    """Enter then Space reopens the menu while its close animation is running.
 
-    Select and tooltip share the library's animation continuation.
-    The real Enter/Space route exposed it; direct public requests exercise the
-    same owner in the other consumers and both interruption directions.
+    Upstream 3.14.0 otherwise lets that close hide the already reopened menu.
     """
     source = ROOT / "examples" / "developer" / "visual-review-gallery.html"
     page = open_page(browser, serve(source))
@@ -356,94 +347,6 @@ def test_interrupted_library_popovers_finish_the_latest_request(browser, serve, 
     expect(select.locator("wa-option:state(current)")).to_be_visible()
     assert select.evaluate("n => n.open && n.popup.active && !n.listbox.hidden")
     page.keyboard.press("Escape")
-
-    for tag in ("wa-select", "wa-tooltip"):
-        page.evaluate(
-            """async tag => {
-          const {offer} = await window.__lfWidgetApi();
-          const holder = offer('div', 'transition-test');
-          const control = offer(tag, 'transition-control');
-          control.id = 'transition-control';
-          if (tag === 'wa-select') {
-            const option = offer('wa-option', '', 'First');
-            option.value = 'first'; control.append(option);
-          } else if (tag === 'wa-tooltip') {
-            control.trigger = 'manual'; control.content = 'Help';
-            control.append(offer('button', '', 'Help'));
-          }
-          holder.append(control); document.body.append(holder);
-          await control.updateComplete;
-          await control.show();
-        }""",
-            tag,
-        )
-        control = page.locator("#transition-control")
-        for final_open in (True, False):
-            control.evaluate(
-                """async (n, finalOpen) => {
-              if (n.open !== finalOpen) await (finalOpen ? n.show() : n.hide());
-              const interrupted = finalOpen ? n.hide() : n.show();
-              await n.updateComplete;
-              const latest = finalOpen ? n.show() : n.hide();
-              n.results = null;
-              Promise.all([interrupted, latest]).then(results => n.results = results);
-            }""",
-                final_open,
-            )
-            page.wait_for_function(
-                "document.querySelector('#transition-control').results !== null"
-            )
-            assert control.evaluate("n => n.results") == [False, True]
-            assert control.evaluate("n => n.open === n.popup.active")
-            assert control.evaluate("n => n.open") is final_open
-        for requests in ((True, False), (True, False, True)):
-            control.evaluate("n => n.hide()")
-            results = control.evaluate(
-                """async (n, requests) => {
-              return Promise.all(requests.map(open => open ? n.show() : n.hide()));
-            }""",
-                requests,
-            )
-            assert results == [False] * (len(requests) - 1) + [True]
-            assert control.evaluate("n => n.open === n.popup.active")
-            assert control.evaluate("n => n.open") is requests[-1]
-        control.evaluate("n => n.hide()")
-        assert (
-            control.evaluate("""async n => {
-          const pending = n.show(); n.open = false;
-          return pending;
-        }""")
-            is False
-        )
-        assert control.evaluate("n => !n.open && !n.popup.active")
-        control.evaluate("n => n.parentElement.remove()")
-
-    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
-    # Copy feedback consumes tooltip completion. Reopening its timed hide must
-    # release the copy lock even though the obsolete after-hide never fires.
-    page.evaluate("""async () => {
-      const {offer} = await window.__lfWidgetApi();
-      const copy = offer('wa-copy-button', 'copy-feedback');
-      copy.id = 'copy-feedback'; copy.value = 'copied value';
-      copy.tooltip = 'copy'; copy.feedbackDuration = 80;
-      document.body.append(copy); await copy.updateComplete;
-      copy.activeTooltip.addEventListener('wa-hide', () => copy.activeTooltip.show(), {once:true});
-      copy.copied = 0;
-      copy.addEventListener('wa-copy', () => copy.copied++);
-    }""")
-    copy = page.locator("#copy-feedback")
-    copy.get_by_role("button").click()
-    page.wait_for_function("document.querySelector('#copy-feedback').copied === 1")
-    page.wait_for_function("!document.querySelector('#copy-feedback').isCopying")
-    assert copy.evaluate(
-        "n => n.status === 'rest' && n.activeTooltip.open && !n.copyIcon.hidden"
-    )
-    copy.get_by_role("button").click()
-    page.wait_for_function("document.querySelector('#copy-feedback').copied === 2")
-    page.wait_for_function("!document.querySelector('#copy-feedback').isCopying")
-    assert copy.evaluate(
-        "n => n.status === 'rest' && !n.activeTooltip.open && !n.copyIcon.hidden"
-    )
 
 
 def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):

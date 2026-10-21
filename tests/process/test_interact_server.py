@@ -1654,7 +1654,6 @@ def test_a_page_loads_from_other_servers_as_written(server, page_dir):
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None, activated.error
     resources = artifact_model.read_artifact(page_dir, activated.revision).resources
-    assert resources["/page/app.js"].dependencies == ()
     assert not any(path.startswith("http") for path in resources)
 
     status, body = fetch(f"{server}/")

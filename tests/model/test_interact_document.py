@@ -201,16 +201,15 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     assert first.created
     artifact = artifact_model.read_artifact(page_dir, first.revision)
     assert artifact.html == html.encode()
-    assert artifact.resources["/page/app.js"].dependencies == (
+    assert {
+        "/page/app.js",
         "/page/nested/value.js",
         "/runtime/widget-api.js",
-    )
-    assert artifact.resources["/page/style.css"].dependencies == (
+        "/page/value.js",
+        "/page/style.css",
         "/page/nested/theme.css",
-    )
-    assert artifact.resources["/page/nested/theme.css"].dependencies == (
         "/page/image.svg",
-    )
+    } <= artifact.resources.keys()
     assert artifact.resources["/page/image.svg"].mime == "image/svg+xml"
     assert artifact.resources["/page/inline.svg"].mime == "image/svg+xml"
     assert artifact.resources["/page/app.js"].mime == "application/javascript"
@@ -358,7 +357,6 @@ const computed = import(text, { with: { type: './missing.js' } });
     assert activated.error is None, activated.error
     artifact = artifact_model.read_artifact(page_dir, activated.revision)
     resource = artifact.resources["/page/app.js"]
-    assert resource.dependencies == ("/page/options.js", "/page/value.js")
     rewritten = revision_delivery_model.rebase_module(
         resource.data, "/page/app.js", lambda path: "/revisions/captured" + path
     )

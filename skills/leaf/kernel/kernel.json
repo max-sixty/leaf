@@ -184,7 +184,7 @@
     "runtime/scrolling.js": "167ad6e77a35637db366f8fcd6b53b410982ed7885cb3b02ec4506ce98e59501",
     "runtime/semantic-news.js": "b5c151a3fbdd13080d22a844b120cce2dcb9a838564d681730efef459a8e9d95",
     "runtime/semantic-state.js": "0d94e71e94bfee9a9d28751e0a86a44ee39a4743bb3a2036586abdbfe3a54e6d",
-    "runtime/shadow-stage.js": "c88cbb96216724fd9b3ed79d02c03a81d5ee6e4230a680b2ba9050aaccd42808",
+    "runtime/shadow-stage.js": "302861a77df4dc7c0b90366debbcb28dda45470315e73335330ded7d9ceb65da",
     "runtime/shadow-tree.js": "902564cfc5afdcbeb120ef30f89f36466d38c8e20987a6e3b89d1a8219829f6c",
     "runtime/shadow.js": "047427438d42b59d2c183cfe9f80f481119c1e55352c74919eb4e383919a89ef",
     "runtime/standing-target.js": "62763720fd8bf58317b99ebc4f5c64802aa9855a87b3c4b590a8713e94583e93",
@@ -277,8 +277,8 @@
     "vendor/syntax/toml.js": "bdbbaf842db523f40867805302f06990ee16b9fcdb75c8ae6e01efabaffbb369",
     "vendor/syntax/typescript.js": "9f95bae3ff593a851ae931005e733292edc8a54d62cf4b351511f79230d643e5",
     "vendor/syntax/yaml.js": "d26d797bdd23183ea23fc5bd145ac49288f4513af32700f080139d1e484e1fcb",
-    "vendor/webawesome-chrome.js": "172b5c94c7c035fa3bedf915f51d2730b0f8deaa4787cdca51818a562957b61a",
-    "vendor/webawesome/chunk-HGEKUUYY.js": "a53aed21ac54df62b23372a123bf579499f168701f040f63d712ed124f999ef8",
+    "vendor/webawesome-chrome.js": "960bb9204f30d681c6043421b0c6c3656d374646cf68d33ab1549b4f46915e32",
+    "vendor/webawesome/chunk-MRRKGRWG.js": "d20e8b1d17dd3767a2b7c2bfe7b1715252e2bd9f265cadf9c1f5942d4d81dd58",
     "widgets/lf-suggestion.js": "70fd726fa68ff191a7e58489232ea1e55cd60ed38e8a5c122cfbb5ac1895a4f3"
   },
   "replaces": [

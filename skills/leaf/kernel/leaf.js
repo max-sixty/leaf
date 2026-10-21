@@ -180,7 +180,16 @@ import {
   walkPositionLabel,
   workflowStep
 } from "./runtime/bundle-user-intent.js";
-import "./runtime/bundle-widget-upgrade.js";
+import {
+  DISCLOSE,
+  DISCLOSURE_SELECTOR,
+  annotationSheets,
+  chromeSheet,
+  disclosed,
+  marksSheet,
+  setChildren,
+  watchDisclosures
+} from "./runtime/bundle-stylesheets.js";
 import {
   mediaViewer,
   readAttachedMedia,
@@ -269,16 +278,6 @@ import {
   userReadingRegion,
   whenArrived
 } from "./runtime/bundle-presence.js";
-import {
-  DISCLOSE,
-  DISCLOSURE_SELECTOR,
-  annotationSheets,
-  chromeSheet,
-  disclosed,
-  marksSheet,
-  setChildren,
-  watchDisclosures
-} from "./runtime/bundle-stylesheets.js";
 import {
   COLLAPSE,
   LEAF_SURFACE,
@@ -431,22 +430,6 @@ import {
   word
 } from "./runtime/bundle-page-paint.js";
 import {
-  PRESENTATION_ORDER,
-  SHARE_ROOT,
-  WEBSITE_DELIVERY,
-  agentName,
-  annotationMode,
-  applicationPresenter,
-  applicationState,
-  documentChanged,
-  offlineInteractive,
-  readPart,
-  runtime,
-  runtimeResource,
-  shareUrl,
-  whenApplicationPresented
-} from "./runtime/bundle-semantic-state.js";
-import {
   CARET_KEYS,
   MODIFIER_KEYS,
   PRESSES,
@@ -492,6 +475,22 @@ import {
   under,
   upFrom
 } from "./runtime/bundle-frame-visibility.js";
+import {
+  PRESENTATION_ORDER,
+  SHARE_ROOT,
+  WEBSITE_DELIVERY,
+  agentName,
+  annotationMode,
+  applicationPresenter,
+  applicationState,
+  documentChanged,
+  offlineInteractive,
+  readPart,
+  runtime,
+  runtimeResource,
+  shareUrl,
+  whenApplicationPresented
+} from "./runtime/bundle-semantic-state.js";
 import {
   LitElement,
   M,

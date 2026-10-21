@@ -33,16 +33,26 @@ from .schema import FILE_BINDINGS_FILE, HTML_NAME
 from .state import (
     STRING,
     Record,
+    described,
     flocked,
     object_schema,
     replace_bytes,
     state_home,
 )
 
-# Each binding id's file, by its canonical absolute path.
 BINDINGS = Record(
     "file-bindings",
-    object_schema({"bindings": {"type": "object", "additionalProperties": STRING}}),
+    described(
+        "The local text files a page may edit, in the page directory's `files.json`.",
+        object_schema(
+            {
+                "bindings": described(
+                    "Each binding id's file, by its canonical absolute path.",
+                    {"type": "object", "additionalProperties": STRING},
+                )
+            }
+        ),
+    ),
     since=13,
 )
 

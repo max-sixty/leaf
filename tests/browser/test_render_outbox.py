@@ -2085,7 +2085,7 @@ def test_a_move_on_a_version_a_newer_one_replaced_is_refused_and_restored(
         for key in ["Enter", "ArrowRight", "Enter"]:
             pinned.keyboard.press(key)
     assert refused.value.json()["error"] == (
-        "The page changed while you moved this; move it again."
+        "The page changed while I moved this; move it again."
     )
     round_trip(pinned)
     expect(pinned.locator("#col-todo #card-baffle")).to_have_count(1)

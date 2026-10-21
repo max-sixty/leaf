@@ -84,13 +84,14 @@ const OFFLINE_LINE =
 const KEY_REFUSED_LINE =
   "The server no longer accepts this tab's key. Open the link Leaf printed in a new tab, and keep this one open so pending changes can send.";
 const BROKEN_LINE = "Page couldn't apply current state — reload";
-// A published page states who replies and where to install Leaf.
+// A published page states what it is, whose copy the visitor reads, and where to
+// install Leaf; the status line beside it says who revises the copy.
 const publicationWords = (published) => [
   `${
     published.kind === "example"
-      ? "This is an example on the Leaf website."
-      : "This website is a Leaf page."
-  } ${published.agent} replies and revises this private copy. `,
+      ? "This is an example on the Leaf website"
+      : "This website is a Leaf page"
+  }, and this copy is private to this browser. `,
   "Install Leaf",
 ];
 
@@ -134,6 +135,7 @@ function statusWords({
   detail,
   detailSource,
   handling,
+  invite,
   kind,
   listening,
   overdue,
@@ -173,7 +175,7 @@ function statusWords({
   // A declared request tells the user what to do. Preserve it on the row when
   // no pending input supersedes it; a generic attendance label would lose that cue.
   if (kind === "listening") {
-    const awaits = `${agent} awaits — ${detail || "select text to comment"}`;
+    const awaits = detail ? `${agent} awaits — ${detail}` : invite;
     return listening
       ? [
           `${agent} listening`,
@@ -275,18 +277,15 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
       explanation: OFFLINE_LINE,
       adds: "",
     };
-  const { publication } = state;
-  // A published page's status line says who answers there; its introduction and links
-  // stand beside it (`statusModel`).
-  if (publication)
-    return {
-      kind: "publication",
-      tone: "",
-      summary: `${publication.agent} revises your private copy`,
-      publication,
-    };
-  const { activity, agent } = state;
-  const { kind, detail } = activity;
+  const { activity, agent, publication = null } = state;
+  // On Leaf's website any comment starts the agent (`leaf_website`), so whenever it
+  // isn't working it listens: no session holds a copy until its first comment, and one
+  // that has gone quiet since starts again at the next. Its work reads as on any page,
+  // and the introduction and its links join the explanation (`statusModel`).
+  const onCall = Boolean(publication) && activity.kind !== "working";
+  const kind = onCall ? "listening" : activity.kind;
+  // A request the agent declared still stands; the line of work it left does not.
+  const detail = !onCall || activity.kind === "listening" ? activity.detail : "";
   const facts = activityFacts(state);
   // What the user's words do meanwhile. The log takes them with nobody on the other
   // end; the only thing attendance changes is when they are read.
@@ -307,6 +306,9 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
       comments: activity.counts.handling_comments,
       answers: activity.counts.handling - activity.counts.handling_comments,
     },
+    invite: publication
+      ? `${agent} awaits — comment to revise this copy`
+      : `${agent} awaits — select text to comment`,
     kind,
     listening: facts.listening,
     overdue: activity.counts.overdue,
@@ -335,7 +337,7 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
   if (waitsThere) append("It waits in its own session, not on this page.");
   return {
     kind,
-    tone: facts.tone,
+    tone: TONE[kind],
     summary: textOf(summaryParts),
     summaryParts,
     explanation: textOf(explanationParts),
@@ -344,6 +346,7 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
     addsParts,
     asks: asked || waitsThere,
     actionableWork,
+    publication,
   };
 }
 
@@ -377,25 +380,18 @@ function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {
     items.length ? `Waiting on ${whom}: ${queueKinds(items).join(", ")}.` : "";
   return [named(onUser, "me"), named(onAgent, agent)].filter(Boolean).join(" ");
 }
-const WITHOUT_QUEUES = new Set([
-  "broken",
-  "refused",
-  "faulted",
-  "unreachable",
-  "publication",
-]);
+const WITHOUT_QUEUES = new Set(["broken", "refused", "faulted", "unreachable"]);
 
 // What the chrome shows for a status (`pageStatus`, or a reading of startup's own),
 // beside the page's `queues` (`readQueues`) and the `agent` they wait on: the leaf's
 // `tone`, the row's `summary`, the `explanation` and
 // what it `adds` to the summary, whether the status `asks` the user to act, and a
-// publication's introduction and links, which
-// remain an ordinary reading row rather than children of the status disclosure button.
+// publication's introduction and links, with which the explanation ends.
 export function statusModel(status, queues, agent) {
   const { kind, tone, summary, asks = false, publication = null } = status;
   let { explanation, adds } = status;
-  let explanationParts = [...(status.explanationParts ?? textParts(explanation))];
-  let addsParts = [...(status.addsParts ?? textParts(adds))];
+  const explanationParts = [...(status.explanationParts ?? textParts(explanation))];
+  const addsParts = [...(status.addsParts ?? textParts(adds))];
   const counted = WITHOUT_QUEUES.has(kind) ? "" : queueWords(queues, agent);
   if (counted) {
     appendWords(explanationParts, counted);
@@ -407,10 +403,8 @@ export function statusModel(status, queues, agent) {
   if (publication) {
     const [said, installs] = publicationWords(publication);
     const examples = publication.kind === "example" ? "Other examples" : null;
-    explanation = said + (examples ? `${examples} ` : "") + installs;
-    adds = explanation;
-    explanationParts = textParts(explanation);
-    addsParts = textParts(explanation);
+    appendWords(explanationParts, said + (examples ? `${examples} ` : "") + installs);
+    explanation = textOf(explanationParts);
     publicationModel = Object.freeze({
       copy: said,
       examples,

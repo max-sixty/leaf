@@ -268,6 +268,9 @@ html {
 html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) {
   display: none;
 }
+html[data-lf-interactive] [data-lf-arriving] {
+  display: none;
+}
 @layer {
   [hidden]:not([hidden=until-found]) {
     display: none !important;
@@ -316,6 +319,7 @@ html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) {
   background: var(--card);
 }
 @property --lf-field-end-room { syntax: "<length>"; inherits: true; initial-value: 0px; }
+@property --lf-field-ride { syntax: "<length> | none"; inherits: true; initial-value: none; }
 .lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input)),
 :is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input)) {
   padding: var(--lf-compose-pad-block, 8px) var(--lf-compose-pad-inline-start, 10px);

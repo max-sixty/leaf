@@ -26,16 +26,21 @@ unknown; browser diagnostic sessions are separate identities. Captured context
 identifies the harness and the provider of an explicitly recorded matching turn;
 no current claim or timestamp proximity supplies this identity.
 
-An answered input whose answering session is Claude Code's, with its transcript
-still in this machine's Claude Code projects, also carries its reply's breakdown
-(`reply`, `reply_phases.reply_breakdown`): the whole reply, Leaf's share of it
-(delivery and `leaf` commands), the harness's other work before it took the input,
-idle time between its turns, and the model calls the reply took. Leaf's share
-counts a whole shell command that runs `leaf` among other work, which real pages'
-agents often write, so it is an upper bound. Its case is `working` where a turn was
-running at the admission, so the harness took the input at that turn's next tool
-boundary or its end, else `waiting`. Other harnesses' inputs carry no breakdown,
-and the summary's reply rows count them missing.
+Every answered input carries the time the answering session's `leaf` commands
+took on it (`leaf_commands_s`), from the `leaf_command` record each writes in the
+page (`leaf.interaction_log.record_command`), on any harness: those that started
+between the harness taking the input and the answer. Where the reply's breakdown
+(below) reads the transcript, the harness took it at the boundary the breakdown
+finds; elsewhere at its opened pickup, else its admission, which leaves out a
+command the agent ran before acknowledging a pointer it read itself. One whose answering
+session is Claude Code's, with its transcript still in this machine's Claude Code
+projects, also carries its reply's breakdown (`reply`,
+`reply_phases.reply_breakdown`): the whole reply, Leaf's share of it (delivery and
+those commands), the harness's other work before it took the input, idle time
+between its turns, and the model calls the reply took. Its case is `working` where
+a turn was running at the admission, so the harness took the input at that turn's
+next tool boundary or its end, else `waiting`. Other harnesses' inputs carry no
+breakdown, and the summary's reply rows count them missing.
 """
 
 import json
@@ -55,6 +60,7 @@ from leaf.todos import start_reading
 from leaf_dev.reply_phases import (
     claude_code_records,
     claude_code_transcript,
+    leaf_commands_ms,
     reply_breakdown,
 )
 
@@ -144,6 +150,7 @@ def page_timings(page: Path, *, since: datetime | None, until: datetime) -> dict
             "reply_visible",
             "reply_stream_words",
             "run_context",
+            "leaf_command",
         ),
     )
     contexts = [
@@ -283,8 +290,29 @@ def page_timings(page: Path, *, since: datetime | None, until: datetime) -> dict
         observations, input_attempts, reply_inputs
     ).items():
         rows[identity]["milestones"]["send_to_visible"] = observation
+    commands = [
+        row
+        for row in observations
+        if row["source"] == "cli" and row["type"] == "leaf_command"
+    ]
     for row in rows.values():
-        row["reply"] = breakdown(row)
+        answered = row["milestones"].get("answered")
+        mine = [
+            command
+            for command in commands
+            if answered is not None and command["session"] == answered["session"]
+        ]
+        row["reply"] = breakdown(row, mine)
+        # From where the harness took the input, so a working harness's
+        # commands for the work it was busy with stay out.
+        took = row["milestones"].get("opened", {}).get("at", row["admitted_at"])
+        row["leaf_commands_s"] = (
+            None
+            if answered is None
+            else row["reply"]["leafCommandsMs"] / 1000
+            if row["reply"] is not None
+            else leaf_commands_ms(mine, took, answered["at"]) / 1000
+        )
     return {
         "page": str(page),
         "unlinked_agent_replies": unlinked,
@@ -292,9 +320,10 @@ def page_timings(page: Path, *, since: datetime | None, until: datetime) -> dict
     }
 
 
-def breakdown(row: dict) -> dict | None:
+def breakdown(row: dict, commands: list[dict]) -> dict | None:
     """The answered input's reply breakdown, with its case, where the answering
-    session's Claude Code transcript can be read."""
+    session's Claude Code transcript can be read; `commands` are its session's
+    `leaf_command` records."""
     milestones = row["milestones"]
     if "answered" not in milestones or "opened" not in milestones:
         return None
@@ -306,6 +335,7 @@ def breakdown(row: dict) -> dict | None:
         return None
     reply = reply_breakdown(
         claude_code_records(native),
+        commands,
         row["admitted_at"],
         milestones["opened"]["at"],
         answered["at"],
@@ -440,6 +470,10 @@ def response_times(
             "failure",
         )
     }
+    summary["leaf_commands"] = spread(
+        rows,
+        [row["leaf_commands_s"] for row in rows if row["leaf_commands_s"] is not None],
+    )
     for case in ("waiting", "working"):
         replies = [
             row["reply"]
@@ -482,7 +516,7 @@ def response_times(
         f"Unlinked agent replies: {sum(len(reading['unlinked_agent_replies']) for reading in readings)}; missing means no exact-linked observation."
     )
     click.echo(
-        "Reply rows (whole_*, leaf_share_*) read Claude Code transcripts; missing includes every other input."
+        "leaf_commands reads each command's own record on any harness; whole_* and leaf_share_* read Claude Code transcripts, so their missing includes every other input."
     )
     click.echo(
         "milestone           observed  missing  clock errors      p50      p90      p95      max"

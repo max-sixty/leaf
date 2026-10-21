@@ -865,6 +865,13 @@ sheet.replaceSync(`
      against. Both layers share one grid cell, inside the host's padding. */
   .lf-field { display: grid; }
   .lf-field > * { grid-area: 1 / 1; min-width: 0; }
+  /* An owner growing the field at its top can carry the words down to where they stood
+     and back with the edge, by the host's --lf-field-ride (theme.css), a transform
+     that moves neither the field nor its layout. The field's content box cuts off what
+     hasn't risen into it yet, the new line and its caret, and keeps that travel from
+     reading as words past the field's foot. */
+  .lf-field { overflow-y: clip; }
+  .lf-field > * { translate: 0 var(--lf-field-ride); }
   /* The placeholder is one line that never widens the box \u2014 a response bar sizes to the
      words \u2014 and shortens with an ellipsis where the box is narrow, so it reads the same
      height whether it shows the plain words or a keyed hint. */

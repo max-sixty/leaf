@@ -1024,8 +1024,21 @@ def test_a_drag_that_overshoots_the_layer_is_not_a_passage(browser, serve):
     this — which of the layer's words a selection may reach at all — is
     `controls/test_covering.py::test_a_selection_that_reaches_the_layer_stops_at_the_page`.
     """
-    quoted = "Paragraph 3. Filler. Filler. Filler."
-    page = open_page(browser, serve(LONG_PAGE, anchored=(("p3", quoted),)))
+    # Distinct words let the restored passage resolve after the drag. Repeated filler
+    # gives this page many indistinguishable anchors, so no pending mark can paint.
+    unique_page = leaf_page(
+        "long",
+        "<h1 id='t'>Long</h1>{paras}",
+    ).format(
+        paras="\n".join(
+            f"<p id='p{i}'>Paragraph {i}. "
+            + " ".join(f"Word{8 * i + j:03d}." for j in range(8))
+            + "</p>"
+            for i in range(60)
+        )
+    )
+    quoted = "Paragraph 3. Word024. Word025. Word026."
+    page = open_page(browser, serve(unique_page, anchored=(("p3", quoted),)))
     resized(page, 1400, 900)
     card = thread_quote(page, comment_ids(serve.page_dir)[-1])
     expect(card).to_be_visible()
@@ -1051,6 +1064,9 @@ def test_a_drag_that_overshoots_the_layer_is_not_a_passage(browser, serve):
     # The selection saying it covers something is the fact this read wants, and the drag
     # is still held, so there is no composer to wait on yet.
     page.wait_for_function("() => getSelection().toString().length > 0")
+    # Selectionchange can still be queued after the last mouse move. Give that event
+    # its turn so the gesture remembers this endpoint before it leaves the document.
+    page.evaluate("() => new Promise(resolve => requestAnimationFrame(resolve))")
     covered = page.evaluate("() => getSelection().toString()")
     page.mouse.move(into["x"] + 40, into["y"] + into["height"] / 2, steps=20)
     page.mouse.up()

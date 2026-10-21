@@ -586,42 +586,36 @@ document, and the runtime relies on it (next entry).
   `position-anchor: --t; top: anchor(top)` after the scroller; scroll the scroller
   past the header's start and compare the two rectangles' tops.
 
-### A stuck sticky column bounces with the page in Firefox
+### A stuck sticky box bounces with the page
 
-- **Disposition: accepted.** The root keeps the platform's rubber band, which tells
-  the reader they reached the end. Revisit when Firefox fixes the bug below, or if
-  readers find the moving column disrupts a gesture.
-- **Affected:** every box stuck to the root's scroll, most visibly a page of parts'
-  title and list (layouts.css, "A page of parts"), and a column's margin sidebar.
-- **Observed, 2026-10-20, Firefox on macOS:** the user saw a fast trackpad scroll to
-  a page of parts' end bounce the column of parts with the page. Headless Playwright
-  Firefox draws no overscroll, so no probe reproduces it. The CSS Working Group
-  resolved that a sticky box, while stuck, takes no part in overscroll, as a fixed
-  one doesn't ([csswg-drafts#6299](https://github.com/w3c/csswg-drafts/issues/6299)).
-  Firefox 103 implemented that for fixed boxes
-  ([bug 1760368](https://bugzilla.mozilla.org/show_bug.cgi?id=1760368)); for
-  sticky boxes [bug 1772626](https://bugzilla.mozilla.org/show_bug.cgi?id=1772626)
-  is open, with Firefox's own sidebar as its duplicate
-  ([bug 1861880](https://bugzilla.mozilla.org/show_bug.cgi?id=1861880)). Chrome had
-  not implemented the sticky half as of 2023; current Chrome is unchecked.
-- **Alternatives rejected:** `position: fixed` keeps the column still in every
-  engine, but the runtime knows a box that rides along with the scroll only as a
-  stuck sticky one (`stuckBox` in geometry.js, the slot restart in reach.js). Made
-  fixed, the column's title was read as the reader's place in a part, so a part
-  reopened at its start instead of where the user left it
-  (`test_parts_switch_without_moving_the_list_and_follow_history`); each such reader
-  would have to learn fixed boxes for a transient effect in one browser.
-  `overscroll-behavior-y: none` on the root stops the column moving only by removing
-  the page's own bounce in every browser.
+- **Disposition: answered for a page of parts.** Its title and list stand fixed in
+  the window (layouts.css, "A page of parts"), which every engine holds still through
+  overscroll, and the runtime reads a box fixed in the window as riding along with
+  every scroll (`stuckBox` in geometry.js). Other boxes stuck to the root, such as a column's
+  margin sidebar, still bounce. Revisit them if a reader notices, and drop the fixed
+  column if the engines hold stuck sticky boxes still.
+- **Observed, 2026-10-20, Firefox on macOS:** a fast trackpad scroll to a page of
+  parts' end bounced its sticky column with the page; made fixed, the column held
+  still while the part bounced. Headless Playwright draws no overscroll, so this was
+  seen in the user's own browser. The CSS Working Group resolved that a sticky box,
+  while stuck, takes no part in overscroll, as a fixed one doesn't
+  ([csswg-drafts#6299](https://github.com/w3c/csswg-drafts/issues/6299)). Firefox 103
+  implemented that for fixed boxes
+  ([bug 1760368](https://bugzilla.mozilla.org/show_bug.cgi?id=1760368)); for sticky
+  boxes [bug 1772626](https://bugzilla.mozilla.org/show_bug.cgi?id=1772626) is open.
+  Chrome had not implemented the sticky half as of 2023.
+- **Cost:** a mark or comment card on the column's title drifts in Safari while the
+  page is scrolled ("An anchor under a fixed box in WebKit", below).
+- **Alternative rejected:** `overscroll-behavior-y: none` on the root stops the column
+  moving only by removing the page's own bounce in every browser.
 - **Recheck:** on macOS with a trackpad, a document with a `position: sticky; top: 0`
   column beside a long body; fling to the end and watch whether the column moves.
 
 ### An anchor under a fixed box in WebKit
 
-- **Disposition: accepted.** As above, no script or scroll-driven layer answers it.
-  Revisit if a page puts marks inside fixed panels for Safari readers, such as a
-  contents list or side panel that is `position: fixed` and holds commented or
-  highlighted targets.
+- **Disposition: accepted.** No script or scroll-driven layer answers it. A page of
+  parts' column is fixed (above), so its title's marks drift in Safari while the page
+  is scrolled; revisit if Safari readers comment on it.
 - **Affected:** a margin row, highlight or floating card whose target stands in a
   `position: fixed` box, while the document is scrolled.
 - **Observed, 2026-10-14, WebKit 26.6:** a box anchored to an element inside a
@@ -631,8 +625,8 @@ document, and the runtime relies on it (next entry).
   Firefox 155 place it on the anchor. Standing the box in a fixed frame anchored to
   the panel and cut with `clip-path` does not change WebKit's answer.
 - **Effect:** in Safari, the mark or row for a target in a fixed panel drifts from
-  its target as the page scrolls, and comes back at the top of the page. Leaf's own
-  fixed chrome holds no page targets.
+  its target as the page scrolls, and comes back at the top of the page. Of Leaf's own
+  fixed boxes only a page of parts' column holds page targets.
 - **Recheck:** a `position: fixed; overflow: auto` panel holding an element named
   `--t`, a `position: fixed` box with `position-anchor: --t; top: anchor(top)`
   after it, and a document tall enough to scroll; scroll the document and the panel

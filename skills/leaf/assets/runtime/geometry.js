@@ -302,7 +302,13 @@ export function headerCuts(item, clips = new Map()) {
       },
     }));
 }
-// The sticky box holding `node` while it is stuck, else null. A stuck box stands at the
+// The sticky box holding `node` while it is stuck, or the box fixed in the window
+// holding it, else null. A box fixed in the window, as a page of parts' column is
+// (layouts.css), stands there wherever the page is scrolled, so it is always stuck; a
+// fixed box anchored to the page's words, as the inline thread card is
+// (annotation-overlay/floating.js), or held by a transformed box around it, moves with
+// what holds it as the page scrolls, so it is not. A
+// stuck box stands at the
 // edge of the scroller it sticks in, or is pushed past it by its holder's end, rather
 // than at its own place in its holder, whose edge has scrolled beyond it: a page tab
 // strip over its panel's sixtieth paragraph, an open thread's title over the turns read
@@ -327,10 +333,18 @@ export function headerCuts(item, clips = new Map()) {
 // Which band a sticky box covers is a different question, answered from its stated
 // height whether it is stuck or not (`headerInset`, `footerInset`).
 export function stuckBox(node, within = null) {
-  for (let el = node; el?.nodeType === 1 && el !== within; el = renderedParent(el))
-    if (getComputedStyle(el).position === "sticky" && sticks(el)) return el;
+  for (let el = node; el?.nodeType === 1 && el !== within; el = renderedParent(el)) {
+    const style = getComputedStyle(el);
+    if (style.position === "sticky" ? sticks(el) : inWindow(el, style)) return el;
+  }
   return null;
 }
+// A fixed box stands in the window where nothing around it holds it instead, which
+// leaves it no offset parent, and no anchor positions it.
+const inWindow = (el, style) =>
+  style.position === "fixed" &&
+  el.offsetParent === null &&
+  !style.positionAnchor.startsWith("--");
 // Whether `sticky` stands where sticking holds it, in the scroller around it. A sticky
 // box that clips what it holds, as a tab strip does, still sticks in that scroller.
 function sticks(sticky) {

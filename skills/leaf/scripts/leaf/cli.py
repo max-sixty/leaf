@@ -42,6 +42,7 @@ def resolve_dir(dir_arg: str, must_exist: bool = True, *, renew: bool = True) ->
     the session running the command (`vendoring.renew_layer`), whose finding on what
     still holds it back is noted; `renew` is off for a command that would undo the
     re-vendor's restart."""
+    from leaf.interaction_log import acting_on
     from leaf.locations import canonical_path
 
     page_dir = canonical_path(Path(dir_arg).expanduser())
@@ -56,6 +57,7 @@ def resolve_dir(dir_arg: str, must_exist: bool = True, *, renew: bool = True) ->
             f"{page_dir} is not an initialized page; "
             f"run `leaf page init {shlex.quote(str(page_dir))}`"
         )
+    acting_on(page_dir)
     if not renew:
         return page_dir
     from leaf.findings import note
@@ -189,6 +191,24 @@ class LeafGroup(click.Group):
     ):
         if not standalone_mode:
             return super().main(args, prog_name, complete_var, False, **extra)
+        from leaf.interaction_log import record_command
+
+        try:
+            self._run_standalone(args, prog_name, complete_var, **extra)
+        finally:
+            record_command(self.command_name(sys.argv[1:] if args is None else args))
+
+    def command_name(self, args: list[str]) -> str:
+        """The command words `args` begin with, such as `response reply`."""
+        words, group = [], self
+        for word in args:
+            if not isinstance(group, click.Group) or word not in group.commands:
+                break
+            words.append(word)
+            group = group.commands[word]
+        return " ".join(words)
+
+    def _run_standalone(self, args, prog_name, complete_var, **extra) -> None:
         try:
             result = super().main(args, prog_name, complete_var, False, **extra)
         except click.exceptions.NoArgsIsHelpError as error:

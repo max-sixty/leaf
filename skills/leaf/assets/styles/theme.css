@@ -811,6 +811,12 @@ html {
 html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) {
   display: none;
 }
+/* A widget drawn before first paint stays out of the page until its whole source
+   has parsed, so no frame shows that source half arrived. The script after its end
+   tag takes the mark off and draws it (revision_delivery.mark_declared). */
+html[data-lf-interactive] [data-lf-arriving] {
+  display: none;
+}
 /* Authored HTML is the page's useful initial condition, so it paints from stylesheet
  * parse while JavaScript upgrades widgets and reads the current log. Generated page
  * interface joins it as soon as widget and page-interface upgrade gives that apparatus
@@ -892,6 +898,14 @@ html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) {
   syntax: "<length>";
   inherits: true;
   initial-value: 0px;
+}
+/* How far below their places a text field draws its words, while an owner's tween
+   carries them with an edge the field's growth moved (composing/text-field.js). At
+   rest it is `none`, which leaves the words untransformed. */
+@property --lf-field-ride {
+  syntax: "<length> | none";
+  inherits: true;
+  initial-value: none;
 }
 /* The general leaf text box, in one rule. It is stated page-side like the rest of the
    shared vocabulary's faces (chrome.css), so a widget's own box that names the same

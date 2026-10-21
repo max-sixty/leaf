@@ -1689,9 +1689,10 @@ _COLLECTED_BATCH = {
 _BATCH = {
     "type": "object",
     "properties": {
-        "page": _STRING,
+        "page": {"description": "The page directory.", **_STRING},
         "session": _STRING,
         "events": {
+            "description": "The captured events, by id and `seq`.",
             "type": "array",
             "minItems": 1,
             "items": {
@@ -1711,14 +1712,28 @@ def _when_variant(holds, then: dict) -> dict:
     return {"if": {"properties": {"state": {"enum": states}}}, "then": then}
 
 
-# A record at another format is ignored, and the events its page has not
-# acknowledged are captured afresh.
 RECORD_SCHEMA = {
+    "description": "One delivery a Codex task is handing to its agent "
+    "(`DeliveryRecord`), in the state home's `sessions/<digest>.deliveries/<id>.json` "
+    "and, once nothing is owed on it, that directory's `history/`. A record at "
+    "another format is ignored, and the events its page has not acknowledged are "
+    "captured afresh.",
     "type": "object",
     "properties": {
-        "state": {"enum": list(RECORD_VARIANTS)},
-        "created_at": {"type": "number"},
-        "batches": {"type": "array", "minItems": 1, "items": _BATCH},
+        "state": {
+            "description": "How far the handoff has gone (`RECORD_VARIANTS`).",
+            "enum": list(RECORD_VARIANTS),
+        },
+        "created_at": {
+            "description": "When it was captured, in seconds since the epoch.",
+            "type": "number",
+        },
+        "batches": {
+            "description": "One per page.",
+            "type": "array",
+            "minItems": 1,
+            "items": _BATCH,
+        },
     },
     "required": ["state", "created_at", "batches"],
     "allOf": [
@@ -2158,7 +2173,7 @@ def recover_codex_receipt(session_id: str) -> bool:
 UNCONFIRMED_DELIVERY = "delivery_unconfirmed"
 UNCONFIRMED_TEXT = (
     "Leaf could not confirm this delivery and will not retry it automatically. "
-    "Send it again if you still need an answer."
+    "Send it again if I still need an answer."
 )
 
 

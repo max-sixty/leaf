@@ -193,6 +193,7 @@ agent ends it with `leaf task end` instead, `status` is `answered_elsewhere` or
 
 An approval obligation, `source.kind === "approval"`, asks the user to approve the stamped
 version `source.version`. Approving sets `answer.value` to `true`, and Undo reopens it.
+It asks about the version as a whole, so its `prompt.target` is `null`.
 
 An update's obligation, `source.kind === "update"`, is what a message the user sent, or an
 action in an answered widget's obligation, is owed. `source.id` names the event and

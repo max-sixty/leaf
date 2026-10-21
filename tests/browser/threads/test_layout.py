@@ -78,7 +78,7 @@ def test_thread_actions_share_consistently_sized_message_headers(
               const box = selector => card.querySelector(selector).getBoundingClientRect();
               const title = card.querySelector('.lf-thread-head')?.getBoundingClientRect();
               const head = box('.lf-msg-head');
-              // The panel's Resolve stands in its view's head, off the messages' rows.
+              // The panel's Resolve stands among its view's controls, off the messages' rows.
               const action = card.querySelector('.lf-resolve')?.getBoundingClientRect()
                 ?? null;
               const body = box('.lf-msg-body');

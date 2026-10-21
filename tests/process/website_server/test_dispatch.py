@@ -15,6 +15,7 @@ from interact_support import (
     activity_reading,
     refused_on,
     running_http_server,
+    status_and_stream,
     wait_for,
 )
 from interact_support import append_carried_log_record as append_event
@@ -752,7 +753,7 @@ def test_hosted_start_retains_its_admitted_epoch_until_it_begins(
             expected=current,
         )
         winner["epoch"] = current
-        winner["status"] = website_server.PageTransaction(page_dir).status
+        winner["status"] = status_and_stream(page_dir)
 
     monkeypatch.setattr(website_server, "log_agent", competing_work)
     try:
@@ -763,6 +764,6 @@ def test_hosted_start_retains_its_admitted_epoch_until_it_begins(
             old.begin()
         old.close({"id": "started-turn", "status": "completed", "items": []}, None)
         assert session_record("hosted-thread") == winner["epoch"]
-        assert website_server.PageTransaction(page_dir).status == winner["status"]
+        assert status_and_stream(page_dir) == winner["status"]
     finally:
         harness.close()

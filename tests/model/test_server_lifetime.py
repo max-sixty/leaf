@@ -23,6 +23,7 @@ from interact_support import (
     append_carried_log_record,
     available_loopback_port,
     command_findings,
+    declared,
     fixture_service,
     publish,
     read_record,
@@ -694,7 +695,7 @@ def test_a_persistent_server_outlives_a_session_that_picks_the_page_up(
 
     # The synchronous hook left the persistent service enabled and live.
     assert server_model.running_server(page_dir) == launched
-    assert read_record(page_dir / "status.json")["state"] == "waiting"
+    assert declared(page_dir)["state"] == "waiting"
     assert not service_model.claim_is_active(service_model.page_claim(page_dir))
     assert page_dir not in service_model.owned_pages("later")
     # Explicit stop crosses that server's release barrier before returning.

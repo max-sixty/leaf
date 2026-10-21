@@ -252,9 +252,9 @@ def handed_over(
 
     A start in force (`todos.item_starts`) holds an update it names, and a start running
     on an open to-do over a widget holds that widget's actions delivered before it, as
-    the work the to-do answers. A `put_down` in the log, which `leaf status waiting`
-    and `idle` write, ends every start before it, so the updates they named are no
-    longer in hand. The workflow names the start holding it as `held_by`,
+    the work the to-do answers. A `status` declaration in the log, which `leaf status
+    waiting` and `idle` write, ends every start before it, so the updates they named
+    are no longer in hand. The workflow names the start holding it as `held_by`,
     which `activity` takes off before serving.
 
     This is one interaction-scoped projection over the document and log: append

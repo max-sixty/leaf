@@ -12,30 +12,32 @@ from leaf import data as data_model
 REGISTRY = {"$data": {"contracts": {"integer": {"schema": {"type": "integer"}}}}}
 
 
-def test_data_delivery_tracks_contract_and_validity_without_revising_the_bytes(
+def publish(source: Path, contract: str, run: str, value) -> None:
+    """Replace `source`'s publication whole, as `data.write_data` does."""
+    replacement = source.with_name(".replacement.tmp")
+    replacement.write_bytes(
+        data_model.PUBLICATION.encode(
+            {
+                "contract": contract,
+                "run": run * 32,
+                "updated": "2026-01-01T00:00:00Z",
+                "value": value,
+            }
+        )
+    )
+    os.replace(replacement, source)
+
+
+def test_data_delivery_tracks_contract_and_validity_without_revising_the_value(
     tmp_path,
 ):
     source = data_model.source_file(tmp_path, "numbers")
     source.parent.mkdir()
-    source.write_bytes(
-        data_model.PUBLICATION.encode(
-            {"run": "1" * 32, "updated": "2026-01-01T00:00:00Z", "value": 1}
-        )
-    )
-    index = tmp_path / "data.json"
-    index.write_bytes(
-        data_model.CONTRACTS.encode({"sources": {"numbers": {"contract": "integer"}}})
-    )
+    publish(source, "integer", "1", 1)
     original = data_model.read_data(tmp_path, REGISTRY)
     revision = original["sources"]["numbers"]["revision"]
 
-    replacement = source.with_name("replacement.json")
-    replacement.write_bytes(
-        data_model.PUBLICATION.encode(
-            {"run": "2" * 32, "updated": "2026-01-01T00:00:00Z", "value": 1}
-        )
-    )
-    os.replace(replacement, source)
+    publish(source, "integer", "2", 1)
     refreshed = data_model.read_data(tmp_path, REGISTRY)
     assert refreshed["sources"]["numbers"]["revision"] == revision
     assert (
@@ -47,15 +49,12 @@ def test_data_delivery_tracks_contract_and_validity_without_revising_the_bytes(
     )
     assert refreshed["version"] != original["version"]
 
-    index.write_bytes(
-        data_model.CONTRACTS.encode({"sources": {"numbers": {"contract": "count"}}})
-    )
+    publish(source, "count", "2", 1)
     registry = {"$data": {"contracts": {"count": {"schema": {"type": "integer"}}}}}
     rebound = data_model.read_data(tmp_path, registry)
     assert rebound["sources"]["numbers"] == {
         **refreshed["sources"]["numbers"],
         "contract": "count",
-        "updated": "2026-01-01T00:00:00Z",
     }
     assert rebound["version"] != original["version"]
 
@@ -75,13 +74,23 @@ def test_a_source_read_keeps_one_complete_publication(tmp_path, monkeypatch):
     source.parent.mkdir()
     source.write_bytes(
         data_model.PUBLICATION.encode(
-            {"run": "1" * 32, "updated": "2026-01-01T00:00:00Z", "value": 1}
+            {
+                "contract": "integer",
+                "run": "1" * 32,
+                "updated": "2026-01-01T00:00:00Z",
+                "value": 1,
+            }
         )
     )
     replacement = source.with_name("replacement.json")
     replacement.write_bytes(
         data_model.PUBLICATION.encode(
-            {"run": "2" * 32, "updated": "2026-01-02T00:00:00Z", "value": 2}
+            {
+                "contract": "integer",
+                "run": "2" * 32,
+                "updated": "2026-01-02T00:00:00Z",
+                "value": 2,
+            }
         )
     )
     open_path = Path.open
@@ -102,17 +111,14 @@ def test_a_source_read_keeps_one_complete_publication(tmp_path, monkeypatch):
 
     with monkeypatch.context() as ordered:
         ordered.setattr(Path, "open", open_before_replacement)
-        reading = data_model.read_source(tmp_path, "numbers", "integer", REGISTRY)
+        reading = data_model.read_source(tmp_path, "numbers", REGISTRY)
     assert reading["value"] == 1
     assert reading["updated"] == "2026-01-01T00:00:00Z"
     assert reading["run"] == "1" * 32
     assert (
-        reading["run"]
-        != data_model.read_source(tmp_path, "numbers", "integer", REGISTRY)["run"]
+        reading["run"] != data_model.read_source(tmp_path, "numbers", REGISTRY)["run"]
     )
-    assert (
-        data_model.read_source(tmp_path, "numbers", "integer", REGISTRY)["value"] == 2
-    )
+    assert data_model.read_source(tmp_path, "numbers", REGISTRY)["value"] == 2
 
 
 def test_cache_eviction_during_a_validation_keeps_its_result(monkeypatch):

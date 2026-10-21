@@ -1,56 +1,33 @@
 import {
-  CARET_KEYS,
-  TEXT_BOX,
-  WORKS,
-  afterScript,
-  canPlaceFocus,
-  cancelRender,
-  closeLayer,
-  controlNavigationKeys,
-  focused,
-  handBack,
-  isNativeLayer,
-  keeps,
-  keepsText,
   move,
-  nativeLayerHolding,
-  nativeLayerKind,
-  nextRender,
-  onStanding,
-  releaseFocus,
-  renderedParent,
-  renderedUnder,
-  shadowHost,
-  sizeObserver,
-  takesLetters,
-  under,
-  upFrom
-} from "./bundle-frame-visibility.js";
-import {
-  DELIVERY,
-  PAGE_ROOT,
-  offlineInteractive,
-  pageUrl,
-  runtime
-} from "./bundle-semantic-state.js";
+  preserveMoveFocus
+} from "./bundle-dom-move.js";
 import {
   AsyncDirective,
+  DELIVERY,
   Directive,
+  PAGE_ROOT,
   PartType,
   Show,
+  cancelWork,
   createSignal,
   createView,
   default as default2,
   describeFailure,
   directive,
+  enqueueWork,
   flush,
   html,
   isElementName,
   nothing,
+  offlineInteractive,
   onCleanup,
+  pageUrl,
+  runWork,
+  runtime,
   untrack,
   watchEffect
-} from "./bundle-queued-work.js";
+} from "./bundle-vendor~browser-runtime.js";
 
 // runtime/page-paint.js
 var PAGE_PAINT_ATTRIBUTE = Object.freeze({
@@ -123,6 +100,1079 @@ function watchPendingTraffic(sending2) {
     paint();
   });
 }
+
+// runtime/control-selectors.js
+var TEXT_FIELD = document.documentElement.lfInputs.textField;
+var MODIFIER_KEYS = ["Shift", "Alt", "Control", "Meta"];
+var CARET_KEYS = [
+  "ArrowLeft",
+  "ArrowRight",
+  "ArrowUp",
+  "ArrowDown",
+  "Home",
+  "End",
+  "PageUp",
+  "PageDown"
+];
+var selectsAll = (event) => event.key.toLowerCase() === "a" && (event.metaKey || event.ctrlKey);
+var TEXT_BOX = document.documentElement.lfInputs.textBox;
+var TAB_STOP = `a[href], button, input, select, ${TEXT_BOX}, summary, [contenteditable]:not([contenteditable="false"]), [tabindex]:not([tabindex="-1"])`;
+var PRESS_SELECTORS = [
+  "a[href]",
+  "audio[controls]",
+  "button",
+  "img[usemap]",
+  "input:not([type='hidden'])",
+  "label",
+  "select",
+  "summary",
+  TEXT_BOX,
+  "video[controls]",
+  // A recording whose browser controls the runtime has traded for its own
+  // (video-controls.js).
+  "video[data-lf-player]",
+  "[role='button']",
+  "[role='checkbox']",
+  "[role='combobox']",
+  "[role='link']",
+  "[role='menuitem']",
+  "[role='menuitemcheckbox']",
+  "[role='menuitemradio']",
+  "[role='option']",
+  "[role='radio']",
+  "[role='scrollbar']",
+  "[role='searchbox']",
+  "[role='separator'][tabindex]",
+  "[role='slider']",
+  "[role='spinbutton']",
+  "[role='switch']",
+  "[role='tab']",
+  "[role='textbox']",
+  "[role='treeitem']"
+];
+var LENT_REACH_STOP = "data-lf-lent-reach-stop";
+var REGION_SELECTORS = [
+  `[tabindex]:not([tabindex='-1']):not([${LENT_REACH_STOP}])`,
+  "[contenteditable]:not([contenteditable='false'])",
+  "[draggable='true']",
+  "[role='application']",
+  "[role='grid']",
+  "[role='gridcell']",
+  "[role='listbox']",
+  "[role='menu']",
+  "[role='menubar']",
+  "[role='radiogroup']",
+  "[role='tablist']",
+  "[role='tree']",
+  "[role='treegrid']"
+];
+var PRESSES = PRESS_SELECTORS.join(",");
+var WORKS = [...PRESS_SELECTORS, ...REGION_SELECTORS].join(",");
+
+// runtime/frame-visibility.js
+var child = document.documentElement.lfSample;
+var admitted = false;
+var observers = /* @__PURE__ */ new Set();
+var readings = /* @__PURE__ */ new Map();
+var readingId = 0;
+function watchFrame(frame3, callback) {
+  let intersecting = false;
+  const seen = new IntersectionObserver(
+    (entries2) => {
+      const { width, height } = entries2.at(-1).intersectionRect;
+      intersecting = width > 0 && height > 0;
+      callback();
+    },
+    // Edge adjacency is already "intersecting" at zero area, so a positive threshold
+    // makes the first painted pixel a delivery. A whole frame coming into view is one
+    // too, which brings a sample's exposure reading round.
+    { threshold: [0, Number.EPSILON, 1] }
+  );
+  seen.observe(frame3);
+  const styled = new MutationObserver((records) => {
+    if (records.some(({ target }) => target === frame3 || target.contains(frame3)))
+      callback();
+  });
+  styled.observe(frame3.ownerDocument, {
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["inert", "open", "hidden", "aria-hidden", "class", "style"]
+  });
+  return {
+    shown: () => intersecting && frame3.checkVisibility({ visibilityProperty: true }) && getComputedStyle(frame3).contentVisibility !== "hidden",
+    stop: () => {
+      seen.disconnect();
+      styled.disconnect();
+    }
+  };
+}
+var owners = [];
+if (!child)
+  for (let view = (
+    /** @type {Window} */
+    window
+  ); view.frameElement; view = view.parent)
+    owners.push(watchFrame(view.frameElement, publish));
+function frameVisibility() {
+  if (child) return { visible: admitted };
+  if (owners.length) return { visible: owners.every((owner) => owner.shown()) };
+  return null;
+}
+function onFrameVisibility(callback) {
+  observers.add(callback);
+  return () => observers.delete(callback);
+}
+function readSampleVisibility() {
+  if (!child) return null;
+  return new Promise((resolve, reject) => {
+    const id = ++readingId;
+    readings.set(id, { resolve, reject });
+    child.send({ type: "visibility-read", detail: { id } });
+  });
+}
+function publish() {
+  const visibility = frameVisibility();
+  for (const callback of observers) callback(visibility);
+}
+if (child) {
+  child.receive(({ type, detail }) => {
+    if (type === "visibility-reading") {
+      const reading = readings.get(detail.id);
+      readings.delete(detail.id);
+      if (detail.error)
+        reading?.reject(
+          Object.assign(
+            new Error(detail.error.message),
+            { stack: void 0 },
+            detail.error
+          )
+        );
+      else reading?.resolve(detail);
+      return;
+    }
+    if (type !== "visibility") return;
+    admitted = detail.visible;
+    publish();
+  });
+}
+addEventListener("pagehide", (event) => {
+  if (!event.persisted) for (const owner of owners) owner.stop();
+});
+
+// runtime/rendering.js
+var ROUNDS = 8;
+var queued = /* @__PURE__ */ new Map();
+var running = null;
+var afterPaint = /* @__PURE__ */ new Map();
+var lastId = 0;
+var frame = 0;
+var heard = false;
+var quiet = false;
+var checking = false;
+var preparations = 0;
+var preparationObservers = /* @__PURE__ */ new Set();
+function observePreparations(observer) {
+  preparationObservers.add(observer);
+  return () => preparationObservers.delete(observer);
+}
+function holdRendering() {
+  preparations++;
+  const serial = ++begun;
+  pending.add(serial);
+  unsettle();
+  const identity = Object.freeze({});
+  const observers2 = [...preparationObservers];
+  for (const observer of observers2) observer("begin", identity);
+  let released2 = false;
+  return (phase = "settle") => {
+    if (released2) return;
+    released2 = true;
+    preparations--;
+    pending.delete(serial);
+    if (updateChecking) heard = true;
+    unsettle();
+    for (const observer of observers2) observer(phase, identity);
+  };
+}
+function request(into, callback) {
+  const id = ++lastId;
+  into.set(id, enqueueWork(callback));
+  if (!running && !frame) frame = requestAnimationFrame(pass);
+  unsettle();
+  return id;
+}
+var nextRender = (callback) => request(queued, callback);
+var nextFrame = (callback) => request(running ? afterPaint : queued, callback);
+var nextAnimation = (callback) => requestAnimationFrame(callback);
+var cancelAnimation = (id) => cancelAnimationFrame(id);
+function cancelRender(id) {
+  for (const queue2 of [queued, afterPaint, running]) {
+    const job = queue2?.get(id);
+    if (!job) continue;
+    queue2.delete(id);
+    cancelWork(job);
+    return;
+  }
+}
+async function pass(time) {
+  frame = 0;
+  for (let round = 0; queued.size && round < ROUNDS; round++) {
+    running = queued;
+    queued = /* @__PURE__ */ new Map();
+    for (const [id, job] of running) {
+      running.delete(id);
+      try {
+        runWork(job, time);
+      } catch (error) {
+        reportError(error);
+      }
+      await null;
+    }
+  }
+  running = null;
+  for (const entry of afterPaint) queued.set(...entry);
+  afterPaint = /* @__PURE__ */ new Map();
+  if (queued.size) frame = requestAnimationFrame(pass);
+}
+var owedThisScript = /* @__PURE__ */ new Map();
+function settleScript() {
+  for (const [callback, job] of owedThisScript) {
+    owedThisScript.delete(callback);
+    try {
+      runWork(job);
+    } catch (error) {
+      reportError(error);
+    }
+  }
+}
+function afterScript(callback) {
+  if (!owedThisScript.size) queueMicrotask(settleScript);
+  if (!owedThisScript.has(callback))
+    owedThisScript.set(callback, enqueueWork(callback));
+}
+function sizeObserver(callback, { counted = true } = {}) {
+  return new ResizeObserver((entries2, observer) => {
+    if (counted) {
+      heard = true;
+      unsettle();
+    }
+    callback(entries2, observer);
+  });
+}
+var renderingState = () => {
+  const visible = rendered();
+  return {
+    updatesSettled: quiet || !visible,
+    preparationsSettled: preparations === 0 || !visible
+  };
+};
+var rendered = () => !document.hidden && frameVisibility()?.visible !== false;
+function unsettle() {
+  quiet = false;
+  if (checking) return;
+  checking = true;
+  requestAnimationFrame(afterUpdate);
+}
+var updateChecking = false;
+var afterUpdate = () => {
+  updateChecking = true;
+  setTimeout(check);
+};
+function check() {
+  updateChecking = false;
+  if (queued.size || heard) {
+    heard = false;
+    requestAnimationFrame(afterUpdate);
+    return;
+  }
+  checking = false;
+  quiet = true;
+  const waiting = settling;
+  settling = [];
+  for (const waiter of waiting)
+    if ([...pending].some((serial) => serial > waiter.since)) settling.push(waiter);
+    else waiter.settled();
+}
+var settling = [];
+var begun = 0;
+var pending = /* @__PURE__ */ new Set();
+var owed = () => {
+};
+function afterSettling(settled) {
+  settling.push({ settled, since: begun });
+  nextFrame(owed);
+}
+onFrameVisibility((visibility) => {
+  if (visibility.visible) unsettle();
+});
+unsettle();
+
+// runtime/keeps.js
+var keeps = (...args) => document.documentElement.lfInitial.keepsAttribute(...args);
+function keepsHidden(node, hidden) {
+  if (node && node.hidden !== hidden) node.hidden = hidden;
+}
+function keepsText(node, text) {
+  const said = String(text ?? "");
+  if (node && node.textContent !== said) node.textContent = said;
+}
+var atLayoutPrecision = (length) => Math.round(length * 64) / 64;
+var layoutPx = (length) => `${atLayoutPrecision(length)}px`;
+var roomPx = (length) => `${Math.floor(length * 64) / 64}px`;
+
+// runtime/shadow-tree.js
+var shadowHost = (root2) => root2?.nodeType === Node.DOCUMENT_FRAGMENT_NODE ? root2.host ?? null : null;
+var upFrom = (node) => node?.parentElement ?? shadowHost(node?.getRootNode());
+var renderedParent = (node) => node?.assignedSlot ?? upFrom(node);
+var composedParentNode = (node) => node.parentNode ?? shadowHost(node);
+var renderedParentNode = (node) => node.assignedSlot ?? composedParentNode(node);
+var under = (node, root2) => {
+  for (let at = node; at; at = composedParentNode(at)) if (at === root2) return true;
+  return false;
+};
+var renderedUnder = (node, root2) => {
+  for (let at = node; at; at = renderedParentNode(at)) if (at === root2) return true;
+  return false;
+};
+var renderedChain = (node) => {
+  const chain = [];
+  for (let at = node; at; at = renderedParent(at)) chain.push(at);
+  return chain.reverse();
+};
+function renderedOrder(a, b) {
+  if (a === b) return 0;
+  const left = renderedChain(a);
+  const right = renderedChain(b);
+  let index = 0;
+  while (index < left.length && index < right.length && left[index] === right[index])
+    index += 1;
+  if (index === left.length || index === right.length)
+    return left.length - right.length;
+  return left[index].compareDocumentPosition(right[index]) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
+}
+var byRenderedOrder = (items, placeOfItem) => {
+  const placed2 = items.map((item) => ({ item, place: placeOfItem(item) }));
+  return [
+    ...placed2.filter(({ place }) => place).sort((a, b) => renderedOrder(a.place, b.place)),
+    ...placed2.filter(({ place }) => !place)
+  ].map(({ item }) => item);
+};
+var nativeLayerKind = (node) => {
+  if (node?.nodeType !== Node.ELEMENT_NODE || !node.isConnected) return null;
+  if (node.matches("dialog:modal")) return "modal";
+  return node.matches(":popover-open") ? "popover" : null;
+};
+var isNativeLayer = (node) => nativeLayerKind(node) !== null;
+function nativeLayerHolding(node) {
+  for (let at = node; at; at = renderedParent(at)) if (isNativeLayer(at)) return at;
+  return null;
+}
+
+// runtime/focus.js
+function* renderedElements(node) {
+  const children = node.localName === "slot" ? node.assignedElements({ flatten: true }) : (node.shadowRoot ?? node).children;
+  for (const child2 of children) {
+    yield child2;
+    if (child2.shadowRoot && parseInt(child2.getAttribute("tabindex")) < 0) continue;
+    yield* renderedElements(child2);
+  }
+}
+var SEQUENTIAL = `${TAB_STOP}, iframe, audio[controls], video[controls]`;
+var tabStops = (root2) => [...renderedElements(root2)].filter(
+  (node) => node.matches(SEQUENTIAL) && node.tabIndex >= 0 && !node.shadowRoot?.delegatesFocus && !node.matches(":disabled") && !node.inert && node.checkVisibility({ visibilityProperty: true })
+);
+var canPlaceFocus = () => !document.documentElement.lfSample || document.hasFocus();
+var CAUSES = /* @__PURE__ */ new Set(["move", "step", "return", "press"]);
+function focusDestination(destination, cause2, { caret = null, ...unknown } = {}) {
+  if (!CAUSES.has(cause2)) throw new TypeError(`focusDestination: no cause ${cause2}`);
+  const unexpected = Object.keys(unknown);
+  if (unexpected.length)
+    throw new TypeError(`focusDestination: unknown options ${unexpected.join(", ")}`);
+  if (!canPlaceFocus()) return;
+  placed(cause2, () => {
+    destination.focus({ preventScroll: true });
+    if (!landedOn(destination) && lendable(destination)) lendStop(destination);
+  });
+  if (caret && holdsCaret(destination)) destination.setSelectionRange(...caret);
+}
+var placing = null;
+var placed = (cause2, move2) => {
+  const was = placing;
+  placing ??= cause2;
+  try {
+    return move2();
+  } finally {
+    placing = was;
+  }
+};
+var landedOn = (node) => node === document.body ? node.matches(":focus") : node.getRootNode().activeElement === node || Boolean(node.shadowRoot?.activeElement);
+var lendable = (node) => drawn(node) && !node.matches(TAB_STOP);
+var lent = /* @__PURE__ */ new WeakSet();
+var wearsLentStop = (element) => lent.has(element);
+function whenLeft(element, leave) {
+  const blur = () => {
+    if (element.getRootNode().activeElement === element) return;
+    element.removeEventListener("blur", blur);
+    leave();
+  };
+  element.addEventListener("blur", blur);
+}
+function lendStop(destination) {
+  if (destination.hasAttribute("tabindex")) return;
+  const giveBack = () => {
+    lent.delete(destination);
+    if (destination.getAttribute("tabindex") === "-1")
+      destination.removeAttribute("tabindex");
+  };
+  lent.add(destination);
+  destination.tabIndex = -1;
+  destination.focus({ preventScroll: true });
+  if (!landedOn(destination)) {
+    giveBack();
+    return;
+  }
+  whenLeft(destination, giveBack);
+}
+var CARETED = /* @__PURE__ */ new Set(["text", "search", "url", "tel", "password"]);
+var holdsCaret = (node) => node.matches(TEXT_BOX) || node.tagName === "INPUT" && CARETED.has(node.type);
+function readCaret(node) {
+  if (!node || !holdsCaret(node) || node.selectionStart === null) return null;
+  return [node.selectionStart, node.selectionEnd, node.selectionDirection];
+}
+var deepFocus = (at = document.activeElement) => {
+  while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
+  return at;
+};
+var labelPress = null;
+var heldByLabel = () => labelPress?.held.isConnected ? labelPress.held : null;
+function finishLabelPress() {
+  const press2 = labelPress;
+  if (!press2) return null;
+  labelPress = null;
+  return press2;
+}
+function landLabelPress() {
+  if (!finishLabelPress()) return;
+  setTimeout(() => {
+    if (labelPress) return;
+    const at = deepFocus();
+    if (at && at !== document.body) return reconcile(null, pressedPath);
+    if (!drawn(published?.deref())) return;
+    placements += 1;
+    stood = null;
+    publish2(null, cause(null));
+  });
+}
+var [standing, setStanding] = createSignal(0, { ownedWrite: true });
+var focused = (tree = null) => {
+  void standing();
+  let at = heldByLabel() ?? deepFocus();
+  if (tree) while (at && at.getRootNode() !== tree) at = shadowHost(at.getRootNode());
+  return at;
+};
+var selectionOf = (node) => {
+  const root2 = node.getRootNode();
+  const own = (
+    /** @type {{getSelection?: () => Selection}} */
+    root2
+  );
+  return root2 instanceof ShadowRoot && own.getSelection?.() || getSelection();
+};
+function standingNodes() {
+  const at = focused();
+  const selection = getSelection();
+  return [
+    at && at !== document.body ? at : null,
+    selection?.focusNode ?? null,
+    selection?.anchorNode ?? null
+  ].filter(Boolean);
+}
+function standsOn(node) {
+  if (!node) return false;
+  if (standingNodes().some((at) => at === node || node.contains(at))) return true;
+  const selection = selectionOf(node);
+  return Boolean(selection?.rangeCount && selection.getRangeAt(0).intersectsNode(node));
+}
+var restoring = false;
+var placements = 0;
+var stood = null;
+var readers = /* @__PURE__ */ new Set();
+var onStanding = (read2) => {
+  readers.add(read2);
+  return () => readers.delete(read2);
+};
+var published = null;
+var departed = false;
+var readings2 = 0;
+var paintDestination = null;
+var paintedFocus = null;
+var paintedWithin = /* @__PURE__ */ new Set();
+function markFocus(node, name, present) {
+  keeps(node, `data-lf-${name}`, present ? "" : null);
+  if (!present) {
+    if (node.part?.contains(`lf-${name}`)) node.part.remove(`lf-${name}`);
+  } else if (node.getRootNode().nodeType === Node.DOCUMENT_FRAGMENT_NODE && node.hasAttribute("part"))
+    node.part.add(`lf-${name}`);
+}
+function paintFocus(node) {
+  const next = node === document.body || node === document.documentElement ? null : node;
+  if (next !== paintedFocus) {
+    if (paintedFocus) markFocus(paintedFocus, "focus", false);
+    if (next) markFocus(next, "focus", true);
+    paintedFocus = next;
+  }
+  const within = /* @__PURE__ */ new Set();
+  for (let owner = next; owner && owner !== document.body && owner !== document.documentElement; owner = renderedParent(owner))
+    within.add(owner);
+  for (const owner of paintedWithin) {
+    if (!within.has(owner)) markFocus(owner, "focus-within", false);
+  }
+  for (const owner of within) {
+    if (!paintedWithin.has(owner)) markFocus(owner, "focus-within", true);
+  }
+  paintedWithin = within;
+}
+var refreshFocusPaint = () => {
+  const node = paintDestination?.deref();
+  if (node?.isConnected && node !== deepFocus() && node !== heldByLabel()) return;
+  if (node?.isConnected) watchStandingAround(node);
+  paintFocus(node?.isConnected ? node : null);
+};
+var returnPaintPending = false;
+var paintAfterScript = () => {
+  if (!returnPaintPending) refreshFocusPaint();
+};
+var queueFocusPaint = () => afterScript(paintAfterScript);
+var queueReturnFocusPaint = () => {
+  if (returnPaintPending) return;
+  returnPaintPending = true;
+  nextRender(() => {
+    if (!returnPaintPending) return;
+    returnPaintPending = false;
+    refreshFocusPaint();
+  });
+};
+var paintRoots = /* @__PURE__ */ new WeakSet();
+function watchFocusPaintIn(root2) {
+  if (paintRoots.has(root2)) return;
+  paintRoots.add(root2);
+  new MutationObserver(queueFocusPaint).observe(root2, {
+    childList: true,
+    subtree: true
+  });
+  root2.addEventListener("slotchange", queueFocusPaint);
+}
+function publish2(node, cause2) {
+  watchStandingAround(node);
+  paintDestination = node && new WeakRef(node);
+  if (cause2 === "return") queueReturnFocusPaint();
+  else {
+    returnPaintPending = false;
+    queueFocusPaint();
+  }
+  if (node === (published?.deref() ?? null) && !departed) return;
+  departed = false;
+  const left = published?.deref() ?? null;
+  const reading = ++readings2;
+  flush(() => setStanding(() => reading));
+  if (cause2 === "drop") departed = true;
+  else published = node && new WeakRef(node);
+  if (node) placeInput = "focus";
+  const was = [placing, restoring];
+  [placing, restoring] = [null, false];
+  try {
+    for (const read2 of readers) {
+      try {
+        read2(node, cause2, left);
+      } catch (error) {
+        reportError(error);
+      }
+      if (readings2 !== reading) return;
+    }
+  } finally {
+    [placing, restoring] = was;
+  }
+}
+var pressedPath = null;
+var pressedOn = (node) => Boolean(pressedPath) && pressedPath.some((ref) => {
+  const at = ref.deref();
+  return at === node || at?.localName === "label" && at.control === node;
+});
+var pressLed = () => pressedPath !== null;
+var stepping = null;
+var leftClosedLayer = (left) => {
+  const layer = left?.closest?.("dialog, [popover]");
+  return Boolean(layer) && !(layer.open === true || isNativeLayer(layer));
+};
+var cause = (node, left = null) => placing ?? (leftClosedLayer(left) ? "return" : pressedOn(node) ? "press" : stepping ? "step" : "move");
+var read = /* @__PURE__ */ new WeakSet();
+function stand(event) {
+  if (read.has(event)) return;
+  read.add(event);
+  if (closing) return;
+  if (heldByLabel()) {
+    if (placing === null) return;
+    finishLabelPress();
+  }
+  if (!restoring && !(placing === null && leftClosedLayer(event.relatedTarget)))
+    placements += 1;
+  const at = deepFocus();
+  stood = at && new WeakRef(at);
+  publish2(at, cause(at, event.relatedTarget));
+}
+function watchStandingAround(node) {
+  for (let at = node; at; at = renderedParent(at)) watchStandingIn(at.getRootNode());
+}
+function enter(event) {
+  if (read.has(event)) return;
+  read.add(event);
+  watchStandingAround(deepFocus());
+}
+function watchStandingIn(root2) {
+  root2.addEventListener("focus", enter, true);
+  root2.addEventListener("focusin", stand, true);
+  watchFocusPaintIn(root2);
+}
+watchStandingIn(document);
+watchStandingAround(deepFocus());
+document.addEventListener(
+  "focusout",
+  (event) => {
+    if (event.relatedTarget !== null) {
+      departed = true;
+      return;
+    }
+    const left = event.composedPath()[0];
+    stood = new WeakRef(left);
+    if (restoring) return;
+    queueMicrotask(() => {
+      const at = document.activeElement;
+      if (at !== null && at !== document.body) return;
+      if (heldByLabel()) return;
+      if (!drawn(left)) return publish2(null, "drop");
+      if (left !== document.body) placements += 1;
+      if (stood?.deref() === left) stood = null;
+      publish2(null, cause(null));
+    });
+  },
+  true
+);
+var sequential = (event) => event.key === "Tab" && !event.altKey && !event.ctrlKey && !event.metaKey;
+function reconcile(step, pressed) {
+  if (heldByLabel()) return;
+  const at = deepFocus();
+  if (!at || at === document.body || at === published?.deref()) return;
+  placements += 1;
+  stood = new WeakRef(at);
+  const was = [stepping, pressedPath];
+  [stepping, pressedPath] = [step, pressed];
+  try {
+    publish2(at, cause(at));
+  } finally {
+    [stepping, pressedPath] = was;
+  }
+}
+addEventListener(
+  "click",
+  () => {
+    const pressed = pressedPath;
+    setTimeout(() => reconcile(null, pressed));
+  },
+  { capture: true, passive: true }
+);
+var inputs = document.documentElement.lfInputs;
+var inputCount = () => inputs.count;
+var onUserInput = (read2) => inputs.observe(read2);
+var keyCarets = null;
+onUserInput((event) => {
+  if (event.type !== "keydown") return;
+  const carets = /* @__PURE__ */ new Map();
+  for (const node of event.composedPath()) {
+    const caret = node instanceof Element && readCaret(node);
+    if (caret) carets.set(node, caret);
+  }
+  keyCarets = carets;
+  setTimeout(() => {
+    if (keyCarets === carets) keyCarets = null;
+  });
+});
+var caretAtKey = (node) => keyCarets?.get(node) ?? null;
+onUserInput((event) => {
+  if (event.type !== "blur") return;
+  landLabelPress();
+  endPress(event, false);
+});
+var placeInput = "focus";
+for (const type of ["pointermove", "pointerdown", "wheel"])
+  addEventListener(type, () => placeInput = "pointer", {
+    capture: true,
+    passive: true
+  });
+addEventListener(
+  "click",
+  (event) => {
+    if (event.isTrusted && event.button === 0)
+      placeInput = focused()?.contains(event.composedPath()[0]) ? "focus" : "pointer";
+  },
+  { capture: true, passive: true }
+);
+var recentPlaceInput = () => placeInput;
+var press = null;
+var pressing = () => press;
+var pressReaders = /* @__PURE__ */ new Set();
+var onPress = (read2) => pressReaders.add(read2);
+addEventListener(
+  "pointerdown",
+  (event) => {
+    if (!event.isPrimary) return;
+    const path = event.composedPath();
+    const ends = [];
+    press = { pointerId: event.pointerId, path, ends };
+    for (const read2 of pressReaders) {
+      const end = read2(event, path);
+      if (end) ends.push(end);
+    }
+    if (event.button !== 0 || labelPress) return;
+    const label = (
+      /** @type {(EventTarget & Partial<HTMLLabelElement>)[]} */
+      path.find((node) => node?.localName === "label" && node.control)
+    );
+    const held = label && deepFocus();
+    if (!held || held === document.body) return;
+    labelPress = { held, pointerId: event.pointerId, label };
+  },
+  { capture: true, passive: true }
+);
+function endPress(event, completed) {
+  if (!press) return;
+  const { ends } = press;
+  press = null;
+  for (const end of ends) end(event, completed);
+}
+for (
+  const type of
+  /** @type {const} */
+  ["pointerup", "pointercancel"]
+)
+  addEventListener(
+    type,
+    (event) => {
+      if (event.pointerId === labelPress?.pointerId && (type === "pointercancel" || !event.composedPath().includes(labelPress.label)))
+        landLabelPress();
+      if (event.pointerId === press?.pointerId) endPress(event, type === "pointerup");
+    },
+    { capture: true, passive: true }
+  );
+addEventListener(
+  "contextmenu",
+  (event) => {
+    landLabelPress();
+    endPress(event, false);
+  },
+  { capture: true, passive: true }
+);
+addEventListener("click", landLabelPress, { capture: true, passive: true });
+var recoveredLabelKeys = /* @__PURE__ */ new WeakMap();
+var recoveredLabelFocus = (event) => recoveredLabelKeys.get(event);
+addEventListener(
+  "keydown",
+  (event) => {
+    placeInput = "focus";
+    if (!labelPress || event.isComposing || MODIFIER_KEYS.includes(event.key)) return;
+    const active = deepFocus();
+    const { held } = finishLabelPress();
+    if (active === held || !held.isConnected) return;
+    focusDestination(held, "return");
+    if (deepFocus() === held) recoveredLabelKeys.set(event, held);
+  },
+  true
+);
+for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
+  addEventListener(
+    type,
+    (event) => {
+      if (type === "pointerdown")
+        pressedPath = event.composedPath().map((node) => new WeakRef(node));
+      else if (type === "keydown") pressedPath = null;
+      stepping = null;
+      if (type === "keydown" || type === "pointerdown") {
+        const step = type === "keydown" && sequential(event) ? event : null;
+        const pressed = pressedPath;
+        stepping = step;
+        setTimeout(() => {
+          if (step && stepping === step) stepping = null;
+          reconcile(step, pressed);
+        });
+      }
+      const at = deepFocus();
+      if (at && at !== document.body || heldByLabel()) return;
+      stood = null;
+      publish2(null, cause(null));
+    },
+    { capture: true, passive: true }
+  );
+function ringBox(node) {
+  if (node && node !== paintedFocus && node === paintDestination?.deref() && !returnPaintPending)
+    refreshFocusPaint();
+  if (!node?.matches?.("[data-lf-focus]")) return node;
+  for (let box = renderedParent(node); box instanceof Element; box = renderedParent(box))
+    if (getComputedStyle(box).getPropertyValue("--lf-wears-ring") === "1") return box;
+  return node;
+}
+var drawn = (node) => node?.isConnected && node.checkVisibility({ visibilityProperty: true });
+var dropped = () => {
+  const at = deepFocus();
+  if (at && at !== document.body) return null;
+  const node = stood?.deref();
+  return node && !drawn(node) ? node : null;
+};
+function holdFocus(scope, { key = null } = {}) {
+  const node = heldIn(scope);
+  if (!node) return null;
+  const restore = holdOn(node);
+  if (!key) return restore;
+  let item = node;
+  while (item && !item.matches?.(`[${key}]`)) item = renderedParent(item);
+  if (!item || item === scope || !renderedUnder(item, scope)) return restore;
+  const tree = item.getRootNode() === scope.getRootNode() ? scope : item.getRootNode();
+  const items = () => [...tree.querySelectorAll(`[${key}]`)].filter((item2) => renderedUnder(item2, scope));
+  const keys2 = [...new Set(items().map((each) => each.getAttribute(key)))];
+  const at = keys2.indexOf(item.getAttribute(key));
+  const order = [keys2[at], ...keys2.slice(at + 1), ...keys2.slice(0, at).reverse()];
+  let control = node;
+  while (control.getRootNode() !== item.getRootNode()) {
+    const host = shadowHost(control.getRootNode());
+    if (!host) break;
+    control = host;
+  }
+  const like = control.localName + [...control.classList].map((name) => `.${CSS.escape(name)}`).join("");
+  const [same, ...rest] = order;
+  return (...standIns) => {
+    let byKey = null;
+    const keyed = (value) => {
+      if (!byKey) {
+        byKey = /* @__PURE__ */ new Map();
+        for (const each of items()) {
+          const at2 = each.getAttribute(key);
+          if (!byKey.has(at2)) byKey.set(at2, []);
+          byKey.get(at2).push(each);
+        }
+      }
+      return byKey.get(value) ?? [];
+    };
+    const matching2 = (root2) => {
+      if (root2.matches(like) && drawn(root2)) return root2;
+      const assigned = root2.localName === "slot" ? root2.assignedElements({ flatten: true }) : [];
+      for (const child2 of assigned.length ? assigned : root2.children) {
+        const found = matching2(child2);
+        if (found) return found;
+      }
+      return null;
+    };
+    const find = (value) => {
+      const found = keyed(value).filter(drawn);
+      return (like && found.find((each) => each.matches(like))) ?? (like && found.map(matching2).find(Boolean)) ?? found[0] ?? null;
+    };
+    const neighbour = (value) => () => {
+      const place = find(value);
+      if (!place || !drawn(place)) return null;
+      focusDestination(place, "return");
+      return landedOn(place);
+    };
+    return restore(() => find(same), ...rest.map(neighbour), ...standIns);
+  };
+}
+var heldIn = (scope) => {
+  const held = heldByLabel();
+  if (held) return renderedUnder(held, scope) ? held : null;
+  const standing2 = deepFocus(
+    scope.getRootNode().activeElement ?? scope.ownerDocument.activeElement
+  );
+  if (standing2 && standing2 !== document.body && renderedUnder(standing2, scope))
+    return standing2;
+  const node = stood?.deref();
+  return node && renderedUnder(node, scope) ? dropped() : null;
+};
+var standingIn = (scope) => {
+  const at = focused();
+  return Boolean(at) && at !== document.body && renderedUnder(at, scope);
+};
+function rove(items, stop) {
+  for (const item of items) keeps(item, "tabindex", item === stop ? 0 : -1);
+}
+var openers = /* @__PURE__ */ new WeakMap();
+function openLayer(layer, opener = focused()) {
+  openers.set(layer, opener && opener !== document.body ? opener : null);
+}
+var openerOf = (layer) => openers.get(layer) ?? null;
+var closing = 0;
+var deferredLanding = null;
+var landingLayer = false;
+function layerLanding(land2) {
+  return (...args) => {
+    if (!landingLayer)
+      throw new Error("A layer's landing runs only as the layer closes");
+    return land2(...args);
+  };
+}
+function closeLayer(close, land2 = null) {
+  closing += 1;
+  let deferred = null;
+  const landingAround = landingLayer;
+  landingLayer = false;
+  try {
+    close();
+  } finally {
+    landingLayer = landingAround;
+    closing -= 1;
+    if (!closing) [deferred, deferredLanding] = [deferredLanding, null];
+  }
+  if (closing) {
+    if (land2) deferredLanding ??= land2;
+    return;
+  }
+  const landing = land2 || deferred;
+  if (landing) {
+    const outer = landingLayer;
+    landingLayer = true;
+    try {
+      landing();
+    } finally {
+      landingLayer = outer;
+    }
+  }
+  const at = deepFocus();
+  if (!at || at === document.body || at === published?.deref()) return;
+  stood = new WeakRef(at);
+  publish2(at, "return");
+}
+function holdStanding() {
+  const at = focused();
+  const node = at && at !== document.body ? at : dropped();
+  return node ? { node, restore: holdOn(node) } : null;
+}
+var carried = /* @__PURE__ */ new WeakMap();
+var carriedFrom = (node) => carried.get(node) ?? null;
+function holdOn(held) {
+  const caret = readCaret(held);
+  const began = placements;
+  return (...standIns) => {
+    if (placements !== began) return false;
+    for (const standIn of [held, ...standIns]) {
+      if (placements !== began) return false;
+      const place = typeof standIn === "function" ? standIn() : standIn;
+      if (place?.then)
+        return place.then((destination) => {
+          if (!(destination instanceof Element) || !drawn(destination) || deepFocus() !== destination)
+            return false;
+          return land(() => {
+            focusDestination(destination, "return", { caret });
+            return landedOn(destination);
+          });
+        });
+      if (place === true) return true;
+      if (!(place instanceof Element) || !drawn(place)) continue;
+      if (place === held && deepFocus() === held) return true;
+      const landed = land(() => {
+        focusDestination(place, "return", { caret });
+        return landedOn(place);
+      });
+      if (landed) {
+        const before = carriedFrom(held);
+        if (place !== held)
+          carried.set(
+            place,
+            before?.inputs === inputCount() ? before : { from: held, inputs: inputCount() }
+          );
+        return true;
+      }
+    }
+    return false;
+  };
+}
+var land = (landing) => {
+  const was = restoring;
+  restoring = true;
+  try {
+    return landing();
+  } finally {
+    restoring = was;
+  }
+};
+var typesText = inputs.typesText;
+var takesLetters = inputs.takesLetters;
+function controlNavigationKeys(node) {
+  if (node?.matches('input[type="radio"], [role="radio"]'))
+    return ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"];
+  if (node?.matches('input[type="range"], [role="slider"]'))
+    return [
+      "ArrowLeft",
+      "ArrowRight",
+      "ArrowUp",
+      "ArrowDown",
+      "Home",
+      "End",
+      "PageUp",
+      "PageDown"
+    ];
+  return [];
+}
+var readingBlock = () => null;
+function declareReading(read2) {
+  readingBlock = read2;
+}
+function releaseFocus() {
+  focusDestination(document.body, "move");
+  document.body.blur();
+}
+var released = () => {
+};
+function declareRelease(release3) {
+  released = release3;
+}
+var letGoes = 0;
+function release() {
+  const before = letGoes;
+  released();
+  if (letGoes === before) letGo();
+}
+function letGo() {
+  letGoes++;
+  const block = readingBlock();
+  if (!block?.isConnected) {
+    releaseFocus();
+    return;
+  }
+  focusDestination(block, "move");
+  block.blur();
+}
+function handBack(...destinations) {
+  const places = destinations.filter((node) => node && node !== document.body);
+  const landed = () => {
+    const at = placements;
+    return places.some((node) => {
+      if (placements !== at) return true;
+      if (!drawn(node)) return false;
+      focusDestination(node, "return");
+      return landedOn(node);
+    });
+  };
+  if (landed()) return;
+  if (!places.some((node) => node.isConnected)) {
+    letGo();
+    return;
+  }
+  const yielded = !drawn(deepFocus());
+  if (yielded) releaseFocus();
+  const began = placements;
+  const pendingInput = inputCount();
+  nextRender(() => {
+    if (inputCount() !== pendingInput || placements !== began || yielded && deepFocus() !== document.body || landed())
+      return;
+    letGo();
+  });
+}
+preserveMoveFocus({ holdFocus, watchStandingIn });
 
 // runtime/ids.js
 var randomId = () => Array.from(
@@ -503,7 +1553,7 @@ function adoptRegistry(declarations) {
 }
 function freeze(value) {
   if (value === null || typeof value !== "object" || Object.isFrozen(value)) return;
-  for (const child of Object.values(value)) freeze(child);
+  for (const child2 of Object.values(value)) freeze(child2);
   Object.freeze(value);
 }
 var stateIndex;
@@ -546,6 +1596,235 @@ var matchesWhen = (el2, when) => Object.entries(when ?? {}).every(
     (value) => typeof value === "boolean" ? el2.hasAttribute(attr) === value : el2.getAttribute(attr) === value
   )
 );
+
+// runtime/arrivals.js
+var watches = /* @__PURE__ */ new Set();
+var stages = /* @__PURE__ */ new WeakSet();
+var stageRefs = /* @__PURE__ */ new Set();
+var owners2 = /* @__PURE__ */ new WeakMap();
+var offerOwner;
+function watchOwner(owner, lifecycle) {
+  let connected = false;
+  const subscription = {
+    connect() {
+      if (connected || !owner.isConnected) return;
+      connected = true;
+      try {
+        lifecycle.connect?.();
+      } catch (error) {
+        subscriptions.delete(subscription);
+        subscription.disconnect();
+        throw error;
+      }
+    },
+    disconnect() {
+      if (!connected) return;
+      connected = false;
+      lifecycle.disconnect?.();
+    }
+  };
+  let subscriptions = owners2.get(owner);
+  if (!subscriptions) owners2.set(owner, subscriptions = /* @__PURE__ */ new Set());
+  if (!offerOwner) {
+    const notify = (element, method) => {
+      for (const subscription2 of owners2.get(element) ?? []) {
+        try {
+          subscription2[method]();
+        } catch (error) {
+          queueMicrotask(() => {
+            throw error;
+          });
+        }
+      }
+    };
+    offerOwner = watchArrivals("*", [], {
+      arrive: (element) => notify(element, "connect"),
+      leave: (element) => notify(element, "disconnect")
+    });
+  }
+  if (owner.isConnected) offerOwner(owner);
+  subscriptions.add(subscription);
+  const stop = () => {
+    subscriptions.delete(subscription);
+    subscription.disconnect();
+  };
+  subscription.connect();
+  return stop;
+}
+function whileConnected(owner, start) {
+  let held;
+  return watchOwner(owner, {
+    connect() {
+      const controller = new AbortController();
+      held = { controller, cleanup: null };
+      held.cleanup = start(controller.signal);
+    },
+    disconnect() {
+      const current = held;
+      held = null;
+      current.controller.abort();
+      current.cleanup?.();
+    }
+  });
+}
+function frameFor(owner, run) {
+  let frame3 = 0;
+  watchOwner(owner, {
+    disconnect() {
+      cancelRender(frame3);
+      frame3 = 0;
+    }
+  });
+  return () => {
+    if (frame3 || !owner.isConnected) return;
+    frame3 = nextRender(() => {
+      frame3 = 0;
+      if (owner.isConnected) run();
+    });
+  };
+}
+function liveStages() {
+  const live2 = [];
+  for (const ref of stageRefs) {
+    const root2 = ref.deref();
+    if (root2) live2.push(root2);
+    else stageRefs.delete(ref);
+  }
+  return live2;
+}
+var isStage = (root2) => stages.has(root2);
+var stands = (el2) => {
+  const root2 = el2.getRootNode();
+  return root2 === document ? document.body.contains(el2) : stages.has(root2) && root2.host.isConnected;
+};
+function* matching(node, selector) {
+  if (node?.nodeType !== Node.ELEMENT_NODE) return;
+  if (node.matches(selector)) yield node;
+  yield* node.querySelectorAll(selector);
+  for (const stage of liveStages())
+    if (under(stage.host, node)) yield* stage.querySelectorAll(selector);
+}
+function watchArrivals(selector, attributes, { arrive, arriveBatch, leave }) {
+  const arrived = /* @__PURE__ */ new WeakSet();
+  const offerMany = (elements) => {
+    const present = [];
+    for (const el2 of elements) {
+      if (stands(el2) && el2.matches(selector)) present.push(el2);
+      else if (arrived.delete(el2)) leave(el2);
+    }
+    if (!arriveBatch) for (const el2 of present) offer2(el2);
+    else if (present.length) {
+      for (const el2 of present) arrived.add(el2);
+      arriveBatch(present);
+    }
+  };
+  const offer2 = (el2) => {
+    if (stands(el2) && el2.matches(selector)) {
+      arrived.add(el2);
+      if (arriveBatch) arriveBatch([el2]);
+      else arrive(el2);
+    } else if (arrived.delete(el2)) leave(el2);
+  };
+  const beside = (node) => node?.nodeType === Node.ELEMENT_NODE && (arrived.has(node) || node.matches(selector)) ? [node] : [];
+  const read2 = (records) => {
+    const offered2 = /* @__PURE__ */ new Set();
+    for (const record of records) {
+      if (record.type === "attributes") {
+        offered2.add(record.target);
+        continue;
+      }
+      for (const el2 of [
+        ...beside(record.target),
+        ...beside(record.previousSibling),
+        ...beside(record.nextSibling)
+      ])
+        offered2.add(el2);
+      for (const node of record.addedNodes)
+        for (const el2 of matching(node, selector)) offered2.add(el2);
+      for (const node of record.removedNodes)
+        for (const el2 of matching(node, selector)) if (arrived.has(el2)) offered2.add(el2);
+    }
+    offerMany(offered2);
+  };
+  const observer = new MutationObserver(read2);
+  const watch = { selector, attributes, observer, offerMany };
+  watches.add(watch);
+  for (const root2 of [document.body, ...liveStages()]) enroll(watch, root2);
+  return (el2) => {
+    read2(observer.takeRecords());
+    offer2(el2);
+  };
+}
+function enroll({ selector, attributes, observer, offerMany }, root2) {
+  observer.observe(root2, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: attributes
+  });
+  offerMany(root2.querySelectorAll(selector));
+}
+function watchArrivalsIn(stage) {
+  if (stages.has(stage)) return;
+  stages.add(stage);
+  stageRefs.add(new WeakRef(stage));
+  for (const watch of watches) enroll(watch, stage);
+  stage.addEventListener("scroll", heardIn(stage), SCROLL);
+}
+var scrollListeners = /* @__PURE__ */ new Set();
+var SCROLL = { capture: true, passive: true };
+var heardIn = (stage) => (event) => {
+  if (event.target.getRootNode() !== stage) return;
+  for (const listener of scrollListeners) listener(event);
+};
+function watchScrolls(listener) {
+  scrollListeners.add(listener);
+  document.addEventListener("scroll", listener, SCROLL);
+  return () => {
+    scrollListeners.delete(listener);
+    document.removeEventListener("scroll", listener, SCROLL);
+  };
+}
+var SETTLE_MS = 80;
+var settleListeners = /* @__PURE__ */ new Set();
+var inFlight = false;
+var gliding = false;
+var settleTimer = 0;
+var trackingScrolls = false;
+function settle() {
+  if (!inFlight || gliding) return;
+  inFlight = false;
+  clearTimeout(settleTimer);
+  for (const listener of settleListeners) listener();
+}
+function trackScrolls() {
+  if (trackingScrolls) return;
+  trackingScrolls = true;
+  watchScrolls(() => {
+    inFlight = true;
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(settle, SETTLE_MS);
+  });
+  document.addEventListener("scrollend", settle, SCROLL);
+}
+function scrollGlides(on) {
+  trackScrolls();
+  gliding = on;
+  if (on) inFlight = true;
+  else if (inFlight) {
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(settle, SETTLE_MS);
+  }
+}
+function scrolling() {
+  trackScrolls();
+  return inFlight;
+}
+function watchScrollEnds(listener) {
+  trackScrolls();
+  settleListeners.add(listener);
+  return () => settleListeners.delete(listener);
+}
 
 // runtime/pointer.js
 var x = -1;
@@ -685,7 +1964,7 @@ function controlAvailabilityOutput(control, owner, fields = null) {
 function disabledByFieldset(control) {
   for (let parent = control.parentElement; parent; parent = parent.parentElement) {
     if (parent.localName !== "fieldset" || !parent.disabled) continue;
-    const legend = [...parent.children].find((child) => child.localName === "legend");
+    const legend = [...parent.children].find((child2) => child2.localName === "legend");
     if (!legend?.contains(control)) return true;
   }
   return false;
@@ -748,16 +2027,16 @@ var canonicalBinding = (binding) => {
   return [...canonicalMods, canonicalKey].join("+");
 };
 function validateActive(active, where, bindingOf) {
-  const owners2 = /* @__PURE__ */ new Map();
+  const owners3 = /* @__PURE__ */ new Map();
   for (const row of active)
     for (const binding of bindingOf(row)) {
       const identity = canonicalBinding(binding);
-      const prior = owners2.get(identity);
+      const prior = owners3.get(identity);
       if (prior)
         throw new Error(
           `leaf: ${where} has two live meanings for ${binding}: ${titleOf(prior)}; ${titleOf(row)}`
         );
-      owners2.set(identity, row);
+      owners3.set(identity, row);
     }
   return active;
 }
@@ -915,15 +2194,15 @@ function checked(rows, where, ready) {
         throw new Error(
           `leaf: route ${route.id} uses ${String(route.binding)}, which ${row.id} does not bind`
         );
-      for (const [bindings2, owners2] of [
+      for (const [bindings2, owners3] of [
         [[route.binding].filter(Boolean), routed],
         [contextBindings(route), contextual]
       ]) {
         for (const binding of bindings2) {
-          const prior = owners2.get(binding);
+          const prior = owners3.get(binding);
           if (prior && prior !== route)
             throw new Error(`leaf: ${row.id} routes ${binding} twice`);
-          owners2.set(binding, route);
+          owners3.set(binding, route);
         }
       }
     }
@@ -993,235 +2272,6 @@ function nativeActivationAt(control) {
   return presses ? (binding) => presses.includes(binding) : null;
 }
 
-// runtime/arrivals.js
-var watches = /* @__PURE__ */ new Set();
-var stages = /* @__PURE__ */ new WeakSet();
-var stageRefs = /* @__PURE__ */ new Set();
-var owners = /* @__PURE__ */ new WeakMap();
-var offerOwner;
-function watchOwner(owner, lifecycle) {
-  let connected = false;
-  const subscription = {
-    connect() {
-      if (connected || !owner.isConnected) return;
-      connected = true;
-      try {
-        lifecycle.connect?.();
-      } catch (error) {
-        subscriptions.delete(subscription);
-        subscription.disconnect();
-        throw error;
-      }
-    },
-    disconnect() {
-      if (!connected) return;
-      connected = false;
-      lifecycle.disconnect?.();
-    }
-  };
-  let subscriptions = owners.get(owner);
-  if (!subscriptions) owners.set(owner, subscriptions = /* @__PURE__ */ new Set());
-  if (!offerOwner) {
-    const notify = (element, method) => {
-      for (const subscription2 of owners.get(element) ?? []) {
-        try {
-          subscription2[method]();
-        } catch (error) {
-          queueMicrotask(() => {
-            throw error;
-          });
-        }
-      }
-    };
-    offerOwner = watchArrivals("*", [], {
-      arrive: (element) => notify(element, "connect"),
-      leave: (element) => notify(element, "disconnect")
-    });
-  }
-  if (owner.isConnected) offerOwner(owner);
-  subscriptions.add(subscription);
-  const stop = () => {
-    subscriptions.delete(subscription);
-    subscription.disconnect();
-  };
-  subscription.connect();
-  return stop;
-}
-function whileConnected(owner, start) {
-  let held;
-  return watchOwner(owner, {
-    connect() {
-      const controller = new AbortController();
-      held = { controller, cleanup: null };
-      held.cleanup = start(controller.signal);
-    },
-    disconnect() {
-      const current = held;
-      held = null;
-      current.controller.abort();
-      current.cleanup?.();
-    }
-  });
-}
-function frameFor(owner, run) {
-  let frame2 = 0;
-  watchOwner(owner, {
-    disconnect() {
-      cancelRender(frame2);
-      frame2 = 0;
-    }
-  });
-  return () => {
-    if (frame2 || !owner.isConnected) return;
-    frame2 = nextRender(() => {
-      frame2 = 0;
-      if (owner.isConnected) run();
-    });
-  };
-}
-function liveStages() {
-  const live2 = [];
-  for (const ref of stageRefs) {
-    const root2 = ref.deref();
-    if (root2) live2.push(root2);
-    else stageRefs.delete(ref);
-  }
-  return live2;
-}
-var isStage = (root2) => stages.has(root2);
-var stands = (el2) => {
-  const root2 = el2.getRootNode();
-  return root2 === document ? document.body.contains(el2) : stages.has(root2) && root2.host.isConnected;
-};
-function* matching(node, selector) {
-  if (node?.nodeType !== Node.ELEMENT_NODE) return;
-  if (node.matches(selector)) yield node;
-  yield* node.querySelectorAll(selector);
-  for (const stage of liveStages())
-    if (under(stage.host, node)) yield* stage.querySelectorAll(selector);
-}
-function watchArrivals(selector, attributes, { arrive, arriveBatch, leave }) {
-  const arrived = /* @__PURE__ */ new WeakSet();
-  const offerMany = (elements) => {
-    const present = [];
-    for (const el2 of elements) {
-      if (stands(el2) && el2.matches(selector)) present.push(el2);
-      else if (arrived.delete(el2)) leave(el2);
-    }
-    if (!arriveBatch) for (const el2 of present) offer2(el2);
-    else if (present.length) {
-      for (const el2 of present) arrived.add(el2);
-      arriveBatch(present);
-    }
-  };
-  const offer2 = (el2) => {
-    if (stands(el2) && el2.matches(selector)) {
-      arrived.add(el2);
-      if (arriveBatch) arriveBatch([el2]);
-      else arrive(el2);
-    } else if (arrived.delete(el2)) leave(el2);
-  };
-  const beside = (node) => node?.nodeType === Node.ELEMENT_NODE && (arrived.has(node) || node.matches(selector)) ? [node] : [];
-  const read = (records) => {
-    const offered2 = /* @__PURE__ */ new Set();
-    for (const record of records) {
-      if (record.type === "attributes") {
-        offered2.add(record.target);
-        continue;
-      }
-      for (const el2 of [
-        ...beside(record.target),
-        ...beside(record.previousSibling),
-        ...beside(record.nextSibling)
-      ])
-        offered2.add(el2);
-      for (const node of record.addedNodes)
-        for (const el2 of matching(node, selector)) offered2.add(el2);
-      for (const node of record.removedNodes)
-        for (const el2 of matching(node, selector)) if (arrived.has(el2)) offered2.add(el2);
-    }
-    offerMany(offered2);
-  };
-  const observer = new MutationObserver(read);
-  const watch = { selector, attributes, observer, offerMany };
-  watches.add(watch);
-  for (const root2 of [document.body, ...liveStages()]) enroll(watch, root2);
-  return (el2) => {
-    read(observer.takeRecords());
-    offer2(el2);
-  };
-}
-function enroll({ selector, attributes, observer, offerMany }, root2) {
-  observer.observe(root2, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: attributes
-  });
-  offerMany(root2.querySelectorAll(selector));
-}
-function watchArrivalsIn(stage) {
-  if (stages.has(stage)) return;
-  stages.add(stage);
-  stageRefs.add(new WeakRef(stage));
-  for (const watch of watches) enroll(watch, stage);
-  stage.addEventListener("scroll", heardIn(stage), SCROLL);
-}
-var scrollListeners = /* @__PURE__ */ new Set();
-var SCROLL = { capture: true, passive: true };
-var heardIn = (stage) => (event) => {
-  if (event.target.getRootNode() !== stage) return;
-  for (const listener of scrollListeners) listener(event);
-};
-function watchScrolls(listener) {
-  scrollListeners.add(listener);
-  document.addEventListener("scroll", listener, SCROLL);
-  return () => {
-    scrollListeners.delete(listener);
-    document.removeEventListener("scroll", listener, SCROLL);
-  };
-}
-var SETTLE_MS = 80;
-var settleListeners = /* @__PURE__ */ new Set();
-var inFlight = false;
-var gliding = false;
-var settleTimer = 0;
-var trackingScrolls = false;
-function settle() {
-  if (!inFlight || gliding) return;
-  inFlight = false;
-  clearTimeout(settleTimer);
-  for (const listener of settleListeners) listener();
-}
-function trackScrolls() {
-  if (trackingScrolls) return;
-  trackingScrolls = true;
-  watchScrolls(() => {
-    inFlight = true;
-    clearTimeout(settleTimer);
-    settleTimer = setTimeout(settle, SETTLE_MS);
-  });
-  document.addEventListener("scrollend", settle, SCROLL);
-}
-function scrollGlides(on) {
-  trackScrolls();
-  gliding = on;
-  if (on) inFlight = true;
-  else if (inFlight) {
-    clearTimeout(settleTimer);
-    settleTimer = setTimeout(settle, SETTLE_MS);
-  }
-}
-function scrolling() {
-  trackScrolls();
-  return inFlight;
-}
-function watchScrollEnds(listener) {
-  trackScrolls();
-  settleListeners.add(listener);
-  return () => settleListeners.delete(listener);
-}
-
 // runtime/shadow.js
 var refusedRoots = /* @__PURE__ */ new WeakSet();
 var refuseShadowRoot = (root2) => refusedRoots.add(root2);
@@ -1243,9 +2293,9 @@ var hostIn = (node, root2) => {
   while (at && at.getRootNode() !== root2) at = shadowHost(at.getRootNode());
   return at;
 };
-var overIn = (el2, selector, frame2) => {
+var overIn = (el2, selector, frame3) => {
   const near = el2.closest(selector);
-  return near && (!frame2 || under(near, frame2)) ? near : null;
+  return near && (!frame3 || under(near, frame3)) ? near : null;
 };
 var SAID = "[data-lf-said]";
 var UI_MARKS = `.lf-ui, ${SAID}`;
@@ -1291,7 +2341,7 @@ async function readShadowRules() {
 
 // runtime/repaint.js
 var painters = null;
-var frame = 0;
+var frame2 = 0;
 var movePage = false;
 function mountRepaint(slots) {
   painters = slots;
@@ -1299,9 +2349,9 @@ function mountRepaint(slots) {
   requestFrame();
 }
 function requestFrame() {
-  if (!painters || frame) return;
-  frame = nextRender(() => {
-    frame = 0;
+  if (!painters || frame2) return;
+  frame2 = nextRender(() => {
+    frame2 = 0;
     const shiftPage = movePage;
     movePage = false;
     const p = painters;
@@ -1339,19 +2389,19 @@ var buttonCommand = (control) => buttonReadings.get(control);
 var buttonBaselines = /* @__PURE__ */ new WeakMap();
 var BUTTON_AVAILABILITY = /* @__PURE__ */ Symbol("native command availability");
 var commandAvailabilityReaders = /* @__PURE__ */ new Set();
-function watchCommandAvailability(read) {
-  commandAvailabilityReaders.add(read);
+function watchCommandAvailability(read2) {
+  commandAvailabilityReaders.add(read2);
   buttonsDirty = true;
-  return () => commandAvailabilityReaders.delete(read);
+  return () => commandAvailabilityReaders.delete(read2);
 }
 var reflectCommandAvailability = () => {
-  for (const read of commandAvailabilityReaders) read();
+  for (const read2 of commandAvailabilityReaders) read2();
 };
 var commandScopeReaders = /* @__PURE__ */ new Set();
-function watchCommandScopes(read) {
-  commandScopeReaders.add(read);
+function watchCommandScopes(read2) {
+  commandScopeReaders.add(read2);
   buttonsDirty = true;
-  return () => commandScopeReaders.delete(read);
+  return () => commandScopeReaders.delete(read2);
 }
 function* nativeCommandScopes() {
   for (const ref of scopeRefs) {
@@ -1359,8 +2409,8 @@ function* nativeCommandScopes() {
     if (source?.isConnected)
       for (const scope of scopesAt(source)) yield { source, scope };
   }
-  for (const read of commandScopeReaders)
-    for (const scope of read()) yield { source: document.documentElement, scope };
+  for (const read2 of commandScopeReaders)
+    for (const scope of read2()) yield { source: document.documentElement, scope };
 }
 var projectedOnto = (control, scope) => [...projectedScopes.get(control)?.values() ?? []].some(
   (projected) => scopeIdentity(projected) === scopeIdentity(scope)
@@ -1435,10 +2485,10 @@ function reflectButton(control, candidates) {
   let failure = null;
   const dispose = watchEffect(() => {
     if (reading) {
-      const read = reading;
+      const read2 = reading;
       reading = null;
       try {
-        const command = chosenCommand(read);
+        const command = chosenCommand(read2);
         const { scope, row, entry } = command;
         const disabled = Boolean(
           scope.when && !scope.when() || !commandAvailable(row, entry === row ? null : entry)
@@ -1601,7 +2651,7 @@ function contextRows(declarations) {
 var contextScopeReaders = /* @__PURE__ */ new Set();
 function contextScopes(title, resolve) {
   const identity = Object.freeze({});
-  const read = (origin) => {
+  const read2 = (origin) => {
     const projection = resolve(origin);
     if (!projection) return null;
     return {
@@ -1614,8 +2664,8 @@ function contextScopes(title, resolve) {
       }
     };
   };
-  contextScopeReaders.add(read);
-  return () => contextScopeReaders.delete(read);
+  contextScopeReaders.add(read2);
+  return () => contextScopeReaders.delete(read2);
 }
 var scopeRefs = /* @__PURE__ */ new Set();
 var scopeRefFor = /* @__PURE__ */ new WeakMap();
@@ -1728,15 +2778,23 @@ var commandsOn = directive(
 function scopeRef(title, rows, options) {
   let element;
   let attachment;
-  onCleanup(() => {
+  let stop;
+  const withdraw = () => {
     if (element && detachScope(element, attachment)) repaint();
+    attachment = null;
+  };
+  onCleanup(() => {
+    stop?.();
+    withdraw();
   });
   return (node) => {
     element = node;
-    attachment = attachScope(
-      node,
-      rows === void 0 && isCommandScope(title) ? title.scope : declaredScope(title, typeof rows === "function" ? rows(node) : rows, options)
-    );
+    const declaration = rows === void 0 && isCommandScope(title) ? title.scope : declaredScope(title, typeof rows === "function" ? rows(node) : rows, options);
+    const connect = () => {
+      attachment ??= attachScope(node, declaration);
+    };
+    connect();
+    stop = watchOwner(node, { connect, disconnect: withdraw });
   };
 }
 function commandScope(title, rows, options) {
@@ -1964,7 +3022,7 @@ var spoken = (row) => {
   return word(row.label) ?? active.map(spokenBinding).join(" or ");
 };
 function scopesFor(node) {
-  const contexts = [...contextScopeReaders].map((read) => read(node)).filter(Boolean);
+  const contexts = [...contextScopeReaders].map((read2) => read2(node)).filter(Boolean);
   const found = [];
   const seen = /* @__PURE__ */ new Set();
   const collect = (start) => {
@@ -2021,7 +3079,7 @@ function pushNativeLayer(node, source = null) {
   entries.push(entry);
   return entry;
 }
-function closing(event) {
+function closing2(event) {
   if (event.newState !== "closed") return;
   const entry = entries.find((candidate) => candidate.root === event.target);
   if (entry) entry.opening = false;
@@ -2081,9 +3139,9 @@ function seatModal(dialog, source) {
 function closeNativeLayer(layer) {
   const dialog = layer instanceof HTMLDialogElement;
   if (dialog ? !layer.open : !isNativeLayer(layer)) return;
-  const standing = focused();
+  const standing2 = focused();
   const returnTo = entries.find((entry) => entry.root === layer)?.opener;
-  const returnLocally = document.documentElement.lfSample && standing && renderedUnder(standing, layer);
+  const returnLocally = document.documentElement.lfSample && standing2 && renderedUnder(standing2, layer);
   const inhibited = document.documentElement.lfSample ? [
     document.documentElement,
     ...nativeLayers().filter((entry) => entry.kind === "modal").map((entry) => entry.root)
@@ -2122,7 +3180,7 @@ function watchLayers(root2) {
       pushNativeLayer(event.target, event.source);
   };
   root2.addEventListener("beforetoggle", opened, true);
-  root2.addEventListener("beforetoggle", closing, true);
+  root2.addEventListener("beforetoggle", closing2, true);
   root2.addEventListener("toggle", opened, true);
   root2.addEventListener("toggle", changed, true);
 }
@@ -2258,9 +3316,9 @@ var slotHolder = (el2, scroller) => {
   return at;
 };
 var insetAt = (at, scroller, slot, padding) => {
-  const read = (box) => Number.parseFloat(getComputedStyle(box).getPropertyValue(slot)) || 0;
-  const inset = at?.nodeType === 1 ? read(at) : 0;
-  if (inset <= read(scroller)) return 0;
+  const read2 = (box) => Number.parseFloat(getComputedStyle(box).getPropertyValue(slot)) || 0;
+  const inset = at?.nodeType === 1 ? read2(at) : 0;
+  if (inset <= read2(scroller)) return 0;
   return (Number.parseFloat(getComputedStyle(scroller)[padding]) || 0) + inset;
 };
 var TOP = ["--lf-top", "paddingTop"];
@@ -2354,7 +3412,7 @@ function shownBox(el2) {
 function shownParts(el2) {
   const r = el2.getBoundingClientRect();
   if (r.width && r.height) return [el2];
-  return [...el2.children].filter((child) => !uiInside(child, el2)).flatMap((child) => shownParts(child));
+  return [...el2.children].filter((child2) => !uiInside(child2, el2)).flatMap((child2) => shownParts(child2));
 }
 var shownExtent = (el2) => union(shownParts(el2).map((part) => part.getBoundingClientRect()));
 function shownRect(item, clips) {
@@ -2373,15 +3431,15 @@ function presented(node) {
     if (at.getAttribute?.("aria-hidden") === "true") return false;
   return true;
 }
-function frameView(frame2, within) {
-  const seen = seenRect(frame2, /* @__PURE__ */ new Map());
+function frameView(frame3, within) {
+  const seen = seenRect(frame3, /* @__PURE__ */ new Map());
   const shown = seen && intersect(seen, within);
   if (!shown || !hasArea(shown)) return null;
-  const rect = frame2.getBoundingClientRect();
-  const scaleX = rect.width / frame2.offsetWidth || 1;
-  const scaleY = rect.height / frame2.offsetHeight || 1;
-  const x2 = (at) => (at - rect.left) / scaleX - frame2.clientLeft;
-  const y2 = (at) => (at - rect.top) / scaleY - frame2.clientTop;
+  const rect = frame3.getBoundingClientRect();
+  const scaleX = rect.width / frame3.offsetWidth || 1;
+  const scaleY = rect.height / frame3.offsetHeight || 1;
+  const x2 = (at) => (at - rect.left) / scaleX - frame3.clientLeft;
+  const y2 = (at) => (at - rect.top) / scaleY - frame3.clientTop;
   return {
     left: x2(shown.left),
     top: y2(shown.top),
@@ -2751,7 +3809,7 @@ function iconElement(icon, className = "lf-margin-entry-icon") {
 // runtime/widget-elements.js
 function reveal(el2, mayReveal) {
   const chain = [];
-  const pending = [];
+  const pending2 = [];
   let replacedView = false;
   for (let a = el2; a; a = renderedParent(a)) chain.push(a);
   for (const a of chain.reverse()) {
@@ -2765,12 +3823,12 @@ function reveal(el2, mayReveal) {
           replacedView: () => {
             replacedView = true;
           },
-          present: (ready2) => ready2?.then && pending.push(ready2)
+          present: (ready2) => ready2?.then && pending2.push(ready2)
         }
       })
     );
   }
-  const ready = Promise.all(pending);
+  const ready = Promise.all(pending2);
   void ready.catch(() => {
   });
   return { ready, replacedView };
@@ -2792,30 +3850,30 @@ var dragging = (el2, on) => {
 };
 var LAYOUT = "lf-layout";
 var layoutChanged = (el2) => {
-  const pending = [];
+  const pending2 = [];
   el2.dispatchEvent(
     new CustomEvent(LAYOUT, {
       bubbles: true,
       composed: true,
       detail: {
-        present: (ready2) => ready2?.then && pending.push(ready2)
+        present: (ready2) => ready2?.then && pending2.push(ready2)
       }
     })
   );
-  const ready = Promise.all(pending);
+  const ready = Promise.all(pending2);
   void ready.catch(() => {
   });
   return ready;
 };
 var measurements = /* @__PURE__ */ new WeakMap();
-var drawn = (el2) => {
+var drawn2 = (el2) => {
   const box = shownBox(el2);
   return Boolean(box.width || box.height);
 };
 var unmeasured = sizeObserver((entries2) => {
   const taking = [];
   for (const { target } of entries2) {
-    if (!drawn(target)) continue;
+    if (!drawn2(target)) continue;
     unmeasured.unobserve(target);
     taking.push(measurements.get(target));
     measurements.delete(target);
@@ -2823,7 +3881,7 @@ var unmeasured = sizeObserver((entries2) => {
   for (const take of taking) take();
 });
 function measure(el2, take) {
-  if (drawn(el2)) {
+  if (drawn2(el2)) {
     if (measurements.delete(el2)) unmeasured.unobserve(el2);
     return take();
   }
@@ -3093,7 +4151,7 @@ var raised = 0;
 var unsaid = [];
 var errors = Object.freeze([]);
 var presenters = /* @__PURE__ */ new Set();
-var publish = (next) => {
+var publish3 = (next) => {
   errors = Object.freeze(next.slice(0, KEPT));
   for (const present of presenters) present();
 };
@@ -3112,7 +4170,7 @@ function raise(message, subject, speak, replaced) {
       unsaid = [];
     });
   if (speak) unsaid.push(message);
-  publish([
+  publish3([
     Object.freeze({ id, message, subject, at: Date.now(), passed: false, seen: false }),
     ...errors.filter((entry) => entry.id !== replaced)
   ]);
@@ -3120,7 +4178,7 @@ function raise(message, subject, speak, replaced) {
 }
 function passErrors(ids) {
   if (errors.some((entry) => ids.includes(entry.id) && !entry.passed))
-    publish(
+    publish3(
       errors.map(
         (entry) => ids.includes(entry.id) && !entry.passed ? Object.freeze({ ...entry, passed: true }) : entry
       )
@@ -3133,7 +4191,7 @@ function passErrorsAt(subject) {
 }
 function seeErrors() {
   if (errors.some((entry) => !entry.seen))
-    publish(
+    publish3(
       errors.map(
         (entry) => entry.seen ? entry : Object.freeze({ ...entry, seen: true })
       )
@@ -3141,7 +4199,7 @@ function seeErrors() {
 }
 function dismissError(id) {
   if (errors.some((entry) => entry.id === id))
-    publish(errors.filter((entry) => entry.id !== id));
+    publish3(errors.filter((entry) => entry.id !== id));
 }
 function holdingError({ announce: speak = true } = {}) {
   let held = null;
@@ -3157,12 +4215,12 @@ function holdingError({ announce: speak = true } = {}) {
   };
 }
 function dismissErrors() {
-  if (errors.length) publish([]);
+  if (errors.length) publish3([]);
 }
 
 // runtime/layer-client.js
 import { layerGeneration } from "/runtime/layer-generation.js";
-var { layer: documentLayer, release, probe } = DELIVERY;
+var { layer: documentLayer, release: release2, probe } = DELIVERY;
 if (documentLayer && documentLayer !== layerGeneration) {
   window.dispatchEvent(
     new CustomEvent("lf-startup-failed", {
@@ -3179,10 +4237,10 @@ async function sourceMovedOn() {
   } catch {
     return void 0;
   }
-  if (response.status === 404) return Boolean(release);
+  if (response.status === 404) return Boolean(release2);
   if (!response.ok) return void 0;
   const servedRelease = response.headers.get("Leaf-Release");
-  if (release && servedRelease) return servedRelease !== release;
+  if (release2 && servedRelease) return servedRelease !== release2;
   const generation = response.headers.get("Leaf-Layer");
   return generation ? generation !== layerGeneration : void 0;
 }
@@ -3218,7 +4276,7 @@ function layerHeaders(headers = {}) {
     ...runtime.currentRevision && {
       "Leaf-View-Revision": String(runtime.currentRevision)
     },
-    ...release && { "Leaf-Release": release },
+    ...release2 && { "Leaf-Release": release2 },
     ...headers
   };
 }
@@ -3231,7 +4289,7 @@ async function requestJson(url2, init, what) {
   if (!admitResponse(response))
     throw new LayerRefused(`Leaf's layer changed while requesting ${what}`);
   const text = await response.text();
-  const failed = (message, cause) => Object.assign(new Error(message, { cause }), {
+  const failed = (message, cause2) => Object.assign(new Error(message, { cause: cause2 }), {
     status: response.status,
     body: text
   });
@@ -3264,15 +4322,15 @@ function admitResponse(response) {
   const generation = response.headers.get("Leaf-Layer");
   const responseRelease = response.headers.get("Leaf-Release");
   if (generation && !sameLayer(generation)) return false;
-  if (release && responseRelease && responseRelease !== release) {
+  if (release2 && responseRelease && responseRelease !== release2) {
     reloadDelivery("Leaf has been updated \u2014 reloading this page.");
     return false;
   }
   holdWaiting(null);
   return true;
 }
-var sessionMode = release ? "unknown" : "active";
-var sessionChannel = release && !document.documentElement.lfSample ? new window.BroadcastChannel(`leaf-session:${release}:${pageUrl("")}`) : null;
+var sessionMode = release2 ? "unknown" : "active";
+var sessionChannel = release2 && !document.documentElement.lfSample ? new window.BroadcastChannel(`leaf-session:${release2}:${pageUrl("")}`) : null;
 function activateSession(broadcast) {
   const activated = sessionMode !== "active";
   sessionMode = "active";
@@ -3408,6 +4466,85 @@ window.addEventListener("unhandledrejection", (e) => {
 });
 
 export {
+  watchFrame,
+  frameVisibility,
+  onFrameVisibility,
+  readSampleVisibility,
+  observePreparations,
+  holdRendering,
+  nextRender,
+  nextFrame,
+  nextAnimation,
+  cancelAnimation,
+  cancelRender,
+  afterScript,
+  sizeObserver,
+  renderingState,
+  afterSettling,
+  keeps,
+  keepsHidden,
+  keepsText,
+  atLayoutPrecision,
+  layoutPx,
+  roomPx,
+  TEXT_FIELD,
+  MODIFIER_KEYS,
+  CARET_KEYS,
+  selectsAll,
+  TEXT_BOX,
+  TAB_STOP,
+  LENT_REACH_STOP,
+  PRESSES,
+  WORKS,
+  shadowHost,
+  upFrom,
+  renderedParent,
+  composedParentNode,
+  under,
+  renderedUnder,
+  renderedOrder,
+  byRenderedOrder,
+  isNativeLayer,
+  nativeLayerHolding,
+  tabStops,
+  canPlaceFocus,
+  focusDestination,
+  wearsLentStop,
+  whenLeft,
+  readCaret,
+  deepFocus,
+  focused,
+  standingNodes,
+  standsOn,
+  onStanding,
+  pressLed,
+  watchStandingIn,
+  inputCount,
+  onUserInput,
+  caretAtKey,
+  recentPlaceInput,
+  pressing,
+  onPress,
+  recoveredLabelFocus,
+  ringBox,
+  drawn,
+  holdFocus,
+  standingIn,
+  rove,
+  openLayer,
+  openerOf,
+  layerLanding,
+  closeLayer,
+  holdStanding,
+  carriedFrom,
+  typesText,
+  takesLetters,
+  declareReading,
+  releaseFocus,
+  declareRelease,
+  release,
+  letGo,
+  handBack,
   PAGE_PAINT_ATTRIBUTE,
   pagePresented,
   pageUpgraded,
@@ -3431,6 +4568,15 @@ export {
   elementsDeclaring,
   tagsDeclaring,
   matchesWhen,
+  watchOwner,
+  whileConnected,
+  frameFor,
+  watchArrivals,
+  watchArrivalsIn,
+  watchScrolls,
+  scrollGlides,
+  scrolling,
+  watchScrollEnds,
   pointerAt,
   coarsePointer,
   hoveringPointer,
@@ -3482,15 +4628,6 @@ export {
   nativeClaimAt,
   LINK,
   nativeActivationAt,
-  watchOwner,
-  whileConnected,
-  frameFor,
-  watchArrivals,
-  watchArrivalsIn,
-  watchScrolls,
-  scrollGlides,
-  scrolling,
-  watchScrollEnds,
   refuseShadowRoot,
   declaredRoot,
   shadowRootsIn,

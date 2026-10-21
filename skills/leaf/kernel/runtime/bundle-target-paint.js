@@ -12,24 +12,24 @@ import {
   inChrome
 } from "./bundle-passage-facts.js";
 import {
+  atLayoutPrecision,
+  cancelRender,
   el,
   hasArea,
   headerCuts,
   intersect,
+  keeps,
+  layoutPx,
   nearObserver,
   nearWindow,
+  nextRender,
   paintClips,
   scrollsContent,
   shownBox
 } from "./bundle-page-paint.js";
 import {
-  atLayoutPrecision,
-  cancelRender,
-  keeps,
-  layoutPx,
-  move,
-  nextRender
-} from "./bundle-frame-visibility.js";
+  move
+} from "./bundle-dom-move.js";
 import {
   __export
 } from "./bundle-__export.js";

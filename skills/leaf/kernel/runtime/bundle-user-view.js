@@ -20,14 +20,13 @@ import {
   shownWindow,
   watchRoom
 } from "./bundle-page-paint.js";
-import "./bundle-frame-visibility.js";
+import "./bundle-dom-move.js";
 import {
   offlineInteractive,
   pageUrl,
   runtime,
   watchSemantic
-} from "./bundle-semantic-state.js";
-import "./bundle-queued-work.js";
+} from "./bundle-vendor~browser-runtime.js";
 import "./bundle-__export.js";
 
 // runtime/user-view.js

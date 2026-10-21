@@ -12,30 +12,28 @@ import {
   excerptWords
 } from "./bundle-passage-facts.js";
 import {
+  afterScript,
   commandAvailable,
   commandBinding,
   commandRoutes,
   controlAvailabilityOutput,
   elementDirective,
+  focusDestination,
+  focused,
   iconElement,
   isCommandScope,
+  keeps,
+  keepsText,
   offer,
   pressIsKeyboardActivation,
   projectCommandScope,
   watchCommandAvailability
 } from "./bundle-page-paint.js";
 import {
-  afterScript,
-  focusDestination,
-  focused,
-  keeps,
-  keepsText
-} from "./bundle-frame-visibility.js";
-import {
   Show,
   createView,
   default as default2
-} from "./bundle-queued-work.js";
+} from "./bundle-vendor~browser-runtime.js";
 
 // runtime/contribution-model.js
 var entryRecords = /* @__PURE__ */ new WeakSet();

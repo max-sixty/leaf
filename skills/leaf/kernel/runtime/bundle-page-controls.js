@@ -10,20 +10,18 @@ import {
   pageText
 } from "./bundle-passage-facts.js";
 import {
-  clamp,
-  layoutChanged,
-  repaintPage,
-  shownParts
-} from "./bundle-page-paint.js";
-import {
   afterScript,
+  clamp,
   drawn,
+  layoutChanged,
   nextFrame,
   nextRender,
+  repaintPage,
+  shownParts,
   sizeObserver,
   under,
   upFrom
-} from "./bundle-frame-visibility.js";
+} from "./bundle-page-paint.js";
 
 // runtime/page-controls.js
 var EMPTY = Object.freeze([]);

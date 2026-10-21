@@ -24,7 +24,7 @@
    viewer (layer-stack.js, `showNativeLayer`). A queued close from an earlier opening leaves a reopened viewer's
    image and focus intact. */
 
-import { html, render } from "/vendor/browser-runtime.js";
+import { solidHtml as html, createView, Show } from "/vendor/browser-runtime.js";
 import { offlineInteractive, pageUrl, runtimeResource } from "./context.js";
 import {
   handBack,
@@ -33,7 +33,7 @@ import {
   openLayer,
   openerOf,
 } from "./focus.js";
-import { closeControl, offered } from "./widget-elements.js";
+import { closeControl, offerRef } from "./widget-elements.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import {
   nativeLayers,
@@ -115,30 +115,58 @@ function imageTools() {
   return loading;
 }
 
+let viewerDrawing = null;
 function presentViewer(model) {
-  render(
-    html`
-      <div class="lf-media-viewer-head">
-        <strong id="lf-media-viewer-title">Image preview</strong>
-        <div class="lf-media-viewer-actions">
-          ${
-            model
-              ? html`<a
-                  ${offered("lf-media-viewer-original", true)}
-                  href=${model.url}
-                  target="_blank"
-                  rel="noopener"
-                  >Original</a
-                >`
-              : null
-          }
-          ${viewerZoom}${viewerClose}
-        </div>
-      </div>
-      ${stage}${caption}
-    `,
-    mediaViewer,
-  );
+  const props = { model };
+  if (!viewerDrawing) {
+    viewerDrawing = createView(
+      mediaViewer,
+      (state) =>
+        html` <div class="lf-media-viewer-head">
+            <strong id="lf-media-viewer-title">Image preview</strong>
+            <div class="lf-media-viewer-actions">
+              ${Show({
+                get when() {
+                  return state().model;
+                },
+                children: (model) =>
+                  html`<a
+                    ref=${offerRef("lf-media-viewer-original", true)}
+                    href=${() => model().url}
+                    target="_blank"
+                    rel="noopener"
+                    >Original</a
+                  >`,
+              })}
+              ${viewerZoom}${viewerClose}
+            </div>
+          </div>
+          ${stage}${caption}`,
+      props,
+    );
+  } else viewerDrawing.update(props);
+}
+
+let stageDrawing = null;
+function presentStage(model) {
+  if (!stageDrawing) {
+    stageDrawing = createView(
+      stage,
+      (state) =>
+        html`${() => {
+          const model = state();
+          if (model?.kind === "loading") return html`<p>Preparing image…</p>`;
+          if (model?.kind === "error")
+            return html`<p>Image preview unavailable: ${model.message}.</p>`;
+          if (model?.kind === "probe")
+            return html`<span class="lf-media-viewer-probe"
+              ><img src=${model.url} alt=""
+            /></span>`;
+          return null;
+        }}`,
+      model,
+    );
+  } else stageDrawing.update(model);
 }
 
 export const mediaViewer = document.createElement("dialog");
@@ -233,7 +261,7 @@ const open = async (source, alt, from) => {
   const canvas = source instanceof window.HTMLCanvasElement;
   openLayer(mediaViewer, from);
   presentViewer(canvas ? null : { url: source, alt });
-  render(canvas ? html`<p>Preparing image…</p>` : null, stage);
+  presentStage(canvas ? { kind: "loading" } : null);
   const figureCaption = from.closest("figure")?.querySelector("figcaption");
   const description =
     from.dataset.lfMediaCaption ||
@@ -254,7 +282,7 @@ const open = async (source, alt, from) => {
       if (!blob) throw new Error("the drawing could not be encoded");
     } catch (error) {
       if (attempt !== opening || !mediaViewer.open) return;
-      render(html`<p>Image preview unavailable: ${error.message}.</p>`, stage);
+      presentStage({ kind: "error", message: error.message });
       return;
     }
     if (attempt !== opening || !mediaViewer.open) return;
@@ -262,10 +290,7 @@ const open = async (source, alt, from) => {
     url = canvasUrl;
     presentViewer({ url, alt });
   }
-  render(
-    html`<span class="lf-media-viewer-probe"><img src=${url} alt="" /></span>`,
-    stage,
-  );
+  presentStage({ kind: "probe", url });
   /** @type {HTMLImageElement} */
   const probe = stage.querySelector(".lf-media-viewer-probe > img");
   Promise.all([imageTools(), probe.decode()]).then(
@@ -284,7 +309,7 @@ const open = async (source, alt, from) => {
         probe.getBoundingClientRect().width > 1
           ? { width, height }
           : { width: width * cover, height: height * cover };
-      render(null, stage);
+      presentStage(null);
       const current = new PhotoSwipe({
         dataSource: [{ src: url, alt, ...size }],
         appendToEl: mediaViewer,
@@ -365,7 +390,7 @@ mediaViewer.addEventListener("close", () => {
   openLayer(mediaViewer, null);
   closeLayer(
     () => {
-      render(null, stage);
+      presentStage(null);
       presentViewer(null);
     },
     origin && (() => handBack(origin)),

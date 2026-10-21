@@ -1,8 +1,9 @@
 import {
-  move
-} from "./bundle-frame-visibility.js";
-import "./bundle-queued-work.js";
+  move,
+  preserveMoveFocus
+} from "./bundle-dom-move.js";
 import "./bundle-__export.js";
 export {
-  move
+  move,
+  preserveMoveFocus
 };

@@ -4,43 +4,39 @@ import {
 } from "./bundle-passage-facts.js";
 import {
   LAYOUT,
+  LENT_REACH_STOP,
   PAGE_PAINT_ATTRIBUTE,
+  TEXT_BOX,
+  afterScript,
+  deepFocus,
+  keeps,
   landingBand,
+  nextFrame,
+  nextRender,
+  onStanding,
   pagePresented,
+  pressing,
+  renderedParent,
+  renderedUnder,
+  renderingState,
   reportPageError,
   scrollsBy,
   setRuntimeRootAttribute,
   shadowRootsIn,
   shownRect,
-  skipped,
-  userScrollport,
-  watchOwner
-} from "./bundle-page-paint.js";
-import {
-  LENT_REACH_STOP,
-  TEXT_BOX,
-  afterScript,
-  deepFocus,
-  keeps,
-  nextFrame,
-  nextRender,
-  onStanding,
-  pressing,
-  renderedParent,
-  renderedUnder,
-  renderingState,
   sizeObserver,
+  skipped,
   tabStops,
   under,
   upFrom,
+  userScrollport,
+  watchOwner,
   wearsLentStop
-} from "./bundle-frame-visibility.js";
+} from "./bundle-page-paint.js";
 import {
-  applicationPresented
-} from "./bundle-semantic-state.js";
-import {
+  applicationPresented,
   outsideReading
-} from "./bundle-queued-work.js";
+} from "./bundle-vendor~browser-runtime.js";
 
 // runtime/presence.js
 var clockSkew = 0;

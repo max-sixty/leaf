@@ -312,23 +312,32 @@ import {
   showsWords
 } from "./runtime/bundle-passage-facts.js";
 import {
+  CARET_KEYS,
   EVERYTHING,
   LAYOUT,
   LINK,
+  MODIFIER_KEYS,
   PAGE_PAINT_ATTRIBUTE,
   PRESS,
   PRESSABLE,
+  PRESSES,
+  TEXT_BOX,
+  TEXT_FIELD,
+  WORKS,
   advertisesKeys,
   allBindings,
   announce,
   bindingEnabled,
   bindings,
   buttonCommand,
+  byRenderedOrder,
+  cancelRender,
   claimsEsc,
   clamp,
   clampedRow,
   clippedContents,
   closeControl,
+  closeLayer,
   closeNativeLayer,
   coarsePointer,
   commandDeclarationsWithin,
@@ -342,34 +351,54 @@ import {
   decisionControls,
   decisionFor,
   declareOccluder,
+  declareReading,
   declareWindowChrome,
   declaredBindings,
+  deepFocus,
   descriptionOf,
   dismissError,
   dismissErrors,
   dismissPopoversOutside,
   dragHeld,
+  drawn,
   el,
   errorsReading,
+  focusDestination,
+  focused,
+  handBack,
+  holdFocus,
   holdingError,
   hostIn,
   iconElement,
   iconTemplate,
   inUi,
   intersect,
+  keeps,
+  keepsHidden,
+  keepsText,
   keys,
   labelOf,
   landingBand,
+  layerLanding,
+  layoutPx,
   layoutWindow,
+  letGo,
   live,
   liveEl,
   merge,
   mountRepaint,
   nativeLayers,
   nativeModalAdmits,
+  nextFrame,
+  nextRender,
   notice,
   noticeReading,
+  observePreparations,
   offer,
+  onStanding,
+  onUserInput,
+  openLayer,
+  openerOf,
   overlaps,
   overlapsAcross,
   pagePresented,
@@ -390,11 +419,17 @@ import {
   registerErrorPresentation,
   registerNoticePresentation,
   registry,
+  release,
+  releaseFocus,
+  renderedOrder,
+  renderedUnder,
+  renderingState,
   repaint,
   repaintPage,
   reportPageError,
   reveal,
   routedCommand,
+  rove,
   rowArrows,
   savedReadingSettled,
   saying,
@@ -406,23 +441,31 @@ import {
   searchField,
   seeErrors,
   seenRect,
+  selectsAll,
   setNoticeContext,
   setQuickShortcuts,
   setRuntimeRootStyle,
+  shadowHost,
   showNativeLayer,
   shownBox,
   shownParts,
   shownRect,
+  sizeObserver,
   spell,
   spokenBinding,
   stackLevel,
+  standingIn,
   startsAt,
   submitBindings,
   submitLabel,
   tagsDeclaring,
+  takesLetters,
   titleOf,
+  typesText,
+  under,
   underOccluder,
   union,
+  upFrom,
   uploadMedia,
   watchCommandAvailability,
   watchScrollEnds,
@@ -432,73 +475,25 @@ import {
   word
 } from "./runtime/bundle-page-paint.js";
 import {
-  CARET_KEYS,
-  MODIFIER_KEYS,
-  PRESSES,
-  TEXT_BOX,
-  TEXT_FIELD,
-  WORKS,
-  byRenderedOrder,
-  cancelRender,
-  closeLayer,
-  declareReading,
-  deepFocus,
-  drawn,
-  focusDestination,
-  focused,
-  handBack,
-  holdFocus,
-  keeps,
-  keepsHidden,
-  keepsText,
-  layerLanding,
-  layoutPx,
-  letGo,
-  move,
-  nextFrame,
-  nextRender,
-  observePreparations,
-  onStanding,
-  onUserInput,
-  openLayer,
-  openerOf,
-  release,
-  releaseFocus,
-  renderedOrder,
-  renderedUnder,
-  renderingState,
-  rove,
-  selectsAll,
-  shadowHost,
-  sizeObserver,
-  standingIn,
-  takesLetters,
-  typesText,
-  under,
-  upFrom
-} from "./runtime/bundle-frame-visibility.js";
+  move
+} from "./runtime/bundle-dom-move.js";
 import {
+  For,
   PRESENTATION_ORDER,
   SHARE_ROOT,
+  Show,
   WEBSITE_DELIVERY,
   agentName,
   annotationMode,
   applicationPresenter,
   applicationState,
-  documentChanged,
-  offlineInteractive,
-  readPart,
-  runtime,
-  runtimeResource,
-  shareUrl,
-  whenApplicationPresented
-} from "./runtime/bundle-semantic-state.js";
-import {
-  LitElement,
   bareReaction,
   bindQueuedWork,
   carriesObligation,
   createSignal,
+  createView,
+  default as default2,
+  documentChanged,
   flush,
   hasUnread,
   html,
@@ -507,14 +502,20 @@ import {
   keyed,
   nothing,
   observeQueuedWork,
+  offlineInteractive,
+  readPart,
   ref,
   render,
   repeat,
+  runtime,
+  runtimeResource,
   sameAnchor,
+  shareUrl,
   threadCounts,
   threadKey,
-  threadNames
-} from "./runtime/bundle-queued-work.js";
+  threadNames,
+  whenApplicationPresented
+} from "./runtime/bundle-vendor~browser-runtime.js";
 import "./runtime/bundle-__export.js";
 
 // leaf.js
@@ -671,10 +672,8 @@ var inputDrafts = /* @__PURE__ */ new WeakMap();
 var MEDIA_SHELF_TAG = "leaf-attached-media-shelf";
 var sameDrawing = (a, b) => a === b || JSON.stringify(a) === JSON.stringify(b);
 var thumbnailVersion = 0;
-var AttachedMediaShelf = class extends LitElement {
-  static properties = {
-    model: { attribute: false }
-  };
+var AttachedMediaShelf = class extends HTMLElement {
+  #drawing = null;
   constructor() {
     super();
     this.model = { drawing: null, media: [] };
@@ -695,89 +694,93 @@ var AttachedMediaShelf = class extends LitElement {
     }
     return this.pictured.node;
   }
-  createRenderRoot() {
-    return this;
-  }
   present(model, actions) {
     this.model = model;
     this.actions = actions;
-    this.performUpdate();
+    const props = {
+      ...model,
+      picture: model.drawing ? this.picture(model.drawing) : null
+    };
+    if (!this.#drawing)
+      this.#drawing = createView(this, (state) => this.#view(state), props);
+    else this.#drawing.update(props);
+    keepsHidden(this, !model.drawing && model.media.length === 0);
   }
-  updated() {
-    keepsHidden(this, !this.model.drawing && this.model.media.length === 0);
-  }
-  render() {
-    const { drawing: drawing2, media } = this.model;
-    const strokes = drawing2?.strokes.length ?? 0;
-    return [
-      drawing2 ? html`
-            <span class="lf-composer-media-item lf-composer-drawing">
-              <button
-                type="button"
-                class="lf-media-open lf-composer-media-open"
-                data-lf-media-canvas
-                aria-label=${`Inspect drawing, ${strokes} ${strokes === 1 ? "stroke" : "strokes"}`}
-                title="Inspect drawing"
-                @click=${(event) => {
-        const canvas = this.picture(drawing2);
-        keeps(
-          event.currentTarget,
-          "data-lf-media-alt",
-          canvas.dataset.lfDrawingContext === "ready" ? "Drawing over its frozen page context" : "Drawing"
-        );
-        keeps(
-          event.currentTarget,
-          "data-lf-media-caption",
-          canvas.dataset.lfDrawingContext === "ready" ? "" : canvas.dataset.lfDrawingContext === "pending" ? "Drawing only; page preview was not ready when opened." : "Drawing only; page preview unavailable."
-        );
-      }}
-              >
-                ${this.picture(drawing2)}
-              </button>
-              <button
-                type="button"
-                class="lf-composer-drawing-undo"
-                aria-label="Undo last stroke"
-                title="Undo last stroke"
-                @mousedown=${(event) => event.preventDefault()}
-                @click=${() => this.actions.undoStroke()}
-              >
-                ${this.undoIcon}
-              </button>
-              <button
-                type="button"
-                aria-label="Remove drawing"
-                title="Remove drawing"
-                @mousedown=${(event) => event.preventDefault()}
-                @click=${() => this.actions.removeDrawing()}
-              >
-                ${this.removeIcon}
-              </button>
-            </span>
-          ` : null,
-      media.map(
-        ({ index, url }) => html`
-          <span class="lf-composer-media-item">
-            <button
-              type="button"
-              class="lf-media-open lf-composer-media-open"
-              data-lf-media-url=${url}
-              aria-label=${`View attached image ${index + 1}`}
-            >
-              <img src=${url} alt="" />
-            </button>
-            <button
-              type="button"
-              class="lf-composer-media-remove"
-              aria-label=${`Remove attached image ${index + 1}`}
-              @click=${() => this.actions.removeMedia(index)}
-            >
-              ${iconTemplate("cross", "lf-action-icon")}
-            </button>
-          </span>
-        `
-      )
-    ];
+  #view(state) {
+    return default2`${Show({
+      get when() {
+        return state().drawing;
+      },
+      children: (drawing2) => {
+        const strokes = () => drawing2().strokes.length;
+        return default2`<span class="lf-composer-media-item lf-composer-drawing">
+          <button
+            type="button"
+            class="lf-media-open lf-composer-media-open"
+            data-lf-media-canvas
+            aria-label=${() => `Inspect drawing, ${strokes()} ${strokes() === 1 ? "stroke" : "strokes"}`}
+            title="Inspect drawing"
+            onClick=${(event) => {
+          const canvas = this.picture(this.model.drawing);
+          keeps(
+            event.currentTarget,
+            "data-lf-media-alt",
+            canvas.dataset.lfDrawingContext === "ready" ? "Drawing over its frozen page context" : "Drawing"
+          );
+          keeps(
+            event.currentTarget,
+            "data-lf-media-caption",
+            canvas.dataset.lfDrawingContext === "ready" ? "" : canvas.dataset.lfDrawingContext === "pending" ? "Drawing only; page preview was not ready when opened." : "Drawing only; page preview unavailable."
+          );
+        }}
+          >
+            ${() => state().picture}
+          </button>
+          <button
+            type="button"
+            class="lf-composer-drawing-undo"
+            aria-label="Undo last stroke"
+            title="Undo last stroke"
+            onMouseDown=${(event) => event.preventDefault()}
+            onClick=${() => this.actions.undoStroke()}
+          >
+            ${this.undoIcon}
+          </button>
+          <button
+            type="button"
+            aria-label="Remove drawing"
+            title="Remove drawing"
+            onMouseDown=${(event) => event.preventDefault()}
+            onClick=${() => this.actions.removeDrawing()}
+          >
+            ${this.removeIcon}
+          </button>
+        </span>`;
+      }
+    })}${For({
+      get each() {
+        return state().media;
+      },
+      keyed: (item) => item.index,
+      children: (item) => default2`<span class="lf-composer-media-item">
+          <button
+            type="button"
+            class="lf-media-open lf-composer-media-open"
+            data-lf-media-url=${() => item().url}
+            aria-label=${() => `View attached image ${item().index + 1}`}
+          >
+            <img src=${() => item().url} alt="" />
+          </button>
+          <button
+            type="button"
+            class="lf-composer-media-remove"
+            aria-label=${() => `Remove attached image ${item().index + 1}`}
+            onClick=${() => this.actions.removeMedia(item().index)}
+          >
+            ${iconElement("cross", "lf-action-icon")}
+          </button>
+        </span>`
+    })}`;
   }
 };
 if (!customElements.get(MEDIA_SHELF_TAG))

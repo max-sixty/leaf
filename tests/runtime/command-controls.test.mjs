@@ -4,6 +4,7 @@ import test, { beforeEach } from "node:test";
 import {
   commandScope,
   commandsOn,
+  scopeRef,
   commandsWithin,
   projectCommandScope,
   keys,
@@ -1268,6 +1269,43 @@ test("template scopes follow current rows and retire without removing projected 
   );
   render(nothing, root);
   assert.equal(commandsWithin(root).length, 0);
+  root.remove();
+});
+
+test("a Solid scope returns after a DOM departure and retires with its view", async () => {
+  const { createView, solidHtml } = await import("/vendor/browser-runtime.js");
+  const root = document.createElement("section");
+  document.body.append(root);
+  const drawing = createView(
+    root,
+    () =>
+      solidHtml`<button ref=${scopeRef("Solid control", [
+        { id: "solid.apply", title: "Apply", keys: ["x"], run() {} },
+      ])}>Apply</button>`,
+    null,
+  );
+  const names = () => commandsWithin(root).map(({ row }) => row.id);
+  const mutate = async (change) => {
+    const delivered = new Promise((resolve) => {
+      const observer = new MutationObserver(() => {
+        observer.disconnect();
+        resolve();
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    });
+    change();
+    await delivered;
+  };
+  reflectFirstScopes();
+  assert.deepEqual(names(), ["solid.apply"]);
+  await mutate(() => root.remove());
+  reflectKeys();
+  assert.deepEqual(names(), []);
+  await mutate(() => document.body.append(root));
+  reflectFirstScopes();
+  assert.deepEqual(names(), ["solid.apply"]);
+  drawing.dispose();
+  assert.deepEqual(names(), []);
   root.remove();
 });
 

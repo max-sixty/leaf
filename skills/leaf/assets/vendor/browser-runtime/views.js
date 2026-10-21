@@ -5,7 +5,7 @@
  * The explicit flush is Leaf's imperative presentation boundary: once update
  * returns, focus, measurement and presentation proof can read the resulting DOM.
  */
-import { createSignal, flush } from "../solid.js";
+import { createSignal, createProjection, flush } from "../solid.js";
 import { render } from "../solid.js";
 
 
@@ -14,11 +14,17 @@ export function createView   (
   component                                 ,
   initial   ,
 ) {
-  const [props, setProps] = createSignal   (() => initial, { ownedWrite: true });
-  const dispose = render(() => component(props), container);
+  const [snapshot, setSnapshot] = createSignal(
+    { current: initial },
+    { ownedWrite: true },
+  );
+  // A projection reconciles complete snapshots into per-field reactive readings.
+  // A changed field cannot invalidate bindings that read only unchanged fields.
+  const props = createProjection(snapshot);
+  const dispose = render(() => component(() => props.current), container);
   return Object.freeze({
     update(next   ) {
-      flush(() => setProps(() => next));
+      flush(() => setSnapshot({ current: next }));
     },
     dispose,
   });

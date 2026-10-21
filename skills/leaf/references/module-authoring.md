@@ -57,6 +57,7 @@ const view = createView(
 view.update({ label: "Working" });
 ```
 
+`Show` conditionally mounts a branch while keeping its current reactive reading.
 `For` renders lists. Supply a `keyed` function for records whose identity survives
 replacement; its children receive an accessor for the current record. `offerRef`
 is a Solid ref factory for generated-control anatomy, and `scopeRef` attaches a

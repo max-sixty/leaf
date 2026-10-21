@@ -21,21 +21,19 @@ import {
   shadowRules,
   stateSpecs,
   watchArrivalsIn,
-  watchLayers
+  watchLayers,
+  watchStandingIn
 } from "./bundle-page-paint.js";
 import {
-  move,
-  watchStandingIn
-} from "./bundle-frame-visibility.js";
-import {
-  readPart,
-  runtime
-} from "./bundle-semantic-state.js";
+  move
+} from "./bundle-dom-move.js";
 import {
   authoredRank,
   isElementName,
-  render
-} from "./bundle-queued-work.js";
+  readPart,
+  render,
+  runtime
+} from "./bundle-vendor~browser-runtime.js";
 
 // runtime/stylesheets.js
 var sheets = JSON.parse(

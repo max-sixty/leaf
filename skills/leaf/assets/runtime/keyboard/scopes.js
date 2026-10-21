@@ -31,6 +31,7 @@ import {
   onCleanup,
   nothing,
 } from "/vendor/browser-runtime.js";
+import { watchOwner } from "../arrivals.js";
 import {
   activeRows,
   ariaShortcuts,
@@ -643,17 +644,26 @@ export const commandsOn = directive(
 export function scopeRef(title, rows, options) {
   let element;
   let attachment;
-  onCleanup(() => {
+  let stop;
+  const withdraw = () => {
     if (element && detachScope(element, attachment)) repaint();
+    attachment = null;
+  };
+  onCleanup(() => {
+    stop?.();
+    withdraw();
   });
   return (node) => {
     element = node;
-    attachment = attachScope(
-      node,
+    const declaration =
       rows === undefined && isCommandScope(title)
         ? title.scope
-        : declaredScope(title, typeof rows === "function" ? rows(node) : rows, options),
-    );
+        : declaredScope(title, typeof rows === "function" ? rows(node) : rows, options);
+    const connect = () => {
+      attachment ??= attachScope(node, declaration);
+    };
+    connect();
+    stop = watchOwner(node, { connect, disconnect: withdraw });
   };
 }
 

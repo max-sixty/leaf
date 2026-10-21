@@ -92,6 +92,7 @@ import {
   verbatimOwnerIdentity
 } from "./bundle-passage-facts.js";
 import {
+  WORKS,
   allBindings,
   commandDeclarationsWithin,
   commandEntries,
@@ -99,11 +100,18 @@ import {
   commandRoutes,
   dragHeld,
   exceptionText,
+  frameVisibility,
   growthAfterIsSeen,
   landingBand,
   live,
   nativeLayers,
+  onFrameVisibility,
+  onStanding,
+  readSampleVisibility,
   recordInteraction,
+  releaseFocus,
+  renderedParent,
+  renderingState,
   reveal,
   runtimeRootState,
   seenRect,
@@ -113,25 +121,19 @@ import {
   skipped,
   stackLevel,
   stuckBox,
+  tabStops,
+  takesLetters,
   uiInside,
+  upFrom,
   userScrollport,
   visibleBand
 } from "./bundle-page-paint.js";
-import {
-  WORKS,
-  frameVisibility,
-  onFrameVisibility,
-  onStanding,
-  readSampleVisibility,
-  releaseFocus,
-  renderedParent,
-  renderingState,
-  tabStops,
-  takesLetters,
-  upFrom
-} from "./bundle-frame-visibility.js";
+import "./bundle-dom-move.js";
 import {
   applicationPresented,
+  bindQueuedWork,
+  createPresentationSchedule,
+  observeQueuedWork,
   readApplication,
   readApplicationPresentation,
   selectWidgets,
@@ -139,12 +141,7 @@ import {
   whenApplicationPresented,
   whenApplicationRegionsPresented,
   whenDocumentPresented
-} from "./bundle-semantic-state.js";
-import {
-  bindQueuedWork,
-  createPresentationSchedule,
-  observeQueuedWork
-} from "./bundle-queued-work.js";
+} from "./bundle-vendor~browser-runtime.js";
 import "./bundle-__export.js";
 
 // runtime/validation.js

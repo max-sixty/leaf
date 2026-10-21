@@ -64,6 +64,7 @@
 import { afterScript, nextRender } from "./rendering.js";
 import { createSignal, flush } from "/vendor/browser-runtime.js";
 import { keeps } from "./keeps.js";
+import { preserveMoveFocus } from "./dom-move.js";
 import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
 import {
   isNativeLayer,
@@ -1321,3 +1322,5 @@ export function handBack(...destinations) {
     letGo();
   });
 }
+
+preserveMoveFocus({ holdFocus, watchStandingIn });

@@ -8,26 +8,26 @@ import {
 } from "./bundle-stylesheets.js";
 import {
   frameView,
+  frameVisibility,
+  keeps,
   layoutWindow,
+  nextRender,
+  onFrameVisibility,
   presented,
+  readSampleVisibility,
   recordInteraction,
   requestJson,
+  sizeObserver,
+  watchFrame,
   watchRoom
 } from "./bundle-page-paint.js";
 import {
-  frameVisibility,
-  keeps,
-  move,
-  nextRender,
-  onFrameVisibility,
-  readSampleVisibility,
-  sizeObserver,
-  watchFrame
-} from "./bundle-frame-visibility.js";
+  move
+} from "./bundle-dom-move.js";
 import {
   pageUrl,
   runtime
-} from "./bundle-semantic-state.js";
+} from "./bundle-vendor~browser-runtime.js";
 
 // runtime/sample.js
 var MAX_LOADING_SAMPLES = 3;

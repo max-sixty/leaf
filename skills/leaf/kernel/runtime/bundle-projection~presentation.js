@@ -15,22 +15,18 @@ import {
 } from "./bundle-passage-facts.js";
 import {
   PAGE_PAINT_ATTRIBUTE,
-  decisionFor
-} from "./bundle-page-paint.js";
-import {
+  decisionFor,
   keeps
-} from "./bundle-frame-visibility.js";
+} from "./bundle-page-paint.js";
 import {
   PRESENTATION_ORDER,
   applicationPresenter,
   applicationState,
+  projectionOrigins,
   projectionRegionsPresented,
   readPart,
   watchPresentation
-} from "./bundle-semantic-state.js";
-import {
-  projectionOrigins
-} from "./bundle-queued-work.js";
+} from "./bundle-vendor~browser-runtime.js";
 
 // runtime/projection/presentation.js
 function paintStateOrigins(projection) {

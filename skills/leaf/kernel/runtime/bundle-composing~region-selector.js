@@ -8,25 +8,23 @@ import "./bundle-initial-render.js";
 import "./bundle-passage-facts.js";
 import {
   clamp,
-  el,
-  layoutWindow,
-  notice,
-  paintKeys,
-  raiseError
-} from "./bundle-page-paint.js";
-import {
   closeLayer,
+  el,
   focusDestination,
   focused,
   handBack,
   keeps,
   keepsText,
-  nextRender
-} from "./bundle-frame-visibility.js";
+  layoutWindow,
+  nextRender,
+  notice,
+  paintKeys,
+  raiseError
+} from "./bundle-page-paint.js";
+import "./bundle-dom-move.js";
 import {
   runtime
-} from "./bundle-semantic-state.js";
-import "./bundle-queued-work.js";
+} from "./bundle-vendor~browser-runtime.js";
 import "./bundle-__export.js";
 
 // runtime/composing/region-selector.js

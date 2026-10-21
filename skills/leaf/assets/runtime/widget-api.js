@@ -30,6 +30,7 @@ export {
   createView,
   solidHtml,
   For,
+  Show,
   flush,
   untrack,
 } from "/vendor/browser-runtime.js";

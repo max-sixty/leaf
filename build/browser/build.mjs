@@ -48,7 +48,7 @@ import { contractTypes, protocolSchemas } from "./contract-types.mjs";
 import { protocolBreaks } from "./protocol.mjs";
 import { initialOutputs } from "../initial.mjs";
 import { litNamespace, litPath } from "../lit.mjs";
-import { solidModule, solidPath } from "../solid.mjs";
+import { solidModule, solidMoves, solidPath } from "../solid.mjs";
 import { registryOutputs } from "../registry.mjs";
 import { styleOutputs } from "../styles.mjs";
 import { kernelOutputs } from "../runtime-bundle.mjs";
@@ -353,7 +353,7 @@ export async function buildOutputs({ acceptServed = false } = {}) {
       ]),
     ),
     outdir: `${assets}/vendor`,
-    plugins: [...(await litModule()), solidModule(root)],
+    plugins: [...(await litModule()), solidModule(root), solidMoves()],
     external: ["/runtime/dom-move.js"],
     platform: "browser",
     format: "esm",

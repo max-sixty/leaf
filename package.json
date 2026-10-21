@@ -44,6 +44,7 @@
     "@happy-dom/global-registrator": "20.14.6",
     "@lezer/highlight": "1.2.5",
     "@lezer/markdown": "1.8.0",
+    "@lit-labs/preact-signals": "1.0.3",
     "@observablehq/plot": "0.6.17",
     "@pierre/diffs": "1.5.2",
     "@pierre/trees": "1.0.0-beta.6",

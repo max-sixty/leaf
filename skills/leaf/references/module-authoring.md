@@ -107,11 +107,11 @@ after reading the whole batch of DOM changes. When a revision replaces a widget,
 element's cleanup runs before the new one's `start`, so a registration only one element
 may hold, such as `registerReadingRegion`, passes to the replacement.
 
-A `LeafElement` draws nothing while it is away, and on its return draws again only if
-something it read changed meanwhile or drawing it held with `drawing()` had not landed
-when it left. `watchComparison` and the page readings pause the
-same way: on the return, Leaf calls a callback again only if its reading changed, or if
-the promise the callback returned had not settled when the element left. A callback
+A `LeafElement` draws nothing while it is away. On return, Lit updates it once to
+reconnect its dependencies and draw the current reading, keeping unchanged template
+nodes. `watchProjection` likewise pauses its dependencies while away and paints once
+on return. Data and comparison callbacks instead run again only if their reading
+changed, or if their returned promise had not settled when the element left. A callback
 that throws or rejects is reported once and stays subscribed. So return the promise of
 any paint that finishes later, drop unfinished work when the element leaves but keep
 finished nodes, and have `start` restore what its cleanup removed.

@@ -106,8 +106,10 @@ test("locked source reproduces the complete committed output", async () => {
     "Directive",
     "LitElement",
     "PartType",
+    "SignalWatcher",
+    "batch",
     "classMap",
-    "collectReads",
+    "computed",
     "createPresentationCoordinator",
     "createPresentationSchedule",
     "createRef",
@@ -169,10 +171,11 @@ test("each source module compiles to one module that keeps its lines", async () 
   assert.match(read("browser-runtime.js"), /^export \{[^}]*\} from "\.\/lit\.js";$/m);
   assert.match(
     read("browser-runtime/snapshot.js"),
-    /^import \{ computed, signal \} from "\.\/signals-core\.js";$/m,
+    /^import \{ computed, signal, untracked as signalUntracked \} from "\.\/signals-core\.js";$/m,
   );
   for (const name of modules.filter((name) => !name.endsWith("signals-core.js")))
     assert.ok(!outputs.get(name).includes("litHtmlVersions"), name);
+  assert.ok(!read("browser-runtime/signals-core.js").includes("litHtmlVersions"));
 });
 
 test("checking stale output refuses it without changing any bytes", async (context) => {

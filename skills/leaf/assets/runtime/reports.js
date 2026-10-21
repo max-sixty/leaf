@@ -56,7 +56,6 @@ import { currentProjection } from "./projection/state.js";
 import {
   applicationRegionsPresented,
   projectionRegionsPresented,
-  proofReading,
   readPart,
 } from "./semantic-state.js";
 import { closestAcross } from "./passages.js";
@@ -134,7 +133,7 @@ const reportWidgets = (target) => {
 // preparation, the coordinate chrome, and any other widget the reports name must have
 // committed. Read in a render, the answer is followed as the time a render shows is.
 export const reportsReady = (target) =>
-  proofReading(() =>
+  target.whenReady(() =>
     applicationRegionsPresented([
       "projection:chrome",
       `widget:${target.id}:preparation`,
@@ -145,4 +144,4 @@ export const reportsReady = (target) =>
           `widget:${widget}:preparation`,
         ]),
     ]),
-  ).read();
+  );

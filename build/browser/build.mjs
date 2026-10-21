@@ -101,6 +101,7 @@ export async function compilerPaths(directory = root) {
 const packages = {
   lit: litPath,
   "@preact/signals-core": `${frameworkDirectory}/signals-core.js`,
+  "@lit-labs/preact-signals": `${frameworkDirectory}/signals-core.js`,
 };
 
 /** Each source module's layer path. */
@@ -345,11 +346,39 @@ export async function buildOutputs({ acceptServed = false } = {}) {
     entryPoints: Object.fromEntries(
       Object.entries(packages).map(([name, layerPath]) => [
         layerPath.slice("vendor/".length, -".js".length),
-        name === "lit" ? "leaf:lit" : name,
+        name === "lit" ? "leaf:lit" : "leaf:signals",
       ]),
     ),
     outdir: `${assets}/vendor`,
-    plugins: await litModule(),
+    plugins: [
+      ...(await litModule()),
+      {
+        name: "shared-signals",
+        setup(build) {
+          build.onResolve({ filter: /^leaf:signals$/ }, () => ({
+            path: "signals",
+            namespace: "leaf-signals",
+          }));
+          build.onLoad({ filter: /.*/, namespace: "leaf-signals" }, () => ({
+            // The package barrel also initializes its optional template directives,
+            // pulling another Lit into this bundle. Build the published mixin alone.
+            contents:
+              'export * from "@preact/signals-core"; export { SignalWatcher } from ' +
+              JSON.stringify(
+                fileURLToPath(
+                  new URL(
+                    "./lib/signal-watcher.js",
+                    import.meta.resolve("@lit-labs/preact-signals"),
+                  ),
+                ),
+              ) +
+              ";",
+            resolveDir: root,
+            loader: "js",
+          }));
+        },
+      },
+    ],
     external: ["/runtime/dom-move.js"],
     platform: "browser",
     format: "esm",

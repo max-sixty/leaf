@@ -226,8 +226,8 @@ import {
   upFrom
 } from "./bundle-frame-visibility.js";
 import {
-  M,
   PENDING,
+  Z,
   bindQueuedWork,
   editable,
   html,
@@ -6602,7 +6602,7 @@ var ThreadView = class {
   #rewrites;
   // The model this card shows. A signal, because its commands' liveness reads it, and
   // key and button reflection follow what they read (keyboard/scopes.js).
-  #shown = M(null);
+  #shown = Z(null);
   get #model() {
     return this.#shown.value;
   }

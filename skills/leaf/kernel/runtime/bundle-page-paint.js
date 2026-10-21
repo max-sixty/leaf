@@ -14,6 +14,7 @@ import {
   cancelRender,
   closeLayer,
   controlNavigationKeys,
+  focusRevision,
   focused,
   handBack,
   isNativeLayer,
@@ -36,7 +37,6 @@ import {
 import {
   AsyncDirective,
   Directive,
-  M,
   PartType,
   Z,
   describeFailure,
@@ -44,7 +44,8 @@ import {
   html,
   isElementName,
   nothing,
-  render
+  render,
+  x
 } from "./bundle-queued-work.js";
 
 // runtime/page-paint.js
@@ -543,22 +544,22 @@ var matchesWhen = (el2, when) => Object.entries(when ?? {}).every(
 );
 
 // runtime/pointer.js
-var x = -1;
+var x2 = -1;
 var y = -1;
 var remember = (ev) => {
-  x = ev.clientX;
+  x2 = ev.clientX;
   y = ev.clientY;
 };
 document.addEventListener("pointermove", remember, { capture: true });
 document.addEventListener("pointerdown", remember, { capture: true });
-var pointerAt = () => ({ x, y });
+var pointerAt = () => ({ x: x2, y });
 var coarsePointer = matchMedia("(pointer: coarse)");
 var pressIsKeyboardActivation = (event) => event.type === "click" && !event.detail;
 var plainPress = (event) => event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
 function restorePointer(point) {
-  if (x !== -1 || y !== -1 || !Number.isFinite(point?.x) || !Number.isFinite(point?.y))
+  if (x2 !== -1 || y !== -1 || !Number.isFinite(point?.x) || !Number.isFinite(point?.y))
     return;
-  x = point.x;
+  x2 = point.x;
   y = point.y;
 }
 
@@ -1427,11 +1428,12 @@ function reflectButton(control, candidates) {
   const ref = new WeakRef(control);
   let reading = candidates;
   let failure = null;
-  const dispose = Z(() => {
+  const dispose = x(() => {
     if (reading) {
       const read = reading;
       reading = null;
       try {
+        focusRevision();
         const command = chosenCommand(read);
         const { scope, row, entry } = command;
         const disabled = Boolean(
@@ -1835,10 +1837,11 @@ function reflectAvailabilityReaders() {
   availabilityTracking?.();
   let first = true;
   let failure = null;
-  availabilityTracking = Z(() => {
+  availabilityTracking = x(() => {
     if (first) {
       first = false;
       try {
+        focusRevision();
         reflectCommandAvailability();
       } catch (error) {
         failure = error;
@@ -1884,10 +1887,11 @@ function reflectTracked(element) {
   const ref = new WeakRef(element);
   let first = true;
   let failure = null;
-  const dispose = Z(() => {
+  const dispose = x(() => {
     if (first) {
       first = false;
       try {
+        focusRevision();
         reflectElementShortcuts(ref.deref());
       } catch (error) {
         failure = error;
@@ -2360,12 +2364,12 @@ function frameView(frame2, within) {
   const rect = frame2.getBoundingClientRect();
   const scaleX = rect.width / frame2.offsetWidth || 1;
   const scaleY = rect.height / frame2.offsetHeight || 1;
-  const x2 = (at) => (at - rect.left) / scaleX - frame2.clientLeft;
+  const x3 = (at) => (at - rect.left) / scaleX - frame2.clientLeft;
   const y2 = (at) => (at - rect.top) / scaleY - frame2.clientTop;
   return {
-    left: x2(shown.left),
+    left: x3(shown.left),
     top: y2(shown.top),
-    right: x2(shown.right),
+    right: x3(shown.right),
     bottom: y2(shown.bottom)
   };
 }
@@ -2753,7 +2757,7 @@ function el(tag, cls, text) {
   if (text !== void 0) node.textContent = text;
   return node;
 }
-var hands = M(/* @__PURE__ */ new Set());
+var hands = Z(/* @__PURE__ */ new Set());
 var dragHeld = () => hands.value.size > 0;
 var dragging = (el2, on) => {
   const held = new Set(hands.peek());

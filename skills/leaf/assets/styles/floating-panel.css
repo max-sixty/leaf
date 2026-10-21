@@ -790,7 +790,7 @@
     display: block;
   }
 
-  /* ---------- an opened view: where the user is at its top edge ---------- */
+  /* ---------- an opened view: its name over it, its controls at its foot ---------- */
   /* Drawn only while a view is open, since it stands over the page while it is
      (geometry.js, `declareOccluder`). */
   .lf-fp-opened {
@@ -801,15 +801,28 @@
   .lf-floating-panel:not([data-open]) .lf-fp-opened {
     display: none;
   }
-  .lf-fp-head {
+  /* The name, with nothing to press, stands at the edge the view grows from, so it
+     takes no room where only a heading for assistive tech stands, as On's does. */
+  .lf-fp-head:has(> .lf-fp-title:not(.lf-quiet)) {
+    display: flex;
+    align-items: center;
+    min-height: 36px;
+    padding: 8px 6px 0 calc(6px + var(--lf-fp-inset));
+    box-sizing: border-box;
+  }
+  /* The controls stand on the row, which their growing view never moves, set off from
+     what the view holds by a hairline inset as far as the words. */
+  .lf-fp-controls {
     display: flex;
     align-items: center;
     gap: 4px;
-    min-height: 42px;
-    padding: 6px 6px 0 calc(6px + var(--lf-fp-inset));
+    min-height: 40px;
+    padding: 3px 6px 0 calc(6px + var(--lf-fp-inset));
     box-sizing: border-box;
+    background: linear-gradient(var(--lf-fp-faint), var(--lf-fp-faint)) top center /
+      calc(100% - 2 * (6px + var(--lf-fp-inset))) 1px no-repeat;
   }
-  .lf-fp-head:empty {
+  .lf-fp-controls:empty {
     display: none;
   }
   .lf-fp-crumb {
@@ -831,23 +844,25 @@
   }
   .lf-fp-back {
     flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     min-height: 0;
     padding: 0;
     color: var(--lf-fp-muted);
+  }
+  .lf-fp-back .lf-fp-chevron {
+    scale: -1 1;
+    margin: 0;
   }
   .lf-fp-back:hover {
     background: none;
     color: var(--ink);
   }
-  .lf-fp-sep {
-    flex: none;
-    color: var(--lf-fp-muted);
-  }
-  /* The thread's facts after its title, the news it holds, keep the crumb's end
-     whole, so a title the agent or the user rewrites, or news arriving, gives or
-     takes room before them, truncating the title, and moves nothing else. They stand
-     further from the controls after them than those stand from each other, so they
-     read with the title rather than as controls. */
+  /* The thread's facts after the way back, the news it holds, take the room the crumb
+     leaves, so news arriving moves nothing else. They stand further from the controls
+     after them than those stand from each other, so they read as facts about the
+     thread rather than as controls. */
   .lf-fp-facts {
     flex: none;
     display: flex;
@@ -966,7 +981,7 @@
   }
 
   /* The stage holds the view to its cap, and to what the box leaves it under a long
-     draft (`.lf-fp-card`), the height a list keeps across a filter included. */
+     draft (`.lf-fp-card`), the height a list holds against news included. */
   .lf-fp-stage {
     position: relative;
     display: grid;
@@ -983,7 +998,7 @@
     max-height: 100%;
     overflow-y: auto;
     overscroll-behavior: contain;
-    padding: 4px 6px 6px;
+    padding: 8px 6px 6px;
     box-sizing: border-box;
     scrollbar-width: thin;
   }
@@ -1002,7 +1017,7 @@
   /* A thread scrolled past its first lines fades out at its top edge rather than
      cutting a line in half. */
   .lf-fp-view[data-view="thread"] {
-    padding-top: 8px;
+    padding-top: 10px;
     mask-image: linear-gradient(to bottom, transparent 0, #000 12px);
   }
   /* An answer waiting below the fold (floating-panel.js, `fitAnswer`): a press at the
@@ -1579,14 +1594,33 @@
   .lf-fp-menu[data-level="versions"] {
     width: min(360px, calc(100vw - 32px));
   }
-  /* A list in the menu's place: its head, the way back, over its rows as the state
-     stands over the menu's. Its bold name and a space set it apart, as a view's crumb
-     stands over the view, so it hovers as any row does. */
+  /* A list in the menu's place: its name over its rows, as the state stands over the
+     menu's, and the way back under them, over the leaf, set off from the list by a
+     hairline as a view's controls are. The list fills the height the menu holds
+     (floating-panel.js, `menuRoom`), so a row leaving it, as a dismissed error does,
+     moves the way back nowhere. */
   .lf-fp-menu-page {
     display: grid;
   }
-  .lf-fp-menu-back {
-    margin-bottom: 6px;
+  .lf-fp-menu[data-level] .lf-fp-menu-page {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+  }
+  .lf-fp-menu-name {
+    display: flex;
+    align-items: center;
+    min-height: 30px;
+    padding: 5px 8px;
+    box-sizing: border-box;
+    font-weight: 600;
+  }
+  .lf-fp-menu-rule {
+    flex: none;
+    height: 1px;
+    margin: auto 8px 3px;
+    padding-top: 3px;
+    background: var(--lf-fp-faint) content-box;
   }
   .lf-fp-menu-back .lf-fp-label {
     display: flex;
@@ -1597,12 +1631,6 @@
     flex: none;
     margin: 0;
     scale: -1 1;
-  }
-  .lf-fp-menu-back b {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-weight: 600;
   }
   .lf-fp-state {
     display: grid;

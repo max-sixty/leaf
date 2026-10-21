@@ -63,7 +63,10 @@ If the user resolves the thread before the turn completes, the reserved reply st
 posts and reopens it. Your final message publishes your saved page edits with it,
 so end the turn without running `leaf page check` first. If Leaf refuses to post it,
 as it does over a saved edit with errors, it starts a correction turn with the error
-and the same reply address; fix the problem and complete the answer.
+and the same reply address; fix the problem and complete the answer. Leaf also
+withholds the final message of a turn that carries a message the user sent in Codex,
+since that answer was written for the user's message too, and starts a correction
+turn for the delivery the same way.
 
 A hook or queued pointer can carry an `"agent"` reply even in a task connected to
 App Server. The supplied writer determines the reply route for that delivery.

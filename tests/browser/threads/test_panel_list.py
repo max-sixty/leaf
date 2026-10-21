@@ -1,5 +1,7 @@
 """The panel's Threads list: what each row says."""
 
+import re
+
 import pytest
 from interact_support import append_carried_log_record
 from leaf import thread as thread_model
@@ -19,7 +21,7 @@ from render_harness import (
     told,
 )
 
-from browser.threads import thread_row
+from browser.threads import claim_for_codex, open_panel_thread, thread_row
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -112,6 +114,43 @@ def test_an_answer_without_a_title_leaves_the_opening_words(browser, serve):
     told(page)
     rendered(page)
     expect(label).to_have_text(opening)
+    assert not take_browser_errors(page)
+
+
+def test_a_title_on_its_way_reads_as_one(browser, serve, request):
+    """While an agent holds the page and owes an untitled thread its work, a title is
+    on its way (thread_titles.py), so Threads' row and the thread's view say so rather
+    than heading the thread with its opening words, until the title lands. A page
+    nobody holds is sent no title, so there the thread reads its opening words."""
+    url = serve(PANEL_PAGE)
+    opening = "Is the workshop room accessible?"
+    pending = "Generating thread name…"
+    root = panel_comment(serve.page_dir, opening, {"section": "h-how"})
+    page = open_page(browser, url)
+    label = thread_row(page, root).locator(".lf-fp-label")
+    expect(label).to_have_text(opening)
+
+    claim_for_codex(serve.page_dir, request)
+    told(page)
+    # A screen reader still hears the opening words, after the placeholder.
+    spoken = f"{pending} {opening}"
+    expect(label.locator(".lf-thread-name-pending")).to_have_text(pending)
+    expect(thread_row(page, root)).to_have_accessible_name(
+        re.compile(f"^{re.escape(spoken)} Sent$")
+    )
+    open_panel_thread(page, root)
+    title = page.locator(".lf-fp-head .lf-fp-title")
+    expect(title.locator(".lf-thread-name-pending")).to_have_text(pending)
+    expect(title).to_have_text(spoken)
+
+    append_carried_log_record(
+        serve.page_dir,
+        thread_model.title_event(
+            root, "Workshop access", {"agent": "Codex", "session": "codex-thread"}
+        ),
+    )
+    told(page)
+    expect(title).to_have_text("Workshop access")
     assert not take_browser_errors(page)
 
 

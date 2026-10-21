@@ -172,6 +172,7 @@ import {
   tabStore,
   tellDraft,
   threadAttention,
+  threadHeading,
   threadList,
   threadName,
   touchPresses,
@@ -7573,7 +7574,7 @@ function createFloatingPanel({
                   @click=${() => open({ view: "thread", thread: thread.key })}
                 >
                   <span class="lf-fp-news-mark" aria-hidden="true"></span>
-                  <span class="lf-fp-label">${threadName(thread)}</span>
+                  <span class="lf-fp-label">${threadHeading(thread)}</span>
                   <span class="lf-fp-value"
                     >${threadStatus(thread, query.trim() ? null : filter)}</span
                   >
@@ -8066,9 +8067,14 @@ function createFloatingPanel({
     }
     focusDestination(controls.querySelector(".lf-fp-search"), "move");
   }
-  const headTemplate = (top) => html`<h2 class=${top.view === "queue" ? "lf-fp-title lf-quiet" : "lf-fp-title"}>
-      ${titleOf2(top)}
+  const headTemplate = (top) => {
+    const thread = top.view === "thread" ? threadByKey(top.thread) : null;
+    return html`<h2
+      class=${top.view === "queue" ? "lf-fp-title lf-quiet" : "lf-fp-title"}
+    >
+      ${thread ? threadHeading(thread) : titleOf2(top)}
     </h2>`;
+  };
   function controlsTemplate(top) {
     const parent = trail.value.at(-2);
     const thread = top.view === "thread" ? threadByKey(top.thread) : null;
@@ -10064,8 +10070,7 @@ function createDesignMode({
     press: designPress,
     open: openOnDesign,
     name: designName,
-    inspectElement: inspectEl,
-    legendElement: legendRoot
+    inspectElement: inspectEl
   };
 }
 

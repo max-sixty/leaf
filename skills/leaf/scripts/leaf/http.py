@@ -6,6 +6,7 @@ owns what a page means at that boundary: where a page and its revisions answer
 headers, and the finite freshness reading a visible tab asks for.
 """
 
+import hashlib
 import html
 import json
 import math
@@ -530,14 +531,15 @@ class PageEndpoint:
 
     @property
     def key_cookie(self) -> str:
-        """One cookie per served origin, using the bound port rather than Host.
+        """Share a cookie across same-key listeners without overwriting other keys.
 
-        Cookies already distinguish hosts, but ignore ports and schemes. Naming
-        those here keeps independent listeners' keys from overwriting each other;
-        every same-host server still receives the cookies, so this is no access
-        boundary against a malicious server on another port.
+        Cookies distinguish hosts but ignore ports. The name is derived from the
+        key rather than a listener, so a plain link to another page on this host
+        works after one keyed arrival. Every same-host server receives the cookie
+        regardless of its name; this does not isolate the key from other ports.
         """
-        return f"lf_key_{self.request.url.scheme}_{self.server.server_address[1]}"
+        digest = hashlib.sha256(self.token.encode()).hexdigest()[:32]
+        return f"lf_key_{digest}"
 
     def authorized(self) -> bool:
         """The key, from the handover URL or from the cookie an earlier request

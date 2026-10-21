@@ -92,16 +92,6 @@ has tried; settle that before building it.
   removed in October 2026 have been gone a while; if pages written since still
   carry the heading, remove this check too. It fired in 4 sessions, 2 of them on
   user pages, between 2026-07-22 and 2026-10-11.
-- **Decide where a sandboxed Codex task keeps its pages.** Leaf's MCP server
-  (`codex_tool.py`) runs `leaf` commands outside Codex's sandbox, but the agent
-  writes `index.html` with its own tools, which the sandbox confines to the task's
-  directory and the temporary directories. A page in the state home, where
-  `SKILL.md` says pages usually live, is outside them, so each write there asks
-  the user or, under `approval_policy = "never"`, fails. The sandboxed journey
-  (`leaf-dev journey codex-queue --sandbox`) passes because its page is in the
-  task's directory. Choose between pages in the task's directory under a sandbox,
-  a `leaf` command that writes the source, and asking users to add the state home
-  to `sandbox_workspace_write.writable_roots`.
 - **Consider a reminder when revising decided content.** An optional `--force`
   acknowledgment could make an agent pause over an existing decision. Revisions
   currently remain unrestricted; decide whether such a reminder helps before
@@ -113,9 +103,14 @@ has tried; settle that before building it.
   Judging now separates making decisions from reading the final record; the
   decision-authoring reference also distinguishes user requests from agent-proposed
   decisions.
-  [Test compositions where evidence supports them](notes/workspace-followups.md#item-20),
-  using current code and an unfamiliar author; two samples per task do not settle
-  which compositions work generally.
+  Test compositions where evidence supports them, using current code and an
+  unfamiliar author; two samples per task do not settle which compositions work
+  generally. Reproduce remaining authoring failures on current code before testing
+  short composition suggestions; the older plain HTML configuration advantage
+  preceded per-item playground controls and does not by itself justify more
+  instructions. Keep widget-specific advice in `x-instructions`, cross-widget
+  compositions in package instructions, and general selection principles in the
+  authoring reference.
 - **Keep delegated work in the panel's status on Codex and Pi.** Claude Code's
   `busy` session record keeps the status reading Working in the background after
   the coordinator's turn ends (#3370); Codex and Pi publish no such record, so their
@@ -157,12 +152,12 @@ has tried; settle that before building it.
   in Slack, Discord and Telegram, so an accidental press loses a long rewrite. Offer a
   way back, such as `g D` restoring the last discarded rewrite into its editor (the
   user's suggestion, 2026-10-06).
-- **Decide how far back `z` reaches.** `z` takes back the user's newest gesture
-  however old, so on a page left for weeks it can reopen a thread resolved then,
-  below the fold, and nothing puts back what an undo took. The
-  [undo-reach playground](notes/undo-reach/README.md) compares limits on that reach
-  with additions such as redo and a panel of the user's changes, and waits on the
-  user's pick.
+- **Show what `z` takes before it takes it.** `z` takes back the user's newest
+  gesture however old, so on a page left for weeks it can reopen a thread resolved
+  then, below the fold, and the notice names only the gesture's kind. The user chose
+  (2026-10-21) to keep the reach unlimited, name the gesture and its age, and spend
+  the first press revealing a target that is out of view or already picked up by
+  the agent. [The undo-reach note](notes/undo-reach/README.md) has the build.
 - **Decide when a page merits a separate phone composition.** Many pages are
   ephemeral and authored for a user reading on a large screen, so a bespoke phone
   animation may not repay its cost. Decide how the agent weighs the user's viewing
@@ -175,14 +170,13 @@ has tried; settle that before building it.
   buckets scroll horizontally and the release rationale sits below the board.
   Keep comparison context available during a move, preserving direct destination
   controls and undo.
-- **Decide whether Back may restore a served page whole.** Every served page and
-  API answer carries `Cache-Control: no-store`, so Chrome and Firefox load the page
-  afresh on Back rather than restoring it from their back/forward cache, and Firefox
-  also refuses a page holding a sample ([browser support](notes/browser-support.md),
-  "Page cache"). With `no-store` lifted, a Chrome probe restored a page that caught
-  up with the log and recorded gestures. Weigh an instant Back against what
-  `no-store` protects, a private page's copy in the browser's disk cache, and
-  exercise Safari.
+- **Decide whether Back may restore a leaf.page page whole.** The local server
+  sends `no-cache`, so Chrome and Firefox restore its pages on Back. leaf.page's
+  container and the edge's state answers still send `no-store`, which keeps its
+  pages out of Chrome's back/forward cache ([browser support](notes/browser-support.md),
+  "Page cache"). Weigh an instant Back against what `no-store` protects there, a
+  visitor's private page in the browser's disk cache on a shared computer, and
+  exercise Safari on both.
 - **Consider automatic Leaf recovery on resume.** Reuse the reconnect notice's
   eligibility checks to restore serving, ownership, and feedback delivery, while
   respecting explicit stops and transfers to another session.
@@ -303,25 +297,17 @@ Boxes that still move without input, which the "Stability" rule in
 `skills/leaf/assets/AGENTS.md` forbids. `tests/known_widget_findings.py` lists each widget
 that changes size after first paint, with its cause.
 
-- **Size text documents at first paint.** An `lf-text-document` without `preview` is
-  as tall as its source's value wrapped at the column's width. `leaf data set` writes
-  that value to the page directory, and the browser reads it from `/api/state` (on
-  leaf.page, from the build's static state answer); only an export inlines it in the
-  document (`exporting.py`). A page that opens with a 20-line document first paints
-  before its state answer arrives, at about 200 ms against 300 ms in `leaf-dev probe`,
-  so the document draws later and pushes the paragraph below it down 470px at 1440px
-  wide and 850px at 390px (a 0.06 layout shift at each). A `preview` document's
-  height doesn't depend on its value (caption, tab strip and a `--lf-bound`
-  viewport), so an initial renderer can paint it final under any of the fixes below.
-  Choosing one is Max's decision:
-  - serve each value the document binds inside the document, as an export already
-    does, and draw it unhighlighted in Pierre's line geometry from an initial
-    renderer, so the box is final before highlighting loads;
-  - have the author state `data-height`, as `lf-diff` does (`x-height: true`), though
-    the stated height goes stale whenever the data or the width changes;
-  - give every text document a fixed height that scrolls inside, as a `preview`
-    document already has, or open it closed behind a one-line summary, as the
-    activity feed opens on a gesture and holds later growth with `HeldReading`.
+- **Draw a text document's listing once its text has arrived.** Every
+  `lf-text-document` now keeps its final box from first paint, but its module draws
+  the listing as soon as it upgrades, before the state answer brings the text: one
+  empty row under a caption reading “· no data”. When the text arrives, the gutter
+  widens for two-digit line numbers and the code column moves right inside the box.
+  `leaf-dev probe` on a page with a 20-line, a 3-line and a preview document scores
+  that move 0.12 of layout shift at 1440px and 0.44 at 390px, though nothing outside
+  the boxes moves, except where the “· no data” suffix wraps a long label onto
+  another line and its removal shortens the box. Drawing nothing until the first
+  state answer has been read would leave the theme's stand-in frame and caption until
+  then.
 - **Draw the contents map's spine in its first frame.** `lf-toc`'s initial drawing
   (`initial/lf-toc.js`) gives it its final box and rows, but in the margin its
   disclosure stays closed until the module opens it, so the spine and its markers
@@ -394,8 +380,8 @@ on 2026-10-07.
 ### The agent's text interface
 
 - **Decide whether an owed answer may continue a turn whose answer is written.**
-  Where a watch or Codex's adapter follows the turn, Stop no longer hands new input
-  into it (`hook_transport`), but it still continues the turn once for an update
+  Where a watch or Codex's App Server adapter follows the turn, Stop no longer hands
+  new input into it (`hook_transport`), but it still continues the turn once for an update
   picked up and unanswered, and for a page it could not re-vendor. The agent then writes one
   more message, which Claude Code's focus view shows in place of the turn's answer:
   9 of the 65 Leaf continuations in Max's sessions of 2026-10-10 to 10-19 were these,
@@ -498,11 +484,6 @@ on 2026-10-07.
   in `notes/user-feedback-responsiveness.md`. Uploading a CI artifact needs no extra
   token but keeps 90 days; a file in `max-sixty/leaf-assets` keeps history but needs
   a token that can push there.
-- **Decide whether `leaf-dev` should draw charts.** `leaf-dev journey-chart` prints
-  an `lf-chart` of the kept journey samples, so a reading needs no numbers copied
-  into a page by hand. It is an experiment: the alternative is for the command to
-  print the samples' rows and leave the chart to the agent writing the page. Keep it
-  if it gets used for later readings; otherwise reduce it to the rows.
 
 ## Etc
 
@@ -576,8 +557,6 @@ Revisit these when their stated trigger becomes real; they are not an active que
   them all at once, yet a page-level key spent on that alone seems wasteful. Think
   about which surface should own it, such as one command on the panel. Trigger: a
   user steps through notices one by one to catch up.
-- **#23 — Workspace persistence:** use repeated real tasks to decide whether
-  users return and how much customization Leaf should own.
 - **Let a user add, remove and edit table rows.** A creating action carries only the
   new child's id and words, not a record of several fields. The
   [datastore review](notes/datastore-review.md) lists what a row feature must
@@ -599,10 +578,7 @@ export` writes a file that boots the page's own runtime offline, and that file
   in `leaf.js`), so a reader of the file sees no comments or agent replies.
   Decide whether an export is the page alone or the page with its discussion; the
   likely answer is threads shown read-only, with the composer and sends off.
-- **Favicon count:** keep a pending count only if it reads clearly at 16px.
 - **Character bindings:** let users disable them when real use calls for it.
-- **Authoring vocabulary:** add tabbed sections only when root and embedded
-  placement cannot express a real page.
 - **Replacement diffs and visual masks:** add them when repeated reviews need
   more than plain replacement and focused inspection.
 - **Motion evidence:** define video, caption, and transcript handling when core
@@ -613,22 +589,32 @@ export` writes a file that boots the page's own runtime offline, and that file
 
 ### Implementation candidates
 
-- **Remove the early-key hold once startup is fast.** Keys pressed before the
-  runtime upgrades or the first saved state lands are queued, a "Page still
-  loading" chip appears after 150 ms, and the keyboard controller replays them
-  (`holdEarlyKeys` in `runtime/bootstrap.js`, `takeHeldKeys` in
+- **Remove the early-key hold once startup is fast on slower machines too.** Keys
+  pressed before the runtime upgrades or the first saved state lands are queued, a
+  "Page still loading" chip appears after 150 ms, and the keyboard controller
+  replays them (`holdEarlyKeys` in `runtime/bootstrap.js`, `takeHeldKeys` in
   `keyboard/controller.js`, `INPUT_PENDING` in `keyboard/dispatch.js`, the pending
-  clause of `scopeAvailable` in `keyboard/bindings.js`). It is worth keeping while
-  startup takes up to a couple of seconds. Trigger: a page presents in about 250 ms
-  consistently, measured with `leaf-dev probe`'s startup phases on the examples;
-  then delete the hold, which a 2026-10-14 trial measured at 240 runtime and 540
-  test lines. On 2026-10-19 it had not fired. Reloading each example five times
-  on one running server, the median `startup.presented.at` was 167 to 238 ms on
-  six of nine examples, but 289 ms on `code-comparison`, 335 ms on `command-hub`
-  and 487 ms on `pr-walkthrough`. With a 4x CPU throttle the same medians were
-  632 ms (`triage-board`) to 1826 ms (`pr-walkthrough`). On four examples, a
-  server's first load took 120 to 230 ms longer than its reloads.
-  `uv run leaf-dev probe EXAMPLE [--cpu-throttle 4]` reads one first load; the
+  clause of `scopeAvailable` in `keyboard/bindings.js`). Without the hold, such a
+  key is lost or runs the browser's own action, such as Space scrolling or `/`
+  opening Firefox's Quick Find. Trigger: every example presents in about 250 ms
+  both on this Mac and with Chromium's CPU slowed 4x, which stands in for a slower
+  laptop as Lighthouse's mobile run does; then delete the hold, which a 2026-10-14
+  trial measured at 240 runtime and 540 test lines. This Mac is the fastest machine
+  pages run on, so its reading alone would delete the hold where it still helps.
+  The throttled bar is also 250 ms because the bar is how soon a reader presses a
+  key after a page appears, which is the same on any machine. A throttled bar near
+  1 s would add nothing to the unthrottled one, since the throttle multiplied the
+  medians below by 3.7 to 4.3. Take each reading as the median of five runs per
+  example, with the Mac's load average beside it, of
+  `uv run leaf-dev probe EXAMPLE` and `uv run leaf-dev probe EXAMPLE --cpu-throttle 4`,
+  reading `.startup.presented.at` from the JSON line each prints. A probe reads a
+  fresh server's first load, which is what a reader gets when an agent hands them
+  a page. On 2026-10-19 the trigger had not fired. Reloading each example five
+  times on one running server, the median `startup.presented.at` was 167 to 238 ms
+  on six of nine examples, but 289 ms on `code-comparison`, 335 ms on
+  `command-hub` and 487 ms on `pr-walkthrough`. With a 4x CPU throttle the same
+  medians were 632 ms (`triage-board`) to 1826 ms (`pr-walkthrough`). On four
+  examples, a server's first load took 120 to 230 ms longer than its reloads. The
   Mac's load average was near 12 on 18 cores throughout.
 - **Draw the margin's annotations once per thread pass.** They draw from their own
   watcher, which waits only for the projection's chrome, and again when the thread
@@ -676,18 +662,11 @@ export` writes a file that boots the page's own runtime offline, and that file
   A disposable full-history rewrite saved about 27 MiB. Coordinate the rewrite
   across remote refs and local worktrees, retaining the commit mapping and testing
   that updates preserve active work without restoring the removed history.
-- **Calibrate agent-driven UI diagnosis.** Try one known miss and one intentional or
-  invalid control with a bounded explorer and cold user. The
-  [quality brief](notes/agent-driven-ui-quality.md) also proposes a Tend acceptance-policy
-  change; review that proposal with its owner before changing the policy.
 - **Set interaction-trace privacy before sharing pages.** Define who can inspect
   traces, consent or opt-out, sensitive-field redaction (including passwords,
   pasted text, and selection), and retention/deletion for page-local files and
   hosted Workers Logs. Page-local traces currently record raw input for this
   single-user stage; the public site keeps interaction metadata only.
-- **#26 — Codex supervision:** separate hosted and local turn supervision only
-  if hosted delivery becomes a product priority; the App Server protocol is
-  already shared.
 - **Make a leaf.page dispatch survive its container.** The Worker acknowledges an
   accepted event and hands its Codex turn to `waitUntil` (`worker/src/agent.ts`,
   `dispatchAgentTask`). Nothing records the event and turn identity in the
@@ -748,8 +727,6 @@ export` writes a file that boots the page's own runtime offline, and that file
   (`file_changes.page_changes`), which runs only in a serving process. Trigger:
   hosted replies visibly lag, or a page streams an agent's reply as it is
   written, which polling would show in 250 ms jumps of whole-state reads.
-- **#27 — Runtime fold tests:** add focused Node tests as rules change; extend
-  `tests/runtime/dom.mjs` only when a test needs another module.
 - **Claude Code tool observation:** consider a cheap hook for sessions holding
   pages if status evaluations show that agent declarations are insufficient.
 - **Leaf hook cost with owned pages:** Stop, prompt, and Codex tool-result
@@ -761,8 +738,29 @@ export` writes a file that boots the page's own runtime offline, and that file
   the current dialog and popover handlers. At a Chromium floor of at least 135,
   test `command` and `commandfor`; Leaf still owns layer ordering, semantic state
   and focus restoration.
-- **MCP Apps:** rebuild inline hosting as the direct-resource design when a host
-  the user runs renders MCP Apps. See [notes/mcp-apps/PROJECT.md](notes/mcp-apps/PROJECT.md).
+- **MCP Apps:** when a host the user runs renders MCP Apps, rebuild inline hosting
+  as a direct resource: Leaf's runtime in the host's `ui://` resource, with reads and
+  gestures carried by MCP tools to `PageStateService` and the event append boundary,
+  one renderer and one log. Accept it once, in that host, its renderer allows the
+  content security policy Leaf needs, including evaluating `lf-chart` bodies, a
+  keyboard choice and an anchored comment reach the page log and show in Threads,
+  reopening rebuilds the same state, versions, new layer assets and external data
+  use the same transport, and delivery wakes an idle task (accepting `ui/message`
+  doesn't show that). The
+  removed transport and its probe are at `a8ed55e68` (`notes/mcp-apps/probe`); its
+  last run rendered a page in the reference host but failed to save a choice.
 - **Release labels:** prefer an exact tag when Leaf adopts named releases.
 - **Diff controls:** consider author-configurable wrapping and per-file review tracking
   when a page needs them. Keep their controls optional.
+- **A reply's widgets in every view of it:** a reply's widgets show in one view
+  at a time (the panel, then its margin card, then its seat), and the others draw
+  only its words (`authoredRank`, `thread/messages.js`). Giving each view its own
+  copy needs every id lookup to resolve inside the drawing that asks, through
+  `elementById(id, root)` (`passages.js`): about 31 `elementById` and 9
+  `getElementById` calls in the runtime and the package widgets' own lookups
+  (`lf-board`, `lf-options-addition`). The lookups that arrive with no drawing
+  each need a rule: obligation standing, `m` walks, an anchor on an element in a
+  reply, and the presentation regions keyed `widget:<id>:render`. A 2026-10-20
+  trial of per-drawing copies without that broke all four (reverted within
+  PR #3436). Revisit if seeing a question in the page and the panel at once is
+  worth it.

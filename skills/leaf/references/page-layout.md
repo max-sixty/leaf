@@ -220,8 +220,11 @@ nothing beside it is free. Don't pad a heading to make room for its marker; the 
 hides markers with `o`, or the leaf's menu → Annotations → Hide annotations, to read
 what's under one.
 
-On a column page, write the contents outline in the first `aside.sidebar` and short
-notes in `aside.sidenote`. Leaf moves them into the margin when they fit and leaves
+On a column page, write the contents outline in the first `aside.sidebar`. With page
+tabs, each tab can instead start with its own `aside.sidebar` and empty `lf-toc`:
+the tab's outline stands below its strip in flow and becomes its spine when the margin
+has room. A sidebar directly in the column keeps that slot if one is present; nested
+tabbed boxes keep their sidebars in flow. Write short notes in `aside.sidenote`. Leaf moves them into the margin when they fit and leaves
 them where you wrote them in a narrow window. For CSS that depends on what is in the
 margin, read the tokens in the `data-lf-margin` of the box carrying `layout-column`
 (`rail`, `map`, `sidebar`, `note`), such as

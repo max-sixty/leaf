@@ -30,7 +30,6 @@ import {
   replyIsEditing,
   selectionAnchor,
   storedDraft,
-  surfaceFocusTarget,
   tabStore,
   userStore,
   walkOrigin,
@@ -38,8 +37,13 @@ import {
   whereDraft
 } from "./bundle-user-intent.js";
 import {
-  domValue
-} from "./bundle-widget-upgrade.js";
+  annotationMarkSheets,
+  annotationSheets,
+  chromeSharedClasses,
+  chromeSheet,
+  domValue,
+  marksSheet
+} from "./bundle-stylesheets.js";
 import "./bundle-media.js";
 import {
   agentArrivalDuration,
@@ -68,13 +72,6 @@ import {
   unconcealedReadingRegions,
   userReadingRegion
 } from "./bundle-presence.js";
-import {
-  annotationMarkSheets,
-  annotationSheets,
-  chromeSharedClasses,
-  chromeSheet,
-  marksSheet
-} from "./bundle-stylesheets.js";
 import {
   TEXT_BLOCK,
   alignInlineText,
@@ -121,16 +118,6 @@ import {
   visibleBand
 } from "./bundle-page-paint.js";
 import {
-  applicationPresented,
-  readApplication,
-  readApplicationPresentation,
-  selectWidgets,
-  watchSemantic,
-  whenApplicationPresented,
-  whenApplicationRegionsPresented,
-  whenDocumentPresented
-} from "./bundle-semantic-state.js";
-import {
   WORKS,
   frameVisibility,
   onFrameVisibility,
@@ -143,6 +130,16 @@ import {
   takesLetters,
   upFrom
 } from "./bundle-frame-visibility.js";
+import {
+  applicationPresented,
+  readApplication,
+  readApplicationPresentation,
+  selectWidgets,
+  watchSemantic,
+  whenApplicationPresented,
+  whenApplicationRegionsPresented,
+  whenDocumentPresented
+} from "./bundle-semantic-state.js";
 import {
   bindQueuedWork,
   createPresentationSchedule,
@@ -258,7 +255,6 @@ export {
   stackLevel,
   storedDraft,
   stuckBox,
-  surfaceFocusTarget,
   tabStops,
   tabStore,
   takesLetters,

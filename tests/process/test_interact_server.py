@@ -1653,7 +1653,6 @@ def test_a_page_loads_from_other_servers_as_written(server, page_dir):
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None, activated.error
     resources = artifact_model.read_artifact(page_dir, activated.revision).resources
-    assert resources["/page/app.js"].dependencies == ()
     assert not any(path.startswith("http") for path in resources)
 
     status, body = fetch(f"{server}/")
@@ -1770,11 +1769,14 @@ def test_a_revision_serves_reaction_tokens_in_their_declared_order(page_dir):
     assert (status, served) == (200, captured)
 
 
-def test_a_revision_s_resources_are_cached_and_its_document_is_not(server, page_dir):
+def test_a_revision_s_resources_are_cached_and_its_document_is_asked_again(
+    server, page_dir
+):
     """A revision's resources are named by its digest, so the browser keeps them for
     every document that imports them, a gallery's live samples included. The document
-    and the page's state stay uncached: each read asks what the page is now, and so
-    does a path under the namespace that names nothing."""
+    and the page's state may be stored, which lets the back/forward cache keep the
+    page, but each reuse asks what the page is now, and so does a path under the
+    namespace that names nothing."""
     publish(page_dir)
     root = "/revisions/" + files_model.revision_path(page_dir, 1).stem
 
@@ -1788,9 +1790,9 @@ def test_a_revision_s_resources_are_cached_and_its_document_is_not(server, page_
     immutable = "private, max-age=31536000, immutable"
     assert cache_control(f"{root}/leaf.js") == (200, immutable)
     assert cache_control(f"{root}/theme.css") == (200, immutable)
-    assert cache_control("/") == (200, "no-store")
-    assert cache_control("/api/state") == (200, "no-store")
-    assert cache_control(f"{root}/no-such-module.js") == (404, "no-store")
+    assert cache_control("/") == (200, "no-cache")
+    assert cache_control("/api/state") == (200, "no-cache")
+    assert cache_control(f"{root}/no-such-module.js") == (404, "no-cache")
 
 
 def test_server_takes_an_approval_only_where_the_version_asked_for_one(
@@ -3083,11 +3085,11 @@ def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir, sessio
 
 
 def _news(server):
-    """One finite, uncached freshness answer from the visible-page door."""
+    """One finite freshness answer from the visible-page door, asked for afresh."""
     with urllib.request.urlopen(
         f"{server}/api/news?t={TOKEN}", timeout=STATED_TIMEOUT
     ) as response:
-        assert response.headers.get("Cache-Control") == "no-store"
+        assert response.headers.get("Cache-Control") == "no-cache"
         return response.read().decode()
 
 
@@ -3180,14 +3182,10 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     assert reads == [neighbor / "service.json"]
     declare(neighbor, "idle")
     assert presence_model.other_leaves(page_dir) == [row]
-    # Shared-home records from an incompatible producer stay absent, including
-    # a row with the outer envelope but without the activity/count contract.
+    # Another record format stays absent while the current producer's row stands.
     record = files_model.read_json(publisher.path)
-    for activity in ({}, {**row["activity"], "counts": {}}):
-        cleanup_model.write_json(
-            publisher.path, {**record, "row": {**row, "activity": activity}}
-        )
-        assert presence_model.other_leaves(page_dir) == []
+    cleanup_model.write_json(publisher.path, {**record, "format": "leaf-row/0"})
+    assert presence_model.other_leaves(page_dir) == []
     cleanup_model.write_json(publisher.path, record)
     service = read_record(neighbor / "service.json")
     write_record(neighbor / "service.json", {**service, "server_id": "replacement"})

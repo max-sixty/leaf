@@ -1,7 +1,7 @@
 """How each margin entry is drawn, labelled and kept through repaints. The bounds on a
 repaint's work are held on the corpus (`journeys/test_render_gate.py`), and the feature
 gallery's margin atlas is read on the gallery's one journey
-(`navigation/test_tabs.py`)."""
+(`journeys/test_render_navigation.py`)."""
 
 import re
 
@@ -291,9 +291,9 @@ def test_a_finger_holding_a_margin_entry_reads_its_label_above_it(browser, serve
     label stands clear of the finger, above the entry or else beside it, while the
     press lasts, and a row arriving meanwhile doesn't move it. An
     action's release presses it once, and the browser's own click after it reaches
-    nothing the press put under the finger. After the release the label is the
-    platform's: a phone keeps the tapped entry hovered, so its label may stay until the
-    next tap elsewhere."""
+    nothing the press put under the finger. A phone keeps the entry a finger last
+    pressed hovered and focused until the next tap elsewhere, so neither reveals its
+    label there: a tap leaves none behind, and the label goes with the hold."""
     lead = "<p>Text before the target, so the label has room above it.</p>" * 4
     url = serve(
         leaf_page(
@@ -327,6 +327,10 @@ def test_a_finger_holding_a_margin_entry_reads_its_label_above_it(browser, serve
         }"""
     )
     cdp = context.new_cdp_session(page)
+    tapped = page.locator(".lf-margin-entry").filter(has_text="Sent")
+    tapped.tap()
+    expect(tapped).to_be_focused()
+    expect(tapped.locator(":scope > .lf-margin-entry-label")).to_be_hidden()
     for name, words in (("Sent", "Sent2m ago"), ("Act on it", "Act on itActs at once")):
         entry = page.locator(".lf-margin-entry").filter(has_text=name)
         expect(entry).to_be_visible()
@@ -369,6 +373,7 @@ def test_a_finger_holding_a_margin_entry_reads_its_label_above_it(browser, serve
             assert label.bounding_box() == held
         cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
         expect(entry).not_to_have_attribute("data-lf-held-word", "")
+        expect(label).to_be_hidden()
     rendered(page)
     assert page.evaluate("window.pressed") == ["act"]
 

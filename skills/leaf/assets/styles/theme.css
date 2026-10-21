@@ -1,3 +1,5 @@
+@import "@awesome.me/webawesome/dist/styles/themes/default.css" layer(lf-vendor);
+
 /* Leaf default theme, vendored into each page directory by `page init` and served
  * at /theme.css. Four tiers, cheapest first: tokens, element styles for plain
  * semantic HTML, class idioms (one rule + one catalog line each), and
@@ -128,6 +130,16 @@
   syntax: "<time>";
   inherits: true;
   initial-value: 220ms;
+}
+@property --lf-motion-return {
+  syntax: "<time>";
+  inherits: true;
+  initial-value: 180ms;
+}
+@property --lf-motion-disclosure {
+  syntax: "<time>";
+  inherits: true;
+  initial-value: 120ms;
 }
 @property --lf-motion-agent-arrival {
   syntax: "<time>";
@@ -346,6 +358,9 @@
      come apart: a third copy of 1.45 is exactly the drift the reserve comment in
      chrome.css is about, and this one would show as the picker sinking again. */
   --lf-ui-lh: 1.45;
+  /* Compact toolbar controls share a height across native and vendor elements.
+     Larger transport controls keep their own size; a finger raises this floor. */
+  --lf-control-compact: max(30px, var(--aim-floor));
   --details-padding-block: 8px;
   --details-margin-block: 18px;
   --details-border: 1px;
@@ -378,10 +393,11 @@
      either size, so a fold opening over several lines moves nothing by a fraction. It
      keeps the entry floor, since a message turns into the editor that rewrites it. */
   --msg-font: max(var(--entry-floor), var(--t-5)) / 1.5 var(--sans);
-  /* Inline code, a quote, a code block's inset and a link, as the element rules below
-     draw them. They are tokens because the composer draws a draft in the same faces
-     (runtime/composing/text-field.js), inside a shadow root those rules cannot reach,
-     so each construct reads in the draft the way it will in the sent message. */
+  /* Inline code, a quote, a code block's inset, a list's inset and a link, as the
+     element rules below draw them. They are tokens because the composer draws a draft
+     in the same faces (runtime/composing/text-field.js), inside a shadow root those
+     rules cannot reach, so each construct reads in the draft the way it will in the
+     sent message. */
   --code-inline-size: 82%;
   --code-inline-pad: 1px 5px;
   --code-inline-r: 4px;
@@ -389,6 +405,7 @@
   --quote-style: italic;
   --quote-inset: 18px;
   --pre-inset: 14px;
+  --list-inset: 24px;
   --link-underline: color-mix(in srgb, var(--accent) 35%, transparent);
   --link-underline-offset: 2px;
   --serif: Charter, "Bitstream Charter", "Iowan Old Style", Georgia, ui-serif, serif;
@@ -838,6 +855,13 @@ html[data-lf-interactive] [data-lf-arriving] {
     display: none !important;
   }
   @media screen {
+    /* An initial drawing can depend on later markup in its reading scope. Keep that
+     * scope's geometry but withhold its paint until the producer has those inputs;
+     * opacity also covers descendants with their own visibility declaration. */
+    html[data-lf-interactive] [data-lf-initial-pending] {
+      opacity: 0 !important;
+      visibility: hidden !important;
+    }
     html[data-lf-interactive] body:not([data-lf-presented]),
     html[data-lf-interactive] body:not([data-lf-presented]) > main,
     html[data-lf-interactive] body:not([data-lf-presented]) > main *,
@@ -899,11 +923,17 @@ html[data-lf-interactive] [data-lf-arriving] {
   inherits: true;
   initial-value: 0px;
 }
-/* How far below their places a text field draws its words, while an owner's tween
-   carries them with an edge the field's growth moved (composing/text-field.js). At
-   rest it is `none`, which leaves the words untransformed. */
-@property --lf-field-ride {
-  syntax: "<length> | none";
+/* How far across and down from their places a text field draws its words, and how much
+   of its box it cuts them to from each side, while an owner's tween carries them with
+   the field's edges (composing/text-field.js, runtime/box-motion.js). At rest both are
+   `none`, which leaves the words untransformed and uncut. */
+@property --lf-field-carry {
+  syntax: "<length>+ | none";
+  inherits: true;
+  initial-value: none;
+}
+@property --lf-field-cut {
+  syntax: "<length>+ | none";
   inherits: true;
   initial-value: none;
 }
@@ -2196,27 +2226,35 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   left: var(--lf-label-x);
   top: var(--lf-label-y);
 }
-.lf-margin-entry:is(:hover, [data-lf-focus]):not([aria-expanded="true"])
+/* Hover reveals the label after a short delay, only where the pointer really hovers: a
+   phone keeps the last tapped entry hovered until the next tap, so there the label
+   would outstay the tap. A finger holds the entry to read it instead (held-word.js),
+   and the focus a tap leaves behind says it only where the keyboard placed it, below. */
+@media (hover: hover) {
+  .lf-margin-entry:hover:not([aria-expanded="true"]) > .lf-margin-entry-label {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+    transition-delay: 90ms;
+  }
+}
+/* A margin entry held under a press, or a focused destination, says its label at once.
+   Besides avoiding a needless delay for the user, this keeps a contribution that is
+   rebuilt while the margin projection settles from restarting three paint-only
+   transitions at time zero forever. */
+.lf-margin-entry:is([data-lf-held-word], [data-lf-focus]:not([aria-expanded="true"]))
   > .lf-margin-entry-label {
   opacity: 1;
   visibility: visible;
   transform: translateY(0);
-  transition-delay: 90ms;
-}
-/* A margin entry held under a press says its label at once, as a focused destination
-   does below (held-word.js). */
-.lf-margin-entry[data-lf-held-word] > .lf-margin-entry-label {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(0);
   transition: none;
 }
-/* A focused destination says its label at once. Besides avoiding a needless delay for
-   the user, this keeps a contribution that is rebuilt while the margin projection settles
-   from restarting three paint-only transitions at time zero forever. Hover discovery
-   retains the short delay and reveal above. */
-.lf-margin-entry[data-lf-focus]:not([aria-expanded="true"]) > .lf-margin-entry-label {
-  transition: none;
+@media (hover: none) {
+  .lf-margin-entry[data-lf-focus]:not(:focus-visible, [data-lf-held-word])
+    > .lf-margin-entry-label {
+    opacity: 0;
+    visibility: hidden;
+  }
 }
 .lf-margin-projection
   .lf-margin-entry:not([data-lf-label-side])

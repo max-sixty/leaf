@@ -574,12 +574,7 @@ def test_the_feature_gallery_eyebrows_index_literal_code_names():
     assert apparatus.isdisjoint(indexed), (
         f"feature eyebrows expose gallery apparatus: {', '.join(sorted(apparatus & indexed))}"
     )
-    # `leaf-dev corpus` strips the contents sidebar when it composes the tab, so
-    # lf-toc is page chrome rather than a sample a section demonstrates.
-    sections = re.sub(
-        r'<aside class="sidebar".*?</aside>', "", authored, flags=re.DOTALL
-    )
-    tags = set(re.findall(r"<(lf-[a-z0-9-]+)[\s>]", sections)) - apparatus
+    tags = set(re.findall(r"<(lf-[a-z0-9-]+)[\s>]", authored)) - apparatus
     assert tags
     assert tags <= indexed, f"feature eyebrows omit {', '.join(sorted(tags - indexed))}"
 

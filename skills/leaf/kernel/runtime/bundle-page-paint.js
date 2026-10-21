@@ -1,11 +1,4 @@
 import {
-  DELIVERY,
-  PAGE_ROOT,
-  offlineInteractive,
-  pageUrl,
-  runtime
-} from "./bundle-semantic-state.js";
-import {
   CARET_KEYS,
   TEXT_BOX,
   WORKS,
@@ -33,6 +26,13 @@ import {
   under,
   upFrom
 } from "./bundle-frame-visibility.js";
+import {
+  DELIVERY,
+  PAGE_ROOT,
+  offlineInteractive,
+  pageUrl,
+  runtime
+} from "./bundle-semantic-state.js";
 import {
   AsyncDirective,
   Directive,
@@ -553,6 +553,7 @@ document.addEventListener("pointermove", remember, { capture: true });
 document.addEventListener("pointerdown", remember, { capture: true });
 var pointerAt = () => ({ x, y });
 var coarsePointer = matchMedia("(pointer: coarse)");
+var hoveringPointer = matchMedia("(hover: hover)");
 var pressIsKeyboardActivation = (event) => event.type === "click" && !event.detail;
 var plainPress = (event) => event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
 function restorePointer(point) {
@@ -3387,6 +3388,7 @@ export {
   matchesWhen,
   pointerAt,
   coarsePointer,
+  hoveringPointer,
   pressIsKeyboardActivation,
   plainPress,
   restorePointer,
@@ -3438,7 +3440,6 @@ export {
   watchOwner,
   whileConnected,
   frameFor,
-  liveStages,
   watchArrivals,
   watchArrivalsIn,
   watchScrolls,

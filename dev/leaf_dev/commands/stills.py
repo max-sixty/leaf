@@ -49,7 +49,14 @@ from PIL import Image, ImageDraw
 from playwright.sync_api import Locator, Page, expect
 
 from leaf_dev import ROOT
-from leaf_dev.arms import build_pair, copy_committed, run_directory, serving_source
+from leaf_dev.arms import (
+    PageClient,
+    build_pair,
+    copy_committed,
+    run_directory,
+    served_page,
+    serving_source,
+)
 from leaf_dev.browser import (
     BESIDE,
     DESKTOP,
@@ -304,10 +311,14 @@ def playground_choice(page: Page) -> None:
 
 
 def card_by_pointer(page: Page) -> None:
-    """The first margin card, opened by a click on its marker. The margin is fixed to
-    the window and anchored to the page, so Playwright's scroll into view leaves a
-    marker below the window where it is: the page scrolls it up instead."""
-    marker = page.locator(".lf-margin-marker").first
+    """The first margin card, opened by a click on its marker."""
+    open_card(page, page.locator(".lf-margin-marker").first)
+
+
+def open_card(page: Page, marker: Locator) -> None:
+    """The margin card `marker` opens, by a click on it. The margin is fixed to the
+    window and anchored to the page, so Playwright's scroll into view leaves a marker
+    below the window where it is: the page scrolls it up instead."""
     marker.evaluate(
         "m => { const box = m.getBoundingClientRect();"
         " if (box.top < 0 || box.bottom > innerHeight)"
@@ -365,6 +376,57 @@ def card_reply_resolved(page: Page) -> None:
     page.locator(".lf-margin-preview").get_by_role(
         "button", name="Resolve thread", exact=True
     ).click()
+
+
+def as_agent(command: str, verb: str, *args: str) -> None:
+    """Run `leaf COMMAND VERB PAGE ARGS` as the agent on the page being served, with
+    its arm's launcher."""
+    served = served_page.get()
+    served.leaf(command, verb, str(served.directory), *args)
+
+
+def held_news(page: Page, thread: Locator) -> None:
+    """News arriving in `thread` while the user drafts a reply there: the agent's reply
+    and the user's own message from another tab, which the thread holds behind its
+    notice (held-news.js)."""
+    thread.get_by_role("textbox", name="Reply", exact=True).click()
+    page.keyboard.insert_text("Drafting a reply while the news arrives")
+    root = thread.get_attribute("data-thread")
+    assert root
+    as_agent("thread", "reply", root, "--text", "That one goes first.")
+    notice = thread.locator(".lf-thread-notice-news")
+    expect(notice).to_have_attribute("title", "1 new reply")
+    client = PageClient(served_page.get().address)
+    client.post(
+        {
+            "kind": "reply",
+            "parent": root,
+            "revision": client.state()["active"]["revision"],
+            "attempt": "stills-held-news-other-tab",
+            "text": "Sent from my other tab.",
+        }
+    )
+    expect(notice).to_have_attribute("title", "1 new reply · 1 new message")
+
+
+def card_held_news(page: Page) -> None:
+    """A margin card holding a reply and a message from another tab while the user
+    drafts a reply in it."""
+    open_card(page, page.locator('[data-lf-margin-for="plan-stop"] .lf-margin-marker'))
+    held_news(page, page.locator(".lf-margin-preview .lf-page-thread"))
+
+
+def seat_held_news(page: Page) -> None:
+    """A seat's thread holding a reply and a message from another tab while the user
+    drafts a reply in it: the agent's question on a goal, which a reload draws in
+    place."""
+    as_agent(
+        "thread", "open", "--section", "goal-parser", "--text", "Which worker first?"
+    )
+    load(page, served_page.get().address)
+    thread = page.locator("#goal-parser .lf-page-thread")
+    thread.scroll_into_view_if_needed()
+    held_news(page, thread)
 
 
 def threads_panel(page: Page) -> None:
@@ -930,6 +992,17 @@ def contents_by_keyboard(page: Page) -> None:
     page.locator("lf-toc li a").first.focus()
 
 
+def topic_contents(page: Page) -> None:
+    """The topic's inline index in the gallery's page-tabs sample."""
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Page & layout", exact=True
+    ).click()
+    page.locator("#bg-tab-set").scroll_into_view_if_needed()
+    sample = page.locator("#bg-topic-contents")
+    sample.scroll_into_view_if_needed()
+    page.evaluate("document.getElementById('bg-topic-contents').ready")
+
+
 def contents_over_reading(page: Page) -> None:
     """Reveal the margin map over a section, including its title's background."""
     contents_by_keyboard(page)
@@ -1372,6 +1445,12 @@ STATES = (
         touch=True,
     ),
     State("contents-spine", "developer/feature-gallery", at_rest),
+    State(
+        "topic-contents",
+        "developer/feature-gallery",
+        topic_contents,
+        region="#bg-topic-contents",
+    ),
     State("contents-spine-keyboard", "developer/feature-gallery", contents_by_keyboard),
     State(
         "contents-over-reading",
@@ -1526,6 +1605,34 @@ STATES = (
         region=".lf-margin-preview",
     ),
     State("plan-card-reply", "review-a-plan", card_reply),
+    State(
+        "plan-card-held-news",
+        "review-a-plan",
+        card_held_news,
+        region=".lf-margin-preview",
+    ),
+    State(
+        "plan-card-held-news-phone",
+        "review-a-plan",
+        card_held_news,
+        viewport=(390, 844),
+        touch=True,
+        region=".lf-margin-preview",
+    ),
+    State(
+        "hub-seat-held-news",
+        "command-hub",
+        seat_held_news,
+        region="#goal-parser .lf-page-thread",
+    ),
+    State(
+        "hub-seat-held-news-phone",
+        "command-hub",
+        seat_held_news,
+        viewport=(390, 844),
+        touch=True,
+        region="#goal-parser .lf-page-thread",
+    ),
     State(
         "plan-card-reply-large", "review-a-plan", card_reply_large, viewport=(1440, 600)
     ),

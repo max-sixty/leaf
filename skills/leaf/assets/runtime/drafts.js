@@ -779,7 +779,6 @@ export function createWritingResume({
   return {
     id: "writing.resume",
     keys: ["i"],
-    description: "Resume writing",
     title: "Resume writing",
     touch: "Resume writing",
     menu: "keys",

@@ -1,5 +1,5 @@
 /* A recording on the page plays through Leaf's own quiet controls: a play and pause
-   button and a timeline, in one bar over the recording's foot.
+   button, a timeline and a full-screen button, in one bar over the recording's foot.
 
    The page writes `<video controls>`, and that stays its readable form: a page with no
    runtime, or one that failed to start, keeps the browser's controls. Once the runtime
@@ -26,9 +26,20 @@
    The timeline is a native range: its arrows step it once it holds focus, and it says
    where the recording stands in minutes and seconds.
 
-   Rejected: volume and fullscreen buttons, since a page's recordings are evidence
-   clips, and the browser's menu on the video still offers its own controls. A widget
-   tag for recordings, since every page already writes a plain `<video>`. */
+   Full screen shows a screen capture's interface text at a readable size, which a
+   column about 680px wide halves. The button and `f`, standing on the video, put the
+   video itself in full screen, where nothing outside it draws, the bar included. So for
+   as long as it fills the screen the video has the browser's own controls back, and
+   with them the browser's keys and presses on the picture: the bar's scope and the
+   picture's press stand down so each press acts once. Leaving full screen, by Escape or
+   the browser's own button, returns the bar. A video whose document may not go full
+   screen, such as one in a frame without `allow="fullscreen"`, gets no button and no
+   key, unless the video has the platform's own player instead: Safari on an iPhone
+   (`webkitEnterFullscreen`), whose player brings its own controls.
+
+   Rejected: a volume button, since a page's recordings are silent evidence clips, and
+   the browser's menu on the video still offers its own controls. A widget tag for
+   recordings, since every page already writes a plain `<video>`. */
 import { watchArrivals } from "./arrivals.js";
 import {
   aimControl,
@@ -41,7 +52,7 @@ import {
   writeInsets,
 } from "./block-controls.js";
 import { headerLevels, nameable } from "./css-anchors.js";
-import { focused } from "./focus.js";
+import { focusDestination, focused } from "./focus.js";
 import { iconElement } from "./icons.js";
 import { keeps } from "./keeps.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
@@ -60,6 +71,14 @@ const clock = (seconds) => {
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
 };
 const duration = (video) => (Number.isFinite(video.duration) ? video.duration : 0);
+
+// How `video` fills the screen here, or null where its document may not.
+const fillScreen = (video) => {
+  if (video.ownerDocument.fullscreenEnabled) return () => video.requestFullscreen();
+  if (video.webkitEnterFullscreen) return () => video.webkitEnterFullscreen();
+  return null;
+};
+const fills = (video) => video.getRootNode().fullscreenElement === video;
 
 function toggle(video) {
   if (!video.paused) return video.pause();
@@ -106,6 +125,14 @@ function prepare(video) {
   time.step = "any";
   keeps(time, "aria-label", "Recording position");
   bar.append(play, time);
+  const enterFullScreen = fillScreen(video);
+  const fullScreen = enterFullScreen && offer("button", "lf-video-full-screen");
+  if (fullScreen) {
+    fullScreen.tabIndex = -1;
+    fullScreen.append(iconElement("expand", "lf-video-icon"));
+    keeps(fullScreen, "aria-label", "Full screen");
+    bar.append(fullScreen);
+  }
   // The bar stands in chrome, far from its video in the document, so it carries the
   // video's name for whoever reaches it by reading rather than by the picture.
   keeps(bar, "role", "group");
@@ -116,6 +143,7 @@ function prepare(video) {
     play,
     time,
     authoredTabindex: video.getAttribute("tabindex"),
+    filling: false,
     events: new AbortController(),
     /** @type {ReturnType<typeof commandScope> | null} */
     scope: null,
@@ -144,7 +172,7 @@ function prepare(video) {
     frame = video.requestVideoFrameCallback(followFrames);
   });
   on(video, "click", (event) => {
-    if (plainPress(event)) toggle(video);
+    if (plainPress(event) && !player.filling) toggle(video);
   });
   on(time, "input", () => (video.currentTime = Number(time.value)));
 
@@ -199,7 +227,31 @@ function prepare(video) {
         );
       },
     },
+    ...(fullScreen
+      ? [
+          {
+            id: "recording.full-screen",
+            keys: ["f"],
+            title: "full screen",
+            control: fullScreen,
+            // The browser's keys reach the video where focus stands on it.
+            run: () => {
+              focusDestination(video, "move");
+              enterFullScreen();
+            },
+          },
+        ]
+      : []),
   ]);
+  // Full screen shows the video alone, so the browser's controls stand in for the bar
+  // until it leaves (header).
+  on(video.ownerDocument, "fullscreenchange", () => {
+    if (fills(video) === player.filling) return;
+    player.filling = !player.filling;
+    keeps(video, "controls", player.filling ? "" : null);
+    projectCommandScope(video, SCOPE, player.filling ? null : player.scope);
+    show("lf-video-hover", false);
+  });
   players.set(video, player);
   return player;
 }

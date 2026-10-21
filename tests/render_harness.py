@@ -1296,9 +1296,9 @@ def judge_watches():
     for page, _ in _BROWSER_PROBLEM_LISTS or ():
         if not page.is_closed() and page.lf_java_script_enabled:
             for frame in page.frames:
-                if not _reachable(frame):
-                    continue
                 try:
+                    if not _reachable(frame):
+                        continue
                     _judge_frame_watches(frame)
                 except PlaywrightError:
                     # Enumeration owns no frame lifetime: a sample or its page can

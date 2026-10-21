@@ -80,6 +80,8 @@ never prints it; `cli.LeafGroup` prints what it returns (`cli.py`'s header).
 - `http`: HTTP transport;
 - `layer`, `packages`, `vendoring`: package discovery and composition, package
   checks, and page init and layer changes;
+- `runtime_selection`: the browser runtime a page's documents run, which the serving
+  Leaf supplies rather than the page's vendored layer;
 - `schema`: the layer's JSON schemas and the page-directory vocabulary;
 - `structure`, `styles`: authored-page checks and the full source reading;
 - `passages`, `anchor_capture`: the file-side text reading and anchor construction;

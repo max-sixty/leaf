@@ -10,6 +10,7 @@ from leaf.live_shell import write_live_shell
 from leaf.revision_artifact import read_artifact
 from leaf.revision_delivery import json_script, layer_import_map
 from leaf.revisioning import activate_source
+from leaf.runtime_selection import serving_runtime
 
 
 @pytest.mark.parametrize(
@@ -81,12 +82,7 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
     replace_files(
         [
             (page_dir / relative, b"invalid candidate", False)
-            for relative in (
-                "leaf.js",
-                "registry.json",
-                "runtime/bootstrap.js",
-                "widgets/lf-options.js",
-            )
+            for relative in ("registry.json", "widgets/lf-options.js")
         ]
     )
     destination = tmp_path / "published"
@@ -133,12 +129,13 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
         assert (resources / "page" / "nested" / "theme.css").read_text() == (
             f'main {{ background-image: url("{root}/page/image.svg#paint"); }}'
         )
-        # The layer is published as captured; the document's import map sends its
+        # The layer is published as captured, beside the publishing Leaf's runtime,
+        # which the revision never captured; the document's import map sends its
         # rooted imports to this revision.
-        assert (resources / "leaf.js").read_bytes() == artifact.resources[
-            "/leaf.js"
-        ].data
-        assert artifact.resources["/runtime/bootstrap.js"].data.decode() in document
+        runtime = serving_runtime().resources(artifact.resources)
+        assert "/leaf.js" not in artifact.resources
+        assert (resources / "leaf.js").read_bytes() == runtime["/leaf.js"].data
+        assert runtime["/runtime/bootstrap.js"].data.decode() in document
         assert json_script(layer_import_map(root)) in document
         expected_widget = (
             f'export * from "{root}/page/widgets/lf-options.js";\n'.encode()

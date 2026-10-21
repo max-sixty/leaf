@@ -18,6 +18,7 @@ from leaf.hosting import LeafHTTPServer
 from leaf.http import page_delivery
 from leaf.revision_artifact import capture_artifact
 from leaf.revision_delivery import compose_document
+from leaf.runtime_selection import executing, serving_runtime
 from leaf.served_state import page as served_page
 from leaf.structure import SourceDocument
 from leaf_dev.commands import journey, verify_site
@@ -63,10 +64,12 @@ def test_a_published_document_names_its_page_to_a_crawler(
         "image": "/media/card.png",
     }
     addition = website_server.site_metadata(page_root, page)
-    resources = capture_artifact(
-        page_dir,
-        SourceDocument(PAGE_SOURCE),
-        json.loads((page_dir / "registry.json").read_text()),
+    resources = executing(
+        capture_artifact(
+            page_dir,
+            SourceDocument(PAGE_SOURCE),
+            json.loads((page_dir / "registry.json").read_text()),
+        )
     ).resources
     delivery = page_delivery(
         resources, server_id="server", layer_id="layer", page_root=page_root
@@ -393,7 +396,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
 
         document, headers = get(f"{root}/examples/decision/")
         assert b"sitenote.js" not in document
-        artifact = revision_path(published, 1).stem
+        artifact = f"{revision_path(published, 1).stem}/{serving_runtime().identity}"
         assert (
             f'data-lf-entry="/examples/decision/revisions/{artifact}/leaf.js"'.encode()
             in document
@@ -598,7 +601,7 @@ def test_a_product_route_uses_the_same_real_page_server(
         document, _ = get(f"{root}{page_root}/")
         assert b"data-lf-site" not in document
         assert b"data-lf-share-url" not in document
-        artifact = revision_path(published, 1).stem
+        artifact = f"{revision_path(published, 1).stem}/{serving_runtime().identity}"
         assert (
             f'data-lf-entry="{page_root}/revisions/{artifact}/leaf.js"'.encode()
             in document

@@ -564,19 +564,25 @@ ATTRIBUTE_KEYS = (
     "x-unique",
 )
 
-# The kernel compiled from ASSETS's modules, committed beside them (`layer.current_kernel`).
+# The kernel compiled from ASSETS's modules, committed beside them
+# (`runtime_selection.read_runtime`).
 KERNEL = SKILL_ROOT / "kernel"
 BUNDLED_PACKAGES = SKILL_ROOT / "packages"
 DEFAULT_PACKAGE = BUNDLED_PACKAGES / "default"
-VENDORED_FILES = ("leaf.js", "theme.css", "shadow.css", "registry.json", "icon.svg")
+# The files `page init` writes at the top of a page directory.
+VENDORED_FILES = ("theme.css", "shadow.css", "registry.json", "icon.svg")
+# The layer's browser directories, which packages add to.
 BROWSER_DIRS = ("runtime", "widgets", "vendor")
+# What the Leaf serving a page supplies rather than its vendored layer: the runtime's
+# entry and ASSETS's files under these directories (`runtime_selection`).
+RUNTIME_ENTRY = "leaf.js"
+RUNTIME_DIRS = ("runtime", "vendor")
 INSTRUCTIONS_DIR = "instructions"
 PACKAGE_DIRS = (*BROWSER_DIRS, INSTRUCTIONS_DIR)
 # A package's own command-line tools, run by `leaf package run` from wherever the
 # package is installed or bundled. A page never vendors them: they are the agent's.
 SCRIPTS_DIR = "scripts"
 INSTRUCTIONS_FILE = re.compile(rf"{HTML_NAME}\.md")
-LAYER_PLACEHOLDER = b'"__LEAF_LAYER_GENERATION__"'
 # Media the page shows, named by the hash of their bytes (`page media`). Not vendored
 # — they are the page's content, not the layer's — but served like it, and the
 # naming is what keeps the directory's promise: same name, same bytes, so a

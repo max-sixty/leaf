@@ -182,10 +182,10 @@ assets; consumers run no browser build.
 ### The install runs this tree
 
 An install is the tracked tree copied into a harness's plugin cache. Consumer
-installs follow `main`. Their pages vendor the browser runtime compiled into one
-kernel, committed in `skills/leaf/kernel/`, while that kernel matches the tree's
-modules; where a merge has left it stale, they vendor the source modules
-(`leaf.layer.current_kernel`). The leaf.page container, the suite's browser tiers
+installs follow `main`. Their pages run the browser runtime the serving install
+holds, compiled into one kernel, committed in `skills/leaf/kernel/`, while that
+kernel matches the tree's modules; where a merge has left it stale, they run the
+source modules (`leaf.runtime_selection.read_runtime`). The leaf.page container, the suite's browser tiers
 and developer previews compile the kernel again for their own tree
 (`dev/leaf_dev/commands/distribution.py`). Installing, authoring pages, writing
 custom packages and exporting need no browser build or npm.

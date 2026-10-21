@@ -22,8 +22,9 @@ export const PAGE_ROOT =
     document.querySelector('link[rel="canonical"][data-lf-runtime]')
   )?.href ?? null;
 // How a server delivered this document: the runtime script it adds to every document it
-// serves (http.py) names the layer and release the document belongs to, the probe its
-// source answers, and a keyed transport's share address. An interactive export carries
+// serves (http.py) names the layer and release the document belongs to, the runtime it
+// runs where no release names one (`runtime_selection.py`), the probe its source
+// answers, and a keyed transport's share address. An interactive export carries
 // no such script. Its own marker (`offlineMarker` below) shares only `data-lf-entry`, the
 // seam a harness finds either delivery by.
 const served = /** @type {HTMLScriptElement | null} */ (
@@ -32,6 +33,7 @@ const served = /** @type {HTMLScriptElement | null} */ (
 export const DELIVERY = Object.freeze({
   layer: served?.dataset.lfLayer,
   release: served?.dataset.lfRelease,
+  runtime: served?.dataset.lfRuntimeIdentity,
   probe: served?.dataset.lfProbe,
 });
 // The public website declares the release it serves; a local server declares none.

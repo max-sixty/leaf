@@ -1231,16 +1231,18 @@ def test_claude_and_codex_read_the_same_repository_skills():
     assert codex_skills.resolve() == claude_skills.resolve()
 
 
-def test_init_vendors_the_layer(page_dir):
-    for name in ["leaf.js", "theme.css", "registry.json"]:
+def test_init_vendors_the_layer_but_not_the_runtime(page_dir):
+    for name in ["theme.css", "registry.json"]:
         assert (page_dir / name).is_file()
-    assert (page_dir / "runtime" / "widget-api.js").is_file()
-    assert (page_dir / "vendor" / "jsdiff.esm.js").is_file()
+    # The Leaf serving the page supplies its runtime and the kernel's vendor modules
+    # (`runtime_selection`), so the page holds none of them.
+    assert not (page_dir / "leaf.js").exists()
+    assert list((page_dir / "runtime").iterdir()) == []
+    assert not (page_dir / "vendor" / "jsdiff.esm.js").exists()
+    assert not (page_dir / "vendor" / "floating-ui.esm.js").exists()
     assert (page_dir / "widgets" / "lf-tabs.js").is_file()
     assert (page_dir / "widgets" / "lf-chart.js").is_file()
     assert (page_dir / "vendor" / "plot.esm.js").is_file()
-    assert (page_dir / "vendor" / "floating-ui.esm.js").is_file()
-    assert (page_dir / "vendor" / "floating-ui.LICENSES.txt").is_file()
     # The selected packages land in the same flat directories as the default one,
     # which is what lets a widget import `/vendor/…` without knowing where it came
     # from page_packages().
@@ -1293,7 +1295,7 @@ def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypa
     the shape has not got it, and an edited layer file comes back because its
     stat moved.
 
-    Runtime and vendor stay hard links into the shape across the loan, which is
+    Package vendor files stay hard links into the shape across the loan, which is
     the sharing the reset must not quietly spend (tests/AGENTS.md, "Fixtures")."""
     monkeypatch.chdir(tmp_path)
     pool = PagePool(tmp_path / "shapes")
@@ -1311,12 +1313,12 @@ def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypa
     (first / "notes" / "held.txt").write_text("scratch")
     (first / "theme.css").write_text("/* edited */")
     (first / "widgets" / "lf-tabs.js").unlink()
-    (first / "runtime" / "chrome.css").unlink()
+    (first / "vendor" / "plot.esm.js").unlink()
     # A symlink where a layer file belongs, and one where nothing does: the reset
     # reads a path as itself rather than as what it points at, so a broken link
     # is a file it removes rather than a stat that raises.
-    (first / "leaf.js").unlink()
-    (first / "leaf.js").symlink_to(tmp_path / "nowhere")
+    (first / "icon.svg").unlink()
+    (first / "icon.svg").symlink_to(tmp_path / "nowhere")
     (first / "widgets" / "lf-planted.js").symlink_to(tmp_path / "nowhere")
     (first / "media" / "elsewhere").symlink_to(tmp_path, target_is_directory=True)
     (first / "stream.json").write_text("{}")
@@ -1330,7 +1332,7 @@ def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypa
         assert (second / name).read_bytes() == (template / name).read_bytes(), name
     # A stream the test wrote is a file it added, so the reset takes it away.
     assert not (second / "stream.json").exists()
-    linked = "runtime/chrome.css"
+    linked = "vendor/plot.esm.js"
     assert (second / linked).stat().st_ino == (template / linked).stat().st_ino
 
 
@@ -1347,10 +1349,16 @@ def _css_parse_errors(nodes):
 def test_every_vendored_stylesheet_parses(page_dir):
     """The chrome's sheet was a JavaScript template literal, which `node --check` accepts
     with a body a backtick has cut short and the browser then refuses whole. As files,
-    the gate's own CSS parser reads them, and an error token anywhere is the finding."""
-    for name in ["theme.css", "runtime/chrome.css", "runtime/marks.css"]:
+    the gate's own CSS parser reads them, and an error token anywhere is the finding.
+    The runtime's own sheets come from the Leaf serving the page (`runtime_selection`)."""
+    for source in [
+        page_dir / "theme.css",
+        schema_model.ASSETS / "runtime" / "chrome.css",
+        schema_model.ASSETS / "runtime" / "marks.css",
+    ]:
+        name = source.name
         rules = tinycss2.parse_stylesheet(
-            (page_dir / name).read_text(), skip_comments=True, skip_whitespace=True
+            source.read_text(), skip_comments=True, skip_whitespace=True
         )
         assert rules, f"{name} is empty"
         assert not _css_parse_errors(rules), f"{name}: {_css_parse_errors(rules)}"
@@ -2012,20 +2020,15 @@ PLAIN_PAGE = (
 
 def test_the_browser_gate_reads_a_page_another_leaf_vendored(tmp_path, monkeypatch):
     """A Leaf update leaves the render gate working on a page an earlier Leaf vendored
-    at this protocol: its own probes import the page's older runtime by name, and need
-    only the names they import, not the same bytes."""
+    at this protocol: the gate runs the page under its own runtime and probes, and
+    names the page's Leaf beside its own."""
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
     page = tmp_path / "page"
     initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
     (page / "index.html").write_text(PLAIN_PAGE, encoding="utf-8")
-    # Another Leaf's runtime: the same names, other bytes, and the identity an earlier
-    # Leaf recorded for them.
-    geometry = page / "runtime" / "geometry.js"
-    older = geometry.read_text(encoding="utf-8") + "\n// an earlier Leaf's runtime\n"
-    geometry.unlink()
-    geometry.write_text(older, encoding="utf-8")
+    # The identity an earlier Leaf recorded for the layer it vendored.
     stamp = page / "registry.json"
     vendored = interact_files.read_json(stamp)
     vendored["$layer"]["producer"] = {
@@ -2044,36 +2047,6 @@ def test_the_browser_gate_reads_a_page_another_leaf_vendored(tmp_path, monkeypat
     assert "Leaf a74b08365870, committed 2026-09-26T09:32:21-07:00" in words(
         result.stdout
     )
-
-
-def test_the_browser_gate_names_the_re_vendor_when_its_probes_cannot_link(
-    tmp_path, monkeypatch
-):
-    """A page whose runtime lacks a name the gate's probes import names the re-vendor,
-    not a missing export, which would read as a defect in the page."""
-    monkeypatch.chdir(tmp_path)
-    runner = CliRunner()
-    page = tmp_path / "page"
-    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
-    assert initialized.exit_code == 0, initialized.output
-    (page / "index.html").write_text(PLAIN_PAGE, encoding="utf-8")
-    check_api = page / "runtime" / "check-api.js"
-    exports = check_api.read_text(encoding="utf-8")
-    assert 'export { renderedParent, uiInside, upFrom } from "./shadow.js";' in exports
-    check_api.unlink()
-    check_api.write_text(
-        exports.replace(
-            "export { renderedParent, uiInside, upFrom }",
-            "export { renderedParent, uiInside }",
-        ),
-        encoding="utf-8",
-    )
-
-    result = runner.invoke(cli_model.cli, ["page", "check", "--render", str(page)])
-
-    assert result.exit_code != 0, result.output
-    assert "upFrom" in result.output
-    assert f"leaf page init {page}" in result.output
 
 
 def test_the_browser_gate_opens_away_from_the_project_a_page_selected(
@@ -3969,7 +3942,7 @@ def test_package_init_validates_every_target_before_writing(tmp_path, monkeypatc
 
 @pytest.mark.parametrize(
     ("relative", "directory"),
-    [("vendor", False), ("leaf.js", True)],
+    [("vendor", False), ("icon.svg", True)],
 )
 def test_package_init_validates_the_complete_package(
     tmp_path, monkeypatch, relative, directory

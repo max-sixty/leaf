@@ -610,7 +610,6 @@ def test_every_published_page_keeps_its_canonical_page_record(site):
         for name in (
             "events.jsonl",
             "icon.svg",
-            "leaf.js",
             "registry.json",
             "theme.css",
         ):

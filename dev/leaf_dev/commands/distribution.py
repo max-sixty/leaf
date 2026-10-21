@@ -2,12 +2,12 @@
 
 An install is the tracked tree. It serves the kernel committed under
 `skills/leaf/kernel/` wherever that was compiled from the tree's own modules, and the
-source modules otherwise (`leaf.layer.current_kernel`). A developer checkout's kernel
-is stale whenever its runtime has been edited and not rebuilt, so the website, the
-suite's browser tiers, and developer previews run a prepared installation instead:
-the payload with its kernel compiled again by the same build
-(`build/runtime-bundle.mjs`), so each vendors the kernel an install of that tree
-will serve once it is rebuilt. The website's container installs that same payload
+source modules otherwise (`leaf.runtime_selection.read_runtime`). A developer
+checkout's kernel is stale whenever its runtime has been edited and not rebuilt, so the
+website, the suite's browser tiers, and developer previews run a prepared installation
+instead: the payload with its kernel compiled again by the same build
+(`build/runtime-bundle.mjs`), so each serves the kernel an install of that tree will
+serve once it is rebuilt. The website's container installs that same payload
 (`leaf_dev.commands.site`). Nothing compiles during installation, page init, export, or
 custom-package authoring. Package widgets remain native ESM and import the same
 widget-api entry as the compiled kernel, so their state has one owner.

@@ -9,7 +9,6 @@ and reports its check errors. A page with no active revision stays unactivated.
 from __future__ import annotations
 
 import contextlib
-import json
 import secrets
 from collections.abc import Callable
 from pathlib import Path
@@ -35,7 +34,6 @@ from .locations import located, locations_overlap, path_is_within, path_location
 from .refusals import Refused
 from .registry.storage import RegistryError, layer_metadata, layer_packages
 from .schema import (
-    LAYER_PLACEHOLDER,
     PACKAGE_DIRS,
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
@@ -367,15 +365,10 @@ def _stamp_layer(
     )
     metadata = previous if same else {"generation": secrets.token_hex(16), **metadata}
     incoming = {**composition.registry, "$layer": metadata}
-    generation = metadata["generation"]
     top_files = dict(composition.top_files)
     directory_files = {
         name: dict(files) for name, files in composition.directory_files.items()
     }
-    client = directory_files["runtime"]["layer-generation.js"]
-    directory_files["runtime"]["layer-generation.js"] = client.replace(
-        LAYER_PLACEHOLDER, json.dumps(generation).encode()
-    )
     # The registry makes the theme and modules live, so it commits last.
     top_files["registry.json"] = json_bytes(incoming)
     return _VendoredLayer(top_files, directory_files, same)

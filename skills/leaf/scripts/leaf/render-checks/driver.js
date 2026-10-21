@@ -23,10 +23,7 @@
   };
 
   // Start this document's probe load if it has not begun, and say whether the module
-  // has arrived. A load that failed with a SyntaxError answers `{ unlinked }` with the
-  // browser's reason: that is how a probe importing a name the page's runtime lacks
-  // fails to link, since the probes come from the Leaf running the check and the
-  // runtime from the page. Any other failed load throws its error from here.
+  // has arrived. A failed load throws its error from here.
   const load = (route) => {
     const href = resolve(route);
     if (loading?.route !== href) {
@@ -43,11 +40,7 @@
     }
     // No runtime formatter can load when the probe module itself failed. Preserve
     // the native import exception, whose stack names the actual failing module.
-    if (loading.error) {
-      const { reason } = loading.error;
-      if (reason instanceof SyntaxError) return { unlinked: reason.message };
-      throw reason;
-    }
+    if (loading.error) throw loading.error.reason;
     return loading.probes !== null;
   };
 

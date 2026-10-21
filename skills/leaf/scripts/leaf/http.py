@@ -4,6 +4,12 @@ The transport is starlette over uvicorn (`hosting.py` owns the server). This fil
 owns what a page means at that boundary: where a page and its revisions answer
 (`revision_delivery` addresses what they name), the key, the layer gate, the `Leaf-*`
 headers, and the finite freshness reading a visible tab asks for.
+
+A document runs this process's browser runtime (`runtime_selection`), whose identity
+addresses the resources a document loads and is named on every answer (`Leaf-Runtime`)
+and on every write a tab sends, so a tab running another runtime reads and writes
+nothing here. A website release already names its runtime, so a release answers by its release
+alone.
 """
 
 import html
@@ -46,7 +52,6 @@ from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_medi
 from .passages import SourceReading
 from .refusals import Refused
 from .registry.storage import layer_metadata, load_registry
-from .render_checks import PROBE_SOURCES
 from .revision_artifact import (
     Resource,
     RevisionArtifact,
@@ -60,6 +65,7 @@ from .revision_delivery import (
     layer_import_map,
     rebase_document,
 )
+from .runtime_selection import executing, serving_runtime
 from .samples import Samples
 from .schema import (
     BINARY_TYPES,
@@ -177,6 +183,7 @@ def page_delivery(
     asset_root: str | None = None,
     share_url: str | None = None,
     probe: str | None = None,
+    runtime_identity: str | None = None,
 ) -> Delivery:
     """How an HTTP host delivers a page's document: supervised before anything loads.
 
@@ -192,6 +199,8 @@ def page_delivery(
     release (`layer-client.js`, `sourceMovedOn`, and `bootstrap.js`'s startup
     recovery), so its answer must name the layer or release a fresh document would
     start under. It defaults to the kernel's registry, whose answer names its release.
+    `runtime_identity` is the runtime a host without a release serves the document
+    with (`runtime_selection`), which the tab holds every answer to.
     """
     assets = asset_root if asset_root is not None else page_root
     address = DeliveryAddress(page_root, assets)
@@ -206,10 +215,15 @@ def page_delivery(
         if share_url is not None
         else ""
     )
+    runs = (
+        f' data-lf-runtime-identity="{runtime_identity}"'
+        if runtime_identity is not None
+        else ""
+    )
 
     runtime = (
         f'<script data-lf-runtime data-lf-server="{server_id}" '
-        f'data-lf-layer="{layer_id}"{release}{share} '
+        f'data-lf-layer="{layer_id}"{release}{share}{runs} '
         f'data-lf-page-root="{html.escape(page_root, quote=True)}" '
         f'data-lf-entry="{html.escape(address("/leaf.js"), quote=True)}" '
         f'data-lf-probe="{html.escape(probe or address("/registry.json"), quote=True)}">'
@@ -562,6 +576,8 @@ class PageEndpoint:
             headers["Leaf-Server"] = self.server.server_id
             if self.release is not None:
                 headers["Leaf-Release"] = self.release
+            else:
+                headers["Leaf-Runtime"] = serving_runtime().identity
         if self.set_cookie:
             headers["Set-Cookie"] = (
                 f"{self.key_cookie}={self.token}; Path=/; Max-Age={KEY_COOKIE_MAX_AGE}; "
@@ -920,7 +936,13 @@ class PageEndpoint:
         return self._named_root(self._revision_name(revision).removesuffix(".html"))
 
     def _named_root(self, name: str) -> str:
-        return self.page_root.rstrip("/") + f"/revisions/{name}"
+        """Where a revision's resources answer as this process runs them: its capture
+        and this runtime, each named by its identity, so the address names the same
+        bytes for as long as a browser may cache it."""
+        return (
+            self.page_root.rstrip("/")
+            + f"/revisions/{name}/{serving_runtime().identity}"
+        )
 
     def _document_asset_root(self, revision: int) -> str:
         """The immutable dependency namespace selected for this document."""
@@ -938,6 +960,7 @@ class PageEndpoint:
         if refusal := incompatible_revision(revision, artifact.registry):
             return self._json({"error": str(refusal)}, 409)
         self.response_layer = artifact.registry["$layer"]["generation"]
+        artifact = executing(artifact)
         projected = compose_document(
             artifact.html.decode("utf-8"),
             revision,
@@ -966,6 +989,9 @@ class PageEndpoint:
                 if self.release is None
                 else None
             ),
+            runtime_identity=(
+                serving_runtime().identity if self.release is None else None
+            ),
             share_url=(
                 str(
                     self.request.url.replace(
@@ -979,15 +1005,18 @@ class PageEndpoint:
 
     def _serve_artifact_resource(self) -> Response | None:
         match = re.fullmatch(
-            rf"/revisions/(?P<name>{REVISION_NAME})/(?P<resource>.+)",
+            rf"/revisions/(?P<name>{REVISION_NAME})/(?P<runtime>[0-9a-f]+)/(?P<resource>.+)",
             self.path,
         )
         if match is None:
             return None
         revision, name = int(match.group("revision")), match.group("name")
-        if self.source.revision_names.get(revision) != name + ".html":
+        if (
+            self.source.revision_names.get(revision) != name + ".html"
+            or match.group("runtime") != serving_runtime().identity
+        ):
             return None
-        artifact = self._artifact(revision)
+        artifact = executing(self._artifact(revision))
         self.response_layer = artifact.registry["$layer"]["generation"]
         logical = "/" + match.group("resource")
         resource = delivered_resource(
@@ -998,8 +1027,8 @@ class PageEndpoint:
         if resource is None:
             return None
         response = self._resource_content(resource)
-        # The revision name carries its manifest digest and the address is in the URL,
-        # so these bytes never change. Every document of one page shares this namespace:
+        # The revision name carries its manifest digest, the runtime's identity names
+        # the runtime, and the address is in the URL, so these bytes never change. Every document of one page shares this namespace:
         # a gallery's live samples are each a whole runtime importing the same modules,
         # and refetching each one per document queued them behind one another on the
         # origin's few connections for seconds.
@@ -1065,10 +1094,8 @@ class PageEndpoint:
                 return self._json(read_file(self.page_dir, match[1]))
             except FileBindingError as error:
                 return self._refuse(str(error))
-        if probe_source := PROBE_SOURCES.get(path):
-            return self._content(
-                200, "text/javascript; charset=utf-8", probe_source.read_bytes()
-            )
+        if probe_source := serving_runtime().probes.get(path):
+            return self._content(200, "text/javascript; charset=utf-8", probe_source)
         if path == "/":
             return self._serve_root()
         if path == "/api/news":
@@ -1152,13 +1179,22 @@ class PageEndpoint:
         speaks; the body was already read, so the connection stays reusable. The
         revision it held the write to is `layer_revision`, which a handler reads
         rather than resolving the active revision again after an activation may have
-        moved it, and the generation is resolved from that same reading."""
+        moved it, and the generation is resolved from that same reading. A tab naming
+        another runtime than this process's gets the same answer, which names this
+        runtime (`_delivery_headers`), so it reloads rather than writes. Every served
+        document's runtime names its own (`layer-client.js`, `layerHeaders`); a client
+        that runs none, such as a harness posting as the user, names none."""
         try:
             self.layer_revision = self.named_revision()
         except ValueError as error:
             return self._refuse(str(error))
         self.response_layer = self._revision_layer(self.layer_revision)
-        if self.headers.get("Leaf-Layer") != self.response_layer:
+        runtime = self.headers.get("Leaf-Runtime")
+        if self.headers.get("Leaf-Layer") != self.response_layer or (
+            self.release is None
+            and runtime is not None
+            and runtime != serving_runtime().identity
+        ):
             return self._json({"layer": self.response_layer})
         return None
 
@@ -1405,12 +1441,14 @@ def page_app(endpoint, server):
     between two of them. The routes are ordinary blocking code — page transactions,
     log reads, atomic writes — so they run on the serving loop's worker threads.
     Each answer completes rather than keeping a per-document HTTP connection open.
-    The Leaf the server runs is read here, as it is built, rather than at its first
-    request, after which its checkout may have moved on (`layer.running_leaf`).
+    The Leaf the server runs, and the browser runtime it serves, are read here, as
+    it is built, rather than at its first request, after which its checkout may have
+    moved on (`layer.running_leaf`, `runtime_selection.serving_runtime`).
     """
 
     server.samples = Samples()
     server.leaf = running_leaf()
+    serving_runtime()
 
     async def app(scope, receive, send) -> None:
         if scope["type"] != "http":

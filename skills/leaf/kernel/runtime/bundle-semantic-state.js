@@ -209,6 +209,7 @@ var served = (
 var DELIVERY = Object.freeze({
   layer: served?.dataset.lfLayer,
   release: served?.dataset.lfRelease,
+  runtime: served?.dataset.lfRuntimeIdentity,
   probe: served?.dataset.lfProbe
 });
 var WEBSITE_DELIVERY = DELIVERY.release !== void 0;

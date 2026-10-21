@@ -1,8 +1,22 @@
 """Portable regressions for captured module URL and resource identities."""
 
 import json
+from dataclasses import replace
+from types import MappingProxyType
 
 import pytest
+from leaf.runtime_selection import ServingRuntime
+
+
+def running(artifact, runtime: dict[str, str]):
+    """`artifact` as it runs under a runtime of these files (`runtime_selection`)."""
+    served = ServingRuntime(
+        MappingProxyType({path: data.encode() for path, data in runtime.items()}),
+        None,
+        frozenset(),
+        MappingProxyType({}),
+    )
+    return replace(artifact, resources=served.resources(artifact.resources))
 
 
 @pytest.mark.parametrize(
@@ -53,12 +67,7 @@ def test_native_package_import_urls_survive_delivery_and_export(
         assert address(f"/{directory}/{specifier}") in rebased.decode()
     else:
         assert delivered.data == module.encode()
-    files = {
-        "/leaf.js": "export {};",
-        widget: module,
-        helper: f'export {{ once }} from "{public}";',
-        public: "export const once = () => true;",
-    }
+    files = {widget: module, helper: f'export {{ once }} from "{public}";'}
     for logical, source in files.items():
         path = tmp_path / logical.lstrip("/")
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -71,6 +80,10 @@ def test_native_package_import_urls_survive_delivery_and_export(
         widget_sources={"lf-risk-note": widget.lstrip("/")},
     )
     assert artifact.resources[helper].mime == "application/javascript"
+    artifact = running(
+        artifact,
+        {"/leaf.js": "export {};", public: "export const once = () => true;"},
+    )
     embedded = _module_urls(artifact, [document])
     assert set(embedded) == {"/leaf.js", alias, widget, helper, public}
     assert embedded[alias] == embedded[widget]
@@ -115,15 +128,6 @@ def test_authored_module_entry_exports_through_its_one_import_map_url(tmp_path, 
     from leaf.structure import SourceDocument
 
     files = {
-        "leaf.js": "export {};",
-        "runtime/widget-api.js": "export {};",
-        "runtime/offline-delivery.js": "",
-        "runtime/prepaint.js": "",
-        "runtime/annotation-overlay/annotation-theme.css": "",
-        "runtime/annotation-overlay/annotation-chrome.css": "",
-        "runtime/annotation-overlay/annotation-marks.css": "",
-        "runtime/chrome.css": "",
-        "runtime/marks.css": "",
         "theme.css": "",
         "shadow.css": "",
         "widget-theme.css": "",
@@ -137,7 +141,23 @@ def test_authored_module_entry_exports_through_its_one_import_map_url(tmp_path, 
     document = SourceDocument(
         f'<html><head><script type="module" src="./page/{quote(name, safe="")}"></script></head><body><main><h1>Authored entry</h1></main></body></html>'
     )
-    artifact = capture_artifact(tmp_path, document, {})
+    artifact = running(
+        capture_artifact(tmp_path, document, {}),
+        {
+            path: "export {};" if path.endswith(".js") else ""
+            for path in [
+                "/leaf.js",
+                "/runtime/widget-api.js",
+                "/runtime/offline-delivery.js",
+                "/runtime/prepaint.js",
+                "/runtime/annotation-overlay/annotation-theme.css",
+                "/runtime/annotation-overlay/annotation-chrome.css",
+                "/runtime/annotation-overlay/annotation-marks.css",
+                "/runtime/chrome.css",
+                "/runtime/marks.css",
+            ]
+        },
+    )
     modules = _module_urls(artifact, [document])
     logical = "/page/" + name
     assert logical in modules

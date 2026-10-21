@@ -432,6 +432,7 @@ import {
   word
 } from "./runtime/bundle-page-paint.js";
 import {
+  DELIVERY,
   PRESENTATION_ORDER,
   SHARE_ROOT,
   WEBSITE_DELIVERY,
@@ -10156,6 +10157,7 @@ function previewDiagnostics() {
     ...payloadDateLines(producer),
     ...state.leaf ? otherPayloadLines("served by", state.leaf) : [],
     `started: ${started}`,
+    ...runtimeLines(),
     `layer generation: ${state.layer.generation}`,
     ...state.layer.fingerprint ? [`layer fingerprint: ${state.layer.fingerprint}`] : [],
     ...state.active ? [`revision: ${state.active.revision}`] : [],
@@ -10172,6 +10174,9 @@ registerPageControl({
   offered: () => Boolean(preview()),
   group: "page"
 });
+function runtimeLines() {
+  return DELIVERY.runtime ? [`runtime: ${DELIVERY.runtime}`] : [];
+}
 function layerIdentity(state) {
   const producer = state.layer.producer ?? {};
   const fingerprint = state.layer.fingerprint;
@@ -10208,6 +10213,7 @@ function layerDiagnostics() {
     ...state.leaf ? otherPayloadLines("served by", state.leaf) : [],
     ...fingerprint ? [`fingerprint: ${fingerprint}`] : [],
     `generation: ${state.layer.generation}`,
+    ...runtimeLines(),
     ...state.active ? [`revision: ${state.active.revision}`] : [],
     `url: ${pageUrl()}`
   ].join("\n");

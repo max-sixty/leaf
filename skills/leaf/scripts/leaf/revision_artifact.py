@@ -4,12 +4,16 @@ Logical resource URLs are rooted at the page (``/page/app.js``,
 ``/runtime/widget-api.js``). Page imports use literal, unescaped URL strings;
 Tree-sitter reads JavaScript and tinycss2 reads CSS. Only the declared public
 layer entry points may cross from authored code into the layer. Capturing the
-selected layer whole also preserves its declaration-driven dynamic imports.
+vendored layer whole also preserves its declaration-driven dynamic imports. The
+runtime is not captured: the Leaf delivering a revision supplies it
+(`runtime_selection`), so the public entry points are addresses a capture names but
+never holds.
 
 A bundle contains exact source bytes, resources, their dependency edges, MIME
 types, the effective registry, and implementation provenance. Its canonical
 manifest determines its digest, and carries a second ``executable`` digest over
-the inputs an already-open document cannot re-evaluate in place. Scripts include
+the captured inputs an already-open document cannot re-evaluate in place; the
+runtime it runs with is named beside it by the delivering Leaf. Scripts include
 their patch region: head and body scripts stay installed while main is patched.
 Moving a script across those regions reloads, so a retained script cannot duplicate
 an arriving main script. Moving among containers within main without changing
@@ -57,7 +61,6 @@ from leaf.findings import Finding, Rejected
 from leaf.page_memory import Slot, memo
 from leaf.passages import SourceReading, enclosing_ids
 from leaf.registry.contract import is_element_name
-from leaf.render_checks import PROBE_SOURCES
 from leaf.schema import (
     BROWSER_DIRS,
     CONTENT_TYPES,
@@ -525,15 +528,7 @@ def _capture_input_stamps(page_dir: Path) -> tuple[tuple[str, tuple], ...]:
     return tuple(
         (path.relative_to(page_dir).as_posix(), _path_stamp(path))
         for path in sorted(set(paths))
-    ) + tuple((logical, _path_stamp(path)) for logical, path in PROBE_SOURCES.items())
-
-
-def probe_resources() -> dict[str, Resource]:
-    """This Leaf's browser probe modules, as a capture holds them."""
-    return {
-        logical: Resource(source.read_bytes(), "application/javascript")
-        for logical, source in PROBE_SOURCES.items()
-    }
+    )
 
 
 def capture_artifact(
@@ -645,7 +640,7 @@ class _ResourceCapture:
         pending = [path]
         while pending:
             path = pending.pop()
-            if path in self.resources:
+            if path in self.resources or path in PUBLIC_MODULES:
                 continue
             resource = self.read_resource(path)
             data = resource.data
@@ -693,11 +688,6 @@ def _capture_artifact(
         }
     for source in widget_sources.values():
         capture.add("/" + source.lstrip("/"))
-
-    # Live observations and headless checks are browser code too. Capture their
-    # source beside the runtime it reads, so a revision and an export have one
-    # complete module graph, even when the serving checkout later changes.
-    resources.update(probe_resources())
 
     entries = []
     documents = [document]
@@ -763,13 +753,16 @@ def _capture_artifact(
     # them, and a revision that only edits those should keep the user's document.
     #
     # The vocabulary is digested without `$layer`, which describes the vendoring
-    # run rather than the code it installed. Its fingerprint and producer commit
-    # say where a layer was built, and its generation reaches a document through
-    # `runtime/layer-generation.js`, where vendoring writes the epoch: a re-vendor
-    # moves that module, so the modules below already carry it.
+    # run rather than the code it installed: its fingerprint and producer commit
+    # say where a layer was built. Its generation is the one part a document runs
+    # under, since a tab speaks it to the server (`runtime/layer-client.js`), so a
+    # re-vendor gives every later revision a new executable and the tab a new
+    # document. The runtime's modules are not captured; a runtime change reaches an
+    # open document as a server that refuses it (`runtime_selection`).
     executable = _digest(
         _canonical_json(
             {
+                "generation": layer.get("generation"),
                 "annotations": annotation_mode(document),
                 "vocabulary": _digest(
                     _canonical_json(
@@ -1303,8 +1296,10 @@ def captured_imports(data: bytes, logical_path: str, resources: Mapping[str, Res
     """Yield each literal import of one captured module as its span and target.
 
     Page modules resolve through :func:`resolve_dependency`, whose public-import
-    boundary is intentionally narrower. The vendored layer is already the captured
-    trusted graph, so its imports need only be local and captured. A computed import,
+    boundary is intentionally narrower. The layer's modules and the runtime's are
+    trusted, so their imports need only be local and among `resources`, which a
+    caller passes as the revision runs them (`runtime_selection.executing`). A
+    computed import,
     such as widget loading from the captured registry, binds at execution time and is
     not yielded.
     """

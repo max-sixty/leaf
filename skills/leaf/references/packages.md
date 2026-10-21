@@ -147,7 +147,11 @@ control below its touch target or focus clearance.
 A package's `icon.svg`, `widgets/` and `vendor/` files replace files at the same path.
 Import Leaf only through `/runtime/widget-api.js`; `package check` refuses an import of
 any other kernel module, and `runtime/` modules can add paths but not replace the
-kernel's.
+kernel's. The Leaf serving a page supplies its runtime, `widget-api.js` and the
+kernel's `vendor/` modules included, so a vendored package runs against whichever
+Leaf serves its page, and a package's `vendor/` file at one of those paths replaces it
+there. Leaf keeps `widget-api.js`'s names and what they return across updates at one
+page protocol (`../scripts/leaf/layer-registry.md`, "Page protocol").
 
 Registries merge in order: kernel, `default`, then the selected packages in command
 order, and a later package wins a collision. A later package replaces an element or

@@ -47,6 +47,7 @@ from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
+from leaf.runtime_selection import serving_runtime
 from leaf_dev.page_fixtures import package_selection_args
 
 
@@ -182,7 +183,10 @@ def test_server_round_trip(server, page_dir):
         f'<meta name="lf-widgets" data-lf-runtime content="{widgets}">'
         '<meta name="lf-version" data-lf-runtime content="1">'
     ).encode()
-    artifact_root = f"/revisions/{files_model.revision_path(page_dir, 2).stem}"
+    artifact_root = (
+        f"/revisions/{files_model.revision_path(page_dir, 2).stem}"
+        f"/{serving_runtime().identity}"
+    )
     entry = (
         f'<script type="module" src="{artifact_root}/leaf.js" data-lf-runtime></script>'
     ).encode()
@@ -195,9 +199,9 @@ def test_server_round_trip(server, page_dir):
         assert response.headers["Content-Security-Policy"] == "frame-ancestors 'self'"
     assert b"lf-board" in pinned and marker in pinned
     assert not (page_dir / "versions").exists()
-    # Vendored files serve; the log and directory paths don't.
+    # Vendored files and the runtime's probes serve; the log and directory paths
+    # don't.
     for path in [
-        "/leaf.js",
         "/theme.css",
         "/registry.json",
         "/widgets/lf-tabs.js",

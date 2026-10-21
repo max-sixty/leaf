@@ -479,13 +479,11 @@ def carry_turn(
         )
     delivery = freeze_delivery(batches) if batches else None
     deadline = started + CONFIRM_WITHIN
-    from .reconnect import publishing_notices
+    from .reconnect import notices
 
-    with publishing_notices(reconnect_harness, sid, expected) as context:
-        if context is None:
-            return
-    # Receipt takes the page and session locks the notices hold, so it follows them,
-    # and confirms only into the lifecycle they were read under.
+    context = notices(reconnect_harness, sid, expected)
+    if context is None:
+        return
     output = render(
         harness,
         event,

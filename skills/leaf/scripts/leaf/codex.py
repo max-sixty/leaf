@@ -262,14 +262,18 @@ def private_app_server(
     *,
     env: dict[str, str] | None = None,
     arguments: tuple[str, ...] = (),
-) -> Iterator[str]:
+    cwd: str | None = None,
+    log_path: Path | None = None,
+) -> Iterator[tuple[str, subprocess.Popen]]:
     """Run one App Server on a Unix socket only this user can reach, and yield its
-    endpoint until the block ends or this process exits, and the server stops.
+    endpoint and process until the block ends or this process exits. The server stops
+    at either boundary.
 
     The server's environment names that endpoint as `LEAF_CODEX_APP_SERVER`, so a
     task it runs hands its pages to this server when it serves them.
     An eval may supply an isolated child environment without mutating this process,
-    and a caller `arguments` that follow `app-server` on its command line.
+    and a caller `arguments` that follow `app-server` on its command line. The website
+    sets its working directory and keeps a log; other callers use a temporary log.
 
     The server runs in a session of its own and never exits by itself, and a block
     on a daemon thread, as a page server's title request is, never reaches its
@@ -278,13 +282,16 @@ def private_app_server(
     turns them into an exit (`leases.release_on_termination`), and as a page server
     ends itself (`server.exit_serving`). A SIGKILL leaves one running.
     """
+    if log_path is not None:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="leaf-codex-", dir="/tmp") as directory:
         path = Path(directory) / "app-server.sock"
         endpoint = f"unix://{path}"
-        with tempfile.TemporaryFile() as log:
+        with log_path.open("a+b") if log_path else tempfile.TemporaryFile() as log:
             server = subprocess.Popen(
                 [executable, "app-server", "--listen", endpoint, *arguments],
                 env=(os.environ if env is None else env) | {APP_SERVER_ENV: endpoint},
+                cwd=cwd,
                 stdin=subprocess.DEVNULL,
                 stdout=log,
                 stderr=subprocess.STDOUT,
@@ -293,7 +300,7 @@ def private_app_server(
             _private_app_servers.add(server)
             try:
                 _wait_for_app_server(path, server, log)
-                yield endpoint
+                yield endpoint, server
             finally:
                 stop_app_server(server)
                 _private_app_servers.discard(server)

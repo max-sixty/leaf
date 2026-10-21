@@ -404,17 +404,12 @@ serving and the delivery of updates. The notice also covers the orphan grace per
 while the old listener may still be running. Stopped services, persistent services,
 developer previews, and pages another session claimed are excluded.
 
-`reconnect.py` reserves one notice per session and page in
-`sessions/<session>.reconnect` (`reconnect.NOTICES`). The session key names one
-harness's session, as its lifecycle's does. This notification record survives
-SessionEnd and generation changes. Matching active ownership and exact live serving
-close the outage, both when a hook observes recovery and when a serve commits it. A
-later outage can then emit another notice. Reservation is serialized with ownership
-and desired service changes and the final lifecycle check through stdout publication.
-A stale hook reserves nothing, leaving its successor able to notify. Hook stdout
-proves no model receipt, so output is at-most-once. SessionStart does not open a new
-turn or reacquire a page. The Stop hook does not continue a turn to deliver a
-reconnect notice.
+`reconnect.py` reads current health on every resume and prompt and repeats the
+advice until the agent restores serving or explicitly stops or releases the page.
+There is no notification record or reservation. A concurrent stop, transfer or
+recovery may make advice obsolete before it is read. A hook whose lifecycle changed
+while reading emits nothing. SessionStart does not open a new turn or reacquire a page. The Stop
+hook does not continue a turn to deliver a reconnect notice.
 
 ### Nudging a session with no watcher
 
@@ -487,9 +482,8 @@ The files a session keeps in the state home's `sessions/` all carry its name
 (`state.end_session`, `end_harness_instance`). A session that left none there, as
 most sessions of a harness Leaf is installed in never use Leaf, ends without
 writing one. The observations that end with a session go at its end. While a
-claim still names the session, its lifecycle, session lock and reconnect notices
-stay: the page shows that session's turn from the lifecycle, and a resumed
-session's hooks read the notices. A session holding no claim, on a page that
+claim still names the session, its lifecycle and session lock stay: the page shows
+that session's turn from the lifecycle. A session holding no claim, on a page that
 still stands (`state.held_claims`), loses every file that no other process holds
 a lock on, so a lease still held, such as a watch's, stays with its holder. A
 session whose harness died without a SessionEnd keeps its files.

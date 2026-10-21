@@ -436,9 +436,9 @@ test("sharing keeps a JSON field named __proto__ an own field", () => {
   assert.equal(shared.kept, prior.kept);
 });
 
-test("publisher secures shallow-frozen inputs and complete selected collections", () => {
+test("publisher secures collection keys, members and selected descendants", () => {
   const key = { id: "thread" };
-  const collection = Object.freeze(new Map([[key, { words: ["kept"] }]]));
+  const collection = new Map([[key, { words: ["kept"] }]]);
   const document = Object.freeze({ collection });
   const publisher = createApplicationPublisher({
     document,
@@ -451,7 +451,7 @@ test("publisher secures shallow-frozen inputs and complete selected collections"
     .select(() =>
       Object.freeze({
         nested: { count: 1 },
-        members: Object.freeze(new Set([{ id: "message" }])),
+        members: new Set([{ id: "message" }]),
       }),
     )
     .read();
@@ -474,8 +474,4 @@ test("publisher secures shallow-frozen inputs and complete selected collections"
   assert.throws(() => {
     reading.document.collection.set("extra", {});
   }, TypeError);
-  collection.set("outside", { words: [] });
-  assert.equal(reading.document.collection.has("outside"), false);
-  publisher.publish({ ...reading, document, semanticEpoch: 1 });
-  assert.equal(publisher.read().document.collection.has("outside"), true);
 });

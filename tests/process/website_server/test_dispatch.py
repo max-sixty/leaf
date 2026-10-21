@@ -42,7 +42,6 @@ def test_the_website_harness_delivers_into_the_existing_codex_thread(
 ):
     harness = website_server.WebsiteCodexHarness(
         "codex",
-        tmp_path / "app-server.sock",
         tmp_path / "app-server.log",
     )
     process = type("Process", (), {"pid": 41})()

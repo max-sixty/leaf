@@ -60,7 +60,6 @@ import {
 } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
 import { CARET_KEYS, selectsAll, WORKS } from "../control-selectors.js";
-import { drawnThreadId } from "../thread/selectors.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { seenRect, underOccluder } from "../geometry.js";
 import { cancelRender, nextRender } from "../rendering.js";
@@ -1221,7 +1220,6 @@ export function createResponseSurface({
     const target = threadId && threadTarget(threadId);
     const inlineBox =
       inline &&
-      drawnThreadId(inline) === threadId &&
       (!here ||
         standingIn(inline) ||
         (target && under(target, heldObligation() ?? here.element))) &&

@@ -28,7 +28,6 @@ import { threadList } from "./state.js";
 import {
   focusedThreadTarget,
   focusThread,
-  heldThread,
   threadReplyInput,
   threadPart,
   wholeThread,
@@ -139,12 +138,6 @@ function standOnThread(thread) {
   if (!shown) scrollIntoView(thread, { block: "nearest" });
 }
 
-// A thread's own keys, live wherever the user stands in one: the card, the message a
-// click on its words focuses, the quote, a link in a reply. `r` settles the thread from any
-// of them, since a control, a widget, or a text box that owns a letter is walked first.
-// Enter replies or reopens only from the card, where no control inside has an Enter of its
-// own to lose. The reopen button tells the two states apart; absent a thread, the reference
-// describes the open state users first meet.
 // The thread whose card the user stands on.
 const cardThread = () => focusedThreadTarget();
 // Settlement belongs to the thread, wherever its view places that control.
@@ -188,18 +181,28 @@ export function createThreadLanding() {
   return { landIn, landInThread, landSent };
 }
 
-/** Declare a thread's own keys against the landing the page is using.
+/** Declare a thread's own keys against the landing the page is using, and the reading
+ * of the thread the user is at (destination.js, `threadHere`).
  *
  * Separate from constructing that landing, because they are separate acts: a second
  * landing owner — one a test builds to hold a reveal open — is another way of landing,
  * not another set of keys, and declaring from the constructor would let it quietly take
- * the page's. */
-export function declareThreadKeys(landIn) {
+ * the page's.
+ *
+ * The keys are live wherever the user is at a thread: in it, on the card, the message a
+ * click on its words focuses, the quote, a link in a reply; and on the element whose
+ * thread a card shows beside it, which is one place with it, as `c` there continues that
+ * thread. `r` settles the thread from any of them, since a control, a widget, or a text
+ * box that owns a letter is walked first. Enter replies or reopens only from the card,
+ * where no control inside has an Enter of its own to lose. The reopen button tells the
+ * two states apart; absent a thread, the reference describes the open state users first
+ * meet. */
+export function declareThreadKeys(landIn, threadHere) {
   pageScope("thread", {
     title: "In a thread",
     root: focused,
     when: () => threadList().length > 0,
-    at: () => Boolean(heldThread()),
+    at: () => Boolean(threadHere()),
     rows: [
       {
         id: "thread.primary",
@@ -228,12 +231,12 @@ export function declareThreadKeys(landIn) {
         touch: false,
         keys: ["r"],
         title: () =>
-          resolutionControl(heldThread())?.matches(".lf-reopen") ? "reopen" : "resolve",
+          resolutionControl(threadHere())?.matches(".lf-reopen") ? "reopen" : "resolve",
         when: () =>
-          resolutionControl(heldThread())?.matches(
+          resolutionControl(threadHere())?.matches(
             ':not(:disabled, [aria-disabled="true"])',
           ),
-        run: () => resolutionControl(heldThread()).click(),
+        run: () => resolutionControl(threadHere()).click(),
       },
     ],
   });

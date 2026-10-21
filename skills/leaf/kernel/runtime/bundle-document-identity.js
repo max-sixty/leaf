@@ -6091,16 +6091,24 @@ function createThreadDestinations({
     const thread = allThreads().find((candidate) => candidate.id === id);
     return thread ? threadPlace(thread, placedAt) : null;
   };
-  const threadHere = () => heldThread() ?? preview?.accompanied() ?? null;
-  const threadAtStanding = () => {
+  const threadHere = () => {
     const held = heldThread();
-    if (held) return drawnThreadId(held);
+    if (held) return held;
+    const shown = preview?.accompanied() ?? null;
     const active = focused();
-    const ids = active ? threadIdsAt(active) : [];
-    const shown = threadHere();
-    const shownId = drawnThreadId(shown);
-    if ((!active || active === document.body) && shownId) return shownId;
-    return ids.includes(shownId) ? shownId : ids[0] ?? null;
+    if (!active || active === document.body) return shown;
+    const ids = threadIdsAt(active);
+    const drawn2 = [
+      shown,
+      ...ids.map((id) => surfaceFocusTarget(id, { part: "thread" }))
+    ].filter((thread) => thread && ids.includes(drawnThreadId(thread)));
+    return drawn2.length === 1 ? drawn2[0] : null;
+  };
+  const threadAtStanding = () => {
+    const here = drawnThreadId(threadHere());
+    if (here) return here;
+    const active = focused();
+    return (active && threadIdsAt(active)[0]) ?? null;
   };
   const replyThreadAtStanding = () => {
     const id = threadAtStanding();
@@ -8125,12 +8133,12 @@ function createThreadLanding() {
   const landSent = standOnThread;
   return { landIn, landInThread: landInThread2, landSent };
 }
-function declareThreadKeys(landIn) {
+function declareThreadKeys(landIn, threadHere) {
   pageScope("thread", {
     title: "In a thread",
     root: focused,
     when: () => threadList().length > 0,
-    at: () => Boolean(heldThread()),
+    at: () => Boolean(threadHere()),
     rows: [
       {
         id: "thread.primary",
@@ -8153,11 +8161,11 @@ function declareThreadKeys(landIn) {
         id: "thread.resolution.toggle",
         touch: false,
         keys: ["r"],
-        title: () => resolutionControl(heldThread())?.matches(".lf-reopen") ? "reopen" : "resolve",
-        when: () => resolutionControl(heldThread())?.matches(
+        title: () => resolutionControl(threadHere())?.matches(".lf-reopen") ? "reopen" : "resolve",
+        when: () => resolutionControl(threadHere())?.matches(
           ':not(:disabled, [aria-disabled="true"])'
         ),
-        run: () => resolutionControl(heldThread()).click()
+        run: () => resolutionControl(threadHere()).click()
       }
     ]
   });

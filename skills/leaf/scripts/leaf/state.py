@@ -65,9 +65,8 @@ def hold_mode(path: Path, mode: int) -> None:
         path.chmod(mode)
 
 
-# A session's hook capability observations, which end with it.
+# A session's hook capability observation, which ends with its instance.
 HOOKS_SUFFIX = "hooks"
-STEP_HOOK_SUFFIX = "step-hook"
 # Its lifecycle, and the pages it has been told to reconnect (`reconnect.NOTICES`),
 # which outlive it (`_retire`).
 SESSION_SUFFIX = "lifecycle"
@@ -700,8 +699,7 @@ def _retire(session_id: str) -> None:
     this finds it ended either way. Directories, such as a Codex task's delivery
     records, are their owner's to retire."""
     if holds_claims(session_id):
-        for suffix in (HOOKS_SUFFIX, STEP_HOOK_SUFFIX):
-            session_file(session_id, suffix).unlink(missing_ok=True)
+        session_file(session_id, HOOKS_SUFFIX).unlink(missing_ok=True)
         return
     lock = session_lock_path(session_id)
     for path in _session_paths(session_id):
@@ -744,8 +742,7 @@ def end_harness_instance(session_id: str) -> None:
         ):
             if record["ended"] is None and record["turn_closed"] is None:
                 advance_turn(session_id, record["turn"], running=False)
-            for suffix in (HOOKS_SUFFIX, STEP_HOOK_SUFFIX):
-                session_file(session_id, suffix).unlink(missing_ok=True)
+            session_file(session_id, HOOKS_SUFFIX).unlink(missing_ok=True)
             return
         _end_session(session_id)
 

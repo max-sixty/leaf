@@ -613,7 +613,7 @@ def export(dir: str, out: Path, version: int) -> dict:
     """
     from leaf.exporting import cmd_export
 
-    return cmd_export(resolve_dir(dir), out, version)
+    return cmd_export(resolve_dir(dir, renew=False), out, version)
 
 
 @page.command(short_help="Picture a drawing comment as the user saw it.")
@@ -630,7 +630,7 @@ def picture(dir: str, message: str) -> dict:
     """
     from leaf.render_gate.picture import cmd_picture
 
-    return cmd_picture(resolve_dir(dir), message)
+    return cmd_picture(resolve_dir(dir, renew=False), message)
 
 
 @page.command(
@@ -1076,7 +1076,7 @@ def wait(dir: str | None, ack: str | None) -> int:
     if dir is not None and ack is not None:
         raise click.UsageError("PAGE and --ack cannot be used together")
     release_on_termination()
-    return cmd_wait(resolve_dir(dir) if dir else None, ack=ack)
+    return cmd_wait(resolve_dir(dir, renew=False) if dir else None, ack=ack)
 
 
 def _title_option(command):

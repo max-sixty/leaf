@@ -299,7 +299,9 @@ def test_a_page_another_leaf_vendored_at_this_protocol_takes_its_writes(
     assert checked.returncode == 0, checked.stderr
 
 
-def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(claimed, server):
+def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
+    claimed, server, tmp_path
+):
     """A reply through a reference names no page, so it is refused on a page an older
     Leaf vendored, naming the re-vendor. The session's next write naming the page
     makes that re-vendor itself (`vendoring.renew_layer`), restarting the server at
@@ -316,6 +318,27 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(claimed, 
     )
     assert read.returncode == 0, read.stderr
     assert "page protocol" in json.loads(read.stdout)["source"]["error"]
+    before = interact_files.read_json(claimed / "registry.json")["$layer"][
+        "generation"
+    ]
+    subprocess.run(
+        [
+            *LEAF_COMMAND,
+            "page",
+            "export",
+            str(claimed),
+            "--out",
+            str(tmp_path / "export.html"),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
+    )
+    assert (
+        interact_files.read_json(claimed / "registry.json")["$layer"]["generation"]
+        == before
+    )
     for command in (["page", "claim", str(claimed)], replied.args[len(LEAF_COMMAND) :]):
         ran = subprocess.run(
             [*LEAF_COMMAND, *command],

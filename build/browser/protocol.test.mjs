@@ -320,3 +320,23 @@ test("the comparison sees through unions, references and maps", () => {
     refused('event note.counts.x: type ["number"] → ["string"]'),
   );
 });
+
+test("an annotation changes nothing, inside a conditional too", () => {
+  const conditional = structuredClone(baseline);
+  Object.assign(conditional.records.claim.schema, {
+    if: { properties: { page: { const: "x" } } },
+    then: { properties: { pid: { type: "integer" }, description: { type: "string" } } },
+  });
+  const then = (s) => s.records.claim.schema.then.properties;
+  assert.deepEqual(
+    changed((s) => (then(s).pid.description = "The server's process"), conditional),
+    none,
+  );
+  // A field named like an annotation is still a field.
+  assert.deepEqual(
+    changed((s) => (then(s).description.type = "integer"), conditional),
+    refused(
+      'record claim: then {"properties":{"pid":{"type":"integer"},"description":{"type":"string"}}} → {"properties":{"pid":{"type":"integer"},"description":{"type":"integer"}}}',
+    ),
+  );
+});

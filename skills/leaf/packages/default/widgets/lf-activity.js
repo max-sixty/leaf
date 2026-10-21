@@ -10,7 +10,7 @@
  * the document it was made in, under that document's declaration of the widget. A
  * version that rewords or removes an option therefore leaves the row as the user made
  * it. This module words those facts and names the places on the page it links to; a
- * thread goes by the name every surface shows it under (`threadSummary`).
+ * thread goes by its name in words (`threadSummary`).
  *
  * A place is named on the page the user is reading, since that is where the row leads,
  * and as the rest of the chrome names it (`addressableLabel`), else by its word. A
@@ -105,7 +105,7 @@ const actorOf = (row) =>
 const quoted = (words) => `“${words}”`;
 const named = (words) => quoted(excerptWords(words, NAME));
 
-// The thread's name as Threads states it (`threadSummary`), read from the thread as
+// The thread's name in words (`threadSummary`), read from the thread as
 // it stands now, as every way there is. A thread Threads does not list, a bare
 // reaction, has no name there and no way to it, so it goes as a thread.
 const topicOf = (served) => {

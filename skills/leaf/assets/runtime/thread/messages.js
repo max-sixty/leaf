@@ -105,9 +105,10 @@ export function messageText(message) {
   return message.suggestion ? (message.text ?? "") : proseReading(message).plainText;
 }
 
-// A thread's name, on every surface that names one: its title, else the words its
-// opening message renders (an agent's authored opening, its captured text), else
-// Drawing for one drawn without words. A surface clips it to its own room.
+// A thread's name in words, as search, accessible names and prose read it: its title,
+// else the words its opening message renders (an agent's authored opening, its captured
+// text), else Drawing for one drawn without words. A surface clips it to its own room,
+// and one that draws the name draws `threadHeading`.
 /** @param {{readonly title: string | null, readonly root: Parameters<typeof messageText>[0] & {readonly body: {readonly kind: string, readonly text?: string}, readonly drawing?: unknown}}} thread */
 export function threadName(thread) {
   if (thread.title != null) return thread.title;
@@ -130,9 +131,10 @@ const titlePending = (thread) =>
   thread.attention.reason === "workflow" &&
   pageClaimed();
 
-// A thread's name where it heads the thread, as Threads lists it and its view names
-// it: while a title is on its way, a placeholder in the face of a step under way
-// (`.lf-thread-working-words`) rather than opening words that would read as its title.
+// A thread's name wherever a surface draws it, as Threads, the thread's view, Page Map
+// and On cards do: while a title is on its way, a placeholder in the face of a step
+// under way (`.lf-thread-working-words`) rather than opening words that would read as
+// its title.
 // The opening words stay in its accessible name, after the placeholder, so a screen
 // reader still tells two pending threads apart.
 /** @param {Parameters<typeof titlePending>[0]} thread */

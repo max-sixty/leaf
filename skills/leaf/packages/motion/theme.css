@@ -32,7 +32,7 @@
   min-block-size: 32px;
   font: inherit;
   color: var(--ink);
-  background: var(--paper);
+  background-color: var(--paper);
   border: 1px solid var(--border-2);
   border-radius: var(--r);
 }

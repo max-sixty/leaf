@@ -798,14 +798,14 @@
   font-size: var(--lf-trace-small-type);
 }
 .lf-trace-pace select {
+  --lf-field-pad-inline: var(--sp-2);
   min-block-size: var(--lf-trace-control-size);
   max-inline-size: 100%;
   border: 1px solid var(--border-2);
   border-radius: var(--r);
-  background: var(--paper);
+  background-color: var(--paper);
   color: var(--ink);
   font: inherit;
-  padding-inline: var(--sp-2);
 }
 .lf-trace-pace select[data-lf-focus] {
   outline: var(--focus-ring);

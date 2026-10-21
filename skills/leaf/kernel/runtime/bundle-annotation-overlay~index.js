@@ -76,7 +76,10 @@ import {
   threadNamed,
   writingIn
 } from "./bundle-user-intent.js";
-import "./bundle-widget-upgrade.js";
+import {
+  setChildLists,
+  setChildren
+} from "./bundle-stylesheets.js";
 import "./bundle-media.js";
 import {
   reducedMotion
@@ -129,10 +132,6 @@ import {
   scrollToEnd
 } from "./bundle-presence.js";
 import {
-  setChildLists,
-  setChildren
-} from "./bundle-stylesheets.js";
-import {
   blockAt,
   closestAcross,
   elementFromPointAcross,
@@ -169,9 +168,6 @@ import {
   watchRoom
 } from "./bundle-page-paint.js";
 import {
-  whenDocumentPresented
-} from "./bundle-semantic-state.js";
-import {
   TEXT_FIELD,
   afterScript,
   cancelAnimation,
@@ -206,6 +202,9 @@ import {
   tabStops,
   under
 } from "./bundle-frame-visibility.js";
+import {
+  whenDocumentPresented
+} from "./bundle-semantic-state.js";
 import {
   bareReaction,
   html,

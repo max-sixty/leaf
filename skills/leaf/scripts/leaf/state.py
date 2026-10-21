@@ -258,13 +258,11 @@ class Record:
     which this kind's shape last changed, so a bump for anything else leaves the
     record readable (`layer-registry.md`, "Page protocol", says when `since`
     moves, which the browser build checks against every kind in `RECORDS`). `read`
-    takes only a record at this format that has every field this Leaf's schema
-    requires, at each level of its declared objects. Any other
-    record another Leaf wrote, at another format or with none, or one written before
-    a field was added, reads as absent, as a missing file does, and the next write
-    replaces it; one whose pages are gone is retired whatever its format
-    (`retire_if_gone`). Every write replaces the file whole, so a file that is not
-    JSON no Leaf wrote, and reading it raises, naming the file."""
+    takes only a record at this format. A record at another format or with none
+    reads as absent, as a missing file does, and the next write replaces it;
+    one whose pages are gone is retired whatever its format (`retire_if_gone`).
+    Every write replaces the file whole, so a file that is not JSON no Leaf
+    wrote, and reading it raises, naming the file."""
 
     def __init__(self, kind: str, schema: dict, *, since: int):
         if kind in RECORDS:
@@ -282,11 +280,7 @@ class Record:
         """The record at `path`, less its `format`, or None where this Leaf reads
         none there."""
         stored = stored_record(path)
-        if (
-            stored is None
-            or stored.pop("format", None) != self.format
-            or not _complete(self.schema, stored)
-        ):
+        if stored is None or stored.pop("format", None) != self.format:
             return None
         return stored
 
@@ -371,40 +365,6 @@ def retire_if_gone(path: Path) -> bool:
         return False
     path.unlink(missing_ok=True)
     return True
-
-
-def _complete(schema: dict, value) -> bool:
-    """Whether `value` has each field `schema` requires, and so does every object
-    within it that the schema declares: through properties, maps and arrays, and
-    through each `allOf` clause, a conditional one where its `if` names, by `enum`
-    or `const`, the values `value` holds. Types and values are the writers' to hold
-    (`tests/conftest.py`)."""
-    if isinstance(value, list):
-        return all(_complete(schema.get("items", {}), item) for item in value)
-    if not isinstance(value, dict):
-        return True
-    properties = schema.get("properties", {})
-    others = schema.get("additionalProperties")
-    return (
-        set(schema.get("required", ())) <= value.keys()
-        and all(
-            _complete(properties[name], item)
-            if name in properties
-            else not isinstance(others, dict) or _complete(others, item)
-            for name, item in value.items()
-        )
-        and all(_clause_complete(clause, value) for clause in schema.get("allOf", ()))
-    )
-
-
-def _clause_complete(clause: dict, value: dict) -> bool:
-    if "if" not in clause:
-        return _complete(clause, value)
-    applies = all(
-        name in value and value[name] in declared.get("enum", [declared.get("const")])
-        for name, declared in clause["if"].get("properties", {}).items()
-    )
-    return not applies or _complete(clause.get("then", {}), value)
 
 
 def object_schema(required: dict, optional: dict | None = None) -> dict:

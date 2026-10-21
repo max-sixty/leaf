@@ -302,7 +302,9 @@ export function headerCuts(item, clips = new Map()) {
       },
     }));
 }
-// The sticky box holding `node` while it is stuck, else null. A stuck box stands at the
+// The sticky box holding `node` while it is stuck, or the fixed box holding it, else
+// null. A fixed box stands in the window wherever the page is scrolled, as a page of
+// parts' column does (layouts.css), so it is always stuck. A stuck box stands at the
 // edge of the scroller it sticks in, or is pushed past it by its holder's end, rather
 // than at its own place in its holder, whose edge has scrolled beyond it: a page tab
 // strip over its panel's sixtieth paragraph, an open thread's title over the turns read
@@ -327,8 +329,10 @@ export function headerCuts(item, clips = new Map()) {
 // Which band a sticky box covers is a different question, answered from its stated
 // height whether it is stuck or not (`headerInset`, `footerInset`).
 export function stuckBox(node, within = null) {
-  for (let el = node; el?.nodeType === 1 && el !== within; el = renderedParent(el))
-    if (getComputedStyle(el).position === "sticky" && sticks(el)) return el;
+  for (let el = node; el?.nodeType === 1 && el !== within; el = renderedParent(el)) {
+    const { position } = getComputedStyle(el);
+    if (position === "fixed" || (position === "sticky" && sticks(el))) return el;
+  }
   return null;
 }
 // Whether `sticky` stands where sticking holds it, in the scroller around it. A sticky

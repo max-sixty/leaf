@@ -926,8 +926,8 @@
     }
     return changed;
   };
-  // A page of parts' title, which its list sticks under (layouts.css, "A page of
-  // parts"): no CSS stacks one sticking box under another of unknown height. The title
+  // A page of parts' title, which its list stands fixed under (layouts.css, "A page of
+  // parts"): no CSS stacks one fixed box under another of unknown height. The title
   // is what stands before the parts, in the one row above the list.
   const TITLE = "--lf-parts-title-h";
   const title = () => {

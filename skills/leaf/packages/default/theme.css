@@ -2051,8 +2051,10 @@
   }
   @scope (body > main:not(.layout-column, .layout-sidebar, .layout-workspace) > :scope) {
     :scope:is(lf-parts).lf-rendered > .lf-tabstrip {
-      position: sticky;
+      position: fixed;
       top: calc(var(--lf-top) + var(--lf-parts-title-h, 0px));
+      inline-size: var(--lf-parts-list);
+      box-sizing: border-box;
       align-self: start;
       block-size: calc(100dvh - var(--lf-head-room) - var(--lf-parts-title-h, 0px));
       min-block-size: 0;
@@ -2081,7 +2083,9 @@
         --lf-top: calc(var(--lf-top-outer) + var(--lf-tabstrip-h));
       }
       :scope:is(lf-parts).lf-rendered > .lf-tabstrip {
+        position: sticky;
         top: var(--lf-top);
+        inline-size: auto;
         z-index: 2;
         block-size: var(--lf-tabstrip-h);
         --lf-tabstrip-flow: row;

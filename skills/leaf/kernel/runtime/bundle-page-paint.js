@@ -2268,8 +2268,10 @@ function headerCuts(item, clips = /* @__PURE__ */ new Map()) {
   }));
 }
 function stuckBox(node, within = null) {
-  for (let el2 = node; el2?.nodeType === 1 && el2 !== within; el2 = renderedParent(el2))
-    if (getComputedStyle(el2).position === "sticky" && sticks(el2)) return el2;
+  for (let el2 = node; el2?.nodeType === 1 && el2 !== within; el2 = renderedParent(el2)) {
+    const { position } = getComputedStyle(el2);
+    if (position === "fixed" || position === "sticky" && sticks(el2)) return el2;
+  }
   return null;
 }
 function sticks(sticky) {

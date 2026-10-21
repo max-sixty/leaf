@@ -450,6 +450,7 @@
     origins.set(copy, origins.get(source) ?? node);
     copy.removeAttribute?.("data-lf-opening");
     copy.removeAttribute?.("data-lf-sole-content");
+    copy.removeAttribute?.("data-lf-views-flow");
     if (copy.hasAttribute?.(PLAYER)) {
       copy.removeAttribute(PLAYER);
       copy.setAttribute("controls", "");

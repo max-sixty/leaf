@@ -647,7 +647,7 @@ def answering(
                 env=dict(os.environ),
                 output=output,
             )
-        with private_app_server(executable) as endpoint:
+        with private_app_server(executable) as (endpoint, _process):
             codex = Codex(endpoint)
             try:
                 trust_plugin_hooks(codex.task, place.work)

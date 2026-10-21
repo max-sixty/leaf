@@ -22,7 +22,8 @@
  * size the conversations; each file with a line conversation keeps one manager until
  * its last conversation leaves. Passage reveal
  * clears this widget's file filter; addressed datum reveal also hydrates its file.
- * All file evidence is read and checked before any listing metadata appears;
+ * Pierre parses file paths, modes and hunks; Leaf checks that every source file
+ * and its evidence can be represented before any listing metadata appears;
  * closed files retain that parse and defer only textual rendering. Native
  * operations and textual hunks are independent: metadata-only files have a commentable
  * row without an empty disclosure, and a file-type replacement keeps one file identity. */
@@ -704,111 +705,20 @@ function metadataNode(record) {
   return row;
 }
 
-function headerPath(side, path) {
-  return path.startsWith('"') && path.endsWith('"')
-    ? `"${side}/${path.slice(1)}`
-    : `${side}/${path}`;
-}
-
-function gitPath(path) {
-  if (!path.startsWith('"')) return path;
-  if (!path.endsWith('"')) return null;
-  const inner = path.slice(1, -1);
-  if (!/^(?:[^\\]|\\(?:[abtnvfr"\\]|[0-3][0-7]{2}|[0-7]{1,2}(?![0-7])))*$/.test(inner))
-    return null;
-  const escapes = { a: 7, b: 8, t: 9, n: 10, v: 11, f: 12, r: 13 };
-  const bytes = [];
-  const encoder = new globalThis.TextEncoder();
-  for (let i = 0; i < inner.length; i++) {
-    if (inner[i] !== "\\") {
-      const point = inner.codePointAt(i);
-      bytes.push(...encoder.encode(String.fromCodePoint(point)));
-      if (point > 0xffff) i++;
-      continue;
-    }
-    const match = /^(?:[0-3][0-7]{2}|[0-7]{1,2})/.exec(inner.slice(i + 1));
-    if (match) {
-      bytes.push(parseInt(match[0], 8));
-      i += match[0].length;
-    } else {
-      const escaped = inner[++i];
-      bytes.push(escapes[escaped] ?? escaped.charCodeAt(0));
-    }
-  }
-  if (bytes.includes(0)) return null;
-  try {
-    return new globalThis.TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
-      new Uint8Array(bytes),
-    );
-  } catch {
-    return null;
-  }
-}
-
 function fileRecord(file, section) {
-  const moved = {};
-  for (const operation of ["rename", "copy"]) {
-    const from = new RegExp(`^${operation} from (.*)$`, "m").exec(section)?.[1];
-    const to = new RegExp(`^${operation} to (.*)$`, "m").exec(section)?.[1];
-    if ((from === undefined) !== (to === undefined))
-      throw new Error(`incomplete ${operation} metadata`);
-    if (from !== undefined) {
-      if (
-        !from ||
-        !to ||
-        from === '\"\"' ||
-        to === '\"\"' ||
-        section.split("\n", 1)[0] !==
-          `diff --git ${headerPath("a", from)} ${headerPath("b", to)}` ||
-        gitPath(from) !== file.prevName ||
-        gitPath(to) !== file.name
-      )
-        throw new Error(`${operation} paths disagree with its diff --git header`);
-      moved[operation] = true;
-    }
-  }
-  if (Object.keys(moved).length > 1)
-    throw new Error("diff mixes rename and copy metadata");
-  const operation =
-    Object.keys(moved)[0] ??
-    (file.type === "new" ? "add" : file.type === "deleted" ? "delete" : "modify");
+  const operation = /^copy from /m.test(section)
+    ? "copy"
+    : /^rename from /m.test(section)
+      ? "rename"
+      : file.type === "new"
+        ? "add"
+        : file.type === "deleted"
+          ? "delete"
+          : "modify";
   const binary = /^(?:Binary files .+ differ|GIT binary patch)$/m.test(section);
-  if (/^old mode /m.test(section) !== /^new mode /m.test(section))
-    throw new Error("incomplete mode change");
-  for (const line of section.split("\n").slice(1)) {
-    if (line.startsWith("@@") || line === "GIT binary patch") break;
-    if (file.hunks.length && /^(?:---|\+\+\+) /.test(line)) continue;
-    if (
-      line &&
-      !/^(?:(?:old mode|new mode|new file mode|deleted file mode) [0-7]{6}|(?:dis)?similarity index [0-9]+%|(?:rename|copy) (?:from|to) .+|index [0-9a-f]+\.\.[0-9a-f]+(?: [0-7]{6})?|Binary files .+ differ)$/.test(
-        line,
-      )
-    )
-      throw new Error(`unexpected diff metadata for ${file.name}: ${line}`);
-  }
-  if (file.prevName && !Object.keys(moved).length)
-    throw new Error("diff has changed paths without rename or copy metadata");
-  if (file.hunks.length && ["add", "delete"].includes(operation)) {
-    const hunk = file.hunks[0];
-    const consuming = operation === "delete";
-    if (
-      file.hunks.length !== 1 ||
-      (consuming ? hunk.deletionStart : hunk.additionStart) !== 1 ||
-      (consuming ? hunk.additionStart : hunk.deletionStart) !== 0 ||
-      (consuming ? hunk.additionCount : hunk.deletionCount) !== 0
-    )
-      throw new Error(`${operation} must capture its complete file`);
-  }
-  if (!file.hunks.length) {
-    if (!binary && operation === "modify" && (file.prevMode ?? file.mode) === file.mode)
-      throw new Error(`diff has no content or metadata change for ${file.name}`);
-    if (
-      !binary &&
-      ["copy", "rename"].includes(operation) &&
-      !/^similarity index 100%$/m.test(section)
-    )
-      throw new Error(`${operation} with changed content needs textual hunks`);
-  }
+  // A file header without hunks would silently omit its source evidence.
+  if (!file.hunks.length && /^(?:---|\+\+\+) /m.test(section))
+    throw new Error("diff has source headers without textual hunks");
   const oldMode = operation === "add" ? undefined : (file.prevMode ?? file.mode);
   const newMode = operation === "delete" ? undefined : file.mode;
   const { additions, deletions } = file.hunks.reduce(

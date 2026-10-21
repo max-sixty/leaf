@@ -27,24 +27,9 @@ the server says which MCP servers to turn off by name (`config/read`). Every Cod
 title is asked of `CODEX_TITLE_MODEL`, whatever model the user's tasks, or the
 website's, run on.
 
-Before a new thread's first turn reaches the model, Codex connects a websocket to the
-model and sends it a warm-up request, which took 0.7–1.0 s, and a new server first
-fetches the model list, about 0.4 s more. With the warm-up, a title's turn took
-2.2–3.3 s on gpt-6-luna with no reasoning, against 2.5–4.4 s, and once 7.2 s, on
-gpt-6.1-sol at low effort (codex-cli 0.160, two dozen each, load average 4 to 7). A
-server kept running saves only the model list, since each thread connects anew, so asking on a
-server that is already running, the task's own included, would save little. Instead
-a page server holds the server and thread the next title is asked on while a Codex
-session holds the page's claim (`prepare_for_claimant`). It starts them when it
-starts serving a Codex session's page or a Codex session claims a page it serves,
-again once each title is answered, and stops them once the claim ends, lapses with
-its claimant's death or passes to another harness's session, reading the claim
-where the server's lifetime does (`server.stop_when_service_ends`). A title then
-took 2.0–2.3 s on gpt-6.1-sol, against 3.3–3.9 s when started on request. In the
-`codex-app-server` journey, a thread was titled 1.5 s after its comment was admitted
-on gpt-6-luna, against 2.3–2.4 s on gpt-6.1-sol (three runs each, load average 4 to
-9). The cost is an idle App Server of about 105 MB for each served page a Codex
-session holds.
+A Codex title starts a private App Server when asked and stops it after the answer.
+Starting on demand takes roughly 1–2 s longer than keeping a server and thread warm,
+but keeps no idle App Server (about 105 MB each) for a page that is merely open.
 
 On a ChatGPT login, gpt-6-luna limits bursts more tightly than gpt-6.1-sol. Of twelve
 titles asked back to back, the last six failed with a 429 within 2 s, where
@@ -92,16 +77,13 @@ stays untitled until the user's next message in it asks again. The retry above m
 that rare: only a refusal past its cap, or a failure of another kind, leaves one.
 """
 
-import contextlib
 import json
 import os
-import queue
 import shutil
 import subprocess
 import tempfile
 import threading
 import time
-from collections import Counter
 from collections.abc import Callable
 from pathlib import Path
 
@@ -113,10 +95,10 @@ from .codex import (
 )
 from .event_log import EventRefused
 from .events import build_threads, spoken_turns
-from .harness import IDENTITY_VARIABLES, claim_harness
+from .harness import IDENTITY_VARIABLES
 from .interaction_log import append_interactions
 from .revision_artifact import active_enclosing
-from .service import PageTransaction, claim_is_active, page_claim
+from .service import PageTransaction
 from .thread import name_untitled
 from .thread_context import thread_names
 
@@ -518,136 +500,23 @@ def app_server_title(endpoint: str) -> Generate:
     return generate
 
 
-class TitleThreadUnopened(Exception):
-    """A Codex title's server or thread failed to start, so nothing was asked."""
-
-
-class CodexTitleThread:
-    """One Codex title's App Server and thread, started from the `codex` on PATH on
-    the user's own login and configuration before the request they answer, and
-    stopped once they have answered it or are closed (`prepare_for_claimant`).
-
-    The page server's environment is that of whichever session started it, so the
-    server is given none of that session's identity."""
-
-    def __init__(self, page_dir: Path) -> None:
-        self._request: queue.SimpleQueue = queue.SimpleQueue()
-        self._answer: queue.SimpleQueue = queue.SimpleQueue()
-        threading.Thread(
-            target=self._serve,
-            args=(page_dir,),
-            name="leaf-codex-title",
-            daemon=True,
-        ).start()
-
-    def _serve(self, page_dir: Path) -> None:
-        opened = False
-        try:
-            executable = shutil.which("codex")
-            if executable is None:
-                raise FileNotFoundError("no `codex` on PATH")
-            env = {
-                name: value
-                for name, value in os.environ.items()
-                if name not in IDENTITY_VARIABLES
-            }
-            with private_app_server(
-                executable, env=env, arguments=TITLE_SERVER_ARGUMENTS
-            ) as endpoint:
-                socket = app_server_connect(endpoint)
-                try:
-                    thread_id = open_title_thread(socket, page_dir)
-                    opened = True
-                    asked = self._request.get()
-                    if asked is None:
-                        return
-                    request, deadline = asked
-                    self._answer.put(ask_title(socket, thread_id, request, deadline))
-                finally:
-                    socket.close()
-        # Every class, since `ask` raises it in the request's own thread, which
-        # reports it (`_name_thread`).
-        except Exception as error:  # noqa: BLE001 - raised by `ask`
-            if not opened:
-                unopened = TitleThreadUnopened(f"{type(error).__name__}: {error}")
-                unopened.__cause__ = error
-                error = unopened
-            self._answer.put(error)
-
-    def ask(self, request: str, deadline: float) -> dict:
-        """The title of `request`, once the thread is open, by `deadline`."""
-        self._request.put((request, deadline))
-        try:
-            answer = self._answer.get(timeout=max(0.0, deadline - time.monotonic()))
-        except queue.Empty:
-            raise TimeoutError(f"no title within {TIMEOUT} s") from None
-        if isinstance(answer, Exception):
-            raise answer
-        return answer
-
-    def close(self) -> None:
-        """Stop the server, having asked nothing on it, once its thread is open."""
-        self._request.put(None)
-
-
-# The thread each page's next Codex title is asked on, started ahead of it, and how
-# many titles each page is being asked for. The next title's thread starts once none
-# is, so it never competes for the machine with a title being answered.
-_next_codex_titles: dict[Path, CodexTitleThread] = {}
-_asking_codex_titles: Counter[Path] = Counter()
-_next_codex_titles_lock = threading.Lock()
-
-
-def prepare_for_claimant(page_dir: Path) -> None:
-    """Hold the App Server and thread the page's next title is asked on while, and
-    only while, the page's active claimant asks Codex for its titles
-    (`codex_title`): start them unless they are started or a title is being asked,
-    and stop them once the claim is no longer active (`claim_is_active`) or passes
-    to a session of another harness.
-
-    The claim is read under the lock, so of two callers the later reading wins."""
-    with _next_codex_titles_lock:
-        claim = page_claim(page_dir)
-        codex = (
-            claim_is_active(claim)
-            and claim_harness(claim).title_generator() is codex_title
-        )
-        prepared = _next_codex_titles.get(page_dir)
-        if codex and prepared is None and not _asking_codex_titles[page_dir]:
-            _next_codex_titles[page_dir] = CodexTitleThread(page_dir)
-        elif not codex and prepared is not None:
-            del _next_codex_titles[page_dir]
-            prepared.close()
-
-
 def codex_title(request: str, page_dir: Path) -> dict:
-    """Ask Codex for a title on the thread started for it (`prepare_for_claimant`),
-    or on one started now where there is none or it failed to start, and prepare
-    the next title's once this one is answered."""
+    """Ask Codex on demand; no server remains idle between title requests."""
     started = time.monotonic()
-    deadline = started + TIMEOUT
-    with _next_codex_titles_lock:
-        prepared = _next_codex_titles.pop(page_dir, None)
-        _asking_codex_titles[page_dir] += 1
-    try:
-        reading = None
-        if prepared is not None:
-            # A start that failed, perhaps hours before the comment, says nothing
-            # of whether one would start now.
-            with contextlib.suppress(TitleThreadUnopened):
-                reading = prepared.ask(request, deadline)
-        asked_prepared = reading is not None
-        if reading is None:
-            reading = CodexTitleThread(page_dir).ask(request, deadline)
-    finally:
-        with _next_codex_titles_lock:
-            _asking_codex_titles[page_dir] -= 1
-        prepare_for_claimant(page_dir)
-    return {
-        **reading,
-        "durationMs": round((time.monotonic() - started) * 1000),
-        "prepared": asked_prepared,
+    executable = shutil.which("codex")
+    if executable is None:
+        raise FileNotFoundError("no `codex` on PATH")
+    env = {
+        name: value
+        for name, value in os.environ.items()
+        if name not in IDENTITY_VARIABLES
     }
+    with private_app_server(executable, env=env, arguments=TITLE_SERVER_ARGUMENTS) as (
+        endpoint,
+        _process,
+    ):
+        reading = app_server_title(endpoint)(request, page_dir)
+    return {**reading, "durationMs": round((time.monotonic() - started) * 1000)}
 
 
 def write_title(page_dir: Path, thread: str, title: str, session_id: str) -> bool:

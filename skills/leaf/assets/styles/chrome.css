@@ -870,7 +870,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-page-map-action:is(button, [role="button"]):is(:hover, [data-lf-focus]):not(
       [aria-disabled="true"]
     ) {
-    background: var(--lf-entry-tint, var(--chip));
+    background: color-mix(in srgb, var(--lf-entry-tint, var(--chip)) 92%, var(--ink));
   }
   .lf-page-map-action .lf-margin-kind {
     width: 16px;

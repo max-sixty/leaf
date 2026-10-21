@@ -136,7 +136,7 @@
   border-color: var(--border-2);
   background: var(--chip);
 }
-.lf-react.lf-response-action:not([aria-pressed="true"]) {
+.lf-react.lf-response-action:where(:not([aria-pressed="true"])) {
   background: var(--card);
 }
 .lf-react[aria-busy="true"] {

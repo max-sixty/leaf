@@ -1190,7 +1190,6 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
           id: "text.dictate",
           keys: PRESS,
           control: mic,
-          description: "Start or stop dictation in this comment box",
           title: () => dictationPhase() === "idle" ? "dictate" : "stop dictation",
           when: () => !mic.hidden && dictationPhase() !== "stopping" && !sending && !uploading && !held(),
           run: () => void activateDictation()
@@ -1261,7 +1260,6 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
         id: "text.send",
         keys: submitBindings,
         label: submitLabel,
-        description: "Submit the text",
         title: sends,
         run: () => pressed(send)
       },
@@ -2052,7 +2050,6 @@ pageScope("command reference", {
       id: "command.reference.command.next",
       touch: false,
       keys: ["ArrowDown"],
-      description: "Choose the next command",
       title: "choose next",
       repeat: true,
       runFromCommandReference: false,
@@ -2066,7 +2063,6 @@ pageScope("command reference", {
       id: "command.reference.command.previous",
       touch: false,
       keys: ["ArrowUp"],
-      description: "Choose the previous command",
       title: "choose previous",
       repeat: true,
       runFromCommandReference: false,
@@ -2078,7 +2074,6 @@ pageScope("command reference", {
       id: "command.reference.command.activate",
       touch: false,
       keys: ["Enter"],
-      description: "Activate the chosen command",
       title: "activate",
       runFromCommandReference: false,
       commandReferenceWhen: () => true,
@@ -2089,7 +2084,6 @@ pageScope("command reference", {
       id: "command.reference.close",
       touch: false,
       keys: ["Escape"],
-      description: "Close the command reference",
       title: "close command reference",
       control: () => commandReferenceClose,
       runFromCommandReference: false,
@@ -2860,7 +2854,6 @@ function createResponseSurface({
     {
       id: "comment.options",
       keys: ["Tab"],
-      description: "Show other responses",
       title: "other responses",
       when: () => fabOptionsAvailable() && !composer.responseOptionsAreOpen(),
       run: () => showFabOptions()
@@ -2875,7 +2868,6 @@ function createResponseSurface({
         id: "composer.close",
         touch: false,
         keys: ["Escape"],
-        description: () => composer.composerHolds() ? "Close the comment box, keeping the draft" : "Close the comment box",
         title: () => composer.composerHolds() ? "close \u2014 draft kept" : "close",
         when: () => !composer.responseOptionsAreOpen(),
         run: () => dismissFab()
@@ -2886,7 +2878,6 @@ function createResponseSurface({
     "selection",
     () => pageSelection() || fabAnchorAt() && !placement?.withheld() ? {
       title: "unselect",
-      description: "Clear the selection",
       out: dismissFab
     } : null
   );
@@ -3376,14 +3367,12 @@ function createDrawingController({
         id: "draw.mode.stroke",
         keys: [],
         label: "drag",
-        title: "Draw on the page",
-        description: "Each stroke adds to one drawing"
+        title: "Draw on the page"
       },
       {
         id: "draw.mode.undo",
         keys: UNDO_STROKE,
         title: "undo stroke",
-        description: "Undo the last stroke drawn",
         // A finger undoes a stroke with the undo button on its drawing's composer.
         touch: false,
         when: () => Boolean(undoTarget()),
@@ -3408,7 +3397,6 @@ function createDrawingController({
   pageCommand({
     id: "draw.mode.enter",
     keys: ["w"],
-    description: "Draw on the page and attach the drawing to a comment",
     title: "draw mode",
     touch: "Draw mode",
     menu: "annotate",
@@ -3503,7 +3491,6 @@ function createRegionCapture({
     id: "capture.region.open",
     keys: [],
     title: "Capture area",
-    description: "Select an area of the page and attach its image to a comment",
     touch: "Capture area",
     menu: "annotate",
     retainStanding: true,
@@ -4735,7 +4722,6 @@ ${searchCount(maximum, maximum)}`
     touch: "Search page",
     menu: "navigate",
     keys: ["/"],
-    description: "Search all the text on the page",
     title: "search page",
     when: () => anchoringIsReady() && !pageSearchOpen,
     run: openPageSearch
@@ -4764,7 +4750,6 @@ ${searchCount(maximum, maximum)}`
   const TARGETING_BACK = {
     id: "targeting.back",
     keys: ["Escape"],
-    description: () => pageSearchOpen ? searchReturnsToHints ? "Return to the visible target hints" : "Close page search" : hints.prefix() ? "Remove the last hint letter" : "Close the target picker",
     title: () => pageSearchOpen ? searchReturnsToHints ? "back to hints" : "close search" : hints.prefix() ? "back one letter" : "close picker",
     // The ✕ of both stances (keyboard/AGENTS.md, "Touch routes"). While the user
     // has typed part of a hint it takes back a letter, as its words say; a finger,
@@ -4778,7 +4763,6 @@ ${searchCount(maximum, maximum)}`
     touch: false,
     keys: HINT_KEYS,
     label: "a\u2013z",
-    description: "Type the hint for a target",
     title: "type hint",
     when: () => hints.candidates().length > 0,
     run: hints.type
@@ -4796,7 +4780,6 @@ ${searchCount(maximum, maximum)}`
       ...hints.walkRows({
         id: "target.picker.hint",
         choose: {
-          description: "Choose the target just announced",
           title: "choose target"
         }
       }),
@@ -4812,7 +4795,6 @@ ${searchCount(maximum, maximum)}`
       {
         id: "page.search.match.select",
         keys: ["Enter"],
-        description: "Select the current search match",
         title: "select match",
         // A finger presses the marked match itself (`pressMatch`).
         touch: false,
@@ -5241,7 +5223,6 @@ function createAnchorControls({
             {
               id: "reaction.removal.close",
               keys: ["Escape"],
-              description: "Hide the remove action",
               title: "hide remove",
               when: () => Boolean(record.expanded),
               run: () => {
@@ -6195,14 +6176,12 @@ function createQueueWalk({
       {
         id: "queue.next",
         binding: "m",
-        title: "Next on me",
-        description: "Go to the next of everything waiting on me, anywhere on the page"
+        title: "Next on me"
       },
       {
         id: "queue.previous",
         binding: "Shift+m",
-        title: "Previous on me",
-        description: "Go to the previous of everything waiting on me, anywhere on the page"
+        title: "Previous on me"
       }
     ],
     title: "On me",
@@ -6223,7 +6202,6 @@ function createQueueWalk({
         id: "queue.todo.done",
         keys: ["x"],
         title: "done",
-        description: "Mark this to-do done",
         touch: false,
         when: () => Boolean(doneTodo()),
         run: () => {
@@ -8617,7 +8595,6 @@ function createFloatingPanel({
       return query ? {
         root: host,
         title: "clear search",
-        description: "Clear the search",
         out: () => {
           query = "";
           refit();
@@ -8626,7 +8603,6 @@ function createFloatingPanel({
       } : {
         root: host,
         title: "close search",
-        description: "Close the search and return to Threads",
         out: () => {
           focusDestination(shownView(), "return");
           searching = false;
@@ -8637,14 +8613,12 @@ function createFloatingPanel({
       return {
         root: host,
         title: "back to menu",
-        description: "Go back from the list to the page menu",
         out: () => showMenuAt(null)
       };
     if (menuOpen.value)
       return {
         root: host,
         title: "close menu",
-        description: "Close the page menu",
         out: () => {
           setMenu(false);
           focusDestination(leaf, "return");
@@ -8654,7 +8628,6 @@ function createFloatingPanel({
     return {
       root: host,
       title: `close ${titleOf2(trail.value.at(-1)).toLowerCase()}`,
-      description: `Close ${titleOf2(trail.value.at(-1))}`,
       // Putting a view away returns the user to the page, where the view's thread or
       // list took them from.
       out: () => {
@@ -8688,7 +8661,6 @@ function createFloatingPanel({
       {
         id: "panel.floating.menu.level",
         keys: ["ArrowLeft", "ArrowRight"],
-        description: "Open the list a row of the page menu leads to, or go back to the menu",
         title: "open or leave a list",
         when: () => menuOpen.value && renderedUnder(focused(), menu),
         run: (binding) => {
@@ -8703,7 +8675,6 @@ function createFloatingPanel({
       ["Tab", "Shift+Tab"].map((key) => ({
         id: `panel.floating.menu.leave-${key === "Tab" ? "forward" : "backward"}`,
         keys: [key],
-        description: `Leave the page menu ${key === "Tab" ? "forward" : "backward"}`,
         title: key === "Tab" ? "leave forward" : "leave backward",
         native: true,
         when: () => menuOpen.value && renderedUnder(focused(), menu),
@@ -8721,7 +8692,6 @@ function createFloatingPanel({
       {
         id: "panel.floating.threads.find",
         keys: ["/"],
-        description: "Find a thread or message in Threads",
         title: "find a thread",
         run: findThreads
       }
@@ -8741,7 +8711,6 @@ function createFloatingPanel({
           const top = numbered().at(-1)?.version;
           return top > 1 ? `1\u2013${top}` : "1";
         },
-        description: "Show the version with that number",
         title: "show version",
         when: () => numbered().length > 0,
         run: (binding) => showVersion(numbered().find(({ version: version2 }) => String(version2) === binding))
@@ -8759,7 +8728,7 @@ function createFloatingPanel({
     {
       id: "panel.floating.leave",
       keys: ["Escape"],
-      description: "Leave the comment field, keeping the view open above it",
+      description: "The view above stays open",
       title: "leave field",
       when: () => !menuOpen.value && trail.value.length > 0,
       run: () => focusDestination(leaf, "return")
@@ -8768,7 +8737,6 @@ function createFloatingPanel({
   pageCommand({
     id: FOLD,
     keys: ["."],
-    description: "Fold the Leaf panel to the leaf in the window's corner, or unfold it",
     title: () => prefs().rest === "mark" ? "unfold" : "fold",
     touch: () => prefs().rest === "mark" ? "Unfold the panel" : "Fold to the leaf",
     menu: "page",
@@ -9336,7 +9304,6 @@ function createPageMapDialog({
         {
           id: "map.search.enter",
           keys: ["ArrowDown"],
-          description: "Go from the search to the first entry",
           title: "to the entries",
           when: hasRows,
           run: () => {
@@ -9348,7 +9315,6 @@ function createPageMapDialog({
         {
           id: "map.search.open",
           keys: ["Enter"],
-          description: "Open the first matching entry",
           title: "open first",
           when: hasRows,
           run: () => mapRows()[0].click()
@@ -10126,7 +10092,7 @@ function createDesignMode({
   pageCommand({
     id: "design.mode.enter",
     keys: ["l"],
-    description: "Enter Design mode: comment on how the page looks and works \u2014 a widget, a control, a picture \u2014 rather than its words",
+    description: "Comment on how the page looks and works, rather than its words",
     title: "design mode",
     touch: "Design mode",
     menu: "annotate",
@@ -10351,7 +10317,6 @@ function createGoToSequence({
     {
       id: "navigation.panel.threads",
       keys: ["Shift+t"],
-      description: () => doors.threads.shows() ? "Close Threads" : "Go to Threads",
       title: () => doors.threads.shows() ? "close Threads" : "Threads",
       run: () => doors.threads.press(),
       when: () => true
@@ -10361,7 +10326,6 @@ function createGoToSequence({
       keys: ["Shift+m"],
       // Its door is On me's, so where the On view shows the agent's list it turns to
       // the user's rather than closing.
-      description: () => doors.queue.shows() ? "Close On me" : "Go to On me",
       title: () => doors.queue.shows() ? "close On me" : "On me",
       run: () => doors.queue.press(),
       when: () => true
@@ -10369,7 +10333,6 @@ function createGoToSequence({
     {
       id: "navigation.panel.leaves",
       keys: ["Shift+l"],
-      description: () => doors.leaves.shows() ? "Close All pages" : "Go to All pages",
       title: () => doors.leaves.shows() ? "close All pages" : "All pages",
       run: () => doors.leaves.press(),
       when: (...args) => doors.leaves.shows() || leavesOffered2(...args)
@@ -10377,7 +10340,6 @@ function createGoToSequence({
     {
       id: "navigation.page-map",
       keys: ["Shift+p"],
-      description: "Open the Page Map dialog",
       title: "Page Map dialog",
       run: () => openPageMap(),
       when: () => true
@@ -10652,7 +10614,6 @@ function createGoToSequence({
         touch: false,
         // This changes focus without unwinding an open surface.
         keys: PAGE_RETURN_KEYS,
-        description: "Focus the page",
         title: "page",
         when: () => atGoToTargets(),
         run: () => {
@@ -10677,7 +10638,6 @@ function createGoToSequence({
           ...targetFilter ? [targetFilter.key] : [],
           "letters"
         ],
-        description: "Type a visible target's hint",
         title: "visible target",
         // Once armed, keep the alphabet claimed even when a filter has no members. A key
         // then reports the miss inside this sequence rather than falling through to a page
@@ -10696,7 +10656,6 @@ function createGoToSequence({
         })),
         label: FILTER_KEYS.join(" / "),
         sequenceSteps: ["kind"],
-        description: "Filter visible targets by kind",
         title: "filter by kind",
         when: () => atGoToTargets() && targetCapability(),
         run: filterTargets
@@ -10705,7 +10664,6 @@ function createGoToSequence({
         id: "navigation.target",
         when: () => goToActive ? hints.candidates().length > 0 : targetCapability(),
         choose: {
-          description: "Go to the target just announced",
           title: "go to target"
         }
       }),
@@ -10754,7 +10712,6 @@ function createGoToSequence({
         touch: false,
         keys: ["Escape"],
         sequenceControl: true,
-        description: () => hints.prefix() ? "Remove the last hint letter" : targetFilter ? "Show all visible targets" : "Cancel the sequence",
         title: () => hints.prefix() ? "back one letter" : targetFilter ? "all targets" : "cancel",
         run: () => {
           if (hints.backOneLetter()) return;
@@ -10822,7 +10779,6 @@ standingOn("disclosure", "On a disclosure", DISCLOSURE_SELECTOR, [
     id: "disclosure.toggle",
     touch: false,
     keys: () => DISCLOSE(focused()),
-    description: "Open or close it",
     // Read where it is painted rather than named once for both branches, the way a diff's
     // own file rows read theirs: what the press does is whichever way the disclosure is
     // set, and a word fixed at declaration could only ever say one of them.
@@ -10842,7 +10798,7 @@ pageCommand({
   touch: false,
   keys: ["F7"],
   title: "Caret browsing",
-  description: "Select text with the browser's keyboard caret, then comment on the selection"
+  description: "Select text with the keyboard caret to comment on it"
 });
 var holding = () => {
   const active = focused(document);
@@ -10870,7 +10826,6 @@ function declareStanding({ pageState }) {
         id: "navigation.release",
         touch: false,
         keys: ["Escape"],
-        description: "Let go of the current item",
         title: "let go",
         when: () => Boolean(standingFloor()),
         run: release
@@ -10883,12 +10838,10 @@ pageRung("page", () => {
   if (holding())
     return standingFloor() ? null : {
       title: "back to the page",
-      description: "Back out onto the page",
       out: letGo
     };
   return document.documentElement.lfSample ? {
     title: "return to containing page",
-    description: "Leave this sample and return to its containing page",
     out: () => sampleNotice("return")
   } : null;
 });
@@ -11178,7 +11131,6 @@ function createNavigation({ threadDestinations, placedAt, heldPlace }) {
     id: "reading.align.top",
     keys: ["z"],
     title: "Align current item at top",
-    description: "Align the current reading item at the top, keeping focus and selection",
     touch: "Align current item at top",
     menu: "keys",
     retainStanding: true,
@@ -11233,13 +11185,11 @@ function createNavigation({ threadDestinations, placedAt, heldPlace }) {
       {
         id: "page.down",
         binding: "d",
-        description: "Move 60% of a page down",
         title: "page down"
       },
       {
         id: "page.up",
         binding: "u",
-        description: "Move 60% of a page up",
         title: "page up"
       }
     ],
@@ -11255,13 +11205,11 @@ function createNavigation({ threadDestinations, placedAt, heldPlace }) {
       {
         id: "scroll.down",
         binding: "j",
-        description: "Scroll down a little",
         title: "scroll down"
       },
       {
         id: "scroll.up",
         binding: "k",
-        description: "Scroll up a little",
         title: "scroll up"
       }
     ],

@@ -874,12 +874,10 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
             "action": "Show only visible folds",
         },
     ]
-    expect(filters.locator(".lf-command-reference-description")).to_have_text(
-        ["Filter visible targets by kind"] * 4
-    )
+    expect(filters.locator(".lf-command-reference-description")).to_have_count(0)
     target_help = goto.locator('tr[data-lf-command="navigation.target"]')
     expect(target_help.locator("kbd")).to_have_text(["g", "letters"])
-    expect(target_help).to_contain_text("Type a visible target's hint")
+    expect(target_help).to_contain_text("Visible target")
     expect(target_help).not_to_contain_text("filter first")
     page.keyboard.press("Escape")
 

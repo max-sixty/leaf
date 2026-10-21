@@ -98,7 +98,7 @@ pageScope("text entry", {
       id: "text.leave",
       touch: false,
       keys: ["Escape"],
-      description: "Leave the box, keeping what is typed",
+      description: "Keeps what is typed",
       title: () => backFromBox()?.line ?? "back",
       // The thread the box belongs to. A page text box that is not in one leaves the
       // row dead and the page's rung in place, which is the honest answer: nothing
@@ -208,10 +208,6 @@ export function declareThreadKeys(landIn, threadHere) {
         id: "thread.primary",
         touch: false,
         keys: ["Enter"],
-        description: () =>
-          resolutionControl(cardThread())?.matches(".lf-reopen")
-            ? "Reopen it"
-            : "Write a reply",
         title: () =>
           resolutionControl(cardThread())?.matches(".lf-reopen") ? "reopen" : "reply",
         when: () =>
@@ -234,10 +230,6 @@ export function declareThreadKeys(landIn, threadHere) {
         id: "thread.resolution.toggle",
         touch: false,
         keys: ["r"],
-        description: () =>
-          resolutionControl(threadHere())?.matches(".lf-reopen")
-            ? "Reopen it"
-            : "Resolve it",
         title: () =>
           resolutionControl(threadHere())?.matches(".lf-reopen") ? "reopen" : "resolve",
         when: () =>

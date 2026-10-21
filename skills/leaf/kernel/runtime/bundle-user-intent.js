@@ -1607,7 +1607,6 @@ function declareCopy(pre, copy, noun) {
       {
         id: "code.copy",
         keys: ["Enter"],
-        description: `Copy this block's ${noun} to the clipboard`,
         title: `copy ${noun}`,
         run: () => copy.shadowRoot.querySelector("button").click()
       }
@@ -2973,7 +2972,6 @@ function createWritingResume({
   return {
     id: "writing.resume",
     keys: ["i"],
-    description: "Resume writing",
     title: "Resume writing",
     touch: "Resume writing",
     menu: "keys",
@@ -3494,8 +3492,7 @@ var MessageEditor = class {
     const save = offer("button", "lf-msg-control lf-msg-edit-save");
     const cancel = offer("button", "lf-msg-control lf-msg-edit-cancel");
     cancel.type = "button";
-    cancel.title = "Cancel and discard changes";
-    cancel.textContent = "Cancel";
+    cancel.textContent = "Discard";
     actions.append(cancel);
     this.foot = document.createElement("span");
     this.foot.className = "lf-msg-edit-foot";
@@ -3557,7 +3554,7 @@ var MessageEditor = class {
         {
           id: "message.edit.previous",
           keys: ["ArrowUp"],
-          description: "From the start of an unchanged box, edit my message before this one",
+          description: "From the start of an unchanged box",
           title: "edit previous message",
           // A walk passes over words as they stand: words the user changed hold ↑ for
           // the caret, as a reply box holding words does, until Save or Escape. It
@@ -3585,8 +3582,7 @@ var MessageEditor = class {
         {
           id: "message.edit.close",
           keys: ["Escape"],
-          description: "Stop editing, leaving the message as it was",
-          title: "stop editing",
+          title: "discard",
           run: () => close()
         }
       ],
@@ -4494,7 +4490,6 @@ function createPassageSelection({ restore }) {
       id: "selection.restore",
       keys: ["v"],
       title: "Restore selection",
-      description: "Restore the last selected passage",
       touch: "Restore selection",
       menu: "keys",
       when: () => previous !== null,
@@ -4978,7 +4973,6 @@ function wireReply(key, row, input, send, wireInput, { hint, accessibleName, bus
       {
         id: "message.edit.last",
         keys: ["ArrowUp"],
-        description: "Edit my last message in the thread",
         title: "edit last message",
         when: () => !sync.value() && Boolean(composition.binding?.editLast?.available()),
         run: () => composition.binding?.editLast?.open()
@@ -5434,8 +5428,7 @@ function newsNotice(header = false) {
     {
       id: "thread.news",
       keys: PRESS,
-      description: "Show what is waiting",
-      title: "show it",
+      title: "show what is waiting",
       control: node,
       run: show
     }
@@ -7003,7 +6996,6 @@ var ThreadView = class {
         {
           id: reopen ? "thread.reopen" : "thread.resolve",
           keys: PRESS,
-          description: `${word} it`,
           title: word.toLowerCase(),
           control: button,
           when: () => !this.#model.settlement?.pending,

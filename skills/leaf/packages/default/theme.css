@@ -79,7 +79,8 @@
 :scope:is(lf-shot) .lf-shotcomparison:is(:hover, [data-lf-focus-within], :state(dragging))::part(divider) {
   background: var(--ink-2);
 }
-:scope:is(lf-shot) .lf-shotcomparison:is(:hover, [data-lf-focus-within], :state(dragging))::part(handle) {
+:scope:is(lf-shot) .lf-shotcomparison::part(handle):hover,
+:scope:is(lf-shot) .lf-shotcomparison:is([data-lf-focus-within], :state(dragging))::part(handle) {
   opacity: 1;
   scale: 1;
 }

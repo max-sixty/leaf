@@ -2,8 +2,9 @@
 
 The corpus is derived test content — edit an example, regression page, or
 developer gallery and rerun `leaf-dev corpus` (tests fail on a stale corpus). Each page's
-<main> body keeps its ids but not its document-level contents sidebar. Every source
-must therefore keep its ids disjoint, which this command enforces.
+<main> body keeps its ids and content, including its contents outline: the surrounding
+corpus tab scopes that outline to its source page. Every source must therefore keep
+its ids disjoint, which this command enforces.
 An example that owns an element (a page/registry.json declaration with its module under
 page/widgets/) brings that element into the corpus through examples/corpus.page/, the
 corpus's own page directory, so its markup still names a declared element there.
@@ -134,10 +135,9 @@ def main_body(source: Path, parsed: SourceDocument) -> str:
     The tab's label is the page's title, so its opening eyebrow repeats the page's
     context. On screen the strip carries it; wherever there is no
     strip (unupgraded, in print, in a copy) the theme paints the label back onto the
-    panel. The eyebrow is the copy that has nowhere to be. lf-toc maps its closest
-    main, which after composition is the corpus's outer document, so a source page's
-    contents map would repeat one whole-corpus outline in every tab rather than
-    navigate that source page; the container holding only the map goes with it.
+    panel. The eyebrow is the copy that has nowhere to be. Contents outlines stay:
+    the enclosing corpus tab supplies their reading scope, and outlines inside a
+    live sample keep that sample's own document.
     """
     mains = parsed.tree.select("main")
     if len(mains) != 1:
@@ -147,42 +147,19 @@ def main_body(source: Path, parsed: SourceDocument) -> str:
     _, start = parsed.offsets(main.source_location.start_tag)
     end, _ = parsed.offsets(main.source_location.end_tag)
 
-    def span(element) -> tuple[int, int]:
-        return (
-            parsed.offsets(element.source_location.start_tag)[0],
-            parsed.offsets(element.source_location.end_tag)[1],
-        )
-
-    def children(element) -> list:
-        return [
-            child for child in element.children if isinstance(child, turbohtml.Element)
-        ]
-
-    cuts = []
-    first = next(iter(children(main)), None)
+    first = next(
+        (child for child in main.children if isinstance(child, turbohtml.Element)),
+        None,
+    )
     if (
         first is not None
         and first.tag == "p"
         and first.attrs.get("class") == ["eyebrow"]
     ):
-        cut_start, cut_end = span(first)
+        cut_start = parsed.offsets(first.source_location.start_tag)[0]
         if not text[start:cut_start].strip():
-            rest = text[cut_end:end]
-            cuts.append((cut_start, cut_end + len(rest) - len(rest.lstrip())))
-    for holder in main.select("aside, section"):
-        if [child.tag for child in children(holder)] != ["lf-toc"]:
-            continue
-        if holder.text.strip():
-            continue
-        cut_start, cut_end = span(holder)
-        before = text[start:cut_start]
-        cuts.append((cut_start - (len(before) - len(before.rstrip())), cut_end))
-    body, cursor = [], start
-    for cut_start, cut_end in sorted(cuts):
-        body.append(text[cursor : max(cursor, cut_start)])
-        cursor = max(cursor, cut_end)
-    body.append(text[cursor:end])
-    return "".join(body).strip()
+            start = parsed.offsets(first.source_location.end_tag)[1]
+    return text[start:end].strip()
 
 
 def build() -> str:

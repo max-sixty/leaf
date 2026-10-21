@@ -75,6 +75,26 @@ const closed = (schema) =>
 const others = (schema) =>
   schema.additionalProperties ?? schema.unevaluatedProperties ?? !schema.properties;
 const show = (value) => JSON.stringify(value ?? "none");
+// `schema` without the words that change no value's meaning, at any depth, so a
+// keyword compared only for equality ignores a description written inside it. A
+// field's name is kept even where it is one of those words.
+const WORDS = ["description", "title", "$comment"];
+const NAMED = ["properties", "dependentSchemas", "$defs"];
+function meaning(schema) {
+  if (Array.isArray(schema)) return schema.map(meaning);
+  if (typeof schema !== "object" || schema === null) return schema;
+  const kept = Object.entries(schema).filter(([key]) => !WORDS.includes(key));
+  return Object.fromEntries(
+    kept.map(([key, item]) => [
+      key,
+      NAMED.includes(key)
+        ? Object.fromEntries(Object.entries(item).map(([n, s]) => [n, meaning(s)]))
+        : ["const", "enum"].includes(key)
+          ? item
+          : meaning(item),
+    ]),
+  );
+}
 
 // The path of each field `schema` names, at any depth and in any branch.
 function fields(schema, path = "", found = new Set()) {
@@ -166,7 +186,8 @@ function diff(old, now, path, side) {
     !offered?.every((v) => valuesOf(consumer).some((w) => isDeepStrictEqual(v, w)))
   )
     report("values", valuesOf(old), valuesOf(now));
-  for (const keyword of EQUAL) check(keyword, isDeepStrictEqual);
+  for (const keyword of EQUAL)
+    check(keyword, (c, p) => isDeepStrictEqual(meaning(c), meaning(p)));
   for (const keyword of LOWER) check(keyword, (c, p) => c <= p);
   for (const keyword of UPPER) check(keyword, (c, p) => c >= p);
   check("uniqueItems", (c, p) => !c || p);

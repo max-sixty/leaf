@@ -191,6 +191,23 @@ test("a record changes shape only with its since", () => {
   );
 });
 
+test("a description changes nothing, even inside a keyword compared only for equality", () => {
+  const conditional = structuredClone(baseline);
+  conditional.records.claim.schema.then = {
+    properties: { title: { type: "string" } },
+  };
+  const then = (s) => s.records.claim.schema.then.properties;
+  assert.deepEqual(
+    changed((s) => (then(s).title.description = "What the claim is for."), conditional),
+    none,
+  );
+  // A field named like an annotation is still a field.
+  assert.deepEqual(
+    changed((s) => delete then(s).title, conditional),
+    refused('record claim: then {"properties":{"title":{"type":"string"}}} → {"properties":{}}'),
+  );
+});
+
 test("a keyword the comparison can't read fails loudly", () => {
   assert.throws(
     () => changed((s) => (note(s).slug.contentEncoding = "base64")),

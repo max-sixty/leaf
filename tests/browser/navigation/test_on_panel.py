@@ -317,6 +317,13 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     round_trip(page)
     expect(words).to_have_text("All 2 answered")
     expect(button).to_be_disabled()
+    expect(page.locator("#left")).to_have_attribute("data-lf-done", "")
+    with sending(page, "undo the first decision's answer"):
+        page.keyboard.press("z")
+    round_trip(page)
+    expect(words).to_have_text("1 of 2 to answer")
+    expect(button).to_be_enabled()
+    expect(page.locator("#left")).not_to_have_attribute("data-lf-done", "")
     assert page.locator("#left").bounding_box() == box
 
 

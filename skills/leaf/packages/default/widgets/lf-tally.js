@@ -16,21 +16,19 @@
  * the walk counts from the obligation the user last went to there, else the first in sight,
  * else the region's start (queue-walk.js says how). With none waiting it is disabled.
  *
- * The structure is the registry's `x-prepaint`, which delivery writes for the first
- * paint and this module fills in. Its room holds the widest count two digits wide, so
+ * The drawing matches the registry's `x-prepaint`, which delivery writes for the first
+ * paint. Its room holds the widest count two digits wide, so
  * the words change without moving the control beside them or what follows. */
 import {
   obligationsIn,
-  declarationFor,
   elementById,
+  html,
   keeps,
-  keepsText,
-  offer,
-  once,
+  LeafElement,
+  nothing,
+  offered,
   obligationActions,
   readObligations,
-  relabel,
-  watchProjection,
 } from "/runtime/widget-api.js";
 
 // The count's words: what remains of the whole, or that nothing does.
@@ -42,60 +40,52 @@ function words(open, total) {
 
 customElements.define(
   "lf-tally",
-  class extends HTMLElement {
-    #room = null;
-    #words = null;
-    #next = null;
-
-    connectedCallback() {
-      if (!once(this)) return;
-      const drawing = document.createElement("template");
-      drawing.innerHTML = declarationFor(this, "x-prepaint");
-      const face = /** @type {HTMLElement} */ (drawing.content.firstElementChild);
-      face.dataset.lfGen = "1";
-      this.#room = face.querySelector(".lf-tally-room");
-      this.#words = face.querySelector(".lf-tally-words");
-      const seat = face.querySelector(".lf-tally-next");
-      if (this.hasAttribute("next")) {
-        this.#next = offer("button", "lf-btn lf-tally-next");
-        seat.replaceWith(this.#next);
-        relabel(this.#next, "Next on me", { says: false });
-        this.#next.title = "Next on me here";
-        this.#next.setAttribute("aria-controls", this.getAttribute("for"));
-        this.#next.addEventListener("mousedown", (event) => event.preventDefault());
-        this.#next.addEventListener("click", () => {
-          const region = this.#region();
-          if (region) obligationActions.next({ within: region });
-        });
-      } else seat.remove();
+  class extends LeafElement {
+    setup() {
       this.querySelector(":scope > [data-lf-prepaint]")?.remove();
-      this.append(face);
-      watchProjection(this, () => this.#paint(readObligations()));
     }
 
     #region() {
       return elementById(this.getAttribute("for"));
     }
 
-    #paint(items) {
+    #next() {
+      const region = this.#region();
+      if (region) obligationActions.next({ within: region });
+    }
+
+    render() {
+      const items = readObligations();
       const region = this.#region();
       const ready = items.phase === "ready" && Boolean(region);
-      keeps(this, "data-lf-ready", ready ? "" : null);
-      if (!ready) {
-        keepsText(this.#words, "");
-        return;
-      }
-      const held = obligationsIn(region, items.all);
+      const held = ready ? obligationsIn(region, items.all) : [];
       const open = held.filter((item) => item.status === "open").length;
+      keeps(this, "data-lf-ready", ready ? "" : null);
       keeps(this, "data-lf-done", held.length && !open ? "" : null);
-      keepsText(this.#words, words(open, held.length));
       // Two digits are in the drawing; a longer count widens its room once.
       const digits = "0".repeat(Math.max(2, String(held.length).length));
-      keepsText(this.#room, words(digits, digits));
-      this.#next?.toggleAttribute(
-        "disabled",
-        obligationsIn(region, items.user).length === 0,
-      );
+      return html`<span class="lf-tally-face" data-lf-gen="1"
+        ><span class="lf-tally-count"
+          ><span class="lf-tally-room">${words(digits, digits)}</span
+          ><span class="lf-tally-room">Nothing to answer</span
+          ><span class="lf-tally-words"
+            >${ready ? words(open, held.length) : ""}</span
+          ></span
+        >${
+          this.hasAttribute("next")
+            ? html`<button
+                ${offered("lf-btn lf-tally-next")}
+                title="Next on me here"
+                aria-controls=${this.getAttribute("for")}
+                ?disabled=${!ready || obligationsIn(region, items.user).length === 0}
+                @mousedown=${(event) => event.preventDefault()}
+                @click=${this.#next}
+              >
+                Next on me
+              </button>`
+            : nothing
+        }</span
+      >`;
     }
   },
 );

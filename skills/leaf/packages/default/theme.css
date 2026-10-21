@@ -710,8 +710,6 @@
 :scope:is(lf-options):has(> lf-option > strong) > lf-option {
   padding: var(--lf-option-pad-block) var(--sp-3);
   --lf-block-frame: 1;
-  --lf-lift: 0 0 #0000;
-  box-shadow: var(--lf-lift);
 }
 @container style(--lf-joined: 0) {
   :scope:is(lf-options):has(> lf-option > strong) > lf-option {
@@ -790,15 +788,6 @@
 @media screen {
   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > lf-option {
     cursor: pointer;
-  }
-  @container style(--lf-joined: 0) {
-    :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > lf-option {
-      transition: box-shadow 0.12s ease, transform 0.12s ease;
-    }
-    :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > strong) > lf-option:hover {
-      transform: translateY(-1px);
-      --lf-lift: var(--raise-1);
-    }
   }
 }
 :scope:is(lf-options):has(> lf-option > strong) > lf-option[chosen] {
@@ -1195,10 +1184,10 @@
 }
 @media screen {
   @container style(--lf-joined: 0) {
-    :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > strong)) > lf-option:hover {
+    :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > lf-option:hover {
       background: var(--chip);
     }
-    :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > strong)) > lf-option[chosen]:hover {
+    :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > lf-option[chosen]:hover {
       background: var(--ok-tint);
     }
   }
@@ -2598,34 +2587,11 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   }
 }
 :scope:is(lf-activity) .lf-activity-row {
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
-  column-gap: 10px;
   padding: 7px 0;
   border-top: 1px solid var(--rule);
 }
 :scope:is(lf-activity) .lf-activity-row:first-child {
   border-top: 0;
-}
-:scope:is(lf-activity) .lf-activity-avatar {
-  grid-row: span 2;
-  align-self: start;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font: 600 var(--t-6) var(--sans);
-  background: var(--accent-tint);
-  color: var(--accent);
-}
-:scope:is(lf-activity) [data-lf-activity-author=user] > .lf-activity-avatar {
-  background: var(--chip);
-  color: var(--ink-2);
-}
-:scope:is(lf-activity) [data-lf-activity-author=page] > .lf-activity-avatar {
-  background: var(--field);
-  color: var(--muted);
 }
 :scope:is(lf-activity) .lf-activity-line {
   margin: 0;
@@ -2686,7 +2652,6 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   text-decoration-color: var(--muted);
 }
 :scope:is(lf-activity) .lf-activity-excerpt {
-  grid-column: 2;
   margin: 2px 0 0;
   color: var(--muted);
   overflow: hidden;

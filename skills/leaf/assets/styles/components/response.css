@@ -110,16 +110,6 @@
   block-size: 16px;
   pointer-events: none;
 }
-/* Closing changes the view; resolving changes durable thread state. */
-.lf-close-action {
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-}
-.lf-close-action:hover {
-  background: var(--chip);
-  color: var(--ink);
-}
 /* Send and resolve are the two glyph actions: a bare glyph in the action's own ink,
    whose ::before is a 28px disc that stays clear at rest and takes the action's tint
    on hover. The hit box around the disc is the icon-action floor above. The glyph's

@@ -82,6 +82,7 @@ import { PAGE_CONTROL_RANK, registerPageControl } from "../page-controls.js";
 import { EVERYTHING } from "./text-entry.js";
 import {
   merge,
+  paintKeys,
   pruneScopedElements,
   scopeRefs,
   scopesAt,
@@ -795,6 +796,7 @@ function commandReferenceTemplate() {
 function presentCommandReference() {
   updateCommandReferenceView();
   render(commandReferenceTemplate(), commandReferenceDialog);
+  paintKeys();
   // The combobox belongs to the native editor, not its component host. Element
   // references keep its result relationships valid across the editor's shadow root.
   const search = commandReferenceSearch.input;

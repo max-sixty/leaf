@@ -80,7 +80,10 @@ pageSearchStatus.append(pageSearchWords);
 // in the field, so a phone's keyboard stays up and the next letter still edits the query.
 // Tab is their key, so they are no stop of its own.
 const matchStep = (icon, name) => {
-  const control = el("button", "lf-btn lf-icon-action lf-page-search-step");
+  const control = el(
+    "button",
+    "lf-btn lf-icon-action lf-quiet-action lf-page-search-step",
+  );
   control.type = "button";
   control.tabIndex = -1;
   control.slot = "end";

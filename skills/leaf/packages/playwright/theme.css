@@ -547,32 +547,18 @@
   gap: var(--sp-2);
   inline-size: 100%;
   block-size: var(--lf-trace-control-size);
-  border: 0;
-  border-radius: var(--r);
   padding: var(--sp-2);
-  background: none;
-  color: var(--ink);
   text-align: start;
   font: inherit;
-  cursor: pointer;
 }
 .lf-trace-moment-label {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.lf-trace-bookmark[data-lf-focus] {
-  outline: var(--focus-ring);
-  outline-offset: calc(-1 * var(--focus-ring-w));
-}
-.lf-trace-bookmark:hover,
 .lf-trace-bookmark[aria-current] {
   color: var(--accent);
   background: var(--accent-tint);
-}
-.lf-trace-bookmark:disabled {
-  color: var(--muted);
-  cursor: default;
 }
 .lf-trace-clock,
 .lf-trace-readout,
@@ -813,30 +799,17 @@
   min-inline-size: var(--lf-trace-control-size);
   block-size: var(--lf-trace-control-size);
   padding: 0 var(--sp-2);
-  border: 0;
-  border-radius: var(--r);
-  background: none;
-  color: var(--ink);
   font: 500 var(--lf-trace-small-type)/1 var(--sans);
-  cursor: pointer;
 }
-.lf-trace-transport-button:hover {
-  background: var(--chip);
-}
-.lf-trace-transport-button[data-lf-focus] {
-  outline: var(--focus-ring);
+/* These adjacent targets keep the shared ring inside their own allocation. */
+.lf-trace-transport-button[data-lf-focus],
+.lf-trace-bookmark[data-lf-focus] {
   outline-offset: calc(-1 * var(--focus-ring-w));
-}
-.lf-trace-transport-button:disabled {
-  color: var(--muted);
-  cursor: default;
 }
 /* One width for Play and Pause, so the readout beside it never moves when playback ends. */
 .lf-trace-play {
   inline-size: 6.5em;
   min-inline-size: 86px;
-  background: var(--accent-tint);
-  color: var(--accent);
 }
 .lf-trace-play > svg:nth-child(2),
 .lf-trace-play[data-playing] > svg:first-child {

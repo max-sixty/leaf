@@ -214,7 +214,7 @@ const playbackLayer = () =>
 // A command row owns each transport button's activation and availability.
 const transport = (target, label, icon, disabled, title = label) =>
   html`<button
-    ${offered("lf-trace-transport-button")}
+    ${offered("lf-btn lf-quiet-action lf-trace-transport-button")}
     ${ref(target)}
     aria-label=${label}
     title=${title}
@@ -1908,7 +1908,7 @@ customElements.define(
                   ? this.#time(moment.time, moment.stream)
                   : "Unavailable";
                 return html`<button
-                  ${offered("lf-trace-bookmark")}
+                  ${offered("lf-btn lf-quiet-action lf-trace-bookmark")}
                   ?hidden=${!(available.includes(moment) || !moment.scope)}
                   ?disabled=${!moment.scope || q}
                   aria-label=${`Moment ${moment.number} · ${moment.label} · ${time}`}
@@ -1942,7 +1942,7 @@ customElements.define(
                   <div class="lf-trace-transport">
                     ${transport(this.#first, "Start", "start", q)}
                     <button
-                      ${offered("lf-trace-transport-button lf-trace-play")}
+                      ${offered("lf-btn lf-quiet-action lf-trace-transport-button lf-trace-play")}
                       ${ref(this.#play)}
                       aria-label=${playLabel}
                       title=${playLabel}

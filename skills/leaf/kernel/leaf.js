@@ -1900,6 +1900,7 @@ function commandReferenceTemplate() {
 function presentCommandReference() {
   updateCommandReferenceView();
   render(commandReferenceTemplate(), commandReferenceDialog);
+  paintKeys();
   const search = commandReferenceSearch.input;
   keeps(search, "role", "combobox");
   keeps(search, "aria-autocomplete", "list");
@@ -4346,7 +4347,10 @@ pageSearchStatus.slot = "end";
 var pageSearchWords = el("span");
 pageSearchStatus.append(pageSearchWords);
 var matchStep = (icon, name2) => {
-  const control = el("button", "lf-btn lf-icon-action lf-page-search-step");
+  const control = el(
+    "button",
+    "lf-btn lf-icon-action lf-quiet-action lf-page-search-step"
+  );
   control.type = "button";
   control.tabIndex = -1;
   control.slot = "end";

@@ -119,9 +119,9 @@ Put everything the `aside` holds in one block, as the `div` above does. While th
 sit side by side, Leaf keeps that block in view at the window's top as the body scrolls.
 Write no `position`, `top`, height or overflow for it.
 
-Draw each region as a `section.panel` with a short heading. Use one `.callout` with a
-status tone (`warn`, `danger`, `ok`) for the thing the reader must act on, and `.tag`
-chips under the lede for the page's state.
+Group a working region with a short heading; `section.panel` supplies compact heading
+and spacing without a surrounding card. Use a `.callout` when a point needs emphasis,
+with a status tone (`warn`, `danger`, `ok`) when it reports a status.
 
 ## A workspace
 

@@ -173,14 +173,13 @@ sheet.replaceSync(`
   /* A list item's lines stand where the message's do, one list inset in per level, and
      its marker stands in the inset before them. The marker is the platform's own list
      marker, as in the message, so it is the same bullet or number at the same place.
-     The source's marker stays in the inset unseen, and shows instead while the caret
-     touches it, so revealing it moves no word. */
+     The source's marker stays in the inset unseen and unspoken, and shows instead while
+     the caret touches it, so revealing it moves no word. */
   .lf-md-item { margin-inline-start: calc(var(--lf-list-depth) * var(--list-inset)); }
   .lf-md-marker { display: inline-flex; justify-content: flex-end; white-space: pre;
     inline-size: var(--list-inset); margin-inline-start: calc(-1 * var(--list-inset)); }
-  .lf-md-listed { display: list-item; }
   .lf-md-marker:not(.lf-md-mark) { color: transparent; }
-  .lf-md-listed:has(.lf-md-marker.lf-md-mark) { list-style-type: none; }
+  .lf-md-listed { display: list-item; }
   .lf-md-disc { list-style-type: disc; }
   .lf-md-circle { list-style-type: circle; }
   .lf-md-square { list-style-type: square; }
@@ -202,13 +201,15 @@ const ownerStep = StateEffect.define();
 const hide = Decoration.replace({});
 const dim = Decoration.mark({ class: "lf-md-mark" });
 const link = Decoration.mark({ class: "lf-md-link" });
-const marker = Decoration.mark({ class: "lf-md-marker" });
+const marker = Decoration.mark({
+  class: "lf-md-marker",
+  attributes: { "aria-hidden": "true" },
+});
 const shownMarker = Decoration.mark({ class: "lf-md-marker lf-md-mark" });
 const line = (cls) => Decoration.line({ class: cls });
 // A list item's line at its depth, wearing the marker a message's list draws there: the
 // bullet the platform's style sheet nests, or the item's number in its list. An item's
-// later line wears none. The line is the same wherever the caret stands, so moving it
-// rewrites no line's attributes.
+// later line, and one whose source marker shows, wear none.
 const BULLETS = ["lf-md-disc", "lf-md-circle", "lf-md-square"];
 const itemLine = (depth, kind, number) =>
   Decoration.line({
@@ -312,7 +313,8 @@ function decorate(state, placed) {
       const list = lists.at(-1);
       const depth = lists.length;
       // An item's later lines stand under its words, their indent hidden as the
-      // message drops it; a nested item, read after its parent, takes its own lines.
+      // message drops it, and never revealed, so the words don't jump as the caret
+      // arrives; a nested item, read after its parent, takes its own lines.
       const head = state.doc.lineAt(from);
       const [at, end] = markers[0];
       // The marker's own indent stands in the inset with it. A quote's line keeps the
@@ -331,14 +333,15 @@ function decorate(state, placed) {
         list.next === null
           ? BULLETS[Math.min(depth, BULLETS.length) - 1]
           : "lf-md-number";
-      items.set(head.from, { depth, kind, number: list.next });
+      const shown = touches(state, start, end);
+      items.set(head.from, { depth, kind: shown ? null : kind, number: list.next });
       if (list.next !== null) list.next++;
-      add(start, end, touches(state, start, end) ? shownMarker : marker);
+      add(start, end, shown ? shownMarker : marker);
     }
   }
   for (const [from, { depth, kind, number, hidden }] of items) {
     out.push(itemLine(depth, kind, number).range(from));
-    if (hidden) add(...hidden, touches(state, ...hidden) ? dim : hide);
+    if (hidden) add(...hidden, hide);
   }
   return Decoration.set(out, true);
 }

@@ -1464,8 +1464,8 @@ def test_a_thread_s_view_folds_progress_as_its_card_does(browser, serve):
     (thread/transcript.js): the progress the answer completed stands folded behind Show 2
     progress messages at the answer's head, and work still under way stands as one dim
     working message at the transcript's foot rather than as a reply. What anyone wrote,
-    messages and the working line alike, reads in the page's serif, as On me's
-    questions do, while the panel's own controls keep its sans."""
+    messages and the working line alike, reads in Leaf's sans rather than the page's
+    serif."""
     url = serve(LONG_PAGE)
     root = panel_comment(
         serve.page_dir, "Can you check that the workshop fits the afternoon?"
@@ -1497,13 +1497,13 @@ def test_a_thread_s_view_folds_progress_as_its_card_does(browser, serve):
     expect(working).to_be_visible()
     expect(working).to_contain_text("Checking whether the room stays free after five")
     face = "(node) => getComputedStyle(node).fontFamily"
-    serif = page.evaluate("getComputedStyle(document.body).fontFamily")
+    leaf = page.locator(".lf-fp-head .lf-fp-title").evaluate(face)
+    assert leaf != page.evaluate("getComputedStyle(document.body).fontFamily")
     for words in (
         shown.last.locator(".lf-msg-body"),
         working.locator(".lf-thread-working-words"),
     ):
-        assert words.evaluate(face) == serif
-    assert page.locator(".lf-fp-head .lf-fp-title").evaluate(face) != serif
+        assert words.evaluate(face) == leaf
 
     toggle.click()
     expect(shown).to_have_count(4)
@@ -1857,7 +1857,7 @@ def test_nothing_lies_over_a_view_s_foot_but_new_reply(browser, serve):
     expect(inventory.locator(".lf-fp-thread")).to_have_count(13)
     field(page).click()
     page.keyboard.type("Could")
-    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-typing", "")
+    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-drafted", "")
     at_end(".lf-fp-thread")
 
     page.keyboard.press("ControlOrMeta+a")
@@ -1867,7 +1867,7 @@ def test_nothing_lies_over_a_view_s_foot_but_new_reply(browser, serve):
     expect(reader.locator(".lf-msg")).to_have_count(9)
     field(page).click()
     page.keyboard.type("Could")
-    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-typing", "")
+    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-drafted", "")
     at_end(".lf-msg")
 
     # The answer to the user's turn waits below the fold behind New reply, and its
@@ -3788,6 +3788,32 @@ def test_a_reply_its_card_cannot_draw_opens_in_the_panel(browser, serve):
     expect(reader.locator("#first-job")).to_be_visible()
 
 
+def test_a_thread_s_messages_read_alike_in_its_card_and_the_panel(browser, serve):
+    """What anyone wrote in a thread reads in one face wherever the thread stands, its
+    card beside the passage and its view in the panel, and a rewrite types in it."""
+    url = serve(LONG_PAGE)
+    panel_comment(
+        serve.page_dir,
+        "Which job should come first?",
+        {"section": "p3", "quote": "Paragraph 3."},
+    )
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    face = "(node) => getComputedStyle(node).font"
+    card = page.locator(".lf-margin-thread-body .lf-msg")
+    expect(card).to_contain_text("Which job should come first?")
+    message = card.locator(".lf-msg-body").evaluate(face)
+    card.locator(".lf-msg-edit").click()
+    assert card.locator(".lf-msg-editor leaf-text").evaluate(face) == message
+    card.locator(".lf-msg-edit-cancel").click()
+    page.locator(".lf-fp-threads").click()
+    page.locator(".lf-fp-view[data-view=threads] .lf-fp-thread").click()
+    reader = page.locator(".lf-fp-view[data-view=thread] .lf-msg")
+    expect(reader).to_contain_text("Which job should come first?")
+    assert reader.locator(".lf-msg-body").evaluate(face) == message
+
+
 def test_a_page_comment_sent_before_the_first_reading_stands_in_the_panel(
     browser, serve
 ):
@@ -4094,10 +4120,10 @@ def test_looking_at_an_attached_image_keeps_the_draft_where_it_stands(browser, s
     write(field(page), "A draft long enough to wrap once the counts stand beside it")
     paste_image(field(page), solid_png(40, 30, (255, 128, 64)))
     host = page.locator(".lf-floating-panel")
-    expect(host).to_have_attribute("data-typing", "")
+    expect(host).to_have_attribute("data-drafted", "")
     words = field(page).bounding_box()
     look_at(page.locator(".lf-fp-box .lf-composer-media-open"))
-    expect(host).to_have_attribute("data-typing", "")
+    expect(host).to_have_attribute("data-drafted", "")
     assert field(page).bounding_box() == words
     field(page).click()
     assert field(page).bounding_box() == words
@@ -4189,13 +4215,14 @@ def test_a_draft_draws_a_bullet_list_as_the_message_will(browser, serve):
     assert [mark["drawn"] for mark in nested["marks"]] == ['"•"', '"•"'], nested
 
 
-def test_send_stands_in_the_counts_place_while_the_user_types(browser, serve):
+def test_send_stands_in_the_counts_place_while_the_field_holds_a_draft(browser, serve):
     """Typing puts Send where the counts stood, wearing every composer's accent arrow
-    rather than the panel's own press face, and a press that takes the caret away
-    brings the counts back while the words stay where they were."""
+    rather than the panel's own press face. A press that takes the caret away leaves
+    the draft as it stands, Send and every line in place, and so does a press back
+    into it; the counts come back once the field empties."""
     page = floating(browser, serve(LONG_PAGE))
     field(page).click()
-    page.keyboard.type("Could the rollback cover the weekend?")
+    page.keyboard.type("Could the rollback cover the weekend, and the Monday after it?")
     send = page.locator(".lf-fp-send")
     expect(send).to_be_visible()
     accent = page.evaluate(
@@ -4209,11 +4236,16 @@ def test_send_stands_in_the_counts_place_while_the_user_types(browser, serve):
     words = field(page).bounding_box()
     page.mouse.click(5, 5)
     expect(field(page)).not_to_be_focused()
-    expect(send).to_be_hidden()
-    expect(page.locator(".lf-fp-on-user")).to_be_visible()
     settled(page)
-    after = field(page).bounding_box()
-    assert (after["x"], after["y"]) == (words["x"], words["y"])
+    expect(send).to_be_visible()
+    expect(page.locator(".lf-fp-on-user")).to_be_hidden()
+    assert field(page).bounding_box() == words
+    field(page).click()
+    settled(page)
+    assert field(page).bounding_box() == words
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.press("Backspace")
+    expect(page.locator(".lf-fp-on-user")).to_be_visible()
 
 
 def test_writing_reaches_the_field_however_the_panel_stands(browser, serve):

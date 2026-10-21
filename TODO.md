@@ -41,9 +41,10 @@ has tried; settle that before building it.
 ### User experience
 
 - **#25 — Answer one decision beside its evidence and on a board.** A section's
-  picker and its board card currently record independent facts. Choose the owner
-  and test both views against one decision, including ordering, write-ins and
-  revision retraction ([design](notes/shared-decisions.md)).
+  picker and its board card currently record independent facts. The section's widget
+  owns the answer; build the board's write to that owner and test both views against
+  one decision, including ordering, write-ins and revision retraction
+  ([design](notes/shared-decisions.md)).
 - **Make complete reading journeys feel coherent.** Audit a document, workspace,
   board or table, and populated thread in light and dark at wide and narrow
   widths. Fix recurring gaps in type, spacing, framing, controls, and responsive
@@ -57,22 +58,19 @@ has tried; settle that before building it.
 - **Test annotation placement in context.** Compare a pinned marker card with a
   sparse left-comment layout on a document and a workspace. Keep full history and
   search in Threads and use Page Map on narrow pages; show only one margin treatment
-  at a time. Include dense phone prose with anchored pins: the comparison report
-  showed pins covering text at 390px. Test what happens when no text-clear seat
-  exists, preserving annotation access without moving the reading column. See
-  [the comparison finding](notes/comparisons.md#phone-annotation-placement-2026-10-05).
+  at a time.
 - **Make the next move and its result apparent.** Play through `review-a-plan`,
   `triage-board`, `pr-walkthrough`, and `ship-review`; fix dead ends and moves whose
   result is hidden. Decide whether a page needs one progress reading across On me,
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
 - **#28 — Finish the floating panel.** The floating panel, rebuilt on 12 October to
-  the sketch the user configured ([its goal](notes/floating-panel/GOAL.md), "The
-  overhaul"), is Leaf's only chrome since 16 October, when the banner, the bottom
-  bar and the switch between them went. Every follow-up the user named has landed, so
-  the item waits on the user's review of the desktop design. The phone waits until
-  the desktop design is firm, and where a passage thread opens from Threads waits
-  until later.
+  the sketch the user configured (the header of
+  `skills/leaf/assets/runtime/floating-panel.js` holds its contract), is Leaf's only
+  chrome since 16 October, when the banner, the bottom bar and the switch between them
+  went. Every follow-up the user named has landed, so the item waits on the user's
+  review of the desktop design. The phone waits until the desktop design is firm, and
+  where a passage thread opens from Threads waits until later.
 - **Say when a held-news notice holds more than it shows.** A notice in a seat's
   head row keeps the width of the news it first said (`data-lf-room`) and shows each
   fact whole or not at all (`newsNotice`), so "1 new reply" with a message arriving
@@ -118,18 +116,15 @@ has tried; settle that before building it.
   [Test compositions where evidence supports them](notes/workspace-followups.md#item-20),
   using current code and an unfamiliar author; two samples per task do not settle
   which compositions work generally.
-- **Keep delegated work in the panel's status while its watcher is live.** The
-  [status evaluations](notes/user-feedback-responsiveness.md#status-evaluations)
-  pass, and the plan and to-do keep delegated work listed, but after the
-  coordinator's turn ends the status stops reading Working while its workers still
-  run. Decide whether Claude Code's `busy` record should keep it reading as work in
-  the background (the note's "Proposed improvements").
+- **Keep delegated work in the panel's status on Codex and Pi.** Claude Code's
+  `busy` session record keeps the status reading Working in the background after
+  the coordinator's turn ends (#3370); Codex and Pi publish no such record, so their
+  status stops reading Working while workers still run
+  ([the note](notes/user-feedback-responsiveness.md#proposed-improvements)).
 - **Decide what the reply budget counts.** A small page change takes 21–42 s to
   reply on every harness against a 7 s target, and Leaf's delivery and tool time is
   0.3–2.6 s of it ([readings](notes/user-feedback-responsiveness.md#latency-targets-and-readings)).
-  Decide whether the target counts Leaf's share or the whole reply, and whether
-  `leaf response reply` should report what `leaf page check` does, saving the
-  agent a model call per revision.
+  Decide whether the target counts Leaf's share or the whole reply.
 - **#24 — Measure time to an initial reviewable page and the value of review.**
   Retrospective replay now proves one usable Leaf candidate and one usable HTML
   candidate before their authors finished. Their observation triggers differ;
@@ -655,6 +650,15 @@ export` writes a file that boots the page's own runtime offline, and that file
   server's first load took 120 to 230 ms longer than its reloads.
   `uv run leaf-dev probe EXAMPLE [--cpu-throttle 4]` reads one first load; the
   Mac's load average was near 12 on 18 cores throughout.
+- **Draw the margin's annotations once per thread pass.** They draw from their own
+  watcher, which waits only for the projection's chrome, and again when the thread
+  presentation commits (`untracked(renderAnnotations)`, `thread/presentation.js`):
+  22 ms of applying a comment's answer, profiled. Making the watcher wait for the
+  thread region drew the margin once (11 ms) but broke reply continuity
+  (`continueReplies`, `thread/focus.js`, which expects the margin's cards drawn;
+  seven cases in `tests/browser/threads/test_seated_threads.py`), and a held thread
+  pass would withhold every margin paint. A fix needs continuity to wait for the
+  margin's paint and the margin to stop depending on the thread region committing.
 - **Unconfirmed — Let Lit follow what a widget reads.** `LeafElement`
   (`runtime/leaf-element.js`) collects what `render()` reads with Leaf's own
   `collectReads` over Preact signals and outside readings such as the clock, because

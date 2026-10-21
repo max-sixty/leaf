@@ -773,7 +773,12 @@
    * a grid of panes, a pane, or a widget composing its own regions. Each pane's body
    * scrolls on its own, and `--lf-full-height` on the workspace tells a body widget it has a
    * definite height to fill. Where the window is too small, the workspace flows and the
-   * page scrolls.
+   * page scrolls. A workspace is a screen for pages that act like a dashboard or a TUI,
+   * and a pane that runs past its region is trimmed or split by its author
+   * (page-layout.md, "A workspace"); a long read beside a panel is a sidebar page.
+   * Rejected (2026-10): the main region flowing with the root while the other regions
+   * stick, which kept native page scrolling at the cost of reworking full-height
+   * widgets, footers, margin lanes and phone stacking.
    *
    * A pane is any element in the pane role (`data-lf-reading-role="pane"`, theme.css),
    * painted by delivery; a widget-generated one also carries `data-lf-generated`. The

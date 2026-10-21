@@ -79,16 +79,6 @@
   gap: var(--sp-2);
 }
 
-/* The workspace gives the evidence a laptop's height, so the two rows of chrome above it
-   are as tall as the Leaf buttons standing in them and no taller. A vendored control
-   sizes itself from the vendor's own form-control height, which is eight pixels more
-   than `.lf-btn`'s box, and both rows take that height from the tallest control in them. */
-.lf-vr-case-select,
-.lf-vr-inspector-group,
-.lf-vr-inspector-choice {
-  --wa-form-control-height: max(30px, var(--aim-floor));
-}
-
 .lf-vr-case-select {
   min-width: 0;
   width: 100%;
@@ -145,7 +135,7 @@
    Screen only: paper has no scroll to stick against. */
 @media screen {
   .lf-vr-evidence-region {
-    --lf-vr-queue-h: calc(max(30px, var(--aim-floor)) + 2 * var(--sp-2) + 1px);
+    --lf-vr-queue-h: calc(var(--lf-control-compact) + 2 * var(--sp-2) + 1px);
     --lf-top-outer: var(--lf-top);
   }
 
@@ -520,7 +510,7 @@
 
   /* Two rows of controls, so the sticky header's stated height is two rows. */
   .lf-vr-evidence-region {
-    --lf-vr-queue-h: calc(2 * max(30px, var(--aim-floor)) + 3 * var(--sp-2) + 1px);
+    --lf-vr-queue-h: calc(2 * var(--lf-control-compact) + 3 * var(--sp-2) + 1px);
   }
 }
 

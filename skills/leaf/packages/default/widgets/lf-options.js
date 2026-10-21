@@ -408,7 +408,6 @@ customElements.define(
           decision: true,
           bindingBadge,
           title: label(option) || option.id,
-          description: "Toggle this option",
           when: () => this.#available("choose"),
           run: () => mark.click(),
         });
@@ -460,7 +459,6 @@ customElements.define(
           decision: true,
           bindingBadge: this.#addition.bindingBadge,
           title: "Another option",
-          description: "Write another option",
           when: () => this.#available("choose"),
           run: () => {
             focusDestination(this.#addition.input, "move");

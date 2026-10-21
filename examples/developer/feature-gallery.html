@@ -475,7 +475,10 @@
               <p>
                 Leaf's controls stand in one panel hovering over the foot of the page.
                 In the window below, press the panel's leaf for the menu, and its field
-                to comment.
+                to comment. Choose <strong>Fold to the leaf</strong> in the menu, then
+                press the leaf to unfold it: the mark stays visible and travels with the
+                panel's outline. Press <kbd>.</kbd> twice quickly to reverse it in
+                flight. With reduced motion, both take their final place at once.
               </p>
               <lf-sample id="bg-chrome-floating" label="floating panel" window>
                 <template id="bg-chrome-floating-page" data-sample>
@@ -1093,12 +1096,17 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 words with the find button beside them.
               </li>
               <li>
-                Look at a row: it is one line, the thread's title and its status, and a
-                thread waiting on you says so.
+                Look at a row: its title leads, and a thread waiting on you says so.
+                Ordinary open threads carry no extra status label.
               </li>
               <li>
                 Open a short thread: Reply follows its last message. In a long one,
                 Reply stays visible while you scroll.
+              </li>
+              <li>
+                Resolve an inline thread: its state changes immediately while its space
+                folds away into Resolved. Open Resolved during the fold to read it
+                immediately, or Undo to restore the open thread.
               </li>
               <li>
                 Send a reply: focus stays on the card or its title, in the floating card
@@ -1341,9 +1349,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 agent owes the message, as it now reads, an answer.
               </li>
               <li>
-                Press <kbd>Escape</kbd> or Cancel instead: the message stays as it was
+                Press <kbd>Escape</kbd> or Discard instead: the message stays as it was
                 and your words are dropped. Words a reload interrupts wait as an
-                "unsaved edit". Saving, Escape, and Cancel each put you back in the
+                "unsaved edit". Saving, Escape, and Discard each put you back in the
                 reply box.
               </li>
             </ul>
@@ -1909,7 +1917,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </p>
             <p id="bg-button-status-guide">
               <strong>Edit and hand off.</strong> Opening the draft above replaces
-              “Edit” with “Save” and “Cancel” controls; “Save” dims while it sends.
+              “Edit” with “Save” and “Discard” controls; “Save” dims while it sends.
               Delivery and agent work share one workflow reading. Pickup adds its status
               to the draft's “Edit” control; current work adds one arrival pulse. An
               uncertain or ended turn loses the active treatment. Hover for the
@@ -2425,7 +2433,10 @@ gallery/
               </p>
               <ul id="bg-tabs-steps">
                 <li>
-                  Choose a tab and reload: both forms remember the selected panel.
+                  Choose a tab and reload: both forms remember the selected panel. Click
+                  a neighbouring tab: its view opens immediately while the underline
+                  travels for 160 ms. Arrow-key selection and reduced motion switch
+                  instantly; the focus frame never travels.
                 </li>
                 <li>
                   Scroll while reading a panel: a horizontal tab strip stays at the top

@@ -15,8 +15,10 @@
   --lf-block-frame: 1;
 }
 /* The caption is the frame's header bar, not a line of reading, so it spans the frame:
-   under the reading measure its rule stopped 53px short of a 795px frame. */
-:scope:is(lf-text-document) figcaption {
+   under the reading measure its rule stopped 53px short of a 795px frame. Before the
+   document draws, the host stands in for its frame and caption (below). */
+:scope:is(lf-text-document) figcaption,
+html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
   max-inline-size: none;
   padding: 7px 11px;
   border-bottom: 1px solid var(--rule);
@@ -67,7 +69,17 @@
   font: inherit;
   overscroll-behavior: auto;
 }
-/* A bounded capture keeps its caption in view and scrolls the listing under it. */
+/* Every document scrolls its listing in a box `--lf-bound` tall under a caption that
+   stays put: the Source tab's box with a preview, the listing's own without one. The
+   box's height is the bound, not the text's, so the page keeps the document's final
+   size from its first paint. The text arrives with the state answer after that paint,
+   and a listing as tall as its text pushed what followed it down by that height. A
+   short document leaves room under its last line, and a long one reads by scrolling
+   inside the box rather than at full length in the page.
+
+   The module draws the figure once it loads, after first paint, so until then the
+   empty host wears the figure's frame, draws its label as the caption, wrapping as the
+   caption will, and keeps the room the tab strip and the box will take. */
 @media screen {
   :scope:is(lf-text-document)[data-lf-bound] {
     max-block-size: none;
@@ -75,11 +87,31 @@
     --lf-top: inherit;
   }
   :scope:is(lf-text-document):not([preview])[data-lf-bound] pre {
-    max-block-size: var(--lf-bound, 28rem);
+    block-size: var(--lf-bound, 28rem);
     overflow: auto;
     --lf-bound-box: 1;
     --lf-holds-height: 1;
     --lf-top: 0px;
+  }
+  html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *)) {
+    border: 1px solid var(--code-border);
+    border-radius: var(--r);
+    background: var(--pre-bg);
+    &::before {
+      content: attr(label);
+      display: block;
+    }
+    &:not([label])::before {
+      content: attr(source);
+    }
+    &::after {
+      content: "";
+      display: block;
+      block-size: var(--lf-bound, 28rem);
+    }
+    &[preview]::after {
+      block-size: calc(var(--lf-tabstrip-h) + var(--lf-bound, 28rem));
+    }
   }
 }
 /* A long capture's `pre` becomes a keyboard-reachable scroller inside the evidence

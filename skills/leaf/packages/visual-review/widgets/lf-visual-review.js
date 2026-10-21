@@ -222,7 +222,7 @@ customElements.define(
 
     #choices(kind, label, values, current, hidden = false) {
       return html`<wa-radio-group
-        ${offered(`lf-vr-inspector-group lf-vr-${kind}-group`)}
+        ${offered(`lf-vr-inspector-group lf-vr-${kind}-group lf-compact-control`)}
         label=${label}
         name=${`${this.id}-${kind}`}
         size="s"
@@ -241,7 +241,7 @@ customElements.define(
           ([value]) => value,
           ([value, text]) =>
             html`<wa-radio
-              ${offered("lf-vr-inspector-choice", true)}
+              ${offered("lf-vr-inspector-choice lf-compact-control", true)}
               value=${value}
               appearance="button"
               ${commandsOn("On visual evidence", (radio) => [
@@ -866,7 +866,7 @@ customElements.define(
           <header class="lf-vr-queue">
             <nav ${offered("lf-vr-queue-region")} aria-label="Visual review cases">
               <wa-select
-                ${offered("lf-vr-case-select")}
+                ${offered("lf-vr-case-select lf-compact-control")}
                 name="visual-case"
                 size="s"
                 label="Selected visual case"
@@ -887,8 +887,16 @@ customElements.define(
                     >`,
                 )}
               </wa-select>
-              <button ${offered("lf-btn lf-vr-previous")}>Previous</button>
-              <button ${offered("lf-btn lf-vr-next")}>Next</button>
+              <button
+                ${offered("lf-btn lf-quiet-action lf-compact-control lf-vr-previous")}
+              >
+                Previous
+              </button>
+              <button
+                ${offered("lf-btn lf-quiet-action lf-compact-control lf-vr-next")}
+              >
+                Next
+              </button>
             </nav>
           </header>
           <div class="lf-vr-cases">

@@ -3,7 +3,7 @@
 # requires-python = ">=3.11"
 # dependencies = ["click>=8.2", "pillow>=12.1"]
 # ///
-"""Index an immutable Playwright format-9 archive for Leaf's playwright-trace.
+"""Index an immutable Playwright format-9 or format-10 archive for Leaf's trace.
 
 The archive remains the evidence owner. This producer reads entries in memory,
 never extracts archive paths, and imports original raster bytes through the
@@ -15,7 +15,10 @@ a manifest reaches every page user and should not duplicate URLs or filled value
 Input events have no native timestamp: action-phase times describe their captured
 snapshot, not a simultaneous measurement of pointer coordinates and image pixels.
 Native tracing-group ancestry prefixes child action titles; groups retain their
-own titles, and parents outside a stream supply no label.
+own titles, and parents outside a stream supply no label. Both formats join their
+native callId references directly. Format 10 uses the former step identity as
+callId; this index neither rewrites format-9 identities nor compares streams by
+their separate stepId.
 
 Each trace stream keeps its native monotonic clock. Capture records supply page
 identity; no nearest-frame heuristic associates page-less calls. Main-frame DOM
@@ -26,8 +29,9 @@ exact correspondence between a tree box and pixels captured earlier.
 
 Other archive versions are refused: adapting Playwright's internal format is an
 explicit package change, rather than guessing at a newer or older producer. Within
-format 9 the archive is read as Playwright writes it, and a damaged one is not
-diagnosed here.
+each supported format the archive is read as Playwright writes it, and a damaged
+one is not diagnosed here. All streams in one archive must name the same format,
+which the manifest retains alongside the unchanged archive's hash.
 """
 
 import hashlib
@@ -80,7 +84,7 @@ def _input(event, native_input, phases, viewport):
     """Retain native input facts, without inferring gestures from display titles."""
     if native_input is None:
         # Complete action records can carry the input point/snapshot directly.
-        # Format-9 action-phase snapshots also establish native input capture.
+        # Action-phase snapshots also establish native input capture.
         if (
             event.get("point") is None
             and event.get("inputSnapshot") is None
@@ -193,6 +197,7 @@ def import_trace(trace: Path, *, page: Path, launcher: Path, viewer_url: str) ->
     archive_hash = hashlib.sha256(archive_bytes).hexdigest()
     prefix = f"trace-{archive_hash}"
     streams, pages, actions, images, rasters = [], {}, [], [], []
+    formats = set()
     with ZipFile(io.BytesIO(archive_bytes)) as archive:
         read = archive.read
         stream_names = sorted(
@@ -205,10 +210,13 @@ def import_trace(trace: Path, *, page: Path, launcher: Path, viewer_url: str) ->
                 if line.strip()
             ]
             context = events[0]
-            if context.get("type") != "context-options" or context.get("version") != 9:
+            if context.get("type") != "context-options" or context.get(
+                "version"
+            ) not in (9, 10):
                 raise TraceError(
-                    f"{stream_name}: unsupported trace format {context.get('version')!r}; this package reads format 9"
+                    f"{stream_name}: unsupported trace format {context.get('version')!r}; this package reads formats 9 and 10"
                 )
+            formats.add(context["version"])
             stream_id = f"{prefix}-stream-{_digest(stream_name)}"
             streams.append(
                 {
@@ -350,11 +358,14 @@ def import_trace(trace: Path, *, page: Path, launcher: Path, viewer_url: str) ->
                 )
             pages.update(capture.pages)
 
+    if len(formats) != 1:
+        raise TraceError("An archive must contain trace streams of one format")
+    archive_format = formats.pop()
     urls = _media(page, launcher, rasters)
     for image, url in zip(images, urls, strict=True):
         image["url"] = url
     return {
-        "archive": {"sha256": archive_hash, "format": 9},
+        "archive": {"sha256": archive_hash, "format": archive_format},
         "viewerUrl": viewer_url,
         "streams": streams,
         "pages": list(pages.values()),

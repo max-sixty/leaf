@@ -448,7 +448,7 @@ button.lf-media-open {
 }
 /* A message's rewrite is a comment box, the field the thread's reply box is, as wide as
    the reply box: in a transcript, which insets its messages, it reaches back over that
-   inset, so its words keep the message's. Cancel and Save stand at the message's head
+   inset, so its words keep the message's. Discard and Save stand at the message's head
    (`.lf-msg-edit-actions`). */
 .lf-msg-editor {
   display: block;
@@ -463,7 +463,7 @@ button.lf-media-open {
   block-size: 0;
   scroll-margin-block-start: 1lh;
 }
-/* Cancel and Save take the message's head while it is open, where its Edit control stood
+/* Discard and Save take the message's head while it is open, where its Edit control stood
    and with its face, as words: a glyph there would read as the thread's own Resolve
    beside them. Save keeps its press's ink. */
 .lf-msg-edit-actions {

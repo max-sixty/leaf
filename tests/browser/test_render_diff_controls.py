@@ -41,7 +41,7 @@ def test_a_visible_datum_takes_over_pending_thread_motion(browser, serve):
     )
     page = open_page(browser, url)
     datum = page.locator('lf-diff [data-lf-datum=\'["app.py","new",1]\']')
-    expect(datum).to_be_in_viewport(timeout=5000)
+    expect(datum).to_be_in_viewport()
     page.locator("h1").click()
     page.evaluate("""async () => {
       const {navigateToDatum} = await window.__lfWidgetApi();
@@ -59,7 +59,7 @@ def test_a_visible_datum_takes_over_pending_thread_motion(browser, serve):
       };
     }""")
     page.keyboard.press("t")
-    page.wait_for_function("window.datumArrived !== undefined", timeout=10000)
+    page.wait_for_function("window.datumArrived !== undefined")
     assert page.evaluate("datumArrived")
     scroll_settled(page)
     expect(datum).to_be_focused()
@@ -1013,3 +1013,97 @@ def test_file_tree_reads_standalone_data_without_a_diff_package(browser, serve):
     expect(tree).to_contain_text("No matching files.")
     search.fill("")
     expect(row).to_be_visible()
+
+
+@pytest.mark.shifts_unsurveyed  # The test explicitly scrubs held animation frames.
+@pytest.mark.parametrize("kind", ["call", "file"])
+def test_evidence_close_folds_room_but_retires_controls_immediately(
+    browser, serve, kind
+):
+    """Closed evidence cannot take focus while its old room folds; reversal stays continuous."""
+    from render_cases_interaction import HOLD_MOTION
+    from render_cases_navigation import call_diff, call_node
+
+    tag = "lf-call-diff" if kind == "call" else "lf-diff"
+    attributes = 'diff="patch"' if kind == "call" else ""
+    body = "" if kind == "call" else "<pre></pre>"
+    extra = (
+        '<lf-diff id="patch" source="patch-data" collapsed><pre></pre></lf-diff>'
+        if kind == "call"
+        else ""
+    )
+    url = serve(
+        leaf_page(
+            "Fold evidence",
+            f'<h1>Review</h1><div style="height:1100px"></div><{tag} id="evidence" source="change" {attributes}>{body}</{tag}>'
+            '<button id="after">Continue review</button>' + extra,
+        ),
+        packages=("diff",),
+    )
+    content = (
+        call_diff(
+            call_node("root", children=[call_node(f"step {i}") for i in range(12)])
+        )
+        if kind == "call"
+        else patch_manifest(
+            "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1,12 +1,12 @@\n"
+            + "".join(f"-old{i}\n+new{i}\n" for i in range(12))
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "change", content)
+    if kind == "call":
+        data_model.cmd_data_set(
+            serve.page_dir,
+            "patch-data",
+            patch_manifest(
+                "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-old\n+new\n"
+            ),
+        )
+    page = open_page(browser, url, init_script=HOLD_MOTION)
+    page.emulate_media(reduced_motion="no-preference")
+    details = page.locator("#evidence details").first
+    summary = details.locator("summary")
+    expect(summary).to_be_visible()
+    # Include a focusable body control to prove the disclosure's semantic boundary,
+    # including a package composition with interactive evidence.
+    details.evaluate(
+        "d => {const b=document.createElement('button'); b.textContent='Inspect evidence'; d.append(b)}"
+    )
+    height = lambda: details.evaluate("d=>d.getBoundingClientRect().height")
+    page.evaluate("scrollTo(0, document.documentElement.scrollHeight)")
+    scroll_settled(page)
+    full = height()
+    scroll_before = page.evaluate("scrollY")
+    summary.click()
+    expect(details).not_to_have_attribute("open")
+    assert height() == pytest.approx(full, abs=1)
+    assert page.evaluate("scrollY") == pytest.approx(scroll_before, abs=1)
+    details.evaluate(
+        "d=>{const a=__lfHeld.find(a=>a.effect.target===d && a.effect.pseudoElement==='::details-content' && a.playState!=='idle');a.currentTime=110;a.play=()=>{}}"
+    )
+    middle = height()
+    assert 30 < middle < full
+    page.keyboard.press("Tab")
+    expect(page.locator("#after")).to_be_focused()
+    # Reopening during the held fold uses the browser's own reverse interpolation.
+    summary.click()
+    assert details.evaluate("d=>d.open")
+    assert height() == pytest.approx(middle, abs=2)
+    summary.press("Enter")
+    assert not details.evaluate("d=>d.open")
+    assert (
+        details.evaluate(
+            "d=>__lfHeld.filter(a=>a.effect.target===d && a.effect.pseudoElement==='::details-content' && a.playState!=='idle').length"
+        )
+        == 0
+    )
+    summary.press("Enter")
+    page.emulate_media(reduced_motion="reduce")
+    summary.click()
+    assert (
+        details.evaluate(
+            "d=>__lfHeld.filter(a=>a.effect.target===d && a.effect.pseudoElement==='::details-content' && a.playState!=='idle').length"
+        )
+        == 0
+    )
+    assert height() < middle

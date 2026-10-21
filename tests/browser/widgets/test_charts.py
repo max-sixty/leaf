@@ -217,6 +217,25 @@ def test_the_covered_words_gate_still_reads_two_of_a_chart_s_labels_on_each_othe
         )
 
 
+def test_covered_words_reads_only_the_visible_svg_state(browser, serve):
+    """A timing study replaces overlapping SVG labels by hiding their group."""
+    page = open_page(
+        browser,
+        serve("""<!doctype html><html><head><title>SVG states</title></head><body><main>
+          <svg id="states" viewBox="0 0 500 80">
+            <text x="10" y="30">Editing the proposal</text>
+            <g id="saved-state" style="display:none">
+              <text x="10" y="30">Original words restored</text>
+            </g>
+          </svg></main></body></html>"""),
+    )
+    assert render_checks_model.evaluate_probe(page, "coveredWords") == []
+    page.locator("#saved-state").evaluate("node => node.style.display = 'inline'")
+    assert render_checks_model.evaluate_probe(page, "coveredWords")
+    page.locator("#saved-state").evaluate("node => node.style.display = 'none'")
+    assert render_checks_model.evaluate_probe(page, "coveredWords") == []
+
+
 def test_a_chart_wears_the_page_s_colors_and_turns_over_with_the_scheme(browser, serve):
     """A series takes the theme's token, `var(--series-N)`, which Plot writes into the
     drawing as it was given. Resolved to a value in JavaScript it would freeze the scheme

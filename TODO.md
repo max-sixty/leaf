@@ -741,10 +741,12 @@ export` writes a file that boots the page's own runtime offline, and that file
 - **MCP Apps:** when a host the user runs renders MCP Apps, rebuild inline hosting
   as a direct resource: Leaf's runtime in the host's `ui://` resource, with reads and
   gestures carried by MCP tools to `PageStateService` and the event append boundary,
-  one renderer and one log. Accept it once, in that host, a keyboard choice and an
-  anchored comment reach the page log and show in Threads, reopening rebuilds the
-  same state, versions, new layer assets and external data use the same transport,
-  and delivery wakes an idle task (accepting `ui/message` doesn't show that). The
+  one renderer and one log. Accept it once, in that host, its renderer allows the
+  content security policy Leaf needs, including evaluating `lf-chart` bodies, a
+  keyboard choice and an anchored comment reach the page log and show in Threads,
+  reopening rebuilds the same state, versions, new layer assets and external data
+  use the same transport, and delivery wakes an idle task (accepting `ui/message`
+  doesn't show that). The
   removed transport and its probe are at `a8ed55e68` (`notes/mcp-apps/probe`); its
   last run rendered a page in the reference host but failed to save a choice.
 - **Release labels:** prefer an exact tag when Leaf adopts named releases.

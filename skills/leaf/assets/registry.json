@@ -1806,6 +1806,10 @@
     "description": "A labeled select or single-line text field for the page's own script, matching Leaf's buttons. Use the class rather than restyling the field in page CSS; page CSS only arranges the row.",
     "x-example": "<label for=\"preview-case\">Conversation</label>\n<select id=\"preview-case\" class=\"field\"><option>Short exchange</option><option>Long exchange</option></select>"
   },
+  "label.choice": {
+    "description": "A compact native radio or checkbox with a clickable label. The label supplies the hit area and focus ring; the native mark shows selection without a surrounding box. Group radios by name. The page or widget owns changes to its value.",
+    "x-example": "<label class=\"choice\"><input type=\"radio\" name=\"detail\" value=\"summary\" checked>Summary</label>\n<label class=\"choice\"><input type=\"radio\" name=\"detail\" value=\"full\">Full detail</label>"
+  },
   ".eyebrow": {
     "description": "A small-caps label above a heading.",
     "x-example": "<p class=\"eyebrow\">design proposal</p>\n<h1>Widgets</h1>"

@@ -36,7 +36,14 @@ import {
   standsOn,
   standingIn,
 } from "../focus.js";
-import { html, render, nothing, share, signal } from "/vendor/browser-runtime.js";
+import {
+  html,
+  render,
+  nothing,
+  share,
+  createSignal,
+  flush,
+} from "/vendor/browser-runtime.js";
 import { turns, threadKey } from "./model.js";
 import { anchorLabel, messageReading, threadSummary } from "./messages.js";
 import { offer, measure } from "../widget-elements.js";
@@ -275,12 +282,12 @@ export class ThreadView {
   #rewrites;
   // The model this card shows. A signal, because its commands' liveness reads it, and
   // key and button reflection follow what they read (keyboard/scopes.js).
-  #shown = signal(null);
+  #shown = createSignal(null, { ownedWrite: true });
   get #model() {
-    return this.#shown.value;
+    return this.#shown[0]();
   }
   set #model(model) {
-    this.#shown.value = model;
+    flush(() => this.#shown[1](() => model));
   }
   #transcript;
   #reply = null;

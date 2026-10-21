@@ -27,7 +27,8 @@ import {
   AsyncDirective,
   PartType,
   directive,
-  effect,
+  watchEffect,
+  onCleanup,
   nothing,
 } from "/vendor/browser-runtime.js";
 import {
@@ -170,8 +171,8 @@ function releaseButtons(declarations) {
     forgetScopedElement(control);
   }
 }
-// One button's availability, as a tracked effect: a signal its command's predicates read
-// moving marks this button alone for the next frame. The effect stays subscribed to
+// One button's availability, as a tracked watchEffect: a signal its command's predicates read
+// moving marks this button alone for the next frame. The watchEffect stays subscribed to
 // those signals, so it holds the button and its declarations only while it first reads
 // them, and a later run that finds the button gone disposes it.
 const buttonAvailability = new WeakMap();
@@ -192,7 +193,7 @@ function reflectButton(control, candidates) {
   const ref = new WeakRef(control);
   let reading = candidates;
   let failure = null;
-  const dispose = effect(() => {
+  const dispose = watchEffect(() => {
     if (reading) {
       const read = reading;
       reading = null;
@@ -403,7 +404,7 @@ function contextRows(declarations) {
 }
 
 // A contextual owner relates the current focus to an original command region.
-// Resolve that relation as part of the scope reading, never as a paint effect:
+// Resolve that relation as part of the scope reading, never as a paint watchEffect:
 // restoring focus and invoking a command in the same turn sees the same routes.
 const contextScopeReaders = new Set();
 export function contextScopes(title, resolve) {
@@ -638,6 +639,24 @@ export const commandsOn = directive(
   },
 );
 
+/** Solid's owned setup creates the scope; its ref only captures the element. */
+export function scopeRef(title, rows, options) {
+  let element;
+  let attachment;
+  onCleanup(() => {
+    if (element && detachScope(element, attachment)) repaint();
+  });
+  return (node) => {
+    element = node;
+    attachment = attachScope(
+      node,
+      rows === undefined && isCommandScope(title)
+        ? title.scope
+        : declaredScope(title, typeof rows === "function" ? rows(node) : rows, options),
+    );
+  };
+}
+
 /** Declare a command scope that presentation owners attach to generated controls.
  *
  * The declaration is browser state, not a hidden source element. Margin and Page Map
@@ -782,7 +801,7 @@ export function reflectFirstScopes() {
 //
 // An element's reflection reads its rows' liveness, and that reads two kinds of input.
 // What it reads from the semantic root or from a signal is tracked: each reflection runs
-// as a signals effect, and a publication or signal that moves something it read marks
+// as a signals watchEffect, and a publication or signal that moves something it read marks
 // that element alone for the next frame. So a module's own state that a row reads is a
 // signal: a plain variable is read once, and a change to it reaches the element only
 // when something else marks it. What it reads from the document is a mechanical
@@ -796,7 +815,7 @@ const tracked = new WeakMap();
 // Native buttons read the same predicates for their availability. Which button a
 // command names is gathered across every scope on each pass, since a command may name a
 // control outside the element declaring it; each button's availability is its own
-// tracked effect (`reflectButton`), read again when a signal it read moves or a key
+// tracked watchEffect (`reflectButton`), read again when a signal it read moves or a key
 // paint reaches it; where the user stands is such a signal (focus.js, `focused`). Every
 // button is read again when a declaration is attached or withdrawn, a command reader
 // registers, and on `paintKeys()`. Contribution projections read the same predicates,
@@ -809,7 +828,7 @@ function reflectAvailabilityReaders() {
   availabilityTracking?.();
   let first = true;
   let failure = null;
-  availabilityTracking = effect(() => {
+  availabilityTracking = watchEffect(() => {
     if (first) {
       first = false;
       try {
@@ -872,7 +891,7 @@ function reflectTracked(element) {
   const ref = new WeakRef(element);
   let first = true;
   let failure = null;
-  const dispose = effect(() => {
+  const dispose = watchEffect(() => {
     if (first) {
       first = false;
       try {

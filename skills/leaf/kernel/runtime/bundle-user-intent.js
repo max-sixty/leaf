@@ -225,10 +225,15 @@ import {
   whenWidgetsPresented
 } from "./bundle-semantic-state.js";
 import {
-  M,
+  For,
   PENDING,
+  Show,
   bindQueuedWork,
+  createSignal,
+  createView,
+  default as default2,
   editable,
+  flush,
   html,
   isElementName,
   isReaction,
@@ -239,7 +244,6 @@ import {
   nothing,
   pendingForParent,
   render,
-  repeat,
   sameAnchor,
   seatRoot,
   share,
@@ -3712,6 +3716,7 @@ var ReactionStripView = class {
   #commands;
   #registration = null;
   #model = null;
+  #view = null;
   #paletteId = `lf-reactions-${++ordinal}`;
   constructor(commands2) {
     this.#commands = commands2;
@@ -3723,51 +3728,55 @@ var ReactionStripView = class {
   present(model) {
     this.#model = model;
     this.node.classList.toggle("lf-open", model.latest);
-    render(
-      html` <button
-          type="button"
-          class="lf-msg-control lf-react-trigger lf-ui"
-          data-lf-gen="1"
-          data-lf-offer="button"
-          aria-expanded="false"
-          aria-controls=${this.#paletteId}
-          aria-label="Add reaction"
-          title="Add reaction"
-          @click=${() => this.#registration.toggle()}
-        >
-          ${iconTemplate("reaction", "lf-msg-control-icon")}
-        </button>
-        <span
-          class="lf-react-palette"
-          id=${this.#paletteId}
-          popover="auto"
-          role="group"
-          @toggle=${(event) => {
-        if (event.newState === "closed") this.#registration.close();
-      }}
-          aria-label="Reactions for this reply"
-        >
-          ${repeat(
-        model.choices,
-        (choice) => choice.name,
-        (choice) => html` <button
-                type="button"
-                class="lf-outline-chip lf-react ${HOLDS_WORD} lf-ui"
-                data-lf-gen="1"
-                data-lf-offer="button"
-                data-token=${choice.name}
-                title=${choice.label}
-                aria-label=${choice.label}
-                aria-pressed=${String(Boolean(choice.inForce))}
-                aria-busy=${String(Boolean(choice.inForce?.pending))}
-                @click=${() => this.#press(choice.name)}
-              >
-                <span class="lf-react-glyph">${choice.glyph}</span>
-              </button>`
-      )}
-        </span>`,
-      this.node
-    );
+    if (!this.#view) {
+      this.#view = createView(
+        this.node,
+        (reading) => default2` <button
+              type="button"
+              class="lf-msg-control lf-react-trigger lf-ui"
+              data-lf-gen="1"
+              data-lf-offer="button"
+              aria-expanded="false"
+              aria-controls=${this.#paletteId}
+              aria-label="Add reaction"
+              title="Add reaction"
+              onClick=${() => this.#registration.toggle()}
+            >
+              ${iconElement("reaction", "lf-msg-control-icon")}
+            </button>
+            <span
+              class="lf-react-palette"
+              id=${this.#paletteId}
+              popover="auto"
+              role="group"
+              onToggle=${(event) => {
+          if (event.newState === "closed") this.#registration.close();
+        }}
+              aria-label="Reactions for this reply"
+              >${For({
+          get each() {
+            return reading().choices;
+          },
+          keyed: (choice) => choice.name,
+          children: (choice) => default2`<button
+              type="button"
+              class=${`lf-outline-chip lf-react ${HOLDS_WORD} lf-ui`}
+              data-lf-gen="1"
+              data-lf-offer="button"
+              data-token=${() => choice().name}
+              title=${() => choice().label}
+              aria-label=${() => choice().label}
+              aria-pressed=${() => String(Boolean(choice().inForce))}
+              aria-busy=${() => String(Boolean(choice().inForce?.pending))}
+              onClick=${() => this.#press(choice().name)}
+            >
+              <span class="lf-react-glyph">${() => choice().glyph}</span>
+            </button>`
+        })}</span
+            >`,
+        model
+      );
+    } else this.#view.update(model);
     this.#registration ??= this.#commands.registerSurface(this.node, {
       trigger: this.node.querySelector(".lf-react-trigger"),
       palette: this.node.querySelector(".lf-react-palette"),
@@ -6636,12 +6645,12 @@ var ThreadView = class {
   #rewrites;
   // The model this card shows. A signal, because its commands' liveness reads it, and
   // key and button reflection follow what they read (keyboard/scopes.js).
-  #shown = M(null);
+  #shown = createSignal(null, { ownedWrite: true });
   get #model() {
-    return this.#shown.value;
+    return this.#shown[0]();
   }
   set #model(model) {
-    this.#shown.value = model;
+    flush(() => this.#shown[1](() => model));
   }
   #transcript;
   #reply = null;
@@ -7102,6 +7111,18 @@ var ResolvedThreads = class {
   node = document.createElement("details");
   summary = document.createElement("summary");
   #threads = [];
+  #drawing = createView(
+    this.summary,
+    (state) => default2`Resolved ·
+      ${() => state().count}${Show({
+      get when() {
+        return state().notice;
+      },
+      children: (notice2) => default2` ·
+            <span class="lf-thread-notice lf-thread-notice-news">${notice2}</span>`
+    })}`,
+    { count: 0, notice: null }
+  );
   constructor(opened) {
     this.node.className = "lf-resolved-threads lf-ui";
     this.node.dataset.lfRuntime = "";
@@ -7121,12 +7142,7 @@ var ResolvedThreads = class {
     this.#threads = threads;
     const held = threads.flatMap(({ news }) => news ? [news] : []);
     const notice2 = held.length > 1 ? `${held.length} ${held.every(({ reopened }) => reopened) ? "reopened" : "changed"}` : held[0]?.label ?? null;
-    render(
-      html`Resolved ·
-      ${threads.length}${notice2 ? html` ·
-              <span class="lf-thread-notice lf-thread-notice-news">${notice2}</span>` : ""}`,
-      this.summary
-    );
+    this.#drawing.update({ count: threads.length, notice: notice2 });
     setChildren(this.node, [this.summary, ...nodes]);
   }
 };

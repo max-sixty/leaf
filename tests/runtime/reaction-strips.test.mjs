@@ -41,3 +41,20 @@ test("pressing a reaction the user does not have puts it on", () => {
   press("no");
   assert.deepEqual(asked, [["t1", "m1", "no", true]]);
 });
+
+test("a changed reaction reading retains the focused control and updates its state", () => {
+  const { view } = strip([]);
+  const control = view.node.querySelector('[data-token="ok"]');
+  control.focus();
+  view.present({
+    thread: "t1",
+    message: "m1",
+    latest: true,
+    choices: tokenChoices({ ok: { glyph: "👍" }, no: { glyph: "👎" } }, [
+      { id: "r1", token: "ok" },
+    ]),
+  });
+  assert.equal(view.node.querySelector('[data-token="ok"]'), control);
+  assert.equal(document.activeElement, control);
+  assert.equal(control.getAttribute("aria-pressed"), "true");
+});

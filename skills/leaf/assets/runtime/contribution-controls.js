@@ -2,7 +2,7 @@
    retains their command scopes and presented controls, independently of the renderer
    that seats them. Every projection uses this directory for control, focus and
    containment, so a producer updates one registration whichever surface shows it. */
-import { html, render } from "/vendor/browser-runtime.js";
+import { solidHtml as html, createView, Show } from "/vendor/browser-runtime.js";
 import { iconElement } from "./icons.js";
 import { HOLDS_WORD } from "./held-word.js";
 import { progressFace, workflowLabel } from "./thread/workflow.js";
@@ -398,6 +398,8 @@ export const contributionReceipts = elementDirective(
   presentContributionReceipts,
 );
 
+const contributionDrawings = new WeakMap();
+
 export function presentContributionEntry(control, offered, options = {}) {
   const record = presentContributionHost(control, offered, options);
   if (Object.hasOwn(options, "selected"))
@@ -412,28 +414,51 @@ export function presentContributionEntry(control, offered, options = {}) {
   for (const name of nextClasses) control.classList.toggle(name, true);
   contributorClasses.set(control, nextClasses);
   const visibleLabel = visibleContributionEntryLabel(record);
-  const glyph = record.icon
-    ? iconFor(control, record.icon)
-    : html`<span class="lf-margin-entry-glyph" aria-hidden="true"
-        >${record.glyph}</span
-      >`;
-  render(
-    html`${glyph}<span class="lf-margin-entry-space" aria-hidden="true"> </span
-      ><span class="lf-margin-entry-label" aria-hidden="true"
-        ><span class="lf-margin-entry-label-word">${visibleLabel}</span>${
-          record.context
-            ? html`<span class="lf-margin-entry-context">${record.context}</span>`
-            : null
-        }<span class="lf-margin-entry-more"></span></span
-      >${
-        record.count > 1
-          ? html`<span class="lf-margin-count" aria-hidden="true"
-              >${record.count}</span
-            >`
-          : null
-      }`,
-    control,
-  );
+  const props = {
+    record,
+    visibleLabel,
+    icon: record.icon ? iconFor(control, record.icon) : null,
+  };
+  let drawing = contributionDrawings.get(control);
+  if (!drawing) {
+    drawing = createView(
+      control,
+      (state) =>
+        html` ${Show({
+        get when() {
+          return state().icon;
+        },
+        keyed: true,
+        children: (icon) => icon,
+        fallback: html`<span class="lf-margin-entry-glyph" aria-hidden="true"
+          >${() => state().record.glyph}</span
+        >`,
+      })}
+          <span class="lf-margin-entry-space" aria-hidden="true"> </span>
+          <span class="lf-margin-entry-label" aria-hidden="true">
+            <span class="lf-margin-entry-label-word"
+              >${() => state().visibleLabel}</span
+            >
+            ${Show({
+          get when() {
+            return state().record.context;
+          },
+          children: (context) =>
+            html`<span class="lf-margin-entry-context">${context}</span>`,
+        })}
+            <span class="lf-margin-entry-more"></span>
+          </span>
+          ${Show({
+        get when() {
+          return state().record.count > 1 ? state().record.count : null;
+        },
+        children: (count) =>
+          html`<span class="lf-margin-count" aria-hidden="true">${count}</span>`,
+      })}`,
+      props,
+    );
+    contributionDrawings.set(control, drawing);
+  } else drawing.update(props);
   paintAgentDescription(control);
   return control;
 }

@@ -1,4 +1,13 @@
 /** Internal framework facade. Content modules import runtime/widget-api.js. */
+export {
+  createSignal,
+  createMemo,
+  createRoot,
+  createEffect,
+  createTrackedEffect,
+  flush,
+  untrack,
+} from "@solidjs/signals";
 export { LitElement, html, noChange, nothing, render } from "lit";
 export { Directive, PartType, directive } from "lit/directive.js";
 export { AsyncDirective } from "lit/async-directive.js";
@@ -10,7 +19,10 @@ export { createRef, ref } from "lit/directives/ref.js";
 export { repeat } from "lit/directives/repeat.js";
 export { styleMap } from "lit/directives/style-map.js";
 export { unsafeHTML } from "lit/directives/unsafe-html.js";
-export { effect, signal } from "@preact/signals-core";
+export { watchEffect } from "./observe.js";
+export { createView } from "./views.js";
+export { For, Show, onCleanup } from "solid-js";
+export { default as solidHtml } from "@solidjs/html";
 export { createSemanticApplication } from "./application.js";
 export { collectReads, outsideReading, share, untracked } from "./snapshot.js";
 export {

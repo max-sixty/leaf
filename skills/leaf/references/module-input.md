@@ -61,7 +61,7 @@ it lacks. `ready` is described in `module-authoring.md`, "Startup and presentati
 in "Inline shortcut hints".
 
 Leaf re-evaluates a `when` or a computed field when the readings it uses change, such as
-a widget's state or the threads. For other state it reads, hold the value in a `signal`
+a widget's state or the threads. For other state it reads, hold the value in a `createSignal`
 or call `paintKeys()` after changing it, since Leaf can't see a plain variable change.
 
 ### How scopes compose

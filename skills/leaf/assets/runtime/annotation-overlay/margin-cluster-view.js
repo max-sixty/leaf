@@ -7,7 +7,6 @@
  * The overlay owns selection, keyboard state, and whole-host placement; no other code
  * inserts, moves, or removes a child inside a view.
  */
-import { html, render } from "/vendor/browser-runtime.js";
 import { setChildLists } from "../dom-children.js";
 import {
   clearContributionControls,
@@ -18,7 +17,7 @@ import {
 } from "../contribution-controls.js";
 import { contributionSource } from "../contributions.js";
 import { el, offer } from "../widget-elements.js";
-import { keeps, keepsHidden } from "../keeps.js";
+import { keeps, keepsHidden, keepsText } from "../keeps.js";
 import { holdFocus } from "../focus.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
@@ -169,7 +168,7 @@ export function createMarginClusterViews({
         contributionNotices.set(contributionSource(item.offered), node);
       }
       keeps(node, "data-lf-margin-receipt", item.notice.tone);
-      render(html`${item.notice.text}`, node);
+      keepsText(node, item.notice.text);
       return node;
     }
     throw new Error(`Unknown margin presentation item: ${item.kind}`);

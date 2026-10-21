@@ -74,9 +74,6 @@ importers:
       '@pierre/trees':
         specifier: 1.0.0-beta.6
         version: 1.0.0-beta.6(@pierre/theme@2.0.0)(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(shiki@4.5.0)
-      '@preact/signals-core':
-        specifier: 1.14.4
-        version: 1.14.4
       '@shikijs/core':
         specifier: 4.5.0
         version: 4.5.0
@@ -86,6 +83,15 @@ importers:
       '@shikijs/langs':
         specifier: 4.5.0
         version: 4.5.0
+      '@solidjs/html':
+        specifier: 2.0.0-rc.16
+        version: 2.0.0-rc.16(@solidjs/web@2.0.0-rc.16(solid-js@2.0.0-rc.16))
+      '@solidjs/signals':
+        specifier: 2.0.0-rc.16
+        version: 2.0.0-rc.16
+      '@solidjs/web':
+        specifier: 2.0.0-rc.16
+        version: 2.0.0-rc.16(solid-js@2.0.0-rc.16)
       '@types/node':
         specifier: 26.6.4
         version: 26.6.4
@@ -149,6 +155,9 @@ importers:
       smol-toml:
         specifier: 1.9.0
         version: 1.9.0
+      solid-js:
+        specifier: 2.0.0-rc.16
+        version: 2.0.0-rc.16
       sortablejs:
         specifier: 1.15.7
         version: 1.15.7
@@ -1743,9 +1752,6 @@ packages:
   '@posthog/core@1.23.1':
     resolution: {integrity: sha512-GViD5mOv/mcbZcyzz3z9CS0R79JzxVaqEz4sP5Dsea178M/j3ZWe6gaHDZB9yuyGfcmIMQ/8K14yv+7QrK4sQQ==}
 
-  '@preact/signals-core@1.14.4':
-    resolution: {integrity: sha512-HNB6HYeYKhQbJ1aKl+YRjrS4+QWHLKX6qKoUsfS/m0vqzsVaEBiZiaKbG/e+NKk2ch5ALQr/ihWaMHxiCuuWHA==}
-
   '@protobufjs/aspromise@1.1.2':
     resolution: {integrity: sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ==}
 
@@ -2012,6 +2018,22 @@ packages:
 
   '@socket.io/component-emitter@3.1.2':
     resolution: {integrity: sha512-9BCxFwvbGg/RsZK9tjXd8s4UcwR0MWeFQ1XEKIQVVvAGJyINdrqKMcTRyLoK8Rse1GjzLV9cwjWV1olXRWEXVA==}
+
+  '@solidjs/html@2.0.0-rc.16':
+    resolution: {integrity: sha512-4YNkWkiy+WVxYg/98ODXihF8aTeqr8+EA16pJ1D0uBLbqPzSsSv6NTqSlrqgcbajjyqgKitS2gG+/l3zGtaxbQ==}
+    engines: {node: '>=22.12.0'}
+    peerDependencies:
+      '@solidjs/web': ^2.0.0-rc.16
+
+  '@solidjs/signals@2.0.0-rc.16':
+    resolution: {integrity: sha512-WPMb8FuAVKyzF6sIgZn/c89V69VS3R4DtCnOoaS1ZXy5Uos9K/8yrclyQkG6kqkN3ubtPiPnaPfdjt/jfsi4qQ==}
+    engines: {node: '>=22.12.0'}
+
+  '@solidjs/web@2.0.0-rc.16':
+    resolution: {integrity: sha512-dWbRvG8PlcXelWYdoOmyJwItFPrPSsppUbOJ/RLrQhesQD3sEL9BTRUi8vdXyi+rdA8klYvxJtB43/BTqxJcbw==}
+    engines: {node: '>=22.12.0'}
+    peerDependencies:
+      solid-js: ^2.0.0-rc.16
 
   '@speed-highlight/core@1.2.24':
     resolution: {integrity: sha512-qeW2e1l78afw8VhRPfPQ1Gjj+KU5XFQ/OFV5ti6eTa9bruO7mJyZtA4vw0ofqmA3tKCkROE9xLk3VZoeRc98nw==}
@@ -4211,6 +4233,16 @@ packages:
     resolution: {integrity: sha512-1gnZf7DFcoIcajTjTwjwuDjzuz4PPcY2StKPlsGAQ1+YH20IRVrBaXSWmdjowTJ6u8Rc01PoYOGHXfP1mYcZNQ==}
     engines: {node: '>= 18'}
 
+  seroval-plugins@1.6.7:
+    resolution: {integrity: sha512-4Nk35ttD3DTDJW4hgw5StsVAPeU6qnDFnULAouw6tQ7oLTV/ICXrWpsXo2EE52eSP2joUMazbVf52mFEcADqRw==}
+    engines: {node: '>=10'}
+    peerDependencies:
+      seroval: ^1.0
+
+  seroval@1.6.7:
+    resolution: {integrity: sha512-AeDcLh0yO2SFm9W71essgnSzLV9DI8ZH0x0knXn2DMnUZj728mpLbxjlbB6IqKCmqh8JA3cEqRyGoNkt584JcQ==}
+    engines: {node: '>=10'}
+
   serve-static@2.2.1:
     resolution: {integrity: sha512-xRXBn0pPqQTVQiC8wyQrKs2MOlX24zQ0POGaj0kultvoOCstBQM5yvOhAVSUwOMjQtTvsPWoNCHfPGwaaQJhTw==}
     engines: {node: '>= 18'}
@@ -4295,6 +4327,10 @@ packages:
   socks@2.8.10:
     resolution: {integrity: sha512-e0VyvkVTwVYViNovRkZ9aodhxVlyoMn7eJhVUPxZ+eK9P/7CBkxvvsBOHqFPEH416726W8tLXXXjKwqgTErrCQ==}
     engines: {node: '>= 10.0.0', npm: '>= 3.0.0'}
+
+  solid-js@2.0.0-rc.16:
+    resolution: {integrity: sha512-GtrX+ieB9ctN2eQ0raDOHAHZBpFPoMn98gCsUn6YD5hz0xSou3zzV4J3Hti6xclvvrnPIFO8NJ+kk+pXbuXPHg==}
+    engines: {node: '>=22.12.0'}
 
   sortablejs@1.15.7:
     resolution: {integrity: sha512-Kk8wLQPlS+yi1ZEf48a4+fzHa4yxjC30M/Sr2AnQu+f/MPwvvX9XjZ6OWejiz8crBsLwSq8GHqaxaET7u6ux0A==}
@@ -6514,8 +6550,6 @@ snapshots:
     dependencies:
       cross-spawn: 7.0.6
 
-  '@preact/signals-core@1.14.4': {}
-
   '@protobufjs/aspromise@1.1.2': {}
 
   '@protobufjs/base64@1.1.2': {}
@@ -6741,6 +6775,18 @@ snapshots:
       text-hex: 1.0.0
 
   '@socket.io/component-emitter@3.1.2': {}
+
+  '@solidjs/html@2.0.0-rc.16(@solidjs/web@2.0.0-rc.16(solid-js@2.0.0-rc.16))':
+    dependencies:
+      '@solidjs/web': 2.0.0-rc.16(solid-js@2.0.0-rc.16)
+
+  '@solidjs/signals@2.0.0-rc.16': {}
+
+  '@solidjs/web@2.0.0-rc.16(solid-js@2.0.0-rc.16)':
+    dependencies:
+      seroval: 1.6.7
+      seroval-plugins: 1.6.7(seroval@1.6.7)
+      solid-js: 2.0.0-rc.16
 
   '@speed-highlight/core@1.2.24': {}
 
@@ -9029,6 +9075,12 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  seroval-plugins@1.6.7(seroval@1.6.7):
+    dependencies:
+      seroval: 1.6.7
+
+  seroval@1.6.7: {}
+
   serve-static@2.2.1:
     dependencies:
       encodeurl: 2.0.0
@@ -9189,6 +9241,13 @@ snapshots:
     dependencies:
       ip-address: 10.7.3
       smart-buffer: 4.2.0
+
+  solid-js@2.0.0-rc.16:
+    dependencies:
+      '@solidjs/signals': 2.0.0-rc.16
+      csstype: 3.2.3
+      seroval: 1.6.7
+      seroval-plugins: 1.6.7(seroval@1.6.7)
 
   sortablejs@1.15.7: {}
 

@@ -101,41 +101,14 @@ test("locked source reproduces the complete committed output", async () => {
   const rebuilt = await buildOutputs();
   assert.deepEqual(rebuilt, outputs);
   await checkOutputs(outputs);
-  assert.deepEqual(exportsOf(read("browser-runtime.js")), [
-    "AsyncDirective",
-    "Directive",
-    "LitElement",
-    "PartType",
-    "classMap",
-    "collectReads",
-    "createPresentationCoordinator",
-    "createPresentationSchedule",
-    "createRef",
-    "createSemanticApplication",
-    "describeFailure",
-    "directive",
-    "effect",
-    "guard",
-    "html",
-    "keyed",
-    "live",
-    "noChange",
-    "nothing",
-    "outsideReading",
-    "ref",
-    "render",
-    "repeat",
-    "share",
-    "signal",
-    "styleMap",
-    "unsafeHTML",
-    "untracked",
-  ]);
+  const solid = exportsOf(read("solid.js"));
+  for (const name of ["createSignal", "render", "solidHtml", "For"])
+    assert.ok(solid.includes(name), name);
   const lit = exportsOf(read("lit.js"));
   for (const name of ["LitElement", "html", "classMap", "property", "staticHtml"])
     assert.ok(lit.includes(name), name);
   const notices = read("browser-runtime.LICENSES.txt");
-  for (const name of ["lit-html", "@preact/signals-core"])
+  for (const name of ["lit-html", "@solidjs/signals", "@solidjs/web", "@solidjs/html"])
     assert.ok(notices.includes(`===== ${name} `), name);
 });
 
@@ -169,9 +142,9 @@ test("each source module compiles to one module that keeps its lines", async () 
   assert.match(read("browser-runtime.js"), /^export \{[^}]*\} from "\.\/lit\.js";$/m);
   assert.match(
     read("browser-runtime/snapshot.js"),
-    /^import \{ computed, signal \} from "\.\/signals-core\.js";$/m,
+    /^import \{ createMemo, createSignal, flush, untrack \} from "\.\.\/solid\.js";$/m,
   );
-  for (const name of modules.filter((name) => !name.endsWith("signals-core.js")))
+  for (const name of modules)
     assert.ok(!outputs.get(name).includes("litHtmlVersions"), name);
 });
 

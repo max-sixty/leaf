@@ -36,15 +36,20 @@ import {
 import {
   AsyncDirective,
   Directive,
-  M,
   PartType,
-  Z,
+  Show,
+  createSignal,
+  createView,
+  default as default2,
   describeFailure,
   directive,
+  flush,
   html,
   isElementName,
   nothing,
-  render
+  onCleanup,
+  untrack,
+  watchEffect
 } from "./bundle-queued-work.js";
 
 // runtime/page-paint.js
@@ -281,7 +286,7 @@ function schedule(delay = 250) {
   if (scheduled !== null || sending || !queue.length) return;
   scheduled = setTimeout(() => {
     scheduled = null;
-    void flush();
+    void flush2();
   }, delay);
 }
 function append(row) {
@@ -345,7 +350,7 @@ function post(body) {
     keepalive: encoder.encode(body).length < 6e4
   });
 }
-async function flush() {
+async function flush2() {
   if (sending || !queue.length) return;
   sending = true;
   const { count, body } = batch(0, 1e5);
@@ -1428,7 +1433,7 @@ function reflectButton(control, candidates) {
   const ref = new WeakRef(control);
   let reading = candidates;
   let failure = null;
-  const dispose = Z(() => {
+  const dispose = watchEffect(() => {
     if (reading) {
       const read = reading;
       reading = null;
@@ -1720,6 +1725,20 @@ var commandsOn = directive(
     }
   }
 );
+function scopeRef(title, rows, options) {
+  let element;
+  let attachment;
+  onCleanup(() => {
+    if (element && detachScope(element, attachment)) repaint();
+  });
+  return (node) => {
+    element = node;
+    attachment = attachScope(
+      node,
+      rows === void 0 && isCommandScope(title) ? title.scope : declaredScope(title, typeof rows === "function" ? rows(node) : rows, options)
+    );
+  };
+}
 function commandScope(title, rows, options) {
   const scope = {
     ...declaredScope(title, rows, options),
@@ -1836,7 +1855,7 @@ function reflectAvailabilityReaders() {
   availabilityTracking?.();
   let first = true;
   let failure = null;
-  availabilityTracking = Z(() => {
+  availabilityTracking = watchEffect(() => {
     if (first) {
       first = false;
       try {
@@ -1885,7 +1904,7 @@ function reflectTracked(element) {
   const ref = new WeakRef(element);
   let first = true;
   let failure = null;
-  const dispose = Z(() => {
+  const dispose = watchEffect(() => {
     if (first) {
       first = false;
       try {
@@ -2716,9 +2735,17 @@ function iconTemplate(icon, className = "lf-margin-entry-icon") {
   ></svg>`;
 }
 function iconElement(icon, className = "lf-margin-entry-icon") {
-  const holder = document.createDocumentFragment();
-  render(iconTemplate(icon, className), holder);
-  return holder.querySelector("svg");
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  for (const [name, value] of Object.entries({
+    viewBox: "0 0 16 16",
+    focusable: "false",
+    "aria-hidden": "true",
+    class: className,
+    "data-lf-icon": icon
+  }))
+    svg.setAttribute(name, value);
+  svg.innerHTML = iconMarkup(icon);
+  return svg;
 }
 
 // runtime/widget-elements.js
@@ -2754,13 +2781,13 @@ function el(tag, cls, text) {
   if (text !== void 0) node.textContent = text;
   return node;
 }
-var hands = M(/* @__PURE__ */ new Set());
-var dragHeld = () => hands.value.size > 0;
+var [hands, setHands] = createSignal(/* @__PURE__ */ new Set(), { ownedWrite: true });
+var dragHeld = () => hands().size > 0;
 var dragging = (el2, on) => {
-  const held = new Set(hands.peek());
+  const held = new Set(untrack(hands));
   if (on) held.add(el2);
   else held.delete(el2);
-  hands.value = held;
+  flush(() => setHands(() => held));
   paintKeysWithin(el2);
 };
 var LAYOUT = "lf-layout";
@@ -2857,6 +2884,7 @@ function elementDirective(name, write) {
   );
 }
 var offered = elementDirective("offered", offerElement);
+var offerRef = (...args) => (element) => offerElement(element, ...args);
 function selectableOffer(role, cls, label) {
   const node = document.createElement("span");
   node.setAttribute("role", role);
@@ -2911,6 +2939,7 @@ function closeControl({ name, title = name, className = "" }) {
   control.title = title;
   return control;
 }
+var responseDrawings = /* @__PURE__ */ new WeakMap();
 function responseAction(control, { glyph = null, icon = null, label, behavior = "action", collapse = false }) {
   if (Boolean(String(glyph ?? "").trim()) === Boolean(icon))
     throw new TypeError("A response action needs exactly one glyph or icon");
@@ -2922,13 +2951,29 @@ function responseAction(control, { glyph = null, icon = null, label, behavior = 
     control.setAttribute("aria-expanded", "false");
   if (behavior === "action") control.removeAttribute("aria-expanded");
   if (!control.hasAttribute("aria-label")) control.setAttribute("aria-label", label);
-  render(
-    html`${icon ? iconTemplate(icon) : html`<span class="lf-response-action-glyph" aria-hidden="true"
-              >${glyph}</span
-            >`}<span class="lf-response-action-space" aria-hidden="true"> </span
-      ><span class="lf-response-action-label">${label}</span>`,
-    control
-  );
+  const props = { icon, glyph, label };
+  let drawing = responseDrawings.get(control);
+  if (!drawing) {
+    drawing = createView(
+      control,
+      (state) => {
+        const glyph2 = default2`<span class="lf-response-action-glyph" aria-hidden="true"
+          >${() => state().glyph}</span
+        >`;
+        return default2`${Show({
+          get when() {
+            return state().icon;
+          },
+          keyed: true,
+          fallback: glyph2,
+          children: (icon2) => iconElement(icon2)
+        })}<span class="lf-response-action-space" aria-hidden="true"> </span>
+          <span class="lf-response-action-label">${() => state().label}</span>`;
+      },
+      props
+    );
+    responseDrawings.set(control, drawing);
+  } else drawing.update(props);
   return control;
 }
 function motionPreview(label) {
@@ -3476,6 +3521,7 @@ export {
   merge,
   keys,
   commandsOn,
+  scopeRef,
   commandScope,
   projectCommandScope,
   commandDeclarationsWithin,
@@ -3557,6 +3603,7 @@ export {
   searchField,
   elementDirective,
   offered,
+  offerRef,
   selectableOffer,
   PRESSABLE,
   reachedForWords,

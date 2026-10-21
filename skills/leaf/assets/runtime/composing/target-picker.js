@@ -1,11 +1,12 @@
 /* This module owns the target picker and whole-page text search. Its transient hints,
  * search marks, and status are synchronous Lit projections over native controller state. */
+import { keepsText } from "../keeps.js";
 import { anchoringIsReady } from "../anchor-resolution.js";
 import { bindings, bindingEnabled, cycledRow } from "../keyboard/bindings.js";
 import { el, LAYOUT, searchField } from "../widget-elements.js";
 import { iconElement } from "../icons.js";
 import { coarsePointer } from "../pointer.js";
-import { html, nothing, render, signal } from "/vendor/browser-runtime.js";
+import { html, nothing, createSignal, flush } from "/vendor/browser-runtime.js";
 
 import {
   contextAround,
@@ -143,7 +144,7 @@ export function createTargetPicker({
   // The search's matches are a signal because the walk's rows read them for the arrows'
   // availability, which follows the signals it reads (keyboard/scopes.js): a query
   // that arrives with no key, as a paste does, offers the arrows all the same.
-  const matches = signal([]);
+  const [matches, setMatches] = createSignal([], { ownedWrite: true });
   let matchesIn = null; // the reading `matches` were found in
   let active = -1;
   let searchReturnsToHints = false;
@@ -248,7 +249,7 @@ export function createTargetPicker({
     pickerOpen = on;
     pageSearchOpen = false;
     searchReturnsToHints = false;
-    matches.value = [];
+    flush(() => setMatches(() => []));
     active = -1;
     pageSearchInput.value = "";
     keepsHidden(pageSearchSurface, true);
@@ -284,7 +285,7 @@ export function createTargetPicker({
       announce("Search the page.");
     } else {
       pageSearchInput.value = "";
-      matches.value = [];
+      flush(() => setMatches(() => []));
       active = -1;
       releaseFocus();
       // Search may have travelled to a match, so the map the user comes back to is read
@@ -326,10 +327,10 @@ export function createTargetPicker({
     const query = pageSearchInput.value.trim();
     const status = !query
       ? nothing
-      : matches.value.length
-        ? searchCount(active + 1, matches.value.length)
+      : matches().length
+        ? searchCount(active + 1, matches().length)
         : noMatches;
-    render(html`${status}`, pageSearchWords);
+    keepsText(pageSearchWords, status);
   }
 
   function sameMatch(left, right) {
@@ -381,15 +382,15 @@ export function createTargetPicker({
   }
 
   function matchWalkPosition(query) {
-    if (!query || active < 0 || active >= matches.value.length) return null;
-    if (!matchIsRangeable(matches.value[active])) return null;
+    if (!query || active < 0 || active >= matches().length) return null;
+    if (!matchIsRangeable(matches()[active])) return null;
     // An open search owns its highlighted match. A repeated n/N search owns a native
     // selection instead; leaving that selection retires both its readout and refresh.
-    if (!pageSearchOpen && !selectionIs(matches.value[active])) return null;
+    if (!pageSearchOpen && !selectionIs(matches()[active])) return null;
     return {
-      target: matchIdentity(query, matches.value[active]),
+      target: matchIdentity(query, matches()[active]),
       position: active + 1,
-      total: matches.value.length,
+      total: matches().length,
       qualifier: "",
     };
   }
@@ -405,12 +406,12 @@ export function createTargetPicker({
   // matches again first, keeping the active one where it still stands.
   function refreshMatches() {
     const query = pageSearchOpen ? pageSearchInput.value.trim() : repeatedSearch?.query;
-    const current = matches.value[active];
+    const current = matches()[active];
     if (!query || !current || pageText() === matchesIn) return false;
     const found = find(query);
     const same = found.findIndex((candidate) => sameMatch(candidate, current));
     active = same >= 0 ? same : found.length ? Math.min(active, found.length - 1) : -1;
-    matches.value = found;
+    flush(() => setMatches(() => found));
     if (repeatedSearch && !pageSearchOpen && active >= 0) repeatedSearch.index = active;
     return true;
   }
@@ -426,30 +427,30 @@ export function createTargetPicker({
 
   function search() {
     const query = pageSearchInput.value.trim();
-    matches.value = query ? find(query) : [];
-    active = matches.value.length ? startingMatch(matches.value) : -1;
+    flush(() => setMatches(() => (query ? find(query) : [])));
+    active = matches().length ? startingMatch(matches()) : -1;
     presentSearchStatus();
     showMatch();
     repaint();
   }
 
   function showMatch() {
-    const segments = matches.value[active];
+    const segments = matches()[active];
     if (!segments || matchRect(segments)) return;
     scrollToRange(rangeOf(segments), "instant");
   }
 
   function moveMatch(direction) {
     refreshMatches();
-    if (!matches.value.length) return presentSearchStatus();
-    const { row, wrapped } = cycledRow(matches.value, matches.value[active], direction);
-    active = matches.value.indexOf(row);
+    if (!matches().length) return presentSearchStatus();
+    const { row, wrapped } = cycledRow(matches(), matches()[active], direction);
+    active = matches().indexOf(row);
     presentSearchStatus();
     showMatch();
     const query = pageSearchInput.value.trim();
     beginWalk("page-search", "Match", () => matchWalkPosition(query), wrapped);
     announce(
-      `Match ${active + 1} of ${matches.value.length}: ${matchDescription(matches.value[active])}.`,
+      `Match ${active + 1} of ${matches().length}: ${matchDescription(matches()[active])}.`,
     );
     repaint();
   }
@@ -470,9 +471,9 @@ export function createTargetPicker({
 
   function chooseMatch() {
     refreshMatches();
-    const segments = matches.value[active];
+    const segments = matches()[active];
     if (!segments) return;
-    const quote = quoteFrom(matches.value[active]);
+    const quote = quoteFrom(matches()[active]);
     repeatedSearch = { query: pageSearchInput.value.trim(), index: active };
     setTargetPicker(false);
     selectMatch(segments);
@@ -496,23 +497,23 @@ export function createTargetPicker({
   }
 
   function repeatSearch(direction) {
-    matches.value = find(repeatedSearch.query);
-    if (!matches.value.length) {
+    flush(() => setMatches(() => find(repeatedSearch.query)));
+    if (!matches().length) {
       repeatedSearch = null;
       active = -1;
       announce("The page no longer contains that search.");
       return repaint();
     }
-    const from = Math.min(repeatedSearch.index, matches.value.length - 1);
-    const { row, wrapped } = cycledRow(matches.value, matches.value[from], direction);
-    active = matches.value.indexOf(row);
+    const from = Math.min(repeatedSearch.index, matches().length - 1);
+    const { row, wrapped } = cycledRow(matches(), matches()[from], direction);
+    active = matches().indexOf(row);
     repeatedSearch.index = active;
     showMatch();
-    selectMatch(matches.value[active]);
+    selectMatch(matches()[active]);
     const query = repeatedSearch.query;
     beginWalk("page-search", "Match", () => matchWalkPosition(query), wrapped);
     announce(
-      `Match ${active + 1} of ${matches.value.length}: ${matchDescription(matches.value[active])}.`,
+      `Match ${active + 1} of ${matches().length}: ${matchDescription(matches()[active])}.`,
     );
   }
 
@@ -586,7 +587,7 @@ export function createTargetPicker({
   // over what holds the words and carried by what carries them
   // (`anchorFor`).
   function paintSearchMatches() {
-    const segments = matches.value[active];
+    const segments = matches()[active];
     const owner = segments && matchIsRangeable(segments) ? matchOwner(segments) : null;
     const reading = room();
     const clip = owner ? reading.clipOver(owner) : null;
@@ -725,7 +726,7 @@ export function createTargetPicker({
         title: "select match",
         // A finger presses the marked match itself (`pressMatch`).
         touch: false,
-        when: () => matches.value.length > 0,
+        when: () => matches().length > 0,
         run: chooseMatch,
       },
       {
@@ -748,7 +749,7 @@ export function createTargetPicker({
         ],
         title: "matches",
         repeat: true,
-        when: () => matches.value.length > 0,
+        when: () => matches().length > 0,
         run: (binding) => moveMatch(binding === "Tab" ? 1 : -1),
       },
       TARGETING_BACK,
@@ -771,7 +772,7 @@ export function createTargetPicker({
   function onMarkedMatch(ev) {
     if (!pageSearchOpen || ev.button !== 0) return false;
     refreshMatches();
-    const segments = matches.value[active];
+    const segments = matches()[active];
     if (!segments || !ev.composedPath().includes(matchOwner(segments))) return false;
     const { clientX: x, clientY: y } = ev;
     return [...rangeOf(segments).getClientRects()].some(

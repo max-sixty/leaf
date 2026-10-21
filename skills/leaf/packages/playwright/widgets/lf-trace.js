@@ -97,7 +97,8 @@ import {
   onUserInput,
   paintKeys,
   projectData,
-  signal,
+  createSignal,
+  flush,
   quoted,
   registerVisualParts,
   scopedMediaUrl,
@@ -263,12 +264,12 @@ customElements.define(
     // The playhead's time from the scope origin when it stands between captures,
     // after scrubbing or playback. Null when it stands on the selected capture. A
     // signal, because the step and event commands' liveness reads it.
-    #cursor = signal(null);
+    #cursor = createSignal(null, { ownedWrite: true });
     get #cursorTime() {
-      return this.#cursor.value;
+      return this.#cursor[0]();
     }
     set #cursorTime(time) {
-      this.#cursor.value = time;
+      flush(() => this.#cursor[1](() => time));
     }
     #scrubbing = false;
     // Nodes of the Lit view that their imperative owners below read and write.

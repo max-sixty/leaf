@@ -1,7 +1,8 @@
 import {
-  M,
   cancelWork,
+  createSignal,
   enqueueWork,
+  flush,
   runWork
 } from "./bundle-queued-work.js";
 
@@ -467,9 +468,9 @@ function landLabelPress() {
     publish2(null, cause(null));
   });
 }
-var standing = M(0);
+var [standing, setStanding] = createSignal(0, { ownedWrite: true });
 var focused = (tree = null) => {
-  void standing.value;
+  void standing();
   let at = heldByLabel() ?? deepFocus();
   if (tree) while (at && at.getRootNode() !== tree) at = shadowHost(at.getRootNode());
   return at;
@@ -578,7 +579,7 @@ function publish2(node, cause2) {
   departed = false;
   const left = published?.deref() ?? null;
   const reading = ++readings2;
-  standing.value = reading;
+  flush(() => setStanding(() => reading));
   if (cause2 === "drop") departed = true;
   else published = node && new WeakRef(node);
   if (node) placeInput = "focus";

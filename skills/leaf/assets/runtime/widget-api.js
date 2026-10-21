@@ -23,7 +23,15 @@ export {
   repeat,
   styleMap,
   unsafeHTML,
-  signal,
+  createSignal,
+  createMemo,
+  createEffect,
+  createRoot,
+  createView,
+  solidHtml,
+  For,
+  flush,
+  untrack,
 } from "/vendor/browser-runtime.js";
 export { move } from "./dom-move.js";
 export { iconElement, iconTemplate } from "./icons.js";
@@ -116,6 +124,7 @@ export { PRESS, labelOf, rowArrows } from "./keyboard/bindings.js";
 export {
   commandScope,
   commandsOn,
+  scopeRef,
   keys as commands,
   paintKeys,
   saying,
@@ -247,6 +256,7 @@ export {
   motionPreview,
   offer,
   offered,
+  offerRef,
   reachedForWords,
   relabel,
   searchField,

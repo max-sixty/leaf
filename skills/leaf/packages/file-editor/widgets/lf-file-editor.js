@@ -43,17 +43,18 @@ import {
   boundFile,
   closeLayer,
   closeNativeLayer,
-  commandsOn,
+  scopeRef,
   el,
   focusDestination,
   focused,
   handBack,
-  html,
-  iconTemplate,
+  solidHtml as html,
+  createView,
+  iconElement,
   isNativeLayer,
   LeafElement,
   nothing,
-  offered,
+  offerRef,
   rove,
   rowWalk,
   shadowStage,
@@ -67,7 +68,7 @@ customElements.define(
   class extends LeafElement {
     #placeSelection = null;
     #view = null;
-    #template = null;
+    #refreshView = null;
     #drawn = null;
 
     setup() {
@@ -79,7 +80,8 @@ customElements.define(
     }
 
     render() {
-      return this.#template?.() ?? nothing;
+      this.#refreshView?.();
+      return nothing;
     }
 
     // What follows a draw runs outside the render, since configuring CodeMirror can
@@ -101,7 +103,7 @@ customElements.define(
       const recoveryKey = `file:${this.id}:${this.getAttribute("binding")}`;
       // The host's grid gives the comparison half the editing room while it is open.
       const internals = this.attachInternals();
-      // Stage one retained owner: Lit's markers belong inside it, and CodeMirror's
+      // Stage one retained owner: Solid owns its generated controls, and CodeMirror's
       // mounts are persistent node values within the template.
       const element = this;
       // The stage, the mounts and the comparison hold the file, which prints, so they are
@@ -280,100 +282,109 @@ customElements.define(
           comparison = null;
         }
       };
-      this.#template = () => {
-        const label = base?.label ?? thisBinding;
-        // A conflict keeps its choices through a failed Save draft, which is its own
-        // retry; the failure then describes the control rather than taking its place.
-        const conflicted = Boolean(latest);
-        const retryable = Boolean(failure) && !latest && api.writable;
-        return html`
-          <div class="lf-file-editor-head">
-            <span class="lf-file-editor-name">${label}</span>
-            <span
-              ${offered("lf-file-editor-status")}
-              title=${failure?.message ?? nothing}
-              >${
-                latest
-                  ? ""
-                  : failure
-                    ? base
-                      ? "Not saved"
-                      : "Unavailable"
-                    : slow
-                      ? "Saving changes…"
-                      : ""
-              }${retryable ? html`<span aria-hidden="true">&nbsp;·&nbsp;</span>` : nothing}<button
-                ${offered("lf-file-editor-retry")}
-                ?hidden=${!retryable}
-                aria-description=${failure?.message ?? nothing}
-                aria-disabled=${busy ? "true" : nothing}
-                @click=${retry}
-              >
-                Retry</button
-              ><button
-                ${offered("lf-file-editor-conflict")}
-                ?hidden=${!conflicted}
-                aria-description=${failure?.message ?? nothing}
-                popovertarget="lf-file-editor-choices"
-                aria-haspopup="menu"
-              >
-                ${failure ? "Not saved" : "Changed on disk"}${iconTemplate(
-                  "down",
-                  "lf-file-editor-chevron",
-                )}
-              </button></span
-            >
-          </div>
-          <div
-            ${offered("lf-file-editor-choices")}
-            id="lf-file-editor-choices"
-            popover="auto"
-            role="menu"
-            aria-label="The file changed on disk"
-            @toggle=${choiceOpened}
-            ${commandsOn("In the file's conflict menu", choiceKeys, {
-              claims: allButCommandReference,
-            })}
-          >
-            <button
-              ${offered("lf-btn")}
-              role="menuitemcheckbox"
-              aria-checked=${String(comparing)}
-              aria-controls="lf-file-editor-compared"
-              @click=${compare}
-            >
-              Compare
-            </button>
-            ${[
-              ["Save draft", keepDraft],
-              ["Use file version", choose(useFile)],
-            ].map(
-              ([label, run]) => html`
-                <button
-                  ${offered("lf-btn")}
-                  role="menuitem"
-                  aria-disabled=${busy ? "true" : nothing}
-                  @click=${run}
-                >
-                  ${label}
-                </button>
-              `,
-            )}
-          </div>
-          ${mount}
-          <div
-            class="lf-file-editor-compared"
-            id="lf-file-editor-compared"
-            ?hidden=${!comparing}
-          >
-            <p class="lf-file-editor-legend">
-              Removed text is on disk. Added text is the draft.
-            </p>
-            ${comparing ? comparisonMount : nothing}
-          </div>
-        `;
-      };
       const thisBinding = this.getAttribute("binding");
+      const readView = () => ({
+        label: base?.label ?? thisBinding,
+        conflicted: Boolean(latest),
+        retryable: Boolean(failure) && !latest && api.writable,
+        status: latest
+          ? ""
+          : failure
+            ? base
+              ? "Not saved"
+              : "Unavailable"
+            : slow
+              ? "Saving changes…"
+              : "",
+        failure: failure?.message,
+        busy,
+        comparing,
+      });
+      const drawing = createView(
+        view,
+        (state) =>
+          html` <div class="lf-file-editor-head">
+              <span class="lf-file-editor-name">${() => state().label}</span>
+              <span
+                ref=${offerRef("lf-file-editor-status")}
+                title=${() => state().failure}
+              >
+                ${() => state().status}
+                <span aria-hidden="true" hidden=${() => !state().retryable}
+                  >&nbsp;·&nbsp;</span
+                >
+                <button
+                  ref=${offerRef("lf-file-editor-retry")}
+                  hidden=${() => !state().retryable}
+                  aria-description=${() => state().failure}
+                  aria-disabled=${() => (state().busy ? "true" : undefined)}
+                  onClick=${retry}
+                >
+                  Retry
+                </button>
+                <button
+                  ref=${offerRef("lf-file-editor-conflict")}
+                  hidden=${() => !state().conflicted}
+                  aria-description=${() => state().failure}
+                  popovertarget="lf-file-editor-choices"
+                  aria-haspopup="menu"
+                >
+                  ${() => (state().failure ? "Not saved" : "Changed on disk")}
+                  ${iconElement("down", "lf-file-editor-chevron")}
+                </button>
+              </span>
+            </div>
+            <div
+              ref=${[
+          offerRef("lf-file-editor-choices"),
+          scopeRef("In the file's conflict menu", choiceKeys, {
+            claims: allButCommandReference,
+          }),
+        ]}
+              id="lf-file-editor-choices"
+              popover="auto"
+              role="menu"
+              aria-label="The file changed on disk"
+              onToggle=${choiceOpened}
+            >
+              <button
+                ref=${offerRef("lf-btn")}
+                role="menuitemcheckbox"
+                aria-checked=${() => String(state().comparing)}
+                aria-controls="lf-file-editor-compared"
+                onClick=${compare}
+              >
+                Compare
+              </button>
+              ${[
+            ["Save draft", keepDraft],
+            ["Use file version", choose(useFile)],
+          ].map(
+            ([label, run]) =>
+              html`<button
+                ref=${offerRef("lf-btn")}
+                role="menuitem"
+                aria-disabled=${() => (state().busy ? "true" : undefined)}
+                onClick=${run}
+              >
+                ${label}
+              </button>`,
+          )}
+            </div>
+            ${mount}
+            <div
+              class="lf-file-editor-compared"
+              id="lf-file-editor-compared"
+              hidden=${() => !state().comparing}
+            >
+              <p class="lf-file-editor-legend">
+                Removed text is on disk. Added text is the draft.
+              </p>
+              ${() => (state().comparing ? comparisonMount : null)}
+            </div>`,
+        readView(),
+      );
+      this.#refreshView = () => drawing.update(readView());
       function schedule(delay = 500) {
         clearTimeout(timer);
         if (connected && api.writable && !latest && !failure && dirty())

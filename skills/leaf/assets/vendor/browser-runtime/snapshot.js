@@ -15,7 +15,8 @@
  * Derivations and subscriber callbacks own their reads: they run outside a notifier's
  * collection, while an explicit collection inside either still records its own reads.
  */
-import { computed, signal } from "./signals-core.js";
+import { createMemo, createSignal, flush, untrack } from "../solid.js";
+import { subscribe } from "./observe.js";
 
 
 
@@ -296,31 +297,32 @@ export function share   (prior         , next   )    {
 }
 
 export function createApplicationPublisher                               (initial   ) {
-  const root = signal(immutable(initial));
+  const [root, setRoot] = createSignal(() => immutable(initial), { ownedWrite: true });
   return Object.freeze({
     read: ()               => {
       if (collecting)
         throw new Error(
           "a collected read took the whole publication; select the part it needs",
         );
-      return root.value;
+      return root();
     },
     // The root without subscribing or collecting, for the owner computing what it
     // publishes next.
-    peek: ()               => root.peek(),
+    peek: ()               => untrack(root),
     publish(candidate   )               {
-      root.value = immutable(share(root.peek(), candidate));
-      return root.peek();
+      flush(() => setRoot(() => immutable(share(untrack(root), candidate))));
+      return untrack(root);
     },
     select   (derive                               )                                {
       let prior         ;
-      const selected = computed(() =>
-        untracked(() => (prior = immutable(share(prior, derive(root.value))))),
-      );
+      const selected = createMemo(() => {
+        const snapshot = root();
+        return untracked(() => (prior = immutable(share(prior, derive(snapshot)))));
+      });
       const reading                                = Object.freeze({
-        read: ()               => collected(reading, () => selected.value),
+        read: ()               => collected(reading, selected),
         subscribe: (listener                               ) =>
-          selected.subscribe((value) => untracked(() => listener(value))),
+          subscribe(selected, (value) => untracked(() => listener(value))),
       });
       return reading;
     },

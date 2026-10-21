@@ -15,7 +15,8 @@
  * Derivations and subscriber callbacks own their reads: they run outside a notifier's
  * collection, while an explicit collection inside either still records its own reads.
  */
-import { computed, signal } from "@preact/signals-core";
+import { createMemo, createSignal, flush, untrack } from "@solidjs/signals";
+import { subscribe } from "./observe.ts";
 
 export type Immutable<T> =
   T extends ReadonlyMap<infer K, infer V>
@@ -296,31 +297,32 @@ export function share<T>(prior: unknown, next: T): T {
 }
 
 export function createApplicationPublisher<S extends ApplicationSnapshot>(initial: S) {
-  const root = signal(immutable(initial));
+  const [root, setRoot] = createSignal(() => immutable(initial), { ownedWrite: true });
   return Object.freeze({
     read: (): Immutable<S> => {
       if (collecting)
         throw new Error(
           "a collected read took the whole publication; select the part it needs",
         );
-      return root.value;
+      return root();
     },
     // The root without subscribing or collecting, for the owner computing what it
     // publishes next.
-    peek: (): Immutable<S> => root.peek(),
+    peek: (): Immutable<S> => untrack(root),
     publish(candidate: S): Immutable<S> {
-      root.value = immutable(share(root.peek(), candidate));
-      return root.peek();
+      flush(() => setRoot(() => immutable(share(untrack(root), candidate))));
+      return untrack(root);
     },
     select<T>(derive: (snapshot: Immutable<S>) => T): SnapshotReading<Immutable<T>> {
       let prior: unknown;
-      const selected = computed(() =>
-        untracked(() => (prior = immutable(share(prior, derive(root.value))))),
-      );
+      const selected = createMemo(() => {
+        const snapshot = root();
+        return untracked(() => (prior = immutable(share(prior, derive(snapshot)))));
+      });
       const reading: SnapshotReading<Immutable<T>> = Object.freeze({
-        read: (): Immutable<T> => collected(reading, () => selected.value),
+        read: (): Immutable<T> => collected(reading, selected),
         subscribe: (listener: (value: Immutable<T>) => void) =>
-          selected.subscribe((value) => untracked(() => listener(value))),
+          subscribe(selected, (value) => untracked(() => listener(value))),
       });
       return reading;
     },

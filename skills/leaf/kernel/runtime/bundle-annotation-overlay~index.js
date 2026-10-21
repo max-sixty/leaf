@@ -207,8 +207,6 @@ import {
 } from "./bundle-semantic-state.js";
 import {
   bareReaction,
-  html,
-  render,
   sameAnchor,
   turns
 } from "./bundle-queued-work.js";
@@ -1172,7 +1170,7 @@ function createMarginClusterViews({
         contributionNotices.set(contributionSource(item.offered), node);
       }
       keeps(node, "data-lf-margin-receipt", item.notice.tone);
-      render(html`${item.notice.text}`, node);
+      keepsText(node, item.notice.text);
       return node;
     }
     throw new Error(`Unknown margin presentation item: ${item.kind}`);

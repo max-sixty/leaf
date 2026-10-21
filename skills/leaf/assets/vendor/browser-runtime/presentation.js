@@ -9,7 +9,8 @@
  * outside a notifier's snapshot collection; their reads belong to their own owner.
  */
 
-import { signal } from "./signals-core.js";
+import { createSignal, flush } from "../solid.js";
+import { subscribe } from "./observe.js";
 import { untracked } from "./snapshot.js";
 
 
@@ -161,9 +162,9 @@ export function createPresentationCoordinator
  ({ reportFailure }                                              ) {
   // Mechanical observers use the same Signals primitive as semantic selections.
   // Changes wake a blocked reading; they never publish a semantic epoch.
-  const changes = signal(0);
+  const [changes, setChanges] = createSignal(0, { ownedWrite: true });
   const changed = () => {
-    changes.value += 1;
+    flush(() => setChanges((value) => value + 1));
   };
   let document                       = null;
   let documentGeneration = 0;
@@ -605,7 +606,7 @@ export function createPresentationCoordinator
     whenCurrentRegionsPresented,
     currentRegionsPresented,
     subscribe: (callback            ) =>
-      changes.subscribe(() =>
+      subscribe(changes, () =>
         untracked(() => {
           try {
             callback();

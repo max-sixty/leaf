@@ -31,8 +31,37 @@ the full contract. A DOM helper takes the element it acts for as its first argum
 
 From Lit, `widget-api.js` exports `render`, `html`, `nothing`, `repeat`, `keyed`,
 `live`, `ref`, `createRef`, `classMap`, `styleMap`, `guard` and `unsafeHTML`. From
-Preact Signals it exports `signal`, for private state a command's `when` reads
-(`module-input.md`, "Command rows").
+Solid 2 it exports `createSignal`, `createMemo`, `createEffect`, `createRoot`,
+`flush` and `untrack`. Private state a command's `when` reads uses
+`const [value, setValue] = createSignal(initial)` (`module-input.md`, "Command rows").
+Read it with `value()`. Solid batches writes on a microtask; use
+`flush(() => setValue(next))` at an imperative boundary that reads the result in
+the same task. `createMemo` derives a reading, `createEffect` separates its tracked
+compute from its effect, `createRoot` owns an external subscription's lifetime,
+and `untrack` takes a deliberate one-time reading.
+
+### Solid views
+
+`createView(container, component, initial)` mounts a Solid component once in a
+generated container. The component receives a props accessor. Its returned
+`update(next)` publishes complete props and flushes the changed bindings before
+returning; `dispose()` releases the view and clears the container. Build-free
+components use `solidHtml`, wrapping changing expressions in functions:
+
+```js
+const view = createView(
+  container,
+  (props) => solidHtml`<span>${() => props().label}</span>`,
+  { label: "Ready" },
+);
+view.update({ label: "Working" });
+```
+
+`For` renders lists. Supply a `keyed` function for records whose identity survives
+replacement; its children receive an accessor for the current record. `offerRef`
+is a Solid ref factory for generated-control anatomy, and `scopeRef` attaches a
+command scope for the component's lifetime. Use `ref=${offerRef("lf-btn")}` or
+compose ref factories in an array when a control also needs a scope.
 
 ## What a behavior module owes
 

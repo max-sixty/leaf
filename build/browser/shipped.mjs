@@ -19,6 +19,7 @@
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
+import { createRequire } from "node:module";
 import { parse } from "acorn";
 
 const LOCAL = /^(?:\/(?!\/)|\.{1,2}\/)/;
@@ -105,7 +106,25 @@ export function licenseNotices(title, packageRoots) {
       const files = readdirSync(root)
         .filter((file) => statSync(path.join(root, file)).isFile())
         .sort();
-      const [license, ...licenses] = files.filter((file) => LICENSE.test(file));
+      let [license, ...licenses] = files.filter((file) => LICENSE.test(file));
+      // Solid 2's renderer and tagged-template tarballs omit the monorepo's MIT
+      // LICENSE. Ship the identical repository license carried by signals,
+      // checking the package metadata before attributing it to another package.
+      if (
+        license === undefined &&
+        (manifest.name === "solid-js" || manifest.name.startsWith("@solidjs/"))
+      ) {
+        const resolve = createRequire(import.meta.url).resolve;
+        const solid = path.dirname(resolve("@solidjs/signals/package.json"));
+        const upstream = JSON.parse(
+          readFileSync(path.join(solid, "package.json"), "utf8"),
+        );
+        if (
+          manifest.license === upstream.license &&
+          manifest.repository?.url === upstream.repository?.url
+        )
+          license = path.join(solid, "LICENSE");
+      }
       if (license === undefined)
         throw new Error(`no license file shipped by ${manifest.name}`);
       const bundled = path.join(root, "LICENSES");
@@ -119,7 +138,9 @@ export function licenseNotices(title, packageRoots) {
           : []),
       ];
       const text = (file) =>
-        readFileSync(path.join(root, file), "utf8").replaceAll("\r\n", "\n").trim();
+        readFileSync(path.isAbsolute(file) ? file : path.join(root, file), "utf8")
+          .replaceAll("\r\n", "\n")
+          .trim();
       return [
         `===== ${manifest.name} ${manifest.version} (${manifest.license}) =====\n${text(license)}`,
         ...documents.map(

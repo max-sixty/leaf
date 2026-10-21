@@ -495,10 +495,11 @@ import {
 } from "./runtime/bundle-semantic-state.js";
 import {
   LitElement,
-  M,
   bareReaction,
   bindQueuedWork,
   carriesObligation,
+  createSignal,
+  flush,
   hasUnread,
   html,
   itemNoun,
@@ -2162,7 +2163,7 @@ function createResponseSurface({
 }) {
   const hideReference = () => closeCommandReference(false);
   const hasOtherResponses = (anchor) => reactionTokens2().length > 0 || Boolean(anchor?.quote && !designModeActive());
-  const fabAnchor = M(null);
+  const [fabAnchor, setFabAnchor] = createSignal(null, { ownedWrite: true });
   let fabPoint = null;
   let usesPlacement = false;
   let fabInlineOutlet = null;
@@ -2175,7 +2176,7 @@ function createResponseSurface({
     fabPositionWaiters = [];
     for (const resolve of waiters) resolve(positioned);
   };
-  const fabPositioned = () => !fabAnchor.value ? Promise.resolve(false) : !placement && fabInlineOutlet === responseHome && !fabDrawn() && !fabFocusHandoff?.intent() ? Promise.resolve(false) : (fabInlineOutlet?.isConnected && fabBar.parentElement === fabInlineOutlet || placement?.ready()) && fabDrawn() ? Promise.resolve(true) : new Promise((resolve) => fabPositionWaiters.push(resolve));
+  const fabPositioned = () => !fabAnchor() ? Promise.resolve(false) : !placement && fabInlineOutlet === responseHome && !fabDrawn() && !fabFocusHandoff?.intent() ? Promise.resolve(false) : (fabInlineOutlet?.isConnected && fabBar.parentElement === fabInlineOutlet || placement?.ready()) && fabDrawn() ? Promise.resolve(true) : new Promise((resolve) => fabPositionWaiters.push(resolve));
   const stopFabPositioning = ({ reset = false, repositioning = false } = {}) => {
     placement?.stop({ reset, repositioning });
     if (reset && !repositioning) answerFabPosition(false);
@@ -2185,7 +2186,7 @@ function createResponseSurface({
   }
   const presentFab = () => keeps(fabBar, "data-lf-presentation", fabInlineOutlet ? "inline" : null);
   function seatFab(outlet) {
-    if (!(outlet instanceof Element) || !fabAnchor.value || !composerOpen) return false;
+    if (!(outlet instanceof Element) || !fabAnchor() || !composerOpen) return false;
     let seat = outlet;
     while (seat && !(seat.getBoundingClientRect().width > 0)) seat = upFrom(seat);
     if (seat && underOccluder(seat)) return false;
@@ -2212,7 +2213,7 @@ function createResponseSurface({
     return true;
   }
   function restoreFab({ place: place3 = true } = {}) {
-    if ((placement || !place3 || !fabAnchor.value || !composerOpen) && fabBar.parentElement === responseHome && (!fabInlineOutlet || fabInlineOutlet === responseHome))
+    if ((placement || !place3 || !fabAnchor() || !composerOpen) && fabBar.parentElement === responseHome && (!fabInlineOutlet || fabInlineOutlet === responseHome))
       return false;
     const restoreFocus = holdFocus(fabBar);
     stopFabPositioning({ reset: true, repositioning: place3 });
@@ -2220,10 +2221,10 @@ function createResponseSurface({
     usesPlacement = Boolean(placement);
     presentFab();
     moveFab(responseHome);
-    if (!placement && place3 && fabAnchor.value && responseHome.isConnected) {
+    if (!placement && place3 && fabAnchor() && responseHome.isConnected) {
       answerFabPosition(true);
       restoreFocus?.();
-    } else if (place3 && fabAnchor.value && standFab() && restoreFocus)
+    } else if (place3 && fabAnchor() && standFab() && restoreFocus)
       void fabPositioned().then((positioned) => positioned && restoreFocus());
     return true;
   }
@@ -2240,16 +2241,16 @@ function createResponseSurface({
     if (!anchor) return null;
     const found = resolveAnchor(anchor);
     if (standsIn(anchor, found)) return found;
-    return composerOpen && anchor.quote && !anchor.detached && sameAnchor(anchor, fabAnchor.value) ? found ?? resolveAnchor({ section: anchor.section }) : null;
+    return composerOpen && anchor.quote && !anchor.detached && sameAnchor(anchor, fabAnchor()) ? found ?? resolveAnchor({ section: anchor.section }) : null;
   };
   const anchorStands = (anchor) => Boolean(responseTarget(anchor));
-  const fabPointIn = (target) => fabAnchor.value?.quote ? null : livePoint(target, fabPoint);
+  const fabPointIn = (target) => fabAnchor()?.quote ? null : livePoint(target, fabPoint);
   const placement = createPlacement?.({
     bar: fabBar,
     input: fabInput,
     response: {
       get anchor() {
-        return fabAnchor.value;
+        return fabAnchor();
       },
       get open() {
         return composerOpen;
@@ -2261,7 +2262,7 @@ function createResponseSurface({
         return fabTargetAt();
       },
       get resolved() {
-        return responseTarget(fabAnchor.value);
+        return responseTarget(fabAnchor());
       },
       get captured() {
         return fabHoldsCapturedPassage();
@@ -2276,7 +2277,7 @@ function createResponseSurface({
   const returnPlaces = (anchor) => anchor && !anchor.quote ? [anchorTargetAt(anchor), visualActionAnchor(anchor)] : [];
   function landingFromBar(toPage) {
     const leavingBar = fabBar.contains(fabFocused());
-    const places = leavingBar || toPage ? returnPlaces(fabAnchor.value) : [];
+    const places = leavingBar || toPage ? returnPlaces(fabAnchor()) : [];
     return layerLanding(() => {
       if (leavingBar && !toPage) handBack(...places);
       else if (leavingBar || toPage && places.includes(focused(document))) letGo();
@@ -2293,14 +2294,14 @@ function createResponseSurface({
   function paintFab() {
     fabBar.toggleAttribute(
       "data-lf-target-only",
-      Boolean(fabAnchor.value && !composerOpen)
+      Boolean(fabAnchor() && !composerOpen)
     );
-    composer.syncResponseOptions(fabAnchor.value);
-    if (!fabAnchor.value) return;
-    const label2 = anchorLabel(fabAnchor.value, pendingAbout).replace(/^§\s*/, "");
+    composer.syncResponseOptions(fabAnchor());
+    if (!fabAnchor()) return;
+    const label2 = anchorLabel(fabAnchor(), pendingAbout).replace(/^§\s*/, "");
     keeps(fabBar, "aria-label", label2 ? `Respond to ${label2}` : "Respond");
     keeps(fabInput, "aria-label", label2 ? `Comment on ${label2}` : "Comment");
-    paintBarReactions(fabAnchor.value);
+    paintBarReactions(fabAnchor());
   }
   function clearFab() {
     fabInputTakingFocus = false;
@@ -2309,12 +2310,12 @@ function createResponseSurface({
     if (composerOpen) composer.hideComposer();
     fabPoint = null;
     stopFabPositioning({ reset: true });
-    fabAnchor.value = null;
+    flush(() => setFabAnchor(() => null));
     usesPlacement = Boolean(placement);
     paintFab();
   }
   function showFab(anchor, { place: place3 = true, point = void 0, reveal: reveal2 = false } = {}) {
-    const previous = fabAnchor.value;
+    const previous = fabAnchor();
     if (!anchor) {
       restoreFab({ place: false });
       clearFab();
@@ -2332,7 +2333,7 @@ function createResponseSurface({
       fabPoint = stands;
       if (!same4 || !place3 || pointMoved || !previousFloating && !keptInline)
         stopFabPositioning({ reset: true });
-      fabAnchor.value = anchor;
+      flush(() => setFabAnchor(() => anchor));
       usesPlacement = Boolean(placement) && place3 && !keptInline;
       paintFab();
       if (usesPlacement && !placement.place({ reveal: reveal2 })) {
@@ -2340,25 +2341,24 @@ function createResponseSurface({
         else clearFab();
       }
     }
-    if (fabAnchor.value && usesPlacement && !sameAnchor(previous, fabAnchor.value))
+    if (fabAnchor() && usesPlacement && !sameAnchor(previous, fabAnchor()))
       dismissThreadView();
-    if (!sameAnchor(previous, fabAnchor.value)) refreshThread();
+    if (!sameAnchor(previous, fabAnchor())) refreshThread();
     repaint();
   }
   let dismissedSelectionKeyup = false;
   function dismissFab() {
-    dismissedSelectionKeyup = Boolean(pageSelection() || fabAnchor.value?.quote);
+    dismissedSelectionKeyup = Boolean(pageSelection() || fabAnchor()?.quote);
     pageSelection()?.removeAllRanges();
     putAwayFab();
   }
   function refreshFab() {
-    if (!fabAnchor.value || !usesPlacement) return;
-    if (fabAnchor.value.quote && !composerOpen && !fabHoldsCapturedPassage())
-      updateFab();
+    if (!fabAnchor() || !usesPlacement) return;
+    if (fabAnchor().quote && !composerOpen && !fabHoldsCapturedPassage()) updateFab();
     else standFab();
   }
   function standFab() {
-    if (!(placement?.stands() ?? anchorStands(fabAnchor.value))) {
+    if (!(placement?.stands() ?? anchorStands(fabAnchor()))) {
       letGoOfFab();
       return false;
     }
@@ -2374,8 +2374,8 @@ function createResponseSurface({
     return lightSeat(targetPlace(found));
   };
   const anchorTravelAt = (anchor) => anchor?.quote && targetRange(resolveAnchor(anchor)) || anchorTargetAt(anchor);
-  const fabTargetAt = () => anchorTargetAt(fabAnchor.value);
-  const fabReturnPlaces = () => returnPlaces(fabAnchor.value);
+  const fabTargetAt = () => anchorTargetAt(fabAnchor());
+  const fabReturnPlaces = () => returnPlaces(fabAnchor());
   function bringForward(addressable) {
     if (addressable && !seenRect(addressable, /* @__PURE__ */ new Map()))
       scrollToElement(addressable, "instant");
@@ -2394,21 +2394,21 @@ function createResponseSurface({
     });
   }
   function focusFabComment() {
-    if (!fabAnchor.value) return;
+    if (!fabAnchor()) return;
     cancelRender(selectionUpdate);
     selectionUpdate = null;
     const handoff = beginFabFocus();
     if (!composerOpen) {
-      openComment(structuredClone(fabAnchor.value), "");
+      openComment(structuredClone(fabAnchor()), "");
       return;
     }
-    const anchor = structuredClone(fabAnchor.value);
+    const anchor = structuredClone(fabAnchor());
     bringBackSurfaceOf(fabBar);
     showFab(anchor, { reveal: true });
-    landFabFocus(handoff, anchor, () => sameAnchor(anchor, fabAnchor.value));
+    landFabFocus(handoff, anchor, () => sameAnchor(anchor, fabAnchor()));
   }
   const fabOptionsAvailable = () => Boolean(
-    fabAnchor.value && hasOtherResponses(fabAnchor.value) && composer.responseOptionsAvailable()
+    fabAnchor() && hasOtherResponses(fabAnchor()) && composer.responseOptionsAvailable()
   );
   const showFabOptions = ({ reaction = false } = {}) => composer.setResponseOptions(true, { focus: reaction ? "reaction" : "first" });
   const hasQuote = (anchor) => Boolean(anchor?.quote?.trim());
@@ -2441,7 +2441,7 @@ function createResponseSurface({
     const selection = anchoringIsReady() ? pageSelection() : null;
     const anchor = selection ? selectionAnchor(selection) : null;
     offerSelection(
-      hasQuote(anchor) && !sameAnchor(anchor, fabAnchor.value) ? anchor : null
+      hasQuote(anchor) && !sameAnchor(anchor, fabAnchor()) ? anchor : null
     );
   }
   function updateFab() {
@@ -2452,18 +2452,18 @@ function createResponseSurface({
     }
     const sel = pageSelection();
     const anchor = sel ? selectionAnchor(sel) : null;
-    if ((coarsePointer.matches || !placement) && hasQuote(anchor) && (!fabHoldsCapturedPassage() || !sameAnchor(anchor, fabAnchor.value))) {
+    if ((coarsePointer.matches || !placement) && hasQuote(anchor) && (!fabHoldsCapturedPassage() || !sameAnchor(anchor, fabAnchor()))) {
       offerSelection(anchor);
       return;
     }
     offerSelection(null);
     if (hasQuote(anchor)) {
-      if (sameAnchor(anchor, fabAnchor.value)) {
+      if (sameAnchor(anchor, fabAnchor())) {
         placement?.place();
         return;
       }
       openComment(anchor, "", { focus: false });
-    } else if (fabAnchor.value?.quote && !fabHoldsCapturedPassage()) putAwayFab();
+    } else if (fabAnchor()?.quote && !fabHoldsCapturedPassage()) putAwayFab();
   }
   let selectionUpdate = null;
   let selectionIntent = null;
@@ -2510,7 +2510,7 @@ function createResponseSurface({
   function landFabFocus(handoff, anchor, stands) {
     handoff.intent = restrictUserIntent(
       handoff.intent,
-      () => composerOpen && stands() && sameAnchor(anchor, fabAnchor.value)
+      () => composerOpen && stands() && sameAnchor(anchor, fabAnchor())
     );
     void fabPositioned().then((positioned) => {
       if (handoff !== fabFocusHandoff) return;
@@ -2521,7 +2521,7 @@ function createResponseSurface({
     });
   }
   function finishPlacement() {
-    if (placement || !revealResponseHome || fabBar.parentElement !== responseHome || !fabAnchor.value || !composerOpen)
+    if (placement || !revealResponseHome || fabBar.parentElement !== responseHome || !fabAnchor() || !composerOpen)
       return;
     if (!fabFocusHandoff?.intent.handoff(revealResponseHome)) {
       answerFabPosition(false);
@@ -2595,7 +2595,7 @@ function createResponseSurface({
   function standDown(target) {
     if (nativeLayers().some((layer) => layer.kind === "modal")) return;
     const visual = visualAt(target);
-    const sameVisual = visual && !fabAnchor.value?.quote && fabAnchor.value?.section === visual.id && fabAnchor.value?.visual === visual.part?.id;
+    const sameVisual = visual && !fabAnchor()?.quote && fabAnchor()?.section === visual.id && fabAnchor()?.visual === visual.part?.id;
     if (!sameVisual && !target.closest?.(".lf-fab-bar, .lf-react-surface, .lf-composer") && !reactionContextContains(target)) {
       if (composerOpen) composer.hideComposer();
       letGoOfFab();
@@ -2604,7 +2604,7 @@ function createResponseSurface({
     if (commandReferenceOpen() && !target.closest?.(".lf-command-reference"))
       hideReference();
   }
-  const fabAnchorAt = () => fabAnchor.value;
+  const fabAnchorAt = () => fabAnchor();
   const fabFrameAt = () => placement?.frame() ?? null;
   const fabPointAt = () => fabPointIn(fabTargetAt());
   const composer = createSelectionComposer({
@@ -2697,7 +2697,7 @@ function createResponseSurface({
       if (coarsePointer.matches && selection && !automatic)
         rememberSelection(selection);
       observeSelection();
-      if (!selection && fabAnchor.value?.quote && !fabHoldsCapturedPassage() && !composer.composerHolds())
+      if (!selection && fabAnchor()?.quote && !fabHoldsCapturedPassage() && !composer.composerHolds())
         putAwayFab();
       reflectSelection();
     });
@@ -4386,7 +4386,7 @@ function createTargetPicker({
   const canChoose = () => anchoringIsReady() && !pointerModeActive();
   let pickerOpen = false;
   let pageSearchOpen = false;
-  const matches = M([]);
+  const [matches, setMatches] = createSignal([], { ownedWrite: true });
   let matchesIn = null;
   let active = -1;
   let searchReturnsToHints = false;
@@ -4443,7 +4443,7 @@ function createTargetPicker({
     pickerOpen = on;
     pageSearchOpen = false;
     searchReturnsToHints = false;
-    matches.value = [];
+    flush(() => setMatches(() => []));
     active = -1;
     pageSearchInput.value = "";
     keepsHidden(pageSearchSurface, true);
@@ -4474,7 +4474,7 @@ ${searchCount(maximum, maximum)}`
       announce("Search the page.");
     } else {
       pageSearchInput.value = "";
-      matches.value = [];
+      flush(() => setMatches(() => []));
       active = -1;
       releaseFocus();
       hints.invalidate();
@@ -4507,8 +4507,8 @@ ${searchCount(maximum, maximum)}`
   }
   function presentSearchStatus() {
     const query = pageSearchInput.value.trim();
-    const status = !query ? nothing : matches.value.length ? searchCount(active + 1, matches.value.length) : noMatches;
-    render(html`${status}`, pageSearchWords);
+    const status = !query ? nothing : matches().length ? searchCount(active + 1, matches().length) : noMatches;
+    keepsText(pageSearchWords, status);
   }
   function sameMatch(left, right) {
     return left.length === right.length && left.every(
@@ -4536,13 +4536,13 @@ ${searchCount(maximum, maximum)}`
     return selected.startContainer === match.startContainer && selected.startOffset === match.startOffset && selected.endContainer === match.endContainer && selected.endOffset === match.endOffset;
   }
   function matchWalkPosition(query) {
-    if (!query || active < 0 || active >= matches.value.length) return null;
-    if (!matchIsRangeable(matches.value[active])) return null;
-    if (!pageSearchOpen && !selectionIs(matches.value[active])) return null;
+    if (!query || active < 0 || active >= matches().length) return null;
+    if (!matchIsRangeable(matches()[active])) return null;
+    if (!pageSearchOpen && !selectionIs(matches()[active])) return null;
     return {
-      target: matchIdentity(query, matches.value[active]),
+      target: matchIdentity(query, matches()[active]),
       position: active + 1,
-      total: matches.value.length,
+      total: matches().length,
       qualifier: ""
     };
   }
@@ -4552,12 +4552,12 @@ ${searchCount(maximum, maximum)}`
   }
   function refreshMatches() {
     const query = pageSearchOpen ? pageSearchInput.value.trim() : repeatedSearch?.query;
-    const current = matches.value[active];
+    const current = matches()[active];
     if (!query || !current || pageText() === matchesIn) return false;
     const found = find(query);
     const same4 = found.findIndex((candidate) => sameMatch(candidate, current));
     active = same4 >= 0 ? same4 : found.length ? Math.min(active, found.length - 1) : -1;
-    matches.value = found;
+    flush(() => setMatches(() => found));
     if (repeatedSearch && !pageSearchOpen && active >= 0) repeatedSearch.index = active;
     return true;
   }
@@ -4568,28 +4568,28 @@ ${searchCount(maximum, maximum)}`
   }
   function search() {
     const query = pageSearchInput.value.trim();
-    matches.value = query ? find(query) : [];
-    active = matches.value.length ? startingMatch(matches.value) : -1;
+    flush(() => setMatches(() => query ? find(query) : []));
+    active = matches().length ? startingMatch(matches()) : -1;
     presentSearchStatus();
     showMatch();
     repaint();
   }
   function showMatch() {
-    const segments = matches.value[active];
+    const segments = matches()[active];
     if (!segments || matchRect(segments)) return;
     scrollToRange(rangeOf(segments), "instant");
   }
   function moveMatch(direction) {
     refreshMatches();
-    if (!matches.value.length) return presentSearchStatus();
-    const { row, wrapped } = cycledRow(matches.value, matches.value[active], direction);
-    active = matches.value.indexOf(row);
+    if (!matches().length) return presentSearchStatus();
+    const { row, wrapped } = cycledRow(matches(), matches()[active], direction);
+    active = matches().indexOf(row);
     presentSearchStatus();
     showMatch();
     const query = pageSearchInput.value.trim();
     beginWalk("page-search", "Match", () => matchWalkPosition(query), wrapped);
     announce(
-      `Match ${active + 1} of ${matches.value.length}: ${matchDescription(matches.value[active])}.`
+      `Match ${active + 1} of ${matches().length}: ${matchDescription(matches()[active])}.`
     );
     repaint();
   }
@@ -4607,9 +4607,9 @@ ${searchCount(maximum, maximum)}`
   }
   function chooseMatch() {
     refreshMatches();
-    const segments = matches.value[active];
+    const segments = matches()[active];
     if (!segments) return;
-    const quote = quoteFrom(matches.value[active]);
+    const quote = quoteFrom(matches()[active]);
     repeatedSearch = { query: pageSearchInput.value.trim(), index: active };
     setTargetPicker(false);
     selectMatch(segments);
@@ -4627,23 +4627,23 @@ ${searchCount(maximum, maximum)}`
     updateFab();
   }
   function repeatSearch(direction) {
-    matches.value = find(repeatedSearch.query);
-    if (!matches.value.length) {
+    flush(() => setMatches(() => find(repeatedSearch.query)));
+    if (!matches().length) {
       repeatedSearch = null;
       active = -1;
       announce("The page no longer contains that search.");
       return repaint();
     }
-    const from = Math.min(repeatedSearch.index, matches.value.length - 1);
-    const { row, wrapped } = cycledRow(matches.value, matches.value[from], direction);
-    active = matches.value.indexOf(row);
+    const from = Math.min(repeatedSearch.index, matches().length - 1);
+    const { row, wrapped } = cycledRow(matches(), matches()[from], direction);
+    active = matches().indexOf(row);
     repeatedSearch.index = active;
     showMatch();
-    selectMatch(matches.value[active]);
+    selectMatch(matches()[active]);
     const query = repeatedSearch.query;
     beginWalk("page-search", "Match", () => matchWalkPosition(query), wrapped);
     announce(
-      `Match ${active + 1} of ${matches.value.length}: ${matchDescription(matches.value[active])}.`
+      `Match ${active + 1} of ${matches().length}: ${matchDescription(matches()[active])}.`
     );
   }
   function back() {
@@ -4703,7 +4703,7 @@ ${searchCount(maximum, maximum)}`
     chrome: hintChrome2
   });
   function paintSearchMatches() {
-    const segments = matches.value[active];
+    const segments = matches()[active];
     const owner = segments && matchIsRangeable(segments) ? matchOwner(segments) : null;
     const reading = room();
     const clip = owner ? reading.clipOver(owner) : null;
@@ -4816,7 +4816,7 @@ ${searchCount(maximum, maximum)}`
         title: "select match",
         // A finger presses the marked match itself (`pressMatch`).
         touch: false,
-        when: () => matches.value.length > 0,
+        when: () => matches().length > 0,
         run: chooseMatch
       },
       {
@@ -4839,7 +4839,7 @@ ${searchCount(maximum, maximum)}`
         ],
         title: "matches",
         repeat: true,
-        when: () => matches.value.length > 0,
+        when: () => matches().length > 0,
         run: (binding) => moveMatch(binding === "Tab" ? 1 : -1)
       },
       TARGETING_BACK
@@ -4852,7 +4852,7 @@ ${searchCount(maximum, maximum)}`
   function onMarkedMatch(ev) {
     if (!pageSearchOpen || ev.button !== 0) return false;
     refreshMatches();
-    const segments = matches.value[active];
+    const segments = matches()[active];
     if (!segments || !ev.composedPath().includes(matchOwner(segments))) return false;
     const { clientX: x, clientY: y } = ev;
     return [...rangeOf(segments).getClientRects()].some(
@@ -6480,10 +6480,10 @@ function createFloatingPanel({
         >${part.text}</span
       >`;
   });
-  const trail = M([]);
+  const [trail, setTrail] = createSignal([], { ownedWrite: true });
   let leaving = null;
-  const menuOpen = M(false);
-  const menuAt = M(null);
+  const [menuOpen, setMenuOpen] = createSignal(false, { ownedWrite: true });
+  const [menuAt, setMenuAt] = createSignal(null, { ownedWrite: true });
   let menuRoom = null;
   let filter = "open";
   let query = "";
@@ -6568,7 +6568,7 @@ function createFloatingPanel({
         open(route, { replace: true });
         const untouched = retainUserIntent({ source: host });
         void Promise.resolve(flight).then((sent) => {
-          if (sent || trail.value.length && trail.value.at(-1) !== route) return;
+          if (sent || trail().length && trail().at(-1) !== route) return;
           caretToField = untouched();
           paint();
         });
@@ -6674,7 +6674,7 @@ function createFloatingPanel({
   const levelRow = (level) => level.view === "group" ? routeKey(level) : level.view;
   const pathTo = (route) => route.view === "thread" ? [{ view: "threads" }, route] : [route];
   function open(route, { replace = false, reopen = false, focus = true } = {}) {
-    const before = trail.value.at(-1);
+    const before = trail().at(-1);
     setMenu(false);
     if (before && routeKey(before) === routeKey(route) && !replace) {
       if (reopen) return;
@@ -6686,14 +6686,18 @@ function createFloatingPanel({
       return;
     }
     if (route.view !== "threads" && route.view !== "thread") searching = false;
-    trail.value = replace && before ? [...trail.value.slice(0, -1), route] : route.view === "thread" && LISTS.includes(before?.view) ? [before, route] : pathTo(route);
-    if (replace && route.view === "thread" && trail.value.length === 1)
-      trail.value = pathTo(route);
+    flush(
+      () => setTrail(
+        () => replace && before ? [...trail().slice(0, -1), route] : route.view === "thread" && LISTS.includes(before?.view) ? [before, route] : pathTo(route)
+      )
+    );
+    if (replace && route.view === "thread" && trail().length === 1)
+      flush(() => setTrail(() => pathTo(route)));
     if (route.view === "thread") arriveAt(route.thread);
     transition(before, { focus });
   }
   function openInPackage(key, { focus = true, message = null } = {}) {
-    if (trail.value.length) close();
+    if (trail().length) close();
     void threadActions.open(threadByKey(key)?.key ?? key, {
       part: null,
       focus,
@@ -6705,9 +6709,9 @@ function createFloatingPanel({
   }
   let caretToField = false;
   function clearRow() {
-    const before = trail.value.at(-1);
+    const before = trail().at(-1);
     if (prefs().rest === "mark") prefs().setRest("row");
-    trail.value = [];
+    flush(() => setTrail(() => []));
     setMenu(false);
     transition(before, { focus: false });
   }
@@ -6720,14 +6724,14 @@ function createFloatingPanel({
     placedAt
   );
   function resolveLanding(thread) {
-    const route = trail.value.at(-1);
-    const fromThreads = trail.value.at(-2)?.view === "threads";
+    const route = trail().at(-1);
+    const fromThreads = trail().at(-2)?.view === "threads";
     const at = openThreads2().indexOf(thread);
     const mayLand = retainUserIntent();
     let mayRestore = () => false;
     return {
       optimistic: () => {
-        if (!mayLand() || trail.value.at(-1) !== route) return false;
+        if (!mayLand() || trail().at(-1) !== route) return false;
         const kept = openThreads2();
         const next = fromThreads ? kept[at] ?? kept[at - 1] : null;
         if (next) {
@@ -6744,7 +6748,7 @@ function createFloatingPanel({
       // reading, and a view opening or closing then would move the panel under no
       // press. The undo door passes the intent of the press that asked for it.
       reverse: (may = mayRestore) => {
-        if (!may() || trail.value.at(-1)?.view !== "threads") return;
+        if (!may() || trail().at(-1)?.view !== "threads") return;
         const row2 = shownView()?.querySelector(
           `.lf-fp-thread[data-key="${CSS.escape(thread.key)}"]`
         );
@@ -6753,32 +6757,32 @@ function createFloatingPanel({
     };
   }
   function reopenLanding() {
-    const route = trail.value.at(-1);
+    const route = trail().at(-1);
     const mayLand = retainUserIntent();
     let mayRestore = () => false;
     return {
       optimistic: () => {
         const input = fieldInput();
-        if (!mayLand() || trail.value.at(-1) !== route || !input) return false;
+        if (!mayLand() || trail().at(-1) !== route || !input) return false;
         focusDestination(input, "move");
         mayRestore = retainUserIntent();
         return true;
       },
       reverse: (may = mayRestore) => {
         const view = shownView();
-        if (!may() || trail.value.at(-1) !== route || !view) return;
+        if (!may() || trail().at(-1) !== route || !view) return;
         focusDestination(view, "return");
       }
     };
   }
   function back() {
-    const before = trail.value.at(-1);
-    trail.value = trail.value.slice(0, -1);
+    const before = trail().at(-1);
+    flush(() => setTrail(() => trail().slice(0, -1)));
     transition(before);
   }
   function close() {
-    const before = trail.value.at(-1);
-    trail.value = [];
+    const before = trail().at(-1);
+    flush(() => setTrail(() => []));
     searching = false;
     transition(before);
   }
@@ -6790,19 +6794,19 @@ function createFloatingPanel({
     run();
   }
   function setMenu(on) {
-    if (menuOpen.value === on) return;
-    menuOpen.value = on;
-    menuAt.value = null;
+    if (menuOpen() === on) return;
+    flush(() => setMenuOpen(() => on));
+    flush(() => setMenuAt(() => null));
     menuRoom = null;
     held = null;
     paint();
   }
   function showMenuAt(level) {
-    const before = menuOpen.value ? menuAt.value : void 0;
+    const before = menuOpen() ? menuAt() : void 0;
     if (before && level && routeKey(before) === routeKey(level)) return;
     if (renderedUnder(focused(), menu)) focusDestination(leaf, "return");
-    menuOpen.value = true;
-    menuAt.value = level;
+    flush(() => setMenuOpen(() => true));
+    flush(() => setMenuAt(() => level));
     menuRoom = null;
     held = null;
     paint();
@@ -7033,11 +7037,11 @@ function createFloatingPanel({
   let onPageSeat = false;
   let unreadSeat = null;
   function decideUnreadSeat() {
-    const route = trail.value.at(-1);
+    const route = trail().at(-1);
     if (route?.view !== "thread" || unreadSeat !== null) return;
     const key = routeKey(route);
     afterReadingPass(() => {
-      const top = trail.value.at(-1);
+      const top = trail().at(-1);
       if (!top || routeKey(top) !== key || unreadSeat !== null) return;
       unreadSeat = (threadByKey(route.thread)?.unread.length ?? 0) > 0;
       if (unreadSeat) paint();
@@ -7049,7 +7053,7 @@ function createFloatingPanel({
   let stood = null;
   let rewriting = false;
   const holdThread = (height) => {
-    if (trail.value.at(-1)?.view !== "thread" || room !== null || height === null)
+    if (trail().at(-1)?.view !== "thread" || room !== null || height === null)
       return false;
     room = height;
     return true;
@@ -7063,7 +7067,7 @@ function createFloatingPanel({
     )
   );
   function pressAt(node) {
-    const top = trail.value.at(-1);
+    const top = trail().at(-1);
     const view = openView();
     if (top?.view !== "thread" || !view || !(node instanceof Element)) return;
     if (!renderedUnder(node, view)) return;
@@ -7094,7 +7098,7 @@ function createFloatingPanel({
   const inRewrite = (node) => Boolean(node && closestAcross(node, ".lf-msg-editor"));
   const overPanel = (node) => Boolean(node) && nativeModalAdmits(node) && !nativeModalAdmits(host);
   onStanding((node, cause) => {
-    const top = trail.value.at(-1);
+    const top = trail().at(-1);
     if (top?.view !== "thread" || cause === "drop" || overPanel(node)) return;
     const view = openView();
     const writing2 = inRewrite(node) && Boolean(view) && renderedUnder(node, view);
@@ -7109,7 +7113,7 @@ function createFloatingPanel({
     paint();
   });
   function holdRoom() {
-    const top = trail.value.at(-1);
+    const top = trail().at(-1);
     if (!top || top.view === "thread" || room !== null || refitting) return false;
     if (drawnTop !== routeKey(top)) return false;
     const view = shownView();
@@ -7135,7 +7139,7 @@ function createFloatingPanel({
   let fitted = null;
   let placed = null;
   function fitAnswer() {
-    const top = trail.value.at(-1);
+    const top = trail().at(-1);
     const view = openView();
     const outlet = outletOf();
     if (top?.view !== "thread" || !view || !outlet) {
@@ -7217,7 +7221,7 @@ function createFloatingPanel({
   let held = null;
   let seats2 = [];
   function holdMenu() {
-    if (!menuOpen.value || held !== null || !statusReading()) return false;
+    if (!menuOpen() || held !== null || !statusReading()) return false;
     const state = menu.querySelector(".lf-fp-state");
     if (!state) return false;
     const lines = (part) => {
@@ -7230,7 +7234,7 @@ function createFloatingPanel({
     return true;
   }
   function transition(before, { focus = true } = {}) {
-    const after2 = trail.value.at(-1);
+    const after2 = trail().at(-1);
     postureMoved = true;
     const stoodIn = drawnThreadId(closestAcross(focused(), THREAD));
     const reading = [before, after2].some((route) => route?.view === "thread");
@@ -7292,7 +7296,7 @@ function createFloatingPanel({
       void Promise.resolve(drawn2).then(() => {
         const at = shownView();
         const target2 = at && (!coarse() && viewParts.reply(at) || at);
-        if (target2 && trail.value.at(-1) === route && intent())
+        if (target2 && trail().at(-1) === route && intent())
           focusDestination(target2, "move");
       });
       return;
@@ -7361,7 +7365,7 @@ function createFloatingPanel({
         },
         {
           disabled: entry.disabled,
-          role: menuOpen.value ? "menuitem" : null,
+          role: menuOpen() ? "menuitem" : null,
           row: entry.key,
           title: entry.value || null
         }
@@ -7384,24 +7388,24 @@ function createFloatingPanel({
       {
         urgent: Boolean(entry.urgent),
         disabled: entry.disabled,
-        role: menuOpen.value ? "menuitem" : null,
+        role: menuOpen() ? "menuitem" : null,
         row: entry.key,
         opens: view === "versions"
       }
     );
   }
   function menuTemplate() {
-    if (!menuAt.value)
+    if (!menuAt())
       return html`<div class="lf-fp-menu-page" role="none">${rootTemplate()}</div>`;
     return html`<div class="lf-fp-menu-page" role="none">
-      <div class="lf-fp-menu-name" role="none">${titleOf2(menuAt.value)}</div>
-      ${menuAt.value.view === "versions" ? versionsList() : menuAt.value.view === "errors" ? errorsList() : groupList(menuAt.value.group)}
+      <div class="lf-fp-menu-name" role="none">${titleOf2(menuAt())}</div>
+      ${menuAt().view === "versions" ? versionsList() : menuAt().view === "errors" ? errorsList() : groupList(menuAt().group)}
       <div class="lf-fp-menu-rule" role="none"></div>
       <button
         type="button"
         role="menuitem"
         class="lf-fp-item lf-fp-menu-back"
-        aria-label=${`Back to the page menu from ${titleOf2(menuAt.value)}`}
+        aria-label=${`Back to the page menu from ${titleOf2(menuAt())}`}
         @click=${() => showMenuAt(null)}
       >
         <span class="lf-fp-label">${iconTemplate("next", "lf-fp-chevron")}Menu</span>
@@ -7663,15 +7667,15 @@ function createFloatingPanel({
     leaves: ".lf-fp-page[href]"
   });
   const listRows = () => {
-    const rows2 = LIST_ROWS[trail.value.at(-1)?.view];
+    const rows2 = LIST_ROWS[trail().at(-1)?.view];
     const view = shownView();
     return rows2 && view ? [...view.querySelectorAll(rows2)] : [];
   };
-  const threadRows = () => trail.value.at(-1)?.view === "threads" ? listRows() : [];
+  const threadRows = () => trail().at(-1)?.view === "threads" ? listRows() : [];
   const openView = () => stage.querySelector('.lf-fp-view[data-view="thread"]:not([data-leaving])');
   const outletOf = () => openView()?.querySelector(".lf-fp-outlet") ?? null;
   function nominate(collection, parts) {
-    const top = trail.value.at(-1);
+    const top = trail().at(-1);
     if (top?.view === "queue") {
       for (const outlet2 of stage.querySelectorAll(
         ".lf-fp-view:not([data-leaving]) .lf-fp-asked"
@@ -7704,7 +7708,7 @@ function createFloatingPanel({
     });
   }
   const openIn = (view) => {
-    const top = trail.value.at(-1);
+    const top = trail().at(-1);
     const thread = top?.view === "thread" ? threadByKey(top.thread) : null;
     return thread && !view.hasAttribute("data-leaving") && drawnThreadId(view) === thread.id ? thread : null;
   };
@@ -7810,7 +7814,7 @@ function createFloatingPanel({
   };
   function openOnMe() {
     const turned = chooseQueueTab("you");
-    if (turned && trail.value.at(-1)?.view === "queue") paint();
+    if (turned && trail().at(-1)?.view === "queue") paint();
     else open({ view: "queue" });
   }
   const queueLists = () => {
@@ -7839,7 +7843,7 @@ function createFloatingPanel({
   };
   let walkedLanded = null;
   function landWalked() {
-    const key = trail.value.at(-1)?.view === "queue" ? walkedStop() : null;
+    const key = trail().at(-1)?.view === "queue" ? walkedStop() : null;
     if (key === walkedLanded) return;
     walkedLanded = key;
     const view = shownView();
@@ -8144,7 +8148,7 @@ function createFloatingPanel({
     </h2>`;
   };
   function controlsTemplate(top) {
-    const parent = trail.value.at(-2);
+    const parent = trail().at(-2);
     const thread = top.view === "thread" ? threadByKey(top.thread) : null;
     let aux = nothing;
     let named = nothing;
@@ -8283,12 +8287,12 @@ function createFloatingPanel({
       </button>`;
   }
   function setRest(rest) {
-    const before = trail.value.at(-1);
+    const before = trail().at(-1);
     const inside = standingIn(host);
     prefs().setRest(rest);
-    trail.value = [];
-    menuOpen.value = false;
-    menuAt.value = null;
+    flush(() => setTrail(() => []));
+    flush(() => setMenuOpen(() => false));
+    flush(() => setMenuAt(() => null));
     menuRoom = null;
     held = null;
     transition(before, { focus: false });
@@ -8305,7 +8309,7 @@ function createFloatingPanel({
   function paintPanel() {
     painting = true;
     try {
-      const top = trail.value.at(-1);
+      const top = trail().at(-1);
       if (top?.view === "thread" && !threadByKey(top.thread)) close();
       holdRoom();
       paintNow();
@@ -8324,7 +8328,7 @@ function createFloatingPanel({
   }
   const asked = /* @__PURE__ */ new WeakSet();
   function seatOnItems() {
-    if (trail.value.at(-1)?.view !== "queue") return;
+    if (trail().at(-1)?.view !== "queue") return;
     let draw = false;
     for (const card2 of stage.querySelectorAll(
       ".lf-fp-view:not([data-leaving]) .lf-fp-on-item[data-key]"
@@ -8339,7 +8343,7 @@ function createFloatingPanel({
     if (draw) void present({ release: true });
   }
   function landReader() {
-    const top = trail.value.at(-1);
+    const top = trail().at(-1);
     if (!landAtEnd || top?.view !== "thread" || top.thread !== landAtEnd.key) return;
     const view = stage.querySelector(
       '.lf-fp-view[data-view="thread"]:not([data-leaving])'
@@ -8350,18 +8354,18 @@ function createFloatingPanel({
     decideUnreadSeat();
   }
   function paintNow() {
-    const top = trail.value.at(-1) ?? null;
-    const folded = prefs().rest === "mark" && !top && !menuOpen.value;
+    const top = trail().at(-1) ?? null;
+    const folded = prefs().rest === "mark" && !top && !menuOpen();
     keeps(host, "data-rest", folded ? "mark" : "row");
     keeps(host, "data-open", top ? top.view : null);
-    keeps(host, "data-menu", menuOpen.value ? "" : null);
+    keeps(host, "data-menu", menuOpen() ? "" : null);
     keeps(mark, "class", `lf-dot${status().tone ? ` ${status().tone}` : ""}`);
     keeps(
       leaf,
       "aria-label",
       folded ? `Unfold Leaf \xB7 ${status().summary}` : `Page menu \xB7 ${status().summary}`
     );
-    keeps(leaf, "aria-expanded", folded ? null : String(menuOpen.value));
+    keeps(leaf, "aria-expanded", folded ? null : String(menuOpen()));
     const onUser = onUserCount();
     const news = newCount();
     keepsText(badge, onUser ? String(onUser) : "");
@@ -8372,17 +8376,13 @@ function createFloatingPanel({
       (error) => !error.seen && !sayingNow.has(error.id) && !standsAtItsBox(error)
     );
     keeps(errorDot, "data-shown", unseen ? "" : null);
-    render(menuOpen.value ? menuTemplate() : nothing, menu);
+    render(menuOpen() ? menuTemplate() : nothing, menu);
     for (const copy of [...copyItems.values(), ...copies.values()])
       if (!copy.isConnected) copy.remove();
-    keeps(
-      menu,
-      "data-level",
-      menuOpen.value && menuAt.value ? menuAt.value.view : null
-    );
-    keeps(menu, "style", menuOpen.value && menuRoom ? `height: ${menuRoom}px` : null);
+    keeps(menu, "data-level", menuOpen() && menuAt() ? menuAt().view : null);
+    keeps(menu, "style", menuOpen() && menuRoom ? `height: ${menuRoom}px` : null);
     keeps(menu, "role", menu.querySelector("textarea") ? "dialog" : "menu");
-    if (menuOpen.value) {
+    if (menuOpen()) {
       const rows2 = menuRows();
       rove(rows2, rows2.includes(focused()) ? focused() : rows2[0]);
     }
@@ -8582,8 +8582,8 @@ function createFloatingPanel({
       paint();
       return;
     }
-    setMenu(!menuOpen.value);
-    if (menuOpen.value && keyed2) {
+    setMenu(!menuOpen());
+    if (menuOpen() && keyed2) {
       const first = menu.querySelector("button");
       if (first) focusDestination(first, "move");
     }
@@ -8633,14 +8633,14 @@ function createFloatingPanel({
           paint();
         }
       };
-    if (menuOpen.value && menuAt.value)
+    if (menuOpen() && menuAt())
       return {
         root: host,
         title: "back to menu",
         description: "Go back from the list to the page menu",
         out: () => showMenuAt(null)
       };
-    if (menuOpen.value)
+    if (menuOpen())
       return {
         root: host,
         title: "close menu",
@@ -8650,11 +8650,11 @@ function createFloatingPanel({
           focusDestination(leaf, "return");
         }
       };
-    if (!trail.value.length) return null;
+    if (!trail().length) return null;
     return {
       root: host,
-      title: `close ${titleOf2(trail.value.at(-1)).toLowerCase()}`,
-      description: `Close ${titleOf2(trail.value.at(-1))}`,
+      title: `close ${titleOf2(trail().at(-1)).toLowerCase()}`,
+      description: `Close ${titleOf2(trail().at(-1))}`,
       // Putting a view away returns the user to the page, where the view's thread or
       // list took them from.
       out: () => {
@@ -8669,7 +8669,7 @@ function createFloatingPanel({
     const rows2 = listRows();
     return rows2.length > 0 && (at === shownView() || rows2.includes(at));
   };
-  const walkedRows = () => menuOpen.value ? menuRows() : listRows();
+  const walkedRows = () => menuOpen() ? menuRows() : listRows();
   keys(
     host,
     "In the floating panel",
@@ -8683,18 +8683,18 @@ function createFloatingPanel({
       // position over either list.
       position: () => null,
       landed: (row2) => rove(walkedRows(), row2)
-    }).map((row2) => ({ ...row2, when: () => menuOpen.value || inList() })).concat(
+    }).map((row2) => ({ ...row2, when: () => menuOpen() || inList() })).concat(
       // → goes into the list a row opens, as its chevron points, and ← back to the menu.
       {
         id: "panel.floating.menu.level",
         keys: ["ArrowLeft", "ArrowRight"],
         description: "Open the list a row of the page menu leads to, or go back to the menu",
         title: "open or leave a list",
-        when: () => menuOpen.value && renderedUnder(focused(), menu),
+        when: () => menuOpen() && renderedUnder(focused(), menu),
         run: (binding) => {
           const [backward] = rowArrows(menu);
           if (binding === backward) {
-            if (menuAt.value) showMenuAt(null);
+            if (menuAt()) showMenuAt(null);
           } else if (focused()?.hasAttribute("data-opens")) focused().click();
         }
       },
@@ -8706,7 +8706,7 @@ function createFloatingPanel({
         description: `Leave the page menu ${key === "Tab" ? "forward" : "backward"}`,
         title: key === "Tab" ? "leave forward" : "leave backward",
         native: true,
-        when: () => menuOpen.value && renderedUnder(focused(), menu),
+        when: () => menuOpen() && renderedUnder(focused(), menu),
         run: () => {
           focusDestination(leaf, "move");
           setMenu(false);
@@ -8726,9 +8726,9 @@ function createFloatingPanel({
         run: findThreads
       }
     ],
-    () => trail.value.at(-1)?.view === "threads"
+    () => trail().at(-1)?.view === "threads"
   );
-  const versionsShown = () => menuOpen.value && menuAt.value?.view === "versions";
+  const versionsShown = () => menuOpen() && menuAt()?.view === "versions";
   const numbered = () => versionsReading().rows.filter(({ version: version2 }) => version2 !== null && version2 <= 9).toSorted((a, b) => a.version - b.version);
   keys(
     menu,
@@ -8761,7 +8761,7 @@ function createFloatingPanel({
       keys: ["Escape"],
       description: "Leave the comment field, keeping the view open above it",
       title: "leave field",
-      when: () => !menuOpen.value && trail.value.length > 0,
+      when: () => !menuOpen() && trail().length > 0,
       run: () => focusDestination(leaf, "return")
     }
   ]);
@@ -8783,7 +8783,7 @@ function createFloatingPanel({
     true
   );
   onStanding((node, _cause, left) => {
-    if (menuOpen.value && node && node !== leaf && !renderedUnder(node, menu))
+    if (menuOpen() && node && node !== leaf && !renderedUnder(node, menu))
       setMenu(false);
     const inside = Boolean(node) && renderedUnder(node, host);
     if (inside && left?.isConnected && !renderedUnder(left, host))
@@ -8797,8 +8797,8 @@ function createFloatingPanel({
     "pointerdown",
     (event) => {
       if (event.composedPath().includes(host) || !nativeModalAdmits(host)) return;
-      if (menuOpen.value) setMenu(false);
-      if (trail.value.length) close();
+      if (menuOpen()) setMenu(false);
+      if (trail().length) close();
     },
     true
   );
@@ -8809,7 +8809,7 @@ function createFloatingPanel({
   }
   const doors = Object.freeze({
     threads: {
-      shows: () => trail.value.at(-1)?.view === "threads",
+      shows: () => trail().at(-1)?.view === "threads",
       press: () => {
         filter = "open";
         query = "";
@@ -8818,22 +8818,22 @@ function createFloatingPanel({
       }
     },
     queue: {
-      shows: () => trail.value.at(-1)?.view === "queue" && queueTab === "you",
+      shows: () => trail().at(-1)?.view === "queue" && queueTab === "you",
       press: openOnMe
     },
     leaves: {
-      shows: () => trail.value.at(-1)?.view === "leaves",
+      shows: () => trail().at(-1)?.view === "leaves",
       press: () => open({ view: "leaves" })
     },
     versions: {
-      shows: () => menuOpen.value && menuAt.value?.view === "versions",
-      press: () => menuOpen.value && menuAt.value?.view === "versions" ? putVersionsAway() : showMenuAt({ view: "versions" })
+      shows: () => menuOpen() && menuAt()?.view === "versions",
+      press: () => menuOpen() && menuAt()?.view === "versions" ? putVersionsAway() : showMenuAt({ view: "versions" })
     }
   });
   function showForSample({ thread, status: status2 }) {
     const wanted = thread ? threadByKey(thread) : null;
     if (thread && !wanted) return Promise.resolve(false);
-    const top = trail.value.at(-1);
+    const top = trail().at(-1);
     const shown = top?.view === "thread" ? threadByKey(top.thread)?.key : null;
     if ((wanted?.key ?? null) !== (shown ?? null) && (standingIn(field) || draftOf(fieldInput()).trim()))
       return Promise.resolve(false);
@@ -8849,7 +8849,7 @@ function createFloatingPanel({
     return present({ release: true }).then(() => true);
   }
   function captureStanding() {
-    const top = trail.value.at(-1);
+    const top = trail().at(-1);
     const view = openView();
     if (top?.view !== "thread" || !view) return null;
     return {
@@ -8860,12 +8860,12 @@ function createFloatingPanel({
   function restoreStanding(standing) {
     const thread = standing && threadByKey(standing.thread);
     if (!thread) return false;
-    if (trail.value.at(-1)?.thread === thread.key && openView()) return true;
+    if (trail().at(-1)?.thread === thread.key && openView()) return true;
     open({ view: "thread", thread: thread.key }, { reopen: true, focus: false });
     landAtEnd = null;
     void present({ release: true }).then(() => {
       const view = openView();
-      if (view && trail.value.at(-1)?.thread === thread.key)
+      if (view && trail().at(-1)?.thread === thread.key)
         moveScrollerBy(view, standing.scroll - view.scrollTop);
     });
     return true;
@@ -8897,7 +8897,7 @@ function createFloatingPanel({
       // the user's place in it where they stood in the panel, read before the panel's
       // reader, and the message they stood on, goes.
       yielded: () => {
-        const top = trail.value.at(-1);
+        const top = trail().at(-1);
         if (top?.view !== "thread") return null;
         const focus = standingIn(host);
         const message = focus ? closestAcross(focused(), ".lf-msg")?.dataset.message ?? null : null;
@@ -8914,7 +8914,7 @@ function createFloatingPanel({
       reveal: (key, { part, last }) => {
         const thread = threadByKey(key);
         if (!thread) return false;
-        const top = trail.value.at(-1);
+        const top = trail().at(-1);
         const shown = top?.view === "thread" && threadByKey(top.thread)?.key === thread.key;
         if (thread.anchor && !(part === "message" && shown)) {
           if (!last) {
@@ -8936,7 +8936,7 @@ function createFloatingPanel({
     });
     registerNoticePresentation(() => paint());
     registerErrorPresentation(() => {
-      if (menuOpen.value && menuAt.value?.view === "errors") seeErrors();
+      if (menuOpen() && menuAt()?.view === "errors") seeErrors();
       paint();
     });
     registerStatusContextPresentation(() => paint());

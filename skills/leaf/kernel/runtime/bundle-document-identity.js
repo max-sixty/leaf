@@ -399,14 +399,15 @@ import {
   whenWidgetsPresented
 } from "./bundle-semantic-state.js";
 import {
-  M,
   PENDING,
   actionForWidget,
   anchorKey,
   bindQueuedWork,
   collectReads,
+  createSignal,
   discussed,
   editable,
+  flush,
   foldWidgetStates,
   isMessageEvent,
   isThreadEvent,
@@ -6933,9 +6934,10 @@ function createReadTracking({ markRead, openThread }) {
   const refusedThisVisit = /* @__PURE__ */ new Set();
   const sizes = sizeObserver(() => scheduleScan());
   const frameWatches = [];
-  const committedThreads = M(
+  const [committedThreads, setCommittedThreads] = createSignal(
     /** @type {ReturnType<typeof readThreads>["threads"]} */
-    []
+    [],
+    { ownedWrite: true }
   );
   let threadsPresented = false;
   let presentationGeneration = 0;
@@ -6959,7 +6961,7 @@ function createReadTracking({ markRead, openThread }) {
     const live2 = new Set(
       unreadIn(readThreads().threads).map(({ item }) => keyOf(item))
     );
-    return unreadIn(committedThreads.value).filter(({ item }) => live2.has(keyOf(item)));
+    return unreadIn(committedThreads()).filter(({ item }) => live2.has(keyOf(item)));
   };
   function firstUnread(thread = null) {
     const target = actionableUnread().filter((each) => thread === null || each.thread.key === thread).sort((a, b) => moved(a.message).seq - moved(b.message).seq)[0];
@@ -7138,7 +7140,7 @@ function createReadTracking({ markRead, openThread }) {
     const threads = readThreads().threads;
     void whenDocumentPresented().then(() => {
       if (generation !== presentationGeneration) return;
-      committedThreads.value = threads;
+      flush(() => setCommittedThreads(() => threads));
       threadsPresented = true;
       const unread = unreadIn(threads);
       const current = new Set(unread.map(({ item }) => keyOf(item)));

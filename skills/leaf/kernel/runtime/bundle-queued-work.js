@@ -29,251 +29,18 @@ function bindQueuedWork(callback) {
 }
 var cancelWork = (job) => announce("cancel", job);
 
-// vendor/browser-runtime/signals-core.js
-var j = /* @__PURE__ */ Symbol.for("preact-signals");
-function S() {
-  if (v > 1) v--;
-  else {
-    var t, i = false;
-    for ((function() {
-      var f = p;
-      for (p = void 0; f !== void 0; ) {
-        var w = f.S;
-        if (w.v === f.v) for (var a = w.t; a !== void 0; a = a.x) a.i === f.i && (a.i = w.i);
-        f = f.o;
-      }
-    })(); c !== void 0; ) {
-      var o = c;
-      for (c = void 0, l++; o !== void 0; ) {
-        var r = o.u;
-        if (o.u = void 0, o.f &= -3, !(8 & o.f) && g(o)) try {
-          o.c();
-        } catch (f) {
-          i || (t = f, i = true);
-        }
-        o = r;
-      }
-    }
-    if (l = 0, v--, i) throw t;
-  }
-}
-var e;
-var n = void 0;
-function d(t) {
-  var i = n, o = e;
-  n = void 0, e = void 0;
-  try {
-    return t();
-  } finally {
-    n = i, e = o;
-  }
-}
-var c = void 0;
-var v = 0;
-var l = 0;
-var m = 0;
-var p = void 0;
-var y = 0;
-function x(t) {
-  if (n !== void 0) {
-    var i = t.n;
-    if (i === void 0 || i.t !== n) return i = { i: 0, S: t, p: n.s, n: void 0, t: n, e: void 0, x: void 0, r: i }, n.s !== void 0 && (n.s.n = i), n.s = i, t.n = i, 32 & n.f && t.S(i), i;
-    if (i.i === -1) return i.i = 0, i.n !== void 0 && (i.n.p = i.p, i.p !== void 0 && (i.p.n = i.n), i.p = n.s, i.n = void 0, n.s.n = i, n.s = i), i;
-  }
-}
-function s(t, i) {
-  this.v = t, this.i = 0, this.n = void 0, this.t = void 0, this.l = 0, this.W = i?.watched, this.Z = i?.unwatched, this.name = i?.name;
-}
-s.prototype.brand = j;
-s.prototype.h = function() {
-  return true;
-};
-s.prototype.S = function(t) {
-  var i = this, o = this.t;
-  o !== t && t.e === void 0 && (t.x = o, this.t = t, o !== void 0 ? o.e = t : d(function() {
-    var r;
-    (r = i.W) == null || r.call(i);
-  }));
-};
-s.prototype.U = function(t) {
-  var i = this;
-  if (this.t !== void 0) {
-    var o = t.e, r = t.x;
-    o !== void 0 && (o.x = r, t.e = void 0), r !== void 0 && (r.e = o, t.x = void 0), t === this.t && (this.t = r, r === void 0 && d(function() {
-      var f;
-      (f = i.Z) == null || f.call(i);
-    }));
-  }
-};
-s.prototype.subscribe = function(t) {
-  var i = this;
-  return Z(function() {
-    var o = i.value;
-    d(function() {
-      return t(o);
-    });
-  }, { name: "sub" });
-};
-s.prototype.valueOf = function() {
-  return this.value;
-};
-s.prototype.toString = function() {
-  return this.value + "";
-};
-s.prototype.toJSON = function() {
-  return this.value;
-};
-s.prototype.peek = function() {
-  var t = this;
-  return d(function() {
-    return t.value;
+// vendor/browser-runtime/views.js
+import { createSignal, flush } from "/vendor/solid.js";
+import { render } from "/vendor/solid.js";
+function createView(container, component, initial) {
+  const [props, setProps] = createSignal(() => initial, { ownedWrite: true });
+  const dispose = render(() => component(props), container);
+  return Object.freeze({
+    update(next) {
+      flush(() => setProps(() => next));
+    },
+    dispose
   });
-};
-Object.defineProperty(s.prototype, "value", { get: function() {
-  var t = x(this);
-  return t !== void 0 && (t.i = this.i), this.v;
-}, set: function(t) {
-  if (t !== this.v) {
-    if (l > 100) throw new Error("Cycle detected");
-    (function(o) {
-      v !== 0 && l === 0 && o.l !== m && (o.l = m, p = { S: o, v: o.v, i: o.i, o: p });
-    })(this), this.v = t, this.i++, y++, v++;
-    try {
-      for (var i = this.t; i !== void 0; i = i.x) i.t.N();
-    } finally {
-      S();
-    }
-  }
-} });
-function M(t, i) {
-  return new s(t, i);
-}
-function g(t) {
-  for (var i = t.s; i !== void 0; i = i.n) if (i.S.i !== i.i || !i.S.h() || i.S.i !== i.i) return true;
-  return false;
-}
-function E(t) {
-  for (var i = t.s; i !== void 0; i = i.n) {
-    var o = i.S.n;
-    if (o !== void 0 && (i.r = o), i.S.n = i, i.i = -1, i.n === void 0) {
-      t.s = i;
-      break;
-    }
-  }
-}
-function O(t) {
-  for (var i = t.s, o = void 0; i !== void 0; ) {
-    var r = i.p;
-    i.i === -1 ? (i.S.U(i), r !== void 0 && (r.n = i.n), i.n !== void 0 && (i.n.p = r)) : o = i, i.S.n = i.r, i.r !== void 0 && (i.r = void 0), i = r;
-  }
-  t.s = o;
-}
-function h(t, i) {
-  s.call(this, void 0, i), this.x = t, this.s = void 0, this.g = y - 1, this.f = 4;
-}
-h.prototype = new s();
-h.prototype.h = function() {
-  if (this.f &= -3, 1 & this.f) return false;
-  if ((36 & this.f) == 32 || (this.f &= -5, this.g === y)) return true;
-  if (this.g = y, this.f |= 1, this.i > 0 && !g(this)) return this.f &= -2, true;
-  var t = n;
-  try {
-    E(this), n = this;
-    var i = this.x();
-    (16 & this.f || this.v !== i || this.i === 0) && (this.v = i, this.f &= -17, this.i++);
-  } catch (o) {
-    this.v = o, this.f |= 16, this.i++;
-  }
-  return n = t, O(this), this.f &= -2, true;
-};
-h.prototype.S = function(t) {
-  if (this.t === void 0) {
-    this.f |= 36;
-    for (var i = this.s; i !== void 0; i = i.n) i.S.S(i);
-  }
-  s.prototype.S.call(this, t);
-};
-h.prototype.U = function(t) {
-  if (this.t !== void 0 && (s.prototype.U.call(this, t), this.t === void 0)) {
-    this.f &= -33;
-    for (var i = this.s; i !== void 0; i = i.n) i.S.U(i);
-  }
-};
-h.prototype.N = function() {
-  if (!(2 & this.f)) {
-    this.f |= 6;
-    for (var t = this.t; t !== void 0; t = t.x) t.t.N();
-  }
-};
-Object.defineProperty(h.prototype, "value", { get: function() {
-  if (1 & this.f) throw new Error("Cycle detected");
-  var t = x(this);
-  if (this.h(), t !== void 0 && (t.i = this.i), 16 & this.f) throw this.v;
-  return this.v;
-} });
-function T(t, i) {
-  return new h(t, i);
-}
-function U(t) {
-  var i = t.m;
-  if (t.m = void 0, typeof i == "function") {
-    v++;
-    var o = n;
-    n = void 0;
-    try {
-      i();
-    } catch (r) {
-      throw t.f &= -2, t.f |= 8, b(t), r;
-    } finally {
-      n = o, S();
-    }
-  }
-}
-function b(t) {
-  for (var i = t.s; i !== void 0; i = i.n) i.S.U(i);
-  t.x = void 0, t.s = void 0, U(t);
-}
-function W(t) {
-  if (n !== this) throw new Error("Out-of-order effect");
-  O(this), n = t, this.f &= -2, 8 & this.f && b(this), S();
-}
-function u(t, i) {
-  this.x = t, this.m = void 0, this.s = void 0, this.u = void 0, this.f = 32, this.name = i?.name, e && e.push(this);
-}
-u.prototype.c = function() {
-  var t = this.S();
-  try {
-    if (8 & this.f || this.x === void 0) return;
-    var i = this.x();
-    typeof i == "function" && (this.m = i);
-  } finally {
-    t();
-  }
-};
-u.prototype.S = function() {
-  if (1 & this.f) throw new Error("Cycle detected");
-  this.f |= 1, this.f &= -9, U(this), E(this), v++;
-  var t = n;
-  return n = this, W.bind(this, t);
-};
-u.prototype.N = function() {
-  2 & this.f || (this.f |= 2, this.u = c, c = this);
-};
-u.prototype.d = function() {
-  this.f |= 8, 1 & this.f || b(this);
-};
-u.prototype.dispose = function() {
-  this.d();
-};
-function Z(t, i) {
-  var o = new u(t, i);
-  try {
-    o.c();
-  } catch (f) {
-    throw o.d(), f;
-  }
-  var r = o.d.bind(o);
-  return r[Symbol.dispose] = r, r;
 }
 
 // runtime/projection/model.js
@@ -284,14 +51,14 @@ function foldedValue(event, record) {
   if (record.kind === "attribute" && Array.isArray(value)) return value.toSorted();
   return value ?? null;
 }
-var sameValue = (a, b2) => JSON.stringify(a) === JSON.stringify(b2);
-var compareProjected = (a, b2) => {
+var sameValue = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+var compareProjected = (a, b) => {
   const aLogged = Number.isInteger(a.e.seq);
-  const bLogged = Number.isInteger(b2.e.seq);
-  if (aLogged && bLogged) return (a.e.seq ?? 0) - (b2.e.seq ?? 0);
+  const bLogged = Number.isInteger(b.e.seq);
+  if (aLogged && bLogged) return (a.e.seq ?? 0) - (b.e.seq ?? 0);
   if (aLogged) return -1;
   if (bLogged) return 1;
-  return (a.localOrder ?? 0) - (b2.localOrder ?? 0);
+  return (a.localOrder ?? 0) - (b.localOrder ?? 0);
 };
 function foldProjection({
   entries = [],
@@ -327,9 +94,9 @@ function foldProjection({
     if (entry && !entry.terminal) desired.set(entry.coordinate, entry);
   }
   for (const record of coverage) {
-    const e2 = record.event;
-    if (e2.kind === "undo" || classified.has(e2.id)) continue;
-    classified.set(e2.id, { e: e2, terminal: record.coordinate === null });
+    const e = record.event;
+    if (e.kind === "undo" || classified.has(e.id)) continue;
+    classified.set(e.id, { e, terminal: record.coordinate === null });
   }
   const pendingActions = [];
   const withdrawn = /* @__PURE__ */ new Set();
@@ -383,10 +150,10 @@ function projectionOrigins(authoredSnapshots, projection) {
   for (const entry of projection.classified.values())
     for (const unit of entry.restated ?? []) add("restated", unit);
   for (const entry of projection.desired.values()) {
-    const { unit, e: e2, spec, value } = entry;
+    const { unit, e, spec, value } = entry;
     const overridesSource = spec.record ? !sameValue(value, authoredValue(authoredSnapshots, entry)) : true;
     if (!overridesSource) continue;
-    add(e2.kind === "action" ? "user" : "reported", unit);
+    add(e.kind === "action" ? "user" : "reported", unit);
   }
   return [...origins.values()];
 }
@@ -394,12 +161,12 @@ var DIGITS = "0123456789abcdefghijklmnopqrstuvwxyz";
 var authoredRank = (index) => "z".repeat(Math.floor(index / 35)) + DIGITS.charAt(index % 35 + 1);
 var byRank = (ranks) => (
   /** @param {string} a @param {string} b */
-  (a, b2) => {
+  (a, b) => {
     const left = ranks[a];
-    const right = ranks[b2];
+    const right = ranks[b];
     if (left !== void 0 && right !== void 0 && left !== right)
       return left < right ? -1 : 1;
-    return a < b2 ? -1 : a > b2 ? 1 : 0;
+    return a < b ? -1 : a > b ? 1 : 0;
   }
 );
 function rankBetween(before, after) {
@@ -421,9 +188,9 @@ function rankBefore(key) {
 }
 function midpoint(before, after) {
   if (after !== null) {
-    let n2 = 0;
-    while ((before[n2] ?? "0") === after[n2]) n2 += 1;
-    if (n2 > 0) return after.slice(0, n2) + midpoint(before.slice(n2), after.slice(n2));
+    let n = 0;
+    while ((before[n] ?? "0") === after[n]) n += 1;
+    if (n > 0) return after.slice(0, n) + midpoint(before.slice(n), after.slice(n));
   }
   const low = before ? DIGITS.indexOf(before.charAt(0)) : 0;
   const high = after !== null ? DIGITS.indexOf(after.charAt(0)) : DIGITS.length;
@@ -475,19 +242,19 @@ function foldWidgetStates(authoredSnapshots, projection) {
   for (const entry of [...projection.desired.values()].sort(compareProjected)) {
     const owner = states.get(entry.e.widget);
     if (!owner) continue;
-    const { spec, e: e2, unit } = entry;
+    const { spec, e, unit } = entry;
     const record = spec.record;
-    const value = record ? structuredClone(e2.detail.value) : e2.action;
-    const current = { action: e2.action, value, detail: structuredClone(e2.detail) };
+    const value = record ? structuredClone(e.detail.value) : e.action;
+    const current = { action: e.action, value, detail: structuredClone(e.detail) };
     owner.entries.push(entry);
-    const target = owner.state[e2.action];
+    const target = owner.state[e.action];
     if (target && "units" in target) {
       target.units[unit] = current;
-      if ("ranks" in target && !entry.absorbed) place(target, unit, e2.detail);
+      if ("ranks" in target && !entry.absorbed) place(target, unit, e.detail);
     } else {
       if (spec.unit !== "widget")
-        throw new Error(`Missing authored units for ${e2.widget}/${e2.action}`);
-      owner.state[e2.action] = current;
+        throw new Error(`Missing authored units for ${e.widget}/${e.action}`);
+      owner.state[e.action] = current;
     }
   }
   for (const { state } of states.values())
@@ -504,7 +271,7 @@ function obligationValue(widget, verb, answered) {
     throw new Error(`Missing obligation value definition for ${verb}`);
   const recorded = (value2) => spec.record?.kind === "attribute" && Array.isArray(value2) ? value2.toSorted() : value2;
   const value = "units" in state ? spec.record?.kind === "position" ? state.value : Object.fromEntries(
-    Object.entries(state.units).sort(([a], [b2]) => a < b2 ? -1 : a > b2 ? 1 : 0).map(([id, entry]) => [
+    Object.entries(state.units).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([id, entry]) => [
       id,
       spec.record ? recorded(entry.value) : entry.detail
     ])
@@ -526,7 +293,7 @@ var anchorKey = (anchor) => {
     ).sort(([left], [right]) => left.localeCompare(right))
   );
 };
-var sameAnchor = (a, b2) => a === b2 || Boolean(a) && Boolean(b2) && anchorKey(a) === anchorKey(b2);
+var sameAnchor = (a, b) => a === b || Boolean(a) && Boolean(b) && anchorKey(a) === anchorKey(b);
 
 // runtime/thread/identity.js
 var PENDING = "pending:";
@@ -775,7 +542,32 @@ function readThreadRecords(threads, document, widgets, workflows, todos = [], ob
   });
 }
 
+// vendor/browser-runtime/presentation.js
+import { createSignal as createSignal3, flush as flush4 } from "/vendor/solid.js";
+
+// vendor/browser-runtime/observe.js
+import { createEffect, createRoot, createTrackedEffect, flush as flush2 } from "/vendor/solid.js";
+function subscribe(read, notify) {
+  return flush2(
+    () => createRoot((dispose) => {
+      createEffect(read, (value) => {
+        notify(value);
+      });
+      return dispose;
+    })
+  );
+}
+function watchEffect(run) {
+  return flush2(
+    () => createRoot((dispose) => {
+      createTrackedEffect(run);
+      return dispose;
+    })
+  );
+}
+
 // vendor/browser-runtime/snapshot.js
+import { createMemo, createSignal as createSignal2, flush as flush3, untrack } from "/vendor/solid.js";
 var collecting = null;
 function collected(reading, read) {
   const outer = collecting;
@@ -931,30 +723,31 @@ function share(prior, next) {
   return copy;
 }
 function createApplicationPublisher(initial) {
-  const root = M(immutable(initial));
+  const [root, setRoot] = createSignal2(() => immutable(initial), { ownedWrite: true });
   return Object.freeze({
     read: () => {
       if (collecting)
         throw new Error(
           "a collected read took the whole publication; select the part it needs"
         );
-      return root.value;
+      return root();
     },
     // The root without subscribing or collecting, for the owner computing what it
     // publishes next.
-    peek: () => root.peek(),
+    peek: () => untrack(root),
     publish(candidate) {
-      root.value = immutable(share(root.peek(), candidate));
-      return root.peek();
+      flush3(() => setRoot(() => immutable(share(untrack(root), candidate))));
+      return untrack(root);
     },
     select(derive) {
       let prior;
-      const selected = T(
-        () => untracked(() => prior = immutable(share(prior, derive(root.value))))
-      );
+      const selected = createMemo(() => {
+        const snapshot = root();
+        return untracked(() => prior = immutable(share(prior, derive(snapshot))));
+      });
       const reading = Object.freeze({
-        read: () => collected(reading, () => selected.value),
-        subscribe: (listener) => selected.subscribe((value) => untracked(() => listener(value)))
+        read: () => collected(reading, selected),
+        subscribe: (listener) => subscribe(selected, (value) => untracked(() => listener(value)))
       });
       return reading;
     }
@@ -968,9 +761,9 @@ function describeFailure(reason) {
   return `${message}: ${reason.errors.map(describeFailure).join("; ")}`;
 }
 function createPresentationCoordinator({ reportFailure }) {
-  const changes = M(0);
+  const [changes, setChanges] = createSignal3(0, { ownedWrite: true });
   const changed = () => {
-    changes.value += 1;
+    flush4(() => setChanges((value) => value + 1));
   };
   let document = null;
   let documentGeneration = 0;
@@ -1298,7 +1091,8 @@ function createPresentationCoordinator({ reportFailure }) {
     currentPresented,
     whenCurrentRegionsPresented,
     currentRegionsPresented,
-    subscribe: (callback) => changes.subscribe(
+    subscribe: (callback) => subscribe(
+      changes,
       () => untracked(() => {
         try {
           callback();
@@ -1413,7 +1207,16 @@ function createPresentationSchedule(bindJob) {
 }
 
 // vendor/browser-runtime.js
-import { LitElement, html, noChange, nothing, render } from "/vendor/lit.js";
+import {
+  createSignal as createSignal4,
+  createMemo as createMemo2,
+  createRoot as createRoot2,
+  createEffect as createEffect2,
+  createTrackedEffect as createTrackedEffect2,
+  flush as flush5,
+  untrack as untrack2
+} from "/vendor/solid.js";
+import { LitElement, html, noChange, nothing, render as render2 } from "/vendor/lit.js";
 import { Directive, PartType, directive } from "/vendor/lit.js";
 import { AsyncDirective } from "/vendor/lit.js";
 import { classMap } from "/vendor/lit.js";
@@ -1424,6 +1227,8 @@ import { createRef, ref } from "/vendor/lit.js";
 import { repeat } from "/vendor/lit.js";
 import { styleMap } from "/vendor/lit.js";
 import { unsafeHTML } from "/vendor/lit.js";
+import { For, Show, onCleanup } from "/vendor/solid.js";
+import { default as default2 } from "/vendor/solid.js";
 
 // runtime/event-kinds.js
 var MESSAGE_KINDS = /* @__PURE__ */ new Set(["comment", "reply"]);
@@ -1574,11 +1379,11 @@ function normalizedProjection(view) {
   for (const projection of [view?.document.projection, view?.thread.projection]) {
     if (!projection) continue;
     for (const wire of projection.entries) {
-      const e2 = wire.event;
+      const e = wire.event;
       const coordinate = stateCoordinate(...wire.coordinate);
       entries.push({
         coordinate,
-        e: e2,
+        e,
         restated: wire.restated,
         absorbed: wire.absorbed,
         stands: wire.stands,
@@ -1629,9 +1434,9 @@ function normalizedObligations(view, widgets, document, projection, local) {
     const completed = item.status === "answered" && !(item.answer?.event && projection.pendingWithdrawals.has(item.answer.event.id));
     const { value, present } = obligationValue(widget, verb, completed);
     const pendingValue = widget.entries.some(
-      ({ e: e2 }) => e2.action === verb && !Number.isInteger(e2.seq)
+      ({ e }) => e.action === verb && !Number.isInteger(e.seq)
     ) || [...projection.pendingWithdrawals.values()].some(
-      ({ e: e2 }) => e2.widget === sourceId && (e2.action === verb || e2.id === item.answer?.event?.id)
+      ({ e }) => e.widget === sourceId && (e.action === verb || e.id === item.answer?.event?.id)
     );
     const answer = present ? { value, event: pendingValue ? null : item.answer?.event ?? null } : null;
     return { ...item, answer };
@@ -1707,9 +1512,9 @@ function currentWidgetRelations(document, widgets, projection) {
         break;
       }
     }
-    for (const { e: e2, unit, spec } of projection.desired.values())
-      if (spec.creates && named.has(e2.widget) && !document.descriptors.has(unit))
-        memberships.get(e2.widget)[attr].push(unit);
+    for (const { e, unit, spec } of projection.desired.values())
+      if (spec.creates && named.has(e.widget) && !document.descriptors.has(unit))
+        memberships.get(e.widget)[attr].push(unit);
     for (const owner of named) memberships.get(owner)[attr].sort();
   }
   return { parents, memberships };
@@ -1776,7 +1581,7 @@ function localQueues(served, workflows, todos, items, local) {
       ...reopenedFor("user").map(asOpen),
       ...local.filter((item) => item.next_actor === "user").map(localRow)
     ].toSorted(
-      (a, b2) => onUserRank(a) - onUserRank(b2) || (namesRecord(a) && namesRecord(b2) ? inventoryAt.get(a.id) - inventoryAt.get(b2.id) : 0)
+      (a, b) => onUserRank(a) - onUserRank(b) || (namesRecord(a) && namesRecord(b) ? inventoryAt.get(a.id) - inventoryAt.get(b.id) : 0)
     ),
     on_agent: [
       ...served.on_agent.filter((item) => item.kind !== "todo" && standsOpen(item)).map(current),
@@ -1871,24 +1676,24 @@ function widgetReading(inputs, descriptor) {
   const states = inputs.states ?? {};
   const desired = inputs.entries.desired;
   const durableUndo = inputs.entries.undo;
-  const localUndo = desired.map(({ e: e2 }) => e2).filter((event) => String(event.id).startsWith(PENDING));
+  const localUndo = desired.map(({ e }) => e).filter((event) => String(event.id).startsWith(PENDING));
   const actions = Object.fromEntries(
     Object.entries(actionSpecs).filter(([verb]) => states[verb]?.writer === "user").map(([verb]) => [
       verb,
       {
         available: currentDescriptor && inputs.hostAvailable && inputs.ready && !descriptor.quoted,
         unavailable: inputs.hostAvailable ? null : "no agent or server is available",
-        history: classified.filter(({ e: e2 }) => e2.action === verb).map(({ e: e2 }) => e2),
-        inForce: desired.filter(({ e: e2 }) => e2.action === verb).map(({ e: e2, unit, value }) => ({ event: e2, unit, value })),
+        history: classified.filter(({ e }) => e.action === verb).map(({ e }) => e),
+        inForce: desired.filter(({ e }) => e.action === verb).map(({ e, unit, value }) => ({ event: e, unit, value })),
         undo: inputs.hostAvailable ? [...localUndo, ...durableUndo].filter((event) => event.action === verb) : []
       }
     ])
   );
   const provenanceEntries = current?.entries ?? [];
   const provenance = Object.fromEntries(
-    provenanceEntries.map(({ e: e2, unit, value }) => [
-      `${e2.action}:${unit}`,
-      { event: e2, unit, value }
+    provenanceEntries.map(({ e, unit, value }) => [
+      `${e.action}:${unit}`,
+      { event: e, unit, value }
     ])
   );
   return {
@@ -1964,11 +1769,11 @@ function createSemanticApplication({
     const served = state?.browser.views[String(document.revision)];
     const view = served ? (({ basis: _basis, ...rest }) => rest)(served) : null;
     const admitted = normalizedProjection(view);
-    const classifiedIds = new Set(admitted.entries.map(({ e: e2 }) => e2.id));
-    const drawsAction = (e2) => {
-      const descriptor = document.descriptors.get(e2.widget);
-      const state2 = descriptor && stampedState(document.registry, descriptor.tag, e2);
-      return Boolean(state2 && sameStateDefinition(e2.meaning?.state, state2.definition));
+    const classifiedIds = new Set(admitted.entries.map(({ e }) => e.id));
+    const drawsAction = (e) => {
+      const descriptor = document.descriptors.get(e.widget);
+      const state2 = descriptor && stampedState(document.registry, descriptor.tag, e);
+      return Boolean(state2 && sameStateDefinition(e.meaning?.state, state2.definition));
     };
     const localProjections = local.flatMap((entry2) => {
       const projection2 = entry2.projection;
@@ -2557,8 +2362,8 @@ export {
   runWork,
   bindQueuedWork,
   cancelWork,
-  M,
-  Z,
+  watchEffect,
+  createView,
   collectReads,
   outsideReading,
   untracked,
@@ -2599,11 +2404,17 @@ export {
   describeFailure,
   createPresentationCoordinator,
   createPresentationSchedule,
+  createSignal4 as createSignal,
+  createMemo2 as createMemo,
+  createRoot2 as createRoot,
+  createEffect2 as createEffect,
+  flush5 as flush,
+  untrack2 as untrack,
   LitElement,
   html,
   noChange,
   nothing,
-  render,
+  render2 as render,
   Directive,
   PartType,
   directive,
@@ -2616,5 +2427,9 @@ export {
   ref,
   repeat,
   styleMap,
-  unsafeHTML
+  unsafeHTML,
+  For,
+  Show,
+  onCleanup,
+  default2 as default
 };

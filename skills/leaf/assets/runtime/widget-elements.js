@@ -44,7 +44,7 @@ import { tagsDeclaring } from "./registry.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
 import { shownBox } from "./geometry.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
-import { iconElement, iconTemplate } from "./icons.js";
+import { iconElement } from "./icons.js";
 import { renderedParent } from "./shadow.js";
 import { keeps, keepsText } from "./keeps.js";
 import {
@@ -52,9 +52,12 @@ import {
   PartType,
   directive,
   nothing,
-  html,
-  render,
-  signal,
+  solidHtml as html,
+  createView,
+  Show,
+  createSignal,
+  flush,
+  untrack,
 } from "/vendor/browser-runtime.js";
 
 // A scroll target can sit inside a collapsed container — a closed <details>, an
@@ -121,15 +124,15 @@ export function el(tag, cls, text) {
 // signal, so that row's reflection, which reads them, hears them move (keyboard/scopes.js,
 // `reflectKeys`). The widget's own rows move with the grab too, even where it is a press
 // on an already-focused grip and no focus event fires, so its keys are painted here.
-const hands = signal(new Set());
+const [hands, setHands] = createSignal(new Set(), { ownedWrite: true });
 
-export const dragHeld = () => hands.value.size > 0;
+export const dragHeld = () => hands().size > 0;
 
 export const dragging = (el, on) => {
-  const held = new Set(hands.peek());
+  const held = new Set(untrack(hands));
   if (on) held.add(el);
   else held.delete(el);
-  hands.value = held;
+  flush(() => setHands(() => held));
   paintKeysWithin(el);
 };
 
@@ -332,6 +335,12 @@ export function elementDirective(name, write) {
 // remain ordinary Lit bindings. Both forms use the same chrome anatomy.
 export const offered = elementDirective("offered", offerElement);
 
+/** A Solid ref that gives an existing element Leaf's generated-control anatomy. */
+export const offerRef =
+  (...args) =>
+  (element) =>
+    offerElement(element, ...args);
+
 // Some page words also act as controls: a tab name, a chosen mark, or the title of a
 // settled decision. Chromium does not begin text selection inside a form control, so those
 // few controls deliberately remain spans and their owning widget supplies the complete
@@ -473,6 +482,8 @@ export function closeControl({ name, title = name, className = "" }) {
 // margin entries. The repeated anatomy lets Comment, Suggest, and package reactions
 // change vocabulary without each inventing a button shape. Restating the anatomy a
 // control already wears writes nothing (keeps.js).
+const responseDrawings = new WeakMap();
+
 export function responseAction(
   control,
   { glyph = null, icon = null, label, behavior = "action", collapse = false },
@@ -487,17 +498,29 @@ export function responseAction(
     control.setAttribute("aria-expanded", "false");
   if (behavior === "action") control.removeAttribute("aria-expanded");
   if (!control.hasAttribute("aria-label")) control.setAttribute("aria-label", label);
-  render(
-    html`${
-        icon
-          ? iconTemplate(icon)
-          : html`<span class="lf-response-action-glyph" aria-hidden="true"
-              >${glyph}</span
-            >`
-      }<span class="lf-response-action-space" aria-hidden="true"> </span
-      ><span class="lf-response-action-label">${label}</span>`,
-    control,
-  );
+  const props = { icon, glyph, label };
+  let drawing = responseDrawings.get(control);
+  if (!drawing) {
+    drawing = createView(
+      control,
+      (state) => {
+        const glyph = html`<span class="lf-response-action-glyph" aria-hidden="true"
+          >${() => state().glyph}</span
+        >`;
+        return html`${Show({
+            get when() {
+              return state().icon;
+            },
+            keyed: true,
+            fallback: glyph,
+            children: (icon) => iconElement(icon),
+          })}<span class="lf-response-action-space" aria-hidden="true"> </span>
+          <span class="lf-response-action-label">${() => state().label}</span>`;
+      },
+      props,
+    );
+    responseDrawings.set(control, drawing);
+  } else drawing.update(props);
   return control;
 }
 

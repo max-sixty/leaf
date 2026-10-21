@@ -48,6 +48,7 @@ import { contractTypes, protocolSchemas } from "./contract-types.mjs";
 import { protocolBreaks } from "./protocol.mjs";
 import { initialOutputs } from "../initial.mjs";
 import { litNamespace, litPath } from "../lit.mjs";
+import { solidModule, solidPath } from "../solid.mjs";
 import { registryOutputs } from "../registry.mjs";
 import { styleOutputs } from "../styles.mjs";
 import { kernelOutputs } from "../runtime-bundle.mjs";
@@ -100,7 +101,10 @@ export async function compilerPaths(directory = root) {
 /** The layer path each package the framework imports is vendored at. */
 const packages = {
   lit: litPath,
-  "@preact/signals-core": `${frameworkDirectory}/signals-core.js`,
+  "@solidjs/signals": solidPath,
+  "@solidjs/web": solidPath,
+  "@solidjs/html": solidPath,
+  "solid-js": solidPath,
 };
 
 /** Each source module's layer path. */
@@ -345,11 +349,11 @@ export async function buildOutputs({ acceptServed = false } = {}) {
     entryPoints: Object.fromEntries(
       Object.entries(packages).map(([name, layerPath]) => [
         layerPath.slice("vendor/".length, -".js".length),
-        name === "lit" ? "leaf:lit" : name,
+        layerPath === solidPath ? "leaf:solid" : name === "lit" ? "leaf:lit" : name,
       ]),
     ),
     outdir: `${assets}/vendor`,
-    plugins: await litModule(),
+    plugins: [...(await litModule()), solidModule(root)],
     external: ["/runtime/dom-move.js"],
     platform: "browser",
     format: "esm",

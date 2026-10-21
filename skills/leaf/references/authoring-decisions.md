@@ -57,10 +57,14 @@ on each other, such as a limit on how many.
 State what choosing each option does to the subject in its label or title, including
 the choice to keep today's behavior: “Generate shared types” or “Keep handwritten
 types”. Accepting or rejecting your advice is the gesture; name the result it records.
-A compact label can be the whole option. Add words for a
-consequence or tradeoff the decision has not yet shown. Show the result inside the
-decision, following `page-authoring.md`, "Show the subject". This holds on plans and
-work-item lists too:
+A compact label can be the whole option. Where the alternatives take different values
+of facts the user weighs, such as the work each takes, its risk or its cost at runtime,
+label each such fact with a `small.tag` before every option's title, in the same order
+(“effort: small”, “risk: low”), so the user compares them down the group. A value every
+option shares belongs in the decision's context. Add words for a consequence or
+tradeoff that no title or label has shown. Show the result inside the decision,
+following `page-authoring.md`, "Show the subject". This holds on plans and work-item
+lists too:
 
 - For an interface or behavior choice, make the interaction work inside each option so
   the user can try every alternative.

@@ -6923,10 +6923,13 @@ function createFloatingPanel({
         leafBox.top
       );
       if (reveal2)
-        card.style.clipPath = travellingClip(
-          inside,
-          { top: 0, right: 0, bottom: 0, left: 0, radius: next.radius }
-        );
+        card.style.clipPath = travellingClip(inside, {
+          top: 0,
+          right: 0,
+          bottom: 0,
+          left: 0,
+          radius: next.radius
+        });
       if (rest !== "mark") {
         const rowLeft = within(room2, row).left;
         row.style.clipPath = `inset(${-room2.height}px 0 ${-room2.height}px ${between(
@@ -6954,11 +6957,7 @@ function createFloatingPanel({
       return;
     }
     for (const { layer, from, to } of contours) {
-      if (moving)
-        layer.animate(
-          [{ clipPath: from }, { clipPath: to }],
-          timing
-        );
+      if (moving) layer.animate([{ clipPath: from }, { clipPath: to }], timing);
     }
     if (!moving) return;
     if (ride) {

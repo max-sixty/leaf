@@ -7078,7 +7078,7 @@ var ResolvedThreads = class {
     render(
       html`Resolved ·
       ${threads.length}${notice2 ? html` ·
-            <span class="lf-thread-notice lf-thread-notice-news">${notice2}</span>` : ""}`,
+              <span class="lf-thread-notice lf-thread-notice-news">${notice2}</span>` : ""}`,
       this.summary
     );
     setChildren(this.node, [this.summary, ...nodes]);

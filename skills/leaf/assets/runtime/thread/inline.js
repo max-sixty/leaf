@@ -67,10 +67,12 @@ class ResolvedThreads {
         : (held[0]?.label ?? null);
     render(
       html`Resolved ·
-      ${threads.length}${notice
-        ? html` ·
-            <span class="lf-thread-notice lf-thread-notice-news">${notice}</span>`
-        : ""}`,
+      ${threads.length}${
+        notice
+          ? html` ·
+              <span class="lf-thread-notice lf-thread-notice-news">${notice}</span>`
+          : ""
+      }`,
       this.summary,
     );
     setChildren(this.node, [this.summary, ...nodes]);

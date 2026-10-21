@@ -821,9 +821,7 @@ export function createFloatingPanel({
   // Ordinary open state is implicit. Rows name attention, resolution, news and drafts,
   // less the state the selected filter already says, such as "New" under Unread.
   const threadStatus = (thread, shownBy) => {
-    const state = thread.resolved
-      ? "Resolved"
-      : threadAttention(thread)?.label;
+    const state = thread.resolved ? "Resolved" : threadAttention(thread)?.label;
     const said = {
       unread: "New",
       resolved: "Resolved",
@@ -1210,7 +1208,8 @@ export function createFloatingPanel({
       left: Math.max(0, current.left - next.left),
       radius: current.radius,
     };
-    const reveal = was && (next.width > was.width + 0.5 || next.height > was.height + 0.5);
+    const reveal =
+      was && (next.width > was.width + 0.5 || next.height > was.height + 0.5);
     if (moving && folding) {
       // One painted progress drives the whole fold. Independently composited
       // transforms or insets can outrun the contour's clip by a frame, even with
@@ -1224,10 +1223,13 @@ export function createFloatingPanel({
         leafBox.top,
       );
       if (reveal)
-        card.style.clipPath = travellingClip(
-          inside,
-          { top: 0, right: 0, bottom: 0, left: 0, radius: next.radius },
-        );
+        card.style.clipPath = travellingClip(inside, {
+          top: 0,
+          right: 0,
+          bottom: 0,
+          left: 0,
+          radius: next.radius,
+        });
       if (rest !== "mark") {
         // The row's words follow the Leaf's trailing edge, so the travelling mark
         // never crosses words or another control as the surface reveals them. Only
@@ -1257,11 +1259,7 @@ export function createFloatingPanel({
       return;
     }
     for (const { layer, from, to } of contours) {
-      if (moving)
-        layer.animate(
-          [{ clipPath: from }, { clipPath: to }],
-          timing,
-        );
+      if (moving) layer.animate([{ clipPath: from }, { clipPath: to }], timing);
     }
     if (!moving) return;
     if (ride) {

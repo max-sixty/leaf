@@ -39,7 +39,11 @@ export class SettledOptions {
     this.#title = document.createElement("span");
     this.#count = document.createElement("span");
     this.#count.className = "lf-settled-count";
-    this.#row.append(iconElement("down", "lf-disclosure-icon"), this.#title, this.#count);
+    this.#row.append(
+      iconElement("down", "lf-disclosure-icon"),
+      this.#title,
+      this.#count,
+    );
     this.#row.setAttribute("aria-expanded", "false");
     this.#row.onclick = () => this.#open(!this.#isOpen, true);
     commands(this.#row, "In settled options", [

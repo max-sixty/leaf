@@ -887,8 +887,16 @@ customElements.define(
                     >`,
                 )}
               </wa-select>
-              <button ${offered("lf-btn lf-quiet-action lf-compact-control lf-vr-previous")}>Previous</button>
-              <button ${offered("lf-btn lf-quiet-action lf-compact-control lf-vr-next")}>Next</button>
+              <button
+                ${offered("lf-btn lf-quiet-action lf-compact-control lf-vr-previous")}
+              >
+                Previous
+              </button>
+              <button
+                ${offered("lf-btn lf-quiet-action lf-compact-control lf-vr-next")}
+              >
+                Next
+              </button>
             </nav>
           </header>
           <div class="lf-vr-cases">

@@ -556,7 +556,10 @@ svg[data-lf-icon] {
   color: var(--muted);
   box-shadow: none;
 }
-:is(button, .lf-btn, .button).lf-quiet-action:not(:disabled, [aria-disabled="true"]):is(:hover, [data-lf-focus]),
+:is(button, .lf-btn, .button).lf-quiet-action:not(:disabled, [aria-disabled="true"]):is(
+    :hover,
+    [data-lf-focus]
+  ),
 .lf-quiet-action.lf-ui:not(:disabled, [aria-disabled="true"])::part(button):hover,
 .lf-quiet-action.lf-ui::part(lf-focus) {
   background: var(--chip);

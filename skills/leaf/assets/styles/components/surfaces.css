@@ -550,7 +550,8 @@ summary {
 :is(
   .lf-page-thread:not(.lf-primary-part, [inert])
     + :is(.lf-page-thread:not(.lf-primary-part, [inert]), .lf-resolved-threads),
-  .lf-thread-seat > .lf-page-thread:not([inert])
+  .lf-thread-seat
+    > .lf-page-thread:not([inert])
     ~ :is(.lf-page-thread:not([inert]), .lf-resolved-threads)
 ) {
   margin-top: var(--sp-3);
@@ -558,7 +559,8 @@ summary {
 :is(
   .lf-page-thread:not(.lf-primary-part, [inert])
     + :is(.lf-page-thread:not(.lf-primary-part, [inert]), .lf-resolved-threads),
-  .lf-thread-seat > .lf-page-thread:not([inert])
+  .lf-thread-seat
+    > .lf-page-thread:not([inert])
     ~ :is(.lf-page-thread:not([inert]), .lf-resolved-threads)
 )::before {
   content: "";

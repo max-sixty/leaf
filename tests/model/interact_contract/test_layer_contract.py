@@ -188,7 +188,7 @@ def test_init_refuses_instructions_that_a_batch_could_not_carry(
 def test_the_events_reference_names_the_fields_each_kind_declares():
     """events.md's kind table agrees with `$events.kinds`, the schema admission enforces.
 
-    The table has one row per declared kind. A code span in a row's Fields cell that
+    The table has one row per declared kind, opening on the kind's anchor. A code span in a row's Fields cell that
     opens on a name (`messages: [...]` names `messages`) must be a field that kind
     declares; parentheses hold values and qualifications, not fields. Every field
     the kind requires appears in its row, except those the opening paragraph
@@ -223,7 +223,11 @@ def test_the_events_reference_names_the_fields_each_kind_declares():
     for kind, _author, _door, cell, _meaning in itertools.batched(cells[5:], 5):
         while (bare := re.sub(r"\([^()]*\)", "", cell)) != cell:
             cell = bare
-        listed.append(kind.strip("`"))
+        # Each kind carries its own anchor, which the site's Data structures page
+        # links each kind to (`leaf_dev.docs.EVENTS_REFERENCE`).
+        anchored = re.fullmatch(r'<a id="kind-([a-z_]+)"></a>`\1`', kind)
+        assert anchored, f'{kind} needs its anchor, <a id="kind-<kind>"></a>'
+        listed.append(anchored[1])
         rows[listed[-1]] = {
             match[1]
             for span in re.findall(r"`([^`]*)`", cell)

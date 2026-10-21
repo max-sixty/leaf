@@ -4,7 +4,7 @@ import html
 
 import pytest
 from leaf.structure import SourceDocument
-from leaf_dev import docs
+from leaf_dev import declared_records, docs
 from leaf_dev.commands import record_demo
 from leaf_dev.example_data import document_metadata
 from model.test_product_page import DOCS, EXAMPLES
@@ -82,7 +82,7 @@ def test_data_structures_page_lists_every_declared_schema():
         "record-draft",
         *(f"served-{name}" for name in docs.read_json(docs.SERVED_SCHEMA)["$defs"]),
         *(f"event-{kind}" for kind in registry["kinds"]),
-        *(f"record-{kind}" for kind in docs.declared_records()),
+        *(f"record-{kind}" for kind in declared_records()),
     }
     assert entries == expected
     targets = {link.attrs["href"][1:] for link in tree.select('a[href^="#"]')}

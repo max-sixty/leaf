@@ -1,7 +1,7 @@
 """Browser diagnostics retain the evidence available at the reporting boundary."""
 
 import pytest
-from leaf_dev.commands.probe import console_errors
+from leaf_dev.commands.probe import console_findings
 from leaf_dev.commands.verify_site import observe_startup
 from playwright.sync_api import Error as PlaywrightError
 from render_harness import (
@@ -12,7 +12,7 @@ from render_harness import (
 )
 
 
-@pytest.mark.parametrize("collector", [watched, console_errors, observe_startup])
+@pytest.mark.parametrize("collector", [watched, console_findings, observe_startup])
 def test_uncaught_errors_keep_the_throw_site_in_each_document(browser, collector):
     """Identical messages in separate documents must keep their distinct call sites."""
     page = browser.unwatched.new_page()

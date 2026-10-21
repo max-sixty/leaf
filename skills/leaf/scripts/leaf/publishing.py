@@ -18,7 +18,7 @@ from leaf.refusals import Refused
 from leaf.revisioning import planned_activation, publish_checked_event
 from leaf.service import PageTransaction
 from leaf.todos import TodoReading
-from leaf.validation.admission import read_text_arg
+from leaf.validation.admission import checked_text
 from leaf.validation.source import check_source
 
 
@@ -179,7 +179,7 @@ def cmd_stamp(
     if_source: str | None = None,
 ) -> dict:
     """Map the exact current source to the next public version."""
-    body = read_text_arg(page_dir, text)
+    body = checked_text(page_dir, text)
     if (from_directory is None) != (if_source is None):
         raise Refused("--from-directory and --if-source are used together")
     incoming = (

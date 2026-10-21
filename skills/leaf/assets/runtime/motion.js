@@ -95,10 +95,9 @@ export function backgroundFlash(el, ms) {
 // How long room takes to go back. Long enough that the eye can follow a paragraph's
 // worth of page closing, short enough that the act still reads as having happened at
 // the press: the board's own FLIP is 150ms over a card's width, and this is a taller
-// distance travelled by the whole column below it. One number, because the product
-// makes this motion twice for one reason — a decided suggestion's retired slot and a
-// resolved thread's place in the list are both room the user watches come back —
-// and two numbers would be that reason written down twice, free to disagree.
+// distance travelled by the whole column below it. A decided suggestion's retired
+// slot and a resolved inline thread fold over it, and a picture's zoom (media.js)
+// takes the same time.
 export const foldDuration = () => time("--lf-motion-fold");
 
 // Give a block's room back from its ordinary CSS shape. Native intrinsic-size

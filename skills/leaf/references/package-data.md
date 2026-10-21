@@ -260,7 +260,7 @@ projections"](module-state.md#bound-data-and-projections).
 The agent gathers the value and sets it whole; Leaf fetches nothing:
 
 ```bash
-printf '%s' '{"main":"passing"}' | leaf data set PAGE release-ci
+leaf data set PAGE release-ci --text '{"main":"passing"}'
 leaf data set PAGE release-ci --file build-state.json
 sed -n '20,44p' CHANGELOG.md | jq -Rs . | leaf data set PAGE release-notes
 leaf data clear PAGE release-ci

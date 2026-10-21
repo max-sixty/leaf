@@ -46,7 +46,7 @@ from pathlib import Path
 
 import click
 from PIL import Image, ImageDraw
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Locator, Page, expect
 
 from leaf_dev import ROOT
 from leaf_dev.arms import build_pair, copy_committed, run_directory, serving_source
@@ -78,6 +78,14 @@ def captured_source(page: Page) -> None:
         "tab", name="Data & work", exact=True
     ).click()
     page.locator("#bg-source-captures").scroll_into_view_if_needed()
+
+
+def native_code(page: Page) -> None:
+    """Native fenced code using short language labels."""
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Page & layout", exact=True
+    ).click()
+    page.locator("#bg-javascript-code").scroll_into_view_if_needed()
 
 
 def recorded_video(page: Page) -> None:
@@ -169,14 +177,11 @@ def drawing_comment_keyboard(page: Page) -> None:
     page.get_by_role("button", name="Undo last stroke").focus()
 
 
-def drawing_photo_comment(page: Page) -> None:
-    """Drawing and photo removal together in the same draft attachment shelf."""
-    drawing_comment(page)
-    field = page.locator(".lf-fab-input")
-    field.focus()
+def paste_screenshot(page: Page, field: Locator) -> None:
+    """Paste the feature gallery's screenshot into `field` and wait for its picture."""
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
-        # This state exercises the paste handler and shelf; keep its payload local
-        # to the tab so captures cannot overwrite or race the machine's clipboard.
+        # This exercises the paste handler and shelf; keep its payload local to the
+        # tab so captures cannot overwrite or race the machine's clipboard.
         field.evaluate("""async field => {
           const response = await fetch('/media/051bee487bfb5d13.png');
           const image = await response.blob();
@@ -190,6 +195,22 @@ def drawing_photo_comment(page: Page) -> None:
         page.get_by_role("button", name="Remove attached image 1", exact=True)
     ).to_be_visible()
     settle(page)
+
+
+def drawing_photo_comment(page: Page) -> None:
+    """Drawing and photo removal together in the same draft attachment shelf."""
+    drawing_comment(page)
+    field = page.locator(".lf-fab-input")
+    field.focus()
+    paste_screenshot(page, field)
+
+
+def page_comment_photo(page: Page) -> None:
+    """The floating panel's field with a pasted screenshot hanging above the panel."""
+    field = page.locator(".lf-fp-field leaf-text")
+    field.click()
+    page.keyboard.insert_text("Is this screenshot right?")
+    paste_screenshot(page, field)
 
 
 def share_link(page: Page) -> None:
@@ -237,6 +258,11 @@ def panel_leaf(page: Page) -> None:
     page.locator(".lf-fp-leaf").focus()
 
 
+def panel_status_hover(page: Page) -> None:
+    """The expanded panel while the pointer rests over its leaf."""
+    page.locator(".lf-fp-leaf").hover()
+
+
 def open_threads(page: Page) -> None:
     """The floating panel's Threads view, listing every open thread."""
     page.locator(".lf-fp-threads").click()
@@ -251,16 +277,16 @@ def open_thread(page: Page, key: str) -> None:
 
 
 def floating_thread(page: Page) -> None:
-    """The floating panel with a thread opened from Threads: its head names the way
-    back and the thread's title, beside On the page, Resolve and Close."""
+    """The floating panel with a thread opened from Threads: the thread's title over
+    its view, and under it, on the row, the way back, On the page, Resolve and Close."""
     open_threads(page)
     page.locator(".lf-fp-thread", has_text="One reconnect in forty").click()
     expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
 
 
 def floating_thread_retitled(page: Page) -> None:
-    """The same head once the thread's opening message is rewritten short, so its
-    title is far narrower than the head."""
+    """The same thread once its opening message is rewritten short, so its title is far
+    narrower than the view it names."""
     floating_thread(page)
     page.locator(".lf-fp-view[data-view=thread] .lf-msg-body").first.dblclick()
     page.keyboard.press("ControlOrMeta+a")
@@ -1056,6 +1082,19 @@ class State:
 
 STATES = (
     State(
+        "native-code",
+        "developer/feature-gallery",
+        native_code,
+        region="#bg-javascript-code",
+    ),
+    State(
+        "native-code-dark",
+        "developer/feature-gallery",
+        native_code,
+        scheme="dark",
+        region="#bg-javascript-code",
+    ),
+    State(
         "markdown-preview-scrolled",
         "developer/feature-gallery",
         markdown_preview_scrolled,
@@ -1108,12 +1147,13 @@ STATES = (
         touch=True,
         region=".lf-fp-leaf",
     ),
-    State("floating-thread", "ship-review", floating_thread, region=".lf-fp-head"),
+    State("panel-status-hover", "review-a-plan", panel_status_hover),
+    State("floating-thread", "ship-review", floating_thread, region=".lf-fp-opened"),
     State(
         "floating-thread-retitled",
         "ship-review",
         floating_thread_retitled,
-        region=".lf-fp-head",
+        region=".lf-fp-opened",
     ),
     State(
         "playground-choice",
@@ -1187,12 +1227,8 @@ STATES = (
         touch=True,
         region="#fix-before",
     ),
-    State(
-        "drawing-photo-comment",
-        "developer/feature-gallery",
-        drawing_photo_comment,
-        region=".lf-fab-bar",
-    ),
+    State("drawing-photo-comment", "developer/feature-gallery", drawing_photo_comment),
+    State("page-comment-photo", "developer/feature-gallery", page_comment_photo),
     State("share-link", "developer/feature-gallery", share_link, region=".lf-fp-menu"),
     State("share-link-dark", "developer/feature-gallery", share_link, scheme="dark"),
     State(

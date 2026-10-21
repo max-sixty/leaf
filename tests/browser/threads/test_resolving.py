@@ -7,6 +7,7 @@ import re
 import pytest
 from interact_support import append_carried_log_record
 from leaf import event_log as events_model
+from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     OBLIGATION_PAGE,
@@ -14,6 +15,7 @@ from render_cases_interaction import (
     SEATED_OBLIGATION_LAYER,
     SEATED_OBLIGATION_PAGE,
     SEATED_OBLIGATION_WIDGETS,
+    answered_comment,
     panel_comment,
 )
 from render_harness import (
@@ -624,3 +626,61 @@ def test_a_late_reply_reopens_its_resolved_thread(browser, serve):
     page.reload()
     told(page)
     expect_open_threads(page, 1)
+
+
+ATTACHED_THREAD_PAGE = leaf_page(
+    "an element and its thread",
+    """<h1>Cache review</h1>
+<p id="passage" tabindex="0">The budget note covers latency budgets for the cache.</p>
+<lf-ask id="cache-ask">
+  <h2>Which cache should we keep?</h2>
+  <lf-options id="cache" choose>
+    <lf-option id="cache-disk">Keep the disk cache</lf-option>
+    <lf-option id="cache-memory">Keep the memory cache</lf-option>
+  </lf-options>
+</lf-ask>""",
+)
+
+
+@pytest.mark.parametrize("arrival", ["walk", "focus"])
+def test_r_settles_the_thread_shown_for_the_element_the_user_stands_on(
+    browser, serve, arrival
+):
+    """An element and the thread its card shows are one place (glossary, Standing
+    target), so `r` on the element settles that thread as it does from the card: on
+    the obligation `m` lands on, or on any element the keyboard stands on. The card
+    closes and the user stays on the element. Leaf's panel stands at no place, so `r`
+    there leaves the card's thread alone though the card stays up."""
+    section = "cache-ask" if arrival == "walk" else "passage"
+    url = serve(ATTACHED_THREAD_PAGE)
+    root = answered_comment(
+        serve.page_dir, "The disk cache costs more.", {"section": section}
+    )
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    element = page.locator(f"#{section}")
+    card = page.locator(".lf-margin-preview")
+
+    def arrive():
+        if arrival == "walk":
+            page.keyboard.press("m")
+        else:
+            page.keyboard.press("Shift")
+            element.focus()
+        expect(element).to_be_focused()
+        expect(card.locator(f'.lf-page-thread[data-thread="{root}"]')).to_be_visible()
+
+    arrive()
+    page.locator(".lf-fp-threads").focus()
+    page.keyboard.press("r")
+    rendered(page)
+    expect(card).to_be_visible()
+    assert events_model.read_events(serve.page_dir)[-1]["kind"] != "resolve"
+    arrive()
+    with sending(page, "the resolve"):
+        page.keyboard.press("r")
+    round_trip(page)
+    expect_open_threads(page, 0)
+    assert events_model.read_events(serve.page_dir)[-1]["kind"] == "resolve"
+    expect(card).to_be_hidden()
+    expect(element).to_be_focused()

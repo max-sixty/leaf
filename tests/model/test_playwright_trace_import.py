@@ -71,24 +71,34 @@ def imported(trace, page):
     )
 
 
-def test_another_trace_format_refuses_before_importing_media(media_page, tmp_path):
-    trace = tmp_path / "new.zip"
-    with ZipFile(trace, "w") as archive:
-        archive.writestr(
-            "trace.trace", json.dumps({"type": "context-options", "version": 11})
-        )
-    with pytest.raises(PRODUCER["TraceError"], match="unsupported trace format 11"):
-        imported(trace, media_page)
-    assert not list((media_page / "media").iterdir())
-
-
-def test_format_ten_call_identity_connects_input_and_phase_captures(
-    media_page, tmp_path
+@pytest.mark.parametrize(
+    ("versions", "message"),
+    [([11], "unsupported trace format 11"), ([9, 10], "one format")],
+)
+def test_unsupported_or_mixed_trace_formats_refuse(
+    media_page, tmp_path, versions, message
 ):
-    """The native step identity is now callId in actions, parents and snapshots."""
+    trace = tmp_path / "unsupported.zip"
+    with ZipFile(trace, "w") as archive:
+        for index, version in enumerate(versions):
+            archive.writestr(
+                f"{index}.trace",
+                json.dumps(
+                    {"type": "context-options", "version": version, "origin": "library"}
+                ),
+            )
+    with pytest.raises(PRODUCER["TraceError"], match=message):
+        imported(trace, media_page)
+
+
+@pytest.mark.parametrize("version", [9, 10])
+def test_native_call_identity_connects_input_and_phase_captures(
+    media_page, tmp_path, version
+):
+    """Both formats use native callId edges, irrespective of separate stepId."""
     trace = tmp_path / "identity.zip"
     events = [
-        {"type": "context-options", "version": 10, "origin": "library"},
+        {"type": "context-options", "version": version, "origin": "library"},
         {
             "type": "before",
             "callId": "step@group",
@@ -129,6 +139,9 @@ def test_format_ten_call_identity_connects_input_and_phase_captures(
         {"type": "after", "callId": "step@click", "endTime": 5},
         {"type": "after", "callId": "step@group", "endTime": 6},
     ]
+    if version == 9:
+        events[1]["stepId"] = "separate-step@group"
+        events[2]["stepId"] = "separate-step@click"
     with ZipFile(trace, "w") as archive:
         archive.writestr("trace.trace", "\n".join(map(json.dumps, events)))
         archive.writestr(
@@ -143,7 +156,7 @@ def test_format_ten_call_identity_connects_input_and_phase_captures(
     action = next(
         action for action in value["actions"] if action["callId"] == "step@click"
     )
-    assert value["archive"]["format"] == 10
+    assert value["archive"]["format"] == version
     assert action["title"] == "Review · Frame.click"
     assert action["endTime"] == 5
     assert action["pageId"] == value["pages"][0]["id"]

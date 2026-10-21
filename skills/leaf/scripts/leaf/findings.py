@@ -966,7 +966,7 @@ _TEXT = {
     ),
     "unreadable-data": lambda at, v: f"data source unreadable: {v['error']}",
     "relocated-anchor": lambda at, v: (
-        f"open thread {v['thread']} anchor no longer resolves; activation will move it"
+        f"open thread {v['thread']} anchor no longer resolves; its revision moves it"
         " to "
         + (
             f"section {v['section']!r}"
@@ -1990,8 +1990,8 @@ _TEXT = {
 # What a browser shows the person whose gesture a refusal turned down, where the
 # agent's words name internals that person never sees (`Rejected.user`).
 _USER = {
-    "stale-move": "The page changed while you moved this; move it again.",
-    "stale-edit": "The message changed while you edited it; edit it again.",
+    "stale-move": "The page changed while I moved this; move it again.",
+    "stale-edit": "The message changed while I edited it; edit it again.",
 }
 
 _CONSOLE = {

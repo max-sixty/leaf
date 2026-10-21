@@ -166,7 +166,7 @@ def test_initial_producers_are_captured_once_and_called_after_each_complete_host
     calls = [script for script in scripts if "lfInitial.mount" in script.text]
     assert len(calls) == 2
     assert [script.previous_sibling.tag for script in calls] == ["lf-early", "lf-early"]
-    assert delivered.count("data-lf-initial-source") == 2
+    assert delivered.count("<lf-early data-lf-arriving") == 2
     assert delivered.count('window.initial = "<\\/script>";') == 1
     assert (
         delivered.index("window.prepaint")

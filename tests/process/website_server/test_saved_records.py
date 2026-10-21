@@ -26,13 +26,13 @@ from interact_support import (
     running_http_server,
 )
 from leaf.delivery import receive_batch
-from leaf.event_log import read_cursor, read_events
+from leaf.event_log import read_events
 from leaf.files import latest_revision, revision_path
 from leaf.hosting import LeafHTTPServer
 from leaf.packages import cmd_package_install
 from leaf.refusals import Refused
 from leaf.registry.storage import layer_packages
-from leaf.service import PageTransaction, unacknowledged
+from leaf.service import PageTransaction, acknowledged, unacknowledged
 from leaf.structure import SourceDocument
 from leaf.vendoring import cmd_init
 
@@ -384,7 +384,7 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
         restore(replacement)
         recovered = replacement / "page"
         assert read_events(recovered) == read_events(private)
-        assert read_cursor(recovered) == reply["seq"]
+        assert acknowledged(read_events(recovered)) == reply["seq"]
         assert (recovered / "index.html").read_bytes() == (
             private / "index.html"
         ).read_bytes()
@@ -442,7 +442,9 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
         )
         assert [
             event["id"]
-            for event in unacknowledged(read_events(recovered), read_cursor(recovered))
+            for event in unacknowledged(
+                read_events(recovered), acknowledged(read_events(recovered))
+            )
         ] == [next_comment["id"]]
 
 

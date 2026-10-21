@@ -53,6 +53,11 @@ export const agentName = () => agent() || "the agent";
 // The same name where it opens a sentence or stands alone as a label.
 export const agentLabel = () =>
   agentName().replace(/^./, (first) => first.toUpperCase());
+// Whether a session holds the page's claim, by the server's reading: false before one
+// has arrived.
+export const pageClaimed = readPart(
+  (root) => root.authoritative?.claim_session != null,
+);
 export const projectView = applicationState.projectView;
 export const selectWidgets = applicationState.selectWidgets;
 export const attachApplicationPresentation = (region, renderer) =>

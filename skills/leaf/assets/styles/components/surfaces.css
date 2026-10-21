@@ -425,7 +425,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     [data-lf-offer=""],
     [data-lf-offer="checkbox"],
     [data-lf-offer="radio"],
-    .lf-skip
+    .lf-mark-note
   )
 ),
 .lf-btn,
@@ -445,7 +445,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     [data-lf-offer=""],
     [data-lf-offer="checkbox"],
     [data-lf-offer="radio"],
-    .lf-skip,
+    .lf-mark-note,
     .lf-btn
   )
 ),
@@ -802,12 +802,20 @@ summary {
   margin-top: var(--lf-msg-body-gap);
   inline-size: fit-content;
   max-inline-size: 100%;
-  font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans);
+  font: var(--msg-font);
   /* Ink at the sheen's default rest (`lf-sheen`), so the words keep their face when
      the work ends. */
   color: color-mix(in srgb, var(--ink) 50%, transparent);
 }
 .lf-thread-working[data-lf-live] .lf-thread-working-words {
+  animation: lf-sheen 2s ease-in-out infinite alternate;
+}
+/* A thread's name while its title is on its way (thread/messages.js, `threadHeading`):
+   the working message's face, its sheen included, at the words' own weight rather
+   than a title's, so it reads as a step under way rather than as the thread's name. */
+.lf-thread-name-pending {
+  font-weight: 400;
+  color: color-mix(in srgb, var(--ink) 50%, transparent);
   animation: lf-sheen 2s ease-in-out infinite alternate;
 }
 /* The one continuous animation, which marks work under way (assets/AGENTS.md,

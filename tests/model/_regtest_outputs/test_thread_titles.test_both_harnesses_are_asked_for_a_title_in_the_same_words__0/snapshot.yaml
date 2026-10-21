@@ -32,6 +32,7 @@ schema:
   additionalProperties: false
 
 app_server_thread:
+  model: gpt-6-luna
   ephemeral: true
   approvalPolicy: never
   sandbox: read-only
@@ -64,9 +65,9 @@ app_server_thread:
     agents:
       enabled: false
     project_doc_max_bytes: 0
-    model_reasoning_effort: low
+    model_reasoning_effort: none
     mcp_servers:
       docs:
         enabled: false
 
-app_server_effort: low
+app_server_effort: none

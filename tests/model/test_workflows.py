@@ -790,6 +790,7 @@ def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
         "responds": "input-1",
         "settles": False,
         "text": "Fresh response",
+        "attempt": "reply-attempt",
         "updated_at": now.isoformat(),
     }
 

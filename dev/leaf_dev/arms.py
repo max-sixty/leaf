@@ -9,9 +9,11 @@ names another ref (`base_ref`).
 A child runs from a scratch cwd outside any repository, so no project instructions
 load, under a home of its own beside that cwd, so its bypassed permissions write to
 that home rather than the user's `~` (children given the user's home once appended to
-the user's `~/.claude/CLAUDE.md`). The home carries only the login. A trace is the
-child's normalized tool/turn evidence; it counts when its harness turn completed
-(`completed`). CC raw stdout and Codex notifications are retained too.
+the user's `~/.claude/CLAUDE.md`). The home carries the login and, for a sandboxed
+Claude Code child, generated instructions naming its scratch directory and
+restriction. A trace is the child's normalized tool/turn evidence; it counts when
+its harness turn completed (`completed`). CC raw stdout and Codex notifications
+are retained too.
 A `LiveChild` keeps its session open across turns, so a driver can post
 user moves to a served page (`PageClient`) as a tab would; a `LiveSession` is how
 every live driver holds one: it records the stream, sends chat messages, and tells
@@ -323,16 +325,15 @@ def install_codex_plugin(
 ) -> Path:
     """Install a complete Leaf payload through Codex's native marketplace commands.
 
-    Return the install directory reported by the CLI. Callers supply the isolated
-    task's environment and its CLI. Installer output is captured on failures and
+    Prepare the installed launcher's environment before native hooks acquire
+    their deadlines, and return its directory. Callers supply the isolated
+    task's environment and its CLI. Command output is captured on failures and
     copied whole to `output` when the caller keeps a log.
     """
-    for arguments in (
-        ("plugin", "marketplace", "add", str(payload), "--json"),
-        ("plugin", "add", "leaf@leaf", "--json"),
-    ):
+
+    def run(command: list[str]) -> subprocess.CompletedProcess:
         result = subprocess.run(
-            [str(codex), *arguments],
+            command,
             cwd=cwd,
             env=env,
             check=False,
@@ -344,7 +345,13 @@ def install_codex_plugin(
             output.write(result.stderr)
             output.flush()
         result.check_returncode()
-    return Path(json.loads(result.stdout)["installedPath"])
+        return result
+
+    run([str(codex), "plugin", "marketplace", "add", str(payload), "--json"])
+    result = run([str(codex), "plugin", "add", "leaf@leaf", "--json"])
+    installed = Path(json.loads(result.stdout)["installedPath"])
+    run([str(installed / "bin/leaf"), "--root"])
+    return installed
 
 
 def codex_home(path: Path, config: str = "") -> Path:
@@ -500,10 +507,11 @@ def private_tmp(*owned: Path) -> str:
     """The macOS sandbox profile a Claude Code child runs under, so that two
     children never share a file under `/tmp`.
 
-    Its `TMPDIR` is already its own (`claude_child`), but authoring agents also
-    write fixed names there, such as `/tmp/chk.py`, which a concurrent sample would
-    overwrite. Writes to `/tmp` are refused except under `owned`, the child's own
-    directories, wherever they are, and the names Claude Code and Leaf give their
+    Its `TMPDIR` and zsh's `TMPPREFIX` are already its own (`claude_child`), but
+    authoring agents also write fixed names such as `/tmp/chk.py`, which a
+    concurrent sample would overwrite. Writes to `/tmp` are refused except under
+    `owned`, the child's own directories, wherever they are, and the names
+    Claude Code and Leaf give their
     own machine-local files there: Claude Code's per-user directory and each
     shell's cwd file and socket, zsh's here-document files, whose names are
     unique, and Leaf's per-user package locks and each App Server's socket
@@ -543,7 +551,8 @@ def claude_child(
     beyond `cwd`, and `env` adds to `environment()`. Output is verbose stream-json.
     On macOS the child runs under `private_tmp`, owning `cwd`, its home and
     `dirs`, unless `sandbox` is False, as a child that drives the harness's own
-    browser is."""
+    browser is. Its private-home CLAUDE.md names the sandbox's scratch directory
+    and restriction; an unsandboxed launch retires that generated file."""
     dirs = list(dirs)
     (cwd / "tmp").mkdir(exist_ok=True)
     home = claude_home(cwd.with_name(f"{cwd.name}-home"))
@@ -553,10 +562,23 @@ def claude_child(
         "--output-format", "stream-json",
         "--verbose", *(arg for d in dirs for arg in ("--add-dir", str(d))),
     ]  # fmt: skip
+    instructions = home / ".claude" / "CLAUDE.md"
     if sandbox and shutil.which("sandbox-exec"):
+        instructions.parent.mkdir(exist_ok=True)
+        instructions.write_text(
+            f"Writable scratch directory: `{cwd / 'tmp'}` (`$TMPDIR`).\n"
+            "The sandbox rejects arbitrary writes under shared `/tmp`.\n"
+        )
         profile = private_tmp(cwd, home, *dirs)
         command = ["sandbox-exec", "-p", profile, *command]
-    child_env = claude_environment(home, TMPDIR=str(cwd / "tmp"), **(env or {}))
+    else:
+        instructions.unlink(missing_ok=True)
+    child_env = claude_environment(
+        home,
+        TMPDIR=str(cwd / "tmp"),
+        TMPPREFIX=str(cwd / "tmp/zsh"),
+        **(env or {}),
+    )
     return {"args": command, "cwd": cwd, "env": child_env}
 
 

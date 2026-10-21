@@ -9,10 +9,11 @@ import leaf_website as website_server
 import pytest
 from interact_support import (
     STATED_TIMEOUT,
-    _delivery_item,
     activity_reading,
+    declared,
     owed_answers,
     page_state,
+    status_and_stream,
     take_stream_activity,
 )
 from interact_support import append_carried_log_record as append_event
@@ -27,7 +28,6 @@ from leaf.thread import post_reply
 from process.website_server import (
     accept_in_turn,
     hosted_follower,
-    queued_turn,
 )
 
 
@@ -118,7 +118,9 @@ def test_a_turn_whose_stream_drops_is_stopped_and_its_move_receipted(
         {"kind": "comment", "author": "user", "text": "edit the page"},
     )
     harness = website_server.WebsiteCodexHarness("codex")
-    monkeypatch.setattr(harness, "_send", queued_turn("app-server-turn"))
+    monkeypatch.setattr(
+        harness, "_send", lambda *a, **k: {"turn": {"id": "app-server-turn"}}
+    )
 
     class LostSocket:
         def recv(self, timeout):
@@ -132,7 +134,6 @@ def test_a_turn_whose_stream_drops_is_stopped_and_its_move_receipted(
         page_dir,
         "hosted-thread",
         type("Process", (), {"pid": os.getpid()})(),
-        [],
     )
     interrupts = []
     monkeypatch.setattr(
@@ -154,7 +155,7 @@ def test_a_turn_whose_stream_drops_is_stopped_and_its_move_receipted(
     assert activity["obligations"] == []
 
 
-def test_notifications_before_the_submission_response_reach_the_turn_follower(
+def test_notifications_before_start_response_reach_the_turn_follower(
     page_dir, monkeypatch
 ):
     # A real delivery, because the follower reads it back by id when it accounts for
@@ -174,21 +175,17 @@ def test_notifications_before_the_submission_response_reach_the_turn_follower(
             json.dumps({"id": 1, "result": {"thread": {"id": "hosted-thread"}}}),
             json.dumps(
                 {
-                    "method": "turn/started",
-                    "params": {
-                        "threadId": "hosted-thread",
-                        "turn": {"id": "initial-turn", "items": []},
-                    },
-                }
-            ),
-            json.dumps(
-                {
                     "method": "item/started",
                     "params": {
                         "threadId": "hosted-thread",
                         "turnId": "initial-turn",
                         "startedAtMs": 900,
-                        "item": _delivery_item(payload),
+                        "item": {
+                            "id": "delivery",
+                            "type": "functionCallOutput",
+                            "name": "leaf_delivery",
+                            "output": json.dumps(payload),
+                        },
                     },
                 }
             ),
@@ -213,12 +210,15 @@ def test_notifications_before_the_submission_response_reach_the_turn_follower(
                     "method": "turn/completed",
                     "params": {
                         "threadId": "hosted-thread",
-                        "turn": {"id": "initial-turn", "status": "completed"},
+                        "turn": {
+                            "id": "initial-turn",
+                            "status": "completed",
+                            "items": [],
+                        },
                     },
                 }
             ),
-            json.dumps({"id": 2, "result": {}}),
-            json.dumps({"id": 3, "result": {"data": [], "nextCursor": None}}),
+            json.dumps({"id": 2, "result": {"turn": {"id": "initial-turn"}}}),
         ]
     )
 
@@ -273,7 +273,7 @@ def test_notifications_before_the_submission_response_reach_the_turn_follower(
         (
             page_dir,
             "hosted-thread",
-            {"id": "initial-turn", "status": "completed"},
+            {"id": "initial-turn", "status": "completed", "items": []},
         )
     ]
     assert socket.closed
@@ -290,7 +290,7 @@ def test_the_website_harness_keeps_its_claim_listening_through_the_agent_turn(
     monkeypatch.setattr(
         harness,
         "_send",
-        queued_turn("app-server-turn"),
+        lambda *args: {"turn": {"id": "app-server-turn"}},
     )
 
     try:
@@ -299,7 +299,6 @@ def test_the_website_harness_keeps_its_claim_listening_through_the_agent_turn(
             page_dir,
             "hosted-thread",
             type("Process", (), {"pid": os.getpid()})(),
-            [],
         )
         # The reading is the turn's, so it starts when the follower opens the turn
         # rather than when the request that made it went out.
@@ -349,6 +348,9 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
                             "id": "command-1",
                             "type": "commandExecution",
                             "command": "leaf page check .",
+                            "commandActions": [],
+                            "cwd": "/work",
+                            "status": "inProgress",
                         },
                     },
                 }
@@ -366,6 +368,8 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
                             "command": "leaf page check .",
                             "status": "completed",
                             "exitCode": 0,
+                            "commandActions": [],
+                            "cwd": "/work",
                         },
                     },
                 }
@@ -689,7 +693,7 @@ def test_an_invalid_source_still_releases_a_finished_website_turn(page_dir):
     claim = website_server.page_claim(page_dir)
     assert claim["turn"] == "app-server-turn"
     assert claim["turn_closed"] is not None
-    assert website_server.PageTransaction(page_dir).status["state"] == "waiting"
+    assert declared(page_dir)["state"] == "waiting"
     assert [obligation["input"] for obligation in owed_answers(page_dir)] == [
         comment["id"]
     ]
@@ -758,8 +762,12 @@ def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
         expected=session_record("hosted-thread"),
     )
 
-    assert read_events(page_dir) == before
-    assert website_server.PageTransaction(page_dir).status["state"] == "waiting"
+    # The ending declares the page waiting for its agent, and writes nothing else.
+    after = read_events(page_dir)
+    assert after[: len(before)] == before
+    assert [(event["kind"], event["state"]) for event in after[len(before) :]] == [
+        ("status", "waiting")
+    ]
 
 
 def test_an_old_website_completion_does_not_close_the_new_leaf_turn(page_dir):
@@ -823,7 +831,7 @@ def test_hosted_completion_cannot_borrow_a_reused_session_generation(page_dir):
         expected=session_record("hosted-thread"),
     )
     winner = session_record("hosted-thread")
-    status = website_server.PageTransaction(page_dir).status
+    status = status_and_stream(page_dir)
     old.close({"id": "same-turn", "status": "completed", "items": []}, None)
     assert session_record("hosted-thread") == winner
-    assert website_server.PageTransaction(page_dir).status == status
+    assert status_and_stream(page_dir) == status

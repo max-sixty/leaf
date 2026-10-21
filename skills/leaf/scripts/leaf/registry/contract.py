@@ -45,7 +45,8 @@ def event_clauses(entry: dict, registry: dict | None) -> list[dict]:
     `entry` is the event record, plus the `answer` a delivery captured when the
     event owes one, addressed for the route delivering it (`workflows` and
     `delivery` own those derivations), and the `thread` digest of the thread
-    it belongs to (`thread_context` owns that one). A `when` can therefore read any
+    it belongs to (`thread_context` owns that one). `delivery.DELIVERY` declares
+    the shape of each, as its batches carry them. A `when` can therefore read any
     of them as well as the record, so a clause states the case a delivery is in
     rather than naming a condition the delivery already settles, such as a
     thread's missing title. An event owing nothing is told nothing about

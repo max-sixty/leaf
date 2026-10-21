@@ -23,9 +23,9 @@ import { turns } from "./model.js";
 
 /* A selected primary reader joins the required thread presentation. Packages nominate
    complete conversations or retained fragments; core owns their generated roots,
-   editors, exact-version read observation and the single authored widget instances.
-   Nominations settle before the fallback panel paints, so native authored nodes have
-   one physical destination on every pass. A message part is one of its thread's turns
+   editors, exact-version read observation and the single authored widget instances,
+   which stand here before any other drawing of their message (messages.js,
+   `authoredHolders`). A message part is one of its thread's turns
    (model.js, `turns`), the messages a card draws: its root, even a reaction, and its
    spoken messages. A later reaction stands as the pressed chip on the message it
    answers, so naming one as a part of its own is refused, as naming a message the
@@ -44,8 +44,8 @@ import { turns } from "./model.js";
    `createReplyView`). The thread itself, where a walk or a notice lands the keyboard, is
    the drawing the presentation declares around the parts, as the panel's view is.
    The notice of what the reader holds back (held-news.js) stands where the
-   presentation nominates it (`parts.news`), as the floating panel stands it in its
-   view's head with the thread's other facts. Where it nominates none, the notice
+   presentation nominates it (`parts.news`), as the floating panel stands it among its
+   view's controls, after the way back. Where it nominates none, the notice
    stands at the end of the first part's head, in room every such head keeps for it,
    so news arriving moves none of the head's words. */
 export function createPrimaryReader(
@@ -177,7 +177,7 @@ export function createPrimaryReader(
     const candidate = held.prepare(
       {
         threads: collection.threads.map((thread) =>
-          threadReading(thread, "outlet", { ...commands, nativeAuthored: true }),
+          threadReading(thread, "outlet", { ...commands, authoredRank: 3 }),
         ),
       },
       { row: false },
@@ -306,7 +306,7 @@ export function createPrimaryReader(
       let view = views.get(item.identity);
       if (!view) {
         if (item.kind === "thread")
-          view = new ThreadView({ ...commands, nativeAuthored: true });
+          view = new ThreadView({ ...commands, authoredRank: 3 });
         else if (item.kind === "news") {
           const notice = newsNotice();
           view = { node: notice.node, notice, dispose() {} };
@@ -447,7 +447,7 @@ export function createPrimaryReader(
           const message = item.thread.msgs.find((entry) => entry.key === item.message);
           view.headNotice = !nominated;
           view.reading = messageReading(message, {
-            nativeAuthored: true,
+            authoredRank: 3,
             reactions: message.reactions,
             workflows: message.workflows,
           });

@@ -504,10 +504,8 @@ export function revealHeld(ids) {
 
 // Resolve after reveal/presentation: a datum's outlet may have been replaced. Travel
 // takes the node rather than a callback that privately focuses and scrolls it.
-export function surfaceFocusTarget(id, { part = "reply" } = {}) {
-  // Exact message navigation is the panel's; a local surface lands on its thread.
-  if (part === "message") return null;
-  id = threadIdNamed(id);
+export function surfaceFocusTarget(name, { part = "reply" } = {}) {
+  const id = threadIdNamed(name);
   for (const registration of registrations.values()) {
     const thread = [...registration.outlets]
       .map((outlet) =>
@@ -515,7 +513,7 @@ export function surfaceFocusTarget(id, { part = "reply" } = {}) {
       )
       .find(Boolean);
     if (!thread) continue;
-    return threadFocusDestination(thread, { part });
+    return threadFocusDestination(thread, { part, message: name });
   }
   return null;
 }

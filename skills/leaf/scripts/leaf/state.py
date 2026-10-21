@@ -65,12 +65,13 @@ def hold_mode(path: Path, mode: int) -> None:
         path.chmod(mode)
 
 
-# A session's files that end with it: hook capability and turn observations,
-# and its page servers' log of the thread titles they asked for.
+# A session's hook capability observations, which end with it.
 HOOKS_SUFFIX = "hooks"
 STEP_HOOK_SUFFIX = "step-hook"
+# Its lifecycle, and the pages it has been told to reconnect (`reconnect.NOTICES`),
+# which outlive it (`_retire`).
 SESSION_SUFFIX = "lifecycle"
-TITLES_SUFFIX = "titles.log"
+RECONNECT_SUFFIX = "reconnect"
 
 
 def session_file(session_id: str, suffix: str) -> Path:
@@ -242,7 +243,7 @@ RECORDS: dict = {}
 
 class Record:
     """One kind of JSON object Leaf keeps outside a page's log and document, such as
-    a page's status, a claim or a session's lifecycle.
+    a page's stream, a claim or a session's lifecycle.
 
     Each kind is declared once, beside the module that owns it, whose functions are
     its only writers, and `schema` declares the object. Objects stay open, so a
@@ -261,8 +262,9 @@ class Record:
     requires, at each level of its declared objects. Any other
     record another Leaf wrote, at another format or with none, or one written before
     a field was added, reads as absent, as a missing file does, and the next write
-    replaces it. Every write replaces the file whole, so a file that is not JSON no
-    Leaf wrote, and reading it raises, naming the file."""
+    replaces it; one whose pages are gone is retired whatever its format
+    (`retire_if_gone`). Every write replaces the file whole, so a file that is not
+    JSON no Leaf wrote, and reading it raises, naming the file."""
 
     def __init__(self, kind: str, schema: dict, *, since: int):
         if kind in RECORDS:
@@ -279,16 +281,9 @@ class Record:
     def read(self, path: Path) -> dict | None:
         """The record at `path`, less its `format`, or None where this Leaf reads
         none there."""
-        try:
-            text = path.read_text(encoding="utf-8")
-        except FileNotFoundError:
-            return None
-        try:
-            stored = json.loads(text)
-        except ValueError as error:
-            raise ValueError(f"{path} is not a JSON record: {error}") from error
+        stored = stored_record(path)
         if (
-            not isinstance(stored, dict)
+            stored is None
             or stored.pop("format", None) != self.format
             or not _complete(self.schema, stored)
         ):
@@ -311,6 +306,71 @@ class Record:
         mode, and return `value` as `read` will."""
         replace_bytes([(path, self.encode(value), not path.is_symlink())])
         return value
+
+
+def stored_record(path: Path) -> dict | None:
+    """The JSON object at `path`, whichever Leaf wrote it, or None where there is
+    none. Only retirement reads a record this way (`retire_if_gone`); every other
+    reader goes through `Record.read`."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None
+    try:
+        stored = json.loads(text)
+    except ValueError as error:
+        raise ValueError(f"{path} is not a JSON record: {error}") from error
+    return stored if isinstance(stored, dict) else None
+
+
+def named_pages(stored: dict) -> list[Path]:
+    """The page directories a record names, whichever Leaf wrote it.
+
+    Every kind of record that belongs to pages names them at its `page`, or at the
+    `page` of each of its `batches`, in every `format` a Leaf has stamped, so a
+    Leaf can tell that a record's pages are gone without reading its format. A
+    change to a record's shape keeps those keys."""
+    if "page" in stored:
+        return [Path(stored["page"])]
+    return [
+        Path(batch["page"]) for batch in stored.get("batches", ()) if "page" in batch
+    ]
+
+
+def pages_gone(pages: list[Path]) -> bool:
+    """Whether a record names pages and every one is gone.
+
+    Nothing can answer a record once its pages are gone, whichever Leaf wrote it.
+    Pages are usually deleted from outside Leaf, with a worktree or a scratch
+    directory, so no Leaf process sees the moment; whoever next enumerates the
+    record's directory retires it. A page this process can't stat, as behind a
+    folder it may not read, stands; one whose path is missing is gone, though a
+    volume unmounted under it would bring it back, since nothing tells the two
+    apart. Its session takes the page again with `leaf server start`."""
+    return bool(pages) and not any(page_stands(page) for page in pages)
+
+
+def page_stands(page: Path) -> bool:
+    """Whether a page directory is there, counting one this process can't stat as
+    there: only its absence makes a page gone (`pages_gone`)."""
+    try:
+        return stat.S_ISDIR(page.stat().st_mode)
+    except (FileNotFoundError, NotADirectoryError):
+        return False
+    except OSError:
+        return True
+
+
+def retire_if_gone(path: Path) -> bool:
+    """Remove the record at `path` once every page it names is gone, whatever its
+    format, and say whether it went. A record at another format may belong to a
+    live session of another installed Leaf while its pages stand, so only gone
+    pages retire one."""
+    stored = stored_record(path)
+    if stored is None or not pages_gone(named_pages(stored)):
+        return False
+    path.unlink(missing_ok=True)
+    return True
 
 
 def _complete(schema: dict, value) -> bool:
@@ -357,32 +417,69 @@ def object_schema(required: dict, optional: dict | None = None) -> dict:
     }
 
 
+def described(description: str, schema: dict) -> dict:
+    """`schema` with its JSON Schema `description`, the one home of what a field
+    means (the site's data-structures page renders it)."""
+    return {"description": description} | {
+        key: value for key, value in schema.items() if key != "description"
+    }
+
+
 STRING = {"type": "string"}
 TIME = {"type": "string", "format": "date-time"}
 _TIME_OR_NONE = {"anyOf": [{"type": "null"}, TIME]}
 SESSION = Record(
     "session",
-    object_schema(
-        {
-            "id": STRING,
-            # Replaced when a claim made before can no longer name this lifetime.
-            "generation": STRING,
-            "ended": _TIME_OR_NONE,
-            "turn": {"type": ["string", "null"]},
-            "turn_opened": _TIME_OR_NONE,
-            "turn_closed": _TIME_OR_NONE,
-            "revision": {"type": "integer", "minimum": 1},
-            # Whether the harness, rather than Leaf, names the turn.
-            "provider": {"type": "boolean"},
-            # What keeps the session alive (`Harness.lifetime`).
-            "lifetime": {"type": "object"},
-        },
-        {
-            # The native chat a desktop Codex lifetime stands on (`chat_exists`).
-            "transcript_path": STRING,
-            # The developer-selected delivery runtime (`session_runtime`).
-            "launcher": STRING,
-        },
+    described(
+        "One harness session's lifecycle, in the state home's "
+        "`sessions/<digest>.lifecycle` (`session_file`): the lifetime it lives by, "
+        "whether it has ended, and its current turn.",
+        object_schema(
+            {
+                "id": described("The harness's own session id.", STRING),
+                "generation": described(
+                    "Replaced when a claim made before can no longer name this "
+                    "lifetime.",
+                    STRING,
+                ),
+                "ended": described(
+                    "When the session ended, or null while it lives.", _TIME_OR_NONE
+                ),
+                "turn": described(
+                    "The id of the session's latest turn, or null before its first.",
+                    {"type": ["string", "null"]},
+                ),
+                "turn_opened": described(
+                    "When the latest turn opened or was last renewed.", _TIME_OR_NONE
+                ),
+                "turn_closed": described(
+                    "When the turn closed, or null while it is open.", _TIME_OR_NONE
+                ),
+                "revision": described(
+                    "Incremented by every write (`write_session`).",
+                    {"type": "integer", "minimum": 1},
+                ),
+                "provider": described(
+                    "Whether the harness, rather than Leaf, names the turn.",
+                    {"type": "boolean"},
+                ),
+                "lifetime": described(
+                    "What keeps the session alive (`Harness.lifetime`).",
+                    {"type": "object"},
+                ),
+            },
+            {
+                "transcript_path": described(
+                    "The native chat a desktop Codex lifetime stands on "
+                    "(`chat_exists`).",
+                    STRING,
+                ),
+                "launcher": described(
+                    "The developer-selected delivery runtime (`session_runtime`).",
+                    STRING,
+                ),
+            },
+        ),
     ),
     since=13,
 )
@@ -504,7 +601,8 @@ def open_session_turn(session_id: str, turn_id: str | None = None) -> dict | Non
             record["ended"] is not None
             or (record["provider"] and record["turn_closed"] is not None)
         ):
-            # A late consumer/callback cannot restart a known provider turn.
+            # A late consumer/callback cannot restart a known provider turn; one
+            # after the session's files retired starts a generation no claim names.
             return None
         if (
             record
@@ -532,8 +630,8 @@ def start_session_turn(
         ):
             return None
         if current != expected:
-            # The provider may run its synchronous prompt hook before Leaf reads
-            # the turn's start. That exact publication is the successful adoption,
+            # The provider may run its synchronous prompt hook before replying
+            # to turn/start. That exact publication is the successful adoption,
             # not a competing turn; no identity or revision is rewritten here.
             if (
                 current
@@ -631,24 +729,25 @@ def _session_paths(session_id: str) -> list[Path]:
 def _retire(session_id: str) -> None:
     """Remove what an ended session no longer needs, under its lock.
 
-    The records a claim naming the session reads stay, since a claim can name it
-    again after its end: a failed takeover restores the claim it replaced
-    (`service.restore_page_claim`). Its page shows the session's turn from the
-    lifecycle, and a resumed session's hooks read its reconnect notices
-    (`session-lifetime.md`, "Reconnect notices"). While a claim names the session,
-    only the observations that end with it go. Once none does, each other file goes
-    that no process holds a lock on, such as a wait lease of a watch still running:
+    While a claim names the session, the records that claim reads stay: its page
+    shows the session's turn from the lifecycle, and a resumed session's hooks read
+    its reconnect notices (`session-lifetime.md`, "Reconnect notices"); only the
+    observations that end with it go. Once none does, every file goes that no
+    other process holds a lock on, such as a wait lease of a watch still running:
     a lease taker checks the name it locked (`leases.take_lease`), so none starts on
-    a file removed under it. Directories, such as a Codex task's delivery records,
-    are their owner's to retire."""
+    a file removed under it, and a taker of the session lock held here does the same
+    (`flocked`). A failed takeover that restores a claim naming the session after
+    this finds it ended either way. Directories, such as a Codex task's delivery
+    records, are their owner's to retire."""
     if holds_claims(session_id):
-        for suffix in (HOOKS_SUFFIX, STEP_HOOK_SUFFIX, TITLES_SUFFIX):
+        for suffix in (HOOKS_SUFFIX, STEP_HOOK_SUFFIX):
             session_file(session_id, suffix).unlink(missing_ok=True)
         return
-    kept = {session_file(session_id, SESSION_SUFFIX), session_lock_path(session_id)}
+    lock = session_lock_path(session_id)
     for path in _session_paths(session_id):
-        if path not in kept and path.suffix != ".reconnect" and not path.is_dir():
+        if path != lock and not path.is_dir():
             _unlink_unheld(path)
+    lock.unlink(missing_ok=True)
 
 
 def _unlink_unheld(path: Path) -> None:
@@ -698,12 +797,82 @@ def session_claims(session_id: str) -> Path:
 
 def holds_claims(session_id: str) -> bool:
     """Whether the session holds a claim, in this generation or a kept one from
-    before: a page it claimed that no other session has claimed since."""
-    try:
-        with os.scandir(session_claims(session_id)) as entries:
-            return next(entries, None) is not None
-    except FileNotFoundError:
-        return False
+    before: a page it claimed that still stands and no other session has claimed
+    since."""
+    return bool(held_claims(session_id))
+
+
+def held_claims(session_id: str) -> list[Path]:
+    """The session's locators whose claim payloads name it on a page that still
+    stands.
+
+    A payload naming the session on a page that is gone is retired here with its
+    locator (`retire_claim`). A locator whose payload is missing or names another
+    session stays: it may be one `service.publish_claim` has prepared and not yet
+    committed."""
+    held = []
+    for locator in session_claims(session_id).glob("*.json"):
+        payload = locator.parent.parent / locator.name
+        stored = stored_record(payload)
+        if stored is None or stored.get("id") != session_id:
+            continue
+        if pages_gone(named_pages(stored)):
+            retire_claim(payload, stored)
+        else:
+            held.append(locator)
+    return held
+
+
+def standing_claims() -> list[Path]:
+    """Every claim payload on this machine whose page still stands, retiring those
+    whose page is gone (`retire_claim`), whichever Leaf wrote them."""
+    standing = []
+    for payload in (state_home().resolve() / "claims").glob("*.json"):
+        stored = stored_record(payload)
+        if stored is not None and pages_gone(named_pages(stored)):
+            retire_claim(payload, stored)
+        else:
+            standing.append(payload)
+    return standing
+
+
+def claims_lock() -> Path:
+    """The lock under which a claim's payload and its locator change together:
+    publication (`service.publish_claim`), removal and retirement. It is taken
+    last, after any page or session lock, and nothing else is taken under it."""
+    return state_home().resolve() / "claims.lock"
+
+
+def remove_claim(payload: Path) -> None:
+    """Remove a page's claim payload and the locator its claimant holds for it."""
+    with flocked(claims_lock()):
+        _drop_claim(payload, stored_record(payload))
+
+
+def retire_claim(payload: Path, stored: dict) -> None:
+    """Remove the claim `stored`, read from `payload`, of a page that is gone.
+
+    No page lock guards a page that is gone, and the path could be made a page
+    again and claimed between the reading and the removal, so the claim goes only
+    if it is still the one that was read under the lock every publication takes."""
+    with flocked(claims_lock()):
+        if stored_record(payload) == stored:
+            _drop_claim(payload, stored)
+
+
+def _drop_claim(payload: Path, stored: dict | None) -> None:
+    payload.unlink(missing_ok=True)
+    if stored is not None:
+        drop_locator(stored["id"], payload.name)
+
+
+def drop_locator(session_id: str, name: str) -> None:
+    """Remove a session's locator, and its partition once that holds no other.
+    The caller holds the claims lock."""
+    partition = session_claims(session_id)
+    (partition / name).unlink(missing_ok=True)
+    with contextlib.suppress(OSError):
+        partition.rmdir()
 
 
 def main() -> None:

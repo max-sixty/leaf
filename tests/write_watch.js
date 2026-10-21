@@ -270,6 +270,9 @@
     // Sortable takes a dragged card's ghost class off and puts it back as the drag
     // crosses into another lane.
     (what, node) => what === "class" && is(node, ".lf-ghost"),
+    // Sortable's drop sets the pressed card's `draggable` to false on every release of
+    // its grip, whether or not the press became a drag.
+    (what, node) => what === "draggable" && is(node, "lf-card"),
     // PhotoSwipe reasserts its root's zoom and pointer classes while handling
     // gestures and viewport changes, including when those classes already stand.
     (what, node) => what === "class" && is(node, "div.pswp"),

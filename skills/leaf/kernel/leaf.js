@@ -172,6 +172,7 @@ import {
   tabStore,
   tellDraft,
   threadAttention,
+  threadHeading,
   threadList,
   threadName,
   touchPresses,
@@ -181,7 +182,16 @@ import {
   walkPositionLabel,
   workflowStep
 } from "./runtime/bundle-user-intent.js";
-import "./runtime/bundle-widget-upgrade.js";
+import {
+  DISCLOSE,
+  DISCLOSURE_SELECTOR,
+  annotationSheets,
+  chromeSheet,
+  disclosed,
+  marksSheet,
+  setChildren,
+  watchDisclosures
+} from "./runtime/bundle-stylesheets.js";
 import {
   mediaViewer,
   readAttachedMedia,
@@ -270,16 +280,6 @@ import {
   userReadingRegion,
   whenArrived
 } from "./runtime/bundle-presence.js";
-import {
-  DISCLOSE,
-  DISCLOSURE_SELECTOR,
-  annotationSheets,
-  chromeSheet,
-  disclosed,
-  marksSheet,
-  setChildren,
-  watchDisclosures
-} from "./runtime/bundle-stylesheets.js";
 import {
   COLLAPSE,
   LEAF_SURFACE,
@@ -432,22 +432,6 @@ import {
   word
 } from "./runtime/bundle-page-paint.js";
 import {
-  PRESENTATION_ORDER,
-  SHARE_ROOT,
-  WEBSITE_DELIVERY,
-  agentName,
-  annotationMode,
-  applicationPresenter,
-  applicationState,
-  documentChanged,
-  offlineInteractive,
-  readPart,
-  runtime,
-  runtimeResource,
-  shareUrl,
-  whenApplicationPresented
-} from "./runtime/bundle-semantic-state.js";
-import {
   CARET_KEYS,
   MODIFIER_KEYS,
   PRESSES,
@@ -493,6 +477,22 @@ import {
   under,
   upFrom
 } from "./runtime/bundle-frame-visibility.js";
+import {
+  PRESENTATION_ORDER,
+  SHARE_ROOT,
+  WEBSITE_DELIVERY,
+  agentName,
+  annotationMode,
+  applicationPresenter,
+  applicationState,
+  documentChanged,
+  offlineInteractive,
+  readPart,
+  runtime,
+  runtimeResource,
+  shareUrl,
+  whenApplicationPresented
+} from "./runtime/bundle-semantic-state.js";
 import {
   LitElement,
   M,
@@ -1190,7 +1190,6 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
           id: "text.dictate",
           keys: PRESS,
           control: mic,
-          description: "Start or stop dictation in this comment box",
           title: () => dictationPhase() === "idle" ? "dictate" : "stop dictation",
           when: () => !mic.hidden && dictationPhase() !== "stopping" && !sending && !uploading && !held(),
           run: () => void activateDictation()
@@ -1261,7 +1260,6 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
         id: "text.send",
         keys: submitBindings,
         label: submitLabel,
-        description: "Submit the text",
         title: sends,
         run: () => pressed(send)
       },
@@ -2052,7 +2050,6 @@ pageScope("command reference", {
       id: "command.reference.command.next",
       touch: false,
       keys: ["ArrowDown"],
-      description: "Choose the next command",
       title: "choose next",
       repeat: true,
       runFromCommandReference: false,
@@ -2066,7 +2063,6 @@ pageScope("command reference", {
       id: "command.reference.command.previous",
       touch: false,
       keys: ["ArrowUp"],
-      description: "Choose the previous command",
       title: "choose previous",
       repeat: true,
       runFromCommandReference: false,
@@ -2078,7 +2074,6 @@ pageScope("command reference", {
       id: "command.reference.command.activate",
       touch: false,
       keys: ["Enter"],
-      description: "Activate the chosen command",
       title: "activate",
       runFromCommandReference: false,
       commandReferenceWhen: () => true,
@@ -2089,7 +2084,6 @@ pageScope("command reference", {
       id: "command.reference.close",
       touch: false,
       keys: ["Escape"],
-      description: "Close the command reference",
       title: "close command reference",
       control: () => commandReferenceClose,
       runFromCommandReference: false,
@@ -2785,7 +2779,7 @@ function createResponseSurface({
     const threadId = threadAtStanding();
     const replyId = replyThreadAtStanding();
     const target = threadId && threadTarget(threadId);
-    const inlineBox = inline && drawnThreadId(inline) === threadId && (!here || standingIn(inline) || target && under(target, heldObligation() ?? here.element)) && threadInput(inline);
+    const inlineBox = inline && (!here || standingIn(inline) || target && under(target, heldObligation() ?? here.element)) && threadInput(inline);
     const said = standingThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
     const subject = threadId && (!here || target && under(target, heldObligation() ?? here.element));
     const replySubject = subject && replyId;
@@ -2860,7 +2854,6 @@ function createResponseSurface({
     {
       id: "comment.options",
       keys: ["Tab"],
-      description: "Show other responses",
       title: "other responses",
       when: () => fabOptionsAvailable() && !composer.responseOptionsAreOpen(),
       run: () => showFabOptions()
@@ -2875,7 +2868,6 @@ function createResponseSurface({
         id: "composer.close",
         touch: false,
         keys: ["Escape"],
-        description: () => composer.composerHolds() ? "Close the comment box, keeping the draft" : "Close the comment box",
         title: () => composer.composerHolds() ? "close \u2014 draft kept" : "close",
         when: () => !composer.responseOptionsAreOpen(),
         run: () => dismissFab()
@@ -2886,7 +2878,6 @@ function createResponseSurface({
     "selection",
     () => pageSelection() || fabAnchorAt() && !placement?.withheld() ? {
       title: "unselect",
-      description: "Clear the selection",
       out: dismissFab
     } : null
   );
@@ -3376,14 +3367,12 @@ function createDrawingController({
         id: "draw.mode.stroke",
         keys: [],
         label: "drag",
-        title: "Draw on the page",
-        description: "Each stroke adds to one drawing"
+        title: "Draw on the page"
       },
       {
         id: "draw.mode.undo",
         keys: UNDO_STROKE,
         title: "undo stroke",
-        description: "Undo the last stroke drawn",
         // A finger undoes a stroke with the undo button on its drawing's composer.
         touch: false,
         when: () => Boolean(undoTarget()),
@@ -3408,7 +3397,6 @@ function createDrawingController({
   pageCommand({
     id: "draw.mode.enter",
     keys: ["w"],
-    description: "Draw on the page and attach the drawing to a comment",
     title: "draw mode",
     touch: "Draw mode",
     menu: "annotate",
@@ -3503,7 +3491,6 @@ function createRegionCapture({
     id: "capture.region.open",
     keys: [],
     title: "Capture area",
-    description: "Select an area of the page and attach its image to a comment",
     touch: "Capture area",
     menu: "annotate",
     retainStanding: true,
@@ -4735,7 +4722,6 @@ ${searchCount(maximum, maximum)}`
     touch: "Search page",
     menu: "navigate",
     keys: ["/"],
-    description: "Search all the text on the page",
     title: "search page",
     when: () => anchoringIsReady() && !pageSearchOpen,
     run: openPageSearch
@@ -4764,7 +4750,6 @@ ${searchCount(maximum, maximum)}`
   const TARGETING_BACK = {
     id: "targeting.back",
     keys: ["Escape"],
-    description: () => pageSearchOpen ? searchReturnsToHints ? "Return to the visible target hints" : "Close page search" : hints.prefix() ? "Remove the last hint letter" : "Close the target picker",
     title: () => pageSearchOpen ? searchReturnsToHints ? "back to hints" : "close search" : hints.prefix() ? "back one letter" : "close picker",
     // The ✕ of both stances (keyboard/AGENTS.md, "Touch routes"). While the user
     // has typed part of a hint it takes back a letter, as its words say; a finger,
@@ -4778,7 +4763,6 @@ ${searchCount(maximum, maximum)}`
     touch: false,
     keys: HINT_KEYS,
     label: "a\u2013z",
-    description: "Type the hint for a target",
     title: "type hint",
     when: () => hints.candidates().length > 0,
     run: hints.type
@@ -4796,7 +4780,6 @@ ${searchCount(maximum, maximum)}`
       ...hints.walkRows({
         id: "target.picker.hint",
         choose: {
-          description: "Choose the target just announced",
           title: "choose target"
         }
       }),
@@ -4812,7 +4795,6 @@ ${searchCount(maximum, maximum)}`
       {
         id: "page.search.match.select",
         keys: ["Enter"],
-        description: "Select the current search match",
         title: "select match",
         // A finger presses the marked match itself (`pressMatch`).
         touch: false,
@@ -5241,7 +5223,6 @@ function createAnchorControls({
             {
               id: "reaction.removal.close",
               keys: ["Escape"],
-              description: "Hide the remove action",
               title: "hide remove",
               when: () => Boolean(record.expanded),
               run: () => {
@@ -6195,14 +6176,12 @@ function createQueueWalk({
       {
         id: "queue.next",
         binding: "m",
-        title: "Next on me",
-        description: "Go to the next of everything waiting on me, anywhere on the page"
+        title: "Next on me"
       },
       {
         id: "queue.previous",
         binding: "Shift+m",
-        title: "Previous on me",
-        description: "Go to the previous of everything waiting on me, anywhere on the page"
+        title: "Previous on me"
       }
     ],
     title: "On me",
@@ -6223,7 +6202,6 @@ function createQueueWalk({
         id: "queue.todo.done",
         keys: ["x"],
         title: "done",
-        description: "Mark this to-do done",
         touch: false,
         when: () => Boolean(doneTodo()),
         run: () => {
@@ -6346,6 +6324,7 @@ function createFloatingPanel({
   placedAt,
   openThreadSubject
 }) {
+  const scene = el("div", "lf-fp-scene");
   const host = el("section", "lf-ui lf-floating-panel");
   host.setAttribute("aria-label", "Leaf");
   const ground = el("div", "lf-ui lf-fp-ground");
@@ -6380,7 +6359,7 @@ function createFloatingPanel({
   context2.append(contextWords);
   inner.append(opened, context2, row);
   card.append(inner);
-  host.append(card, menu, badge, newsDot, peek);
+  host.append(card, menu, peek);
   const minimize = el("button", "lf-fp-minimize");
   minimize.type = "button";
   minimize.tabIndex = -1;
@@ -6418,9 +6397,12 @@ function createFloatingPanel({
   leaf.setAttribute("aria-controls", menu.id);
   leaf.setAttribute("aria-describedby", peek.id);
   const mark = el("span", "lf-dot");
+  const leafPaint = el("span", "lf-fp-leaf-paint");
+  leafPaint.setAttribute("aria-hidden", "true");
   const errorDot = el("span", "lf-fp-error-dot");
   errorDot.setAttribute("aria-hidden", "true");
-  leaf.append(mark, errorDot);
+  leafPaint.append(mark, errorDot, badge, newsDot);
+  host.append(leafPaint);
   const field = el("div", "lf-fp-field");
   const expand = el("button", "lf-fp-expand");
   expand.type = "button";
@@ -6644,10 +6626,9 @@ function createFloatingPanel({
     return queues.phase === "ready" ? queues.on_user.length : 0;
   };
   const threadStatus = (thread, shownBy) => {
-    const state = thread.resolved ? "Resolved" : threadAttention(thread)?.label ?? "Open";
+    const state = thread.resolved ? "Resolved" : threadAttention(thread)?.label;
     const said = {
       unread: "New",
-      open: "Open",
       resolved: "Resolved",
       drafts: "Draft"
     }[shownBy];
@@ -6823,11 +6804,20 @@ function createFloatingPanel({
     if (target) focusDestination(target, "move");
   }
   let outline = null;
+  let lastLeaf = null;
+  let endFoldTravel = null;
   let viewMovingUntil = 0;
   let riding = [];
   let lastEditor = null;
   const outlineClip = (box, grow = 0) => `inset(${box.top - grow}px ${box.right - grow}px ${box.bottom - grow}px ${box.left - grow}px round ${box.radius + grow}px)`;
   const clipTop = (clip) => Number.parseFloat(/inset\(([-\d.]+)px/.exec(clip)?.[1]);
+  const clipBox = (clip) => {
+    const [sides, radius] = clip.slice(6, -1).split(" round ");
+    const [top, right = top, bottom = top, left = right] = sides.split(" ").map(Number.parseFloat);
+    return { top, right, bottom, left, radius: Number.parseFloat(radius) };
+  };
+  const between = (from, to) => `calc(${from}px + ${to - from}px * var(--lf-fp-fold-progress))`;
+  const travellingClip = (from, to) => `inset(${["top", "right", "bottom", "left"].map((side) => between(from[side], to[side])).join(" ")} round ${between(from.radius, to.radius)})`;
   const within = (room2, element) => {
     const rect2 = element.getBoundingClientRect();
     return {
@@ -6855,14 +6845,22 @@ function createFloatingPanel({
     ))
       return;
     outline = next;
+    const leafBox = within(room2, leaf);
+    const priorLeaf = lastLeaf;
+    const rest = host.dataset.rest;
+    lastLeaf = { ...leafBox, rest };
+    const folding = priorLeaf && (priorLeaf.rest !== rest || endFoldTravel !== null);
+    const leafFrom = endFoldTravel ? getComputedStyle(leafPaint) : null;
+    const leafLeft = leafFrom ? Number.parseFloat(leafFrom.left) : priorLeaf?.left;
+    const leafTop = leafFrom ? Number.parseFloat(leafFrom.top) : priorLeaf?.top;
     setRuntimeRootStyle(
       document.documentElement,
       "--lf-panel-reach",
       layoutPx(next.height > 0 ? next.bottom + next.height : 0)
     );
-    const duration = performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
+    const duration = !folding && performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
     const moving = Boolean(was) && !reducedMotion() && pagePresented();
-    const standing = moving && fill.getAnimations().length ? clipTop(getComputedStyle(fill).clipPath) : was?.top;
+    const standing = moving && (endFoldTravel || fill.getAnimations().length) ? clipTop(getComputedStyle(fill).clipPath) : was?.top;
     const revealing = card.getAnimations().some((running) => !riding.includes(running));
     for (const running of [...riding, ...card.getAnimations()]) running.cancel();
     riding = [];
@@ -6870,32 +6868,87 @@ function createFloatingPanel({
     const lift = getComputedStyle(ground);
     const shadowReach = ["--raise-2-drop", "--raise-2-blur"].map((token) => Number.parseFloat(lift.getPropertyValue(token))).reduce((reach2, part) => reach2 + part);
     const timing = { duration, easing: EASE };
-    for (const [layer, grow] of [
+    const contours = [
       [ground, shadowReach],
       [ring, 1],
       [fill, 0]
-    ]) {
-      const from = was ? getComputedStyle(layer).clipPath : null;
+    ].map(([layer, grow]) => ({
+      layer,
+      from: was ? getComputedStyle(layer).clipPath : null,
+      to: outlineClip(next, grow)
+    }));
+    endFoldTravel?.();
+    for (const { layer, to } of contours) {
       for (const running of layer.getAnimations()) running.cancel();
-      keeps(layer, "style", `clip-path: ${outlineClip(next, grow)}`);
-      if (moving)
-        layer.animate(
-          [{ clipPath: from }, { clipPath: outlineClip(next, grow) }],
-          timing
-        );
+      keeps(layer, "style", `clip-path: ${to}`);
+    }
+    const current = was ? clipBox(contours.at(-1).from) : null;
+    const inside = current && {
+      top: Math.max(0, current.top - next.top),
+      right: Math.max(0, current.right - next.right),
+      bottom: Math.max(0, current.bottom - next.bottom),
+      left: Math.max(0, current.left - next.left),
+      radius: current.radius
+    };
+    const reveal2 = was && (next.width > was.width + 0.5 || next.height > was.height + 0.5);
+    if (moving && folding) {
+      for (const { layer, from, to } of contours)
+        layer.style.clipPath = travellingClip(clipBox(from), clipBox(to));
+      const leafStart = leafLeft + (priorLeaf.width - leafBox.width) / 2;
+      leafPaint.style.left = between(leafStart, leafBox.left);
+      leafPaint.style.top = between(
+        leafTop + (priorLeaf.height - leafBox.height) / 2,
+        leafBox.top
+      );
+      if (reveal2)
+        card.style.clipPath = travellingClip(inside, {
+          top: 0,
+          right: 0,
+          bottom: 0,
+          left: 0,
+          radius: next.radius
+        });
+      if (rest !== "mark") {
+        const rowLeft = within(room2, row).left;
+        row.style.clipPath = `inset(${-room2.height}px 0 ${-room2.height}px ${between(
+          leafStart + leafBox.width - rowLeft,
+          leafBox.left + leafBox.width - rowLeft
+        )})`;
+      }
+      const played = scene.animate(
+        [{ "--lf-fp-fold-progress": 0 }, { "--lf-fp-fold-progress": 1 }],
+        timing
+      );
+      const finish = () => {
+        if (endFoldTravel !== finish) return;
+        endFoldTravel = null;
+        for (const { layer, to } of contours) layer.style.clipPath = to;
+        leafPaint.style.removeProperty("left");
+        leafPaint.style.removeProperty("top");
+        card.style.removeProperty("clip-path");
+        row.style.removeProperty("clip-path");
+        played.cancel();
+      };
+      endFoldTravel = finish;
+      played.finished.then(finish, () => {
+      });
+      return;
+    }
+    for (const { layer, from, to } of contours) {
+      if (moving) layer.animate([{ clipPath: from }, { clipPath: to }], timing);
     }
     if (!moving) return;
     if (ride) {
       const lag = standing - next.top;
       const shifted = { translate: `0 ${lag}px` };
-      const rest = { translate: "0 0" };
+      const rest2 = { translate: "0 0" };
       const riders = [
         opened,
         context2,
         ...row.querySelectorAll(":scope > .lf-fp-expand"),
         ...row.querySelectorAll(".lf-composer-media:not([hidden])")
       ];
-      for (const rider of riders) riding.push(rider.animate([shifted, rest], timing));
+      for (const rider of riders) riding.push(rider.animate([shifted, rest2], timing));
       if (lag > 0)
         riding.push(
           editor.animate(
@@ -6933,14 +6986,7 @@ function createFloatingPanel({
       }
       return;
     }
-    if (next.width <= was.width + 0.5 && next.height <= was.height + 0.5) return;
-    const inside = {
-      top: Math.max(0, standing - next.top),
-      right: Math.max(0, was.right - next.right),
-      bottom: Math.max(0, was.bottom - next.bottom),
-      left: Math.max(0, was.left - next.left),
-      radius: was.radius
-    };
+    if (!reveal2) return;
     card.animate(
       [
         { clipPath: outlineClip(inside) },
@@ -7573,7 +7619,7 @@ function createFloatingPanel({
                   @click=${() => open({ view: "thread", thread: thread.key })}
                 >
                   <span class="lf-fp-news-mark" aria-hidden="true"></span>
-                  <span class="lf-fp-label">${threadName(thread)}</span>
+                  <span class="lf-fp-label">${threadHeading(thread)}</span>
                   <span class="lf-fp-value"
                     >${threadStatus(thread, query.trim() ? null : filter)}</span
                   >
@@ -7850,6 +7896,7 @@ function createFloatingPanel({
     const title = message ? thread.title ?? (thread.root.id === message.id ? "" : threadName(thread)) : asking ? threadName(thread) : queueTitle(item);
     const said = message ? "" : asking ? messageReading(asking, { reactions: [], workflows: [] }).body.plainText : record?.prompt?.text;
     const prompt = said && said.trim() !== title.trim() ? said : "";
+    const heading = thread && title === threadName(thread) ? threadHeading(thread) : title;
     const answered = record && record.status !== "open";
     const choices = record && !answered && record.source.kind === "widget" && !inWords ? obligationView.choicesOf(record) : null;
     const gesture = answered ? answerGesture(record) : null;
@@ -7942,13 +7989,13 @@ function createFloatingPanel({
       ?data-walked=${queueTab === "you" && walkedStop() === stop.key}
       style=${seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
     >
-      ${about.length ? html`<p class="lf-fp-on-kind">${about.join(" \xB7 ")}</p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${title}</h3>` : nothing}
+      ${about.length ? html`<p class="lf-fp-on-kind">${about.join(" \xB7 ")}</p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : nothing}
               <div
                 class="lf-fp-asked lf-fp-outlet"
                 data-thread=${thread.key}
                 data-message=${message.key}
-              ></div>` : prompt ? html`<h3 class="lf-fp-on-title">${title}</h3>
-                <p class="lf-fp-prompt">${prompt}</p>` : html`<p class="lf-fp-prompt">${title}</p>`}
+              ></div>` : prompt ? html`<h3 class="lf-fp-on-title">${heading}</h3>
+                <p class="lf-fp-prompt">${prompt}</p>` : html`<p class="lf-fp-prompt">${heading}</p>`}
       <div class="lf-fp-answers">${answers}${show}</div>
     </section>`;
   }
@@ -8066,9 +8113,14 @@ function createFloatingPanel({
     }
     focusDestination(controls.querySelector(".lf-fp-search"), "move");
   }
-  const headTemplate = (top) => html`<h2 class=${top.view === "queue" ? "lf-fp-title lf-quiet" : "lf-fp-title"}>
-      ${titleOf2(top)}
+  const headTemplate = (top) => {
+    const thread = top.view === "thread" ? threadByKey(top.thread) : null;
+    return html`<h2
+      class=${top.view === "queue" ? "lf-fp-title lf-quiet" : "lf-fp-title"}
+    >
+      ${thread ? threadHeading(thread) : titleOf2(top)}
     </h2>`;
+  };
   function controlsTemplate(top) {
     const parent = trail.value.at(-2);
     const thread = top.view === "thread" ? threadByKey(top.thread) : null;
@@ -8543,7 +8595,6 @@ function createFloatingPanel({
       return query ? {
         root: host,
         title: "clear search",
-        description: "Clear the search",
         out: () => {
           query = "";
           refit();
@@ -8552,7 +8603,6 @@ function createFloatingPanel({
       } : {
         root: host,
         title: "close search",
-        description: "Close the search and return to Threads",
         out: () => {
           focusDestination(shownView(), "return");
           searching = false;
@@ -8563,14 +8613,12 @@ function createFloatingPanel({
       return {
         root: host,
         title: "back to menu",
-        description: "Go back from the list to the page menu",
         out: () => showMenuAt(null)
       };
     if (menuOpen.value)
       return {
         root: host,
         title: "close menu",
-        description: "Close the page menu",
         out: () => {
           setMenu(false);
           focusDestination(leaf, "return");
@@ -8580,7 +8628,6 @@ function createFloatingPanel({
     return {
       root: host,
       title: `close ${titleOf2(trail.value.at(-1)).toLowerCase()}`,
-      description: `Close ${titleOf2(trail.value.at(-1))}`,
       // Putting a view away returns the user to the page, where the view's thread or
       // list took them from.
       out: () => {
@@ -8614,7 +8661,6 @@ function createFloatingPanel({
       {
         id: "panel.floating.menu.level",
         keys: ["ArrowLeft", "ArrowRight"],
-        description: "Open the list a row of the page menu leads to, or go back to the menu",
         title: "open or leave a list",
         when: () => menuOpen.value && renderedUnder(focused(), menu),
         run: (binding) => {
@@ -8629,7 +8675,6 @@ function createFloatingPanel({
       ["Tab", "Shift+Tab"].map((key) => ({
         id: `panel.floating.menu.leave-${key === "Tab" ? "forward" : "backward"}`,
         keys: [key],
-        description: `Leave the page menu ${key === "Tab" ? "forward" : "backward"}`,
         title: key === "Tab" ? "leave forward" : "leave backward",
         native: true,
         when: () => menuOpen.value && renderedUnder(focused(), menu),
@@ -8647,7 +8692,6 @@ function createFloatingPanel({
       {
         id: "panel.floating.threads.find",
         keys: ["/"],
-        description: "Find a thread or message in Threads",
         title: "find a thread",
         run: findThreads
       }
@@ -8667,7 +8711,6 @@ function createFloatingPanel({
           const top = numbered().at(-1)?.version;
           return top > 1 ? `1\u2013${top}` : "1";
         },
-        description: "Show the version with that number",
         title: "show version",
         when: () => numbered().length > 0,
         run: (binding) => showVersion(numbered().find(({ version: version2 }) => String(version2) === binding))
@@ -8685,7 +8728,7 @@ function createFloatingPanel({
     {
       id: "panel.floating.leave",
       keys: ["Escape"],
-      description: "Leave the comment field, keeping the view open above it",
+      description: "The view above stays open",
       title: "leave field",
       when: () => !menuOpen.value && trail.value.length > 0,
       run: () => focusDestination(leaf, "return")
@@ -8694,7 +8737,6 @@ function createFloatingPanel({
   pageCommand({
     id: FOLD,
     keys: ["."],
-    description: "Fold the Leaf panel to the leaf in the window's corner, or unfold it",
     title: () => prefs().rest === "mark" ? "unfold" : "fold",
     touch: () => prefs().rest === "mark" ? "Unfold the panel" : "Fold to the leaf",
     menu: "page",
@@ -8811,7 +8853,8 @@ function createFloatingPanel({
     }
   });
   function mount(parent) {
-    parent.append(ground, host);
+    scene.append(ground, host);
+    parent.append(scene);
     follow.observe(card);
     presentation2 = registerChromeThreadPresentation(host, {
       render: nominate,
@@ -8829,21 +8872,22 @@ function createFloatingPanel({
         return () => openInPackage(top.thread, { focus, message });
       },
       // A thread about the whole page opens here; one about a passage opens beside it,
-      // where the page draws it, and here only for one of its messages, which Leaf's
-      // reader alone draws whole, or where nothing on the page shows it, as on a page
-      // drawing no margin, the destination's last resort (`request.last`,
-      // thread/destination.js). Where the user lands in it is the route's
-      // (`request.part`), which Leaf's destinations take them to once it is drawn: the
-      // reply, a message, or the thread itself, the view, where the `t` walk goes on from.
+      // where the page draws it, widgets in its messages included, and here only where
+      // nothing on the page shows it, as on a page drawing no margin, the destination's
+      // last resort (`request.last`, thread/destination.js), or for one of its messages
+      // while the view already shows it, so a walk to an ask in it leaves the user
+      // where they read. Where the user lands in it is the route's (`request.part`),
+      // which Leaf's destinations take them to once it is drawn: the reply, a message,
+      // or the thread itself, the view, where the `t` walk goes on from.
       reveal: (key, { part, last }) => {
         const thread = threadByKey(key);
         if (!thread) return false;
-        if (thread.anchor && part !== "message") {
+        const top = trail.value.at(-1);
+        const shown = top?.view === "thread" && threadByKey(top.thread)?.key === thread.key;
+        if (thread.anchor && !(part === "message" && shown)) {
           if (!last) {
             unplaced.delete(thread.key);
-            const top = trail.value.at(-1);
-            if (top?.view === "thread" && threadByKey(top.thread)?.key === thread.key)
-              close();
+            if (shown) close();
             return false;
           }
           unplaced.add(thread.key);
@@ -9036,8 +9080,14 @@ function createPageMapDialog({
   function pageMapDialogContains(candidate, node) {
     return dialog.open && target === candidate && dialog.contains(node);
   }
-  const sheetFace = ({ icon, glyph, visibleLabel, context: context2 }) => html`${icon ? iconTemplate(icon, "lf-margin-kind") : html`<span class="lf-margin-kind">${glyph}</span>`}<span class="lf-page-map-action-label"
-        ><span class="lf-page-map-action-label-word">${visibleLabel}</span>${context2 ? html`<span class="lf-page-map-action-context">${context2}</span>` : nothing}</span
+  const sheetName = (item, visibleLabel) => {
+    const thread = item && inventory.sourceItem(item)?.thread;
+    return thread ? threadHeading(thread) : visibleLabel;
+  };
+  const sheetFace = ({ icon, glyph, item, visibleLabel, context: context2 }) => html`${icon ? iconTemplate(icon, "lf-margin-kind") : html`<span class="lf-margin-kind">${glyph}</span>`}<span class="lf-page-map-action-label"
+        ><span class="lf-page-map-action-label-word"
+          >${sheetName(item, visibleLabel)}</span
+        >${context2 ? html`<span class="lf-page-map-action-context">${context2}</span>` : nothing}</span
       >`;
   function activateSheetControl(event, action) {
     const { offered, record } = action;
@@ -9254,7 +9304,6 @@ function createPageMapDialog({
         {
           id: "map.search.enter",
           keys: ["ArrowDown"],
-          description: "Go from the search to the first entry",
           title: "to the entries",
           when: hasRows,
           run: () => {
@@ -9266,7 +9315,6 @@ function createPageMapDialog({
         {
           id: "map.search.open",
           keys: ["Enter"],
-          description: "Open the first matching entry",
           title: "open first",
           when: hasRows,
           run: () => mapRows()[0].click()
@@ -10044,7 +10092,7 @@ function createDesignMode({
   pageCommand({
     id: "design.mode.enter",
     keys: ["l"],
-    description: "Enter Design mode: comment on how the page looks and works \u2014 a widget, a control, a picture \u2014 rather than its words",
+    description: "Comment on how the page looks and works, rather than its words",
     title: "design mode",
     touch: "Design mode",
     menu: "annotate",
@@ -10063,8 +10111,7 @@ function createDesignMode({
     press: designPress,
     open: openOnDesign,
     name: designName,
-    inspectElement: inspectEl,
-    legendElement: legendRoot
+    inspectElement: inspectEl
   };
 }
 
@@ -10270,7 +10317,6 @@ function createGoToSequence({
     {
       id: "navigation.panel.threads",
       keys: ["Shift+t"],
-      description: () => doors.threads.shows() ? "Close Threads" : "Go to Threads",
       title: () => doors.threads.shows() ? "close Threads" : "Threads",
       run: () => doors.threads.press(),
       when: () => true
@@ -10280,7 +10326,6 @@ function createGoToSequence({
       keys: ["Shift+m"],
       // Its door is On me's, so where the On view shows the agent's list it turns to
       // the user's rather than closing.
-      description: () => doors.queue.shows() ? "Close On me" : "Go to On me",
       title: () => doors.queue.shows() ? "close On me" : "On me",
       run: () => doors.queue.press(),
       when: () => true
@@ -10288,7 +10333,6 @@ function createGoToSequence({
     {
       id: "navigation.panel.leaves",
       keys: ["Shift+l"],
-      description: () => doors.leaves.shows() ? "Close All pages" : "Go to All pages",
       title: () => doors.leaves.shows() ? "close All pages" : "All pages",
       run: () => doors.leaves.press(),
       when: (...args) => doors.leaves.shows() || leavesOffered2(...args)
@@ -10296,7 +10340,6 @@ function createGoToSequence({
     {
       id: "navigation.page-map",
       keys: ["Shift+p"],
-      description: "Open the Page Map dialog",
       title: "Page Map dialog",
       run: () => openPageMap(),
       when: () => true
@@ -10571,7 +10614,6 @@ function createGoToSequence({
         touch: false,
         // This changes focus without unwinding an open surface.
         keys: PAGE_RETURN_KEYS,
-        description: "Focus the page",
         title: "page",
         when: () => atGoToTargets(),
         run: () => {
@@ -10596,7 +10638,6 @@ function createGoToSequence({
           ...targetFilter ? [targetFilter.key] : [],
           "letters"
         ],
-        description: "Type a visible target's hint",
         title: "visible target",
         // Once armed, keep the alphabet claimed even when a filter has no members. A key
         // then reports the miss inside this sequence rather than falling through to a page
@@ -10615,7 +10656,6 @@ function createGoToSequence({
         })),
         label: FILTER_KEYS.join(" / "),
         sequenceSteps: ["kind"],
-        description: "Filter visible targets by kind",
         title: "filter by kind",
         when: () => atGoToTargets() && targetCapability(),
         run: filterTargets
@@ -10624,7 +10664,6 @@ function createGoToSequence({
         id: "navigation.target",
         when: () => goToActive ? hints.candidates().length > 0 : targetCapability(),
         choose: {
-          description: "Go to the target just announced",
           title: "go to target"
         }
       }),
@@ -10673,7 +10712,6 @@ function createGoToSequence({
         touch: false,
         keys: ["Escape"],
         sequenceControl: true,
-        description: () => hints.prefix() ? "Remove the last hint letter" : targetFilter ? "Show all visible targets" : "Cancel the sequence",
         title: () => hints.prefix() ? "back one letter" : targetFilter ? "all targets" : "cancel",
         run: () => {
           if (hints.backOneLetter()) return;
@@ -10741,7 +10779,6 @@ standingOn("disclosure", "On a disclosure", DISCLOSURE_SELECTOR, [
     id: "disclosure.toggle",
     touch: false,
     keys: () => DISCLOSE(focused()),
-    description: "Open or close it",
     // Read where it is painted rather than named once for both branches, the way a diff's
     // own file rows read theirs: what the press does is whichever way the disclosure is
     // set, and a word fixed at declaration could only ever say one of them.
@@ -10761,7 +10798,7 @@ pageCommand({
   touch: false,
   keys: ["F7"],
   title: "Caret browsing",
-  description: "Select text with the browser's keyboard caret, then comment on the selection"
+  description: "Select text with the keyboard caret to comment on it"
 });
 var holding = () => {
   const active = focused(document);
@@ -10789,7 +10826,6 @@ function declareStanding({ pageState }) {
         id: "navigation.release",
         touch: false,
         keys: ["Escape"],
-        description: "Let go of the current item",
         title: "let go",
         when: () => Boolean(standingFloor()),
         run: release
@@ -10802,12 +10838,10 @@ pageRung("page", () => {
   if (holding())
     return standingFloor() ? null : {
       title: "back to the page",
-      description: "Back out onto the page",
       out: letGo
     };
   return document.documentElement.lfSample ? {
     title: "return to containing page",
-    description: "Leave this sample and return to its containing page",
     out: () => sampleNotice("return")
   } : null;
 });
@@ -11097,7 +11131,6 @@ function createNavigation({ threadDestinations, placedAt, heldPlace }) {
     id: "reading.align.top",
     keys: ["z"],
     title: "Align current item at top",
-    description: "Align the current reading item at the top, keeping focus and selection",
     touch: "Align current item at top",
     menu: "keys",
     retainStanding: true,
@@ -11152,13 +11185,11 @@ function createNavigation({ threadDestinations, placedAt, heldPlace }) {
       {
         id: "page.down",
         binding: "d",
-        description: "Move 60% of a page down",
         title: "page down"
       },
       {
         id: "page.up",
         binding: "u",
-        description: "Move 60% of a page up",
         title: "page up"
       }
     ],
@@ -11174,13 +11205,11 @@ function createNavigation({ threadDestinations, placedAt, heldPlace }) {
       {
         id: "scroll.down",
         binding: "j",
-        description: "Scroll down a little",
         title: "scroll down"
       },
       {
         id: "scroll.up",
         binding: "k",
-        description: "Scroll up a little",
         title: "scroll up"
       }
     ],
@@ -11322,7 +11351,7 @@ var anchorTravel = createAnchorTravel({
   announce
 });
 var landing = createThreadLanding();
-declareThreadKeys(landing.landIn);
+declareThreadKeys(landing.landIn, () => app.threadDestinations.threadHere());
 var anchorControls = createAnchorControls({
   commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
   openThread: (...args) => app.threadDestinations.openPageThread(...args),

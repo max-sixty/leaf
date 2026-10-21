@@ -319,6 +319,20 @@ the sample using only what that prose says, and read each line the feed prints: 
 probe that knows more than the prose shows that the sample works, not that a user can
 work it.
 
+## Keep authoring a page fast
+
+Leaf is often a developer tool, used by one person waiting on the page in the middle
+of their own work, so the time an agent takes to produce a page is usually part of
+its quality. Shipped instructions keep that path short: write the page, run
+`page check`, look it over and hand it over. Avoid adding a reviewer subagent, a
+render pass or a critique round to the path most pages take. Keep such a step for a
+page that has to be especially well made, such as one that will be published or read
+by many people, in the reference that owns that kind of page.
+
+When pages keep failing the same way, improve the guidance the author reads while
+writing, and measure it in `evals/`, where a judge reading the page cold can stand in
+for the user.
+
 ## Score an instruction change
 
 Score an instruction change when you can't be sure how an agent will read it: a new or

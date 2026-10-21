@@ -34,6 +34,11 @@
    its summary shows: none of what it holds does, so there is no place in it to read.
    Cleanup removes live DOM bindings, so a replacement can reclaim an id.
 
+   The reach pass paints continuation at the body's scroll edges. An owner whose
+   chrome covers the upper edge can supply `paintContinuation(above)` to paint that
+   cue at its actual edge, on the same scroll and size observations. It receives
+   false when no words remain above or the region is released.
+
    A region can show one subject of several in turn, as a trace's saved tree shows one
    checkpoint's elements at a time. Its owner replaces the body's contents through
    `showReadingSubject(id, subject, render)`, which tells watchers the subject is
@@ -89,7 +94,12 @@ export function compoundReadingRegionId(owner, localName) {
   return `lf-region:${owner.id}:${localName}`;
 }
 
-export function registerReadingRegion({ id, host, body }) {
+export function registerReadingRegion({
+  id,
+  host,
+  body,
+  paintContinuation = undefined,
+}) {
   if (typeof id !== "string" || !id || !host || !body)
     throw new Error("leaf: a reading region needs id, host, and body");
   if (live(regions.get(id)))
@@ -103,7 +113,7 @@ export function registerReadingRegion({ id, host, body }) {
     width: null,
     away: false,
   };
-  const stopReaching = reachReadingScroller(body);
+  const stopReaching = reachReadingScroller(body, paintContinuation);
   regions.set(id, region);
   sizes.observe(host);
   return () => {

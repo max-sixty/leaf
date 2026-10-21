@@ -84,7 +84,7 @@ fabInput.className = "lf-ui lf-response-control lf-fab-input";
 fabInput.name = "comment";
 fabInput.placeholder = "Comment…";
 fabInput.setAttribute("aria-label", "Comment");
-export const fab = responseAction(el("button", "lf-ui lf-fab"), {
+const fab = responseAction(el("button", "lf-ui lf-fab"), {
   icon: "comment",
   label: "Comment",
   behavior: "disclosure",
@@ -814,7 +814,6 @@ export function createSelectionComposer({
     id: "response.move",
     touch: false,
     keys: ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
-    description: "Move through other responses",
     title: "move",
     repeat: true,
     when: () => focusedResponseOption(),
@@ -824,7 +823,6 @@ export function createSelectionComposer({
     id: "response.activate",
     touch: false,
     keys: PRESS,
-    description: "Use the focused response",
     title: "choose",
     when: () =>
       focusedResponseOption() &&
@@ -835,7 +833,6 @@ export function createSelectionComposer({
     id: "response.close",
     touch: false,
     keys: ["Escape"],
-    description: "Close other responses",
     title: "close",
     // Closing the other responses hands the user back to the bar they opened them from.
     run: () =>

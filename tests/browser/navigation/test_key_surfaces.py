@@ -172,12 +172,8 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     and worth knowing and not what the next press does."""
     page = open_page(browser, serve(NOTED_PAGE))
     page.keyboard.press("?")
-    expect(page.locator(".lf-command-reference")).to_contain_text(
-        "Move 60% of a page down"
-    )
-    expect(page.locator(".lf-command-reference")).to_contain_text(
-        "Move 60% of a page up"
-    )
+    expect(page.locator(".lf-command-reference")).to_contain_text("Page down")
+    expect(page.locator(".lf-command-reference")).to_contain_text("Page up")
     expect(page.locator(".lf-command-reference")).to_contain_text("Caret browsing")
     page.keyboard.press("Escape")
 

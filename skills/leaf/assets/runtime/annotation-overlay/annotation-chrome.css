@@ -99,7 +99,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      (`--thread-card-min`), so the card Send opens stands in the frame and grows out of
      the field (`.lf-margin-preview[data-lf-grows]`). Only the editor paints; the
      transparent rows neither take document flow nor intercept presses. Its tracks
-     shrink into that frame, and attached images stand in its header row. */
+     shrink into that frame, and attached images hang outside it. */
   .lf-fab-bar:not([data-lf-target-only], [data-lf-presentation="inline"]) {
     box-sizing: border-box;
     /* An auto-height positioned box borrows its inset-modified available height.
@@ -166,21 +166,25 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     grid-column: 1 / -1;
     grid-row: 2;
   }
-  /* Attached images stand in the header row the frame keeps for the card's author line,
-     over the field's start, so attaching neither widens the box nor moves a word, as
-     the floating panel hangs its shelf over its card (floating-panel.css). The pictures
-     fill that row down to the message body's gap above the field, from 7px under the
-     frame's top, which keeps each picture's removal mark inside the placed frame. The
-     shelf's padding, which holds their shadows and removal reach (response.css), is
-     taken back by its offsets. Only the pictures take presses, so the padding over page
-     text takes none. */
-  .lf-fab-bar:not([data-lf-presentation="inline"])
-    .lf-composer-media:not([hidden], :has(> .lf-composer-drawing)) {
-    --lf-media-h: calc(var(--lf-comment-frame-top) - var(--lf-msg-body-gap) - 7px);
+  /* Attached images hang off the box on the side away from its passage, outside its
+     frame, so attaching neither grows the box nor moves a word and the passage stays in
+     view, as the floating panel hangs its shelf over its card (floating-panel.css):
+     6px under the box's rows (the field, and its disclosed actions), or 6px over the
+     field when the box stands above its passage. The user chose this on 20 October
+     over 34px pictures in the header row the frame keeps for the card's author line,
+     and over a row of their own in the box, which re-placed the box and moved the
+     field. The pictures cover the page beside the box while the draft holds them, and
+     in a window too short for both they can stand past its edge. The shelf's padding,
+     which holds their shadows and removal reach (response.css), is taken back by its
+     offsets. Only the pictures take presses, so the padding over page text takes
+     none. */
+  .lf-fab-bar:not([data-lf-presentation="inline"]) .lf-composer-media:not([hidden]) {
     position: absolute;
     /* Out of the grid, so its offsets read from the box's edge, not the field's cell. */
     grid-area: auto;
-    inset-block-start: calc(7px - var(--lf-media-room));
+    inset-block-start: calc(
+      100% - var(--lf-comment-frame-bottom) + 6px - var(--lf-media-room)
+    );
     inset-inline-start: calc(var(--lf-comment-frame-inline) - var(--lf-media-room));
     max-width: calc(
       100% - 2 * var(--lf-comment-frame-inline) + 2 * var(--lf-media-room)
@@ -188,40 +192,15 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     margin: 0;
     pointer-events: none;
   }
+  .lf-fab-bar:not([data-lf-presentation="inline"])[data-lf-placement^="top"]
+    .lf-composer-media:not([hidden]) {
+    inset-block: auto
+      calc(100% - var(--lf-comment-frame-top) + 6px - var(--lf-media-room));
+  }
   .lf-fab-bar:not([data-lf-presentation="inline"])
-    .lf-composer-media:not([hidden], :has(> .lf-composer-drawing))
+    .lf-composer-media:not([hidden])
     > * {
     pointer-events: auto;
-  }
-  /* A drawing's picture stands taller than the header row, so a shelf holding one
-     takes a row of its own above the field. */
-  .lf-fab-bar:not([data-lf-presentation="inline"]):has(
-      .lf-composer-media:not([hidden]) > .lf-composer-drawing
-    ) {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(var(--lf-response-height), 1fr);
-  }
-  .lf-fab-bar:not([data-lf-presentation="inline"]):has(
-      .lf-composer-media:not([hidden]) > .lf-composer-drawing
-    )
-    .lf-composer-media {
-    grid-column: 1;
-    grid-row: 1;
-    justify-self: start;
-    max-width: 100%;
-  }
-  .lf-fab-bar:not([data-lf-presentation="inline"]):has(
-      .lf-composer-media:not([hidden]) > .lf-composer-drawing
-    )
-    .lf-compose-field {
-    grid-column: 1;
-    grid-row: 2;
-  }
-  .lf-fab-bar:not([data-lf-presentation="inline"]):has(
-      .lf-composer-media:not([hidden]) > .lf-composer-drawing
-    )
-    > .lf-response-options {
-    grid-row: 3;
   }
   .lf-visual-marks {
     display: contents;
@@ -539,9 +518,33 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     background: var(--paper);
   }
   .lf-margin-thread .lf-page-thread::after {
-    content: none;
+    /* Share the transcript's grid track without reserving reading space. The
+       author stays crisp while words fade into its moving lower edge. */
+    content: "";
+    position: absolute;
+    inset: var(--lf-thread-fade-top, 0px) 0 auto;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    align-self: start;
+    height: var(--lf-thread-fade-height, 0px);
+    border-radius: 0;
+    outline: none;
+    background: linear-gradient(var(--paper), transparent);
+    pointer-events: none;
+    /* Keep the action strip above the fade without putting its ground above
+       a focused message control's ring. */
+    z-index: 0;
+  }
+  .lf-margin-thread
+    .lf-page-thread:has(
+      > .lf-thread-transcript:is([data-lf-focus], :has([data-lf-focus]))
+    )::after {
+    display: none;
   }
   @media (forced-colors: active) {
+    .lf-margin-thread .lf-page-thread::after {
+      display: none;
+    }
     .lf-margin-thread .lf-page-thread[data-lf-focus-within] {
       outline: none;
     }

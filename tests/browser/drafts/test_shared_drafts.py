@@ -663,7 +663,7 @@ def test_a_delayed_storage_event_cannot_send_a_stale_durable_generation(
 def test_a_stale_cancel_cannot_settle_a_newer_durable_generation(
     browser, serve, one_user
 ):
-    """Cancel refreshes ownership before writing the shared tombstone."""
+    """Discard refreshes ownership before writing the shared tombstone."""
     url = serve(JOURNEY_V1)
     stale = open_page(
         browser, url, context=held_stale(one_user), init_script=DEAF_TO_DRAFT_NEWS

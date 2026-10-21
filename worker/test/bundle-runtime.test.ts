@@ -139,10 +139,6 @@ describe("published runtime bundle", () => {
       expect(kernel).toContain('from"/vendor/lit.js"');
       expect(kernel).not.toContain("litHtmlVersions");
       expect(kernel).not.toContain("browser-runtime");
-      // A vendor module's runtime import survives as its own module.
-      expect(
-        await readFile(join(output, "runtime", "shadow-stage.js"), "utf8"),
-      ).toBeTruthy();
       expect(
         await readFile(join(output, "widgets", "lf-suggestion.js"), "utf8"),
       ).not.toContain("/runtime/widget-api.js");

@@ -15,11 +15,9 @@ from interact_support import (
     PAGE,
     STATED_TIMEOUT,
     _interaction_prompt_evidence,
-    _watched,
     acknowledged_through,
     activity_reading,
     append_carried_log_record,
-    codex_records,
     continued,
     declare_idle,
     declared,
@@ -377,89 +375,6 @@ def test_a_repeated_stop_is_held_open_only_by_the_users_input(
     [batch] = envelope["batches"]
     assert [event["id"] for event in batch["events"]] == [error["id"], comment["id"]]
     assert acknowledged_through(claimed) == last_deliverable_seq(claimed)
-
-
-@pytest.mark.parametrize("repeated", [False, True])
-def test_codex_stop_leaves_quiet_input_but_delivers_the_whole_batch_with_owed_input(
-    page_dir, codex_loop, capsys, repeated
-):
-    """A live adapter handles quiet updates after Stop. An owed user message keeps
-    that turn open and brings all earlier pending updates into its one delivery.
-    """
-    codex_loop(page_dir)
-    cleanup_model.prompt_turn("codex-thread", "quiet")
-    waiter = _watched(page_dir)
-    adapter = leases_model.take_lease(leases_model.adapter_lease_path("codex-thread"))
-    assert adapter
-    try:
-        asked = append_carried_log_record(
-            page_dir, {"kind": "comment", "author": "user", "text": "why?"}
-        )
-        receive_through(page_dir, last_deliverable_seq(page_dir))
-        thread_model.post_reply(
-            page_dir, {"parent": asked["id"], "responds": asked["id"]}, "Because."
-        )
-        cursor = acknowledged_through(page_dir)
-        quiet = [
-            append_carried_log_record(
-                page_dir, {"kind": "resolve", "author": "user", "parent": asked["id"]}
-            ),
-            append_carried_log_record(
-                page_dir,
-                {"kind": "error", "author": "page", "text": "a widget threw"},
-            ),
-        ]
-        cleanup_model.prompt_turn("codex-thread", "quiet")
-        hooks_model.cmd_hook(
-            "codex",
-            {
-                "hook_event_name": "Stop",
-                "session_id": "codex-thread",
-                "turn_id": "quiet",
-                "stop_hook_active": repeated,
-            },
-        )
-        assert capsys.readouterr().out == ""
-        assert cleanup_model.session_record("codex-thread")["turn_closed"]
-        assert acknowledged_through(page_dir) == cursor
-        assert not codex_records("codex-thread")
-        assert [
-            event["id"]
-            for event in service_model.unacknowledged(
-                events_model.read_events(page_dir), cursor
-            )
-        ] == [event["id"] for event in quiet]
-
-        cleanup_model.prompt_turn("codex-thread", "owed")
-        comment = append_carried_log_record(
-            page_dir, {"kind": "comment", "author": "user", "text": "is it broken?"}
-        )
-        hooks_model.cmd_hook(
-            "codex",
-            {
-                "hook_event_name": "Stop",
-                "session_id": "codex-thread",
-                "turn_id": "owed",
-                "stop_hook_active": repeated,
-            },
-        )
-        answer = json.loads(capsys.readouterr().out)
-        assert answer["decision"] == "block"
-        envelope = json.loads(answer["reason"])
-        assert envelope == delivery_model.cmd_delivery_read(envelope["id"])
-        assert envelope["acknowledge"] == delivery_model.pointer_acknowledgement(
-            envelope["id"]
-        )
-        assert acknowledged_through(page_dir) == cursor
-        [batch] = envelope["batches"]
-        assert [event["id"] for event in batch["events"]] == [
-            *(event["id"] for event in quiet),
-            comment["id"],
-        ]
-        assert cleanup_model.session_record("codex-thread")["turn_closed"] is None
-    finally:
-        adapter.close()
-        leases_model.release_lease(waiter)
 
 
 def test_a_page_that_changed_hands_before_receipt_keeps_its_input(

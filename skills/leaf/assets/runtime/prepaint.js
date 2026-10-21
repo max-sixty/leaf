@@ -448,6 +448,9 @@
         ? target
         : target.importNode(sourceShells.get(source) ?? source, false);
     origins.set(copy, origins.get(source) ?? node);
+    // View geometry is read before modules start, not authored by the page. Leave
+    // it out of the baseline a revision compares with its unpainted source.
+    copy.removeAttribute?.("data-lf-views-flow");
     copy.removeAttribute?.("data-lf-opening");
     copy.removeAttribute?.("data-lf-sole-content");
     if (copy.hasAttribute?.(PLAYER)) {
@@ -926,8 +929,8 @@
     }
     return changed;
   };
-  // A page of parts' title, which its list sticks under (layouts.css, "A page of
-  // parts"): no CSS stacks one sticking box under another of unknown height. The title
+  // A page of parts' title, which its list stands fixed under (layouts.css, "A page of
+  // parts"): no CSS stacks one fixed box under another of unknown height. The title
   // is what stands before the parts, in the one row above the list.
   const TITLE = "--lf-parts-title-h";
   const title = () => {
@@ -1120,6 +1123,9 @@
   };
   const mark = () => {
     for (const holder of document.querySelectorAll("[data-lf-views]")) {
+      const flow = getComputedStyle(holder).getPropertyValue("--lf-views-flow").trim();
+      if (flow && holder.getAttribute("data-lf-views-flow") !== flow)
+        holder.setAttribute("data-lf-views-flow", flow);
       const members = [...holder.children];
       const open = choose(holder, members);
       for (const member of members) {

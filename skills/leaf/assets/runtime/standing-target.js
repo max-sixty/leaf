@@ -18,8 +18,8 @@
    Each feature takes what it needs from that place by its own rule: the obligation view the
    obligation source or unique enclosing widget holding it, `c` and `e` its semantic target, the walks its place
    in the page's order. Every side answers alike: an open obligation stood at from its card still wears its
-   ring and takes its digits, `c` at an element whose own thread is shown continues it,
-   and `m` and `t` step from the target.
+   ring and takes its digits, `c` at an element whose own thread is shown continues it and
+   `r` settles it, and `m` and `t` step from the target.
 
    Standing is not arriving. The floating panel shows its thread or obligation beside
    the page (`declareSide`'s `beside`), so the user in it has not arrived at the target,

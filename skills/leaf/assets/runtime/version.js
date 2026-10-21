@@ -1085,7 +1085,6 @@ export function createVersionController({
     id: "version.open",
     ready: savedReadingSettled,
     keys: ["Shift+v"],
-    description: "The versions, and what each one changed",
     title: "versions",
     run: () => versions.press(),
     // The same predicate the menu's Escape stands on, so the key cannot open a layer the

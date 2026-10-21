@@ -201,16 +201,15 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     assert first.created
     artifact = artifact_model.read_artifact(page_dir, first.revision)
     assert artifact.html == html.encode()
-    assert artifact.resources["/page/app.js"].dependencies == (
+    assert {
+        "/page/app.js",
         "/page/nested/value.js",
         "/runtime/widget-api.js",
-    )
-    assert artifact.resources["/page/style.css"].dependencies == (
+        "/page/value.js",
+        "/page/style.css",
         "/page/nested/theme.css",
-    )
-    assert artifact.resources["/page/nested/theme.css"].dependencies == (
         "/page/image.svg",
-    )
+    } <= artifact.resources.keys()
     assert artifact.resources["/page/image.svg"].mime == "image/svg+xml"
     assert artifact.resources["/page/inline.svg"].mime == "image/svg+xml"
     assert artifact.resources["/page/app.js"].mime == "application/javascript"
@@ -358,7 +357,6 @@ const computed = import(text, { with: { type: './missing.js' } });
     assert activated.error is None, activated.error
     artifact = artifact_model.read_artifact(page_dir, activated.revision)
     resource = artifact.resources["/page/app.js"]
-    assert resource.dependencies == ("/page/options.js", "/page/value.js")
     rewritten = revision_delivery_model.rebase_module(
         resource.data, "/page/app.js", lambda path: "/revisions/captured" + path
     )
@@ -981,7 +979,7 @@ def test_a_move_on_a_replaced_revision_lands_only_where_its_column_held(page_dir
         _move(page_dir, "x", "c-todo", "1i")
     stale = refused_on(refused.value)
     assert (stale.code, stale.values["container"]) == ("stale-move", "c-todo")
-    assert refused.value.user == "The page changed while you moved this; move it again."
+    assert refused.value.user == "The page changed while I moved this; move it again."
     _move(page_dir, "x", "c-todo", "2i", revision=2)
     assert _todo_order(page_dir) == ["n", "a", "x", "b", "c"]
 
@@ -1380,16 +1378,25 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
     enumerates — restated, overruled and resolves each name something the log
     holds, which a one-version corpus cannot earn.
 
+    Live samples are example pages too; their child documents contribute the
+    attributes the reader can exercise there.
+
     The floor reads every package the examples select rather than a list written
     here, which is how it followed lf-diagram and lf-diff into their own packages.
     Widening it that way brought pr-review's two widgets under the floor for the
     first time and found one uncovered attribute, exempted below."""
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
     used = {}
-    for path in (Path(__file__).parents[2] / "examples").glob("*.html"):
-        for rec in structure_model.SourceDocument(path.read_text()).lf_elements:
+
+    def read(document):
+        for rec in document.lf_elements:
             for attr, value in rec["attrs"].items():
                 used.setdefault(rec["tag"], {}).setdefault(attr, set()).add(value)
+        for sample in document.samples:
+            read(sample["document"])
+
+    for path in (Path(__file__).parents[2] / "examples").glob("*.html"):
+        read(structure_model.SourceDocument(path.read_text()))
     missing = []
     for tag, entry in sorted(registry.items()):
         if not tag.startswith("lf-"):

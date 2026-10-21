@@ -22,7 +22,7 @@ const sheets = JSON.parse(
 // their own indication face (marks.css).
 export const inBaseLayer = (text) => `@layer lf-base {\n${text}\n}`;
 
-export function constructSheet(text) {
+function constructSheet(text) {
   const sheet = new CSSStyleSheet();
   sheet.replaceSync(text);
   return sheet;

@@ -174,32 +174,55 @@ const authoredMessage = (message) => {
 
 // Which drawing of an authored message holds its widgets, the one instance above. A
 // message can stand in several drawings at once (the primary reader's, a margin card,
-// a seat on the page), and the one of highest `authoredRank` holds them, the first to
-// draw it among equals, until it retires or its card closes (`releaseAuthoredUnder`),
-// when the highest that stands takes them. Every other drawing offers the way there.
-// Standing is read only then: a card draws before its owner places it. A drawing that
-// takes them has the one it displaced, or the one it hands them to, draw again at once,
-// as their own containers would not.
+// a seat on the page), and the shown one of highest `authoredRank` holds them, the
+// first to draw it among equals. Every other drawing offers the way there. A drawing
+// shown as it draws takes them where it should hold them, as does the first to draw
+// them, and after each draw the holder is settled again among the drawings shown, so
+// one hidden in a fold or a closed card gives them to one in view. A drawing not yet
+// placed in the page, as a card draws before its owner places it, is neither shown
+// nor hidden: it waits for that settling to take them, and keeps what it holds.
+// Whichever drawings gain or lose them draw again at once, as their own containers
+// would not.
 const authoredDrawings = new Map();
 const authoredHolders = new Map();
-const standing = (view) => view.node.isConnected && view.node.checkVisibility();
-function handAuthoredOn(key, from) {
-  if (authoredHolders.get(key) !== from) return;
+const shown = (view) => view.node.isConnected && view.node.checkVisibility();
+const hidden = (view) => view.node.isConnected && !view.node.checkVisibility();
+const outranks = (a, b) => a.model.authoredRank > b.model.authoredRank;
+function settleAuthored(key) {
+  const drawings = authoredDrawings.get(key) ?? new Set();
+  const holder = authoredHolders.get(key);
+  const held = holder && drawings.has(holder) && !hidden(holder) ? holder : null;
+  let best = null;
+  for (const view of drawings)
+    if (shown(view) && (!best || outranks(view, best))) best = view;
+  if (!best || best === holder || (held && !outranks(best, held))) return;
+  authoredHolders.set(key, best);
+  best.present(best.model);
+  if (holder && drawings.has(holder)) holder.present(holder.model);
+}
+const unsettled = new Set();
+function settleAuthoredSoon(key) {
+  if (unsettled.has(key)) return;
+  unsettled.add(key);
+  queueMicrotask(() => {
+    unsettled.delete(key);
+    settleAuthored(key);
+  });
+}
+function releaseAuthored(key, view) {
+  if (authoredHolders.get(key) !== view) return;
   authoredHolders.delete(key);
-  const next = [...(authoredDrawings.get(key) ?? [])]
-    .filter((view) => view !== from && standing(view))
-    .sort((a, b) => b.model.authoredRank - a.model.authoredRank)[0];
-  next?.present(next.model);
+  settleAuthored(key);
 }
 // Lets go of the widgets the drawings under `root` hold, as a card closing does.
 export function releaseAuthoredUnder(root) {
   for (const [key, view] of [...authoredHolders])
-    if (root.contains(view.node)) handAuthoredOn(key, view);
+    if (root.contains(view.node)) releaseAuthored(key, view);
 }
 // The drawn message holding the widgets of the message `id`, if a drawing holds them.
 export function authoredHolder(id) {
   for (const view of authoredHolders.values())
-    if (view.model.id === id && standing(view)) return view.node;
+    if (view.model.id === id && shown(view)) return view.node;
   return null;
 }
 const FAILURE_LABEL = "Not answered";
@@ -366,10 +389,17 @@ export class MessageView {
         authoredDrawings.set(authoredKey, new Set());
       authoredDrawings.get(authoredKey).add(this);
       const holder = authoredHolders.get(authoredKey);
-      if (holder !== this && !(holder?.model.authoredRank >= model.authoredRank)) {
+      const holding = holder && authoredDrawings.get(authoredKey).has(holder);
+      if (
+        holder !== this &&
+        (holding
+          ? shown(this) && (hidden(holder) || outranks(this, holder))
+          : !hidden(this))
+      ) {
         authoredHolders.set(authoredKey, this);
-        displaced = holder;
+        if (holding) displaced = holder;
       }
+      settleAuthoredSoon(authoredKey);
     }
     const holds = authoredHolders.get(authoredKey) === this;
     // Lit keeps nodes it already placed, so where another drawing took them since this
@@ -566,7 +596,7 @@ export class MessageView {
       const key = this.#model.attempt ?? this.#model.id;
       authoredDrawings.get(key)?.delete(this);
       if (!authoredDrawings.get(key)?.size) authoredDrawings.delete(key);
-      handAuthoredOn(key, this);
+      releaseAuthored(key, this);
     }
     this.#arrivalMotion?.cancel();
     this.#reaction?.retire();

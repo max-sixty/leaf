@@ -601,7 +601,8 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
 
     expect(thread.locator("#off-slip-chase [role=checkbox]")).to_be_checked()
 
-    resized_shell(page, 1436, 900)
+    # Tall enough for the whole thread, its reply's options drawn in the card.
+    resized_shell(page, 1436, 1000)
     beside = page.evaluate(
         """() => {
           const main = document.querySelector('main').getBoundingClientRect();

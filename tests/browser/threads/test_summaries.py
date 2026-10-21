@@ -18,6 +18,7 @@ from render_harness import (
 from browser.threads import (
     append_agent_reply,
     append_user_reply,
+    open_panel_thread,
     summarize_thread,
 )
 
@@ -83,6 +84,35 @@ def test_a_seated_reply_draws_its_widget_in_place(browser, serve, resolved):
     with sending(page, "the first job"):
         message.locator("#mounts").click()
     expect(page.locator("#mounts [role=checkbox]")).to_be_checked()
+
+
+def test_a_reply_folded_in_one_view_keeps_its_widget_in_view_in_another(browser, serve):
+    """A reply's markup, which stands in one drawing at a time, stays in a drawing that
+    shows it rather than one that folds the reply away: here the panel, which outranks
+    the page's seat but folds the reply under its summary, leaves it in the seat whose
+    fold the user opened."""
+    url = serve(SEATED_OBLIGATION_PAGE)
+    root = panel_comment(serve.page_dir, "Which job first?", {"section": "jobs"})
+    asked = append_agent_reply(
+        serve.page_dir,
+        root,
+        "Here is what each job takes.",
+        '<p id="folded-note">The mounts take an hour.</p>',
+    )
+    append_user_reply(serve.page_dir, root, "The mounts, then.")
+    last = append_agent_reply(serve.page_dir, root, "Mounts first.")
+    append_user_reply(serve.page_dir, root, "Keep the latest visible.")
+    summarize_thread(serve.page_dir, asked["id"], last["id"], "The mounts go first.")
+
+    page = open_page(browser, url)
+    seat = page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
+    seat.get_by_role("button", name="Show 3 earlier messages", exact=True).click()
+    message = seat.locator(f'.lf-msg[data-event="{asked["id"]}"]')
+    expect(message.locator("#folded-note")).to_be_visible()
+    view = open_panel_thread(page, root)
+    expect(view.locator(f'.lf-msg[data-event="{asked["id"]}"]')).to_be_hidden()
+    expect(message.locator("#folded-note")).to_be_attached()
+    expect(message.locator(".lf-page-thread-open")).to_have_count(0)
 
 
 def test_a_summary_folds_originals_and_reveals_them(browser, serve):

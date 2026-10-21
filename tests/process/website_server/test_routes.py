@@ -599,14 +599,29 @@ def test_the_adapter_serves_a_published_revision_at_its_release_address(
     page["states"] = {"1": "unused"}
     manifest_path.write_text(json.dumps(manifest))
     release = f"{page['assets']}/revisions/{revision_path(published, 1).stem}"
+    # A revision a session saved after the release is the container's, never the
+    # release's: no address under the release names it.
+    (published / "index.html").write_text(
+        (published / "index.html")
+        .read_text()
+        .replace("</main>", "<p>Private.</p></main>")
+    )
+    assert website_server.activate_source(published).revision == 2
+    private = revision_path(published, 2)
 
     httpd = LeafHTTPServer(
         ("127.0.0.1", 0), website_server.site_endpoint(site, FakeCodexHarness())
     )
     root = f"http://127.0.0.1:{httpd.server_address[1]}"
     with running_http_server(httpd):
-        document, _ = get(f"{root}/examples/decision/")
+        name = revision_path(published, 1).name
+        document, _ = get(f"{root}/examples/decision/revisions/{name}")
         assert f'data-lf-entry="{release}/leaf.js"'.encode() in document
+        current, _ = get(f"{root}/examples/decision/")
+        assert (
+            f'data-lf-entry="/examples/decision/revisions/{private.stem}/'.encode()
+            in current
+        )
         runtime = serving_runtime().resources({})
         for logical in ("/leaf.js", "/runtime/widget-api.js"):
             body, headers = get(f"{root}{release}{logical}")
@@ -622,6 +637,8 @@ def test_the_adapter_serves_a_published_revision_at_its_release_address(
         for missing in (
             f"{release}/api/state",
             f"{page['assets']}/revisions/r9-x/a.js",
+            f"{page['assets']}/revisions/{private.name}",
+            f"{page['assets']}/revisions/{private.stem}/leaf.js",
         ):
             with pytest.raises(urllib.error.HTTPError) as refused:
                 get(f"{root}{missing}")

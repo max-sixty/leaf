@@ -1434,9 +1434,6 @@ class WebsitePageEndpoint(PageEndpoint):
         self.routes = routes
         self.pages = pages
         self.agent_harness = agent_harness
-        # Whether the request named a published revision's resource at its release
-        # address (`released_path`), rather than at the page.
-        self.released = False
 
     def page_state(self, view_revision: int | None = None) -> dict:
         state = super().page_state(view_revision)
@@ -1530,17 +1527,16 @@ class WebsitePageEndpoint(PageEndpoint):
         AGENT_FAIL_PATH: PostRoute(_fail_agent, (PageEndpoint._body_gate,)),
     }
 
-    def _serve_artifact_resource(self) -> Response | None:
+    def _released_resource(self) -> Response | None:
         """A published revision's resource at its release address, as the Worker
         serves the static tree the build wrote there (`live_shell`): the same bytes,
         delivered by the same code at the same address, so a published page starts
-        here as at the edge. Any other revision resource is the page server's."""
-        if not self.released:
-            return super()._serve_artifact_resource()
+        here as at the edge. None for any other path, which the release names nothing
+        at."""
         match = re.fullmatch(
             rf"/revisions/(?P<name>{REVISION_NAME})/(?P<resource>.+)", self.path
         )
-        if match is None:
+        if match is None or self.method not in {"GET", "HEAD"}:
             return None
         revision = int(match["revision"])
         if (
@@ -1562,14 +1558,11 @@ class WebsitePageEndpoint(PageEndpoint):
     def _select_page(self) -> Response | None:
         if self.method == "GET" and self.path == "/health":
             return self._content(200, "text/plain; charset=utf-8", b"ok\n")
+        # A release address names a published revision's resource and nothing else,
+        # so it is answered here, whole, and never reaches the page's own routes.
         released = released_path(self.pages, self.path)
-        if released is not None:
-            self.released = True
-            self.path = released
-        selected = published_page(self.routes, self.path)
-        if selected is None or (
-            self.released and not selected[2].startswith("/revisions/")
-        ):
+        selected = published_page(self.routes, released or self.path)
+        if selected is None:
             return self._not_found()
         page_dir, page_root, inside, kind = selected
         identity, preview = page_binding(page_dir)
@@ -1579,6 +1572,8 @@ class WebsitePageEndpoint(PageEndpoint):
         self.publication = {**PUBLICATION, "kind": kind}
         self.page_root = page_root
         self.path = inside
+        if released is not None:
+            return self._released_resource() or self._not_found()
         return None
 
 

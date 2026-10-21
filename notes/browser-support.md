@@ -149,6 +149,13 @@ what fails and what still works.
   presented frame, and `anchor-size()`, which sizes the bar to the video, both run in
   both engines; MDN lists `requestVideoFrameCallback` from Chrome 83, Firefox 132 and
   Safari 15.4.
+- **Observed 2026-10-21, full screen:** in Playwright Firefox 155 and Chromium 153,
+  the bar's Full screen button and `f` put the video in full screen with the
+  browser's own controls, Space and a press on the picture each toggle playback
+  once there, and leaving gives the bar back. Not observed: an iPhone, whose Safari
+  has no `requestFullscreen` for an element (MDN, unchecked here), so the bar calls
+  the video's `webkitEnterFullscreen`, which opens the system player with its own
+  controls.
 - **Disposition:** adopted without a fallback.
 
 ## Known gaps

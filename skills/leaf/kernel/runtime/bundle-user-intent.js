@@ -2182,6 +2182,12 @@ var clock = (seconds) => {
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
 };
 var duration = (video) => Number.isFinite(video.duration) ? video.duration : 0;
+var fillScreen = (video) => {
+  if (video.ownerDocument.fullscreenEnabled) return () => video.requestFullscreen();
+  if (video.webkitEnterFullscreen) return () => video.webkitEnterFullscreen();
+  return null;
+};
+var fills = (video) => video.getRootNode().fullscreenElement === video;
 function toggle(video) {
   if (!video.paused) return video.pause();
   video.play().catch((error) => {
@@ -2220,6 +2226,14 @@ function prepare(video) {
   time.step = "any";
   keeps(time, "aria-label", "Recording position");
   bar.append(play, time);
+  const enterFullScreen = fillScreen(video);
+  const fullScreen = enterFullScreen && offer("button", "lf-video-full-screen");
+  if (fullScreen) {
+    fullScreen.tabIndex = -1;
+    fullScreen.append(iconElement("expand", "lf-video-icon"));
+    keeps(fullScreen, "aria-label", "Full screen");
+    bar.append(fullScreen);
+  }
   keeps(bar, "role", "group");
   keeps(bar, "aria-label", video.getAttribute("aria-label") || "Recording");
   const player = {
@@ -2228,6 +2242,7 @@ function prepare(video) {
     play,
     time,
     authoredTabindex: video.getAttribute("tabindex"),
+    filling: false,
     events: new AbortController(),
     /** @type {ReturnType<typeof commandScope> | null} */
     scope: null
@@ -2248,7 +2263,7 @@ function prepare(video) {
     frame = video.requestVideoFrameCallback(followFrames);
   });
   on(video, "click", (event) => {
-    if (plainPress(event)) toggle(video);
+    if (plainPress(event) && !player.filling) toggle(video);
   });
   on(time, "input", () => video.currentTime = Number(time.value));
   const show = (flag, force) => {
@@ -2297,8 +2312,28 @@ function prepare(video) {
           Math.max(0, video.currentTime + step)
         );
       }
-    }
+    },
+    ...fullScreen ? [
+      {
+        id: "recording.full-screen",
+        keys: ["f"],
+        title: "full screen",
+        control: fullScreen,
+        // The browser's keys reach the video where focus stands on it.
+        run: () => {
+          focusDestination(video, "move");
+          enterFullScreen();
+        }
+      }
+    ] : []
   ]);
+  on(video.ownerDocument, "fullscreenchange", () => {
+    if (fills(video) === player.filling) return;
+    player.filling = !player.filling;
+    keeps(video, "controls", player.filling ? "" : null);
+    projectCommandScope(video, SCOPE, player.filling ? null : player.scope);
+    show("lf-video-hover", false);
+  });
   players.set(video, player);
   return player;
 }

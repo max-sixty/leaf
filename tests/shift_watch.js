@@ -4,8 +4,9 @@
 // modelled in general for any markup, never for one shape Leaf ships: scrolling,
 // which layout coordinates remove; sticky positioning, through its scroller's travel;
 // CSS anchor positioning, through its anchor's scroll; and native animation, scroll-
-// driven included, through its sampled translation. Beside those it credits only what
-// the Stability contract itself declares: a gesture's rendering, the page before it
+// driven included, through sampled translation or reflow from size changes.
+// Beside those, it credits only what the Stability contract itself declares:
+// a gesture's rendering, the page before it
 // presents or as it returns from a hidden tab, and runtime regions declared with
 // `data-lf-reflow`. A script that moves a box by writing its geometry has no credit
 // of its own, however the page means it, so a surface that should follow something
@@ -58,8 +59,10 @@
 // cannot see; the gesture owns that preparation's landing, as a rendering from the
 // task that settles it until the loop settles again, and nothing while it waits. It
 // began one only when its declaration carries that input's exact callback source.
-// Native effects it began retain only their sampled displacement within their
-// own subtree; their continued lifetime never owns unrelated page movement.
+// Native effects it began retain their sampled displacement within their subtree.
+// A native size animation also credits a later box only when that box's travel
+// matches the animated box's measured size change; its continued lifetime
+// never owns unrelated page movement.
 // Native scroll effects belong to their retained scroll source, regardless of the
 // gesture that created them. Stable timeline bindings and translation trajectories
 // credit only source-collinear travel bounded by that source's viewport scroll.

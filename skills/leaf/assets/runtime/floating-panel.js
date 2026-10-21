@@ -2618,6 +2618,10 @@ export function createFloatingPanel({
         ? messageReading(asking, { reactions: [], workflows: [] }).body.plainText
         : record?.prompt?.text;
     const prompt = said && said.trim() !== title.trim() ? said : "";
+    // Where the thread's name stands for the card, it reads as Threads names the thread
+    // (`threadHeading`).
+    const heading =
+      thread && title === threadName(thread) ? threadHeading(thread) : title;
     const answered = record && record.status !== "open";
     const choices =
       record && !answered && record.source.kind === "widget" && !inWords
@@ -2736,16 +2740,16 @@ export function createFloatingPanel({
     >
       ${about.length ? html`<p class="lf-fp-on-kind">${about.join(" · ")}</p>` : nothing}${
         message
-          ? html`${title ? html`<h3 class="lf-fp-on-title">${title}</h3>` : nothing}
+          ? html`${title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : nothing}
               <div
                 class="lf-fp-asked lf-fp-outlet"
                 data-thread=${thread.key}
                 data-message=${message.key}
               ></div>`
           : prompt
-            ? html`<h3 class="lf-fp-on-title">${title}</h3>
+            ? html`<h3 class="lf-fp-on-title">${heading}</h3>
                 <p class="lf-fp-prompt">${prompt}</p>`
-            : html`<p class="lf-fp-prompt">${title}</p>`
+            : html`<p class="lf-fp-prompt">${heading}</p>`
       }
       <div class="lf-fp-answers">${answers}${show}</div>
     </section>`;

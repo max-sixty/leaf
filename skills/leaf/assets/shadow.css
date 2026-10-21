@@ -1884,12 +1884,16 @@ html[data-lf-draw-mode] main {
   z-index: 1;
   opacity: 0;
   pointer-events: none;
+  &:has(> .lf-video-full-screen) {
+    padding-inline: 0;
+  }
 }
 .lf-video-controls:is(:not(.lf-video-playing), .lf-video-hover, .lf-video-keyed, :hover, :has(:focus-visible)) {
   opacity: 1;
   pointer-events: auto;
 }
-.lf-video-play {
+.lf-video-play,
+.lf-video-full-screen {
   flex: none;
   display: grid;
   place-items: center;

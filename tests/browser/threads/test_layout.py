@@ -585,7 +585,8 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
     """A card opened on a long thread shows its latest message, as a walk to it in the
     Threads list does, and its top row names whoever wrote the words under it. The
     card pinned the root's name beside its actions, so it opened at the top to keep
-    that name true, leaving the newest turn out of view."""
+    that name true, leaving the newest turn out of view. A continuation fades the
+    words below the moving name without fading the next message's author."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Opening turn. " + LANDING_WORDS, {"section": "how-store"}
@@ -618,6 +619,42 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
     landed = transcript.evaluate(CARD_TOP_AUTHORS)
     assert landed["scrolled"] and landed["named"] > 0 and landed["row"], landed
     assert landed["under"] == landed["named"], landed
+    assert not transcript.evaluate("box => box.hasAttribute('data-lf-more-below')")
+
+    def continuation():
+        """Read the fade's actual painted box, including its grid positioning."""
+        reading = transcript.evaluate(
+            """box => {
+              const style = getComputedStyle(box.parentElement, '::after');
+              return {height: parseFloat(style.height), display: style.display,
+                paint: style.backgroundImage,
+                heads: [...box.querySelectorAll('.lf-msg-head')]
+                  .map(head => head.getBoundingClientRect().toJSON()),
+                top: box.getBoundingClientRect().top + box.clientTop};
+            }"""
+        )
+        cdp = page.context.new_cdp_session(page)
+        try:
+            card = cdp.send(
+                "Runtime.evaluate",
+                {
+                    "expression": f"document.querySelector({json.dumps(selector)}).parentElement"
+                },
+            )["result"]["objectId"]
+            described = cdp.send("DOM.describeNode", {"objectId": card})["node"]
+            pseudo = next(
+                node
+                for node in described["pseudoElements"]
+                if node["pseudoType"] == "after"
+            )
+            border = cdp.send(
+                "DOM.getBoxModel", {"backendNodeId": pseudo["backendNodeId"]}
+            )["model"]["border"]
+            reading.update(fade_top=min(border[1::2]), fade_bottom=max(border[1::2]))
+        finally:
+            cdp.detach()
+        return reading
+
     # Reading back up, the row names each message whose words stand under it.
     for index in (3, 2, 1, 0):
         transcript.evaluate(
@@ -635,6 +672,44 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
         rendered(page)
         reading = transcript.evaluate(CARD_TOP_AUTHORS)
         assert reading["named"] == reading["under"] == index and reading["row"], reading
+        cue = continuation()
+        if index:
+            assert cue["display"] != "none" and cue["height"] > 0, cue
+            assert "gradient" in cue["paint"], cue
+            assert cue["fade_top"] == pytest.approx(
+                cue["heads"][index]["bottom"], abs=1
+            ), cue
+        else:
+            assert cue["height"] == 0, cue
+
+    # Follow the outgoing header as the next author pushes it off the top, then
+    # follow the transcript edge through the gap. Neither position fades a name.
+    for handoff in ("pushed", "gap"):
+        transcript.evaluate(
+            """(box, handoff) => {
+              const messages = [...box.querySelectorAll('.lf-msg')];
+              const first = messages[0].getBoundingClientRect();
+              const head = messages[0].querySelector('.lf-msg-head').getBoundingClientRect();
+              const next = messages[1].querySelector('.lf-msg-head').getBoundingClientRect();
+              const target = handoff === 'pushed'
+                ? first.bottom - head.height / 2
+                : (first.bottom + next.top) / 2;
+              box.scrollTop += target - box.getBoundingClientRect().top - box.clientTop;
+            }""",
+            handoff,
+        )
+        rendered(page)
+        cue = continuation()
+        assert cue["display"] != "none" and cue["height"] > 0, cue
+        if handoff == "pushed":
+            assert cue["heads"][0]["top"] < cue["top"] < cue["heads"][0]["bottom"], cue
+            assert cue["fade_top"] == pytest.approx(cue["heads"][0]["bottom"], abs=1), (
+                cue
+            )
+        else:
+            assert cue["heads"][0]["bottom"] <= cue["top"], cue
+            assert cue["fade_top"] == pytest.approx(cue["top"], abs=1), cue
+        assert cue["fade_bottom"] <= cue["heads"][1]["top"] + 1, cue
 
 
 @pytest.mark.parametrize(("width", "touch"), [(1200, False), (311, True)])

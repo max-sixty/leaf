@@ -151,11 +151,11 @@ const sideways = new Set();
 // opt their bounded body in when they register it. The cue follows remaining content,
 // because the pane's fixed lower edge would otherwise keep promising another part of
 // the reading after the user reaches the end.
-const downwards = new Set();
+const downwards = new Map();
 const readingScrolled = (event) => paintReadingReach(event.currentTarget);
 const sidewaysScrolled = (event) => paintSidewaysReach(event.currentTarget);
-export function reachReadingScroller(el) {
-  downwards.add(el);
+export function reachReadingScroller(el, paintContinuation) {
+  downwards.set(el, paintContinuation);
   watchReach(el);
   el.addEventListener("scroll", readingScrolled, { passive: true });
   paintReadingReach(el);
@@ -167,7 +167,10 @@ export function reachReadingScroller(el) {
     if (!watched(el)) unwatchReach(el);
     el.removeEventListener("scroll", readingScrolled);
     afterScript(() => {
-      if (!downwards.has(el)) keeps(el, PAGE_PAINT_ATTRIBUTE.moreBelow, null);
+      if (!downwards.has(el)) {
+        keeps(el, PAGE_PAINT_ATTRIBUTE.moreBelow, null);
+        paintContinuation?.(false);
+      }
     });
   };
 }
@@ -190,6 +193,9 @@ function paintReadingReachNow() {
     if (!downwards.has(el) || unpainted(el)) continue;
     const style = getComputedStyle(el);
     const scrolling = userScrollport(style.overflowY);
+    // A region with covering chrome paints its upper continuation at the chrome's
+    // actual edge. Share the scroll/resize pass rather than watch the same body twice.
+    downwards.get(el)?.(scrolling && el.scrollTop > SCROLL_SLACK);
     keeps(
       el,
       PAGE_PAINT_ATTRIBUTE.moreBelow,
@@ -461,7 +467,7 @@ function paintReachNow() {
     else returnStop(el, authored);
   }
   for (const el of sideways) paintSidewaysReach(el);
-  for (const el of downwards) paintReadingReach(el);
+  for (const el of downwards.keys()) paintReadingReach(el);
 }
 
 // Which boxes scroll is read from the computed style, and the computed style moves with

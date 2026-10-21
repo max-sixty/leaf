@@ -13,7 +13,7 @@
 .lf-motion-time {
   flex: 1 1 120px;
   min-inline-size: 80px;
-  min-block-size: 32px;
+  min-block-size: max(32px, var(--aim-floor));
   accent-color: var(--accent);
 }
 .lf-motion-clock {
@@ -29,5 +29,5 @@
   white-space: nowrap;
 }
 .lf-motion-speed select {
-  min-block-size: 32px;
+  min-block-size: max(32px, var(--aim-floor));
 }

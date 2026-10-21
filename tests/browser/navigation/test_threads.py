@@ -941,11 +941,11 @@ def test_r_resolves_the_focused_thread_while_x_is_unbound(browser, serve):
 
     # The same key reopens a focused resolved thread.
     open_panel_thread(page, c1).focus()
-    expect(page.locator(".lf-fp-settle")).to_have_text("Reopen", use_inner_text=True)
+    expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Reopen")
     with sending(page, "the reopen"):
         page.keyboard.press("r")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "unresolve"
-    expect(page.locator(".lf-fp-settle")).to_have_text("Resolve", use_inner_text=True)
+    expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Resolve thread")
 
 
 def test_r_resolves_a_thread_from_wherever_the_user_stands_in_it(browser, serve):

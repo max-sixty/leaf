@@ -1306,7 +1306,7 @@ def test_a_rewrite_saved_in_a_resolved_thread_goes_with_its_thread(browser, serv
     2026-10-07)."""
     page, _, message = _rewrite_surface(browser, serve, "panel", resolved=True)
     settle = page.locator(".lf-fp-settle")
-    expect(settle).to_have_text("Reopen", use_inner_text=True)
+    expect(settle).to_have_accessible_name("Reopen")
     reply = page.locator(PANEL_REPLY)
     held = []
     page.route(
@@ -1320,7 +1320,7 @@ def test_a_rewrite_saved_in_a_resolved_thread_goes_with_its_thread(browser, serv
     page.keyboard.type(" Now.")
     page.keyboard.press("Enter")
     holding(page, held, 1, "the rewrite")
-    expect(settle).to_have_text("Resolve", use_inner_text=True)
+    expect(settle).to_have_accessible_name("Resolve thread")
     expect(reply).to_be_focused()
     held.pop().continue_()
     round_trip(page)
@@ -1348,7 +1348,7 @@ def test_a_refused_rewrite_puts_the_resolved_thread_back(browser, serve):
     page.keyboard.type(" Now.")
     page.keyboard.press("Enter")
     holding(page, held, 1, "the refused rewrite")
-    expect(settle).to_have_text("Resolve", use_inner_text=True)
+    expect(settle).to_have_accessible_name("Resolve thread")
     rendered(page)
     # Chrome reports no shift within 500ms of input, so the refusal lands after it.
     page.wait_for_function(
@@ -1356,7 +1356,7 @@ def test_a_refused_rewrite_puts_the_resolved_thread_back(browser, serve):
     )
     held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
     round_trip(page)
-    expect(settle).to_have_text("Reopen", use_inner_text=True)
+    expect(settle).to_have_accessible_name("Reopen")
     expect(thread).to_be_visible()
     expect(message.locator(".lf-msg-kept")).to_have_text("unsaved edit")
     page.unroute_all(behavior="wait")

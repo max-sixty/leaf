@@ -81,7 +81,7 @@
     "runtime/errors.js": "9c00fe4a9bd1c9527703d61ccab990104a2942f49c265400554e2910d9e40ea1",
     "runtime/event-kinds.js": "8d116cd0afc5f4567c7a3867b49dc9494c0c3b1ba05752384e6a433657904fba",
     "runtime/file-api.js": "af36963ca334ff08322458ecc092f783285b566a856583e27cbeeb0390953af8",
-    "runtime/floating-panel.js": "0c57e0c00401e13dac50c8ab1e2c8944fabc666ae42820758d768861623453d8",
+    "runtime/floating-panel.js": "2ca3128bd29a8634172a3bf003970fa1ec0cccba3ec088c6a689a1debea1c0e8",
     "runtime/focus.js": "b2dffe06adea14f25c9c438f45999ca4b5363070b25edf49801f9d0529552efe",
     "runtime/frame-visibility.js": "bf7a4b7783b0b7c55dccb59d89863ba6e5252b63c3c43331493c59e510d3c0a1",
     "runtime/geometry.js": "9595b1b2ae60f4b41822c075c3e0a4ed32409ffe71804a4f4440b9ec9437ea14",

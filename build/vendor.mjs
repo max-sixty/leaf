@@ -778,7 +778,7 @@ const bundles = {
           ),
       },
       {
-        file: /webawesome\/dist\/chunks\/chunk\.(ZAVDMBWV|6RPNM7SD)\.js$/,
+        file: /webawesome\/dist\/chunks\/chunk\.ZAVDMBWV\.js$/,
         edit: patchTransitions,
       },
     ],

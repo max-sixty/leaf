@@ -349,6 +349,33 @@ def test_reopening_a_library_select_keeps_its_options_visible(browser, serve, mo
     page.keyboard.press("Escape")
 
 
+def test_library_copy_feedback_finishes_after_its_tooltip_reopens(browser, serve):
+    """The copy button consumes the tooltip's completion to release its copy lock."""
+    source = ROOT / "examples" / "developer" / "visual-review-gallery.html"
+    page = open_page(browser, serve(source))
+    page.emulate_media(reduced_motion="no-preference")
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    page.evaluate("""async () => {
+      const {offer} = await window.__lfWidgetApi();
+      const copy = offer('wa-copy-button', 'copy-feedback');
+      copy.id = 'copy-feedback'; copy.value = 'copied value';
+      copy.tooltip = 'copy'; copy.feedbackDuration = 80;
+      document.body.append(copy); await copy.updateComplete;
+      copy.activeTooltip.addEventListener('wa-hide', () => copy.activeTooltip.show(), {once:true});
+      copy.copied = 0;
+      copy.addEventListener('wa-copy', () => copy.copied++);
+    }""")
+    copy = page.locator("#copy-feedback")
+    for copies in (1, 2):
+        copy.get_by_role("button").click()
+        page.wait_for_function(
+            "count => document.querySelector('#copy-feedback').copied === count",
+            arg=copies,
+        )
+        page.wait_for_function("!document.querySelector('#copy-feedback').isCopying")
+        assert copy.evaluate("n => n.status === 'rest' && !n.copyIcon.hidden")
+
+
 def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     """One rule, read off the marker `offer` already writes, rather than each widget
     deciding for itself whether the user can press what it drew.

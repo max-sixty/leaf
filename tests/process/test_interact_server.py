@@ -3179,14 +3179,10 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     assert reads == [neighbor / "service.json"]
     declare(neighbor, "idle")
     assert presence_model.other_leaves(page_dir) == [row]
-    # Shared-home records from an incompatible producer stay absent, including
-    # a row with the outer envelope but without the activity/count contract.
+    # Another record format stays absent while the current producer's row stands.
     record = files_model.read_json(publisher.path)
-    for activity in ({}, {**row["activity"], "counts": {}}):
-        cleanup_model.write_json(
-            publisher.path, {**record, "row": {**row, "activity": activity}}
-        )
-        assert presence_model.other_leaves(page_dir) == []
+    cleanup_model.write_json(publisher.path, {**record, "format": "leaf-row/0"})
+    assert presence_model.other_leaves(page_dir) == []
     cleanup_model.write_json(publisher.path, record)
     service = read_record(neighbor / "service.json")
     write_record(neighbor / "service.json", {**service, "server_id": "replacement"})

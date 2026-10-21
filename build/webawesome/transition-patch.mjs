@@ -1,8 +1,8 @@
-/* Web Awesome 3.14.0's select and tooltip close watchers can finish after a
- * keyboard gesture has reopened them, hiding an open popup. Keep the library's
+/* Web Awesome 3.14.0's select close watcher can finish after a
+ * keyboard gesture has reopened it, hiding an open popup. Keep the library's
  * animation primitive and public promises; only a watcher for the current open
- * state may commit after its animation. The build targets these two pinned
- * modules, and rejects a changed seam when upgrading Web Awesome. */
+ * state may commit after its animation. The build targets its pinned module,
+ * and rejects a changed seam when upgrading Web Awesome. */
 export function patchTransitions(source) {
   const watcher = "async handleOpenChange() {";
   const animation = /      await animateWithClass\(this\.popup\.popup, "[a-z-]+"\);/g;

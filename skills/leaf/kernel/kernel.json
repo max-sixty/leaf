@@ -191,7 +191,7 @@
     "runtime/state-application.js": "70b325a887349472f52fe196cebdea3a12ae98253af804b237ede220a8a1faca",
     "runtime/state-feed.js": "b59d52345f43f50795aee72054c65b55b8fb8d1130d98e2bc40321e871f93d70",
     "runtime/storage.js": "d6050ad31628f2d5bf4d6098bd8e11a488975e6f48968383f62069740e2389a0",
-    "runtime/stylesheets.js": "a02cc929c4474c32e0f72bbf663fdaa1c70ddf975c2b67a05fa26ae2aea4579c",
+    "runtime/stylesheets.js": "0fa39e7e85e72e91835b0fc9cb0dbecc5889cdbdc32804bea1c1033726fe5019",
     "runtime/syntax-languages.js": "dd2c1cf7c5cf805e6873266b72e02269a638e090681c02248ceeca67f75fbb59",
     "runtime/syntax.js": "51c58fe044fcf707141155534cd21dbfe43177f009be4def237079efe7b3ad5b",
     "runtime/target-paint-geometry.js": "6ab9f1bb183603a55def70d1b9d467b2b67fda7431cf32547e6df1618314970d",
@@ -277,8 +277,8 @@
     "vendor/syntax/toml.js": "bdbbaf842db523f40867805302f06990ee16b9fcdb75c8ae6e01efabaffbb369",
     "vendor/syntax/typescript.js": "9f95bae3ff593a851ae931005e733292edc8a54d62cf4b351511f79230d643e5",
     "vendor/syntax/yaml.js": "d26d797bdd23183ea23fc5bd145ac49288f4513af32700f080139d1e484e1fcb",
-    "vendor/webawesome-chrome.js": "960bb9204f30d681c6043421b0c6c3656d374646cf68d33ab1549b4f46915e32",
-    "vendor/webawesome/chunk-MRRKGRWG.js": "d20e8b1d17dd3767a2b7c2bfe7b1715252e2bd9f265cadf9c1f5942d4d81dd58",
+    "vendor/webawesome-chrome.js": "94401eb755da92d8965e8bdea4e831184272cbbc526da4e768dff98d517693ba",
+    "vendor/webawesome/chunk-RYNWZ6VA.js": "2d9087146189f1515f7985fc1cb0405344d5382291483bf9f848072577bff67d",
     "widgets/lf-suggestion.js": "70fd726fa68ff191a7e58489232ea1e55cd60ed38e8a5c122cfbb5ac1895a4f3"
   },
   "replaces": [

@@ -235,15 +235,16 @@
    reach of its removal, which also keeps one picture's removal off the next. A shelf in
    flow takes that padding back with its margins, so its pictures keep the field's edge;
    a shelf a surface places takes it back with its offsets. A picture lies at
-   --raise-1, whose shadow reaches its drop and blur below it. A surface with less room
-   sets the pictures' height (`--lf-media-h`), and one whose ground is not the paper
-   sets the ground and ring its pictures meet it with. */
+   --raise-1, whose shadow reaches its drop and blur below it. The pictures stand tall
+   enough to tell a pasted screenshot by its content, which 56px was not. A
+   surface with less room sets the pictures' height (`--lf-media-h`), and one whose
+   ground is not the paper sets the ground and ring its pictures meet it with. */
 .lf-composer-media {
   --lf-media-room: max(
     calc(var(--raise-1-drop) + var(--raise-1-blur)),
     calc(var(--aim-floor) / 2 - 3px)
   );
-  --lf-media-h: 56px;
+  --lf-media-h: 120px;
   display: flex;
   flex: 1 0 calc(100% + 2 * var(--lf-media-room));
   gap: var(--lf-media-room);
@@ -286,7 +287,8 @@ button.lf-media-open {
    chose this in the floating panel on 19 October over each image boxed with its
    removal a press the image's height, a frame and a divider for one picture. Every
    shelf wears it, so a surface states only where its shelf stands. An image stands at
-   the shelf's height in its own proportions up to twice as wide as tall. */
+   the shelf's height in its own proportions, from three quarters as wide as tall, so a
+   tall screenshot is more than a sliver, up to twice as wide. */
 .lf-composer-media-item > .lf-composer-media-open {
   border-radius: 8px;
   box-shadow:
@@ -301,7 +303,7 @@ button.lf-media-open {
   display: block;
   width: auto;
   height: 100%;
-  min-width: 40px;
+  min-width: max(40px, calc(0.75 * var(--lf-media-h)));
   max-width: calc(2 * var(--lf-media-h));
   object-fit: cover;
   border-radius: inherit;
@@ -370,18 +372,18 @@ button.lf-media-open {
     border: 1px solid ButtonText;
   }
 }
-/* A drawing's picture is its canvas over the page it was drawn on, at the size its
-   surface gives it, on the paper the canvas letterboxes onto so the page behind the
-   box never shows through. Its undo mark shows in and out of Draw mode alike: Draw
-   mode's own undo takes the latest stroke wherever it went (drawing.js,
+/* A drawing's picture is its canvas over the page it was drawn on, at the shelf's
+   height and half again as wide, on the paper the canvas letterboxes onto so the page
+   behind the box never shows through. Its undo mark shows in and out of Draw mode
+   alike: Draw mode's own undo takes the latest stroke wherever it went (drawing.js,
    `undoTarget`), while the mark takes this draft's, and a mark that came and went
    with the mode would move under the user. Rejected: a tile of the canvas beside two
    presses the drawing's height, each behind a divider, three cells and two seams for
    one picture. */
 .lf-composer-drawing > .lf-composer-media-open {
   position: relative;
-  width: 68px;
-  height: 52px;
+  width: calc(1.5 * var(--lf-media-h));
+  height: var(--lf-media-h);
   padding: 0;
   overflow: hidden;
   background: var(--paper);
@@ -672,10 +674,6 @@ leaf-text.lf-fab-input {
 /* Only a floating box is carried (surface-grip.js), so a seated one shows no grip. */
 .lf-fab-bar[data-lf-presentation="inline"] > .lf-surface-grip {
   display: none;
-}
-.lf-fab-bar .lf-composer-drawing > .lf-composer-media-open {
-  width: 96px;
-  height: 64px;
 }
 @media print {
   .lf-fab-bar[data-lf-presentation="inline"] {

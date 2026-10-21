@@ -194,7 +194,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     pointer-events: auto;
   }
   /* A drawing's picture stands taller than the header row, so a shelf holding one
-     takes a row of its own above the field. */
+     takes a row of its own above the field, its pictures 64px tall, which keeps the
+     box at the card's width. */
   .lf-fab-bar:not([data-lf-presentation="inline"]):has(
       .lf-composer-media:not([hidden]) > .lf-composer-drawing
     ) {
@@ -205,6 +206,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
       .lf-composer-media:not([hidden]) > .lf-composer-drawing
     )
     .lf-composer-media {
+    --lf-media-h: 64px;
     grid-column: 1;
     grid-row: 1;
     justify-self: start;

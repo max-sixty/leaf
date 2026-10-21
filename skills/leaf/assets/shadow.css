@@ -1384,7 +1384,7 @@ svg[data-lf-icon] {
 }
 .lf-composer-media {
   --lf-media-room: max( calc(var(--raise-1-drop) + var(--raise-1-blur)), calc(var(--aim-floor) / 2 - 3px) );
-  --lf-media-h: 56px;
+  --lf-media-h: 120px;
   display: flex;
   flex: 1 0 calc(100% + 2 * var(--lf-media-room));
   gap: var(--lf-media-room);
@@ -1431,7 +1431,7 @@ button.lf-media-open {
   display: block;
   width: auto;
   height: 100%;
-  min-width: 40px;
+  min-width: max(40px, calc(0.75 * var(--lf-media-h)));
   max-width: calc(2 * var(--lf-media-h));
   object-fit: cover;
   border-radius: inherit;
@@ -1494,8 +1494,8 @@ button.lf-media-open {
 }
 .lf-composer-drawing > .lf-composer-media-open {
   position: relative;
-  width: 68px;
-  height: 52px;
+  width: calc(1.5 * var(--lf-media-h));
+  height: var(--lf-media-h);
   padding: 0;
   overflow: hidden;
   background: var(--paper);
@@ -1730,10 +1730,6 @@ leaf-text.lf-fab-input {
 }
 .lf-fab-bar[data-lf-presentation=inline] > .lf-surface-grip {
   display: none;
-}
-.lf-fab-bar .lf-composer-drawing > .lf-composer-media-open {
-  width: 96px;
-  height: 64px;
 }
 @media print {
   .lf-fab-bar[data-lf-presentation=inline] {

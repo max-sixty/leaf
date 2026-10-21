@@ -46,7 +46,7 @@ from pathlib import Path
 
 import click
 from PIL import Image, ImageDraw
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Locator, Page, expect
 
 from leaf_dev import ROOT
 from leaf_dev.arms import build_pair, copy_committed, run_directory, serving_source
@@ -177,14 +177,11 @@ def drawing_comment_keyboard(page: Page) -> None:
     page.get_by_role("button", name="Undo last stroke").focus()
 
 
-def drawing_photo_comment(page: Page) -> None:
-    """Drawing and photo removal together in the same draft attachment shelf."""
-    drawing_comment(page)
-    field = page.locator(".lf-fab-input")
-    field.focus()
+def paste_screenshot(page: Page, field: Locator) -> None:
+    """Paste the feature gallery's screenshot into `field` and wait for its picture."""
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
-        # This state exercises the paste handler and shelf; keep its payload local
-        # to the tab so captures cannot overwrite or race the machine's clipboard.
+        # This exercises the paste handler and shelf; keep its payload local to the
+        # tab so captures cannot overwrite or race the machine's clipboard.
         field.evaluate("""async field => {
           const response = await fetch('/media/051bee487bfb5d13.png');
           const image = await response.blob();
@@ -198,6 +195,22 @@ def drawing_photo_comment(page: Page) -> None:
         page.get_by_role("button", name="Remove attached image 1", exact=True)
     ).to_be_visible()
     settle(page)
+
+
+def drawing_photo_comment(page: Page) -> None:
+    """Drawing and photo removal together in the same draft attachment shelf."""
+    drawing_comment(page)
+    field = page.locator(".lf-fab-input")
+    field.focus()
+    paste_screenshot(page, field)
+
+
+def page_comment_photo(page: Page) -> None:
+    """The floating panel's field with a pasted screenshot hanging above the panel."""
+    field = page.locator(".lf-fp-field leaf-text")
+    field.click()
+    page.keyboard.insert_text("Is this screenshot right?")
+    paste_screenshot(page, field)
 
 
 def share_link(page: Page) -> None:
@@ -1220,6 +1233,7 @@ STATES = (
         drawing_photo_comment,
         region=".lf-fab-bar",
     ),
+    State("page-comment-photo", "developer/feature-gallery", page_comment_photo),
     State("share-link", "developer/feature-gallery", share_link, region=".lf-fp-menu"),
     State("share-link-dark", "developer/feature-gallery", share_link, scheme="dark"),
     State(

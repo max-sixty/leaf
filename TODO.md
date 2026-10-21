@@ -175,14 +175,13 @@ has tried; settle that before building it.
   buckets scroll horizontally and the release rationale sits below the board.
   Keep comparison context available during a move, preserving direct destination
   controls and undo.
-- **Decide whether Back may restore a served page whole.** Every served page and
-  API answer carries `Cache-Control: no-store`, so Chrome and Firefox load the page
-  afresh on Back rather than restoring it from their back/forward cache, and Firefox
-  also refuses a page holding a sample ([browser support](notes/browser-support.md),
-  "Page cache"). With `no-store` lifted, a Chrome probe restored a page that caught
-  up with the log and recorded gestures. Weigh an instant Back against what
-  `no-store` protects, a private page's copy in the browser's disk cache, and
-  exercise Safari.
+- **Decide whether Back may restore a leaf.page page whole.** The local server
+  sends `no-cache`, so Chrome and Firefox restore its pages on Back. leaf.page's
+  container and the edge's state answers still send `no-store`, which keeps its
+  pages out of Chrome's back/forward cache ([browser support](notes/browser-support.md),
+  "Page cache"). Weigh an instant Back against what `no-store` protects there, a
+  visitor's private page in the browser's disk cache on a shared computer, and
+  exercise Safari on both.
 - **Consider automatic Leaf recovery on resume.** Reuse the reconnect notice's
   eligibility checks to restore serving, ownership, and feedback delivery, while
   respecting explicit stops and transfers to another session.
@@ -613,22 +612,32 @@ export` writes a file that boots the page's own runtime offline, and that file
 
 ### Implementation candidates
 
-- **Remove the early-key hold once startup is fast.** Keys pressed before the
-  runtime upgrades or the first saved state lands are queued, a "Page still
-  loading" chip appears after 150 ms, and the keyboard controller replays them
-  (`holdEarlyKeys` in `runtime/bootstrap.js`, `takeHeldKeys` in
+- **Remove the early-key hold once startup is fast on slower machines too.** Keys
+  pressed before the runtime upgrades or the first saved state lands are queued, a
+  "Page still loading" chip appears after 150 ms, and the keyboard controller
+  replays them (`holdEarlyKeys` in `runtime/bootstrap.js`, `takeHeldKeys` in
   `keyboard/controller.js`, `INPUT_PENDING` in `keyboard/dispatch.js`, the pending
-  clause of `scopeAvailable` in `keyboard/bindings.js`). It is worth keeping while
-  startup takes up to a couple of seconds. Trigger: a page presents in about 250 ms
-  consistently, measured with `leaf-dev probe`'s startup phases on the examples;
-  then delete the hold, which a 2026-10-14 trial measured at 240 runtime and 540
-  test lines. On 2026-10-19 it had not fired. Reloading each example five times
-  on one running server, the median `startup.presented.at` was 167 to 238 ms on
-  six of nine examples, but 289 ms on `code-comparison`, 335 ms on `command-hub`
-  and 487 ms on `pr-walkthrough`. With a 4x CPU throttle the same medians were
-  632 ms (`triage-board`) to 1826 ms (`pr-walkthrough`). On four examples, a
-  server's first load took 120 to 230 ms longer than its reloads.
-  `uv run leaf-dev probe EXAMPLE [--cpu-throttle 4]` reads one first load; the
+  clause of `scopeAvailable` in `keyboard/bindings.js`). Without the hold, such a
+  key is lost or runs the browser's own action, such as Space scrolling or `/`
+  opening Firefox's Quick Find. Trigger: every example presents in about 250 ms
+  both on this Mac and with Chromium's CPU slowed 4x, which stands in for a slower
+  laptop as Lighthouse's mobile run does; then delete the hold, which a 2026-10-14
+  trial measured at 240 runtime and 540 test lines. This Mac is the fastest machine
+  pages run on, so its reading alone would delete the hold where it still helps.
+  The throttled bar is also 250 ms because the bar is how soon a reader presses a
+  key after a page appears, which is the same on any machine. A throttled bar near
+  1 s would add nothing to the unthrottled one, since the throttle multiplied the
+  medians below by 3.7 to 4.3. Take each reading as the median of five runs per
+  example, with the Mac's load average beside it, of
+  `uv run leaf-dev probe EXAMPLE` and `uv run leaf-dev probe EXAMPLE --cpu-throttle 4`,
+  reading `.startup.presented.at` from the JSON line each prints. A probe reads a
+  fresh server's first load, which is what a reader gets when an agent hands them
+  a page. On 2026-10-19 the trigger had not fired. Reloading each example five
+  times on one running server, the median `startup.presented.at` was 167 to 238 ms
+  on six of nine examples, but 289 ms on `code-comparison`, 335 ms on
+  `command-hub` and 487 ms on `pr-walkthrough`. With a 4x CPU throttle the same
+  medians were 632 ms (`triage-board`) to 1826 ms (`pr-walkthrough`). On four
+  examples, a server's first load took 120 to 230 ms longer than its reloads. The
   Mac's load average was near 12 on 18 cores throughout.
 - **Draw the margin's annotations once per thread pass.** They draw from their own
   watcher, which waits only for the projection's chrome, and again when the thread
@@ -766,3 +775,15 @@ export` writes a file that boots the page's own runtime offline, and that file
 - **Release labels:** prefer an exact tag when Leaf adopts named releases.
 - **Diff controls:** consider author-configurable wrapping and per-file review tracking
   when a page needs them. Keep their controls optional.
+- **A reply's widgets in every view of it:** a reply's widgets show in one view
+  at a time (the panel, then its margin card, then its seat), and the others draw
+  only its words (`authoredRank`, `thread/messages.js`). Giving each view its own
+  copy needs every id lookup to resolve inside the drawing that asks, through
+  `elementById(id, root)` (`passages.js`): about 31 `elementById` and 9
+  `getElementById` calls in the runtime and the package widgets' own lookups
+  (`lf-board`, `lf-options-addition`). The lookups that arrive with no drawing
+  each need a rule: obligation standing, `m` walks, an anchor on an element in a
+  reply, and the presentation regions keyed `widget:<id>:render`. A 2026-10-20
+  trial of per-drawing copies without that broke all four (reverted within
+  PR #3436). Revisit if seeing a question in the page and the panel at once is
+  worth it.

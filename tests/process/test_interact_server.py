@@ -1845,12 +1845,15 @@ def test_a_revision_serves_reaction_tokens_in_their_declared_order(page_dir):
     assert (status, served) == (200, captured)
 
 
-def test_a_revision_s_resources_are_cached_and_its_document_is_not(server, page_dir):
+def test_a_revision_s_resources_are_cached_and_its_document_is_asked_again(
+    server, page_dir
+):
     """A revision's resources are named by its digest and the runtime's identity, so
     the browser keeps them for every document that imports them, a gallery's live
-    samples included. The document and the page's state stay uncached: each read asks
-    what the page is now, and so does a path under the namespace that names nothing,
-    or names a runtime this server does not run."""
+    samples included. The document and the page's state may be stored, which lets the
+    back/forward cache keep the page, but each reuse asks what the page is now, and so
+    does a path under the namespace that names nothing, or names a runtime this server
+    does not run."""
     publish(page_dir)
     revision = "/revisions/" + files_model.revision_path(page_dir, 1).stem
     root = f"{revision}/{serving_runtime().identity}"
@@ -1865,11 +1868,11 @@ def test_a_revision_s_resources_are_cached_and_its_document_is_not(server, page_
     immutable = "private, max-age=31536000, immutable"
     assert cache_control(f"{root}/leaf.js") == (200, immutable)
     assert cache_control(f"{root}/theme.css") == (200, immutable)
-    assert cache_control("/") == (200, "no-store")
-    assert cache_control("/api/state") == (200, "no-store")
-    assert cache_control(f"{root}/no-such-module.js") == (404, "no-store")
-    assert cache_control(f"{revision}/0123456789abcdef/leaf.js") == (404, "no-store")
-    assert cache_control(f"{revision}/leaf.js") == (404, "no-store")
+    assert cache_control("/") == (200, "no-cache")
+    assert cache_control("/api/state") == (200, "no-cache")
+    assert cache_control(f"{root}/no-such-module.js") == (404, "no-cache")
+    assert cache_control(f"{revision}/0123456789abcdef/leaf.js") == (404, "no-cache")
+    assert cache_control(f"{revision}/leaf.js") == (404, "no-cache")
 
 
 def test_server_takes_an_approval_only_where_the_version_asked_for_one(
@@ -3162,11 +3165,11 @@ def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir, sessio
 
 
 def _news(server):
-    """One finite, uncached freshness answer from the visible-page door."""
+    """One finite freshness answer from the visible-page door, asked for afresh."""
     with urllib.request.urlopen(
         f"{server}/api/news?t={TOKEN}", timeout=STATED_TIMEOUT
     ) as response:
-        assert response.headers.get("Cache-Control") == "no-store"
+        assert response.headers.get("Cache-Control") == "no-cache"
         return response.read().decode()
 
 

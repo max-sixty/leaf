@@ -1465,6 +1465,12 @@ STATES = (
     ),
     State("trace-controls", "developer/playwright-trace-gallery", trace_controls),
     State(
+        "trace-actions",
+        "developer/playwright-trace-gallery",
+        trace_controls,
+        region=".lf-trace-controls",
+    ),
+    State(
         "trace-pace",
         "developer/playwright-trace-gallery",
         trace_controls,

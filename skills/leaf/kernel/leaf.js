@@ -1386,13 +1386,13 @@ var commandReferenceSearch = searchField("lf-command-reference-search", {
   placeholder: "Find a key or action"
 });
 commandReferenceSearch.addEventListener("input", readCommandReferenceSearch);
-commandReferenceDialog.append(commandReferenceSearch);
 var commandReferenceClose = closeControl({
   name: "Close the command reference",
   className: "lf-command-reference-close"
 });
 commandReferenceClose.dataset.lfKeyTitle = "Close the command reference";
 commandReferenceClose.setAttribute("aria-label", "Close the command reference");
+commandReferenceDialog.append(commandReferenceSearch, commandReferenceClose);
 function declaredStack(origin) {
   pruneScopedElements();
   const sections = /* @__PURE__ */ new Map();
@@ -1900,7 +1900,6 @@ function commandReferenceTemplate() {
 function presentCommandReference() {
   updateCommandReferenceView();
   render(commandReferenceTemplate(), commandReferenceDialog);
-  paintKeys();
   const search = commandReferenceSearch.input;
   keeps(search, "role", "combobox");
   keeps(search, "aria-autocomplete", "list");

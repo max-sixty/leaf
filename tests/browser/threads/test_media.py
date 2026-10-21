@@ -321,8 +321,9 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(browser, s
     """The compact composer reads the complete draft hidden behind its text box.
 
     Several images make its shelf overflow, proving the anchored box gets the same
-    horizontal thumbnail projection as the larger thread text boxes. The shelf stands
-    above the field, so attaching leaves the box and its words where they were.
+    horizontal thumbnail projection as the larger thread text boxes. The shelf hangs
+    below the box, away from its passage, so attaching leaves the box and its words
+    where they were.
     """
     # The narrow box, where the shelf of images overflows soonest.
     width = 390
@@ -349,10 +350,7 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(browser, s
     assert (bar.bounding_box(), field.bounding_box()) == before
     field_box = before[1]
     for picture in shelf.locator(".lf-composer-media-open").all():
-        assert (
-            picture.bounding_box()["y"] + picture.bounding_box()["height"]
-            <= (field_box["y"])
-        )
+        assert picture.bounding_box()["y"] >= field_box["y"] + field_box["height"]
     assert field_box["x"] + field_box["width"] <= width
     layout = shelf.evaluate(
         """element => ({

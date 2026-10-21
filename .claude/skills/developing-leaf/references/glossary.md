@@ -136,7 +136,10 @@ without being a pane, and its own stylesheet decides whether they scroll.
 
 A view takes no width from the page and leaves it live. A **sticky header** covers one
 edge of one scroller. A thread about a passage opens as a **thread card** beside its
-words, and in the panel only where nothing on the page draws it.
+words, and in the panel only where nothing on the page draws it. A comment on selected
+words is written in the **anchored comment box**, which opens beside them and becomes
+their thread card on Send; on a page that draws its own annotations it stands in the
+comment field's place.
 
 ## Page Map and the margin
 

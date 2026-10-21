@@ -167,8 +167,10 @@ sheet.replaceSync(`
      the rest read the theme's tokens, since its element rules stop at this root. A
      heading is bold, as the platform draws one, at the size of the words around it. A
      block is drawn line by line, so a code block's frame is each line's sides, closed
-     above its first line and below its last. */
+     above its first line and below its last. Syntax that holds its room while the
+     caret is away, as a code fence's line does, is there unseen and unspoken. */
   .lf-md-mark { color: var(--muted); }
+  .lf-md-unseen { color: transparent; }
   code { font-family: var(--mono); font-size: var(--code-inline-size);
     background: var(--code-bg); border-radius: var(--code-inline-r);
     padding: var(--code-inline-pad); box-decoration-break: slice; }
@@ -176,16 +178,18 @@ sheet.replaceSync(`
   .lf-md-link { color: var(--accent); text-decoration: underline var(--link-underline);
     text-underline-offset: var(--link-underline-offset); }
   .lf-md-quote { border-inline-start: var(--quote-rule); font-style: var(--quote-style);
-    padding-inline-start: var(--quote-inset); color: var(--muted); }
-  /* A list item's lines stand where the message's do, one list inset in per level, and
-     its marker stands in the inset before them. The marker is the platform's own list
-     marker, as in the message, so it is the same bullet or number at the same place.
-     The source's marker stays in the inset unseen and unspoken, and shows instead while
-     the caret touches it, so revealing it moves no word. */
-  .lf-md-item { margin-inline-start: calc(var(--lf-list-depth) * var(--list-inset)); }
+    padding-inline-start: var(--quote-inset); color: var(--muted);
+    --lf-marker-inset: var(--quote-inset); }
+  /* A quote's and a list item's words stand where the message's do, and the source's
+     marker stands in the inset before them, unseen while the caret is away, so
+     revealing it moves no word. A list item's lines stand one list inset in per level,
+     under the platform's own list marker, as in the message, so it is the same bullet
+     or number at the same place. */
+  .lf-md-item { margin-inline-start: calc(var(--lf-list-depth) * var(--list-inset));
+    --lf-marker-inset: var(--list-inset); }
   .lf-md-marker { display: inline-flex; justify-content: flex-end; white-space: pre;
-    inline-size: var(--list-inset); margin-inline-start: calc(-1 * var(--list-inset)); }
-  .lf-md-marker:not(.lf-md-mark) { color: transparent; }
+    inline-size: var(--lf-marker-inset);
+    margin-inline-start: calc(-1 * var(--lf-marker-inset)); }
   .lf-md-listed { display: list-item; }
   .lf-md-disc { list-style-type: disc; }
   .lf-md-circle { list-style-type: circle; }
@@ -208,8 +212,12 @@ const ownerStep = StateEffect.define();
 const hide = Decoration.replace({});
 const dim = Decoration.mark({ class: "lf-md-mark" });
 const link = Decoration.mark({ class: "lf-md-link" });
+const unseen = Decoration.mark({
+  class: "lf-md-unseen",
+  attributes: { "aria-hidden": "true" },
+});
 const marker = Decoration.mark({
-  class: "lf-md-marker",
+  class: "lf-md-marker lf-md-unseen",
   attributes: { "aria-hidden": "true" },
 });
 const shownMarker = Decoration.mark({ class: "lf-md-marker lf-md-mark" });
@@ -302,12 +310,15 @@ function decorate(state, placed) {
         ].join("");
         out.push(line(`lf-md-code-block${ends}`).range(each.from));
       });
-      for (const [a, b] of markers ?? []) add(a, b, dim);
+      // A fence's lines keep their room, as the message's code keeps its padding.
+      const fence = touches(state, from, to - 1) ? dim : unseen;
+      for (const [a, b] of markers ?? []) add(a, b, fence);
     } else if (token.type === "blockquote_open") {
       lines(from, to, (each) => {
         out.push(line("lf-md-quote").range(each.from));
       });
-      for (const [a, b] of markers) add(a, b, dim);
+      for (const [a, b] of markers)
+        add(a, b, touches(state, a, b) ? shownMarker : marker);
     } else if (
       token.type === "bullet_list_open" ||
       token.type === "ordered_list_open"

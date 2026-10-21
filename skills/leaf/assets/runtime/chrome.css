@@ -247,11 +247,11 @@
     border: 0;
     background: none;
     box-shadow: none;
-    padding: calc((var(--lf-fp-line) - 22px) / 2) 6px;
+    padding: calc((var(--lf-fp-line) - 1lh) / 2) 6px;
     min-height: var(--lf-fp-line);
     max-height: 50dvh;
     box-sizing: border-box;
-    font: 14px / 22px var(--sans);
+    font: var(--msg-font);
     --lf-field-end-room: 0px;
   }
   .lf-fp-field .lf-compose-field > leaf-text[data-scrolls] {

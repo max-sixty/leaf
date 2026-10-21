@@ -4256,28 +4256,27 @@ def test_a_long_draft_fades_where_words_run_past_the_field(browser, serve):
 
 def test_a_draft_draws_a_list_as_the_message_will(browser, serve):
     """A draft's list items stand where the sent message's do: their words at the same
-    inset, a wrapped line under the words, under the same platform marker, nested as
-    the message nests it. An item's source marker shows instead while the caret
-    touches it, and its words stay where they stood."""
+    inset and height, a wrapped line under the words, under the same platform marker,
+    nested as the message nests it, and the message as tall as the draft, a line apart
+    only where the draft left a blank line and a code block's fences keeping their
+    room. An item's source marker shows instead while the caret touches it, and its
+    words stay where they stood."""
     page = open_page(browser, serve(LONG_PAGE), init_script=EDITOR_ROOTS)
+    # The renderer the draft is read by loads lazily, and its arrival redraws a field
+    # already holding words; load it first, so the list is drawn as it is typed.
+    page.evaluate("async () => (await window.__lfWidgetApi()).loadMarkdown()")
     field(page).click()
     page.keyboard.insert_text(
-        "- "
+        "Notes:\n- "
         + "an item long enough to wrap in the field " * 3
-        + "\n- parent\n    - child\n\n1. one"
-    )
-    # The renderer the draft is read by loads lazily, and its arrival draws the field.
-    page.wait_for_function(
-        """host => window.editorRoots.get(host).querySelectorAll('.lf-md-marker')
-          .length === 4""",
-        arg=field(page).element_handle(),
+        + "\n- parent\n    - child\n\n1. one\n\n```\ncode\n```\nend"
     )
 
     def drafted():
         return field(page).evaluate(
             """host => {
               const root = window.editorRoots.get(host);
-              const left = root.querySelector('.cm-content').getBoundingClientRect().left;
+              const content = root.querySelector('.cm-content').getBoundingClientRect();
               const items = root.querySelectorAll('.cm-line:has(.lf-md-marker)');
               return [...items].map((line) => {
                 const mark = line.querySelector('.lf-md-marker');
@@ -4287,10 +4286,12 @@ def test_a_draft_draws_a_list_as_the_message_will(browser, serve):
                 const rows = [...words.getClientRects()];
                 const style = getComputedStyle(line);
                 return {
-                  words: rows[0].left - left,
-                  wrapped: rows.at(-1).left - left,
+                  words: rows[0].left - content.left,
+                  top: rows[0].top - content.top,
+                  wrapped: rows.at(-1).left - content.left,
                   marker: style.display === 'list-item' ? style.listStyleType : null,
                   source: getComputedStyle(mark).color !== 'rgba(0, 0, 0, 0)',
+                  height: content.height,
                 };
               });
             }"""
@@ -4301,6 +4302,7 @@ def test_a_draft_draws_a_list_as_the_message_will(browser, serve):
     assert not any(item["source"] for item in away), away
     assert away[0]["wrapped"] == away[0]["words"], away
     page.keyboard.press("ControlOrMeta+Home")
+    page.keyboard.press("ArrowDown")
     near = drafted()
     assert (near[0]["marker"], near[0]["source"]) == (None, True), near
     assert near[0]["words"] == away[0]["words"]
@@ -4310,20 +4312,29 @@ def test_a_draft_draws_a_list_as_the_message_will(browser, serve):
     expect(sent.locator("li")).to_have_count(4)
     shown = sent.evaluate(
         """text => {
-          const left = text.getBoundingClientRect().left;
+          const box = text.getBoundingClientRect();
           return [...text.querySelectorAll('li')].map((li) => {
             const words = document.createRange();
             words.selectNodeContents(li.firstChild);
+            const row = words.getClientRects()[0];
             return {
-              words: words.getClientRects()[0].left - left,
+              words: row.left - box.left,
+              top: row.top - box.top,
               marker: getComputedStyle(li).listStyleType,
+              height: box.height,
             };
           });
         }"""
     )
-    assert [(round(item["words"]), item["marker"]) for item in away] == [
-        (round(item["words"]), item["marker"]) for item in shown
-    ]
+
+    def placed(items):
+        return [
+            {key: round(item[key]) if key != "marker" else item[key] for key in keys}
+            for item in items
+        ]
+
+    keys = ("words", "top", "marker", "height")
+    assert placed(away) == placed(shown)
 
 
 def test_send_stands_in_the_counts_place_while_the_field_holds_a_draft(browser, serve):

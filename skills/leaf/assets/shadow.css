@@ -786,6 +786,28 @@ leaf-text.lf-fab-input,
 .lf-msg-body pre {
   padding-block: 8px;
 }
+@property --lf-msg-line { syntax: "<length>"; inherits: true; initial-value: 0px; }
+.lf-msg-text {
+  --lf-msg-line: 1lh;
+}
+.lf-msg-text :is([data-lf-gap], pre:has(> [data-lf-gap])) {
+  margin-block: 0;
+}
+.lf-msg-text blockquote[data-lf-gap] {
+  padding-block: 0;
+}
+.lf-msg-text pre:has(> [data-lf-gap]) {
+  padding-block: var(--code-line);
+}
+.lf-msg-text :is([data-lf-gap="1"], pre:has(> [data-lf-gap="1"])) {
+  margin-block-start: var(--lf-msg-line);
+}
+.lf-msg-text :is([data-lf-gap="2"], pre:has(> [data-lf-gap="2"])) {
+  margin-block-start: calc(2 * var(--lf-msg-line));
+}
+.lf-msg-text :is([data-lf-gap="3"], pre:has(> [data-lf-gap="3"])) {
+  margin-block-start: calc(3 * var(--lf-msg-line));
+}
 :where([data-lf-content=data]:not([data-lf-verbatim])) {
   display: block;
   margin: 14px 0;

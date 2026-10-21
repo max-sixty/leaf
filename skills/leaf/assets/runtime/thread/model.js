@@ -138,8 +138,15 @@ export const discussed = (thread) => !bareReaction(thread);
  * @param {Pick<Thread, "unread">} thread */
 export const hasUnread = (thread) => thread.unread.length > 0;
 /**
+ * Whether a thread is news: still open and holding words the user hasn't read. A
+ * resolved thread's unread words aren't, so the news the panel counts never outnumbers
+ * the open threads; a reply reopens its thread, and the user chose on 21 October to
+ * leave what reaches a closed one unannounced.
+ * @param {Pick<Thread, "resolved" | "unread">} thread */
+export const isNews = (thread) => !thread.resolved && hasUnread(thread);
+/**
  * What the panel's Threads mark counts of the threads it lists: those still open, and
- * those holding words the user hasn't read. A page's served row counts the same way
+ * those that are news (`isNews`). A page's served row counts the same way
  * (`served_state.thread.thread_counts`); tests/thread_count_cases.json holds both.
  * @param {readonly Pick<Thread, "bare_reaction" | "resolved" | "unread">[]} threads
  */
@@ -147,7 +154,7 @@ export function threadCounts(threads) {
   const listed = threads.filter(discussed);
   return {
     open: listed.filter((thread) => !thread.resolved).length,
-    unread: listed.filter(hasUnread).length,
+    unread: listed.filter(isNews).length,
   };
 }
 // Which widget's seat a pending thread stands in, by the rule `seat_root` reads the log

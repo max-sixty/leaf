@@ -1,5 +1,5 @@
 # Added when page-authoring.md began teaching a workspace as a screen the reader moves
-# through rather than scrolls (layouts.css, "Workspace"): a long read beside a panel
+# through rather than scrolls (now page-layout.md, "A workspace"): a long read beside a panel
 # kept in view is a document, a sidebar page whose aside sticks, and not a workspace.
 # The original case scored 5 of 5 on both the base (67f6dd75d) and the change.
 # Extended after the PR walkthrough put its contents below a long review history:

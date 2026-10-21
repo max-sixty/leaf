@@ -778,9 +778,7 @@
    * (page-layout.md, "A workspace"); a long read beside a panel is a sidebar page.
    * Rejected (2026-10): the main region flowing with the root while the other regions
    * stick, which kept native page scrolling at the cost of reworking full-height
-   * widgets, footers, margin lanes and phone stacking; and a side list
-   * (`lf-tabs list="side"`) made a screen with its own scrollers, which bound the
-   * workspace's behavior to one widget.
+   * widgets, footers, margin lanes and phone stacking.
    *
    * A pane is any element in the pane role (`data-lf-reading-role="pane"`, theme.css),
    * painted by delivery; a widget-generated one also carries `data-lf-generated`. The

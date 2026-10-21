@@ -766,3 +766,15 @@ export` writes a file that boots the page's own runtime offline, and that file
 - **Release labels:** prefer an exact tag when Leaf adopts named releases.
 - **Diff controls:** consider author-configurable wrapping and per-file review tracking
   when a page needs them. Keep their controls optional.
+- **A reply's widgets in every view of it:** a reply's widgets show in one view
+  at a time (the panel, then its margin card, then its seat), and the others draw
+  only its words (`authoredRank`, `thread/messages.js`). Giving each view its own
+  copy needs every id lookup to resolve inside the drawing that asks, through
+  `elementById(id, root)` (`passages.js`): about 31 `elementById` and 9
+  `getElementById` calls in the runtime and the package widgets' own lookups
+  (`lf-board`, `lf-options-addition`). The lookups that arrive with no drawing
+  each need a rule: obligation standing, `m` walks, an anchor on an element in a
+  reply, and the presentation regions keyed `widget:<id>:render`. A 2026-10-20
+  trial of per-drawing copies without that broke all four (reverted within
+  PR #3436). Revisit if seeing a question in the page and the panel at once is
+  worth it.

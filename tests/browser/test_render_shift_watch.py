@@ -206,19 +206,19 @@ def test_a_press_its_host_carries_into_an_opaque_frame_owns_what_it_moves(
         script.lfDocumentPort = port;
         port.onmessage = () => {
           above.style.height = '40px';
-          port.postMessage('grown');
+          port.postMessage({ type: 'grown' });
         };
-        port.postMessage('ready');
+        port.postMessage({ type: 'ready' });
       });
     </script>"""
     parent = """<button id=grow>Grow</button><script>
       const channel = new MessageChannel();
       const port = channel.port1;
       document.currentScript.lfDocumentPort = port;
-      window.passive = lfInputWork.capture(() => port.postMessage('grow'));
-      port.onmessage = event => { window[event.data] = true; };
+      window.passive = lfInputWork.capture(() => port.postMessage({ type: 'grow' }));
+      port.onmessage = event => { window[event.data.type] = true; };
       frame.onload = () => frame.contentWindow.postMessage(null, '*', [channel.port2]);
-      grow.onclick = () => port.postMessage('grow');
+      grow.onclick = () => port.postMessage({ type: 'grow' });
     </script>"""
     page = browser.new_page()
     page.goto(

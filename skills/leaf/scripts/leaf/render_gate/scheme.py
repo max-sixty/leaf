@@ -2,7 +2,7 @@
 
 import time
 from pathlib import Path
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urldefrag, urljoin, urlsplit
 
 from leaf.event_endpoint import event_rejection
 from leaf.files import version_num
@@ -84,14 +84,31 @@ def _projection_was_applied(failed_stage: str | None) -> bool:
     return failed_stage in (None, "arrived", "rendering", "pageSettled")
 
 
+_FORCED_LAYOUT = "Layout was forced before the page was fully loaded"
+
+
 def console_finding(message, *, warnings: bool = True) -> Finding | None:
     """Preserve console errors and optional warnings with their browser locations.
 
     Console wording is diagnostic text, even when it resembles the browser's own
     failed-resource report. It cannot establish an HTTP response or its status.
     Reading console events also avoids a response callback for every resource.
+
+    One warning is Firefox's own, from a frame: its rendering update flushes layout
+    in every document of the frame tree once the page has a resize observer, as
+    every Leaf page does, so a sample frame still parsing its head starts layout
+    early and says "Layout was forced before the page was fully loaded". No page
+    can prevent it, so that warning is dropped from a frame, which also hides a
+    frame's own script reading layout too early; a top-level document's is kept.
     """
     said = {"text": message.text, "url": message.location["url"]}
+    if (
+        message.type == "warning"
+        and _FORCED_LAYOUT in message.text
+        and message.page is not None
+        and urldefrag(said["url"]).url != urldefrag(message.page.main_frame.url).url
+    ):
+        return None
     if message.type == "warning" and warnings:
         return Finding("console-warning", values=said)
     if message.type != "error":

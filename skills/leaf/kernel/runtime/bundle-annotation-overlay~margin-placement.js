@@ -39,6 +39,7 @@ import {
   clamp,
   clippingAxes,
   coarsePointer,
+  hoveringPointer,
   overlaps,
   overlapsAcross,
   renderedChildren,
@@ -415,9 +416,9 @@ function placeMarginEntryLabel(control) {
   );
   keeps(control, "data-lf-label-side", choice.name);
 }
-var REVEALS_LABEL = ':is(:hover, [data-lf-focus]):not([aria-expanded="true"]), [data-lf-held-word]';
+var revealsLabel = () => hoveringPointer.matches ? ':is(:hover, [data-lf-focus]):not([aria-expanded="true"]), [data-lf-held-word]' : '[data-lf-focus]:focus-visible:not([aria-expanded="true"]), [data-lf-held-word]';
 function heldLabelBoxes(row) {
-  return [...row.querySelectorAll(".lf-margin-entry[data-lf-label-side]")].filter((control) => control.matches(REVEALS_LABEL)).map(
+  return [...row.querySelectorAll(".lf-margin-entry[data-lf-label-side]")].filter((control) => control.matches(revealsLabel())).map(
     (control) => control.querySelector(":scope > .lf-margin-entry-label").getBoundingClientRect()
   );
 }
@@ -427,9 +428,9 @@ function scheduleMarginEntryLabels() {
   labelPlacementFrame = nextRender(() => {
     labelPlacementFrame = 0;
     for (const control of document.querySelectorAll(
-      `.lf-margin-projection .lf-margin-entry:is(${REVEALS_LABEL}, [data-lf-label-side])`
+      `.lf-margin-projection .lf-margin-entry:is(${revealsLabel()}, [data-lf-label-side])`
     )) {
-      if (control.matches(REVEALS_LABEL)) placeMarginEntryLabel(control);
+      if (control.matches(revealsLabel())) placeMarginEntryLabel(control);
       else keeps(control, "data-lf-label-side", null);
     }
   });

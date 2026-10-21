@@ -321,6 +321,16 @@ what fails and what still works.
   the host does. Playwright disables both page caches
   (`--disable-back-forward-cache`, `fission.bfcacheInParent`), so the suite hands
   the child a cached round trip's events instead. Safari has not been exercised.
+- **Page cache, 2026-10-20:** the local page server now sends `no-cache`
+  (`http.py`, `PageEndpoint.cache_control`); leaf.page keeps `no-store`. Playwright's
+  full Chromium 153.0.8010.12, with its bfcache flag removed, and the installed
+  Firefox 158.0.1, driven through geckodriver since Playwright's Firefox can't
+  restore a cached page, both restored `release-notes` on Back after a link, and
+  the page applied a thread opened while it was away 43 ms (Chromium) and 31 ms
+  (Firefox) after Back. Firefox still refused `corpus`, which holds samples, and
+  loaded it afresh; that Back, and Chromium's with an `unload` handler keeping the
+  page out of its cache, fetched the whole document again (`transferSize` 767,652
+  and 183,869 bytes) and showed the current state, as did each fresh load.
 
 ### Back during smooth arrival
 

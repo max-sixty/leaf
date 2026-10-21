@@ -216,12 +216,7 @@ class _PageChanges:
                 )
                 # Threads retain FileChanges, never this memo owner. Discarding
                 # an unheld page memory therefore closes and joins its provider.
-                # Process exit releases the native watches itself and skips this
-                # finalizer. The daemon threads waiting on the subscription still
-                # run during exit, and closing it under them wakes each to
-                # subscribe again, registering another finalizer for exit to run.
                 self.release = weakref.finalize(self, self.changes.close)
-                self.release.atexit = False
                 self.targets = targets
             return self.changes
 

@@ -2301,6 +2301,9 @@
         if (!before || !after || !first || !last) continue;
         for (const axis of ["left", "top"]) {
           const size = axis === "top" ? "height" : "width";
+          const logicalSize = axis === "top" ? "blockSize" : "inlineSize";
+          if (!properties.some((property) => property === size || property === logicalSize))
+            continue;
           const change = after[size] - before[size];
           if (
             Math.abs(change) < 1 ||

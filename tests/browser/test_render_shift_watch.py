@@ -2483,6 +2483,30 @@ def test_inline_siblings_cannot_credit_independent_vertical_move(browser):
     consume_browser_errors(page, moved_within("button#control"))
 
 
+def test_width_animation_cannot_credit_a_script_height_change(browser):
+    """A native effect cannot claim a size change on an axis it does not animate."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0">'
+            '<button id="start">Start</button>'
+            '<div id="size" style="display:block;height:0;width:20px"></div>'
+            '<button id="control" style="display:block">Control</button>'
+            '<script>start.addEventListener("pointerdown", () => {'
+            'window.effect = size.animate([{width:"20px"}, {width:"40px"}],'
+            '{duration:400, fill:"forwards"});'
+            'effect.playbackRate = 0; effect.currentTime = 0;});</script>'
+        )
+    )
+    page.evaluate("document.body.setAttribute('data-lf-presented', '')")
+    page.locator("#start").click()
+    paint(page)
+    page.evaluate("""() => { effect.currentTime = 400; size.style.height = '120px'; }""")
+    judge_watches()
+    consume_browser_errors(page, moved_within("button#control"))
+
+
 @pytest.mark.parametrize("motion", ["press", "news"])
 def test_sampled_native_translation_distinguishes_press_from_news(browser, motion):
     """Identical native motion survives news only when the trusted press began it."""

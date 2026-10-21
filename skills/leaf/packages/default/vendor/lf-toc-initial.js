@@ -1,7 +1,7 @@
 (() => {
   // skills/leaf/packages/default/widgets/toc-view.js
   var HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
-  var outlineDocument = (host) => host.closest('body > main > [data-lf-views="parts"] > *, main');
+  var outlineDocument = (host) => host.closest("[data-lf-views] > *, main");
   var said = (made, className) => {
     made.className = className;
     made.dataset.lfGen = "1";
@@ -20,6 +20,7 @@
     nav.dataset.lfGen = "1";
     nav.setAttribute("aria-label", "On this page");
     const disclosure = make("details", "lf-toc-disclosure");
+    disclosure.open = host.hasAttribute("open");
     const track = make("div", "lf-toc-rows");
     const lens = make("span", "lf-toc-window");
     lens.setAttribute("aria-hidden", "true");
@@ -117,9 +118,18 @@
       drawOutline(host, drawing, { ...reading, keeps }).length ? null : ""
     );
     const doc = host.ownerDocument;
-    if (doc.readyState === "loading")
-      doc.addEventListener("readystatechange", outline, { once: true });
-    else outline();
+    if (doc.readyState === "loading") {
+      const pending = host.hasAttribute("open") && outlineDocument(host);
+      if (pending) keeps(pending, "data-lf-initial-pending", "");
+      doc.addEventListener(
+        "readystatechange",
+        () => {
+          outline();
+          if (pending) keeps(pending, "data-lf-initial-pending", null);
+        },
+        { once: true }
+      );
+    } else outline();
     return drawing;
   });
 })();

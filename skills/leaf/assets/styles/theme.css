@@ -838,6 +838,13 @@ html[data-lf-interactive] [data-lf-arriving] {
     display: none !important;
   }
   @media screen {
+    /* An initial drawing can depend on later markup in its reading scope. Keep that
+     * scope's geometry but withhold its paint until the producer has those inputs;
+     * opacity also covers descendants with their own visibility declaration. */
+    html[data-lf-interactive] [data-lf-initial-pending] {
+      opacity: 0 !important;
+      visibility: hidden !important;
+    }
     html[data-lf-interactive] body:not([data-lf-presented]),
     html[data-lf-interactive] body:not([data-lf-presented]) > main,
     html[data-lf-interactive] body:not([data-lf-presented]) > main *,

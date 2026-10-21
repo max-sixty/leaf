@@ -14,10 +14,11 @@
  */
 const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
 
-// The outline is of the document it stands in: the page's `main`, or the part of a
-// page made of parts that holds it (`data-lf-views="parts"`, lf-tabs.js).
+// The outline belongs to the nearest declared view holding it, or the page's main.
+// Scope follows document ownership, not visibility: closed disclosures still contribute
+// headings that a native fragment link can reveal.
 export const outlineDocument = (host) =>
-  host.closest('body > main > [data-lf-views="parts"] > *, main');
+  host.closest("[data-lf-views] > *, main");
 
 const said = (made, className) => {
   made.className = className;
@@ -41,6 +42,7 @@ export function drawToc(host) {
   nav.dataset.lfGen = "1";
   nav.setAttribute("aria-label", "On this page");
   const disclosure = make("details", "lf-toc-disclosure");
+  disclosure.open = host.hasAttribute("open");
   const track = make("div", "lf-toc-rows");
   const lens = make("span", "lf-toc-window");
   lens.setAttribute("aria-hidden", "true");

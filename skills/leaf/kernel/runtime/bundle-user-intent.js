@@ -177,6 +177,7 @@ import {
   applicationState,
   attachApplicationPresentation,
   offlineInteractive,
+  pageClaimed,
   readApplication,
   readPart,
   runtime,
@@ -3798,6 +3799,9 @@ function threadName(thread) {
   );
   return words || (root.drawing ? "Drawing" : "");
 }
+var titlePending = (thread) => thread.title == null && thread.attention?.kind === "waiting" && thread.attention.reason === "workflow" && pageClaimed();
+var threadHeading = (thread) => titlePending(thread) ? html`<span class="lf-thread-name-pending">Generating thread name…</span
+        ><span class="lf-quiet"> ${threadName(thread)}</span>` : threadName(thread);
 var threadSummary = (thread) => ({
   topic: threadName(thread),
   latest: lastMovedAt(thread)
@@ -6556,22 +6560,11 @@ function threadReading(thread, surface, commands2) {
     // How long ago the thread last moved, read here with the rest of the reading, so a
     // card whose reading did not change shows the same age and need not draw again.
     recency: summary.latest ? Object.freeze({ short: shortAgo(summary.latest), long: ago(summary.latest) }) : null,
-    // A title comes from the agent's answer or beside it, so an untitled thread
-    // waits for one only while the agent's work on it is under way. A turn that
-    // ended, stalled or was never picked up sends none, and the thread reads its
-    // opening words.
-    titlePending: thread.title == null && thread.attention?.kind === "waiting" && thread.attention.reason === "workflow",
-    unreadCount: thread.unread.length,
     id: thread.id,
     attempt: thread.root.attempt ?? null,
     surface,
     resolved: resolved2,
     attention,
-    // A waiting thread's status is the stage of one message's workflow, which that
-    // message already draws in its own header. The summary repeats it only for the
-    // folded row, where no message shows; whose turn it is stays, since no message
-    // says that.
-    statusFolded: attention?.kind === "waiting" && attention.workflow !== null && messages.some((message) => message.workflow?.id === attention.workflow.id),
     // Where a resolved thread stands already says it is resolved: in a seat's Resolved
     // disclosure (inline.js). Who resolved it is said only where it was the agent.
     resolvedBy: thread.resolved?.author === "agent" ? `\u2713 Resolved by ${/** @type {{agent?: string}} */
@@ -6702,35 +6695,6 @@ var ThreadView = class {
   }
   ownsMessage(id) {
     return this.#model?.id === id || this.#model?.messages.some((message) => message.id === id);
-  }
-  // The surface follows the whole thread; only this owner locates its message and
-  // reply regions. Geometry readings carry no descendant nodes across that boundary.
-  incomingTail(prior, next) {
-    const known = new Set(prior.messages.map((message) => message.key));
-    const incoming = next.messages.filter(
-      (message) => message.author === "agent" && !known.has(message.key)
-    );
-    const latest = prior.messages.at(-1);
-    const nextLatest = next.messages.at(-1);
-    const grown = latest?.key === nextLatest?.key && nextLatest?.author === "agent" && latest.body.text !== nextLatest.body.text;
-    if (!incoming.length && !grown) return null;
-    const node = latest && this.#messageNode(latest.key);
-    if (!node) return null;
-    return {
-      id: incoming.at(-1)?.id ?? nextLatest.id,
-      tailStart: node.getBoundingClientRect().bottom,
-      end: this.node.getBoundingClientRect().bottom,
-      box: this.#reply?.node.getBoundingClientRect().top,
-      pinned: replyPinned(this.#reply?.node)
-    };
-  }
-  messageTail(id) {
-    const message = this.#model.messages.find((message2) => message2.id === id);
-    const node = message && this.#messageNode(message.key);
-    return node ? {
-      bottom: node.getBoundingClientRect().bottom,
-      end: this.node.getBoundingClientRect().bottom
-    } : null;
   }
   // HeldNews compares readings; this owner decides whether their changed regions
   // would move visible words. Existing-message changes and active compositions
@@ -7815,6 +7779,7 @@ export {
   loadMessageMarkdown,
   messageText,
   threadName,
+  threadHeading,
   threadSummary,
   prepareAuthoredMessage,
   releaseAuthoredUnder,

@@ -31,10 +31,10 @@ The steps, in order:
   names the user's turn while it runs; on `codex-queue` the comment must also enter
   that turn and be answered before its first final response, starting no turn of
   its own;
-- `resume`, on `codex-queue`: a turn interrupted during its shell command is resumed
-  with empty input, as the desktop app resumes one, to report the interruption, so its
-  first boundary is its Stop; a comment sent as it starts enters it, starting no turn
-  of its own;
+- `resume`: a turn interrupted during its shell command is resumed with empty input,
+  as the desktop app resumes one, to report the interruption, so its first boundary is
+  its Stop; a comment sent as it starts doesn't enter it, since the Stop hook leaves
+  input to the adapter while one runs, and is answered in a turn of its own;
 - `restart`: with the adapter killed, the user's next turn ends with the agent having
   started it again, and a comment sent afterwards is answered.
 
@@ -105,7 +105,7 @@ from leaf_dev.review_scenario import (
 
 RESTART_TURN = "Reply with the single word OK."
 # A resumed turn only reports its interruption, so the first boundary it reaches is
-# its Stop, which must carry the comment sent while it runs.
+# its Stop, which leaves the comment sent while it runs to a turn of its own.
 RESUME_TURN = (
     f"Run `python3 -c 'import time; {SLEEP}'` in the shell, then in a separate tool "
     "call run `printf 'verified\\n'`, then say done. If interrupted and resumed, "
@@ -387,55 +387,52 @@ def steps(
         )
     step("mid-turn", started, details)
 
-    if transport == "queue":
-        started = time.monotonic()
-        interrupted = task.say(RESUME_TURN)
-        codex.await_command(SLEEP, "the turn to interrupt did not start its command")
-        task.request("turn/interrupt", {"threadId": task.thread, "turnId": interrupted})
-        codex.until(
-            lambda: interrupted not in task.running, "the interrupted turn did not end"
-        )
-        # Aborted command items need not emit item/completed. They cannot stand
-        # in for execution of the resumed turn's first command.
-        task.running_commands.clear()
-        # The user writes the comment now and sends it the moment the resumed turn
-        # starts; in a browser its admission then does not wait on typing in a turn
-        # this short.
-        send = user.write("resume")
-        previous_turns = len(task.started)
-        resumed = task.request(
-            "turn/start",
-            {
-                "threadId": task.thread,
-                "input": [],
-                "turnTrigger": "resume_interrupted_task",
-            },
-        )["turn"]["id"]
-        codex.until(
-            lambda: resumed in task.started, "the empty-input resume did not start"
-        )
-        require(resumed in task.running, "the empty-input resume already ended")
-        during = send()
-        codex.settle(
-            lambda: user.answered("resume"),
-            "the comment sent during resume was not answered",
-        )
-        sent.append("resume")
-        details = check_step()
-        require(
-            task.started[previous_turns:] == [resumed],
-            "the resumed-turn comment started another turn",
-        )
-        require(
-            any(
-                event["turn"] == resumed
-                for event in pickup_receipts(
-                    read_events(page), phase="opened", input_id=during
-                )
-            ),
-            "the comment did not enter the empty-input resumed turn",
-        )
-        step("resume", started, details)
+    started = time.monotonic()
+    interrupted = task.say(RESUME_TURN)
+    codex.await_command(SLEEP, "the turn to interrupt did not start its command")
+    task.request("turn/interrupt", {"threadId": task.thread, "turnId": interrupted})
+    codex.until(
+        lambda: interrupted not in task.running, "the interrupted turn did not end"
+    )
+    # Aborted command items need not emit item/completed. They cannot stand
+    # in for execution of the resumed turn's first command.
+    task.running_commands.clear()
+    # The user writes the comment now and sends it the moment the resumed turn
+    # starts; in a browser its admission then does not wait on typing in a turn
+    # this short.
+    send = user.write("resume")
+    previous_turns = len(task.started)
+    resumed = task.request(
+        "turn/start",
+        {
+            "threadId": task.thread,
+            "input": [],
+            "turnTrigger": "resume_interrupted_task",
+        },
+    )["turn"]["id"]
+    codex.until(lambda: resumed in task.started, "the empty-input resume did not start")
+    require(resumed in task.running, "the empty-input resume already ended")
+    during = send()
+    codex.settle(
+        lambda: user.answered("resume"),
+        "the comment sent during resume was not answered",
+    )
+    sent.append("resume")
+    details = check_step()
+    require(
+        not any(
+            event["turn"] == resumed
+            for event in pickup_receipts(
+                read_events(page), phase="opened", input_id=during
+            )
+        ),
+        "the Stop hook handed the comment into the empty-input resumed turn",
+    )
+    require(
+        len(task.started[previous_turns:]) == 2,
+        "the resumed-turn comment was not answered in one turn of its own",
+    )
+    step("resume", started, details)
 
     started = time.monotonic()
     for process in adapter_processes(executable):

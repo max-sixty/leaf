@@ -57,6 +57,7 @@ import { ReactionStripView } from "./reaction-strips.js";
 import { iconTemplate } from "../icons.js";
 import { keeps } from "../keeps.js";
 import { flashDuration, motion } from "../motion.js";
+import { pageClaimed } from "../semantic-state.js";
 
 export const loadMessageMarkdown = () =>
   loadMarkdown((error) => reportPageError(error, `markdown renderer failed to load`));
@@ -116,6 +117,30 @@ export function threadName(thread) {
   );
   return words || (root.drawing ? "Drawing" : "");
 }
+
+// Whether a title is on its way to an untitled thread. Leaf asks the claimant's
+// harness for one as the user's words are admitted, and the agent for one with its
+// reply (thread_titles.py), so one comes while a session holds the page's claim and the
+// agent owes the thread work. A turn that ended, stalled or was never picked up sends
+// none, nor does a page nobody has claimed, and the thread reads its opening words.
+/** @param {Parameters<typeof threadName>[0] & {readonly attention?: {readonly kind: string, readonly reason: string} | null}} thread */
+const titlePending = (thread) =>
+  thread.title == null &&
+  thread.attention?.kind === "waiting" &&
+  thread.attention.reason === "workflow" &&
+  pageClaimed();
+
+// A thread's name where it heads the thread, as Threads lists it and its view names
+// it: while a title is on its way, a placeholder in the face of a step under way
+// (`.lf-thread-working-words`) rather than opening words that would read as its title.
+// The opening words stay in its accessible name, after the placeholder, so a screen
+// reader still tells two pending threads apart.
+/** @param {Parameters<typeof titlePending>[0]} thread */
+export const threadHeading = (thread) =>
+  titlePending(thread)
+    ? html`<span class="lf-thread-name-pending">Generating thread name…</span
+        ><span class="lf-quiet"> ${threadName(thread)}</span>`
+    : threadName(thread);
 
 /** @param {Parameters<typeof threadName>[0] & Parameters<typeof lastMovedAt>[0]} thread */
 export const threadSummary = (thread) => ({

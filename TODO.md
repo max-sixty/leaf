@@ -394,9 +394,9 @@ on 2026-10-07.
 ### The agent's text interface
 
 - **Decide whether an owed answer may continue a turn whose answer is written.**
-  Where a watch follows the turn, Stop no longer hands new input into it
-  (`hook_transport`), but it still continues the turn once for an update picked up
-  and unanswered, and for a page it could not re-vendor. The agent then writes one
+  Where a watch or Codex's adapter follows the turn, Stop no longer hands new input
+  into it (`hook_transport`), but it still continues the turn once for an update
+  picked up and unanswered, and for a page it could not re-vendor. The agent then writes one
   more message, which Claude Code's focus view shows in place of the turn's answer:
   9 of the 65 Leaf continuations in Max's sessions of 2026-10-10 to 10-19 were these,
   as when a report on "check leaf, do #18" gave way to "I've answered the last item

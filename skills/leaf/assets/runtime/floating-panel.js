@@ -158,7 +158,7 @@ import { readThreads } from "./thread/state.js";
 import { hasUnread, threadCounts } from "./thread/model.js";
 import { watchProjection } from "./projection-watch.js";
 import { threadAttention, workflowStep } from "./thread/workflow.js";
-import { messageReading, threadName } from "./thread/messages.js";
+import { messageReading, threadHeading, threadName } from "./thread/messages.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { declareThreadParts } from "./thread/focus.js";
 import { quoteReading } from "./thread/thread-card.js";
@@ -2176,7 +2176,7 @@ export function createFloatingPanel({
                   @click=${() => open({ view: "thread", thread: thread.key })}
                 >
                   <span class="lf-fp-news-mark" aria-hidden="true"></span>
-                  <span class="lf-fp-label">${threadName(thread)}</span>
+                  <span class="lf-fp-label">${threadHeading(thread)}</span>
                   <span class="lf-fp-value"
                     >${threadStatus(thread, query.trim() ? null : filter)}</span
                   >
@@ -2921,11 +2921,16 @@ export function createFloatingPanel({
     focusDestination(controls.querySelector(".lf-fp-search"), "move");
   }
   // The view's name, over it. On's is its selected tab's, which the tabs at its foot
-  // already show, so the heading names the view to assistive tech alone.
-  const headTemplate = (top) =>
-    html`<h2 class=${top.view === "queue" ? "lf-fp-title lf-quiet" : "lf-fp-title"}>
-      ${titleOf(top)}
+  // already show, so the heading names the view to assistive tech alone. A thread's
+  // says when its title is still on its way (`threadHeading`).
+  const headTemplate = (top) => {
+    const thread = top.view === "thread" ? threadByKey(top.thread) : null;
+    return html`<h2
+      class=${top.view === "queue" ? "lf-fp-title lf-quiet" : "lf-fp-title"}
+    >
+      ${thread ? threadHeading(thread) : titleOf(top)}
     </h2>`;
+  };
   function controlsTemplate(top) {
     const parent = trail.value.at(-2);
     const thread = top.view === "thread" ? threadByKey(top.thread) : null;

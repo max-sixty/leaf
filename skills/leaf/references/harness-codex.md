@@ -21,9 +21,9 @@ watches every page this task owns, and keeps running when a turn ends. Serving a
 again restarts an adapter that stopped. To connect delivery for a page you claim
 without serving it, run `leaf codex start <page>`.
 
-While your turn runs, Leaf's hooks offer new input between steps and when the turn tries
-to end. The hook carries the complete delivery as one line of JSON, or a pointer
-when it exceeds Codex's context limit. Read inline input directly; for a pointer,
+While your turn runs, Leaf's hooks offer new input between steps; input that arrives
+as the turn ends comes in a turn of its own. The hook carries the complete delivery
+as one line of JSON, or a pointer when it exceeds Codex's context limit. Read inline input directly; for a pointer,
 run its `leaf delivery read <id>` and read every part. Follow the delivery's
 `acknowledge` instruction before handling the input.
 

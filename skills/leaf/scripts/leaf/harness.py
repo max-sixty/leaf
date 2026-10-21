@@ -32,8 +32,6 @@ from leaf.files import read_json
 from leaf.leases import (
     adapter_is_live,
     hooks_ran,
-    mark_step_hook,
-    step_hook_ran,
     wait_is_live,
 )
 from leaf.machine import ancestry, pid_alive, process_argv
@@ -88,8 +86,9 @@ class Harness:
       starts the turn the watch wakes itself.
     - Codex has a detached adapter that outlives the turn and proves itself by
       holding the adapter lease. It queues each delivery with `codex queue`, or
-      starts its turn over the task's App Server when Leaf can reach one, and so
-      takes the input that arrives as a turn ends (`later_turn_takes_input`).
+      starts its turn over the task's App Server when Leaf can reach one, and
+      only that start takes the input that arrives as a turn ends
+      (`later_turn_takes_input`).
     - An embedded harness drives Codex App Server itself and starts the turns;
       nothing outside it carries input in.
     """
@@ -200,10 +199,12 @@ class Harness:
         return False
 
     def later_turn_takes_input(self) -> bool:
-        """Whether input that arrives as this session's turn ends reaches a turn of
-        its own without the agent asking: a watch between turns wakes one
-        (`watches_between_turns`), and Codex's adapter starts or queues one. The
-        Stop hook then hands no input into the ending turn (`hook_transport`)."""
+        """Whether input that arrives as this session's turn ends goes to a turn of
+        its own rather than into the ending one, where the Stop hook would hand it
+        (`hook_transport`). That turn must open without the agent asking, and must
+        show the user less than continuing the ending turn would: a watch between
+        turns wakes one (`watches_between_turns`), and Codex's adapter starts one
+        over App Server."""
         return self.watches_between_turns()
 
     def process_runs(self) -> bool:
@@ -522,15 +523,31 @@ class CodexHarness(EnvironmentHarness):
         )
 
     def turn_takes_input(self) -> bool:
-        """Codex's tool hook offers input between steps once one has proven that
-        Codex runs Leaf's hooks for this task (`codex.offer_hook_delivery`), and
-        its Stop hook keeps the turn going over input nothing else will carry."""
-        return step_hook_ran(self.session)
+        """Codex's tool hook offers input between steps (`codex.offer_hook_delivery`),
+        and its Stop hook keeps the turn going over input nothing else will carry.
+        Any Leaf hook run in this task instance, such as the turn's prompt hook,
+        proves Codex runs them, so a turn takes input from its start; the queue
+        adapter leaves such a turn's input to it (`codex_adapter`)."""
+        return hooks_ran(self.session)
 
     def later_turn_takes_input(self) -> bool:
-        """The adapter, once the turn has closed, offers what arrived as it ended in
-        a turn of its own: one it starts over App Server, or the queue's next."""
-        return adapter_is_live(self.session)
+        """An adapter that starts turns over App Server opens one on a
+        `leaf_delivery` tool output, which adds no message to the user's
+        conversation. Through `codex queue` the turn opens on a `leaf-delivery`
+        pointer that Codex shows as a message from the user, which is noisier than
+        the one more message the ending turn writes, so there Stop hands the input
+        into the ending turn.
+
+        An adapter takes its lease before it writes its transport there, and holds
+        the start lock across that, so the record is read under the start lock."""
+        if not adapter_is_live(self.session):
+            return False
+        from .codex_adapter import adapter_start_lock_path, running_adapter
+        from .state import flocked
+
+        with flocked(adapter_start_lock_path(self.session)):
+            adapter = running_adapter(self.session)
+        return adapter is not None and adapter["app_server"] is not None
 
     def receive_pointer(self, payload: dict) -> list[Path]:
         from .codex_state import confirm_codex_pointer
@@ -574,9 +591,8 @@ class CodexHarness(EnvironmentHarness):
     ) -> tuple[str | None, dict | None]:
         """Both the tool hook and Stop offer an envelope through Codex's one transport
         reservation (`codex.offer_hook_delivery`), since empty-input resume can
-        reach Stop without running another tool. A tool hook also proves that
-        Codex runs Leaf's hooks for this task (`turn_takes_input`). Stop offers
-        only where no adapter will offer the input in a turn of its own
+        reach Stop without running another tool. Stop offers only where no adapter
+        will start a turn of its own for the input over App Server
         (`later_turn_takes_input`), and the turn would continue for it
         (`hook_transport.stop_continues`). The tool hook offers only input the
         cursor has not passed, and Stop also an update the session holds no usable
@@ -584,15 +600,13 @@ class CodexHarness(EnvironmentHarness):
         """
         if event not in {"PostToolUse", "Stop"} or not payload.get("turn_id"):
             return None, expected
-        if event == "PostToolUse":
-            mark_step_hook(self.session)
-        elif self.later_turn_takes_input():
-            return None, expected
         from .service import owned_pages
 
         if not owned_pages(self.session):
             return None, expected
         if event == "Stop":
+            if self.later_turn_takes_input():
+                return None, expected
             from .hook_transport import read_plans, stop_continues
 
             plans = read_plans(self.session)

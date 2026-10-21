@@ -184,9 +184,6 @@ def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
     wait_until_ready(page)
     expect(page.locator("#card-instruction")).to_contain_text("17px radius")
     assert playground.evaluate("root => root.values")["title"] == "Ridge note; alert"
-    undo(page)
-    expect(page.locator("#card-instruction")).to_contain_text("12px radius")
-    assert playground.evaluate("root => root.values")["compact"] is False
 
 
 def test_narrow_playground_keeps_complete_preset_labels_operable(browser, serve):
@@ -241,7 +238,8 @@ def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(
     browser, serve
 ):
     """An input edit updates the shared configuration immediately, and reading or
-    acknowledging it never replaces the draft. A new choice or undo does."""
+    acknowledging it never replaces the draft. A new choice does; undoing or refusing
+    one withdraws only the decision."""
     page = open_page(browser, serve(CONTRIBUTOR_PAGE))
     playground = page.locator("#query-config")
     field = page.get_by_role("textbox", name="Region filter")
@@ -327,7 +325,8 @@ def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(
     rendered(page)
     expect(field).to_have_value("unsent-region")
     # Equal values do not make two choices the same gesture. Undoing the second
-    # choice restores the first even when a later working edit differs from both.
+    # makes the first current again and leaves the later working edit in place; a
+    # reload draws the decided configuration.
     field.fill("chosen-region")
     with sending(page, "the query configuration"):
         playground.get_by_role("button", name="Use these settings").evaluate(
@@ -336,13 +335,13 @@ def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(
     field.fill("later-draft")
     page.keyboard.press("Escape")
     undo(page)
-    expect(field).to_have_value("chosen-region")
+    expect(field).to_have_value("later-draft")
     page.reload()
     wait_until_ready(page)
     expect(field).to_have_value("chosen-region")
 
-    # A refused choice restores the server's accepted slice instead of retaining
-    # the local configuration that the server did not accept.
+    # A refused choice leaves the configuration the user sent in the controls, to
+    # send again, while the earlier choice stays decided.
     def refuse_choice(route):
         if route.request.post_data_json.get("action") != "choose":
             route.continue_()
@@ -356,22 +355,12 @@ def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(
     field.fill("refused-region")
     with sending(page, "the refused query configuration"):
         playground.get_by_role("button", name="Use these settings").click()
-    expect(field).to_have_value("chosen-region")
-    # Refusal deliberately restores accepted words; the generic words watch cannot
-    # attribute this asynchronous replacement to the earlier submit gesture.
-    consume_browser_errors(
-        page,
-        http_error_console(400),
-        {
-            "code": "words-left-screen",
-            "words": "refused-region",
-            "place": ["input#region-filter"],
-        },
-    )
+    expect(field).to_have_value("refused-region")
+    consume_browser_errors(page, http_error_console(400))
     page.unroute("**/api/event")
 
     # An admitted aggregate can precede every page-module contributor. Each joining
-    # contributor gets its slice; an undo replaces the pending snapshot as well.
+    # contributor gets its slice, and an undo keeps the slices still waiting for one.
     page.evaluate("sessionStorage.setItem('delay-query-contributors', 'true')")
     page.reload()
     wait_until_ready(page)
@@ -390,11 +379,11 @@ def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(
         if (input.value !== values.filters.region) input.value = values.filters.region;
       });
     }""")
-    expect(field).to_have_value("eu-west-1")
+    expect(field).to_have_value("chosen-region")
     assert playground.evaluate("root => root.values") == {
         "stream": "checkout",
-        "filters": {"region": "eu-west-1"},
-        "grouped": True,
+        "filters": {"region": "chosen-region"},
+        "grouped": False,
     }
 
 
@@ -978,6 +967,31 @@ def test_a_playground_control_written_in_the_preview_stands_beside_its_item(
         playground.get_by_role("button", name="Apply these settings").click()
     action = events_model.read_events(serve.page_dir)[-1]
     assert action["detail"]["values"]["latency-route"] == "ticket"
+
+
+def test_undoing_a_playground_choice_leaves_the_controls_as_the_user_set_them(
+    browser, serve
+):
+    """Undo withdraws the decision and leaves the controls where the user left them,
+    to adjust and send again; Reset still returns them to the authored defaults."""
+    page = open_page(browser, serve(ROOT / "examples" / "alert-thresholds.html"))
+    playground = page.locator("#alert-playground")
+    budget = playground.get_by_role("slider", name="On-call page budget")
+    expect(budget).to_have_value("10")
+    budget.press("ArrowRight")
+    budget.press("ArrowRight")
+    with sending(page, "the alert settings"):
+        playground.get_by_role("button", name="Apply these settings").click()
+    choice = events_model.read_events(serve.page_dir)[-1]
+    assert choice["detail"]["values"]["budget"] == 12
+
+    undo(page)
+    assert events_model.read_events(serve.page_dir)[-1]["undoes"] == choice["id"]
+    expect(budget).to_have_value("12")
+    assert playground.evaluate("root => root.values.budget") == 12
+
+    playground.get_by_role("button", name="Reset", exact=True).click()
+    expect(budget).to_have_value("10")
 
 
 def test_a_playground_rail_stays_in_view_beside_a_tall_stage(browser, serve):

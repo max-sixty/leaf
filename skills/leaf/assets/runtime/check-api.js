@@ -90,7 +90,7 @@ export {
   annotationSheets,
   annotationMarkSheets,
 } from "./stylesheets.js";
-export { surfaceFocusTarget, claimed } from "./thread/surfaces.js";
+export { claimed } from "./thread/surfaces.js";
 export { runtimeRootState } from "./root-state.js";
 export { tabStore, draftStore, userStore, PAGE_SCOPE } from "./storage.js";
 export {

@@ -1849,6 +1849,17 @@ _TEXT = {
         f" no answer ({'; '.join(v['answers'])}); the page reads waiting once each"
         " has one"
     ),
+    # `delivery ack` of a delivery an earlier turn already picked up
+    # (`delivery.earlier_pickup`), with the answers its updates still owe:
+    "delivery-repeated": lambda at, v: (
+        f"an earlier turn already picked up delivery {v['delivery']}, so don't redo"
+        " the work that turn did. "
+        + (
+            f"Still unanswered: {'; '.join(v['answers'])}."
+            if v["answers"]
+            else "None of its updates still owes an answer."
+        )
+    ),
     # A re-vendor a command naming the page made (`vendoring.renew_layer`), and the
     # service it held down (`hosting.restarting_server`).
     "unready-revendor": lambda at, v: (

@@ -49,7 +49,22 @@ session holds.
 On a ChatGPT login, gpt-6-luna limits bursts more tightly than gpt-6.1-sol. Of twelve
 titles asked back to back, the last six failed with a 429 within 2 s, where
 gpt-6.1-sol answered all twelve. One of the 12 titles asked in three journeys failed
-the same way. After a burst, a title every 20 s for four minutes never failed.
+the same way. After a burst, a title every 20 s for four minutes never failed. The
+backend's refusal (`turn_rate_limit_exceeded`) names a `Retry-After` that counts down
+to a free slot: asked again every second, the eleventh title of a burst, refused 27 s
+in, was told 33, 30, 28 … 4, 1 s and answered 39 s after its first refusal, which
+looks like a limit of ten titles a minute (codex-cli 0.160). Codex retries none of
+these, and its App Server passes on only the status, `responseTooManyFailedAttempts`
+with `httpStatusCode` 429, so Leaf cannot read the delay the refusal names.
+
+So a title refused for rate limits (`RateLimited`) is asked again, every
+`RETRY_INTERVAL` (5 s) until `RETRY_FOR` (120 s) after its first ask, each time on a
+new thread, and only while its thread is still untitled (`_name_thread`). It then
+arrives within 5 s of a slot freeing, and the cap spans two of those minutes. Of
+twelve titles asked at once, six were refused and each was written 41–48 s after its
+first ask; asked back to back, all twelve were written, one 20 s late. On every
+harness the record counts the refusals and how long they held the title up. A
+refusal for any other reason, or past the cap, fails as before.
 
 Every harness is sent the same request (`title_request`): a system prompt saying to
 title the thread, then the passage the thread is on and its first spoken message,
@@ -73,7 +88,8 @@ stands, and an agent's reply that comes later leaves this one in place. A reques
 that fails or finds no words leaves the thread untitled, and tells the caller's
 `record`. A delivery the agent answers with its own reply asks it to name an
 untitled thread; one a Codex turn's final message answers does not, so its thread
-stays untitled until the user's next message in it asks again.
+stays untitled until the user's next message in it asks again. The retry above makes
+that rare: only a refusal past its cap, or a failure of another kind, leaves one.
 """
 
 import contextlib
@@ -127,6 +143,10 @@ OUTPUT_SCHEMA = {
 }
 # Past this the thread keeps its placeholder rather than holding a request open.
 TIMEOUT = 60
+# A title refused for rate limits is asked again this often, until this long after
+# its first ask (module docstring).
+RETRY_INTERVAL = 5
+RETRY_FOR = 120
 # App Server: a title needs no tools either, and the working directory's AGENTS.md
 # says nothing about one. With a shell, the model sometimes acted on a message that
 # asks for work instead of naming it. Nor does it run the user's hooks: with the
@@ -233,6 +253,11 @@ Record = Callable[..., None]
 EXCERPT_LIMIT = 2000
 # A request for one title: its text, and the page directory it is about.
 Generate = Callable[[str, Path], dict]
+
+
+class RateLimited(RuntimeError):
+    """The model refused a title for rate limits, with a 429, so asking again later
+    can succeed (`_name_thread`)."""
 
 
 def title_request(page_dir: Path, message: str) -> tuple[str, str] | None:
@@ -460,7 +485,13 @@ def ask_title(socket, thread_id: str, request: str, deadline: float) -> dict:
         elif method == "turn/completed":
             turn = params["turn"]
             if turn["status"] != "completed" or answer is None:
-                raise RuntimeError(
+                # Each variant of a failure's `codexErrorInfo` that has an HTTP
+                # status carries it as `httpStatusCode`.
+                info = (turn.get("error") or {}).get("codexErrorInfo")
+                limited = isinstance(info, dict) and any(
+                    variant.get("httpStatusCode") == 429 for variant in info.values()
+                )
+                raise (RateLimited if limited else RuntimeError)(
                     f"the title turn ended {turn['status']}: {turn.get('error')}"
                 )
             return {
@@ -638,15 +669,28 @@ def _name_thread(
     record: Record,
 ) -> None:
     thread = message
+    first_asked = time.monotonic()
+    refusals = 0
     try:
-        asked = title_request(page_dir, message)
-        if asked is None:
-            return
-        thread, request = asked
-        if not request:
-            record("thread_title_skipped", thread=thread)
-            return
-        reading = generate(request, page_dir)
+        while True:
+            # Read again before each ask, so a thread the agent named while a
+            # refused title waited is asked about no more.
+            asked = title_request(page_dir, message)
+            if asked is None:
+                return
+            thread, request = asked
+            if not request:
+                record("thread_title_skipped", thread=thread)
+                return
+            asking = time.monotonic()
+            try:
+                reading = generate(request, page_dir)
+                break
+            except RateLimited:
+                refusals += 1
+                if time.monotonic() + RETRY_INTERVAL > first_asked + RETRY_FOR:
+                    raise
+                time.sleep(RETRY_INTERVAL)
         written = write_title(page_dir, thread, reading.pop("title"), session_id)
     # A refusal's words can quote the title, which is drawn from the user's; its
     # code cannot.
@@ -666,9 +710,18 @@ def _name_thread(
             thread=thread,
             error=type(error).__name__,
             detail=str(error)[-500:],
+            refusals=refusals,
         )
         return
-    record("thread_title_generated", thread=thread, written=written, **reading)
+    record(
+        "thread_title_generated",
+        thread=thread,
+        written=written,
+        refusals=refusals,
+        # How long refusals held the title up: from the first ask to the one answered.
+        refusedMs=round((asking - first_asked) * 1000),
+        **reading,
+    )
 
 
 def name_thread(

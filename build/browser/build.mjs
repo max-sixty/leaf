@@ -43,7 +43,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { parse } from "acorn";
 import { transformSync } from "amaro";
-import { build } from "esbuild";
+import { build } from "../esbuild.mjs";
 import { contractTypes, protocolSchemas } from "./contract-types.mjs";
 import { protocolBreaks } from "./protocol.mjs";
 import { initialOutputs } from "../initial.mjs";

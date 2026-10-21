@@ -29,7 +29,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { applyPatch, parsePatch } from "diff";
-import { build } from "esbuild";
+import { build } from "./esbuild.mjs";
 import { parse } from "acorn";
 import { bindToVendoredLit } from "./lit.mjs";
 import { patchTransitions } from "./webawesome/transition-patch.mjs";

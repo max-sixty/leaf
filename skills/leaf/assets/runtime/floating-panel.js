@@ -119,14 +119,17 @@
  *
  * Nothing moves under the pointer: a view's controls stand at its foot, the leaf's
  * menu holds what it showed while it stands, and a control the user pressed in a
- * thread stays where it was. Every change of the box's size takes effect in
- * one step, and the surface behind it, a separate layer, follows by a clip from where it
- * stood to where it stands, the way the Codex app's floating panel moves: nothing's
- * layout tweens, so nothing a user aims at travels after the gesture that moved it.
- * What a line the field gains moved, the words, the field's ring and the attachments
- * over the box, rides that edge by a transform rather than being revealed by it
- * (`followBox`), after the user found the attachment vanishing and the ring outrunning
- * the box on 20 October. */
+ * thread stays where it was. Every change of the box's layout takes effect in one step,
+ * and everything the user sees then travels from where it was drawn to where it
+ * stands, by one model (box-motion.js): the surface behind the box, a separate layer,
+ * follows by a clip, the way the Codex app's floating panel moves, and so does the
+ * field's ring; a part that kept its size is carried by a transform; one that changed
+ * size grows from where it stood; one that is new is revealed by the edges of what
+ * holds it. Nothing's layout tweens, so the box's room on the page is its new room at
+ * once. The user asked for this on 20 October, after a line the field gained left its
+ * attachment vanishing and its ring outrunning the box, and more room left the field
+ * behind the box widening around it; it replaced revealing everything a change moved
+ * by the surface's clip, which hid each part that moved until the clip reached it. */
 import {
   html,
   keyed as keyedBy,
@@ -221,6 +224,7 @@ import {
 import { rowWalk } from "./walk-position.js";
 import { excerptWords } from "./words.js";
 import { nextRender, sizeObserver } from "./rendering.js";
+import { boxMotion } from "./box-motion.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { moveScrollerBy, SCROLL_SLACK, scrollLimit, scrollToEnd } from "./scrolling.js";
 import { declareOccluder, declareWindowChrome } from "./geometry.js";
@@ -336,8 +340,8 @@ export function createFloatingPanel({
   ground.setAttribute("aria-hidden", "true");
   const ring = el("div", "lf-fp-ring");
   const fill = el("div", "lf-fp-fill");
-  // The field's focus ring, drawn here only while the field grows or shrinks a line
-  // (`followBox`), so its top edge can ride the box's.
+  // The field's focus ring, drawn here only while the box moves (box-motion.js), since
+  // no transform draws a ring changing size.
   const fieldRing = el("div", "lf-fp-field-ring");
   const fieldFill = el("div", "lf-fp-fill");
   ground.append(ring, fill, fieldRing, fieldFill);
@@ -466,8 +470,8 @@ export function createFloatingPanel({
       : 0;
     if (lines > 3.5 === long) return;
     long = lines > 3.5;
-    // In the frame the field grows, so the mark rides in with the line that brought it
-    // (`followBox`); standing it resizes nothing the observer watches.
+    // In the frame the field grows, ahead of the box's reading (`followBox`), so the
+    // box's motion reveals the mark with the line that brought it.
     markRoom();
   });
   // The mark stands while the draft runs long, and while the field is wide, where the
@@ -1046,198 +1050,61 @@ export function createFloatingPanel({
     if (target) focusDestination(target, "move");
   }
 
-  // ---------- motion: the surface follows the box ----------
-  // The box's layout changes in one step, whatever changed it: a view opening, the line
-  // naming where the words go, a field growing a line, folding to the leaf. The surface
-  // then follows from the outline it stood at to the box's new one by a clip, which
-  // moves nothing's layout. The first outline, and any under reduced motion, is taken
-  // as it is.
+  // ---------- motion: everything follows the box ----------
+  // The box's layout changes in one step, whatever changed it: a view opening, a field
+  // growing a line, more room, folding to the leaf. Everything the user sees then moves
+  // from where it was drawn to where it stands, by one model (box-motion.js): the
+  // surface draws the box's outline, and the field's ring while it moves; a part that
+  // kept its size is carried; one that changed size grows from where it stood; one that
+  // is new is revealed by the edges of what holds it. The first reading, and any under
+  // reduced motion, is taken as it is.
   //
-  // A view arriving, or anything else new in the box, is revealed: while the box grows,
-  // its own contents are clipped to the surface's outline, so they appear as the surface
-  // reaches them. The field growing or shrinking a line brings nothing new but its line,
-  // so everything it moved rides the surface's top edge instead (`ride`): the words
-  // already written, the field's focus ring, what stands above the field and the
-  // attachments hanging over the box are drawn where they stood and travel with the edge,
-  // by a transform, while the new line rises into the field from its foot. The field's
-  // ring is a box whose top moves while its foot stays, which no transform draws, so
-  // meanwhile the surface draws it as it draws its own ring, a fill inside a fill, and
-  // the card stands transparent over it, unclipped.
-  let outline = null;
-  // Until when a change of outline is a view arriving or leaving (`transition`), which
-  // takes the shorter tween: the view's own change, and the one when the view it
-  // replaced is gone after its fade.
+  // Until when a change is a view arriving or leaving (`transition`), which takes the
+  // shorter tween: the view's own change, and the one when the view it replaced is gone
+  // after its fade.
   let viewMovingUntil = 0;
-  let riding = [];
-  // The editor in the panel's field, the page's or a thread's reply, and its height,
-  // as of the last time the box was read, whether or not its outline moved then. The
-  // comment box seated in the field's place is drawn as a card of its own, whose face
-  // the surface doesn't draw, so it keeps the reveal.
-  let lastEditor = null;
-  const outlineClip = (box, grow = 0) =>
-    `inset(${box.top - grow}px ${box.right - grow}px ${box.bottom - grow}px ${
-      box.left - grow
-    }px round ${box.radius + grow}px)`;
-  const clipTop = (clip) => Number.parseFloat(/inset\(([-\d.]+)px/.exec(clip)?.[1]);
-  const within = (room, element) => {
-    const rect = element.getBoundingClientRect();
-    return {
-      top: rect.top - room.top,
-      right: room.right - rect.right,
-      bottom: room.bottom - rect.bottom,
-      left: rect.left - room.left,
-      width: rect.width,
-      height: rect.height,
-      radius: Number.parseFloat(getComputedStyle(element).borderTopLeftRadius) || 0,
-    };
-  };
-  const near = (a, b) => Math.abs(a - b) < 0.5;
+  const follow = sizeObserver(() => {
+    readCorner();
+    followBox();
+  });
+  const motion = boxMotion({
+    root: host,
+    box: card,
+    room: ground,
+    // The ground is cut too, to the outline grown by its shadow's reach (`--raise-2`'s
+    // blur dropped by its drop, theme.css), so it stands over nothing else in the
+    // window: a layer over the whole window that paints nothing left every word under
+    // it unmeasured by a contrast checker. Its cut moves with the ring's, so it holds
+    // the ring every frame.
+    surface: () => {
+      const lift = getComputedStyle(ground);
+      const shadowReach = ["--raise-2-drop", "--raise-2-blur"]
+        .map((token) => Number.parseFloat(lift.getPropertyValue(token)))
+        .reduce((reach, part) => reach + part);
+      return [
+        [ground, shadowReach],
+        [ring, 1],
+        [fill, 0],
+      ];
+    },
+    ring: [fieldRing, fieldFill],
+    observer: follow,
+  });
   function followBox() {
-    const room = ground.getBoundingClientRect();
-    const next = within(room, card);
-    const editor = [...row.querySelectorAll(":scope > .lf-fp-field leaf-text")].find(
-      (text) => text.checkVisibility(),
-    );
-    const grew = lastEditor;
-    lastEditor = editor
-      ? { editor, height: editor.getBoundingClientRect().height }
-      : null;
-    const was = outline;
-    if (
-      was &&
-      ["top", "right", "bottom", "left", "radius"].every((side) =>
-        near(was[side], next[side]),
-      )
-    )
-      return;
-    outline = next;
     // How far the box reaches up from the window's foot, which the root's
     // `scroll-padding-bottom` keeps every landing clear of (theme.css), so `m`, `t`, a
     // Go-to or an On me row's Show lands what it reaches above an open view rather than
     // under it. The browser's own reveals read the same padding. CSS can't size the
     // root's padding from a fixed box in the chrome's shadow tree, so the box states it.
+    const box = card.getBoundingClientRect();
     setRuntimeRootStyle(
       document.documentElement,
       "--lf-panel-reach",
-      layoutPx(next.height > 0 ? next.bottom + next.height : 0),
+      layoutPx(box.height > 0 ? ground.getBoundingClientRect().bottom - box.top : 0),
     );
+    const moving = !reducedMotion() && pagePresented();
     const duration = performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
-    const moving = Boolean(was) && !reducedMotion() && pagePresented();
-    // Where the surface's top edge stands now, mid-tween or at rest.
-    const standing =
-      moving && fill.getAnimations().length
-        ? clipTop(getComputedStyle(fill).clipPath)
-        : was?.top;
-    // A reveal still under way leaves the box's contents where they will rest, cut to
-    // the surface, so a line arriving meanwhile is revealed with them.
-    const revealing = card.getAnimations().some((running) => !riding.includes(running));
-    for (const running of [...riding, ...card.getAnimations()]) running.cancel();
-    riding = [];
-    // The field grew or shrank a line, and nothing else in the box moved.
-    const ride =
-      moving &&
-      !revealing &&
-      lastEditor !== null &&
-      grew?.editor === lastEditor.editor &&
-      near(was.width, next.width) &&
-      near(was.bottom, next.bottom) &&
-      near(lastEditor.height - grew.height, next.height - was.height);
-    // The ground is cut too, to the outline grown by its shadow's reach (`--raise-2`'s
-    // blur dropped by its drop, theme.css), so it stands over nothing else in the window:
-    // a layer over the whole window that paints nothing left every word under it
-    // unmeasured by a contrast checker. Its cut moves with the ring's, so it holds the
-    // ring every frame.
-    const lift = getComputedStyle(ground);
-    const shadowReach = ["--raise-2-drop", "--raise-2-blur"]
-      .map((token) => Number.parseFloat(lift.getPropertyValue(token)))
-      .reduce((reach, part) => reach + part);
-    const timing = { duration, easing: EASE };
-    for (const [layer, grow] of [
-      [ground, shadowReach],
-      [ring, 1],
-      [fill, 0],
-    ]) {
-      const from = was ? getComputedStyle(layer).clipPath : null;
-      for (const running of layer.getAnimations()) running.cancel();
-      keeps(layer, "style", `clip-path: ${outlineClip(next, grow)}`);
-      if (moving)
-        layer.animate(
-          [{ clipPath: from }, { clipPath: outlineClip(next, grow) }],
-          timing,
-        );
-    }
-    if (!moving) return;
-    if (ride) {
-      // How far below their places what the field moved still stands: where the
-      // surface's edge stands, from the box's new top.
-      const lag = standing - next.top;
-      const shifted = { translate: `0 ${lag}px` };
-      const rest = { translate: "0 0" };
-      const riders = [
-        opened,
-        context,
-        ...row.querySelectorAll(":scope > .lf-fp-expand"),
-        ...row.querySelectorAll(".lf-composer-media:not([hidden])"),
-      ];
-      for (const rider of riders) riding.push(rider.animate([shifted, rest], timing));
-      // The words already written travel with the edge inside the field, whose box
-      // grows at its top as typing may (text-field.js, `--lf-field-ride`), and the new
-      // line rises into it from its foot. A line taken away leaves the words where the
-      // field now holds them, and the edge closes down onto them.
-      if (lag > 0)
-        riding.push(
-          editor.animate(
-            [{ "--lf-field-ride": `${lag}px` }, { "--lf-field-ride": "0px" }],
-            timing,
-          ),
-        );
-      const hold = (property, value) => [{ [property]: value }, { [property]: value }];
-      riding.push(
-        card.animate(hold("backgroundColor", "transparent"), timing),
-        card.animate(hold("overflow", "visible"), timing),
-      );
-      // The box wearing the field's focus ring, where the caret has painted one.
-      let wearer = null;
-      for (let box = editor; box && box !== row; box = box.parentElement)
-        if (getComputedStyle(box).outlineStyle !== "none") wearer = box;
-      if (wearer) {
-        const { outlineColor, outlineWidth } = getComputedStyle(wearer);
-        const to = within(room, wearer);
-        const from = { ...to, top: to.top + lag };
-        riding.push(wearer.animate(hold("outlineColor", "transparent"), timing));
-        keeps(fieldRing, "style", `background: ${outlineColor}`);
-        for (const [layer, grow] of [
-          [fieldRing, Number.parseFloat(outlineWidth)],
-          [fieldFill, 0],
-        ])
-          riding.push(
-            layer.animate(
-              [
-                { clipPath: outlineClip(from, grow) },
-                { clipPath: outlineClip(to, grow) },
-              ],
-              timing,
-            ),
-          );
-      }
-      return;
-    }
-    if (next.width <= was.width + 0.5 && next.height <= was.height + 0.5) return;
-    // Within its own box, the outline the surface still stands at.
-    const inside = {
-      top: Math.max(0, standing - next.top),
-      right: Math.max(0, was.right - next.right),
-      bottom: Math.max(0, was.bottom - next.bottom),
-      left: Math.max(0, was.left - next.left),
-      radius: was.radius,
-    };
-    card.animate(
-      [
-        { clipPath: outlineClip(inside) },
-        { clipPath: `inset(0 round ${next.radius}px)` },
-      ],
-      timing,
-    );
+    motion.follow(moving ? { duration, easing: EASE } : null);
   }
   // Leaf's reader draws into the open thread's view on its own schedule, a sent turn
   // among them, so the view lands where that drawing shows, not at the panel's next paint.
@@ -1246,12 +1113,8 @@ export function createFloatingPanel({
     fitAnswer();
     stood = openView()?.offsetHeight ?? null;
   });
-  const follow = sizeObserver(() => {
-    readCorner();
-    followBox();
-  });
   addEventListener("resize", () => {
-    outline = null;
+    motion.forget();
     followBox();
   });
 

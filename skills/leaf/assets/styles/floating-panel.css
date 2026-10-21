@@ -55,9 +55,9 @@
   /* The surface: a layer over the whole window, cut to the box's outline by the
      panel's script, with a ring a pixel outside it and one soft shadow around both,
      cast at the height of what opens over the page. The layer itself is cut to that
-     outline grown by its shadow's reach. While the field grows or shrinks a line, the
-     field's focus ring stands on it too, a ring and a fill like the box's own, in the
-     colour of the ring it stands in for (floating-panel.js, `followBox`). */
+     outline grown by its shadow's reach. While the box moves, a ring a part of it
+     wears, the field's focus ring, stands on it too, a ring and a fill like the box's
+     own, in the colour of the ring it stands in for (runtime/box-motion.js). */
   .lf-fp-ground {
     position: fixed;
     inset: 0;

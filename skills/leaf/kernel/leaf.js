@@ -581,17 +581,17 @@ function readPicture(drawing2, target) {
   const points = strokes.flat();
   const left = Math.min(...points.map(([x]) => x)) - CONTEXT_PAD;
   const top = Math.min(...points.map(([, y]) => y)) - CONTEXT_PAD;
-  const width = Math.max(...points.map(([x]) => x)) - left + CONTEXT_PAD;
-  const height = Math.max(...points.map(([, y]) => y)) - top + CONTEXT_PAD;
-  const scale = Math.min(1, PREVIEW_WIDTH / width, PREVIEW_HEIGHT / height);
+  const width2 = Math.max(...points.map(([x]) => x)) - left + CONTEXT_PAD;
+  const height2 = Math.max(...points.map(([, y]) => y)) - top + CONTEXT_PAD;
+  const scale = Math.min(1, PREVIEW_WIDTH / width2, PREVIEW_HEIGHT / height2);
   return {
     strokes,
     box: geometry?.box,
     target: geometry?.target,
     left,
     top,
-    width,
-    height,
+    width: width2,
+    height: height2,
     scale
   };
 }
@@ -602,17 +602,17 @@ function drawingThumbnail(drawing2, target) {
   canvas.style.color = "var(--accent)";
   let picture = readPicture(drawing2, target);
   const sizeCanvas = () => {
-    const width = Math.ceil(picture.width * picture.scale);
-    const height = Math.ceil(picture.height * picture.scale);
-    if (canvas.width !== width) canvas.width = width;
-    if (canvas.height !== height) canvas.height = height;
+    const width2 = Math.ceil(picture.width * picture.scale);
+    const height2 = Math.ceil(picture.height * picture.scale);
+    if (canvas.width !== width2) canvas.width = width2;
+    if (canvas.height !== height2) canvas.height = height2;
   };
   sizeCanvas();
   const paintInk = () => {
-    const { strokes, left, top, width, height } = picture;
+    const { strokes, left, top, width: width2, height: height2 } = picture;
     const ctx = canvas.getContext("2d");
     ctx.save();
-    ctx.scale(canvas.width / width, canvas.height / height);
+    ctx.scale(canvas.width / width2, canvas.height / height2);
     ctx.translate(-left, -top);
     ctx.strokeStyle = getComputedStyle(canvas).color;
     ctx.lineWidth = 3;
@@ -635,9 +635,9 @@ function drawingThumbnail(drawing2, target) {
     sizeCanvas();
     canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
     paintInk();
-    const { box, left, top, width, height } = picture;
+    const { box, left, top, width: width2, height: height2 } = picture;
     const { blob, warnings } = await pageImage(
-      { x: scrollX + box.left + left, y: scrollY + box.top + top, width, height },
+      { x: scrollX + box.left + left, y: scrollY + box.top + top, width: width2, height: height2 },
       { exclude: [LEAF_SURFACE] }
     );
     const image = await window.createImageBitmap(blob);
@@ -2320,23 +2320,23 @@ function createResponseSurface({
       clearFab();
     } else {
       const previousFloating = usesPlacement;
-      const same4 = sameAnchor(previous, anchor);
-      const keptInline = Boolean(fabInlineOutlet?.isConnected && previous && same4);
+      const same5 = sameAnchor(previous, anchor);
+      const keptInline = Boolean(fabInlineOutlet?.isConnected && previous && same5);
       if (fabInlineOutlet && !keptInline) restoreFab({ place: false });
-      if (!same4) {
+      if (!same5) {
         if (previous) composer.resetResponseOptions();
         placement?.release();
       }
-      const stands = point !== void 0 ? point : same4 ? fabPoint : null;
+      const stands = point !== void 0 ? point : same5 ? fabPoint : null;
       const pointMoved = stands !== fabPoint;
       fabPoint = stands;
-      if (!same4 || !place3 || pointMoved || !previousFloating && !keptInline)
+      if (!same5 || !place3 || pointMoved || !previousFloating && !keptInline)
         stopFabPositioning({ reset: true });
       fabAnchor.value = anchor;
       usesPlacement = Boolean(placement) && place3 && !keptInline;
       paintFab();
       if (usesPlacement && !placement.place({ reveal: reveal2 })) {
-        if (same4 && placement.stands()) placement.withhold();
+        if (same5 && placement.stands()) placement.withhold();
         else clearFab();
       }
     }
@@ -3037,15 +3037,15 @@ function createDrawingController({
     repaint2();
   }
   function targetNearest({ x, y }) {
-    const near = visibleTargets().filter(({ rect: rect2 }) => rect2?.width && rect2?.height).map((target) => ({
+    const near2 = visibleTargets().filter(({ rect: rect2 }) => rect2?.width && rect2?.height).map((target) => ({
       target,
       distance: Math.hypot(
         Math.max(target.rect.left - x, 0, x - target.rect.right),
         Math.max(target.rect.top - y, 0, y - target.rect.bottom)
       )
     }));
-    const nearest = Math.min(...near.map(({ distance }) => distance));
-    const close = near.filter(({ distance }) => distance <= nearest + NEAR_ENOUGH);
+    const nearest = Math.min(...near2.map(({ distance }) => distance));
+    const close = near2.filter(({ distance }) => distance <= nearest + NEAR_ENOUGH);
     return close.filter(
       ({ target }) => !close.some(
         (other) => other.target.element !== target.element && under(other.target.element, target.element)
@@ -3563,13 +3563,13 @@ function drawingFrame(strokes) {
   const right = Math.max(...xs);
   const top = Math.min(...ys);
   const bottom = Math.max(...ys);
-  const width = Math.max(right - left, FRAME_MIN);
-  const height = Math.max(bottom - top, FRAME_MIN);
+  const width2 = Math.max(right - left, FRAME_MIN);
+  const height2 = Math.max(bottom - top, FRAME_MIN);
   return {
-    x: (left + right - width) / 2,
-    y: (top + bottom - height) / 2,
-    width,
-    height
+    x: (left + right - width2) / 2,
+    y: (top + bottom - height2) / 2,
+    width: width2,
+    height: height2
   };
 }
 var pathData = (strokes) => strokes.flatMap(
@@ -3592,20 +3592,20 @@ function createDrawingInk({ drawings }) {
   let mounted = /* @__PURE__ */ new Map();
   let mounting = /* @__PURE__ */ new Map();
   const observed = /* @__PURE__ */ new Set();
-  const sizes = sizeObserver(() => shifted());
+  const sizes = sizeObserver(() => shifted2());
   function mark(drawing2, target, className, id = "") {
     if (!drawing2) return null;
     const geometry = drawingGeometry(drawing2, target);
     if (!geometry) return null;
     const { box, strokes } = geometry;
     const frame = drawingFrame(strokes);
-    const { width, height } = frame;
-    if (!width || !height) return null;
+    const { width: width2, height: height2 } = frame;
+    if (!width2 || !height2) return null;
     const rect2 = {
       left: box.left + frame.x,
       top: box.top + frame.y,
-      right: box.left + frame.x + width,
-      bottom: box.top + frame.y + height
+      right: box.left + frame.x + width2,
+      bottom: box.top + frame.y + height2
     };
     const data = pathData(strokes);
     const described = JSON.stringify([className, id, frame, data]);
@@ -3652,7 +3652,7 @@ function createDrawingInk({ drawings }) {
         observed.add(target);
       }
   }
-  function shifted() {
+  function shifted2() {
     if (paintFrame) return;
     paintFrame = nextRender(() => {
       paintFrame = 0;
@@ -3668,7 +3668,7 @@ function createDrawingInk({ drawings }) {
     mounting.clear();
     ink.clear();
   }
-  return { layer, paint, shifted, destroy };
+  return { layer, paint, shifted: shifted2, destroy };
 }
 
 // runtime/composing/aim.js
@@ -4555,8 +4555,8 @@ ${searchCount(maximum, maximum)}`
     const current = matches.value[active];
     if (!query || !current || pageText() === matchesIn) return false;
     const found = find(query);
-    const same4 = found.findIndex((candidate) => sameMatch(candidate, current));
-    active = same4 >= 0 ? same4 : found.length ? Math.min(active, found.length - 1) : -1;
+    const same5 = found.findIndex((candidate) => sameMatch(candidate, current));
+    active = same5 >= 0 ? same5 : found.length ? Math.min(active, found.length - 1) : -1;
     matches.value = found;
     if (repeatedSearch && !pageSearchOpen && active >= 0) repeatedSearch.index = active;
     return true;
@@ -6295,6 +6295,225 @@ function paintStatusContext(goToStatus) {
   if (!same2(context, before)) for (const invalidate of presenters) invalidate();
 }
 
+// runtime/box-motion.js
+var near = (a, b) => Math.abs(a - b) < 0.5;
+var boxOf = (rect2) => ({
+  left: rect2.left,
+  top: rect2.top,
+  right: rect2.right,
+  bottom: rect2.bottom
+});
+var width = (box) => box.right - box.left;
+var height = (box) => box.bottom - box.top;
+var same3 = (a, b) => ["left", "top", "right", "bottom"].every((side) => near(a[side], b[side]));
+var between = (from, to, progress) => Object.fromEntries(
+  Object.keys(to).map((side) => [side, from[side] + (to[side] - from[side]) * progress])
+);
+var shifted = (box, dx, dy) => ({
+  left: box.left + dx,
+  top: box.top + dy,
+  right: box.right + dx,
+  bottom: box.bottom + dy
+});
+var insetOf = ([top, right, bottom, left], radius = 0) => `inset(${top}px ${right}px ${bottom}px ${left}px round ${radius}px)`;
+var radiusOf = (style) => Number.parseFloat(style.borderTopLeftRadius) || 0;
+var paints = (style) => !/^(transparent|rgba\(.*,\s*0\))$/.test(style.backgroundColor) || style.backgroundImage !== "none" || style.boxShadow !== "none" || ["Top", "Right", "Bottom", "Left"].some(
+  (side) => Number.parseFloat(style[`border${side}Width`]) > 0
+);
+var rings = (style) => style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) > 0;
+function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], observer }) {
+  let rests = null;
+  let motions = /* @__PURE__ */ new Map();
+  let running = [];
+  let observed = /* @__PURE__ */ new Set();
+  function read(element, into) {
+    const style = getComputedStyle(element);
+    if (style.display === "contents") {
+      for (const child of element.children) read(child, into);
+      return;
+    }
+    if (!element.checkVisibility()) return;
+    const part = {
+      element,
+      style,
+      box: boxOf(element.getBoundingClientRect()),
+      window: style.position === "fixed",
+      parts: []
+    };
+    part.whole = element.localName.includes("-") || element instanceof SVGElement || /auto|scroll/.test(`${style.overflowX} ${style.overflowY}`) || element.childElementCount === 0 || [...element.childNodes].some(
+      (node) => node.nodeType === Node.TEXT_NODE && node.data.trim()
+    );
+    if (!part.whole) for (const child of element.children) read(child, part.parts);
+    part.holdsWindow = part.parts.some((inner) => inner.window || inner.holdsWindow);
+    into.push(part);
+  }
+  function drawn2() {
+    const progress = running[0]?.effect.getComputedTiming().progress ?? 1;
+    const offsets = /* @__PURE__ */ new Map();
+    const offset = (carrier) => {
+      if (!offsets.has(carrier)) {
+        const { from, to } = motions.get(carrier);
+        const now = between(from, to, progress);
+        offsets.set(carrier, [now.left - to.left, now.top - to.top]);
+      }
+      return offsets.get(carrier);
+    };
+    const at = /* @__PURE__ */ new Map();
+    for (const [element, rest] of rests) {
+      const motion = motions.get(element);
+      let where = motion ? between(motion.from, motion.to, progress) : rest;
+      for (let up = element.parentElement; up && up !== root; up = up.parentElement)
+        if (motions.get(up)?.carries) where = shifted(where, ...offset(up));
+      at.set(element, where);
+    }
+    return at;
+  }
+  function follow(timing) {
+    const before = rests;
+    const was = timing && before ? drawn2() : null;
+    for (const animation of running) animation.cancel();
+    running = [];
+    motions = /* @__PURE__ */ new Map();
+    const parts = [];
+    read(root, parts);
+    rests = /* @__PURE__ */ new Map();
+    const note = (part) => {
+      rests.set(part.element, part.box);
+      part.parts.forEach(note);
+    };
+    parts.forEach(note);
+    for (const element of observed) if (!rests.has(element)) observer.unobserve(element);
+    for (const element of rests.keys()) if (!observed.has(element)) observer.observe(element);
+    observed = new Set(rests.keys());
+    const space = boxOf(room.getBoundingClientRect());
+    const outline = (at, grow, radius) => insetOf(
+      [
+        at.top - space.top - grow,
+        space.right - at.right - grow,
+        space.bottom - at.bottom - grow,
+        at.left - space.left - grow
+      ],
+      radius + grow
+    );
+    const boxAt = rests.get(box);
+    const boxRadius = radiusOf(getComputedStyle(box));
+    for (const [layer, grow] of surface())
+      keeps(layer, "style", `clip-path: ${outline(boxAt, grow, boxRadius)}`);
+    if (!was?.has(box)) return;
+    const boxFrom = was.get(box);
+    const rtl = getComputedStyle(box).direction === "rtl";
+    const start = (element, keyframes) => running.push(element.animate(keyframes, timing));
+    const hold = (element, property, value) => start(element, [{ [property]: value }, { [property]: value }]);
+    const move2 = (element, dx, dy) => start(element, [
+      { translate: `${dx}px ${dy}px`, composite: "add" },
+      { translate: "0px 0px", composite: "add" }
+    ]);
+    const cutFrom = (element, cut, radius = 0) => start(element, [
+      { clipPath: insetOf(cut, radius) },
+      { clipPath: insetOf([0, 0, 0, 0], radius) }
+    ]);
+    function carry(part, from) {
+      const dx = from.left - part.box.left;
+      const dy = from.top - part.box.top;
+      if (near(dx, 0) && near(dy, 0)) return;
+      motions.set(part.element, { from, to: part.box, carries: true });
+      move2(part.element, dx, dy);
+    }
+    function carryContent(part, from) {
+      const to = part.box;
+      let dx = rtl ? from.right - to.right : from.left - to.left;
+      let dy = from.top - to.top;
+      const end = Math.max(0, width(to) - width(from));
+      const foot = Math.max(0, height(to) - height(from));
+      const cut = rtl ? [0, 0, foot, end] : [0, end, foot, 0];
+      motions.set(part.element, { from, to, carries: true });
+      if (!part.element.matches(TEXT_FIELD)) {
+        move2(part.element, dx, dy);
+        cutFrom(part.element, cut);
+        return;
+      }
+      dx = rtl ? Math.min(0, dx) : Math.max(0, dx);
+      dy = Math.max(0, dy);
+      start(part.element, [
+        {
+          "--lf-field-carry": `${dx}px ${dy}px`,
+          "--lf-field-cut": cut.map((side) => `${side}px`).join(" ")
+        },
+        { "--lf-field-carry": "0px 0px", "--lf-field-cut": "0px 0px 0px 0px" }
+      ]);
+    }
+    function reveal2(part, frame) {
+      const to = part.box;
+      const side = (inset, beyond) => beyond ? 0 : Math.max(0, inset);
+      const cut = [
+        side(frame.from.top - to.top, to.top < frame.to.top - 0.5),
+        side(to.right - frame.from.right, to.right > frame.to.right + 0.5),
+        side(to.bottom - frame.from.bottom, to.bottom > frame.to.bottom + 0.5),
+        side(frame.from.left - to.left, to.left < frame.to.left - 0.5)
+      ];
+      if (!cut.every((inset) => near(inset, 0))) cutFrom(part.element, cut);
+    }
+    function place3(part, frame) {
+      const { element, style, box: to } = part;
+      const from = was.get(element);
+      if (!from) return reveal2(part, frame);
+      const rest = before.get(element);
+      const sized = near(width(rest), width(to)) && near(height(rest), height(to));
+      let within = frame;
+      if (element !== box && element !== root) {
+        if (sized && !part.holdsWindow) return carry(part, from);
+        if (part.whole) return carryContent(part, from);
+        if (!same3(from, to)) {
+          motions.set(element, { from, to });
+          within = { from, to };
+        }
+        if (!sized && rings(style)) {
+          const grow = Number.parseFloat(style.outlineWidth) + Number.parseFloat(style.outlineOffset);
+          const radius = radiusOf(style);
+          hold(element, "outlineColor", "transparent");
+          keeps(ringLayer, "style", `background: ${style.outlineColor}`);
+          for (const [layer, reach2] of [
+            [ringLayer, grow],
+            [ringFill, 0]
+          ])
+            start(layer, [
+              { clipPath: outline(from, reach2, radius) },
+              { clipPath: outline(to, reach2, radius) }
+            ]);
+        } else if (!sized && paints(style) && !part.holdsWindow)
+          cutFrom(
+            element,
+            [
+              from.top - to.top,
+              to.right - from.right,
+              to.bottom - from.bottom,
+              from.left - to.left
+            ].map((inset) => Math.max(0, inset)),
+            radiusOf(style)
+          );
+      }
+      for (const inner of part.parts) place3(inner, within);
+    }
+    for (const part of parts) place3(part, { from: boxFrom, to: boxAt });
+    if (running.length === 0 && same3(boxFrom, boxAt)) return;
+    motions.set(box, { from: boxFrom, to: boxAt });
+    for (const [layer, grow] of surface())
+      start(layer, [
+        { clipPath: outline(boxFrom, grow, boxRadius) },
+        { clipPath: outline(boxAt, grow, boxRadius) }
+      ]);
+    hold(box, "backgroundColor", "transparent");
+    hold(box, "overflow", "visible");
+  }
+  return {
+    follow,
+    // The window changed size: the next reading takes the box as it stands.
+    forget() {
+      rests = null;
+    }
+  };
+}
+
 // runtime/floating-panel.js
 var prefs = () => document.documentElement.lfChrome;
 var EASE = "cubic-bezier(.23, 1, .32, 1)";
@@ -6822,144 +7041,50 @@ function createFloatingPanel({
     const target = level ? page?.querySelector(".lf-fp-item:not(.lf-fp-menu-back, :disabled)") : before && menu.querySelector(`[data-row="${levelRow(before)}"]`);
     if (target) focusDestination(target, "move");
   }
-  let outline = null;
   let viewMovingUntil = 0;
-  let riding = [];
-  let lastEditor = null;
-  const outlineClip = (box, grow = 0) => `inset(${box.top - grow}px ${box.right - grow}px ${box.bottom - grow}px ${box.left - grow}px round ${box.radius + grow}px)`;
-  const clipTop = (clip) => Number.parseFloat(/inset\(([-\d.]+)px/.exec(clip)?.[1]);
-  const within = (room2, element) => {
-    const rect2 = element.getBoundingClientRect();
-    return {
-      top: rect2.top - room2.top,
-      right: room2.right - rect2.right,
-      bottom: room2.bottom - rect2.bottom,
-      left: rect2.left - room2.left,
-      width: rect2.width,
-      height: rect2.height,
-      radius: Number.parseFloat(getComputedStyle(element).borderTopLeftRadius) || 0
-    };
-  };
-  const near = (a, b) => Math.abs(a - b) < 0.5;
+  const follow = sizeObserver(() => {
+    readCorner();
+    followBox();
+  });
+  const motion = boxMotion({
+    root: host,
+    box: card,
+    room: ground,
+    // The ground is cut too, to the outline grown by its shadow's reach (`--raise-2`'s
+    // blur dropped by its drop, theme.css), so it stands over nothing else in the
+    // window: a layer over the whole window that paints nothing left every word under
+    // it unmeasured by a contrast checker. Its cut moves with the ring's, so it holds
+    // the ring every frame.
+    surface: () => {
+      const lift = getComputedStyle(ground);
+      const shadowReach = ["--raise-2-drop", "--raise-2-blur"].map((token) => Number.parseFloat(lift.getPropertyValue(token))).reduce((reach2, part) => reach2 + part);
+      return [
+        [ground, shadowReach],
+        [ring, 1],
+        [fill, 0]
+      ];
+    },
+    ring: [fieldRing, fieldFill],
+    observer: follow
+  });
   function followBox() {
-    const room2 = ground.getBoundingClientRect();
-    const next = within(room2, card);
-    const editor = [...row.querySelectorAll(":scope > .lf-fp-field leaf-text")].find(
-      (text) => text.checkVisibility()
-    );
-    const grew = lastEditor;
-    lastEditor = editor ? { editor, height: editor.getBoundingClientRect().height } : null;
-    const was = outline;
-    if (was && ["top", "right", "bottom", "left", "radius"].every(
-      (side) => near(was[side], next[side])
-    ))
-      return;
-    outline = next;
+    const box = card.getBoundingClientRect();
     setRuntimeRootStyle(
       document.documentElement,
       "--lf-panel-reach",
-      layoutPx(next.height > 0 ? next.bottom + next.height : 0)
+      layoutPx(box.height > 0 ? ground.getBoundingClientRect().bottom - box.top : 0)
     );
+    const moving = !reducedMotion() && pagePresented();
     const duration = performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
-    const moving = Boolean(was) && !reducedMotion() && pagePresented();
-    const standing = moving && fill.getAnimations().length ? clipTop(getComputedStyle(fill).clipPath) : was?.top;
-    const revealing = card.getAnimations().some((running) => !riding.includes(running));
-    for (const running of [...riding, ...card.getAnimations()]) running.cancel();
-    riding = [];
-    const ride = moving && !revealing && lastEditor !== null && grew?.editor === lastEditor.editor && near(was.width, next.width) && near(was.bottom, next.bottom) && near(lastEditor.height - grew.height, next.height - was.height);
-    const lift = getComputedStyle(ground);
-    const shadowReach = ["--raise-2-drop", "--raise-2-blur"].map((token) => Number.parseFloat(lift.getPropertyValue(token))).reduce((reach2, part) => reach2 + part);
-    const timing = { duration, easing: EASE };
-    for (const [layer, grow] of [
-      [ground, shadowReach],
-      [ring, 1],
-      [fill, 0]
-    ]) {
-      const from = was ? getComputedStyle(layer).clipPath : null;
-      for (const running of layer.getAnimations()) running.cancel();
-      keeps(layer, "style", `clip-path: ${outlineClip(next, grow)}`);
-      if (moving)
-        layer.animate(
-          [{ clipPath: from }, { clipPath: outlineClip(next, grow) }],
-          timing
-        );
-    }
-    if (!moving) return;
-    if (ride) {
-      const lag = standing - next.top;
-      const shifted = { translate: `0 ${lag}px` };
-      const rest = { translate: "0 0" };
-      const riders = [
-        opened,
-        context2,
-        ...row.querySelectorAll(":scope > .lf-fp-expand"),
-        ...row.querySelectorAll(".lf-composer-media:not([hidden])")
-      ];
-      for (const rider of riders) riding.push(rider.animate([shifted, rest], timing));
-      if (lag > 0)
-        riding.push(
-          editor.animate(
-            [{ "--lf-field-ride": `${lag}px` }, { "--lf-field-ride": "0px" }],
-            timing
-          )
-        );
-      const hold = (property, value) => [{ [property]: value }, { [property]: value }];
-      riding.push(
-        card.animate(hold("backgroundColor", "transparent"), timing),
-        card.animate(hold("overflow", "visible"), timing)
-      );
-      let wearer = null;
-      for (let box = editor; box && box !== row; box = box.parentElement)
-        if (getComputedStyle(box).outlineStyle !== "none") wearer = box;
-      if (wearer) {
-        const { outlineColor, outlineWidth } = getComputedStyle(wearer);
-        const to = within(room2, wearer);
-        const from = { ...to, top: to.top + lag };
-        riding.push(wearer.animate(hold("outlineColor", "transparent"), timing));
-        keeps(fieldRing, "style", `background: ${outlineColor}`);
-        for (const [layer, grow] of [
-          [fieldRing, Number.parseFloat(outlineWidth)],
-          [fieldFill, 0]
-        ])
-          riding.push(
-            layer.animate(
-              [
-                { clipPath: outlineClip(from, grow) },
-                { clipPath: outlineClip(to, grow) }
-              ],
-              timing
-            )
-          );
-      }
-      return;
-    }
-    if (next.width <= was.width + 0.5 && next.height <= was.height + 0.5) return;
-    const inside = {
-      top: Math.max(0, standing - next.top),
-      right: Math.max(0, was.right - next.right),
-      bottom: Math.max(0, was.bottom - next.bottom),
-      left: Math.max(0, was.left - next.left),
-      radius: was.radius
-    };
-    card.animate(
-      [
-        { clipPath: outlineClip(inside) },
-        { clipPath: `inset(0 round ${next.radius}px)` }
-      ],
-      timing
-    );
+    motion.follow(moving ? { duration, easing: EASE } : null);
   }
   const fit = sizeObserver(() => {
     landReader();
     fitAnswer();
     stood = openView()?.offsetHeight ?? null;
   });
-  const follow = sizeObserver(() => {
-    readCorner();
-    followBox();
-  });
   addEventListener("resize", () => {
-    outline = null;
+    motion.forget();
     followBox();
   });
   let onPageSeat = false;
@@ -6980,10 +7105,10 @@ function createFloatingPanel({
   let drawnTop = null;
   let stood = null;
   let rewriting = false;
-  const holdThread = (height) => {
-    if (trail.value.at(-1)?.view !== "thread" || room !== null || height === null)
+  const holdThread = (height2) => {
+    if (trail.value.at(-1)?.view !== "thread" || room !== null || height2 === null)
       return false;
-    room = height;
+    room = height2;
     return true;
   };
   let pressed = null;
@@ -7061,7 +7186,7 @@ function createFloatingPanel({
   }
   let drawnThread = null;
   let waiting = null;
-  const drawnNode = (within2, key) => within2?.querySelector(
+  const drawnNode = (within, key) => within?.querySelector(
     isFace(key) ? `${WORKING}[data-face="${CSS.escape(key.slice(FACE.length))}"]` : `.lf-msg[data-message="${CSS.escape(key)}"]`
   ) ?? null;
   let fitted = null;
@@ -10924,7 +11049,7 @@ function placeStanceExit() {
   });
 }
 var sameStance = (a, b) => a?.label === b?.label && a?.disabled === b?.disabled;
-var same3 = (a, b) => a?.label === b?.label && a?.disabled === b?.disabled && a?.shortcut.join(" ") === b?.shortcut.join(" ");
+var same4 = (a, b) => a?.label === b?.label && a?.disabled === b?.disabled && a?.shortcut.join(" ") === b?.shortcut.join(" ");
 function paintTouchControls() {
   const shown = new Set(touchPresses().map(place2));
   let changed = false;
@@ -10945,7 +11070,7 @@ function paintTouchControls() {
       shortcut: binding ? [spell(binding)] : [],
       disabled: !live(press.row)
     } : void 0;
-    if (same3(next, faces.get(id))) continue;
+    if (same4(next, faces.get(id))) continue;
     changed = true;
     if (next) faces.set(id, next);
     else faces.delete(id);

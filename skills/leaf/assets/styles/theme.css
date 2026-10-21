@@ -899,11 +899,17 @@ html[data-lf-interactive] [data-lf-arriving] {
   inherits: true;
   initial-value: 0px;
 }
-/* How far below their places a text field draws its words, while an owner's tween
-   carries them with an edge the field's growth moved (composing/text-field.js). At
-   rest it is `none`, which leaves the words untransformed. */
-@property --lf-field-ride {
-  syntax: "<length> | none";
+/* How far across and down from their places a text field draws its words, and how much
+   of its box it cuts them to from each side, while an owner's tween carries them with
+   the field's edges (composing/text-field.js, runtime/box-motion.js). At rest both are
+   `none`, which leaves the words untransformed and uncut. */
+@property --lf-field-carry {
+  syntax: "<length>+ | none";
+  inherits: true;
+  initial-value: none;
+}
+@property --lf-field-cut {
+  syntax: "<length>+ | none";
   inherits: true;
   initial-value: none;
 }

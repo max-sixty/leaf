@@ -959,7 +959,8 @@ def run(dir: str, host: str | None, persistent: bool, temporary: bool) -> None:
     from leaf.hosting import cmd_serve, cmd_serve_temporary
     from leaf.leases import release_on_termination
 
-    # As for `_serve`: a SIGTERM or a closed terminal's SIGHUP unwinds.
+    # As for `_serve`, except that a temporary server, which holds no lease,
+    # unwinds on every stop.
     release_on_termination()
     page_dir = resolve_dir(dir)
     if temporary:
@@ -996,9 +997,9 @@ def _serve(
     from leaf.hosting import cmd_serve
     from leaf.leases import release_on_termination
 
-    # Uvicorn answers SIGTERM by stopping, then raises it again under the handler
-    # it found, so this exit unwinds and runs the exit handlers, which stop a
-    # title request's App Server (`codex.private_app_server`).
+    # Until the server starts serving, a SIGTERM or SIGHUP unwinds and retires
+    # what preparation holds. From then on a stop signal ends the process through
+    # `exit_serving` (`server.exit_serving_on_signals`).
     release_on_termination()
     with Handshake(handshake) as answer:
         cmd_serve(

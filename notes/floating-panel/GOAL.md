@@ -31,12 +31,13 @@ the code now records each decision beside the rules that carry it.
   ring** while it holds the caret, so a key that moves the caret there, `c` among
   them, shows where the words will go (the user's pick, #3097). A dark frame around
   the field at rest was the previous attempt's "form" look.
-- **While the user types, Send floats in the field's end corner,** as an anchored
-  comment box's does, and the counts step aside for the field; they come back when
-  the caret leaves, and the line naming where the words go stays while the field holds
-  words. Every line but the last runs the field's width. (The user chose the corner on
-  15 October over Send standing beside the words, which kept its width empty beside
-  every line.)
+- **While the field holds a draft, Send floats in the field's end corner,** as an
+  anchored comment box's does, and the counts step aside for the field; they come back
+  when the field empties, not when the caret leaves, so a draft the user steps away
+  from rewraps nothing (the user's choice on 20 October, reversing the counts coming
+  back as the caret left). Every line but the last runs the field's width. (The user
+  chose the corner on 15 October over Send standing beside the words, which kept its
+  width empty beside every line.)
 - **A long draft offers more room at a press:** past three lines a mark over the
   field's end widens the panel to 760px and lets the field take most of the window;
   it folds back when the field empties. The user chose this on 15 October over the

@@ -3135,9 +3135,9 @@ export function createFloatingPanel({
             : nothing
         }<button
           type="button"
-          class="lf-fp-icon-btn lf-fp-settle ${thread.resolved
-            ? "lf-reopen"
-            : "lf-resolve"}"
+          class="lf-fp-icon-btn lf-fp-settle ${
+            thread.resolved ? "lf-reopen" : "lf-resolve"
+          }"
           aria-label=${thread.resolved ? "Reopen" : "Resolve thread"}
           title=${thread.resolved ? "Reopen" : "Resolve thread"}
           aria-disabled=${String(

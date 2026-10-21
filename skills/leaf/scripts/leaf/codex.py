@@ -1840,6 +1840,8 @@ RECORD_SCHEMA = {
             {
                 "properties": {
                     "pending": {
+                        "description": "The indexes into `batches` whose page "
+                        "receipts are still to be written.",
                         "type": "array",
                         "items": {"type": "integer", "minimum": 0},
                     }
@@ -1850,7 +1852,14 @@ RECORD_SCHEMA = {
         _when_variant(
             lambda variant: "turn" in {item.name for item in fields(variant)},
             {
-                "properties": {"turn": {"type": "string", "minLength": 1}},
+                "properties": {
+                    "turn": {
+                        "description": "The Codex turn that carries the delivery: "
+                        "the one its hook ran in, or the one Leaf opened for it.",
+                        "type": "string",
+                        "minLength": 1,
+                    }
+                },
                 "required": ["turn"],
             },
         ),

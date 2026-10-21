@@ -15,6 +15,7 @@ import pytest
 from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
+    declare,
     read_record,
     serving,
     wait_for,
@@ -184,9 +185,10 @@ def test_the_band_follows_the_pages_the_session_holds(
     page_dir, claude_code, monkeypatch
 ):
     """Above the prompt, each page the session holds is a link with the counts its
-    Leaf panel marks: On me, open threads, and those holding words the user hasn't
-    read. The band redraws as the page's row changes, and empties once the session
-    holds no page."""
+    Leaf panel marks that aren't zero: On me, open threads, and those holding words
+    the user hasn't read; then what the agent last said it waits for. The band
+    redraws as the page's row changes, and empties once the session holds no
+    page."""
 
     def band(expected):
         server_rows_model.RowPublisher(page_dir, server_id).refresh()
@@ -200,22 +202,22 @@ def test_the_band_follows_the_pages_the_session_holds(
     server_rows_model.RowPublisher(page_dir, server_id).refresh()
     published = server_rows_model.ROW.read(server_rows_model.row_path(page_dir))["row"]
     url, title = server_model.running_server(page_dir)["url"], published["title"]
-    band([(f"Leaf {title} · On me 0 · Threads 0", url)])
+    band([(f"Leaf {title}", url)])
     # A /clear ends the session and starts none; the next turn follows again.
     claude_code.emit(
         "session.end", {"reason": "clear", "sessionId": claude_code.session}
     )
     band([])
     claude_code.start_turn()
-    band([(f"Leaf {title} · On me 0 · Threads 0", url)])
+    band([(f"Leaf {title}", url)])
     comment = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "why?"}
     )
-    band([(f"Leaf {title} · On me 0 · Threads 1", url)])
+    band([(f"Leaf {title} · Threads 1", url)])
     thread_model.post_reply(
         page_dir, {"parent": comment["id"], "responds": comment["id"]}, "Because."
     )
-    band([(f"Leaf {title} · On me 0 · Threads 1, 1 new", url)])
+    band([(f"Leaf {title} · Threads 1, 1 new", url)])
     append_carried_log_record(
         page_dir,
         {
@@ -227,6 +229,8 @@ def test_the_band_follows_the_pages_the_session_holds(
         },
     )
     band([(f"Leaf {title} · On me 1 · Threads 1, 1 new", url)])
+    declare(page_dir, detail="Pick a layout")
+    band([(f"Leaf {title} · On me 1 · Threads 1, 1 new · Pick a layout", url)])
     # Another session takes the page, so this one holds none.
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "cc-s2")
     service_model.claim_page(page_dir)

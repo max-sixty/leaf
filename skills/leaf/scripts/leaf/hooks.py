@@ -217,7 +217,7 @@ def cmd_watch(harness: str, payload: dict) -> str | None:
 
 
 # What `cmd_pages` prints of each page, so a change to anything else stays quiet.
-SHOWN_FIELDS = ("page_key", "url", "title", "on_user", "threads")
+SHOWN_FIELDS = ("page_key", "url", "title", "on_user", "threads", "activity")
 
 
 def cmd_pages(payload: dict) -> None:

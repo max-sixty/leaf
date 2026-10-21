@@ -72,9 +72,9 @@ Chrome, then the first `google-chrome`, `google-chrome-stable`, `chrome`,
 
 In Claude Code, Leaf's hooks module watches the session's pages between turns,
 including after a turn you interrupt, and shows a line above the prompt for each
-page the session holds: a link to the page, what is On you, and its open threads with
-how many have replies you haven't read. Hooks modules are an early-access Claude Code
-feature. Where the module can't wake the session, as in a Claude Code that loads no
+page the session holds: a link to the page, what is On you, its open threads with
+how many have replies you haven't read, and what the agent is doing or waiting for.
+Hooks modules are an early-access Claude Code feature. Where the module can't wake the session, as in a Claude Code that loads no
 hooks module or after you press Escape, a page messages its session when input
 arrives. A session
 that bypasses permissions holds that message for your approval unless Claude Code's

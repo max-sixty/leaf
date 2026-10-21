@@ -525,36 +525,32 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     bounds = comparison.bounding_box()
     assert bounds is not None
     image_point = (bounds["x"] + bounds["width"] / 4, bounds["y"] + 80)
+    handle_opacity = """async node => {
+      const handle = node.shadowRoot.querySelector('[part~="handle"]');
+      await Promise.all(handle.getAnimations().map(animation => animation.finished));
+      return parseFloat(getComputedStyle(handle).opacity);
+    }"""
+    # Reading the frames with the pointer leaves the handle faint over them; the
+    # pointer on the handle itself brings it up.
     page.mouse.move(*image_point)
-    active_midpoint = comparison.evaluate(
-        """async node => {
-          const handle = node.shadowRoot.querySelector('[part~="handle"]');
-          await Promise.all(handle.getAnimations().map(animation => animation.finished));
-          return parseFloat(getComputedStyle(handle).opacity);
+    assert 0.45 < comparison.evaluate(handle_opacity) < 0.6
+    handle_box = comparison.evaluate(
+        """node => {
+          const box = node.shadowRoot.querySelector('[part~="handle"]')
+            .getBoundingClientRect();
+          return [box.x + box.width / 2, box.y + box.height / 2];
         }"""
     )
-    assert active_midpoint == 1
+    page.mouse.move(*handle_box)
+    assert comparison.evaluate(handle_opacity) == 1
+    page.mouse.move(*image_point)
     page.mouse.down()
     page.mouse.up()
     expect(comparison).to_have_attribute("position", "0")
     page.mouse.move(0, 0)
-    quiet_handle = comparison.evaluate(
-        """async node => {
-          const handle = node.shadowRoot.querySelector('[part~="handle"]');
-          await Promise.all(handle.getAnimations().map(animation => animation.finished));
-          return parseFloat(getComputedStyle(handle).opacity);
-        }"""
-    )
-    assert quiet_handle < 0.25
+    assert comparison.evaluate(handle_opacity) < 0.25
     handle.focus()
-    active_handle = comparison.evaluate(
-        """async node => {
-          const handle = node.shadowRoot.querySelector('[part~="handle"]');
-          await Promise.all(handle.getAnimations().map(animation => animation.finished));
-          return parseFloat(getComputedStyle(handle).opacity);
-        }"""
-    )
-    assert active_handle == 1
+    assert comparison.evaluate(handle_opacity) == 1
     page.mouse.click(*image_point)
     expect(comparison).to_have_attribute("position", "100")
     comparison.evaluate("node => { node.position = 50; }")

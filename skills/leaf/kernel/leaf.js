@@ -5687,7 +5687,7 @@ function pageStatus(state, { reach: reach2 = "reached", fault: fault2 = null } =
   if (reach2 !== "reached")
     return {
       kind: "unreachable",
-      tone: "",
+      tone: "blocked",
       summary: "Server offline \u2014 reconnecting",
       explanation: OFFLINE_LINE,
       adds: ""
@@ -6491,7 +6491,7 @@ function createFloatingPanel({
   let query = "";
   let searching = false;
   let writing = false;
-  let typing = false;
+  let drafted = false;
   let postureMoved = true;
   let landAtEnd = null;
   const drawnTurns = () => outletOf()?.querySelectorAll(".lf-msg").length ?? 0;
@@ -6616,7 +6616,7 @@ function createFloatingPanel({
   const fieldInput = () => field.firstElementChild !== replyOutlet ? pageEditor().input : replyOutlet.hidden ? null : replyInput();
   function retype() {
     postureMoved = true;
-    if (Boolean(draftOf(fieldInput()).trim()) !== typing) paint();
+    if (Boolean(draftOf(fieldInput()).trim()) !== drafted) paint();
   }
   field.addEventListener("input", retype);
   let pressedWords = null;
@@ -6842,7 +6842,7 @@ function createFloatingPanel({
   let outline = null;
   let viewMovingUntil = 0;
   let riding = [];
-  let drafted = null;
+  let lastEditor = null;
   const outlineClip = (box, grow = 0) => `inset(${box.top - grow}px ${box.right - grow}px ${box.bottom - grow}px ${box.left - grow}px round ${box.radius + grow}px)`;
   const clipTop = (clip) => Number.parseFloat(/inset\(([-\d.]+)px/.exec(clip)?.[1]);
   const within = (room, element) => {
@@ -6864,8 +6864,8 @@ function createFloatingPanel({
     const editor = [...row.querySelectorAll(":scope > .lf-fp-field leaf-text")].find(
       (text) => text.checkVisibility()
     );
-    const grew = drafted;
-    drafted = editor ? { editor, height: editor.getBoundingClientRect().height } : null;
+    const grew = lastEditor;
+    lastEditor = editor ? { editor, height: editor.getBoundingClientRect().height } : null;
     const was = outline;
     if (was && ["top", "right", "bottom", "left", "radius"].every(
       (side) => near(was[side], next[side])
@@ -6883,7 +6883,7 @@ function createFloatingPanel({
     const revealing = card.getAnimations().some((running) => !riding.includes(running));
     for (const running of [...riding, ...card.getAnimations()]) running.cancel();
     riding = [];
-    const ride = moving && !revealing && drafted !== null && grew?.editor === drafted.editor && near(was.width, next.width) && near(was.bottom, next.bottom) && near(drafted.height - grew.height, next.height - was.height);
+    const ride = moving && !revealing && lastEditor !== null && grew?.editor === lastEditor.editor && near(was.width, next.width) && near(was.bottom, next.bottom) && near(lastEditor.height - grew.height, next.height - was.height);
     const lift = getComputedStyle(ground);
     const shadowReach = ["--raise-2-drop", "--raise-2-blur"].map((token) => Number.parseFloat(lift.getPropertyValue(token))).reduce((reach2, part) => reach2 + part);
     const timing = { duration, easing: EASE };
@@ -7058,9 +7058,10 @@ function createFloatingPanel({
     if (press?.landed) queueMicrotask(() => judgePress(press));
   });
   const inRewrite = (node) => Boolean(node && closestAcross(node, ".lf-msg-editor"));
+  const overPanel = (node) => Boolean(node) && nativeModalAdmits(node) && !nativeModalAdmits(host);
   onStanding((node, cause) => {
     const top = trail.value.at(-1);
-    if (top?.view !== "thread" || cause === "drop") return;
+    if (top?.view !== "thread" || cause === "drop" || overPanel(node)) return;
     const view = openView();
     const writing2 = inRewrite(node) && Boolean(view) && renderedUnder(node, view);
     if (writing2 === rewriting) return;
@@ -8386,12 +8387,12 @@ function createFloatingPanel({
     const input = fieldInput();
     if (input) syncInput(input);
     keeps(host, "data-writing", writing ? "" : null);
-    const typed = writing && Boolean(draftOf(input).trim());
-    if (postureMoved || !typed) typing = typed;
+    const words = Boolean(draftOf(input).trim());
+    if (postureMoved || !words) drafted = words;
     postureMoved = false;
-    keeps(host, "data-typing", typing ? "" : null);
-    keeps(host, "data-words", draftOf(input).trim() ? "" : null);
-    if (!draftOf(input).trim()) expanded = false;
+    keeps(host, "data-drafted", drafted ? "" : null);
+    keeps(host, "data-words", words ? "" : null);
+    if (!words) expanded = false;
     const marked = (long || expanded) && !resting;
     keeps(host, "data-long", marked ? "" : null);
     keeps(host, "data-expanded", expanded ? "" : null);
@@ -8739,7 +8740,6 @@ function createFloatingPanel({
     const next = inside ? writing || node.localName === "leaf-text" : false;
     if (next === writing && !inside) return;
     writing = next;
-    postureMoved = true;
     paint();
   });
   document.addEventListener(

@@ -38,6 +38,7 @@ variants:
         A status and date above a new title uses the shared label idiom without an
         explicit class request.
     vars:
+      now: "2026-10-09T18:00:00-07:00"
       prompt: >-
         Write a short Leaf handover for the On me contract change. Use the title
         "On me lists everything the agent needs from you". Put "Implemented locally

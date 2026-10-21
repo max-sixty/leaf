@@ -323,6 +323,9 @@
   .lf-floating-panel[data-asks][data-tone=blocked] {
     --lf-fp-asks: var(--danger-ink);
   }
+  .lf-floating-panel[data-tone=blocked]:not([data-asks]) .lf-fp-field leaf-text[data-says=status]::part(placeholder) {
+    color: color-mix(in srgb, var(--danger-ink) 62%, transparent);
+  }
   .lf-fp-field .lf-compose-placeholder kbd {
     display: none;
   }
@@ -336,16 +339,16 @@
     min-height: 0;
     padding: 0;
   }
-  .lf-floating-panel[data-writing] .lf-fp-field .lf-compose-field > leaf-text {
+  .lf-floating-panel:is([data-writing], [data-drafted]) .lf-fp-field .lf-compose-field > leaf-text {
     --lf-field-end-room: calc(var(--lf-fp-line) - 6px);
   }
   .lf-fp-field .lf-compose-submit {
     display: none;
   }
-  .lf-floating-panel[data-writing] .lf-fp-field .lf-compose-submit {
+  .lf-floating-panel:is([data-writing], [data-drafted]) .lf-fp-field .lf-compose-submit {
     display: grid;
   }
-  .lf-floating-panel[data-typing] .lf-fp-quick {
+  .lf-floating-panel[data-drafted] .lf-fp-quick {
     display: none;
   }
   .lf-fp-field .lf-compose-dictate {

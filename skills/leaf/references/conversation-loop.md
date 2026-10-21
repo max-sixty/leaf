@@ -20,7 +20,7 @@ status, which the user reads in full in the leaf's menu, or by pointing at the l
 when the panel is folded.
 
 In `leaf page state <page>`, `viewed` is when a browser tab last showed the page, in
-epoch seconds, renewed about every 30 seconds while visible and `null` if nobody has
+epoch seconds, renewed about every 10 seconds while visible and `null` if nobody has
 opened it. Each thread's `unread` lists your messages the user has not read
 ([threads](threads.md#what-the-user-has-read)). Nothing records whether they saw a
 status.

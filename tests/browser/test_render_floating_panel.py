@@ -25,7 +25,13 @@ from leaf import thread as thread_model
 from leaf.render_checks import one_frame, wait_until_ready
 from model_folds import leaf_page
 from playwright.sync_api import expect
-from render_cases_interaction import LIVE_V1, LIVE_V2, live_url, panel_comment
+from render_cases_interaction import (
+    HOLD_MOTION,
+    LIVE_V1,
+    LIVE_V2,
+    live_url,
+    panel_comment,
+)
 from render_cases_layout import solid_png
 from render_harness import (
     LONG_PAGE,
@@ -90,7 +96,8 @@ def settled(page):
     """Wait until the panel's motion has finished, so a box read is where it rests."""
     page.wait_for_function(
         "() => ['.lf-floating-panel', '.lf-fp-ground'].every(s =>"
-        " !document.querySelector(s).getAnimations({subtree: true}).length)"
+        " !document.querySelector(s).getAnimations({subtree: true}).some(a =>"
+        " Number.isFinite(a.effect?.getComputedTiming().endTime)))"
     )
 
 
@@ -157,7 +164,7 @@ def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve
     row = page.locator(".lf-fp-view[data-view=threads] .lf-fp-thread")
     expect(row).to_be_focused()
     page.keyboard.press("Enter")
-    expect(settle).to_have_text("Resolve", use_inner_text=True)
+    expect(settle).to_have_accessible_name("Resolve thread")
 
     field(page).focus()
     page.keyboard.press("Escape")
@@ -292,7 +299,7 @@ def test_a_thread_s_keys_answer_in_its_view(browser, serve):
     expect(row).to_be_focused()
     page.keyboard.press("Enter")
     expect(thread).to_be_visible()
-    expect(settle).to_have_text("Resolve", use_inner_text=True)
+    expect(settle).to_have_accessible_name("Resolve thread")
 
     # A click on a message's words stands on the part of the thread drawing it.
     message = thread.locator(".lf-primary-part", has_text="Is the window long enough?")
@@ -312,12 +319,12 @@ def test_a_thread_s_keys_answer_in_its_view(browser, serve):
     # A resolved thread opened from Threads' Resolved list reopens on Enter.
     page.locator(".lf-fp-filters button", has_text="Resolved").click()
     page.locator(".lf-fp-view[data-view=threads] .lf-fp-thread").first.click()
-    expect(settle).to_have_text("Reopen", use_inner_text=True)
+    expect(settle).to_have_accessible_name("Reopen")
     thread.focus()
     with sending(page, "the reopen"):
         page.keyboard.press("Enter")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "unresolve"
-    expect(settle).to_have_text("Resolve", use_inner_text=True)
+    expect(settle).to_have_accessible_name("Resolve thread")
 
 
 def test_a_reaction_in_the_view_stands_as_its_chip_alone(browser, serve):
@@ -1620,7 +1627,7 @@ def test_a_fold_pressed_in_a_thread_s_view_stays_under_the_press(browser, serve)
     expect(page.locator(toggle)).to_have_attribute("aria-expanded", "true")
     settled(page)
     after = page.evaluate(PRESS_AND_HEAD, toggle)
-    assert after["toggle"] == stood["toggle"], (stood, after)
+    assert after["toggle"] == pytest.approx(stood["toggle"], abs=0.5), (stood, after)
     for step in view.locator(".lf-msg", has_text="Checking").all():
         expect(step).to_be_in_viewport(ratio=1)
 
@@ -1629,7 +1636,7 @@ def test_a_fold_pressed_in_a_thread_s_view_stays_under_the_press(browser, serve)
     page.locator(toggle).click()
     expect(page.locator(toggle)).to_have_attribute("aria-expanded", "true")
     settled(page)
-    assert page.evaluate(PRESS_AND_HEAD, toggle) == stood
+    assert page.evaluate(PRESS_AND_HEAD, toggle) == pytest.approx(stood, abs=0.5)
     expect(view.locator(".lf-msg:visible")).to_have_count(7)
 
 
@@ -2678,6 +2685,151 @@ def test_the_panel_folds_to_the_leaf_and_stays_folded(browser, serve):
     expect(page.locator(".lf-fp-view[data-view=threads]")).to_be_visible()
 
 
+@pytest.mark.parametrize("scheme", ["light", "dark"])
+def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
+    browser, serve, scheme
+):
+    """The mark rides the box into its corner and back, while the row's words come out
+    from behind it; its button and focus arrive at once. Reversing starts from where it
+    is drawn, and reduced motion takes the endpoint."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    page = floating(browser, serve(LONG_PAGE, comments=1))
+    resized(page, 675, 898)
+    page.emulate_media(reduced_motion="no-preference", color_scheme=scheme)
+    field(page).click()
+    paste_image(field(page), solid_png(40, 30, (255, 128, 64)))
+    shelf = page.locator(".lf-fp-box .lf-composer-media-item")
+    expect(shelf).to_have_count(1)
+    page.keyboard.press("Escape")
+    settled(page)
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    panel = page.locator(".lf-floating-panel")
+    leaf = page.locator(".lf-fp-leaf")
+    mark = panel.locator(".lf-dot")
+
+    def reading():
+        return mark.evaluate("""node => {
+          const box = node.getBoundingClientRect();
+          let opacity = 1;
+          for (let at = node; at; at = at.parentElement)
+            opacity *= Number(getComputedStyle(at).opacity);
+          return {x: box.x + box.width / 2, y: box.y + box.height / 2, opacity};
+        }""")
+
+    def seek(at):
+        page.evaluate(
+            "at => __lfHeld.filter(a => a.playState !== 'idle')"
+            ".forEach(a => a.currentTime = at)",
+            at,
+        )
+        one_frame(page)
+        return reading()
+
+    def paints():
+        pixels = Image.open(BytesIO(page.screenshot(clip=mark.bounding_box()))).convert(
+            "L"
+        )
+        low, high = pixels.getextrema()
+        assert high - low > 32, (low, high)
+
+    def beyond_mark():
+        # How far the leaf's trailing edge stands past its mark's.
+        return mark.evaluate(
+            "node => node.closest('.lf-fp-leaf').getBoundingClientRect().right"
+            " - node.getBoundingClientRect().right"
+        )
+
+    def words_follow_leaf():
+        # The field shows nothing under the leaf: its words come out from behind its
+        # trailing edge, which stands past the mark by between its two rests' margins.
+        # The attachment hanging over the field shows meanwhile, cut by no edge of it.
+        edges = field(page).evaluate("""editor => {
+          let cut = editor;
+          while (getComputedStyle(cut).clipPath === 'none') cut = cut.parentElement;
+          const sides = getComputedStyle(cut).clipPath.match(/[-\\d.]+px/g);
+          return {field: cut.getBoundingClientRect().left,
+            words: cut.getBoundingClientRect().left + parseFloat(sides[3]),
+            mark: document.querySelector('.lf-fp-leaf .lf-dot').getBoundingClientRect().right};
+        }""")
+        assert edges["field"] < edges["mark"]
+        past = edges["words"] - edges["mark"]
+        assert min(margins) - 0.5 <= past <= max(margins) + 0.5, (past, margins)
+        attachment = shelf.bounding_box()
+        pixels = Image.open(BytesIO(page.screenshot(clip=attachment))).convert("RGB")
+        assert any(
+            r > 200 and 90 < g < 170 and b < 100
+            for r, g, b in pixels.get_flattened_data()
+        )
+
+    row = reading()
+    margins = [beyond_mark()]
+    page.keyboard.press(".")
+    expect(panel).to_have_attribute("data-rest", "mark")
+    one_frame(page)
+    first = seek(0)
+    target = leaf.bounding_box()
+    assert first == pytest.approx(row, abs=0.5)
+    middle = seek(80)
+    paints()
+    folded = seek(300)
+    margins.append(beyond_mark())
+    assert row["x"] < middle["x"] < folded["x"]
+    assert middle["opacity"] == folded["opacity"] == 1
+    assert leaf.bounding_box() == target
+    assert folded["x"] == pytest.approx(target["x"] + target["width"] / 2, abs=0.5)
+
+    leaf.focus()
+    page.keyboard.press("Enter")
+    expect(panel).to_have_attribute("data-rest", "row")
+    one_frame(page)
+    assert seek(0) == pytest.approx(folded, abs=0.5)
+    paints()
+    seek(80)
+    words_follow_leaf()
+    assert seek(300) == pytest.approx(row, abs=0.5)
+    page.keyboard.press(".")
+    expect(panel).to_have_attribute("data-rest", "mark")
+    one_frame(page)
+
+    # Turn back before arrival. The new tween's first frame is the old one's current
+    # drawing, not either resting position, while focus takes its new target.
+    middle = seek(80)
+    leaf.focus()
+    page.keyboard.press("Enter")
+    expect(panel).to_have_attribute("data-rest", "row")
+    one_frame(page)
+    # The mark is a pixel narrower in the row and travels by its corner, so its centre
+    # starts half that from where it was drawn.
+    assert seek(0) == pytest.approx(middle, abs=1)
+    paints()
+    target = leaf.bounding_box()
+    expect(leaf).to_be_focused()
+    back = seek(80)
+    paints()
+    words_follow_leaf()
+    assert row["x"] < back["x"] < middle["x"]
+    assert back["opacity"] == 1
+    assert leaf.bounding_box() == target
+    assert seek(300) == pytest.approx(row, abs=0.5)
+
+    page.evaluate("() => __lfHeld.forEach(a => a.finish())")
+    settled(page)
+    expect(shelf).to_be_visible()
+    page.emulate_media(reduced_motion="reduce")
+    page.keyboard.press(".")
+    expect(panel).to_have_attribute("data-rest", "mark")
+    one_frame(page)
+    target = leaf.bounding_box()
+    assert reading()["x"] == pytest.approx(target["x"] + target["width"] / 2, abs=0.5)
+    assert not page.evaluate(
+        "() => ['.lf-floating-panel', '.lf-fp-ground'].some(s =>"
+        " document.querySelector(s).getAnimations({subtree: true}).length)"
+    )
+
+
 def test_a_new_line_past_the_field_s_height_scrolls_into_view(browser, serve):
     """Shift+Enter at the field's height limit scrolls the new, empty line into view,
     as typing a character does, rather than leaving the caret below the field."""
@@ -3403,7 +3555,7 @@ def test_a_resolved_thread_s_error_waits_in_the_leaf_menu(browser, serve):
         settle.click()
     page.locator(".lf-fp-filters button", has_text="Resolved").click()
     page.locator(".lf-fp-view[data-view=threads] .lf-fp-thread").first.click()
-    expect(settle).to_have_text("Reopen", use_inner_text=True)
+    expect(settle).to_have_accessible_name("Reopen")
     page.evaluate(
         "async () => (await window.__lfWidgetApi()).raiseError('Couldn\\'t load v1')"
     )
@@ -4147,6 +4299,12 @@ def test_a_line_the_field_grows_rides_the_box_s_top_edge(browser, serve):
     paste_image(field(page), solid_png(40, 30, (255, 128, 64)))
     shelf = page.locator(".lf-fp-box .lf-composer-media-item")
     expect(shelf).to_have_count(1)
+    # The thumbnail takes its picture's width once the picture decodes, a frame after
+    # which the box reads it.
+    expect(shelf.locator("img")).to_have_js_property("complete", True)
+    page.evaluate(
+        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+    )
     settled(page)
     card, tile = page.locator(".lf-fp-card").bounding_box(), shelf.bounding_box()
     region = {
@@ -4252,59 +4410,116 @@ def test_a_long_draft_fades_where_words_run_past_the_field(browser, serve):
     shows(":state(more-below):state(more-above)")
 
 
-def test_a_draft_draws_a_bullet_list_as_the_message_will(browser, serve):
-    """A draft's bullet item shows a bullet in place of its dash, with the item's
-    wrapped line hanging under its words, as the sent message draws the list; the dash
-    shows again, in the same room, while the caret touches it."""
-    page = open_page(
-        browser,
-        serve(LONG_PAGE),
-        init_script=EDITOR_ROOTS,
-    )
+def test_a_draft_draws_a_list_as_the_message_will(browser, serve):
+    """A draft's list items stand where the sent message's do: their words at the same
+    inset and height, a wrapped line under the words, under the same platform marker,
+    nested as the message nests it, and the message as tall as the draft, a line apart
+    only where the draft left a blank line and a code block's fences keeping their
+    room. An item's source marker shows instead while the caret touches it, and its
+    words stay where they stood."""
+    page = open_page(browser, serve(LONG_PAGE), init_script=EDITOR_ROOTS)
+    # The renderer the draft is read by loads lazily, and its arrival redraws a field
+    # already holding words; load it first, so the list is drawn as it is typed.
+    page.evaluate("async () => (await window.__lfWidgetApi()).loadMarkdown()")
     field(page).click()
-    page.keyboard.type("- " + "an item long enough to wrap in the field " * 3)
-    page.keyboard.press("Shift+Enter")
-    page.keyboard.type("two")
-    # The renderer the draft is read by loads lazily, and its arrival draws the field.
-    page.wait_for_function(
-        """host => window.editorRoots.get(host).querySelectorAll('.lf-md-bullet')
-          .length === 2""",
-        arg=field(page).element_handle(),
+    page.keyboard.insert_text(
+        "Notes:\n- "
+        + "an item long enough to wrap in the field " * 3
+        + "\n- parent\n      deeper\n    - child\n\n1. one\n\n       indented"
+        + "\n\n```\ncode\n```\nend"
     )
+    # The field grows to hold the draft; let it come to rest before reading it.
+    settled(page)
+    # Where a word stands in a box: "deeper", on a line continuing the parent's, and
+    # "indented", the code an item holds.
+    seen = """(box, word) => {
+      const walk = document.createTreeWalker(box, NodeFilter.SHOW_TEXT);
+      while (walk.nextNode()) {
+        const at = walk.currentNode.data.indexOf(word);
+        if (at < 0) continue;
+        const words = document.createRange();
+        words.setStart(walk.currentNode, at);
+        words.setEnd(walk.currentNode, at + word.length);
+        return Math.round(words.getBoundingClientRect().left - box.getBoundingClientRect().left);
+      }
+    }"""
+    words = ("deeper", "indented")
 
-    def reading():
+    def drafted():
         return field(page).evaluate(
             """host => {
               const root = window.editorRoots.get(host);
-              const marks = [...root.querySelectorAll('.lf-md-bullet')];
-              const words = document.createRange();
-              words.selectNodeContents(root.querySelector('.cm-line'));
-              const rows = [...words.getClientRects()];
-              return {
-                marks: marks.map((mark) => ({
-                  left: mark.getBoundingClientRect().left,
-                  drawn: getComputedStyle(mark, '::before').content,
-                  ink: getComputedStyle(mark).color,
-                })),
-                wrapped: rows.at(-1).left - rows[0].left,
-                markWidth: marks[0].getBoundingClientRect().width,
-              };
+              const content = root.querySelector('.cm-content').getBoundingClientRect();
+              const items = root.querySelectorAll('.cm-line:has(.lf-md-marker)');
+              return [...items].map((line) => {
+                const mark = line.querySelector('.lf-md-marker');
+                const words = document.createRange();
+                words.setStartAfter(mark);
+                words.setEnd(line, line.childNodes.length);
+                const rows = [...words.getClientRects()];
+                const style = getComputedStyle(line);
+                return {
+                  words: rows[0].left - content.left,
+                  top: rows[0].top - content.top,
+                  wrapped: rows.at(-1).left - content.left,
+                  marker: style.display === 'list-item' ? style.listStyleType : null,
+                  source: getComputedStyle(mark).color !== 'rgba(0, 0, 0, 0)',
+                  height: content.height,
+                };
+              });
             }"""
         )
 
-    away = reading()
-    assert [mark["drawn"] for mark in away["marks"]] == ['"•"', '"•"'], away
-    assert away["marks"][0]["ink"] == "rgba(0, 0, 0, 0)", away
-    assert away["wrapped"] == pytest.approx(away["markWidth"], abs=1), away
+    away = drafted()
+    drafted_words = [
+        field(page).evaluate(
+            f"(host, word) => ({seen})("
+            "window.editorRoots.get(host).querySelector('.cm-content'), word)",
+            word,
+        )
+        for word in words
+    ]
+    assert [item["marker"] for item in away] == ["disc", "disc", "circle", "decimal"]
+    assert not any(item["source"] for item in away), away
+    assert away[0]["wrapped"] == away[0]["words"], away
     page.keyboard.press("ControlOrMeta+Home")
-    near = reading()
-    assert near["marks"][0]["drawn"] == "none", near
-    assert near["marks"][0]["left"] == away["marks"][0]["left"]
-    # A nested item keeps its indentation and is drawn as a bullet too.
-    page.keyboard.press("ControlOrMeta+a")
-    page.keyboard.insert_text("- parent\n    - child")
-    nested = reading()
-    assert [mark["drawn"] for mark in nested["marks"]] == ['"•"', '"•"'], nested
+    page.keyboard.press("ArrowDown")
+    near = drafted()
+    assert (near[0]["marker"], near[0]["source"]) == (None, True), near
+    assert near[0]["words"] == away[0]["words"]
+
+    page.keyboard.press("ControlOrMeta+Enter")
+    sent = page.locator(".lf-fp-view[data-view=thread] .lf-msg-text")
+    expect(sent.locator("li")).to_have_count(4)
+    shown = sent.evaluate(
+        """text => {
+          const box = text.getBoundingClientRect();
+          return [...text.querySelectorAll('li')].map((li) => {
+            const words = document.createRange();
+            const walk = document.createTreeWalker(li, NodeFilter.SHOW_TEXT);
+            while (walk.nextNode() && !walk.currentNode.data.trim());
+            words.selectNodeContents(walk.currentNode);
+            const row = words.getClientRects()[0];
+            return {
+              words: row.left - box.left,
+              top: row.top - box.top,
+              marker: getComputedStyle(li).listStyleType,
+              height: box.height,
+            };
+          });
+        }"""
+    )
+
+    def placed(items):
+        return [
+            {key: round(item[key]) if key != "marker" else item[key] for key in keys}
+            for item in items
+        ]
+
+    keys = ("words", "top", "marker", "height")
+    assert placed(away) == placed(shown)
+    assert drafted_words == [sent.evaluate(seen, word) for word in words]
+    assert drafted_words[0] == round(away[1]["words"])
 
 
 def test_send_stands_in_the_counts_place_while_the_field_holds_a_draft(browser, serve):

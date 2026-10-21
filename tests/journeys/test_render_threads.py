@@ -730,7 +730,7 @@ def test_the_user_rewrites_their_own_message_where_it_stands(browser, serve):
     page.keyboard.press("i")
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property("value", "Fit the south bracket. Or the east.")
-    message.get_by_role("button", name="Cancel").click()
+    message.get_by_role("button", name="Discard").click()
     expect(message.locator(".lf-msg-editor")).to_have_count(0)
     expect(message.locator(".lf-msg-kept")).to_have_count(0)
     round_trip(page)

@@ -448,6 +448,9 @@
         ? target
         : target.importNode(sourceShells.get(source) ?? source, false);
     origins.set(copy, origins.get(source) ?? node);
+    // View geometry is read before modules start, not authored by the page. Leave
+    // it out of the baseline a revision compares with its unpainted source.
+    copy.removeAttribute?.("data-lf-views-flow");
     copy.removeAttribute?.("data-lf-opening");
     copy.removeAttribute?.("data-lf-sole-content");
     if (copy.hasAttribute?.(PLAYER)) {
@@ -1120,6 +1123,9 @@
   };
   const mark = () => {
     for (const holder of document.querySelectorAll("[data-lf-views]")) {
+      const flow = getComputedStyle(holder).getPropertyValue("--lf-views-flow").trim();
+      if (flow && holder.getAttribute("data-lf-views-flow") !== flow)
+        holder.setAttribute("data-lf-views-flow", flow);
       const members = [...holder.children];
       const open = choose(holder, members);
       for (const member of members) {

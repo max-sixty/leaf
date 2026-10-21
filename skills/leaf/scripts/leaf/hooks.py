@@ -217,7 +217,7 @@ def cmd_watch(harness: str, payload: dict) -> str | None:
 
 
 # What `cmd_pages` prints of each page, so a change to anything else stays quiet.
-SHOWN_FIELDS = ("page_key", "url", "title", "on_user", "threads")
+SHOWN_FIELDS = ("page_key", "url", "title", "on_user", "threads", "activity")
 
 
 def cmd_pages(payload: dict) -> None:
@@ -229,11 +229,15 @@ def cmd_pages(payload: dict) -> None:
     Rows and the session's claim locators wake the reading. A server that dies
     leaves its row until a reader finds its lease unheld, so the list is read
     again every presence interval too."""
+    sid = payload.get("session_id") or ""
+    if not owned_pages(sid):
+        print("[]", flush=True)
+        return
+
     from .file_changes import FileChanges, existing_root
     from .presence import PRESENCE_CACHE_S, live_leaves
     from .state import session_claims, state_home
 
-    sid = payload.get("session_id") or ""
     rows, claims = state_home().resolve() / "rows", session_claims(sid)
     # A root above rows/ would hear its creation, not the rows written into it.
     rows.mkdir(exist_ok=True)

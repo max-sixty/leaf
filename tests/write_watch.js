@@ -240,6 +240,10 @@
       what === "class" &&
       is(node, "div.cm-line.lf-field-last") &&
       hosts(node)[0]?.localName === "leaf-text",
+    // CodeMirror's setAttrs assigns a line's style whenever it syncs the line's
+    // attributes, as a list item's line carries its depth and number.
+    (what, node) =>
+      what === "style" && is(node, "div.cm-line.lf-md-item") && hosts(node).length > 0,
     // CodeMirror's CompositeTile.sync replaces a line's children while reconciling
     // editor updates, including equivalent line-break nodes in either editor host.
     (what, node) =>
@@ -270,6 +274,9 @@
     // Sortable takes a dragged card's ghost class off and puts it back as the drag
     // crosses into another lane.
     (what, node) => what === "class" && is(node, ".lf-ghost"),
+    // Sortable's drop sets the pressed card's `draggable` to false on every release of
+    // its grip, whether or not the press became a drag.
+    (what, node) => what === "draggable" && is(node, "lf-card"),
     // PhotoSwipe reasserts its root's zoom and pointer classes while handling
     // gestures and viewport changes, including when those classes already stand.
     (what, node) => what === "class" && is(node, "div.pswp"),

@@ -917,11 +917,8 @@
   flex-wrap: wrap;
   margin-block: var(--sp-2) 0;
 }
-.lf-trace-image-tools button {
-  min-block-size: var(--lf-trace-control-size);
-}
 .lf-trace-image-tools button[aria-label] {
-  inline-size: var(--lf-trace-control-size);
+  inline-size: var(--lf-control-compact);
 }
 /* Status changes share one slot; loading a frame cannot wrap the tools into a new row. */
 .lf-trace-image-zoom {

@@ -300,13 +300,15 @@ The Stop hook continues a turn only for what the turn owes. It keeps a turn goin
 through the harness's continuation channel (`Harness.hook_context`): the non-error
 `additionalContext` Claude Code and Pi's extension read, or a block where, as in
 Codex, the harness's Stop output has nothing else. What the turn owes is an
-obligation above, or, where nothing opens a turn of its own for it (plain `--print`,
-a Codex task that waits with `leaf wait`), input that arrives as it ends and is owed
-an answer, which the hook hands over. Where something does
-(`Harness.later_turn_takes_input`), the hook hands no input over: a watch wakes a
-turn for it, and Codex's adapter starts or queues one. Continuing the turn would
-have the agent write one more message, which Claude Code's focus view, showing a
-turn's final message alone, would show in place of the answer the turn had written.
+obligation above, or, where no later turn takes it (`Harness.later_turn_takes_input`),
+input that arrives as it ends and is owed an answer, which the hook hands over. A
+later turn takes it where a watch wakes one for it, or Codex's App Server adapter
+starts one; then the hook hands no input over. Continuing the turn would have the
+agent write one more message, which Claude Code's focus view, showing a turn's final
+message alone, would show in place of the answer the turn had written. Under plain
+`--print`, a Codex task that waits with `leaf wait`, or Codex's queue adapter, whose
+turn opens on a pointer Codex shows as the user's own message, the hook hands the
+input over.
 Input that owes nothing, such as a resolve, a report or a page error, waits for the watcher and
 rides along when the turn goes on anyway. A repeated Stop (`stop_hook_active`) has
 named its obligations once and lets the turn end; only newly arrived owed input

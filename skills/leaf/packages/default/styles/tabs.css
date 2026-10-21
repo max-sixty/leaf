@@ -10,6 +10,16 @@
  * index.
  * Unupgraded, and anywhere the strip has no handler behind it, the panels stack
  * as labeled sections. */
+/* The package owns whether its views are page sections or a box. Prepaint publishes
+ * this reading before residency; the module and Layout consume the same mark. */
+@property --lf-views-flow {
+  syntax: "*";
+  inherits: false;
+  initial-value: box;
+}
+body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
+  --lf-views-flow: page;
+}
 :where(:scope:is(lf-tabs)) {
   display: block;
   margin: 14px 0;
@@ -85,22 +95,29 @@
  * the open one paints its square face instead; that fill alone barely parts from the
  * strip's ground, in the dark scheme least, so its contour carries the state. Either
  * mark stays within the box every name reserves, so neither changes any control's
- * measure. The rule is the name's, or a tab's foot (`::after`) where the tab has lines
- * under its name (below); these rules colour either. */
+ * measure. One mark belongs to the name, or the tab's foot where it has lines under
+ * its name (below). It can travel without moving the name or its focus ring. */
 .lf-tabstrip .lf-tab-btn > .lf-tab-name {
+  position: relative;
   display: inline-block;
   padding: 2px 5px;
   border-bottom: 2px solid transparent;
 }
-.lf-tabstrip .lf-tab-btn::after {
-  border-bottom-color: transparent;
+.lf-tab-mark {
+  position: absolute;
+  inset-inline: 0;
+  bottom: -2px;
+  block-size: 2px;
+  background: currentColor;
+  visibility: hidden;
+  pointer-events: none;
+  transform-origin: left center;
 }
 .lf-tabstrip .lf-tab-btn[aria-selected="true"] {
   color: var(--ink);
 }
-.lf-tabstrip .lf-tab-btn[aria-selected="true"] > .lf-tab-name,
-.lf-tabstrip .lf-tab-btn[aria-selected="true"]::after {
-  border-bottom-color: currentColor;
+.lf-tabstrip .lf-tab-btn[aria-selected="true"] .lf-tab-mark {
+  visibility: visible;
 }
 @container style(--lf-tabstrip-flow: column) {
   .lf-tabstrip .lf-tab-btn {
@@ -110,7 +127,7 @@
   .lf-tabstrip .lf-tab-btn > .lf-tab-name {
     border-bottom: 0;
   }
-  .lf-tabstrip .lf-tab-btn::after {
+  .lf-tab-mark {
     display: none;
   }
   .lf-tabstrip .lf-tab-btn[aria-selected="true"] > .lf-tab-name {
@@ -123,9 +140,12 @@
  * rule takes the system background, and they remove a column's fill, so its open name
  * is underlined instead. */
 @media (forced-colors: active) {
-  .lf-tabstrip .lf-tab-btn:not([aria-selected="true"]) > .lf-tab-name,
-  .lf-tabstrip .lf-tab-btn:not([aria-selected="true"])::after {
+  .lf-tabstrip .lf-tab-btn > .lf-tab-name {
     border-bottom-color: Canvas;
+  }
+  .lf-tab-mark {
+    forced-color-adjust: none;
+    background: CanvasText;
   }
   @container style(--lf-tabstrip-flow: column) {
     .lf-tabstrip .lf-tab-btn[aria-selected="true"] > .lf-tab-name {
@@ -257,7 +277,7 @@
 
   /* A boxed set's panel is a bounded box, so it is the container what it holds
      * measures itself against (theme.css in the kernel says why a framed box is one). */
-  :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="box"] > lf-tab {
+  :scope:is(lf-tabs).lf-rendered[data-lf-views-flow="box"] > lf-tab {
     container-type: inline-size;
   }
 
@@ -318,12 +338,10 @@
     align-items: baseline;
     justify-items: start;
     text-align: start;
-    &::after {
-      content: "";
+    & > .lf-tab-mark {
+      position: static;
       grid-column: 1 / -1;
       justify-self: stretch;
-      border-bottom-width: 2px;
-      border-bottom-style: solid;
     }
     & > .lf-tab-name {
       border-bottom: 0;
@@ -523,13 +541,9 @@
      * view fills the window below the sticky inset, so switching to it can land the
      * strip at that inset without the document's end clamping the scroll. */
   :where(
-    :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="page"],
+    :scope:is(lf-tabs).lf-rendered[data-lf-views-flow="page"],
     html[data-lf-interactive]
-      body
-      > main
-      > :scope:is(lf-tabs):not(.lf-rendered):nth-child(1 of lf-tabs):not(
-        [list="side"]
-      ):has(> lf-tab)
+      :scope:is(lf-tabs):not(.lf-rendered)[data-lf-views-flow="page"]:has(> lf-tab)
   ) {
     margin-block: 0 32px;
     min-block-size: calc(100dvh - var(--lf-top));
@@ -555,7 +569,7 @@
     z-index: 2;
     block-size: var(--lf-tabstrip-h);
   }
-  :scope:is(lf-tabs)[data-lf-tabs-flow="page"] > .lf-tabstrip {
+  :scope:is(lf-tabs)[data-lf-views-flow="page"] > .lf-tabstrip {
     border-radius: 0;
     --lf-tabstrip-pad: 0px;
     --lf-tabstrip-bg: var(--paper);
@@ -632,18 +646,14 @@
   /* A page tab is a section of the page, not a box on it: like `main`, it trims its
      * edges (so its first line trims under the strip) and draws nothing, so a wide
      * exhibit in a page tab grows out as it would on a page without tabs. */
-  :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="page"] > lf-tab:not([hidden]),
+  :scope:is(lf-tabs).lf-rendered[data-lf-views-flow="page"] > lf-tab:not([hidden]),
   html[data-lf-interactive]
-    body
-    > main
-    > :scope:is(lf-tabs):not(.lf-rendered):nth-child(1 of lf-tabs):not(
-      [list="side"]
-    ):has(> lf-tab)
+    :scope:is(lf-tabs):not(.lf-rendered)[data-lf-views-flow="page"]:has(> lf-tab)
     > lf-tab {
     padding: var(--sp-4) 0 0;
     --lf-block-frame: trim;
   }
-  :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="page"] > lf-tab[hidden] {
+  :scope:is(lf-tabs).lf-rendered[data-lf-views-flow="page"] > lf-tab[hidden] {
     align-self: start;
     height: 0;
     min-height: 0;
@@ -661,13 +671,9 @@
      * playground's lf-ask, would lose its ring's sides to the scroller's edges, so the set
      * keeps the ring's room inside them; its margin gives the inline room back, so the
      * strip and the panel keep the edges they had. */
-    :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="page"],
+    :scope:is(lf-tabs).lf-rendered[data-lf-views-flow="page"],
     html[data-lf-interactive]
-      body
-      > main
-      > :scope:is(lf-tabs):not(.lf-rendered):nth-child(1 of lf-tabs):not(
-        [list="side"]
-      ):has(> lf-tab) {
+      :scope:is(lf-tabs):not(.lf-rendered)[data-lf-views-flow="page"]:has(> lf-tab) {
       display: flex;
       flex-direction: column;
       min-block-size: 0;
@@ -676,37 +682,27 @@
       padding: 0 var(--focus-ring-room) var(--focus-ring-room);
       --lf-full-height: inherit;
     }
-    :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="page"] > .lf-tabstrip,
+    :scope:is(lf-tabs).lf-rendered[data-lf-views-flow="page"] > .lf-tabstrip,
     html[data-lf-interactive]
-      body
-      > main
-      > :scope:is(lf-tabs):not(.lf-rendered):nth-child(1 of lf-tabs):not(
-        [list="side"]
-      ):has(> lf-tab)::before {
+      :scope:is(lf-tabs):not(.lf-rendered)[data-lf-views-flow="page"]:has(
+        > lf-tab
+      )::before {
       flex: none;
     }
-    :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="page"] > lf-tab:not([hidden]),
+    :scope:is(lf-tabs).lf-rendered[data-lf-views-flow="page"] > lf-tab:not([hidden]),
     html[data-lf-interactive]
-      body
-      > main
-      > :scope:is(lf-tabs):not(.lf-rendered):nth-child(1 of lf-tabs):not(
-        [list="side"]
-      ):has(> lf-tab)
+      :scope:is(lf-tabs):not(.lf-rendered)[data-lf-views-flow="page"]:has(> lf-tab)
       > lf-tab[data-lf-opening] {
       flex: 1 0 auto;
     }
-    :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="page"]
+    :scope:is(lf-tabs).lf-rendered[data-lf-views-flow="page"]
       > lf-tab:not([hidden]):has(
         > :nth-child(1 of :not(script, style, template)):nth-last-child(
             1 of :not(script, style, template)
           )
       ),
     html[data-lf-interactive]
-      body
-      > main
-      > :scope:is(lf-tabs):not(.lf-rendered):nth-child(1 of lf-tabs):not(
-        [list="side"]
-      ):has(> lf-tab)
+      :scope:is(lf-tabs):not(.lf-rendered)[data-lf-views-flow="page"]:has(> lf-tab)
       > lf-tab[data-lf-opening]:has(> [data-lf-sole-content]) {
       flex: 1 1 0;
       min-block-size: 0;
@@ -714,17 +710,13 @@
       flex-direction: column;
       --lf-full-height: inherit;
     }
-    :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="page"]
+    :scope:is(lf-tabs).lf-rendered[data-lf-views-flow="page"]
       > lf-tab:not([hidden])
       > :nth-child(1 of :not(script, style, template)):nth-last-child(
         1 of :not(script, style, template)
       ),
     html[data-lf-interactive]
-      body
-      > main
-      > :scope:is(lf-tabs):not(.lf-rendered):nth-child(1 of lf-tabs):not(
-        [list="side"]
-      ):has(> lf-tab)
+      :scope:is(lf-tabs):not(.lf-rendered)[data-lf-views-flow="page"]:has(> lf-tab)
       > lf-tab[data-lf-opening]
       > [data-lf-sole-content] {
       flex: 1 1 0;
@@ -737,8 +729,8 @@
    * and the panel it opens on alone, which the prepaint marks (`data-lf-opening`,
    * runtime/prepaint.js) as the one the module will open. What is its own is the strip's
    * room, one row kept empty for the names the module writes. The page's flow is the
-   * first set in `main` whose list is a row, as lf-tabs.js decides it
-   * (`#syncRootContext`). Not reserved: a side list taller than its panel. A page whose
+   * first set in `main` whose list is a row, declared by `--lf-views-flow`
+   * above and read before first paint. Not reserved: a side list taller than its panel. A page whose
    * runtime is missing what it needs to start loses the mark (runtime/prepaint.js) and
    * keeps the stacked, labeled panels, since no strip will come to reach the hidden
    * ones. */
@@ -757,7 +749,7 @@
     }
   }
   @scope (html[data-lf-interactive] body > main > :scope) {
-    :scope:is(lf-tabs):not(.lf-rendered):nth-child(1 of lf-tabs):not([list="side"]):has(
+    :scope:is(lf-tabs):not(.lf-rendered)[data-lf-views-flow="page"]:has(
         > lf-tab
       )::before {
       border-radius: 0;

@@ -247,11 +247,11 @@
     border: 0;
     background: none;
     box-shadow: none;
-    padding: calc((var(--lf-fp-line) - 22px) / 2) 6px;
+    padding: calc((var(--lf-fp-line) - 1lh) / 2) 6px;
     min-height: var(--lf-fp-line);
     max-height: 50dvh;
     box-sizing: border-box;
-    font: 14px / 22px var(--sans);
+    font: var(--msg-font);
     --lf-field-end-room: 0px;
   }
   .lf-fp-field .lf-compose-field > leaf-text[data-scrolls] {
@@ -497,7 +497,7 @@
     .lf-fp-leaf .lf-dot {
       --lf-mark-w: 20px;
     }
-    :is(.lf-fp-leaf, .lf-fp-badge, .lf-fp-news-dot) {
+    :is(.lf-fp-badge, .lf-fp-news-dot) {
       animation: lf-fp-arrive 160ms linear 140ms backwards;
     }
   }
@@ -698,23 +698,12 @@
   .lf-fp-icon-btn[aria-pressed=true] {
     color: var(--ink);
   }
-  .lf-fp-settle {
-    display: inline-grid;
-    color: var(--lf-fp-muted);
-  }
-  .lf-fp-face {
-    grid-area: 1 / 1;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-  }
-  .lf-fp-face:not([data-shown]),
   :is(.lf-fp-quiet, .lf-fp-next-unread)[data-unoffered] {
     visibility: hidden;
   }
-  .lf-fp-settle:hover {
-    color: var(--ink);
+  .lf-fp-settle.lf-resolve:not([aria-disabled=true]):hover,
+  .lf-fp-settle.lf-reopen {
+    color: var(--ok-ink);
   }
   .lf-fp-settle .lf-action-icon {
     width: 14px;
@@ -1398,7 +1387,7 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .lf-floating-panel[data-rest=mark] :is(.lf-fp-leaf, .lf-fp-badge, .lf-fp-news-dot) {
+    .lf-floating-panel[data-rest=mark] :is(.lf-fp-badge, .lf-fp-news-dot) {
       animation: none;
     }
     .lf-fp-peek,

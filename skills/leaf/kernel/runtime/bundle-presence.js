@@ -350,11 +350,11 @@ function returnStop(el, authored) {
     keeps(el, "tabindex", wearsLentStop(el) ? -1 : authored);
 }
 var sideways = /* @__PURE__ */ new Set();
-var downwards = /* @__PURE__ */ new Set();
+var downwards = /* @__PURE__ */ new Map();
 var readingScrolled = (event) => paintReadingReach(event.currentTarget);
 var sidewaysScrolled = (event) => paintSidewaysReach(event.currentTarget);
-function reachReadingScroller(el) {
-  downwards.add(el);
+function reachReadingScroller(el, paintContinuation) {
+  downwards.set(el, paintContinuation);
   watchReach(el);
   el.addEventListener("scroll", readingScrolled, { passive: true });
   paintReadingReach(el);
@@ -363,7 +363,10 @@ function reachReadingScroller(el) {
     if (!watched(el)) unwatchReach(el);
     el.removeEventListener("scroll", readingScrolled);
     afterScript(() => {
-      if (!downwards.has(el)) keeps(el, PAGE_PAINT_ATTRIBUTE.moreBelow, null);
+      if (!downwards.has(el)) {
+        keeps(el, PAGE_PAINT_ATTRIBUTE.moreBelow, null);
+        paintContinuation?.(false);
+      }
     });
   };
 }
@@ -383,6 +386,7 @@ function paintReadingReachNow() {
     if (!downwards.has(el) || unpainted(el)) continue;
     const style = getComputedStyle(el);
     const scrolling = userScrollport(style.overflowY);
+    downwards.get(el)?.(scrolling && el.scrollTop > SCROLL_SLACK);
     keeps(
       el,
       PAGE_PAINT_ATTRIBUTE.moreBelow,
@@ -542,7 +546,7 @@ function paintReachNow() {
     else returnStop(el, authored);
   }
   for (const el of sideways) paintSidewaysReach(el);
-  for (const el of downwards) paintReadingReach(el);
+  for (const el of downwards.keys()) paintReadingReach(el);
 }
 var STILL_MS = 100;
 var PLAYING_MS = 1e3;
@@ -671,7 +675,12 @@ function compoundReadingRegionId(owner, localName) {
     throw new Error("leaf: a compound reading region needs an owner id and local name");
   return `lf-region:${owner.id}:${localName}`;
 }
-function registerReadingRegion({ id, host, body }) {
+function registerReadingRegion({
+  id,
+  host,
+  body,
+  paintContinuation = void 0
+}) {
   if (typeof id !== "string" || !id || !host || !body)
     throw new Error("leaf: a reading region needs id, host, and body");
   if (live(regions.get(id)))
@@ -685,7 +694,7 @@ function registerReadingRegion({ id, host, body }) {
     width: null,
     away: false
   };
-  const stopReaching = reachReadingScroller(body);
+  const stopReaching = reachReadingScroller(body, paintContinuation);
   regions.set(id, region);
   sizes.observe(host);
   return () => {

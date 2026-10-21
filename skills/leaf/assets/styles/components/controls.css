@@ -4,15 +4,14 @@
   color: var(--muted-2);
   font: 500 var(--t-6)/1.35 var(--sans);
 }
-.lf-page-thread-open {
-  margin-top: var(--sp-2);
-}
 /* A seat's resolved threads stand under one disclosure (thread/inline.js), whose
    threads are page threads like any other. Its summary is one line at the aim floor,
    so a notice of what its threads hold back says so without growing it. */
 .lf-resolved-threads {
   position: relative;
   min-width: 0;
+  /* The seat's live predecessor owns its gap, including while a card retires. */
+  margin-block-start: 0;
 }
 /* Closed, the disclosure hides its threads by display rather than by the
    content-visibility a closed details gives its content: Chrome drops scroll anchoring
@@ -220,7 +219,7 @@
     var(--lf-msg-control-room, var(--lf-msg-control)) + var(--lf-msg-head-room, 0px)
   );
 }
-/* An open rewrite's Cancel and Save take the room its Edit control took, and more: the
+/* An open rewrite's Discard and Save take the room its Edit control took, and more: the
    head holds the author alone while it is open, its time and labels saying nothing a
    rewrite needs. */
 .lf-msg:has(> .lf-msg-body > .lf-msg-editor) {
@@ -264,6 +263,25 @@ svg[data-lf-icon] {
   stroke-width: 1.6;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+/* A disclosure's direction and motion have one face across thread history and
+   settled choices. Its fixed slot turns without delaying content or moving the label. */
+.lf-disclosure-icon {
+  inline-size: 16px;
+  block-size: 16px;
+  flex: none;
+  align-self: center;
+  rotate: -90deg;
+  transition: rotate var(--lf-motion-disclosure) ease-out;
+}
+[aria-expanded="true"] > .lf-disclosure-icon {
+  rotate: 0deg;
+}
+.lf-disclosure-icon:dir(rtl) {
+  rotate: 90deg;
+}
+[aria-expanded="true"] > .lf-disclosure-icon:dir(rtl) {
+  rotate: 0deg;
 }
 .lf-msg-control-icon {
   inline-size: 16px;
@@ -525,6 +543,33 @@ svg[data-lf-icon] {
 }
 :is(.lf-btn, .button):not(:disabled, [aria-disabled="true"]):hover {
   background: var(--chip);
+}
+/* Secondary actions wear one quiet face, independent of their toolbar's geometry.
+ * The vendor part and native button share this rule; the host keeps no second face.
+ * lf-ui identifies offered vendor controls, and gives this modifier precedence over
+ * the ordinary copy-button face in integration.css. */
+:is(button, .lf-btn, .button).lf-quiet-action,
+.lf-quiet-action.lf-ui::part(button) {
+  border: 1px solid transparent;
+  border-radius: var(--r);
+  background: transparent;
+  color: var(--muted);
+  box-shadow: none;
+}
+:is(button, .lf-btn, .button).lf-quiet-action:not(:disabled, [aria-disabled="true"]):is(
+    :hover,
+    [data-lf-focus]
+  ),
+.lf-quiet-action.lf-ui:not(:disabled, [aria-disabled="true"])::part(button):hover,
+.lf-quiet-action.lf-ui::part(lf-focus) {
+  background: var(--chip);
+  color: var(--ink);
+}
+/* The same compact size maps to native minimum height and the vendor's supported
+ * form-control property. Labels can still grow; icon-only tools set their width. */
+.lf-compact-control {
+  --wa-form-control-height: var(--lf-control-compact);
+  min-block-size: var(--lf-control-compact);
 }
 /* The committing action carries the accent as ink on the ordinary card, under a
    softened accent hairline, with the tint rising on hover. The selected face below is its

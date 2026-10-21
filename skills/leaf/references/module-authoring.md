@@ -177,7 +177,10 @@ the box it keeps. `leaf package check --render` reports a widget that moves as
   result, drawn on demand for a host that arrived later, and adds behavior to those
   nodes. A drawing that reads markup after its host, as `lf-toc` reads the headings
   below it, finishes inside the host when the document has parsed
-  (`readystatechange`), before any module runs. `x-initial` requires `x-upgrade: true`
+  (`readystatechange`), before any module runs. If those later inputs change its
+  height, mark the affected reading scope `data-lf-initial-pending` while parsing and
+  remove the mark after drawing it. The scope keeps its box but first paints complete.
+  `x-initial` requires `x-upgrade: true`
   and excludes `x-prepaint`.
 - Where the markup can't say how tall the drawing will be, declare `x-height` and add
   the class `lf-rendered` once drawn. For a drawing that can't fit any height,
@@ -185,7 +188,10 @@ the box it keeps. `leaf package check --render` reports a widget that moves as
 - A widget that shows one member at a time, as `lf-tabs` does, declares `x-views`.
   Before upgrade only the member marked `data-lf-opening` shows; on upgrade, open the
   member `openingView(holder, members)` returns, and record each member it shows with
-  `keepView(holder, member)` so a reload reopens it.
+  `keepView(holder, member)` so a reload reopens it. A holder whose members share
+  the surrounding page's flow declares `--lf-views-flow: page` in its stylesheet;
+  the default is `box`. Prepaint publishes that reading as `data-lf-views-flow`,
+  which Layouts read when seating a member's sidebar in the page margin.
 
 ## Rendering
 

@@ -175,14 +175,13 @@ has tried; settle that before building it.
   buckets scroll horizontally and the release rationale sits below the board.
   Keep comparison context available during a move, preserving direct destination
   controls and undo.
-- **Decide whether Back may restore a served page whole.** Every served page and
-  API answer carries `Cache-Control: no-store`, so Chrome and Firefox load the page
-  afresh on Back rather than restoring it from their back/forward cache, and Firefox
-  also refuses a page holding a sample ([browser support](notes/browser-support.md),
-  "Page cache"). With `no-store` lifted, a Chrome probe restored a page that caught
-  up with the log and recorded gestures. Weigh an instant Back against what
-  `no-store` protects, a private page's copy in the browser's disk cache, and
-  exercise Safari.
+- **Decide whether Back may restore a leaf.page page whole.** The local server
+  sends `no-cache`, so Chrome and Firefox restore its pages on Back. leaf.page's
+  container and the edge's state answers still send `no-store`, which keeps its
+  pages out of Chrome's back/forward cache ([browser support](notes/browser-support.md),
+  "Page cache"). Weigh an instant Back against what `no-store` protects there, a
+  visitor's private page in the browser's disk cache on a shared computer, and
+  exercise Safari on both.
 - **Consider automatic Leaf recovery on resume.** Reuse the reconnect notice's
   eligibility checks to restore serving, ownership, and feedback delivery, while
   respecting explicit stops and transfers to another session.

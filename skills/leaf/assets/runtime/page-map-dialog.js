@@ -447,7 +447,6 @@ export function createPageMapDialog({
         {
           id: "map.search.enter",
           keys: ["ArrowDown"],
-          description: "Go from the search to the first entry",
           title: "to the entries",
           when: hasRows,
           run: () => {
@@ -459,7 +458,6 @@ export function createPageMapDialog({
         {
           id: "map.search.open",
           keys: ["Enter"],
-          description: "Open the first matching entry",
           title: "open first",
           when: hasRows,
           run: () => mapRows()[0].click(),

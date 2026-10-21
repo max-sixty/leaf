@@ -3461,7 +3461,6 @@ export function createFloatingPanel({
         ? {
             root: host,
             title: "clear search",
-            description: "Clear the search",
             out: () => {
               query = "";
               refit();
@@ -3471,7 +3470,6 @@ export function createFloatingPanel({
         : {
             root: host,
             title: "close search",
-            description: "Close the search and return to Threads",
             out: () => {
               focusDestination(shownView(), "return");
               searching = false;
@@ -3482,14 +3480,12 @@ export function createFloatingPanel({
       return {
         root: host,
         title: "back to menu",
-        description: "Go back from the list to the page menu",
         out: () => showMenuAt(null),
       };
     if (menuOpen.value)
       return {
         root: host,
         title: "close menu",
-        description: "Close the page menu",
         out: () => {
           setMenu(false);
           focusDestination(leaf, "return");
@@ -3499,7 +3495,6 @@ export function createFloatingPanel({
     return {
       root: host,
       title: `close ${titleOf(trail.value.at(-1)).toLowerCase()}`,
-      description: `Close ${titleOf(trail.value.at(-1))}`,
       // Putting a view away returns the user to the page, where the view's thread or
       // list took them from.
       out: () => {
@@ -3546,8 +3541,6 @@ export function createFloatingPanel({
       {
         id: "panel.floating.menu.level",
         keys: ["ArrowLeft", "ArrowRight"],
-        description:
-          "Open the list a row of the page menu leads to, or go back to the menu",
         title: "open or leave a list",
         when: () => menuOpen.value && renderedUnder(focused(), menu),
         run: (binding) => {
@@ -3562,7 +3555,6 @@ export function createFloatingPanel({
       ["Tab", "Shift+Tab"].map((key) => ({
         id: `panel.floating.menu.leave-${key === "Tab" ? "forward" : "backward"}`,
         keys: [key],
-        description: `Leave the page menu ${key === "Tab" ? "forward" : "backward"}`,
         title: key === "Tab" ? "leave forward" : "leave backward",
         native: true,
         when: () => menuOpen.value && renderedUnder(focused(), menu),
@@ -3584,7 +3576,6 @@ export function createFloatingPanel({
       {
         id: "panel.floating.threads.find",
         keys: ["/"],
-        description: "Find a thread or message in Threads",
         title: "find a thread",
         run: findThreads,
       },
@@ -3611,7 +3602,6 @@ export function createFloatingPanel({
           const top = numbered().at(-1)?.version;
           return top > 1 ? `1–${top}` : "1";
         },
-        description: "Show the version with that number",
         title: "show version",
         when: () => numbered().length > 0,
         run: (binding) =>
@@ -3641,7 +3631,7 @@ export function createFloatingPanel({
     {
       id: "panel.floating.leave",
       keys: ["Escape"],
-      description: "Leave the comment field, keeping the view open above it",
+      description: "The view above stays open",
       title: "leave field",
       when: () => !menuOpen.value && trail.value.length > 0,
       run: () => focusDestination(leaf, "return"),
@@ -3651,7 +3641,6 @@ export function createFloatingPanel({
   pageCommand({
     id: FOLD,
     keys: ["."],
-    description: "Fold the Leaf panel to the leaf in the window's corner, or unfold it",
     title: () => (prefs().rest === "mark" ? "unfold" : "fold"),
     touch: () => (prefs().rest === "mark" ? "Unfold the panel" : "Fold to the leaf"),
     menu: "page",

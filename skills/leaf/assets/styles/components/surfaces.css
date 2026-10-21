@@ -582,7 +582,7 @@ summary {
   --lf-group-ring-end: 6px;
   --lf-msg-head-height: max(28px, var(--aim-floor));
   --lf-msg-body-gap: 4px;
-  /* A message's control, and the Cancel and Save an open rewrite stands in its place:
+  /* A message's control, and the Discard and Save an open rewrite stands in its place:
      the head keeps their room (controls.css), and so does the thread's own controls'
      row beside a first message (below). */
   --lf-msg-control-size: max(26px, var(--aim-floor));

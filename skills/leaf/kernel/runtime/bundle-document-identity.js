@@ -2015,7 +2015,6 @@ function createSelectionComposer({
     id: "response.move",
     touch: false,
     keys: ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
-    description: "Move through other responses",
     title: "move",
     repeat: true,
     when: () => focusedResponseOption(),
@@ -2025,7 +2024,6 @@ function createSelectionComposer({
     id: "response.activate",
     touch: false,
     keys: PRESS,
-    description: "Use the focused response",
     title: "choose",
     when: () => focusedResponseOption() && (!focused().classList.contains("lf-react") || reactionAvailable2()),
     run: () => focused()?.click()
@@ -2034,7 +2032,6 @@ function createSelectionComposer({
     id: "response.close",
     touch: false,
     keys: ["Escape"],
-    description: "Close other responses",
     title: "close",
     // Closing the other responses hands the user back to the bar they opened them from.
     run: () => closeLayer(
@@ -3263,7 +3260,6 @@ function createVersionController({
     id: "version.open",
     ready: savedReadingSettled,
     keys: ["Shift+v"],
-    description: "The versions, and what each one changed",
     title: "versions",
     run: () => versions.press(),
     // The same predicate the menu's Escape stands on, so the key cannot open a layer the
@@ -4924,7 +4920,6 @@ function createReactionController({
         touch: false,
         runFromCommandReference: false,
         keys: ["Tab", "Shift+Tab", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
-        description: "Move through reactions",
         title: "move",
         repeat: true,
         run: stepResponse
@@ -4934,7 +4929,6 @@ function createReactionController({
         touch: false,
         runFromCommandReference: false,
         keys: PRESS,
-        description: "Use the focused response",
         title: "choose",
         when: () => responseChoices(reactSurface).includes(focused()),
         run: () => focused()?.click()
@@ -4943,7 +4937,6 @@ function createReactionController({
         id: "reaction.cancel",
         touch: false,
         keys: ["Escape"],
-        description: "Close response choices",
         title: "cancel",
         run: () => setReact(false)
       }
@@ -4972,7 +4965,7 @@ function createReactionController({
     ready: savedReadingSettled,
     touch: false,
     keys: ["e"],
-    description: () => `Open reactions \u2014 ${reactionTokens().slice(0, 9).map(([name, entry]) => `${entry.glyph} ${name}`).join(", ")} \u2014 for the selection, the focused item, or the open reply`,
+    description: "For the selection, the focused item, or the open reply",
     title: "reactions",
     when: () => reactionAvailable() && reactionTokens().length > 0 && hasReactionTarget() && (anchoringIsReady() || !pageSelection()),
     run: () => {
@@ -6973,7 +6966,6 @@ function createReadTracking({ markRead, openThread }) {
     id: "thread.unread.first",
     ready: savedReadingSettled,
     keys: ["u"],
-    description: "Go to the first unread message",
     title: "first unread",
     touch: false,
     when: () => actionableUnread().length > 0,
@@ -8087,7 +8079,7 @@ pageScope("text entry", {
       id: "text.leave",
       touch: false,
       keys: ["Escape"],
-      description: "Leave the box, keeping what is typed",
+      description: "Keeps what is typed",
       title: () => backFromBox()?.line ?? "back",
       // The thread the box belongs to. A page text box that is not in one leaves the
       // row dead and the page's rung in place, which is the honest answer: nothing
@@ -8158,7 +8150,6 @@ function declareThreadKeys(landIn, threadHere) {
         id: "thread.primary",
         touch: false,
         keys: ["Enter"],
-        description: () => resolutionControl(cardThread())?.matches(".lf-reopen") ? "Reopen it" : "Write a reply",
         title: () => resolutionControl(cardThread())?.matches(".lf-reopen") ? "reopen" : "reply",
         when: () => Boolean(threadInput(cardThread())) || resolutionControl(cardThread())?.matches(
           '.lf-reopen:not(:disabled, [aria-disabled="true"])'
@@ -8176,7 +8167,6 @@ function declareThreadKeys(landIn, threadHere) {
         id: "thread.resolution.toggle",
         touch: false,
         keys: ["r"],
-        description: () => resolutionControl(threadHere())?.matches(".lf-reopen") ? "Reopen it" : "Resolve it",
         title: () => resolutionControl(threadHere())?.matches(".lf-reopen") ? "reopen" : "resolve",
         when: () => resolutionControl(threadHere())?.matches(
           ':not(:disabled, [aria-disabled="true"])'

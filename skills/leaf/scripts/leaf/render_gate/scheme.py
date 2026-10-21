@@ -94,6 +94,14 @@ _FORCED_LAYOUT = (
 _SAMPLE_PATH = re.compile(r"/api/samples/[0-9a-f]{32}")
 
 
+def _in_frame(location: str) -> bool:
+    """Whether a console location belongs to a frame's document rather than the
+    page's: a sample, or a frame given its document inline, as an HTML preview is."""
+    return location == "about:srcdoc" or bool(
+        _SAMPLE_PATH.search(urlsplit(location).path)
+    )
+
+
 def console_finding(message, *, warnings: bool = True) -> Finding | None:
     """Preserve console errors and optional warnings with their browser locations.
 
@@ -104,17 +112,18 @@ def console_finding(message, *, warnings: bool = True) -> Finding | None:
     One warning is Firefox's own, from a frame: its rendering update flushes layout
     in every document of the frame tree once the page has a resize observer, as
     every Leaf page does, so a sample frame still parsing its head starts layout
-    early and says "Layout was forced before the page was fully loaded". No page
-    can prevent it, so that warning is dropped from a sample, which also hides a
-    sample's own script reading layout too early. Firefox files the warning under
-    the script that forced layout where one did, so the sample is known by the
-    path its files are served under, and the page's own warning is kept.
+    early and says "Layout was forced before the page was fully loaded"; so does
+    an HTML preview's frame. No page can prevent it, so that warning is dropped
+    from a frame, which also hides a frame's own script reading layout too early.
+    Firefox files the warning under the script that forced layout where one did,
+    so a frame is known by where its documents come from (`_in_frame`), and the
+    page's own warning is kept.
     """
     said = {"text": message.text, "url": message.location["url"]}
     if (
         message.type == "warning"
         and message.text.startswith(_FORCED_LAYOUT)
-        and _SAMPLE_PATH.search(urlsplit(said["url"]).path)
+        and _in_frame(said["url"])
     ):
         return None
     if message.type == "warning" and warnings:

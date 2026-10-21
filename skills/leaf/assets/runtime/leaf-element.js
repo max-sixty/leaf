@@ -1,13 +1,12 @@
 /* A widget that draws what it reads: the one paint route of a `LeafElement`.
 
-   A module subclasses `LeafElement` and draws in `render()`, as any `LitElement` does,
+   A module subclasses `LeafElement` and draws in `render()`, with a retained Solid view or native DOM,
    into the element itself unless `createRenderRoot()` names a part it generated.
    `render()` reads whatever it shows through readers: the widget's own reading
    (`this.reading`, `this.state`), a bound data source (`this.data(input)`), obligations,
    reports, work, the time (`ago`, `clockValue`). Every reader it calls synchronously is
    collected (`collectReads`, snapshot.ts), and a move of any of them updates the element
-   again, as a watcher's or a region's paint is followed; nothing else is. Lit's own
-   reactive properties update it too, for state the widget keeps itself. A reading of
+   again, as a watcher's or a region's paint is followed; nothing else is. Solid views follow the mechanical state the widget keeps itself. A reading of
    presentation proof (`proofReading`, semantic-state.js), such as `reportsReady`,
    updates it without claiming its region, since the claim would move that proof, and
    only when the proof rises: a render that reads it false holds what it would say, so
@@ -44,12 +43,7 @@
    version while it stands, until it has drawn what was delivered, and any drawing that
    draw held it for (`drawing()`), such as highlighting or a loading frame, has landed.
    `setup()` runs once, on the first connection, before the first render. */
-import {
-  LitElement,
-  collectReads,
-  render,
-  untracked,
-} from "/vendor/browser-runtime.js";
+import { collectReads, untracked } from "/vendor/browser-runtime.js";
 import {
   attachApplicationPresentation,
   attachWidgetPresentation,
@@ -72,7 +66,7 @@ import { registry } from "./registry.js";
 
 let regions = 0;
 
-export class LeafElement extends LitElement {
+export class LeafElement extends HTMLElement {
   #descriptor = null;
   #controller = null;
   #verbs = [];
@@ -103,6 +97,22 @@ export class LeafElement extends LitElement {
   #data = new Map();
   #leaveData = null;
   #scheduled = null;
+  #pending = false;
+  #resolveUpdate = null;
+  hasUpdated = false;
+  updateComplete = Promise.resolve(true);
+  renderRoot;
+
+  requestUpdate() {
+    if (this.#pending) return;
+    this.#pending = true;
+    this.updateComplete = new Promise((resolve) => {
+      this.#resolveUpdate = resolve;
+    });
+    queueMicrotask(() => {
+      if (this.#pending) this.scheduleUpdate();
+    });
+  }
 
   createRenderRoot() {
     return this;
@@ -113,11 +123,11 @@ export class LeafElement extends LitElement {
   }
 
   #queueUpdate() {
-    if (!this.#descriptor) return super.scheduleUpdate();
+    if (!this.#descriptor) return this.performUpdate();
     const scheduled = queueWidgetUpdate(this.#descriptor.id, () => {
       if (this.#scheduled !== scheduled) return;
       this.#scheduled = null;
-      return super.scheduleUpdate();
+      return this.performUpdate();
     });
     this.#scheduled = scheduled;
     return scheduled;
@@ -125,7 +135,8 @@ export class LeafElement extends LitElement {
 
   connectedCallback() {
     if (once(this)) this.#setup();
-    super.connectedCallback();
+    this.renderRoot ??= this.createRenderRoot();
+    if (!this.hasUpdated) this.requestUpdate();
   }
 
   #setup() {
@@ -171,6 +182,8 @@ export class LeafElement extends LitElement {
 
   /** The module's one-time build, on the first connection, before the first render. */
   setup() {}
+
+  render() {}
 
   /** The widget's complete reading (`widgetController(this).read()`), collected; null
    *  for an element the registry does not declare a widget, such as a quoted one. */
@@ -236,11 +249,11 @@ export class LeafElement extends LitElement {
       this.#follow();
       return false;
     }
-    return super.shouldUpdate(changed);
+    return true;
   }
 
   update(changed) {
-    const outcome = collectReads(() => super.update(changed));
+    const outcome = collectReads(() => this.render());
     this.#renderReads = outcome.reads;
     this.#follow();
     if ("error" in outcome) throw outcome.error;
@@ -249,7 +262,7 @@ export class LeafElement extends LitElement {
   }
 
   // An update settles its claim once all of it has run, `updated` included, and one
-  // that failed anywhere, its gate too, reports once and shows its failure; Lit has
+  // that failed anywhere, its gate too, reports once and shows its failure; The scheduler has
   // marked it done, so the next move draws again. A draw that `updated` asks for at
   // once, as a module's own paint may, settles its own claim inside this one; with no
   // claim of its own, its failure is the enclosing claimed update's.
@@ -259,7 +272,19 @@ export class LeafElement extends LitElement {
     this.#drawing = null;
     this.#work = null;
     try {
-      super.performUpdate();
+      if (!this.#pending) return;
+      this.#pending = false;
+      const resolve = this.#resolveUpdate;
+      this.#resolveUpdate = null;
+      try {
+        if (this.shouldUpdate()) {
+          this.update();
+          this.hasUpdated = true;
+          this.updated();
+        }
+      } finally {
+        resolve?.(!this.#pending);
+      }
       const work = this.#work;
       // Drawing an update with no claim of its own holds goes to the claim enclosing
       // it, or else claims the region, as a retry's or a follow-up draw's does.
@@ -297,18 +322,17 @@ export class LeafElement extends LitElement {
     this.#work = this.#work ? Promise.all([this.#work, named]) : named;
   }
 
-  /** The render drawn again at once, outside any claim and Lit's own schedule, with a
+  /** The render drawn again at once, outside any claim and the update schedule, with a
    *  failure thrown rather than shown: the render check's replay
    *  (render-checks/replay.js), which holds a draw of the same reading to change
    *  nothing. `updated()` does not run, since what follows a draw may start
    *  preparation that would claim the widget's presentation and land after the check
-   *  reads the page. An update Lit has queued stays queued, with its claim. */
+   *  reads the page. An update the scheduler has queued stays queued, with its claim. */
   redraw() {
-    render(this.render(), this.renderRoot, this.renderOptions);
+    this.render();
   }
 
   updated(changed) {
-    super.updated(changed);
     // The render may have changed what this widget's commands read from its nodes.
     paintKeysWithin(this);
   }

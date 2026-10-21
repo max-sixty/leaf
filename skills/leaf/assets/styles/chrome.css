@@ -1086,13 +1086,13 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   /* The query keeps room for a word on the narrowest phone. The count's reserved room
      is the most it will need, not a floor: past it, the count gives way down to the
      words it says now, and only then does the query's room shrink. */
-  .lf-page-search-box::part(input) {
+  .lf-page-search-box > input {
     flex: 1 1 4em;
   }
   .lf-page-search-status > span {
     min-inline-size: max(100%, max-content);
   }
-  .lf-page-search-box::part(end) {
+  .lf-page-search-status {
     flex-shrink: 1;
     min-inline-size: 0;
   }

@@ -3745,6 +3745,7 @@ var ICONS = {
   add: '<path d="M8 3v10M3 8h10"/>',
   change: '<path d="M3 5.25h8.5M9.25 3l2.25 2.25L9.25 7.5M13 10.75H4.5M6.75 8.5 4.5 10.75 6.75 13"/>',
   check: '<path d="m3 8.25 3.15 3.15L13 4.75"/>',
+  copy: '<rect x="5.5" y="5.5" width="7" height="8" rx="1"/><path d="M10.5 5.5v-3h-7v8h2"/>',
   comment: '<path d="M3 3.25h10v7H7.25L4 12.75v-2H3z"/>',
   cross: '<path d="m4 4 8 8M12 4l-8 8"/>',
   dot: '<circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none"/>',
@@ -3909,14 +3910,10 @@ function worksInside(node, container) {
 var offer = (...args) => document.documentElement.lfInitial.offer(...args);
 var offerElement = (...args) => document.documentElement.lfInitial.offerElement(...args);
 function searchField(cls, { name, label, placeholder = label }) {
-  const field = offer("wa-input", `lf-search-field lf-label-hidden ${cls}`);
+  const field = offer("input", `lf-search-field ${cls}`);
   field.type = "search";
-  field.value = "";
-  field.size = "s";
-  field.withClear = true;
-  field.tabIndex = 0;
   field.name = name;
-  field.label = label;
+  field.setAttribute("aria-label", label);
   field.placeholder = placeholder;
   field.autocomplete = "off";
   field.spellcheck = false;

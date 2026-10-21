@@ -1849,7 +1849,7 @@ export function createFloatingPanel({
       entry.value ? html`<span class="lf-fp-value">${entry.value}</span>` : nothing
     }${
       entry.shortcut.length && advertisesKeys()
-        ? keySequenceTemplate(keySequenceModel(entry.shortcut))
+        ? keySequenceTemplate(() => keySequenceModel(entry.shortcut))
         : nothing
     }`;
   // A row of the menu whose press copies a text, such as the page's link, is Leaf's copy
@@ -1864,30 +1864,28 @@ export function createFloatingPanel({
     let copy = copyItems.get(entry.key);
     if (!copy) {
       copy = copyControl("lf-fp-copy-item", {
+        label: `Copy ${entry.label}`,
         success: `${capital(entry.label)} copied`,
         error: `${capital(entry.label)} not copied · select it to copy`,
       });
-      copy.addEventListener("wa-copy", () => putAwayThen(() => {}));
-      copy.addEventListener("wa-error", () => {
+      copy.addEventListener("lf-copy", () => putAwayThen(() => {}));
+      copy.addEventListener("lf-copy-error", () => {
         copyRefused = true;
         showMenuAt({ view: "group", group: "about" });
       });
       copyItems.set(entry.key, copy);
     }
-    copy.value = entry.copies;
-    copy.disabled = entry.disabled;
+    if (copy.value !== entry.copies) copy.value = entry.copies;
+    if (copy.disabled !== Boolean(entry.disabled))
+      copy.disabled = Boolean(entry.disabled);
+    copy.classList.add("lf-fp-item");
+    keeps(copy, "role", menuOpen() ? "menuitem" : null);
+    keeps(copy, "data-row", entry.key);
+    keeps(copy, "title", entry.value || null);
+    const glyph = copy.querySelector(".lf-copy-glyph");
     render(
-      menuItem(
-        `Copy ${entry.label}`,
-        html`<wa-icon library="system" name="copy" variant="regular"></wa-icon>`,
-        () => {},
-        {
-          disabled: entry.disabled,
-          role: menuOpen() ? "menuitem" : null,
-          row: entry.key,
-          title: entry.value || null,
-        },
-      ),
+      html`<span class="lf-fp-label">Copy ${entry.label}</span
+        ><span class="lf-fp-end">${glyph}</span>`,
       copy,
     );
     return copy;
@@ -2070,8 +2068,9 @@ export function createFloatingPanel({
         }),
       );
     const copy = copies.get(entry.key);
-    copy.value = entry.copies;
-    copy.disabled = entry.disabled;
+    if (copy.value !== entry.copies) copy.value = entry.copies;
+    if (copy.disabled !== Boolean(entry.disabled))
+      copy.disabled = Boolean(entry.disabled);
     keepsHidden(copy, !canCopy());
     return copy;
   }

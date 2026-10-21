@@ -246,9 +246,9 @@
    cannot reach into this tree, so a diff opening a column or closing a panel moved what
    followed it 8px at upgrade.
    The canonical search is the tools row itself. Its count stays inside that field's
-   end slot, so the same single frame holds at desktop and phone widths. */
+   frame, so the same single frame holds at desktop and phone widths. */
 .lf-diff-tools {
-  display: block;
+  display: flex;
   width: 100%;
   min-width: 0;
   margin: 0 0 8px;

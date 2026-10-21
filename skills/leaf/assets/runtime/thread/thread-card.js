@@ -37,9 +37,9 @@ import {
   standingIn,
 } from "../focus.js";
 import {
-  html,
-  render,
-  nothing,
+  solidHtml as html,
+  createView,
+  Show,
   share,
   createSignal,
   flush,
@@ -61,7 +61,7 @@ import {
 import { TEXT_FIELD } from "../control-selectors.js";
 import { atScrollEnd } from "../scrolling.js";
 import { settleThread } from "./folding.js";
-import { iconTemplate } from "../icons.js";
+import { iconElement } from "../icons.js";
 import { answeredInWords } from "../obligations/model.js";
 import { SAY_BOX } from "./selectors.js";
 import { threadAttention, workflowLabel } from "./workflow.js";
@@ -277,6 +277,7 @@ export function threadReading(thread, surface, commands) {
 }
 
 export class ThreadView {
+  #drawing = null;
   #commands;
   #messageCommands;
   #rewrites;
@@ -537,7 +538,7 @@ export class ThreadView {
     const settlementPlace = marginControls ? "margin" : "head";
     const notice = this.#news;
     if (model.news) notice.set(model.news);
-    const news = model.news ? notice.node : nothing;
+    const news = model.news ? notice.node : null;
     // Its id names the surface too (`drawnThreadId`).
     keeps(this.node, "data-thread", model.id);
     keeps(this.node, "data-resolved", model.resolved);
@@ -564,30 +565,45 @@ export class ThreadView {
       appends: model.surface === "margin",
     });
     if (reply && !this.#reply) this.#reply = this.#createReply(model);
-    const body = html`
-      ${this.#transcript.node}
-      ${
-        threadActions
-          ? marginControls
-            ? html`<div class="lf-margin-thread-controls">${threadActions}</div>`
-            : html`<div class="lf-thread-controls" data-lf-reflow="text">
-                ${news}${threadActions}
-              </div>`
-          : nothing
-      }
-    `;
-    render(
-      html`
-        ${
-          model.surface === "margin"
-            ? body
-            : html`<div class="lf-thread-content">${body}</div>`
-        }
-        ${reply ? (this.#continuity?.gap ?? nothing) : nothing}
-        ${reply ? this.#reply.node : nothing}
-      `,
-      this.node,
-    );
+    const props = {
+      surface: model.surface,
+      margin: Boolean(marginControls),
+      threadActions,
+      news,
+      gap: reply ? (this.#continuity?.gap ?? null) : null,
+      reply: reply ? this.#reply.node : null,
+    };
+    if (this.#drawing) this.#drawing.update(props);
+    else
+      this.#drawing = createView(
+        this.node,
+        (read) => {
+          const body = () =>
+            html`${this.#transcript.node}${Show({
+              get when() {
+                return Boolean(read().threadActions);
+              },
+              children: (_actions) =>
+                html`<div
+                  class=${() => (read().margin ? "lf-margin-thread-controls" : "lf-thread-controls")}
+                  data-lf-reflow=${() => (read().margin ? undefined : "text")}
+                >
+                  ${() => (read().margin ? null : read().news)}${() => read().threadActions}
+                </div>`,
+            })}`;
+          return html`${Show({
+            get when() {
+              return read().surface;
+            },
+            keyed: true,
+            children: (surface) =>
+              surface === "margin"
+                ? body()
+                : html`<div class="lf-thread-content">${body()}</div>`,
+          })}${() => read().gap}${() => read().reply}`;
+        },
+        props,
+      );
     if (!marginControls && model.news)
       measure(this.node, () => this.#retainHeaderSlot());
     else this.#releaseHeaderSlot();
@@ -765,7 +781,12 @@ export class ThreadView {
       keeps(button, "aria-label", label);
       keeps(button, "title", label);
     }
-    render(icon ? iconTemplate("check", "lf-action-icon") : state.label, button);
+    if (icon) {
+      const glyph =
+        button.querySelector(".lf-action-icon") ??
+        iconElement("check", "lf-action-icon");
+      setChildren(button, [glyph]);
+    } else if (button.textContent !== state.label) button.textContent = state.label;
     return button;
   }
 
@@ -868,5 +889,7 @@ export class ThreadView {
     this.retire();
     this.#reply?.dispose();
     this.#reply = null;
+    this.#drawing?.dispose();
+    this.#drawing = null;
   }
 }

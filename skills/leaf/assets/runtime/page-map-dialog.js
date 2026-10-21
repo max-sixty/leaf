@@ -356,7 +356,7 @@ export function createPageMapDialog({
     target = entry ? targetFor(entry) : null;
     if (!dialog.open) {
       openLayer(dialog, openedFrom);
-      dialogSearch.value = "";
+      if (dialogSearch.value) dialogSearch.value = "";
     }
     renderSheet();
     if (!dialog.open) showNativeLayer(dialog);
@@ -432,7 +432,7 @@ export function createPageMapDialog({
     });
     dialogClose.onclick = cancelPageMap;
     root.append(dialog);
-    dialogSearch.updateComplete.then(declareSearchKeys);
+    declareSearchKeys();
   }
 
   // The search box's own keys, declared on the exact input so they stand before its
@@ -441,7 +441,7 @@ export function createPageMapDialog({
   function declareSearchKeys() {
     const hasRows = () => mapRows().length > 0;
     keys(
-      dialogSearch.input,
+      dialogSearch,
       "In the Page Map's search",
       [
         {

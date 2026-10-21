@@ -1,7 +1,7 @@
 /* This module owns how a binding is drawn: the steps a row's sequence or label breaks
  * into, which leading steps match presses the active interaction has accepted, and the
- * immutable key-sequence reading every keyboard surface renders through one Lit template. */
-import { html, nothing, repeat } from "/vendor/browser-runtime.js";
+ * immutable key-sequence reading every keyboard surface renders through one Solid component. */
+import { solidHtml as html, For } from "/vendor/browser-runtime.js";
 
 import { labelOf, spell, word } from "./bindings.js";
 
@@ -55,22 +55,28 @@ export function keySequenceModel(
   });
 }
 
-export function keySequenceTemplate(model, { id = null, label = false } = {}) {
+export function keySequenceTemplate(
+  read,
+  { id = () => null, label = () => false } = {},
+) {
   return html`<span
-    id=${id ?? nothing}
-    class=${`lf-binding-sequence${label ? " lf-key-label" : ""}`}
+    id=${() => id() ?? undefined}
+    class=${() => `lf-binding-sequence${label() ? " lf-key-label" : ""}`}
     role="group"
-    aria-label=${model.label}
-    >${repeat(
-      model.steps,
-      (_step, index) => index,
-      (step) =>
+    aria-label=${() => read().label}
+  >
+    ${For({
+      get each() {
+        return read().steps;
+      },
+      keyed: false,
+      children: (step) =>
         html`<kbd
           class="lf-key-badge"
-          data-lf-sequence-step-state=${step.state}
+          data-lf-sequence-step-state=${() => step().state}
           aria-hidden="true"
-          >${step.text}</kbd
+          >${() => step().text}</kbd
         >`,
-    )}</span
+    })}</span
   >`;
 }

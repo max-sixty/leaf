@@ -287,20 +287,13 @@ export const offer = (...args) => document.documentElement.lfInitial.offer(...ar
 const offerElement = (...args) =>
   document.documentElement.lfInitial.offerElement(...args);
 
-// Runtime searches share the vendor's native editor, frame and focus band. Callers
-// own their query and results; an auxiliary reading, such as a match count, belongs
-// in the control's `end` slot so it stays inside that same frame.
+// Native searches keep editing, selection and clearing with the browser. A caller
+// with trailing controls seats them beside the input in one .lf-search-frame.
 export function searchField(cls, { name, label, placeholder = label }) {
-  const field = offer("wa-input", `lf-search-field lf-label-hidden ${cls}`);
+  const field = offer("input", `lf-search-field ${cls}`);
   field.type = "search";
-  field.value = "";
-  field.size = "s";
-  field.withClear = true;
-  // delegatesFocus keeps one native stop; the host declaration also lets modal
-  // traversal discover that stop without reaching into the component's shadow DOM.
-  field.tabIndex = 0;
   field.name = name;
-  field.label = label;
+  field.setAttribute("aria-label", label);
   field.placeholder = placeholder;
   field.autocomplete = "off";
   field.spellcheck = false;

@@ -613,3 +613,56 @@ svg[data-lf-icon] {
   outline: var(--focus-ring);
   outline-offset: 2px;
 }
+
+/* Native search fields share one frame, including any trailing readings/controls. */
+.lf-search-field,
+.lf-search-frame {
+  box-sizing: border-box;
+  min-inline-size: 0;
+  inline-size: 100%;
+  min-block-size: max(30px, var(--aim-floor));
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--field);
+  color: var(--ink);
+  font: var(--t-6) / var(--lf-ui-lh) var(--sans);
+}
+.lf-search-field {
+  padding: var(--sp-1) var(--sp-2);
+}
+.lf-search-field::placeholder {
+  color: var(--muted);
+}
+.lf-search-frame {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding-inline-end: var(--sp-1);
+}
+.lf-search-frame > .lf-search-field {
+  flex: 1 1 4em;
+  width: 0;
+  border: 0;
+  background: transparent;
+}
+.lf-search-frame:has(.lf-search-field[data-lf-focus]) {
+  outline: var(--focus-ring);
+  outline-offset: 1px;
+}
+.lf-search-frame > .lf-search-field[data-lf-focus] {
+  outline: none;
+}
+
+.lf-copy-control {
+  cursor: pointer;
+}
+.lf-copy-glyph {
+  display: inline-flex;
+  inline-size: 1em;
+  block-size: 1em;
+  flex: none;
+}
+.lf-copy-icon {
+  inline-size: 100%;
+  block-size: 100%;
+}

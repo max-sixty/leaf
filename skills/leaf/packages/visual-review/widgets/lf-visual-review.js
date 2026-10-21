@@ -6,11 +6,10 @@
  * reads the same projected dispositions as their buttons, while the case picker
  * retains every case so a reviewer can revisit a judgment. */
 import "/widgets/lf-shot.js";
-import "/vendor/webawesome.esm.js";
 
 import {
   commands,
-  commandsOn,
+  scopeRef as commandsOn,
   countAreas,
   describeDifference,
   compoundReadingRegionId,
@@ -22,14 +21,11 @@ import {
   keeps,
   layoutChanged,
   notice,
-  nothing,
-  offered,
-  html,
-  keyed,
-  live,
-  ref,
-  render,
-  repeat,
+  offerRef as offered,
+  solidHtml as html,
+  createView,
+  For,
+  Show,
   LeafElement,
   paintKeys,
   PRESS,
@@ -91,8 +87,6 @@ const detail = (name, cls, value, tag = "span") =>
     </dd>
   </div>`;
 
-const formatOpacity = (value) => `${value}%`;
-
 function previewUrl(target, path) {
   const base = new URL(target.url);
   if (!base.pathname.endsWith("/")) base.pathname += "/";
@@ -121,6 +115,8 @@ customElements.define(
     #selected = null;
     #snapshot = null;
     #sizes = null;
+    #mainDrawing = null;
+    #inspectorDrawing = null;
 
     // The run delivery the last render read, the one shown, and whether that render drew.
     #delivered;
@@ -157,7 +153,7 @@ customElements.define(
       this.#reviewUnits = this.state?.review?.units ?? {};
       this.#delivered = this.data("run");
       this.#drew = this.#sourceReady;
-      return this.#drew ? this.#template() : nothing;
+      if (this.#drew) this.#presentMain();
     }
 
     // What follows a draw reads the nodes it drew; a new run then shows.
@@ -220,42 +216,40 @@ customElements.define(
       this.#registerCommands();
     }
 
-    #choices(kind, label, values, current, hidden = false) {
-      return html`<wa-radio-group
-        ${offered(`lf-vr-inspector-group lf-vr-${kind}-group lf-compact-control`)}
-        label=${label}
-        name=${`${this.id}-${kind}`}
-        size="s"
-        orientation="horizontal"
-        ?hidden=${hidden}
-        .value=${live(current)}
-        @change=${(event) => {
-          const value = event.currentTarget.value;
-          if (kind === "scope") this.#setScope(value);
-          else if (kind === "mode") this.#setMode(value);
-          else this.#setScale(value);
-        }}
+    #choices(kind, label, values, current, hidden = () => false) {
+      return html`<fieldset
+        ref=${offered(`lf-vr-inspector-group lf-vr-${kind}-group lf-compact-control`)}
+        hidden=${hidden}
       >
-        ${repeat(
-          Object.entries(values),
-          ([value]) => value,
+        <legend>${label}</legend>
+        ${Object.entries(values).map(
           ([value, text]) =>
-            html`<wa-radio
-              ${offered("lf-vr-inspector-choice lf-compact-control", true)}
-              value=${value}
-              appearance="button"
-              ${commandsOn("On visual evidence", (radio) => [
-                {
-                  id: `visual.${kind}.${value}`,
-                  keys: PRESS,
-                  title: text.toLowerCase(),
-                  run: () => radio.click(),
-                },
-              ])}
-              >${text}</wa-radio
+            html`<label class="lf-vr-inspector-choice lf-compact-control">
+              <input
+                type="radio"
+                name=${`${this.id}-${kind}`}
+                value=${value}
+                ref=${[
+                  offered(""),
+                  commandsOn("On visual evidence", (radio) => [
+                    {
+                      id: `visual.${kind}.${value}`,
+                      keys: PRESS,
+                      title: text.toLowerCase(),
+                      run: () => radio.click(),
+                    },
+                  ]),
+                ]}
+                checked=${() => current() === value}
+                onChange=${() => {
+                  if (kind === "scope") this.#setScope(value);
+                  else if (kind === "mode") this.#setMode(value);
+                  else this.#setScale(value);
+                }}
+              />${text}</label
             >`,
         )}
-      </wa-radio-group>`;
+      </fieldset>`;
     }
 
     // Whether the selected case can show its focus crop.
@@ -267,41 +261,60 @@ customElements.define(
     #renderInspector() {
       const focusAvailable = this.#focusAvailable();
       const scope = focusAvailable ? this.#scope : "full";
-      const active = this.#mode === "overlay";
       keeps(this, "data-inspection-mode", this.#mode);
       keeps(this, "data-inspection-scale", this.#scale);
       keeps(this, "data-inspection-scope", scope);
-      render(
-        html`<summary ${offered("lf-vr-inspection-summary")}>
-            Inspect comparison
-          </summary>
-          <div ${offered("lf-vr-inspector")}>
-            ${this.#choices("scope", "Scope", SCOPE, scope, !focusAvailable)}
-            ${this.#choices("mode", "View", INSPECTION, this.#mode)}
-            ${this.#choices("scale", "Size", SCALE, this.#scale)}
-            <div ${offered("lf-vr-opacity-control")} data-active=${active}>
-              <span ${offered("lf-vr-inspector-label lf-label")}
-                >Candidate opacity</span
-              >
-              <wa-slider
-                ${offered("lf-vr-opacity")}
-                size="s"
-                label="Candidate opacity"
-                aria-label="Candidate opacity"
-                name="candidate-opacity"
-                min="0"
-                max="100"
-                step="5"
-                .valueFormatter=${formatOpacity}
-                .value=${live(this.#opacity)}
-                ?disabled=${!active}
-                @input=${(event) => this.#setOpacity(Number(event.currentTarget.value))}
-              ></wa-slider>
-              <output ${offered("lf-vr-opacity-value")}>${this.#opacity}%</output>
-            </div>
-          </div>`,
-        this.#inspector,
-      );
+      const props = {
+        focusAvailable,
+        scope,
+        mode: this.#mode,
+        scale: this.#scale,
+        opacity: this.#opacity,
+      };
+      if (this.#inspectorDrawing) this.#inspectorDrawing.update(props);
+      else
+        this.#inspectorDrawing = createView(
+          this.#inspector,
+          (read) =>
+            html` <summary ref=${offered("lf-vr-inspection-summary")}>
+                Inspect comparison
+              </summary>
+              <div ref=${offered("lf-vr-inspector")}>
+                ${this.#choices(
+                  "scope",
+                  "Scope",
+                  SCOPE,
+                  () => read().scope,
+                  () => !read().focusAvailable,
+                )}
+                ${this.#choices("mode", "View", INSPECTION, () => read().mode)}
+                ${this.#choices("scale", "Size", SCALE, () => read().scale)}
+                <div
+                  ref=${offered("lf-vr-opacity-control")}
+                  data-active=${() => read().mode === "overlay"}
+                >
+                  <span ref=${offered("lf-vr-inspector-label lf-label")}
+                    >Candidate opacity</span
+                  >
+                  <input
+                    type="range"
+                    ref=${offered("lf-vr-opacity")}
+                    aria-label="Candidate opacity"
+                    name="candidate-opacity"
+                    min="0"
+                    max="100"
+                    step="5"
+                    value=${() => read().opacity}
+                    disabled=${() => read().mode !== "overlay"}
+                    onInput=${(event) => this.#setOpacity(Number(event.currentTarget.value))}
+                  />
+                  <output ref=${offered("lf-vr-opacity-value")}
+                    >${() => `${read().opacity}%`}</output
+                  >
+                </div>
+              </div>`,
+          props,
+        );
     }
 
     #setScope(scope) {
@@ -529,9 +542,11 @@ customElements.define(
         // Only another successful source commit may replace this failure view, and
         // it rebuilds the cases the failure view discarded.
         this.#sourceReady = false;
+        for (const entry of this.#caseEntries.values()) entry.drawing?.dispose();
         this.#caseEntries.clear();
         releaseOutlets(this);
-        render(nothing, this);
+        this.#mainDrawing?.dispose();
+        this.#mainDrawing = null;
         failSoft(this, error);
       }
     }
@@ -548,7 +563,10 @@ customElements.define(
     #reconcileCases(cases) {
       const wanted = new Set(cases.map(({ id }) => id));
       for (const id of this.#caseEntries.keys())
-        if (!wanted.has(id)) this.#caseEntries.delete(id);
+        if (!wanted.has(id)) {
+          this.#caseEntries.get(id).drawing?.dispose();
+          this.#caseEntries.delete(id);
+        }
       for (const record of cases) {
         let entry = this.#caseEntries.get(record.id);
         if (!entry) {
@@ -691,130 +709,167 @@ customElements.define(
     }
 
     #caseView(record, index, total, remaining) {
-      const disposition = this.#disposition(record.id);
-      const selected = record.id === this.#selected;
-      const available = this.controller.read().actions.review?.available ?? false;
+      const entry = this.#caseEntries.get(record.id);
       const [heading, analysis] = this.#position(record, index, total);
-      const { before, after, shotKey, prepare, place } = this.#caseEntries.get(
-        record.id,
-      );
+      const props = {
+        record,
+        index,
+        total,
+        remaining,
+        heading,
+        analysis,
+        disposition: this.#disposition(record.id),
+        selected: record.id === this.#selected,
+        available: this.controller.read().actions.review?.available ?? false,
+        before: entry.before,
+        after: entry.after,
+        shotKey: entry.shotKey,
+        base: this.#run.base,
+        candidate: this.#run.candidate,
+      };
+      if (!entry.article) {
+        entry.article = document.createElement("article");
+        entry.article.className = "lf-vr-case";
+      }
+      keeps(entry.article, "data-classification", record.classification);
+      keeps(entry.article, "data-disposition", props.disposition ?? "");
+      keeps(entry.article, "aria-label", `Visual review case ${index + 1} of ${total}`);
+      keeps(entry.article, "data-selected", props.selected ? "" : null);
+      if (entry.drawing) entry.drawing.update(props);
+      else
+        entry.drawing = createView(
+          entry.article,
+          (read) => this.#caseTemplate(read, entry),
+          props,
+        );
+      return entry.article;
+    }
+
+    #caseTemplate(read, entry) {
+      const record = () => read().record;
       const link = (cls, label, href) =>
         html`<a
-          ${offered(`lf-btn ${cls}`)}
+          ref=${offered(`lf-btn ${cls}`)}
           target="_blank"
           rel="noopener noreferrer"
-          ?hidden=${!href}
-          href=${href || nothing}
+          hidden=${() => !href()}
+          href=${() => href() || undefined}
           >${label}</a
         >`;
-      return html`<article
-        class="lf-vr-case"
-        data-classification=${record.classification}
-        data-disposition=${disposition ?? ""}
-        aria-label=${`Visual review case ${index + 1} of ${total}`}
-        ?data-selected=${selected}
-        ${ref(place)}
-      >
-        <header class="lf-vr-case-head">
+      return html` <header class="lf-vr-case-head">
           <div class="lf-vr-case-heading">
             <p class="lf-vr-case-position lf-label" data-lf-gen="1" data-lf-said>
-              ${heading}
+              ${() => read().heading}
             </p>
             <h3 class="lf-vr-case-title" data-lf-gen="1" data-lf-said>
-              ${record.title}
+              ${() => record().title}
             </h3>
           </div>
         </header>
-        <div class="lf-vr-toolbar-slot">${selected ? this.#inspector : ""}</div>
+        <div class="lf-vr-toolbar-slot">
+          ${() => (read().selected ? this.#inspector : null)}
+        </div>
         <div class="lf-vr-shot-host">
-          ${keyed(
-            shotKey,
-            // Property and ref bindings commit before connection: the generated shot
-            // joins its owner's presentation barrier and declares keys for this mode.
-            html`<lf-shot
-              id=${`lf-${this.id}-${record.id}-comparison`}
-              before=${before}
-              after=${after}
-              alt=${`${record.title}. ${record.result}`}
-              outlines
-              ._lfPresentGenerated=${this.#presentGenerated}
-              ${ref(prepare)}
-              @captureload=${this.#scheduleEvidenceLayout}
-            ></lf-shot>`,
-          )}
+          ${Show({
+            get when() {
+              return read().shotKey;
+            },
+            keyed: true,
+            children: (_key) =>
+              html`<lf-shot
+                id=${() => `lf-${this.id}-${record().id}-comparison`}
+                before=${() => read().before}
+                after=${() => read().after}
+                alt=${() => `${record().title}. ${record().result}`}
+                outlines
+                prop:_lfPresentGenerated=${this.#presentGenerated}
+                ref=${entry.prepare}
+                onCaptureload=${this.#scheduleEvidenceLayout}
+              ></lf-shot>`,
+          })}
         </div>
         <dl class="lf-vr-claim">
           <dt class="lf-vr-action-term" data-lf-gen="1" data-lf-said>Action</dt>
-          <dd class="lf-vr-action" data-lf-gen="1" data-lf-said>${record.action}</dd>
+          <dd class="lf-vr-action" data-lf-gen="1" data-lf-said>
+            ${() => record().action}
+          </dd>
           <dt class="lf-vr-result-term" data-lf-gen="1" data-lf-said>
             Observed result
           </dt>
-          <dd class="lf-vr-result" data-lf-gen="1" data-lf-said>${record.result}</dd>
+          <dd class="lf-vr-result" data-lf-gen="1" data-lf-said>
+            ${() => record().result}
+          </dd>
         </dl>
         <div class="lf-vr-review" role="group" aria-label="Case review">
           <div class="lf-vr-dispositions">
             ${Object.entries(DISPOSITION).map(
               ([value, text]) =>
                 html`<button
-                  ${offered(`lf-btn lf-vr-disposition lf-vr-${value}`)}
+                  ref=${offered(`lf-btn lf-vr-disposition lf-vr-${value}`)}
                   data-disposition=${value}
-                  aria-pressed=${String(disposition === value)}
-                  ?disabled=${!available}
-                  @click=${() => this.#review(record.id, value)}
+                  aria-pressed=${() => String(read().disposition === value)}
+                  disabled=${() => !read().available}
+                  onClick=${() => this.#review(record().id, value)}
                 >
                   ${text}
                 </button>`,
             )}
           </div>
-          <button ${offered("lf-btn lf-vr-next-remaining")}>Next unreviewed</button>
+          <button ref=${offered("lf-btn lf-vr-next-remaining")}>Next unreviewed</button>
           <p class="lf-vr-review-status" data-lf-gen="1" data-lf-said>
-            ${
-              remaining === 0
+            ${() => {
+              const { remaining, disposition } = read();
+              return remaining === 0
                 ? "All cases reviewed · revisit any case above"
                 : remaining === 1 && !disposition
                   ? "Current case is the last unreviewed"
-                  : `${disposition ? DISPOSITION[disposition] : "Not reviewed"} · ${remaining} unreviewed`
-            }
+                  : `${disposition ? DISPOSITION[disposition] : "Not reviewed"} · ${remaining} unreviewed`;
+            }}
           </p>
         </div>
         <footer class="lf-vr-support">
           <div class="lf-vr-links">
-            ${link("lf-vr-base-link", "Open base", this.#run.base.url && previewUrl(this.#run.base, record.path))}
-            ${link("lf-vr-candidate-link", "Open candidate", this.#run.candidate.url && previewUrl(this.#run.candidate, record.path))}
-            ${link("lf-vr-trace-link", "Open trace", record.traceUrl)}
+            ${link("lf-vr-base-link", "Open base", () => read().base.url && previewUrl(read().base, record().path))}
+            ${link("lf-vr-candidate-link", "Open candidate", () => read().candidate.url && previewUrl(read().candidate, record().path))}
+            ${link("lf-vr-trace-link", "Open trace", () => record().traceUrl)}
           </div>
           <details class="lf-vr-details">
-            <summary ${offered("lf-vr-details-summary")}>Capture details</summary>
+            <summary ref=${offered("lf-vr-details-summary")}>Capture details</summary>
             <dl class="lf-vr-provenance">
-              ${detail("Path", "lf-vr-path", record.path, "code")}
-              ${detail("Browser", "lf-vr-browser", `${record.capture.browser} ${record.capture.browserVersion}`)}
-              ${detail("Viewport", "lf-vr-viewport", `${record.capture.viewport.width} × ${record.capture.viewport.height} · ${record.capture.deviceScaleFactor}×`)}
-              ${
-                record.focus
-                  ? detail(
-                      "Focus area",
-                      "lf-vr-focus",
-                      `${record.focus.x}, ${record.focus.y} · ${record.focus.width} × ${record.focus.height} CSS px`,
-                    )
-                  : ""
-              }
-              ${detail("Appearance", "lf-vr-appearance", `${record.capture.colorScheme} · ${record.capture.locale} · ${record.capture.timezone}`)}
+              ${detail("Path", "lf-vr-path", () => record().path, "code")}
+              ${detail("Browser", "lf-vr-browser", () => `${record().capture.browser} ${record().capture.browserVersion}`)}
+              ${detail("Viewport", "lf-vr-viewport", () => `${record().capture.viewport.width} × ${record().capture.viewport.height} · ${record().capture.deviceScaleFactor}×`)}
+              ${Show({
+                get when() {
+                  return record().focus;
+                },
+                children: (focus) =>
+                  detail(
+                    "Focus area",
+                    "lf-vr-focus",
+                    () =>
+                      `${focus().x}, ${focus().y} · ${focus().width} × ${focus().height} CSS px`,
+                  ),
+              })}
+              ${detail("Appearance", "lf-vr-appearance", () => `${record().capture.colorScheme} · ${record().capture.locale} · ${record().capture.timezone}`)}
               <div class="lf-vr-detail">
                 <dt class="lf-vr-detail-term" data-lf-gen="1" data-lf-said>Observed</dt>
                 <dd class="lf-vr-detail-value">
                   <time
                     class="lf-vr-observed"
-                    datetime=${record.capture.observedAt}
+                    datetime=${() => record().capture.observedAt}
                     data-lf-gen="1"
                     data-lf-said
-                    >${record.capture.observedAt}</time
+                    >${() => record().capture.observedAt}</time
                   >
                 </dd>
               </div>
-              <p class="lf-vr-analysis" data-lf-gen="1" data-lf-said>${analysis}</p>
+              <p class="lf-vr-analysis" data-lf-gen="1" data-lf-said>
+                ${() => read().analysis}
+              </p>
               <div class="lf-vr-revisions">
-                ${detail("Base revision", "lf-vr-base-revision", this.#run.base.revision, "code")}
-                ${detail("Candidate revision", "lf-vr-candidate-revision", this.#run.candidate.revision, "code")}
+                ${detail("Base revision", "lf-vr-base-revision", () => read().base.revision, "code")}
+                ${detail("Candidate revision", "lf-vr-candidate-revision", () => read().candidate.revision, "code")}
               </div>
             </dl>
           </details>
@@ -823,8 +878,7 @@ customElements.define(
           class="lf-vr-thread-outlet lf-ui"
           data-lf-gen="1"
           aria-label="Threads on this visual case"
-        ></section>
-      </article>`;
+        ></section>`;
     }
 
     // A draw now, of the cases alone, for a caller that reads what it drew.
@@ -844,76 +898,96 @@ customElements.define(
       if (this.#sourceReady) this.#paintInspection();
     }
 
-    #template() {
+    #presentMain() {
       const run = this.#run;
       const cases = run?.cases ?? [];
       const remaining = this.#remaining().length;
-      const reviewed = cases.length - remaining;
-      return html`<header class="lf-vr-head">
-          <h2 class="lf-vr-title" data-lf-gen="1" data-lf-said>
-            ${run ? run.title : "Waiting for a visual run"}
-          </h2>
-          <p class="lf-vr-progress" data-lf-gen="1" data-lf-said>
-            ${cases.length ? `${reviewed} of ${cases.length} cases reviewed` : "No cases reviewed"}
-          </p>
-        </header>
-        <section
-          class="lf-vr-evidence-region"
-          data-lf-reading-role="pane"
-          data-lf-generated
-          aria-label="Selected visual evidence"
-        >
-          <header class="lf-vr-queue">
-            <nav ${offered("lf-vr-queue-region")} aria-label="Visual review cases">
-              <wa-select
-                ${offered("lf-vr-case-select lf-compact-control")}
-                name="visual-case"
-                size="s"
-                label="Selected visual case"
-                aria-label="Selected visual case"
-                ?disabled=${!cases.length}
-                .value=${live(this.#selected ?? "")}
-                @change=${(event) => this.#select(event.currentTarget.value)}
+      const props = {
+        title: run ? run.title : "Waiting for a visual run",
+        selected: this.#selected ?? "",
+        progress: cases.length
+          ? `${cases.length - remaining} of ${cases.length} cases reviewed`
+          : "No cases reviewed",
+        options: cases.map((record, index) => ({
+          id: record.id,
+          label: `${index + 1} of ${cases.length} · ${record.title} · ${
+            DISPOSITION[this.#reviewUnits[record.id]?.detail.disposition] ??
+            CLASSIFICATION[record.classification]
+          }`,
+        })),
+        caseViews: cases.map((record, index) =>
+          this.#caseView(record, index, cases.length, remaining),
+        ),
+      };
+      if (this.#mainDrawing) this.#mainDrawing.update(props);
+      else
+        this.#mainDrawing = createView(
+          this,
+          (read) =>
+            html` <header class="lf-vr-head">
+                <h2 class="lf-vr-title" data-lf-gen="1" data-lf-said>
+                  ${() => read().title}
+                </h2>
+                <p class="lf-vr-progress" data-lf-gen="1" data-lf-said>
+                  ${() => read().progress}
+                </p>
+              </header>
+              <section
+                class="lf-vr-evidence-region"
+                data-lf-reading-role="pane"
+                data-lf-generated
+                aria-label="Selected visual evidence"
               >
-                ${repeat(
-                  cases,
-                  (record) => record.id,
-                  (record, index) =>
-                    html`<wa-option ${offered("")} value=${record.id}
-                      >${`${index + 1} of ${cases.length} · ${record.title} · ${
-                        DISPOSITION[this.#reviewUnits[record.id]?.detail.disposition] ??
-                        CLASSIFICATION[record.classification]
-                      }`}</wa-option
-                    >`,
-                )}
-              </wa-select>
-              <button
-                ${offered("lf-btn lf-quiet-action lf-compact-control lf-vr-previous")}
-              >
-                Previous
-              </button>
-              <button
-                ${offered("lf-btn lf-quiet-action lf-compact-control lf-vr-next")}
-              >
-                Next
-              </button>
-            </nav>
-          </header>
-          <div class="lf-vr-cases">
-            ${
-              run
-                ? repeat(
-                    cases,
-                    (record) => record.id,
-                    (record, index) =>
-                      this.#caseView(record, index, cases.length, remaining),
-                  )
-                : html`<p class="lf-vr-empty" data-lf-gen="1" data-lf-said>
-                    Waiting for visual-run data.
-                  </p> `
-            }
-          </div>
-        </section>`;
+                <header class="lf-vr-queue">
+                  <nav
+                    ref=${offered("lf-vr-queue-region")}
+                    aria-label="Visual review cases"
+                  >
+                    <select
+                      ref=${offered("lf-vr-case-select lf-compact-control")}
+                      name="visual-case"
+                      aria-label="Selected visual case"
+                      disabled=${() => !read().options.length}
+                      value=${() => read().selected}
+                      onChange=${(event) => this.#select(event.currentTarget.value)}
+                    >
+                      ${For({
+                        get each() {
+                          return read().options;
+                        },
+                        keyed: (option) => option.id,
+                        children: (option) =>
+                          html`<option value=${() => option().id}>
+                            ${() => option().label}
+                          </option>`,
+                      })}
+                    </select>
+                    <button
+                      ref=${offered("lf-btn lf-quiet-action lf-compact-control lf-vr-previous")}
+                    >
+                      Previous
+                    </button>
+                    <button
+                      ref=${offered("lf-btn lf-quiet-action lf-compact-control lf-vr-next")}
+                    >
+                      Next
+                    </button>
+                  </nav>
+                </header>
+                <div class="lf-vr-cases">
+                  ${Show({
+                    get when() {
+                      return read().caseViews.length;
+                    },
+                    children: (_cases) => html`${() => read().caseViews}`,
+                    fallback: html`<p class="lf-vr-empty" data-lf-gen="1" data-lf-said>
+                      Waiting for visual-run data.
+                    </p>`,
+                  })}
+                </div>
+              </section>`,
+          props,
+        );
     }
 
     // Only a source commit changes datum membership or provenance. Inspection and

@@ -9,8 +9,8 @@ import { createSignal, createProjection, flush } from "../solid.js";
 import { render } from "../solid.js";
 
 
-export function createView   (
-  container                                ,
+export function createView                  (
+  container             ,
   component                                 ,
   initial   ,
 ) {
@@ -18,10 +18,17 @@ export function createView   (
     { current: initial },
     { ownedWrite: true },
   );
-  // A projection reconciles complete snapshots into per-field reactive readings.
-  // A changed field cannot invalidate bindings that read only unchanged fields.
-  const props = createProjection(snapshot);
-  const dispose = render(() => component(() => props.current), container);
+  const dispose = render(() => {
+    // Track top-level props without merging records inside them. Immutable lists
+    // keep their own identities: For's key, rather than a store's default id key,
+    // decides which row survives a reorder or filter.
+    const props = createProjection                         (
+      () => ({ ...snapshot().current })                           ,
+      null,
+      { shallow: true },
+    );
+    return component(() => props     );
+  }, container);
   return Object.freeze({
     update(next   ) {
       flush(() => setSnapshot({ current: next }));

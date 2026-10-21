@@ -24,7 +24,7 @@
    than removed. Geometry belongs to each caller and is passed in so this module
    introduces no ownership cycle through its callers. */
 import { bindingEnabled, spell } from "./bindings.js";
-import { html, render } from "/vendor/browser-runtime.js";
+import { solidHtml as html, createView, Show } from "/vendor/browser-runtime.js";
 import { keySequenceModel, keySequenceTemplate } from "./key-sequence.js";
 import { clamp, overlaps, overlapsAcross } from "../rect.js";
 import { chipSeats } from "./chip-seats.js";
@@ -47,7 +47,7 @@ export function hintCodes(count, keys = HINT_KEYS) {
   return codes.slice(0, count);
 }
 
-// Lit sees only an opaque primitive. The native row or target remains controller state,
+// Solid sees only an opaque primitive. The native row or target remains controller state,
 // while an unchanged owner retains its seat, chip and keycaps across paint-only updates.
 export function renderKeys() {
   const keys = new WeakMap();
@@ -287,14 +287,32 @@ export function createHintSession({
   const enabled = (candidate) => [...candidate.code].every(bindingEnabled);
   const shown = (plan) => enabled(plan.candidate) || plan.candidate === hinted()[at];
   const nativeTake = keySequenceModel([spell("Enter")], undefined, ["Enter"]);
-  const face = (plan) =>
-    plan.candidate && !enabled(plan.candidate)
-      ? html`<span
-          class=${`lf-key-hint lf-current${plan.model.className.includes(" lf-in") ? " lf-in" : ""}`}
+  const drawings = new WeakMap();
+  const face = (read) =>
+    Show({
+      get when() {
+        return read().native;
+      },
+      children: (_native) =>
+        html`<span
+          class=${() => `lf-key-hint lf-current${read().model.className.includes(" lf-in") ? " lf-in" : ""}`}
           data-lf-hint-native="Enter"
-          >${keySequenceTemplate(nativeTake)}</span
-        >`
-      : template(plan.model);
+          >${keySequenceTemplate(() => nativeTake)}</span
+        >`,
+      fallback: template(() => read().model),
+    });
+  function presentFace(plan, seat) {
+    const props = {
+      model: plan.model,
+      native: Boolean(plan.candidate && !enabled(plan.candidate)),
+    };
+    let drawing = drawings.get(seat);
+    if (drawing) drawing.update(props);
+    else {
+      drawing = createView(seat, face, props);
+      drawings.set(seat, drawing);
+    }
+  }
 
   // Every way the map is replaced whole puts the user back at its head, with no letters
   // typed and nothing heard. Whether the page is moving is a fact about the page rather
@@ -425,7 +443,7 @@ export function createHintSession({
     const plans = codedPlans.filter(shown);
     const drawn = plans.map((plan) => {
       const seat = seats.seat(plan.model.key);
-      render(face(plan), seat);
+      presentFace(plan, seat);
       return {
         seat,
         element: plan.candidate ? identity(plan.candidate) : null,
@@ -454,7 +472,7 @@ export function createHintSession({
       }).filter(shown);
       for (const plan of plans) {
         const seat = seats.seated(plan.model.key);
-        if (seat) render(face(plan), seat);
+        if (seat) presentFace(plan, seat);
       }
       seats.keepOnly(new Set(plans.map(({ model }) => model.key)));
       return;

@@ -27,6 +27,7 @@
  * operations and textual hunks are independent: metadata-only files have a commentable
  * row without an empty disclosure, and a file-type replacement keeps one file identity. */
 import {
+  el,
   DISCLOSE,
   HOLDS_WORD,
   announce,
@@ -36,10 +37,10 @@ import {
   ensureSyntaxLanguage,
   focusDestination,
   holdFocus,
-  html,
+  solidHtml as html,
+  createView,
+  Show,
   nothing,
-  keyed,
-  render,
   inChrome,
   iconElement,
   inBaseLayer,
@@ -328,29 +329,49 @@ function filePathTemplate({ path, previousPath }) {
   >`;
 }
 
-// Lit owns only the summary's contents. The native disclosure and Pierre's body
-// stay connected across revisions, including loading and failed evidence.
+// Solid owns only the summary contents; the disclosure and evidence stay connected.
+const summaryDrawings = new WeakMap();
 function paintSummary(details, record, verified = true) {
-  const { path, previousPath, additions, deletions } = record;
   const previous = pathParts(details);
-  render(
-    html`${keyed(
-      JSON.stringify([path, verified && previousPath]),
-      filePathTemplate(verified ? record : { path }),
-    )}${
-      verified
-        ? html`<span class="lf-diff-stat" data-lf-gen="1"
-            ><span class="lf-diff-additions">+${additions}</span>${" "}<span
-              class="lf-diff-deletions"
-              >−${deletions}</span
-            ><span class="lf-diff-metadata-words"
-              >${operationWord(record) ? ` · ${operationWord(record)}` : ""}</span
-            ></span
-          >`
-        : null
-    }`,
-    details.firstElementChild,
-  );
+  const props = {
+    record,
+    verified,
+    pathKey: JSON.stringify([record.path, verified && record.previousPath]),
+  };
+  const summary = details.firstElementChild;
+  let drawing = summaryDrawings.get(summary);
+  if (drawing) drawing.update(props);
+  else {
+    drawing = createView(
+      summary,
+      (read) =>
+        html`${Show({
+          get when() {
+            return read().pathKey;
+          },
+          keyed: true,
+          children: (_key) =>
+            filePathTemplate(
+              read().verified ? read().record : { path: read().record.path },
+            ),
+        })}${Show({
+          get when() {
+            return read().verified;
+          },
+          children: (_verified) =>
+            html` <span class="lf-diff-stat" data-lf-gen="1"
+              ><span class="lf-diff-additions">+${() => read().record.additions}</span
+              >${" "}<span class="lf-diff-deletions"
+                >−${() => read().record.deletions}</span
+              ><span class="lf-diff-metadata-words"
+                >${() => (operationWord(read().record) ? ` · ${operationWord(read().record)}` : "")}</span
+              ></span
+            >`,
+        })}`,
+      props,
+    );
+    summaryDrawings.set(summary, drawing);
+  }
   const current = pathParts(details);
   for (const part of previous) if (!current.includes(part)) pathSizes.unobserve(part);
   for (const part of current) if (!previous.includes(part)) pathSizes.observe(part);
@@ -620,7 +641,8 @@ function replaceFileContent(entry, rendered, pairs, outlets) {
 }
 
 function diffTools(host) {
-  const search = searchField("lf-diff-tools lf-diff-search", {
+  const node = el("div", "lf-search-frame lf-diff-tools lf-diff-search");
+  const search = searchField("", {
     name: "diff-search",
     label: "Filter diff files",
     placeholder: "Filter files",
@@ -629,7 +651,6 @@ function diffTools(host) {
   const progress = document.createElement("span");
   progress.className = "lf-diff-progress";
   progress.dataset.lfGen = "1";
-  progress.slot = "end";
   const count = document.createElement("span");
   progress.append(count);
   // Opening every file is rare beside opening one, so it is a quiet icon after the count
@@ -639,10 +660,9 @@ function diffTools(host) {
     "lf-btn lf-icon-action lf-quiet-action lf-diff-fold-all",
   );
   foldAll.type = "button";
-  foldAll.slot = "end";
   foldAll.addEventListener("click", (event) => host.foldAll(event));
-  search.append(progress, foldAll);
-  return { search, progress, count, foldAll };
+  node.append(search, progress, foldAll);
+  return { node, search, progress, count, foldAll };
 }
 
 function operationWord(record) {
@@ -695,11 +715,13 @@ function metadataNode(record) {
   const row = document.createElement("div");
   row.className = "lf-diff-metadata";
   row.dataset.lfGen = "1";
-  render(
-    html`${filePathTemplate(record)}<span class="lf-diff-stat"
-        >${metadataWords(record)}</span
-      >`,
+  createView(
     row,
+    () =>
+      html`${filePathTemplate(record)}<span class="lf-diff-stat"
+          >${metadataWords(record)}</span
+        >`,
+    {},
   );
   return row;
 }
@@ -1285,7 +1307,7 @@ customElements.define(
           for (const entry of prior.values())
             if (!entries.includes(entry)) releaseOutlets(entry.node);
           setChildren(this.filesBody, [
-            ...(this.diffTools ? [this.diffTools.search] : []),
+            ...(this.diffTools ? [this.diffTools.node] : []),
             ...entries.map(({ node }) => node),
           ]);
           this.replaceChildren();
@@ -1827,7 +1849,7 @@ customElements.define(
     }
 
     clearFilter() {
-      if (this.diffTools) this.diffTools.search.value = "";
+      if (this.diffTools?.search.value) this.diffTools.search.value = "";
       this.filterFiles("");
     }
 

@@ -86,7 +86,7 @@ html[data-lf-draw-mode] main {
   opacity: 1;
   pointer-events: auto;
 }
-.lf-code-copy::part(button) {
+.lf-code-copy {
   width: var(--lf-code-copy-size);
   height: var(--lf-code-copy-size);
   padding: 6px;
@@ -97,10 +97,10 @@ html[data-lf-draw-mode] main {
   display: flex;
   font-size: var(--t-5);
 }
-.lf-code-copy::part(button):hover {
+.lf-code-copy:hover {
   color: var(--ink);
 }
-.lf-code-copy::part(lf-focus) {
+.lf-code-copy[data-lf-focus] {
   outline: var(--focus-ring);
 }
 /* A recording's bar lies over its foot, inset as Copy is from a code block's corner, in

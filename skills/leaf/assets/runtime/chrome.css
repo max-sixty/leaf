@@ -851,18 +851,11 @@
     gap: 8px;
   }
   .lf-fp-copy-item {
-    display: block;
-    container-type: inline-size;
-    font-size: 0;
-    line-height: 0;
-  }
-  .lf-fp-copy-item > .lf-fp-item {
-    width: 100cqi;
+    width: 100%;
     font: 13px / 1.45 var(--sans);
   }
-  .lf-fp-copy-item wa-icon {
+  .lf-fp-copy-item .lf-copy-glyph {
     color: var(--lf-fp-muted);
-    font-size: 13px;
   }
   .lf-fp-chevron {
     width: 12px;
@@ -903,7 +896,7 @@
     font-size: 0;
     line-height: 0;
   }
-  .lf-fp-copy-press::part(button) {
+  .lf-fp-copy-press {
     display: grid;
     place-items: center;
     width: 28px;
@@ -916,7 +909,7 @@
     font-size: 16px;
     cursor: pointer;
   }
-  .lf-fp-copy-press::part(button):hover {
+  .lf-fp-copy-press:hover {
     background: var(--lf-fp-hover);
     color: var(--ink);
   }
@@ -2266,13 +2259,13 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     text-align: right;
     white-space: nowrap;
   }
-  .lf-page-search-box::part(input) {
+  .lf-page-search-box > input {
     flex: 1 1 4em;
   }
   .lf-page-search-status > span {
     min-inline-size: max(100%, max-content);
   }
-  .lf-page-search-box::part(end) {
+  .lf-page-search-status {
     flex-shrink: 1;
     min-inline-size: 0;
   }

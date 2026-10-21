@@ -20,16 +20,16 @@ def test_keyed_reordering_keeps_typed_words_focus_and_selection(
         if (event.key !== "F2") return;
         event.preventDefault();
         rows = rows.toReversed().map((row) => ({...row}));
-        drawing.update(rows);
+        drawing.update({rows});
       };
       const drawing = createView(document.getElementById("rows"),
         (props) => For({
-          get each() { return props(); },
+          get each() { return props().rows; },
           keyed: (row) => row.id,
           children: (row) => solidHtml`<label>${() => row().label}
             <input aria-label=${() => row().label} onKeyDown=${reorder} />
           </label>`,
-        }), rows);
+        }), {rows});
     </script>
     """
     page = open_page(browser, serve(source.replace("</body>", script + "</body>")))
@@ -46,3 +46,63 @@ def test_keyed_reordering_keeps_typed_words_focus_and_selection(
     expect(field).to_be_focused()
     expect(field).to_have_value("Retained words")
     assert field.evaluate("node => [node.selectionStart, node.selectionEnd]") == [0, 8]
+
+
+def test_views_deliver_immediate_events_upgrade_refs_and_release_detached_roots(
+    browser, serve
+):
+    page = open_page(
+        browser, serve(leaf_page("View lifetime", "<h1>View lifetime</h1>"))
+    )
+    result = page.evaluate(
+        """async () => {
+      const {createView, solidHtml} = await import('/runtime/widget-api.js');
+      customElements.define('lf-native-ref-probe', class extends HTMLElement {
+        inspect() { return 'upgraded'; }
+      });
+      let clicks = 0, focuses = 0, inspected, sibling;
+      const host = document.createElement('section');
+      const drawing = createView(host, read => solidHtml`
+        <div><span ref=${node => node.append(solidHtml`<i>Nested</i>`)}></span>
+          <b data-probe="sibling" ref=${node => sibling = node.dataset.probe}></b></div>
+        <lf-native-ref-probe ref=${node => inspected = node.inspect()}></lf-native-ref-probe>
+        <button onClick=${() => clicks++}>Press</button>
+        <input onFocusIn=${() => focuses++} /><output>${() => read().label}</output>`, {label:'first'});
+      const input = host.querySelector('input');
+      input.value = 'retained words';
+      document.body.append(host);
+      host.querySelector('button').click(); input.focus(); input.setSelectionRange(2, 9);
+      host.remove();
+      await new Promise(resolve => queueMicrotask(resolve));
+      drawing.update({label:'second'});
+      document.body.append(host);
+      host.querySelector('button').click(); input.focus();
+      const result = {clicks, focuses, inspected, sibling, same: host.querySelector('input') === input,
+        value:input.value, selection:[input.selectionStart,input.selectionEnd], label:host.querySelector('output').textContent};
+      drawing.dispose(); host.remove();
+      window.detachedViewRefs = [];
+      for (let i = 0; i < 20; i++) {
+        const transient = document.createElement('section');
+        createView(transient, () => solidHtml`<button onClick=${() => {}}>Temporary</button>`, {});
+        document.body.append(transient);
+        window.detachedViewRefs.push(new WeakRef(transient));
+        transient.remove();
+      }
+      return result;
+    }"""
+    )
+    assert result == {
+        "clicks": 2,
+        "focuses": 2,
+        "inspected": "upgraded",
+        "sibling": "sibling",
+        "same": True,
+        "value": "retained words",
+        "selection": [2, 9],
+        "label": "second",
+    }
+    session = page.context.new_cdp_session(page)
+    session.send("HeapProfiler.collectGarbage")
+    session.send("HeapProfiler.collectGarbage")
+    assert page.evaluate("detachedViewRefs.filter(ref => ref.deref()).length") == 0
+    session.detach()

@@ -78,7 +78,10 @@ function prepareCodeBlock(pre, source, noun) {
         if (event.detail && !pressedPath.has(copy)) {
           event.preventDefault();
           event.stopImmediatePropagation();
-        } else copy.value = source();
+        } else {
+          const value = source();
+          if (copy.value !== value) copy.value = value;
+        }
       },
       { capture: true },
     );
@@ -139,7 +142,7 @@ export function watchCodeBlocks() {
       for (const [pre, pending, levels] of prepared) {
         const copy = aimControl(pending);
         standInChrome(copy, pre, levels);
-        copy.tabIndex = -1;
+        if (copy.tabIndex !== -1) copy.tabIndex = -1;
         claimReachStop(pre);
         if (!wired.has(pre)) {
           const events = new AbortController();

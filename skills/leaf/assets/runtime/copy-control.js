@@ -1,24 +1,71 @@
-/* Leaf's copy control: Web Awesome's copy button, which copies its `value` and shows
- * the result on its own face, a check or a cross where its copy icon stood, and Leaf
- * says the same words in its status line, since focus need not be on the control to
- * have pressed it. Every copy Leaf offers is this one control, so a code block and the
- * floating panel's About rows look and answer alike.
- * A control wrapping a trigger of its own wears that trigger's face
- * instead of the icon. A failed copy remains an error after the control's transient
- * face changes again; Web Awesome announces the outcome itself. */
-import { offer } from "./widget-elements.js";
+/* One native copy button for code blocks and the floating panel. The Clipboard API
+ * performs the action; a retained Solid glyph and Leaf's status line show its
+ * outcome, including activation while focus stands elsewhere. A failed copy remains
+ * in Leaf's errors after the transient face resets. */
+import { solidHtml as html, createView, Show } from "/vendor/browser-runtime.js";
+import { offer, el } from "./widget-elements.js";
+import { iconElement } from "./icons.js";
 import { notice } from "./notifications.js";
 import { raiseError } from "./errors.js";
+import { keeps } from "./keeps.js";
+import { whileConnected } from "./arrivals.js";
 
 /** A copy control named `label` that says `success` or `error` once pressed. */
-export function copyControl(className, { label = "", success, error }) {
-  const copy = offer("wa-copy-button", className);
-  if (label) copy.copyLabel = label;
-  copy.successLabel = success;
-  copy.errorLabel = error;
-  copy.tooltip = "none";
-  // Web Awesome announces the result; Leaf puts the same words in its status line.
-  copy.addEventListener("wa-copy", () => notice(success, { announce: false }));
-  copy.addEventListener("wa-error", () => raiseError(error, { announce: false }));
+export function copyControl(className, { label = "Copy", success, error }) {
+  const copy = offer("button", `lf-copy-control ${className}`);
+  copy.type = "button";
+  copy.setAttribute("aria-label", label);
+  copy.title = label;
+  const glyph = el("span", "lf-copy-glyph");
+  glyph.setAttribute("aria-hidden", "true");
+  copy.append(glyph);
+  const drawing = createView(
+    glyph,
+    (read) =>
+      html`${Show({
+        get when() {
+          return read().icon;
+        },
+        keyed: true,
+        children: (icon) => iconElement(icon, "lf-copy-icon"),
+      })}`,
+    { icon: "copy" },
+  );
+  let reset;
+  let busy = false;
+  const idle = () => {
+    clearTimeout(reset);
+    drawing.update({ icon: "copy" });
+    keeps(copy, "aria-label", label);
+    keeps(copy, "title", label);
+  };
+  whileConnected(copy, () => {
+    idle();
+    return () => clearTimeout(reset);
+  });
+  copy.addEventListener("click", async (event) => {
+    if (event.defaultPrevented || busy || copy.disabled) return;
+    busy = true;
+    clearTimeout(reset);
+    try {
+      await navigator.clipboard.writeText(copy.value);
+      drawing.update({ icon: "check" });
+      keeps(copy, "aria-label", success);
+      keeps(copy, "title", success);
+      notice(success);
+      copy.dispatchEvent(new CustomEvent("lf-copy", { bubbles: true, composed: true }));
+    } catch {
+      drawing.update({ icon: "cross" });
+      keeps(copy, "aria-label", error);
+      keeps(copy, "title", error);
+      raiseError(error);
+      copy.dispatchEvent(
+        new CustomEvent("lf-copy-error", { bubbles: true, composed: true }),
+      );
+    } finally {
+      busy = false;
+      if (copy.isConnected) reset = setTimeout(idle, 1500);
+    }
+  });
   return copy;
 }

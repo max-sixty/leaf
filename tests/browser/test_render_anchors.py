@@ -1358,7 +1358,7 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
     )
     expect(page.locator(".lf-chrome .lf-code-copy")).to_have_count(2)
     page.locator("#source").hover()
-    page.locator(".lf-chrome .lf-code-copy").first.get_by_role("button").hover()
+    page.locator(".lf-chrome .lf-code-copy").first.hover()
     assert (
         page.locator(".lf-chrome .lf-code-copy").evaluate_all(
             "nodes => nodes.filter(node => getComputedStyle(node).opacity === '1').length"
@@ -1500,7 +1500,7 @@ def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, hold
         )
         < 100
     )
-    button = control.get_by_role("button")
+    button = control
     page.locator("#source").hover()
     button.click()
     expect(button).to_have_accessible_name("Code copied")

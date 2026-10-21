@@ -6,8 +6,8 @@
    command vocabulary and executable routes
    before the native dialog moves focus. The resulting catalog contains evaluated display
    values and stable command ids, not callbacks or live predicates. Search, ranking,
-   selection, and metadata are local user-session state projected through one Lit
-   template. Activation closes the dialog and resolves its id afresh in the same gesture,
+   selection, and metadata are local user-session state projected through one Solid
+   view. Activation closes the dialog and resolves its id afresh in the same gesture,
    after returning focus to its command context. Escape and Close return to the opening
    control instead, when chrome opened the reference on behalf of another context.
    No deferred dispatch can reinterpret the command at a newer control or take that
@@ -36,7 +36,7 @@ import {
   dismissPopoversOutside,
 } from "./layer-stack.js";
 import { scrollIntoView } from "../landing-scroll.js";
-import { html, nothing, render, repeat } from "/vendor/browser-runtime.js";
+import { solidHtml as html, createView, For, Show } from "/vendor/browser-runtime.js";
 
 import {
   bindings,
@@ -609,64 +609,76 @@ function activateCommandEntry(entry) {
   });
 }
 
-function commandEntryTemplate(entry, promoted = false, shown = true) {
-  const selected = commandReferenceView.selectedCommandId === entry.id;
-  const action = entry.actionable
-    ? html`<button
+function commandEntryTemplate(read, selected) {
+  const entry = () => read().entry;
+  const optional = (when, template) =>
+    Show({
+      get when() {
+        return when();
+      },
+      children: (_value) => template(),
+    });
+  const action = Show({
+    get when() {
+      return entry().actionable;
+    },
+    children: (_actionable) =>
+      html`<button
         type="button"
         class="lf-command-reference-command"
-        data-lf-command=${entry.id}
-        data-lf-available=${String(entry.available)}
-        data-lf-selected=${String(selected)}
-        aria-describedby=${[
-          entry.keySequence ? entry.keyId : null,
-          entry.description ? entry.descriptionId : null,
-        ]
-          .filter(Boolean)
-          .join(" ")}
-        title=${entry.available ? "Run command" : entry.unavailableMessage}
-        @click=${() => activateCommandEntry(entry)}
-        .textContent=${entry.title}
-      ></button>`
-    : entry.title;
-  const scope = promoted
-    ? html`<span class="lf-command-reference-scope">${entry.sectionTitle}</span>`
-    : nothing;
-  // Whitespace in this cell is observable to accessibility and command consumers.
-  // prettier-ignore
-  const actionBody = html`<div class="lf-command-reference-action"><div class="lf-command-reference-action-main">${action}${scope}</div>${entry.description ? html`<span id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</span>` : nothing}</div>`;
-  const actionCell = html`<td role="gridcell">${actionBody}</td>`;
-  return html`
-    <tr
-      id=${entry.rowId}
-      role="row"
-      class=${entry.sequenceControl ? "lf-sequence-command" : ""}
-      data-lf-command=${entry.id}
-      aria-selected=${entry.actionable ? String(selected) : nothing}
-      ?hidden=${!shown}
-    >
-      <td role="gridcell">
-        ${
-          entry.keySequence
-            ? keySequenceTemplate(entry.keySequence, {
-                id: entry.keyId,
-                label: entry.keyLabel,
-              })
-            : nothing
-        }
-      </td>
-      ${actionCell}
-    </tr>
-  `;
+        data-lf-command=${() => entry().id}
+        data-lf-available=${() => String(entry().available)}
+        data-lf-selected=${() => String(selected() === entry().id)}
+        aria-describedby=${() => [entry().keySequence ? entry().keyId : null, entry().description ? entry().descriptionId : null].filter(Boolean).join(" ")}
+        title=${() => (entry().available ? "Run command" : entry().unavailableMessage)}
+        onClick=${() => activateCommandEntry(entry())}
+      >
+        ${() => entry().title}
+      </button>`,
+    fallback: html`${() => entry().title}`,
+  });
+  return html`<tr
+    id=${() => entry().rowId}
+    role="row"
+    class=${() => (entry().sequenceControl ? "lf-sequence-command" : "")}
+    data-lf-command=${() => entry().id}
+    aria-selected=${() => (entry().actionable ? String(selected() === entry().id) : undefined)}
+    hidden=${() => read().hidden}
+  >
+    <td role="gridcell">
+      ${optional(
+      () => entry().keySequence,
+      () =>
+        keySequenceTemplate(() => entry().keySequence, {
+          id: () => entry().keyId,
+          label: () => entry().keyLabel,
+        }),
+    )}
+    </td>
+    <td role="gridcell">
+      <div class="lf-command-reference-action">
+        <div class="lf-command-reference-action-main">
+          ${action}${optional(
+      () => read().promoted,
+      () =>
+        html`<span class="lf-command-reference-scope"
+          >${() => entry().sectionTitle}</span
+        >`,
+    )}
+        </div>
+        ${optional(
+      () => entry().description,
+      () =>
+        html`<span
+          id=${() => entry().descriptionId}
+          class="lf-command-reference-description"
+          >${() => entry().description}</span
+        >`,
+    )}
+      </div>
+    </td>
+  </tr>`;
 }
-
-const headingRow = (id, title, hidden = false) => html`
-  <tbody ?hidden=${hidden}>
-    <tr role="row">
-      <th role="gridcell" colspan="2"><h3 class="lf-label" id=${id}>${title}</h3></th>
-    </tr>
-  </tbody>
-`;
 
 const commandReferenceItems = () => {
   const visible = [];
@@ -723,53 +735,53 @@ const commandReferenceItems = () => {
   return [...visible, ...hidden.map((item) => ({ ...item, hidden: true }))];
 };
 
-function commandReferenceItemTemplate(item) {
-  if (item.kind === "heading") return headingRow(item.id, item.title, item.hidden);
+function commandReferenceItemTemplate(read, selected) {
+  if (read().kind === "heading")
+    return html`<tbody hidden=${() => read().hidden}>
+      <tr role="row">
+        <th role="gridcell" colspan="2">
+          <h3 class="lf-label" id=${() => read().id}>${() => read().title}</h3>
+        </th>
+      </tr>
+    </tbody>`;
   return html`<tbody
     role="rowgroup"
-    aria-labelledby=${
-      item.promoted ? "lf-command-reference-binding-matches" : item.entry.sectionId
-    }
-    class=${item.promoted ? "lf-command-reference-binding-matches" : nothing}
-    ?hidden=${item.hidden}
+    aria-labelledby=${() => (read().promoted ? "lf-command-reference-binding-matches" : read().entry.sectionId)}
+    class=${() => (read().promoted ? "lf-command-reference-binding-matches" : undefined)}
+    hidden=${() => read().hidden}
   >
-    ${commandEntryTemplate(item.entry, item.promoted, !item.hidden)}
+    ${commandEntryTemplate(read, selected)}
   </tbody>`;
 }
 
-function commandReferenceTemplate() {
-  const items = commandReferenceItems();
-  return html`
-    <div class="lf-command-reference-head">
+function commandReferenceTemplate(read) {
+  return html`<div class="lf-command-reference-head">
       <div class="lf-command-reference-title">Command reference</div>
       ${commandReferenceClose}
     </div>
-    <label class="lf-command-reference-preference">
-      <input
+    <label class="lf-command-reference-preference"
+      ><input
         type="checkbox"
         name="quick-keyboard-shortcuts"
         autocomplete="off"
-        .checked=${quickShortcuts()}
+        checked=${() => read().quick}
         aria-labelledby="lf-quick-keyboard-label"
         aria-describedby="lf-quick-keyboard-help"
-        @change=${(event) => {
-          setQuickShortcuts(event.currentTarget.checked);
-          commandReferenceCatalog = captureCommandReferenceCatalog();
-          presentCommandReference();
-          repaint();
-        }}
-      />
-      <span id="lf-quick-keyboard-label">Quick keyboard shortcuts</span>
-      <small id="lf-quick-keyboard-help"
+        onChange=${(event) => {
+        setQuickShortcuts(event.currentTarget.checked);
+        commandReferenceCatalog = captureCommandReferenceCatalog();
+        presentCommandReference();
+        repaint();
+      }}
+      /><span id="lf-quick-keyboard-label">Quick keyboard shortcuts</span
+      ><small id="lf-quick-keyboard-help"
         >Use letters, numbers and symbols for Leaf actions.</small
-      >
-    </label>
+      ></label
+    >
     ${commandReferenceSearch}
-    <div
-      class="lf-command-reference-meta"
-      aria-live="polite"
-      .textContent=${commandReferenceView.metadata}
-    ></div>
+    <div class="lf-command-reference-meta" aria-live="polite">
+      ${() => read().metadata}
+    </div>
     <div
       id="lf-command-reference-results"
       class="lf-command-reference-results"
@@ -781,23 +793,41 @@ function commandReferenceTemplate() {
           <col class="lf-command-reference-key-column" />
           <col />
         </colgroup>
-        ${repeat(items, (item) => item.key, commandReferenceItemTemplate)}
+        ${For({
+          get each() {
+            return read().items;
+          },
+          keyed: (item) => item.key,
+          children: (item) =>
+            commandReferenceItemTemplate(item, () => read().selectedCommandId),
+        })}
       </table>
-      <div role="row" ?hidden=${commandReferenceView.shown !== 0}>
+      <div role="row" hidden=${() => read().shown !== 0}>
         <div class="lf-command-reference-empty" role="gridcell">
           No matching commands
         </div>
       </div>
-    </div>
-  `;
+    </div>`;
 }
 
+let commandReferenceDrawing;
 function presentCommandReference() {
   updateCommandReferenceView();
-  render(commandReferenceTemplate(), commandReferenceDialog);
-  // The combobox belongs to the native editor, not its component host. Element
+  const props = {
+    ...commandReferenceView,
+    quick: quickShortcuts(),
+    items: commandReferenceItems(),
+  };
+  if (commandReferenceDrawing) commandReferenceDrawing.update(props);
+  else
+    commandReferenceDrawing = createView(
+      commandReferenceDialog,
+      commandReferenceTemplate,
+      props,
+    );
+  // The combobox belongs to the native editor. Element
   // references keep its result relationships valid across the editor's shadow root.
-  const search = commandReferenceSearch.input;
+  const search = commandReferenceSearch;
   keeps(search, "role", "combobox");
   keeps(search, "aria-autocomplete", "list");
   keeps(search, "aria-expanded", "true");
@@ -877,9 +907,9 @@ function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
     const results = commandReferenceDialog.querySelector(
       ".lf-command-reference-results",
     );
-    // Native editing and scrolling values begin fresh and remain untouched by local Lit
+    // Native editing and scrolling values begin fresh and remain untouched by local Solid
     // renders.
-    search.value = "";
+    if (search.value) search.value = "";
     results.scrollTo({ top: 0, behavior: "instant" });
     stopReferenceReading = registerReadingRegion({
       id: "lf-region:command-reference",
@@ -938,7 +968,7 @@ const focusedCommandId = () =>
 
 const commandReferenceCommandActive = () =>
   commandReferenceView.visibleCommands.length > 0 &&
-  (focused() === commandReferenceSearch.input || focusedCommandId() !== null);
+  (focused() === commandReferenceSearch || focusedCommandId() !== null);
 
 function moveCommandReferenceSelection(dir) {
   const ids = commandReferenceView.visibleCommands.map(({ entry }) => entry.id);

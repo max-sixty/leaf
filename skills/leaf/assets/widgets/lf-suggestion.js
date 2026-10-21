@@ -160,7 +160,6 @@ customElements.define(
     }
 
     disconnectedCallback() {
-      super.disconnectedCallback();
       this.#margin?.unregister();
       this.#margin = null;
       emphasized.delete(this);

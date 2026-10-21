@@ -1356,22 +1356,25 @@ function keySequenceModel(steps, states = neutralStates(steps), spokenSteps = st
     steps: Object.freeze(reading)
   });
 }
-function keySequenceTemplate(model, { id = null, label: label2 = false } = {}) {
-  return html`<span
-    id=${id ?? nothing}
-    class=${`lf-binding-sequence${label2 ? " lf-key-label" : ""}`}
+function keySequenceTemplate(read, { id = () => null, label: label2 = () => false } = {}) {
+  return default2`<span
+    id=${() => id() ?? void 0}
+    class=${() => `lf-binding-sequence${label2() ? " lf-key-label" : ""}`}
     role="group"
-    aria-label=${model.label}
-    >${repeat(
-    model.steps,
-    (_step, index) => index,
-    (step) => html`<kbd
+    aria-label=${() => read().label}
+  >
+    ${For({
+    get each() {
+      return read().steps;
+    },
+    keyed: false,
+    children: (step) => default2`<kbd
           class="lf-key-badge"
-          data-lf-sequence-step-state=${step.state}
+          data-lf-sequence-step-state=${() => step().state}
           aria-hidden="true"
-          >${step.text}</kbd
+          >${() => step().text}</kbd
         >`
-  )}</span
+  })}</span
   >`;
 }
 
@@ -1740,51 +1743,71 @@ function activateCommandEntry(entry) {
     presentCommandReference();
   });
 }
-function commandEntryTemplate(entry, promoted = false, shown = true) {
-  const selected = commandReferenceView.selectedCommandId === entry.id;
-  const action = entry.actionable ? html`<button
+function commandEntryTemplate(read, selected) {
+  const entry = () => read().entry;
+  const optional = (when, template) => Show({
+    get when() {
+      return when();
+    },
+    children: (_value) => template()
+  });
+  const action = Show({
+    get when() {
+      return entry().actionable;
+    },
+    children: (_actionable) => default2`<button
         type="button"
         class="lf-command-reference-command"
-        data-lf-command=${entry.id}
-        data-lf-available=${String(entry.available)}
-        data-lf-selected=${String(selected)}
-        aria-describedby=${[
-    entry.keySequence ? entry.keyId : null,
-    entry.description ? entry.descriptionId : null
-  ].filter(Boolean).join(" ")}
-        title=${entry.available ? "Run command" : entry.unavailableMessage}
-        @click=${() => activateCommandEntry(entry)}
-        .textContent=${entry.title}
-      ></button>` : entry.title;
-  const scope = promoted ? html`<span class="lf-command-reference-scope">${entry.sectionTitle}</span>` : nothing;
-  const actionBody = html`<div class="lf-command-reference-action"><div class="lf-command-reference-action-main">${action}${scope}</div>${entry.description ? html`<span id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</span>` : nothing}</div>`;
-  const actionCell = html`<td role="gridcell">${actionBody}</td>`;
-  return html`
-    <tr
-      id=${entry.rowId}
-      role="row"
-      class=${entry.sequenceControl ? "lf-sequence-command" : ""}
-      data-lf-command=${entry.id}
-      aria-selected=${entry.actionable ? String(selected) : nothing}
-      ?hidden=${!shown}
-    >
-      <td role="gridcell">
-        ${entry.keySequence ? keySequenceTemplate(entry.keySequence, {
-    id: entry.keyId,
-    label: entry.keyLabel
-  }) : nothing}
-      </td>
-      ${actionCell}
-    </tr>
-  `;
+        data-lf-command=${() => entry().id}
+        data-lf-available=${() => String(entry().available)}
+        data-lf-selected=${() => String(selected() === entry().id)}
+        aria-describedby=${() => [entry().keySequence ? entry().keyId : null, entry().description ? entry().descriptionId : null].filter(Boolean).join(" ")}
+        title=${() => entry().available ? "Run command" : entry().unavailableMessage}
+        onClick=${() => activateCommandEntry(entry())}
+      >
+        ${() => entry().title}
+      </button>`,
+    fallback: default2`${() => entry().title}`
+  });
+  return default2`<tr
+    id=${() => entry().rowId}
+    role="row"
+    class=${() => entry().sequenceControl ? "lf-sequence-command" : ""}
+    data-lf-command=${() => entry().id}
+    aria-selected=${() => entry().actionable ? String(selected() === entry().id) : void 0}
+    hidden=${() => read().hidden}
+  >
+    <td role="gridcell">
+      ${optional(
+    () => entry().keySequence,
+    () => keySequenceTemplate(() => entry().keySequence, {
+      id: () => entry().keyId,
+      label: () => entry().keyLabel
+    })
+  )}
+    </td>
+    <td role="gridcell">
+      <div class="lf-command-reference-action">
+        <div class="lf-command-reference-action-main">
+          ${action}${optional(
+    () => read().promoted,
+    () => default2`<span class="lf-command-reference-scope"
+          >${() => entry().sectionTitle}</span
+        >`
+  )}
+        </div>
+        ${optional(
+    () => entry().description,
+    () => default2`<span
+          id=${() => entry().descriptionId}
+          class="lf-command-reference-description"
+          >${() => entry().description}</span
+        >`
+  )}
+      </div>
+    </td>
+  </tr>`;
 }
-var headingRow = (id, title, hidden = false) => html`
-  <tbody ?hidden=${hidden}>
-    <tr role="row">
-      <th role="gridcell" colspan="2"><h3 class="lf-label" id=${id}>${title}</h3></th>
-    </tr>
-  </tbody>
-`;
 var commandReferenceItems = () => {
   const visible = [];
   if (commandReferenceView.bindingHeading)
@@ -1836,50 +1859,52 @@ var commandReferenceItems = () => {
   ].filter(({ key }) => !visibleKeys.has(key));
   return [...visible, ...hidden.map((item) => ({ ...item, hidden: true }))];
 };
-function commandReferenceItemTemplate(item) {
-  if (item.kind === "heading") return headingRow(item.id, item.title, item.hidden);
-  return html`<tbody
+function commandReferenceItemTemplate(read, selected) {
+  if (read().kind === "heading")
+    return default2`<tbody hidden=${() => read().hidden}>
+      <tr role="row">
+        <th role="gridcell" colspan="2">
+          <h3 class="lf-label" id=${() => read().id}>${() => read().title}</h3>
+        </th>
+      </tr>
+    </tbody>`;
+  return default2`<tbody
     role="rowgroup"
-    aria-labelledby=${item.promoted ? "lf-command-reference-binding-matches" : item.entry.sectionId}
-    class=${item.promoted ? "lf-command-reference-binding-matches" : nothing}
-    ?hidden=${item.hidden}
+    aria-labelledby=${() => read().promoted ? "lf-command-reference-binding-matches" : read().entry.sectionId}
+    class=${() => read().promoted ? "lf-command-reference-binding-matches" : void 0}
+    hidden=${() => read().hidden}
   >
-    ${commandEntryTemplate(item.entry, item.promoted, !item.hidden)}
+    ${commandEntryTemplate(read, selected)}
   </tbody>`;
 }
-function commandReferenceTemplate() {
-  const items2 = commandReferenceItems();
-  return html`
-    <div class="lf-command-reference-head">
+function commandReferenceTemplate(read) {
+  return default2`<div class="lf-command-reference-head">
       <div class="lf-command-reference-title">Command reference</div>
       ${commandReferenceClose}
     </div>
-    <label class="lf-command-reference-preference">
-      <input
+    <label class="lf-command-reference-preference"
+      ><input
         type="checkbox"
         name="quick-keyboard-shortcuts"
         autocomplete="off"
-        .checked=${quickShortcuts()}
+        checked=${() => read().quick}
         aria-labelledby="lf-quick-keyboard-label"
         aria-describedby="lf-quick-keyboard-help"
-        @change=${(event) => {
+        onChange=${(event) => {
     setQuickShortcuts(event.currentTarget.checked);
     commandReferenceCatalog = captureCommandReferenceCatalog();
     presentCommandReference();
     repaint();
   }}
-      />
-      <span id="lf-quick-keyboard-label">Quick keyboard shortcuts</span>
-      <small id="lf-quick-keyboard-help"
+      /><span id="lf-quick-keyboard-label">Quick keyboard shortcuts</span
+      ><small id="lf-quick-keyboard-help"
         >Use letters, numbers and symbols for Leaf actions.</small
-      >
-    </label>
+      ></label
+    >
     ${commandReferenceSearch}
-    <div
-      class="lf-command-reference-meta"
-      aria-live="polite"
-      .textContent=${commandReferenceView.metadata}
-    ></div>
+    <div class="lf-command-reference-meta" aria-live="polite">
+      ${() => read().metadata}
+    </div>
     <div
       id="lf-command-reference-results"
       class="lf-command-reference-results"
@@ -1891,20 +1916,37 @@ function commandReferenceTemplate() {
           <col class="lf-command-reference-key-column" />
           <col />
         </colgroup>
-        ${repeat(items2, (item) => item.key, commandReferenceItemTemplate)}
+        ${For({
+    get each() {
+      return read().items;
+    },
+    keyed: (item) => item.key,
+    children: (item) => commandReferenceItemTemplate(item, () => read().selectedCommandId)
+  })}
       </table>
-      <div role="row" ?hidden=${commandReferenceView.shown !== 0}>
+      <div role="row" hidden=${() => read().shown !== 0}>
         <div class="lf-command-reference-empty" role="gridcell">
           No matching commands
         </div>
       </div>
-    </div>
-  `;
+    </div>`;
 }
+var commandReferenceDrawing;
 function presentCommandReference() {
   updateCommandReferenceView();
-  render(commandReferenceTemplate(), commandReferenceDialog);
-  const search = commandReferenceSearch.input;
+  const props = {
+    ...commandReferenceView,
+    quick: quickShortcuts(),
+    items: commandReferenceItems()
+  };
+  if (commandReferenceDrawing) commandReferenceDrawing.update(props);
+  else
+    commandReferenceDrawing = createView(
+      commandReferenceDialog,
+      commandReferenceTemplate,
+      props
+    );
+  const search = commandReferenceSearch;
   keeps(search, "role", "combobox");
   keeps(search, "aria-autocomplete", "list");
   keeps(search, "aria-expanded", "true");
@@ -1964,7 +2006,7 @@ function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
     const results = commandReferenceDialog.querySelector(
       ".lf-command-reference-results"
     );
-    search.value = "";
+    if (search.value) search.value = "";
     results.scrollTo({ top: 0, behavior: "instant" });
     stopReferenceReading = registerReadingRegion({
       id: "lf-region:command-reference",
@@ -2002,7 +2044,7 @@ var commandButton = (id) => [
   commandReferenceDialog.querySelectorAll(".lf-command-reference-command")
 ].find((button) => button.dataset.lfCommand === id) ?? null;
 var focusedCommandId = () => focused()?.matches?.(".lf-command-reference-command") ? focused().dataset.lfCommand : null;
-var commandReferenceCommandActive = () => commandReferenceView.visibleCommands.length > 0 && (focused() === commandReferenceSearch.input || focusedCommandId() !== null);
+var commandReferenceCommandActive = () => commandReferenceView.visibleCommands.length > 0 && (focused() === commandReferenceSearch || focusedCommandId() !== null);
 function moveCommandReferenceSelection(dir) {
   const ids = commandReferenceView.visibleCommands.map(({ entry }) => entry.id);
   if (!ids.length) return;
@@ -4014,11 +4056,30 @@ function createHintSession({
   const enabled = (candidate) => [...candidate.code].every(bindingEnabled);
   const shown = (plan) => enabled(plan.candidate) || plan.candidate === hinted()[at];
   const nativeTake = keySequenceModel([spell("Enter")], void 0, ["Enter"]);
-  const face = (plan) => plan.candidate && !enabled(plan.candidate) ? html`<span
-          class=${`lf-key-hint lf-current${plan.model.className.includes(" lf-in") ? " lf-in" : ""}`}
+  const drawings = /* @__PURE__ */ new WeakMap();
+  const face = (read2) => Show({
+    get when() {
+      return read2().native;
+    },
+    children: (_native) => default2`<span
+          class=${() => `lf-key-hint lf-current${read2().model.className.includes(" lf-in") ? " lf-in" : ""}`}
           data-lf-hint-native="Enter"
-          >${keySequenceTemplate(nativeTake)}</span
-        >` : template(plan.model);
+          >${keySequenceTemplate(() => nativeTake)}</span
+        >`,
+    fallback: template(() => read2().model)
+  });
+  function presentFace(plan, seat) {
+    const props = {
+      model: plan.model,
+      native: Boolean(plan.candidate && !enabled(plan.candidate))
+    };
+    let drawing2 = drawings.get(seat);
+    if (drawing2) drawing2.update(props);
+    else {
+      drawing2 = createView(seat, face, props);
+      drawings.set(seat, drawing2);
+    }
+  }
   function hold(found) {
     prefix = "";
     at = -1;
@@ -4121,7 +4182,7 @@ function createHintSession({
     const plans = codedPlans.filter(shown);
     const drawn2 = plans.map((plan) => {
       const seat = seats2.seat(plan.model.key);
-      render(face(plan), seat);
+      presentFace(plan, seat);
       return {
         seat,
         element: plan.candidate ? identity(plan.candidate) : null,
@@ -4146,7 +4207,7 @@ function createHintSession({
       }).filter(shown);
       for (const plan of plans2) {
         const seat = seats2.seated(plan.model.key);
-        if (seat) render(face(plan), seat);
+        if (seat) presentFace(plan, seat);
       }
       seats2.keepOnly(new Set(plans2.map(({ model }) => model.key)));
       return;
@@ -4349,21 +4410,20 @@ targetPickerHintLayer.append(hintRoot, markRoot);
 var pageSearchSurface = el("div", "lf-ui lf-page-search");
 pageSearchSurface.setAttribute("role", "search");
 pageSearchSurface.hidden = true;
-var pageSearchInput = searchField("lf-page-search-box", {
+var pageSearchBox = el("div", "lf-search-frame lf-page-search-box");
+var pageSearchInput = searchField("", {
   name: "page-search",
   label: "Search page text"
 });
-pageSearchInput.maxlength = 160;
+pageSearchInput.maxLength = 160;
 var pageSearchStatus = el("span", "lf-page-search-status");
 pageSearchStatus.setAttribute("role", "status");
-pageSearchStatus.slot = "end";
 var pageSearchWords = el("span");
 pageSearchStatus.append(pageSearchWords);
 var matchStep = (icon, name2) => {
   const control = el("button", "lf-btn lf-icon-action lf-page-search-step");
   control.type = "button";
   control.tabIndex = -1;
-  control.slot = "end";
   control.append(iconElement(icon, "lf-action-icon"));
   control.setAttribute("aria-label", name2);
   control.title = name2;
@@ -4372,8 +4432,13 @@ var matchStep = (icon, name2) => {
 };
 var previousMatchControl = matchStep("up", "Previous match");
 var nextMatchControl = matchStep("down", "Next match");
-pageSearchInput.append(pageSearchStatus, previousMatchControl, nextMatchControl);
-pageSearchSurface.append(pageSearchInput);
+pageSearchBox.append(
+  pageSearchInput,
+  pageSearchStatus,
+  previousMatchControl,
+  nextMatchControl
+);
+pageSearchSurface.append(pageSearchBox);
 var noMatches = "No matches";
 var searchCount = (position, total) => `${position} of ${total}`;
 function createTargetPicker({
@@ -4448,7 +4513,7 @@ function createTargetPicker({
     searchReturnsToHints = false;
     flush(() => setMatches(() => []));
     active = -1;
-    pageSearchInput.value = "";
+    if (pageSearchInput.value) pageSearchInput.value = "";
     keepsHidden(pageSearchSurface, true);
     if (on && withHints) {
       const found = hints.arm();
@@ -4476,7 +4541,7 @@ ${searchCount(maximum, maximum)}`
       presentSearchStatus();
       announce("Search the page.");
     } else {
-      pageSearchInput.value = "";
+      if (pageSearchInput.value) pageSearchInput.value = "";
       flush(() => setMatches(() => []));
       active = -1;
       releaseFocus();
@@ -4510,7 +4575,7 @@ ${searchCount(maximum, maximum)}`
   }
   function presentSearchStatus() {
     const query = pageSearchInput.value.trim();
-    const status = !query ? nothing : matches().length ? searchCount(active + 1, matches().length) : noMatches;
+    const status = !query ? "" : matches().length ? searchCount(active + 1, matches().length) : noMatches;
     keepsText(pageSearchWords, status);
   }
   function sameMatch(left, right) {
@@ -4660,8 +4725,10 @@ ${searchCount(maximum, maximum)}`
     setTargetPicker(false, true);
     announce("Target picker closed.");
   }
-  const hintTemplate = (model) => html`<span class=${model.className} data-lf-hint-code=${model.hintCode}
-      >${keySequenceTemplate(model.sequence)}</span
+  const hintTemplate = (model) => default2`<span
+      class=${() => model().className}
+      data-lf-hint-code=${() => model().hintCode}
+      >${keySequenceTemplate(() => model().sequence)}</span
     >`;
   const hints = createHintSession({
     layer: hintRoot,
@@ -5086,6 +5153,7 @@ function createAnchorControls({
   paintKeys: paintKeys2
 }) {
   const visualActionHolders = /* @__PURE__ */ new Map();
+  const visualActionDrawings = /* @__PURE__ */ new WeakMap();
   const reactionSeats = /* @__PURE__ */ new Map();
   const anchorNotes = createAnchorNoteProjection({ openThread, labelAnchor });
   let mounted = false;
@@ -5169,17 +5237,17 @@ function createAnchorControls({
     const control = event.currentTarget;
     commentOnTarget({ anchor: control.lfAnchor });
   }
-  const visualActionTemplate = ({ anchor, label: label2 }) => html`
+  const visualActionTemplate = (read) => default2`
     <button
       type="button"
       class="lf-visual-action lf-quiet lf-ui"
       data-lf-gen="1"
       data-lf-offer="button"
       tabindex="-1"
-      .lfAnchor=${anchor}
-      .textContent=${`Respond to ${label2}`}
-      @focus=${focusVisualAction}
-      @click=${activateVisualAction}
+      prop:lfAnchor=${() => read().anchor}
+      prop:textContent=${() => `Respond to ${read().label}`}
+      onFocus=${focusVisualAction}
+      onClick=${activateVisualAction}
     ></button>
   `;
   function reconcileVisualActions(groups) {
@@ -5195,16 +5263,29 @@ function createAnchorControls({
       kept.add(seat);
       const restoreFocus = holdFocus(holder);
       keeps(holder, "aria-label", `Responses to ${targets2[0].label}`);
-      render(
-        html`${repeat(targets2, ({ key }) => key, visualActionTemplate)}`,
-        holder
-      );
+      let drawing2 = visualActionDrawings.get(holder);
+      if (drawing2) drawing2.update({ targets: targets2 });
+      else {
+        drawing2 = createView(
+          holder,
+          (read) => For({
+            get each() {
+              return read().targets;
+            },
+            keyed: (target) => target.key,
+            children: visualActionTemplate
+          }),
+          { targets: targets2 }
+        );
+        visualActionDrawings.set(holder, drawing2);
+      }
       shelve(seat, holder);
       restoreFocus?.();
     }
     for (const [seat, holder] of visualActionHolders)
       if (!kept.has(seat)) {
-        render(nothing, holder);
+        visualActionDrawings.get(holder)?.dispose();
+        visualActionDrawings.delete(holder);
         unshelve(seat, holder);
         visualActionHolders.delete(seat);
       }
@@ -7341,38 +7422,35 @@ function createFloatingPanel({
         >${end}${opens ? iconTemplate("next", "lf-fp-chevron") : nothing}</span
       >
     </button>`;
-  const rowEnd = (entry) => html`${entry.value ? html`<span class="lf-fp-value">${entry.value}</span>` : nothing}${entry.shortcut.length && advertisesKeys() ? keySequenceTemplate(keySequenceModel(entry.shortcut)) : nothing}`;
+  const rowEnd = (entry) => html`${entry.value ? html`<span class="lf-fp-value">${entry.value}</span>` : nothing}${entry.shortcut.length && advertisesKeys() ? keySequenceTemplate(() => keySequenceModel(entry.shortcut)) : nothing}`;
   const copyItems = /* @__PURE__ */ new Map();
   function copyItem(entry) {
     let copy = copyItems.get(entry.key);
     if (!copy) {
       copy = copyControl("lf-fp-copy-item", {
+        label: `Copy ${entry.label}`,
         success: `${capital(entry.label)} copied`,
         error: `${capital(entry.label)} not copied \xB7 select it to copy`
       });
-      copy.addEventListener("wa-copy", () => putAwayThen(() => {
+      copy.addEventListener("lf-copy", () => putAwayThen(() => {
       }));
-      copy.addEventListener("wa-error", () => {
+      copy.addEventListener("lf-copy-error", () => {
         copyRefused = true;
         showMenuAt({ view: "group", group: "about" });
       });
       copyItems.set(entry.key, copy);
     }
-    copy.value = entry.copies;
-    copy.disabled = entry.disabled;
+    if (copy.value !== entry.copies) copy.value = entry.copies;
+    if (copy.disabled !== Boolean(entry.disabled))
+      copy.disabled = Boolean(entry.disabled);
+    copy.classList.add("lf-fp-item");
+    keeps(copy, "role", menuOpen() ? "menuitem" : null);
+    keeps(copy, "data-row", entry.key);
+    keeps(copy, "title", entry.value || null);
+    const glyph = copy.querySelector(".lf-copy-glyph");
     render(
-      menuItem(
-        `Copy ${entry.label}`,
-        html`<wa-icon library="system" name="copy" variant="regular"></wa-icon>`,
-        () => {
-        },
-        {
-          disabled: entry.disabled,
-          role: menuOpen() ? "menuitem" : null,
-          row: entry.key,
-          title: entry.value || null
-        }
-      ),
+      html`<span class="lf-fp-label">Copy ${entry.label}</span
+        ><span class="lf-fp-end">${glyph}</span>`,
       copy
     );
     return copy;
@@ -7505,8 +7583,9 @@ function createFloatingPanel({
         })
       );
     const copy = copies.get(entry.key);
-    copy.value = entry.copies;
-    copy.disabled = entry.disabled;
+    if (copy.value !== entry.copies) copy.value = entry.copies;
+    if (copy.disabled !== Boolean(entry.disabled))
+      copy.disabled = Boolean(entry.disabled);
     keepsHidden(copy, !canCopy());
     return copy;
   }
@@ -9280,7 +9359,7 @@ function createPageMapDialog({
     target = entry ? targetFor(entry) : null;
     if (!dialog.open) {
       openLayer(dialog, openedFrom);
-      dialogSearch.value = "";
+      if (dialogSearch.value) dialogSearch.value = "";
     }
     renderSheet();
     if (!dialog.open) showNativeLayer(dialog);
@@ -9328,12 +9407,12 @@ function createPageMapDialog({
     });
     dialogClose.onclick = cancelPageMap;
     root.append(dialog);
-    dialogSearch.updateComplete.then(declareSearchKeys);
+    declareSearchKeys();
   }
   function declareSearchKeys() {
     const hasRows = () => mapRows().length > 0;
     keys(
-      dialogSearch.input,
+      dialogSearch,
       "In the Page Map's search",
       [
         {
@@ -10522,16 +10601,16 @@ function createGoToSequence({
       sequence: keySequenceModel(steps, progressStates(steps, [...hints.prefix()]))
     });
   };
-  const goToHintTemplate = (model) => html`
+  const goToHintTemplate = (model) => default2`
     <span
-      class=${model.className}
-      data-lf-hint-code=${model.hintCode ?? nothing}
-      data-lf-go-to-kind=${model.kind ?? nothing}
-      data-lf-go-to-margin-entry=${model.marginEntryKey ?? nothing}
-      data-lf-go-to-target=${model.targetId ?? nothing}
-      data-lf-go-to-command=${model.commandId ?? nothing}
-      data-lf-go-to-address=${model.address ?? nothing}
-      >${keySequenceTemplate(model.sequence)}</span
+      class=${() => model().className}
+      data-lf-hint-code=${() => model().hintCode ?? void 0}
+      data-lf-go-to-kind=${() => model().kind ?? void 0}
+      data-lf-go-to-margin-entry=${() => model().marginEntryKey ?? void 0}
+      data-lf-go-to-target=${() => model().targetId ?? void 0}
+      data-lf-go-to-command=${() => model().commandId ?? void 0}
+      data-lf-go-to-address=${() => model().address ?? void 0}
+      >${keySequenceTemplate(() => model().sequence)}</span
     >
   `;
   let goToActive = false;

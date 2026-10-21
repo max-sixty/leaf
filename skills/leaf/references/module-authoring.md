@@ -93,7 +93,7 @@ starts `connectedCallback` with `if (!once(this)) return;`: `once(this)` is true
 the element's first connection, so the element is never built twice. Use
 `disconnectedCallback` only for teardown that must happen at once, such as cancelling a
 grab or removing hoisted UI, and hold everything else in `whileConnected`. A
-`LeafElement` that overrides either callback calls the `super` method.
+`LeafElement` that overrides `connectedCallback` calls `super.connectedCallback()`.
 
 `quoted(element)` is true for a widget inside one the registry marks `x-exhibit`, such
 as `lf-sample`. A quoted widget never takes the user's edits, so
@@ -241,15 +241,16 @@ unchanged. Don't bind an initial default onto a property the browser owns.
 
 ### Drawing what a widget reads
 
-A widget extends `LeafElement`, a `LitElement` base class that draws everything in one
-`render()`, into itself or into a generated part `createRenderRoot()` returns, never over
-its authored children. One-time building goes in `setup()`, in place of `once(this)`;
+A widget extends `LeafElement`, a native custom element whose `render()` publishes
+props to its retained Solid views or paints retained DOM. It draws into itself or a
+generated part `createRenderRoot()` returns, never over its authored children. One-time building goes in `setup()`, in place of `once(this)`;
 a `setup()` that throws shows its failure and the widget draws nothing after it.
 `render()` reads through Leaf's readers: `this.reading` and `this.state`,
 `this.data(input)` for a bound source, and page readings such as `readObligations`,
 `reportSequence` or `ago`. The element redraws whenever anything it read changes, in one
-ordered pass after the publication that moved it, parents before children. Return a
-template, `nothing` when the render places retained nodes itself, or `noChange`. Work
+ordered pass after the publication that moved it, parents before children. The return
+value of `render()` is unused; mount generated views with `createView` and update their
+props from this one paint route. Work
 that reads what the render drew goes in `updated()`, and drawing that finishes later in
 `this.drawing(promise)` from there. `this.controller` is the widget controller. Call
 `requestUpdate()` after a change Leaf can't see, such as revealing held news, and
@@ -349,8 +350,9 @@ measure what they hold, which pass their asynchronous work to `detail.present(pr
 A size change needs no call.
 
 `searchField(className, {name, label, placeholder})` builds a search or filter field
-with Leaf's frame, label, editor and Clear button; the widget owns the query and
-results, and can put a match count in its `end` slot.
+as a native `input[type=search]` with Leaf's frame and accessible label. The widget
+owns its query and results. For a match count or adjacent controls, seat them beside
+the input in one container with class `lf-search-frame`.
 
 To fold content it may show again, set its `hidden` to `"until-found"`. Find-in-page and
 fragment links still reach the content and fire `beforematch` on it, and the widget opens

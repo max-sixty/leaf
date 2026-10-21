@@ -14,7 +14,7 @@ import test from "node:test";
 import { createHintSession, hintCodes } from "/runtime/keyboard/hints.js";
 import { setQuickShortcuts } from "/runtime/keyboard/bindings.js";
 import { liveEl } from "/runtime/notifications.js";
-import { html } from "/vendor/browser-runtime.js";
+import { solidHtml as html } from "/vendor/browser-runtime.js";
 
 // Three letters, so a fourth link branches: a, s, da, ds.
 const KEYS = ["a", "s", "d"];
@@ -67,7 +67,9 @@ function hintMap(t, names) {
         };
       }),
     template: (model) =>
-      html`<span class=${model.className} data-code=${model.code}>${model.code}</span>`,
+      html`<span class=${() => model().className} data-code=${() => model().code}
+        >${() => model().code}</span
+      >`,
     take: (candidate) => taken.push(candidate.name),
     words: {
       describe: (candidate) => `Link, ${candidate.name}`,

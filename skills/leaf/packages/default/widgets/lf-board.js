@@ -174,7 +174,6 @@ customElements.define(
     // drop a live grab here or it holds the page's drag for good — freezing action
     // replay and version-follow.
     disconnectedCallback() {
-      super.disconnectedCallback();
       if (this.#grabbed) this.#cancel();
       this.#superseded = null;
       this.#finishGesture();

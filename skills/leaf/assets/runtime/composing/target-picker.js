@@ -6,7 +6,7 @@ import { bindings, bindingEnabled, cycledRow } from "../keyboard/bindings.js";
 import { el, LAYOUT, searchField } from "../widget-elements.js";
 import { iconElement } from "../icons.js";
 import { coarsePointer } from "../pointer.js";
-import { html, nothing, createSignal, flush } from "/vendor/browser-runtime.js";
+import { solidHtml as html, createSignal, flush } from "/vendor/browser-runtime.js";
 
 import {
   contextAround,
@@ -66,14 +66,14 @@ targetPickerHintLayer.append(hintRoot, markRoot);
 export const pageSearchSurface = el("div", "lf-ui lf-page-search");
 pageSearchSurface.setAttribute("role", "search");
 pageSearchSurface.hidden = true;
-const pageSearchInput = searchField("lf-page-search-box", {
+const pageSearchBox = el("div", "lf-search-frame lf-page-search-box");
+const pageSearchInput = searchField("", {
   name: "page-search",
   label: "Search page text",
 });
-pageSearchInput.maxlength = 160;
+pageSearchInput.maxLength = 160;
 const pageSearchStatus = el("span", "lf-page-search-status");
 pageSearchStatus.setAttribute("role", "status");
-pageSearchStatus.slot = "end";
 const pageSearchWords = el("span");
 pageSearchStatus.append(pageSearchWords);
 // The box walks its own matches, as a browser's find bar does: up and down beside the
@@ -84,7 +84,6 @@ const matchStep = (icon, name) => {
   const control = el("button", "lf-btn lf-icon-action lf-page-search-step");
   control.type = "button";
   control.tabIndex = -1;
-  control.slot = "end";
   control.append(iconElement(icon, "lf-action-icon"));
   control.setAttribute("aria-label", name);
   control.title = name;
@@ -93,8 +92,13 @@ const matchStep = (icon, name) => {
 };
 const previousMatchControl = matchStep("up", "Previous match");
 const nextMatchControl = matchStep("down", "Next match");
-pageSearchInput.append(pageSearchStatus, previousMatchControl, nextMatchControl);
-pageSearchSurface.append(pageSearchInput);
+pageSearchBox.append(
+  pageSearchInput,
+  pageSearchStatus,
+  previousMatchControl,
+  nextMatchControl,
+);
+pageSearchSurface.append(pageSearchBox);
 const noMatches = "No matches";
 const searchCount = (position, total) => `${position} of ${total}`;
 
@@ -251,7 +255,7 @@ export function createTargetPicker({
     searchReturnsToHints = false;
     flush(() => setMatches(() => []));
     active = -1;
-    pageSearchInput.value = "";
+    if (pageSearchInput.value) pageSearchInput.value = "";
     keepsHidden(pageSearchSurface, true);
     if (on && withHints) {
       const found = hints.arm();
@@ -284,7 +288,7 @@ export function createTargetPicker({
       presentSearchStatus();
       announce("Search the page.");
     } else {
-      pageSearchInput.value = "";
+      if (pageSearchInput.value) pageSearchInput.value = "";
       flush(() => setMatches(() => []));
       active = -1;
       releaseFocus();
@@ -326,7 +330,7 @@ export function createTargetPicker({
   function presentSearchStatus() {
     const query = pageSearchInput.value.trim();
     const status = !query
-      ? nothing
+      ? ""
       : matches().length
         ? searchCount(active + 1, matches().length)
         : noMatches;
@@ -530,8 +534,10 @@ export function createTargetPicker({
   }
 
   const hintTemplate = (model) =>
-    html`<span class=${model.className} data-lf-hint-code=${model.hintCode}
-      >${keySequenceTemplate(model.sequence)}</span
+    html`<span
+      class=${() => model().className}
+      data-lf-hint-code=${() => model().hintCode}
+      >${keySequenceTemplate(() => model().sequence)}</span
     >`;
 
   // The picker's hints and the open search's marks are two faces in one layer, and only

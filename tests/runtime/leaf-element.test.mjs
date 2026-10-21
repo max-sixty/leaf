@@ -5,7 +5,7 @@
    holds, are the browser suite's. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { html, LeafElement, nothing } from "/runtime/widget-api.js";
+import { LeafElement, nothing } from "/runtime/widget-api.js";
 import { failSoftUnreported } from "/runtime/widget-upgrade.js";
 import {
   applicationState,
@@ -15,6 +15,18 @@ import {
 import { clockValue, tickClock } from "/runtime/presence.js";
 import { adoptRegistry } from "/runtime/registry.js";
 import { acceptData, notifyDataSubscribers } from "/runtime/data.js";
+
+const paints = new WeakMap();
+function show(element, value) {
+  const root = element.renderRoot ?? element;
+  let words = paints.get(root);
+  if (!words) {
+    words = document.createTextNode("");
+    root.append(words);
+    paints.set(root, words);
+  }
+  if (words.data !== String(value ?? "")) words.data = String(value ?? "");
+}
 
 const phase = readPart((root) => root.phase);
 const host = readPart((root) => root.hostAvailable);
@@ -30,7 +42,7 @@ function probe(render) {
       render() {
         const shown = render.call(this);
         draws.push(shown);
-        return html`${String(shown)}`;
+        show(this, String(shown));
       }
     },
   );
@@ -153,7 +165,7 @@ test("an element that reads its bound data draws each accepted reading", async (
       render() {
         const reading = this.data("rows");
         revisions.push(reading?.revision ?? null);
-        return html`${reading?.origin.source}`;
+        show(this, reading?.origin.source);
       }
     },
   );
@@ -202,7 +214,7 @@ test("a failure in a part the element generated stays in that part, and the next
       render() {
         const now = phase();
         if (failing) throw new Error("cannot draw");
-        return html`${now}`;
+        show(this, now);
       }
     },
   );
@@ -276,7 +288,7 @@ test("a failed preparation stands beside the render root, which the next draw st
         return this.part;
       }
       render() {
-        return html`${phase()}`;
+        show(this, phase());
       }
     },
   );
@@ -310,7 +322,7 @@ test("a setup that throws shows its failure and the element draws nothing", asyn
       }
       render() {
         draws.push(phase());
-        return html`drawn`;
+        show(this, "drawn");
       }
     },
   );
@@ -339,7 +351,7 @@ test("a setup that throws inside its own shadow root shows its failure there", a
         throw new Error("cannot stage");
       }
       render() {
-        return html`drawn`;
+        show(this, "drawn");
       }
     },
   );
@@ -374,7 +386,7 @@ test("bound data draws only as it is delivered", async () => {
     class extends LeafElement {
       render() {
         revisions.push(this.data("rows")?.revision ?? null);
-        return html`drawn`;
+        show(this, "drawn");
       }
     },
   );
@@ -417,7 +429,7 @@ test("a failure after the draw is reported and shown, not swallowed", async () =
     tag,
     class extends LeafElement {
       render() {
-        return html`${phase()}`;
+        show(this, phase());
       }
       updated(changed) {
         super.updated(changed);
@@ -446,11 +458,13 @@ test("a failure before the render settles the claim with the failure", async () 
   customElements.define(
     tag,
     class extends LeafElement {
-      willUpdate() {
+      shouldUpdate() {
+        const ready = super.shouldUpdate();
         if (phase() === "offline") throw new Error("cannot begin");
+        return ready;
       }
       render() {
-        return html`${phase()}`;
+        show(this, phase());
       }
     },
   );
@@ -488,7 +502,7 @@ test("a draw's claim waits for the drawing it holds it for", async () => {
     tag,
     class extends LeafElement {
       render() {
-        return html`${phase()}`;
+        show(this, phase());
       }
       updated(changed) {
         super.updated(changed);
@@ -537,7 +551,7 @@ test("accepted data claims the element's region until its delivery draws", async
     tag,
     class extends LeafElement {
       render() {
-        return html`${this.data("rows")?.revision}`;
+        show(this, this.data("rows")?.revision);
       }
     },
   );

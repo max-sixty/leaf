@@ -46,30 +46,30 @@ export class ReactionStripView {
               popover="auto"
               role="group"
               onToggle=${(event) => {
-            if (event.newState === "closed") this.#registration.close();
-          }}
+                if (event.newState === "closed") this.#registration.close();
+              }}
               aria-label="Reactions for this reply"
               >${For({
-          get each() {
-            return reading().choices;
-          },
-          keyed: (choice) => choice.name,
-          children: (choice) =>
-            html`<button
-              type="button"
-              class=${`lf-outline-chip lf-react ${HOLDS_WORD} lf-ui`}
-              data-lf-gen="1"
-              data-lf-offer="button"
-              data-token=${() => choice().name}
-              title=${() => choice().label}
-              aria-label=${() => choice().label}
-              aria-pressed=${() => String(Boolean(choice().inForce))}
-              aria-busy=${() => String(Boolean(choice().inForce?.pending))}
-              onClick=${() => this.#press(choice().name)}
-            >
-              <span class="lf-react-glyph">${() => choice().glyph}</span>
-            </button>`,
-        })}</span
+                get each() {
+                  return reading().choices;
+                },
+                keyed: (choice) => choice.name,
+                children: (choice) =>
+                  html`<button
+                    type="button"
+                    class=${`lf-outline-chip lf-react ${HOLDS_WORD} lf-ui`}
+                    data-lf-gen="1"
+                    data-lf-offer="button"
+                    data-token=${() => choice().name}
+                    title=${() => choice().label}
+                    aria-label=${() => choice().label}
+                    aria-pressed=${() => String(Boolean(choice().inForce))}
+                    aria-busy=${() => String(Boolean(choice().inForce?.pending))}
+                    onClick=${() => this.#press(choice().name)}
+                  >
+                    <span class="lf-react-glyph">${() => choice().glyph}</span>
+                  </button>`,
+              })}</span
             >`,
         model,
       );
@@ -97,5 +97,8 @@ export class ReactionStripView {
 
   retire() {
     this.#registration?.close();
+    this.#view?.dispose();
+    this.#view = null;
+    this.#registration = null;
   }
 }

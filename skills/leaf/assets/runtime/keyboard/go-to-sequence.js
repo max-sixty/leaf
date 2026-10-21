@@ -61,7 +61,7 @@ import {
   keySequenceTemplate,
   progressStates,
 } from "./key-sequence.js";
-import { html, nothing } from "/vendor/browser-runtime.js";
+import { solidHtml as html } from "/vendor/browser-runtime.js";
 import { isExternalPageLink } from "../declared-words.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { el, PRESSABLE } from "../widget-elements.js";
@@ -368,14 +368,14 @@ export function createGoToSequence({
 
   const goToHintTemplate = (model) => html`
     <span
-      class=${model.className}
-      data-lf-hint-code=${model.hintCode ?? nothing}
-      data-lf-go-to-kind=${model.kind ?? nothing}
-      data-lf-go-to-margin-entry=${model.marginEntryKey ?? nothing}
-      data-lf-go-to-target=${model.targetId ?? nothing}
-      data-lf-go-to-command=${model.commandId ?? nothing}
-      data-lf-go-to-address=${model.address ?? nothing}
-      >${keySequenceTemplate(model.sequence)}</span
+      class=${() => model().className}
+      data-lf-hint-code=${() => model().hintCode ?? undefined}
+      data-lf-go-to-kind=${() => model().kind ?? undefined}
+      data-lf-go-to-margin-entry=${() => model().marginEntryKey ?? undefined}
+      data-lf-go-to-target=${() => model().targetId ?? undefined}
+      data-lf-go-to-command=${() => model().commandId ?? undefined}
+      data-lf-go-to-address=${() => model().address ?? undefined}
+      >${keySequenceTemplate(() => model().sequence)}</span
     >
   `;
 

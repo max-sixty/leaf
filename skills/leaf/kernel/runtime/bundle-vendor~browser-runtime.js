@@ -49,8 +49,14 @@ function createView(container, component, initial) {
     { current: initial },
     { ownedWrite: true }
   );
-  const props = createProjection(snapshot);
-  const dispose = render(() => component(() => props.current), container);
+  const dispose = render(() => {
+    const props = createProjection(
+      () => ({ ...snapshot().current }),
+      null,
+      { shallow: true }
+    );
+    return component(() => props);
+  }, container);
   return Object.freeze({
     update(next) {
       flush2(() => setSnapshot({ current: next }));
@@ -2743,7 +2749,6 @@ export {
   createEffect2 as createEffect,
   flush5 as flush,
   untrack2 as untrack,
-  LitElement,
   html,
   noChange,
   nothing,

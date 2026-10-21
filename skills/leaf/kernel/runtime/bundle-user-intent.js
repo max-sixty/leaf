@@ -232,6 +232,7 @@ import {
   html,
   isElementName,
   isReaction,
+  keyed,
   lastMovedAt,
   messageKey,
   moved,
@@ -881,17 +882,17 @@ function capturePlace(region = null, blocks = textBlocks()) {
     revision: runtime.currentRevision,
     [READ_BOX]: new WeakRef(box)
   };
-  const standing2 = focusedInView();
+  const standing3 = focusedInView();
   const body = region?.body ?? pageDocument();
-  const standingBody = readingRegionFor(standing2)?.body ?? body;
+  const standingBody = readingRegionFor(standing3)?.body ?? body;
   const focusPlace = () => ({
-    node: new WeakRef(standing2),
+    node: new WeakRef(standing3),
     body: new WeakRef(body),
-    region: containingReadingRegionFor(standing2)?.id,
-    intent: retainUserIntent({ source: standing2 })
+    region: containingReadingRegionFor(standing3)?.id,
+    intent: retainUserIntent({ source: standing3 })
   });
-  const standsOn2 = recentPlaceInput() === "focus" && standing2 && under(standing2, body) && // Focus on the reading surface itself names its contents, not a landmark.
-  !under(standingBody, standing2);
+  const standsOn2 = recentPlaceInput() === "focus" && standing3 && under(standing3, body) && // Focus on the reading surface itself names its contents, not a landmark.
+  !under(standingBody, standing3);
   if (region && followingItsEnd(box))
     return { ...view, ...standsOn2 && { [FOCUSED_PLACE]: focusPlace() }, end: true };
   const bounds = readingBounds(region);
@@ -964,7 +965,7 @@ function capturePlace(region = null, blocks = textBlocks()) {
       view[DRAWN_PLACE] = { node: new WeakRef(drawn3.box), through: drawn3.through };
     }
   }
-  if (standsOn2 && !(named && under(named, standing2)))
+  if (standsOn2 && !(named && under(named, standing3)))
     view[FOCUSED_PLACE] = focusPlace();
   return view;
 }
@@ -1006,8 +1007,8 @@ function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
   const box = region ? effectiveScroller(region) : pageScroller;
   const body = region?.body ?? pageDocument();
   const destination = focusedPlace(view);
-  const standing2 = destination && under(destination, body) ? destination : null;
-  if (!standing2 || !sameScroller(view, box)) {
+  const standing3 = destination && under(destination, body) ? destination : null;
+  if (!standing3 || !sameScroller(view, box)) {
     if (view.end) {
       scrollToEnd(box);
     } else {
@@ -1021,7 +1022,7 @@ function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
           box,
           rangeOf(segments).getBoundingClientRect().top - boxTop - view.quoteTop
         );
-      } else if (!standing2) {
+      } else if (!standing3) {
         const found = targetElement(resolveAnchor({ section: view.section }));
         const section = found && drawsLandmark(found) ? found : null;
         if (section) {
@@ -1036,8 +1037,8 @@ function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
       }
     }
   }
-  if (standing2) scrollIntoReadingBand(standing2, standing2, "nearest", "instant");
-  placeKept(box, ...standing2 ? scrollersOf(standing2) : []);
+  if (standing3) scrollIntoReadingBand(standing3, standing3, "nearest", "instant");
+  placeKept(box, ...standing3 ? scrollersOf(standing3) : []);
 }
 
 // runtime/obligations/model.js
@@ -3134,9 +3135,9 @@ function sendLanding(input) {
     within: reply.getBoundingClientRect().bottom - held.getBoundingClientRect().top
   });
   const stood = reply && !replyPinned(reply) && !separateTranscript(held) && alreadyShown(reply) ? read() : null;
-  return (standing2 = held) => {
+  return (standing3 = held) => {
     const mayLand = retainUserIntent({
-      source: standing2,
+      source: standing3,
       available: () => held.isConnected
     });
     void whenDocumentPresented().then(() => {
@@ -3844,8 +3845,26 @@ var authoredMessage = (message) => {
     throw new Error("authored message presentation preceded semantic preparation");
   return prepared;
 };
+var authoredDrawings = /* @__PURE__ */ new Map();
+var authoredHolders = /* @__PURE__ */ new Map();
+var standing = (view) => view.node.isConnected && view.node.checkVisibility();
+function handAuthoredOn(key, from) {
+  if (authoredHolders.get(key) !== from) return;
+  authoredHolders.delete(key);
+  const next = [...authoredDrawings.get(key) ?? []].filter((view) => view !== from && standing(view)).sort((a, b) => b.model.authoredRank - a.model.authoredRank)[0];
+  next?.present(next.model);
+}
+function releaseAuthoredUnder(root) {
+  for (const [key, view] of [...authoredHolders])
+    if (root.contains(view.node)) handAuthoredOn(key, view);
+}
+function authoredHolder(id) {
+  for (const view of authoredHolders.values())
+    if (view.model.id === id && standing(view)) return view.node;
+  return null;
+}
 var FAILURE_LABEL = "Not answered";
-function messageReading(message, { nativeAuthored = false, reactions, workflows, leaves = null }) {
+function messageReading(message, { authoredRank = 0, reactions, workflows, leaves = null }) {
   const workflow = strongestWorkflow(workflows);
   const token = isReaction(message) ? tokenEntry(message.token) : null;
   const kind = isReaction(message) ? "reaction" : message.suggestion ? "suggestion" : "prose";
@@ -3893,7 +3912,9 @@ function messageReading(message, { nativeAuthored = false, reactions, workflows,
       glyph: token?.glyph ?? "",
       authored: message.body.kind === "authored"
     }),
-    nativeAuthored,
+    // Where this drawing ranks among those that may hold the message's widgets
+    // (`authoredHolders`); 0 for one that never does.
+    authoredRank,
     reactions
   });
 }
@@ -3902,6 +3923,8 @@ var MessageView = class {
   #model = null;
   #reaction = null;
   #authored = null;
+  // Bumped each time this view takes the message's widgets back from another drawing.
+  #authoredTake = 0;
   #dressed = false;
   #arrivalMotion = null;
   #stopRead = null;
@@ -3969,11 +3992,25 @@ var MessageView = class {
     keeps(this.node, "data-attempt", model.attempt || null);
     keeps(this.node, "aria-busy", model.pending ? "true" : null);
     keeps(this.node, "data-failure", model.failure || null);
-    if (model.nativeAuthored && model.body.authored && !this.#authored)
-      this.#authored = authoredMessage({
+    const authoredKey = model.attempt ?? model.id;
+    let displaced2 = null;
+    if (model.authoredRank && model.body.authored) {
+      this.#authored ??= authoredMessage({
         id: model.id,
         attempt: model.attempt
       }).nodes;
+      if (!authoredDrawings.has(authoredKey))
+        authoredDrawings.set(authoredKey, /* @__PURE__ */ new Set());
+      authoredDrawings.get(authoredKey).add(this);
+      const holder = authoredHolders.get(authoredKey);
+      if (holder !== this && !(holder?.model.authoredRank >= model.authoredRank)) {
+        authoredHolders.set(authoredKey, this);
+        displaced2 = holder;
+      }
+    }
+    const holds = authoredHolders.get(authoredKey) === this;
+    if (holds && this.#authored.some((node) => !this.node.contains(node)))
+      this.#authoredTake++;
     if (!model.reactions) this.#reaction?.retire();
     const strip = model.reactions ? (this.#reaction ??= new ReactionStripView(this.#commands.reaction)).present(
       model.reactions
@@ -4020,9 +4057,11 @@ var MessageView = class {
         >
           ${editing ? this.#editor.node : this.#body(model.body)}
           ${model.body.drawing ? html`<span class="lf-drawing-reference">Drawing comment</span>` : nothing}
-          ${model.nativeAuthored && model.body.authored ? this.#authored : nothing}
+          ${holds ? keyed(this.#authoredTake, this.#authored) : nothing}
         </div>
-        ${model.body.authored && !model.nativeAuthored ? html`<button
+        ${// Another drawing of this message holds its widgets, so this one offers the
+      // way there.
+      model.body.authored && !holds ? html`<button
                 type="button"
                 class="lf-btn lf-page-thread-open lf-ui"
                 data-lf-gen="1"
@@ -4046,6 +4085,7 @@ var MessageView = class {
       this.node.querySelector(":scope > .lf-msg-body"),
       model
     );
+    displaced2?.present(displaced2.model);
     if (!prior && (model.pending || arrived)) {
       this.#arrivalMotion = motion(
         this.node,
@@ -4101,6 +4141,12 @@ var MessageView = class {
     }
   }
   retire() {
+    if (this.#model) {
+      const key = this.#model.attempt ?? this.#model.id;
+      authoredDrawings.get(key)?.delete(this);
+      if (!authoredDrawings.get(key)?.size) authoredDrawings.delete(key);
+      handAuthoredOn(key, this);
+    }
     this.#arrivalMotion?.cancel();
     this.#reaction?.retire();
     if (this.#model) releaseMessageEdit(this.#model.id, this);
@@ -5019,7 +5065,9 @@ var threadReplyInput = (thread) => {
   const input = thread && threadPart(thread, "reply");
   return input && shownBox(input).height ? input : null;
 };
-function threadFocusDestination(thread, { part = "reply" } = {}) {
+function threadFocusDestination(thread, { part = "reply", message = null } = {}) {
+  if (part === "message")
+    return thread.querySelector(`.lf-msg[data-event="${CSS.escape(message)}"]`);
   return (part === "thread" ? thread : null) ?? threadReplyInput(thread) ?? thread;
 }
 function focusedThreadTarget() {
@@ -5305,9 +5353,9 @@ function newsNotice(header = false) {
   node.append(words);
   let open2 = () => null;
   const show = () => {
-    const standing2 = focused() === node;
+    const standing3 = focused() === node;
     const landing = open2();
-    if (standing2 && landing) focusThread(landing, "move");
+    if (standing3 && landing) focusThread(landing, "move");
   };
   keys(node, "On news waiting in a thread", [
     {
@@ -5358,13 +5406,13 @@ function everySeat(id, show) {
   for (const held of holders) shown = show(held, thread) || shown;
   return shown;
 }
-var standing = null;
+var standing2 = null;
 onStanding((node, cause) => {
   if (cause === "drop") return;
   const thread = node && closestAcross(node, THREAD);
   const id = drawnThreadId(thread);
-  const arrived = id !== null && id !== standing && (cause === "move" || cause === "step");
-  standing = id;
+  const arrived = id !== null && id !== standing2 && (cause === "move" || cause === "step");
+  standing2 = id;
   if (arrived) showHeld(id);
 });
 var HeldNews = class {
@@ -5680,10 +5728,10 @@ var HeldArrivals = class {
   // release would take the card, and the reply they may be writing, away; it shows
   // when they press its marker, or the next time its datum's growth goes unseen.
   #lapse(which) {
-    const standing2 = new Set(
+    const standing3 = new Set(
       standingNodes().map((node) => closestAcross(node, THREAD)?.dataset.thread)
     );
-    return this.#release((held) => which(held) && !standing2.has(held.id));
+    return this.#release((held) => which(held) && !standing3.has(held.id));
   }
   // One watch for each datum holding a thread, on the node it stands at now.
   #watch(threads) {
@@ -6143,11 +6191,11 @@ var Transcript = class _Transcript {
    */
   present(model, { arrived = false, appends = false, notice: notice2 = null } = {}) {
     const prior = this.#model;
-    const standing2 = focused();
+    const standing3 = focused();
     const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);
     if (prior && model.summaries.some(({ id }) => !priorSummaries.has(id))) {
       const heldMessage = prior.messages.find(
-        ({ key }) => this.#messages.get(key)?.node.contains(standing2)
+        ({ key }) => this.#messages.get(key)?.node.contains(standing3)
       )?.id;
       const clips = /* @__PURE__ */ new Map();
       const beingRead = new Set(
@@ -6480,7 +6528,9 @@ function threadReading(thread, surface, commands2) {
   const leaves = (message) => asking.has(message.id) ? "Waiting on me" : message.todo && openTodos.has(message.id) ? "To-do open" : null;
   const messages = turns(thread).map(
     (message) => messageReading(message, {
-      nativeAuthored: Boolean(commands2.nativeAuthored),
+      // Where a message's widgets stand when several drawings show it (messages.js,
+      // `authoredHolders`): the primary reader's, then a margin card, then a seat.
+      authoredRank: commands2.authoredRank ?? (surface === "margin" ? 2 : 1),
       reactions: surface === "outlet" ? message.reactions : null,
       workflows: message.workflows,
       leaves: leaves(message)
@@ -7072,8 +7122,8 @@ var ThreadSeat = class {
   present(model, batch = activeBatch) {
     if (batch && !batch.seats.has(this)) batch.seats.set(this, holdFocus(this.node));
     const restoreFocus = holdFocus(this.node);
-    const standing2 = focused();
-    const restoreBox = this.node.contains(standing2) ? holdBox(standing2) : () => {
+    const standing3 = focused();
+    const restoreBox = this.node.contains(standing3) ? holdBox(standing3) : () => {
     };
     const stoodIn = [...this.#views.values()].find(
       ({ node }) => standingIn(node)
@@ -7088,7 +7138,7 @@ var ThreadSeat = class {
       );
     const prior = this.#shown;
     const box = model.surface === "page" ? this.#response() : null;
-    const row = Boolean(box) && prior.response && !box.contains(standing2);
+    const row = Boolean(box) && prior.response && !box.contains(standing3);
     const shown = this.#held ? this.#held.hold(model, { row }) : model;
     let foot = shown.response ? this.#response() : null;
     if (shown.news) {
@@ -7614,15 +7664,14 @@ function revealHeld(ids) {
   }
   return null;
 }
-function surfaceFocusTarget(id, { part = "reply" } = {}) {
-  if (part === "message") return null;
-  id = threadIdNamed(id);
+function surfaceFocusTarget(name, { part = "reply" } = {}) {
+  const id = threadIdNamed(name);
   for (const registration of registrations.values()) {
     const thread = [...registration.outlets].map(
       (outlet) => outlet.querySelector(`.lf-page-thread[data-thread="${CSS.escape(id)}"]`)
     ).find(Boolean);
     if (!thread) continue;
-    return threadFocusDestination(thread, { part });
+    return threadFocusDestination(thread, { part, message: name });
   }
   return null;
 }
@@ -7755,6 +7804,8 @@ export {
   threadName,
   threadSummary,
   prepareAuthoredMessage,
+  releaseAuthoredUnder,
+  authoredHolder,
   messageReading,
   MessageView,
   messageHolding,

@@ -12,7 +12,6 @@ from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, panel_comment
 from render_harness import (
     EXAMPLES,
     PANEL,
-    PANEL_THREAD,
     ROOT,
     holding,
     leaf_page,
@@ -495,7 +494,8 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(preview).to_be_visible()
     expect(preview).to_have_attribute("aria-label", "Thread for iOS reconnect stall")
     expect(thread.locator(".lf-msg.user").first).to_be_visible()
-    expect(thread.get_by_role("button", name="Open interactive reply")).to_have_count(1)
+    # The card draws the reply's interactive widgets in place.
+    expect(thread.locator("#off-slip-chase [role=checkbox]")).to_be_checked()
     expect(thread.locator(".lf-page-thread")).to_be_focused()
     geometry = marker.evaluate(
         """markerNode => {
@@ -599,20 +599,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(preview).to_be_visible()
     expect(thread.locator(".lf-page-thread")).to_be_focused()
 
-    open_full = thread.get_by_role("button", name="Open interactive reply")
-    open_full.focus()
-    expect(open_full).to_be_focused()
-    page.keyboard.press("Enter")
-    # The thread opens in the panel, which draws the reply's interactive widgets.
-    panel_settled(page, view="thread")
-    expect(page.locator(f"{PANEL_THREAD} #off-slip")).to_be_in_viewport()
-    expect(page.locator("#off-slip-chase [role=checkbox]")).to_be_checked()
-    page.locator(".lf-fp-close").click()
-    panel_settled(page, open=False)
-    marker.focus()
-    page.keyboard.press("Enter")
-    expect(preview).to_be_visible()
-    expect(preview.locator(".lf-page-thread")).to_be_focused()
+    expect(thread.locator("#off-slip-chase [role=checkbox]")).to_be_checked()
 
     resized_shell(page, 1436, 900)
     beside = page.evaluate(

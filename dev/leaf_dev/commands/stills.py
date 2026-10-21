@@ -1681,10 +1681,15 @@ STATES = (
         touch=True,
         scheme="dark",
     ),
-    State("option-add-hover", "feature-gallery", option_add_hover, region="#bg-choice"),
+    State(
+        "option-add-hover",
+        "developer/feature-gallery",
+        option_add_hover,
+        region="#bg-choice",
+    ),
     State(
         "option-add-hover-touch",
-        "feature-gallery",
+        "developer/feature-gallery",
         option_add_hover,
         region="#bg-choice",
         viewport=(390, 844),

@@ -2259,11 +2259,15 @@
       if (!inFlow(follower) || !follower.parentElement) return false;
       follower = follower.parentElement;
     }
-    // A block container stacks its in-flow children vertically. In flex, grid,
-    // and inline layout, DOM order does not establish where a size change flows.
+    // Block-level children stack vertically in a horizontal-writing block flow.
+    // A block container can also hold inline siblings, whose height does not carry
+    // the next sibling down; flex, grid, and vertical writing have other axes.
     if (
       axis !== "top" ||
-      !["block", "flow-root"].includes(getComputedStyle(branch.parentElement).display)
+      !["block", "flow-root"].includes(getComputedStyle(branch.parentElement).display) ||
+      getComputedStyle(branch.parentElement).writingMode !== "horizontal-tb" ||
+      !["block", "flow-root"].includes(getComputedStyle(branch).display) ||
+      !["block", "flow-root"].includes(getComputedStyle(follower).display)
     )
       return false;
     return (

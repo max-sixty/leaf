@@ -2455,6 +2455,34 @@ def test_flex_row_size_animation_cannot_credit_independent_vertical_move(browser
     consume_browser_errors(page, moved_within("button#control"))
 
 
+def test_inline_siblings_cannot_credit_independent_vertical_move(browser):
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0">'
+            '<button id="start">Start</button>'
+            '<div style="display:block">'
+            '<div id="size" style="display:inline-block;vertical-align:top;height:0;width:20px"></div>'
+            '<button id="control" style="position:relative;vertical-align:top">Control</button>'
+            '</div><script>start.addEventListener("pointerdown", () => {'
+            'window.effect = size.animate([{height:"0px"}, {height:"120px"}],'
+            '{duration:400, fill:"forwards"});'
+            'effect.playbackRate = 0; effect.currentTime = 0;});</script>'
+        )
+    )
+    page.evaluate("document.body.setAttribute('data-lf-presented', '')")
+    page.locator("#start").click()
+    assert page.evaluate("effect.playState") == "running"
+    paint(page)
+    page.evaluate("""() => {
+      effect.currentTime = 400;
+      control.style.top = '120px';
+    }""")
+    judge_watches()
+    consume_browser_errors(page, moved_within("button#control"))
+
+
 @pytest.mark.parametrize("motion", ["press", "news"])
 def test_sampled_native_translation_distinguishes_press_from_news(browser, motion):
     """Identical native motion survives news only when the trusted press began it."""

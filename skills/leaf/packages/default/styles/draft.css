@@ -75,7 +75,7 @@
     display: none;
   }
   /* The toolbar's middle lies on the box's border at its right, so it covers the
-     border and padding and never a word: Edit and Copy at rest, Save, Cancel and Copy
+     border and padding and never a word: Edit and Copy at rest, Save, Discard and Copy
      while editing, Copy keeping the last seat, and a refused save's status before
      them. A pointer sees it on the top border while over the box or a key is in it,
      and the open editor always. A finger sees it always, on the bottom border, since

@@ -312,7 +312,7 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
     they pressed ↑ from. A later box painted around the words, with no padding of its
     own, moved nothing but read as a thinner, narrower field than the reply box beside
     it. The rewrite is now the reply box's own field, at its width and height, with the
-    words at their inset under the message's head; Cancel and Save take that head, and
+    words at their inset under the message's head; Discard and Save take that head, and
     every way out steps back up to the reply box, leaving the thread as it was. In the
     margin card the reply box's taller field grew a short message, so the card kept
     that room under every message of the user's; the rewrite there is now the comment
@@ -366,7 +366,7 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
         assert abs(editing_line[1] - first_line[1]) < 0.5, (editing_line, first_line)
         unmoved()
     head = message.locator(".lf-msg-head").bounding_box()
-    for name in ("Cancel", "Save"):
+    for name in ("Discard", "Save"):
         box = message.get_by_role("button", name=name, exact=True).bounding_box()
         middle = box["y"] + box["height"] / 2
         assert head["y"] - 1 <= middle <= head["y"] + head["height"] + 1, (
@@ -447,7 +447,7 @@ def test_a_package_feed_keeps_a_rewrite_where_a_card_would(browser, serve):
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property("value", "Fit the south bracket. Or the east.")
     expect(feed).to_have_attribute("aria-pressed", "true")
-    message.get_by_role("button", name="Cancel").click()
+    message.get_by_role("button", name="Discard").click()
     expect(message.locator(".lf-msg-editor")).to_have_count(0)
     expect(message.locator(".lf-msg-kept")).to_have_count(0)
     expect(message.locator(".lf-msg-text")).to_have_text("Fit the south bracket.")
@@ -648,7 +648,7 @@ def test_a_rewrite_saves_its_exact_words(browser, serve):
 
 def test_a_rewrite_under_a_finger_keeps_its_message_head(browser, serve):
     """Under a finger a message's head holds the row its control stands in. An open
-    rewrite's Cancel and Save took that row's height from the room they need across, so
+    rewrite's Discard and Save took that row's height from the room they need across, so
     a message below the first grew a head 120px tall and pushed the reply box down. The
     head keeps its row, and the box's words take the floor a field's type needs on a
     phone, the one size that changes."""
@@ -695,7 +695,7 @@ def test_a_rewrite_under_a_finger_keeps_its_message_head(browser, serve):
     rendered(page)
     now = head.bounding_box()
     assert abs(now["height"] - rest["height"]) < 0.5, (rest, now)
-    for name in ("Cancel", "Save"):
+    for name in ("Discard", "Save"):
         box = message.get_by_role("button", name=name, exact=True).bounding_box()
         assert (
             now["y"] - 1 <= box["y"] + box["height"] / 2 <= now["y"] + now["height"] + 1

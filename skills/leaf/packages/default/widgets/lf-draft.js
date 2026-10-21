@@ -8,10 +8,10 @@
  *
  * Editing controls belong to the box, as marks on a small toolbar hovering over its
  * edge at the right, the top edge for a pointer and the bottom under a finger
- * (draft.css): Edit (a pencil) and Copy at rest, Save, Cancel and Copy while editing. Copy copies the Markdown source the box shows. The toolbar takes no room,
+ * (draft.css): Edit (a pencil) and Copy at rest, Save, Discard and Copy while editing. Copy copies the Markdown source the box shows. The toolbar takes no room,
  * so the box is the same size with its controls as without them, and opening the
  * editor adds no row of buttons under it; a refused save's status joins the toolbar.
- * Copy keeps the last seat, and Cancel opens where Edit stood, so a second press on
+ * Copy keeps the last seat, and Discard opens where Edit stood, so a second press on
  * the pencil gives the box back unchanged. A pointer sees the toolbar while over the
  * box or a key stands in it, and the open editor and a finger always; clicking the
  * prose still opens the editor at that spot. Rejected: a resting row under the prose
@@ -28,11 +28,11 @@
  * remains the page's to draw on or comment on.
  *
  * The editor reads as an ordinary text box: its words stand in the field until Save
- * or Cancel, and the field's own undo walks them back. Save submits one absolute edit
- * through the shared send generation; Cancel and Escape close the editor, discarding
+ * or Discard, and the field's own undo walks them back. Save submits one absolute edit
+ * through the shared send generation; Discard and Escape close the editor, throwing away
  * its changes, as a message rewrite's do. A saved edit is withdrawn with the page's
  * undo (`z`), and the log keeps every version for the agent. Rejected: Escape setting
- * unsent words aside for the next opening, which needed a Close button beside Cancel
+ * unsent words aside for the next opening, which needed a Close button beside Discard
  * and left a closed box holding words it gave no sign of; and a Changes list that
  * restored earlier versions, which the page's undo already does.
  *
@@ -81,7 +81,7 @@ import {
 const ACTIONS = [
   ["edit", "Edit", "edit"],
   ["save", "Save", "check"],
-  ["cancel", "Cancel", "cross"],
+  ["cancel", "Discard", "cross"],
 ];
 
 // The store key for a draft's unsent edit. The page's port is its own origin, so
@@ -262,7 +262,7 @@ customElements.define(
           keys: ["Escape"],
           control: () => this.#control("cancel"),
           decision: true,
-          title: "Discard changes",
+          title: "Discard",
           when: () => Boolean(this.#editor),
           run: () => this.#close(true),
         },
@@ -432,7 +432,7 @@ customElements.define(
       paintMarkdown(this.#body, state.edit.value);
       if (quoted(this)) return nothing;
       // Recovery chooses the first action face: an unsent editor opens with Save
-      // and Cancel, without briefly publishing the resting Edit control.
+      // and Discard, without briefly publishing the resting Edit control.
       this.#recoverEdit();
       this.#paintTools();
       if (this.#editor && !this.#resumeProjection && actions.edit.available)

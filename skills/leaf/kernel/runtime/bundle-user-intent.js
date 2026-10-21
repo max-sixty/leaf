@@ -3442,8 +3442,7 @@ var MessageEditor = class {
     const save = offer("button", "lf-msg-control lf-msg-edit-save");
     const cancel = offer("button", "lf-msg-control lf-msg-edit-cancel");
     cancel.type = "button";
-    cancel.title = "Cancel and discard changes";
-    cancel.textContent = "Cancel";
+    cancel.textContent = "Discard";
     actions.append(cancel);
     this.foot = document.createElement("span");
     this.foot.className = "lf-msg-edit-foot";
@@ -3533,7 +3532,7 @@ var MessageEditor = class {
         {
           id: "message.edit.close",
           keys: ["Escape"],
-          title: "discard changes",
+          title: "discard",
           run: () => close()
         }
       ],

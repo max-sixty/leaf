@@ -26,12 +26,11 @@
      it. The obligation, menu rows, reference, and announcements read these same words.
    - `description` is the reference's grey second line, for what the reader can't tell
      from the title and its section heading and that no short title could say: a
-     consequence ("Keeps what is typed"), a mechanic ("prose still
-     selects"), a state the title hides ("Undo: …"). Most rows have none. Where the
-     missing words fit, put them in the title ("discard changes", not "stop editing"
-     over "leaving the message as it was"). A description that spells the title out as
-     a sentence, or that repeats down a run of rows such as an option group's digits,
-     is noise.
+     consequence ("Keeps what is typed"), a mechanic ("prose still selects"), a state
+     the title hides ("Undo: …"). Most rows have none. Where the missing words fit, put
+     them in the title ("discard", not "stop editing" over "leaving the message as it
+     was"). A description that spells the title out as a sentence, or that repeats down
+     a run of rows such as an option group's digits, is noise.
    - `label` overrides the compact keycap, independently of the action name. A keyless
      command remains named by its title in the reference.
    - `contextKeys` are explicit aliases that work inside the widget and may be forwarded

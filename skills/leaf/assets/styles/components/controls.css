@@ -217,7 +217,7 @@
     var(--lf-msg-control-room, var(--lf-msg-control)) + var(--lf-msg-head-room, 0px)
   );
 }
-/* An open rewrite's Cancel and Save take the room its Edit control took, and more: the
+/* An open rewrite's Discard and Save take the room its Edit control took, and more: the
    head holds the author alone while it is open, its time and labels saying nothing a
    rewrite needs. */
 .lf-msg:has(> .lf-msg-body > .lf-msg-editor) {

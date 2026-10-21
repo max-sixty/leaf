@@ -6,7 +6,7 @@
 
    - Its words are a draft under `rewrite:<message id>` (drafts.js), once the user
      changes them, so they survive a reload, reach every tab, and come back on a
-     refusal. Escape, Cancel and Save settle them; words left by a reload or a refusal
+     refusal. Escape, Discard and Save settle them; words left by a reload or a refusal
      wait in the draft, the message saying it holds them (`keptRewrite`), and opening the
      rewrite again finds them. Words the message already says, and no words at all, are
      no rewrite: neither is kept, and a box with no draft holds the message's own words,
@@ -21,14 +21,14 @@
      until a key or press of theirs puts it away, so a second press elsewhere in the
      thread opens a second editor beside it, each named for its message.
 
-   Escape discards changed words, as Cancel does, so one Escape undoes the ↑ that opened
+   Escape discards changed words, as Discard does, so one Escape undoes the ↑ that opened
    the rewrite, as in Slack, Discord and Telegram (the user's decision, 2026-10-06).
    Rejected: Escape keeping them as an unsaved edit, as a reply box keeps its draft,
    which left the user a draft to find and drop that the message could barely show.
 
    The editor takes the message's words' place, and is the thread's comment box, the
    field its reply box is, at the reply box's width and padding (shadow.css,
-   `.lf-msg-editor`). Its Cancel and Save stand at the message's head, where the
+   `.lf-msg-editor`). Its Discard and Save stand at the message's head, where the
    message's own control stood (`.lf-msg-edit-actions`), so opening it grows the
    message by the box's padding alone. In a margin card the editor is the comment box
    the card grew from instead, whose frame and padding fit the room each of the card's
@@ -49,9 +49,9 @@
    ↑, landing and putting aside, over the views that reader draws. Resume writing
    (`g i`) opens a rewrite whose words were kept on the message where a message part
    opens (`openMessageEditIn`). Opening brings the editor into view. Enter saves; Escape and
-   Cancel close it, discarding changed words; opening another rewrite in the thread
+   Discard close it, throwing away changed words; opening another rewrite in the thread
    puts this one aside, keeping them. The
-   editor is a rung below the thread's reply box, so Enter, Escape and Cancel each hand
+   editor is a rung below the thread's reply box, so Enter, Escape and Discard each hand
    the user to that box, or, in a thread showing none, onto the thread (`land`). Save sends
    through the one ledger, which draws the new words on the message in the gesture
    (`foldThreads`), and a refusal gives its words back to the draft, the message saying
@@ -296,8 +296,7 @@ export class MessageEditor {
     const save = offer("button", "lf-msg-control lf-msg-edit-save");
     const cancel = offer("button", "lf-msg-control lf-msg-edit-cancel");
     cancel.type = "button";
-    cancel.title = "Cancel and discard changes";
-    cancel.textContent = "Cancel";
+    cancel.textContent = "Discard";
     actions.append(cancel);
     // The box's last line, where the caret stands on opening: the field's own lines are
     // in a closed tree, so a mark of no size after it is what a reveal can aim at.
@@ -333,7 +332,7 @@ export class MessageEditor {
       if (painting) paint();
       if (says) announce(says);
     };
-    // Closing as Escape and Cancel do, discarding what changed.
+    // Closing as Escape and Discard do, throwing away what changed.
     const close = () =>
       leave(true, {
         says: unchanged()
@@ -419,7 +418,7 @@ export class MessageEditor {
         {
           id: "message.edit.close",
           keys: ["Escape"],
-          title: "discard changes",
+          title: "discard",
           run: () => close(),
         },
       ],

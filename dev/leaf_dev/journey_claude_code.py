@@ -26,11 +26,11 @@ The steps, in order:
 - `setup`: the user asks for a page to review; Claude Code serves it, and a watch
   holds the session's pages once its turn ends;
 - `release`: the journey's timed ask, sent while the session is idle, opens a turn
-  that answers it (`journey.run_journey`);
-- `mid-turn`: the working case's ask (`journey.CASES`), sent during a shell
-  command, is picked up in that turn and recorded on the page; its PostToolBatch
-  context carries the exact input before another model call, rather than waiting
-  for Stop;
+  that answers it (`journey.run_journey`); with `--case working` it is sent during
+  the user's own turn's shell command, which answers it;
+- `mid-turn`: a comment sent during a shell command is picked up in that turn;
+  its PostToolBatch context carries the exact input before another model call,
+  rather than waiting for Stop;
 - `ending`: a comment sent during a shell command wakes the watch, and one sent
   after that pickup enters the same turn at its next tool boundary while no watch
   runs;
@@ -183,6 +183,14 @@ class ClaudeCode(Terminal):
         """Whether Claude Code's own record says no turn runs."""
         return self.state() == "idle"
 
+    def work(self) -> None:
+        """Type the user's own turn and wait for its shell command. Escape ends a
+        turn but not the command it ran, so an earlier one must be gone first or it
+        would read as this one's."""
+        self.until(lambda: not self.sleeping(), "an earlier turn's command still runs")
+        self.say(USER_TURN)
+        self.until(self.sleeping, "the user's turn did not start its command")
+
     def sleeping(self) -> bool:
         """Whether the user's turn is in its shell step: whether the pane's own
         processes, and no other journey's, run its command."""
@@ -252,16 +260,6 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         """What the page's status reads: its canonical activity's kind."""
         served = run_leaf(ROOT, place.state, "page", "state", str(page), check=True)
         return json.loads(served.stdout)["activity"]["kind"]
-
-    def user_turn(name: str) -> None:
-        """Type the user's own turn and wait for its shell command. Escape ends a
-        turn but not the command it ran, so an earlier one must be gone first or it
-        would read as this one's."""
-        cc.until(
-            lambda: not cc.sleeping(), f"{name}: an earlier turn's command still runs"
-        )
-        cc.say(USER_TURN)
-        cc.until(cc.sleeping, f"{name}: the user's turn did not start its command")
 
     def answered(*names: str) -> Callable[[], bool]:
         return lambda: all(user.answered(name) for name in names) and cc.idle()
@@ -339,12 +337,11 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
     step("release", started, "release", before=before)
 
     started = time.monotonic()
-    user_turn("mid-turn")
+    cc.work()
     turn = page_claim(page)["turn"]
     before = nudged()
-    mid_turn = user.ask_while_working()
+    mid_turn = user.comment("mid-turn")
     cc.until(answered("mid-turn"), "mid-turn: the comment was not answered")
-    user.require_recorded()
     require(
         any(
             event["turn"] == turn
@@ -370,7 +367,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
     step("mid-turn", started, "mid-turn", before=before)
 
     started = time.monotonic()
-    user_turn("ending")
+    cc.work()
     turn = page_claim(page)["turn"]
     before = nudged()
     first = user.comment("first")
@@ -395,7 +392,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
     step("ending", started, "first", "ending", before=before)
 
     started = time.monotonic()
-    user_turn("escape")
+    cc.work()
     turn = page_claim(page)["turn"]
     escape(turn)
     escaped = after_escape("escape", turn)
@@ -405,7 +402,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
     step("escape", started, "escape", before=before, escaped=escaped)
 
     started = time.monotonic()
-    user_turn("woken")
+    cc.work()
     turn = page_claim(page)["turn"]
     woken = user.comment("woken")
     # The watch wakes on the comment, which the turn reads only at its next tool

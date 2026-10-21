@@ -865,6 +865,13 @@ sheet.replaceSync(`
      against. Both layers share one grid cell, inside the host's padding. */
   .lf-field { display: grid; }
   .lf-field > * { grid-area: 1 / 1; min-width: 0; }
+  /* An owner growing the field at its top can carry the words down to where they stood
+     and back with the edge, by the host's --lf-field-ride (theme.css), a transform
+     that moves neither the field nor its layout. The field's content box cuts off what
+     hasn't risen into it yet, the new line and its caret, and keeps that travel from
+     reading as words past the field's foot. */
+  .lf-field { overflow-y: clip; }
+  .lf-field > * { translate: 0 var(--lf-field-ride); }
   /* The placeholder is one line that never widens the box \u2014 a response bar sizes to the
      words \u2014 and shortens with an ellipsis where the box is narrow, so it reads the same
      height whether it shows the plain words or a keyed hint. */
@@ -906,14 +913,13 @@ sheet.replaceSync(`
   /* A list item's lines stand where the message's do, one list inset in per level, and
      its marker stands in the inset before them. The marker is the platform's own list
      marker, as in the message, so it is the same bullet or number at the same place.
-     The source's marker stays in the inset unseen, and shows instead while the caret
-     touches it, so revealing it moves no word. */
+     The source's marker stays in the inset unseen and unspoken, and shows instead while
+     the caret touches it, so revealing it moves no word. */
   .lf-md-item { margin-inline-start: calc(var(--lf-list-depth) * var(--list-inset)); }
   .lf-md-marker { display: inline-flex; justify-content: flex-end; white-space: pre;
     inline-size: var(--list-inset); margin-inline-start: calc(-1 * var(--list-inset)); }
-  .lf-md-listed { display: list-item; }
   .lf-md-marker:not(.lf-md-mark) { color: transparent; }
-  .lf-md-listed:has(.lf-md-marker.lf-md-mark) { list-style-type: none; }
+  .lf-md-listed { display: list-item; }
   .lf-md-disc { list-style-type: disc; }
   .lf-md-circle { list-style-type: circle; }
   .lf-md-square { list-style-type: square; }
@@ -931,7 +937,10 @@ var ownerStep = StateEffect2.define();
 var hide = Decoration.replace({});
 var dim = Decoration.mark({ class: "lf-md-mark" });
 var link = Decoration.mark({ class: "lf-md-link" });
-var marker = Decoration.mark({ class: "lf-md-marker" });
+var marker = Decoration.mark({
+  class: "lf-md-marker",
+  attributes: { "aria-hidden": "true" }
+});
 var shownMarker = Decoration.mark({ class: "lf-md-marker lf-md-mark" });
 var line = (cls) => Decoration.line({ class: cls });
 var BULLETS = ["lf-md-disc", "lf-md-circle", "lf-md-square"];
@@ -1029,14 +1038,15 @@ function decorate(state, placed) {
         items.set(each.from, { depth, hidden: [each.from, each.from + lead] });
       });
       const kind = list.next === null ? BULLETS[Math.min(depth, BULLETS.length) - 1] : "lf-md-number";
-      items.set(head.from, { depth, kind, number: list.next });
+      const shown = touches(state, start, end);
+      items.set(head.from, { depth, kind: shown ? null : kind, number: list.next });
       if (list.next !== null) list.next++;
-      add(start, end, touches(state, start, end) ? shownMarker : marker);
+      add(start, end, shown ? shownMarker : marker);
     }
   }
   for (const [from, { depth, kind, number, hidden }] of items) {
     out.push(itemLine(depth, kind, number).range(from));
-    if (hidden) add(...hidden, touches(state, ...hidden) ? dim : hide);
+    if (hidden) add(...hidden, hide);
   }
   return Decoration.set(out, true);
 }

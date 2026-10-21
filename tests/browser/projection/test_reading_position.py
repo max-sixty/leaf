@@ -299,6 +299,44 @@ def test_a_revision_keeps_the_paragraph_under_a_focused_stuck_tab(browser, serve
     assert after == pytest.approx(before, abs=4), (before, after)
 
 
+def test_a_box_fixed_in_the_window_rides_every_scroll_and_an_anchored_one_does_not(
+    browser, serve
+):
+    """A box fixed in the window, as a page of parts' column is, stands over whatever
+    the page scrolls to, so it names no place in it, as a stuck sticky box doesn't. A
+    fixed box anchored to the page's words, as the inline thread card is, moves with
+    them, so a reply focused in it still marks where the reader is, as does a fixed
+    box a transformed box holds."""
+    page = open_page(
+        browser,
+        live_url(
+            serve(
+                leaf_page(
+                    "Fixed boxes",
+                    '<p id="words">Words a card stands beside.</p>'
+                    + "".join(f"<p>Paragraph {n}.</p>" for n in range(80))
+                    + '<div id="column" style="position: fixed; top: 0">'
+                    "<button>In the column</button></div>"
+                    '<div id="card" style="position: fixed; position-anchor: --words;'
+                    ' top: anchor(bottom); left: anchor(left)">'
+                    "<button>In the card</button></div>"
+                    '<div style="transform: translateX(0)">'
+                    '<div id="held" style="position: fixed; top: 0">'
+                    "<button>Held</button></div></div>"
+                    "<style>#words { anchor-name: --words; }</style>",
+                )
+            )
+        ),
+    )
+    page.evaluate("document.scrollingElement.scrollTop = 0")
+    rendered(page)
+    assert page.evaluate("""async () => {
+        const {stuckBox} = await window.__lfCheckApi();
+        const ask = (id) => stuckBox(document.querySelector(`#${id} button`))?.id ?? null;
+        return [ask("column"), ask("card"), ask("held")];
+    }""") == ["column", None, None]
+
+
 @pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
 def test_revision_after_revision_keeps_the_reader_on_the_same_line(
     engine, request, serve

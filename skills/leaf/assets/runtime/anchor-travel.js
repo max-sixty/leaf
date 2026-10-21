@@ -43,9 +43,13 @@ import {
   shownBox,
 } from "./geometry.js";
 import { scrollBehavior } from "./motion.js";
-import { onReadingInput, scrollersOf } from "./reading-regions.js";
+import {
+  onReadingInput,
+  scrollersOf,
+  unconcealedReadingRegions,
+} from "./reading-regions.js";
 import { prepareEntry } from "./history.js";
-import { pageScroller } from "./scrolling.js";
+import { pageScroller, stopScroll } from "./scrolling.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { PRESSABLE, reveal } from "./widget-elements.js";
 import { threadNamed } from "./thread/state.js";
@@ -120,7 +124,23 @@ export function createAnchorTravel({
   // Resolve fresh after exposure, presentation and focus. A replaced view lands
   // immediately so it never paints at the old view's offset; final placement alone
   // commits the prepared departure, after the destination still stands through focus.
+  // An empty scroll list preserves the reader's existing scroll, as a continuation
+  // can request. Visibility conditions on a placement are read after cancellation.
   async function arrive(resolve, { intent, present = null, departure = null }) {
+    const initial = intent() && resolve();
+    if (!initial?.where) return false;
+    // Every new trip takes over the outgoing native placement, including when
+    // the new destination still looks readable before the old trip's first frame.
+    // Read geometry only after its last compositor update has passed; another
+    // gesture during that wait retains the place it chose.
+    if (initial.scroll.length)
+      await stopScroll(
+        new Set([
+          pageScroller,
+          ...unconcealedReadingRegions().map((region) => region.body),
+        ]),
+      );
+    if (!intent()) return false;
     const first = resolve();
     const holder = first && placeHolder(first.where);
     if (!holder || !intent()) return false;
@@ -377,7 +397,7 @@ export function createAnchorTravel({
     }
     const destination = addressedElements(source, key)[0] ?? null;
 
-    const moving = departure.plan(destination);
+    departure.plan(destination);
     if (!destination) {
       await arrive(
         () => {
@@ -399,7 +419,9 @@ export function createAnchorTravel({
           where && {
             where,
             focus: focus ? where : null,
-            scroll: moving ? [{ at: where, block: "start" }] : [],
+            scroll: [
+              { at: where, block: "start", when: () => !readableDestination(where) },
+            ],
           }
         );
       },

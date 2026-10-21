@@ -583,6 +583,14 @@ function threadNames(threads) {
 var editable = (message) => message.author === "user" && !message.pending && !message.token && Boolean(message.text);
 var bareReaction = (thread) => thread.bare_reaction;
 var discussed = (thread) => !bareReaction(thread);
+var hasUnread = (thread) => thread.unread.length > 0;
+function threadCounts(threads) {
+  const listed = threads.filter(discussed);
+  return {
+    open: listed.filter((thread) => !thread.resolved).length,
+    unread: listed.filter(hasUnread).length
+  };
+}
 var pendingSeat = (message) => message.about || !message.anchor || Object.keys(message.anchor).length !== 1 ? null : message.anchor.section ?? null;
 var sending = (turn) => ({
   kind: "waiting",
@@ -1916,10 +1924,11 @@ function createSemanticApplication({
     phase: "waiting",
     // How the server answered the page's latest read: not yet (`waiting`), with a
     // reading the page adopted (`reached`), with nothing (`unreachable`, or `refused`
-    // where it refused this tab's key), or with one the page could not apply
-    // (`broken`). It is what the page's status says about the server, and no semantic
-    // epoch.
+    // where it refused this tab's key), with an error of its own (`faulted`, whose
+    // words `fault` keeps), or with one the page could not apply (`broken`). It is
+    // what the page's status says about the server, and no semantic epoch.
     reach: "waiting",
+    fault: null,
     hostAvailable: true,
     data: { version: null, sources: {} },
     // Ephemeral typed values derived by mounted widgets; no server run or revision.
@@ -2323,9 +2332,10 @@ function createSemanticApplication({
     setPhase(phase) {
       return publish({ phase });
     },
-    setReach(reach) {
-      if (publisher.peek().reach === reach) return publisher.peek();
-      return publish({ reach });
+    setReach(reach, fault = null) {
+      const now = publisher.peek();
+      if (now.reach === reach && now.fault === fault) return now;
+      return publish({ reach, fault });
     },
     publishOutput(widget, output, reading) {
       const prior = publisher.peek();
@@ -2400,7 +2410,8 @@ function createSemanticApplication({
         unresolved,
         settled,
         phase: "ready",
-        reach: "reached"
+        reach: "reached",
+        fault: null
       });
       return true;
     },
@@ -2571,6 +2582,8 @@ export {
   editable,
   bareReaction,
   discussed,
+  hasUnread,
+  threadCounts,
   reactionsAt,
   seatRoot,
   moved,

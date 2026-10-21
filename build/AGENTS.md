@@ -25,6 +25,8 @@ below owns its own:
   directory here named after a row holds that row's inputs, and a `.patch` file here is
   an upstream backport, explained beside its row in `vendor.mjs`. `lit.mjs` owns how
   `vendor/lit.js` exports Lit and how bundles import it.
+- `esbuild.mjs`: esbuild's `build` as every script here calls it, blind to any
+  `tsconfig.json` in the tree.
 - `runtime-bundle.mjs`: runs last and compiles the runtime into the kernel, readable
   and with stable chunk names so branches rarely conflict in it. An install vendors the
   kernel into pages only while `kernel.json` matches the tree's modules, and the source

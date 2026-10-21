@@ -18,8 +18,8 @@
    Each feature takes what it needs from that place by its own rule: the obligation view the
    obligation source or unique enclosing widget holding it, `c` and `e` its semantic target, the walks its place
    in the page's order. Every side answers alike: an open obligation stood at from its card still wears its
-   ring and takes its digits, `c` at an element whose own thread is shown continues it,
-   and `m` and `t` step from the target.
+   ring and takes its digits, `c` at an element whose own thread is shown continues it and
+   `r` settles it, and `m` and `t` step from the target.
 
    Standing is not arriving. The floating panel shows its thread or obligation beside
    the page (`declareSide`'s `beside`), so the user in it has not arrived at the target,
@@ -30,8 +30,10 @@
    so a chrome node measured as a place would put the user behind every obligation and thread
    there is; no reader measures from one that does not stand in an obligation.
 
-   Page walks share `walkOrigin`: focus, then the selection's ends, then the first
-   visible reading block. A selected tab starts a walk at its controlled panel,
+   `standingOrigin` reads focus, then the selection's ends, returning null when
+   neither names a place on the page.
+   Page walks share `walkOrigin`, which starts at that standing or the first visible
+   reading block. A selected tab starts a walk at its controlled panel,
    where the user is reading, without changing comment targets.
    Every press reads the browser afresh; no walk remembers a
    destination to use as the user's current place. They step from it by one rule,
@@ -104,7 +106,7 @@ function placeFrom(node, visited, countBeside) {
 // A standing origin can step off its current stop. An `at` origin arrives at
 // its place; an `enter` origin starts inside its region, from either direction.
 // A selected tab enters its panel instead of standing on an obligation it may hold.
-export function walkOrigin() {
+export function standingOrigin() {
   for (const node of standingNodes()) {
     const place = placeOf(node);
     if (place) {
@@ -113,8 +115,12 @@ export function walkOrigin() {
       return panel ? { place: panel, kind: "enter" } : { place, kind: "standing" };
     }
   }
-  return { place: pageReadingBlock(), kind: "standing" };
+  return null;
 }
+
+// A walk can start at what the viewport shows even when the user stands on nothing.
+export const walkOrigin = () =>
+  standingOrigin() ?? { place: pageReadingBlock(), kind: "standing" };
 
 // The item a walk over `list` steps to in direction `dir` from `here`, a place on the
 // page, and whether it came round an end to reach it. `list` is in page order with its

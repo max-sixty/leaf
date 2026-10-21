@@ -513,9 +513,6 @@ class PageEndpoint:
         so live child pages cannot hold the origin's connections away from modules,
         gestures or revisions. Presence caches its process and lease observations;
         page files are read anew, including external data and authored dependencies.
-
-        This explicit attention door renews the user lease, throttled to a recency.
-        Ordinary state reads and captured previews do not prove a user is looking.
         """
         self.housekeeping = True
         return self._content(

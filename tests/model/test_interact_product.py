@@ -8,6 +8,7 @@ import socket
 import sys
 from pathlib import Path
 
+import click
 import pytest
 from click.testing import CliRunner
 from interact_support import (
@@ -50,7 +51,6 @@ from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import todos as todos_model
 from leaf.findings import Finding, Rejected
-from leaf.refusals import Refused
 from leaf.registry import storage as registry_storage
 from leaf.registry.contract import element_declarations
 from leaf.structure import SourceDocument
@@ -58,7 +58,6 @@ from leaf.thread_context import thread_digest
 from leaf.validation import composition as validation_model
 from leaf.validation.admission import (
     check_markup,
-    read_text_arg,
     revision_publication,
 )
 from leaf.validation.instances import reference_errors
@@ -1074,7 +1073,8 @@ def test_agent_messages_preserve_a_single_space(page_dir):
     )
     assert empty.exit_code != 0
     assert json.loads(empty.stderr)["error"] == (
-        "empty text (pass --text or pipe via stdin)"
+        "empty text (pass --text, --file PATH or a pipe on stdin; --file - reads"
+        " any stdin)"
     )
 
     opened = comment(page_dir, "--text", " ")
@@ -1101,24 +1101,96 @@ def test_agent_messages_preserve_a_single_space(page_dir):
     assert [message["text"] for message in messages] == [" ", " "]
 
 
-def test_a_body_reads_only_piped_stdin(page_dir, monkeypatch):
-    """A body without --text comes from a pipe or file; a socket the caller keeps
-    open, as Claude Code hands a command spanning lines, is refused at once rather
-    than waited on."""
+def test_a_body_reads_only_piped_stdin(monkeypatch):
+    """A body given by neither --text nor --file comes from a pipe or file; a socket
+    the caller keeps open, as Claude Code hands a command spanning lines, gives none
+    at once rather than being waited on."""
     held, caller = socket.socketpair()
     with held, caller:
         # A regression waits on the socket; the timeout turns that into a failure.
         held.settimeout(STATED_TIMEOUT)
         monkeypatch.setattr(sys, "stdin", held.makefile("r"))
-        with pytest.raises(Refused, match="empty text"):
-            read_text_arg(page_dir, None)
+        assert cli_model.read_body(None, None) is None
 
     read, write = os.pipe()
     os.write(write, b"Checked the label row.")
     os.close(write)
     with open(read) as piped:
         monkeypatch.setattr(sys, "stdin", piped)
-        assert read_text_arg(page_dir, None) == "Checked the label row."
+        assert cli_model.read_body(None, None) == "Checked the label row."
+
+
+def _commands(group, path=()):
+    for name, command in group.commands.items():
+        if isinstance(command, click.Group):
+            yield from _commands(command, (*path, name))
+        else:
+            yield (
+                " ".join((*path, name)),
+                {
+                    param.name
+                    for param in command.params
+                    if isinstance(param, click.Option)
+                },
+            )
+
+
+def test_every_body_takes_text_and_file():
+    """Every command that takes a body takes it the same ways: `--text` inline,
+    `--file` naming a file or `-` for stdin, else a pipe on stdin
+    (`cli.body_options`)."""
+    bodies = {
+        name: params & {"text", "body_file"}
+        for name, params in _commands(cli_model.cli)
+        if params & {"text", "body_file"}
+    }
+    assert "response reply" in bodies
+    assert {name for name, given in bodies.items() if len(given) < 2} == set()
+
+
+def test_a_body_comes_from_text_a_file_or_stdin(page_dir, tmp_path):
+    """One reply's text, and one plan's JSON, by each route the convention offers;
+    giving both options is refused before anything is written."""
+    reply = tmp_path / "reply.md"
+    reply.write_text("Checked the **label** row.\n", encoding="utf-8")
+    runner = CliRunner()
+    opened = json.loads(comment(page_dir, "--text", "Opening.").output)
+
+    def posted(*body, stdin=None):
+        result = runner.invoke(
+            cli_model.cli,
+            ["thread", "reply", str(page_dir), opened["id"], *body],
+            input=stdin,
+        )
+        assert result.exit_code == 0, result.output
+        return json.loads(result.stdout)["text"]
+
+    assert posted("--file", str(reply)) == "Checked the **label** row.\n"
+    assert posted("--file", "-", stdin="From stdin.") == "From stdin."
+    assert posted(stdin="Piped.") == "Piped."
+    both = runner.invoke(
+        cli_model.cli,
+        ["thread", "reply", str(page_dir), opened["id"], "--text", "a"]
+        + ["--file", str(reply)],
+    )
+    assert both.exit_code == 2
+    assert "not both" in json.loads(both.stderr)["error"]
+    renamed = runner.invoke(
+        cli_model.cli,
+        ["thread", "edit", str(page_dir), opened["id"], "--title", "Label row"],
+        input="Not the text.",
+    )
+    assert renamed.exit_code == 0, renamed.output
+    assert [
+        record["kind"] for record in map(json.loads, renamed.stdout.split("\n")[:-1])
+    ] == ["thread_title"]
+
+    planned = runner.invoke(
+        cli_model.cli,
+        ["task", "plan", str(page_dir), "--text"]
+        + ['[{"depth": 0, "title": "Check the rows", "state": "working"}]'],
+    )
+    assert planned.exit_code == 0, planned.output
 
 
 def test_the_wire_ships_a_message_as_logged(page_dir):
@@ -1711,7 +1783,7 @@ def test_a_rewrite_lands_only_on_the_words_it_was_written_over(page_dir):
     south = rewrite("South.", said["id"])
     with pytest.raises(events_model.EventRefused) as stale:
         rewrite("East.", said["id"])
-    assert stale.value.user == "The message changed while you edited it; edit it again."
+    assert stale.value.user == "The message changed while I edited it; edit it again."
     west = rewrite("West.", south["id"])
     with pytest.raises(events_model.EventRefused):
         rewrite("West.", west["id"])

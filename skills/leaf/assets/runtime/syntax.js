@@ -1,7 +1,7 @@
 /* This module owns code tokenization and highlighting. */
 import { runtime } from "./context.js";
 import { reportPageError } from "./layer-client.js";
-import { syntaxLanguages } from "./syntax-languages.js";
+import { syntaxLanguages, syntaxLanguageNames } from "./syntax-languages.js";
 
 const registry = runtime.registry;
 
@@ -104,7 +104,8 @@ export const langForPath = (path) =>
 
 // The page's own code blocks: <pre><code class="language-python">. The class is the
 // universal one — what every Markdown renderer emits — so a block Claude wrote anywhere
-// else needs no translation to land here. A language outside $languages stays the
+// else needs no translation to land here. Shiki's names and aliases resolve to the
+// registry's grammar names at build time. A language outside that set stays the
 // colour of its ink, as the same block would in any page that colours nothing: plain
 // HTML claims no vocabulary. lf-code declares `language` instead, because a custom
 // element's vocabulary is the registry's to state, and `page check` holds it there.
@@ -117,7 +118,9 @@ const BLOCK = "pre > code[class]";
 // A block's declared language where the registry colours it.
 const languageOf = (code) => {
   const lang = code.className.match(LANGUAGE_CLASS)?.[1];
-  return registry.$languages.names.includes(lang) ? lang : undefined;
+  return Object.hasOwn(syntaxLanguageNames, lang)
+    ? syntaxLanguageNames[lang]
+    : undefined;
 };
 // Blocks whose tokens are on their way. A pass that reaches one again before they land,
 // as a message that renders twice in a turn does, would tokenize the same text and

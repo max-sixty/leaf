@@ -2,18 +2,25 @@
  * sharing a record's format (`layer-registry.md`, "Page protocol").
  *
  * `protocol-baseline.json` holds each schema as it last stood (`protocolSchemas`), and
- * `build.mjs` moves it forward after each build `protocolBreaks` finds nothing in.
- * `protocolBreaks` lays each baseline schema beside its current form, keyword by
- * keyword, and names each change the side that must accept the other's values would
- * refuse:
+ * `build.mjs` moves it forward after each build `protocolBreaks` finds nothing in, or
+ * finds only served changes the author accepts. `protocolBreaks` lays each baseline
+ * schema beside its current form, keyword by keyword, and names each change the side
+ * that must accept the other's values would refuse:
  *
  * - what a vendored page sends (browser commands): the current schema accepts what the
  *   baseline did, and the browser door, which validates, refuses a newly closed object;
+ * - an event record, which a page sends and every Leaf at the number writes into the
+ *   log and reads back: both ways;
+ * - a `state.Record`: both ways, at the same `since`, since every Leaf writing that
+ *   format reads what the others wrote;
  * - what Leaf serves the page (the served state, its definitions and the x-state verb):
- *   the baseline accepts what the current schema allows;
- * - an event record, which a page sends or holds and is served: both;
- * - a `state.Record`: both, at the same `since`, since every Leaf writing that format
- *   reads what the others wrote.
+ *   the baseline accepts what the current schema allows.
+ *
+ * Changes of the first three kinds are `refused`, since the browser door refuses the
+ * old value or a Leaf reading the record misreads it. Changes of the last kind are
+ * `served`. Only the page's runtime reads them, and it reads only some served fields,
+ * some only where the change can't reach, so whether a served change breaks a page is
+ * the author's call (`layer-registry.md`, "Page protocol").
  *
  * The comparison is by position, so it reads no reference and merges no union: a
  * reference compares by its text, and its target where it is declared; union, `allOf`
@@ -23,7 +30,7 @@
  * never wrote, unless its object named none or holds a map, whose values it must take.
  * `pattern`, `format`, `not`, `if`/`then`/`else`, and at the browser door `oneOf`,
  * whose exclusivity a branch-by-branch comparison can't show, compare only for
- * equality. The comparison throws on any keyword it doesn't read, and on a field inside
+ * equality, apart from their annotations. The comparison throws on any keyword it doesn't read, and on a field inside
  * `prefixItems`, so a field's path names no position.
  */
 import { isDeepStrictEqual } from "node:util";
@@ -68,6 +75,31 @@ const closed = (schema) =>
 const others = (schema) =>
   schema.additionalProperties ?? schema.unevaluatedProperties ?? !schema.properties;
 const show = (value) => JSON.stringify(value ?? "none");
+// A schema without its annotations, for the keywords compared only for equality. A map
+// keeps every name, `$defs` included since a reference reads it, and a value under
+// `const` or `enum` is data.
+const MAPS = new Set("properties dependentSchemas dependentRequired $defs".split(" "));
+function bare(schema) {
+  if (typeof schema !== "object" || schema === null) return schema;
+  if (Array.isArray(schema)) return schema.map(bare);
+  const map = (fields) =>
+    Object.fromEntries(
+      Object.entries(fields).map(([name, field]) => [name, bare(field)]),
+    );
+  return Object.fromEntries(
+    Object.entries(schema)
+      .filter(([key]) => key === "$defs" || !ANNOTATIONS.has(key))
+      .map(([key, value]) => [
+        key,
+        key === "const" || key === "enum"
+          ? value
+          : MAPS.has(key)
+            ? map(value)
+            : bare(value),
+      ]),
+  );
+}
+const same = (a, b) => isDeepStrictEqual(bare(a), bare(b));
 
 // The path of each field `schema` names, at any depth and in any branch.
 function fields(schema, path = "", found = new Set()) {
@@ -159,7 +191,7 @@ function diff(old, now, path, side) {
     !offered?.every((v) => valuesOf(consumer).some((w) => isDeepStrictEqual(v, w)))
   )
     report("values", valuesOf(old), valuesOf(now));
-  for (const keyword of EQUAL) check(keyword, isDeepStrictEqual);
+  for (const keyword of EQUAL) check(keyword, same);
   for (const keyword of LOWER) check(keyword, (c, p) => c <= p);
   for (const keyword of UPPER) check(keyword, (c, p) => c >= p);
   check("uniqueItems", (c, p) => !c || p);
@@ -238,7 +270,7 @@ function diff(old, now, path, side) {
           if (!kept.has(field)) found.push([`${path}${field}`, "the field is gone"]);
     }
   }
-  if (side.validates && !isDeepStrictEqual(old.oneOf, now.oneOf))
+  if (side.validates && !same(old.oneOf, now.oneOf))
     found.push([path, `"oneOf" changed`]);
   for (const name of new Set([
     ...Object.keys(old.dependentSchemas ?? {}),
@@ -257,11 +289,12 @@ const SERVED = { newConsumes: false, validates: false };
 const READ = { newConsumes: true, validates: false };
 
 /** Each change from `baseline` to `current` that breaks what the baseline promised,
- * as a line naming where and what; empty where nothing does. Both are
- * `protocolSchemas` readings. */
+ * as lines naming where and what: `refused`, which some Leaf would refuse or misread,
+ * and `served`, which a page's runtime may misread. Both are empty where nothing
+ * changes either way. `baseline` and `current` are `protocolSchemas` readings. */
 export function protocolBreaks(baseline, current) {
-  const found = [];
-  const compare = (where, old, now, ...sides) => {
+  const [refused, served] = [[], []];
+  const compare = (found, where, old, now, ...sides) => {
     readable(old);
     readable(now);
     found.push(...sides.flatMap((side) => diff(old, now, where, side)));
@@ -270,45 +303,50 @@ export function protocolBreaks(baseline, current) {
     const [kinds, now] = [baseline.events.kinds, current.events.kinds];
     for (const kind of new Set([...Object.keys(kinds), ...Object.keys(now)])) {
       const where = `event ${kind}`;
-      if (!now[kind]) found.push([where, "the kind is gone"]);
-      // The served state carries every kind, which a page's runtime reads.
+      if (!now[kind]) refused.push([where, "the kind is gone"]);
+      // Another Leaf at this number reads the log this one writes.
       else if (!kinds[kind])
-        found.push([where, "a page is served a kind it doesn't know"]);
+        refused.push([where, "an older Leaf or page reads a kind it doesn't know"]);
       else {
-        compare(where, kinds[kind].record, now[kind].record, SENT, SERVED);
+        compare(refused, where, kinds[kind].record, now[kind].record, SENT, SERVED);
         if (kinds[kind].browser && !now[kind].browser)
-          found.push([where, "the browser no longer sends it"]);
+          refused.push([where, "the browser no longer sends it"]);
         else if (kinds[kind].browser)
-          compare(where, kinds[kind].browser, now[kind].browser, {
+          compare(refused, where, kinds[kind].browser, now[kind].browser, {
             ...SENT,
             overlay: kinds[kind].record,
           });
       }
     }
     if (!isDeepStrictEqual(baseline.events.ownership, current.events.ownership))
-      found.push(["$events.ownership", "changed"]);
+      refused.push(["$events.ownership", "changed"]);
     const { $defs: before, ...state } = baseline.served;
-    const { $defs: after, ...served } = current.served;
-    compare("served state", state, served, SERVED);
+    const { $defs: after, ...shown } = current.served;
+    compare(served, "served state", state, shown, SERVED);
     for (const name of Object.keys(before))
-      if (after[name]) compare(`served ${name}`, before[name], after[name], SERVED);
-    compare("x-state verb", baseline.verb, current.verb, SERVED);
+      if (after[name])
+        compare(served, `served ${name}`, before[name], after[name], SERVED);
+    compare(served, "x-state verb", baseline.verb, current.verb, SERVED);
   }
   for (const [kind, { since, schema }] of Object.entries(current.records)) {
     const where = `record ${kind}`;
     const before = baseline.records[kind];
     if (since > current.protocol)
-      found.push([where, `since ${since} is past protocol ${current.protocol}`]);
+      refused.push([where, `since ${since} is past protocol ${current.protocol}`]);
     else if (before?.since === since)
-      compare(where, before.schema, schema, READ, SERVED);
+      compare(refused, where, before.schema, schema, READ, SERVED);
     else if (since !== current.protocol)
-      found.push([
+      refused.push([
         where,
         `since ${since} names neither its last shape's protocol nor this one, ${current.protocol}`,
       ]);
   }
   // The same change shows once, though each direction meets it.
-  return [
-    ...new Set(found.map(([where, what]) => `${where.replace(/\|\d+/g, "")}: ${what}`)),
-  ];
+  const lines = (found) =>
+    new Set(found.map(([where, what]) => `${where.replace(/\|\d+/g, "")}: ${what}`));
+  const refusals = lines(refused);
+  return {
+    refused: [...refusals],
+    served: [...lines(served)].filter((line) => !refusals.has(line)),
+  };
 }

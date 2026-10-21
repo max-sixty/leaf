@@ -33,16 +33,26 @@ from .schema import FILE_BINDINGS_FILE, HTML_NAME
 from .state import (
     STRING,
     Record,
+    described,
     flocked,
     object_schema,
     replace_bytes,
     state_home,
 )
 
-# Each binding id's file, by its canonical absolute path.
 BINDINGS = Record(
     "file-bindings",
-    object_schema({"bindings": {"type": "object", "additionalProperties": STRING}}),
+    described(
+        "The local text files a page may edit, in the page directory's `files.json`.",
+        object_schema(
+            {
+                "bindings": described(
+                    "Each binding id's file, by its canonical absolute path.",
+                    {"type": "object", "additionalProperties": STRING},
+                )
+            }
+        ),
+    ),
     since=13,
 )
 
@@ -105,7 +115,7 @@ def binding_stamps(page_dir: Path) -> dict[str, str]:
     }
 
 
-def _read(path: Path) -> dict:
+def _read(path: Path) -> bytes:
     if path.resolve() != path:
         raise FileBindingError(
             "The bound file path now contains a symlink; bind it again."
@@ -115,11 +125,12 @@ def _read(path: Path) -> dict:
     with os.fdopen(fd, "rb") as stream:
         if not S_ISREG(os.fstat(stream.fileno()).st_mode):
             raise FileBindingError("The bound path is not a regular file.")
-        raw = stream.read(MAX_FILE_BYTES + 1)
-    return _snapshot(path, raw)
+        return stream.read(MAX_FILE_BYTES + 1)
 
 
 def _snapshot(path: Path, raw: bytes) -> dict:
+    """The file as the browser reads it: its name, its text with LF line endings,
+    and the revision a save names."""
     if len(raw) > MAX_FILE_BYTES:
         raise FileBindingError("File exceeds the 256 KiB limit.")
     try:
@@ -133,13 +144,7 @@ def _snapshot(path: Path, raw: bytes) -> dict:
     if "\r" in normalized or (newline == "CRLF" and "\n" in text.replace("\r\n", "")):
         raise FileBindingError("File has mixed or unsupported line endings.")
     revision = hashlib.sha256(os.fsencode(path) + b"\0" + raw).hexdigest()
-    return {
-        "label": path.name,
-        "text": normalized,
-        "revision": revision,
-        "newline": newline,
-        "bytes": len(raw),
-    }
+    return {"label": path.name, "text": normalized, "revision": revision}
 
 
 def bind_file(page_dir: Path, binding: str, file: Path) -> dict:
@@ -162,7 +167,7 @@ def bind_file(page_dir: Path, binding: str, file: Path) -> dict:
         raise FileBindingError("A page cannot edit its own file access grants.")
     with page_locked(page_dir):
         try:
-            snapshot = _read(path)
+            snapshot = _snapshot(path, _read(path))
         except OSError as error:
             raise FileBindingError(str(error)) from error
         bindings = _bindings(page_dir)
@@ -176,7 +181,7 @@ def read_file(page_dir: Path, binding: str) -> dict | None:
     the page binds no file under this id."""
     with _access(page_dir):
         path = _target(page_dir, binding)
-        return None if path is None else _read(path)
+        return None if path is None else _snapshot(path, _read(path))
 
 
 def save_file(page_dir: Path, binding: str, posted: dict) -> dict:
@@ -195,7 +200,8 @@ def save_file(page_dir: Path, binding: str, posted: dict) -> dict:
         locks = state_home() / "files"
         locks.mkdir(parents=True, exist_ok=True)
         with flocked(locks / f"{key}.lock"):
-            current = _read(path)
+            before = _read(path)
+            current = _snapshot(path, before)
             if posted["revision"] != current["revision"]:
                 raise StaleFileError(current)
             text = posted["text"]
@@ -203,12 +209,12 @@ def save_file(page_dir: Path, binding: str, posted: dict) -> dict:
                 raise FileBindingError("Editor text must use LF line endings.")
             raw = (
                 text.replace("\n", "\r\n").encode()
-                if current["newline"] == "CRLF"
+                if b"\r\n" in before
                 else text.encode()
             )
             submitted = _snapshot(path, raw)
             # Recheck path identity and contents immediately before replacement.
-            latest = _read(path)
+            latest = _snapshot(path, _read(path))
             if latest["revision"] != current["revision"]:
                 raise StaleFileError(latest)
             replace_bytes([(path, raw, True)])

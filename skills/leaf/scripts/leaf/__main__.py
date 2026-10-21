@@ -7,9 +7,9 @@ starts has `sys.executable` in hand and needs no launcher or environment manager
 Harnesses call `leaf hook --harness NAME` on every turn, including sessions holding no
 page, and `leaf session-end` as a session ends. Both are `HARNESS_ENTRIES`, routed
 here without importing Click, and this is their only route: `hook`, alone or with
-`--if-claimed` or `--watch` after it, enters the dependency-light hook owner, and
-`session-end` delegates to the same cleanup owner `bin/leaf` runs cold, in a
-managed interpreter.
+`--if-claimed` and then `--watch` or `--pages` after it, enters the
+dependency-light hook owner, and `session-end` delegates to the same cleanup owner
+`bin/leaf` runs cold, in a managed interpreter.
 Any other argv after one of their names is refused with its usage line. Help and
 every other invocation use the CLI, whose `prog_name` stays `leaf` for both entry
 forms.
@@ -27,13 +27,17 @@ def _hook(args: list[str]) -> None:
     flags = args[2:]
     if flags[:1] == ["--if-claimed"]:
         flags = flags[1:]
-    if len(args) < 2 or args[0] != "--harness" or flags not in ([], ["--watch"]):
-        sys.exit("usage: leaf hook --harness NAME [--if-claimed] [--watch]")
+    if (
+        len(args) < 2
+        or args[0] != "--harness"
+        or flags not in ([], ["--watch"], ["--pages"])
+    ):
+        sys.exit("usage: leaf hook --harness NAME [--if-claimed] [--watch | --pages]")
     from leaf.hooks import main as hook
     from leaf.refusals import Refused
 
     try:
-        hook(args[1], watch=flags == ["--watch"])
+        hook(args[1], watch=flags == ["--watch"], pages=flags == ["--pages"])
     except Refused as error:
         sys.exit(str(error))
 

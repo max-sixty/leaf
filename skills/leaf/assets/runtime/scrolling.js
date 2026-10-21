@@ -14,17 +14,47 @@
    to a place they already had (reading-place.js, `restorePlace`; user-place.js,
    `placeKeeper`; continuity's move of the page with its band), so it says where it
    left each box (`placeKept`), and a sequence ending there is the keeper's. A landing
-   in motion counts from its start (`chooseScroll`), since layout it caused can be
+   in motion counts from its start (`startScroll`), since layout it caused can be
    announced before its sequence ends. A sequence can end frames after its last
    `scroll` event, as WebKit's do, so continuity takes a reading at the end too. Like
    that record, this listens on the document, which a scroll inside a shadow root does
    not reach. */
+
+import { nextFrame } from "./rendering.js";
 
 // The browser's document scrollport. Keeping the platform's root as the one page
 // scroller lets fragment links, history restoration, wheel/touch input, and browser UI
 // all describe the same reading position. The chrome's views still own their nested
 // scrollports; scrollerFor is the shared answer when a caller may stand in either.
 export const pageScroller = document.scrollingElement;
+
+const moving = new WeakMap();
+
+// A new landing or return takes over the old native placement, even if its target
+// is already visible. Chromium can deliver one last compositor scroll after this
+// instant cancellation, so its rendering update must finish before the caller reads
+// geometry and places the new destination. Two callbacks enclose that whole update.
+export function stopScroll(boxes) {
+  const stopped = [...boxes]
+    .filter((box) => moving.has(box))
+    .map((box) => [box, moving.get(box)]);
+  if (!stopped.length) return null;
+  for (const [box] of stopped)
+    box.scrollTo({
+      left: box.scrollLeft,
+      top: box.scrollTop,
+      behavior: "instant",
+    });
+  return new Promise((resolve) =>
+    nextFrame(() =>
+      nextFrame(() => {
+        for (const [box, sequence] of stopped)
+          if (moving.get(box) === sequence) moving.delete(box);
+        resolve(undefined);
+      }),
+    ),
+  );
+}
 
 let choices = 0;
 const chosen = new WeakMap();
@@ -33,14 +63,42 @@ const kept = new WeakMap();
 export const scrollChoices = () => choices;
 // Whether the reader chose where `box` stands after the `count`th choice.
 export const chosenSince = (box, count) => (chosen.get(box) ?? 0) > count;
-export const chooseScroll = (box) => chosen.set(box, ++choices);
+const chooseScroll = (box) => chosen.set(box, ++choices);
+// Record a native glide before its first compositor frame; scroll events alone
+// cannot report an outgoing placement a new gesture interrupts that early.
+export function startScroll(box) {
+  moving.set(box, { glide: true });
+  chooseScroll(box);
+}
+const eventScroller = (target) => (target === document ? pageScroller : target);
+document.addEventListener(
+  "scroll",
+  ({ target }) => {
+    const box = eventScroller(target);
+    if (moving.get(box)?.glide) return;
+    // Layout anchoring and clamps send scroll without scrollend. Native input
+    // keeps sending scroll while it moves; quiet layout moves expire after an update.
+    const sequence = { glide: false };
+    moving.set(box, sequence);
+    nextFrame(() =>
+      nextFrame(() => {
+        if (moving.get(box) === sequence) moving.delete(box);
+      }),
+    );
+  },
+  {
+    capture: true,
+    passive: true,
+  },
+);
 export function placeKept(...boxes) {
   for (const box of boxes) kept.set(box, box.scrollTop);
 }
 document.addEventListener(
   "scrollend",
   ({ target }) => {
-    const box = target === document ? pageScroller : /** @type {Element} */ (target);
+    const box = eventScroller(target);
+    moving.delete(box);
     if (kept.get(box) !== box.scrollTop) chooseScroll(box);
     kept.delete(box);
   },
@@ -56,8 +114,10 @@ export const SCROLL_SLACK = 2;
 // The end is a reading destination, rather than the pixel offset it occupies before
 // a box is resized.
 export const atScrollEnd = (box) => scrollLimit(box) - box.scrollTop <= SCROLL_SLACK;
-export const scrollToEnd = (box, behavior = "instant") =>
+export const scrollToEnd = (box, behavior = "instant") => {
+  if (behavior !== "instant" && !atScrollEnd(box)) startScroll(box);
   box.scrollTo({ top: box.scrollHeight, behavior });
+};
 
 // Apply a relative movement to the scroller the caller resolved. Keeping the box explicit
 // lets document reading continuity and anchor travel share the operation without either
@@ -74,7 +134,10 @@ export const scrollToEnd = (box, behavior = "instant") =>
 const aims = new WeakMap();
 export const moveScrollerBy = (box, top, behavior = "instant") => {
   const aim = box.scrollTop + top;
-  if (Math.abs(top) >= 0.5) box.scrollBy({ top, behavior });
+  if (Math.abs(top) >= 0.5) {
+    if (behavior !== "instant" && reachable(box, top)) startScroll(box);
+    box.scrollBy({ top, behavior });
+  }
   if (behavior === "instant" && Math.abs(aim - box.scrollTop) < 1)
     aims.set(box, { aim, at: box.scrollTop });
   else aims.delete(box);

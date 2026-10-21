@@ -12,6 +12,7 @@ const live = readPart((root) => root.document.live);
 
 export function boundFile(binding) {
   const writable = () => !offlineInteractive && live();
+  /** @returns {Promise<import("../../../../build/browser/contract.js").ServedFileSnapshot | null>} */
   async function request(options = {}) {
     if (!writable()) throw new Error("File editing is available in live pages.");
     try {

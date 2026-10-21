@@ -11,6 +11,7 @@
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
     "noEmit": true,
+    "noUnusedLocals": true,
     "verbatimModuleSyntax": true,
     "skipLibCheck": false
   },

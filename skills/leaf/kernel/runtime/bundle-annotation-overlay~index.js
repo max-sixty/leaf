@@ -61,6 +61,7 @@ import {
   pageScope,
   pageSelection,
   placeKeeper,
+  releaseAuthoredUnder,
   releaseReplies,
   retainUserIntent,
   revealHeld,
@@ -941,6 +942,7 @@ function createThreadPreview({
     delete preview.dataset.lfThreadPlacement;
     for (const edge of CUT_EDGES) preview.style.removeProperty(edge);
     keepsHidden(preview, true);
+    releaseAuthoredUnder(preview);
     onClose(closed);
   }
   function focusThread(positioned, { closeControl: closeControl2 = false, cause = "move" } = {}) {
@@ -952,12 +954,12 @@ function createThreadPreview({
       if (!closeControl2) scrollThreadIntoView(target, target);
     });
   }
-  function focusTarget(id, { part = null } = {}) {
-    id = threadIdNamed(id);
+  function focusTarget(name, { part = null } = {}) {
+    const id = threadIdNamed(name);
     const thread = [...previewList.querySelectorAll(".lf-page-thread")].find(
       (candidate) => candidate.dataset.thread === id
     );
-    return thread ? threadFocusDestination(thread, { part: part ?? "thread" }) : null;
+    return thread ? threadFocusDestination(thread, { part: part ?? "thread", message: name }) : null;
   }
   function mount(onDismiss) {
     previewClose.onclick = onDismiss;

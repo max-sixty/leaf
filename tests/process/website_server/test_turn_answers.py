@@ -26,7 +26,7 @@ from leaf.codex import delivery_records
 from leaf.delivery import current_responses
 from leaf.event_log import read_events
 from leaf.hosting import LeafHTTPServer
-from leaf.service import PageTransaction
+from leaf.service import PageTransaction, read_stream
 from leaf.state import session_record
 
 from process.website_server import (
@@ -535,7 +535,7 @@ def test_a_rejected_streamed_reply_starts_a_website_correction(
 
     claim = website_server.page_claim(page_dir)
     assert claim["turn_closed"] is not None
-    reply = website_server.PageTransaction(page_dir).status["stream"]["reply"]
+    reply = read_stream(page_dir)["reply"]
     assert (reply["state"], reply["text"], reply["settles"]) == (
         "failed",
         "Done.",

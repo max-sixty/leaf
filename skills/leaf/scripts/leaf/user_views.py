@@ -12,6 +12,12 @@ a fresh context can therefore carry older checks. These observations are neither
 events nor obligations and cannot affect semantic state or document activation.
 The replaceable record (`USER_VIEWS`) is independently locked and pruned on
 writes after one day.
+
+The record also keeps `viewed`, when a report last said a document was visible, in
+POSIX seconds, which outlives the pruning. A visible document reports at least
+every ten seconds (`runtime/user-view.js`), so it is that fresh while a tab shows
+the page; a hidden tab sends no heartbeat, so the stamp records attention rather
+than tab lifetime. The agent reads it in `page state` (`viewed_at`).
 """
 
 import copy
@@ -20,7 +26,7 @@ from pathlib import Path
 
 from leaf.registry.schema import aware_instant, schema_error
 from leaf.schema import USER_VIEWS_FILE, USER_VIEWS_LOCK
-from leaf.state import Record, flocked, object_schema
+from leaf.state import Record, described, flocked, object_schema
 
 FRESH_FOR_S = 45
 RETAIN_FOR = timedelta(days=1)
@@ -67,18 +73,34 @@ _CHECKS = _object(
     {"sequence": _SEQUENCE, **_CHECK_BASIS, "reading": {"type": "object"}}
 )
 _PROPERTIES = {
-    "session": {"type": "string", "pattern": "^[0-9a-f]{32}$"},
-    "sequence": _SEQUENCE,
-    "visible": {"type": "boolean"},
-    "revision": _REVISION,
-    "through_seq": _THROUGH_SEQ,
-    "viewport": _VIEWPORT,
-    "visual_viewport": _VISUAL_VIEWPORT,
+    "session": described(
+        "The document's random session id.",
+        {"type": "string", "pattern": "^[0-9a-f]{32}$"},
+    ),
+    "sequence": described("The report's place among its session's reports.", _SEQUENCE),
+    "visible": described("Whether the document was visible.", {"type": "boolean"}),
+    "revision": described("The revision the document shows.", _REVISION),
+    "through_seq": described(
+        "The log position the tab's latest server reading was taken through, or "
+        "null before one arrives.",
+        _THROUGH_SEQ,
+    ),
+    "viewport": described("The layout viewport, in CSS pixels.", _VIEWPORT),
+    "visual_viewport": described(
+        "The visual viewport, as `window.visualViewport` reports it.", _VISUAL_VIEWPORT
+    ),
     "shown_window": _SHOWN_WINDOW,
-    "color_scheme": _SCHEME,
-    "reduced_motion": {"type": "boolean"},
-    "pointer": {"enum": ["coarse", "fine"]},
-    "scroll": _object({"x": _NUMBER, "y": _NUMBER}),
+    "color_scheme": described("The scheme the document is drawn in.", _SCHEME),
+    "reduced_motion": described(
+        "Whether the user prefers reduced motion.", {"type": "boolean"}
+    ),
+    "pointer": described(
+        "Whether the primary pointer is coarse, as a finger is, or fine.",
+        {"enum": ["coarse", "fine"]},
+    ),
+    "scroll": described(
+        "The document's scroll offset.", _object({"x": _NUMBER, "y": _NUMBER})
+    ),
     "visible_regions": {
         "type": "array",
         "items": {"type": "string", "minLength": 1, "maxLength": 1024},
@@ -92,20 +114,48 @@ _INSTANT = {"type": "string", "format": "date-time"}
 _RECORD = _object(
     {
         **_PROPERTIES,
-        "received_at": _INSTANT,
-        "checks": {
-            **_object({**_CHECKS["properties"], "checked_at": _INSTANT}),
-            "type": ["object", "null"],
-        },
+        "received_at": described("When the server received the report.", _INSTANT),
+        "checks": described(
+            "The document's latest view checks, with the revision, log position, "
+            "viewport and scheme they read, or null.",
+            {
+                **_object(
+                    {
+                        **_CHECKS["properties"],
+                        "checked_at": described(
+                            "When the server first received these checks.", _INSTANT
+                        ),
+                    }
+                ),
+                "type": ["object", "null"],
+            },
+        ),
     }
 )
 
 
-# Each document's latest report, by its session.
 USER_VIEWS = Record(
     "user-views",
-    object_schema({"sessions": {"type": "object", "additionalProperties": _RECORD}}),
-    since=13,
+    described(
+        "The user's browser views of a page, in the page directory's "
+        "`user-views.json`.",
+        object_schema(
+            {
+                "sessions": described(
+                    "Each document's latest report, by its session id.",
+                    {"type": "object", "additionalProperties": _RECORD},
+                )
+            },
+            {
+                "viewed": described(
+                    "When a report last said a document was visible, in POSIX "
+                    "seconds (`viewed_at`).",
+                    {"type": "number"},
+                )
+            },
+        ),
+    ),
+    since=16,
 )
 
 
@@ -113,9 +163,13 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
-def _records(page_dir: Path) -> dict:
-    stored = USER_VIEWS.read(page_dir / USER_VIEWS_FILE)
-    return stored["sessions"] if stored else {}
+def _stored(page_dir: Path) -> dict:
+    return USER_VIEWS.read(page_dir / USER_VIEWS_FILE) or {"sessions": {}}
+
+
+def viewed_at(page_dir: Path) -> float | None:
+    """When a browser last showed the page, or None for a page nobody has viewed."""
+    return _stored(page_dir).get("viewed")
 
 
 def observe_user_view(page_dir: Path, payload: dict) -> bool:
@@ -134,7 +188,8 @@ def observe_user_view(page_dir: Path, payload: dict) -> bool:
         raise ValueError("user view checks sequence exceeds report sequence")
     now = _now()
     with flocked(page_dir / USER_VIEWS_LOCK):
-        records = _records(page_dir)
+        stored = _stored(page_dir)
+        records = stored["sessions"]
         previous = records.get(record["session"])
         if previous is not None and record["sequence"] <= previous["sequence"]:
             return False
@@ -153,7 +208,11 @@ def observe_user_view(page_dir: Path, payload: dict) -> bool:
         elif checks is not None:
             checks["checked_at"] = record["received_at"]
         records[record["session"]] = record
-        USER_VIEWS.write(page_dir / USER_VIEWS_FILE, {"sessions": records})
+        viewed = now.timestamp() if record["visible"] else stored.get("viewed")
+        USER_VIEWS.write(
+            page_dir / USER_VIEWS_FILE,
+            {"sessions": records, **({} if viewed is None else {"viewed": viewed})},
+        )
     return True
 
 
@@ -167,7 +226,7 @@ def read_user_views(page_dir: Path, active_revision: int | None) -> dict:
     """
     now = _now()
     sessions = []
-    for record in _records(page_dir).values():
+    for record in _stored(page_dir)["sessions"].values():
         age = (now - aware_instant(record["received_at"])).total_seconds()
         if age > RETAIN_FOR.total_seconds():
             continue

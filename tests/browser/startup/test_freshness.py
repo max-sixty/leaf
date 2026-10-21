@@ -9,8 +9,6 @@ from interact_support import (
     append_carried_log_record,
     append_command,
     declare_work,
-    read_record,
-    write_record,
 )
 from leaf import render_checks as render_checks_model
 from leaf.leases import release_lease, take_lease, waiter_lease_path
@@ -120,11 +118,8 @@ def test_a_hidden_page_stops_its_freshness_reads_until_it_is_visible(browser, se
           document.dispatchEvent(new Event('visibilitychange'));
         }"""
     )
-    # Once a canceled request has drained, a forced opportunity to bump
-    # presence must leave the sentinel alone: a hidden, still-open tab no longer
-    # counts as user attention. Checking immediately on visibility below must replace it.
+    # Once a canceled request has drained, news arrives while the tab is hidden.
     page.wait_for_timeout(100)
-    write_record(serve.page_dir / "viewed.json", {"t": 1.0})
     append_carried_log_record(
         serve.page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "While away."},
@@ -134,7 +129,6 @@ def test_a_hidden_page_stops_its_freshness_reads_until_it_is_visible(browser, se
     assert _traffic(page).asked == asked, (
         "a hidden page still heard or polled for state"
     )
-    assert read_record(serve.page_dir / "viewed.json")["t"] == 1.0
 
     with page.expect_request("**/api/news"):
         page.evaluate(
@@ -145,7 +139,6 @@ def test_a_hidden_page_stops_its_freshness_reads_until_it_is_visible(browser, se
         )
     told(page)
     assert _traffic(page).asked == asked + 1
-    assert read_record(serve.page_dir / "viewed.json")["t"] > 1.0
     open_threads(page)
     expect(page.locator(".lf-fp-thread", has_text="While away.")).to_have_count(1)
 

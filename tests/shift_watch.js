@@ -1645,10 +1645,10 @@
   // that growth, by no more than it, keeping its other edges. Its holdings are then
   // read from its head, which carries them all up by its rise, and so does every box
   // standing on its foot with it (its stand): what stands in that stand above the
-  // scrollport, such as the view's head, rises with it by the same distance and no
-  // more. This is the one place news
-  // may carry controls without a gesture (`skills/leaf/assets/AGENTS.md`, "Stability":
-  // an answer the user waits for grows the panel's thread view).
+  // scrollport, such as the view's name, rises with it by the same distance and no
+  // more. This is the one place news may carry what is read without a gesture
+  // (`skills/leaf/assets/AGENTS.md`, "Stability": an answer the user waits for grows the
+  // panel's thread view).
   const appendGrowth = (around) => {
     if (around.length !== 3) return [];
     const first = around[0].at,

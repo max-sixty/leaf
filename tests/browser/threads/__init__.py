@@ -32,9 +32,9 @@ from render_harness import (
 )
 
 # The open thread's reply, the editor standing in the panel's field, and the thread's
-# held news, which the panel stands in its view's head.
+# held news, which the panel stands among its view's controls.
 PANEL_REPLY = '.lf-fp-field leaf-text[name="reply"]'
-PANEL_NEWS = ".lf-fp-head .lf-thread-news"
+PANEL_NEWS = ".lf-fp-controls .lf-thread-news"
 
 
 def open_threads(page):
@@ -42,7 +42,7 @@ def open_threads(page):
     stands while the counts step aside for words being typed, else by its count."""
     if page.locator(PANEL).get_attribute("data-open") == "threads":
         return
-    back = page.locator(".lf-fp-head .lf-fp-back", has_text="Threads")
+    back = page.locator(".lf-fp-controls .lf-fp-back", has_text="Threads")
     (back if back.count() else page.locator(".lf-fp-threads")).click()
     panel_settled(page, view="threads")
 

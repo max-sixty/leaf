@@ -15,7 +15,7 @@ from types import MappingProxyType
 from typing import Protocol
 
 from .. import presence as presence_model
-from ..data import read_contracts, read_data, read_source
+from ..data import read_data, read_source
 from ..event_log import read_events
 from ..files import (
     latest_revision,
@@ -33,6 +33,7 @@ from . import browser as served_browser
 from . import page as served_page
 from . import reading as served_reading
 from .context import PageRead, read_page
+from .thread import thread_counts
 
 
 class PageSource(Protocol):
@@ -104,10 +105,7 @@ class LivePage:
         return require_registry(self.page_dir)
 
     def data_source(self, source: str, registry: dict) -> dict | None:
-        contract = read_contracts(self.page_dir).get(source)
-        if contract is None:
-            return None
-        return read_source(self.page_dir, source, contract, registry)
+        return read_source(self.page_dir, source, registry)
 
     def events(self) -> list[dict]:
         return read_events(self.page_dir)
@@ -133,14 +131,11 @@ class LivePage:
             return artifact, page.events, read_data(self.page_dir, artifact.registry)
 
     def news(self) -> str:
-        """The token, after renewing the user lease: only this explicit attention
-        door proves a user is looking."""
+        """The token naming the page's current reading."""
         files = served_reading.page_reading(self.page_dir)
-        reading = served_reading.join_reading(
+        return served_reading.join_reading(
             files, presence_model.presence_reading(self.page_dir, files)
         )
-        presence_model.renew_viewed(self.page_dir)
-        return reading
 
     def other_pages(self) -> list[dict]:
         return presence_model.neighbor_reading(self.page_dir)
@@ -213,6 +208,8 @@ class PageStateService:
         name the inputs the publisher keeps, so a concurrent writer invalidates
         this publication on its next look. Owed updates and reply bodies stay in
         the page's projection; the row carries their counts, never their copies.
+        The user's counts are the active view's, as the Leaf panel's marks count
+        them: its On me list, and its threads by `thread_counts`.
         """
         from ..server_rows import compact_activity
 
@@ -222,6 +219,13 @@ class PageStateService:
             _source_error,
         ):
             work = context.work
+            projected = served_browser.project_browser_state(context)
+            view = (
+                projected[0]["views"][str(context.active["revision"])]
+                if projected is not None
+                else None
+            )
+            threads = view["thread"]["threads"] if view is not None else []
             title = (
                 context.revision(context.active["revision"]).document.authoring.title
                 if context.active is not None
@@ -231,6 +235,8 @@ class PageStateService:
                 "title": title or self.page_dir.name,
                 "session_cwd": context.presence["session_cwd"],
                 "activity": compact_activity(work.activity),
+                "on_user": len(view["queues"]["on_user"]) if view is not None else 0,
+                "threads": thread_counts(threads),
             }
             live = {
                 key: context.presence[key]

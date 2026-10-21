@@ -394,9 +394,9 @@ on 2026-10-07.
 ### The agent's text interface
 
 - **Decide whether an owed answer may continue a turn whose answer is written.**
-  Where a watch follows the turn, Stop no longer hands new input into it
-  (`hook_transport`), but it still continues the turn once for an update picked up
-  and unanswered, and for a page it could not re-vendor. The agent then writes one
+  Where a watch or Codex's App Server adapter follows the turn, Stop no longer hands
+  new input into it (`hook_transport`), but it still continues the turn once for an update
+  picked up and unanswered, and for a page it could not re-vendor. The agent then writes one
   more message, which Claude Code's focus view shows in place of the turn's answer:
   9 of the 65 Leaf continuations in Max's sessions of 2026-10-10 to 10-19 were these,
   as when a report on "check leaf, do #18" gave way to "I've answered the last item
@@ -405,26 +405,6 @@ on 2026-10-07.
   keeps the answer, but needs a record that it reminded, or an agent that won't act
   is woken without end; dropping the reminder leaves the next prompt's one. Max to
   choose.
-- **Decide how a Codex delivery avoids joining the user's follow-up turn.** App
-  Server's `turn/start` steers into a running turn. A follow-up the user queued in
-  the Codex TUI starts just after Leaf's idle check reads idle, so Leaf's delivery
-  joins it and Leaf posts that turn's answer as its reply to the comment. Queueing
-  each delivery (#3357) was reverted because it put every delivery into the Codex
-  transcript as a user message. Reading App Server's queue before starting can't
-  help either: the TUI keeps its queued follow-ups itself. The
-  [Codex brief](notes/codex-integration.md#delivery-start-race) holds the
-  measurements, the reproduction and the options. Max to choose.
-- **Decide what a Codex delivery turn answers once the user steers into it.** Leaf
-  starts each App Server delivery as a turn of its own and posts that turn's final
-  message as the reply. Pressing Enter in the Codex TUI while that turn runs sends
-  `turn/steer`, and App Server adds the user's message to Leaf's turn (measured
-  with codex-cli 0.160.0: the turn's items became the delivery, then the user's
-  message). The final answer, written to the user's message, still posts as the
-  reply to the page comment. Either the fold stops treating the final message as
-  the reply once a user message it did not start joins the turn, releasing the
-  reservation so the update stays owed for `leaf response reply`, or App Server
-  deliveries drop final-as-reply as the hook and `codex queue` routes do, which
-  loses the opening. Max to choose.
 - **Decide how a Claude Code hook delivery is confirmed.** `hook_transport` records a
   pickup when the prompt hook returns, but Escape while any UserPromptSubmit hook is
   still running drops the whole prompt, Leaf's output included. Measured on Claude
@@ -633,22 +613,32 @@ export` writes a file that boots the page's own runtime offline, and that file
 
 ### Implementation candidates
 
-- **Remove the early-key hold once startup is fast.** Keys pressed before the
-  runtime upgrades or the first saved state lands are queued, a "Page still
-  loading" chip appears after 150 ms, and the keyboard controller replays them
-  (`holdEarlyKeys` in `runtime/bootstrap.js`, `takeHeldKeys` in
+- **Remove the early-key hold once startup is fast on slower machines too.** Keys
+  pressed before the runtime upgrades or the first saved state lands are queued, a
+  "Page still loading" chip appears after 150 ms, and the keyboard controller
+  replays them (`holdEarlyKeys` in `runtime/bootstrap.js`, `takeHeldKeys` in
   `keyboard/controller.js`, `INPUT_PENDING` in `keyboard/dispatch.js`, the pending
-  clause of `scopeAvailable` in `keyboard/bindings.js`). It is worth keeping while
-  startup takes up to a couple of seconds. Trigger: a page presents in about 250 ms
-  consistently, measured with `leaf-dev probe`'s startup phases on the examples;
-  then delete the hold, which a 2026-10-14 trial measured at 240 runtime and 540
-  test lines. On 2026-10-19 it had not fired. Reloading each example five times
-  on one running server, the median `startup.presented.at` was 167 to 238 ms on
-  six of nine examples, but 289 ms on `code-comparison`, 335 ms on `command-hub`
-  and 487 ms on `pr-walkthrough`. With a 4x CPU throttle the same medians were
-  632 ms (`triage-board`) to 1826 ms (`pr-walkthrough`). On four examples, a
-  server's first load took 120 to 230 ms longer than its reloads.
-  `uv run leaf-dev probe EXAMPLE [--cpu-throttle 4]` reads one first load; the
+  clause of `scopeAvailable` in `keyboard/bindings.js`). Without the hold, such a
+  key is lost or runs the browser's own action, such as Space scrolling or `/`
+  opening Firefox's Quick Find. Trigger: every example presents in about 250 ms
+  both on this Mac and with Chromium's CPU slowed 4x, which stands in for a slower
+  laptop as Lighthouse's mobile run does; then delete the hold, which a 2026-10-14
+  trial measured at 240 runtime and 540 test lines. This Mac is the fastest machine
+  pages run on, so its reading alone would delete the hold where it still helps.
+  The throttled bar is also 250 ms because the bar is how soon a reader presses a
+  key after a page appears, which is the same on any machine. A throttled bar near
+  1 s would add nothing to the unthrottled one, since the throttle multiplied the
+  medians below by 3.7 to 4.3. Take each reading as the median of five runs per
+  example, with the Mac's load average beside it, of
+  `uv run leaf-dev probe EXAMPLE` and `uv run leaf-dev probe EXAMPLE --cpu-throttle 4`,
+  reading `.startup.presented.at` from the JSON line each prints. A probe reads a
+  fresh server's first load, which is what a reader gets when an agent hands them
+  a page. On 2026-10-19 the trigger had not fired. Reloading each example five
+  times on one running server, the median `startup.presented.at` was 167 to 238 ms
+  on six of nine examples, but 289 ms on `code-comparison`, 335 ms on
+  `command-hub` and 487 ms on `pr-walkthrough`. With a 4x CPU throttle the same
+  medians were 632 ms (`triage-board`) to 1826 ms (`pr-walkthrough`). On four
+  examples, a server's first load took 120 to 230 ms longer than its reloads. The
   Mac's load average was near 12 on 18 cores throughout.
 - **Draw the margin's annotations once per thread pass.** They draw from their own
   watcher, which waits only for the projection's chrome, and again when the thread
@@ -786,3 +776,15 @@ export` writes a file that boots the page's own runtime offline, and that file
 - **Release labels:** prefer an exact tag when Leaf adopts named releases.
 - **Diff controls:** consider author-configurable wrapping and per-file review tracking
   when a page needs them. Keep their controls optional.
+- **A reply's widgets in every view of it:** a reply's widgets show in one view
+  at a time (the panel, then its margin card, then its seat), and the others draw
+  only its words (`authoredRank`, `thread/messages.js`). Giving each view its own
+  copy needs every id lookup to resolve inside the drawing that asks, through
+  `elementById(id, root)` (`passages.js`): about 31 `elementById` and 9
+  `getElementById` calls in the runtime and the package widgets' own lookups
+  (`lf-board`, `lf-options-addition`). The lookups that arrive with no drawing
+  each need a rule: obligation standing, `m` walks, an anchor on an element in a
+  reply, and the presentation regions keyed `widget:<id>:render`. A 2026-10-20
+  trial of per-drawing copies without that broke all four (reverted within
+  PR #3436). Revisit if seeing a question in the page and the panel at once is
+  worth it.

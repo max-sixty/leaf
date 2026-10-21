@@ -22,7 +22,7 @@ from leaf_dev import docs
 from leaf_dev.commands import site as site_build
 
 
-def test_a_link_a_host_would_404_stops_the_build(staged_site, hosted):
+def test_a_link_a_host_would_404_stops_the_build(staged_site, hosted, site):
     """The build stops on each local link a static host would answer with a 404.
 
     One copy takes each break in turn and puts it back, and the untouched copy
@@ -33,8 +33,10 @@ def test_a_link_a_host_would_404_stops_the_build(staged_site, hosted):
             site_build.check_links(staged_site)
         return str(stopped.value)
 
+    assets = site_build.asset_site(staged_site)
+    shutil.copytree(site_build.asset_site(site), assets)
     site_build.check_links(staged_site)
-    tour = site_build.product_page(staged_site, "index.html") / "index.html"
+    tour = assets / "index.html"
     authored = tour.read_bytes()
 
     tour.write_text('<a href="whats-new.html">news</a>')
@@ -49,22 +51,36 @@ def test_a_link_a_host_would_404_stops_the_build(staged_site, hosted):
         assert missing.value.code == 404
         tour.write_text(f'<a href="{target}">record</a>')
         assert target in refusal()
+    manifest_path = staged_site / site_build.SITE_MANIFEST
+    manifest = json.loads(manifest_path.read_text())
+    released = manifest["pages"]["/"]["assets"]
+    for suffix in ("/", "/index.html"):
+        target = released + suffix
+        tour.write_text(f'<a href="{target}">not a released resource</a>')
+        assert target in refusal()
     tour.write_bytes(authored)
 
     # What a host answers a directory with is its index, so that is what has to be
     # there. An existence check passes on the directory itself and publishes a 404.
-    board = staged_site / "examples" / "triage-board" / "index.html"
+    board = assets / "examples" / "triage-board" / "index.html"
     document = board.read_bytes()
     board.unlink()
     assert "triage-board" in refusal()
     board.write_bytes(document)
 
+    # A captured page script resolves through its release address. Removing it
+    # must fail even though the mutable source still holds its original copy.
+    motion = assets / "examples" / "motion"
+    script = next(motion.glob("revisions/*/page/motion.js"))
+    javascript = script.read_bytes()
+    script.unlink()
+    assert "motion.js" in refusal()
+    script.write_bytes(javascript)
+
     # The one broken image a user of the site would never run into. A card is
     # fetched by whoever unfurls the link, not by the browser showing the page, so a
     # preview whose bytes moved out from under its content address fails silently
     # everywhere except in a shared link.
-    manifest_path = staged_site / site_build.SITE_MANIFEST
-    manifest = json.loads(manifest_path.read_text())
     manifest["pages"]["/examples/triage-board"]["image"] = "/examples/media/gone.jpg"
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     refused = refusal()

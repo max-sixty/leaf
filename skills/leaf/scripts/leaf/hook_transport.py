@@ -20,19 +20,23 @@ input pending or a status other than idle (`stop_continues`). A repeated Stop
 (`stop_hook_active`) continues only for a newly delivered update that owes an
 answer.
 
-Where a watch follows the turn (`Harness.watches_between_turns`), Stop hands no
-input over: the watch wakes once the turn closes and opens a turn whose prompt hook
-does. Continuing the turn for the input would have the agent write one more message,
-and a harness that shows each turn's final message alone, as Claude Code's focus
-view does, would show that reply in place of the answer the turn had written. Under
-plain `--print` nothing watches after the run, so Stop hands the input into the turn
-it continues.
+Where something that outlives the turn opens a turn of its own for the input
+(`Harness.later_turn_takes_input`), Stop hands no input over: a watch wakes once
+the turn closes and opens a turn whose prompt hook does, and Codex's App Server
+adapter starts one. Continuing the turn for the input would have the agent write one
+more message, and a harness that shows each turn's final message alone, as Claude
+Code's focus view does, would show that reply in place of the answer the turn had
+written. Under plain `--print`, or a Codex task that waits with `leaf wait`, nothing
+opens that turn, so Stop hands the input into the turn it continues. Codex's queue
+adapter would open one on a pointer Codex shows as the user's own message, which is
+noisier than the extra message, so Stop hands the input in there too.
 
 For an update already picked up and still owed an answer, the hook reminds the
 agent by naming the delivery that holds its answer reference. An update the page's
 current owner holds no usable reference for, as when another session received it
 before the page changed hands, is deliverable again (`delivery.deliverable`), so
-the hook hands it over with the owner's other input.
+it is input rather than a reminder: the hook hands it over with the owner's other
+input, or leaves it to the later turn that takes them.
 
 The hook confirms an inline delivery itself (`receive_held`), so the updates read
 Picked up without waiting for the model, and the envelope's `acknowledge` is null.
@@ -176,8 +180,13 @@ def read_plans(session_id: str) -> list[PagePlan]:
                     continue
                 pending = deliverable(page, work.obligations)
                 watched = harness.watcher_live(listening=state["listening"])
-                # A reference into a delivery an earlier Leaf wrote is no use to
-                # this one, which cannot read it, so its update is deliverable again.
+                # An owed update this owner holds no usable reference for, as when
+                # another session received it before the page changed hands, is
+                # deliverable again (`delivery.unreferenced`): input the hook hands
+                # over or leaves to a later turn, not a debt to name. A reference
+                # into a delivery an earlier Leaf wrote is no use to this one, which
+                # cannot read it.
+                redelivered = {event["id"] for event in pending}
                 owed = [
                     {
                         **item,
@@ -191,6 +200,7 @@ def read_plans(session_id: str) -> list[PagePlan]:
                     and not reads_reference(item["answer"]["ref"])
                     else item
                     for item in turn_obligations(state, watched=watched)
+                    if item["input"] not in redelivered
                 ]
                 responses = {item["input"]: item["answer"] for item in work.obligations}
                 plans.append(
@@ -418,7 +428,7 @@ def carry_turn(
     ):
         return
     carries = event in {"UserPromptSubmit", "PostToolBatch"} or (
-        event == "Stop" and not harness.watches_between_turns()
+        event == "Stop" and not harness.later_turn_takes_input()
     )
     batches = (
         [plan.batch for plan in plans if plan.batch and plan.harness.hooks_carry()]

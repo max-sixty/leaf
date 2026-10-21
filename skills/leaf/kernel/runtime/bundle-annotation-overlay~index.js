@@ -61,6 +61,7 @@ import {
   pageScope,
   pageSelection,
   placeKeeper,
+  releaseAuthoredUnder,
   releaseReplies,
   retainUserIntent,
   revealHeld,
@@ -75,7 +76,10 @@ import {
   threadNamed,
   writingIn
 } from "./bundle-user-intent.js";
-import "./bundle-widget-upgrade.js";
+import {
+  setChildLists,
+  setChildren
+} from "./bundle-stylesheets.js";
 import "./bundle-media.js";
 import {
   reducedMotion
@@ -128,10 +132,6 @@ import {
   scrollToEnd
 } from "./bundle-presence.js";
 import {
-  setChildLists,
-  setChildren
-} from "./bundle-stylesheets.js";
-import {
   blockAt,
   closestAcross,
   elementFromPointAcross,
@@ -168,9 +168,6 @@ import {
   watchRoom
 } from "./bundle-page-paint.js";
 import {
-  whenDocumentPresented
-} from "./bundle-semantic-state.js";
-import {
   TEXT_FIELD,
   afterScript,
   cancelAnimation,
@@ -205,6 +202,9 @@ import {
   tabStops,
   under
 } from "./bundle-frame-visibility.js";
+import {
+  whenDocumentPresented
+} from "./bundle-semantic-state.js";
 import {
   bareReaction,
   html,
@@ -430,7 +430,26 @@ function createThreadPreview({
       previewSession.stopRegion = registerReadingRegion({
         id: THREAD_CARD,
         host: preview,
-        body: transcript
+        body: transcript,
+        paintContinuation: (above) => {
+          let edge = 0;
+          let height = above ? 12 : 0;
+          if (above) {
+            const top = transcript.getBoundingClientRect().top + transcript.clientTop;
+            for (const head of transcript.querySelectorAll(".lf-msg-head")) {
+              const box = head.getBoundingClientRect();
+              if (!box.height || box.bottom <= top) continue;
+              if (box.top <= top) edge = box.bottom - top;
+              else {
+                height = Math.min(height, box.top - top - edge);
+                break;
+              }
+            }
+          }
+          const card = transcript.parentElement;
+          card.style.setProperty("--lf-thread-fade-top", layoutPx(edge));
+          card.style.setProperty("--lf-thread-fade-height", layoutPx(height));
+        }
       });
   }
   let previewSession = null;
@@ -922,6 +941,7 @@ function createThreadPreview({
     delete preview.dataset.lfThreadPlacement;
     for (const edge of CUT_EDGES) preview.style.removeProperty(edge);
     keepsHidden(preview, true);
+    releaseAuthoredUnder(preview);
     onClose(closed);
   }
   function focusThread(positioned, { closeControl: closeControl2 = false, cause = "move" } = {}) {
@@ -933,12 +953,12 @@ function createThreadPreview({
       if (!closeControl2) scrollThreadIntoView(target, target);
     });
   }
-  function focusTarget(id, { part = null } = {}) {
-    id = threadIdNamed(id);
+  function focusTarget(name, { part = null } = {}) {
+    const id = threadIdNamed(name);
     const thread = [...previewList.querySelectorAll(".lf-page-thread")].find(
       (candidate) => candidate.dataset.thread === id
     );
-    return thread ? threadFocusDestination(thread, { part: part ?? "thread" }) : null;
+    return thread ? threadFocusDestination(thread, { part: part ?? "thread", message: name }) : null;
   }
   function mount(onDismiss) {
     previewClose.onclick = onDismiss;

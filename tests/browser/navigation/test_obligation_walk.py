@@ -43,6 +43,9 @@ from browser.threads import open_panel_thread
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
+# The margin card a thread about a passage opens in.
+CARD = ".lf-margin-preview"
+
 
 @pytest.mark.parametrize(("nested_source", "reduced"), [(False, True), (True, False)])
 def test_an_obligation_walk_glides_within_a_view_and_opens_other_tabs_at_the_question(
@@ -562,28 +565,30 @@ def test_an_obligations_digits_are_drawn_whole(browser, serve):
 def test_frozen_widget_obligation_walk_orders_by_its_threads_page_passage(
     browser, serve
 ):
-    """A materialized frozen source in chrome keeps its thread's authored page order."""
+    """A materialized frozen source keeps its thread's authored page order."""
     page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page, view="threads")
     page.locator("h1").focus()
     page.keyboard.press("m")
-    expect(page.locator(f"{PANEL_THREAD} lf-ask[data-lf-obligation]")).to_be_focused()
+    expect(page.locator(f"{CARD} lf-ask[data-lf-obligation]")).to_be_focused()
 
 
-def test_an_obligation_walk_leaves_the_panel_it_reached_through(browser, serve):
-    """`m` from the page reaches an obligation seated in a thread through the panel, so the
-    press opens its thread there on the way. The walk is lateral — it moves the user
-    from obligation to obligation rather than down a level — and Escape puts the view away. No step
-    depends on which press opened the view."""
+def test_an_obligation_walk_leaves_the_card_it_reached_through(browser, serve):
+    """`m` from the page reaches an obligation in a reply to a thread about a passage
+    through that thread's margin card, which draws the reply's widgets, so the press
+    opens the card on the way and leaves the panel shut. Escape steps back to the
+    passage, and again puts the card away."""
     page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
-    expect(page.locator(PANEL_THREAD)).to_have_count(0)
     page.keyboard.press("m")
-    item = page.locator(f"{PANEL_THREAD} lf-ask[data-lf-obligation]")
+    item = page.locator(f"{CARD} lf-ask[data-lf-obligation]")
     expect(item).to_be_focused()
+    expect(page.locator(PANEL_THREAD)).to_have_count(0)
     page.keyboard.press("Escape")
-    panel_settled(page, open=False)
+    expect(page.locator("#off-t-resync")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(CARD)).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
 
 

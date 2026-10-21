@@ -70,7 +70,14 @@ export const threadReplyInput = (thread) => {
   return input && shownBox(input).height ? input : null;
 };
 
-export function threadFocusDestination(thread, { part = "reply" } = {}) {
+// Where in a drawing of a thread a route lands: the thread, its reply box (else the
+// thread), or the message `message` names.
+export function threadFocusDestination(
+  thread,
+  { part = "reply", message = null } = {},
+) {
+  if (part === "message")
+    return thread.querySelector(`.lf-msg[data-event="${CSS.escape(message)}"]`);
   return (part === "thread" ? thread : null) ?? threadReplyInput(thread) ?? thread;
 }
 

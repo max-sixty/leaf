@@ -47,6 +47,8 @@ prompts:
       Apply them: update the page so it records them as final.
   quality:
     At every declared width, substantive evidence and navigation are readable and reachable.
+    Each decision can be answered where the user lands on it, without asking what something
+    it names is or does.
     The final page incorporates the user's comment and lasting width preference, and clearly
     preserves the final decision the user supplied. On the before_decision page, exercise the
     original browser decision task through the offered controls, including keyboard routes; judge the actual outcome, not a settings summary or a claim of success. On the final

@@ -609,8 +609,8 @@
     --lf-option-add-seat-inset: var(--sp-1);
     /* Centre Add on the last text line, using the same inset that sizes its row. */
     --lf-option-add-seat-end: calc(
-      var(--lf-option-pad-block) +
-        (var(--lf-option-line) - var(--lf-icon-action-hit)) / 2
+      var(--lf-option-pad-block) + (var(--lf-option-line) - var(--lf-icon-action-hit)) /
+        2
     );
     --lf-option-add-badge-inset: calc(
       var(--lf-option-add-seat-inset) +

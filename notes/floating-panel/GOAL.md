@@ -50,6 +50,8 @@ what the module header of `runtime/floating-panel.js` now states:
   rail, Navigate offers it to a mouse too.
 - **Where the user is sits at a view's top edge**, with its filters, search,
   Resolve and Close beside it; the destination line and the thread-actions row went.
+  On 20 October the user moved those controls to the view's foot, on the row, which
+  a view growing from its top edge never moves, leaving its name at the top edge.
 - **Motion moves no layout**: every change of size takes effect in one step and a
   separate surface layer follows by a clip, so the shift watch sees no tween.
 

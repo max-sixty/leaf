@@ -97,10 +97,11 @@ representative desktop viewport.
   arrival would resize (`heldGrowth`); `newsMoves` in `thread/thread-card.js`; and
   `reading-continuity.js` for a hidden tab. One exception, which the user chose: the
   answer the user waits for in the floating panel's thread grows that view up to its
-  cap, its head rising while the field stays put (`floating-panel.js`, `fitAnswer`).
-  The shift watch credits exactly that growth: a scrollport declared to stand on its
-  foot (`data-lf-rises`) that rises with its `append` region's growth, by no more than
-  it, carrying its head (`appendGrowth` in `tests/shift_watch.js`).
+  cap, its top edge and its name rising while its controls and the field stay put
+  (`floating-panel.js`, `fitAnswer`). The shift watch credits exactly that growth: a
+  scrollport declared to stand on its foot (`data-lf-rises`) that rises with its
+  `append` region's growth, by no more than it, carrying its name
+  (`appendGrowth` in `tests/shift_watch.js`).
 - **A box floating over the page grows inside the window.** The comment box and the
   thread card grow toward the window edge that has room, and never scroll the page to
   make room (`annotation-overlay/comment-placement.js`). A box a scroll carried away

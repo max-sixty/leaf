@@ -17,6 +17,7 @@ import socket
 import sys
 import threading
 import time
+import traceback
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
@@ -35,6 +36,8 @@ from .leases import (
 from .refusals import Refused
 from .schema import SERVER_LOCK, SERVICE_FILE
 from .server import (
+    exit_serving,
+    exit_serving_on_signals,
     host_key,
     loopback_only,
     page_access,
@@ -624,13 +627,20 @@ def cmd_serve(
                 announced = _announce_server(page_dir, url)
         if httpd is None or not announced:
             return
+        # Once its threads start, the process ends only through `exit_serving`,
+        # which releases the lease as every thread stops.
+        exit_serving_on_signals()
         threading.Thread(target=rows.run, daemon=True).start()
         threading.Thread(
             target=stop_when_service_ends,
             args=(page_dir,),
             daemon=True,
         ).start()
-        httpd.serve_forever()
+        try:
+            httpd.serve_forever()
+        except BaseException:  # noqa: BLE001 - reported, since `exit_serving` skips the interpreter's report
+            traceback.print_exc()
+        exit_serving(1)
     finally:
         if httpd is not None:
             httpd.server_close()

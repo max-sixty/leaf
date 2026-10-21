@@ -517,21 +517,21 @@ def test_input_pending_as_a_turn_ends_wakes_a_turn_of_its_own(
     assert pending["id"] not in sent["submitted"]
 
 
-def test_a_wake_during_the_stop_hooks_waits_for_them(page_dir, claude_code):
-    """A turn's Stop hooks decide whether it goes on. A watch that wakes while they
-    run waits for them rather than starting a turn beside one they continue: here
-    they let the turn end, and only then does the module submit its prompt."""
+def test_subagent_turn_after_main_turn_does_not_block_wake(page_dir, claude_code):
+    """A subagent can start after the main loop ends; its turn does not make the
+    idle main loop busy when the page's next input wakes the watch."""
+    assert "classic.Stop" not in claude_code.events
     claude_code.start_turn()
-    payload = {"hook_event_name": "Stop", "session_id": claude_code.session}
-    claude_code.send({"emit": "classic.Stop", "e": payload, "hold": True})
-    assert claude_code.read() == {"holding": "classic.Stop"}
+    claude_code.end_turn()
+    wait_for(
+        lambda: leases_model.wait_is_live(None, claude_code.session),
+        bool,
+        failure="the module started no watch after the main turn",
+    )
+    claude_code.emit("turn.start", {"text": "", "turnId": "sub", "agentId": "sub-1"})
     append_carried_log_record(
-        page_dir, {"kind": "comment", "author": "user", "text": "during Stop"}
+        page_dir, {"kind": "comment", "author": "user", "text": "after main turn"}
     )
     claude_code.exits.get(timeout=STATED_TIMEOUT)
-    assert claude_code.sent.empty()
-    claude_code.send({"release": True})
-    assert claude_code.read()["event"] == "classic.Stop"
-    assert claude_code.message()["submitted"].startswith(
-        f"Leaf: {page_dir} has new input"
-    )
+    claude_code.send({"flush": True})
+    assert claude_code.read() == {"submissions": 1}

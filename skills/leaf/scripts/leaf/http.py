@@ -15,7 +15,6 @@ import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from functools import partial
-from http.cookies import SimpleCookie
 from pathlib import Path
 from urllib.parse import parse_qs
 
@@ -550,9 +549,8 @@ class PageEndpoint:
         if secrets.compare_digest(self.query.get("t", [""])[0], self.token):
             self.set_cookie = True
         else:
-            jar = SimpleCookie(self.headers.get("Cookie", ""))
-            if self.key_cookie not in jar or not secrets.compare_digest(
-                jar[self.key_cookie].value, self.token
+            if not secrets.compare_digest(
+                self.request.cookies.get(self.key_cookie, ""), self.token
             ):
                 return False
         return True

@@ -15,6 +15,7 @@ from interact_support import (
     PAGE,
     _codex_delivery,
     _observer,
+    acknowledged_through,
     append_carried_log_record,
     append_command,
     command_findings,
@@ -892,7 +893,7 @@ def test_codex_ignores_obsolete_addressed_envelopes_and_recaptures_input(
     cleanup_model.write_json(path, record)
     assert codex_model.read_record(path) is None
     assert not codex_model.recover_codex_receipt("codex-thread")
-    assert not read_record(page_dir / "cursor.json")
+    assert acknowledged_through(page_dir) == 0
     fresh = codex_model.prepare_codex_delivery(
         page_dir, harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
     )
@@ -951,10 +952,10 @@ def test_committed_answer_survives_a_newer_displayed_reply(page_dir):
         "Older question?",
         QUESTION,
     )
-    status = read_record(page_dir / "status.json")["stream"]
-    assert status["reply"]["text"] == "Newer opening"
-    assert newer["id"] in status["reply_reservations"]
-    assert comment["id"] not in status["reply_reservations"]
+    stream = read_record(page_dir / "stream.json")
+    assert stream["reply"]["text"] == "Newer opening"
+    assert newer["id"] in stream["reply_reservations"]
+    assert comment["id"] not in stream["reply_reservations"]
 
 
 def test_bound_thread_refusal_routes_rich_content_to_addressed_reply(page_dir):

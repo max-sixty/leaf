@@ -16,12 +16,12 @@ from interact_support import (
     COMPOSITE_TIMEOUT,
     PLUGIN_ROOT,
     STATED_TIMEOUT,
+    acknowledged_through,
     append_carried_log_record,
     record_claim,
     serving,
     wait_for,
 )
-from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import harness as harness_model
 from leaf import hook_transport as hook_transport_model
@@ -315,7 +315,7 @@ def test_the_registered_hook_delivers_or_says_nothing(claimed, event):
             )
         )
         assert (worker.returncode, worker.stdout, worker.stderr) == (0, "", "")
-        assert events_model.read_cursor(claimed) == 0
+        assert acknowledged_through(claimed) == 0
     answered = run(payload)
     assert answered.returncode == 0, answered.stderr
     assert answered.stdout, "nothing came back: the CLI never answered under uv"
@@ -526,10 +526,10 @@ def test_the_registered_session_end_releases_shared_claims_without_an_environmen
 ):
     """A fresh install releases another checkout's claims within harness shutdown.
 
-    Only the launcher, standalone stdlib cleanup and the registry naming the
-    protocol its records carry exist in this install. No package can be imported
-    and uv refuses to run; macOS's system Python 3.9 exercises the same entry
-    without site packages.
+    Only the launcher and standalone stdlib cleanup exist in this install, since
+    each record's format names its own `since`. No package can be imported and uv
+    refuses to run; macOS's system Python 3.9 exercises the same entry without
+    site packages.
     """
     project = tmp_path / "cold-plugin"
     launcher = project / "bin/leaf"
@@ -540,11 +540,6 @@ def test_the_registered_session_end_releases_shared_claims_without_an_environmen
     program.parent.mkdir(parents=True)
     program.write_bytes(
         (PLUGIN_ROOT / "skills/leaf/scripts/leaf/state.py").read_bytes()
-    )
-    registry = project / "skills/leaf/assets/registry.json"
-    registry.parent.mkdir(parents=True)
-    registry.write_bytes(
-        (PLUGIN_ROOT / "skills/leaf/assets/registry.json").read_bytes()
     )
     tools = tmp_path / "tools"
     tools.mkdir()
@@ -560,11 +555,7 @@ def test_the_registered_session_end_releases_shared_claims_without_an_environmen
     record_claim(page_dir, id="ended-session")
     marker_files = [
         cleanup_model.session_file("ended-session", suffix)
-        for suffix in (
-            cleanup_model.HOOKS_SUFFIX,
-            cleanup_model.STEP_HOOK_SUFFIX,
-            cleanup_model.TITLES_SUFFIX,
-        )
+        for suffix in (cleanup_model.HOOKS_SUFFIX, cleanup_model.STEP_HOOK_SUFFIX)
     ]
     for marker in marker_files:
         marker.parent.mkdir(parents=True, exist_ok=True)

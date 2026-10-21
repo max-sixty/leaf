@@ -13,22 +13,19 @@ from conftest import LEAF_COMMAND
 from interact_support import (
     STATED_TIMEOUT,
     _interaction_prompt_evidence,
+    acknowledged_through,
     append_carried_log_record,
     delivery_through,
-    fifo_writer,
     freeze_events,
-    hold_status_read,
+    held_selection,
     owed_answers,
     page_state,
     printed,
-    read_record,
     record_claim,
     said,
     serving,
     spawn_probe,
     wait_for,
-    woken,
-    write_record,
     yaml_document,
 )
 from leaf import cli as cli_model
@@ -60,10 +57,10 @@ def test_receipt_uses_an_immutable_delivery_and_advances_monotonically(page_dir)
         cli_model.cli, ["wait", str(page_dir), "--ack", newer["id"]]
     )
     assert combined.exit_code == 2
-    assert read_record(page_dir / "cursor.json") is None
+    assert acknowledged_through(page_dir) == 0
     for payload in (newer, newer, older):
         assert delivery_model.receive_delivery(payload["id"]) == [page_dir]
-        assert read_record(page_dir / "cursor.json") == {"seq": 2}
+        assert acknowledged_through(page_dir) == 2
     pickups = [
         event
         for event in events_model.read_events(page_dir)
@@ -71,6 +68,12 @@ def test_receipt_uses_an_immutable_delivery_and_advances_monotonically(page_dir)
     ]
     assert len(pickups) == 1
     assert pickups[0]["events"] == [first["id"], second["id"]]
+    # A retried or older receipt writes nothing the log already confirms.
+    assert [
+        event["through"]
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "receipt"
+    ] == [2]
 
 
 def test_interrupted_pickup_leaves_the_delivery_unreceived(page_dir, monkeypatch):
@@ -87,10 +90,10 @@ def test_interrupted_pickup_leaves_the_delivery_unreceived(page_dir, monkeypatch
         patch.setattr(delivery_model, "record_pickup", failed_pickup)
         with pytest.raises(OSError, match="pickup write interrupted"):
             delivery_model.receive_delivery(payload["id"])
-    assert read_record(page_dir / "cursor.json") is None
+    assert acknowledged_through(page_dir) == 0
     assert page_state(page_dir)["pending"] == 1
     delivery_model.receive_delivery(payload["id"])
-    assert read_record(page_dir / "cursor.json") == {"seq": 1}
+    assert acknowledged_through(page_dir) == 1
     [pickup] = [
         event
         for event in events_model.read_events(page_dir)
@@ -115,7 +118,7 @@ def test_receipt_refuses_a_delivery_from_a_replaced_log(page_dir):
     assert replacement["seq"] == payload["batches"][0]["through_seq"]
     with pytest.raises(delivery_model.ReceiptRefused):
         delivery_model.receive_delivery(payload["id"])
-    assert read_record(page_dir / "cursor.json") is None
+    assert acknowledged_through(page_dir) == 0
     assert events_model.read_events(page_dir) == [replacement]
 
 
@@ -138,7 +141,7 @@ def test_receiving_a_delivery_keeps_each_pages_response_obligation(page_dir, tmp
     )
     assert delivery_model.receive_delivery(payload["id"]) == [page_dir, other]
     for page in (page_dir, other):
-        assert read_record(page / "cursor.json") == {"seq": 1}
+        assert acknowledged_through(page) == 1
         obligations = owed_answers(page)
         assert obligations[0]["stage"] == "picked_up"
     assert page_state(other)["pending"] == 1
@@ -211,7 +214,7 @@ delivery.receive_delivery(os.environ["DELIVERY"])
     for page in pages:
         assert service_model.page_claim(page)["turn_closed"] is None
     for page in pages[:2]:
-        assert read_record(page / "cursor.json") == {"seq": 1}
+        assert acknowledged_through(page) == 1
         [pickup] = [
             event
             for event in events_model.read_events(page)
@@ -219,7 +222,7 @@ delivery.receive_delivery(os.environ["DELIVERY"])
         ]
         assert pickup["phase"] == "opened"
         assert owed_answers(page)[0]["stage"] == "picked_up"
-    assert read_record(silent / "cursor.json") is None
+    assert acknowledged_through(silent) == 0
 
 
 def test_receipt_checks_the_owner_after_acquiring_the_page_lock(
@@ -251,39 +254,13 @@ delivery.receive_delivery(os.environ["DELIVERY"])
     out, err = receiving.communicate(timeout=STATED_TIMEOUT)
     assert receiving.returncode == 1, out + err
     assert "delivery no longer owns its page" in err
-    assert read_record(page_dir / "cursor.json") is None
+    assert acknowledged_through(page_dir) == 0
     assert not any(
         item["kind"] == "pickup" for item in events_model.read_events(page_dir)
     )
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "successor")
     assert delivery_model.receive_delivery(payload["id"]) == [page_dir]
-    assert read_record(page_dir / "cursor.json") == {"seq": 1}
-
-
-def test_a_cursor_past_the_log_holds_nothing_in_the_log_that_replaced_it(page_dir):
-    """A cursor names a position in this log. Re-vendoring a page whose log is
-    gone leaves the file naming a seq the new log has not reached, and reading it
-    as acknowledgement would swallow every event that log will ever hold."""
-    serving(page_dir, 1)
-    write_record(page_dir / "cursor.json", {"seq": 47})
-    append_carried_log_record(
-        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
-    )
-
-    assert page_state(page_dir)["cursor"] == 0
-    assert page_state(page_dir)["pending"] == 1
-    assert service_model.claim_page(page_dir)
-    wait_result = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
-    assert wait_result.exit_code == 0, wait_result.output
-    _, _, events = woken(wait_result.output)
-    [event] = events
-    assert (event["id"], event["seq"]) == ("c1", 1)
-
-    # Confirming the delivered batch replaces the stale position, so the next
-    # read is an ordinary one.
-    assert read_record(page_dir / "cursor.json") == {"seq": 1}
-    assert page_state(page_dir)["cursor"] == 1
-    assert page_state(page_dir)["pending"] == 0
+    assert acknowledged_through(page_dir) == 1
 
 
 def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(
@@ -292,10 +269,10 @@ def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(
     serving(page_dir, 1)
     codex_loop(page_dir)
     session_model.cmd_waiting(page_dir, "answering the first comment")
-    append_carried_log_record(
+    first = append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "one"}
     )
-    delivery_id = delivery_through(page_dir, 1)
+    delivery_id = delivery_through(page_dir, first["seq"])
     acknowledging = spawn(
         [*LEAF_COMMAND, "wait", "--ack", delivery_id],
         stdout=subprocess.PIPE,
@@ -312,12 +289,12 @@ def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(
         failure="the acknowledgement neither rearmed the wait nor exited",
     )
 
-    assert read_record(page_dir / "cursor.json") == {"seq": 1}
+    assert acknowledged_through(page_dir) == first["seq"]
     assert leases_model.lock_is_held(lease_path), (
         "acknowledgement returned without holding the next wait"
     )
-    status_before_delivery = (page_dir / "status.json").read_bytes()
-    append_carried_log_record(
+    status_before_delivery = page_state(page_dir)["status"]
+    second = append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c2", "author": "user", "text": "two"}
     )
     out, err = acknowledging.communicate(timeout=STATED_TIMEOUT)
@@ -327,9 +304,9 @@ def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(
     assert acknowledging.returncode == 0, f"{out}{err}"
     _, header, [event] = printed(out)
     assert header["page"] == str(page_dir)
-    assert (event["id"], event["seq"], event["text"]) == ("c2", 3, "two")
-    assert read_record(page_dir / "cursor.json") == {"seq": 1}
-    assert (page_dir / "status.json").read_bytes() == status_before_delivery
+    assert (event["id"], event["seq"], event["text"]) == ("c2", second["seq"], "two")
+    assert acknowledged_through(page_dir) == first["seq"]
+    assert page_state(page_dir)["status"] == status_before_delivery
 
 
 def test_ack_success_outlives_a_refused_rearm(page_dir, snapshot):
@@ -352,7 +329,7 @@ def test_ack_success_outlives_a_refused_rearm(page_dir, snapshot):
 
     assert result.exit_code == 2, result.output
     assert "another `leaf wait` is already active" in result.output
-    assert read_record(page_dir / "cursor.json") == {"seq": 1}
+    assert acknowledged_through(page_dir) == 1
 
     snapshot.check(
         yaml_document(
@@ -381,7 +358,7 @@ def test_ack_rearm_does_not_reclaim_a_page_from_its_successor(page_dir, snapshot
 
     assert result.exit_code == 1, result.output
     assert "delivery no longer owns its page" in result.output
-    assert read_record(page_dir / "cursor.json") is None
+    assert acknowledged_through(page_dir) == 0
     assert service_model.page_claim(page_dir)["id"] == "successor"
 
     snapshot.check(
@@ -404,8 +381,8 @@ def test_ack_rearm_keeps_the_other_pages_when_its_batch_page_transfers(
 ):
     """The acknowledged page is a delivery coordinate, not the rearm's target.
 
-    Hold its status read after the session-wide watcher selected both pages,
-    then transfer that page and speak on the other one. The transfer must drop
+    Hold its read after the session-wide watcher selected both pages, then
+    transfer that page and speak on the other one. The transfer must drop
     only its page: ending the rearm there leaves the other page silently
     unwatched until a later hook repairs it.
     """
@@ -417,25 +394,24 @@ def test_ack_rearm_keeps_the_other_pages_when_its_batch_page_transfers(
     codex_loop(other)
     session_model.cmd_waiting(page_dir, "first page")
     session_model.cmd_waiting(other, "second page")
-    append_carried_log_record(
+    first = append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "first", "author": "user", "text": "one"},
     )
-    delivery_id = delivery_through(page_dir, 1)
-    status_path = page_dir / "status.json"
-    status = status_path.read_bytes()
-    hold_status_read(status_path)
+    delivery_id = delivery_through(page_dir, first["seq"])
+    selected = tmp_path / "selected"
     acknowledging = spawn(
-        [*LEAF_COMMAND, "wait", "--ack", delivery_id],
+        held_selection(selected, page_dir, "wait", "--ack", delivery_id),
         env=os.environ,
+        stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
-    writer = fifo_writer(status_path, "the rearm never selected its batch page")
+    wait_for(selected.exists, bool, failure="the rearm never selected its batch page")
     identity = harness_model.session_harness()
     lease_path = leases_model.waiter_lease_path(page_dir, identity.session)
-    assert read_record(page_dir / "cursor.json") == {"seq": 1}
+    assert acknowledged_through(page_dir) == first["seq"]
     assert leases_model.lock_is_held(lease_path)
     assert acknowledging.poll() is None
 
@@ -446,15 +422,13 @@ def test_ack_rearm_keeps_the_other_pages_when_its_batch_page_transfers(
         other,
         {"kind": "comment", "id": "second", "author": "user", "text": "two"},
     )
-    os.write(writer, status)
-    os.close(writer)
 
-    out, err = acknowledging.communicate(timeout=STATED_TIMEOUT)
+    out, err = acknowledging.communicate(input="continue\n", timeout=STATED_TIMEOUT)
     assert acknowledging.returncode == 0, f"{out}{err}"
     _, header, [event] = printed(out)
     assert header["page"] == str(other)
     assert (event["id"], event["text"]) == ("second", "two")
-    assert read_record(other / "cursor.json") is None
+    assert acknowledged_through(other) == 0
     assert service_model.page_claim(page_dir)["id"] == "successor"
 
 
@@ -463,42 +437,39 @@ def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
 ):
     """A successor's page is not idle when it leaves the session-wide watch.
 
-    Hold the status read after the rearm selected its sole page, then transfer
-    it. The empty watch must report the ownership change rather than describing
+    Hold its read after the rearm selected its sole page, then transfer it. The
+    empty watch must report the ownership change rather than describing
     the successor's live page as an ended leaf.
     """
     serving(page_dir, 1)
     service_model.claim_page(page_dir)
     session_model.cmd_waiting(page_dir, "first page")
-    append_carried_log_record(
+    first = append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "first", "author": "user", "text": "one"},
     )
-    delivery_id = delivery_through(page_dir, 1)
-    status_path = page_dir / "status.json"
-    status = status_path.read_bytes()
-    hold_status_read(status_path)
+    delivery_id = delivery_through(page_dir, first["seq"])
+    selected = page_dir.parent / "selected"
     acknowledging = spawn(
-        [*LEAF_COMMAND, "wait", "--ack", delivery_id],
+        held_selection(selected, page_dir, "wait", "--ack", delivery_id),
         env=os.environ,
+        stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
-    writer = fifo_writer(status_path, "the rearm never selected its batch page")
+    wait_for(selected.exists, bool, failure="the rearm never selected its batch page")
     identity = harness_model.session_harness()
     lease_path = leases_model.waiter_lease_path(page_dir, identity.session)
-    assert read_record(page_dir / "cursor.json") == {"seq": 1}
+    assert acknowledged_through(page_dir) == first["seq"]
     assert leases_model.lock_is_held(lease_path)
     assert acknowledging.poll() is None
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "successor")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     service_model.claim_page(page_dir)
-    os.write(writer, status)
-    os.close(writer)
 
-    out, err = acknowledging.communicate(timeout=STATED_TIMEOUT)
+    out, err = acknowledging.communicate(input="continue\n", timeout=STATED_TIMEOUT)
     assert (acknowledging.returncode, out) == (2, ""), err
     assert f"stopped watching {page_dir}: this session no longer owns it" in err
     assert "the page closed" not in err
@@ -549,14 +520,14 @@ def test_reading_a_pointer_never_confirms_unread_input(claimed):
             [delivery_model.batch_data(claimed, page, [event])]
         )
     output = delivery_model.cmd_delivery_read(payload["id"])
-    assert events_model.read_cursor(claimed) < event["seq"]
+    assert acknowledged_through(claimed) < event["seq"]
     assert not delivery_model.pickup_receipts(
         events_model.read_events(claimed), phase="opened"
     )
     assert f"leaf delivery ack {payload['id']}" in output["acknowledge"]
     delivery_model.cmd_delivery_ack(payload["id"])
     delivery_model.cmd_delivery_ack(payload["id"])
-    assert events_model.read_cursor(claimed) == event["seq"]
+    assert acknowledged_through(claimed) == event["seq"]
     assert (
         len(
             delivery_model.pickup_receipts(
@@ -614,9 +585,9 @@ def test_a_large_pointer_read_is_bounded_and_losslessly_paged(claimed, transport
         if transport == "pointer"
         else f"leaf wait --ack {payload['id']}"
     ) in reading["acknowledge"]
-    assert events_model.read_cursor(claimed) == 0
+    assert acknowledged_through(claimed) == 0
     delivery_model.cmd_delivery_ack(payload["id"])
-    assert events_model.read_cursor(claimed) == event["seq"]
+    assert acknowledged_through(claimed) == event["seq"]
 
 
 @pytest.mark.parametrize("harness_name", ["claude-code", "pi", "codex"])
@@ -643,7 +614,7 @@ def test_explicit_pointer_confirmation_refuses_a_transferred_page(
             harness_model.EmbeddedHarness("successor", "Codex", os.getpid())
         )
     before = events_model.read_events(page_dir)
-    cursor = events_model.read_cursor(page_dir)
+    cursor = acknowledged_through(page_dir)
     for name in harness_model.IDENTITY_VARIABLES:
         monkeypatch.delenv(name, raising=False)
     variable = {
@@ -657,7 +628,7 @@ def test_explicit_pointer_confirmation_refuses_a_transferred_page(
     )
     assert result.exit_code == 1, result.output
     assert "no longer owns" in result.output
-    assert events_model.read_cursor(page_dir) == cursor
+    assert acknowledged_through(page_dir) == cursor
     assert events_model.read_events(page_dir) == before
     assert service_model.page_claim(page_dir)["id"] == "successor"
     assert event["id"] in {record["id"] for record in before}

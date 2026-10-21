@@ -22,6 +22,8 @@ from interact_support import (
     _codex_delivery,
     _delivery_item,
     _observer,
+    acknowledge_through,
+    acknowledged_through,
     append_carried_log_record,
     append_command,
     codex_records,
@@ -34,9 +36,9 @@ from interact_support import (
     refused_on,
     response_reference,
     served_thread,
+    status_and_stream,
     take_stream_activity,
     wait_for,
-    write_record,
 )
 from leaf import activity as activity_model
 from leaf import cli as cli_model
@@ -1173,7 +1175,7 @@ def test_a_task_connection_streams_and_commits_its_delivery_reply(
                 for event in events_model.read_events(page_dir)
                 if event["kind"] == "reply"
             ],
-            read_record(page_dir / "status.json")["stream"],
+            read_record(page_dir / "stream.json"),
         ),
         lambda reading: bool(reading[0]) and reading[1]["reply"] is None,
         failure="the streamed reply was not committed after completion",
@@ -1575,7 +1577,7 @@ def test_a_stream_reply_finishes_when_its_diagnostic_sink_is_unwritable(page_dir
     # The diagnostic file cannot be opened, while normal page writes remain valid.
     (page_dir / interaction_log_model.INTERACTIONS_FILE).mkdir()
     assert stream.restore("The complete answer.")
-    reply = read_record(page_dir / "status.json")["stream"]["reply"]
+    reply = read_record(page_dir / "stream.json")["reply"]
     assert reply["text"] == "The complete answer."
     assert reply["responds"] == comment["id"]
 
@@ -1584,7 +1586,7 @@ def test_a_stream_reply_finishes_when_its_diagnostic_sink_is_unwritable(page_dir
         events_model.read_events(page_dir), comment["id"]
     )
     assert answer["text"] == "The complete answer."
-    assert read_record(page_dir / "status.json")["stream"]["reply"] is None
+    assert read_record(page_dir / "stream.json")["reply"] is None
 
 
 def test_an_interrupted_stream_reply_finishes_after_the_claim_advances(page_dir):
@@ -1619,7 +1621,7 @@ def test_an_interrupted_stream_reply_finishes_after_the_claim_advances(page_dir)
 
     assert stream.finish("interrupted") is None
 
-    stream_state = read_record(page_dir / "status.json")["stream"]
+    stream_state = read_record(page_dir / "stream.json")
     assert (stream_state["reply"]["text"], stream_state["reply"]["state"]) == (
         "Partial answer",
         "interrupted",
@@ -1668,7 +1670,7 @@ def test_provider_reservation_refuses_unaddressed_competing_writes(page_dir):
         if event["kind"] == "reply"
     ]
     assert [reply["text"] for reply in replies] == ["Transcript closeout"]
-    assert read_record(page_dir / "status.json")["stream"]["reply"] is None
+    assert read_record(page_dir / "stream.json")["reply"] is None
 
 
 def test_a_delivery_reserves_its_final_before_provider_execution(page_dir):
@@ -1735,7 +1737,7 @@ def test_a_delivery_bound_final_cannot_append_after_claim_transfer(page_dir):
     }
     thread_model.reserve_delivery_reply("successor-thread", "delivery-2", successor)
     with service_model.PageTransaction(page_dir) as page:
-        assert page.status["stream"]["reply_reservations"][comment["id"]] == {
+        assert page.stream["reply_reservations"][comment["id"]] == {
             "session": "successor-thread",
             "attempt": service_model.delivery_reply_attempt("delivery-2"),
             "turn": "turn-1",
@@ -1763,7 +1765,7 @@ def test_a_streamed_final_rejects_invalid_source_without_stranding_the_draft(pag
     error = stream.finish("completed", "I made the change.")
 
     assert isinstance(error, Refused)
-    reply = read_record(page_dir / "status.json")["stream"]["reply"]
+    reply = read_record(page_dir / "stream.json")["reply"]
     assert (reply["state"], reply["text"], reply["settles"]) == (
         "failed",
         "I made the change.",
@@ -1813,7 +1815,7 @@ def test_partial_text_is_not_committed_without_a_completed_final(page_dir):
     assert not any(
         event["kind"] == "reply" for event in events_model.read_events(page_dir)
     )
-    reply = read_record(page_dir / "status.json")["stream"]["reply"]
+    reply = read_record(page_dir / "stream.json")["reply"]
     assert (reply["state"], reply["text"], reply["settles"]) == (
         "partial",
         "Only a partial",
@@ -1849,7 +1851,7 @@ def test_a_stream_reply_refreshes_its_lease_without_changing_its_message_time(
             "Now visible",
             "active",
         )
-        reply = page.status["stream"]["reply"]
+        reply = page.stream["reply"]
 
     [marker] = interaction_log_model.read_interactions(
         page_dir, types=("reply_stream_words",)
@@ -2074,9 +2076,7 @@ def test_the_prompt_hook_and_the_observer_open_one_codex_turn(page_dir, capsys):
     append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Handle me"}
     )
-    write_record(
-        page_dir / "cursor.json", {"seq": events_model.read_events(page_dir)[-1]["seq"]}
-    )
+    acknowledge_through(page_dir, events_model.read_events(page_dir)[-1]["seq"])
     cleanup_model.close_session_turn("codex-thread")
 
     hooks_model.cmd_hook(
@@ -2365,7 +2365,7 @@ def test_a_reply_that_cannot_be_written_still_closes_its_turn(page_dir, monkeypa
         turn.commit({"id": "leaf-turn", "status": "completed", "items": []})
 
     assert service_model.page_claim(page_dir)["turn_closed"] is not None
-    assert read_record(page_dir / "status.json")["stream"]["activity"] is None
+    assert read_record(page_dir / "stream.json")["activity"] is None
     # The reservation is released too: a reply that faulted part-written holds one
     # nothing will ever commit, and every other writer waits behind it.
     assert not thread_model.delivery_reply_reserved(
@@ -3203,7 +3203,7 @@ def test_abandonment_recovery_releases_the_seat_and_preserves_manual_answers(
     assert replies[0]["text"] == (
         "Manual answer" if manual else codex_model.UNCONFIRMED_TEXT
     )
-    assert service_model.read_cursor(page_dir) > 0
+    assert acknowledged_through(page_dir) > 0
     # Late provider evidence keeps its exact delivery identity but cannot replace
     # the manual answer that won before this harness retired its unknown attempt.
     if manual:
@@ -3567,10 +3567,7 @@ def test_unloaded_running_metadata_preserves_the_disconnected_reply_draft(page_d
         }
     )
     assert connection.turns["draft-turn"].events.text["draft"] == "Retained draft"
-    assert (
-        read_record(page_dir / "status.json")["stream"]["reply"]["text"]
-        == "Retained draft"
-    )
+    assert read_record(page_dir / "stream.json")["reply"]["text"] == "Retained draft"
 
 
 def test_archived_abandonment_recovers_a_late_final_from_paginated_history(
@@ -3825,7 +3822,7 @@ def test_resume_metadata_cannot_replace_a_newer_observation_during_the_request(
         codex_model.app_server_handshake(socket, 0, "test", "test", connection._read)
         thread, expected = connection._resume_task(socket, exclude_turns=False)
         winner = cleanup_model.session_record("codex-thread")
-        status_before = service_model.PageTransaction(page_dir).status
+        status_before = status_and_stream(page_dir)
         connection._resume(thread, expected)
     assert cleanup_model.session_record("codex-thread") == winner
     assert winner["turn"] == "new-turn"
@@ -3835,7 +3832,7 @@ def test_resume_metadata_cannot_replace_a_newer_observation_during_the_request(
     if replacement == "provider_notification":
         assert connection.turns["new-turn"].events.waiting_kind is None
     else:
-        assert service_model.PageTransaction(page_dir).status == status_before
+        assert status_and_stream(page_dir) == status_before
 
 
 def test_stale_live_notifications_cannot_reuse_a_fold_after_a_newer_prompt(page_dir):
@@ -4008,7 +4005,7 @@ def test_old_fold_cannot_change_activity_in_a_reused_session_generation(
         expected=cleanup_model.session_record("codex-thread"),
     )
     winner = cleanup_model.session_record("codex-thread")
-    status = service_model.PageTransaction(page_dir).status
+    status = status_and_stream(page_dir)
     if cleanup == "completion":
         old.commit({"id": "same-turn", "status": "completed", "items": []})
     elif cleanup == "disconnect":
@@ -4033,7 +4030,7 @@ def test_old_fold_cannot_change_activity_in_a_reused_session_generation(
             }
         )
     assert cleanup_model.session_record("codex-thread") == winner
-    assert service_model.PageTransaction(page_dir).status == status
+    assert status_and_stream(page_dir) == status
 
 
 @pytest.mark.parametrize("replacement", ["prompt", "stop"])
@@ -4061,7 +4058,7 @@ def test_an_old_fold_cannot_publish_working_or_tool_activity_after_its_turn(
     else:
         cleanup_model.close_session_turn("codex-thread", "old-turn")
         fold.clear_activity()
-    status = service_model.PageTransaction(page_dir).status
+    status = status_and_stream(page_dir)
     epoch = cleanup_model.session_record("codex-thread")
     fold.set_activity({"kind": "working"})
     fold.absorb(
@@ -4082,7 +4079,7 @@ def test_an_old_fold_cannot_publish_working_or_tool_activity_after_its_turn(
             },
         }
     )
-    assert service_model.PageTransaction(page_dir).status == status
+    assert status_and_stream(page_dir) == status
     assert cleanup_model.session_record("codex-thread") == epoch
 
 
@@ -4113,7 +4110,7 @@ def test_a_rejected_started_fold_cannot_publish_initial_working_activity(
             expected=cleanup_model.session_record("codex-thread"),
         )
         winner["epoch"] = cleanup_model.session_record("codex-thread")
-        winner["status"] = service_model.PageTransaction(page_dir).status
+        winner["status"] = status_and_stream(page_dir)
         return construct(turn_id, delivery_id, **scope)
 
     monkeypatch.setattr(connection, "_fold", supersede_before_construction)
@@ -4141,7 +4138,7 @@ def test_a_rejected_started_fold_cannot_publish_initial_working_activity(
             connection._start_delivery(socket, offered.payload)
     assert not connection.turns
     assert cleanup_model.session_record("codex-thread") == winner["epoch"]
-    assert service_model.PageTransaction(page_dir).status == winner["status"]
+    assert status_and_stream(page_dir) == winner["status"]
 
 
 def test_fresh_resume_replaces_a_fold_from_an_earlier_session_generation(page_dir):
@@ -4185,10 +4182,7 @@ def test_fresh_resume_replaces_a_fold_from_an_earlier_session_generation(page_di
     connection.turns["same-turn"].set_activity(
         {"kind": "tool", "detail": "New activity"}
     )
-    assert (
-        service_model.PageTransaction(page_dir).status["stream"]["activity"]["detail"]
-        == "New activity"
-    )
+    assert service_model.read_stream(page_dir)["activity"]["detail"] == "New activity"
     connection._read(
         {
             "method": "turn/completed",

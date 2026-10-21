@@ -8,14 +8,13 @@ import pytest
 from browser.threads import open_panel_thread
 from interact_support import (
     append_carried_log_record,
+    declare,
     record_claim,
     wait_for,
-    write_record,
 )
 from leaf import event_log as events_model
 from leaf import hosting as hosting_model
 from leaf import presence as presence_model
-from leaf import state as cleanup_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import SERVICE_FILE
 from playwright.sync_api import expect
@@ -2152,10 +2151,7 @@ def test_leaves_keep_focus_through_reordering_and_stay_in_the_list_on_removal(
         "focusedLeaf === document.activeElement && focusedLeaf.isConnected"
     )
 
-    write_record(
-        other_dir / "status.json",
-        {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
-    )
+    declare(other_dir, "idle")
     told(page)
     expect(rows).to_have_count(2)
     expect(rows.nth(1).locator(".lf-fp-label")).to_have_text("Middle leaf")

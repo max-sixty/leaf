@@ -2422,7 +2422,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
         "live": True,
         "error": None,
     }
-    assert state["data"] == {"file": "data.json", "dir": "data", "errors": []}
+    assert state["data"] == {"dir": "data", "errors": []}
     assert state["event_seq"] == events_model.read_events(page_dir)[-1]["seq"]
     # The one asking group: PAGE's own bare <lf-options> takes no `choose`. The obligation
     # names the region the user is sent to and the group that answers it.
@@ -2521,7 +2521,7 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
         "value": ["api", "worker"],
     }
     assert data_model.read_contracts(page_dir) == {"deployments": "deployment-rows"}
-    assert served["data"] == {"file": "data.json", "dir": "data", "errors": []}
+    assert served["data"] == {"dir": "data", "errors": []}
     assert served["data_bindings"] == {
         "deployments": {
             "contract": "deployment-rows",
@@ -2560,7 +2560,12 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
     # Any process may rewrite the value file, so a reading judges what it finds.
     stored.write_bytes(
         data_model.PUBLICATION.encode(
-            {"run": "2" * 32, "updated": cleanup_model.now_iso(), "value": "ready"}
+            {
+                "contract": "deployment-rows",
+                "run": "2" * 32,
+                "updated": cleanup_model.now_iso(),
+                "value": "ready",
+            }
         )
     )
     [error] = state_json(page_dir)["data"]["errors"]
@@ -2573,14 +2578,10 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
     )
     assert cleared.exit_code == 0, cleared.output
     assert not stored.exists()
-    assert state_json(page_dir)["data"] == {
-        "file": "data.json",
-        "dir": "data",
-        "errors": [],
-    }
-    assert read_page_data(page_dir)["sources"] == {
-        "deployments": {"contract": "deployment-rows"}
-    }
+    # Clearing removes the source whole, the contract it was set under included.
+    assert state_json(page_dir)["data"] == {"dir": "data", "errors": []}
+    assert read_page_data(page_dir)["sources"] == {}
+    assert data_model.read_contracts(page_dir) == {}
 
     unbound = runner.invoke(
         cli_model.cli,
@@ -2756,7 +2757,7 @@ def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
 
     data_model.cmd_data_set(page_dir, "reply-feed", [])
     served = state_json(page_dir)
-    assert served["data"] == {"file": "data.json", "dir": "data", "errors": []}
+    assert served["data"] == {"dir": "data", "errors": []}
     reading = read_page_data(page_dir)["sources"]["reply-feed"]
     assert (reading["contract"], reading["value"]) == ("rows", [])
     assert served["data_bindings"]["reply-feed"]["consumers"] == [
@@ -2827,10 +2828,9 @@ def test_thread_markup_can_use_a_different_binding_from_a_page_source(page_dir):
         structure_model.SourceDocument(reply["markup"]).lf_elements, captured
     )
     assert errors == [] and thread_bindings == {"project-feed": "other-rows"}
-    frozen = data_model.read_source(
-        page_dir, "project-feed", thread_bindings["project-feed"], captured
+    assert data_contracts_model.payload_error(
+        "project-feed", thread_bindings["project-feed"], active["value"], captured
     )
-    assert "error" in frozen and "value" not in frozen
     with pytest.raises(data_model.DataError, match="value is invalid"):
         data_model.cmd_data_set(page_dir, "project-feed", {"thread": "wrong producer"})
     assert read_page_data(page_dir)["sources"]["project-feed"] == active
@@ -2930,8 +2930,14 @@ def test_data_set_wraps_an_unproductive_recursive_schema(page_dir):
     # A value another process wrote is judged on reading by the same validator.
     data_model.write_data(
         page_dir,
-        {"loop": "loop"},
-        {"loop": {"run": "1" * 32, "updated": "2026-01-01T00:00:00Z", "value": {}}},
+        {
+            "loop": {
+                "contract": "loop",
+                "run": "1" * 32,
+                "updated": "2026-01-01T00:00:00Z",
+                "value": {},
+            }
+        },
     )
     assert read_page_data(page_dir)["sources"]["loop"]["error"] == (
         "source 'loop' contract 'loop' could not validate its value: "

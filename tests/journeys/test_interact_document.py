@@ -1008,7 +1008,7 @@ def test_a_page_source_can_be_shared_but_needs_one_simultaneous_contract(page_di
 
 @pytest.mark.parametrize("clear", [False, True])
 def test_a_later_version_can_reuse_a_source(page_dir, clear):
-    """A changed binding replaces the index's contract and value in one write.
+    """A changed binding replaces the publication's contract and value in one write.
     Captured old versions retain their own declaration and cannot accept new payloads.
     """
     declare_data_input(page_dir, "project-feed", {"type": "array"}, contract="rows")
@@ -1037,7 +1037,10 @@ def test_a_later_version_can_reuse_a_source(page_dir, clear):
     old_registry = data_contracts_model.read_revision(page_dir, 1).registry
     with pytest.raises(data_model.DataError, match="value is invalid"):
         data_model.cmd_data_set(page_dir, "project-feed", [])
-    assert data_model.read_contracts(page_dir) == {"project-feed": "rows"}
+    # A cleared source keeps no contract either.
+    assert data_model.read_contracts(page_dir) == (
+        {} if clear else {"project-feed": "rows"}
+    )
     stored = data_model.source_file(page_dir, "project-feed")
     assert (
         not stored.exists() if clear else json.loads(stored.read_text())["value"] == []

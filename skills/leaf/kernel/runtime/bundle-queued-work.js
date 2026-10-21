@@ -583,6 +583,14 @@ function threadNames(threads) {
 var editable = (message) => message.author === "user" && !message.pending && !message.token && Boolean(message.text);
 var bareReaction = (thread) => thread.bare_reaction;
 var discussed = (thread) => !bareReaction(thread);
+var hasUnread = (thread) => thread.unread.length > 0;
+function threadCounts(threads) {
+  const listed = threads.filter(discussed);
+  return {
+    open: listed.filter((thread) => !thread.resolved).length,
+    unread: listed.filter(hasUnread).length
+  };
+}
 var pendingSeat = (message) => message.about || !message.anchor || Object.keys(message.anchor).length !== 1 ? null : message.anchor.section ?? null;
 var sending = (turn) => ({
   kind: "waiting",
@@ -2574,6 +2582,8 @@ export {
   editable,
   bareReaction,
   discussed,
+  hasUnread,
+  threadCounts,
   reactionsAt,
   seatRoot,
   moved,

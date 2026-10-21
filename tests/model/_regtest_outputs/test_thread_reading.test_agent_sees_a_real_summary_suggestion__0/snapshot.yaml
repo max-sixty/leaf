@@ -15,7 +15,7 @@ delivery:
   batches:
     - page: <page>
       claim: <claim-session>
-      through_seq: 8
+      through_seq: 9
       threads:
         - id: event-2
           title: null
@@ -102,9 +102,9 @@ delivery:
           parent: event-2
           text: >-
             What do you recommend now?
-          id: event-8
+          id: event-9
           ts: <time>
-          seq: 8
+          seq: 9
           subject:
             kind: thread
             id: event-2
@@ -112,7 +112,7 @@ delivery:
           handling: [h1, h2, h3, h4, h5]
           answer:
             kind: reply
-            parent: event-8
-            responds: event-8
-            ref: <delivery>:0:event-8
+            parent: event-9
+            responds: event-9
+            ref: <delivery>:0:event-9
             writer: agent

@@ -13,23 +13,13 @@ on a board. Both surfaces must read and write the same canonical value.
 
 ## The settled owner
 
-An obligation contains its prompt, typed answer, lifecycle and source. A widget owns
-its canonical answer state; an `lf-ask` around it is an optional enclosing widget
-(`x-awaits.encloses`), alongside other obligation consumers. It owns neither another answer
-nor the obligation's identity.
-
-`readObligations()` exposes `obligation.answer.value` directly. A board can already
-read that collection, group answers by value, and open their sources through
-`obligationActions.open(obligation.id)`. It does not parse display labels or keep
-another answer collection. Multiple selection and partial values need an explicit
-board projection policy.
-
-The source's registry declaration chooses the answer verb with `x-awaits.value`;
-`x-awaits.answered` separately defines completion. Obligations, to-dos and card order
-remain different facts. The current contract lives in
-`skills/leaf/references/module-reading.md`, "Reading obligations and the
-On lists", and `skills/leaf/references/packages.md`. `obligations.py` owns the server
-inventory.
+A widget owns its canonical answer, and a board reads it through `readObligations()`
+(`obligation.answer.value`) and opens its source with `obligationActions.open`; it
+parses no labels and keeps no answer collection of its own.
+`skills/leaf/references/module-reading.md`, "Reading obligations and the On lists",
+and `skills/leaf/references/package-data.md` (`x-awaits`) hold the contract, and
+`obligations.py` the server inventory. Multiple selection and partial values still
+need an explicit board projection policy.
 
 ## What a board write still needs
 

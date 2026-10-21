@@ -499,6 +499,7 @@ import {
   bareReaction,
   bindQueuedWork,
   carriesObligation,
+  hasUnread,
   html,
   itemNoun,
   itemOutcome,
@@ -509,6 +510,7 @@ import {
   render,
   repeat,
   sameAnchor,
+  threadCounts,
   threadKey,
   threadNames
 } from "./runtime/bundle-queued-work.js";
@@ -5687,7 +5689,7 @@ function pageStatus(state, { reach: reach2 = "reached", fault: fault2 = null } =
   if (reach2 !== "reached")
     return {
       kind: "unreachable",
-      tone: "",
+      tone: "blocked",
       summary: "Server offline \u2014 reconnecting",
       explanation: OFFLINE_LINE,
       adds: ""
@@ -6489,7 +6491,7 @@ function createFloatingPanel({
   let query = "";
   let searching = false;
   let writing = false;
-  let typing = false;
+  let drafted = false;
   let postureMoved = true;
   let landAtEnd = null;
   const drawnTurns = () => outletOf()?.querySelectorAll(".lf-msg").length ?? 0;
@@ -6614,7 +6616,7 @@ function createFloatingPanel({
   const fieldInput = () => field.firstElementChild !== replyOutlet ? pageEditor().input : replyOutlet.hidden ? null : replyInput();
   function retype() {
     postureMoved = true;
-    if (Boolean(draftOf(fieldInput()).trim()) !== typing) paint();
+    if (Boolean(draftOf(fieldInput()).trim()) !== drafted) paint();
   }
   field.addEventListener("input", retype);
   let pressedWords = null;
@@ -6650,9 +6652,8 @@ function createFloatingPanel({
     const thread = threadByKey(key);
     return thread ? threadName(thread) : "this thread";
   };
-  const unread = (thread) => thread.unread.length > 0;
-  const newCount = () => inventoried() ? threads().filter(unread).length : 0;
-  const openCount = () => inventoried() ? threads().filter((thread) => !thread.resolved).length : null;
+  const newCount = () => inventoried() ? threadCounts(threads()).unread : 0;
+  const openCount = () => inventoried() ? threadCounts(threads()).open : null;
   const onUserCount = () => {
     const queues = readQueues();
     return queues.phase === "ready" ? queues.on_user.length : 0;
@@ -6666,7 +6667,7 @@ function createFloatingPanel({
       drafts: "Draft"
     }[shownBy];
     return [
-      unread(thread) && "New",
+      hasUnread(thread) && "New",
       state,
       draftHasContent(replyContext(thread.key)) && "Draft"
     ].filter((word2) => word2 && word2 !== said).join(" \xB7 ");
@@ -6988,9 +6989,10 @@ function createFloatingPanel({
     if (press?.landed) queueMicrotask(() => judgePress(press));
   });
   const inRewrite = (node) => Boolean(node && closestAcross(node, ".lf-msg-editor"));
+  const overPanel = (node) => Boolean(node) && nativeModalAdmits(node) && !nativeModalAdmits(host);
   onStanding((node, cause) => {
     const top = trail.value.at(-1);
-    if (top?.view !== "thread" || cause === "drop") return;
+    if (top?.view !== "thread" || cause === "drop" || overPanel(node)) return;
     const view = openView();
     const writing2 = inRewrite(node) && Boolean(view) && renderedUnder(node, view);
     if (writing2 === rewriting) return;
@@ -7492,7 +7494,7 @@ function createFloatingPanel({
         ].join(" ").toLowerCase();
         return text.includes(words);
       }
-      if (filter === "unread") return unread(thread);
+      if (filter === "unread") return hasUnread(thread);
       if (filter === "drafts") return draftHasContent(replyContext(thread.key));
       if (filter === "resolved") return thread.resolved;
       return !thread.resolved;
@@ -7515,7 +7517,7 @@ function createFloatingPanel({
                   type="button"
                   class="lf-fp-thread"
                   data-key=${thread.key}
-                  ?data-unread=${unread(thread)}
+                  ?data-unread=${hasUnread(thread)}
                   ?data-resolved=${thread.resolved}
                   ?data-yours=${threadAttention(thread)?.kind === "needs_user"}
                   @click=${() => open({ view: "thread", thread: thread.key })}
@@ -8316,12 +8318,12 @@ function createFloatingPanel({
     const input = fieldInput();
     if (input) syncInput(input);
     keeps(host, "data-writing", writing ? "" : null);
-    const typed = writing && Boolean(draftOf(input).trim());
-    if (postureMoved || !typed) typing = typed;
+    const words = Boolean(draftOf(input).trim());
+    if (postureMoved || !words) drafted = words;
     postureMoved = false;
-    keeps(host, "data-typing", typing ? "" : null);
-    keeps(host, "data-words", draftOf(input).trim() ? "" : null);
-    if (!draftOf(input).trim()) expanded = false;
+    keeps(host, "data-drafted", drafted ? "" : null);
+    keeps(host, "data-words", words ? "" : null);
+    if (!words) expanded = false;
     const marked = (long || expanded) && !resting;
     keeps(host, "data-long", marked ? "" : null);
     keeps(host, "data-expanded", expanded ? "" : null);
@@ -8669,7 +8671,6 @@ function createFloatingPanel({
     const next = inside ? writing || node.localName === "leaf-text" : false;
     if (next === writing && !inside) return;
     writing = next;
-    postureMoved = true;
     paint();
   });
   document.addEventListener(

@@ -9,11 +9,11 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     append_carried_log_record,
+    declare,
     declare_work,
     end_work,
     record_claim,
     working,
-    write_record,
 )
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
@@ -572,18 +572,12 @@ def test_the_tab_wears_what_the_leaf_says(browser, serve, tmp_path, dead_pid):
                 + shown(page.lf_errors)
             )
 
-    def declare(state, **status):
-        write_record(
-            d / "status.json",
-            {"state": state, "detail": "", "ts": cleanup_model.now_iso(), **status},
-        )
-        told(page)
-
     declare_work(d, "Writing the page")
     told(page)
     working = tone("working", "working")
     end_work(d)
-    declare("waiting")
+    declare(d)
+    told(page)
     with live_watcher(d, page):
         awaits = tone("listening", "awaits")
     # The distinctness is the half agreement alone can't prove: a tab painted once and

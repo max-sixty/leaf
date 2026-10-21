@@ -95,7 +95,10 @@
  * the menu to the panel's top. A
  * keyboard's convenience for where the reader stands, such as Resume writing, stands
  * under Navigate only where no keyboard is there to reach it (page-controls.js, the
- * `keys` group). The field the user clicks in is the field they write in: a page
+ * `keys` group). The panel shows no key hints of its own: the menu's rows carry their
+ * keys and `?` opens the full reference, which the user chose on 13 October over a
+ * hint or two in the line over the field, to keep the panel quietest. The field the
+ * user clicks in is the field they write in: a page
  * comment where no thread is open, a reply where one is: the reply box every view of a
  * thread draws (thread/replies.js), with its ↑ to the user's last message, which Leaf's
  * reader draws in the field's place. Each destination keeps its own native editor (its
@@ -106,9 +109,8 @@
  * menu holds what it showed while it stands, and a control the user pressed stays where
  * it was. Every change of the box's size takes effect in
  * one step, and the surface behind it, a separate layer, follows by a clip from where it
- * stood to where it stands, the way the Codex app's floating panel moves
- * (`notes/floating-panel/GOAL.md`): nothing's layout tweens, so nothing a user aims at
- * travels after the gesture that moved it. */
+ * stood to where it stands, the way the Codex app's floating panel moves: nothing's
+ * layout tweens, so nothing a user aims at travels after the gesture that moved it. */
 import {
   html,
   keyed as keyedBy,
@@ -137,6 +139,7 @@ import { keySequenceModel, keySequenceTemplate } from "./keyboard/key-sequence.j
 import { pageControls, watchPageControls } from "./page-controls.js";
 import { readPlace } from "./history.js";
 import { readThreads } from "./thread/state.js";
+import { hasUnread, threadCounts } from "./thread/model.js";
 import { watchProjection } from "./projection-watch.js";
 import { threadAttention, workflowStep } from "./thread/workflow.js";
 import { messageReading, threadName } from "./thread/messages.js";
@@ -517,12 +520,16 @@ export function createFloatingPanel({
   let query = "";
   let searching = false;
   let writing = false;
-  // Whether the user is typing, as the row last showed it: Send in the field's corner,
-  // the counts stepped aside. The row takes that posture, or gives it up, only at the
-  // user's own move: typing, coming into or leaving the field, a view changing. Words
-  // a refused send hands back move nothing, so its action stays in the seat the empty
-  // field gave it, Dictate's, until the user types again; emptied words always end it.
-  let typing = false;
+  // Whether the field holds a draft, as the row last showed it: Send in the field's
+  // corner, the counts stepped aside. The row takes that posture, or gives it up, only
+  // at the user's own move: typing, or a view changing, which stands another editor in
+  // the field. The caret coming into or leaving the field moves nothing, so a draft the
+  // user steps away from keeps every line where it was. The user chose this on 20
+  // October over the counts coming back as the caret left, which rewrapped the draft
+  // each time the user stepped out and again as they came back. Words a refused send
+  // hands back move nothing, so its action stays in the seat the empty field gave it,
+  // Dictate's, until the user types again; emptied words always end it.
+  let drafted = false;
   let postureMoved = true;
   // The thread the reader lands at the end of, once Leaf has drawn more than `after`
   // of its messages: the whole of it on opening, or past the turn the user just sent.
@@ -717,7 +724,7 @@ export function createFloatingPanel({
   // Words arriving in an empty field, or the last of them going, re-seat the row.
   function retype() {
     postureMoved = true;
-    if (Boolean(draftOf(fieldInput()).trim()) !== typing) paint();
+    if (Boolean(draftOf(fieldInput()).trim()) !== drafted) paint();
   }
   field.addEventListener("input", retype);
   // A press on the page's editor while words stand selected on the page comments on
@@ -781,10 +788,8 @@ export function createFloatingPanel({
     const thread = threadByKey(key);
     return thread ? threadName(thread) : "this thread";
   };
-  const unread = (thread) => thread.unread.length > 0;
-  const newCount = () => (inventoried() ? threads().filter(unread).length : 0);
-  const openCount = () =>
-    inventoried() ? threads().filter((thread) => !thread.resolved).length : null;
+  const newCount = () => (inventoried() ? threadCounts(threads()).unread : 0);
+  const openCount = () => (inventoried() ? threadCounts(threads()).open : null);
   const onUserCount = () => {
     const queues = readQueues();
     return queues.phase === "ready" ? queues.on_user.length : 0;
@@ -802,7 +807,7 @@ export function createFloatingPanel({
       drafts: "Draft",
     }[shownBy];
     return [
-      unread(thread) && "New",
+      hasUnread(thread) && "New",
       state,
       draftHasContent(replyContext(thread.key)) && "Draft",
     ]
@@ -1290,9 +1295,15 @@ export function createFloatingPanel({
     if (press?.landed) queueMicrotask(() => judgePress(press));
   });
   const inRewrite = (node) => Boolean(node && closestAcross(node, ".lf-msg-editor"));
+  // A modal over the panel, such as the image viewer opened from a rewrite's attachment,
+  // is a layer the user steps into from the panel, which hands them back as it closes:
+  // standing in it leaves them rewriting, so the view keeps the height it holds for the
+  // rewrite behind the modal and on the way back.
+  const overPanel = (node) =>
+    Boolean(node) && nativeModalAdmits(node) && !nativeModalAdmits(host);
   onStanding((node, cause) => {
     const top = trail.value.at(-1);
-    if (top?.view !== "thread" || cause === "drop") return;
+    if (top?.view !== "thread" || cause === "drop" || overPanel(node)) return;
     const view = openView();
     const writing = inRewrite(node) && Boolean(view) && renderedUnder(node, view);
     if (writing === rewriting) return;
@@ -2010,7 +2021,7 @@ export function createFloatingPanel({
           .toLowerCase();
         return text.includes(words);
       }
-      if (filter === "unread") return unread(thread);
+      if (filter === "unread") return hasUnread(thread);
       if (filter === "drafts") return draftHasContent(replyContext(thread.key));
       if (filter === "resolved") return thread.resolved;
       return !thread.resolved;
@@ -2038,7 +2049,7 @@ export function createFloatingPanel({
                   type="button"
                   class="lf-fp-thread"
                   data-key=${thread.key}
-                  ?data-unread=${unread(thread)}
+                  ?data-unread=${hasUnread(thread)}
                   ?data-resolved=${thread.resolved}
                   ?data-yours=${threadAttention(thread)?.kind === "needs_user"}
                   @click=${() => open({ view: "thread", thread: thread.key })}
@@ -3193,14 +3204,14 @@ export function createFloatingPanel({
     const input = fieldInput();
     if (input) syncInput(input);
     keeps(host, "data-writing", writing ? "" : null);
-    // While the user types, Send stands in the field's corner and the counts step
-    // aside for the field.
-    const typed = writing && Boolean(draftOf(input).trim());
-    if (postureMoved || !typed) typing = typed;
+    // While the field holds a draft, Send stands in its corner and the counts step
+    // aside for it (`drafted`).
+    const words = Boolean(draftOf(input).trim());
+    if (postureMoved || !words) drafted = words;
     postureMoved = false;
-    keeps(host, "data-typing", typing ? "" : null);
-    keeps(host, "data-words", draftOf(input).trim() ? "" : null);
-    if (!draftOf(input).trim()) expanded = false;
+    keeps(host, "data-drafted", drafted ? "" : null);
+    keeps(host, "data-words", words ? "" : null);
+    if (!words) expanded = false;
     // The mark stays while the field is wide, where the draft may fit three lines again.
     const marked = (long || expanded) && !resting;
     keeps(host, "data-long", marked ? "" : null);
@@ -3662,11 +3673,10 @@ export function createFloatingPanel({
     const next = inside ? writing || node.localName === "leaf-text" : false;
     if (next === writing && !inside) return;
     writing = next;
-    postureMoved = true;
     paint();
   });
   // A press on the page puts away what stands open above the row. A press in a modal
-  // over the panel, such as the image viewer opened from a draft, is not on the page.
+  // over the panel is not on the page (`overPanel`).
   document.addEventListener(
     "pointerdown",
     (event) => {

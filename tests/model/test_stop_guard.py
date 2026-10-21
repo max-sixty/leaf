@@ -20,12 +20,14 @@ from interact_support import (
     _interaction_prompt_evidence,
     _start,
     _watched,
+    acknowledged_through,
     append_carried_log_record,
     append_command,
     codex_records,
     consume_pending_input,
     continued,
     declare_idle,
+    declared,
     delivered_ref,
     delivery_through,
     end_work,
@@ -38,7 +40,6 @@ from interact_support import (
     page_state,
     publish,
     queue_board_registry,
-    read_record,
     receive_through,
     record_claim,
     response_reference,
@@ -157,7 +158,9 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     # Pending output still has to cross context: the remedy is to poll the wait
     # already running, and nothing tells this task to start one in the background.
     # The delivery the poll yields says how this harness acknowledges it.
-    append_carried_log_record(page, {"kind": "comment", "author": "user", "text": "hi"})
+    comment = append_carried_log_record(
+        page, {"kind": "comment", "author": "user", "text": "hi"}
+    )
     lease = leases_model.take_lease(leases_model.waiter_lease_path(page, session["id"]))
     assert lease
     hooks_model.cmd_hook(
@@ -174,16 +177,13 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     assert "background" not in acknowledge
     leases_model.release_lease(lease)
 
-    receive_through(page, 1)
+    receive_through(page, comment["seq"])
     # Answered before the page closes: an acknowledged comment with nothing
     # under it holds the turn on its own account, which is the subject of
     # test_an_acknowledged_comment_nobody_answered_holds_the_turn.
     thread_model.post_reply(
         page,
-        {
-            "parent": events_model.read_events(page)[0]["id"],
-            "responds": events_model.read_events(page)[0]["id"],
-        },
+        {"parent": comment["id"], "responds": comment["id"]},
         "so it does",
     )
     declare_idle(page)
@@ -218,7 +218,7 @@ def test_stop_hook_does_not_borrow_a_foreign_bare_waiter_lease(page_dir, monkeyp
 
 def test_stop_hook_holds_a_turn_only_where_nothing_will_watch_its_page(claimed, capsys):
     """Between turns a page is either watched or idle. Under Claude Code the
-    watch is Leaf's own background Stop hook, which the turn's ending starts, so a
+    watch is the one Leaf's hooks module starts as the turn ends, so a
     turn ends over a page nothing watches yet. A watcher that is a process of its
     own, as a Codex task's adapter is, has to be running before the turn may end:
     without it the page keeps saying "Codex is working" over nobody."""
@@ -634,7 +634,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     assert "1 event nobody has picked up" in refused.output
     # The claimant's harness names the remedy: Claude Code's hook carries them.
     assert "Leaf's hook puts them in your context" in refused.output
-    assert service_model.read_status(claimed)["state"] != "idle"
+    assert declared(claimed)["state"] != "idle"
 
     # An explicit wait hands the input to its reader, which confirms it. Reading
     # it is not answering it: idle holds until the thread has something under it.
@@ -644,7 +644,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     refused = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
     assert refused.exit_code == 1
     assert "1 acknowledged user update with no answer" in refused.output
-    assert service_model.read_status(claimed)["state"] != "idle"
+    assert declared(claimed)["state"] != "idle"
 
     comment = events_model.read_events(claimed)[0]["id"]
     assert (
@@ -822,7 +822,7 @@ cli_model.cli()
     out, err = process.communicate(timeout=STATED_TIMEOUT)
     assert process.returncode == 1, f"{out}{err}"
     assert "1 event nobody has picked up" in err
-    assert read_record(page_dir / "status.json")["state"] == "waiting"
+    assert declared(page_dir)["state"] == "waiting"
 
 
 def test_a_reaction_holds_no_turn_as_an_unanswered_obligation(claimed, capsys):
@@ -1074,7 +1074,7 @@ def test_a_stop_keeps_the_turn_going_only_for_owed_input(claimed, capsys):
         event["id"]
         for event in service_model.unacknowledged(
             events_model.read_events(claimed),
-            read_record(claimed / "cursor.json")["seq"],
+            acknowledged_through(claimed),
         )
     ] == [resolve["id"]]
 
@@ -1125,7 +1125,7 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
             )
             delivery_model.receive(original, "prior")
             codex_loop(page_dir)
-        cursor = events_model.read_cursor(page_dir)
+        cursor = acknowledged_through(page_dir)
         deliveries = set(
             delivery_model.state_home().joinpath("deliveries").glob("*.json")
         )
@@ -1166,7 +1166,7 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
             assert envelope["id"] != original["id"]
             [(offered, _)] = codex_records("codex-thread")
             assert offered.stem == envelope["id"]
-        assert events_model.read_cursor(page_dir) == cursor
+        assert acknowledged_through(page_dir) == cursor
         [batch] = envelope["batches"]
         [event] = batch["events"]
         assert event["id"] == latest["id"]

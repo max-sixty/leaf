@@ -812,7 +812,7 @@ def test_an_on_me_card_stands_at_its_ask(browser, serve):
     page.locator(".lf-fp-on-user").click()
     panel_settled(page, view="queue")
     card = page.locator(""".lf-fp-on-item[data-key='["widget","widget:store"]']""")
-    card.focus()
+    card.locator(".lf-fp-on-line").focus()
     expect(page.locator("#store-ask")).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("2")
     expect(page.locator("#store-cookie")).to_have_attribute("chosen", "")

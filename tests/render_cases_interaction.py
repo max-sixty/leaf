@@ -682,10 +682,10 @@ MESSAGE_ROOM_PAGE = leaf_page(
 )
 
 
-# What each card of the panel's On me view says: its obligation's kind and id (queue-api.js,
+# What each line of the panel's On me view says: its obligation's kind and id (queue-api.js,
 # `queueItemKey`), the list it stands in ("you", "agent" or "done"), its title, its
-# prompt and what it says of its ending (such as "Answered: …"), each null where the
-# card has none, and its box.
+# prompt while its card is open, and what it says of its ending (such as "Answered: …"),
+# each null where the line has none, and its box.
 ON_ITEM_SAYS = """() => [...document.querySelectorAll(
     '.lf-fp-view[data-view="queue"]:not([data-leaving]) .lf-fp-on-item')].map((c) => ({
   kind: JSON.parse(c.dataset.key)[0],

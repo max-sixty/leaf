@@ -1,6 +1,22 @@
 /* The On me walk: `m` and Shift+`m` page through everything waiting on the user,
-   in page order: the list the floating panel's On me view shows. The view opens with
-   `g M`, as Threads opens with `g T` and `t` walks the threads.
+   in the order the floating panel's On me view lists it (`onMeGroups`). The view opens
+   with `g M`, as Threads opens with `g T` and `t` walks the threads.
+
+   On me groups its items one of three ways, which the user picks at the view's foot
+   and the browser keeps for every page (storage.js, `userChoice`): By place, under the
+   heading of the part of the page each stands in (thread/placement.js, `headingOver`);
+   By kind, under the walk's word for each (`queueStop`); and By <agent>, under the
+   goals of the agent's plan whose steps name them, with those no goal names last.
+   Until the user picks, a plan that gives the user a step groups By <agent>, else By
+   place. Groups stand in the order their first item comes in page order, a plan's
+   goals in the plan's order and a goal's items in its steps' order, and the walk steps
+   through the groups' items in that one order, so successive presses reach successive
+   rows of the list. The user chose groupings to choose from, the agent's plan among
+   them, on 21 October 2026, over Leaf ordering by what the plan waits on, an agent's
+   note with picks, and a priority on every obligation, each of which needed a new
+   contract or a guess. A step from no item on the list, from where the user reads,
+   still goes to the first item in that order that stands after their place
+   (`stepFrom`), so under By kind or By <agent> it may not be the nearest one below.
 
    What waits on the user is the application's one reading, `queues.on_user`
    (the server's `served_state.queues`, with this tab's sends placed against it): each open
@@ -41,8 +57,7 @@
    page. An item with no place on the page, a general thread or one whose passage is
    gone, comes after every placed one in the list's own order, as the t/T walk reaches
    such threads from its list's ends. A step past either end comes round to the other.
-   On me lists its items in this order too (`inWalkOrder`), so successive presses
-   reach successive cards.
+   Each grouping orders its items within a group by page order (`inWalkOrder`).
 
    The walk can also step within one region of the page (`obligationActions.next`, as an
    `lf-tally`'s Next on me presses it): its stops are then the obligations waiting on the user
@@ -77,9 +92,13 @@ import { byRenderedOrder, under } from "./shadow.js";
 import { obligationWord } from "./obligations/answer.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
 import { obligationsIn, obligationPlace } from "./obligations/place.js";
-import { readQueues, queueItemKey } from "./queue-api.js";
+import { readPlan, readQueues, queueItemKey } from "./queue-api.js";
 import { carriesObligation, itemNoun } from "./queues.js";
 import { drawnThreadId } from "./thread/selectors.js";
+import { headingOver } from "./thread/placement.js";
+import { addressableLabel } from "./addressable-names.js";
+import { userChoice } from "./storage.js";
+import { agentName } from "./semantic-state.js";
 import { watchProjection } from "./projection-watch.js";
 import { retainUserIntent } from "./user-intent.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
@@ -133,6 +152,23 @@ export function queueStop(item) {
   return { ...stop, key: `${stop.kind}:${stop.id}`, noun: nounOf(item, stop) };
 }
 
+// On me's groupings, in the order its chooser offers them, and the one the user chose.
+export const ON_ME_GROUPINGS = Object.freeze(["place", "kind", "plan"]);
+const chosenGrouping = userChoice("lf-on-me-grouping", ON_ME_GROUPINGS);
+export const groupingLabel = (grouping) =>
+  grouping === "plan"
+    ? `By ${agentName()}`
+    : grouping === "kind"
+      ? "By kind"
+      : "By place";
+// The ids of the items a plan step names, its own and its steps', in the plan's order;
+// and whether a step, or one under it, is the user's.
+const namedIn = (step) => [
+  ...(step.item ? [step.item.id] : []),
+  ...step.steps.flatMap(namedIn),
+];
+const givesUser = (step) => step.owner === "user" || step.steps.some(givesUser);
+
 // The page's head, where a to-do on the page as a whole is arrived at: its first
 // top-level heading, or its first element.
 const pageHead = () =>
@@ -176,10 +212,64 @@ export function createQueueWalk({
   const inWalkOrder = (items) =>
     byRenderedOrder(items, (item) => pagePlace(queueStop(item)));
 
+  // How On me groups now: the user's choice, else By <agent> where the plan gives the
+  // user a step, which stays so as the user answers it, else By place.
+  const grouping = () =>
+    chosenGrouping.read() ??
+    ((readPlan()?.steps ?? []).some(givesUser) ? "plan" : "place");
+  // The heading of the part of the page an item stands in, and what it says.
+  const itemHeading = (item) => {
+    const at = pagePlace(queueStop(item));
+    return at ? headingOver(at) : null;
+  };
+  const itemPlace = (item) => {
+    const heading = itemHeading(item);
+    return heading ? addressableLabel(heading) : "";
+  };
+  // `items` in On me's groups (`grouping`), each a heading's `title` over its items:
+  // the list's one order, which the walk follows too.
+  function onMeGroups(items, by = grouping()) {
+    const ordered = inWalkOrder(items);
+    if (by === "plan") {
+      const goals = readPlan()?.steps ?? [];
+      const named = goals.map(namedIn);
+      const groups = goals.map((goal, at) => ({
+        key: `goal:${at}`,
+        title: goal.title ?? `Goal ${at + 1}`,
+        items: [],
+      }));
+      const rest = { key: "goal:none", title: "Not in the plan", items: [] };
+      for (const item of ordered) {
+        const at = named.findIndex((ids) => ids.includes(item.id));
+        (at < 0 ? rest : groups[at]).items.push(item);
+      }
+      groups.forEach((group, at) =>
+        group.items.sort((a, b) => named[at].indexOf(a.id) - named[at].indexOf(b.id)),
+      );
+      return [...groups, rest].filter((group) => group.items.length);
+    }
+    // A group per heading, or per word, in the order its first item comes, keyed by
+    // the heading itself, so a heading moving keeps its group, and its lines, drawn.
+    const groups = new Map();
+    for (const item of ordered) {
+      const at = by === "kind" ? queueStop(item).noun : itemHeading(item);
+      if (!groups.has(at))
+        groups.set(at, {
+          key: by === "kind" ? `kind:${at}` : (at ?? "place"),
+          title: by === "kind" ? at : at ? addressableLabel(at) : "The whole page",
+          items: [],
+        });
+      groups.get(at).items.push(item);
+    }
+    return [...groups.values()];
+  }
+
   function stops() {
     const list = [];
     const listed = new Set();
-    for (const item of inWalkOrder(readQueues().on_user)) {
+    for (const item of onMeGroups(readQueues().on_user).flatMap(
+      (group) => group.items,
+    )) {
       const stop = queueStop(item);
       // Two items arrived at in one place, such as two to-dos on one thread, are one
       // stop.
@@ -455,5 +545,14 @@ export function createQueueWalk({
       : walk(toward, within, here);
   }
 
-  return { mount, arriveAtItem, arrivesAt, inWalkOrder, nextWithin };
+  // On me's list as the panel draws it: its groups, the grouping they stand in and the
+  // user's choice of it, and the heading each item's row names as its place.
+  const onMe = Object.freeze({
+    groups: onMeGroups,
+    grouping,
+    choose: (value) => chosenGrouping.write(value),
+    place: itemPlace,
+  });
+
+  return { mount, arriveAtItem, arrivesAt, onMe, nextWithin };
 }

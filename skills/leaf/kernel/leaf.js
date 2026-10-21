@@ -32,6 +32,7 @@ import {
   declareThreadKeys,
   fabBar,
   fabInput,
+  headingOver,
   inPageOrder,
   initializeServedDocument,
   keepPageRulesOffLayer,
@@ -175,11 +176,14 @@ import {
   threadHeading,
   threadList,
   threadName,
+  todoLabel,
   touchPresses,
   upgradeWidgets,
+  userChoice,
   walkOrigin,
   walkPosition,
   walkPositionLabel,
+  workflowLabel,
   workflowStep
 } from "./runtime/bundle-user-intent.js";
 import {
@@ -218,6 +222,7 @@ import {
 } from "./runtime/bundle-page-controls.js";
 import {
   ADDRESSABLE,
+  addressableLabel,
   addressableSays,
   addressableWord,
   aimTargetAt,
@@ -501,6 +506,7 @@ import {
   carriesObligation,
   hasUnread,
   html,
+  isNews,
   itemNoun,
   itemOutcome,
   keyed,
@@ -6024,6 +6030,14 @@ function queueStop(item) {
   const stop = stopOf(item);
   return { ...stop, key: `${stop.kind}:${stop.id}`, noun: nounOf(item, stop) };
 }
+var ON_ME_GROUPINGS = Object.freeze(["place", "kind", "plan"]);
+var chosenGrouping = userChoice("lf-on-me-grouping", ON_ME_GROUPINGS);
+var groupingLabel = (grouping) => grouping === "plan" ? `By ${agentName()}` : grouping === "kind" ? "By kind" : "By place";
+var namedIn = (step) => [
+  ...step.item ? [step.item.id] : [],
+  ...step.steps.flatMap(namedIn)
+];
+var givesUser = (step) => step.owner === "user" || step.steps.some(givesUser);
 var pageHead = () => [...document.querySelectorAll("h1")].find((heading) => !inChrome(heading)) ?? pageDocument() ?? document.body.firstElementChild;
 function createQueueWalk({
   arriveAtRecord,
@@ -6042,10 +6056,54 @@ function createQueueWalk({
     return at?.isConnected && !inChrome(at) ? at : null;
   };
   const inWalkOrder = (items2) => byRenderedOrder(items2, (item) => pagePlace(queueStop(item)));
+  const grouping = () => chosenGrouping.read() ?? ((readPlan()?.steps ?? []).some(givesUser) ? "plan" : "place");
+  const itemHeading = (item) => {
+    const at = pagePlace(queueStop(item));
+    return at ? headingOver(at) : null;
+  };
+  const itemPlace = (item) => {
+    const heading = itemHeading(item);
+    return heading ? addressableLabel(heading) : "";
+  };
+  function onMeGroups(items2, by = grouping()) {
+    const ordered = inWalkOrder(items2);
+    if (by === "plan") {
+      const goals = readPlan()?.steps ?? [];
+      const named = goals.map(namedIn);
+      const groups2 = goals.map((goal, at) => ({
+        key: `goal:${at}`,
+        title: goal.title ?? `Goal ${at + 1}`,
+        items: []
+      }));
+      const rest = { key: "goal:none", title: "Not in the plan", items: [] };
+      for (const item of ordered) {
+        const at = named.findIndex((ids) => ids.includes(item.id));
+        (at < 0 ? rest : groups2[at]).items.push(item);
+      }
+      groups2.forEach(
+        (group, at) => group.items.sort((a, b) => named[at].indexOf(a.id) - named[at].indexOf(b.id))
+      );
+      return [...groups2, rest].filter((group) => group.items.length);
+    }
+    const groups = /* @__PURE__ */ new Map();
+    for (const item of ordered) {
+      const at = by === "kind" ? queueStop(item).noun : itemHeading(item);
+      if (!groups.has(at))
+        groups.set(at, {
+          key: by === "kind" ? `kind:${at}` : at ?? "place",
+          title: by === "kind" ? at : at ? addressableLabel(at) : "The whole page",
+          items: []
+        });
+      groups.get(at).items.push(item);
+    }
+    return [...groups.values()];
+  }
   function stops() {
     const list = [];
     const listed2 = /* @__PURE__ */ new Set();
-    for (const item of inWalkOrder(readQueues().on_user)) {
+    for (const item of onMeGroups(readQueues().on_user).flatMap(
+      (group) => group.items
+    )) {
       const stop = queueStop(item);
       if (listed2.has(stop.key)) continue;
       listed2.add(stop.key);
@@ -6239,7 +6297,13 @@ function createQueueWalk({
     const shown = items2.map((item) => obligationPlace(item).node).find((node) => node && seenRect(node, clips));
     return shown ? walk(toward, within, { place: shown, kind: "at" }) : walk(toward, within, here);
   }
-  return { mount, arriveAtItem, arrivesAt, inWalkOrder, nextWithin };
+  const onMe = Object.freeze({
+    groups: onMeGroups,
+    grouping,
+    choose: (value) => chosenGrouping.write(value),
+    place: itemPlace
+  });
+  return { mount, arriveAtItem, arrivesAt, onMe, nextWithin };
 }
 
 // runtime/keyboard/status-context.js
@@ -6318,7 +6382,7 @@ function createFloatingPanel({
   obligations: obligationView,
   queueActions,
   arrivesAt,
-  inWalkOrder,
+  onMe,
   withdraw,
   settlement,
   placedAt,
@@ -7214,6 +7278,8 @@ function createFloatingPanel({
     const reading = [before, after2].some((route) => route?.view === "thread");
     if (after2?.view !== "queue") {
       seated = null;
+      openItem = null;
+      planShown = false;
       seatHeights.clear();
     }
     const changed = (before ? routeKey(before) : null) !== (after2 ? routeKey(after2) : null);
@@ -7590,7 +7656,7 @@ function createFloatingPanel({
         ].join(" ").toLowerCase();
         return text.includes(words);
       }
-      if (filter === "unread") return hasUnread(thread);
+      if (filter === "unread") return isNews(thread);
       if (filter === "drafts") return draftHasContent(replyContext(thread.key));
       if (filter === "resolved") return thread.resolved;
       return !thread.resolved;
@@ -7637,7 +7703,7 @@ function createFloatingPanel({
   const shownView = () => stage.querySelector(".lf-fp-view:not([data-leaving])");
   const LIST_ROWS = Object.freeze({
     threads: ".lf-fp-thread",
-    queue: ".lf-fp-on-item",
+    queue: ".lf-fp-on-line",
     leaves: ".lf-fp-page[href]"
   });
   const listRows = () => {
@@ -7775,17 +7841,31 @@ function createFloatingPanel({
   }
   let queueTab = "you";
   let seated = null;
+  let openItem = null;
   const seatHeights = /* @__PURE__ */ new Map();
+  let planShown = false;
   const QUEUE_TABS = Object.freeze({ you: "user", agent: "agent" });
-  const queueTabs = () => readPlan()?.steps.length || queueTab === "plan" ? [...Object.keys(QUEUE_TABS), "plan"] : Object.keys(QUEUE_TABS);
+  const AGENT_LAYOUTS = Object.freeze(["list", "summary"]);
+  const agentLayout = userChoice("lf-on-agent-layout", AGENT_LAYOUTS);
+  const layoutOf = () => agentLayout.read() ?? "list";
   const chooseQueueTab = (tab) => {
     if (tab === queueTab) return false;
     queueTab = tab;
     seated = null;
+    openItem = null;
     seatHeights.clear();
     refit();
+    fromTop = true;
     return true;
   };
+  let fromTop = false;
+  function showFromTop() {
+    if (!fromTop) return;
+    fromTop = false;
+    const view = shownView();
+    if (view && trail.value.at(-1)?.view === "queue")
+      moveScrollerBy(view, -view.scrollTop);
+  }
   function openOnMe() {
     const turned = chooseQueueTab("you");
     if (turned && trail.value.at(-1)?.view === "queue") paint();
@@ -7795,11 +7875,9 @@ function createFloatingPanel({
     const reading = readQueues();
     if (reading.phase !== "ready") return { you: [], agent: [], done: [] };
     return {
-      you: inWalkOrder(reading.on_user),
-      agent: inWalkOrder(reading.on_agent),
-      done: inWalkOrder(
-        reading.done.filter((item) => item.owner === QUEUE_TABS[queueTab])
-      )
+      you: reading.on_user,
+      agent: reading.on_agent,
+      done: reading.done.filter((item) => item.owner === QUEUE_TABS[queueTab])
     };
   };
   const answerGesture = (item) => {
@@ -7810,7 +7888,7 @@ function createFloatingPanel({
     );
     return entry?.event ?? null;
   };
-  const tabLabel = (tab) => tab === "plan" ? "Plan" : tab === "agent" ? `On ${agentName()}` : "On me";
+  const tabLabel = (tab) => tab === "agent" ? `On ${agentName()}` : "On me";
   const walkedStop = () => {
     const { walk } = statusContextReading();
     return walk?.shown && walk.kind === "queue" ? walk.target : null;
@@ -7824,6 +7902,23 @@ function createFloatingPanel({
     const card2 = key && view?.querySelector(".lf-fp-on-item[data-walked]");
     if (card2) scrollIntoView(card2, { block: "nearest", within: view });
   }
+  const chooser = ({ label: label2, values, name: name2, current, choose }) => html`<span class="lf-fp-chooser"
+      ><select
+        aria-label=${label2}
+        @change=${(event) => {
+    choose(event.target.value);
+    refit();
+    fromTop = true;
+    paint();
+  }}
+      >
+        ${values.map(
+    (value) => html`<option value=${value} ?selected=${value === current}>
+              ${name2(value)}
+            </option>`
+  )}</select
+      >${iconTemplate("choose", "lf-action-icon")}</span
+    >`;
   const PLAN_STATES = Object.freeze({
     open: "Not started",
     working: "Under way",
@@ -7837,22 +7932,13 @@ function createFloatingPanel({
     failed: "cross",
     dropped: "subtract"
   });
-  const planItemIds = (steps) => steps.flatMap((step) => [
-    ...step.item ? [step.item.id] : [],
-    ...planItemIds(step.steps)
-  ]);
-  function planPlace(id) {
-    for (const goal of readPlan()?.steps ?? []) {
-      const counted = goal.steps.filter((step) => step.state !== "dropped");
-      const index = counted.findIndex(
-        (step) => step.item?.id === id || planItemIds(step.steps).includes(id)
-      );
-      if (index < 0) continue;
-      const place3 = `step ${index + 1} of ${counted.length}`;
-      return goal.title ? `${goal.title} \xB7 ${place3}` : capital(place3);
-    }
-    return null;
-  }
+  const planProgress = () => {
+    const goals = readPlan()?.steps ?? [];
+    return goals.length ? {
+      done: goals.reduce((sum, goal) => sum + goal.done, 0),
+      total: goals.reduce((sum, goal) => sum + goal.total, 0)
+    } : null;
+  };
   function planStep(step) {
     const mark2 = PLAN_MARKS[step.state];
     return html`<li class="lf-fp-plan-step" data-state=${step.state}>
@@ -7887,7 +7973,64 @@ function createFloatingPanel({
           </ol>
         </section>`
   );
-  function onItemCard(item, list) {
+  const planHead = ({ done, total }) => html`<button
+      type="button"
+      class="lf-fp-plan-head"
+      aria-expanded=${String(planShown)}
+      @click=${() => {
+    planShown = !planShown;
+    refit();
+    fromTop = planShown;
+    paint();
+  }}
+    >
+      Plan ${done} of ${total}<span
+        class="lf-fp-plan-bar"
+        style=${`--lf-fp-plan-done: ${total ? 100 * done / total : 0}%`}
+      ></span>
+    </button>`;
+  const agentNoun = (item) => item.kind === "todo" ? "To-do" : capital(itemNoun(item));
+  const workOn = (item) => item.kind === "todo" ? {
+    word: todoLabel(item.todo.running),
+    line: item.todo.running?.text ?? "",
+    since: item.todo.running?.ts ?? item.todo.ts
+  } : {
+    word: workflowLabel(item.workflow),
+    line: workflowStep(item.workflow),
+    since: item.workflow?.ts ?? null
+  };
+  let fitting = false;
+  function toggleItem(key) {
+    if (openItem) seatHeights.delete(openItem);
+    openItem = openItem === key ? null : key;
+    fitting = true;
+    paint();
+  }
+  function foldItem() {
+    const key = openItem;
+    toggleItem(key);
+    const line = shownView()?.querySelector(
+      `.lf-fp-on-item[data-key="${CSS.escape(key)}"] .lf-fp-on-line`
+    );
+    if (line) focusDestination(line, "return");
+  }
+  function fitOpened() {
+    if (!fitting) return;
+    fitting = false;
+    const view = shownView();
+    if (!view || room === null || trail.value.at(-1)?.view !== "queue") return;
+    const foot = view.getBoundingClientRect().bottom - Number.parseFloat(getComputedStyle(view).paddingBottom);
+    const card2 = view.querySelector(".lf-fp-on-item[data-open]");
+    const end = (card2 ?? view.lastElementChild)?.getBoundingClientRect().bottom;
+    const change = end === void 0 ? 0 : card2 ? Math.max(0, end - foot) : Math.min(0, end - foot);
+    if (change) {
+      room = Math.max(0, room + change);
+      viewMovingUntil = performance.now() + VIEW_RESIZE_MS;
+      paint();
+    }
+    if (card2) scrollIntoView(card2, { block: "nearest", within: view });
+  }
+  function onItemCard(item, list, says2 = null) {
     const record = carriesObligation(item) ? item.obligation : null;
     const thread = item.thread ? threadByKey(item.thread) : null;
     const inWords = record !== null && answeredInWords(record);
@@ -7918,10 +8061,7 @@ function createFloatingPanel({
           Show
         </button>` : nothing;
     let answers;
-    if (list === "done" && !record)
-      answers = html`<span class="lf-fp-said"
-          >${[itemOutcome(item), shortAgo(item.ended)].filter(Boolean).join(" ")}</span
-        >${thread ? discuss : nothing}`;
+    if (list === "done" && !record) answers = thread ? discuss : nothing;
     else if (list !== "you" && !answered)
       answers = html`<span class="lf-fp-said"
           >${item.todo?.running?.text ?? workflowStep(item.workflow)}</span
@@ -7977,28 +8117,73 @@ function createFloatingPanel({
       </button>`;
     else answers = discuss;
     const key = queueItemKey(item);
+    const opened2 = openItem === key;
     const approval = record?.source.kind === "approval";
     const stop = queueStop(item);
-    const about = queueTab === "you" ? [stop.noun, planPlace(item.id)].filter(Boolean) : [];
+    const mine = item.owner === "user";
+    const kind = mine ? says2 === "kind" ? "" : stop.noun : agentNoun(item);
+    let end = nothing;
+    if (list === "agent") {
+      const work = workOn(item);
+      end = html`<span class="lf-fp-said"
+        >${work.word}${work.since ? html` <span class="lf-fp-age">${shortAgo(work.since)}</span>` : nothing}</span
+      >`;
+    } else if (list === "done" && !record)
+      end = html`<span class="lf-fp-said"
+        >${itemOutcome(item)}${item.ended ? html` <span class="lf-fp-age">${shortAgo(item.ended)}</span>` : nothing}</span
+      >`;
+    else if (answered && !opened2)
+      end = html`<span class="lf-fp-said">${obligationEnding(record)}</span>`;
+    else if (says2 !== "place") {
+      const place3 = onMe.place(item);
+      if (place3) end = html`<span class="lf-fp-on-where">${place3}</span>`;
+    }
+    const name2 = heading || (thread ? threadHeading(thread) : queueTitle(item));
     return html`<section
       class="lf-fp-on-item"
       data-list=${list}
       data-key=${key}
       data-obligation=${record?.id ?? nothing}
       ?data-approval=${approval}
+      ?data-open=${opened2}
+      ?data-ended=${list === "done" || Boolean(answered)}
       ?data-walked=${queueTab === "you" && walkedStop() === stop.key}
-      style=${seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
+      style=${opened2 && seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
     >
-      ${about.length ? html`<p class="lf-fp-on-kind">${about.join(" \xB7 ")}</p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : nothing}
-              <div
-                class="lf-fp-asked lf-fp-outlet"
-                data-thread=${thread.key}
-                data-message=${message.key}
-              ></div>` : prompt ? html`<h3 class="lf-fp-on-title">${heading}</h3>
-                <p class="lf-fp-prompt">${prompt}</p>` : html`<p class="lf-fp-prompt">${heading}</p>`}
-      <div class="lf-fp-answers">${answers}${show}</div>
+      <button
+        type="button"
+        class="lf-fp-on-line"
+        aria-expanded=${String(opened2)}
+        @click=${() => toggleItem(key)}
+      >
+        <span class="lf-fp-on-kind">${kind}</span
+        ><span class="lf-fp-on-says"
+          ><span class="lf-fp-on-title">${name2}</span>${end}</span
+        >
+      </button>
+      ${opened2 ? html`<div class="lf-fp-on-body">
+              ${message ? html`<div
+                      class="lf-fp-asked lf-fp-outlet"
+                      data-thread=${thread.key}
+                      data-message=${message.key}
+                    ></div>` : prompt ? html`<p class="lf-fp-prompt">${prompt}</p>` : nothing}
+              <div class="lf-fp-answers">${answers}${show}</div>
+            </div>` : nothing}
     </section>`;
   }
+  const groupedLines = (groups, line) => html`<div class="lf-fp-on-list">
+      ${repeat(
+    groups.flatMap((group) => [
+      { key: group.key, group },
+      ...group.items.map((item) => ({ key: queueItemKey(item), item, group }))
+    ]),
+    (row2) => row2.key,
+    (row2) => row2.item ? line(row2.item, row2.group) : html`<h3 class="lf-fp-on-group">
+                <span class="lf-fp-on-group-name">${row2.group.title}</span
+                ><span class="lf-fp-on-count">${row2.group.items.length}</span>
+              </h3>`
+  )}
+    </div>`;
   declareSide(
     (node) => {
       const part = [openView(), controls, replyOutlet].find(
@@ -8014,11 +8199,16 @@ function createFloatingPanel({
   );
   const approvalControl = () => {
     const card2 = stage.querySelector(".lf-fp-view:not([data-leaving]) [data-approval]");
-    return card2?.querySelector("button") ?? card2;
+    return card2?.querySelector(".lf-fp-answers button") ?? card2?.querySelector(".lf-fp-on-line") ?? null;
   };
   function arriveAtApproval() {
     chooseQueueTab("you");
     open({ view: "queue" }, { reopen: true, focus: false });
+    const reading = readQueues();
+    const item = [...reading.on_user ?? [], ...reading.done ?? []].find(
+      (candidate) => candidate.kind === "approval"
+    );
+    if (item) openItem = queueItemKey(item);
     paint();
     const target = approvalControl();
     if (!target) return Promise.resolve(false);
@@ -8027,25 +8217,61 @@ function createFloatingPanel({
     return Promise.resolve(true);
   }
   function onView() {
-    if (queueTab === "plan") {
-      const cards = planCards();
-      return cards.length ? cards : html`<p class="lf-fp-empty">No plan.</p>`;
-    }
     const lists = queueLists();
+    return queueTab === "agent" ? workView(lists) : onMeView(lists);
+  }
+  function onMeView(lists) {
     const all = [...lists.you, ...lists.agent, ...lists.done];
     const byKey = new Map(all.map((item) => [queueItemKey(item), item]));
-    const current = lists[queueTab].map(queueItemKey);
+    const current = lists.you.map(queueItemKey);
     seated = [
       ...(seated ?? []).filter((key) => byKey.has(key)),
       ...current.filter((key) => !(seated ?? []).includes(key))
     ];
     const listOf = (item) => lists.you.includes(item) ? "you" : lists.agent.includes(item) ? "agent" : "done";
-    const items2 = inWalkOrder(seated.map((key) => byKey.get(key)));
+    const items2 = seated.map((key) => byKey.get(key));
+    const grouping = onMe.grouping();
+    const says2 = grouping === "plan" ? null : grouping;
     const finished = lists.done.filter((item) => !seated.includes(queueItemKey(item)));
-    return html`${items2.length ? repeat(items2, queueItemKey, (item) => onItemCard(item, listOf(item))) : html`<p class="lf-fp-empty">
-            Nothing waiting on ${queueTab === "you" ? "me" : agentName()}.
-          </p>`}${finished.length ? html`<h3 class="lf-fp-on-done">Done</h3>
-            ${repeat(finished, queueItemKey, (item) => onItemCard(item, "done"))}` : nothing}`;
+    return html`${items2.length ? nothing : html`<p class="lf-fp-empty">Nothing waiting on me.</p>`}${groupedLines(
+      [
+        ...onMe.groups(items2),
+        ...finished.length ? [{ key: "done", title: "Done", items: finished }] : []
+      ],
+      (item, group) => group.key === "done" ? onItemCard(item, "done") : onItemCard(item, listOf(item), says2)
+    )}`;
+  }
+  function workView(lists) {
+    const inHand = lists.agent.filter((item) => item.live);
+    const queued = lists.agent.filter((item) => !item.live);
+    const groups = [
+      { key: "in-hand", title: "In hand", items: inHand },
+      { key: "queued", title: "Queued", items: queued },
+      { key: "done", title: "Done", items: lists.done }
+    ].filter((group) => group.items.length);
+    return html`${planShown ? planCards() : nothing}${layoutOf() === "summary" ? workSummary(inHand, queued, lists.done) : html`${inHand.length || queued.length ? nothing : html`<p class="lf-fp-empty">Nothing waiting on ${agentName()}.</p>`}${groupedLines(
+      groups,
+      (item, group) => onItemCard(item, group.key === "done" ? "done" : "agent")
+    )}`}`;
+  }
+  function workSummary(inHand, queued, done) {
+    const agent = agentName();
+    const work = inHand.map(workOn);
+    const since = work.map((each) => each.since).filter(Boolean).toSorted()[0];
+    const longest = since ? shortAgo(since) : "";
+    const held2 = inHand.length ? `${agent} has ${inHand.length} in hand${longest && longest !== "now" ? `, the longest for ${longest}` : ""}` : "";
+    const waiting2 = queued.length ? `${queued.length} queued` : "";
+    const first = held2 && waiting2 ? `${held2}, and ${waiting2}.` : held2 ? `${held2}.` : waiting2 ? `${agent} has ${waiting2}.` : `Nothing is on ${agent}.`;
+    const now = work.find((each) => each.line && each.line !== each.word)?.line;
+    const progress = planProgress();
+    const [last] = done;
+    return html`<div class="lf-fp-summary">
+      <p>${first}${now ? ` Now: \u201C${now}\u201D.` : ""}</p>
+      ${progress ? html`<p>Plan: ${progress.done} of ${progress.total} steps.</p>` : nothing}${last ? html`<p>
+              Last done:
+              ${excerptWords(queueTitle(last), 60)}${last.ended ? `, ${ago(last.ended)}` : ""}.
+            </p>` : nothing}
+    </div>`;
   }
   function pagesView() {
     const rows2 = leavesRows(runtime.state);
@@ -8160,15 +8386,29 @@ function createFloatingPanel({
     } else if (top.view === "queue") {
       const lists = queueLists();
       named = tabs(
-        queueTabs(),
+        Object.keys(QUEUE_TABS),
         queueTab,
         tabLabel,
         (tab) => {
           chooseQueueTab(tab);
           paint();
         },
-        (tab) => tab === "plan" ? null : lists[tab].length
+        (tab) => lists[tab].length
       );
+      const progress = queueTab === "agent" ? planProgress() : null;
+      aux = queueTab === "you" ? chooser({
+        label: "Group On me",
+        values: ON_ME_GROUPINGS,
+        name: groupingLabel,
+        current: onMe.grouping(),
+        choose: onMe.choose
+      }) : html`${progress ? planHead(progress) : nothing}${chooser({
+        label: `Show On ${agentName()} as`,
+        values: AGENT_LAYOUTS,
+        name: capital,
+        current: layoutOf(),
+        choose: agentLayout.write
+      })}`;
     } else if (thread) {
       const inMessage = Boolean(placedAt(thread.id)?.message);
       onPageSeat ||= Boolean(thread.anchor) && (inMessage || !unplaced.has(thread.key));
@@ -8298,6 +8538,8 @@ function createFloatingPanel({
     }
     landReader();
     seatOnItems();
+    fitOpened();
+    showFromTop();
     landWalked();
   }
   const asked = /* @__PURE__ */ new WeakSet();
@@ -8305,7 +8547,7 @@ function createFloatingPanel({
     if (trail.value.at(-1)?.view !== "queue") return;
     let draw = false;
     for (const card2 of stage.querySelectorAll(
-      ".lf-fp-view:not([data-leaving]) .lf-fp-on-item[data-key]"
+      ".lf-fp-view:not([data-leaving]) .lf-fp-on-item[data-open]"
     )) {
       const outlet = card2.querySelector(".lf-fp-asked:empty");
       if (outlet) {
@@ -8405,6 +8647,7 @@ function createFloatingPanel({
     );
     render(top ? headTemplate(top) : nothing, head);
     render(top ? controlsTemplate(top) : nothing, controls);
+    keeps(controls, "data-named", top?.view === "queue" ? "" : null);
     if (!top) move(row, expand, leaf);
     const heading = top ? shows(top) : null;
     for (const drawing2 of [controls, replyOutlet]) {
@@ -8625,6 +8868,8 @@ function createFloatingPanel({
         }
       };
     if (!trail.value.length) return null;
+    if (trail.value.at(-1).view === "queue" && openItem !== null)
+      return { root: host, title: "fold item", out: foldItem };
     return {
       root: host,
       title: `close ${titleOf2(trail.value.at(-1)).toLowerCase()}`,
@@ -11492,7 +11737,7 @@ floatingPanel = createFloatingPanel({
   obligations: { choicesOf: items.choicesOf },
   queueActions: app.queueActions,
   arrivesAt: (item) => queueWalk.arrivesAt(item),
-  inWalkOrder: (items2) => queueWalk.inWalkOrder(items2),
+  onMe: queueWalk.onMe,
   withdraw: app.withdraw,
   settlement: app.settlement,
   placedAt: anchorPlacement.placedAt,

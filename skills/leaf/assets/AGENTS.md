@@ -407,6 +407,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | The thread id a drawn thread carries                                                                  | `thread/selectors.js` `drawnThreadId`                                              |
 | The draft a thread holds: its reply box or a rewrite                                                  | `drafts.js` `replyContext`, `rewriteContext`, `threadDraft`                        |
 | Which obligations a region of the page holds                                                          | `obligations/place.js` `obligationsIn`                                             |
+| The heading of the part of the page a node stands in                                                  | `thread/placement.js` `headingOver`                                                |
 
 ### Facts both runtimes know
 

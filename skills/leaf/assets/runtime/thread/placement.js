@@ -5,7 +5,7 @@ import { sectionOf } from "../anchor-resolution.js";
 import { leafSurface, pageParts, pageReadingVersion } from "../passages.js";
 import { documentChanged } from "../semantic-state.js";
 import { readingRegionFor } from "../reading-regions.js";
-import { byRenderedOrder, upFrom } from "../shadow.js";
+import { byRenderedOrder, renderedOrder, renderedUnder, upFrom } from "../shadow.js";
 // ---------- where the panel puts a thread ----------
 // The list reads in the page's order, not the log's. A page is a document with a
 // beginning and an end, and the user walks the thread the way they walk the
@@ -70,6 +70,19 @@ export function pageOutline() {
   outlined = { key, outline };
   return outline;
 }
+
+// The heading of the part of the page a node stands in: the last of the outline's
+// headings the reader reaches before it whose container also holds it, or null where
+// none does. The container is what "the heading over this" means, as an obligation's
+// arrival reads it (obligations/view.js, `arrivalRegion`): a question's own heading
+// stands inside the question, so it heads neither the question, which it follows in
+// the rendered order (`renderedOrder`), nor the next question, which its container
+// does not hold.
+export const headingOver = (node, outline = pageOutline()) =>
+  outline.findLast(
+    (heading) =>
+      renderedOrder(heading, node) < 0 && renderedUnder(node, upFrom(heading)),
+  ) ?? null;
 
 const subjectLabel = (target) => addressableLabel(target) || addressableWord(target);
 

@@ -584,11 +584,12 @@ var editable = (message) => message.author === "user" && !message.pending && !me
 var bareReaction = (thread) => thread.bare_reaction;
 var discussed = (thread) => !bareReaction(thread);
 var hasUnread = (thread) => thread.unread.length > 0;
+var isNews = (thread) => !thread.resolved && hasUnread(thread);
 function threadCounts(threads) {
   const listed = threads.filter(discussed);
   return {
     open: listed.filter((thread) => !thread.resolved).length,
-    unread: listed.filter(hasUnread).length
+    unread: listed.filter(isNews).length
   };
 }
 var pendingSeat = (message) => message.about || !message.anchor || Object.keys(message.anchor).length !== 1 ? null : message.anchor.section ?? null;
@@ -2583,6 +2584,7 @@ export {
   bareReaction,
   discussed,
   hasUnread,
+  isNews,
   threadCounts,
   reactionsAt,
   seatRoot,

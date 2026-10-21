@@ -2557,6 +2557,13 @@ var openingView = (holder, members) => views(holder).opening(holder, members);
 var keepView = (holder, member) => views(holder).keep(holder, member);
 var draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
 var userStore = document.documentElement.lfStorage.userStore;
+var userChoice = (key, values) => Object.freeze({
+  read: () => {
+    const value = userStore.get(key);
+    return values.includes(value) ? value : null;
+  },
+  write: (value) => userStore.set(key, value)
+});
 
 // runtime/drafts.js
 var DRAFT = "lf-draft:";
@@ -7838,6 +7845,7 @@ export {
   keepView,
   draftStore,
   userStore,
+  userChoice,
   PAGE_DRAFT,
   whereDraft,
   tellDraft,

@@ -429,6 +429,8 @@ def test_a_todo_on_you_ends_at_its_done_where_m_lands_and_in_the_panel(
     panel_settled(page, view="queue")
     you = page.locator('.lf-fp-on-item[data-list="you"]')
     expect(you).to_have_count(2)
+    # A press on its line opens the to-do in place, with its Done.
+    you.filter(has_text="Read it through").locator(".lf-fp-on-line").click()
     finish = you.get_by_role("button", name="Done", exact=True)
     expect(finish).to_have_count(1)
     expect(you.filter(has_text="Read it through")).to_have_count(1)
@@ -463,11 +465,13 @@ def test_a_finger_ends_a_todo_on_you_from_the_panel_s_row(browser, serve):
     page.locator(".lf-fp-on-user").tap()
     panel_settled(page, view="queue")
     card = page.locator(".lf-fp-on-item", has_text="Check the notes")
+    card.locator(".lf-fp-on-line").tap()
     card.get_by_role("button", name="Show", exact=True).tap()
     expect(page.locator("#notes")).to_be_focused()
     expect(page.locator(".lf-fp-on-user")).to_be_visible()
     page.locator(".lf-fp-on-user").tap()
     panel_settled(page, view="queue")
+    card.locator(".lf-fp-on-line").tap()
     with sending(page, "the card's Done"):
         card.get_by_role("button", name="Done", exact=True).tap()
     expect_on_me(page, 1)

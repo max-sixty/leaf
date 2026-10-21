@@ -1126,14 +1126,14 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     assert page.evaluate("() => document.activeElement === document.body")
 
     # The On me sequence follows the same contract: open the view, whose walk's first
-    # step lands on its first card.
+    # step lands on its first line.
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
     expect(page.locator('.lf-fp-view[data-view="queue"]')).to_be_focused()
     expect(page.locator(CHIPS)).to_have_count(0)
     page.keyboard.press("ArrowDown")
-    expect(page.locator(".lf-fp-on-item").first).to_be_focused()
+    expect(page.locator(".lf-fp-on-line").first).to_be_focused()
 
     # Replacing one view with another is lateral: Threads replaces On me while it
     # stands, and the Escape out of Threads lands on the page rather than putting On me

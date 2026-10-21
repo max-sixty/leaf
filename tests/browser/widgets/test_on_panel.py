@@ -1,5 +1,7 @@
-"""On me in the floating panel: the cards that name each open and answered obligation, their
-identity and order, and what an answered one says."""
+"""On me in the floating panel: the lines that name each open and answered obligation, their
+identity, grouping and order, and what an answered one says."""
+
+import re
 
 import pytest
 from interact_support import append_carried_log_record
@@ -45,6 +47,15 @@ def on_card(page, at):
     return page.locator(f'{ON_ME} .lf-fp-on-item[data-key=\'["widget","{at}"]\']')
 
 
+def opened(card):
+    """`card` open in place, by a press on its line unless it stands open."""
+    line = card.locator(".lf-fp-on-line")
+    if line.get_attribute("aria-expanded") != "true":
+        line.click()
+    expect(line).to_have_attribute("aria-expanded", "true")
+    return card
+
+
 def test_on_me_lists_open_and_answered_obligations(browser, serve):
     """The panel's On me mark lists every open obligation under On me, in document order, and
     every answered one under Done with its current answer, so the user can review and
@@ -81,12 +92,13 @@ def test_on_me_lists_open_and_answered_obligations(browser, serve):
                 f"{card['id']}'s card has no size"
             )
 
-    # The obligation leads with its authored heading rather than the first option's answer.
+    # The obligation's line leads with its authored heading rather than the first
+    # option's answer.
     said = {c["id"]: c for c in cards}
-    assert said["widget:live-question"]["prompt"].startswith(
+    assert said["widget:live-question"]["title"].startswith(
         "Where should sessions live?"
     ), said
-    assert said["widget:t-baffles-review"]["prompt"].startswith(
+    assert said["widget:t-baffles-review"]["title"].startswith(
         "Are the baffles ready?"
     ), said
     assert said["widget:honored"]["said"].startswith("Answered: Two-tier gates"), said
@@ -227,7 +239,8 @@ def test_obligation_cards_keep_identity_and_walk_order_when_the_live_dom_moves(
           window.__lfObligationCards = new Map(cards.map(card => [card.dataset.key, card]));
           const honored = document.querySelector('#honored-decision');
           document.querySelector('#live-question-decision').before(honored);
-          window.__lfObligationCards.get('["widget","widget:sug-refill"]').focus();
+          window.__lfObligationCards.get('["widget","widget:sug-refill"]')
+            .querySelector('.lf-fp-on-line').focus();
           document.dispatchEvent(new Event('lf-presentation'));
         }"""
     )
@@ -236,7 +249,7 @@ def test_obligation_cards_keep_identity_and_walk_order_when_the_live_dom_moves(
     assert cards.evaluate_all(
         "items => items.every(item => window.__lfObligationCards.get(item.dataset.key) === item)"
     )
-    sug_refill = on_card(page, "widget:sug-refill")
+    sug_refill = on_card(page, "widget:sug-refill").locator(".lf-fp-on-line")
     expect(sug_refill).to_be_focused()
 
     # Removing a presentation node does not rewrite the application inventory: the
@@ -280,13 +293,13 @@ def test_a_completed_obligation_persists_and_on_me_says_its_current_answer(
     expect_obligations_answered(page, "1/1")
 
     # With nothing on the user, the view opens on an empty list with Done under it; ↓
-    # enters the first card there, the obligation's.
+    # enters the first line there, the obligation's.
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
     page.keyboard.press("ArrowDown")
     card = on_card(page, "widget:storage-options")
-    expect(card).to_be_focused()
+    expect(card.locator(".lf-fp-on-line")).to_be_focused()
     expect(card).to_have_attribute("data-list", "done")
     expect(card.locator(".lf-fp-said")).to_contain_text(
         "Answered: Pause offline editing"
@@ -319,7 +332,7 @@ def test_an_answered_boxless_obligation_is_taken_back_from_its_card(browser, ser
     card = on_card(page, "widget:sug-delete")
     expect(card).to_have_attribute("data-list", "done")
     expect(card.locator(".lf-fp-said")).to_contain_text("Answered: Accepted")
-    card.get_by_role("button", name="Undo").click()
+    opened(card).get_by_role("button", name="Undo").click()
     round_trip(page)
     expect(page.locator("#sug-delete")).to_be_visible()
     expect_obligations_answered(page, "0/4")
@@ -358,7 +371,7 @@ def test_each_on_me_card_names_its_kind_as_the_walk_does(browser, serve):
         expect(on_card(page, f"widget:{at}").locator(".lf-fp-on-kind")).to_have_text(
             word
         )
-    card = on_card(page, "widget:sug-insert")
+    card = opened(on_card(page, "widget:sug-insert"))
     card.get_by_role("button", name="Accept").click()
     round_trip(page)
     expect(card.locator(".lf-fp-said")).to_contain_text("Answered: Accepted")
@@ -393,12 +406,12 @@ def test_show_on_a_card_goes_where_m_arrives_and_only_where_that_is_elsewhere(
         return card.get_by_role("button", name="Show", exact=True)
 
     for at in ("sug-rewrite", "sug-insert", "sug-delete", "shapes-q"):
-        expect(show(on_card(page, f"widget:{at}"))).to_have_count(1)
+        expect(show(opened(on_card(page, f"widget:{at}")))).to_have_count(1)
     approval = page.locator(f"{ON_ME} .lf-fp-on-item[data-approval]")
     expect(approval).to_have_count(1)
-    expect(show(approval)).to_have_count(0)
+    expect(show(opened(approval))).to_have_count(0)
 
-    show(on_card(page, "widget:shapes-q")).click()
+    show(opened(on_card(page, "widget:shapes-q"))).click()
     expect(page.locator(f"#{landed}")).to_be_focused()
 
 
@@ -419,7 +432,7 @@ def test_the_m_walk_brings_its_card_into_on_me_s_view_and_rings_it(browser, serv
     the list's view, scrolling it either way, and that card alone wears a focused
     card's ring, while focus stands at the item on the page."""
     page = open_page(browser, serve(WALKED_PAGE))
-    resized(page, 1000, 560)
+    resized(page, 1000, 440)
     view = open_on_me(page)
     cards = view.locator(".lf-fp-on-item")
     expect(cards).to_have_count(8)
@@ -505,6 +518,96 @@ def test_on_me_lists_its_cards_in_the_order_m_walks_them(browser, serve):
         expect(cards.nth((first + step) % 3)).to_have_attribute("data-walked", "")
 
 
+GROUPED_PAGE = leaf_page(
+    "grouped asks",
+    '<h1 id="title">Release</h1>'
+    '<section><h2 id="impl">Implementation</h2>'
+    '<lf-ask id="exit-ask"><h3>Which exit code?</h3>'
+    '<lf-options id="exit" choose><lf-option id="e75">75</lf-option>'
+    '<lf-option id="e124">124</lf-option></lf-options></lf-ask>'
+    '<p id="reap">Reap every process under the sandbox user.</p></section>'
+    '<section><h2 id="rollout">Rollout</h2>'
+    '<lf-ask id="runner-ask"><h3>Include self-hosted runners?</h3>'
+    '<lf-options id="runners" choose><lf-option id="r-yes">Yes</lf-option>'
+    '<lf-option id="r-no">No</lf-option></lf-options></lf-ask></section>',
+)
+
+
+def test_the_chosen_grouping_orders_on_me_and_the_m_walk_alike(browser, serve):
+    """With no plan, On me groups by the part of the page each item stands in, under
+    its heading, and its lines leave that part unsaid. The chooser at its foot regroups
+    the list by what each item is, the lines then naming their part instead, and the
+    browser keeps the choice across a reload. Either way `m` steps through the items in
+    the order the list shows them, rather than in page order."""
+    url = serve(GROUPED_PAGE)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "todo",
+            "author": "agent",
+            "agent": "Agent",
+            "session": "grouped",
+            "owner": "user",
+            "subject": {"kind": "element", "id": "reap"},
+            "title": "Try the sandboxed run on a fork",
+        },
+    )
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    view = open_on_me(page)
+    chooser = page.get_by_role("combobox", name="Group On me")
+    expect(chooser).to_have_value("place")
+    groups = view.locator(".lf-fp-on-group")
+    expect(groups).to_have_text(
+        [re.compile(r"^\s*Implementation\s*2\s*$"), re.compile(r"^\s*Rollout\s*1\s*$")]
+    )
+    lines = view.locator(".lf-fp-on-line")
+    expect(lines.locator(".lf-fp-on-title")).to_have_text(
+        [
+            "Which exit code?",
+            "Try the sandboxed run on a fork",
+            "Include self-hosted runners?",
+        ]
+    )
+    expect(lines.locator(".lf-fp-on-kind")).to_have_text(
+        ["Options", "To-do", "Options"]
+    )
+    expect(view.locator(".lf-fp-on-where")).to_have_count(0)
+
+    chooser.select_option("kind")
+    expect(groups).to_have_text(
+        [re.compile(r"^\s*Options\s*2\s*$"), re.compile(r"^\s*To-do\s*1\s*$")]
+    )
+    page.reload()
+    wait_until_ready(page)
+    view = open_on_me(page)
+    expect(page.get_by_role("combobox", name="Group On me")).to_have_value("kind")
+    cards = view.locator(".lf-fp-on-item")
+    expect(cards.locator(".lf-fp-on-title")).to_have_text(
+        [
+            "Which exit code?",
+            "Include self-hosted runners?",
+            "Try the sandboxed run on a fork",
+        ]
+    )
+    expect(cards.locator(".lf-fp-on-kind")).to_have_text(["", "", ""])
+    expect(cards.locator(".lf-fp-on-where")).to_have_text(
+        ["Implementation", "Rollout", "Implementation"]
+    )
+
+    def walked():
+        expect(view.locator(".lf-fp-on-item[data-walked]")).to_have_count(1)
+        return cards.evaluate_all(
+            "cards => cards.findIndex((card) => card.hasAttribute('data-walked'))"
+        )
+
+    page.keyboard.press("m")
+    first = walked()
+    for step in (1, 2, 3):
+        page.keyboard.press("m")
+        expect(cards.nth((first + step) % 3)).to_have_attribute("data-walked", "")
+
+
 def test_an_item_arriving_above_takes_its_walk_place_and_moves_no_card_read(
     browser, serve
 ):
@@ -514,7 +617,7 @@ def test_an_item_arriving_above_takes_its_walk_place_and_moves_no_card_read(
     browser's scroll anchoring holds it as the new card grows the list above."""
     url = serve(WALKED_PAGE)
     page = open_page(browser, url)
-    resized(page, 1000, 560)
+    resized(page, 1000, 440)
     view = open_on_me(page)
     cards = view.locator(".lf-fp-on-item")
     expect(cards).to_have_count(8)

@@ -4133,6 +4133,9 @@ function pageOutline() {
   outlined = { key, outline };
   return outline;
 }
+var headingOver = (node, outline = pageOutline()) => outline.findLast(
+  (heading) => renderedOrder(heading, node) < 0 && renderedUnder(node, upFrom(heading))
+) ?? null;
 var subjectLabel = (target) => addressableLabel(target) || addressableWord(target);
 function outlineSubjectFor(target, peers = [target], outline = pageOutline()) {
   const label = subjectLabel(target);
@@ -8428,6 +8431,7 @@ export {
   watchProjection,
   currentProjection,
   inPageOrder,
+  headingOver,
   commandSteps,
   paintCoreControls,
   requireReference,

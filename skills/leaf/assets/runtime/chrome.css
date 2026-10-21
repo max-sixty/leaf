@@ -669,6 +669,15 @@
     align-items: center;
     gap: 2px;
   }
+  .lf-fp-controls[data-named] {
+    flex-wrap: wrap;
+  }
+  .lf-fp-controls[data-named] > .lf-fp-crumb {
+    flex: 1 0 auto;
+  }
+  .lf-fp-controls[data-named] > .lf-fp-aux {
+    margin-inline-start: auto;
+  }
   .lf-fp-filters {
     display: flex;
     gap: 2px;
@@ -1088,26 +1097,95 @@
   .lf-fp-quiet:hover {
     color: var(--ink);
   }
-  .lf-fp-on-item {
-    padding: 10px 8px 12px;
+  .lf-fp-on-group {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 0;
+    padding: 10px 8px 2px;
+    font: 11px / 16px var(--sans);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--lf-fp-quiet);
   }
-  .lf-fp-on-done {
-    margin: 0 8px;
-    padding-top: 10px;
-    border-top: 1px solid var(--lf-fp-faint);
-    font: inherit;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--lf-fp-muted);
+  .lf-fp-on-group:first-child {
+    padding-top: 2px;
   }
-  .lf-fp-on-title {
-    margin: 0 0 2px;
-    font: inherit;
-    font-size: 12px;
-    color: var(--lf-fp-muted);
-    white-space: nowrap;
+  .lf-fp-on-group-name {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .lf-fp-on-count {
+    flex: none;
+    font-variant-numeric: tabular-nums;
+  }
+  .lf-fp-on-list {
+    display: grid;
+    grid-template-columns: fit-content(30%) minmax(0, 1fr);
+  }
+  .lf-fp-on-list > *,
+  .lf-fp-on-item > * {
+    grid-column: 1 / -1;
+  }
+  .lf-fp-on-item {
+    display: grid;
+    grid-template-columns: subgrid;
+  }
+  .lf-fp-on-item[data-open] {
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--ink) 3%, transparent);
+  }
+  .lf-fp-on-line {
+    display: grid;
+    grid-template-columns: subgrid;
+    align-items: baseline;
+    column-gap: 8px;
+    min-height: 32px;
+    padding: 6px 8px;
+    text-align: start;
+  }
+  .lf-fp-on-says {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    min-width: 0;
+  }
+  .lf-fp-on-kind,
+  .lf-fp-on-title,
+  .lf-fp-on-where,
+  .lf-fp-on-says > .lf-fp-said {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .lf-fp-on-kind,
+  .lf-fp-on-where,
+  .lf-fp-on-says > .lf-fp-said {
+    font-size: 12px;
+    color: var(--lf-fp-quiet);
+    font-variant-numeric: tabular-nums;
+  }
+  .lf-fp-on-title {
+    flex: 1 1 auto;
+  }
+  .lf-fp-on-where,
+  .lf-fp-on-says > .lf-fp-said {
+    flex: 0 1 auto;
+    max-width: 45%;
+    margin: 0;
+  }
+  .lf-fp-on-item[data-ended]:not([data-open]) .lf-fp-on-title {
+    color: var(--lf-fp-muted);
+  }
+  .lf-fp-age {
+    display: inline-block;
+    min-width: 2.2em;
+    text-align: end;
+  }
+  .lf-fp-on-body {
+    padding: 0 8px 10px;
   }
   .lf-fp-prompt {
     margin: 0;
@@ -1236,8 +1314,7 @@
     font-weight: 600;
   }
   .lf-fp-plan-time,
-  .lf-fp-plan-line,
-  .lf-fp-on-kind {
+  .lf-fp-plan-line {
     font-size: 12px;
     color: var(--lf-fp-muted);
     font-variant-numeric: tabular-nums;
@@ -1254,8 +1331,68 @@
     box-shadow: inset 0 0 0 1px var(--lf-fp-ring);
     border-radius: 6px;
   }
-  .lf-fp-on-kind {
-    margin: 0 0 2px;
+  .lf-fp-plan-head {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--lf-fp-muted);
+  }
+  .lf-fp-plan-head[aria-expanded=true] {
+    color: var(--ink);
+    background: var(--lf-fp-faint);
+  }
+  .lf-fp-plan-bar {
+    width: 40px;
+    height: 4px;
+    border-radius: 2px;
+    background:
+      linear-gradient(
+        to right,
+        var(--accent) var(--lf-fp-plan-done),
+        var(--lf-fp-faint) 0);
+  }
+  .lf-fp-plan:last-of-type {
+    border-bottom: 1px solid var(--lf-fp-faint);
+  }
+  .lf-fp-summary {
+    padding: 4px 8px 6px;
+  }
+  .lf-fp-summary p {
+    margin: 0 0 6px;
+  }
+  .lf-fp-chooser {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+  }
+  .lf-fp-chooser select {
+    appearance: none;
+    min-height: 26px;
+    margin: 0;
+    padding: 0 22px 0 8px;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    font: 12px / 26px var(--sans);
+    color: var(--lf-fp-muted);
+    cursor: pointer;
+  }
+  .lf-fp-chooser select:hover {
+    color: var(--ink);
+    background: var(--lf-fp-hover);
+  }
+  .lf-fp-chooser select:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: -2px;
+  }
+  .lf-fp-chooser .lf-action-icon {
+    position: absolute;
+    inset-inline-end: 4px;
+    width: 14px;
+    height: 14px;
+    color: var(--lf-fp-muted);
+    pointer-events: none;
   }
   .lf-fp-menu {
     position: fixed;

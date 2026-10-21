@@ -60,7 +60,7 @@ def test_a_status_kind_change_is_announced_in_the_status_s_own_words(browser, se
     working(serve.page_dir, "Writing the page")
     page = open_page(browser, url)
     live = page.locator(".lf-live")
-    expect(page.locator(".lf-fp-leaf .lf-dot.working")).to_be_visible()
+    expect(page.locator(".lf-fp-leaf-paint .lf-dot.working")).to_be_visible()
     # The page arriving is the document's own announcement, not a change in it.
     assert live.text_content() == "", (
         f"the status announced its first reading: {live.text_content()!r}"
@@ -102,7 +102,7 @@ def test_a_status_kind_change_is_announced_in_the_status_s_own_words(browser, se
         # An unreachable server turns the leaf red, and the field says it as a status
         # rather than an error.
         expect(live).to_contain_text("Server offline")
-        expect(page.locator(".lf-fp-leaf .lf-dot.blocked")).to_be_visible()
+        expect(page.locator(".lf-fp-leaf-paint .lf-dot.blocked")).to_be_visible()
         expect(panel_field(page)).to_have_attribute("data-says", "status")
         # The server coming back to refuse this tab's key asks something new of the
         # user, which only they can end, so it is heard and the field says it as an

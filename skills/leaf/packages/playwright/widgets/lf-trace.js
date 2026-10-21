@@ -2055,7 +2055,7 @@ customElements.define(
                 ].map(
                   ([text, label, run]) =>
                     html`<button
-                      ${offered("lf-btn")}
+                      ${offered("lf-btn lf-quiet-action lf-compact-control")}
                       aria-label=${label ?? nothing}
                       ?disabled=${!this.#picture?.viewed || q}
                       @click=${run}

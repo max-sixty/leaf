@@ -21,6 +21,11 @@ export const pointerAt = () => ({ x, y });
 // rules ask it: the query itself, so a surface that follows a change can listen on it.
 export const coarsePointer = matchMedia("(pointer: coarse)");
 
+// Whether the primary pointer really hovers, as the theme's `(hover: hover)` rules ask
+// it. A phone emulates hover on whatever was last tapped and keeps it until the next
+// tap, so a reveal on `:hover` there outstays the tap.
+export const hoveringPointer = matchMedia("(hover: hover)");
+
 // Whether a press event was made by the keyboard rather than by the pointer, asked of
 // the event itself. A `click` with no click count is Enter or Space on the control, or
 // the page's own `element.click()` standing for one — a keyboard route — while every

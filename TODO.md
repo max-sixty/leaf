@@ -92,16 +92,6 @@ has tried; settle that before building it.
   removed in October 2026 have been gone a while; if pages written since still
   carry the heading, remove this check too. It fired in 4 sessions, 2 of them on
   user pages, between 2026-07-22 and 2026-10-11.
-- **Decide where a sandboxed Codex task keeps its pages.** Leaf's MCP server
-  (`codex_tool.py`) runs `leaf` commands outside Codex's sandbox, but the agent
-  writes `index.html` with its own tools, which the sandbox confines to the task's
-  directory and the temporary directories. A page in the state home, where
-  `SKILL.md` says pages usually live, is outside them, so each write there asks
-  the user or, under `approval_policy = "never"`, fails. The sandboxed journey
-  (`leaf-dev journey codex-queue --sandbox`) passes because its page is in the
-  task's directory. Choose between pages in the task's directory under a sandbox,
-  a `leaf` command that writes the source, and asking users to add the state home
-  to `sandbox_workspace_write.writable_roots`.
 - **Consider a reminder when revising decided content.** An optional `--force`
   acknowledgment could make an agent pause over an existing decision. Revisions
   currently remain unrestricted; decide whether such a reminder helps before
@@ -175,14 +165,13 @@ has tried; settle that before building it.
   buckets scroll horizontally and the release rationale sits below the board.
   Keep comparison context available during a move, preserving direct destination
   controls and undo.
-- **Decide whether Back may restore a served page whole.** Every served page and
-  API answer carries `Cache-Control: no-store`, so Chrome and Firefox load the page
-  afresh on Back rather than restoring it from their back/forward cache, and Firefox
-  also refuses a page holding a sample ([browser support](notes/browser-support.md),
-  "Page cache"). With `no-store` lifted, a Chrome probe restored a page that caught
-  up with the log and recorded gestures. Weigh an instant Back against what
-  `no-store` protects, a private page's copy in the browser's disk cache, and
-  exercise Safari.
+- **Decide whether Back may restore a leaf.page page whole.** The local server
+  sends `no-cache`, so Chrome and Firefox restore its pages on Back. leaf.page's
+  container and the edge's state answers still send `no-store`, which keeps its
+  pages out of Chrome's back/forward cache ([browser support](notes/browser-support.md),
+  "Page cache"). Weigh an instant Back against what `no-store` protects there, a
+  visitor's private page in the browser's disk cache on a shared computer, and
+  exercise Safari on both.
 - **Consider automatic Leaf recovery on resume.** Reuse the reconnect notice's
   eligibility checks to restore serving, ownership, and feedback delivery, while
   respecting explicit stops and transfers to another session.
@@ -303,25 +292,17 @@ Boxes that still move without input, which the "Stability" rule in
 `skills/leaf/assets/AGENTS.md` forbids. `tests/known_widget_findings.py` lists each widget
 that changes size after first paint, with its cause.
 
-- **Size text documents at first paint.** An `lf-text-document` without `preview` is
-  as tall as its source's value wrapped at the column's width. `leaf data set` writes
-  that value to the page directory, and the browser reads it from `/api/state` (on
-  leaf.page, from the build's static state answer); only an export inlines it in the
-  document (`exporting.py`). A page that opens with a 20-line document first paints
-  before its state answer arrives, at about 200 ms against 300 ms in `leaf-dev probe`,
-  so the document draws later and pushes the paragraph below it down 470px at 1440px
-  wide and 850px at 390px (a 0.06 layout shift at each). A `preview` document's
-  height doesn't depend on its value (caption, tab strip and a `--lf-bound`
-  viewport), so an initial renderer can paint it final under any of the fixes below.
-  Choosing one is Max's decision:
-  - serve each value the document binds inside the document, as an export already
-    does, and draw it unhighlighted in Pierre's line geometry from an initial
-    renderer, so the box is final before highlighting loads;
-  - have the author state `data-height`, as `lf-diff` does (`x-height: true`), though
-    the stated height goes stale whenever the data or the width changes;
-  - give every text document a fixed height that scrolls inside, as a `preview`
-    document already has, or open it closed behind a one-line summary, as the
-    activity feed opens on a gesture and holds later growth with `HeldReading`.
+- **Draw a text document's listing once its text has arrived.** Every
+  `lf-text-document` now keeps its final box from first paint, but its module draws
+  the listing as soon as it upgrades, before the state answer brings the text: one
+  empty row under a caption reading “· no data”. When the text arrives, the gutter
+  widens for two-digit line numbers and the code column moves right inside the box.
+  `leaf-dev probe` on a page with a 20-line, a 3-line and a preview document scores
+  that move 0.12 of layout shift at 1440px and 0.44 at 390px, though nothing outside
+  the boxes moves, except where the “· no data” suffix wraps a long label onto
+  another line and its removal shortens the box. Drawing nothing until the first
+  state answer has been read would leave the theme's stand-in frame and caption until
+  then.
 - **Draw the contents map's spine in its first frame.** `lf-toc`'s initial drawing
   (`initial/lf-toc.js`) gives it its final box and rows, but in the margin its
   disclosure stays closed until the module opens it, so the spine and its markers

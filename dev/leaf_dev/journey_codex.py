@@ -558,10 +558,12 @@ def answering(
             # The journey's state home is under TMPDIR, which the sandbox otherwise
             # lets a command write, where a user's is not. And the journey cannot
             # answer Codex's question whether to allow Leaf's MCP tool, so it
-            # allows it as a user who answered "always" has.
+            # allows it as a user who answered "always" has. The state home's pages
+            # directory is writable, as the README asks a user to make it.
             config += (
                 "[sandbox_workspace_write]\n"
                 "exclude_tmpdir_env_var = true\n"
+                f'writable_roots = ["{place.state / "leaf" / "pages"}"]\n'
                 '[plugins."leaf@leaf".mcp_servers.leaf]\n'
                 'default_tools_approval_mode = "approve"\n'
             )

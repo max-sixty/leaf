@@ -43,6 +43,18 @@ in their own config is not heard: Codex then gives up first, and the command sti
 ends at the manifest's deadline. The server ends every call's group as it exits,
 whether Codex closes its stdin or signals it.
 
+The agent edits a page's files with its own tools, inside the sandbox, which
+refuses a write outside the task's directory and the temporary directories unless
+the user's `sandbox_workspace_write.writable_roots` names it ("Agent sandboxes" in
+the README). Without the pages directory there, each edit to a page under the state
+home asks the user or, under `approval_policy = "never"`, fails (measured at 0.160.0
+on macOS, with `apply_patch` and a shell write alike; Linux is untested). The server
+declares Codex's `codex/sandbox-state-meta` capability, so each call's `_meta`
+carries the calling task's sandbox, and the first call from a task whose sandbox
+can't write the pages directory ends with a note giving the user that line. Codex
+marks the capability experimental, so a sandbox state this server can't read gives
+no note rather than failing the call.
+
 Codex starts the server once per session and never again: once it exits, every
 later call fails with "Transport closed" (measured at 0.160.0). So the server
 answers every request, a failing one with its error, and exits only when Codex
@@ -66,6 +78,7 @@ LAUNCHER = ROOT / "bin" / "leaf"
 MARGIN = 10
 # Seconds a command ended at its deadline has to exit before it is killed.
 GRACE = 5
+SANDBOX_STATE = "codex/sandbox-state-meta"
 
 TOOL = {
     "name": "run",
@@ -96,6 +109,8 @@ TOOL = {
 
 _write = threading.Lock()
 _running: set = set()
+# The Codex threads already told their sandbox can't write the pages directory.
+_told: set = set()
 
 
 def send(message: dict) -> None:
@@ -154,12 +169,60 @@ def text_result(texts: list, status: int) -> dict:
     return {"content": content, "isError": bool(status)}
 
 
+def writable_roots(sandbox: dict | None) -> list[Path] | None:
+    """The directories the calling task's `sandbox` (its `_meta`'s sandbox state)
+    lets it write, or None where it doesn't confine writes or can't be read."""
+    try:
+        file_system = sandbox["permissionProfile"]["file_system"]
+        if file_system["type"] != "restricted":
+            return None
+        roots = []
+        for entry in file_system["entries"]:
+            path = entry["path"]
+            if entry["access"] != "write":
+                continue
+            if path["type"] == "path":
+                roots.append(Path(path["path"]).resolve())
+            elif path["value"]["kind"] == "root":
+                return None
+        return roots
+    except (KeyError, TypeError):
+        return None
+
+
+def pages_note(sandbox: dict | None) -> str | None:
+    """Where the calling task's `sandbox` can't write the state home's pages
+    directory, a note telling the agent so and giving the user the line that lets
+    it; else None."""
+    if (roots := writable_roots(sandbox)) is None:
+        return None
+    from leaf.state import state_home
+
+    pages = state_home() / "pages"
+    if any(pages.resolve().is_relative_to(root) for root in roots):
+        return None
+    config = (
+        Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex") / "config.toml"
+    )
+    return (
+        f"Codex's sandbox can't write {pages}, where Leaf keeps pages, so Codex "
+        "will refuse your edits to a page there or ask the user to approve each "
+        "one. Tell the user they can allow them by adding that directory to "
+        f"`writable_roots` in the `[sandbox_workspace_write]` table of {config}, "
+        f'as "Agent sandboxes" in {ROOT / "README.md"} says:\n\n'
+        f'[sandbox_workspace_write]\nwritable_roots = ["{pages}"]\n'
+    )
+
+
 def call(request: dict, deadline: float) -> None:
     params = request["params"]
+    meta = params.get("_meta", {})
+    thread = meta.get("threadId")
     try:
-        result = run(
-            params["arguments"], params.get("_meta", {}).get("threadId"), deadline
-        )
+        result = run(params["arguments"], thread, deadline)
+        if thread not in _told and (note := pages_note(meta.get(SANDBOX_STATE))):
+            _told.add(thread)
+            result["content"].append({"type": "text", "text": note})
     except Exception as error:  # noqa: BLE001 - every failure answers the call
         result = text_result([f"{type(error).__name__}: {error}"], 1)
     send({"id": request["id"], "result": result})
@@ -170,7 +233,7 @@ def answer(request: dict) -> dict:
     if method == "initialize":
         return {
             "protocolVersion": request["params"]["protocolVersion"],
-            "capabilities": {"tools": {}},
+            "capabilities": {"tools": {}, "experimental": {SANDBOX_STATE: {}}},
             "serverInfo": {"name": "leaf", "version": "0"},
         }
     if method == "tools/list":
@@ -198,6 +261,9 @@ def serve(deadline: float) -> None:
 def main() -> None:
     manifest = json.loads((ROOT / ".codex-plugin" / "plugin.json").read_text())
     deadline = manifest["mcpServers"]["leaf"]["tool_timeout_sec"] - MARGIN
+    # `-I` leaves Leaf's package off the path; `pages_note` reads the state home
+    # from it, and only when a sandbox calls.
+    sys.path.insert(0, str(ROOT / "skills" / "leaf" / "scripts"))
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     try:
         serve(deadline)

@@ -79,6 +79,15 @@ If you started an update or to-do with `leaf task start`, its line stays the sta
 sentence and the step appears in the status's full text, which the user reads by
 pointing at it.
 
+## Sandbox
+
+In Codex's `workspace-write` sandbox, run `leaf` commands with the `run` tool of the
+`leaf` MCP server, which runs them outside the sandbox. Your own edits to a page
+stay inside it, and it lets them write a page in Leaf's state home only once the
+user adds the state home's `pages` directory to Codex's writable roots ("Agent
+sandboxes" in Leaf's `README.md`). Where that is missing, the tool's first result
+in a task says so and gives the line; pass it to the user.
+
 ## Routes without the adapter
 
 Two routes bring input without the adapter. On both, answer with

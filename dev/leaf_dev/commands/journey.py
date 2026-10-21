@@ -860,13 +860,13 @@ class Isolation(NamedTuple):
 
 def stop_left_running(state: Path) -> list[str]:
     """Stop every process running with `state` as its state home, which only the
-    journey's session and what it started have, and return their command lines. One
-    outlives the session by design: the sandbox bridge, which Claude Code's hooks
-    start and which retires on its next sweep after the last session it serves ends
-    (`leaf.bridge`), writing the state home as it goes.
-    Each gets 10 s to exit on SIGTERM before SIGKILL. The system hides its own
-    binaries' environments, such as `sleep`'s, but not Leaf's Python or a harness's,
-    which are what write the state home."""
+    journey's session and what it started have, and name each. One outlives the
+    session by design: the sandbox bridge, which Claude Code's hooks start and
+    which retires on its next sweep after the last session it serves ends
+    (`leaf.bridge`), writing the state home as it goes. Each gets 10 s to exit on
+    SIGTERM before SIGKILL. The system hides its own binaries' environments, such
+    as `sleep`'s, but not Leaf's Python or a harness's, which are what write the
+    state home."""
     left = []
     for process in psutil.process_iter():
         try:
@@ -877,7 +877,9 @@ def stop_left_running(state: Path) -> list[str]:
     commands = []
     for process in left:
         try:
-            commands.append(" ".join(process.cmdline())[:200])
+            # A process's arguments can carry a credential, so its name and id say
+            # what was stopped.
+            commands.append(f"{process.name()} (pid {process.pid})")
             process.terminate()
         except psutil.NoSuchProcess:
             pass

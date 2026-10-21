@@ -586,9 +586,11 @@ def test_a_new_step_waits_where_its_words_would_move_the_draft(browser, serve):
 
 
 def test_held_news_too_long_for_its_notice_drops_a_later_fact_whole(browser, serve):
-    """A seat's notice keeps the width of the news it first said. News that grows past
-    it shows its first fact whole and drops the later one, which the notice's name
-    still says, rather than cutting the first fact mid-word ("1 new re…")."""
+    """A seat's notice keeps the width of the news it first said, with room at its end
+    for a count. News that grows past it shows its first fact whole and drops the
+    later one, which the notice's name still says, rather than cutting the first fact
+    mid-word ("1 new re…"). The count says "+1" in the room the notice kept, so a
+    reader with no tooltip knows more waits; the name doesn't repeat it."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Which job comes first?", {"section": "jobs"})
     page = open_page(browser, url)
@@ -606,6 +608,9 @@ def test_held_news_too_long_for_its_notice_drops_a_later_fact_whole(browser, ser
     expect(notice).to_be_visible()
     rendered(page)
     width = notice.bounding_box()["width"]
+    expect(notice.locator(":scope > span")).not_to_have_attribute(
+        "data-lf-more", re.compile(".*")
+    )
 
     append_user_reply(serve.page_dir, root, "And the bird bath?")
     told(page)
@@ -615,6 +620,19 @@ def test_held_news_too_long_for_its_notice_drops_a_later_fact_whole(browser, ser
     expect(notice).to_be_visible()
     rendered(page)
     assert notice.bounding_box()["width"] == pytest.approx(width, abs=0.5)
+    words = notice.locator(":scope > span")
+    expect(words).to_have_attribute("data-lf-more", "+1")
+    # The count draws in the room the notice kept past the words it follows.
+    count = words.evaluate(
+        """words => {
+            const after = getComputedStyle(words, "::after");
+            const start = words.getBoundingClientRect().right;
+            return {content: after.content, end: start + parseFloat(after.width),
+                right: words.parentElement.getBoundingClientRect().right};
+        }"""
+    )
+    assert count["content"] == '"+1" / ""', count
+    assert count["end"] <= count["right"] + 0.5, count
     facts = notice.locator(":scope > span > span")
     assert facts.nth(0).evaluate("fact => fact.scrollWidth <= fact.clientWidth")
     # The later fact wraps past the words' clip, so nothing of it draws or takes a press.
@@ -627,6 +645,36 @@ def test_held_news_too_long_for_its_notice_drops_a_later_fact_whole(browser, ser
             return !fact.contains(hit);
         }"""
     )
+
+
+def test_held_news_shows_every_fact_its_notice_first_said(browser, serve):
+    """A seat's notice that first says two facts keeps both on its line. Its room
+    measures the news as one line and the facts measure it in pieces, a fraction of a
+    pixel wider, which dropped the last fact and left a gap where it fit."""
+    url = serve(SEATED_OBLIGATION_PAGE)
+    root = panel_comment(serve.page_dir, "Which job comes first?", {"section": "jobs"})
+    page = open_page(browser, url)
+    resized(page, 1200, 900)
+    thread = page.locator("#jobs .lf-page-thread")
+    expect(thread).to_be_visible()
+    write(thread.locator("leaf-text"), "Start with the mounts.")
+    rendered(page)
+
+    thread_model.post_reply(
+        serve.page_dir, {"responds": root}, "The mounts come first."
+    )
+    append_user_reply(serve.page_dir, root, "And the bird bath?")
+    told(page)
+    notice = thread.get_by_role(
+        "button", name="1 new reply · 1 new message", exact=True
+    )
+    expect(notice).to_have_attribute("data-lf-room", "1 new reply · 1 new message")
+    rendered(page)
+    words = notice.locator(":scope > span")
+    assert words.evaluate(
+        "words => [...words.children].map(fact => fact.offsetTop)"
+    ) == [0, 0]
+    expect(words).not_to_have_attribute("data-lf-more", re.compile(".*"))
 
 
 def test_a_streaming_answer_takes_the_working_messages_place_and_disclosure(

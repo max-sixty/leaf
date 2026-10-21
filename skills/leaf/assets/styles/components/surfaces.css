@@ -582,8 +582,12 @@ summary {
   --lf-msg-edit-room: calc(
     var(--lf-msg-edit-cancel) + var(--lf-msg-edit-gap) + var(--lf-msg-edit-save)
   );
-  /* The widest a primary reader's news notice stands, in a message head or a part. */
-  --lf-primary-news-width: 5rem;
+  /* The room a held-news notice keeps at its end for the count of facts it drops
+     (`.lf-thread-news > span[data-lf-more]`, below). */
+  --lf-news-count-room: 16px;
+  /* The widest a primary reader's news notice stands, in a message head or a part,
+     its count's room included. */
+  --lf-primary-news-width: calc(5rem + var(--lf-news-count-room));
 }
 .lf-thread-transcript {
   min-width: 0;
@@ -662,6 +666,7 @@ summary {
 }
 .lf-primary-news {
   position: absolute;
+  box-sizing: border-box;
   inset-block-start: 0;
   inset-inline-end: var(--lf-msg-control-room, var(--lf-msg-control, 0px));
   max-inline-size: var(--lf-primary-news-width);
@@ -1000,15 +1005,17 @@ button.lf-thread-notice[data-lf-focus] {
    the facts that don't fit wrap onto lines it doesn't show: a later fact drops whole
    rather than cutting the one before it mid-word. Only a first fact too wide alone is
    cut. The clip reaches half a line below the words, outside their box, so the hover
-   underline shows, and the gap between lines keeps a wrapped fact past it. */
+   underline shows, and the gap between lines keeps a wrapped fact past it. It clips
+   only below, so the count of dropped facts (below) can stand past the words' end. */
 .lf-thread-news > span {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   row-gap: 1lh;
   block-size: 1lh;
   padding-block-end: 0.5lh;
   margin-block-end: -0.5lh;
-  overflow: clip;
+  overflow: visible clip;
 }
 .lf-thread-news > span > span {
   flex: none;
@@ -1021,6 +1028,32 @@ button.lf-thread-notice[data-lf-focus] {
   margin-block-end: -0.5lh;
   overflow: clip;
   text-overflow: ellipsis;
+}
+/* A room measures its news as one line and the facts measure it in pieces, which can
+   sum a fraction of a pixel wider, so the news the room was made for would drop its
+   last fact. The first fact yields a pixel of the line to keep them on it. */
+.lf-thread-news[data-lf-room] > span > :first-child {
+  margin-inline-end: -1px;
+}
+/* While facts are dropped, the notice counts them on the words' line, in a room just
+   past their end: "+1" (held-news.js, `newsNotice`), since a finger never sees the
+   title that lists them. A placement that bounds the notice's width, and so may drop
+   facts, reserves that room from the notice's first paint, so the count arriving moves
+   nothing under the pointer. A placement that draws the notice whole, as a margin
+   card's controls row does, drops no fact and reserves no room. The count stays out
+   of the accessible name, which already says every fact. */
+.lf-thread-controls > .lf-thread-news,
+button.lf-primary-news {
+  padding-inline-end: var(--lf-news-count-room);
+}
+.lf-thread-news > span[data-lf-more]::after {
+  content: attr(data-lf-more) / "";
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 100%;
+  inline-size: var(--lf-news-count-room);
+  text-align: end;
+  font-variant-numeric: tabular-nums;
 }
 .lf-seat-news {
   display: flex;

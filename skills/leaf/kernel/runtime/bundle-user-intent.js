@@ -5366,6 +5366,14 @@ function newsNotice(header = false) {
   );
   const words = document.createElement("span");
   node.append(words);
+  const dropped = sizeObserver(() => {
+    const [first, ...later] = (
+      /** @type {HTMLElement[]} */
+      [...words.children]
+    );
+    const count = later.filter((fact) => fact.offsetTop !== first.offsetTop).length;
+    keeps(words, "data-lf-more", count ? `+${count}` : null);
+  });
   let open2 = () => null;
   const show = () => {
     const standing2 = focused() === node;
@@ -5385,7 +5393,7 @@ function newsNotice(header = false) {
   return {
     node,
     set(news) {
-      if (words.textContent !== news.label)
+      if (words.textContent !== news.label) {
         words.replaceChildren(
           ...news.parts.map((part) => {
             const fact = document.createElement("span");
@@ -5393,6 +5401,9 @@ function newsNotice(header = false) {
             return fact;
           })
         );
+        dropped.disconnect();
+        for (const box of [words, ...words.children]) dropped.observe(box);
+      }
       keeps(node, "title", news.label);
       node.classList.toggle("lf-reopen", news.reopened);
       open2 = news.open;

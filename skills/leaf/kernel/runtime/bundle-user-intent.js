@@ -177,6 +177,7 @@ import {
   applicationState,
   attachApplicationPresentation,
   offlineInteractive,
+  pageClaimed,
   readApplication,
   readPart,
   runtime,
@@ -3797,6 +3798,8 @@ function threadName(thread) {
   );
   return words || (root.drawing ? "Drawing" : "");
 }
+var titlePending = (thread) => thread.title == null && thread.attention?.kind === "waiting" && thread.attention.reason === "workflow" && pageClaimed();
+var threadHeading = (thread) => titlePending(thread) ? html`<span class="lf-thread-name-pending">Generating thread name…</span>` : threadName(thread);
 var threadSummary = (thread) => ({
   topic: threadName(thread),
   latest: lastMovedAt(thread)
@@ -6493,11 +6496,6 @@ function threadReading(thread, surface, commands2) {
     // How long ago the thread last moved, read here with the rest of the reading, so a
     // card whose reading did not change shows the same age and need not draw again.
     recency: summary.latest ? Object.freeze({ short: shortAgo(summary.latest), long: ago(summary.latest) }) : null,
-    // A title comes from the agent's answer or beside it, so an untitled thread
-    // waits for one only while the agent's work on it is under way. A turn that
-    // ended, stalled or was never picked up sends none, and the thread reads its
-    // opening words.
-    titlePending: thread.title == null && thread.attention?.kind === "waiting" && thread.attention.reason === "workflow",
     unreadCount: thread.unread.length,
     id: thread.id,
     attempt: thread.root.attempt ?? null,
@@ -7753,6 +7751,7 @@ export {
   loadMessageMarkdown,
   messageText,
   threadName,
+  threadHeading,
   threadSummary,
   prepareAuthoredMessage,
   messageReading,

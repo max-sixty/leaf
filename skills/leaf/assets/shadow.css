@@ -423,6 +423,11 @@ summary {
 .lf-thread-working[data-lf-live] .lf-thread-working-words {
   animation: lf-sheen 2s ease-in-out infinite alternate;
 }
+.lf-thread-name-pending {
+  font-weight: 400;
+  color: color-mix(in srgb, var(--ink) 50%, transparent);
+  animation: lf-sheen 2s ease-in-out infinite alternate;
+}
 @keyframes lf-sheen {
   from, to {
     color: var(--ink);

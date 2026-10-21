@@ -239,14 +239,6 @@ export function threadReading(thread, surface, commands) {
     recency: summary.latest
       ? Object.freeze({ short: shortAgo(summary.latest), long: ago(summary.latest) })
       : null,
-    // A title comes from the agent's answer or beside it, so an untitled thread
-    // waits for one only while the agent's work on it is under way. A turn that
-    // ended, stalled or was never picked up sends none, and the thread reads its
-    // opening words.
-    titlePending:
-      thread.title == null &&
-      thread.attention?.kind === "waiting" &&
-      thread.attention.reason === "workflow",
     unreadCount: thread.unread.length,
     id: thread.id,
     attempt: thread.root.attempt ?? null,

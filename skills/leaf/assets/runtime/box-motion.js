@@ -13,37 +13,44 @@
  * - A part that kept its size is carried: drawn where it stood, and moved by a
  *   transform to where it stands.
  * - A part that changed size and holds parts of its own leaves each of them to these
- *   rules, and is itself cut to its outline growing from where it stood, which draws
- *   whatever it paints growing with it.
+ *   rules. If it paints, a face or a ring, that grows from where it stood with it: a
+ *   ring drawn by the surface, a face by cutting the part to its outline growing,
+ *   unless the part holds something placed against the window, which any cut on it
+ *   would cut too.
  * - A part that changed size and holds only its own content, such as words, carries
  *   that content by its start corner, cut to its outline growing from where it stood.
  *   An editor carries its words inside its own box (`--lf-field-carry`,
- *   `--lf-field-cut`, composing/text-field.js), where a transform on the editor would
- *   move the field under the user's typing; words that box no longer holds where they
- *   stood show where they now stand. A part that scrolls shows what its scroll puts in
- *   it, which the reader landing in it measures, so it only grows from where it stood.
+ *   `--lf-field-cut`, composing/text-field.js), since a transform on the editor would
+ *   move the field under the user's typing. That box cuts its words off at its edges,
+ *   so where the editor's start moved up or back, as more room re-wrapping a paragraph
+ *   moves it, the editor is carried whole instead, unless the user is typing in it,
+ *   when the words show where they now stand. A part that scrolls and changed size shows
+ *   what its scroll puts in it, which the reader landing in it measures mid-tween, so
+ *   it only grows from where it stood; one that kept its size is carried.
  * - A part new to the box is revealed: cut to the frame it stands in, the surface or
  *   the part holding it, as that frame's edges reach it, and still new while that
  *   lasts. A side where it stands out of its frame, as the attachments hanging over the
- *   box's top do, is left uncut.
+ *   box's top do, is cut only at its own edge.
  *
- * Whose change it is decides what travels. The user's own change, a line typed or a
- * press, carries what it moved, so the eye follows it; news, such as an answer
- * arriving, moves nothing the reader reads (assets/AGENTS.md, "Stability"): each part
- * it moved stands where it now stands, revealed by the frame it stands in, while the
- * box's outline and ring still follow.
+ * Whose change it is decides what travels. The user's own change, a key, a press or
+ * typing, owns what it sets going until that rendering settles, and carries what it
+ * moved, so the eye follows it. News, such as an answer arriving, moves nothing the
+ * reader reads (assets/AGENTS.md, "Stability"): each part it moved shows where it now
+ * stands, revealed by the frame it stands in or growing from its own old box, while
+ * the box's outline and ring still follow.
  *
- * A change arriving during the tween starts from where everything is drawn then. A
- * part placed against the window, as the attachment shelf is, moves with no ancestor's
- * transform, so a part holding one is never carried whole: its parts are placed one by
- * one. The motion is presentation only: each part's layout is where it stands from the
- * change on, and a part's motion ends with the tween, so nothing it leaves behind needs
- * undoing.
+ * A change arriving during the tween starts each part from where it is drawn then;
+ * news arriving while the user's change still carries parts shows them where they now
+ * stand. A part placed against the window, as the attachment shelf is, moves with no
+ * ancestor's transform, so a part holding one is never carried whole: its parts are
+ * placed one by one. The motion is presentation only: each part's layout is where it
+ * stands from the change on, and a part's motion ends with the tween, so nothing it
+ * leaves behind needs undoing.
  *
- * The platform's own way to move a layout change, a view transition, draws each part as
- * a picture of itself and holds the page's rendering while it runs, so a word typed
- * during the tween would show nowhere; here every part stays live, which takes reading
- * where each was drawn. */
+ * The platform's own way to move a layout change, a view transition, draws the old
+ * state as a picture, sends every press to the root while it runs, and abandons a
+ * running one when the next change starts, as each keystroke would; here every part
+ * stays live and pressable, which takes reading where each was drawn. */
 import { keeps } from "./keeps.js";
 import { TEXT_FIELD } from "./control-selectors.js";
 import { nextRender } from "./rendering.js";
@@ -90,7 +97,7 @@ const rings = (style) =>
 // cuts are measured. surface(): each layer drawing the box, with how far past the
 // outline it reaches. ring: the two layers that draw a part's ring, a ring and a fill
 // inside it. observer: reads the box again when any part changes size. theirs():
-// whether the change being read is the user's own.
+// whose change is being read, "typing" or "press" for the user's own, null for news.
 export function boxMotion({
   root,
   box,
@@ -106,6 +113,13 @@ export function boxMotion({
   let motions = new Map();
   let running = [];
   let observed = new Set();
+  // The parts read whole, whose insides no reading reads.
+  let wholes = new WeakSet();
+  const insideWhole = (node) => {
+    for (let up = node.parentElement; up && up !== root; up = up.parentElement)
+      if (wholes.has(up)) return true;
+    return false;
+  };
 
   // How far the parts carrying an element have it drawn from its rest now, it among
   // them, on the clock every motion shares.
@@ -160,6 +174,7 @@ export function boxMotion({
     if (!part.whole)
       for (const child of element.children) read(child, part.parts, carried);
     part.holdsWindow = part.parts.some((inner) => inner.window || inner.holdsWindow);
+    if (part.whole) wholes.add(element);
     into.push(part);
   }
 
@@ -206,7 +221,7 @@ export function boxMotion({
       for (const node of record.type === "childList"
         ? record.addedNodes
         : [record.target])
-        if (node instanceof Element) arrived.add(node);
+        if (node instanceof Element && !insideWhole(node)) arrived.add(node);
     watch();
   }).observe(root, { subtree: true, childList: true, attributeFilter: ["hidden"] });
 
@@ -214,6 +229,7 @@ export function boxMotion({
     const progress = running[0]?.effect.getComputedTiming().progress ?? 1;
     const carried = carriedBy(progress);
     const parts = [];
+    wholes = new WeakSet();
     read(root, parts, carried);
     const next = new Map();
     const note = (part) => {
@@ -231,10 +247,17 @@ export function boxMotion({
       )
     )
       return;
-    const was = timing && rests ? drawn(progress, carried) : null;
-    const carries = theirs();
     for (const animation of running) animation.cancel();
     running = [];
+    // A box not drawn at all, as in print, has nothing to move, and its next reading
+    // takes it as it stands.
+    if (!next.has(box)) {
+      rests = null;
+      motions = new Map();
+      return;
+    }
+    const was = timing && rests ? drawn(progress, carried) : null;
+    const gesture = theirs();
     // A part holding parts of its own that was growing is drawn at a size of its own,
     // so its parts are placed again from where each is drawn.
     const framed = new Set(
@@ -294,15 +317,19 @@ export function boxMotion({
       const end = Math.max(0, width(to) - width(from));
       const foot = Math.max(0, height(to) - height(from));
       const cut = rtl ? [0, 0, foot, end] : [0, end, foot, 0];
-      if (!part.element.matches(TEXT_FIELD)) {
+      // The editor's own box cuts its words off at its edges, so it carries them
+      // inside itself only as far as that box holds them. Where its start moved up or
+      // back, the editor is carried whole instead, unless the user is typing in it,
+      // when a moving field would move under their typing.
+      const editor = part.element.matches(TEXT_FIELD);
+      const inside = (rtl ? dx <= 0 : dx >= 0) && dy >= 0;
+      if (!editor || (!inside && gesture !== "typing")) {
         motions.set(part.element, { from, to, carries: true });
         move(part.element, dx, dy);
         cutFrom(part.element, cut);
         return;
       }
       motions.set(part.element, { from, to });
-      // The editor's own box cuts its words off at its edges, so it carries them
-      // only as far as that box holds them.
       dx = rtl ? Math.min(0, dx) : Math.max(0, dx);
       dy = Math.max(0, dy);
       start(part.element, [
@@ -357,6 +384,7 @@ export function boxMotion({
         near(height(rest), height(to));
       let within = frame;
       if (element !== box && element !== root) {
+        const carries = gesture !== null;
         if (sized && !part.holdsWindow)
           return carries ? carry(part, from) : reveal(part, frame);
         if (part.whole) return carries ? carryContent(part, from) : grow(part, from);

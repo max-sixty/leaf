@@ -120,12 +120,15 @@
  * Nothing moves under the pointer: a view's controls stand at its foot, the leaf's
  * menu holds what it showed while it stands, and a control the user pressed in a
  * thread stays where it was. Every change of the box's layout takes effect in one step,
- * and everything the user sees then travels from where it was drawn to where it
- * stands, by one model (box-motion.js): the surface behind the box, a separate layer,
- * follows by a clip, the way the Codex app's floating panel moves, and so does the
- * field's ring; a part that kept its size is carried by a transform; one that changed
- * size grows from where it stood; one that is new is revealed by the edges of what
- * holds it. Nothing's layout tweens, so the box's room on the page is its new room at
+ * and what the user sees then travels from where it was drawn to where it stands, by
+ * one model (box-motion.js): the surface behind the box, a separate layer, follows by a
+ * clip, the way the Codex app's floating panel moves, and so does the field's ring; a
+ * part that kept its size is carried by a transform; one that changed size grows from
+ * where it stood, carrying its words by their start corner; one that is new is revealed
+ * by the edges of what holds it. That carrying is for the user's own change, a key,
+ * press or typing: news, such as an answer growing a thread's view, shows what it moved
+ * where it now stands, revealed by the surface's clip, so news moves nothing the reader
+ * reads. Nothing's layout tweens, so the box's room on the page is its new room at
  * once. The user asked for this on 20 October, after a line the field gained left its
  * attachment vanishing and its ring outrunning the box, and more room left the field
  * behind the box widening around it; it replaced revealing everything a change moved
@@ -223,7 +226,7 @@ import {
 } from "./focus.js";
 import { rowWalk } from "./walk-position.js";
 import { excerptWords } from "./words.js";
-import { nextRender, sizeObserver } from "./rendering.js";
+import { afterSettling, holdRendering, nextRender, sizeObserver } from "./rendering.js";
 import { boxMotion } from "./box-motion.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { moveScrollerBy, SCROLL_SLACK, scrollLimit, scrollToEnd } from "./scrolling.js";
@@ -1100,19 +1103,22 @@ export function createFloatingPanel({
     },
     ring: [fieldRing, fieldFill],
     observer: follow,
-    // The first change the box takes after the user's key, press or typing is theirs; a
-    // scroll changes no box, and what changes it later, such as an answer, is news.
-    theirs: () => {
-      const own = gestures !== taken;
-      taken = gestures;
-      return own;
-    },
+    theirs: () => gesture,
   });
+  // The user's key, press or typing owns what it sets going until that rendering
+  // settles (rendering.js, `afterSettling`), the window the shift watch also gives a
+  // gesture: changes to the box meanwhile are theirs, and what changes it after, such
+  // as an answer arriving, is news. Typing is told apart, since the field it types in
+  // must not move under it.
+  let gesture = null;
   let gestures = 0;
-  let taken = 0;
   onUserInput((event) => {
-    if (["keydown", "pointerdown", "input", "touchstart"].includes(event.type))
-      gestures++;
+    if (!["keydown", "pointerdown", "input", "touchstart"].includes(event.type)) return;
+    gesture = event.type === "input" ? "typing" : "press";
+    const own = ++gestures;
+    afterSettling(() => {
+      if (gestures === own) gesture = null;
+    });
   });
   function followBox() {
     // How far the box reaches up from the window's foot, which the root's
@@ -1545,11 +1551,18 @@ export function createFloatingPanel({
       easing: "linear",
       fill: "forwards",
     });
+    // The view leaving goes once its fade ends, which is still the gesture's rendering,
+    // so the box moving then moves as the user's change (`followBox`).
+    const release = fade ? holdRendering() : null;
     const settle = () => {
       leaving = null;
       paint();
+      release();
     };
-    if (fade) fade.finished.then(settle, () => {});
+    if (fade)
+      fade.finished.then(settle, () => {
+        release();
+      });
     else leaving = null;
     if (focus) focusView(after, drawn, stoodIn);
   }

@@ -454,6 +454,7 @@ import {
   TEXT_BOX,
   TEXT_FIELD,
   WORKS,
+  afterSettling,
   byRenderedOrder,
   cancelRender,
   closeLayer,
@@ -464,6 +465,7 @@ import {
   focused,
   handBack,
   holdFocus,
+  holdRendering,
   keeps,
   keepsHidden,
   keepsText,
@@ -6337,6 +6339,12 @@ function boxMotion({
   let motions = /* @__PURE__ */ new Map();
   let running = [];
   let observed = /* @__PURE__ */ new Set();
+  let wholes = /* @__PURE__ */ new WeakSet();
+  const insideWhole = (node) => {
+    for (let up = node.parentElement; up && up !== root; up = up.parentElement)
+      if (wholes.has(up)) return true;
+    return false;
+  };
   function carriedBy(progress) {
     const offsets = /* @__PURE__ */ new Map();
     const offset = (carrier) => {
@@ -6381,6 +6389,7 @@ function boxMotion({
     if (!part.whole)
       for (const child of element.children) read(child, part.parts, carried);
     part.holdsWindow = part.parts.some((inner) => inner.window || inner.holdsWindow);
+    if (part.whole) wholes.add(element);
     into.push(part);
   }
   function drawn2(progress, carried) {
@@ -6412,13 +6421,14 @@ function boxMotion({
   new MutationObserver((records2) => {
     for (const record of records2)
       for (const node of record.type === "childList" ? record.addedNodes : [record.target])
-        if (node instanceof Element) arrived.add(node);
+        if (node instanceof Element && !insideWhole(node)) arrived.add(node);
     watch();
   }).observe(root, { subtree: true, childList: true, attributeFilter: ["hidden"] });
   function follow(timing) {
     const progress = running[0]?.effect.getComputedTiming().progress ?? 1;
     const carried = carriedBy(progress);
     const parts = [];
+    wholes = /* @__PURE__ */ new WeakSet();
     read(root, parts, carried);
     const next = /* @__PURE__ */ new Map();
     const note = (part) => {
@@ -6431,10 +6441,15 @@ function boxMotion({
       ([element, at]) => rests.has(element) && same3(rests.get(element), at)
     ))
       return;
-    const was = timing && rests ? drawn2(progress, carried) : null;
-    const carries = theirs();
     for (const animation of running) animation.cancel();
     running = [];
+    if (!next.has(box)) {
+      rests = null;
+      motions = /* @__PURE__ */ new Map();
+      return;
+    }
+    const was = timing && rests ? drawn2(progress, carried) : null;
+    const gesture = theirs();
     const framed = new Set(
       [...motions].filter(([, motion]) => motion.frames).map(([element]) => element)
     );
@@ -6480,7 +6495,9 @@ function boxMotion({
       const end = Math.max(0, width(to) - width(from));
       const foot = Math.max(0, height(to) - height(from));
       const cut = rtl ? [0, 0, foot, end] : [0, end, foot, 0];
-      if (!part.element.matches(TEXT_FIELD)) {
+      const editor = part.element.matches(TEXT_FIELD);
+      const inside = (rtl ? dx <= 0 : dx >= 0) && dy >= 0;
+      if (!editor || !inside && gesture !== "typing") {
         motions.set(part.element, { from, to, carries: true });
         move2(part.element, dx, dy);
         cutFrom(part.element, cut);
@@ -6532,6 +6549,7 @@ function boxMotion({
       const sized = !framed.has(element) && near(width(rest), width(to)) && near(height(rest), height(to));
       let within = frame;
       if (element !== box && element !== root) {
+        const carries = gesture !== null;
         if (sized && !part.holdsWindow)
           return carries ? carry(part, from) : reveal2(part, frame);
         if (part.whole) return carries ? carryContent(part, from) : grow(part, from);
@@ -7132,19 +7150,17 @@ function createFloatingPanel({
     },
     ring: [fieldRing, fieldFill],
     observer: follow,
-    // The first change the box takes after the user's key, press or typing is theirs; a
-    // scroll changes no box, and what changes it later, such as an answer, is news.
-    theirs: () => {
-      const own = gestures !== taken;
-      taken = gestures;
-      return own;
-    }
+    theirs: () => gesture
   });
+  let gesture = null;
   let gestures = 0;
-  let taken = 0;
   onUserInput((event) => {
-    if (["keydown", "pointerdown", "input", "touchstart"].includes(event.type))
-      gestures++;
+    if (!["keydown", "pointerdown", "input", "touchstart"].includes(event.type)) return;
+    gesture = event.type === "input" ? "typing" : "press";
+    const own = ++gestures;
+    afterSettling(() => {
+      if (gestures === own) gesture = null;
+    });
   });
   function followBox() {
     const box = card.getBoundingClientRect();
@@ -7406,12 +7422,16 @@ function createFloatingPanel({
       easing: "linear",
       fill: "forwards"
     });
+    const release2 = fade ? holdRendering() : null;
     const settle = () => {
       leaving = null;
       paint();
+      release2();
     };
-    if (fade) fade.finished.then(settle, () => {
-    });
+    if (fade)
+      fade.finished.then(settle, () => {
+        release2();
+      });
     else leaving = null;
     if (focus) focusView(after2, drawn2, stoodIn);
   }
@@ -8051,7 +8071,7 @@ function createFloatingPanel({
     const prompt = said && said.trim() !== title.trim() ? said : "";
     const answered = record && record.status !== "open";
     const choices = record && !answered && record.source.kind === "widget" && !inWords ? obligationView.choicesOf(record) : null;
-    const gesture = answered ? answerGesture(record) : null;
+    const gesture2 = answered ? answerGesture(record) : null;
     const discuss = thread ? html`<button
           type="button"
           class="lf-fp-quiet"
@@ -8079,10 +8099,10 @@ function createFloatingPanel({
           >${item.todo?.running?.text ?? workflowStep(item.workflow)}</span
         >${thread ? discuss : nothing}`;
     else if (answered)
-      answers = html`<span class="lf-fp-said">${obligationEnding(record)}</span>${gesture ? html`<button
+      answers = html`<span class="lf-fp-said">${obligationEnding(record)}</span>${gesture2 ? html`<button
                 type="button"
                 class="lf-fp-quiet"
-                @click=${() => withdraw(gesture)}
+                @click=${() => withdraw(gesture2)}
               >
                 Undo
               </button>` : nothing}`;

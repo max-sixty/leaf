@@ -266,7 +266,12 @@ const groupOf = (entry) =>
     : entry.copies && !canCopy()
       ? "about"
       : entry.group;
-const FILTERS = Object.freeze(["open", "unread", "drafts", "resolved"]);
+// Threads' filters. Mine holds the open threads waiting on the user: a question to them,
+// a reply they haven't read, a draft they left. The user chose it on 20 October over an
+// Unread filter, under which a resolved thread's news outnumbered the open threads and an
+// asking thread already read went unlisted, and over grouping the list by whose move,
+// which regroups rows and parts the list from the `t` walk's page order.
+const FILTERS = Object.freeze(["mine", "open", "drafts", "resolved"]);
 // The views a thread is opened from.
 const LISTS = Object.freeze(["threads", "queue"]);
 const capital = (word) => word[0].toUpperCase() + word.slice(1);
@@ -787,6 +792,12 @@ export function createFloatingPanel({
   };
   const unread = (thread) => thread.unread.length > 0;
   const newCount = () => (inventoried() ? threads().filter(unread).length : 0);
+  const mine = (thread) =>
+    !thread.resolved &&
+    (unread(thread) ||
+      threadAttention(thread)?.kind === "needs_user" ||
+      draftHasContent(replyContext(thread.key)));
+  const mineCount = () => (inventoried() ? threads().filter(mine).length : 0);
   const openCount = () =>
     inventoried() ? threads().filter((thread) => !thread.resolved).length : null;
   const onUserCount = () => {
@@ -794,14 +805,14 @@ export function createFloatingPanel({
     return queues.phase === "ready" ? queues.on_user.length : 0;
   };
   // A thread row's state in words, less the one the filter the list is shown by already
-  // says: under Open no row says "Open", under Unread none "New".
+  // says: under Open and Mine no row says "Open", under Drafts none "Draft".
   const threadStatus = (thread, shownBy) => {
     const state = thread.resolved
       ? "Resolved"
       : (threadAttention(thread)?.label ?? "Open");
     const said = {
-      unread: "New",
       open: "Open",
+      mine: "Open",
       resolved: "Resolved",
       drafts: "Draft",
     }[shownBy];
@@ -2020,7 +2031,7 @@ export function createFloatingPanel({
           .toLowerCase();
         return text.includes(words);
       }
-      if (filter === "unread") return unread(thread);
+      if (filter === "mine") return mine(thread);
       if (filter === "drafts") return draftHasContent(replyContext(thread.key));
       if (filter === "resolved") return thread.resolved;
       return !thread.resolved;
@@ -2033,7 +2044,7 @@ export function createFloatingPanel({
       ? "Nothing matches."
       : {
           open: "No open threads. Comment below to start one.",
-          unread: "All caught up.",
+          mine: "Nothing waiting on me.",
           drafts: "No drafts.",
           resolved: "No resolved threads.",
         }[filter];
@@ -2798,7 +2809,6 @@ export function createFloatingPanel({
     /** @type {unknown} */
     let named = nothing;
     if (top.view === "threads") {
-      const news = newCount();
       aux = html`${tabs(
           FILTERS,
           filter,
@@ -2809,7 +2819,8 @@ export function createFloatingPanel({
             paint();
           },
           // Open counts what the thread mark counts, so the mark's number is found here.
-          (name) => (name === "unread" ? news : name === "open" ? openCount() : null),
+          (name) =>
+            name === "mine" ? mineCount() : name === "open" ? openCount() : null,
         )}<button
           type="button"
           class="lf-fp-icon-btn"
@@ -3304,7 +3315,7 @@ export function createFloatingPanel({
           aria-label=${threadsName}
           title=${threadsName}
           @click=${() => {
-            filter = news && !threadsOpen ? "unread" : "open";
+            filter = mineCount() && !threadsOpen ? "mine" : "open";
             query = "";
             open({ view: "threads" });
           }}

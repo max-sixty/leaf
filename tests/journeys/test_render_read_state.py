@@ -173,10 +173,10 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
     expect(mark).to_have_attribute("title", "Threads, 2 open, 1 with news")
     expect(mark.locator(".lf-fp-news")).to_be_visible()
     thread_control_width = mark.bounding_box()["width"]
-    # With news waiting, Threads opens on the threads that hold it.
+    # With a reply waiting unread, Threads opens on the threads waiting on the user.
     mark.click()
     panel_settled(page, view="threads")
-    expect(page.locator(".lf-fp-filters button", has_text="Unread")).to_have_attribute(
+    expect(page.locator(".lf-fp-filters button", has_text="Mine")).to_have_attribute(
         "aria-pressed", "true"
     )
     row = _thread_row(page, root)

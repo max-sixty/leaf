@@ -17,8 +17,7 @@ const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
 // The outline belongs to the nearest declared view holding it, or the page's main.
 // Scope follows document ownership, not visibility: closed disclosures still contribute
 // headings that a native fragment link can reveal.
-export const outlineDocument = (host) =>
-  host.closest("[data-lf-views] > *, main");
+export const outlineDocument = (host) => host.closest("[data-lf-views] > *, main");
 
 const said = (made, className) => {
   made.className = className;

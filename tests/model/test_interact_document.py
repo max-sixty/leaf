@@ -1380,16 +1380,25 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
     enumerates — restated, overruled and resolves each name something the log
     holds, which a one-version corpus cannot earn.
 
+    Live samples are example pages too; their child documents contribute the
+    attributes the reader can exercise there.
+
     The floor reads every package the examples select rather than a list written
     here, which is how it followed lf-diagram and lf-diff into their own packages.
     Widening it that way brought pr-review's two widgets under the floor for the
     first time and found one uncovered attribute, exempted below."""
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
     used = {}
-    for path in (Path(__file__).parents[2] / "examples").glob("*.html"):
-        for rec in structure_model.SourceDocument(path.read_text()).lf_elements:
+
+    def read(document):
+        for rec in document.lf_elements:
             for attr, value in rec["attrs"].items():
                 used.setdefault(rec["tag"], {}).setdefault(attr, set()).add(value)
+        for sample in document.samples:
+            read(sample["document"])
+
+    for path in (Path(__file__).parents[2] / "examples").glob("*.html"):
+        read(structure_model.SourceDocument(path.read_text()))
     missing = []
     for tag, entry in sorted(registry.items()):
         if not tag.startswith("lf-"):

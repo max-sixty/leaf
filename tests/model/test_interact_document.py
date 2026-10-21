@@ -981,7 +981,7 @@ def test_a_move_on_a_replaced_revision_lands_only_where_its_column_held(page_dir
         _move(page_dir, "x", "c-todo", "1i")
     stale = refused_on(refused.value)
     assert (stale.code, stale.values["container"]) == ("stale-move", "c-todo")
-    assert refused.value.user == "The page changed while you moved this; move it again."
+    assert refused.value.user == "The page changed while I moved this; move it again."
     _move(page_dir, "x", "c-todo", "2i", revision=2)
     assert _todo_order(page_dir) == ["n", "a", "x", "b", "c"]
 

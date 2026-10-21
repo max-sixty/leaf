@@ -42,6 +42,7 @@
  * counts the panel marks, then the agent's status. It goes above whatever other
  * plugins draw there. Claude Code keeps an empty row between the band and the
  * prompt (measured at 2.1.306); a negative margin to close it hides the band.
+ * `leaf-dev claude-code-session` runs a session that draws it from this tree.
  *
  * A follower (`bin/leaf hook --harness claude-code
  * --if-claimed --pages`) prints that list whenever it changes and exits once the
@@ -379,13 +380,18 @@ export const register: Register = (on) => {
       return h(
         Text,
         { wrap: "truncate-end" },
+        // One link from the word Leaf through the title, so either opens the page.
         h(
-          Text,
-          { color: TONES[activity.kind] ?? "inactive", weight: "semibold" },
-          "Leaf",
+          Link,
+          { href: url },
+          h(
+            Text,
+            { color: TONES[activity.kind] ?? "inactive", weight: "semibold" },
+            "Leaf",
+          ),
+          " ",
+          h(Text, { underline: true }, title),
         ),
-        " ",
-        h(Link, { href: url }, h(Text, { underline: true }, title)),
         ...(on_user
           ? [dim(" · "), h(Text, { color: "warning" }, `On me ${on_user}`)]
           : []),

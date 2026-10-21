@@ -33,8 +33,10 @@ starts an App Server turn with a `leaf_delivery` tool output, one slice per turn
 Leaf acknowledges input it queues or starts. A pointer still needs complete reading
 and the confirmation on its last part; inline tool output needs no acknowledgement
 command. Run no `leaf wait` or `leaf wait --ack`.
-The same delivery id can come back after an uncertain queue response; that is the
-retry `event-batches.md` describes. Input confirmed during a turn isn't queued again.
+The same delivery id can come back in a later turn after an uncertain queue
+response; its `leaf delivery ack` then says an earlier turn already picked it up and
+names any answer it still owes. Don't redo that turn's work. Input confirmed during a
+turn isn't queued again.
 
 The desktop app's own App Server exposes no endpoint Leaf can use. A terminal can
 connect to a separate App Server (`codex-setup.md`). A Codex without `codex queue`

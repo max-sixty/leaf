@@ -835,6 +835,12 @@ def _offer_queued_delivery(
             "the observed App Server delivery is awaiting reconciliation"
         )
     queue_delivery(codex_path, session_id, prepared.prompt)
+    # `codex queue` takes no message id and lists nothing queued, so a failure
+    # before this acceptance is recorded leaves the offer to be queued again rather
+    # than risk losing it. A turn that acknowledges the first pointer before then
+    # accepts it (`codex_state.confirm_codex_pointer`); otherwise Codex runs a turn
+    # for each, and the second one's `delivery ack` says it repeats the first
+    # (`delivery.earlier_pickup`).
     accept_codex_delivery(session_id, prepared.payload["id"], None)
     return True
 

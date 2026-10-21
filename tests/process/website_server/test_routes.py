@@ -11,7 +11,7 @@ from dataclasses import replace
 import leaf_website as website_server
 import pytest
 from interact_support import comment as open_thread
-from interact_support import owed_answers, running_http_server
+from interact_support import owed_answers, publish, running_http_server
 from leaf.event_log import read_events
 from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
@@ -578,6 +578,54 @@ def test_a_stale_layer_is_answered_with_the_generation_the_container_holds(
         assert answer == {"layer": generation}
         assert headers["Leaf-Layer"] == generation
         assert read_events(published) == before
+
+
+def test_the_adapter_serves_a_published_revision_at_its_release_address(
+    page_dir, tmp_path
+):
+    """A published revision's document loads its layer and runtime from the release
+    (`_leaf-release/<release>/<page>`), which the Worker serves from the build's
+    static tree. The adapter, with no Worker in front of it, serves the same bytes at
+    the same addresses, so a published page starts there as it does at the edge."""
+    publish(page_dir)
+    site = tmp_path / "site"
+    published = site / "examples" / "decision"
+    published.parent.mkdir(parents=True)
+    shutil.copytree(page_dir, published)
+    write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
+    manifest_path = site / website_server.SITE_MANIFEST
+    manifest = json.loads(manifest_path.read_text())
+    page = manifest["pages"]["/examples/decision"]
+    page["states"] = {"1": "unused"}
+    manifest_path.write_text(json.dumps(manifest))
+    release = f"{page['assets']}/revisions/{revision_path(published, 1).stem}"
+
+    httpd = LeafHTTPServer(
+        ("127.0.0.1", 0), website_server.site_endpoint(site, FakeCodexHarness())
+    )
+    root = f"http://127.0.0.1:{httpd.server_address[1]}"
+    with running_http_server(httpd):
+        document, _ = get(f"{root}/examples/decision/")
+        assert f'data-lf-entry="{release}/leaf.js"'.encode() in document
+        runtime = serving_runtime().resources({})
+        for logical in ("/leaf.js", "/runtime/widget-api.js"):
+            body, headers = get(f"{root}{release}{logical}")
+            assert body == runtime[logical].data, logical
+            assert headers["Cache-Control"] == "public, max-age=31536000, immutable"
+            assert headers["Access-Control-Allow-Origin"] == "*"
+        registry, headers = get(f"{root}{release}/registry.json")
+        assert (
+            json.loads(registry)["$layer"]
+            == json.loads((published / "registry.json").read_text())["$layer"]
+        )
+        assert headers["Leaf-Release"] == manifest["release"]
+        for missing in (
+            f"{release}/api/state",
+            f"{page['assets']}/revisions/r9-x/a.js",
+        ):
+            with pytest.raises(urllib.error.HTTPError) as refused:
+                get(f"{root}{missing}")
+            assert refused.value.code == 404, missing
 
 
 @pytest.mark.parametrize(

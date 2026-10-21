@@ -1016,24 +1016,30 @@ class PageEndpoint:
             or match.group("runtime") != serving_runtime().identity
         ):
             return None
+        response = self._revision_resource(
+            revision, "/" + match.group("resource"), self._named_root(name)
+        )
+        if response is not None:
+            # The revision name carries its manifest digest, the runtime's identity
+            # names the runtime, and the address is in the URL, so these bytes never
+            # change. Every document of one page shares this namespace: a gallery's
+            # live samples are each a whole runtime importing the same modules, and
+            # refetching each one per document queued them behind one another on the
+            # origin's few connections for seconds.
+            response.headers["Cache-Control"] = "private, max-age=31536000, immutable"
+        return response
+
+    def _revision_resource(
+        self, revision: int, logical: str, root: str
+    ) -> Response | None:
+        """One resource of a revision as its documents run it, addressed at `root`
+        (`runtime_selection.executing`), or None for a path the revision lacks."""
         artifact = executing(self._artifact(revision))
         self.response_layer = artifact.registry["$layer"]["generation"]
-        logical = "/" + match.group("resource")
         resource = delivered_resource(
-            artifact,
-            logical,
-            DeliveryAddress(self.page_root, self._named_root(name)),
+            artifact, logical, DeliveryAddress(self.page_root, root)
         )
-        if resource is None:
-            return None
-        response = self._resource_content(resource)
-        # The revision name carries its manifest digest, the runtime's identity names
-        # the runtime, and the address is in the URL, so these bytes never change. Every document of one page shares this namespace:
-        # a gallery's live samples are each a whole runtime importing the same modules,
-        # and refetching each one per document queued them behind one another on the
-        # origin's few connections for seconds.
-        response.headers["Cache-Control"] = "private, max-age=31536000, immutable"
-        return response
+        return None if resource is None else self._resource_content(resource)
 
     def _serve_page_path(self) -> Response | None:
         path = self.path

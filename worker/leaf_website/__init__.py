@@ -81,7 +81,7 @@ from leaf.registry.storage import layer_metadata
 from leaf.revision_artifact import read_revision
 from leaf.revision_delivery import Delivery
 from leaf.revisioning import activate_source
-from leaf.schema import PAGE_ROUTE_DIRS, VENDORED_FILES
+from leaf.schema import PAGE_ROUTE_DIRS, REVISION_NAME, VENDORED_FILES
 from leaf.served_state.context import read_page
 from leaf.served_state.service import PageStateService
 from leaf.server import preview_metadata
@@ -1407,6 +1407,16 @@ def published_page(
     return None
 
 
+def released_path(pages: dict, path: str) -> str | None:
+    """The public path whose static file the Worker serves at a release-addressed
+    one, `<assets>/<inside>` (`worker/src/routing.ts`, `releaseAssetRoute`), or None
+    for a path no page's release names."""
+    for root, page in pages.items():
+        if path.startswith(page["assets"] + "/"):
+            return ("" if root == "/" else root) + path[len(page["assets"]) :]
+    return None
+
+
 class WebsitePageEndpoint(PageEndpoint):
     """Bind every clean website route to one initialized page directory."""
 
@@ -1424,6 +1434,9 @@ class WebsitePageEndpoint(PageEndpoint):
         self.routes = routes
         self.pages = pages
         self.agent_harness = agent_harness
+        # Whether the request named a published revision's resource at its release
+        # address (`released_path`), rather than at the page.
+        self.released = False
 
     def page_state(self, view_revision: int | None = None) -> dict:
         state = super().page_state(view_revision)
@@ -1517,11 +1530,46 @@ class WebsitePageEndpoint(PageEndpoint):
         AGENT_FAIL_PATH: PostRoute(_fail_agent, (PageEndpoint._body_gate,)),
     }
 
+    def _serve_artifact_resource(self) -> Response | None:
+        """A published revision's resource at its release address, as the Worker
+        serves the static tree the build wrote there (`live_shell`): the same bytes,
+        delivered by the same code at the same address, so a published page starts
+        here as at the edge. Any other revision resource is the page server's."""
+        if not self.released:
+            return super()._serve_artifact_resource()
+        match = re.fullmatch(
+            rf"/revisions/(?P<name>{REVISION_NAME})/(?P<resource>.+)", self.path
+        )
+        if match is None:
+            return None
+        revision = int(match["revision"])
+        if (
+            self.source.revision_names.get(revision) != match["name"] + ".html"
+            or (root := self._published_root(revision)) is None
+        ):
+            return None
+        response = self._revision_resource(revision, "/" + match["resource"], root)
+        if response is not None:
+            response.headers.update(
+                {
+                    "Cache-Control": "public, max-age=31536000, immutable",
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Expose-Headers": "*",
+                }
+            )
+        return response
+
     def _select_page(self) -> Response | None:
         if self.method == "GET" and self.path == "/health":
             return self._content(200, "text/plain; charset=utf-8", b"ok\n")
+        released = released_path(self.pages, self.path)
+        if released is not None:
+            self.released = True
+            self.path = released
         selected = published_page(self.routes, self.path)
-        if selected is None:
+        if selected is None or (
+            self.released and not selected[2].startswith("/revisions/")
+        ):
             return self._not_found()
         page_dir, page_root, inside, kind = selected
         identity, preview = page_binding(page_dir)

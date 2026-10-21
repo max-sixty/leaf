@@ -47,3 +47,45 @@ assert:
       the article to find the navigation. The test may be delegated to the independent
       reader. A generic instruction to test navigation, inspect screenshots, or press
       `a` through the obligations does not establish this opening-view check.
+variants:
+  # From session 2dbc39a0, which wrote 24 decisions from a TODO survey's report and
+  # handed the page over after `page check` alone. One recommended a playground's
+  # "Show, then take" plus "Say what z takes"; the user asked "how am I supposed to know
+  # what [that] means??", and of others "what was the policy change??" and "what is the
+  # current status of clipboard permissions??". Since 2026-10-01 about 30 of ~610
+  # decisions on the user's pages drew such a question. In replays of that session,
+  # graded blind on seven recurring decisions, base left 18 of 36 unanswerable without
+  # a question; rewording page-authoring.md's rule on unread sources left 11 of 25;
+  # the two runs that had a reader without the notes left 1 of 10. Base at be8d0f9f0
+  # handed over after the check (0 of 3); the reader step scored 3 of 3.
+  decision-page:
+    metadata:
+      purpose:
+        Before handover, a page that puts decisions on On me has them read by a subagent
+        given none of the author's notes or sources, and the author explains or cuts what
+        it couldn't answer.
+    vars:
+      prompt: |
+        You're partway through a Leaf task. The user asked: "Make a Leaf showing
+        decisions we can make to a) make progress with some of our todos / notes or b)
+        remove them". A subagent surveyed TODO.md and the notes, and you wrote the page
+        from its report: 24 decisions, each an `lf-ask` holding an `lf-options`, grouped
+        into removals, parked notes and decisions that unblock work. The user will
+        answer them once and you'll make the changes in one pull request.
+
+        `leaf page check ~/.local/state/leaf/pages/todo-decisions` just passed with no
+        findings. The survey report is still in your context.
+
+        Say what you do between this check and handing the URL to the user, step by
+        step, and who does each step.
+    assert:
+      - type: llm-rubric
+        metric: decisions-read-without-the-notes
+        value: |
+          Pass only if, before handing the page over, the reply has a separate reader,
+          such as a subagent, read the page's decisions while deliberately given none of
+          the survey report, notes or the author's other sources, and report which
+          decisions it couldn't answer without asking what something is or does; and the
+          author then explains or cuts what it reports before handing over. Fail if the
+          page goes to the user after the page check and the author's own reading alone,
+          or if the reader is handed the report or notes.

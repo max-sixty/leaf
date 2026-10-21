@@ -1,5 +1,7 @@
-"""Comment marks, Go-to addresses, and keyboard navigation tests."""
+"""Comment marks, Go-to addresses, keyboard navigation, and the keys each element
+names as the user moves through the examples."""
 
+import random
 import re
 
 import pytest
@@ -7,6 +9,7 @@ from interact_support import append_carried_log_record
 from leaf import event_log as events_model
 from leaf import server as server_model
 from leaf.render_checks import rendered, wait_until_ready
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import expect
 from render_cases_interaction import (
     OBLIGATIONS_PAGE,
@@ -26,9 +29,11 @@ from render_cases_navigation import (
 )
 from render_harness import (
     CORPUS_SOURCES,
+    DEVELOPER_PAGES,
     EXAMPLES,
     PANEL,
     PANEL_THREAD,
+    PUBLIC_EXAMPLES,
     RELEASE_FOCUS,
     ROOT,
     command_reference_rows,
@@ -1691,3 +1696,129 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     rendered(page)
     expect(page.locator(".lf-target-picker-hint").first).to_be_visible()
     page.keyboard.press("Escape")
+
+
+# The stale-keys sweep. Every control a pointer presses or typing fills, in the top
+# document and its open shadow roots; live samples run their own runtime in an opaque
+# frame and take no part.
+_SWEPT = (
+    "button:visible, [role=button]:visible, [role=tab]:visible, [role=radio]:visible, "
+    "[role=checkbox]:visible, input[type=checkbox]:visible, input[type=radio]:visible, "
+    "summary:visible, :is(textarea, input[type=search], input[type=text], "
+    "input:not([type])):not(:disabled, [readonly]):visible"
+)
+_FILLS = ("review", "", "a b c", "zzzz")
+_SWEEP_STEPS = 40
+_DESCRIBE = """element => {
+  const classes = [...element.classList].slice(0, 3).map(name => `.${name}`).join('');
+  const id = element.id ? `#${element.id}` : '';
+  const label = (element.getAttribute('aria-label') || element.title
+    || element.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 40);
+  return `${element.localName}${id}${classes} [${label}]`;
+}"""
+_CONTROL = (
+    """element => [("""
+    + _DESCRIBE
+    + """)(element), element.localName === 'textarea'
+  || (element.localName === 'input' && !['checkbox', 'radio'].includes(element.type))]"""
+)
+# Each element's painted keys and availability, held in the page as a Map keyed by
+# the element, so the reading after the repaint is compared node by node.
+_PAINTED_KEYS = """() => {
+  const painted = new Map();
+  const walk = root => {
+    for (const element of root.querySelectorAll('*')) {
+      painted.set(element, [element.getAttribute('aria-disabled'),
+                            element.getAttribute('aria-keyshortcuts')]);
+      if (element.shadowRoot) walk(element.shadowRoot);
+    }
+  };
+  walk(document);
+  return painted;
+}"""
+_REPAINTED_KEYS = (
+    """painted => {
+  const describe = """
+    + _DESCRIBE
+    + """;
+  const stale = [];
+  for (const [element, before] of painted) {
+    if (!element.isConnected) continue;
+    ['aria-disabled', 'aria-keyshortcuts'].forEach((attribute, index) => {
+      const now = element.getAttribute(attribute);
+      if (now !== before[index])
+        stale.push({element: describe(element), attribute,
+                    painted: before[index], repainted: now});
+    });
+  }
+  return stale;
+}"""
+)
+
+
+def _stale_keys(page):
+    """What a forced repaint of every element's keys changes, once the page has
+    rendered what the input so far asked for: each change is an attribute that was
+    stale. A live sample's Reset is unavailable while its child loads, which is
+    `lf-sample`'s own state rather than a row's, so the reading waits for the page's
+    readiness, which includes every sample's arrival."""
+    wait_until_ready(page)
+    rendered(page)
+    painted = page.evaluate_handle(_PAINTED_KEYS)
+    page.evaluate("async () => (await window.__lfWidgetApi()).paintKeys()")
+    rendered(page)
+    stale = page.evaluate(_REPAINTED_KEYS, painted)
+    painted.dispose()
+    return stale
+
+
+@pytest.mark.parametrize(
+    "example", (*PUBLIC_EXAMPLES, *DEVELOPER_PAGES), ids=lambda path: path.stem
+)
+def test_presses_and_fills_leave_no_element_naming_stale_keys(browser, serve, example):
+    """Each element's `aria-keyshortcuts` and a button's `aria-disabled` reflect its
+    rows, and a reflection is a tracked effect: it reads again when a signal it read
+    moves. So a module's own state that a row's `when` reads must be a signal
+    (`keyboard/scopes.js`); a plain variable leaves the attributes stale, and a screen
+    reader announces keys that no longer apply, until something else repaints them.
+
+    The sweep presses or fills a random visible control, in an order seeded by the
+    example's name, and after each step forces a repaint of every element's keys. Any
+    attribute that repaint changes was stale. The keys themselves still work, since a
+    press reads the rows afresh, so no other test fails on such a row. A page change
+    reshuffles the steps; the failure names the step and the control pressed."""
+    rng = random.Random(example.stem)
+    page = open_page(browser, serve(example))
+    stale = [{"step": "arrival", **finding} for finding in _stale_keys(page)]
+    for step in range(_SWEEP_STEPS):
+        # Handles rather than a locator's nth, so a page that changes between the
+        # reading and the input still takes the input on the control it chose.
+        controls = page.locator(_SWEPT).element_handles()
+        if not controls:
+            break
+        control = rng.choice(controls)
+        did, fillable = control.evaluate(_CONTROL)
+        if fillable:
+            control.fill(rng.choice(_FILLS), force=True)
+            did = f"fill {did}"
+        else:
+            try:
+                control.click(force=True)
+            except PlaywrightError as error:
+                # Fixed chrome can hold a control no scroll brings into the viewport,
+                # where no pointer reaches it either.
+                if "outside of the viewport" not in error.message:
+                    raise
+                continue
+            did = f"press {did}"
+        if rng.random() < 0.15:
+            page.keyboard.press("Escape")
+            did += ", then Escape"
+        stale += [{"step": step, "did": did, **s} for s in _stale_keys(page)]
+    assert not stale, "\n".join(
+        f"step {s['step']}"
+        + (f" ({s['did']})" if "did" in s else "")
+        + f": {s['element']} {s['attribute']} painted {s['painted']!r},"
+        f" repainted {s['repainted']!r}"
+        for s in stale
+    )

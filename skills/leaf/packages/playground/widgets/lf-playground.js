@@ -29,6 +29,7 @@ import {
   focusDestination,
   layoutChanged,
   initialRender,
+  keeps,
   LeafElement,
   nothing,
   paintKeys,
@@ -401,8 +402,7 @@ customElements.define(
       if (this.#copy.dataset.instruction === instruction) return;
       clearTimeout(this.#copyTimer);
       this.#copy.dataset.instruction = instruction;
-      if (this.#copy.dataset.copyState !== "rest")
-        this.#copy.dataset.copyState = "rest";
+      keeps(this.#copy, "data-copy-state", "rest");
     }
 
     // The copy control is a native button rather than a `wa-copy-button`, because the
@@ -420,14 +420,14 @@ customElements.define(
       }
       if (this.#instruction() !== instruction || !this.isConnected) return;
       clearTimeout(this.#copyTimer);
-      this.#copy.dataset.copyState = feedback;
+      keeps(this.#copy, "data-copy-state", feedback);
       announce(
         feedback === "success"
           ? "Instruction copied"
           : "Could not copy the instruction",
       );
       this.#copyTimer = setTimeout(() => {
-        this.#copy.dataset.copyState = "rest";
+        keeps(this.#copy, "data-copy-state", "rest");
       }, 2000);
     }
 

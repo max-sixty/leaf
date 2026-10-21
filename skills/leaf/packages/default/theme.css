@@ -1199,7 +1199,7 @@
       background: var(--chip);
     }
     :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > strong)) > lf-option[chosen]:hover {
-      background: var(--ok-tint);
+      background: color-mix(in srgb, var(--ok-tint) 92%, var(--ink));
     }
   }
 }
@@ -2374,7 +2374,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
         width: var(--lf-toc-spine-width);
         height: 1px;
         transform-origin: top;
-        background: var(--ink-2);
+        background: var(--accent);
       }
       :scope:is(lf-toc) .lf-toc-start,
       :scope:is(lf-toc) li {
@@ -2421,8 +2421,8 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
         background: var(--paper);
       }
       :scope:is(lf-toc) :is(.lf-toc-start, li):has(> a[aria-current=location])::before {
-        background: var(--ink-2);
-        border-color: var(--ink-2);
+        background: var(--accent);
+        border-color: var(--accent);
       }
       :scope:is(lf-toc) .lf-toc-start a,
       :scope:is(lf-toc) li a {
@@ -2444,12 +2444,11 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
         transition: color 0.12s ease-out, opacity 0.24s ease-out;
       }
       :scope:is(lf-toc) .lf-toc-start a {
-        color: var(--ink-2);
         font-weight: 650;
         line-height: 1.2;
         max-height: 2.4em;
       }
-      :scope:is(lf-toc) li a[aria-current=location]:not(:hover, [data-lf-focus]) {
+      :scope:is(lf-toc) :is(.lf-toc-start a, li a[aria-current=location]):not(:hover, [data-lf-focus]) {
         color: var(--ink-2);
       }
       :scope:is(lf-toc) a[data-lf-focus] {

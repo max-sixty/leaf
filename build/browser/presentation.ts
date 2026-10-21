@@ -163,7 +163,9 @@ export function createPresentationCoordinator<
   // Changes wake a blocked reading; they never publish a semantic epoch.
   const changes = signal(0);
   const changed = () => {
-    changes.value += 1;
+    // A renderer can attach or present a child while it paints. Publishing that proof
+    // must not make the containing paint a subscriber to its own completion.
+    changes.value = changes.peek() + 1;
   };
   let document: DocumentToken | null = null;
   let documentGeneration = 0;

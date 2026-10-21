@@ -400,12 +400,12 @@ import {
   whenWidgetsPresented
 } from "./bundle-semantic-state.js";
 import {
-  M,
   PENDING,
+  Z,
   actionForWidget,
   anchorKey,
   bindQueuedWork,
-  collectReads,
+  d,
   discussed,
   editable,
   foldWidgetStates,
@@ -420,7 +420,7 @@ import {
   threadKey,
   tokenChoices,
   turns,
-  untracked
+  x
 } from "./bundle-queued-work.js";
 
 // runtime/document-identity.js
@@ -708,10 +708,10 @@ function caretAt(view, at) {
     return { destination: caret, rectangle: caret.getBoundingClientRect() };
   const destination = position.node instanceof Element ? position.node : position.node.parentElement;
   const box = destination.getBoundingClientRect();
-  const x = view.textDirection === Direction.LTR ? box.left : box.right;
+  const x2 = view.textDirection === Direction.LTR ? box.left : box.right;
   return {
     destination,
-    rectangle: { left: x, right: x, top: box.top, bottom: box.bottom }
+    rectangle: { left: x2, right: x2, top: box.top, bottom: box.bottom }
   };
 }
 function placeWithinEditor(view, selection, options, head) {
@@ -736,7 +736,7 @@ function placeWithinEditor(view, selection, options, head) {
   const horizontal = view.textDirection === Direction.RTL ? options.x === "start" ? "end" : options.x === "end" ? "start" : options.x : options.x;
   const xMargin = clamp(options.xMargin, -port.offsetWidth, port.offsetWidth);
   const yMargin = clamp(options.yMargin, -port.offsetHeight, port.offsetHeight);
-  const x = horizontal === "center" ? (rectangle.left - margins.left + rectangle.right + margins.right - left - right) / 2 : travel(
+  const x2 = horizontal === "center" ? (rectangle.left - margins.left + rectangle.right + margins.right - left - right) / 2 : travel(
     rectangle.left - margins.left,
     rectangle.right + margins.right,
     left,
@@ -755,7 +755,7 @@ function placeWithinEditor(view, selection, options, head) {
     side
   );
   port.scrollBy({
-    left: port.scrollWidth > port.clientWidth ? x / scaleX : 0,
+    left: port.scrollWidth > port.clientWidth ? x2 / scaleX : 0,
     top: port.scrollHeight > port.clientHeight ? y / scaleY : 0,
     behavior: "instant"
   });
@@ -1434,12 +1434,12 @@ var LeafText = class extends HTMLElement {
       return;
     }
     const area = this.#view.scrollDOM.getBoundingClientRect();
-    const { clientX: x, clientY: y } = event;
-    if (x >= area.left && x < area.right && y >= area.top && y < area.bottom) return;
+    const { clientX: x2, clientY: y } = event;
+    if (x2 >= area.left && x2 < area.right && y >= area.top && y < area.bottom) return;
     event.preventDefault();
     const clamp2 = (value, low, high) => Math.min(Math.max(value, low), high - 1);
     const at = this.#view.posAtCoords(
-      { x: clamp2(x, area.left, area.right), y: clamp2(y, area.top, area.bottom) },
+      { x: clamp2(x2, area.left, area.right), y: clamp2(y, area.top, area.bottom) },
       false
     );
     this.#view.focus();
@@ -2160,56 +2160,59 @@ var presented2 = outsideReading(
   }
 );
 function watchProjection(owner, paint, ready = null) {
-  let read2 = null;
-  const moved2 = () => read2 === null || [...read2].some(([reading, value]) => reading.read() !== value);
   let key = 0;
   let queued = false;
-  let subscribed = [];
-  let unsubscribe = null;
+  let following = null;
+  let connected = false;
   const update = () => {
     if (queued) return;
     queued = true;
     queueMicrotask(() => {
       queued = false;
-      if (!unsubscribe || !owner.isConnected) return;
-      if (moved2()) key += 1;
-      draw(key);
+      if (connected && owner.isConnected) draw(key);
     });
-  };
-  const follow = () => {
-    for (const stop2 of subscribed) stop2();
-    subscribed = unsubscribe && read2 ? [...read2].map(
-      ([reading, value]) => reading.subscribe((now) => now !== value && update())
-    ) : [];
   };
   const draw = readingPaint(owner, () => {
-    if (ready !== null && !ready()) return draw.forget();
-    const outcome = collectReads(() => {
-      presented2.read();
-      return paint();
+    if (ready !== null && !d(ready)) return draw.forget();
+    following?.();
+    let first = true;
+    let outcome;
+    following = x(() => {
+      if (!first) {
+        key += 1;
+        update();
+        return;
+      }
+      first = false;
+      try {
+        presented2.read();
+        outcome = { value: paint() };
+      } catch (error) {
+        outcome = { error };
+      }
     });
-    read2 = outcome.reads;
-    follow();
+    if (!connected) {
+      following();
+      following = null;
+    }
     if ("error" in outcome) throw outcome.error;
     return outcome.value;
   });
+  let stopProof = null;
   const stopLifetime = watchOwner(owner, {
     connect() {
-      const stops = [];
+      connected = true;
       if (ready)
-        stops.push(
-          watchPresentation(() => (moved2() || draw.owes(key)) && ready() && update())
-        );
-      unsubscribe = () => {
-        for (const stop2 of stops) stop2();
-      };
-      follow();
+        stopProof = watchPresentation(() => draw.owes(key) && ready() && update());
+      draw.forget();
       update();
     },
     disconnect() {
-      unsubscribe();
-      unsubscribe = null;
-      follow();
+      connected = false;
+      stopProof?.();
+      stopProof = null;
+      following?.();
+      following = null;
     }
   });
   const stop = () => {
@@ -5918,7 +5921,7 @@ function createThreadPresentation({
             surfaces.commit();
             commitThreadSeats(batch);
             surfaceView.composition.finishPlacement();
-            untracked(renderAnnotations);
+            d(renderAnnotations);
             pageGeometry.pageShifted();
             read2.present();
             void continueReplies(restorePlace2).catch(
@@ -6994,7 +6997,7 @@ function createReadTracking({ markRead, openThread }) {
   const refusedThisVisit = /* @__PURE__ */ new Set();
   const sizes = sizeObserver(() => scheduleScan());
   const frameWatches = [];
-  const committedThreads = M(
+  const committedThreads = Z(
     /** @type {ReturnType<typeof readThreads>["threads"]} */
     []
   );
@@ -8378,7 +8381,7 @@ function inputBinding(element, declaration) {
   } : { ...reading, origin: { derived: [{ widget }] } };
   return { source, widget, selected, snapshot };
 }
-function dataReader(element, input) {
+function dataReader(element, input, accepted) {
   const declaration = declaredInput(element, input);
   const { source, widget, selected, snapshot } = inputBinding(element, declaration);
   let shown;
@@ -8387,20 +8390,27 @@ function dataReader(element, input) {
     () => {
       if (taken !== deliveries) {
         taken = deliveries;
-        shown = untracked(selected.read);
+        shown = d(selected.read);
       }
       return shown;
     },
     (moved2) => {
+      let seen = d(selected.read);
+      const stop = selected.subscribe((now) => {
+        if (now === seen) return;
+        seen = now;
+        accepted();
+      });
       deliveryListeners.add(moved2);
-      return () => deliveryListeners.delete(moved2);
+      return () => {
+        stop();
+        deliveryListeners.delete(moved2);
+      };
     }
   );
-  if (!widget) stagedReadings.add(selected);
   let reported = null;
   let copied = { store: null, value: null };
   return () => {
-    selected.read();
     const sourceStore = (
       /** @type {{contract: string, revision?: string} | null} */
       widget ? selected.read() : delivered.read()
@@ -8424,8 +8434,6 @@ function dataReader(element, input) {
 }
 var deliveries = 0;
 var deliveryListeners = /* @__PURE__ */ new Set();
-var stagedReadings = /* @__PURE__ */ new WeakSet();
-var stagesOnly = (reading) => stagedReadings.has(reading);
 function joinDataDelivery(region) {
   joined.add(region);
   return () => joined.delete(region);
@@ -8544,7 +8552,6 @@ export {
   notifyDataSubscribers,
   publishOutput,
   dataReader,
-  stagesOnly,
   joinDataDelivery,
   loadDeferred
 };

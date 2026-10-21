@@ -124,14 +124,14 @@ def cmd_hook(harness: str, payload: dict) -> None:
     expected = hooked.reconcile_turn(payload, expected)
     if event == "SessionStart":
         if payload.get("source") == "resume":
-            from .reconnect import publishing_notices
+            from .reconnect import notices
 
-            with publishing_notices(harness, sid, expected) as context:
-                if context:
-                    print(
-                        json.dumps(hooked.hook_context(event, "\n\n".join(context))),
-                        flush=True,
-                    )
+            context = notices(harness, sid, expected)
+            if context:
+                print(
+                    json.dumps(hooked.hook_context(event, "\n\n".join(context))),
+                    flush=True,
+                )
         return
     if turn_id and event != "UserPromptSubmit":
         # A first trusted step can identify an unknown session-scoped turn.

@@ -21,8 +21,9 @@ from urllib.parse import parse_qs
 
 import anyio
 from starlette.concurrency import run_in_threadpool
+from starlette.datastructures import MutableHeaders
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import FileResponse, Response
 
 from .data import (
     DataError,
@@ -252,8 +253,8 @@ class PageEndpoint:
     """
 
     # Every answer that isn't an immutable revision resource may be stored but is asked
-    # for again before each reuse. No validator is sent, so each reuse is a full fetch
-    # and every load, Back included, shows the page as it is now. Storing is what lets
+    # for again before each reuse. Document and state answers carry no validator, so
+    # every load, Back included, shows the page as it is now. Storing is what lets
     # the browser keep the whole page in its back/forward cache, so Back restores it at
     # once and the runtime catches up from there. Chrome keeps no page whose document or
     # fetches said `no-store`, nor Firefox one whose document did. The disk copy holds
@@ -330,6 +331,11 @@ class PageEndpoint:
         # that still answers in the route's shape.
         self.posted = {}
         self.posted_error: str | None = None
+        self.retained_samples = []
+
+    @property
+    def samples(self) -> Samples:
+        return self.server.samples.setdefault(self.page_dir, Samples())
 
     @property
     def layer(self) -> str:
@@ -358,31 +364,48 @@ class PageEndpoint:
             owner = owner.parent
         return owner
 
-    def respond(self) -> Response:
-        """Answer this request, on a worker thread of the serving loop's own pool."""
+    async def __call__(self, scope, receive, send) -> None:
+        """Serve through Starlette, decorating its final headers and status once."""
         started = time.monotonic()
+        response = await run_in_threadpool(self._response)
+
+        async def deliver(message):
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                headers.setdefault("Cache-Control", self.cache_control)
+                if headers.get("Content-Type", "").startswith("text/html"):
+                    headers.setdefault("Content-Security-Policy", FRAME_ANCESTORS_CSP)
+                headers.update(self._delivery_headers())
+                if self.sample_request:
+                    self._sample_headers(headers)
+                await self._record_response(message["status"], started)
+            elif self.method == "HEAD":
+                message = {**message, "body": b""}
+            await send(message)
+
+        await response(scope, receive, deliver)
+
+    def _response(self) -> Response:
+        """Read and answer this request on the serving loop's worker thread."""
         if self.method in {"GET", "HEAD"}:
-            answer = self._answer(self._get)
-        elif self.method == "OPTIONS":
-            answer = self._answer(self._not_found)
-        elif self.method == "POST":
-            answer = self._answer(self._post, prepare=self._read_posted)
-        else:
-            answer = self._json({"error": f"unsupported method {self.method}"}, 501)
-        if self.method == "HEAD":
-            answer.body = b""
-        answer.headers.update(self._delivery_headers())
-        if self.sample_request:
-            answer = self._sample_headers(answer)
+            return self._answer(self._get)
+        if self.method == "OPTIONS":
+            return self._answer(self._not_found)
+        if self.method == "POST":
+            return self._answer(self._post, prepare=self._read_posted)
+        return self._json({"error": f"unsupported method {self.method}"}, 501)
+
+    async def _record_response(self, status: int, started: float) -> None:
         # The request boundary sees successful answers and refusals alike. Keep
         # query strings (including the access key) and request bodies out of it.
         if (
             self.page_dir is not None
             and self.parent is None
-            and not (self.housekeeping and answer.status_code < 400)
+            and not (self.housekeeping and status < 400)
         ):
             try:
-                append_interactions(
+                await run_in_threadpool(
+                    append_interactions,
                     self.page_dir,
                     [
                         {
@@ -390,7 +413,7 @@ class PageEndpoint:
                             "type": "request",
                             "method": self.method,
                             "path": self.path,
-                            "status": answer.status_code,
+                            "status": status,
                             "durationMs": round((time.monotonic() - started) * 1000, 3),
                         }
                     ],
@@ -398,8 +421,7 @@ class PageEndpoint:
             except OSError as error:
                 # A diagnostic write must not turn an admitted gesture into a
                 # transport failure: the browser would retry an action that landed.
-                self.record_fault(error)
-        return answer
+                await run_in_threadpool(self.record_fault, error)
 
     def read_body(self, limit: int | None = None) -> bytes | None:
         """The request body, read from inside the route that has earned it, and
@@ -587,66 +609,21 @@ class PageEndpoint:
 
     def _content(self, status: int, ctype: str, body: bytes) -> Response:
         """Encode a body whose producer has already addressed its dependencies."""
-        is_html = ctype.startswith("text/html")
-        headers = {"Content-Type": ctype, "Cache-Control": self.cache_control}
-        if is_html:
-            headers["Content-Security-Policy"] = FRAME_ANCESTORS_CSP
-        return Response(body, status_code=status, headers=headers)
+        return Response(body, status_code=status, headers={"Content-Type": ctype})
 
     def _resource_content(self, resource: Resource) -> Response:
-        """Serve exact resource bytes, with single byte ranges for native playback.
+        """Starlette streams backing files and owns their HEAD and range requests.
 
-        The resource owner retains exact bytes or an immutable file. Both live and
-        captured routes derive size and read only the selected span here; HEAD reads
-        no body. RFC 9110 permits ignoring Range; unsupported
-        units, malformed or multiple ranges, and If-Range without a validator get the
-        complete representation. A valid unsatisfiable range earns 416.
+        An in-memory preview capture is already materialized and answers in full;
+        HTTP permits ignoring Range. No second range parser lives beside Starlette's.
         """
         self.housekeeping = True
         ctype = resource.mime
         if ctype not in BINARY_TYPES:
             ctype += "; charset=utf-8"
-        size = resource.size
-        status = 200
-        window = slice(0, size)
-        headers = (
-            {"Accept-Ranges": "bytes"}
-            if resource.mime.startswith(("video/", "audio/"))
-            else {}
-        )
-        requested = self.headers.get("Range", "")
-        match = re.fullmatch(r"bytes=([0-9]*)-([0-9]*)", requested)
-        if (
-            self.method == "GET"
-            and "Accept-Ranges" in headers
-            and not self.headers.get("If-Range")
-            and match is not None
-            and any(match.groups())
-        ):
-            first, last = (
-                part.lstrip("0") or "0" if part else "" for part in match.groups()
-            )
-
-            # Bound decimal parsing by the representation's length; an arbitrarily
-            # long numeral is still simply beyond that length.
-            def offset(raw: str) -> int:
-                return size + 1 if len(raw) > len(str(size)) else int(raw)
-
-            start = offset(first) if first else max(0, size - offset(last))
-            end = min(size, offset(last) + 1) if first and last else size
-            if first and last and (len(last), last) < (len(first), first):
-                pass  # An invalid range is ignored, rather than unsatisfiable.
-            elif start >= end:
-                status, window = 416, slice(0, 0)
-                headers["Content-Range"] = f"bytes */{size}"
-            else:
-                status, window = 206, slice(start, end)
-                headers["Content-Range"] = f"bytes {start}-{end - 1}/{size}"
-        body = b"" if self.method == "HEAD" else resource.read(window)
-        response = self._content(status, ctype, body)
-        headers["Content-Length"] = str(size if self.method == "HEAD" else len(body))
-        response.headers.update(headers)
-        return response
+        if isinstance(resource.content, Path):
+            return FileResponse(resource.content, media_type=ctype)
+        return self._content(200, ctype, resource.content)
 
     def _json(self, obj, status: int = 200) -> Response:
         return self._content(
@@ -830,12 +807,12 @@ class PageEndpoint:
             return self._content(204, "text/plain", b"")
         segment, inside = match.groups()
         identity = segment.split("~", 1)[0]
-        sample = self.server.samples.get(self.page_dir, identity)
+        sample = self.samples.get(identity)
         if sample is None:
             return self._not_found()
         if self.method == "POST" and inside == "/api/release":
             self.read_body(MAX_MEDIA_UPLOAD_BYTES)
-            self.server.samples.release(self.page_dir, identity)
+            self.samples.release(identity)
             return self._json({"released": True})
         child = SampleEndpoint(
             self.request,
@@ -846,22 +823,22 @@ class PageEndpoint:
             page_dir=sample.directory,
             layer_identity=sample.layer,
             page_root=f"{self.page_root}/api/samples/{segment}",
+            sample=sample,
         )
-        with sample.lock:
-            if sample.closed:
-                return self._not_found()
-            answer = child.respond()
-            self.response_layer = child.response_layer
-            self.housekeeping = child.housekeeping
-            return answer
+        self.retained_samples.append(sample)
+        answer = child._response()
+        self.response_layer = child.response_layer
+        self.housekeeping = child.housekeeping
+        self.body_unread = child.body_unread
+        return answer
 
-    def _sample_headers(self, response: Response) -> Response:
+    def _sample_headers(self, headers: MutableHeaders) -> None:
         """Every child-capability answer is readable without parent credentials.
 
         This includes revoked capabilities and faults: a late native request must
         receive the HTTP result rather than an opaque browser CORS failure.
         """
-        response.headers.update(
+        headers.update(
             {
                 "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Methods": "GET, HEAD, POST, OPTIONS",
@@ -874,9 +851,8 @@ class PageEndpoint:
         )
         # An opaque parent is not expressible as a frame-ancestors source. Child
         # capabilities admit nested samples; parent documents keep their policy.
-        if response.headers.get("Content-Security-Policy") == FRAME_ANCESTORS_CSP:
-            del response.headers["Content-Security-Policy"]
-        return response
+        if headers.get("Content-Security-Policy") == FRAME_ANCESTORS_CSP:
+            del headers["Content-Security-Policy"]
 
     def _serve_root(self) -> Response:
         served = self.source.served_document()
@@ -1253,7 +1229,7 @@ class PageEndpoint:
             # and writes only the child's directory.
             artifact, events, data = self.source.sample_inputs(revision)
             asset_root = self._sample_asset_root(revision)
-            identity = self.server.samples.create(
+            identity = self.samples.create(
                 self.page_dir,
                 artifact,
                 self._reading(revision).document,
@@ -1324,12 +1300,15 @@ class SampleEndpoint(PageEndpoint):
         server,
         *,
         parent: PageEndpoint,
+        sample,
         path: str,
         asset_root: str | None,
         **binding,
     ) -> None:
         super().__init__(request, server, **binding)
         self.parent = parent
+        self.sample = sample
+        self.retained_samples = parent.retained_samples
         # A child is stored on its parent's terms, which on leaf.page are the site's.
         self.cache_control = parent.cache_control
         # The address inside the child, below the capability its parent matched.
@@ -1338,6 +1317,10 @@ class SampleEndpoint(PageEndpoint):
 
     def authorized(self) -> bool:
         return True
+
+    @property
+    def samples(self) -> Samples:
+        return self.sample.children
 
     def _document_asset_root(self, revision: int) -> str:
         return self.asset_root or super()._document_asset_root(revision)
@@ -1421,14 +1404,13 @@ def page_app(endpoint, server):
     request, after which its checkout may have moved on (`layer.running_leaf`).
     """
 
-    server.samples = Samples()
+    server.samples = {}
     server.leaf = running_leaf()
 
     async def app(scope, receive, send) -> None:
         if scope["type"] != "http":
             raise ValueError(f"leaf serves HTTP, not {scope['type']}")
         answering = endpoint(Request(scope, receive), server)
-        response = await run_in_threadpool(answering.respond)
-        await response(scope, receive, send)
+        await answering(scope, receive, send)
 
     return app

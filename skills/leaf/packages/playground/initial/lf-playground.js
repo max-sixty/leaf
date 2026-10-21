@@ -201,8 +201,8 @@ function render(host, { tabStore, offer, keeps }) {
         group.setAttribute("aria-label", label);
         const radios = [];
         for (const choice of choicesByName.get(name)) {
-          const face = node("label", "lf-playground-choice-face");
-          const input = offer("input", "lf-playground-radio", undefined, "radio");
+          const face = node("label", "choice");
+          const input = offer("input", "", undefined, "radio");
           input.name = `${host.id}-${name}`;
           input.value = choice.getAttribute("value");
           face.append(
@@ -230,7 +230,11 @@ function render(host, { tabStore, offer, keeps }) {
           if (control.hasAttribute(attr))
             input.setAttribute(attr, control.getAttribute(attr));
         inputs.set(name, input);
-        control.append(input);
+        if (kind === "toggle") {
+          const face = node("label", "choice");
+          face.append(input);
+          control.append(face);
+        } else control.append(input);
         if (kind === "range") control.append(node("output", "lf-playground-reading"));
       }
     }
@@ -367,7 +371,6 @@ function render(host, { tabStore, offer, keeps }) {
       const active = Object.entries(presetSettings.get(preset)).every(([name, value]) =>
         Object.is(next[name], value),
       );
-      button.classList.toggle("on", active);
       keeps(button, "aria-pressed", active);
     }
   };

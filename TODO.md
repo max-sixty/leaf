@@ -625,27 +625,6 @@ export` writes a file that boots the page's own runtime offline, and that file
   seven cases in `tests/browser/threads/test_seated_threads.py`), and a held thread
   pass would withhold every margin paint. A fix needs continuity to wait for the
   margin's paint and the margin to stop depending on the thread region committing.
-- **Unconfirmed — Let Lit follow what a widget reads.** `LeafElement`
-  (`runtime/leaf-element.js`) collects what `render()` reads with Leaf's own
-  `collectReads` over Preact signals and outside readings such as the clock, because
-  Lit's `SignalWatcher` (`@lit-labs/signals`) follows only TC39 signals
-  (`signal-polyfill`). Were the publication and those readings TC39 signals,
-  `SignalWatcher` would draw again on a read's move, and the base class would keep
-  only Leaf's rules: the presentation claim, `defer()`, drawing nothing while away,
-  and data delivery. Some widgets draw as a `LeafElement`; of those that still extend
-  `HTMLElement`, `lf-tabs`, `lf-tally` and `lf-activity` repaint through
-  `watchProjection`, and once they move the change would land in one class. Assessed
-  on 2026-10-14, it is no simplification yet. Ordering
-  no longer stands in the way: `LeafElement.scheduleUpdate` puts every update in the
-  parent-ordered widget queue (`queueWidgetUpdate`), `SignalWatcher`'s included. What
-  does: a move must claim the widget's region inside the publication that made it,
-  which `SignalWatcher`'s watcher gives no hook for, so the base class would keep a
-  watcher of its own; and `collectReads` and `outsideReading` (`snapshot.ts`) also
-  drive `watchProjection` and version paints, so adopting TC39 signals means moving
-  the publication itself (`snapshot.ts`, `presentation.ts`, and the runtime modules
-  importing `signal`/`effect`) off Preact signals, to save the fifteen lines of
-  `#follow`. TC39 signals are also still a proposal. Trigger: the proposal reaches a
-  stage browsers ship, or Lit's signal integration exposes the notify a claim needs.
 - **Consider moving the before/after reading out of the core.** How
   `runtime/image-difference.js` reads a pair (blocks, moves, outlines) is
   experimental and about 820 lines in the core runtime, consumed by `lf-shot`,

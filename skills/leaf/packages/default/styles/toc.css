@@ -1,6 +1,6 @@
 /* lf-toc: the page's route. In ordinary flow it is a native disclosure. Its roomy
  * margin form is a reading map: the widget gives each row the length of the section it
- * leads, flex lays those shares down the full available height, and the darker lens on
+ * leads, flex lays those shares down the full available height, and the accent lens on
  * the spine shows the band currently in view. Crowded rows bend that scale just enough
  * to keep every label distinct; markers, labels, and lens share the fitted positions.
  * Pointer entry, keyboard entry, or the go-to sequence fades the labels in without
@@ -216,7 +216,7 @@
         width: var(--lf-toc-spine-width);
         height: 1px;
         transform-origin: top;
-        background: var(--ink-2);
+        background: var(--accent);
       }
       /* A row is a span of the spine, and its link hangs from the row's top and may run
        * past the row's foot when rows are dense. The row takes no presses, so the next
@@ -268,8 +268,8 @@
       }
       :scope:is(lf-toc)
         :is(.lf-toc-start, li):has(> a[aria-current="location"])::before {
-        background: var(--ink-2);
-        border-color: var(--ink-2);
+        background: var(--accent);
+        border-color: var(--accent);
       }
       :scope:is(lf-toc) .lf-toc-start a,
       :scope:is(lf-toc) li a {
@@ -293,12 +293,15 @@
           opacity 0.24s ease-out;
       }
       :scope:is(lf-toc) .lf-toc-start a {
-        color: var(--ink-2);
         font-weight: 650;
         line-height: 1.2;
         max-height: 2.4em;
       }
-      :scope:is(lf-toc) li a[aria-current="location"]:not(:hover, [data-lf-focus]) {
+      :scope:is(lf-toc)
+        :is(.lf-toc-start a, li a[aria-current="location"]):not(
+          :hover,
+          [data-lf-focus]
+        ) {
         color: var(--ink-2);
       }
       :scope:is(lf-toc) a[data-lf-focus] {

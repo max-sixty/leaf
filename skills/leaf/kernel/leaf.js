@@ -502,7 +502,7 @@ import {
 } from "./runtime/bundle-semantic-state.js";
 import {
   LitElement,
-  M,
+  Z,
   bareReaction,
   bindQueuedWork,
   carriesObligation,
@@ -2165,7 +2165,7 @@ function createResponseSurface({
 }) {
   const hideReference = () => closeCommandReference(false);
   const hasOtherResponses = (anchor) => reactionTokens2().length > 0 || Boolean(anchor?.quote && !designModeActive());
-  const fabAnchor = M(null);
+  const fabAnchor = Z(null);
   let fabPoint = null;
   let usesPlacement = false;
   let fabInlineOutlet = null;
@@ -4382,7 +4382,7 @@ function createTargetPicker({
   const canChoose = () => anchoringIsReady() && !pointerModeActive();
   let pickerOpen = false;
   let pageSearchOpen = false;
-  const matches = M([]);
+  const matches = Z([]);
   let matchesIn = null;
   let active = -1;
   let searchReturnsToHints = false;
@@ -6862,10 +6862,10 @@ function createFloatingPanel({
         >${part.text}</span
       >`;
   });
-  const trail = M([]);
+  const trail = Z([]);
   let leaving = null;
-  const menuOpen = M(false);
-  const menuAt = M(null);
+  const menuOpen = Z(false);
+  const menuAt = Z(null);
   let menuRoom = null;
   let filter = "open";
   let query = "";

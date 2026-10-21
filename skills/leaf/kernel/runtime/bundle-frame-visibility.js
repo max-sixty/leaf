@@ -1,5 +1,5 @@
 import {
-  M,
+  Z,
   cancelWork,
   enqueueWork,
   runWork
@@ -467,9 +467,9 @@ function landLabelPress() {
     publish2(null, cause(null));
   });
 }
-var standing = M(0);
+var standing = Z(0);
+var focusRevision = () => standing.value;
 var focused = (tree = null) => {
-  void standing.value;
   let at = heldByLabel() ?? deepFocus();
   if (tree) while (at && at.getRootNode() !== tree) at = shadowHost(at.getRootNode());
   return at;
@@ -1141,6 +1141,7 @@ export {
   whenLeft,
   readCaret,
   deepFocus,
+  focusRevision,
   focused,
   standingNodes,
   standsOn,

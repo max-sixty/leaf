@@ -147,11 +147,12 @@ def renew_layer(page_dir: Path, harness: Harness | None) -> Finding | None:
             return False
         if claimant_matches(claim, harness):
             return True
-        if claim is not None:
-            if session_record(claim["id"]) is None and session_file(
-                claim["id"], SESSION_SUFFIX
-            ).is_file():
-                return False
+        if (
+            claim is not None
+            and session_record(claim["id"]) is None
+            and session_file(claim["id"], SESSION_SUFFIX).is_file()
+        ):
+            return False
         return not claim_is_active(claim)
 
     if not renewable():

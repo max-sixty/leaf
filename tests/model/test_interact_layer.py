@@ -318,9 +318,7 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
     )
     assert read.returncode == 0, read.stderr
     assert "page protocol" in json.loads(read.stdout)["source"]["error"]
-    before = interact_files.read_json(claimed / "registry.json")["$layer"][
-        "generation"
-    ]
+    before = interact_files.read_json(claimed / "registry.json")["$layer"]["generation"]
     subprocess.run(
         [
             *LEAF_COMMAND,
@@ -389,7 +387,10 @@ def test_read_commands_leave_an_older_page_and_its_server_alone(
         assert same_registry, command
         assert interact_files.list_revisions(claimed) == revisions
         assert fetch(f"{server}/api/state")[0] == 200
-    assert interact_files.read_json(claimed / "registry.json")["$events"]["protocol"] == vendored
+    assert (
+        interact_files.read_json(claimed / "registry.json")["$events"]["protocol"]
+        == vendored
+    )
     assert vendoring_model.renew_layer(claimed, None) is None
     assert (claimed / "registry.json").read_bytes() == registry
 

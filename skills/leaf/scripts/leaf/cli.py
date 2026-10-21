@@ -506,7 +506,9 @@ def instructions(
     """
     from leaf.page import page_instructions
 
-    return page_instructions(resolve_dir(dir, renew=False), entries=entries, contracts=contracts)
+    return page_instructions(
+        resolve_dir(dir, renew=False), entries=entries, contracts=contracts
+    )
 
 
 @page.command(short_help="Print where the page, a thread, or a widget stands.")
@@ -538,7 +540,9 @@ def state(dir: str, target: str | None, after: int | None, limit: int | None) ->
 
     if target is None and (after is not None or limit is not None):
         raise click.UsageError("--after and --limit page a thread; name one as ID")
-    return cmd_page_state(resolve_dir(dir, renew=False), target, after=after, limit=limit)
+    return cmd_page_state(
+        resolve_dir(dir, renew=False), target, after=after, limit=limit
+    )
 
 
 @page.command(short_help="Stamp the current source as the next version.")
@@ -724,7 +728,11 @@ def interactions(
     if start is not None and stop is not None and start >= stop:
         raise click.ClickException("--since must precede --until")
     return read_interactions(
-        resolve_dir(dir, renew=False), session=session, since=start, until=stop, types=types
+        resolve_dir(dir, renew=False),
+        session=session,
+        since=start,
+        until=stop,
+        types=types,
     )
 
 

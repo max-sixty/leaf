@@ -90,7 +90,8 @@ def settled(page):
     """Wait until the panel's motion has finished, so a box read is where it rests."""
     page.wait_for_function(
         "() => ['.lf-floating-panel', '.lf-fp-ground'].every(s =>"
-        " !document.querySelector(s).getAnimations({subtree: true}).length)"
+        " !document.querySelector(s).getAnimations({subtree: true}).some(a =>"
+        " a.effect.getTiming().iterations !== Infinity))"
     )
 
 

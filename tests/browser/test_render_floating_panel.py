@@ -4410,59 +4410,116 @@ def test_a_long_draft_fades_where_words_run_past_the_field(browser, serve):
     shows(":state(more-below):state(more-above)")
 
 
-def test_a_draft_draws_a_bullet_list_as_the_message_will(browser, serve):
-    """A draft's bullet item shows a bullet in place of its dash, with the item's
-    wrapped line hanging under its words, as the sent message draws the list; the dash
-    shows again, in the same room, while the caret touches it."""
-    page = open_page(
-        browser,
-        serve(LONG_PAGE),
-        init_script=EDITOR_ROOTS,
-    )
+def test_a_draft_draws_a_list_as_the_message_will(browser, serve):
+    """A draft's list items stand where the sent message's do: their words at the same
+    inset and height, a wrapped line under the words, under the same platform marker,
+    nested as the message nests it, and the message as tall as the draft, a line apart
+    only where the draft left a blank line and a code block's fences keeping their
+    room. An item's source marker shows instead while the caret touches it, and its
+    words stay where they stood."""
+    page = open_page(browser, serve(LONG_PAGE), init_script=EDITOR_ROOTS)
+    # The renderer the draft is read by loads lazily, and its arrival redraws a field
+    # already holding words; load it first, so the list is drawn as it is typed.
+    page.evaluate("async () => (await window.__lfWidgetApi()).loadMarkdown()")
     field(page).click()
-    page.keyboard.type("- " + "an item long enough to wrap in the field " * 3)
-    page.keyboard.press("Shift+Enter")
-    page.keyboard.type("two")
-    # The renderer the draft is read by loads lazily, and its arrival draws the field.
-    page.wait_for_function(
-        """host => window.editorRoots.get(host).querySelectorAll('.lf-md-bullet')
-          .length === 2""",
-        arg=field(page).element_handle(),
+    page.keyboard.insert_text(
+        "Notes:\n- "
+        + "an item long enough to wrap in the field " * 3
+        + "\n- parent\n      deeper\n    - child\n\n1. one\n\n       indented"
+        + "\n\n```\ncode\n```\nend"
     )
+    # The field grows to hold the draft; let it come to rest before reading it.
+    settled(page)
+    # Where a word stands in a box: "deeper", on a line continuing the parent's, and
+    # "indented", the code an item holds.
+    seen = """(box, word) => {
+      const walk = document.createTreeWalker(box, NodeFilter.SHOW_TEXT);
+      while (walk.nextNode()) {
+        const at = walk.currentNode.data.indexOf(word);
+        if (at < 0) continue;
+        const words = document.createRange();
+        words.setStart(walk.currentNode, at);
+        words.setEnd(walk.currentNode, at + word.length);
+        return Math.round(words.getBoundingClientRect().left - box.getBoundingClientRect().left);
+      }
+    }"""
+    words = ("deeper", "indented")
 
-    def reading():
+    def drafted():
         return field(page).evaluate(
             """host => {
               const root = window.editorRoots.get(host);
-              const marks = [...root.querySelectorAll('.lf-md-bullet')];
-              const words = document.createRange();
-              words.selectNodeContents(root.querySelector('.cm-line'));
-              const rows = [...words.getClientRects()];
-              return {
-                marks: marks.map((mark) => ({
-                  left: mark.getBoundingClientRect().left,
-                  drawn: getComputedStyle(mark, '::before').content,
-                  ink: getComputedStyle(mark).color,
-                })),
-                wrapped: rows.at(-1).left - rows[0].left,
-                markWidth: marks[0].getBoundingClientRect().width,
-              };
+              const content = root.querySelector('.cm-content').getBoundingClientRect();
+              const items = root.querySelectorAll('.cm-line:has(.lf-md-marker)');
+              return [...items].map((line) => {
+                const mark = line.querySelector('.lf-md-marker');
+                const words = document.createRange();
+                words.setStartAfter(mark);
+                words.setEnd(line, line.childNodes.length);
+                const rows = [...words.getClientRects()];
+                const style = getComputedStyle(line);
+                return {
+                  words: rows[0].left - content.left,
+                  top: rows[0].top - content.top,
+                  wrapped: rows.at(-1).left - content.left,
+                  marker: style.display === 'list-item' ? style.listStyleType : null,
+                  source: getComputedStyle(mark).color !== 'rgba(0, 0, 0, 0)',
+                  height: content.height,
+                };
+              });
             }"""
         )
 
-    away = reading()
-    assert [mark["drawn"] for mark in away["marks"]] == ['"•"', '"•"'], away
-    assert away["marks"][0]["ink"] == "rgba(0, 0, 0, 0)", away
-    assert away["wrapped"] == pytest.approx(away["markWidth"], abs=1), away
+    away = drafted()
+    drafted_words = [
+        field(page).evaluate(
+            f"(host, word) => ({seen})("
+            "window.editorRoots.get(host).querySelector('.cm-content'), word)",
+            word,
+        )
+        for word in words
+    ]
+    assert [item["marker"] for item in away] == ["disc", "disc", "circle", "decimal"]
+    assert not any(item["source"] for item in away), away
+    assert away[0]["wrapped"] == away[0]["words"], away
     page.keyboard.press("ControlOrMeta+Home")
-    near = reading()
-    assert near["marks"][0]["drawn"] == "none", near
-    assert near["marks"][0]["left"] == away["marks"][0]["left"]
-    # A nested item keeps its indentation and is drawn as a bullet too.
-    page.keyboard.press("ControlOrMeta+a")
-    page.keyboard.insert_text("- parent\n    - child")
-    nested = reading()
-    assert [mark["drawn"] for mark in nested["marks"]] == ['"•"', '"•"'], nested
+    page.keyboard.press("ArrowDown")
+    near = drafted()
+    assert (near[0]["marker"], near[0]["source"]) == (None, True), near
+    assert near[0]["words"] == away[0]["words"]
+
+    page.keyboard.press("ControlOrMeta+Enter")
+    sent = page.locator(".lf-fp-view[data-view=thread] .lf-msg-text")
+    expect(sent.locator("li")).to_have_count(4)
+    shown = sent.evaluate(
+        """text => {
+          const box = text.getBoundingClientRect();
+          return [...text.querySelectorAll('li')].map((li) => {
+            const words = document.createRange();
+            const walk = document.createTreeWalker(li, NodeFilter.SHOW_TEXT);
+            while (walk.nextNode() && !walk.currentNode.data.trim());
+            words.selectNodeContents(walk.currentNode);
+            const row = words.getClientRects()[0];
+            return {
+              words: row.left - box.left,
+              top: row.top - box.top,
+              marker: getComputedStyle(li).listStyleType,
+              height: box.height,
+            };
+          });
+        }"""
+    )
+
+    def placed(items):
+        return [
+            {key: round(item[key]) if key != "marker" else item[key] for key in keys}
+            for item in items
+        ]
+
+    keys = ("words", "top", "marker", "height")
+    assert placed(away) == placed(shown)
+    assert drafted_words == [sent.evaluate(seen, word) for word in words]
+    assert drafted_words[0] == round(away[1]["words"])
 
 
 def test_send_stands_in_the_counts_place_while_the_field_holds_a_draft(browser, serve):

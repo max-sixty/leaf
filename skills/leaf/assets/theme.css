@@ -1347,6 +1347,7 @@
   --quote-style: italic;
   --quote-inset: 18px;
   --pre-inset: 14px;
+  --list-inset: 24px;
   --link-underline: color-mix(in srgb, var(--accent) 35%, transparent);
   --link-underline-offset: 2px;
   --serif:

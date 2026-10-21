@@ -2088,12 +2088,26 @@ function sourcePositions(markdown) {
       }
   });
 }
+var BLOCK_LEAVES = /* @__PURE__ */ new Set(["fence", "code_block", "hr"]);
 function makeMarkdown(module, breaks) {
   const markdown = new module.MarkdownIt({ html: false, breaks, linkify: true }).use(
     module.taskLists,
     { enabled: false }
   );
   markdown.linkify.set({ fuzzyLink: true });
+  markdown.core.ruler.after("block", "blank_lines", (state) => {
+    const lines = state.src.split("\n");
+    for (const token of state.tokens) {
+      if (!token.map || !(token.nesting === 1 || BLOCK_LEAVES.has(token.type)))
+        continue;
+      let gap = 0;
+      for (let at = token.map[0] - 1; at >= 0 && gap < 3; at--) {
+        if (lines[at].replace(/^[\s>]*/, "")) break;
+        gap++;
+      }
+      token.attrSet("data-lf-gap", String(gap));
+    }
+  });
   markdown.renderer.rules.softbreak = (_tokens, _at, options) => options.breaks ? "<br>" : "\n";
   markdown.renderer.rules.hardbreak = () => "<br>";
   markdown.validateLink = () => true;

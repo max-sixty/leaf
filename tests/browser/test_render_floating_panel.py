@@ -95,9 +95,9 @@ def floating(browser, url):
 def settled(page):
     """Wait until the panel's motion has finished, so a box read is where it rests."""
     page.wait_for_function(
-        "() => !document.querySelector('.lf-fp-scene')"
-        ".getAnimations({subtree: true}).some(a =>"
-        " Number.isFinite(a.effect?.getComputedTiming().endTime))"
+        "() => ['.lf-floating-panel', '.lf-fp-ground'].every(s =>"
+        " !document.querySelector(s).getAnimations({subtree: true}).some(a =>"
+        " Number.isFinite(a.effect?.getComputedTiming().endTime)))"
     )
 
 
@@ -2689,8 +2689,9 @@ def test_the_panel_folds_to_the_leaf_and_stays_folded(browser, serve):
 def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
     browser, serve, scheme
 ):
-    """The mark stays visible on the contour's clock; its target and focus arrive at
-    once. Reversing takes the painted position, and reduced motion takes the endpoint."""
+    """The mark rides the box into its corner and back, while the row's words come out
+    from behind it; its button and focus arrive at once. Reversing starts from where it
+    is drawn, and reduced motion takes the endpoint."""
     from io import BytesIO
 
     from PIL import Image
@@ -2719,32 +2720,52 @@ def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
         }""")
 
     def seek(at):
-        page.evaluate("at => __lfHeld.forEach(a => a.currentTime = at)", at)
+        page.evaluate(
+            "at => __lfHeld.filter(a => a.playState !== 'idle')"
+            ".forEach(a => a.currentTime = at)",
+            at,
+        )
         one_frame(page)
         return reading()
 
     def paints():
-        # Anchor visibility can suppress paint even when checkVisibility(), opacity
-        # and geometry say it is shown. Read actual ink on the plain panel surface,
-        # including while the button anchoring the mark is clipped away.
         pixels = Image.open(BytesIO(page.screenshot(clip=mark.bounding_box()))).convert(
             "L"
         )
         low, high = pixels.getextrema()
         assert high - low > 32, (low, high)
 
-    def row_follows_leaf():
-        edges = page.locator(".lf-fp-row").evaluate("""row => {
-          const sides = getComputedStyle(row).clipPath.slice(6, -1).split(' ');
-          return {words: row.getBoundingClientRect().left + parseFloat(sides[3]),
-            top: row.getBoundingClientRect().top + parseFloat(sides[0]),
-            attachment: row.querySelector('.lf-composer-media-item').getBoundingClientRect().top,
-            leaf: document.querySelector('.lf-fp-leaf-paint').getBoundingClientRect().right};
+    def beyond_mark():
+        # How far the leaf's trailing edge stands past its mark's.
+        return mark.evaluate(
+            "node => node.closest('.lf-fp-leaf').getBoundingClientRect().right"
+            " - node.getBoundingClientRect().right"
+        )
+
+    def words_follow_leaf():
+        # The field shows nothing under the leaf: its words come out from behind its
+        # trailing edge, which stands past the mark by between its two rests' margins.
+        # The attachment hanging over the field shows meanwhile, cut by no edge of it.
+        edges = field(page).evaluate("""editor => {
+          let cut = editor;
+          while (getComputedStyle(cut).clipPath === 'none') cut = cut.parentElement;
+          const sides = getComputedStyle(cut).clipPath.match(/[-\\d.]+px/g);
+          return {field: cut.getBoundingClientRect().left,
+            words: cut.getBoundingClientRect().left + parseFloat(sides[3]),
+            mark: document.querySelector('.lf-fp-leaf .lf-dot').getBoundingClientRect().right};
         }""")
-        assert edges["words"] == pytest.approx(edges["leaf"], abs=0.5)
-        assert edges["top"] < edges["attachment"]
+        assert edges["field"] < edges["mark"]
+        past = edges["words"] - edges["mark"]
+        assert min(margins) - 0.5 <= past <= max(margins) + 0.5, (past, margins)
+        attachment = shelf.bounding_box()
+        pixels = Image.open(BytesIO(page.screenshot(clip=attachment))).convert("RGB")
+        assert any(
+            r > 200 and 90 < g < 170 and b < 100
+            for r, g, b in pixels.get_flattened_data()
+        )
 
     row = reading()
+    margins = [beyond_mark()]
     page.keyboard.press(".")
     expect(panel).to_have_attribute("data-rest", "mark")
     one_frame(page)
@@ -2754,13 +2775,12 @@ def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
     middle = seek(80)
     paints()
     folded = seek(300)
+    margins.append(beyond_mark())
     assert row["x"] < middle["x"] < folded["x"]
     assert middle["opacity"] == folded["opacity"] == 1
     assert leaf.bounding_box() == target
     assert folded["x"] == pytest.approx(target["x"] + target["width"] / 2, abs=0.5)
 
-    # Unfold from the fully arrived corner too: the old button sits outside the
-    # card's initial reveal clip, but the travelling mark must remain painted.
     leaf.focus()
     page.keyboard.press("Enter")
     expect(panel).to_have_attribute("data-rest", "row")
@@ -2768,26 +2788,28 @@ def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
     assert seek(0) == pytest.approx(folded, abs=0.5)
     paints()
     seek(80)
-    row_follows_leaf()
+    words_follow_leaf()
     assert seek(300) == pytest.approx(row, abs=0.5)
     page.keyboard.press(".")
     expect(panel).to_have_attribute("data-rest", "mark")
     one_frame(page)
 
-    # Turn back before arrival. The new tween's first frame is the old one's
-    # current paint, not either resting position, while focus takes its new target.
+    # Turn back before arrival. The new tween's first frame is the old one's current
+    # drawing, not either resting position, while focus takes its new target.
     middle = seek(80)
     leaf.focus()
     page.keyboard.press("Enter")
     expect(panel).to_have_attribute("data-rest", "row")
     one_frame(page)
-    assert seek(0) == pytest.approx(middle, abs=0.5)
+    # The mark is a pixel narrower in the row and travels by its corner, so its centre
+    # starts half that from where it was drawn.
+    assert seek(0) == pytest.approx(middle, abs=1)
     paints()
     target = leaf.bounding_box()
     expect(leaf).to_be_focused()
     back = seek(80)
     paints()
-    row_follows_leaf()
+    words_follow_leaf()
     assert row["x"] < back["x"] < middle["x"]
     assert back["opacity"] == 1
     assert leaf.bounding_box() == target
@@ -2802,7 +2824,10 @@ def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
     one_frame(page)
     target = leaf.bounding_box()
     assert reading()["x"] == pytest.approx(target["x"] + target["width"] / 2, abs=0.5)
-    assert page.locator(".lf-fp-scene").evaluate("e => e.getAnimations().length") == 0
+    assert not page.evaluate(
+        "() => ['.lf-floating-panel', '.lf-fp-ground'].some(s =>"
+        " document.querySelector(s).getAnimations({subtree: true}).length)"
+    )
 
 
 def test_a_new_line_past_the_field_s_height_scrolls_into_view(browser, serve):
@@ -3160,7 +3185,7 @@ def test_a_website_copy_says_who_revises_it_and_where_leaf_comes_from(browser, s
     expect(field(page)).to_have_attribute(
         "placeholder", re.compile("^Leaf guide awaits — comment to revise this copy")
     )
-    expect(page.locator(".lf-fp-leaf-paint .lf-dot")).to_have_class("lf-dot listening")
+    expect(page.locator(".lf-fp-leaf .lf-dot")).to_have_class("lf-dot listening")
     expect(page.locator(".lf-fp-row-notice")).to_be_hidden()
     page.locator(".lf-fp-leaf").click()
     links = page.locator(".lf-fp-menu .lf-fp-state a")
@@ -3597,7 +3622,7 @@ ROW_CENTRES = """() => {
   };
   const text = document.querySelector('.lf-fp-field leaf-text').getBoundingClientRect();
   return {
-    leaf: centre('.lf-fp-leaf-paint .lf-dot'),
+    leaf: centre('.lf-fp-leaf .lf-dot'),
     line: text.bottom - 16,
     dictate: centre('.lf-fp-field .lf-compose-dictate svg'),
     send: centre('.lf-fp-field .lf-compose-submit svg'),
@@ -4274,6 +4299,12 @@ def test_a_line_the_field_grows_rides_the_box_s_top_edge(browser, serve):
     paste_image(field(page), solid_png(40, 30, (255, 128, 64)))
     shelf = page.locator(".lf-fp-box .lf-composer-media-item")
     expect(shelf).to_have_count(1)
+    # The thumbnail takes its picture's width once the picture decodes, a frame after
+    # which the box reads it.
+    expect(shelf.locator("img")).to_have_js_property("complete", True)
+    page.evaluate(
+        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+    )
     settled(page)
     card, tile = page.locator(".lf-fp-card").bounding_box(), shelf.bounding_box()
     region = {

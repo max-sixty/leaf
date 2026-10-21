@@ -1,10 +1,6 @@
 /* @noformat Generated from skills/leaf/assets/styles/chrome.css by build/styles.mjs. */
 /* skills/leaf/assets/styles/floating-panel.css */
-@property --lf-fp-fold-progress { syntax: "<number>"; inherits: true; initial-value: 1; }
 @scope (.lf-chrome) {
-  .lf-fp-scene {
-    display: contents;
-  }
   :is(.lf-floating-panel, .lf-fp-ground) {
     --lf-fp-surface: light-dark( var(--paper), color-mix(in srgb, var(--paper) 95%, white) );
     --lf-fp-ring: light-dark( color-mix(in srgb, var(--ink) 13%, transparent), color-mix(in srgb, var(--ink) 19%, transparent) );
@@ -142,19 +138,7 @@
     min-height: var(--lf-fp-line);
     padding: 0;
   }
-  .lf-fp-leaf-paint {
-    position: fixed;
-    position-anchor: --lf-fp-leaf;
-    position-visibility: always;
-    left: anchor(left);
-    top: anchor(top);
-    width: anchor-size(width);
-    height: anchor-size(height);
-    display: grid;
-    place-items: center;
-    pointer-events: none;
-  }
-  .lf-fp-leaf-paint .lf-dot {
+  .lf-fp-leaf .lf-dot {
     --lf-mark-w: 19px;
   }
   .lf-fp-error-dot {
@@ -510,8 +494,16 @@
       min-height: 0;
       border-radius: var(--lf-fp-radius);
     }
-    .lf-fp-leaf-paint .lf-dot {
+    .lf-fp-leaf .lf-dot {
       --lf-mark-w: 20px;
+    }
+    :is(.lf-fp-badge, .lf-fp-news-dot) {
+      animation: lf-fp-arrive 160ms linear 140ms backwards;
+    }
+  }
+  @keyframes lf-fp-arrive {
+    from {
+      opacity: 0;
     }
   }
   .lf-fp-minimize {
@@ -1395,6 +1387,9 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
+    .lf-floating-panel[data-rest=mark] :is(.lf-fp-badge, .lf-fp-news-dot) {
+      animation: none;
+    }
     .lf-fp-peek,
     .lf-floating-panel[data-menu] .lf-fp-menu {
       transition: none;

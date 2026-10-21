@@ -59,6 +59,116 @@ const tick = () =>
     throw reason;
   });
 
+test("reactive properties claim presentation only when Lit schedules an update", async () => {
+  const tag = `lf-probe-property-${++tags}`;
+  customElements.define(
+    tag,
+    class extends LeafElement {
+      static properties = {
+        name: {
+          hasChanged: (value, old) => value?.toLowerCase() !== old?.toLowerCase(),
+        },
+      };
+      constructor() {
+        super();
+        this.name = "same";
+      }
+      render() {
+        return html`${this.name}`;
+      }
+    },
+  );
+  const element = document.createElement(tag);
+  element.id = tag;
+  document.body.append(element);
+  try {
+    await settled(element);
+    for (const unchanged of ["same", "SAME"]) {
+      element.name = unchanged;
+      assert.equal(element.isUpdatePending, false);
+      assert.ok(!pending(element), "a rejected property change owes no presentation");
+    }
+    element.name = "different";
+    assert.ok(pending(element), "an accepted change claims before its setter returns");
+    await settled(element);
+    assert.equal(element.textContent, "different");
+    assert.ok(!pending(element));
+  } finally {
+    element.remove();
+  }
+});
+
+test("requests consumed by the active render leave no extra presentation claim", async () => {
+  const tag = `lf-probe-active-update-${++tags}`;
+  customElements.define(
+    tag,
+    class extends LeafElement {
+      static properties = { name: {}, derived: {} };
+      constructor() {
+        super();
+        this.name = "first";
+      }
+      render() {
+        this.derived = this.name.toUpperCase();
+        this.requestUpdate();
+        return html`${this.derived}`;
+      }
+    },
+  );
+  const element = document.createElement(tag);
+  element.id = tag;
+  document.body.append(element);
+  try {
+    await settled(element);
+    element.name = "second";
+    await settled(element);
+    assert.equal(element.textContent, "SECOND");
+    assert.equal(element.isUpdatePending, false);
+    assert.ok(!pending(element), "the active render fulfills its coalesced requests");
+  } finally {
+    element.remove();
+  }
+});
+
+test("an updated callback's follow-up keeps presentation pending through its drawing", async () => {
+  let finish;
+  const tag = `lf-probe-follow-up-${++tags}`;
+  customElements.define(
+    tag,
+    class extends LeafElement {
+      static properties = { name: {} };
+      constructor() {
+        super();
+        this.name = "first";
+      }
+      render() {
+        return html`${this.name}`;
+      }
+      updated(changed) {
+        super.updated(changed);
+        if (this.name === "second") this.name = "final";
+        else if (this.name === "final")
+          this.drawing(new Promise((done) => (finish = done)));
+      }
+    },
+  );
+  const element = document.createElement(tag);
+  element.id = tag;
+  document.body.append(element);
+  try {
+    await settled(element);
+    element.name = "second";
+    await settled(element);
+    assert.equal(element.textContent, "final");
+    assert.ok(pending(element), "the follow-up's drawing still holds presentation");
+    finish();
+    await settled(element);
+    assert.ok(!pending(element));
+  } finally {
+    element.remove();
+  }
+});
+
 test("mechanical focus reads do not subscribe a widget's content to focus moves", async () => {
   const { element, draws } = probe(() => {
     focused();

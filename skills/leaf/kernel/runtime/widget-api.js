@@ -468,12 +468,14 @@ var LeafElement = class extends q(UpdateBoundary) {
     this.#signalError = { error };
   }
   requestUpdate(...args) {
-    if (this.hasUpdated)
+    const wasPending = this.isUpdatePending;
+    const result = super.requestUpdate(...args);
+    if (this.hasUpdated && this.isUpdatePending && (!wasPending || !this.#updating))
       d(() => {
         if (this.#connected && this.#region && !this.#ticket)
           this.#ticket = this.#claim();
       });
-    return super.requestUpdate(...args);
+    return result;
   }
   /** Finish this render when its presentation prerequisites are ready. Readiness
    * does not claim another presentation, which would invalidate its own proof. */
@@ -505,6 +507,7 @@ var LeafElement = class extends q(UpdateBoundary) {
   #broken = false;
   // The claim the update under way draws, settled once `updated` has run too.
   #drawing = null;
+  #updating = false;
   // The drawing that follows the update under way, which its claim waits for.
   #work = null;
   #data = /* @__PURE__ */ new Map();
@@ -623,9 +626,11 @@ var LeafElement = class extends q(UpdateBoundary) {
   // claim of its own, its failure is the enclosing claimed update's.
   performUpdate() {
     const outer = this.#drawing;
+    const updating = this.#updating;
     let outerWork = this.#work;
     this.#drawing = null;
     this.#work = null;
+    this.#updating = true;
     try {
       this.#signalError = null;
       super.performUpdate();
@@ -642,6 +647,7 @@ var LeafElement = class extends q(UpdateBoundary) {
     } finally {
       this.#drawing = outer;
       this.#work = outerWork;
+      this.#updating = updating;
     }
   }
   /** Hold the update under way's claim until `work`, drawing that follows the render

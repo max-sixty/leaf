@@ -90,13 +90,18 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
   }
 
   requestUpdate(...args) {
-    // Lit requests its first update before this class's private fields exist.
-    if (this.hasUpdated)
+    const wasPending = this.isUpdatePending;
+    const result = super.requestUpdate(...args);
+    // Lit owns change detection and coalescing. A request made during render can
+    // belong to the active update; one made after Lit clears its pending flag, as
+    // in updated(), schedules a new update and needs its own claim. The first
+    // constructor request precedes this class's private fields.
+    if (this.hasUpdated && this.isUpdatePending && (!wasPending || !this.#updating))
       untracked(() => {
         if (this.#connected && this.#region && !this.#ticket)
           this.#ticket = this.#claim();
       });
-    return super.requestUpdate(...args);
+    return result;
   }
 
   /** Finish this render when its presentation prerequisites are ready. Readiness
@@ -130,6 +135,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
   #broken = false;
   // The claim the update under way draws, settled once `updated` has run too.
   #drawing = null;
+  #updating = false;
   // The drawing that follows the update under way, which its claim waits for.
   #work = null;
   #data = new Map();
@@ -274,9 +280,11 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
   // claim of its own, its failure is the enclosing claimed update's.
   performUpdate() {
     const outer = this.#drawing;
+    const updating = this.#updating;
     let outerWork = this.#work;
     this.#drawing = null;
     this.#work = null;
+    this.#updating = true;
     try {
       this.#signalError = null;
       super.performUpdate();
@@ -295,6 +303,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     } finally {
       this.#drawing = outer;
       this.#work = outerWork;
+      this.#updating = updating;
     }
   }
 

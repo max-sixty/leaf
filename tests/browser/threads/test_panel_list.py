@@ -1,5 +1,7 @@
 """The panel's Threads list: what each row says."""
 
+import re
+
 import pytest
 from interact_support import append_carried_log_record
 from leaf import thread as thread_model
@@ -130,11 +132,16 @@ def test_a_title_on_its_way_reads_as_one(browser, serve, request):
 
     claim_for_codex(serve.page_dir, request)
     told(page)
-    expect(label).to_have_text(pending)
-    expect(label.locator(".lf-thread-name-pending")).to_have_count(1)
+    # A screen reader still hears the opening words, after the placeholder.
+    spoken = f"{pending} {opening}"
+    expect(label.locator(".lf-thread-name-pending")).to_have_text(pending)
+    expect(thread_row(page, root)).to_have_accessible_name(
+        re.compile(f"^{re.escape(spoken)} Sent$")
+    )
     open_panel_thread(page, root)
     title = page.locator(".lf-fp-head .lf-fp-title")
-    expect(title).to_have_text(pending)
+    expect(title.locator(".lf-thread-name-pending")).to_have_text(pending)
+    expect(title).to_have_text(spoken)
 
     append_carried_log_record(
         serve.page_dir,

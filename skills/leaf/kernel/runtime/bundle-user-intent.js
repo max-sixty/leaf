@@ -3799,7 +3799,8 @@ function threadName(thread) {
   return words || (root.drawing ? "Drawing" : "");
 }
 var titlePending = (thread) => thread.title == null && thread.attention?.kind === "waiting" && thread.attention.reason === "workflow" && pageClaimed();
-var threadHeading = (thread) => titlePending(thread) ? html`<span class="lf-thread-name-pending">Generating thread name…</span>` : threadName(thread);
+var threadHeading = (thread) => titlePending(thread) ? html`<span class="lf-thread-name-pending">Generating thread name…</span
+        ><span class="lf-quiet"> ${threadName(thread)}</span>` : threadName(thread);
 var threadSummary = (thread) => ({
   topic: threadName(thread),
   latest: lastMovedAt(thread)

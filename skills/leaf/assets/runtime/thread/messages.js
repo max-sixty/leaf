@@ -133,10 +133,13 @@ const titlePending = (thread) =>
 // A thread's name where it heads the thread, as Threads lists it and its view names
 // it: while a title is on its way, a placeholder in the face of a step under way
 // (`.lf-thread-working-words`) rather than opening words that would read as its title.
+// The opening words stay in its accessible name, after the placeholder, so a screen
+// reader still tells two pending threads apart.
 /** @param {Parameters<typeof titlePending>[0]} thread */
 export const threadHeading = (thread) =>
   titlePending(thread)
-    ? html`<span class="lf-thread-name-pending">Generating thread name…</span>`
+    ? html`<span class="lf-thread-name-pending">Generating thread name…</span
+        ><span class="lf-quiet"> ${threadName(thread)}</span>`
     : threadName(thread);
 
 /** @param {Parameters<typeof threadName>[0] & Parameters<typeof lastMovedAt>[0]} thread */

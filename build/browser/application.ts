@@ -45,8 +45,6 @@ import type {
   LocalMessage,
   LocalEdit,
   ThreadGesture,
-  Message,
-  LocalAction,
   ActionSpec,
   PendingProjection,
   ProjectionEntry,

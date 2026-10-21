@@ -84,7 +84,7 @@ fabInput.className = "lf-ui lf-response-control lf-fab-input";
 fabInput.name = "comment";
 fabInput.placeholder = "Comment…";
 fabInput.setAttribute("aria-label", "Comment");
-export const fab = responseAction(el("button", "lf-ui lf-fab"), {
+const fab = responseAction(el("button", "lf-ui lf-fab"), {
   icon: "comment",
   label: "Comment",
   behavior: "disclosure",

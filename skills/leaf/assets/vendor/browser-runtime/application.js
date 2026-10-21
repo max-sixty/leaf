@@ -60,8 +60,6 @@ import { queueOffers } from "../../runtime/queues.js";
 
 
 
-
-
 /* The lifecycle of one unresolved gesture, from the turn that makes it to the
  * publication that retires it.
  *

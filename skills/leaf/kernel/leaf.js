@@ -5713,7 +5713,7 @@ function pageStatus(state, { reach: reach2 = "reached", fault: fault2 = null } =
       comments: activity.counts.handling_comments,
       answers: activity.counts.handling - activity.counts.handling_comments
     },
-    invite: publication ? `${publication.agent} awaits \u2014 comment to revise this copy` : `${agent} awaits \u2014 select text to comment`,
+    invite: publication ? `${agent} awaits \u2014 comment to revise this copy` : `${agent} awaits \u2014 select text to comment`,
     kind,
     listening: facts.listening,
     overdue: activity.counts.overdue,

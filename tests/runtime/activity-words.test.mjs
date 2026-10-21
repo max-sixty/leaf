@@ -350,8 +350,13 @@ test("what the disclosure adds to the row says only what the row does not", () =
 
 test("a published page's agent is on call, and its explanation introduces the page", () => {
   const publication = { agent: "Agent", install_url: "/#install" };
+  // The server names a hosted copy's agent after its publication.
   const published = (activity, extra = {}) =>
-    pageStatus({ ...state(activity), publication: { ...publication, ...extra } });
+    pageStatus({
+      ...state(activity),
+      agent: "Agent",
+      publication: { ...publication, ...extra },
+    });
   // A comment starts the agent, so whenever it isn't working it reads as listening,
   // inviting that comment, whether no session holds the copy yet or one went quiet
   // with a line of work it never finished.
@@ -366,12 +371,12 @@ test("a published page's agent is on call, and its explanation introduces the pa
   // A request it declared still stands.
   assert.equal(
     published({ kind: "listening", detail: "pick a plan" }).summary,
-    "Claude awaits — pick a plan",
+    "Agent awaits — pick a plan",
   );
   // Its work reads as on any page.
   const working = published({ kind: "working", detail: "revising the plan" });
   assert.equal(working.tone, "working");
-  assert.equal(working.summary, "Claude working — revising the plan");
+  assert.equal(working.summary, "Agent working — revising the plan");
   const model = statusModel(published({ kind: "closed" }), NO_QUEUES, "Agent");
   assert.equal(
     model.explanation,

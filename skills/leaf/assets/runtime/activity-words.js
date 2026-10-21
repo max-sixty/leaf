@@ -307,7 +307,7 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
       answers: activity.counts.handling - activity.counts.handling_comments,
     },
     invite: publication
-      ? `${publication.agent} awaits — comment to revise this copy`
+      ? `${agent} awaits — comment to revise this copy`
       : `${agent} awaits — select text to comment`,
     kind,
     listening: facts.listening,

@@ -24,20 +24,15 @@ byte outside a slot is published as written.
 """
 
 import html
-import importlib
 import json
-import pkgutil
 import re
 from pathlib import Path
 
-import leaf
-import leaf_website
 from leaf.media import media_name
 from leaf.schema import MEDIA_DIR
-from leaf.state import RECORDS
 from leaf.structure import SourceDocument
 
-from leaf_dev import ROOT
+from leaf_dev import ROOT, declared_records
 from leaf_dev.example_data import document_metadata
 from leaf_dev.leaf_assets import pinned_assets
 
@@ -48,7 +43,8 @@ PACKAGES = ROOT / "skills" / "leaf" / "packages"
 SCRIPTS = ROOT / "skills" / "leaf" / "scripts" / "leaf"
 SERVED_SCHEMA = SCRIPTS / "served_state" / "state.schema.json"
 INTERACTION_SCHEMA = SCRIPTS / "interaction-batch.schema.json"
-# Where each event kind's meaning is written: the kinds table that opens the file.
+# Where each event kind's meaning is written: its row of the kinds table that opens
+# the file, at the anchor `kind-<kind>`.
 EVENTS_REFERENCE = (
     "https://github.com/max-sixty/leaf/blob/main/skills/leaf/scripts/leaf/events.md"
 )
@@ -430,7 +426,7 @@ def event_entries() -> list[str]:
     }
     entries = [schema_entry("event-envelope", "Every event", envelope)]
     for kind, contract in kinds.items():
-        notes = [f'<a href="{EVENTS_REFERENCE}">What it means</a>.']
+        notes = [f'<a href="{EVENTS_REFERENCE}#kind-{kind}">What it means</a>.']
         if "browser" in contract:
             notes.append("The browser may post it to <code>POST /api/event</code>.")
         for member in ("message", "bookkeeping", "undoable"):
@@ -448,15 +444,6 @@ def event_entries() -> list[str]:
             )
         )
     return entries
-
-
-def declared_records() -> dict:
-    """Every `state.Record`, read once each module that declares one is imported."""
-    for package in (leaf, leaf_website):
-        for module in pkgutil.walk_packages(package.__path__, f"{package.__name__}."):
-            if not module.name.endswith(".__main__"):
-                importlib.import_module(module.name)
-    return dict(sorted(RECORDS.items()))
 
 
 def record_entries() -> list[str]:

@@ -1,8 +1,9 @@
 """Lifecycle and trusted inputs for one browser color scheme."""
 
+import re
 import time
 from pathlib import Path
-from urllib.parse import urldefrag, urljoin, urlsplit
+from urllib.parse import urljoin, urlsplit
 
 from leaf.event_endpoint import event_rejection
 from leaf.files import version_num
@@ -84,7 +85,13 @@ def _projection_was_applied(failed_stage: str | None) -> bool:
     return failed_stage in (None, "arrived", "rendering", "pageSettled")
 
 
-_FORCED_LAYOUT = "Layout was forced before the page was fully loaded"
+# How Playwright's Firefox words the warning its engine reports, as distinct from a
+# script's own console call.
+_FORCED_LAYOUT = (
+    '[JavaScript Warning: "Layout was forced before the page was fully loaded'
+)
+# Where a sample's document and everything it loads are served (`http.py`).
+_SAMPLE_PATH = re.compile(r"/api/samples/[0-9a-f]{32}")
 
 
 def console_finding(message, *, warnings: bool = True) -> Finding | None:
@@ -98,15 +105,16 @@ def console_finding(message, *, warnings: bool = True) -> Finding | None:
     in every document of the frame tree once the page has a resize observer, as
     every Leaf page does, so a sample frame still parsing its head starts layout
     early and says "Layout was forced before the page was fully loaded". No page
-    can prevent it, so that warning is dropped from a frame, which also hides a
-    frame's own script reading layout too early; a top-level document's is kept.
+    can prevent it, so that warning is dropped from a sample, which also hides a
+    sample's own script reading layout too early. Firefox files the warning under
+    the script that forced layout where one did, so the sample is known by the
+    path its files are served under, and the page's own warning is kept.
     """
     said = {"text": message.text, "url": message.location["url"]}
     if (
         message.type == "warning"
-        and _FORCED_LAYOUT in message.text
-        and message.page is not None
-        and urldefrag(said["url"]).url != urldefrag(message.page.main_frame.url).url
+        and message.text.startswith(_FORCED_LAYOUT)
+        and _SAMPLE_PATH.search(urlsplit(said["url"]).path)
     ):
         return None
     if message.type == "warning" and warnings:

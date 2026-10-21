@@ -107,7 +107,10 @@
  * the menu to the panel's top. A
  * keyboard's convenience for where the reader stands, such as Resume writing, stands
  * under Navigate only where no keyboard is there to reach it (page-controls.js, the
- * `keys` group). The field the user clicks in is the field they write in: a page
+ * `keys` group). The panel shows no key hints of its own: the menu's rows carry their
+ * keys and `?` opens the full reference, which the user chose on 13 October over a
+ * hint or two in the line over the field, to keep the panel quietest. The field the
+ * user clicks in is the field they write in: a page
  * comment where no thread is open, a reply where one is: the reply box every view of a
  * thread draws (thread/replies.js), with its ↑ to the user's last message, which Leaf's
  * reader draws in the field's place. Each destination keeps its own native editor (its
@@ -118,9 +121,8 @@
  * menu holds what it showed while it stands, and a control the user pressed in a
  * thread stays where it was. Every change of the box's size takes effect in
  * one step, and the surface behind it, a separate layer, follows by a clip from where it
- * stood to where it stands, the way the Codex app's floating panel moves
- * (`notes/floating-panel/GOAL.md`): nothing's layout tweens, so nothing a user aims at
- * travels after the gesture that moved it. */
+ * stood to where it stands, the way the Codex app's floating panel moves: nothing's
+ * layout tweens, so nothing a user aims at travels after the gesture that moved it. */
 import {
   html,
   keyed as keyedBy,
@@ -531,12 +533,16 @@ export function createFloatingPanel({
   let query = "";
   let searching = false;
   let writing = false;
-  // Whether the user is typing, as the row last showed it: Send in the field's corner,
-  // the counts stepped aside. The row takes that posture, or gives it up, only at the
-  // user's own move: typing, coming into or leaving the field, a view changing. Words
-  // a refused send hands back move nothing, so its action stays in the seat the empty
-  // field gave it, Dictate's, until the user types again; emptied words always end it.
-  let typing = false;
+  // Whether the field holds a draft, as the row last showed it: Send in the field's
+  // corner, the counts stepped aside. The row takes that posture, or gives it up, only
+  // at the user's own move: typing, or a view changing, which stands another editor in
+  // the field. The caret coming into or leaving the field moves nothing, so a draft the
+  // user steps away from keeps every line where it was. The user chose this on 20
+  // October over the counts coming back as the caret left, which rewrapped the draft
+  // each time the user stepped out and again as they came back. Words a refused send
+  // hands back move nothing, so its action stays in the seat the empty field gave it,
+  // Dictate's, until the user types again; emptied words always end it.
+  let drafted = false;
   let postureMoved = true;
   // The thread the reader lands at the end of, once Leaf has drawn more than `after`
   // of its messages: the whole of it on opening, or past the turn the user just sent.
@@ -717,7 +723,7 @@ export function createFloatingPanel({
   // Words arriving in an empty field, or the last of them going, re-seat the row.
   function retype() {
     postureMoved = true;
-    if (Boolean(draftOf(fieldInput()).trim()) !== typing) paint();
+    if (Boolean(draftOf(fieldInput()).trim()) !== drafted) paint();
   }
   field.addEventListener("input", retype);
   // A press on the page's editor while words stand selected on the page comments on
@@ -1270,10 +1276,10 @@ export function createFloatingPanel({
   stage.addEventListener("click", (event) => pressAt(event.target), { capture: true });
   stage.addEventListener("click", judgePress);
   const inRewrite = (node) => Boolean(node && closestAcross(node, ".lf-msg-editor"));
-  // A modal over the panel, such as the image viewer opened from a draft's attachment,
+  // A modal over the panel, such as the image viewer opened from a rewrite's attachment,
   // is a layer the user steps into from the panel, which hands them back as it closes:
-  // standing in it leaves them writing where they were, so nothing the panel shows for
-  // writing moves behind it and again on the way back.
+  // standing in it leaves them rewriting, so the view keeps the height it holds for the
+  // rewrite behind the modal and on the way back.
   const overPanel = (node) =>
     Boolean(node) && nativeModalAdmits(node) && !nativeModalAdmits(host);
   onStanding((node, cause) => {
@@ -3203,14 +3209,14 @@ export function createFloatingPanel({
     const input = fieldInput();
     if (input) syncInput(input);
     keeps(host, "data-writing", writing ? "" : null);
-    // While the user types, Send stands in the field's corner and the counts step
-    // aside for the field.
-    const typed = writing && Boolean(draftOf(input).trim());
-    if (postureMoved || !typed) typing = typed;
+    // While the field holds a draft, Send stands in its corner and the counts step
+    // aside for it (`drafted`).
+    const words = Boolean(draftOf(input).trim());
+    if (postureMoved || !words) drafted = words;
     postureMoved = false;
-    keeps(host, "data-typing", typing ? "" : null);
-    keeps(host, "data-words", draftOf(input).trim() ? "" : null);
-    if (!draftOf(input).trim()) expanded = false;
+    keeps(host, "data-drafted", drafted ? "" : null);
+    keeps(host, "data-words", words ? "" : null);
+    if (!words) expanded = false;
     // The mark stays while the field is wide, where the draft may fit three lines again.
     const marked = (long || expanded) && !resting;
     keeps(host, "data-long", marked ? "" : null);
@@ -3658,11 +3664,9 @@ export function createFloatingPanel({
     },
     true,
   );
-  // Writing begins in the field and lasts while the user stays in the panel, or in a
-  // modal over it (`overPanel`), so the line naming where the words go stays put while
-  // they press Resolve or a filter, or look at an attached image.
+  // Writing begins in the field and lasts while the user stays in the panel, so the
+  // line naming where the words go stays put while they press Resolve or a filter.
   onStanding((node, _cause, left) => {
-    if (overPanel(node)) return;
     // The menu lasts while the user stands in it or on the leaf that opened it, so Tab
     // past its row, or a press in the field, puts it away.
     if (menuOpen.value && node && node !== leaf && !renderedUnder(node, menu))
@@ -3676,7 +3680,6 @@ export function createFloatingPanel({
     const next = inside ? writing || node.localName === "leaf-text" : false;
     if (next === writing && !inside) return;
     writing = next;
-    postureMoved = true;
     paint();
   });
   // A press on the page puts away what stands open above the row. A press in a modal

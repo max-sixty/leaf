@@ -6490,7 +6490,7 @@ function createFloatingPanel({
   let query = "";
   let searching = false;
   let writing = false;
-  let typing = false;
+  let drafted = false;
   let postureMoved = true;
   let landAtEnd = null;
   const drawnTurns = () => outletOf()?.querySelectorAll(".lf-msg").length ?? 0;
@@ -6606,7 +6606,7 @@ function createFloatingPanel({
   const fieldInput = () => field.firstElementChild !== replyOutlet ? pageEditor().input : replyOutlet.hidden ? null : replyInput();
   function retype() {
     postureMoved = true;
-    if (Boolean(draftOf(fieldInput()).trim()) !== typing) paint();
+    if (Boolean(draftOf(fieldInput()).trim()) !== drafted) paint();
   }
   field.addEventListener("input", retype);
   let pressedWords = null;
@@ -8311,12 +8311,12 @@ function createFloatingPanel({
     const input = fieldInput();
     if (input) syncInput(input);
     keeps(host, "data-writing", writing ? "" : null);
-    const typed = writing && Boolean(draftOf(input).trim());
-    if (postureMoved || !typed) typing = typed;
+    const words = Boolean(draftOf(input).trim());
+    if (postureMoved || !words) drafted = words;
     postureMoved = false;
-    keeps(host, "data-typing", typing ? "" : null);
-    keeps(host, "data-words", draftOf(input).trim() ? "" : null);
-    if (!draftOf(input).trim()) expanded = false;
+    keeps(host, "data-drafted", drafted ? "" : null);
+    keeps(host, "data-words", words ? "" : null);
+    if (!words) expanded = false;
     const marked = (long || expanded) && !resting;
     keeps(host, "data-long", marked ? "" : null);
     keeps(host, "data-expanded", expanded ? "" : null);
@@ -8658,7 +8658,6 @@ function createFloatingPanel({
     true
   );
   onStanding((node, _cause, left) => {
-    if (overPanel(node)) return;
     if (menuOpen.value && node && node !== leaf && !renderedUnder(node, menu))
       setMenu(false);
     const inside = Boolean(node) && renderedUnder(node, host);
@@ -8667,7 +8666,6 @@ function createFloatingPanel({
     const next = inside ? writing || node.localName === "leaf-text" : false;
     if (next === writing && !inside) return;
     writing = next;
-    postureMoved = true;
     paint();
   });
   document.addEventListener(

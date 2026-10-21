@@ -1783,7 +1783,7 @@ def test_a_rewrite_lands_only_on_the_words_it_was_written_over(page_dir):
     south = rewrite("South.", said["id"])
     with pytest.raises(events_model.EventRefused) as stale:
         rewrite("East.", said["id"])
-    assert stale.value.user == "The message changed while you edited it; edit it again."
+    assert stale.value.user == "The message changed while I edited it; edit it again."
     west = rewrite("West.", south["id"])
     with pytest.raises(events_model.EventRefused):
         rewrite("West.", west["id"])

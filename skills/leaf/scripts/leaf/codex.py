@@ -2173,7 +2173,7 @@ def recover_codex_receipt(session_id: str) -> bool:
 UNCONFIRMED_DELIVERY = "delivery_unconfirmed"
 UNCONFIRMED_TEXT = (
     "Leaf could not confirm this delivery and will not retry it automatically. "
-    "Send it again if you still need an answer."
+    "Send it again if I still need an answer."
 )
 
 

@@ -1990,8 +1990,8 @@ _TEXT = {
 # What a browser shows the person whose gesture a refusal turned down, where the
 # agent's words name internals that person never sees (`Rejected.user`).
 _USER = {
-    "stale-move": "The page changed while you moved this; move it again.",
-    "stale-edit": "The message changed while you edited it; edit it again.",
+    "stale-move": "The page changed while I moved this; move it again.",
+    "stale-edit": "The message changed while I edited it; edit it again.",
 }
 
 _CONSOLE = {

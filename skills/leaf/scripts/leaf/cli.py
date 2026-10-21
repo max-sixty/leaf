@@ -783,7 +783,9 @@ def delivery_read(delivery_id: str, part: int) -> dict:
 @click.argument("delivery_id", metavar="DELIVERY_ID")
 def delivery_ack(delivery_id: str) -> None:
     """Confirm that every part of DELIVERY_ID is in your context, so its updates
-    read Picked up. Reread any part whose output is missing first."""
+    read Picked up. Reread any part whose output is missing first. Where an
+    earlier turn already picked it up, a note says so and names what its updates
+    still owe."""
     from leaf.delivery import cmd_delivery_ack
 
     cmd_delivery_ack(delivery_id)

@@ -35,6 +35,7 @@ from interact_support import (
     declare_idle,
     declared,
     delivered,
+    delivered_ref,
     fetch,
     last_deliverable_seq,
     page_state,
@@ -2445,6 +2446,99 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
         for batch in files_model.read_json(second_path)["batches"]
         for event in batch["events"]
     ] == ["second"]
+
+
+def _queued_with_lost_acceptance(page_dir, monkeypatch) -> tuple[Path, dict, list]:
+    """A comment the queue adapter handed to `codex queue`, then failed before
+    recording that the queue accepted it, as an adapter that dies or a state write
+    that fails in that gap leaves it; with the delivery's record and the pointers
+    queued so far."""
+    cleanup_model.prompt_turn("codex-thread", "user-turn")
+    cleanup_model.open_session_turn("codex-thread", "user-turn")
+    comment = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Name the release"}
+    )
+    codex_model.offer_hook_delivery(
+        "codex-thread", cleanup_model.session_record("codex-thread")
+    )
+    [(path, _)] = codex_records("codex-thread")
+    cleanup_model.close_session_turn("codex-thread", "user-turn")
+    queued = []
+    monkeypatch.setattr(
+        codex_adapter_model, "queue_delivery", lambda *args: queued.append(args)
+    )
+
+    def lost_acceptance(*args, **kwargs):
+        raise OSError("state home unavailable")
+
+    with monkeypatch.context() as interrupted:
+        interrupted.setattr(
+            codex_adapter_model, "accept_codex_delivery", lost_acceptance
+        )
+        with pytest.raises(OSError, match="state home unavailable"):
+            codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+    return path, comment, queued
+
+
+def _ack_in(turn: str, delivery_id: str, capsys) -> list[dict]:
+    """Acknowledge a delivery in a turn of its own, as a queued turn opening on its
+    pointer does, and return the notes the ack printed."""
+    cleanup_model.prompt_turn("codex-thread", turn)
+    cleanup_model.open_session_turn("codex-thread", turn)
+    capsys.readouterr()
+    delivery_model.cmd_delivery_ack(delivery_id)
+    notes = [json.loads(line) for line in capsys.readouterr().err.splitlines()]
+    cleanup_model.close_session_turn("codex-thread", turn)
+    return notes
+
+
+@pytest.mark.parametrize("answered", [True, False])
+def test_a_codex_delivery_queued_twice_tells_its_second_turn_it_repeats(
+    page_dir, codex_loop, monkeypatch, capsys, answered
+):
+    """`codex queue` takes no message id, so the adapter's retry queues the same
+    pointer again and Codex runs a turn for each. The second turn's ack says an
+    earlier turn already picked the delivery up, and names what its updates still
+    owe, so that turn repeats no work."""
+    codex_loop(page_dir)
+    path, comment, queued = _queued_with_lost_acceptance(page_dir, monkeypatch)
+    assert codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+    pointer = delivery_model.delivery_pointer_prompt(path.stem)
+    assert [args[2] for args in queued] == [pointer, pointer]
+
+    assert _ack_in("first-queued-turn", path.stem, capsys) == []
+    owed = f"`leaf response reply {delivered_ref(page_dir, comment['id'])}`"
+    if answered:
+        thread_model.post_reply(
+            page_dir, {"parent": comment["id"], "responds": comment["id"]}, "Named it."
+        )
+    [repeat] = _ack_in("second-queued-turn", path.stem, capsys)
+    assert repeat["code"] == "delivery-repeated"
+    assert repeat["values"]["turns"] == ["first-queued-turn"]
+    assert repeat["values"]["answers"] == ([] if answered else [owed])
+
+
+def test_a_queued_turn_that_acks_before_the_retry_takes_the_delivery_once(
+    page_dir, codex_loop, monkeypatch, capsys
+):
+    """A turn that opens on the first pointer and acknowledges it before the
+    adapter retries proves the queue took it, so the ack accepts the delivery and
+    the adapter queues nothing more."""
+    codex_loop(page_dir)
+    path, comment, queued = _queued_with_lost_acceptance(page_dir, monkeypatch)
+
+    assert _ack_in("queued-turn", path.stem, capsys) == []
+    assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+    assert len(queued) == 1
+    pickups = [
+        (event["phase"], event["turn"], event["events"])
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "pickup"
+    ]
+    assert pickups == [
+        ("queued", None, [comment["id"]]),
+        ("opened", "queued-turn", [comment["id"]]),
+    ]
 
 
 @pytest.mark.parametrize("transport", ["hook", "app-server", "queue"])

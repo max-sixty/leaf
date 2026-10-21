@@ -40,11 +40,11 @@ here that the others import, never through `sys.path`, `PYTHONPATH` or a file pa
 - `browser.py` launches Playwright's pinned headless shell, the build the suite drives,
   and opens and waits on a tab the same way for every command.
 - `leaf-dev probe SOURCE` opens a page built from this working tree, runs input steps,
-  and prints what a JavaScript expression returns, the console errors and optionally a
-  screenshot; `--base` does the same on the merge base. It also takes an HTTP(S) URL,
-  a `--journey` file, and `--record` for a trace and video (`recording.py`, whose
-  `recording(page, directory)` works in any Playwright script). Its startup report
-  includes layout shifts, for diagnosis only.
+  and prints what a JavaScript expression returns, the console errors and warnings
+  and optionally a screenshot; `--base` does the same on the merge base. It also
+  takes an HTTP(S) URL, a `--journey` file, and `--record` for a trace and video
+  (`recording.py`, whose `recording(page, directory)` works in any Playwright
+  script). Its startup report includes layout shifts, for diagnosis only.
 - `leaf-dev stills [BASE_REF]` screenshots a catalogue of UI states on a base runtime
   and on HEAD's, and crops each state that changed into a before/after pair under
   `.tmp/stills/`. Repeat `--state NAME` to compare only some states.

@@ -53,7 +53,9 @@
   const shiftObserver = new PerformanceObserver((list) =>
     recordShifts(list.getEntries()),
   );
-  shiftObserver.observe({ type: "layout-shift", buffered: true });
+  // Firefox and WebKit have no layout-shift entries, and warn on asking for them.
+  if (PerformanceObserver.supportedEntryTypes.includes("layout-shift"))
+    shiftObserver.observe({ type: "layout-shift", buffered: true });
   // Resource Timing's document buffer is bounded. Observe every completed response
   // instead, and drain records already queued when a startup milestone is captured.
   const resourceEntries = [];

@@ -811,6 +811,12 @@ html {
 html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) {
   display: none;
 }
+/* A widget drawn before first paint stays out of the page until its whole source
+   has parsed, so no frame shows that source half arrived. The script after its end
+   tag takes the mark off and draws it (revision_delivery.mark_declared). */
+html[data-lf-interactive] [data-lf-arriving] {
+  display: none;
+}
 /* Authored HTML is the page's useful initial condition, so it paints from stylesheet
  * parse while JavaScript upgrades widgets and reads the current log. Generated page
  * interface joins it as soon as widget and page-interface upgrade gives that apparatus

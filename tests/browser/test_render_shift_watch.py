@@ -2412,7 +2412,7 @@ def test_absolute_size_animation_cannot_credit_an_independent_control_move(brows
             '<script>start.addEventListener("pointerdown", () => {'
             'window.effect = size.animate([{height:"0px"}, {height:"120px"}],'
             '{duration:400, fill:"forwards"});'
-            'effect.playbackRate = 0; effect.currentTime = 0;});</script>'
+            "effect.playbackRate = 0; effect.currentTime = 0;});</script>"
         )
     )
     page.evaluate("document.body.setAttribute('data-lf-presented', '')")
@@ -2440,7 +2440,7 @@ def test_flex_row_size_animation_cannot_credit_independent_vertical_move(browser
             '</div><script>start.addEventListener("pointerdown", () => {'
             'window.effect = size.animate([{height:"0px"}, {height:"120px"}],'
             '{duration:400, fill:"forwards"});'
-            'effect.playbackRate = 0; effect.currentTime = 0;});</script>'
+            "effect.playbackRate = 0; effect.currentTime = 0;});</script>"
         )
     )
     page.evaluate("document.body.setAttribute('data-lf-presented', '')")
@@ -2468,7 +2468,7 @@ def test_inline_siblings_cannot_credit_independent_vertical_move(browser):
             '</div><script>start.addEventListener("pointerdown", () => {'
             'window.effect = size.animate([{height:"0px"}, {height:"120px"}],'
             '{duration:400, fill:"forwards"});'
-            'effect.playbackRate = 0; effect.currentTime = 0;});</script>'
+            "effect.playbackRate = 0; effect.currentTime = 0;});</script>"
         )
     )
     page.evaluate("document.body.setAttribute('data-lf-presented', '')")
@@ -2496,13 +2496,15 @@ def test_width_animation_cannot_credit_a_script_height_change(browser):
             '<script>start.addEventListener("pointerdown", () => {'
             'window.effect = size.animate([{width:"20px"}, {width:"40px"}],'
             '{duration:400, fill:"forwards"});'
-            'effect.playbackRate = 0; effect.currentTime = 0;});</script>'
+            "effect.playbackRate = 0; effect.currentTime = 0;});</script>"
         )
     )
     page.evaluate("document.body.setAttribute('data-lf-presented', '')")
     page.locator("#start").click()
     paint(page)
-    page.evaluate("""() => { effect.currentTime = 400; size.style.height = '120px'; }""")
+    page.evaluate(
+        """() => { effect.currentTime = 400; size.style.height = '120px'; }"""
+    )
     judge_watches()
     consume_browser_errors(page, moved_within("button#control"))
 

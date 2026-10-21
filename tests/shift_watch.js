@@ -2264,7 +2264,9 @@
     // the next sibling down; flex, grid, and vertical writing have other axes.
     if (
       axis !== "top" ||
-      !["block", "flow-root"].includes(getComputedStyle(branch.parentElement).display) ||
+      !["block", "flow-root"].includes(
+        getComputedStyle(branch.parentElement).display,
+      ) ||
       getComputedStyle(branch.parentElement).writingMode !== "horizontal-tb" ||
       !["block", "flow-root"].includes(getComputedStyle(branch).display) ||
       !["block", "flow-root"].includes(getComputedStyle(follower).display)
@@ -2302,7 +2304,11 @@
         for (const axis of ["left", "top"]) {
           const size = axis === "top" ? "height" : "width";
           const logicalSize = axis === "top" ? "blockSize" : "inlineSize";
-          if (!properties.some((property) => property === size || property === logicalSize))
+          if (
+            !properties.some(
+              (property) => property === size || property === logicalSize,
+            )
+          )
             continue;
           const change = after[size] - before[size];
           if (

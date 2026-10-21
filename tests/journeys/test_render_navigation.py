@@ -67,7 +67,7 @@ def go_to_passage(page, page_dir, words):
         if event["kind"] == "comment" and event["anchor"].get("quote") == words
     )
     open_panel_thread(page, thread)
-    page.locator(".lf-fp-head").get_by_role("button", name="On the page").click()
+    page.locator(".lf-fp-controls").get_by_role("button", name="On the page").click()
 
 
 # An obligation's digits beside a page-scoped command with a context key of its own,

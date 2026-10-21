@@ -92,6 +92,12 @@ def read_served_page(
         "browser": browser,
         "events": context.events,
         **({"preview": preview} if preview else {}),
-        **({"publication": publication} if publication else {}),
+        # Whoever answers a hosted copy is the host's agent, before its first comment
+        # too, not the voice that last wrote the page (`presence.page_agent`).
+        **(
+            {"publication": publication, "agent": publication["agent"]}
+            if publication
+            else {}
+        ),
     }
     return ServedPage(state, reading, context.data)

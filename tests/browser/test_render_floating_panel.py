@@ -4148,6 +4148,12 @@ def test_a_line_the_field_grows_rides_the_box_s_top_edge(browser, serve):
     paste_image(field(page), solid_png(40, 30, (255, 128, 64)))
     shelf = page.locator(".lf-fp-box .lf-composer-media-item")
     expect(shelf).to_have_count(1)
+    # The thumbnail takes its picture's width once the picture decodes, a frame after
+    # which the box reads it.
+    expect(shelf.locator("img")).to_have_js_property("complete", True)
+    page.evaluate(
+        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+    )
     settled(page)
     card, tile = page.locator(".lf-fp-card").bounding_box(), shelf.bounding_box()
     region = {

@@ -1063,6 +1063,17 @@ export function createFloatingPanel({
   // shorter tween: the view's own change, and the one when the view it replaced is gone
   // after its fade.
   let viewMovingUntil = 0;
+  // Leaf's reader draws into the open thread's view on its own schedule, a sent turn
+  // among them, so the view lands where that drawing shows, not at the panel's next paint.
+  // The view's landing may change the box's size, and the browser delivers no observer a
+  // box shallower than the view later in the frame it resized, so the box is read
+  // again here, before that frame paints what moved.
+  const fit = sizeObserver(() => {
+    landReader();
+    fitAnswer();
+    stood = openView()?.offsetHeight ?? null;
+    followBox();
+  });
   const follow = sizeObserver(() => {
     readCorner();
     followBox();
@@ -1089,6 +1100,19 @@ export function createFloatingPanel({
     },
     ring: [fieldRing, fieldFill],
     observer: follow,
+    // The first change the box takes after the user's key, press or typing is theirs; a
+    // scroll changes no box, and what changes it later, such as an answer, is news.
+    theirs: () => {
+      const own = gestures !== taken;
+      taken = gestures;
+      return own;
+    },
+  });
+  let gestures = 0;
+  let taken = 0;
+  onUserInput((event) => {
+    if (["keydown", "pointerdown", "input", "touchstart"].includes(event.type))
+      gestures++;
   });
   function followBox() {
     // How far the box reaches up from the window's foot, which the root's
@@ -1106,13 +1130,6 @@ export function createFloatingPanel({
     const duration = performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
     motion.follow(moving ? { duration, easing: EASE } : null);
   }
-  // Leaf's reader draws into the open thread's view on its own schedule, a sent turn
-  // among them, so the view lands where that drawing shows, not at the panel's next paint.
-  const fit = sizeObserver(() => {
-    landReader();
-    fitAnswer();
-    stood = openView()?.offsetHeight ?? null;
-  });
   addEventListener("resize", () => {
     motion.forget();
     followBox();

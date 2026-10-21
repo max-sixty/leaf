@@ -6330,35 +6330,14 @@ function boxMotion({
   room,
   surface,
   ring: [ringLayer, ringFill],
-  observer
+  observer,
+  theirs
 }) {
   let rests = null;
   let motions = /* @__PURE__ */ new Map();
   let running = [];
   let observed = /* @__PURE__ */ new Set();
-  function read(element, into) {
-    const style = getComputedStyle(element);
-    if (style.display === "contents") {
-      for (const child of element.children) read(child, into);
-      return;
-    }
-    if (!element.checkVisibility()) return;
-    const part = {
-      element,
-      style,
-      box: boxOf(element.getBoundingClientRect()),
-      window: style.position === "fixed",
-      parts: []
-    };
-    part.whole = element.localName.includes("-") || element instanceof SVGElement || /auto|scroll/.test(`${style.overflowX} ${style.overflowY}`) || element.childElementCount === 0 || [...element.childNodes].some(
-      (node) => node.nodeType === Node.TEXT_NODE && node.data.trim()
-    );
-    if (!part.whole) for (const child of element.children) read(child, part.parts);
-    part.holdsWindow = part.parts.some((inner) => inner.window || inner.holdsWindow);
-    into.push(part);
-  }
-  function drawn2() {
-    const progress = running[0]?.effect.getComputedTiming().progress ?? 1;
+  function carriedBy(progress) {
     const offsets = /* @__PURE__ */ new Map();
     const offset = (carrier) => {
       if (!offsets.has(carrier)) {
@@ -6368,66 +6347,120 @@ function boxMotion({
       }
       return offsets.get(carrier);
     };
+    return (element) => {
+      let dx = 0;
+      let dy = 0;
+      for (let up = element; up && up !== root; up = up.parentElement)
+        if (motions.get(up)?.carries) {
+          const [x, y] = offset(up);
+          dx += x;
+          dy += y;
+        }
+      return [dx, dy];
+    };
+  }
+  function read(element, into, carried) {
+    const style = getComputedStyle(element);
+    if (style.display === "contents") {
+      for (const child of element.children) read(child, into, carried);
+      return;
+    }
+    if (!element.checkVisibility()) return;
+    const [dx, dy] = carried(element);
+    const part = {
+      element,
+      style,
+      box: shifted(boxOf(element.getBoundingClientRect()), -dx, -dy),
+      window: style.position === "fixed",
+      parts: []
+    };
+    part.scrolls = /auto|scroll/.test(`${style.overflowX} ${style.overflowY}`);
+    part.whole = element.localName.includes("-") || element instanceof SVGElement || part.scrolls || element.childElementCount === 0 || [...element.childNodes].some(
+      (node) => node.nodeType === Node.TEXT_NODE && node.data.trim()
+    );
+    if (!part.whole)
+      for (const child of element.children) read(child, part.parts, carried);
+    part.holdsWindow = part.parts.some((inner) => inner.window || inner.holdsWindow);
+    into.push(part);
+  }
+  function drawn2(progress, carried) {
     const at = /* @__PURE__ */ new Map();
     for (const [element, rest] of rests) {
       const motion = motions.get(element);
       if (motion?.revealed && progress < 1) continue;
-      let where = motion ? between(motion.from, motion.to, progress) : rest;
-      for (let up = element.parentElement; up && up !== root; up = up.parentElement)
-        if (motions.get(up)?.carries) where = shifted(where, ...offset(up));
-      at.set(element, where);
+      at.set(
+        element,
+        motion ? between(motion.from, motion.to, progress) : shifted(rest, ...carried(element))
+      );
     }
     return at;
   }
+  const arrived = /* @__PURE__ */ new Set();
+  let watching = 0;
+  const watch = () => {
+    watching ||= nextRender(() => {
+      watching = 0;
+      const parts = /* @__PURE__ */ new Set([...rests?.keys() ?? [], ...arrived]);
+      arrived.clear();
+      for (const element of observed)
+        if (!parts.has(element)) observer.unobserve(element);
+      for (const element of parts)
+        if (!observed.has(element)) observer.observe(element);
+      observed = parts;
+    });
+  };
   new MutationObserver((records2) => {
     for (const record of records2)
       for (const node of record.type === "childList" ? record.addedNodes : [record.target])
-        if (node instanceof Element && !observed.has(node)) {
-          observed.add(node);
-          observer.observe(node);
-        }
+        if (node instanceof Element) arrived.add(node);
+    watch();
   }).observe(root, { subtree: true, childList: true, attributeFilter: ["hidden"] });
   function follow(timing) {
-    const was = timing && rests ? drawn2() : null;
-    for (const animation of running) animation.cancel();
-    running = [];
-    motions = /* @__PURE__ */ new Map();
+    const progress = running[0]?.effect.getComputedTiming().progress ?? 1;
+    const carried = carriedBy(progress);
     const parts = [];
-    read(root, parts);
-    rests = /* @__PURE__ */ new Map();
+    read(root, parts, carried);
+    const next = /* @__PURE__ */ new Map();
     const note = (part) => {
-      rests.set(part.element, part.box);
+      next.set(part.element, part.box);
       part.parts.forEach(note);
     };
     parts.forEach(note);
-    for (const element of observed)
-      if (!rests.has(element)) observer.unobserve(element);
-    for (const element of rests.keys())
-      if (!observed.has(element)) observer.observe(element);
-    observed = new Set(rests.keys());
+    watch();
+    if (rests?.size === next.size && [...next].every(
+      ([element, at]) => rests.has(element) && same3(rests.get(element), at)
+    ))
+      return;
+    const was = timing && rests ? drawn2(progress, carried) : null;
+    const carries = theirs();
+    for (const animation of running) animation.cancel();
+    running = [];
+    const framed = new Set(
+      [...motions].filter(([, motion]) => motion.frames).map(([element]) => element)
+    );
+    const before = rests;
+    motions = /* @__PURE__ */ new Map();
+    rests = next;
     const space = boxOf(room.getBoundingClientRect());
-    const outline = (at, grow, radius) => insetOf(
+    const outline = (at, grow2, radius) => insetOf(
       [
-        at.top - space.top - grow,
-        space.right - at.right - grow,
-        space.bottom - at.bottom - grow,
-        at.left - space.left - grow
+        at.top - space.top - grow2,
+        space.right - at.right - grow2,
+        space.bottom - at.bottom - grow2,
+        at.left - space.left - grow2
       ],
-      radius + grow
+      radius + grow2
     );
     const boxAt = rests.get(box);
     const boxRadius = radiusOf(getComputedStyle(box));
-    for (const [layer, grow] of surface())
-      keeps(layer, "style", `clip-path: ${outline(boxAt, grow, boxRadius)}`);
+    for (const [layer, reach2] of surface())
+      keeps(layer, "style", `clip-path: ${outline(boxAt, reach2, boxRadius)}`);
     if (!was?.has(box)) return;
     const boxFrom = was.get(box);
     const rtl = getComputedStyle(box).direction === "rtl";
     const start = (element, keyframes) => running.push(element.animate(keyframes, timing));
     const hold = (element, property, value) => start(element, [{ [property]: value }, { [property]: value }]);
-    const move2 = (element, dx, dy) => start(element, [
-      { translate: `${dx}px ${dy}px`, composite: "add" },
-      { translate: "0px 0px", composite: "add" }
-    ]);
+    const move2 = (element, dx, dy) => start(element, [{ translate: `${dx}px ${dy}px` }, { translate: "0px 0px" }]);
     const cutFrom = (element, cut, radius = 0) => start(element, [
       { clipPath: insetOf(cut, radius) },
       { clipPath: insetOf([0, 0, 0, 0], radius) }
@@ -6441,17 +6474,19 @@ function boxMotion({
     }
     function carryContent(part, from) {
       const to = part.box;
+      if (part.scrolls && !part.element.matches(TEXT_FIELD)) return grow(part, from);
       let dx = rtl ? from.right - to.right : from.left - to.left;
       let dy = from.top - to.top;
       const end = Math.max(0, width(to) - width(from));
       const foot = Math.max(0, height(to) - height(from));
       const cut = rtl ? [0, 0, foot, end] : [0, end, foot, 0];
-      motions.set(part.element, { from, to, carries: true });
       if (!part.element.matches(TEXT_FIELD)) {
+        motions.set(part.element, { from, to, carries: true });
         move2(part.element, dx, dy);
         cutFrom(part.element, cut);
         return;
       }
+      motions.set(part.element, { from, to });
       dx = rtl ? Math.min(0, dx) : Math.max(0, dx);
       dy = Math.max(0, dy);
       start(part.element, [
@@ -6461,6 +6496,20 @@ function boxMotion({
         },
         { "--lf-field-carry": "0px 0px", "--lf-field-cut": "0px 0px 0px 0px" }
       ]);
+    }
+    function grow(part, from) {
+      const to = part.box;
+      motions.set(part.element, { from, to });
+      cutFrom(
+        part.element,
+        [
+          from.top - to.top,
+          to.right - from.right,
+          to.bottom - from.bottom,
+          from.left - to.left
+        ].map((inset) => Math.max(0, inset)),
+        radiusOf(part.style)
+      );
     }
     function reveal2(part, frame) {
       const to = part.box;
@@ -6479,49 +6528,39 @@ function boxMotion({
       const { element, style, box: to } = part;
       const from = was.get(element);
       if (!from) return reveal2(part, frame);
-      const sized = near(width(from), width(to)) && near(height(from), height(to));
+      const rest = before.get(element);
+      const sized = !framed.has(element) && near(width(rest), width(to)) && near(height(rest), height(to));
       let within = frame;
       if (element !== box && element !== root) {
-        if (sized && !part.holdsWindow) return carry(part, from);
-        if (part.whole) return carryContent(part, from);
-        if (!same3(from, to)) {
-          motions.set(element, { from, to });
-          within = { from, to };
-        }
+        if (sized && !part.holdsWindow)
+          return carries ? carry(part, from) : reveal2(part, frame);
+        if (part.whole) return carries ? carryContent(part, from) : grow(part, from);
+        if (!same3(from, to)) within = { from, to };
         if (!sized && rings(style)) {
-          const grow = Number.parseFloat(style.outlineWidth) + Number.parseFloat(style.outlineOffset);
+          const reach2 = Number.parseFloat(style.outlineWidth) + Number.parseFloat(style.outlineOffset);
           const radius = radiusOf(style);
           keeps(ringLayer, "style", `background: ${style.outlineColor}`);
           hold(element, "outlineColor", "transparent");
-          for (const [layer, reach2] of [
-            [ringLayer, grow],
+          for (const [layer, grown] of [
+            [ringLayer, reach2],
             [ringFill, 0]
           ])
             start(layer, [
-              { clipPath: outline(from, reach2, radius) },
-              { clipPath: outline(to, reach2, radius) }
+              { clipPath: outline(from, grown, radius) },
+              { clipPath: outline(to, grown, radius) }
             ]);
-        } else if (!sized && paints(style) && !part.holdsWindow)
-          cutFrom(
-            element,
-            [
-              from.top - to.top,
-              to.right - from.right,
-              to.bottom - from.bottom,
-              from.left - to.left
-            ].map((inset) => Math.max(0, inset)),
-            radiusOf(style)
-          );
+        } else if (!sized && paints(style) && !part.holdsWindow) grow(part, from);
+        if (!same3(from, to)) motions.set(element, { from, to, frames: true });
       }
       for (const inner of part.parts) place3(inner, within);
     }
     for (const part of parts) place3(part, { from: boxFrom, to: boxAt });
     if (running.length === 0 && same3(boxFrom, boxAt)) return;
     motions.set(box, { from: boxFrom, to: boxAt });
-    for (const [layer, grow] of surface())
+    for (const [layer, reach2] of surface())
       start(layer, [
-        { clipPath: outline(boxFrom, grow, boxRadius) },
-        { clipPath: outline(boxAt, grow, boxRadius) }
+        { clipPath: outline(boxFrom, reach2, boxRadius) },
+        { clipPath: outline(boxAt, reach2, boxRadius) }
       ]);
     hold(box, "backgroundColor", "transparent");
     hold(box, "overflow", "visible");
@@ -7063,6 +7102,12 @@ function createFloatingPanel({
     if (target) focusDestination(target, "move");
   }
   let viewMovingUntil = 0;
+  const fit = sizeObserver(() => {
+    landReader();
+    fitAnswer();
+    stood = openView()?.offsetHeight ?? null;
+    followBox();
+  });
   const follow = sizeObserver(() => {
     readCorner();
     followBox();
@@ -7086,7 +7131,20 @@ function createFloatingPanel({
       ];
     },
     ring: [fieldRing, fieldFill],
-    observer: follow
+    observer: follow,
+    // The first change the box takes after the user's key, press or typing is theirs; a
+    // scroll changes no box, and what changes it later, such as an answer, is news.
+    theirs: () => {
+      const own = gestures !== taken;
+      taken = gestures;
+      return own;
+    }
+  });
+  let gestures = 0;
+  let taken = 0;
+  onUserInput((event) => {
+    if (["keydown", "pointerdown", "input", "touchstart"].includes(event.type))
+      gestures++;
   });
   function followBox() {
     const box = card.getBoundingClientRect();
@@ -7099,11 +7157,6 @@ function createFloatingPanel({
     const duration = performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
     motion.follow(moving ? { duration, easing: EASE } : null);
   }
-  const fit = sizeObserver(() => {
-    landReader();
-    fitAnswer();
-    stood = openView()?.offsetHeight ?? null;
-  });
   addEventListener("resize", () => {
     motion.forget();
     followBox();

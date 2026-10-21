@@ -22,13 +22,13 @@ The steps, in order:
   directory but not the state home, and nothing approves an escalation, so the task
   must serve through the plugin's MCP server (`leaf.codex_tool`);
 - `release`: the journey's timed ask, sent while the task is idle, is answered in a
-  turn Leaf starts (`journey.run_journey`);
+  turn Leaf starts (`journey.run_journey`); with `--case working` it is sent during
+  the user's own turn's shell command, which answers it;
 - `rich-choice` and `rich-question`: comments asking, in the author's own words, for
   clickable choices in the thread and for a question awaiting the user's answer, each
   moving its thread to the release rationale, are answered so;
-- `mid-turn`: the working case's ask (`journey.CASES`), sent during a shell
-  command, is answered once and recorded on the page, and the claim names the
-  user's turn while it runs; on `codex-queue` the comment must also enter
+- `mid-turn`: a comment sent during a shell command is answered once, and the claim
+  names the user's turn while it runs; on `codex-queue` the comment must also enter
   that turn and be answered before its first final response, starting no turn of
   its own;
 - `resume`, on `codex-queue`: a turn interrupted during its shell command is resumed
@@ -143,6 +143,13 @@ class Codex(Terminal):
 
     def idle(self) -> bool:
         return not self.task.running
+
+    def work(self) -> str:
+        """Type the user's own turn, wait for its shell command, and return the
+        turn's id."""
+        turn = self.task.say(USER_TURN)
+        self.await_command(SLEEP, "the user's turn did not start its command")
+        return turn
 
 
 def adapter_processes(codex: str) -> list[psutil.Process]:
@@ -333,9 +340,8 @@ def steps(
 
     started = time.monotonic()
     previous_turns = len(task.started)
-    user_turn = task.say(USER_TURN)
-    codex.await_command(SLEEP, "the user turn did not start its command")
-    mid_turn = user.ask_while_working()
+    user_turn = codex.work()
+    mid_turn = user.comment("mid-turn")
     if transport == "queue":
 
         def before_final(turn: str) -> None:
@@ -372,7 +378,6 @@ def steps(
             f"the active hook did not deliver the comment into turn {user_turn}",
         )
     codex.settle(lambda: user.answered("mid-turn"), "`mid-turn` was not answered")
-    user.require_recorded()
     sent.append("mid-turn")
     details = check_step()
     if transport == "queue":

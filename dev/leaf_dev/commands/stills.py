@@ -1426,7 +1426,7 @@ STATES = (
         "motion-controls",
         "developer/motion",
         motion_controls,
-        region=".lf-motion-controls",
+        region="#fold-motion .lf-motion-controls",
     ),
     State(
         "trace-timeline-keyboard",

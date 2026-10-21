@@ -26,7 +26,6 @@ from render_harness import (
     compare_with,
     draft_control,
     open_page,
-    panel_field,
     panel_menu,
     panel_settled,
     round_trip,
@@ -262,10 +261,16 @@ def test_a_comparison_reads_nothing_from_a_server_running_another_runtime(
     """A comparison asks the server for the older version's reading. Right after a
     restart under another Leaf, that server's runtime is not this tab's, and its state
     is not this tab's code to read, so the comparison refuses it rather than mark the
-    page with it, and the page waits for the server as any refused answer does."""
+    page with it: the comparison fails, and the tab asks its source whether to reload,
+    as for any refused answer.
+
+    Only the comparison's answer names another runtime here, so the tab's other reads
+    are admitted and may take down the wait the refusal raised; the failed comparison
+    stands in the Errors list either way."""
     url = serve(JOURNEY_V1)
     _publish(serve.page_dir, 2, _card_done(JOURNEY_V1), "moved the card to Done")
     page = open_page(browser, url.replace("v1.html", "v2.html"))
+    asked = []
 
     def another_runtime(route):
         response = route.fetch()
@@ -274,12 +279,20 @@ def test_a_comparison_reads_nothing_from_a_server_running_another_runtime(
             headers={**response.headers, "Leaf-Runtime": "0123456789abcdef"},
         )
 
+    def source(route):
+        asked.append(route.request.url)
+        route.continue_()
+
     page.route("**/api/view*", another_runtime)
+    page.route("**/registry.json", source)
     compare_with(page)
-    expect(panel_field(page)).to_have_attribute(
-        "placeholder", re.compile("^Waiting for the server to finish updating.")
-    )
-    expect(page.locator("#card-x.lf-ins-block")).to_have_count(0)
+    menu = panel_menu(page)
+    menu.locator('.lf-fp-item[data-row="errors"]').click()
+    expect(
+        menu.locator(".lf-fp-error-words b").filter(has_text="Couldn't load v1")
+    ).to_have_count(1)
+    expect(page.locator("main .lf-ins-block")).to_have_count(0)
+    assert asked, "the refused reading asked no source whether it moved"
 
 
 def test_the_diff_marks_the_card_the_author_reordered_and_no_other(browser, serve):

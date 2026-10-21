@@ -204,12 +204,14 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     assert {
         "/page/app.js",
         "/page/nested/value.js",
-        "/runtime/widget-api.js",
         "/page/value.js",
         "/page/style.css",
         "/page/nested/theme.css",
         "/page/image.svg",
     } <= artifact.resources.keys()
+    # The public module app.js imports is the runtime's, which the delivering Leaf
+    # supplies, so the revision holds none of it.
+    assert "/runtime/widget-api.js" not in artifact.resources
     assert artifact.resources["/page/image.svg"].mime == "image/svg+xml"
     assert artifact.resources["/page/inline.svg"].mime == "image/svg+xml"
     assert artifact.resources["/page/app.js"].mime == "application/javascript"

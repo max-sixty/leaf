@@ -22,12 +22,14 @@ answer.
 
 Where something that outlives the turn opens a turn of its own for the input
 (`Harness.later_turn_takes_input`), Stop hands no input over: a watch wakes once
-the turn closes and opens a turn whose prompt hook does, and Codex's adapter starts
-or queues one. Continuing the turn for the input would have the agent write one
+the turn closes and opens a turn whose prompt hook does, and Codex's App Server
+adapter starts one. Continuing the turn for the input would have the agent write one
 more message, and a harness that shows each turn's final message alone, as Claude
 Code's focus view does, would show that reply in place of the answer the turn had
 written. Under plain `--print`, or a Codex task that waits with `leaf wait`, nothing
-opens that turn, so Stop hands the input into the turn it continues.
+opens that turn, so Stop hands the input into the turn it continues. Codex's queue
+adapter would open one on a pointer Codex shows as the user's own message, which is
+noisier than the extra message, so Stop hands the input in there too.
 
 For an update already picked up and still owed an answer, the hook reminds the
 agent by naming the delivery that holds its answer reference. An update the page's

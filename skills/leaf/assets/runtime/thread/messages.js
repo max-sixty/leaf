@@ -105,9 +105,10 @@ export function messageText(message) {
   return message.suggestion ? (message.text ?? "") : proseReading(message).plainText;
 }
 
-// A thread's name, on every surface that names one: its title, else the words its
-// opening message renders (an agent's authored opening, its captured text), else
-// Drawing for one drawn without words. A surface clips it to its own room.
+// A thread's name in words, as search, accessible names and prose read it: its title,
+// else the words its opening message renders (an agent's authored opening, its captured
+// text), else Drawing for one drawn without words. A surface clips it to its own room,
+// and one that draws the name draws `threadHeading`.
 /** @param {{readonly title: string | null, readonly root: Parameters<typeof messageText>[0] & {readonly body: {readonly kind: string, readonly text?: string}, readonly drawing?: unknown}}} thread */
 export function threadName(thread) {
   if (thread.title != null) return thread.title;
@@ -130,9 +131,10 @@ const titlePending = (thread) =>
   thread.attention.reason === "workflow" &&
   pageClaimed();
 
-// A thread's name where it heads the thread, as Threads lists it and its view names
-// it: while a title is on its way, a placeholder in the face of a step under way
-// (`.lf-thread-working-words`) rather than opening words that would read as its title.
+// A thread's name wherever a surface draws it, as Threads, the thread's view, Page Map
+// and On cards do: while a title is on its way, a placeholder in the face of a step
+// under way (`.lf-thread-working-words`) rather than opening words that would read as
+// its title.
 // The opening words stay in its accessible name, after the placeholder, so a screen
 // reader still tells two pending threads apart.
 /** @param {Parameters<typeof titlePending>[0]} thread */
@@ -200,7 +202,8 @@ const authoredMessage = (message) => {
 // Which drawing of an authored message holds its widgets, the one instance above. A
 // message can stand in several drawings at once (the primary reader's, a margin card,
 // a seat on the page), and the shown one of highest `authoredRank` holds them, the
-// first to draw it among equals. Every other drawing offers the way there. A drawing
+// first to draw it among equals. Every other drawing draws only the message's words:
+// the holder is then the one shown, so the widgets already stand in view. A drawing
 // shown as it draws takes them where it should hold them, as does the first to draw
 // them, and after each draw the holder is settled again among the drawings shown, so
 // one hidden in a fold or a closed card gives them to one in view. A drawing not yet
@@ -512,21 +515,6 @@ export class MessageView {
           }
           ${holds ? keyed(this.#authoredTake, this.#authored) : nothing}
         </div>
-        ${
-          // Another drawing of this message holds its widgets, so this one offers the
-          // way there.
-          model.body.authored && !holds
-            ? html`<button
-                type="button"
-                class="lf-btn lf-page-thread-open lf-ui"
-                data-lf-gen="1"
-                data-lf-offer="button"
-                @click=${() => this.#commands.openThread(this.#model.id, { part: "message" })}
-              >
-                Open interactive reply
-              </button>`
-            : nothing
-        }
         ${strip} ${rewrite}
       `,
       this.node,

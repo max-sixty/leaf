@@ -1619,6 +1619,60 @@ describe("product-site delivery", () => {
     expect(containerFetch).toHaveBeenCalledOnce();
   });
 
+  it("answers reads unrecorded until their page is active", async () => {
+    const sessionId = "1e".repeat(16);
+    const attempt = "read-attempt-0001";
+    const env = environment();
+    const containerFetch = vi.fn(async () =>
+      Response.json({ ok: true, state: { events: [], activity: { obligations: [] } } }),
+    );
+    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    const read = (cookie?: string) =>
+      worker.fetch(
+        new Request("https://leaf.page/examples/triage-board/api/event", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(cookie ? { Cookie: cookie } : {}),
+          },
+          body: JSON.stringify({
+            kind: "read",
+            attempt,
+            messages: [{ message: "reply-1", version: "v1" }],
+          }),
+        }),
+        env,
+      );
+    for (const cookie of [
+      undefined,
+      `__Host-leaf-page=${sessionId}`,
+      `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board", "b".repeat(64))}`,
+      `__Host-leaf-page=${sessionId}; ${activeMarker("/")}`,
+    ]) {
+      const response = await read(cookie);
+      // A final refusal, so the tab doesn't send these reads again this visit.
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        ok: false,
+        final: true,
+        error: expect.any(String),
+        findings: [],
+        attempt,
+      });
+      expect(response.headers.get("Leaf-Session")).toBe("passive");
+      expect(response.headers.get("Set-Cookie")).toBeNull();
+    }
+    expect(getContainer).not.toHaveBeenCalled();
+
+    const active = await read(
+      `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`,
+    );
+    expect(active.status).toBe(200);
+    expect(active.headers.get("Leaf-Session")).toBe("active");
+    expect(getContainer).toHaveBeenCalledWith(env.PAGES, containerId(sessionId));
+    expect(containerFetch).toHaveBeenCalledOnce();
+  });
+
   it("activates a container for a private read the edge cannot answer", async () => {
     const sessionId = "1b".repeat(16);
     const containerFetch = vi.fn(async () =>

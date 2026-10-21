@@ -23,35 +23,13 @@
    concrete container and render templates inside it; retaining that container across
    stage updates keeps Lit's markers, native editors, and directive lifetimes intact. */
 import { SHADOW_LEADING_CSS, shadowRules } from "./shadow.js";
-import {
-  annotationMarkSheets,
-  constructSheet,
-  inBaseLayer,
-  marksSheet,
-} from "./stylesheets.js";
+import { annotationMarkSheets, marksSheet } from "./stylesheets.js";
 import { watchStandingIn } from "./focus.js";
 import { watchDisclosures } from "./keyboard/disclosure.js";
 import { watchLayers } from "./keyboard/layer-stack.js";
 import { setChildren } from "./dom-children.js";
 import { watchPassageRoot } from "./passages.js";
-import { liveStages, watchArrivalsIn } from "./arrivals.js";
-
-// A third-party stylesheet that arrives with an on-demand bundle belongs wherever that
-// bundle can draw: the document and every declared shadow stage. The vendored Web
-// Awesome bundle calls this as it evaluates (build/vendor.mjs).
-// Keep one constructable sheet per name so a page parses it once, existing stages
-// receive a late-loaded bundle, and stages built after registration inherit the sheet.
-const widgetSheets = new Map();
-export function registerWidgetStyles(name, text) {
-  const existing = widgetSheets.get(name);
-  if (existing) return existing;
-  const sheet = constructSheet(inBaseLayer(text));
-  widgetSheets.set(name, sheet);
-  document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
-  for (const root of liveStages())
-    root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
-  return sheet;
-}
+import { watchArrivalsIn } from "./arrivals.js";
 
 // A stage's theme <style>, kept while its rules are unchanged. A widget stages again
 // whenever its content changes, and a fresh <style> restyles every node in the root,
@@ -65,12 +43,7 @@ export function shadowStage(host, nodes) {
   // observer crosses the boundary on its own.
   watchArrivalsIn(root);
   root.adoptedStyleSheets = [
-    ...new Set([
-      ...root.adoptedStyleSheets,
-      ...annotationMarkSheets,
-      marksSheet,
-      ...widgetSheets.values(),
-    ]),
+    ...new Set([...root.adoptedStyleSheets, ...annotationMarkSheets, marksSheet]),
   ];
   // A root is the one place the key paint's watch cannot reach on its own: a `toggle`
   // from inside one is not composed, and a MutationObserver does not cross the

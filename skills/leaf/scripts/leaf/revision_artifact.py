@@ -6,7 +6,7 @@ Tree-sitter reads JavaScript and tinycss2 reads CSS. Only the declared public
 layer entry points may cross from authored code into the layer. Capturing the
 selected layer whole also preserves its declaration-driven dynamic imports.
 
-A bundle contains exact source bytes, resources, their dependency edges, MIME
+A bundle contains exact source bytes, resources, MIME
 types, the effective registry, and implementation provenance. Its canonical
 manifest determines its digest, and carries a second ``executable`` digest over
 the inputs an already-open document cannot re-evaluate in place. Scripts include
@@ -135,7 +135,6 @@ class Resource:
 
     content: bytes | Path
     mime: str
-    dependencies: tuple[str, ...] = ()
 
     @property
     def size(self) -> int:
@@ -650,7 +649,7 @@ class _ResourceCapture:
             resource = self.read_resource(path)
             data = resource.data
             edges = _resource_dependencies(path, data, resource.mime)
-            self.resources[path] = Resource(data, resource.mime, tuple(sorted(edges)))
+            self.resources[path] = Resource(data, resource.mime)
             pending.extend(reversed(edges))
 
 
@@ -845,7 +844,6 @@ def _capture_artifact(
                 path: {
                     "digest": resource.digest,
                     "mime": resource.mime,
-                    "dependencies": list(resource.dependencies),
                 }
                 for path, resource in sorted(resources.items())
             },
@@ -1273,7 +1271,6 @@ def _materialize(path: Path, bundle: Path) -> RevisionArtifact:
         logical: Resource(
             (bundle / ("resources" + logical)),
             record["mime"],
-            tuple(record["dependencies"]),
         )
         for logical, record in manifest["resources"].items()
     }

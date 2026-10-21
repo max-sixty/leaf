@@ -864,7 +864,11 @@ def test_live_sample_full_view_keeps_the_child_and_returns_after_inner_escape(
     resized(page, 390, 720)
     expect(back).to_be_in_viewport()
     assert root_overflow(page) <= 1
-    child.locator(".lf-fp-threads").click()
+    # The held draft gives the field the quick chips' room. Open Threads through
+    # the child's Go-to route while the same frame stands in Full view.
+    child.locator("h1").click()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
     panel_settled(child, view="threads")
     page.keyboard.press("Escape")
     panel_settled(child, open=False)

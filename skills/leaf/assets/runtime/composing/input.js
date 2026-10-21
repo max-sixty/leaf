@@ -758,7 +758,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
           id: "text.dictate",
           keys: PRESS,
           control: mic,
-          description: "Start or stop dictation in this comment box",
           title: () => (dictationPhase() === "idle" ? "dictate" : "stop dictation"),
           when: () =>
             !mic.hidden &&
@@ -859,7 +858,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         id: "text.send",
         keys: submitBindings,
         label: submitLabel,
-        description: "Submit the text",
         title: sends,
         run: () => pressed(send),
       },

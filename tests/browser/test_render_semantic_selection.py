@@ -633,9 +633,7 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     select_command = help_el.locator('tr[data-lf-command="target.picker.open"]')
     expect(search_command.locator("kbd")).to_have_text("/")
     expect(search_command.get_by_role("button")).to_have_text("Search page")
-    expect(search_command.locator(".lf-command-reference-description")).to_have_text(
-        "Search all the text on the page"
-    )
+    expect(search_command.locator(".lf-command-reference-description")).to_have_count(0)
     expect(select_command.locator("kbd")).to_have_text("s")
     expect(select_command.get_by_role("button")).to_have_text("Select element")
     expect(select_command.locator(".lf-command-reference-description")).to_have_text(

@@ -5,7 +5,7 @@ import {
 import {
   aborted,
   widgetDescriptor
-} from "./bundle-widget-upgrade.js";
+} from "./bundle-stylesheets.js";
 import {
   frameView,
   layoutWindow,
@@ -14,10 +14,6 @@ import {
   requestJson,
   watchRoom
 } from "./bundle-page-paint.js";
-import {
-  pageUrl,
-  runtime
-} from "./bundle-semantic-state.js";
 import {
   frameVisibility,
   keeps,
@@ -28,6 +24,10 @@ import {
   sizeObserver,
   watchFrame
 } from "./bundle-frame-visibility.js";
+import {
+  pageUrl,
+  runtime
+} from "./bundle-semantic-state.js";
 
 // runtime/sample.js
 var MAX_LOADING_SAMPLES = 3;

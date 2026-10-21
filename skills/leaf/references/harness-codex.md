@@ -21,8 +21,8 @@ watches every page this task owns, and keeps running when a turn ends. Serving a
 again restarts an adapter that stopped. To connect delivery for a page you claim
 without serving it, run `leaf codex start <page>`.
 
-While your turn runs, Leaf's hooks offer new input between steps; input that arrives
-as the turn ends comes in a turn of its own. The hook carries the complete delivery
+While your turn runs, Leaf's hooks offer new input between steps. Input that arrives
+as the turn ends comes either when the turn tries to end or in a turn of its own. The hook carries the complete delivery
 as one line of JSON, or a pointer when it exceeds Codex's context limit. Read inline input directly; for a pointer,
 run its `leaf delivery read <id>` and read every part. Follow the delivery's
 `acknowledge` instruction before handling the input.
@@ -33,8 +33,10 @@ starts an App Server turn with a `leaf_delivery` tool output, one slice per turn
 Leaf acknowledges input it queues or starts. A pointer still needs complete reading
 and the confirmation on its last part; inline tool output needs no acknowledgement
 command. Run no `leaf wait` or `leaf wait --ack`.
-The same delivery id can come back after an uncertain queue response; that is the
-retry `event-batches.md` describes. Input confirmed during a turn isn't queued again.
+The same delivery id can come back in a later turn after an uncertain queue
+response; its `leaf delivery ack` then says an earlier turn already picked it up and
+names any answer it still owes. Don't redo that turn's work. Input confirmed during a
+turn isn't queued again.
 
 The desktop app's own App Server exposes no endpoint Leaf can use. A terminal can
 connect to a separate App Server (`codex-setup.md`). A Codex without `codex queue`
@@ -78,6 +80,15 @@ call or a wait for approval, in the status of Leaf's panel as what the agent is 
 If you started an update or to-do with `leaf task start`, its line stays the status's
 sentence and the step appears in the status's full text, which the user reads by
 pointing at it.
+
+## Sandbox
+
+In Codex's `workspace-write` sandbox, run `leaf` commands with the `run` tool of the
+`leaf` MCP server, which runs them outside the sandbox. Your own edits to a page
+stay inside it, and it lets them write a page in Leaf's state home only once the
+user adds the state home's `pages` directory to Codex's writable roots ("Agent
+sandboxes" in Leaf's `README.md`). Where that is missing, the tool's first result
+in a task says so and gives the line; pass it to the user.
 
 ## Routes without the adapter
 

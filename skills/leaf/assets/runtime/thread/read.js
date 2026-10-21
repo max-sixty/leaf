@@ -10,10 +10,13 @@
    encounter with the message's visible surface, not exhaustive inspection.
    Each observation pass batches newly completed versions into one `read` event, which
    the application sends outside the gesture queue (delivery.js). A refused receipt
-   leaves the message unread and is retried only on a new visit. A pass runs on each
-   change to what the page shows of its window (geometry.js, `watchRoom`), which
-   includes a nonmodal surface closing: it can reveal a body without moving it or
-   closing its permanent native ancestor.
+   leaves the message unread and is retried only on a new visit. A leaf.page visitor who
+   has only read the page has no private page to record a read in, so exposure counts
+   only while the session is active (layer-client.js), as user-view.js reports a view
+   only then, and a pass runs when it turns active; the edge refuses a read sent
+   before. A pass also runs on each change to what the page shows of its window
+   (geometry.js, `watchRoom`), which includes a nonmodal surface closing: it can reveal
+   a body without moving it or closing its permanent native ancestor.
 
    The same rendered-body and room observations record first visible agent words in
    the best-effort interaction trace. Those diagnostics need neither focus, unread
@@ -39,6 +42,7 @@ import {
 } from "../geometry.js";
 import { intersect, hasArea } from "../rect.js";
 import { recordInteraction } from "../interaction-log.js";
+import { sessionIsActive } from "../layer-client.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { moved } from "./model.js";
 import { readThreads } from "./state.js";
@@ -172,7 +176,6 @@ export function createReadTracking({ markRead, openThread }) {
     id: "thread.unread.first",
     ready: savedReadingSettled,
     keys: ["u"],
-    description: "Go to the first unread message",
     title: "first unread",
     touch: false,
     when: () => actionableUnread().length > 0,
@@ -189,7 +192,7 @@ export function createReadTracking({ markRead, openThread }) {
         item,
       ]),
     );
-    const mayRead = threadsPresented && document.hasFocus();
+    const mayRead = threadsPresented && document.hasFocus() && sessionIsActive();
     const clips = new Map();
     const completed = new Map();
     const unseenWords = [];
@@ -322,6 +325,7 @@ export function createReadTracking({ markRead, openThread }) {
     });
     addEventListener("blur", resetExposure);
     addEventListener("load", scheduleScan, true);
+    document.addEventListener("lf-session-active", scheduleScan);
     frameWatches.push(
       onFrameVisibility((visibility) => {
         if (visibility.visible) scheduleScan();

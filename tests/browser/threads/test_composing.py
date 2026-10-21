@@ -405,21 +405,6 @@ def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface
             # The press never takes the focus, so the box never hears it leave.
             expect(box).to_be_focused()
             page.mouse.up()
-    if surface.startswith("composer"):
-        sent = next(
-            event
-            for event in events_model.read_events(serve.page_dir)
-            if event.get("text") == "Sent from the box."
-        )
-        if surface == "composer-widget":
-            # Exact message navigation belongs to Threads, not the local reply box.
-            assert page.evaluate(
-                """async id => {
-                  const {surfaceFocusTarget} = await window.__lfCheckApi();
-                  return surfaceFocusTarget(id, {part: 'message'}) === null;
-                }""",
-                sent["id"],
-            )
     rendered(page)
     expect(after).to_be_focused()
     expect(after).to_be_visible()

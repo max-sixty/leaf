@@ -264,7 +264,7 @@ its id:
   if the box still shows the stored draft and `owns()` is true, and resolves to the
   delivery's result. One `attempt` stands for one version of the words, so a resend
   after a reload reuses it.
-- `clearDraft(ctx)` drops the draft, as Cancel does.
+- `clearDraft(ctx)` drops the draft, as Discard does.
 
 `lf-options`' box for adding an option (`lf-options-addition.js`) is the worked example.
 

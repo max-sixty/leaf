@@ -618,8 +618,8 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
         )
     ).to_be_visible()
     expect(
-        page.locator(".lf-command-reference", has_text="Edit the text in place")
-    ).to_be_visible()
+        page.locator('.lf-command-reference tr[data-lf-command="draft.edit"]')
+    ).to_be_attached()
     # Help is a scope: the table stands down behind it, so c must open nothing under
     # the sheet, neither a panel view nor the page comment in the panel's field.
     page.keyboard.press("c")

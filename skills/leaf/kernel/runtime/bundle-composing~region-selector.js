@@ -3,9 +3,8 @@ import {
 } from "./bundle-composing~page-image-2.js";
 import "./bundle-sample-2.js";
 import "./bundle-dress.js";
-import "./bundle-widget-upgrade.js";
-import "./bundle-initial-render.js";
 import "./bundle-stylesheets.js";
+import "./bundle-initial-render.js";
 import "./bundle-passage-facts.js";
 import {
   clamp,
@@ -16,9 +15,6 @@ import {
   raiseError
 } from "./bundle-page-paint.js";
 import {
-  runtime
-} from "./bundle-semantic-state.js";
-import {
   closeLayer,
   focusDestination,
   focused,
@@ -27,6 +23,9 @@ import {
   keepsText,
   nextRender
 } from "./bundle-frame-visibility.js";
+import {
+  runtime
+} from "./bundle-semantic-state.js";
 import "./bundle-queued-work.js";
 import "./bundle-__export.js";
 
@@ -200,22 +199,21 @@ function createRegionSelector({
       when: () => !ended && !busy && !drag,
       run: capture
     },
+    // A pointer drags the area it wants instead.
     {
-      id: "capture.region.adjust",
-      // A pointer drags the area it wants instead.
+      id: "capture.region.move",
       touch: false,
-      keys: [
-        "ArrowLeft",
-        "ArrowRight",
-        "ArrowUp",
-        "ArrowDown",
-        "Shift+ArrowLeft",
-        "Shift+ArrowRight",
-        "Shift+ArrowUp",
-        "Shift+ArrowDown"
-      ],
-      title: "adjust area",
-      description: "Arrow keys move the area; Shift and arrow keys resize it",
+      keys: ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
+      title: "move area",
+      repeat: true,
+      when: () => !ended && !busy && !drag,
+      run: move
+    },
+    {
+      id: "capture.region.resize",
+      touch: false,
+      keys: ["Shift+ArrowLeft", "Shift+ArrowRight", "Shift+ArrowUp", "Shift+ArrowDown"],
+      title: "resize area",
       repeat: true,
       when: () => !ended && !busy && !drag,
       run: move

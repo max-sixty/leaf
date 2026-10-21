@@ -187,7 +187,6 @@ export function createThreadPreview({
       id: "margin.card.back",
       keys: ["Shift+Tab"],
       title: "back to the margin entry",
-      description: "Leave the thread card for the margin entry it hangs from",
       repeat: true,
       runFromCommandReference: false,
       when: () => atCardEdge(-1),
@@ -197,7 +196,6 @@ export function createThreadPreview({
       id: "margin.card.onward",
       keys: ["Tab"],
       title: "on past the margin entry",
-      description: "Leave the thread card for the stop after the margin entry",
       native: true,
       repeat: true,
       runFromCommandReference: false,
@@ -211,7 +209,6 @@ export function createThreadPreview({
       id: "margin.card.enter",
       keys: ["Tab"],
       title: "into the thread card",
-      description: "Enter the thread card the margin entry opened",
       repeat: true,
       runFromCommandReference: false,
       when: () => onOpener() && tabStops(preview).length > 0,
@@ -221,7 +218,6 @@ export function createThreadPreview({
       id: "margin.card.over",
       keys: ["Shift+Tab"],
       title: "back past the thread card",
-      description: "Go back from the margin entry to the stop before it",
       native: true,
       repeat: true,
       runFromCommandReference: false,
@@ -276,6 +272,30 @@ export function createThreadPreview({
         id: THREAD_CARD,
         host: preview,
         body: transcript,
+        paintContinuation: (above) => {
+          // A head sticks only while its own message is under it. Follow its real
+          // lower edge as the next message pushes it away; between messages the
+          // transcript's edge is the cut. A declared head height cannot say this.
+          let edge = 0;
+          let height = above ? 12 : 0;
+          if (above) {
+            const top = transcript.getBoundingClientRect().top + transcript.clientTop;
+            for (const head of transcript.querySelectorAll(".lf-msg-head")) {
+              const box = head.getBoundingClientRect();
+              if (!box.height || box.bottom <= top) continue;
+              if (box.top <= top) edge = box.bottom - top;
+              else {
+                // Heads follow message order. Stop before the next name, including
+                // when only a sliver of the inter-message gap remains above it.
+                height = Math.min(height, box.top - top - edge);
+                break;
+              }
+            }
+          }
+          const card = transcript.parentElement;
+          card.style.setProperty("--lf-thread-fade-top", layoutPx(edge));
+          card.style.setProperty("--lf-thread-fade-height", layoutPx(height));
+        },
       });
   }
   let previewSession = null;

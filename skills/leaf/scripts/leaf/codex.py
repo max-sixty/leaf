@@ -1855,7 +1855,8 @@ RECORD_SCHEMA = {
                 "properties": {
                     "turn": {
                         "description": "The Codex turn that carries the delivery: "
-                        "the one its hook ran in, or the one Leaf opened for it.",
+                        "the one its hook ran in, or the one its App Server "
+                        "delivery entered.",
                         "type": "string",
                         "minLength": 1,
                     }

@@ -1523,6 +1523,10 @@ html[data-lf-interactive] [data-lf-arriving] {
     display: none !important;
   }
   @media screen {
+    html[data-lf-interactive] [data-lf-initial-pending] {
+      opacity: 0 !important;
+      visibility: hidden !important;
+    }
     html[data-lf-interactive] body:not([data-lf-presented]),
     html[data-lf-interactive] body:not([data-lf-presented]) > main,
     html[data-lf-interactive] body:not([data-lf-presented]) > main *,

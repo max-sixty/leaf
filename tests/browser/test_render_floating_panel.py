@@ -1186,6 +1186,7 @@ THREAD_FIT = """() => {
     room: parseFloat(getComputedStyle(view).paddingBottom),
     first: messages[0].getBoundingClientRect().top,
     panel: document.querySelector('.lf-fp-card').getBoundingClientRect().top,
+    window: window.innerHeight,
   };
 }"""
 
@@ -1229,7 +1230,7 @@ def test_a_thread_s_view_is_as_tall_as_its_messages(browser, serve):
     settled(page)
     long = page.evaluate(THREAD_FIT)
     assert long["height"] > 600, long
-    assert long["panel"] >= 100, long
+    assert long["panel"] >= long["window"] * 0.1, long
 
 
 GROWTH = """() => {
@@ -3419,7 +3420,7 @@ def test_a_menu_row_that_puts_the_menu_away_leaves_the_user_on_the_leaf(browser,
     menu = page.locator(".lf-fp-menu")
     leaf.click()
     menu.locator(".lf-fp-item", has_text="Annotations").click()
-    menu.locator(".lf-fp-item").last.click()
+    menu.locator(".lf-fp-item:not(.lf-fp-menu-back)").first.click()
     expect(menu).to_be_hidden()
     expect(leaf).to_be_focused()
 

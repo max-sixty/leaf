@@ -1374,8 +1374,10 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   as its answer. Where nothing watches afterward, as with Claude Code’s
                   plain
                   <code>--print</code> or a Codex task waiting with
-                  <code>leaf wait</code>, an update needing an answer enters the current
-                  turn instead. An update needing no answer waits for the next turn.
+                  <code>leaf wait</code>, or where the next turn would open on a message
+                  in the user’s name, as with Codex’s <code>codex queue</code>, an
+                  update needing an answer enters the current turn instead. An update
+                  needing no answer waits for the next turn.
                 </p>
                 <figure id="turn-end-check" class="decision-flow">
                   <figcaption>

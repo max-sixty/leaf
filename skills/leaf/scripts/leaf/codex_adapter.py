@@ -121,7 +121,7 @@ ADAPTER = Record(
     described(
         "A Codex task's running delivery adapter, written into the lease it holds "
         "at the state home's `sessions/<digest>.adapter`. A session can select a "
-        "replacement runtime while this lease remains held (`_running_adapter`).",
+        "replacement runtime while this lease remains held (`running_adapter`).",
         object_schema(
             {
                 "app_server": described(
@@ -1002,7 +1002,7 @@ def preparing_adapter(
         while True:
             preparation.enter_context(flocked(launch_lock))
             launcher = selected_launcher(session_id)
-            record = _running_adapter(session_id)
+            record = running_adapter(session_id)
             if (
                 record is None
                 or launcher is None
@@ -1055,7 +1055,7 @@ def preparing_adapter(
         yield {"task": session_id, "app_server": app_server, "started": True}
 
 
-def _running_adapter(session_id: str) -> dict | None:
+def running_adapter(session_id: str) -> dict | None:
     """The live adapter's lease record, naming its transport, or None when no
     adapter holds the lease. An adapter can let go between the question and the
     read, since only its retirement takes the start lock, and its record goes with

@@ -80,7 +80,9 @@ whichever Leaf wrote it (`state.retire_if_gone`).
   ([session-lifetime.md](session-lifetime.md)), so a cursor lives and ends with its log.
 
 - `observations.jsonl` — private, best-effort diagnostic JSON-lines trace of
-  server requests and title requests, browser observations and developer run context. It never enters
+  server requests and title requests, browser observations, each `leaf` command's
+  duration (`leaf_command`, `interaction_log.record_command`) and developer run
+  context. It never enters
   page state or acknowledgement and is never served as an asset. The semantic
   `events.jsonl` remains the durable record of accepted decisions.
 

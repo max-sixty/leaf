@@ -20,9 +20,10 @@ server's clock. The harness's record splits that span into phases (`turn_phases`
   start, as where the agent waits on a background task before replying.
 
 `reply_breakdown` sums them into the two numbers a reply budget reads: the whole
-reply, and Leaf's share of it, delivery plus the tool phases that ran a `leaf`
-command. The rest is the harness's other work, the model, the agent's own reads and
-edits, and idle time. It also groups the model phases into the model calls the
+reply, and Leaf's share of it, delivery plus the time Leaf's own commands took,
+which each `leaf` command records in the page it acted on
+(`leaf.interaction_log.record_command`). The rest is the harness's other work, the
+model, the agent's own reads and edits, and idle time. It also groups the model phases into the model calls the
 harness made, each with the calls it issued, since a model call is the unit a
 shorter reply would have to save.
 
@@ -42,10 +43,6 @@ import shlex
 from datetime import datetime
 from pathlib import Path
 
-# A shell command that names Leaf's launcher anywhere in it: bare, by its path
-# (including where it assigns the path to a variable the command then runs), or as
-# `$LEAF`, the variable a harness that sets one gives it (`SKILL.md`).
-LEAF_COMMAND = re.compile(r"(?:^|[\s;&|(/'\"=])leaf(?:[\s;&|)'\"]|$)|\$\{?LEAF\b")
 # The directory change an agent puts before a command, which says nothing of it.
 CD_PREFIX = re.compile(r"^cd \S+ && ")
 # How much of each call a reading keeps.
@@ -65,11 +62,6 @@ def call_label(part: dict) -> str:
     if part["name"].startswith("mcp__leaf__") and "args" in arguments:
         return shlex.join(["leaf", *arguments["args"]])
     return part["name"]
-
-
-def leaf_call(call: str) -> bool:
-    """Whether a call (`call_label`) ran a `leaf` command."""
-    return bool(LEAF_COMMAND.search(call))
 
 
 def _phases(
@@ -213,18 +205,34 @@ def turn_phases(
     ]
 
 
-def reply_breakdown(
-    records: list[dict], admitted: str, picked_up: str | None, replied: str
-) -> dict | None:
-    """The whole reply, Leaf's share of it, and its model calls, in milliseconds.
+def leaf_commands_ms(commands: list[dict], admitted: str, replied: str) -> int:
+    """The time Leaf's `commands` records took on a reply: each that started after
+    the comment's admission and before the reply's, up to the reply's admission,
+    since the command that replies exits after it. A command running from before
+    the comment, as a watch or a page server does, is no part of it."""
+    start, end = instant(admitted), instant(replied)
+    total = 0.0
+    for command in commands:
+        began = instant(command["started"])
+        if start <= began < end:
+            total += min(instant(command["ts"]), end) - began
+    return round(total * 1000)
 
-    A tool phase counts toward Leaf's share when any of its calls names `leaf`, so a
-    batch mixing a read with a `leaf` command counts whole, as does one shell command
-    that runs `leaf` among slower work: Leaf's share is an upper bound, close where
-    the agent runs `leaf` on its own, as the journey's agents do. A model call is the run
-    of model phases that the same `model_response` is the first to follow: they were
-    one response, whose tool calls ran while it still streamed. Each call names the
-    tool calls it led to. Returns None for a comment never picked up."""
+
+def reply_breakdown(
+    records: list[dict],
+    commands: list[dict],
+    admitted: str,
+    picked_up: str | None,
+    replied: str,
+) -> dict | None:
+    """The whole reply, Leaf's share of it, and its model calls, in milliseconds,
+    from the session's `records` and the `leaf_command` records of the session's `leaf`
+    commands (`leaf_commands_ms`). The tool time that isn't Leaf's is the agent's
+    own reads and edits. A model call is the run of model phases that the same
+    `model_response` is the first to follow: they were one response, whose tool
+    calls ran while it still streamed. Each call names the tool calls it led to.
+    Returns None for a comment never picked up."""
     if picked_up is None:
         return None
     phases = _phases(records, admitted, picked_up, replied)
@@ -237,14 +245,9 @@ def reply_breakdown(
     def ms(seconds: float) -> int:
         return round(seconds * 1000)
 
-    def total(*kinds: str, leaf: bool | None = None) -> int:
+    def total(*kinds: str) -> int:
         return ms(
-            sum(
-                until - since
-                for phase, since, until, calls in phases
-                if phase in kinds
-                and (leaf is None or any(map(leaf_call, calls)) == leaf)
-            )
+            sum(until - since for phase, since, until, _ in phases if phase in kinds)
         )
 
     model_calls: list[dict] = []
@@ -260,14 +263,14 @@ def reply_breakdown(
         elif phase == "tool" and model_calls:
             model_calls[-1]["calls"].extend(call[:SHOWN] for call in calls)
     delivery = total("delivery")
-    leaf_commands = total("tool", leaf=True)
+    leaf_commands = leaf_commands_ms(commands, admitted, replied)
     return {
         "wholeMs": ms(instant(replied) - instant(admitted)),
         "leafMs": delivery + leaf_commands,
         "busyMs": total("busy"),
         "deliveryMs": delivery,
         "leafCommandsMs": leaf_commands,
-        "otherToolsMs": total("tool", leaf=False),
+        "otherToolsMs": max(total("tool") - leaf_commands, 0),
         "modelMs": total("model"),
         "idleMs": total("idle"),
         "modelCalls": model_calls,

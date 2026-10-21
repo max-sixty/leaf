@@ -55,6 +55,7 @@ from xml.etree import ElementTree
 
 from .event_log import jsonl_line
 from .harness import session_harness
+from .interaction_log import acting_on
 from .refusals import Refused
 from .registry.kernel import verb_writers
 from .service import (
@@ -678,6 +679,8 @@ def read_delivery(delivery_id: str) -> dict:
         )
     if payload is None:
         raise Refused(f"unknown delivery {delivery_id!r}")
+    for batch in payload["batches"]:
+        acting_on(Path(batch["page"]))
     return payload
 
 

@@ -5,6 +5,15 @@ events. The developer response-time query interprets events through the current
 application readers. Browser gestures, request timings and run context use
 observations.jsonl.
 
+Each `leaf` command records how long it took in every page it acted on, one
+`leaf_command` observation as it exits (`record_command`), so a page says Leaf's own
+share of an agent's reply on any harness. A command acts on the pages it names: a
+`PAGE` argument (`cli.resolve_dir`) or a delivery's pages (`delivery.read_delivery`,
+which an answer reference reaches too); each notes its page (`acting_on`). Its
+time runs from its launcher's start, `bin/leaf`'s uv included, to its exit; a
+command the sandbox bridge runs for Claude Code is timed from the bridge's start of
+it.
+
 A browser batch is admitted whole by `interaction-batch.schema.json`, the schema
 leaf.page's Worker admits it by too (`admit_batch`). The reader skips malformed lines,
 deduplicates retries and reports sequence gaps before selection. Stored ts belongs
@@ -18,8 +27,10 @@ decide which fields to redact or omit for those users.
 import fcntl
 import json
 import os
+import sys
+import time
 from collections import defaultdict
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .event_log import jsonl_line
@@ -47,6 +58,60 @@ def append_interactions(page_dir: Path, records: list[dict]) -> list[dict]:
         fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
         stream.write(data)
     return records
+
+
+# The pages the running `leaf` command acts on, which its `leaf_command` record goes to.
+_ACTED_ON: set[Path] = set()
+
+
+def acting_on(page_dir: Path) -> None:
+    """Note that this process's `leaf` command acts on `page_dir`."""
+    _ACTED_ON.add(page_dir)
+
+
+def launched() -> float:
+    """When this `leaf` command started: its launcher's start where `bin/leaf`'s uv
+    runs this process as `python -m leaf` with the same arguments, else this
+    process's own."""
+    import psutil
+
+    process = psutil.Process()
+    args = sys.argv[1:]
+    parent = process.parent()
+    words = parent.cmdline() if parent is not None else []
+    tail = words[len(words) - len(args) - 2 :]
+    if tail == ["-m", "leaf", *args]:
+        return parent.create_time()
+    return process.create_time()
+
+
+def record_command(command: str) -> None:
+    """Record in each page this command acted on how long it took, with the harness
+    session that ran it. A diagnostic the page can't take is dropped, since the
+    command's own result has already been decided."""
+    if not _ACTED_ON:
+        return
+    from .harness import session_harness
+
+    started = launched()
+    harness = session_harness()
+    session = harness.session if harness is not None else None
+    record = {
+        "source": "cli",
+        "type": "leaf_command",
+        "command": command,
+        "started": datetime.fromtimestamp(started, UTC).isoformat(),
+        "durationMs": round((time.time() - started) * 1000, 1),
+        "session": session,
+        "context": session_context(session),
+    }
+    for page_dir in _ACTED_ON:
+        if (page_dir / "events.jsonl").is_file():
+            try:
+                append_interactions(page_dir, [record])
+            except OSError:
+                continue
+    _ACTED_ON.clear()
 
 
 def admit_batch(batch: object) -> dict:

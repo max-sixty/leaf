@@ -255,9 +255,11 @@ const read = (state) => {
 
 function decorate(state, placed) {
   const out = [];
-  // The ends of the lists open at the token being read, and each list line's item.
+  // The ends of the lists open at the token being read, each list line's item, and the
+  // code blocks, whose indent past an item's is the code's own.
   const lists = [];
   const items = new Map();
+  const code = [];
   const add = (from, to, deco) => {
     if (from >= to) return;
     // A hidden range may not hold a line break; such syntax stays drawn.
@@ -303,6 +305,7 @@ function decorate(state, placed) {
       for (const [a, b] of markers)
         add(a, b, token.markup.startsWith("#") ? syntax : dim);
     } else if (token.type === "fence" || token.type === "code_block") {
+      code.push([from, to]);
       lines(from, to, (each) => {
         const ends = [
           each.from <= from ? " lf-md-code-first" : "",
@@ -332,7 +335,8 @@ function decorate(state, placed) {
       const depth = lists.length;
       // An item's later lines stand under its words, their indent hidden as the
       // message drops it, and never revealed, so the words don't jump as the caret
-      // arrives; a nested item, read after its parent, takes its own lines.
+      // arrives: a paragraph's whole indent, and in code only the item's, since the
+      // rest is the code's. A nested item, read after its parent, takes its own lines.
       const head = state.doc.lineAt(from);
       const [at, end] = markers[0];
       // The marker's own indent stands in the inset with it. A quote's line keeps the
@@ -344,8 +348,7 @@ function decorate(state, placed) {
         continue;
       }
       lines(head.to + 1, Math.min(to, state.doc.length), (each) => {
-        const lead = each.text.slice(0, end - head.from).match(/^[ \t]*/)[0].length;
-        items.set(each.from, { depth, hidden: [each.from, each.from + lead] });
+        items.set(each.from, { depth, indent: end - head.from });
       });
       const kind =
         list.next === null
@@ -357,9 +360,13 @@ function decorate(state, placed) {
       add(start, end, shown ? shownMarker : marker);
     }
   }
-  for (const [from, { depth, kind, number, hidden }] of items) {
+  for (const [from, { depth, kind, number, indent }] of items) {
     out.push(itemLine(depth, kind, number).range(from));
-    if (hidden) add(...hidden, hide);
+    if (indent === undefined) continue;
+    const { text } = state.doc.lineAt(from);
+    const inCode = code.some(([a, b]) => from >= a && from < b);
+    const lead = (inCode ? text.slice(0, indent) : text).match(/^[ \t]*/)[0].length;
+    add(from, from + lead, hide);
   }
   return Decoration.set(out, true);
 }

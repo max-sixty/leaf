@@ -972,6 +972,7 @@ function decorate(state, placed) {
   const out = [];
   const lists = [];
   const items = /* @__PURE__ */ new Map();
+  const code = [];
   const add = (from, to, deco) => {
     if (from >= to) return;
     if (deco === hide && state.doc.sliceString(from, to).includes("\n")) deco = dim;
@@ -1013,6 +1014,7 @@ function decorate(state, placed) {
       for (const [a, b] of markers)
         add(a, b, token.markup.startsWith("#") ? syntax : dim);
     } else if (token.type === "fence" || token.type === "code_block") {
+      code.push([from, to]);
       lines(from, to, (each) => {
         const ends = [
           each.from <= from ? " lf-md-code-first" : "",
@@ -1044,8 +1046,7 @@ function decorate(state, placed) {
         continue;
       }
       lines(head.to + 1, Math.min(to, state.doc.length), (each) => {
-        const lead = each.text.slice(0, end - head.from).match(/^[ \t]*/)[0].length;
-        items.set(each.from, { depth, hidden: [each.from, each.from + lead] });
+        items.set(each.from, { depth, indent: end - head.from });
       });
       const kind = list.next === null ? BULLETS[Math.min(depth, BULLETS.length) - 1] : "lf-md-number";
       const shown = touches(state, start, end);
@@ -1054,9 +1055,13 @@ function decorate(state, placed) {
       add(start, end, shown ? shownMarker : marker);
     }
   }
-  for (const [from, { depth, kind, number, hidden }] of items) {
+  for (const [from, { depth, kind, number, indent }] of items) {
     out.push(itemLine(depth, kind, number).range(from));
-    if (hidden) add(...hidden, hide);
+    if (indent === void 0) continue;
+    const { text } = state.doc.lineAt(from);
+    const inCode = code.some(([a, b]) => from >= a && from < b);
+    const lead = (inCode ? text.slice(0, indent) : text).match(/^[ \t]*/)[0].length;
+    add(from, from + lead, hide);
   }
   return Decoration.set(out, true);
 }

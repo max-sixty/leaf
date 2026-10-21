@@ -1431,7 +1431,7 @@ button.lf-media-open {
   display: block;
   width: auto;
   height: 100%;
-  min-width: max(40px, calc(0.75 * var(--lf-media-h)));
+  min-width: calc(0.75 * var(--lf-media-h));
   max-width: calc(2 * var(--lf-media-h));
   object-fit: cover;
   border-radius: inherit;

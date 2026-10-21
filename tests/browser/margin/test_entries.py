@@ -1,7 +1,7 @@
 """How each margin entry is drawn, labelled and kept through repaints. The bounds on a
 repaint's work are held on the corpus (`journeys/test_render_gate.py`), and the feature
 gallery's margin atlas is read on the gallery's one journey
-(`navigation/test_tabs.py`)."""
+(`journeys/test_render_navigation.py`)."""
 
 import re
 

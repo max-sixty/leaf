@@ -419,8 +419,7 @@ def test_the_registered_session_end_releases_shared_claims_without_an_environmen
 
     record_claim(page_dir, id="ended-session")
     marker_files = [
-        cleanup_model.session_file("ended-session", suffix)
-        for suffix in (cleanup_model.HOOKS_SUFFIX, cleanup_model.STEP_HOOK_SUFFIX)
+        cleanup_model.session_file("ended-session", cleanup_model.HOOKS_SUFFIX)
     ]
     for marker in marker_files:
         marker.parent.mkdir(parents=True, exist_ok=True)

@@ -17,10 +17,18 @@
  * --playground-NAME properties and data-playground-NAME attributes on the host and
  * its sample roots.
  *
- * Projection is deliberately separate from working state. A repeated projection must
- * not erase local edits, while a newly chosen action or its undo must replace them.
- * The last choice identity distinguishes those cases, including equal-valued choices;
- * the attempt stays stable when a local gesture receives its durable event id. */
+ * Projection is deliberately separate from working state. Only a newly chosen action,
+ * made in this tab or elsewhere, replaces the working values. A repeated projection
+ * keeps them, and so does an undo, which withdraws the decision and leaves the controls
+ * as the user set them, ready to adjust and resubmit; Reset returns to the authored
+ * defaults. Where an undo or a refused choice makes an earlier choice current again,
+ * the controls show values that differ from the decided ones, as any unsent edit does.
+ * Two facts identify a new choice. Its identity differs from the last one drawn, which
+ * tells it from a repeated projection, equal-valued choices included; the attempt
+ * stays stable when a local gesture receives its durable event id. And it is later in
+ * the log than any choice this tab has drawn, which tells it from an earlier choice an
+ * undo makes current again: a pending choice is this tab's newest gesture, and a
+ * durable one compares by its seq. */
 import {
   announce,
   commands,
@@ -29,6 +37,7 @@ import {
   focusDestination,
   layoutChanged,
   initialRender,
+  keeps,
   LeafElement,
   nothing,
   paintKeys,
@@ -106,6 +115,7 @@ customElements.define(
     #reset = null;
     #choosing = false;
     #projected = undefined;
+    #drawnThrough = -Infinity;
     #ready = false;
     #interactive = false;
     #regions = [];
@@ -401,8 +411,7 @@ customElements.define(
       if (this.#copy.dataset.instruction === instruction) return;
       clearTimeout(this.#copyTimer);
       this.#copy.dataset.instruction = instruction;
-      if (this.#copy.dataset.copyState !== "rest")
-        this.#copy.dataset.copyState = "rest";
+      keeps(this.#copy, "data-copy-state", "rest");
     }
 
     // The copy control is a native button rather than a `wa-copy-button`, because the
@@ -420,14 +429,14 @@ customElements.define(
       }
       if (this.#instruction() !== instruction || !this.isConnected) return;
       clearTimeout(this.#copyTimer);
-      this.#copy.dataset.copyState = feedback;
+      keeps(this.#copy, "data-copy-state", feedback);
       announce(
         feedback === "success"
           ? "Instruction copied"
           : "Could not copy the instruction",
       );
       this.#copyTimer = setTimeout(() => {
-        this.#copy.dataset.copyState = "rest";
+        keeps(this.#copy, "data-copy-state", "rest");
       }, 2000);
     }
 
@@ -459,8 +468,8 @@ customElements.define(
       return this.reading.actions.choose?.available ?? false;
     }
 
-    // A repeated projection keeps local edits; a new choice or its undo replaces them.
-    // A change to the reading's availability draws again too, and paints the keys.
+    // Only a new choice replaces local edits (the header says why). A change to the
+    // reading's availability draws again too, and paints the keys.
     render() {
       const configuration = this.state.choose;
       const choice = Object.values(this.reading.provenance).find(
@@ -468,11 +477,12 @@ customElements.define(
       )?.event;
       const projected = choice ? (choice.attempt ?? choice.id) : null;
       if (this.#projected !== projected) {
-        const firstProjection = this.#projected === undefined;
         this.#projected = projected;
-        if (projected !== null) this.#restore(configuration.detail.values);
-        else if (!firstProjection) this.#restore(this.#defaults);
+        if (choice && !(choice.seq <= this.#drawnThrough))
+          this.#restore(configuration.detail.values);
       }
+      if (Number.isInteger(choice?.seq))
+        this.#drawnThrough = Math.max(this.#drawnThrough, choice.seq);
       this.#paint();
       this.#paintAvailability();
       return nothing;

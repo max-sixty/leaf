@@ -15,10 +15,11 @@ function onMotionPreferenceChange(listener) {
 preference.addEventListener("change", (event) => {
   if (event.matches) for (const played of [...active]) played.finish();
 });
-function motion(el, keyframes, ms) {
+function motion(el, keyframes, ms, pseudoElement = null) {
   if (reducedMotion() || !pagePresented()) return null;
   const played = el.animate(keyframes, {
     duration: ms,
+    pseudoElement,
     easing: "ease",
     fill: "forwards"
   });
@@ -42,13 +43,15 @@ function backgroundFlash(el, ms) {
   return motion(el, [{ backgroundColor: "var(--hi-tint)", offset: 0 }], ms);
 }
 var foldDuration = () => time("--lf-motion-fold");
-function foldBlock(el) {
+var returnDuration = () => time("--lf-motion-return");
+function foldBlock(el, allocation = null) {
   if (!CSS.supports("block-size", "calc-size(auto, size)")) return null;
+  const adjustment = allocation ? allocation.priorSize - allocation.container.getBoundingClientRect().height : 0;
   return motion(
     el,
     [
       {
-        blockSize: "calc-size(auto, size)",
+        blockSize: `calc-size(auto, size + ${adjustment}px)`,
         display: "block",
         overflow: "clip",
         opacity: 1
@@ -80,5 +83,6 @@ export {
   agentArrivalDuration,
   backgroundFlash,
   foldDuration,
+  returnDuration,
   foldBlock
 };

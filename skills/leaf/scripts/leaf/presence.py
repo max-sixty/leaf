@@ -158,12 +158,19 @@ def other_leaves(page_dir: Path) -> list:
     outlives its server: a restart may serve the same page at a new port, which
     changes where the row leads and not which page it is.
     """
+    own = page_dir.resolve()
+    return [entry for candidate, entry in live_leaves() if candidate != own]
+
+
+def live_leaves(among: set[Path] | None = None) -> list:
+    """Each live page that is not closed, by its directory, with its row entry, in
+    title order (`other_leaves` says what each costs and holds); only those `among`
+    resolved page directories, where given, whose leases alone it then checks."""
     from .server_rows import read_row, row_path
 
-    others = []
-    own = page_dir.resolve()
+    leaves = []
     for candidate, record in neighbor_candidates():
-        if candidate == own:
+        if among is not None and candidate not in among:
             continue
         # A neighbour's fault stays its own. This is the one read of state some
         # other page owns: a directory deleted mid-scan (stale pages are deleted
@@ -179,16 +186,19 @@ def other_leaves(page_dir: Path) -> list:
                 continue
             row = read_row(candidate, info, record=record)
             if row is not None and row["activity"]["kind"] != "closed":
-                others.append(
-                    {
-                        **row,
-                        "page_key": record["page_key"],
-                        "url": info["url"],
-                    }
+                leaves.append(
+                    (
+                        candidate,
+                        {
+                            **row,
+                            "page_key": record["page_key"],
+                            "url": info["url"],
+                        },
+                    )
                 )
         except Exception:  # noqa: BLE001, S112 - whatever shape its fault takes
             continue
-    return sorted(others, key=lambda entry: entry["title"].lower())
+    return sorted(leaves, key=lambda leaf: leaf[1]["title"].lower())
 
 
 def live_facts(page_dir: Path, claim: dict | None, *, process: bool = True) -> dict:
@@ -207,19 +217,15 @@ def live_facts(page_dir: Path, claim: dict | None, *, process: bool = True) -> d
     }
 
 
-def page_agent(claim: dict | None, events: list, *, process: bool = True) -> str:
+def page_agent(claim: dict | None, events: list) -> str:
     """The name the page calls its agent: the claimant's, who reads what the user
     writes; on a page no session holds now, the voice that last wrote on it, whose
     words the page shows; and `UNNAMED_AGENT` where neither names one. One name for
     the agent's side, so a page whose session ended still calls its agent what its
-    messages do.
-
-    A captured publication (`process` false) names none from its log: whoever
-    answers a hosted copy is the host's agent, not the one that wrote the page."""
+    messages do. A hosted copy's served state names its publication's agent instead
+    (`served_state.page.read_served_page`)."""
     if claim:
         return claim["agent"]
-    if not process:
-        return UNNAMED_AGENT
     return next(
         (
             event["agent"]
@@ -249,7 +255,8 @@ def presence_with_activity(
     host publication without a process keeps durable acknowledgement and pending
     input, while omitting claimant, watcher, turn and live activity facts, and the
     declaration its log holds: whoever answers a hosted copy is the host's agent,
-    which has declared nothing (`page_agent`)."""
+    which has declared nothing, and which its served state names
+    (`served_state.page.read_served_page`)."""
     status = declaration(events) if process else undeclared()
     claim = page_claim(page_dir) if process else None
     active = claim if claim_is_active(claim) else None
@@ -271,7 +278,7 @@ def presence_with_activity(
         # (`page_agent`). Harness-specific facts stay out of this reading: it is what
         # a browser seat may know, and the browser has never had a use for which
         # program is running the agent.
-        "agent": page_agent(claim, events, process=process),
+        "agent": page_agent(claim, events),
         # Which session the turn-closed evidence belongs to. Thread updates carry
         # their posting session too, so a claim another session wrote — the page
         # task's, while a Codex watcher task holds the page — is not declared
@@ -281,7 +288,7 @@ def presence_with_activity(
         # An opened delivery names this value; equality, rather than timestamps,
         # is what says that exact update is in the turn running now.
         "claim_turn": claim["turn"] if claim else None,
-        # When the claiming session's last turn ended, or None while none has.
+        # When the claiming session's current turn closed, or None while it is open.
         # A `working` claim older than this is one that no later turn renewed
         # across the boundary — the same judgment the runtime's grace
         # makes, available at the moment it becomes true instead of a quarter of

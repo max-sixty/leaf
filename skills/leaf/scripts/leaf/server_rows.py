@@ -1,8 +1,9 @@
 """Disposable neighbor-row delivery, computed by each serving page alone.
 
 The document and log remain the authority. A server publishes their canonical
-activity fold to state-home rows/<page-key>.json, together with its title and
-working directory. The record is bound to service.server_id, so another server
+activity fold to state-home rows/<page-key>.json, together with its title, its
+working directory and the user's counts its Leaf panel marks (On me, open threads,
+threads with unread words), which neighbors and Leaf's Claude Code band show. The record is bound to service.server_id, so another server
 incarnation cannot inherit it; the server lease decides whether any row exists.
 Deleting every row only hides neighbors until their next maintenance look. No
 server removes its own row, since a server can die without a last word; the reader
@@ -32,7 +33,7 @@ from .served_state.reading import page_reading
 from .served_state.service import PageStateService
 from .server import exit_serving
 from .service import page_claim
-from .state import STRING, Record, object_schema, page_key, state_home
+from .state import STRING, Record, described, object_schema, page_key, state_home
 
 ACTIVITY_FIELDS = frozenset(
     {
@@ -62,33 +63,58 @@ def row_path(page_dir: Path) -> Path:
     return state_home() / "rows" / f"{page_key(page_dir)}.json"
 
 
-# A serving page's row, under the server incarnation that published it.
+COUNT = {"type": "integer", "minimum": 0}
+
 ROW = Record(
     "row",
-    object_schema(
-        {
-            "page": STRING,
-            "page_key": STRING,
-            "server_id": STRING,
-            "row": object_schema(
-                {
-                    "title": STRING,
-                    "session_cwd": {"type": ["string", "null"]},
-                    "activity": {
-                        "type": "object",
-                        "properties": {
-                            "counts": {
-                                "type": "object",
-                                "required": sorted(COUNT_FIELDS),
-                            }
-                        },
-                        "required": sorted(ACTIVITY_FIELDS),
-                    },
-                }
-            ),
-        }
+    described(
+        "A serving page's row, which other pages show it by, in the state home's "
+        "`rows/<page key>.json`.",
+        object_schema(
+            {
+                "page": described("The page directory.", STRING),
+                "page_key": described("The page's key (`state.page_key`).", STRING),
+                "server_id": described(
+                    "The server incarnation that published the row; a reader "
+                    "takes only the live service's own.",
+                    STRING,
+                ),
+                "row": described(
+                    "What other pages show of it.",
+                    object_schema(
+                        {
+                            "title": described("The page's title.", STRING),
+                            "session_cwd": described(
+                                "The claimant session's working directory, or null.",
+                                {"type": ["string", "null"]},
+                            ),
+                            "activity": described(
+                                "The page's activity, bounded to the fields a row "
+                                "shows (`compact_activity`).",
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "counts": {
+                                            "type": "object",
+                                            "required": sorted(COUNT_FIELDS),
+                                        }
+                                    },
+                                    "required": sorted(ACTIVITY_FIELDS),
+                                },
+                            ),
+                            "on_user": described("How many rows On me holds.", COUNT),
+                            "threads": described(
+                                "What the Leaf panel's Threads mark counts (`thread_counts`): "
+                                "the open threads, and those the user hasn't read.",
+                                object_schema({"open": COUNT, "unread": COUNT}),
+                            ),
+                        }
+                    ),
+                ),
+            }
+        ),
     ),
-    since=13,
+    since=16,
 )
 
 

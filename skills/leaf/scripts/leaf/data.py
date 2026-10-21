@@ -33,11 +33,29 @@ from .registry.schema import json_value
 from .registry.storage import read_page_registry
 from .schema import DATA_DIR, DATA_SOURCE_NAME
 from .service import PageTransaction
-from .state import STRING, TIME, Record, json_bytes, now_iso, object_schema
+from .state import STRING, TIME, Record, described, json_bytes, now_iso, object_schema
 
 PUBLICATION = Record(
     "data-source",
-    object_schema({"contract": STRING, "run": STRING, "updated": TIME, "value": {}}),
+    described(
+        "One source's publication, in the page directory's `data/<source>.json`, "
+        "which `leaf data set` writes whole.",
+        object_schema(
+            {
+                "contract": described(
+                    "The data contract the value was validated against at the write.",
+                    STRING,
+                ),
+                "run": described(
+                    "An opaque receipt naming the write, a rerun with the same value "
+                    "included.",
+                    STRING,
+                ),
+                "updated": described("When the value was written.", TIME),
+                "value": described("The source's complete value.", {}),
+            }
+        ),
+    ),
     since=16,
 )
 

@@ -18,7 +18,7 @@ None of these is a gate. Read the outputs as well as the pass counts.
 
 ```bash
 # Timed journeys, one harness at a time; each run adds a sample to journey.jsonl.
-uv run leaf-dev journey claude-code [--hooks-module]
+uv run leaf-dev journey claude-code
 uv run leaf-dev journey codex-app-server
 uv run leaf-dev journey pi
 uv run leaf-dev journey website-adapter
@@ -291,15 +291,11 @@ In `document/idle` the first reply came 3.9–5.6 s after each comment; in
 
 ## Proposed improvements
 
-- **Delegated work in the panel's status:** the status stops reading Working while
-  the coordinator's workers still run and its watch is live. Over an update still
-  started, it reads Working for two minutes after the turn ends, then says the turn
-  ended. Once a `--todo` reply has answered the update, it reads listening from the
-  turn's end, and its explanation names the open to-do among what waits on the
-  agent. The plan still lists the work. Claude Code's session record keeps
-  `busy` while background work runs, which `activity.claimant_turn` deliberately
-  ignores; reading it would let the status say the work goes on in the background.
-  Whether to show that is a product decision. The
+- **Delegated work in the panel's status on Codex and Pi:** on Claude Code, a
+  session record still `busy` after the turn ends keeps the status reading Working,
+  "in the background" (#3370, `activity.claimant_turn`). Codex and Pi publish no
+  such record, so there the status stops reading Working while the coordinator's
+  workers still run. The
   [Thread plan](threads.md#independent-jobs-delegation-and-continuation) owns the
   broader model of delegated jobs.
 - **Two model calls for a small change:** the calls "A small page change's reply"
@@ -320,11 +316,6 @@ In `document/idle` the first reply came 3.9–5.6 s after each comment; in
 - **The hosted opening's cost:** whether the hosted agent's opening line delays its
   answer needs runs without one, such as an arm whose `CODEX_INSTRUCTIONS` drop the
   acknowledgement.
-- **Explicit stdin:** a command given no text reads stdin only from a pipe or a
-  file. That guesses the caller's intent from the descriptor, and refuses a Node
-  caller, whose piped stdin is a socket. Reading stdin only when asked (`--text -`,
-  `--file -`) would need no guess, at the cost of changing the shipped
-  instructions' heredocs and pipelines and scoring that change.
 - **Cheap claims:** test a typed harness operation against the CLI path before adding
   another interface. The [Codex brief](codex-integration.md#typed-operations) owns
   that experiment.

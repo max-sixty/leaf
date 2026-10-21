@@ -10,7 +10,7 @@ description: handoff-leaves-the-watch-to-leaf
 metadata:
   purpose:
     "Claude Code reference: a handoff ends the turn with the URL and starts no `leaf wait`, since
-    Leaf's Stop hook watches between turns."
+    Leaf watches between turns."
   tags:
     - wait-loop
 vars:

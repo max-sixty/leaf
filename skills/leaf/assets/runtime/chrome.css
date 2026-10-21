@@ -13,7 +13,6 @@
     --lf-fp-aim: 32px;
     --lf-fp-press: 28px;
     --lf-fp-inset: 8px;
-    --lf-fp-words: 15px / 22px var(--serif);
     --lf-fp-max: 540px;
     --lf-fp-gutter: 24px;
     --lf-fp-width: min( var(--lf-fp-max), calc(100vw - var(--lf-fp-gutter) - var(--lf-safe-left) - var(--lf-safe-right)) );
@@ -433,10 +432,6 @@
       --lf-fp-notice-tint: var(--warn-tint);
       --lf-fp-notice-ink: var(--warn-ink);
     }
-    &[data-tone=accent] {
-      --lf-fp-notice-tint: var(--accent-tint);
-      --lf-fp-notice-ink: var(--accent);
-    }
     &[data-tone=ok] {
       --lf-fp-notice-tint: var(--ok-tint);
       --lf-fp-notice-ink: var(--ok-ink);
@@ -444,12 +439,6 @@
   }
   .lf-fp-row-notice-press:hover .lf-fp-row-notice-face {
     background: color-mix(in srgb, var(--lf-fp-notice-ink) 16%, var(--lf-fp-notice-tint));
-  }
-  a.lf-fp-row-notice-press {
-    display: inline-flex;
-    align-items: center;
-    color: inherit;
-    text-decoration: none;
   }
   .lf-fp-row-notice-sep {
     color: var(--lf-fp-quiet);
@@ -595,15 +584,23 @@
   .lf-floating-panel:not([data-open]) .lf-fp-opened {
     display: none;
   }
-  .lf-fp-head {
+  .lf-fp-head:has(> .lf-fp-title:not(.lf-quiet)) {
+    display: flex;
+    align-items: center;
+    min-height: 36px;
+    padding: 8px 6px 0 calc(6px + var(--lf-fp-inset));
+    box-sizing: border-box;
+  }
+  .lf-fp-controls {
     display: flex;
     align-items: center;
     gap: 4px;
-    min-height: 42px;
-    padding: 6px 6px 0 calc(6px + var(--lf-fp-inset));
+    min-height: 40px;
+    padding: 3px 6px 0 calc(6px + var(--lf-fp-inset));
     box-sizing: border-box;
+    background: linear-gradient(var(--lf-fp-faint), var(--lf-fp-faint)) top center / calc(100% - 2 * (6px + var(--lf-fp-inset))) 1px no-repeat;
   }
-  .lf-fp-head:empty {
+  .lf-fp-controls:empty {
     display: none;
   }
   .lf-fp-crumb {
@@ -625,17 +622,20 @@
   }
   .lf-fp-back {
     flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     min-height: 0;
     padding: 0;
     color: var(--lf-fp-muted);
   }
+  .lf-fp-back .lf-fp-chevron {
+    scale: -1 1;
+    margin: 0;
+  }
   .lf-fp-back:hover {
     background: none;
     color: var(--ink);
-  }
-  .lf-fp-sep {
-    flex: none;
-    color: var(--lf-fp-muted);
   }
   .lf-fp-facts {
     flex: none;
@@ -760,7 +760,7 @@
     max-height: 100%;
     overflow-y: auto;
     overscroll-behavior: contain;
-    padding: 4px 6px 6px;
+    padding: 8px 6px 6px;
     box-sizing: border-box;
     scrollbar-width: thin;
   }
@@ -775,7 +775,7 @@
     bottom: 0;
   }
   .lf-fp-view[data-view=thread] {
-    padding-top: 8px;
+    padding-top: 10px;
     mask-image:
       linear-gradient(
         to bottom,
@@ -1103,7 +1103,7 @@
   }
   .lf-fp-prompt {
     margin: 0;
-    font: var(--lf-fp-words);
+    font: var(--msg-font);
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 4;
@@ -1145,9 +1145,6 @@
     --lf-thread-text-inset: var(--lf-fp-inset);
     padding-inline-start: 0;
   }
-  .lf-fp-messages :is(.lf-msg-body, .lf-thread-working-words) {
-    font: var(--lf-fp-words);
-  }
   .lf-fp-messages .lf-msg-editor {
     margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
   }
@@ -1166,7 +1163,8 @@
     align-items: baseline;
     gap: 8px;
     margin: 0 0 6px;
-    font: 600 15px / 1.4 var(--serif);
+    font: var(--msg-font);
+    font-weight: 600;
   }
   .lf-fp-plan-count {
     margin-left: auto;
@@ -1285,8 +1283,25 @@
   .lf-fp-menu-page {
     display: grid;
   }
-  .lf-fp-menu-back {
-    margin-bottom: 6px;
+  .lf-fp-menu[data-level] .lf-fp-menu-page {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+  }
+  .lf-fp-menu-name {
+    display: flex;
+    align-items: center;
+    min-height: 30px;
+    padding: 5px 8px;
+    box-sizing: border-box;
+    font-weight: 600;
+  }
+  .lf-fp-menu-rule {
+    flex: none;
+    height: 1px;
+    margin: auto 8px 3px;
+    padding-top: 3px;
+    background: var(--lf-fp-faint) content-box;
   }
   .lf-fp-menu-back .lf-fp-label {
     display: flex;
@@ -1297,12 +1312,6 @@
     flex: none;
     margin: 0;
     scale: -1 1;
-  }
-  .lf-fp-menu-back b {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-weight: 600;
   }
   .lf-fp-state {
     display: grid;

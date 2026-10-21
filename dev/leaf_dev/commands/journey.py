@@ -2,7 +2,7 @@
 the page's own record and checked.
 
     uv run leaf-dev journey TARGET [--browser | --http] [--release RELEASE]
-                                   [--hooks-module] [--sandbox] [--preview]
+                                   [--sandbox] [--preview]
 
 The user tells the agent that a release passed its deployment checks, asking it to
 record that on the board. How the page records it is the agent's call, as with a
@@ -31,9 +31,8 @@ reply and entered the session's context, and that the page's claim names the ses
 with its turn closed. A website target runs `release` alone, since only a terminal
 can start a turn or interrupt one. What the harnesses share lives here: their
 isolation and its evidence (`isolated`), the session the journey hears through every
-wait (`Terminal`), and the user (`User`). `--hooks-module` turns on Claude Code's
-opt-in hooks module; `--sandbox` runs the session's shell commands in its harness's
-sandbox;
+wait (`Terminal`), and the user (`User`). `--sandbox` runs the session's shell
+commands in its harness's sandbox;
 `--preview` has Codex serve the page with the canonical
 `leaf-dev preview --user`. The journey stops at the first check that fails and keeps
 no sample.
@@ -103,6 +102,7 @@ from typing import NamedTuple
 from urllib.parse import urljoin
 
 import click
+import psutil
 from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
 from leaf.events import build_threads
@@ -857,6 +857,38 @@ class Isolation(NamedTuple):
     evidence: Path
 
 
+def stop_left_running(state: Path) -> list[str]:
+    """Stop every process running with `state` as its state home, which only the
+    journey's session and what it started have, and name each. One outlives the
+    session by design: the sandbox bridge, which Claude Code's hooks start and
+    which retires on its next sweep after the last session it serves ends
+    (`leaf.bridge`), writing the state home as it goes. Each gets 10 s to exit on
+    SIGTERM before SIGKILL. The system hides its own binaries' environments, such
+    as `sleep`'s, but not Leaf's Python or a harness's, which are what write the
+    state home."""
+    left = []
+    for process in psutil.process_iter():
+        try:
+            if process.environ().get("XDG_STATE_HOME") == str(state):
+                left.append(process)
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            continue
+    commands = []
+    for process in left:
+        try:
+            # A process's arguments can carry a credential, so its name and id say
+            # what was stopped.
+            commands.append(f"{process.name()} (pid {process.pid})")
+            process.terminate()
+        except psutil.NoSuchProcess:
+            pass
+    _, alive = psutil.wait_procs(left, timeout=10)
+    for process in alive:
+        process.kill()
+    psutil.wait_procs(alive, timeout=10)
+    return commands
+
+
 @contextmanager
 def isolated(
     target: str, environment: Callable[[Isolation], dict[str, str]]
@@ -867,9 +899,11 @@ def isolated(
     throwaway home rather than the session running this.
 
     Every run keeps the page's log in its evidence directory, beside whatever the
-    harness module writes there (`trace.jsonl`, its screen or log). The root, which
-    holds a copy of the login, is removed when every check passes and kept, with its
-    path printed, when one fails."""
+    harness module writes there (`trace.jsonl`, its screen or log). Before reading
+    the log, it stops every process the session left running (`stop_left_running`),
+    since one that writes the state home later would race the copy and the removal.
+    The root, which holds a copy of the login, is removed when every check passes
+    and kept, with its path printed, when one fails."""
     evidence = run_directory(ROOT / ".tmp" / "journey")
     # Claude Code records trust by the resolved path.
     root = Path(tempfile.mkdtemp(prefix=f"leaf-journey-{target}-")).resolve()
@@ -889,6 +923,12 @@ def isolated(
         passed = True
     finally:
         run_leaf(ROOT, place.state, "server", "stop", str(place.page))
+        if left := stop_left_running(place.state):
+            click.echo(
+                "Stopped what the session left running:\n"
+                + "\n".join(f"  {command}" for command in left),
+                err=True,
+            )
         for name in ("events.jsonl", "observations.jsonl"):
             if (place.page / name).exists():
                 shutil.copy(place.page / name, evidence / name)
@@ -1313,7 +1353,6 @@ def target_session(
     target: str,
     release: str | None,
     *,
-    hooks_module: bool,
     sandbox: bool,
     preview: bool,
 ) -> Iterator[tuple[User, dict, Callable[[], None]]]:
@@ -1325,8 +1364,7 @@ def target_session(
         if target == "claude-code":
             from leaf_dev.journey_claude_code import answering
 
-            harness = answering(browser, hooks_module=hooks_module, sandbox=sandbox)
-            named |= {"hooksModule": True} if hooks_module else {}
+            harness = answering(browser, sandbox=sandbox)
             named |= {"sandbox": True} if sandbox else {}
         elif target == "pi":
             from leaf_dev.journey_pi import answering
@@ -1384,11 +1422,6 @@ def target_session(
     help="At an origin, require this release (default: whichever it serves).",
 )
 @click.option(
-    "--hooks-module",
-    is_flag=True,
-    help="On claude-code, turn the plugin's hooks module on.",
-)
-@click.option(
     "--sandbox",
     is_flag=True,
     help="On claude-code or a codex target, run the session's shell commands in its "
@@ -1409,7 +1442,6 @@ def target_session(
 def journey(
     target: str,
     release: str | None,
-    hooks_module: bool,
     sandbox: bool,
     preview: bool,
     browser: bool | None,
@@ -1423,8 +1455,6 @@ def journey(
     or a website origin. A harness's user posts its comments over HTTP unless
     `--browser` puts them in Chrome.
     """
-    if hooks_module and target != "claude-code":
-        raise click.UsageError("--hooks-module is an option of claude-code")
     if sandbox and HARNESS_TARGETS.get(target, {}).get("harness") not in (
         "claude-code",
         "codex",
@@ -1446,7 +1476,6 @@ def journey(
                 chromium,
                 target,
                 release,
-                hooks_module=hooks_module,
                 sandbox=sandbox,
                 preview=preview,
             )

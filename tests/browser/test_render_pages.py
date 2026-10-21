@@ -554,7 +554,7 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
     told(page)
     # The view keeps the user's editing place and says the remote resolution in a
     # notice the user opens.
-    news = page.locator(".lf-fp-head .lf-thread-news")
+    news = page.locator(".lf-fp-controls .lf-thread-news")
     expect(news).to_have_text("Resolved")
     expect(draft).to_have_js_property("value", "keep this unfinished reply")
     news.click()
@@ -3386,8 +3386,9 @@ def test_each_part_of_a_page_of_parts_is_laid_out_as_a_page_of_its_own(browser, 
     the left, and lays the open part out beside them from the top of the page, as a page
     of its own with that part's Layout: a column part takes the column, margin residents,
     contents map and breakouts a column page takes in a window as wide as the room beside
-    the list, and a workspace part fills that room from the top of the window to its
-    foot, so neither it nor a short part leaves the page anything to scroll. On a phone
+    the list, and a workspace part fills that room from the top of the window to the
+    floating panel's row, so neither it nor a short part leaves the page anything to
+    scroll. The row's room is the part's own end, so the part reaches the window's foot. On a phone
     the title, the list and the part stack."""
     column_body = """
 <h1>Migration plan</h1>
@@ -3457,15 +3458,17 @@ def test_each_part_of_a_page_of_parts_is_laid_out_as_a_page_of_its_own(browser, 
         """() => {
           const work = document.getElementById('work').getBoundingClientRect();
           const main = document.querySelector('main').getBoundingClientRect();
+          const room = getComputedStyle(document.getElementById('queue')).paddingBlockEnd;
           return {width: Math.round(work.width), top: Math.round(work.top),
-                  bottom: Math.round(work.bottom), mainBottom: Math.round(main.bottom),
+                  bottom: Math.round(work.bottom + parseFloat(room)),
+                  mainBottom: Math.round(main.bottom), window: innerHeight,
                   box: document.documentElement.lfInitial.layoutBox().id};
         }"""
     )
     assert work["box"] == "work", work
     assert work["width"] == in_part["width"], work
     assert work["top"] == round(view_box["y"]), work
-    assert work["bottom"] == work["mainBottom"] > 700, work
+    assert work["bottom"] == work["mainBottom"] == work["window"], work
     assert page.evaluate(fits) == 0
     page.get_by_role("tab", name="Note").click()
     assert page.evaluate(fits) == 0

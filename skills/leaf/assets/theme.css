@@ -89,6 +89,7 @@
   --t-1: 31px;
   --code-size: 12.5px;
   --code-line: 19px;
+  --msg-font: max(var(--entry-floor), var(--t-5)) / 1.5 var(--sans);
   --code-inline-size: 82%;
   --code-inline-pad: 1px 5px;
   --code-inline-r: 4px;
@@ -265,6 +266,9 @@ html {
   display: none;
 }
 html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) {
+  display: none;
+}
+html[data-lf-interactive] [data-lf-arriving] {
   display: none;
 }
 @layer {

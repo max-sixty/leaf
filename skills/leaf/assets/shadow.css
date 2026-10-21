@@ -229,10 +229,10 @@ summary {
 .lf-thread-seat > .lf-say {
   margin-top: 0;
 }
-.lf-page-thread:not(.lf-primary-part) + :is(.lf-page-thread:not(.lf-primary-part), .lf-resolved-threads) {
+:is(.lf-page-thread:not(.lf-primary-part, [inert]) + :is(.lf-page-thread:not(.lf-primary-part, [inert]), .lf-resolved-threads), .lf-thread-seat > .lf-page-thread:not([inert]) ~ :is(.lf-page-thread:not([inert]), .lf-resolved-threads)) {
   margin-top: var(--sp-3);
 }
-.lf-page-thread:not(.lf-primary-part) + :is(.lf-page-thread:not(.lf-primary-part), .lf-resolved-threads)::before {
+:is(.lf-page-thread:not(.lf-primary-part, [inert]) + :is(.lf-page-thread:not(.lf-primary-part, [inert]), .lf-resolved-threads), .lf-thread-seat > .lf-page-thread:not([inert]) ~ :is(.lf-page-thread:not([inert]), .lf-resolved-threads))::before {
   content: "";
   position: absolute;
   inset-inline: var(--sp-1);
@@ -252,7 +252,8 @@ summary {
   --lf-msg-edit-save: max(40px, var(--aim-floor));
   --lf-msg-edit-gap: 4px;
   --lf-msg-edit-room: calc( var(--lf-msg-edit-cancel) + var(--lf-msg-edit-gap) + var(--lf-msg-edit-save) );
-  --lf-primary-news-width: 5rem;
+  --lf-news-count-room: 16px;
+  --lf-primary-news-width: calc(5rem + var(--lf-news-count-room));
 }
 .lf-thread-transcript {
   min-width: 0;
@@ -307,6 +308,7 @@ summary {
 }
 .lf-primary-news {
   position: absolute;
+  box-sizing: border-box;
   inset-block-start: 0;
   inset-inline-end: var(--lf-msg-control-room, var(--lf-msg-control, 0px));
   max-inline-size: var(--lf-primary-news-width);
@@ -373,6 +375,9 @@ summary {
   margin-bottom: 0;
 }
 .lf-thread-disclosure {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   min-height: var(--aim-floor);
   max-inline-size: 100%;
   flex-shrink: 0;
@@ -556,13 +561,14 @@ button.lf-thread-notice[data-lf-focus] {
   align-self: center;
 }
 .lf-thread-news > span {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   row-gap: 1lh;
   block-size: 1lh;
   padding-block-end: 0.5lh;
   margin-block-end: -0.5lh;
-  overflow: clip;
+  overflow: visible clip;
 }
 .lf-thread-news > span > span {
   flex: none;
@@ -575,6 +581,22 @@ button.lf-thread-notice[data-lf-focus] {
   margin-block-end: -0.5lh;
   overflow: clip;
   text-overflow: ellipsis;
+}
+.lf-thread-news[data-lf-room] > span > :first-child {
+  margin-inline-end: -1px;
+}
+.lf-thread-controls > .lf-thread-news,
+button.lf-primary-news {
+  padding-inline-end: var(--lf-news-count-room);
+}
+.lf-thread-news > span[data-lf-more]::after {
+  content: attr(data-lf-more) / "";
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 100%;
+  inline-size: var(--lf-news-count-room);
+  text-align: end;
+  font-variant-numeric: tabular-nums;
 }
 .lf-seat-news {
   display: flex;
@@ -845,6 +867,7 @@ leaf-text.lf-fab-input,
 .lf-resolved-threads {
   position: relative;
   min-width: 0;
+  margin-block-start: 0;
 }
 .lf-resolved-threads::details-content {
   content-visibility: visible;
@@ -1034,6 +1057,23 @@ svg[data-lf-icon] {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+.lf-disclosure-icon {
+  inline-size: 16px;
+  block-size: 16px;
+  flex: none;
+  align-self: center;
+  rotate: -90deg;
+  transition: rotate var(--lf-motion-disclosure) ease-out;
+}
+[aria-expanded=true] > .lf-disclosure-icon {
+  rotate: 0deg;
+}
+.lf-disclosure-icon:dir(rtl) {
+  rotate: 90deg;
+}
+[aria-expanded=true] > .lf-disclosure-icon:dir(rtl) {
+  rotate: 0deg;
+}
 .lf-msg-control-icon {
   inline-size: 16px;
   block-size: 16px;
@@ -1198,6 +1238,24 @@ svg[data-lf-icon] {
 }
 :is(.lf-btn, .button):not(:disabled, [aria-disabled=true]):hover {
   background: var(--chip);
+}
+:is(button, .lf-btn, .button).lf-quiet-action,
+.lf-quiet-action.lf-ui::part(button) {
+  border: 1px solid transparent;
+  border-radius: var(--r);
+  background: transparent;
+  color: var(--muted);
+  box-shadow: none;
+}
+:is(button, .lf-btn, .button).lf-quiet-action:not(:disabled, [aria-disabled=true]):is(:hover, [data-lf-focus]),
+.lf-quiet-action.lf-ui:not(:disabled, [aria-disabled=true])::part(button):hover,
+.lf-quiet-action.lf-ui::part(lf-focus) {
+  background: var(--chip);
+  color: var(--ink);
+}
+.lf-compact-control {
+  --wa-form-control-height: var(--lf-control-compact);
+  min-block-size: var(--lf-control-compact);
 }
 :is(.lf-btn, .button).primary {
   color: var(--accent);
@@ -1867,12 +1925,16 @@ html[data-lf-draw-mode] main {
   z-index: 1;
   opacity: 0;
   pointer-events: none;
+  &:has(> .lf-video-full-screen) {
+    padding-inline: 0;
+  }
 }
 .lf-video-controls:is(:not(.lf-video-playing), .lf-video-hover, .lf-video-keyed, :hover, :has(:focus-visible)) {
   opacity: 1;
   pointer-events: auto;
 }
-.lf-video-play {
+.lf-video-play,
+.lf-video-full-screen {
   flex: none;
   display: grid;
   place-items: center;

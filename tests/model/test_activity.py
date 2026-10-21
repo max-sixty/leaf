@@ -84,7 +84,7 @@ def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
     assert codex["turn_opened"] and not codex["turn_takes_input"]
     assert codex["listening"] is False
     assert codex["activity"]["kind"] == "away"
-    leases_model.mark_step_hook("codex-thread")
+    leases_model.mark_hooks("codex-thread")
     codex = page_state(codex_claimed_page)
     assert codex["turn_takes_input"] and codex["listening"] is False
     assert codex["activity"]["kind"] == "listening"

@@ -1,5 +1,6 @@
 """Lifecycle and trusted inputs for one browser color scheme."""
 
+import re
 import time
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
@@ -84,14 +85,47 @@ def _projection_was_applied(failed_stage: str | None) -> bool:
     return failed_stage in (None, "arrived", "rendering", "pageSettled")
 
 
+# How Playwright's Firefox words the warning its engine reports, as distinct from a
+# script's own console call.
+_FORCED_LAYOUT = (
+    '[JavaScript Warning: "Layout was forced before the page was fully loaded'
+)
+# Where a sample's document and everything it loads are served (`http.py`).
+_SAMPLE_PATH = re.compile(r"/api/samples/[0-9a-f]{32}")
+
+
+def _in_frame(location: str) -> bool:
+    """Whether a console location belongs to a frame's document rather than the
+    page's: a sample, or a frame given its document inline, as an HTML preview is."""
+    return location == "about:srcdoc" or bool(
+        _SAMPLE_PATH.search(urlsplit(location).path)
+    )
+
+
 def console_finding(message, *, warnings: bool = True) -> Finding | None:
     """Preserve console errors and optional warnings with their browser locations.
 
     Console wording is diagnostic text, even when it resembles the browser's own
     failed-resource report. It cannot establish an HTTP response or its status.
     Reading console events also avoids a response callback for every resource.
+
+    One warning is Firefox's own, from a frame: its rendering update flushes layout
+    in every document of the frame tree once the page has a resize observer, as
+    every Leaf page does, so a sample frame still parsing its head starts layout
+    early and says "Layout was forced before the page was fully loaded"; so does
+    an HTML preview's frame. No page can prevent it, so that warning is dropped
+    from a frame, which also hides a frame's own script reading layout too early.
+    Firefox files the warning under the script that forced layout where one did,
+    so a frame is known by where its documents come from (`_in_frame`), and the
+    page's own warning is kept.
     """
     said = {"text": message.text, "url": message.location["url"]}
+    if (
+        message.type == "warning"
+        and message.text.startswith(_FORCED_LAYOUT)
+        and _in_frame(said["url"])
+    ):
+        return None
     if message.type == "warning" and warnings:
         return Finding("console-warning", values=said)
     if message.type != "error":

@@ -251,6 +251,16 @@ class PageEndpoint:
     page's status has to be able to show.
     """
 
+    # Every answer that isn't an immutable revision resource may be stored but is asked
+    # for again before each reuse. No validator is sent, so each reuse is a full fetch
+    # and every load, Back included, shows the page as it is now. Storing is what lets
+    # the browser keep the whole page in its back/forward cache, so Back restores it at
+    # once and the runtime catches up from there. Chrome keeps no page whose document or
+    # fetches said `no-store`, nor Firefox one whose document did. The disk copy holds
+    # what the page directory already holds in plain files, for the same user. leaf.page
+    # overrides it (`WebsitePageEndpoint`).
+    cache_control = "no-cache"
+
     def __init__(
         self,
         request: Request,
@@ -578,7 +588,7 @@ class PageEndpoint:
     def _content(self, status: int, ctype: str, body: bytes) -> Response:
         """Encode a body whose producer has already addressed its dependencies."""
         is_html = ctype.startswith("text/html")
-        headers = {"Content-Type": ctype, "Cache-Control": "no-store"}
+        headers = {"Content-Type": ctype, "Cache-Control": self.cache_control}
         if is_html:
             headers["Content-Security-Policy"] = FRAME_ANCESTORS_CSP
         return Response(body, status_code=status, headers=headers)
@@ -1320,6 +1330,8 @@ class SampleEndpoint(PageEndpoint):
     ) -> None:
         super().__init__(request, server, **binding)
         self.parent = parent
+        # A child is stored on its parent's terms, which on leaf.page are the site's.
+        self.cache_control = parent.cache_control
         # The address inside the child, below the capability its parent matched.
         self.path = path
         self.asset_root = asset_root

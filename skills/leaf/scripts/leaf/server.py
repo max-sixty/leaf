@@ -4,13 +4,14 @@ import ipaddress
 import os
 import re
 import secrets
+import signal
 import time
 from pathlib import Path
 from typing import NoReturn
 
 from .file_changes import page_changes
 from .files import read_json
-from .leases import lock_is_held
+from .leases import end_if_terminated, lock_is_held
 from .page_memory import memory_of
 from .refusals import Refused
 from .schema import (
@@ -186,6 +187,24 @@ def exit_serving(status: int) -> NoReturn:
 
     stop_private_app_servers()
     os._exit(status)
+
+
+def exit_serving_on_signals() -> None:
+    """End this serving process through `exit_serving` on SIGINT, SIGTERM or
+    SIGHUP, as `server stop` ends it, with status 128 plus the signal's number.
+
+    Unwinding instead would release the lease while the row publisher and the
+    lifetime check still run, long enough for them to overwrite a successor's row
+    or start a title App Server after the exit handlers stopped them.
+
+    While it serves, uvicorn catches SIGINT and SIGTERM itself. It closes its
+    listener, lets the responses in flight finish, and raises the signal again,
+    which reaches this handler. A signal that arrived earlier, whose raise a
+    finalizer discarded (`leases.release_on_termination`), ends the process here
+    before the threads start."""
+    end_if_terminated()
+    for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+        signal.signal(signum, lambda signum, _frame: exit_serving(128 + signum))
 
 
 def stop_when_service_ends(page_dir: Path) -> None:

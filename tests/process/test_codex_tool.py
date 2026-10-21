@@ -42,7 +42,10 @@ def server(tmp_path, monkeypatch):
         session = Session(process)
         assert session.request(
             0, "initialize", {"protocolVersion": "2025-06-18", "capabilities": {}}
-        )["capabilities"] == {"tools": {}}
+        )["capabilities"] == {
+            "tools": {},
+            "experimental": {"codex/sandbox-state-meta": {}},
+        }
         session.send({"method": "notifications/initialized"})
         yield session
     finally:
@@ -69,16 +72,21 @@ class Session:
         assert answer["id"] == id
         return answer["result"]
 
-    def call(self, id: int, arguments: dict) -> None:
+    def call(
+        self,
+        id: int,
+        arguments: dict,
+        thread: str = "codex-thread",
+        sandbox: dict | None = None,
+    ) -> None:
+        meta = {"threadId": thread}
+        if sandbox is not None:
+            meta["codex/sandbox-state-meta"] = sandbox
         self.send(
             {
                 "id": id,
                 "method": "tools/call",
-                "params": {
-                    "name": "run",
-                    "arguments": arguments,
-                    "_meta": {"threadId": "codex-thread"},
-                },
+                "params": {"name": "run", "arguments": arguments, "_meta": meta},
             }
         )
 
@@ -100,6 +108,47 @@ def test_a_call_runs_leaf_where_and_for_whom_codex_says(server, tmp_path):
         ],
         "isError": True,
     }
+
+
+def _sandbox(*writable) -> dict:
+    """The sandbox state Codex sends with a call from a `workspace-write` task
+    (measured at 0.160.0, trimmed), which may write `writable` and the temporary
+    directories."""
+    entries = [
+        {"path": {"type": "special", "value": {"kind": "root"}}, "access": "read"},
+        {"path": {"type": "special", "value": {"kind": "tmpdir"}}, "access": "write"},
+        *(
+            {"path": {"type": "path", "path": str(p)}, "access": "write"}
+            for p in writable
+        ),
+    ]
+    return {
+        "permissionProfile": {
+            "type": "managed",
+            "file_system": {"type": "restricted", "entries": entries},
+            "network": "restricted",
+        },
+        "sandboxCwd": "file:///work",
+    }
+
+
+def test_a_sandbox_that_cannot_write_pages_is_told_the_line_once(
+    server, tmp_path, isolated_session
+):
+    """The agent edits a page's files inside Codex's sandbox, so a task whose
+    sandbox can't write the pages directory learns, on its first call, the line
+    that lets the user allow it. A task whose writable roots hold the directory
+    hears nothing."""
+    pages = isolated_session / "pages"
+    arguments = {"args": ["page", "check"], "cwd": str(tmp_path)}
+    server.call(1, arguments, thread="confined", sandbox=_sandbox(tmp_path))
+    note = server.receive()["result"]["content"][-1]["text"]
+    assert note.endswith(f'[sandbox_workspace_write]\nwritable_roots = ["{pages}"]\n')
+    server.call(2, arguments, thread="confined", sandbox=_sandbox(tmp_path))
+    server.call(3, arguments, thread="allowed", sandbox=_sandbox(isolated_session))
+    for _ in range(2):
+        texts = [part["text"] for part in server.receive()["result"]["content"]]
+        assert not any("writable_roots" in text for text in texts)
 
 
 def test_a_call_that_hangs_holds_up_no_other_and_ends_with_the_server(server, tmp_path):

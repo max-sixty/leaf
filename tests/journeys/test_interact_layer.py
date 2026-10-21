@@ -211,7 +211,9 @@ def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
     owners = {
         "Popen": ("spawn", {"conftest.py"}),
         "mkdtemp": ("socket_dir", {"interact_support.py"}),
-        "TemporaryDirectory": ("socket_dir", {"interact_support.py"}),
+        # The cached Codex schema helper in conftest.py closes its output
+        # directory with a context manager before returning the schemas.
+        "TemporaryDirectory": ("socket_dir", {"interact_support.py", "conftest.py"}),
         "launch": ("browser, iphone", {"conftest.py"}),
     }
     bypassed = []

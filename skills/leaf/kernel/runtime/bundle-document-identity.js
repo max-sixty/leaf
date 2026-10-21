@@ -7033,7 +7033,7 @@ function createReadTracking({ markRead, openThread }) {
         item
       ])
     );
-    const mayRead = threadsPresented && document.hasFocus();
+    const mayRead = threadsPresented && document.hasFocus() && sessionIsActive();
     const clips = /* @__PURE__ */ new Map();
     const completed = /* @__PURE__ */ new Map();
     const unseenWords = [];
@@ -7134,6 +7134,7 @@ function createReadTracking({ markRead, openThread }) {
     });
     addEventListener("blur", resetExposure);
     addEventListener("load", scheduleScan, true);
+    document.addEventListener("lf-session-active", scheduleScan);
     frameWatches.push(
       onFrameVisibility((visibility) => {
         if (visibility.visible) scheduleScan();

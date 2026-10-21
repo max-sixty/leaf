@@ -1249,6 +1249,8 @@
 /* skills/leaf/assets/styles/theme.css */
 @property --lf-motion-flash { syntax: "<time>"; inherits: true; initial-value: 1200ms; }
 @property --lf-motion-fold { syntax: "<time>"; inherits: true; initial-value: 220ms; }
+@property --lf-motion-return { syntax: "<time>"; inherits: true; initial-value: 180ms; }
+@property --lf-motion-disclosure { syntax: "<time>"; inherits: true; initial-value: 120ms; }
 @property --lf-motion-agent-arrival { syntax: "<time>"; inherits: true; initial-value: 520ms; }
 :root {
   position: static !important;
@@ -1319,6 +1321,7 @@
   --wide: 1080px;
   --wide-page-max: 1600px;
   --lf-ui-lh: 1.45;
+  --lf-control-compact: max(30px, var(--aim-floor));
   --details-padding-block: 8px;
   --details-margin-block: 18px;
   --details-border: 1px;
@@ -2268,20 +2271,25 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   left: var(--lf-label-x);
   top: var(--lf-label-y);
 }
-.lf-margin-entry:is(:hover, [data-lf-focus]):not([aria-expanded=true]) > .lf-margin-entry-label {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(0);
-  transition-delay: 90ms;
+@media (hover: hover) {
+  .lf-margin-entry:hover:not([aria-expanded=true]) > .lf-margin-entry-label {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+    transition-delay: 90ms;
+  }
 }
-.lf-margin-entry[data-lf-held-word] > .lf-margin-entry-label {
+.lf-margin-entry:is([data-lf-held-word], [data-lf-focus]:not([aria-expanded=true])) > .lf-margin-entry-label {
   opacity: 1;
   visibility: visible;
   transform: translateY(0);
   transition: none;
 }
-.lf-margin-entry[data-lf-focus]:not([aria-expanded=true]) > .lf-margin-entry-label {
-  transition: none;
+@media (hover: none) {
+  .lf-margin-entry[data-lf-focus]:not(:focus-visible, [data-lf-held-word]) > .lf-margin-entry-label {
+    opacity: 0;
+    visibility: hidden;
+  }
 }
 .lf-margin-projection .lf-margin-entry:not([data-lf-label-side]) > .lf-margin-entry-label {
   opacity: 0;

@@ -171,7 +171,9 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     ).evaluate("el => getComputedStyle(el).backgroundColor")
     expect(group.locator(":scope > summary")).to_have_count(1)
     expect(group).to_have_attribute("open", "")
-    expect(widget.locator(".lf-call-toggle")).to_have_text("Collapse all")
+    expect(widget.locator(".lf-call-toggle")).to_have_attribute(
+        "aria-label", "Collapse all 1 call-tree root"
+    )
     expect(lines.nth(0)).to_have_attribute("data-meta", "")
     expect(lines.nth(0).locator(".lf-call-body")).to_have_text(
         "calldiff diff main → feature"
@@ -195,10 +197,14 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     assert all(before == tinted for before, tinted in colors), colors
     widget.locator(".lf-call-toggle").click()
     expect(group).not_to_have_attribute("open", "")
-    expect(widget.locator(".lf-call-toggle")).to_have_text("Expand all")
+    expect(widget.locator(".lf-call-toggle")).to_have_attribute(
+        "aria-label", "Expand all 1 call-tree root"
+    )
     widget.locator(".lf-call-toggle").click()
     expect(group).to_have_attribute("open", "")
-    expect(widget.locator(".lf-call-toggle")).to_have_text("Collapse all")
+    expect(widget.locator(".lf-call-toggle")).to_have_attribute(
+        "aria-label", "Collapse all 1 call-tree root"
+    )
     file_row = page.locator("#patch .lf-diff-file").first
     expect(file_row).to_have_attribute("data-lf-datum", '["gateway/limits.py","file"]')
     expect(file_row).to_have_attribute(
@@ -258,7 +264,9 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     expect(group).to_have_attribute("open", "")
     expect(groups).to_have_count(2)
     expect(groups.nth(1)).not_to_have_attribute("open", "")
-    expect(widget.locator(".lf-call-toggle")).to_have_text("Expand all")
+    expect(widget.locator(".lf-call-toggle")).to_have_attribute(
+        "aria-label", "Expand all 2 call-tree roots"
+    )
     expect(lines.nth(2).locator(".lf-call-location")).to_have_text(
         "gateway/limits.py:40"
     )

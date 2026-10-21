@@ -179,7 +179,8 @@ reply's, and the harness's record of the session splits it
 (`dev/leaf_dev/reply_phases.py`):
 
 - **Leaf's share**: delivery, until the harness puts the comment in the agent's
-  context, and the tool calls that run `leaf`.
+  context, and the time each `leaf` command records in the page it acts on
+  (`leaf_command`, from its launcher's start to its exit).
 - **Harness busy first**: in the working case, the user's command running until the
   boundary. That wait belongs to the work the user started, so the working budget
   counts the reply after the boundary.
@@ -210,9 +211,9 @@ waiting and 0.13–0.26 s working; on Codex App Server it reads 0 working, since
 comment arrives with the tool result and its acknowledgement counts as a command.
 The `leaf` commands took 0.3–1.2 s. The other reply, a Claude Code waiting one
 during the load spike, spent 8.3 s in `leaf` commands, 7.2 s of it in the call that
-ran `leaf page check --render`, which no instruction asks for before a reply. A call
-that only names the launcher counts as Leaf's too, such as Pi's
-`printf '%s\n' "$LEAF"`, a few milliseconds each.
+ran `leaf page check --render`, which no instruction asks for before a reply. These
+readings counted every tool call naming `leaf` as Leaf's, before each command
+recorded its own time.
 
 The model took the rest, at 1.5–7.5 s a call on Pi and Codex and 2–11 s on Claude
 Code. The quickest replies took two calls once the comment was in context: in a
@@ -308,11 +309,6 @@ In `document/idle` the first reply came 3.9–5.6 s after each comment; in
   waiting one in the same session ("A small page change's reply"). Asking each in
   a fresh session, or the working one first, would leave the harness's state the
   only difference, at the cost of a session per case.
-- **Leaf's share on real pages:** `leaf-dev response-times` reads Leaf's share from
-  Claude Code's transcript, so a shell command that runs `leaf` among slower work
-  counts whole, and Codex and Pi pages get none. If each `leaf` command recorded its
-  own duration in the page's diagnostics, as the server records each request's,
-  the page would say Leaf's share on every harness.
 - **The hosted opening's cost:** whether the hosted agent's opening line delays its
   answer needs runs without one, such as an arm whose `CODEX_INSTRUCTIONS` drop the
   acknowledgement.

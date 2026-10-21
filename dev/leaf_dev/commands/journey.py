@@ -110,6 +110,7 @@ from leaf.files import revision_path
 from leaf.findings import Finding
 from leaf.interaction_log import read_interactions
 from leaf.server import running_server
+from leaf.service import page_claim
 from leaf.structure import SourceDocument
 from leaf.thread import successful_replies
 from leaf.todos import start_reading
@@ -692,12 +693,13 @@ def run_journey(
     end: HttpEnd | BrowserEnd,
     version: str,
     records: Callable[[], list[dict]] | None = None,
+    commands: Callable[[], list[dict]] | None = None,
 ) -> dict:
     """Tell the agent that release `version` passed its checks and ask it to record
     that, at the user's `end`, then require a published revision naming the release
     and an answer, and in a browser a reload presenting it. Return the journey's
     reading of the ask, its reply broken down (`reply_breakdown`) where `records`
-    reads the session.
+    reads the session and `commands` the page's `leaf_command` records.
 
     The page check finds the release's short hash in the authored board markup:
     where on the board the agent records it is the agent's call.
@@ -717,6 +719,7 @@ def run_journey(
     if records is not None:
         comment["reply"] = reply_breakdown(
             records(),
+            commands(),
             answered_comment["ts"],
             pickup_at(events, answered_comment["id"], "opened"),
             answer["ts"],
@@ -958,7 +961,17 @@ def user_at(
         if browser is None
         else BrowserEnd(local_session(browser, url)._replace(pause=terminal.hear))
     )
-    user = User(end, checkout_version(), lambda: read_events(place.page), terminal)
+    user = User(
+        end,
+        checkout_version(),
+        lambda: read_events(place.page),
+        terminal,
+        lambda: [
+            command
+            for command in read_interactions(place.page, types=("leaf_command",))
+            if command["session"] == page_claim(place.page)["id"]
+        ],
+    )
     try:
         user.passed("setup", started)
         yield user
@@ -1162,8 +1175,9 @@ class BrowserEnd:
 class User:
     """The user across a journey's steps, at one end (`HttpEnd` or `BrowserEnd`):
     the release ask, each later step's comment, and how long each step took. A
-    harness module drives the steps and checks them; `events` reads the page's log
-    and `terminal` is the session, where the journey runs both."""
+    harness module drives the steps and checks them; `events` reads the page's log,
+    `commands` the `leaf_command` records Leaf's commands left in the page's diagnostics,
+    and `terminal` is the session, where the journey runs them."""
 
     def __init__(
         self,
@@ -1171,9 +1185,10 @@ class User:
         version: str,
         events: Callable[[], list[dict]] | None = None,
         terminal: Terminal | None = None,
+        commands: Callable[[], list[dict]] | None = None,
     ) -> None:
         self.end, self.version = end, version
-        self.events, self.terminal = events, terminal
+        self.events, self.terminal, self.commands = events, terminal, commands
         self.records = terminal.records if terminal is not None else None
         self.ids: dict[str, str] = {}
         self.profiles: dict[str, AgentProfile] = {}
@@ -1183,7 +1198,9 @@ class User:
 
     def release(self) -> None:
         """The ask every target answers, timed (`run_journey`)."""
-        self.release_reading = run_journey(self.end, self.version, self.records)
+        self.release_reading = run_journey(
+            self.end, self.version, self.records, self.commands
+        )
         self.ids["release"] = self.release_reading["comment"]["eventIds"][-1]
 
     def release_alone(self) -> None:
@@ -1287,6 +1304,7 @@ class User:
             if self.records is not None:
                 reading["reply"] = reply_breakdown(
                     self.records(),
+                    self.commands(),
                     comment["ts"],
                     pickup_at(events, comment["id"], "opened"),
                     answer["ts"],

@@ -55,6 +55,7 @@ from xml.etree import ElementTree
 
 from .event_log import jsonl_line
 from .harness import session_harness
+from .interaction_log import acting_on
 from .refusals import Refused
 from .registry.kernel import verb_writers
 from .service import (
@@ -592,6 +593,7 @@ def response_address(reference: str) -> dict:
     payload = read_delivery(reference.partition(":")[0])
     for address in response_addresses(payload):
         if address["ref"] == reference:
+            acting_on(Path(address["page"]))
             return address
     raise Refused(f"unknown response reference {reference!r}")
 
@@ -759,6 +761,13 @@ def read_delivery(delivery_id: str) -> dict:
     return payload
 
 
+def acting_on_delivery(payload: dict) -> None:
+    """Note each page the delivery `payload` carries input from as one the running
+    command acts on (`interaction_log.acting_on`)."""
+    for batch in payload["batches"]:
+        acting_on(Path(batch["page"]))
+
+
 # Bound each CLI reading in bytes, including JSON escaping and instructions. A
 # single event may exceed this budget, so page the immutable serialized text
 # rather than dropping fields or changing the captured batch boundaries.
@@ -815,7 +824,9 @@ def delivery_reading(payload: dict, *, part: int = 1) -> dict:
 
 def cmd_delivery_read(delivery_id: str, *, part: int = 1) -> dict:
     """Bounded immutable input, read without changing receipt or ownership."""
-    return delivery_reading(read_delivery(delivery_id), part=part)
+    payload = read_delivery(delivery_id)
+    acting_on_delivery(payload)
+    return delivery_reading(payload, part=part)
 
 
 def cmd_delivery_ack(delivery_id: str) -> None:
@@ -1082,6 +1093,7 @@ def receive_delivery(delivery_id: str) -> list[Path]:
     provider receipts observe an already-open turn through `receive` instead.
     """
     payload = read_delivery(delivery_id)
+    acting_on_delivery(payload)
     harness = session_harness()
     if harness:
         open_session_turn(harness.session)

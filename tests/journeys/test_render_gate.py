@@ -915,7 +915,11 @@ def test_page_fixture_opens_without_firefox_console_warnings(
     page = open_page(firefox_browser, serve(source))
     for sample in page.locator("lf-sample[data-lf-sample-live]").all():
         sample.scroll_into_view_if_needed()
-        sample.evaluate("sample => sample.ready")
+        sample.evaluate(
+            """sample => Promise.race([sample.ready, new Promise((_, reject) =>
+              setTimeout(() => reject(new Error(`${sample.id} never got ready: ${
+                sample.textContent.trim().slice(0, 80)}`)), 60_000))])"""
+        )
 
 
 def test_a_table_too_wide_to_wrap_scrolls_inside_the_column(browser, serve):

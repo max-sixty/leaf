@@ -193,8 +193,8 @@ class Harness:
         raise NotImplementedError
 
     def watches_between_turns(self) -> bool:
-        """Whether this session's harness runs Leaf's watch as a Stop hook it keeps in
-        the background, which wakes the session when input arrives
+        """Whether this session's harness starts Leaf's watch as each turn ends, from
+        Leaf's extension or hooks module, which wakes the session when input arrives
         (`session.watch_between_turns`); the model then starts no `leaf wait`."""
         return False
 
@@ -301,7 +301,7 @@ class EnvironmentHarness(Harness):
 
 @dataclass(frozen=True)
 class ClaudeCodeHarness(EnvironmentHarness):
-    """Claude Code: a Stop hook that watches between turns and wakes the session,
+    """Claude Code: a hooks module that watches between turns and wakes the session,
     hooks that carry input into the turn, and a socket to reach it with.
 
     `job` is the background job directory a claim rests on (`lifetime`), which

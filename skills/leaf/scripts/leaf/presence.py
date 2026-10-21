@@ -150,22 +150,16 @@ def other_leaves(page_dir: Path) -> list:
     return [entry for candidate, entry in live_leaves() if candidate != own]
 
 
-def session_leaves(session_id: str) -> list:
-    """The live pages `session_id` holds, as `other_leaves` reads each: what the
-    harness shows its user beside the session (`hooks.cmd_pages`)."""
-    from .service import owned_pages
-
-    held = {page.resolve() for page in owned_pages(session_id)}
-    return [entry for candidate, entry in live_leaves() if candidate in held]
-
-
-def live_leaves() -> list:
+def live_leaves(among: set[Path] | None = None) -> list:
     """Each live page that is not closed, by its directory, with its row entry, in
-    title order (`other_leaves` says what each costs and holds)."""
+    title order (`other_leaves` says what each costs and holds); only those `among`
+    resolved page directories, where given, whose leases alone it then checks."""
     from .server_rows import read_row, row_path
 
     leaves = []
     for candidate, record in neighbor_candidates():
+        if among is not None and candidate not in among:
+            continue
         # A neighbour's fault stays its own. This is the one read of state some
         # other page owns: a directory deleted mid-scan (stale pages are deleted
         # and made again) or a file a disk fault corrupted would otherwise 500

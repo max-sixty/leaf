@@ -290,7 +290,8 @@ session's pages unwatched or a delivered update unanswered and unstarted. It is
 registered on SessionStart/resume, Stop, UserPromptSubmit, SessionEnd,
 Claude Code's PostToolBatch, and Codex's PostToolUse and Interrupt, and Leaf's Pi extension (`hooks/pi.ts`) calls it at the
 accepted run boundaries. An unwatched page is one whose watcher is a process of its
-own; Claude Code's watch is its next Stop hook. The hook also stamps that turn's
+own; Claude Code's watch is the one its hooks module starts as the turn ends. The
+hook also stamps that turn's
 ending and the next one's opening, surfaces unacknowledged user events at the next
 prompt, ends process-backed ownership when the session exits, and retains a
 desktop chat's or background job's ownership when its instance ends.

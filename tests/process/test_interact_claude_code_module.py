@@ -426,6 +426,29 @@ def test_clear_keeps_the_module_able_to_watch_the_next_session(claude_code):
     )
 
 
+def test_a_module_loaded_mid_session_watches_after_its_first_turn(
+    page_dir, monkeypatch, spawn, sessionless
+):
+    """A module loaded or reloaded mid-session sees no session.start, so the first
+    turn it sees reads Claude Code's process and the watch it starts holds the
+    session's lease."""
+    driven = ClaudeCode(spawn, "cc-late", {})
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", driven.session)
+    monkeypatch.setenv("CLAUDE_PID", str(driven.pid))
+    service_model.claim_page(page_dir)
+    serving(page_dir, 1)
+    session_model.cmd_waiting(page_dir, "")
+    leases_model.mark_hooks(driven.session)
+    driven.start_turn()
+    driven.end_turn()
+    wait_for(
+        lambda: leases_model.wait_is_live(None, driven.session),
+        bool,
+        failure="the module started no watch after its first turn",
+    )
+    driven.quit()
+
+
 @pytest.mark.parametrize("claude_code", [{"abortLagMs": 250}], indirect=True)
 def test_interrupt_watch_replacement_waits_for_aborted_process_exit(
     page_dir, claude_code

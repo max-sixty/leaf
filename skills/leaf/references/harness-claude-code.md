@@ -36,10 +36,10 @@ next prompt.
 To pick up a page this session did not serve, run `leaf page claim <page>`; Leaf
 watches it from the end of the turn.
 
-When nothing was watching, as just after the user pressed Escape or in a background
-job idle for an hour, new input arrives with a message from Leaf
-naming the page. It comes through Claude Code's session messaging, so it looks as if
-it came from another session.
+When Claude Code refuses the plugin's wake, as until the user types again after
+pressing Escape, or nothing is watching, as in a background job idle for an hour, new
+input arrives with a message from Leaf naming the page. It comes through Claude
+Code's session messaging, so it looks as if it came from another session.
 
 ## Session list
 

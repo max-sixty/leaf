@@ -222,7 +222,7 @@ SHOWN_FIELDS = ("page_key", "url", "title", "on_user", "threads")
 
 def cmd_pages(payload: dict) -> None:
     """Print the live pages the payload's session holds, as one JSON list
-    (`presence.session_leaves`), then again each time that list changes, until the
+    (`presence.live_leaves`), then again each time that list changes, until the
     session holds no page. Leaf's Claude Code hooks module draws it beside the
     prompt.
 
@@ -230,7 +230,7 @@ def cmd_pages(payload: dict) -> None:
     leaves its row until a reader finds its lease unheld, so the list is read
     again every presence interval too."""
     from .file_changes import FileChanges, existing_root
-    from .presence import PRESENCE_CACHE_S, session_leaves
+    from .presence import PRESENCE_CACHE_S, live_leaves
     from .state import session_claims, state_home
 
     sid = payload.get("session_id") or ""
@@ -246,11 +246,11 @@ def cmd_pages(payload: dict) -> None:
     try:
         while True:
             mark = changes.mark()
-            held = bool(owned_pages(sid))
+            held = {page.resolve() for page in owned_pages(sid)}
             listed = json.dumps(
                 [
                     {field: leaf[field] for field in SHOWN_FIELDS}
-                    for leaf in (session_leaves(sid) if held else [])
+                    for _page, leaf in (live_leaves(held) if held else [])
                 ]
             )
             if listed != shown:

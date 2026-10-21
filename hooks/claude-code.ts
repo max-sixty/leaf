@@ -56,7 +56,7 @@ const HOOK_TIMEOUT_MS = 20_000;
 
 type Payload = { hook_event_name: string; session_id: string; ended_at?: number };
 
-// Claude Code's process, read as the session starts.
+// Claude Code's process, read once by `sessionOf`.
 let claudePid = "";
 let watch = new WatchOwner();
 // Whether a main-loop turn is going, from its start until its Stop hooks let it end.
@@ -64,7 +64,7 @@ let running = false;
 // The Stop hooks of a turn now ending, while they run.
 let stopping: Promise<unknown> | undefined;
 
-// A live page the session holds, as the follower prints it (`presence.session_leaves`).
+// A live page the session holds, as the follower prints it (`hooks.cmd_pages`).
 type Leaf = {
   page_key: string;
   url: string;
@@ -77,6 +77,14 @@ type Leaf = {
 let leaves: Leaf[] = [];
 let following: { stop: () => unknown } | undefined;
 let followAgain = false;
+
+/** The session's id, once Claude Code's process is known. A module loaded or reloaded
+ * mid-session sees no session.start, so whichever hook comes first reads it. */
+async function sessionOf($: EngineInterface) {
+  if (!claudePid)
+    claudePid = (await $.process.run(["/bin/sh", "-c", "echo $PPID"])).stdout.trim();
+  return $.session.id();
+}
 
 function environment(session: string) {
   return { CLAUDE_CODE_SESSION_ID: session, CLAUDE_PID: claudePid };
@@ -279,10 +287,8 @@ function follow($: EngineInterface, session: string) {
 export const register: Register = (on) => {
   on("session.start", async ($, e, next) => {
     const started = await next(e);
-    const session = await $.session.id();
+    const session = await sessionOf($);
     follow($, session);
-    const parent = await $.process.run(["/bin/sh", "-c", "echo $PPID"]);
-    claudePid = parent.stdout.trim();
     void ensureWatch($, session, false);
     return started;
   });
@@ -294,7 +300,7 @@ export const register: Register = (on) => {
     async ($, e, next) => {
       const result = await next(e);
       // A gate on the tool's own call: nothing after its result may fail it.
-      void $.session.id().then((session) => follow($, session));
+      void sessionOf($).then((session) => follow($, session));
       return result;
     },
   );
@@ -302,7 +308,7 @@ export const register: Register = (on) => {
   // A resumed or cleared session raises no session.start, so its first turn follows.
   on("turn.start", ($, e, next) => {
     running = true;
-    void $.session.id().then((session) => follow($, session));
+    void sessionOf($).then((session) => follow($, session));
     return next(e);
   });
 
@@ -326,7 +332,7 @@ export const register: Register = (on) => {
     const completed = await next(e);
     if (e.agentId !== undefined) return completed;
     running = false;
-    const session = await $.session.id();
+    const session = await sessionOf($);
     follow($, session);
     void ensureWatch($, session, e.isAborted);
     return completed;

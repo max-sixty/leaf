@@ -257,9 +257,9 @@ The journey runs a session of the harness with this working tree as its plugin. 
 suite only stands in for each harness, so run the journey on the harness a change
 touches; each target's module header lists its steps and the promises it checks:
 
-- `claude-code` (`journey_claude_code.py`): with and without `--hooks-module`, after a
-  change to `hooks/hooks.json`, `hooks/claude-code.ts`, `ClaudeCodeHarness`,
-  `hooks.py`, `background-watch.py`, or the watch between turns in `session.py`. Add
+- `claude-code` (`journey_claude_code.py`): after a change to `hooks/hooks.json`,
+  `hooks/claude-code.ts`, `ClaudeCodeHarness`, `hooks.py`, or the watch between turns
+  in `session.py`. Add
   `--sandbox` after a change to `bridge.py`, the README's "Agent sandboxes" settings,
   or what a `leaf` command needs from outside its page directory.
 - `codex-app-server` and `codex-queue` (`journey_codex.py`): both, after a change to

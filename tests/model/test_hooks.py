@@ -547,8 +547,8 @@ def test_input_too_large_for_the_turn_goes_as_a_pointer_its_reader_confirms(
     assert all(e["kind"] != "pickup" for e in events_model.read_events(claimed))
 
     # Confirmed by a command the model runs anyway, and which only confirms: the
-    # session's watch is its Stop hook, which a wait the model ran would only take
-    # the lease from.
+    # session's watch is the hooks module's, which a wait the model ran would only
+    # take the lease from.
     read = CliRunner().invoke(cli_model.cli, ["delivery", "read", delivery_id])
     assert read.exit_code == 0, read.output
     pointer = json.loads(read.output)

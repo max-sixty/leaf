@@ -295,7 +295,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
             DELIVERY.format not in cc.shown(),
             f"{name}: a delivery was printed in the terminal",
         )
-        # The turn that answers ends with a watch running, under either watcher.
+        # The turn that answers ends with a watch running.
         cc.until(watched, f"{name}: no watch holds the session's pages", 60)
         details = [escaped] if escaped else []
         if names:

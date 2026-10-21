@@ -2205,27 +2205,35 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   left: var(--lf-label-x);
   top: var(--lf-label-y);
 }
-.lf-margin-entry:is(:hover, [data-lf-focus]):not([aria-expanded="true"])
+/* Hover reveals the label after a short delay, only where the pointer really hovers: a
+   phone keeps the last tapped entry hovered until the next tap, so there the label
+   would outstay the tap. A finger holds the entry to read it instead (held-word.js),
+   and the focus a tap leaves behind says it only where the keyboard placed it, below. */
+@media (hover: hover) {
+  .lf-margin-entry:hover:not([aria-expanded="true"]) > .lf-margin-entry-label {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+    transition-delay: 90ms;
+  }
+}
+/* A margin entry held under a press, or a focused destination, says its label at once.
+   Besides avoiding a needless delay for the user, this keeps a contribution that is
+   rebuilt while the margin projection settles from restarting three paint-only
+   transitions at time zero forever. */
+.lf-margin-entry:is([data-lf-held-word], [data-lf-focus]:not([aria-expanded="true"]))
   > .lf-margin-entry-label {
   opacity: 1;
   visibility: visible;
   transform: translateY(0);
-  transition-delay: 90ms;
-}
-/* A margin entry held under a press says its label at once, as a focused destination
-   does below (held-word.js). */
-.lf-margin-entry[data-lf-held-word] > .lf-margin-entry-label {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(0);
   transition: none;
 }
-/* A focused destination says its label at once. Besides avoiding a needless delay for
-   the user, this keeps a contribution that is rebuilt while the margin projection settles
-   from restarting three paint-only transitions at time zero forever. Hover discovery
-   retains the short delay and reveal above. */
-.lf-margin-entry[data-lf-focus]:not([aria-expanded="true"]) > .lf-margin-entry-label {
-  transition: none;
+@media (hover: none) {
+  .lf-margin-entry[data-lf-focus]:not(:focus-visible, [data-lf-held-word])
+    > .lf-margin-entry-label {
+    opacity: 0;
+    visibility: hidden;
+  }
 }
 .lf-margin-projection
   .lf-margin-entry:not([data-lf-label-side])

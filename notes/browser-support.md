@@ -46,23 +46,16 @@ what fails and what still works.
 
 ### Help search result relationships
 
-- **Owner:** `runtime/keyboard/command-reference.js`. The shared input keeps its
-  native editor in a shadow tree; `ariaControlsElements` and
-  `ariaActiveDescendantElement` connect that editor to Help's result grid and
-  selected row in the enclosing document. String identifier references cannot
-  cross this shadow boundary.
-- **Compatibility checked 2026-10-09:** both properties support Chrome/Edge 135+,
-  Firefox 136+, and Safari/iOS Safari 16.4+, according to
-  [MDN's compatibility data](https://github.com/mdn/browser-compat-data/blob/main/api/Element.json).
-  [WAI-ARIA defines element-reference reflection](https://w3c.github.io/aria/#idl-interface).
-- **Observed:** Chrome 155's native accessibility tree exposes the named
-  combobox, its controlled grid, and the selected row after filtering and Arrow
-  navigation. Desktop and touch journeys retain native editor focus and caret
-  selection. The browser tests in `navigation/test_command_reference.py` check the
-  relationships through the native editor's element-reference properties.
-- **Disposition:** adopted without a fallback; no current browser support gap
-  was found in the compatibility data. Native accessibility behavior in Firefox
-  and Safari has not been exercised here.
+- **Owner:** `runtime/keyboard/command-reference.js`. The native search input,
+  result grid and selected row now share the document tree. Standard
+  `aria-controls` and `aria-activedescendant` identifier references name them.
+- **Observed 2026-10-21:** Chromium desktop and phone journeys retain the native
+  editor's focus, selection and filtering behavior. The command-reference
+  journeys check the result relationships; the old cross-shadow accessibility
+  audit exemption is removed.
+- **Disposition:** the native control removes the shadow-boundary dependency on
+  element-reference reflection. Native accessibility behavior in Firefox and
+  Safari has not been exercised here.
 
 ### Contents spine lens
 
@@ -407,7 +400,8 @@ what fails and what still works.
   the user's focus and caret in the moved node.
 - **Consumers:** authored revisions and renderer child reconciliation, board
   placement, the response bar's seats, the vendored Sortable move sites, and
-  lit-html’s keyed and child-part insertions. Both vendor adaptations fail if their pinned upstream seams change.
+  Solid’s keyed and single-node placements. Vendor adaptations fail if their
+  pinned upstream seams change.
 - **Browser support, checked 2026-10-10:** Chrome/Edge 133+ and Firefox 144+
   support the API. Safari, including iOS Safari, is listed as unsupported in
   [MDN's compatibility data](https://developer.mozilla.org/en-US/docs/Web/API/Element/moveBefore#browser_compatibility).
@@ -421,9 +415,9 @@ what fails and what still works.
   puts focus and caret back. Playwright's WebKit 26.6 has no `moveBefore`; a direct
   probe confirms retained nodes reorder and a new fragment arrives through the
   shared primitive.
-- **Lit adoption:** `build/browser/build.mjs` routes keyed and child-part moves
+- **Solid adoption, 2026-10-21:** `build/solid.mjs` routes keyed and single-node moves
   through the shared primitive. The Chrome test above exercises both
-  child reconciliation and Lit rendering, with native moves and forced fallback.
+  child reconciliation and Solid rendering, with native moves and forced fallback.
 - **Stale native `:focus-within`, observed 2026-10-12 in Playwright's Chromium
   153.0.8010.12:** a focused element that `moveBefore` carries into a hidden
   (`display: none`) parent and out again still matches `:focus`, and its new

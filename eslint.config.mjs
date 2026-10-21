@@ -188,7 +188,7 @@ const publicRuntimeBoundary = {
         {
           regex: "^(?:/|\\.{1,2}/(?:.*/)?)vendor/browser-runtime(?:\\.js$|/)",
           message:
-            "Content modules import Lit and Leaf capabilities from /runtime/widget-api.js.",
+            "Content modules import Solid and Leaf capabilities from /runtime/widget-api.js.",
         },
       ],
     },
@@ -217,7 +217,7 @@ const publicRuntimeBoundary = {
       selector:
         "ImportExpression[source.value=/^(?:\\/|\\.{1,2}\\/(?:.*\\/)?)vendor\\/browser-runtime(?:\\.js$|\\/)/]",
       message:
-        "Content modules import Lit and Leaf capabilities from /runtime/widget-api.js.",
+        "Content modules import Solid and Leaf capabilities from /runtime/widget-api.js.",
     },
     {
       selector: 'ImportExpression:not([source.type="Literal"])',
@@ -417,7 +417,7 @@ export const semanticStoreOwnershipRule = {
 // nodes of one shadow tree beneath it, and a reader that tells the runtime's returns or
 // the keyboard's arrivals apart for itself answers a question focus.js already answers.
 // So the two event names appear nowhere else, in a listener, a list of event types, a
-// comparison or a Lit binding, and `focus` and `blur` are not heard on the document or
+// comparison or a template binding, and `focus` and `blur` are not heard on the document or
 // captured anywhere, which would hear every element beneath. An element's own `focus`
 // or `blur`, and the window's, which is the system's focus, are other questions. The option names,
 // by path from the repository root, the files that may still name a focus event, each

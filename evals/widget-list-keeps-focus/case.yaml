@@ -4,7 +4,7 @@
 # to the body whenever Remove re-rendered its list; this asks for the same shape
 # from the shipped references alone. Added with module-authoring.md's paragraph on
 # those exports; whether it tells two wordings apart is recorded in that commit.
-# The Lit adoption survey added the immediate receipt to exercise same-turn paint
+# The rendering adoption survey added the immediate receipt to exercise same-turn paint
 # alongside focus continuity; before/after results belong in that change's commit.
 description: widget-list-keeps-focus
 metadata:
@@ -16,7 +16,7 @@ vars:
   prompt: |
     I'm writing a Leaf package widget. It shows a list of chosen items, each row
     keyed by the item's id, with a Remove button that deletes the item and
-    re-renders the whole list with Lit. Its "Add item" button opens a small popup
+    re-renders the whole list with Solid. Its "Add item" button opens a small popup
     list of candidates inside the widget; Escape or a choice closes the popup.
     After Remove's handler returns, its caller captures the displayed remaining
     list for a receipt of the accepted change.
@@ -33,9 +33,9 @@ assert:
     value: |
       Pass only if the response imports its focus helpers from /runtime/widget-api.js
       and:
-      - renders the changed list through Leaf's public render() before the remove
-        handler returns, so the caller's receipt reads the changed view; it does
-        not wait for a LitElement reactive update or force one with performUpdate();
+      - renders the changed list through a public createView() handle's update()
+        before the remove handler returns, so the caller's receipt reads the
+        changed view;
       - holds focus across the list render with holdFocus(list, { key: <the row's
         key attribute> }), sets that attribute on each row, and calls the returned
         restore after rendering with the Add item button as its last stand-in;

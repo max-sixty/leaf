@@ -17,13 +17,20 @@ export function preserveSolidMoves(source) {
       node.type === "CallExpression" &&
       node.callee.type === "MemberExpression" &&
       !node.callee.computed &&
-      node.callee.property.name === "insertBefore"
+      ["insertBefore", "appendChild", "replaceChild"].includes(
+        node.callee.property.name,
+      )
     ) {
       const parent = source.slice(node.callee.object.start, node.callee.object.end);
       const args = node.arguments.map((argument) =>
         source.slice(argument.start, argument.end),
       );
-      edits.push([node.start, node.end, `leafMove(${parent}, ${args.join(", ")})`]);
+      const method = node.callee.property.name;
+      const placement =
+        method === "replaceChild"
+          ? `leafReplace(${parent}, ${args.join(", ")})`
+          : `leafMove(${parent}, ${args.join(", ")}${method === "appendChild" ? ", null" : ""})`;
+      edits.push([node.start, node.end, placement]);
       return;
     }
     for (const value of Object.values(node))
@@ -35,7 +42,16 @@ export function preserveSolidMoves(source) {
     throw new Error("Solid renderer has no node insertions to preserve");
   for (const [start, end, replacement] of edits.sort((a, b) => b[0] - a[0]))
     source = source.slice(0, start) + replacement + source.slice(end);
-  return 'import { move as leafMove } from "/runtime/dom-move.js";\n' + source;
+  return (
+    `import { move as leafMove } from "/runtime/dom-move.js";
+function leafReplace(parent, next, previous) {
+  if (next === previous) return previous;
+  leafMove(parent, next, previous);
+  previous.remove();
+  return previous;
+}
+` + source
+  );
 }
 
 /** Retained custom elements may leave and return without ending their view.

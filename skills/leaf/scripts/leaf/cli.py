@@ -999,9 +999,9 @@ def _serve(
     from leaf.hosting import cmd_serve
     from leaf.leases import release_on_termination
 
-    # Until the server starts serving, a SIGTERM or SIGHUP unwinds and retires
-    # what preparation holds. From then on a stop signal ends the process through
-    # `exit_serving` (`server.exit_serving_on_signals`).
+    # Until the server commits its service, a SIGTERM or SIGHUP unwinds and
+    # retires what preparation holds. From then on a stop signal ends the process
+    # through `exit_serving` (`server.exit_serving_on_signals`).
     release_on_termination()
     with Handshake(handshake) as answer:
         cmd_serve(

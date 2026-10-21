@@ -6347,6 +6347,7 @@ function createFloatingPanel({
   placedAt,
   openThreadSubject
 }) {
+  const scene = el("div", "lf-fp-scene");
   const host = el("section", "lf-ui lf-floating-panel");
   host.setAttribute("aria-label", "Leaf");
   const ground = el("div", "lf-ui lf-fp-ground");
@@ -6381,7 +6382,7 @@ function createFloatingPanel({
   context2.append(contextWords);
   inner.append(opened, context2, row);
   card.append(inner);
-  host.append(card, menu, badge, newsDot, peek);
+  host.append(card, menu, peek);
   const minimize = el("button", "lf-fp-minimize");
   minimize.type = "button";
   minimize.tabIndex = -1;
@@ -6419,9 +6420,12 @@ function createFloatingPanel({
   leaf.setAttribute("aria-controls", menu.id);
   leaf.setAttribute("aria-describedby", peek.id);
   const mark = el("span", "lf-dot");
+  const leafPaint = el("span", "lf-fp-leaf-paint");
+  leafPaint.setAttribute("aria-hidden", "true");
   const errorDot = el("span", "lf-fp-error-dot");
   errorDot.setAttribute("aria-hidden", "true");
-  leaf.append(mark, errorDot);
+  leafPaint.append(mark, errorDot, badge, newsDot);
+  host.append(leafPaint);
   const field = el("div", "lf-fp-field");
   const expand = el("button", "lf-fp-expand");
   expand.type = "button";
@@ -6823,11 +6827,20 @@ function createFloatingPanel({
     if (target) focusDestination(target, "move");
   }
   let outline = null;
+  let lastLeaf = null;
+  let endFoldTravel = null;
   let viewMovingUntil = 0;
   let riding = [];
   let lastEditor = null;
   const outlineClip = (box, grow = 0) => `inset(${box.top - grow}px ${box.right - grow}px ${box.bottom - grow}px ${box.left - grow}px round ${box.radius + grow}px)`;
   const clipTop = (clip) => Number.parseFloat(/inset\(([-\d.]+)px/.exec(clip)?.[1]);
+  const clipBox = (clip) => {
+    const [sides, radius] = clip.slice(6, -1).split(" round ");
+    const [top, right = top, bottom = top, left = right] = sides.split(" ").map(Number.parseFloat);
+    return { top, right, bottom, left, radius: Number.parseFloat(radius) };
+  };
+  const between = (from, to) => `calc(${from}px + ${to - from}px * var(--lf-fp-fold-progress))`;
+  const travellingClip = (from, to) => `inset(${["top", "right", "bottom", "left"].map((side) => between(from[side], to[side])).join(" ")} round ${between(from.radius, to.radius)})`;
   const within = (room2, element) => {
     const rect2 = element.getBoundingClientRect();
     return {
@@ -6855,14 +6868,22 @@ function createFloatingPanel({
     ))
       return;
     outline = next;
+    const leafBox = within(room2, leaf);
+    const priorLeaf = lastLeaf;
+    const rest = host.dataset.rest;
+    lastLeaf = { ...leafBox, rest };
+    const folding = priorLeaf && (priorLeaf.rest !== rest || endFoldTravel !== null);
+    const leafFrom = endFoldTravel ? getComputedStyle(leafPaint) : null;
+    const leafLeft = leafFrom ? Number.parseFloat(leafFrom.left) : priorLeaf?.left;
+    const leafTop = leafFrom ? Number.parseFloat(leafFrom.top) : priorLeaf?.top;
     setRuntimeRootStyle(
       document.documentElement,
       "--lf-panel-reach",
       layoutPx(next.height > 0 ? next.bottom + next.height : 0)
     );
-    const duration = performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
+    const duration = !folding && performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
     const moving = Boolean(was) && !reducedMotion() && pagePresented();
-    const standing = moving && fill.getAnimations().length ? clipTop(getComputedStyle(fill).clipPath) : was?.top;
+    const standing = moving && (endFoldTravel || fill.getAnimations().length) ? clipTop(getComputedStyle(fill).clipPath) : was?.top;
     const revealing = card.getAnimations().some((running) => !riding.includes(running));
     for (const running of [...riding, ...card.getAnimations()]) running.cancel();
     riding = [];
@@ -6870,17 +6891,73 @@ function createFloatingPanel({
     const lift = getComputedStyle(ground);
     const shadowReach = ["--raise-2-drop", "--raise-2-blur"].map((token) => Number.parseFloat(lift.getPropertyValue(token))).reduce((reach2, part) => reach2 + part);
     const timing = { duration, easing: EASE };
-    for (const [layer, grow] of [
+    const contours = [
       [ground, shadowReach],
       [ring, 1],
       [fill, 0]
-    ]) {
-      const from = was ? getComputedStyle(layer).clipPath : null;
+    ].map(([layer, grow]) => ({
+      layer,
+      from: was ? getComputedStyle(layer).clipPath : null,
+      to: outlineClip(next, grow)
+    }));
+    endFoldTravel?.();
+    for (const { layer, to } of contours) {
       for (const running of layer.getAnimations()) running.cancel();
-      keeps(layer, "style", `clip-path: ${outlineClip(next, grow)}`);
+      keeps(layer, "style", `clip-path: ${to}`);
+    }
+    const current = was ? clipBox(contours.at(-1).from) : null;
+    const inside = current && {
+      top: Math.max(0, current.top - next.top),
+      right: Math.max(0, current.right - next.right),
+      bottom: Math.max(0, current.bottom - next.bottom),
+      left: Math.max(0, current.left - next.left),
+      radius: current.radius
+    };
+    const reveal2 = was && (next.width > was.width + 0.5 || next.height > was.height + 0.5);
+    if (moving && folding) {
+      for (const { layer, from, to } of contours)
+        layer.style.clipPath = travellingClip(clipBox(from), clipBox(to));
+      const leafStart = leafLeft + (priorLeaf.width - leafBox.width) / 2;
+      leafPaint.style.left = between(leafStart, leafBox.left);
+      leafPaint.style.top = between(
+        leafTop + (priorLeaf.height - leafBox.height) / 2,
+        leafBox.top
+      );
+      if (reveal2)
+        card.style.clipPath = travellingClip(
+          inside,
+          { top: 0, right: 0, bottom: 0, left: 0, radius: next.radius }
+        );
+      if (rest !== "mark") {
+        const rowLeft = within(room2, row).left;
+        row.style.clipPath = `inset(${-room2.height}px 0 ${-room2.height}px ${between(
+          leafStart + leafBox.width - rowLeft,
+          leafBox.left + leafBox.width - rowLeft
+        )})`;
+      }
+      const played = scene.animate(
+        [{ "--lf-fp-fold-progress": 0 }, { "--lf-fp-fold-progress": 1 }],
+        timing
+      );
+      const finish = () => {
+        if (endFoldTravel !== finish) return;
+        endFoldTravel = null;
+        for (const { layer, to } of contours) layer.style.clipPath = to;
+        leafPaint.style.removeProperty("left");
+        leafPaint.style.removeProperty("top");
+        card.style.removeProperty("clip-path");
+        row.style.removeProperty("clip-path");
+        played.cancel();
+      };
+      endFoldTravel = finish;
+      played.finished.then(finish, () => {
+      });
+      return;
+    }
+    for (const { layer, from, to } of contours) {
       if (moving)
         layer.animate(
-          [{ clipPath: from }, { clipPath: outlineClip(next, grow) }],
+          [{ clipPath: from }, { clipPath: to }],
           timing
         );
     }
@@ -6888,14 +6965,14 @@ function createFloatingPanel({
     if (ride) {
       const lag = standing - next.top;
       const shifted = { translate: `0 ${lag}px` };
-      const rest = { translate: "0 0" };
+      const rest2 = { translate: "0 0" };
       const riders = [
         opened,
         context2,
         ...row.querySelectorAll(":scope > .lf-fp-expand"),
         ...row.querySelectorAll(".lf-composer-media:not([hidden])")
       ];
-      for (const rider of riders) riding.push(rider.animate([shifted, rest], timing));
+      for (const rider of riders) riding.push(rider.animate([shifted, rest2], timing));
       if (lag > 0)
         riding.push(
           editor.animate(
@@ -6933,14 +7010,7 @@ function createFloatingPanel({
       }
       return;
     }
-    if (next.width <= was.width + 0.5 && next.height <= was.height + 0.5) return;
-    const inside = {
-      top: Math.max(0, standing - next.top),
-      right: Math.max(0, was.right - next.right),
-      bottom: Math.max(0, was.bottom - next.bottom),
-      left: Math.max(0, was.left - next.left),
-      radius: was.radius
-    };
+    if (!reveal2) return;
     card.animate(
       [
         { clipPath: outlineClip(inside) },
@@ -8816,7 +8886,8 @@ function createFloatingPanel({
     }
   });
   function mount(parent) {
-    parent.append(ground, host);
+    scene.append(ground, host);
+    parent.append(scene);
     follow.observe(card);
     presentation2 = registerChromeThreadPresentation(host, {
       render: nominate,

@@ -25,7 +25,13 @@ from leaf import thread as thread_model
 from leaf.render_checks import one_frame, wait_until_ready
 from model_folds import leaf_page
 from playwright.sync_api import expect
-from render_cases_interaction import LIVE_V1, LIVE_V2, live_url, panel_comment
+from render_cases_interaction import (
+    HOLD_MOTION,
+    LIVE_V1,
+    LIVE_V2,
+    live_url,
+    panel_comment,
+)
 from render_cases_layout import solid_png
 from render_harness import (
     LONG_PAGE,
@@ -89,8 +95,8 @@ def floating(browser, url):
 def settled(page):
     """Wait until the panel's motion has finished, so a box read is where it rests."""
     page.wait_for_function(
-        "() => ['.lf-floating-panel', '.lf-fp-ground'].every(s =>"
-        " !document.querySelector(s).getAnimations({subtree: true}).length)"
+        "() => !document.querySelector('.lf-fp-scene')"
+        ".getAnimations({subtree: true}).length"
     )
 
 
@@ -2678,6 +2684,126 @@ def test_the_panel_folds_to_the_leaf_and_stays_folded(browser, serve):
     expect(page.locator(".lf-fp-view[data-view=threads]")).to_be_visible()
 
 
+@pytest.mark.parametrize("scheme", ["light", "dark"])
+def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
+    browser, serve, scheme
+):
+    """The mark stays visible on the contour's clock; its target and focus arrive at
+    once. Reversing takes the painted position, and reduced motion takes the endpoint."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    page = floating(browser, serve(LONG_PAGE, comments=1))
+    resized(page, 675, 898)
+    page.emulate_media(reduced_motion="no-preference", color_scheme=scheme)
+    field(page).click()
+    paste_image(field(page), solid_png(40, 30, (255, 128, 64)))
+    shelf = page.locator(".lf-fp-box .lf-composer-media-item")
+    expect(shelf).to_have_count(1)
+    page.keyboard.press("Escape")
+    settled(page)
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    panel = page.locator(".lf-floating-panel")
+    leaf = page.locator(".lf-fp-leaf")
+    mark = panel.locator(".lf-dot")
+
+    def reading():
+        return mark.evaluate("""node => {
+          const box = node.getBoundingClientRect();
+          let opacity = 1;
+          for (let at = node; at; at = at.parentElement)
+            opacity *= Number(getComputedStyle(at).opacity);
+          return {x: box.x + box.width / 2, y: box.y + box.height / 2, opacity};
+        }""")
+
+    def seek(at):
+        page.evaluate("at => __lfHeld.forEach(a => a.currentTime = at)", at)
+        one_frame(page)
+        return reading()
+
+    def paints():
+        # Anchor visibility can suppress paint even when checkVisibility(), opacity
+        # and geometry say it is shown. Read actual ink on the plain panel surface,
+        # including while the button anchoring the mark is clipped away.
+        pixels = Image.open(BytesIO(page.screenshot(clip=mark.bounding_box()))).convert(
+            "L"
+        )
+        low, high = pixels.getextrema()
+        assert high - low > 32, (low, high)
+
+    def row_follows_leaf():
+        edges = page.locator(".lf-fp-row").evaluate("""row => {
+          const sides = getComputedStyle(row).clipPath.slice(6, -1).split(' ');
+          return {words: row.getBoundingClientRect().left + parseFloat(sides[3]),
+            top: row.getBoundingClientRect().top + parseFloat(sides[0]),
+            attachment: row.querySelector('.lf-composer-media-item').getBoundingClientRect().top,
+            leaf: document.querySelector('.lf-fp-leaf-paint').getBoundingClientRect().right};
+        }""")
+        assert edges["words"] == pytest.approx(edges["leaf"], abs=0.5)
+        assert edges["top"] < edges["attachment"]
+
+    row = reading()
+    page.keyboard.press(".")
+    expect(panel).to_have_attribute("data-rest", "mark")
+    one_frame(page)
+    first = seek(0)
+    target = leaf.bounding_box()
+    assert first == pytest.approx(row, abs=0.5)
+    middle = seek(80)
+    paints()
+    folded = seek(300)
+    assert row["x"] < middle["x"] < folded["x"]
+    assert middle["opacity"] == folded["opacity"] == 1
+    assert leaf.bounding_box() == target
+    assert folded["x"] == pytest.approx(target["x"] + target["width"] / 2, abs=0.5)
+
+    # Unfold from the fully arrived corner too: the old button sits outside the
+    # card's initial reveal clip, but the travelling mark must remain painted.
+    leaf.focus()
+    page.keyboard.press("Enter")
+    expect(panel).to_have_attribute("data-rest", "row")
+    one_frame(page)
+    assert seek(0) == pytest.approx(folded, abs=0.5)
+    paints()
+    seek(80)
+    row_follows_leaf()
+    assert seek(300) == pytest.approx(row, abs=0.5)
+    page.keyboard.press(".")
+    expect(panel).to_have_attribute("data-rest", "mark")
+    one_frame(page)
+
+    # Turn back before arrival. The new tween's first frame is the old one's
+    # current paint, not either resting position, while focus takes its new target.
+    middle = seek(80)
+    leaf.focus()
+    page.keyboard.press("Enter")
+    expect(panel).to_have_attribute("data-rest", "row")
+    one_frame(page)
+    assert seek(0) == pytest.approx(middle, abs=0.5)
+    paints()
+    target = leaf.bounding_box()
+    expect(leaf).to_be_focused()
+    back = seek(80)
+    paints()
+    row_follows_leaf()
+    assert row["x"] < back["x"] < middle["x"]
+    assert back["opacity"] == 1
+    assert leaf.bounding_box() == target
+    assert seek(300) == pytest.approx(row, abs=0.5)
+
+    page.evaluate("() => __lfHeld.forEach(a => a.finish())")
+    settled(page)
+    expect(shelf).to_be_visible()
+    page.emulate_media(reduced_motion="reduce")
+    page.keyboard.press(".")
+    expect(panel).to_have_attribute("data-rest", "mark")
+    one_frame(page)
+    target = leaf.bounding_box()
+    assert reading()["x"] == pytest.approx(target["x"] + target["width"] / 2, abs=0.5)
+    assert page.locator(".lf-fp-scene").evaluate("e => e.getAnimations().length") == 0
+
+
 def test_a_new_line_past_the_field_s_height_scrolls_into_view(browser, serve):
     """Shift+Enter at the field's height limit scrolls the new, empty line into view,
     as typing a character does, rather than leaving the caret below the field."""
@@ -3033,7 +3159,7 @@ def test_a_website_copy_says_who_revises_it_and_where_leaf_comes_from(browser, s
     expect(field(page)).to_have_attribute(
         "placeholder", re.compile("^Leaf guide awaits — comment to revise this copy")
     )
-    expect(page.locator(".lf-fp-leaf .lf-dot")).to_have_class("lf-dot listening")
+    expect(page.locator(".lf-fp-leaf-paint .lf-dot")).to_have_class("lf-dot listening")
     expect(page.locator(".lf-fp-row-notice")).to_be_hidden()
     page.locator(".lf-fp-leaf").click()
     links = page.locator(".lf-fp-menu .lf-fp-state a")
@@ -3470,7 +3596,7 @@ ROW_CENTRES = """() => {
   };
   const text = document.querySelector('.lf-fp-field leaf-text').getBoundingClientRect();
   return {
-    leaf: centre('.lf-fp-leaf .lf-dot'),
+    leaf: centre('.lf-fp-leaf-paint .lf-dot'),
     line: text.bottom - 16,
     dictate: centre('.lf-fp-field .lf-compose-dictate svg'),
     send: centre('.lf-fp-field .lf-compose-submit svg'),

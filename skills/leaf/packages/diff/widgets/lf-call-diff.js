@@ -31,6 +31,8 @@ import {
   focused,
 } from "/runtime/widget-api.js";
 
+import { disclose, disclosure } from "./disclosure.js";
+
 import { diffLocationKey } from "./diff-coordinates.js";
 
 function recordsOf(document) {
@@ -127,10 +129,10 @@ function buildToolbar(owner) {
     "lf-btn lf-icon-action lf-quiet-action lf-call-toggle",
   );
   button.type = "button";
-  button.addEventListener("click", () => {
+  button.addEventListener("click", (event) => {
     const groups = [...owner.querySelectorAll(":scope > .lf-call-group")];
     const open = groups.some((group) => !group.open);
-    for (const group of groups) group.toggleAttribute("open", open);
+    for (const group of groups) disclose(group, open, event);
     updateDisclosureControl(owner);
     announce(`${open ? "Expanded" : "Collapsed"} all call-tree roots`);
   });
@@ -150,6 +152,7 @@ function buildGroup(owner, key, open) {
   group.dataset.callGroup = key;
   summary.classList.add("lf-call-group-summary");
   group.append(summary, body);
+  disclosure(group);
   group.addEventListener("toggle", () => updateDisclosureControl(owner));
   return { body, group, location, summary };
 }
@@ -322,7 +325,7 @@ customElements.define(
         if (
           children.some((node) => node.parentNode !== body && node.contains(standing))
         )
-          group.open = true;
+          disclose(group, true);
       setChildLists([
         [
           this,

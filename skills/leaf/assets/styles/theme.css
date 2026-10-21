@@ -129,6 +129,11 @@
   inherits: true;
   initial-value: 220ms;
 }
+@property --lf-motion-return {
+  syntax: "<time>";
+  inherits: true;
+  initial-value: 180ms;
+}
 @property --lf-motion-disclosure {
   syntax: "<time>";
   inherits: true;

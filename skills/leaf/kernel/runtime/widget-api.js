@@ -118,6 +118,7 @@ import {
   motion,
   onMotionPreferenceChange,
   reducedMotion,
+  returnDuration,
   scrollBehavior
 } from "./bundle-motion.js";
 import "./bundle-page-controls.js";
@@ -1813,6 +1814,7 @@ export {
   reportsReady,
   restorePlace,
   retainUserIntent,
+  returnDuration,
   revisionLabel,
   rove,
   rowArrows,

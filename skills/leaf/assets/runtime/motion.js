@@ -40,7 +40,7 @@ preference.addEventListener("change", (event) => {
 // state. Every motion this module plays shares one ease and one held-end-frame
 // contract. A duration a caller passes in is still a number this module has no reason
 // for; see AGENTS.md's "Motion".
-export function motion(el, keyframes, ms) {
+export function motion(el, keyframes, ms, pseudoElement = null) {
   // First replay happens behind the presentation boundary. Its state should be the
   // first frame the user sees, not a motion from authored state they never saw; it
   // collapses exactly as reduced motion does. This one shared check reaches folds and
@@ -48,6 +48,7 @@ export function motion(el, keyframes, ms) {
   if (reducedMotion() || !pagePresented()) return null;
   const played = el.animate(keyframes, {
     duration: ms,
+    pseudoElement,
     easing: "ease",
     fill: "forwards",
   });
@@ -99,6 +100,8 @@ export function backgroundFlash(el, ms) {
 // slot and a resolved inline thread fold over it, and a picture's zoom (media.js)
 // takes the same time.
 export const foldDuration = () => time("--lf-motion-fold");
+// A retained frame returns from an editor to its shorter reading.
+export const returnDuration = () => time("--lf-motion-return");
 
 // Give a block's room back from its ordinary CSS shape. Native intrinsic-size
 // interpolation supplies the starting height, and the other lengths start at their

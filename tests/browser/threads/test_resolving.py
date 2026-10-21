@@ -110,6 +110,114 @@ def test_inline_settlement_retains_focus_when_its_controls_are_replaced(browser,
     page.unroute("**/api/event")
 
 
+@pytest.mark.parametrize("existing_neighbors", [False, True])
+def test_inline_retirement_is_resolved_before_its_pixels_finish(
+    browser, serve, existing_neighbors
+):
+    """The outgoing room is inert; open, undo and refusal interrupt it immediately."""
+    url = serve(
+        SEATED_OBLIGATION_PAGE.replace(
+            "</main>", '<label>Later thought <input id="later"></label></main>'
+        ),
+        layer_registry=SEATED_OBLIGATION_LAYER,
+        layer_widgets=SEATED_OBLIGATION_WIDGETS,
+    )
+
+    def comment(text):
+        return append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "anchor": {"section": "jobs"},
+                "text": text,
+            },
+        )["id"]
+
+    if existing_neighbors:
+        comment("Check the earlier job's timing.")
+    root = comment("These jobs can share one visit.")
+    if existing_neighbors:
+        comment("Check the later job's timing.")
+        settled = comment("The access arrangements are settled.")
+        append_carried_log_record(
+            serve.page_dir, {"kind": "resolve", "author": "user", "parent": settled}
+        )
+    page = open_page(browser, url)
+    page.emulate_media(reduced_motion="no-preference")
+    thread = page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
+    summary = page.locator("#jobs .lf-resolved-summary")
+    # Freeze the actual retirement when it becomes inert, so assertions cover the
+    # interval before its natural finish without racing a wall-clock duration.
+    thread.evaluate("""node => new MutationObserver(() => {
+        if (!node.inert) return;
+        const animation = node.getAnimations()[0];
+        if (!animation || animation === window.retirement) return;
+        window.retirement = animation;
+        animation.pause();
+        animation.currentTime = 0;
+    }).observe(node, {attributeFilter: ['inert']})""")
+
+    def resolve():
+        if summary.count() and summary.evaluate("node => node.parentElement.open"):
+            summary.press("Enter")
+        thread.get_by_role("button", name="Resolve thread", exact=True).focus()
+        before = thread.locator("..").bounding_box()["height"]
+        page.keyboard.press("Enter")
+        expect(thread).to_have_attribute("data-resolved", "true")
+        expect(thread).to_have_attribute("inert", "")
+        expect(summary).to_be_focused()
+        expect(summary).to_contain_text(f"Resolved · {2 if existing_neighbors else 1}")
+        assert thread.evaluate("node => node.parentElement.matches('.lf-thread-seat')")
+        assert page.evaluate("window.retirement.effect.getTiming().duration") == 220
+        assert abs(thread.locator("..").bounding_box()["height"] - before) < 1
+
+    resolve()
+    round_trip(page)
+    expect_open_threads(page, 2 if existing_neighbors else 0)
+    # The summary can reveal the real card while its old room is still departing.
+    summary.press("Enter")
+    expect(thread).not_to_have_attribute("inert", "")
+    expect(thread.get_by_role("button", name="Reopen", exact=True)).to_be_visible()
+    thread.get_by_role("button", name="Reopen", exact=True).click()
+    round_trip(page)
+    resolve()
+    round_trip(page)
+    undo(page)
+    round_trip(page)
+    expect(thread).not_to_have_attribute("inert", "")
+    expect(
+        thread.get_by_role("button", name="Resolve thread", exact=True)
+    ).to_be_visible()
+    assert page.evaluate("window.retirement.playState") == "idle"
+    assert thread.evaluate("node => node.contains(document.activeElement)")
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    with page.expect_request("**/api/event"):
+        resolve()
+    held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
+    expect(thread).not_to_have_attribute("inert", "")
+    expect(
+        thread.get_by_role("button", name="Resolve thread", exact=True)
+    ).to_be_enabled()
+    assert page.evaluate("window.retirement.playState") == "idle"
+    page.unroute("**/api/event")
+
+    resolve()
+    round_trip(page)
+    # Finishing the pixels must not reclaim focus from a subsequent user move.
+    page.locator("#later").fill("Keep this thought here.")
+    page.evaluate("window.retirement.currentTime = 219")
+    before_finish = page.locator("#later").bounding_box()["y"]
+    page.evaluate("window.retirement.play()")
+    expect(thread).to_be_hidden()
+    assert abs(page.locator("#later").bounding_box()["y"] - before_finish) < 1
+    expect(thread).not_to_have_attribute("inert", "")
+    expect(page.locator("#later")).to_be_focused()
+
+
 def test_resolve_acknowledges_the_press_and_recovers_a_refusal(held_events, serve):
     """A thread's card resolves immediately and restores a refused request."""
     browser, held = held_events

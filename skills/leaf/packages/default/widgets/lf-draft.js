@@ -230,6 +230,7 @@ customElements.define(
         () => this.#editor?.value ?? this.controller.read().state.edit.value,
         "Markdown",
       );
+      this.#copy.classList.add("lf-quiet-action");
       this.#paintTools();
       this.#ensureCommands();
     }
@@ -292,7 +293,7 @@ customElements.define(
             const retry = key === "save" && this.#failed;
             const name = retry ? "Retry" : title;
             return html`<button
-              ${offered("lf-btn lf-draft-action")}
+              ${offered("lf-btn lf-quiet-action lf-draft-action")}
               data-lf-draft-action=${key}
               ?hidden=${key === "edit" ? editing : !editing}
               aria-expanded=${key === "edit" ? String(editing) : nothing}

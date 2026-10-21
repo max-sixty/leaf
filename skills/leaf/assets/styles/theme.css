@@ -129,6 +129,11 @@
   inherits: true;
   initial-value: 220ms;
 }
+@property --lf-motion-disclosure {
+  syntax: "<time>";
+  inherits: true;
+  initial-value: 120ms;
+}
 @property --lf-motion-agent-arrival {
   syntax: "<time>";
   inherits: true;
@@ -346,6 +351,9 @@
      come apart: a third copy of 1.45 is exactly the drift the reserve comment in
      chrome.css is about, and this one would show as the picker sinking again. */
   --lf-ui-lh: 1.45;
+  /* Compact toolbar controls share a height across native and vendor elements.
+     Larger transport controls keep their own size; a finger raises this floor. */
+  --lf-control-compact: max(30px, var(--aim-floor));
   --details-padding-block: 8px;
   --details-margin-block: 18px;
   --details-border: 1px;

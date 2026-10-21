@@ -6641,10 +6641,9 @@ function createFloatingPanel({
     return queues.phase === "ready" ? queues.on_user.length : 0;
   };
   const threadStatus = (thread, shownBy) => {
-    const state = thread.resolved ? "Resolved" : threadAttention(thread)?.label ?? "Open";
+    const state = thread.resolved ? "Resolved" : threadAttention(thread)?.label;
     const said = {
       unread: "New",
-      open: "Open",
       resolved: "Resolved",
       drafts: "Draft"
     }[shownBy];

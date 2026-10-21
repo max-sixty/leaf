@@ -178,7 +178,7 @@ def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser,
     for message in (first, middle, last):
         expect(card.locator(f'.lf-msg[data-event="{message["id"]}"]')).to_be_visible()
     expect(checkpoint.locator(".lf-summary-refold")).to_have_count(0)
-    expect(expand).to_have_accessible_name("Collapse 3 earlier messages")
+    expect(expand).to_have_accessible_name("Hide 3 earlier messages")
     expand.focus()
     page.keyboard.press("Enter")
     expect(expand).to_have_attribute("aria-expanded", "false")
@@ -227,7 +227,7 @@ def test_previous_progress_messages_can_fold_without_summary_prose(browser, serv
     page.keyboard.press("Enter")
     expect(card.locator(f'.lf-msg[data-event="{first["id"]}"]')).to_be_visible()
     expect(card.locator(f'.lf-msg[data-event="{last["id"]}"]')).to_be_visible()
-    checkpoint.get_by_role("button", name="Collapse 2 earlier messages").click()
+    checkpoint.get_by_role("button", name="Hide 2 earlier messages").click()
     expect(card.locator(f'.lf-msg[data-event="{first["id"]}"]')).to_be_hidden()
 
 

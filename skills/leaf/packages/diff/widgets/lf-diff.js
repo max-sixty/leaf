@@ -400,7 +400,7 @@ function commentButton(label, opened, className) {
   const file = className === "lf-diff-file-comment";
   const button = offer(
     "button",
-    `lf-diff-comment ${className}${file ? " lf-btn lf-icon-action" : ""}`,
+    `lf-diff-comment ${className}${file ? " lf-btn lf-icon-action lf-quiet-action" : ""}`,
   );
   button.type = "button";
   button.setAttribute("aria-label", `Comment on ${label}`);
@@ -632,7 +632,10 @@ function diffTools(host) {
   progress.append(count);
   // Opening every file is rare beside opening one, so it is a quiet icon after the count
   // of the files it opens rather than a labelled button of its own (shadow.css).
-  const foldAll = offer("button", "lf-btn lf-icon-action lf-diff-fold-all");
+  const foldAll = offer(
+    "button",
+    "lf-btn lf-icon-action lf-quiet-action lf-diff-fold-all",
+  );
   foldAll.type = "button";
   foldAll.slot = "end";
   foldAll.addEventListener("click", () => host.foldAll());

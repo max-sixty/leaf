@@ -795,15 +795,14 @@ export function createFloatingPanel({
     const queues = readQueues();
     return queues.phase === "ready" ? queues.on_user.length : 0;
   };
-  // A thread row's state in words, less the one the filter the list is shown by already
-  // says: under Open no row says "Open", under Unread none "New".
+  // Ordinary open state is implicit. Rows name attention, resolution, news and drafts,
+  // less the state the selected filter already says, such as "New" under Unread.
   const threadStatus = (thread, shownBy) => {
     const state = thread.resolved
       ? "Resolved"
-      : (threadAttention(thread)?.label ?? "Open");
+      : threadAttention(thread)?.label;
     const said = {
       unread: "New",
-      open: "Open",
       resolved: "Resolved",
       drafts: "Draft",
     }[shownBy];

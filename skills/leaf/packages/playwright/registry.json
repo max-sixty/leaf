@@ -2,9 +2,9 @@
   "$data": {
     "contracts": {
       "playwright-trace": {
-        "description": "A review index derived from one immutable Playwright format-9 trace archive. Times are native monotonic milliseconds within each stream; screenshots and saved accessibility trees have separate capture times.",
+        "description": "A review index derived from one immutable Playwright format-9 or format-10 trace archive. Times are native monotonic milliseconds within each stream; screenshots and saved accessibility trees have separate capture times.",
         "instructions": {
-          "producer": "Initialize a page with package playwright and bind an lf-trace widget to its source id. Import the native archive through the producer and Leaf canonical media writer: leaf package run playwright import_trace.py TRACE --page PAGE --leaf /absolute/path/to/bin/leaf --viewer-url URL | leaf data set PAGE SOURCE. The viewer URL must open the same unchanged trace.zip. Keep the original archive; its SHA-256 scopes every imported action, image and saved-tree node identity. Use a new source id for another recording. Format 9 only; other versions are refused explicitly. Review the recording for credentials and personal data before sharing. PNG checkpoints and accessibility trees are sequential captures: tree boxes describe the saved tree, not an exact pixel target in the neighboring image. Native method names and input selector, key, pointer coordinates and input-snapshot viewport dimensions are retained with action titles, timings and errors; filled values and other API parameters remain in the archive. Input may be absent, and keyboard input may have no pointer coordinates. Pointer coordinates use the native viewport, not raster-image dimensions; no point overlay is possible without that viewport. Native input events have no timestamp; the action phase records its snapshot time. DOM inspection, network, console, source, test-runner hierarchy, attachments and complete assertion results remain in the linked Playwright viewer."
+          "producer": "Initialize a page with package playwright and bind an lf-trace widget to its source id. Import the native archive through the producer and Leaf canonical media writer: leaf package run playwright import_trace.py TRACE --page PAGE --leaf /absolute/path/to/bin/leaf --viewer-url URL | leaf data set PAGE SOURCE. The viewer URL must open the same unchanged trace.zip. Keep the original archive; its SHA-256 scopes every imported action, image and saved-tree node identity. Use a new source id for another recording. The producer reads format 10 only; other archive versions are refused explicitly. Existing format-9 review indexes retain their original archive identity. Review the recording for credentials and personal data before sharing. PNG checkpoints and accessibility trees are sequential captures: tree boxes describe the saved tree, not an exact pixel target in the neighboring image. Native method names and input selector, key, pointer coordinates and input-snapshot viewport dimensions are retained with action titles, timings and errors; filled values and other API parameters remain in the archive. Input may be absent, and keyboard input may have no pointer coordinates. Pointer coordinates use the native viewport, not raster-image dimensions; no point overlay is possible without that viewport. Native input events have no timestamp; the action phase records its snapshot time. DOM inspection, network, console, source, test-runner hierarchy, attachments and complete assertion results remain in the linked Playwright viewer."
         },
         "schema": {
           "type": "object",
@@ -17,7 +17,7 @@
                   "pattern": "^[a-f0-9]{64}$"
                 },
                 "format": {
-                  "const": 9
+                  "enum": [9, 10]
                 }
               },
               "required": ["sha256", "format"],

@@ -75,18 +75,96 @@ def test_another_trace_format_refuses_before_importing_media(media_page, tmp_pat
     trace = tmp_path / "new.zip"
     with ZipFile(trace, "w") as archive:
         archive.writestr(
-            "trace.trace", json.dumps({"type": "context-options", "version": 10})
+            "trace.trace", json.dumps({"type": "context-options", "version": 11})
         )
-    with pytest.raises(PRODUCER["TraceError"], match="unsupported trace format 10"):
+    with pytest.raises(PRODUCER["TraceError"], match="unsupported trace format 11"):
         imported(trace, media_page)
     assert not list((media_page / "media").iterdir())
+
+
+def test_format_ten_call_identity_connects_input_and_phase_captures(
+    media_page, tmp_path
+):
+    """The native step identity is now callId in actions, parents and snapshots."""
+    trace = tmp_path / "identity.zip"
+    events = [
+        {"type": "context-options", "version": 10, "origin": "library"},
+        {
+            "type": "before",
+            "callId": "step@group",
+            "class": "Tracing",
+            "method": "tracingGroup",
+            "title": "Review",
+            "startTime": 1,
+        },
+        {
+            "type": "before",
+            "callId": "step@click",
+            "parentId": "step@group",
+            "class": "Frame",
+            "method": "click",
+            "startTime": 2,
+            "params": {"selector": "#approve"},
+        },
+        {"type": "input", "callId": "step@click", "point": {"x": 20, "y": 30}},
+        {
+            "type": "frame-snapshot",
+            "snapshot": {
+                "callId": "step@click",
+                "phase": "action",
+                "pageId": "page@one",
+                "isMainFrame": True,
+                "timestamp": 3,
+                "viewport": {"width": 640, "height": 480},
+            },
+        },
+        {
+            "type": "aria-snapshot",
+            "callId": "step@click",
+            "phase": "action",
+            "pageId": "page@one",
+            "timestamp": 4,
+            "file": "aria/click.json",
+        },
+        {"type": "after", "callId": "step@click", "endTime": 5},
+        {"type": "after", "callId": "step@group", "endTime": 6},
+    ]
+    with ZipFile(trace, "w") as archive:
+        archive.writestr("trace.trace", "\n".join(map(json.dumps, events)))
+        archive.writestr(
+            "aria/click.json",
+            json.dumps(
+                [
+                    {"role": "button", "name": "Approve"},
+                ]
+            ),
+        )
+    value = imported(trace, media_page)
+    action = next(
+        action for action in value["actions"] if action["callId"] == "step@click"
+    )
+    assert value["archive"]["format"] == 10
+    assert action["title"] == "Review · Frame.click"
+    assert action["endTime"] == 5
+    assert action["pageId"] == value["pages"][0]["id"]
+    assert action["input"] == {
+        "selector": "#approve",
+        "key": None,
+        "point": {"x": 20, "y": 30},
+        "viewport": {"width": 640, "height": 480},
+    }
+    phase = action["phases"]["action"]
+    assert phase["pageId"] == action["pageId"]
+    assert phase["timestamp"] == 3
+    assert phase["tree"]["timestamp"] == 4
+    assert phase["tree"]["nodes"][0]["name"] == "Approve"
 
 
 def test_native_parent_graph_omits_missing_labels_and_refuses_cycles(
     media_page, tmp_path
 ):
     """External action records may reference another chunk, but cannot contain cycles."""
-    context = {"type": "context-options", "version": 9, "origin": "library"}
+    context = {"type": "context-options", "version": 10, "origin": "library"}
     group = {
         "type": "action",
         "callId": "group",

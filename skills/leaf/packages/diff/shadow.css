@@ -215,17 +215,8 @@
 .lf-diff-file-actions:empty {
   display: none;
 }
-:is(.lf-diff-comment, .lf-diff-fold-all) {
-  border-color: transparent;
-  background: transparent;
-  color: var(--muted);
-}
 .lf-diff-file-comment {
   --lf-icon-action-hit: var(--lf-diff-action-h);
-}
-:is(.lf-diff-file-comment, .lf-diff-fold-all):is(:hover, [data-lf-focus]) {
-  background: var(--chip);
-  color: var(--ink);
 }
 .lf-diff-fold-all {
   --lf-icon-action-hit: max(24px, var(--aim-floor));

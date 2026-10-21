@@ -10,7 +10,12 @@
    the user's reply stays among the open ones, where its editor shows. The disclosure
    is where its threads' held news waits (held-news.js), and opening it shows that.
    Rejected: folding each resolved thread to a summary of its own, which repeated
-   "Resolved" once per thread and named none of them. */
+   "Resolved" once per thread and named none of them.
+
+   A newly resolved card gives its old room back through foldBlock before moving into
+   the disclosure. Its semantic placement and focus change at once; its outgoing pixels
+   are inert. Opening the disclosure, undo or refusal ends that fold immediately. HeldNews
+   still decides when a passive settlement may move the reader. */
 import { setChildren } from "../dom-children.js";
 import { html, render } from "/vendor/browser-runtime.js";
 import { seatRoot } from "./model.js";
@@ -23,6 +28,7 @@ import { holdBox } from "./reply-landing.js";
 import { HeldNews, seatNotice } from "./held-news.js";
 import { releaseReplies } from "./replies.js";
 import { passOn } from "../user-intent.js";
+import { foldBlock } from "../motion.js";
 
 const seats = new WeakMap();
 const activeSeats = new Set();
@@ -34,7 +40,7 @@ class ResolvedThreads {
   summary = document.createElement("summary");
   #threads = [];
 
-  constructor() {
+  constructor(opened) {
     this.node.className = "lf-resolved-threads lf-ui";
     this.node.dataset.lfRuntime = ""; // passages.js, leafSurface
     this.node.dataset.lfGen = "1";
@@ -43,7 +49,10 @@ class ResolvedThreads {
     // Native disclosure opens at the attribute checkpoint, before paint, so the first
     // opened body already holds what its threads held back.
     new MutationObserver(() => {
-      if (this.node.open) for (const thread of this.#threads) thread.news?.open();
+      if (this.node.open) {
+        opened();
+        for (const thread of this.#threads) thread.news?.open();
+      }
     }).observe(this.node, { attributeFilter: ["open"] });
   }
 
@@ -58,12 +67,10 @@ class ResolvedThreads {
         : (held[0]?.label ?? null);
     render(
       html`Resolved ·
-      ${threads.length}${
-        notice
-          ? html` ·
-              <span class="lf-thread-notice lf-thread-notice-news">${notice}</span>`
-          : ""
-      }`,
+      ${threads.length}${notice
+        ? html` ·
+            <span class="lf-thread-notice lf-thread-notice-news">${notice}</span>`
+        : ""}`,
       this.summary,
     );
     setChildren(this.node, [this.summary, ...nodes]);
@@ -73,6 +80,8 @@ class ResolvedThreads {
 class ThreadSeat {
   #views = new Map();
   #resolved = null;
+  #folding = new Map();
+  #place = () => {};
   #model = EMPTY;
   #shown = EMPTY;
   #committed = EMPTY;
@@ -107,7 +116,10 @@ class ThreadSeat {
     )?.node;
     const gathered =
       this.#resolved && standingIn(this.#resolved.summary)
-        ? [...this.#resolved.node.children].slice(1)
+        ? [
+            ...[...this.#resolved.node.children].slice(1),
+            ...[...this.#folding.values()].map(({ node }) => node),
+          ]
         : [];
     this.#model = model;
     // A reading with no surface, a first-message box drawn before its seat's threads,
@@ -143,28 +155,93 @@ class ThreadSeat {
         releaseReplies(view.node);
         view.retire();
       }
-    const nodes = [];
-    const settled = [];
+    const settled = shown.threads.filter(
+      (thread) => thread.surface !== "margin" && thread.resolved && !thread.reply,
+    );
+    // The disclosure owns semantic placement immediately. Only the old room stays
+    // outside it while folding, inert so no outgoing control remains actionable.
+    if (!settled.length) this.#resolved = null;
+    else
+      this.#resolved ??= new ResolvedThreads(() => {
+        if (!this.#folding.size) return;
+        for (const key of this.#folding.keys()) this.#stopFold(key);
+        this.present(this.#model);
+      });
+    for (const key of this.#folding.keys())
+      if (!settled.some((thread) => thread.key === key) || this.#resolved?.node.open)
+        this.#stopFold(key);
+    const departing = settled.filter((thread) => {
+      const was = prior.threads.find(({ key }) => key === thread.key);
+      return (
+        was &&
+        !was.resolved &&
+        !this.#resolved.node.open &&
+        this.#views.get(thread.key)?.node.parentElement === this.node
+      );
+    });
+    const priorSize = departing.length ? this.node.getBoundingClientRect().height : 0;
     for (const descriptor of shown.threads) {
       let view = this.#views.get(descriptor.key);
       if (!view)
         this.#views.set(descriptor.key, (view = new ThreadView(this.#commands)));
+      const resolved = settled.includes(descriptor);
       view.setMarginControls(this.#marginControls);
       view.present(descriptor);
-      if (descriptor.surface !== "margin" && descriptor.resolved && !descriptor.reply)
-        settled.push(descriptor);
-      else nodes.push(view.node);
-    }
-    // The disclosure goes with its last thread, so one that comes again starts closed.
-    if (!settled.length) this.#resolved = null;
-    else {
-      this.#resolved ??= new ResolvedThreads();
-      this.#resolved.present(
-        settled,
-        settled.map(({ key }) => this.#views.get(key).node),
+      view.setFoldedInto(
+        resolved ? this.#resolved.node : null,
+        this.#folding.get(descriptor.key)?.played?.finished,
       );
-      nodes.push(this.#resolved.node);
+      if (departing.includes(descriptor)) {
+        view.node.inert = true;
+        this.#folding.set(descriptor.key, { node: view.node, played: null });
+      }
     }
+    const place = () => {
+      const nodes = shown.threads.flatMap((thread) =>
+        !settled.includes(thread) || this.#folding.has(thread.key)
+          ? [this.#views.get(thread.key).node]
+          : [],
+      );
+      if (settled.length) {
+        this.#resolved.present(
+          settled,
+          settled
+            .filter(({ key }) => !this.#folding.has(key))
+            .map(({ key }) => this.#views.get(key).node),
+        );
+        nodes.push(this.#resolved.node);
+      }
+      setChildren(this.node, foot ? [...nodes, foot] : nodes);
+    };
+    this.#place = place;
+    place();
+    let immediate = false;
+    for (const { key } of departing) {
+      const retirement = this.#folding.get(key);
+      const played = foldBlock(retirement.node, { container: this.node, priorSize });
+      if (!played) {
+        this.#folding.delete(key);
+        retirement.node.inert = false;
+        immediate = true;
+        continue;
+      }
+      retirement.played = played;
+      this.#views.get(key).setFoldedInto(this.#resolved.node, played.finished);
+      played.finished.then(
+        () => {
+          if (this.#folding.get(key) !== retirement) return;
+          this.#folding.delete(key);
+          // Only pixels finish here; the model and focus already reached their final
+          // state. Place the retained nodes without repainting or taking a new reading
+          // position from the outgoing card's temporarily restored intrinsic size.
+          played.cancel();
+          retirement.node.inert = false;
+          this.#place();
+        },
+        () => {},
+      );
+    }
+    if (immediate) place();
     // Where settling would draw each card: a resolved thread that reopens takes its place
     // among the open ones, before the next of them or the disclosure; an open one that
     // resolves joins the disclosure.
@@ -181,7 +258,6 @@ class ThreadSeat {
         view.setSettlesAt(() => before);
       }
     }
-    setChildren(this.node, foot ? [...nodes, foot] : nodes);
     this.claim();
     // The seat's own box gives way to the thread its message started, and the user stands
     // on that thread, where any send leaves them (`landSent`). Threads the seat held back
@@ -203,14 +279,25 @@ class ThreadSeat {
     if (
       fold &&
       !fold.node.open &&
-      fold.node.contains(stoodIn ?? null) &&
-      (!now || now === document.body || (standingIn(fold.node) && now !== fold.summary))
+      (fold.node.contains(stoodIn ?? null) ||
+        [...this.#folding.values()].some(({ node }) => node === stoodIn)) &&
+      (!now ||
+        now === document.body ||
+        standingIn(stoodIn) ||
+        (standingIn(fold.node) && now !== fold.summary))
     ) {
       focusDestination(fold.summary, "return");
-      passOn(fold.node, fold.summary);
+      passOn(stoodIn, fold.summary);
     }
     restoreBox();
     if (!batch) this.commit();
+  }
+
+  #stopFold(key) {
+    const { node, played } = this.#folding.get(key);
+    this.#folding.delete(key);
+    node.inert = false;
+    played.cancel();
   }
 
   // Each thread the seat shows takes the reply being written in it where no view holds
@@ -241,6 +328,7 @@ class ThreadSeat {
   prune() {
     if (!this.#connected || this.node.isConnected) return false;
     this.#held?.dispose();
+    for (const key of this.#folding.keys()) this.#stopFold(key);
     for (const view of this.#views.values()) view.dispose();
     this.#views.clear();
     return true;

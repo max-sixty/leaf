@@ -371,11 +371,16 @@ export class ThreadView {
     this.#paint(this.#received);
   }
 
-  // What holds the card folded away: the closed Resolved disclosure its seat gathers it
-  // in (inline.js).
+  // The seat owns placement, including while the card's outgoing pixels still fold
+  // outside its Resolved disclosure. Landing and held news read that same placement.
+  #foldedInto = null;
+  #retirement = null;
+  setFoldedInto(group, retirement = null) {
+    this.#foldedInto = group;
+    this.#retirement = retirement;
+  }
   get #fold() {
-    const group = this.node.parentElement;
-    return group?.matches(".lf-resolved-threads:not([open])") ? group : null;
+    return this.#foldedInto && !this.#foldedInto.open ? this.#foldedInto : null;
   }
 
   // Where the seat's flow would grow if the card's settlement changed (inline.js), read
@@ -848,13 +853,21 @@ export class ThreadView {
       source: this.node,
       available: () => this.node.isConnected,
     });
-    const land = (may = mayLand) => {
+    const land = async (may = mayLand, reverse = false) => {
+      // The summary is semantically available at once, but a long departing card
+      // still puts it below the viewport. Keep this gesture's original authority
+      // while its pixels leave; a later user move still vetoes the landing.
+      await this.#retirement?.catch(() => {});
       const place = this.#fold?.querySelector(":scope > summary") ?? this.node;
-      if (!may() || !standingIn(place)) return false;
+      if (!may()) return false;
+      // An existing resolved group survives when this card returns. Its summary
+      // cannot hand focus back by disappearing, so the reversal owns that handoff.
+      if (reverse) may.handoff(() => focusDestination(place, "return"));
+      if (!standingIn(place)) return false;
       scrollThreadIntoView(place, focused());
       return true;
     };
-    return { optimistic: () => land(), reverse: land };
+    return { optimistic: () => land(), reverse: (may) => land(may, true) };
   };
 
   #createReply(model) {

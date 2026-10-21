@@ -23,7 +23,7 @@ def test_native_trace_import_keeps_pixels_pages_action_errors_and_saved_tree_ide
     assert native_trace.read_bytes() == original
     assert value["archive"] == {
         "sha256": hashlib.sha256(original).hexdigest(),
-        "format": 9,
+        "format": 10,
     }
     assert len(value["pages"]) == 2
     assert any(action["title"] == "Review docs" for action in value["actions"])
@@ -189,7 +189,7 @@ def test_native_trace_import_keeps_pixels_pages_action_errors_and_saved_tree_ide
 def test_multiple_native_streams_and_complete_action_records_keep_distinct_identities(
     native_trace, media_page, tmp_path
 ):
-    """Format-9's complete action shape uses the same facts as before/after.
+    """Format-10's complete action shape uses the same facts as before/after.
 
     Playwright's loader accepts both shapes. Build complete records from the native
     capture's own action facts and combine two streams, rather than storing binary

@@ -110,13 +110,23 @@ export const foldDuration = () => time("--lf-motion-fold");
 // Without intrinsic interpolation, which Firefox and WebKit lack, use the caller's
 // immediate retirement path rather than a discrete height jump half way through an
 // opacity animation.
-export function foldBlock(el) {
+// When retiring also replaces adjacent UI, the container's prior allocation supplies
+// the starting room: its final composition may replace an editor with a disclosure.
+// Account for that difference in the retiring block's size, so the first
+// frame preserves the container's old size and one fold gives back the net room.
+// Unlike trailing margins, this room cannot collapse against a live neighbor's gap.
+// The caller measures only the container before composing; this owner reads the new
+// allocation, so consumers share the geometry rule.
+export function foldBlock(el, allocation = null) {
   if (!CSS.supports("block-size", "calc-size(auto, size)")) return null;
+  const adjustment = allocation
+    ? allocation.priorSize - allocation.container.getBoundingClientRect().height
+    : 0;
   return motion(
     el,
     [
       {
-        blockSize: "calc-size(auto, size)",
+        blockSize: `calc-size(auto, size + ${adjustment}px)`,
         display: "block",
         overflow: "clip",
         opacity: 1,

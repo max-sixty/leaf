@@ -42,13 +42,14 @@ function backgroundFlash(el, ms) {
   return motion(el, [{ backgroundColor: "var(--hi-tint)", offset: 0 }], ms);
 }
 var foldDuration = () => time("--lf-motion-fold");
-function foldBlock(el) {
+function foldBlock(el, allocation = null) {
   if (!CSS.supports("block-size", "calc-size(auto, size)")) return null;
+  const adjustment = allocation ? allocation.priorSize - allocation.container.getBoundingClientRect().height : 0;
   return motion(
     el,
     [
       {
-        blockSize: "calc-size(auto, size)",
+        blockSize: `calc-size(auto, size + ${adjustment}px)`,
         display: "block",
         overflow: "clip",
         opacity: 1

@@ -76,7 +76,7 @@ rule. The playground that compared them operably is in history at `29966712b`
 | Redo on `Z`        | Puts back what an undo took, as Vim's Ctrl-R does, until the user's next change and while it would still show | Large |
 | Changes panel      | Every gesture the user made, newest first, each with Undo, and Redo once redo exists                          | Large |
 
-The user's pick: **Show, then take** with **Say what `z` takes**, since it sets no
+The user's pick: **Show, then take** with **Say what `z` takes**, which sets no
 limit and never acts where the user isn't looking. On the decisions page it read:
 "when the gesture's target is out of view, or the agent has already acted on it,
 the first z scrolls to it and highlights it (“Press z again to undo”), and the

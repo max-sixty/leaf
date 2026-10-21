@@ -6307,7 +6307,10 @@ var width = (box) => box.right - box.left;
 var height = (box) => box.bottom - box.top;
 var same3 = (a, b) => ["left", "top", "right", "bottom"].every((side) => near(a[side], b[side]));
 var between = (from, to, progress) => Object.fromEntries(
-  Object.keys(to).map((side) => [side, from[side] + (to[side] - from[side]) * progress])
+  Object.keys(to).map((side) => [
+    side,
+    from[side] + (to[side] - from[side]) * progress
+  ])
 );
 var shifted = (box, dx, dy) => ({
   left: box.left + dx,
@@ -6321,7 +6324,14 @@ var paints = (style) => !/^(transparent|rgba\(.*,\s*0\))$/.test(style.background
   (side) => Number.parseFloat(style[`border${side}Width`]) > 0
 );
 var rings = (style) => style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) > 0;
-function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], observer }) {
+function boxMotion({
+  root,
+  box,
+  room,
+  surface,
+  ring: [ringLayer, ringFill],
+  observer
+}) {
   let rests = null;
   let motions = /* @__PURE__ */ new Map();
   let running = [];
@@ -6361,6 +6371,7 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
     const at = /* @__PURE__ */ new Map();
     for (const [element, rest] of rests) {
       const motion = motions.get(element);
+      if (motion?.revealed && progress < 1) continue;
       let where = motion ? between(motion.from, motion.to, progress) : rest;
       for (let up = element.parentElement; up && up !== root; up = up.parentElement)
         if (motions.get(up)?.carries) where = shifted(where, ...offset(up));
@@ -6368,9 +6379,16 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
     }
     return at;
   }
+  new MutationObserver((records2) => {
+    for (const record of records2)
+      for (const node of record.type === "childList" ? record.addedNodes : [record.target])
+        if (node instanceof Element && !observed.has(node)) {
+          observed.add(node);
+          observer.observe(node);
+        }
+  }).observe(root, { subtree: true, childList: true, attributeFilter: ["hidden"] });
   function follow(timing) {
-    const before = rests;
-    const was = timing && before ? drawn2() : null;
+    const was = timing && rests ? drawn2() : null;
     for (const animation of running) animation.cancel();
     running = [];
     motions = /* @__PURE__ */ new Map();
@@ -6382,8 +6400,10 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
       part.parts.forEach(note);
     };
     parts.forEach(note);
-    for (const element of observed) if (!rests.has(element)) observer.unobserve(element);
-    for (const element of rests.keys()) if (!observed.has(element)) observer.observe(element);
+    for (const element of observed)
+      if (!rests.has(element)) observer.unobserve(element);
+    for (const element of rests.keys())
+      if (!observed.has(element)) observer.observe(element);
     observed = new Set(rests.keys());
     const space = boxOf(room.getBoundingClientRect());
     const outline = (at, grow, radius) => insetOf(
@@ -6451,14 +6471,15 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
         side(to.bottom - frame.from.bottom, to.bottom > frame.to.bottom + 0.5),
         side(frame.from.left - to.left, to.left < frame.to.left - 0.5)
       ];
-      if (!cut.every((inset) => near(inset, 0))) cutFrom(part.element, cut);
+      if (cut.every((inset) => near(inset, 0))) return;
+      motions.set(part.element, { from: to, to, revealed: true });
+      cutFrom(part.element, cut);
     }
     function place3(part, frame) {
       const { element, style, box: to } = part;
       const from = was.get(element);
       if (!from) return reveal2(part, frame);
-      const rest = before.get(element);
-      const sized = near(width(rest), width(to)) && near(height(rest), height(to));
+      const sized = near(width(from), width(to)) && near(height(from), height(to));
       let within = frame;
       if (element !== box && element !== root) {
         if (sized && !part.holdsWindow) return carry(part, from);
@@ -6470,8 +6491,8 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
         if (!sized && rings(style)) {
           const grow = Number.parseFloat(style.outlineWidth) + Number.parseFloat(style.outlineOffset);
           const radius = radiusOf(style);
-          hold(element, "outlineColor", "transparent");
           keeps(ringLayer, "style", `background: ${style.outlineColor}`);
+          hold(element, "outlineColor", "transparent");
           for (const [layer, reach2] of [
             [ringLayer, grow],
             [ringFill, 0]

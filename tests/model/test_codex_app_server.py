@@ -1575,7 +1575,9 @@ def test_a_stream_reply_finishes_when_its_diagnostic_sink_is_unwritable(page_dir
         },
     )
     # The diagnostic file cannot be opened, while normal page writes remain valid.
-    (page_dir / interaction_log_model.INTERACTIONS_FILE).mkdir()
+    sink = page_dir / interaction_log_model.INTERACTIONS_FILE
+    sink.unlink(missing_ok=True)
+    sink.mkdir()
     assert stream.restore("The complete answer.")
     reply = read_record(page_dir / "stream.json")["reply"]
     assert reply["text"] == "The complete answer."

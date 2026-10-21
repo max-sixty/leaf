@@ -2332,9 +2332,8 @@ def test_a_resize_owns_its_layout_before_its_event_dispatches(browser):
 # press's rendering is still open when the news lands. What moves the line is the
 # page's `data-motion`: the news growing a box above it (none), the news beginning a
 # bar's slide above it (`news`), or the press beginning that slide, which runs on past
-# news that moves nothing (`press`). The height slide is a conservative sensor
-# boundary: native height-induced sibling flow has no exact translation proof.
-# The matched marginTop arm proves press/news ownership with supported displacement.
+# news that moves nothing (`press`). The matched marginTop arm checks the same
+# ownership with translation instead of size-induced flow.
 NEWS = """<!doctype html><body style="margin:0">
 <script data-lf-entry>document.currentScript.lfRenderingState = () => ({updatesSettled: false, preparationsSettled: true});</script>
 <button id="press">Press</button>
@@ -2388,8 +2387,8 @@ def test_news_just_after_a_press_moves_nothing(browser, motion, work_ms):
     consume_browser_errors(page, moved_within("div#below"))
 
 
-def test_native_height_sibling_flow_without_displacement_proof_is_reported(browser):
-    """The sensor reports genuine native flow it cannot attribute, rather than guessing."""
+def test_press_owned_native_height_flow_is_credited(browser):
+    """A press-owned size animation carries a later box in the same flow."""
     page = news_page(browser, "press")
     assert page.evaluate("parseFloat(getComputedStyle(bar).height)") > 0
     assert (
@@ -2397,7 +2396,35 @@ def test_native_height_sibling_flow_without_displacement_proof_is_reported(brows
         > page.locator("#bar").bounding_box()["y"]
     )
     judge_watches()
-    consume_browser_errors(page, moved_within("div#below"))
+    assert take_browser_errors(page) == []
+
+
+def test_absolute_size_animation_cannot_credit_an_independent_control_move(browser):
+    """Matching travel does not join an out-of-flow effect to a later control."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0">'
+            '<button id="start">Start</button>'
+            '<div id="size" style="position:absolute;height:0;width:20px"></div>'
+            '<button id="control" style="position:relative">Control</button>'
+            '<script>start.addEventListener("pointerdown", () => {'
+            'window.effect = size.animate([{height:"0px"}, {height:"120px"}],'
+            '{duration:400, fill:"forwards"});'
+            'effect.playbackRate = 0; effect.currentTime = 0;});</script>'
+        )
+    )
+    page.evaluate("document.body.setAttribute('data-lf-presented', '')")
+    page.locator("#start").click()
+    assert page.evaluate("effect.playState") == "running"
+    paint(page)
+    page.evaluate("""() => {
+      effect.currentTime = 400;
+      control.style.top = '120px';
+    }""")
+    judge_watches()
+    consume_browser_errors(page, moved_within("button#control"))
 
 
 @pytest.mark.parametrize("motion", ["press", "news"])

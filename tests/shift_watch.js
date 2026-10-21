@@ -60,9 +60,9 @@
 // task that settles it until the loop settles again, and nothing while it waits. It
 // began one only when its declaration carries that input's exact callback source.
 // Native effects it began retain their sampled displacement within their subtree.
-// A native size animation also credits a later box only when that box's travel
-// matches the animated box's measured size change; its continued lifetime
-// never owns unrelated page movement.
+// A native size animation also credits a later box when its size change travels
+// through the layout path to that box and matches its movement. Its continued
+// lifetime never owns unrelated page movement.
 // Native scroll effects belong to their retained scroll source, regardless of the
 // gesture that created them. Stable timeline bindings and translation trajectories
 // credit only source-collinear travel bounded by that source's viewport scroll.
@@ -988,11 +988,7 @@
           start: time,
           nodes,
           motion: animations.filter(
-            (animation) =>
-              animated.get(animation)?.at(-1)?.scroll ||
-              animationProperties(animation).some((property) =>
-                SIZE_GEOMETRY.has(property),
-              ),
+            (animation) => animated.get(animation)?.at(-1)?.scroll,
           ),
           complete: true,
         }
@@ -2242,6 +2238,33 @@
         }
       : null;
   };
+  const inFlow = (element) => {
+    const style = getComputedStyle(element);
+    return !["absolute", "fixed"].includes(style.position) && style.float === "none";
+  };
+  const sizeReaches = (target, element, from, to, axis, change) => {
+    const size = axis === "top" ? "height" : "width";
+    let branch = target;
+    while (branch.parentElement && !branch.parentElement.contains(element)) {
+      if (!inFlow(branch)) return false;
+      branch = branch.parentElement;
+      const before = boxAt(branch, from),
+        after = boxAt(branch, to);
+      if (!before || !after || Math.abs(after[size] - before[size] - change) >= 1)
+        return false;
+    }
+    if (!inFlow(branch) || !branch.parentElement) return false;
+    let follower = element;
+    while (follower.parentElement !== branch.parentElement) {
+      if (!inFlow(follower) || !follower.parentElement) return false;
+      follower = follower.parentElement;
+    }
+    return (
+      inFlow(follower) &&
+      branch !== follower &&
+      !!(branch.compareDocumentPosition(follower) & Node.DOCUMENT_POSITION_FOLLOWING)
+    );
+  };
   const animationMotion = (node, from, to, animations) => {
     const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
     const motion = { left: 0, top: 0, terms: [] };
@@ -2251,9 +2274,8 @@
       const target = animation.effect.target;
       if (!target) continue;
       if (!ancestryAt(element, to).includes(target)) {
-        // A size animation can move boxes after its target. Credit only travel
-        // matching the target's measured size change; unrelated writes do not
-        // inherit credit merely because an animation is running.
+        // A size animation can move boxes later in its flow. The size change
+        // must propagate through its ancestors to a following in-flow branch.
         const properties = animationProperties(animation);
         if (
           !properties.some((property) => SIZE_GEOMETRY.has(property)) ||
@@ -2269,7 +2291,11 @@
         for (const axis of ["left", "top"]) {
           const size = axis === "top" ? "height" : "width";
           const change = after[size] - before[size];
-          if (Math.abs(change) < 1 || Math.abs(last[axis] - first[axis] - change) >= 1)
+          if (
+            Math.abs(change) < 1 ||
+            Math.abs(last[axis] - first[axis] - change) >= 1 ||
+            !sizeReaches(target, element, from, to, axis, change)
+          )
             continue;
           credit(motion, "animation_reflow", target, axis, change, {
             before,

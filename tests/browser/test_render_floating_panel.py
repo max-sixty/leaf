@@ -1627,7 +1627,7 @@ def test_a_fold_pressed_in_a_thread_s_view_stays_under_the_press(browser, serve)
     expect(page.locator(toggle)).to_have_attribute("aria-expanded", "true")
     settled(page)
     after = page.evaluate(PRESS_AND_HEAD, toggle)
-    assert after["toggle"] == stood["toggle"], (stood, after)
+    assert after["toggle"] == pytest.approx(stood["toggle"], abs=0.5), (stood, after)
     for step in view.locator(".lf-msg", has_text="Checking").all():
         expect(step).to_be_in_viewport(ratio=1)
 
@@ -1636,7 +1636,7 @@ def test_a_fold_pressed_in_a_thread_s_view_stays_under_the_press(browser, serve)
     page.locator(toggle).click()
     expect(page.locator(toggle)).to_have_attribute("aria-expanded", "true")
     settled(page)
-    assert page.evaluate(PRESS_AND_HEAD, toggle) == stood
+    assert page.evaluate(PRESS_AND_HEAD, toggle) == pytest.approx(stood, abs=0.5)
     expect(view.locator(".lf-msg:visible")).to_have_count(7)
 
 

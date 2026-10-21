@@ -31,6 +31,7 @@ def test_revendor_preserves_pending_input_for_the_current_claim(claimed, capsys)
     theme.write_text(theme.read_text() + "\n/* repair installed edit */\n")
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(claimed)])
     assert result.exit_code == 0, result.output
+    assert "repair installed edit" not in theme.read_text()
     assert service_model.page_claim(claimed) == prior_claim
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}

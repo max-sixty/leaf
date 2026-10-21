@@ -1563,9 +1563,14 @@ def test_wide_evidence_in_a_part_takes_the_room_it_would_on_a_page_of_its_own(
 def test_the_list_of_parts_lands_its_last_name_above_the_floating_row(browser, serve):
     """The list of parts runs to the window's foot, under the floating panel's row where
     a narrow window puts the row over the column. A name the keyboard moves to still
-    lands above the row, as a landing in the page does."""
+    lands above the row, as a landing in the page does. The window leaves the list
+    100 px between its title and the row, whatever height the host's fonts give the
+    title, so the list scrolls to reach its last name."""
     page = open_page(browser, serve(ROOT_PARTS_PAGE))
-    resized(page, 800, 500)
+    resized(page, 800, 900)
+    title = page.locator("main > header").bounding_box()
+    under_row = 900 - page.locator(".lf-fp-row").bounding_box()["y"]
+    resized(page, 800, round(title["y"] + title["height"] + 100 + under_row))
     tabs = page.locator("#root-parts")
     tabs.get_by_role("tab", name="Plan", exact=True).focus()
     page.keyboard.press("End")

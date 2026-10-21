@@ -28,6 +28,7 @@ from leaf.files import revision_path
 from leaf.state import session_record
 from leaf_dev import ROOT, startup
 from leaf_dev.commands import journey, journey_chart, refresh_previews, verify_site
+from leaf_dev.reply_phases import turn_phases
 from process.website_server import (  # noqa: F401
     _no_harness_outlives_its_test_fixture,
     accept_in_turn,
@@ -534,9 +535,6 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
     refused = runner.invoke(journey.journey, ["website-adapter", "--http"])
     assert refused.exit_code == 2
     assert "a website's journey is its page in a browser" in refused.output
-    refused = runner.invoke(journey.journey, ["website-adapter", "--hooks-module"])
-    assert refused.exit_code == 2
-    assert "--hooks-module is an option of claude-code" in refused.output
     for target in ("website-adapter", "claude-code", "pi"):
         refused = runner.invoke(journey.journey, [target, "--preview"])
         assert refused.exit_code == 2
@@ -607,8 +605,8 @@ def test_the_journey_chart_draws_each_targets_latest_version_from_kept_samples()
         sample("codex-app-server", old, 4700, 200, None, 69600),
         sample("claude-code", new, 1300, 7000, 6900, 18600),
         sample("codex-app-server", old, 4600, 300, None, 102900),
-        # The hooks module is a row of its own, at its own latest version.
-        sample("claude-code", old, 1300, 7000, 6900, 15000, hooksModule=True),
+        # A user end over HTTP is a row of its own, at its own latest version.
+        sample("claude-code", old, 1300, 7000, 6900, 15000, userEnd="http"),
         # Each local run serves on a port of its own, but is the same target.
         sample(adapter, old, 900, 300, None, 30000, origin="http://127.0.0.1:8080"),
         sample(adapter, new, 800, 300, None, 25000, origin="http://127.0.0.1:9090"),
@@ -626,7 +624,7 @@ def test_the_journey_chart_draws_each_targets_latest_version_from_kept_samples()
     rows = journey_chart.chart_rows([*samples, unstepped])
     assert {r["row"] for r in rows} == {
         "Claude Code at bbbbbbbb+working-tree",
-        "Claude Code with the hooks module at aaaaaaaa",
+        "Claude Code over HTTP at aaaaaaaa",
         "Codex App Server at aaaaaaaa",
         "website-adapter at bbbbbbbb+working-tree",
     }
@@ -641,7 +639,7 @@ def test_the_journey_chart_draws_each_targets_latest_version_from_kept_samples()
     # A step the run never reached draws no dot.
     assert [r["row"] for r in rows if r["sign"] == "progress"] == [
         "Claude Code at bbbbbbbb+working-tree",
-        "Claude Code with the hooks module at aaaaaaaa",
+        "Claude Code over HTTP at aaaaaaaa",
     ]
     assert json.dumps(rows) in markup
 
@@ -1233,7 +1231,7 @@ def test_an_agent_turn_splits_into_delivery_model_and_tool_phases():
     ]
     # Delivery ends at the opened pickup, not at the first record the harness sends
     # after admission: a tool result of a turn already running is no delivery.
-    assert journey.turn_phases(stream, comment["ts"], at(0.5), reply["ts"]) == [
+    assert turn_phases(stream, comment["ts"], at(0.5), reply["ts"]) == [
         {"phase": "delivery", "startMs": 0, "ms": 500},
         {"phase": "model", "startMs": 500, "ms": 3500},
         {
@@ -1252,7 +1250,7 @@ def test_an_agent_turn_splits_into_delivery_model_and_tool_phases():
             "calls": ["leaf response reply 62af9e31:0:test-comment"],
         },
     ]
-    assert journey.turn_phases(stream, comment["ts"], None, reply["ts"]) == []
+    assert turn_phases(stream, comment["ts"], None, reply["ts"]) == []
 
 
 def test_the_agent_pass_waits_out_an_allocation_the_rollout_has_not_reached(

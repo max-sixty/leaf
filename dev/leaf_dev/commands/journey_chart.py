@@ -1,11 +1,22 @@
-"""Chart the latest journey samples kept on this machine."""
+"""Chart the latest journey samples kept on this machine, or tabulate their replies.
+
+The chart draws when each sign of the release ask came. The table (`--replies`)
+gives, for each target and case (`journey.CASES`, the harness waiting or working
+when the release ask reaches it), the whole reply and Leaf's share of it, beside
+the harness's other work before it took the comment, the reply after that, and the
+model calls the reply took (`reply_phases.reply_breakdown`), as ranges over the
+kept samples of the latest version each target ran in each case, or with `--since`
+over every sample kept since then, for a batch whose commits leave the plugin
+unchanged.
+"""
 
 import json
 import re
+from datetime import datetime
 
 import click
 
-from leaf_dev.commands.journey import samples_path
+from leaf_dev.commands.journey import CASES, samples_path
 
 # Exact-input milestones on the page server's clock, from comment admission.
 SIGNS = (
@@ -31,25 +42,83 @@ def chart_target(sample: dict) -> str:
     user's end where that is not a browser."""
     return (
         TARGET_NAMES.get(sample["target"], sample["target"])
-        + (" with the hooks module" if sample.get("hooksModule") else "")
         + (" through a preview" if sample.get("preview") else "")
         + (" over HTTP" if sample.get("userEnd") == "http" else "")
     )
 
 
-def chart_rows(samples: list[dict]) -> list[dict]:
+def latest(samples: list[dict]) -> list[dict]:
+    """The samples of the latest version each chart row's target ran in each case.
+    Samples kept before the journey ran its steps (`steps`) are left out: their
+    targets had other names, and their Claude Code ran headless."""
+
+    def row(sample: dict) -> tuple[str, str]:
+        return chart_target(sample), sample.get("case", "waiting")
+
+    samples = [sample for sample in samples if "steps" in sample]
+    versions = {row(sample): sample["version"] for sample in samples}
+    return [s for s in samples if s["version"] == versions[row(s)]]
+
+
+def chosen(samples: list[dict], since: datetime | None) -> list[dict]:
+    """The samples a chart or table reads: those kept since `since`, else the
+    latest version's (`latest`)."""
+    if since is None:
+        return latest(samples)
+    return [
+        sample
+        for sample in samples
+        if "steps" in sample and datetime.fromisoformat(sample["at"]) >= since
+    ]
+
+
+def reply_table(samples: list[dict], since: datetime | None = None) -> str:
+    """A Markdown table of each target's replies in each case, in seconds."""
+    replies: dict[tuple[str, str], list[dict]] = {}
+    for sample in chosen(samples, since):
+        if "case" in sample and (reply := sample["comment"].get("reply")):
+            key = (chart_target(sample), sample["case"])
+            replies.setdefault(key, []).append(reply)
+
+    def span(values: list[float]) -> str:
+        low, high = min(values), max(values)
+        return (
+            f"{low:.1f}" if f"{low:.1f}" == f"{high:.1f}" else f"{low:.1f}–{high:.1f}"
+        )
+
+    def seconds(group: list[dict], key: str) -> str:
+        return span([reply[key] / 1000 for reply in group])
+
+    lines = [
+        (
+            "| Target | Case | Runs | Whole reply | Leaf's share | Harness busy first "
+            "| After the boundary | Model calls | Model time |"
+        ),
+        "| --- | --- | --: | --: | --: | --: | --: | --: | --: |",
+    ]
+    for (target, case), group in sorted(
+        replies.items(), key=lambda item: (item[0][0], CASES.index(item[0][1]))
+    ):
+        calls = [len(reply["modelCalls"]) for reply in group]
+        lines.append(
+            f"| {target} | {case} | {len(group)} | {seconds(group, 'wholeMs')} "
+            f"| {seconds(group, 'leafMs')} | {seconds(group, 'busyMs')} "
+            f"| {span([(r['wholeMs'] - r['busyMs']) / 1000 for r in group])} "
+            f"| {min(calls)}–{max(calls)} | {seconds(group, 'modelMs')} |"
+        )
+    return "\n".join(lines)
+
+
+def chart_rows(samples: list[dict], since: datetime | None = None) -> list[dict]:
     """One dot per sign each sample's release ask saw, for the latest version each
     target ran, with its options. A release ask the user answered a permission
     prompt during has a row of its own, since the prompt held the session for as
-    long as it stood. Samples kept before the journey ran its steps (`steps`) are
-    left out: their targets had other names, and their Claude Code ran headless."""
-    samples = [sample for sample in samples if "steps" in sample]
-    latest = {chart_target(sample): sample["version"] for sample in samples}
+    long as it stood (`latest` says which samples it reads)."""
     rows = []
-    for sample in samples:
-        name = chart_target(sample)
-        if sample["version"] != latest[name]:
-            continue
+    for sample in chosen(samples, since):
+        name = chart_target(sample) + (
+            " while working" if sample.get("case") == "working" else ""
+        )
         version = re.sub(r"[0-9a-f]{32,}", lambda sha: sha[0][:8], sample["version"])
         prompted = (
             " after a permission prompt" if sample["comment"].get("approved") else ""
@@ -100,11 +169,28 @@ def chart_markup(rows: list[dict]) -> str:
 
 
 @click.command()
-def journey_chart() -> None:
+@click.option(
+    "--replies",
+    is_flag=True,
+    help="Print a Markdown table of each target's replies in each case instead.",
+)
+@click.option(
+    "--since",
+    type=datetime.fromisoformat,
+    help="Read every sample kept since this ISO time, with its zone, rather than "
+    "the latest version's.",
+)
+def journey_chart(replies: bool, since: datetime | None) -> None:
     """Print an `lf-chart` of recorded delivery and work milestones, for
     the latest code version each target ran in this machine's kept samples."""
     path = samples_path()
     if not path.exists():
         raise click.ClickException(f"no samples kept in {path}; run `leaf-dev journey`")
-    lines = path.read_text().splitlines()
-    print(chart_markup(chart_rows([json.loads(line) for line in lines])))
+    if since is not None and since.tzinfo is None:
+        raise click.BadParameter("give a time zone, as in 2026-10-20T18:10-07:00")
+    samples = [json.loads(line) for line in path.read_text().splitlines()]
+    print(
+        reply_table(samples, since)
+        if replies
+        else chart_markup(chart_rows(samples, since))
+    )

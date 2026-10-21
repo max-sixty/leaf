@@ -1407,8 +1407,9 @@ def test_a_strip_marks_its_open_tab_by_the_way_it_runs(browser, serve):
 
 def test_a_workspace_part_fills_the_window_from_first_paint(browser, serve):
     """A page of parts whose opening part is a workspace gives that workspace the
-    window's height before the runtime upgrades the parts, so nothing grows or moves when
-    it does."""
+    window's height above the floating panel's row before the runtime upgrades the parts,
+    so nothing grows or moves when it does. The row's room is the part's own end, so the
+    part and the page reach the window's foot with no band below them."""
     source = leaf_page(
         "Workspace part",
         '<header><h1>Review</h1></header><lf-parts id="parts">'
@@ -1430,15 +1431,20 @@ def test_a_workspace_part_fills_the_window_from_first_paint(browser, serve):
         def heights():
             return page.evaluate("""() => {
               const block = document.querySelector('#surface').getBoundingClientRect();
-              const main = document.querySelector('main').getBoundingClientRect();
+              const part = document.querySelector('#work').getBoundingClientRect();
+              const room = parseFloat(getComputedStyle(document.querySelector('#work'))
+                .paddingBlockEnd);
               const scroller = document.scrollingElement;
               return {top: Math.round(block.top), height: Math.round(block.height),
-                      foot: Math.round(main.bottom - block.bottom),
+                      room: Math.round(room),
+                      under: Math.round(part.bottom - block.bottom - room),
+                      foot: Math.round(innerHeight - part.bottom),
                       scrolls: scroller.scrollHeight - scroller.clientHeight};
             }""")
 
         first = heights()
-        assert first["height"] > 400 and first["foot"] == 0, first
+        assert first["height"] > 400 and first["room"] > 0, first
+        assert first["under"] == first["foot"] == 0, first
         assert first["scrolls"] <= 0, first
         boot.pop().continue_()
         wait_until_ready(page)
@@ -1552,6 +1558,45 @@ def test_wide_evidence_in_a_part_takes_the_room_it_would_on_a_page_of_its_own(
     boxed("phone", phone)
     assert root_overflow(page) == 0
     twin(phone, "phone")
+
+
+def test_the_list_of_parts_lands_its_last_name_above_the_floating_row(browser, serve):
+    """The list of parts runs to the window's foot, under the floating panel's row where
+    a narrow window puts the row over the column. A name the keyboard moves to still
+    lands above the row, as a landing in the page does. The window leaves the list
+    100 px between its title and the row, whatever height the host's fonts give the
+    title, so the list scrolls to reach its last name."""
+    page = open_page(browser, serve(ROOT_PARTS_PAGE))
+    resized(page, 800, 900)
+    title = page.locator("main > header").bounding_box()
+    under_row = 900 - page.locator(".lf-fp-row").bounding_box()["y"]
+    resized(page, 800, round(title["y"] + title["height"] + 100 + under_row))
+    tabs = page.locator("#root-parts")
+    tabs.get_by_role("tab", name="Plan", exact=True).focus()
+    page.keyboard.press("End")
+    last = tabs.get_by_role("tab", name="Summary", exact=True)
+    expect(last).to_be_focused()
+    scroll_settled(page)
+    row = page.locator(".lf-fp-row").bounding_box()
+    box = last.bounding_box()
+    assert box["x"] < row["x"] + row["width"], (box, row)
+    assert box["y"] + box["height"] <= row["y"], (box, row)
+
+
+def test_a_short_window_keeps_the_list_of_parts_in_reach(browser, serve):
+    """The column stands fixed in the window, so a title taller than a short window
+    scrolls on its own and leaves the list a few names' room, rather than pushing the
+    list below the window's foot."""
+    page = open_page(browser, serve(ROOT_PARTS_PAGE))
+    resized(page, 1280, 300)
+    tabs = page.locator("#root-parts")
+    tabs.get_by_role("tab", name="Plan", exact=True).focus()
+    page.keyboard.press("End")
+    last = tabs.get_by_role("tab", name="Summary", exact=True)
+    expect(last).to_be_focused()
+    scroll_settled(page)
+    box = last.bounding_box()
+    assert 0 <= box["y"] and box["y"] + box["height"] <= 300, box
 
 
 def test_a_phone_keeps_the_list_of_parts_in_reach_and_each_part_s_place(browser, serve):

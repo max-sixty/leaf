@@ -1,4 +1,4 @@
-"""Page claims, serialized transactions, and status.
+"""Page claims, serialized transactions, the agent's declaration, and its stream.
 
 The transaction holds the page's append lease; what may be appended under it is
 `event_contracts`' to say. Cold harness hooks read claims, and Codex's tool hook
@@ -6,7 +6,14 @@ opens a transaction after every tool call, so process inspection and page-event
 semantics are imported only by their callers. A transaction finishes interrupted
 publications before admitting a reader. Hosts may declare LEAF_PAGE_COMMIT as a
 module:function provider; successful completion calls it under the same append
-lease, and provider failure prevents the caller from acknowledging success."""
+lease, and provider failure prevents the caller from acknowledging success.
+
+The agent's `waiting` or `idle` declaration is a `status` event in the log
+(`set_status`, read by `activity.declaration`). What the harness observes of the
+claimant's task as it runs, its live activity, the reply it drafts and the response
+addresses it has reserved, is `stream.json` (`STREAM`). It stays out of the log: it
+changes several times a second while a turn streams, means nothing once that turn
+has ended, and a reservation fences competing writers of one answer."""
 
 from __future__ import annotations
 
@@ -24,28 +31,34 @@ from leaf.event_log import (
     _append_event_unlocked,
     _matching_attempt,
     _parse_events,
-    read_cursor,
 )
 from leaf.files import unfinished_publications
 from leaf.interaction_log import append_interactions, session_context
 from leaf.machine import pid_alive, sandbox_remedy
 from leaf.refusals import Refused
-from leaf.schema import STATUS_FILE
+from leaf.schema import STREAM_FILE
 from leaf.state import (
     EVENTS_FILE,
     STRING,
     TIME,
     Record,
     chat_exists,
+    claims_lock,
+    described,
+    drop_locator,
     ensure_session,
     flocked,
     fsync_parents,
+    held_claims,
     now_iso,
     object_schema,
     page_key,
+    page_stands,
+    remove_claim,
     session_claims,
     session_lock_path,
     session_record,
+    standing_claims,
     state_home,
 )
 
@@ -70,24 +83,32 @@ def claim_path(page_dir: Path) -> Path:
 
 CLAIM = Record(
     "claim",
-    object_schema(
-        {
-            "page": STRING,
-            "ts": TIME,
-            # The claimant session, and the generation of it this claim names
-            # (`state.SESSION`).
-            "id": STRING,
-            "generation": STRING,
-            # This publication's own identity (`same_claim`).
-            "acquisition": STRING,
-            # The claimant's `Harness.name`, and the name it shows.
-            "harness": STRING,
-            "agent": STRING,
-            "cwd": STRING,
-        },
-        # The turn ending after which input last messaged the session
-        # (`note_messaged`).
-        {"messaged_ending": STRING},
+    described(
+        "The session that receives a page's updates, in the state home's "
+        "`claims/<page key>.json` (`claim_path`).",
+        object_schema(
+            {
+                "page": described("The page directory.", STRING),
+                "ts": described("When the claim was published.", TIME),
+                "id": described("The claimant session (`state.SESSION`).", STRING),
+                "generation": described(
+                    "The generation of the session this claim names.", STRING
+                ),
+                "acquisition": described(
+                    "This publication's own identity (`same_claim`).", STRING
+                ),
+                "harness": described("The claimant's `Harness.name`.", STRING),
+                "agent": described("The name the claimant shows.", STRING),
+                "cwd": described("The claimant's working directory.", STRING),
+            },
+            {
+                "messaged_ending": described(
+                    "The turn ending after which input last messaged the session "
+                    "(`note_messaged`).",
+                    STRING,
+                )
+            },
+        ),
     ),
     since=13,
 )
@@ -101,23 +122,24 @@ def publish_claim(page_dir: Path, claim: dict) -> None:
     old locator therefore stops being current at the canonical commit, which also
     admits the prepared new locator. Failed preparation leaves ownership intact.
     Resident writers retain the same flat payload path, so their atomic updates
-    cannot destroy discovery.
+    cannot destroy discovery. The claims lock keeps a retirement from removing
+    what this publishes (`state.retire_claim`).
     """
     path = claim_path(page_dir)
-    previous = CLAIM.read(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
     locator = session_claims(claim["id"]) / path.name
-    locator.parent.mkdir(parents=True, exist_ok=True)
-    staged = locator.with_name(f".{secrets.token_hex(8)}.tmp")
-    try:
-        staged.symlink_to(Path("..") / path.name)
-        os.replace(staged, locator)
-        fsync_parents([locator])
-    finally:
-        staged.unlink(missing_ok=True)
-    CLAIM.write(path, claim)
-    if previous is not None and previous["id"] != claim["id"]:
-        (session_claims(previous["id"]) / path.name).unlink(missing_ok=True)
+    with flocked(claims_lock()):
+        locator.parent.mkdir(parents=True, exist_ok=True)
+        previous = CLAIM.read(path)
+        staged = locator.with_name(f".{secrets.token_hex(8)}.tmp")
+        try:
+            staged.symlink_to(Path("..") / path.name)
+            os.replace(staged, locator)
+            fsync_parents([locator])
+        finally:
+            staged.unlink(missing_ok=True)
+        CLAIM.write(path, claim)
+        if previous is not None and previous["id"] != claim["id"]:
+            drop_locator(previous["id"], path.name)
 
 
 # The keys a claim's reading takes from its session's lifetime (`claim_reading`).
@@ -247,27 +269,20 @@ def same_claim(left: dict | None, right: dict | None) -> bool:
 def claim_records(session_id: str | None = None) -> list:
     """Readable claims for pages still on this machine.
 
-    A scan observes ownership without changing it. A missing directory can be
-    recreated and claimed immediately after the observation, so removing its
-    claim here could erase the successor's ownership. Fresh page initialization
-    clears the prior claim under the page lock instead.
-
-    Payloads are canonical by page. A named lookup enumerates only that
-    session's locators, checking the canonical payload owner before admitting it.
-    No unrelated claim files are opened or page directories inspected."""
-    directory = (
-        session_claims(session_id) if session_id else state_home().resolve() / "claims"
-    )
-    if not directory.is_dir():
-        return []
+    Payloads are canonical by page. A named lookup reads only through the
+    locators whose payloads name that session (`state.held_claims`), and opens no
+    unrelated claim file; the unnamed scan reads every payload
+    (`state.standing_claims`). Each retires the claims it finds on pages that are
+    gone."""
+    paths = held_claims(session_id) if session_id else standing_claims()
     claims = []
-    for path in directory.glob("*.json"):
+    for path in paths:
         claim = claim_reading(CLAIM.read(path))
         if (
             claim is not None
             and claim_path(Path(claim["page"])) == path.resolve()
             and (session_id is None or claim["id"] == session_id)
-            and Path(claim["page"]).is_dir()
+            and page_stands(Path(claim["page"]))
         ):
             claims.append(claim)
     return claims
@@ -320,7 +335,7 @@ class PageTransaction:
         (`delivery` header)."""
         from leaf.activity import reply_reservation_stands
 
-        reservation = self.status["stream"]["reply_reservations"].get(responds)
+        reservation = self.stream["reply_reservations"].get(responds)
         claim = self.active_claim
         if claim and reply_reservation_stands(
             reservation, claim["id"], claim["turn"], claim["turn_closed"]
@@ -378,8 +393,7 @@ class PageTransaction:
             return
         path = claim_path(self.page_dir)
         if previous is None:
-            path.unlink(missing_ok=True)
-            (session_claims(expected["id"]) / path.name).unlink(missing_ok=True)
+            remove_claim(path)
         else:
             publish_claim(
                 self.page_dir,
@@ -411,36 +425,52 @@ class PageTransaction:
 
     @property
     def status(self) -> dict:
-        return read_status(self.page_dir)
+        """The agent's declaration, as the log under this lease holds it
+        (`activity.declaration`)."""
+        from leaf.activity import declaration
 
-    def _write_status(self, status: dict) -> None:
-        """The one writer of `status.json` (`STATUS`)."""
-        STATUS.write(self.page_dir / STATUS_FILE, status)
+        return declaration(self.events)
+
+    @property
+    def stream(self) -> dict:
+        return read_stream(self.page_dir)
 
     def _write_stream(self, stream: dict) -> None:
-        """Replace the stream and keep the declaration."""
-        self._write_status({**self.status, "stream": stream})
+        """The one writer of `stream.json` (`STREAM`)."""
+        STREAM.write(self.page_dir / STREAM_FILE, stream)
 
     def set_status(self, state: str, detail: str) -> dict:
-        """Write the page's `waiting` or `idle` declaration and return it.
+        """Append the page's `waiting` or `idle` declaration, a `status` event in the
+        posting session's voice, and return the record.
 
         The work the agent has in hand is no status: it is the log's `start` events,
-        and the `put_down` that `leaf status` writes beside a declaration takes them
-        back (`todos`). The stream the harness observes carries across a `waiting`,
-        and `idle` clears it with the leaf."""
-        declaration = {"state": state, "detail": detail, "ts": now_iso()}
-        stream = no_stream() if state == "idle" else self.status["stream"]
-        self._write_status({**declaration, "stream": stream})
-        return declaration
+        and a declaration puts every start before it down (`todos.item_starts`). The
+        stream the harness observes carries across a `waiting`, and `idle` clears it
+        with the leaf."""
+        from leaf.event_contracts import append_admitted
+        from leaf.harness import message_identity
+
+        record, _ = append_admitted(
+            self,
+            {
+                "kind": "status",
+                "author": "agent",
+                **message_identity(),
+                "state": state,
+                "detail": detail,
+            },
+        )
+        if state == "idle" and self.stream != no_stream():
+            self._write_stream(no_stream())
+        return record
 
     def set_stream_activity(
         self, session_id: str, turn_id: str, activity: dict
     ) -> None:
         """Record activity observed directly from the task's live event stream."""
-        status = self.status
-        if status["state"] == "idle":
+        if self.status["state"] == "idle":
             return
-        stream = status["stream"]
+        stream = self.stream
         now = now_iso()
         after = self.events[-1]["seq"] if self.events else 0
         previous = stream["activity"]
@@ -465,7 +495,7 @@ class PageTransaction:
         self, session_id: str, turn_id: str | None = None
     ) -> None:
         """Remove this task's live reading without changing its declaration."""
-        stream = self.status["stream"]
+        stream = self.stream
         activity = stream["activity"]
         if not activity or activity["session"] != session_id:
             return
@@ -486,7 +516,7 @@ class PageTransaction:
         settles: bool = False,
     ) -> None:
         """Replace the provisional reply at a delivery's captured response address."""
-        stream = self.status["stream"]
+        stream = self.stream
         previous = stream["reply"]
         timestamp = (
             previous["ts"]
@@ -574,7 +604,7 @@ class PageTransaction:
         own turn does not exist yet; that turn takes the reservation over when its
         reply opens (`set_stream_reply`). Reserving again, as a retried start
         does, names the claim's turn as it stands then."""
-        stream = self.status["stream"]
+        stream = self.stream
         reservations = self._reserved(
             stream, session_id, responds, attempt, self.claim["turn"]
         )
@@ -611,7 +641,7 @@ class PageTransaction:
         state: str,
     ) -> bool:
         """Finish the matching displayed draft without changing its reservation."""
-        stream = self.status["stream"]
+        stream = self.stream
         reply = stream["reply"]
         if not reply or (reply["session"], reply["turn"], reply["attempt"]) != (
             session_id,
@@ -638,14 +668,14 @@ class PageTransaction:
         attempt: str,
     ) -> None:
         """Release one response address without changing its visible draft."""
-        stream = self.status["stream"]
+        stream = self.stream
         reservations = dict(stream["reply_reservations"])
         if _held_by(reservations.pop(responds, None), session_id, attempt):
             self._write_stream({**stream, "reply_reservations": reservations})
 
     def clear_stream_reply(self, session_id: str, turn_id: str | None = None) -> None:
         """Remove this task's provisional reply without changing thread history."""
-        stream = self.status["stream"]
+        stream = self.stream
         reply = stream["reply"]
         if not reply or reply["session"] != session_id:
             return
@@ -688,7 +718,7 @@ class PageTransaction:
 
     @property
     def cursor(self) -> int:
-        return read_cursor(self.page_dir)
+        return acknowledged(self.events)
 
     def watch_state(self, harness: Harness | None) -> str:
         if not self.owned_by(harness):
@@ -756,82 +786,100 @@ def restore_page_claim(
 
 
 def no_stream() -> dict:
-    """What `status.json` carries beside the declaration while the harness observes
-    nothing of the claimant's task: no live activity, no reply it is drafting, and
-    no response address it has reserved (`delivery` header)."""
+    """The stream while the harness observes nothing of the claimant's task: no live
+    activity, no reply it is drafting, and no response address it has reserved
+    (`delivery` header)."""
     return {"activity": None, "reply": None, "reply_reservations": {}}
 
 
-def undeclared() -> dict:
-    """The status of a page whose agent has declared nothing, such as a copy served
-    before any `leaf status`: no work under way and nothing ended, so the page waits
-    on its user and a wait keeps watching it."""
-    return {"state": "waiting", "detail": "", "stream": no_stream()}
-
-
-_TURN = {"session": STRING, "turn": STRING}
-STATUS = Record(
-    "status",
-    object_schema(
-        {
-            "state": {"enum": ["waiting", "idle"]},
-            "detail": STRING,
-            "stream": object_schema(
-                {
-                    # What the task is doing now (`set_stream_activity`).
-                    "activity": {
+_TURN = {
+    "session": described("The claimant session the harness observed.", STRING),
+    "turn": described("The turn it observed.", STRING),
+}
+STREAM = Record(
+    "stream",
+    described(
+        "What the harness observes of the claimant's task as it runs, in the page "
+        "directory's `stream.json`; `no_stream` while it observes nothing.",
+        object_schema(
+            {
+                "activity": described(
+                    "What the task is doing now (`set_stream_activity`), or null.",
+                    {
                         **object_schema(
                             {
                                 **_TURN,
-                                "kind": STRING,
-                                "ts": TIME,
-                                "after": {"type": "integer"},
+                                "kind": described(
+                                    "The step observed; the page reads one of "
+                                    "`activity.WORK_KINDS`.",
+                                    STRING,
+                                ),
+                                "ts": described("When it was last observed.", TIME),
+                                "after": described(
+                                    "The log's last `seq` when it was observed.",
+                                    {"type": "integer"},
+                                ),
                             },
-                            {"detail": STRING},
+                            {"detail": described("What the step names.", STRING)},
                         ),
                         "type": ["object", "null"],
                     },
-                    # The reply it is drafting (`set_stream_reply`).
-                    "reply": {
+                ),
+                "reply": described(
+                    "The reply it is drafting (`set_stream_reply`), or null.",
+                    {
                         **object_schema(
                             {
                                 **_TURN,
-                                "attempt": STRING,
-                                "parent": STRING,
-                                "responds": STRING,
-                                "item": {"type": ["string", "null"]},
-                                "text": STRING,
+                                "attempt": described(
+                                    "The delivery attempt it is drafted under.",
+                                    STRING,
+                                ),
+                                "parent": described(
+                                    "The thread it replies in.", STRING
+                                ),
+                                "responds": described("The input it answers.", STRING),
+                                "item": described(
+                                    "The harness's id for the message supplying the "
+                                    "draft, or null while none is attached.",
+                                    {"type": ["string", "null"]},
+                                ),
+                                "text": described("Its words so far.", STRING),
                                 "state": STRING,
                                 "settles": {"type": "boolean"},
-                                "agent": STRING,
-                                "ts": TIME,
-                                "updated_at": TIME,
+                                "agent": described(
+                                    "The name the claimant shows.", STRING
+                                ),
+                                "ts": described("When the draft began.", TIME),
+                                "updated_at": described(
+                                    "When the draft last changed.", TIME
+                                ),
                             }
                         ),
                         "type": ["object", "null"],
                     },
-                    # By response address.
-                    "reply_reservations": {
+                ),
+                "reply_reservations": described(
+                    "Each open reply reservation, by the response address it holds "
+                    "(`thread.reserve_delivery_reply`).",
+                    {
                         "type": "object",
                         "additionalProperties": object_schema(
                             {**_TURN, "attempt": STRING}
                         ),
                     },
-                }
-            ),
-        },
-        # When the agent declared it; a stream observed before any declaration
-        # carries none.
-        {"ts": TIME},
+                ),
+            }
+        ),
     ),
-    since=14,
+    since=16,
 )
 
 
-def read_status(page_dir: Path) -> dict:
-    """The page's work declaration, `status.json`, as every reader takes it, or
-    `undeclared` before the first."""
-    return STATUS.read(page_dir / STATUS_FILE) or undeclared()
+def read_stream(page_dir: Path) -> dict:
+    """The page's stream, `stream.json`, as every reader takes it, or `no_stream`
+    before the first write."""
+    return STREAM.read(page_dir / STREAM_FILE) or no_stream()
 
 
 def owned_pages(session_id: str | None) -> list:
@@ -842,6 +890,19 @@ def owned_pages(session_id: str | None) -> list:
         if claim_is_active(claim) and (Path(claim["page"]) / EVENTS_FILE).is_file()
     }
     return sorted(pages, key=str)
+
+
+def acknowledged(events: list) -> int:
+    """The acknowledgement cursor: the seq this log's input is confirmed received
+    through, the greatest `through` among its `receipt` events, or 0 before any.
+
+    Receipt (`delivery.receive_batch`) writes the event under the page transaction
+    in the log whose position it confirms, so a cursor is never past its own log's
+    end, and a log `page init` starts afresh has none."""
+    return max(
+        (event["through"] for event in events if event["kind"] == "receipt"),
+        default=0,
+    )
 
 
 def unacknowledged(events: list, cursor: int) -> list:

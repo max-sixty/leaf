@@ -7,7 +7,8 @@
  * detail stays open: the page's registry, rather than the kernel, owns it.
  *
  * The served state refers to its own definitions as `#/$defs/<Name>`, each of which
- * becomes `Served<Name>`, and to the schemas `registry.schema.leaf_resources` names
+ * becomes `Served<Name>`, to its whole answer as `#`, which becomes `ServedState`
+ * (an event answer carries one), and to the schemas `registry.schema.leaf_resources` names
  * by `leaf:` reference: `leaf:event/<kind>` becomes that kind's `EventMap` entry,
  * `leaf:event` an `Event`, and `leaf:verb` `ServedVerb`, generated from the schema
  * Python composes. A reference may point to one property, as
@@ -26,7 +27,7 @@ const ANNOTATIONS = new Set(["description", "title", "$schema", "$id", "$comment
 
 function reference(ref) {
   const [uri, pointer = ""] = ref.split("#");
-  if (!uri) return `Served${pointer.replace("/$defs/", "")}`;
+  if (!uri) return pointer ? `Served${pointer.replace("/$defs/", "")}` : "ServedState";
   const named =
     uri === "leaf:verb"
       ? "ServedVerb"
@@ -186,21 +187,16 @@ function servedTypes(schema, verb) {
 }
 
 // The schemas whose home is Python: those `leaf:` references name
-// (`registry.schema.leaf_resources`), and each `state.Record`'s, read once every module
-// declaring one is imported.
+// (`registry.schema.leaf_resources`), and each `state.Record`'s
+// (`leaf_dev.declared_records`).
 function pythonSchemas(root) {
   const program = `
-import importlib, json, pkgutil
-import leaf, leaf_website
+import json
 from leaf.registry.schema import leaf_resources
-from leaf.state import RECORDS
-for package in (leaf, leaf_website):
-    for module in pkgutil.walk_packages(package.__path__, package.__name__ + "."):
-        if not module.name.endswith(".__main__"):
-            importlib.import_module(module.name)
+from leaf_dev import declared_records
 records = {
     kind: {"since": record.since, "schema": record.schema}
-    for kind, record in sorted(RECORDS.items())
+    for kind, record in declared_records().items()
 }
 print(json.dumps({"references": leaf_resources(), "records": records}))
 `;
@@ -224,23 +220,36 @@ export async function protocolSchemas(root) {
     events: { ownership: $events.ownership, kinds: $events.kinds },
     served: await read("skills/leaf/scripts/leaf/served_state/state.schema.json"),
     verb: references["leaf:verb"],
-    // The composer's draft beside the `state.Record`s: its format guards its drawing.
+    // The composer's draft (`$events.draft`) beside the `state.Record`s.
     records: {
       ...records,
-      draft: { since: $events.draft_since, schema: draftSchema($events) },
+      draft: {
+        since: $events.draft.since,
+        schema: written($events.draft.schema, references),
+      },
     },
   };
 }
 
-// What a draft's format guards: its drawing, the comment record's with the placement in
-// its section, `at`, that `captured` (runtime/composing/drawing.js) adds while it is a
-// draft.
-function draftSchema({ kinds }) {
-  const drawing = kinds.comment.record.properties.drawing;
-  const at = { type: "array", minItems: 6, maxItems: 6, items: { type: "number" } };
+// `schema` with each `leaf:` reference written in, any properties beside it added to
+// the target's, so the baseline holds the parts of a draft, such as its drawing, that
+// the draft takes from the comment record at the draft's own format.
+function written(schema, references) {
+  if (typeof schema !== "object" || schema === null) return schema;
+  if (Array.isArray(schema)) return schema.map((item) => written(item, references));
+  const { $ref, ...rest } = Object.fromEntries(
+    Object.entries(schema).map(([key, value]) => [key, written(value, references)]),
+  );
+  if (!$ref) return rest;
+  const [uri, pointer] = $ref.split("#");
+  const { $id, ...target } = pointer
+    .split("/")
+    .slice(1)
+    .reduce((value, key) => value[key], references[uri]);
   return {
-    type: "object",
-    properties: { drawing: { ...drawing, properties: { ...drawing.properties, at } } },
+    ...target,
+    ...rest,
+    properties: { ...target.properties, ...rest.properties },
   };
 }
 

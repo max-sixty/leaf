@@ -48,7 +48,7 @@
    mode does among them: one owner per thread (`threadRewrites`) gives each the same
    ↑, landing and putting aside, over the views that reader draws. Resume writing
    (`g i`) opens a rewrite whose words were kept on the message where a message part
-   opens, the page's primary reader (`openMessageEditIn`). Opening brings the editor into view. Enter saves; Escape and
+   opens (`openMessageEditIn`). Opening brings the editor into view. Enter saves; Escape and
    Cancel close it, discarding changed words; opening another rewrite in the thread
    puts this one aside, keeping them. The
    editor is a rung below the thread's reply box, so Enter, Escape and Cancel each hand

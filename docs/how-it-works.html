@@ -609,7 +609,10 @@ leaf page stamp ./review --text "Queue policy: drop oldest"</code></pre>
                   agent opens a delivery pointer with
                   <code>leaf delivery read &lt;delivery-id&gt;</code>, follows its
                   <code>next</code> commands through every part, then runs the displayed
-                  <code>acknowledge</code> instruction.
+                  <code>acknowledge</code> instruction. The table names the readings the
+                  agent acts on;
+                  <a href="/data-structures/#record-delivery">Data structures</a> lists
+                  every field.
                 </p>
                 <table id="delivery-fields">
                   <thead>
@@ -798,7 +801,8 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   ends. A new update that arrives as the turn ends opens a turn of its
                   own once this one ends, so this turn's last message stays its answer;
                   only where nothing watches after the turn, as under Claude Code's
-                  plain <code>--print</code>, does the hook hand an update that needs an
+                  plain <code>--print</code> or a Codex task that waits with
+                  <code>leaf wait</code>, does the hook hand an update that needs an
                   answer into the turn. An update that needs no answer waits for the
                   next turn.
                 </p>
@@ -1083,16 +1087,16 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               <summary>Claude Code integration</summary>
               <p id="claude-hooks">
                 <code>leaf hook</code> handles Claude Code's prompt and Stop hooks, and
-                <code>leaf session-end</code> releases the session's pages. A background
-                Stop hook runs <code>leaf hook --watch</code> and wakes the session when
-                an update arrives.
+                <code>leaf session-end</code> releases the session's pages. Leaf's hooks
+                module runs <code>leaf hook --watch</code> as each turn ends and wakes
+                the session when an update arrives.
               </p>
               <p id="claude-activity">
                 Leaf reads Claude Code's session registry to tell whether a session is
-                busy, waiting or idle. If the background watch has stopped, Leaf can
-                message the session through its socket, or resume a retired background
-                session with <code>claude --bg --resume</code>. The socket accepting a
-                message doesn't show that the agent read it.
+                busy, waiting or idle. If nothing is watching the page, Leaf can message
+                the session through its socket, or resume a retired background session
+                with <code>claude --bg --resume</code>. The socket accepting a message
+                doesn't show that the agent read it.
               </p>
             </details>
             <details id="host-entry-points">
@@ -4078,20 +4082,17 @@ flowchart TD
                 </tr>
               </thead>
               <tbody>
-                <tr id="data-row-cursor">
-                  <td><code>cursor.json</code></td>
+                <tr id="data-row-viewed">
+                  <td><code>user-views.json</code></td>
                   <td>
-                    The position in the event log through which delivery is confirmed
+                    Each open tab's view of the page, and the last time a tab showed it
                   </td>
                 </tr>
-                <tr id="data-row-viewed">
-                  <td><code>viewed.json</code></td>
-                  <td>The last time a browser tab showed the page</td>
-                </tr>
-                <tr id="data-row-status">
-                  <td><code>status.json</code></td>
+                <tr id="data-row-stream">
+                  <td><code>stream.json</code></td>
                   <td>
-                    The agent's declared waiting or idle status and observed activity
+                    What the agent's harness observes of a turn as it runs: its activity
+                    and the reply it is drafting
                   </td>
                 </tr>
                 <tr id="data-row-interactions">
@@ -4107,6 +4108,11 @@ flowchart TD
                 </tr>
               </tbody>
             </table>
+            <p id="data-structures-link">
+              <a href="/data-structures/">Data structures</a> lists the fields of each
+              of these records, of every event kind, and of the state the server sends
+              the browser.
+            </p>
           </section>
 
           <section id="data-fold">
@@ -4194,10 +4200,11 @@ flowchart TD
             <p id="data-sources-lede">
               External values, such as benchmark results or build status, use one JSON
               file per data source. The page declares the format each source must
-              provide; <code>data set</code> records the current contract in
-              <code>data.json</code>. A later revision may replace that contract. Any
-              process can replace the source file. Leaf validates its value on each read
-              and displays a source error if it does not meet the contract.
+              provide; <code>data set</code> records the contract in the source file
+              beside its value. A later revision may bind the source to another
+              contract, which its next write takes. Any process can replace the source
+              file. Leaf validates its value on each read and displays a source error if
+              it does not meet the contract.
             </p>
             <p id="data-sources-live">
               Replacing a source file updates the open page without creating a document

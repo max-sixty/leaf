@@ -8,14 +8,13 @@ import pytest
 from browser.threads import open_panel_thread
 from interact_support import (
     append_carried_log_record,
+    declare,
     record_claim,
     wait_for,
-    write_record,
 )
 from leaf import event_log as events_model
 from leaf import hosting as hosting_model
 from leaf import presence as presence_model
-from leaf import state as cleanup_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import SERVICE_FILE
 from playwright.sync_api import expect
@@ -371,11 +370,11 @@ RING_CASES = (
         ("g", "Shift+t", "ArrowDown"),
         {RING_CHROME: ((None, PANEL_RING),)},
     ),
-    # A resolved thread's view, whose head offers Reopen.
+    # A resolved thread's view, whose controls offer Reopen.
     (
         "a resolved thread",
         (),
-        {"ship-review": ((".lf-fp-head .lf-fp-settle", PANEL_RING),)},
+        {"ship-review": ((".lf-fp-controls .lf-fp-settle", PANEL_RING),)},
     ),
     # The same walk with the panel shut lands in the margin's thread view, on the
     # thread itself rather than a control inside it.
@@ -587,7 +586,7 @@ RING_SCOPE_WIDTH = {
 # Scopes whose samples stand in a thread's view of the panel: the view of the first
 # thread whose view holds the selector (`open_panel_thread_holding`).
 RING_SCOPE_THREAD = {
-    "a resolved thread": ".lf-fp-head .lf-fp-settle.lf-reopen",
+    "a resolved thread": ".lf-fp-controls .lf-fp-settle.lf-reopen",
     "a reaction palette": ".lf-react-strip > .lf-react-trigger",
     "message media": ".lf-message-media",
 }
@@ -715,10 +714,10 @@ def _each_aim_surface(page, page_dir):
     # A resolved thread, which is the only state that has a Reopen to aim at. Resolving
     # moves the user on to the next open thread, so the resolved one is opened again.
     open_panel_thread(page, comment)
-    page.locator(".lf-fp-head .lf-fp-settle").click()
+    page.locator(".lf-fp-controls .lf-fp-settle").click()
     round_trip(page)
     open_panel_thread(page, comment)
-    expect(page.locator(".lf-fp-head .lf-fp-settle")).to_have_class(
+    expect(page.locator(".lf-fp-controls .lf-fp-settle")).to_have_class(
         re.compile(r"\blf-reopen\b")
     )
     yield
@@ -1063,7 +1062,7 @@ def test_sample_fixture_history_presents_before_ready_and_returns_on_reset(
     first_state = first.locator("body").evaluate(
         "new URL('api/state', document.baseURI).href"
     )
-    first.locator(".lf-fp-head .lf-fp-settle").click()
+    first.locator(".lf-fp-controls .lf-fp-settle").click()
     wait_for(
         lambda: [e["kind"] for e in page.request.get(first_state).json()["events"]],
         lambda kinds: "resolve" in kinds,
@@ -1162,7 +1161,9 @@ def test_sample_child_passage_and_reply_gestures_scroll_only_the_child(browser, 
     )
     child = frame.element_handle().content_frame()
     # The thread's view goes to the passage it quotes with On the page.
-    on_the_page = child.locator(".lf-fp-head").get_by_role("button", name="On the page")
+    on_the_page = child.locator(".lf-fp-controls").get_by_role(
+        "button", name="On the page"
+    )
     on_the_page.scroll_into_view_if_needed()
     before = page.evaluate("scrollY")
     root_before = child.evaluate("scrollY")
@@ -2152,10 +2153,7 @@ def test_leaves_keep_focus_through_reordering_and_stay_in_the_list_on_removal(
         "focusedLeaf === document.activeElement && focusedLeaf.isConnected"
     )
 
-    write_record(
-        other_dir / "status.json",
-        {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
-    )
+    declare(other_dir, "idle")
     told(page)
     expect(rows).to_have_count(2)
     expect(rows.nth(1).locator(".lf-fp-label")).to_have_text("Middle leaf")

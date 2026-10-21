@@ -1024,8 +1024,21 @@ def test_a_drag_that_overshoots_the_layer_is_not_a_passage(browser, serve):
     this — which of the layer's words a selection may reach at all — is
     `controls/test_covering.py::test_a_selection_that_reaches_the_layer_stops_at_the_page`.
     """
-    quoted = "Paragraph 3. Filler. Filler. Filler."
-    page = open_page(browser, serve(LONG_PAGE, anchored=(("p3", quoted),)))
+    # Distinct words let the restored passage resolve after the drag. Repeated filler
+    # gives this page many indistinguishable anchors, so no pending mark can paint.
+    unique_page = leaf_page(
+        "long",
+        "<h1 id='t'>Long</h1>{paras}",
+    ).format(
+        paras="\n".join(
+            f"<p id='p{i}'>Paragraph {i}. "
+            + " ".join(f"Word{8 * i + j:03d}." for j in range(8))
+            + "</p>"
+            for i in range(60)
+        )
+    )
+    quoted = "Paragraph 3. Word024. Word025. Word026."
+    page = open_page(browser, serve(unique_page, anchored=(("p3", quoted),)))
     resized(page, 1400, 900)
     card = thread_quote(page, comment_ids(serve.page_dir)[-1])
     expect(card).to_be_visible()
@@ -1051,6 +1064,9 @@ def test_a_drag_that_overshoots_the_layer_is_not_a_passage(browser, serve):
     # The selection saying it covers something is the fact this read wants, and the drag
     # is still held, so there is no composer to wait on yet.
     page.wait_for_function("() => getSelection().toString().length > 0")
+    # Selectionchange can still be queued after the last mouse move. Give that event
+    # its turn so the gesture remembers this endpoint before it leaves the document.
+    page.evaluate("() => new Promise(resolve => requestAnimationFrame(resolve))")
     covered = page.evaluate("() => getSelection().toString()")
     page.mouse.move(into["x"] + 40, into["y"] + into["height"] / 2, steps=20)
     page.mouse.up()
@@ -1583,6 +1599,29 @@ def test_code_copy_releases_only_its_own_scroll_stop(browser, serve):
     expect(control).to_have_count(0)
     assert pre.evaluate("el => el.scrollWidth > el.clientWidth")
     expect(pre).to_have_attribute("tabindex", "0")
+
+
+def test_native_code_uses_the_bundled_grammars_language_aliases(browser, serve):
+    """Markdown fence labels select the same colors as their full language names."""
+    sources = {
+        "js": ("javascript", 'const value = "leaf"; // keep the source\n'),
+        "sh": ("bash", 'leaf page check "$PAGE" --render\n'),
+    }
+    blocks = "".join(
+        f'<pre id="{label}"><code class="language-{label}">{escape(source)}</code></pre>'
+        for alias, (name, source) in sources.items()
+        for label in (alias, name)
+    )
+    page = open_page(browser, serve(leaf_page("Code aliases", blocks)))
+    for alias, (name, source) in sources.items():
+        tokens = "el => [...el.querySelectorAll('[data-lf-syn]')].map(token => [token.textContent, getComputedStyle(token).color])"
+        short = page.locator(f"#{alias} code")
+        full = page.locator(f"#{name} code")
+        expect(short).to_have_attribute("data-lf-syntax", name)
+        assert short.text_content() == full.text_content() == source
+        painted = short.evaluate(tokens)
+        assert len({color for _, color in painted}) > 1
+        assert painted == full.evaluate(tokens)
 
 
 def test_a_block_rewritten_while_it_is_colored_keeps_its_new_text(browser, serve):

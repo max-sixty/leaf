@@ -926,8 +926,8 @@
     }
     return changed;
   };
-  // A page of parts' title, which its list sticks under (layouts.css, "A page of
-  // parts"): no CSS stacks one sticking box under another of unknown height. The title
+  // A page of parts' title, which its list stands fixed under (layouts.css, "A page of
+  // parts"): no CSS stacks one fixed box under another of unknown height. The title
   // is what stands before the parts, in the one row above the list.
   const TITLE = "--lf-parts-title-h";
   const title = () => {
@@ -1039,19 +1039,19 @@
       drawings.set(host, drawing);
       return drawing;
     },
-    mount(template) {
-      const host = template.content.firstElementChild;
-      // The host stays inert while any part of its source is still arriving. Put
-      // its complete source in place, then draw deepest-first in this same task:
-      // no frame can show an unfinished or uninitialized instance.
-      template.replaceWith(host);
+    mount(host) {
+      // The theme hides the host while any part of its source is still arriving
+      // (`data-lf-arriving`, revision_delivery.mark_declared). Once its end tag has
+      // parsed, show it and draw deepest-first in this same task: no frame can show
+      // an unfinished or uninitialized instance.
+      host.removeAttribute("data-lf-arriving");
       for (const node of [host, ...host.querySelectorAll("*")].reverse())
         if (producers.has(node.localName))
           this.paint(/** @type {HTMLElement} */ (node));
     },
     restoreSource(root) {
-      for (const template of root.querySelectorAll("template[data-lf-initial-source]"))
-        template.replaceWith(/** @type {HTMLTemplateElement} */ (template).content);
+      for (const host of root.querySelectorAll("[data-lf-arriving]"))
+        host.removeAttribute("data-lf-arriving");
       for (const delivery of root.querySelectorAll("script[data-lf-initial]"))
         delivery.remove();
       for (const placeholder of root.querySelectorAll("[data-lf-prepaint]"))

@@ -9,16 +9,20 @@ its events refer to; the ids mean nothing outside that batch.
 
 Receipt (`receive_batch`) checks, under the page transaction, that the receiver
 still owns the page and the events are the ones captured, then advances the page's
-cursor. The pickup it records (`record_pickup`) says a harness accepted the delivery
-or a turn opened it, and answers nothing. The envelope's `acknowledge` says who
-confirms receipt: Claude Code and Pi hooks confirm their inline input, while the
-agent confirms Codex hook input and a pointer it read with `leaf delivery ack`.
+acknowledgement cursor with a `receipt` event (`record_receipt`). The pickup it
+records (`record_pickup`) says a harness accepted the delivery or a turn opened it,
+and answers nothing. The two are separate events because neither implies the other:
+a failed or queued pickup confirms no receipt, and a receipt whose inputs were already
+picked up, or that the harness gave up on, records no opened pickup. The envelope's
+`acknowledge` says who confirms receipt: Claude Code and Pi hooks confirm their
+inline input, while the agent confirms Codex hook input and a pointer it read with
+`leaf delivery ack`.
 
 A reply reservation lets a Codex App Server turn's final message become the reply
 to one delivered update. Freezing with `turn_replies` marks each reply answer
 `writer: "turn"`, and the harness reserves the reply's address before it starts the
-turn (`thread.reserve_delivery_reply`). The page's status lists open reservations
-under `stream.reply_reservations`, and session-lifetime.md says when one is
+turn (`thread.reserve_delivery_reply`). The page's stream lists open reservations
+under `reply_reservations` (`service.STREAM`), and session-lifetime.md says when one is
 released. While a reservation is open, no other delivery can reserve the address,
 the turn's final message commits as the reply, and failure receipts and other
 turns' finals are refused or write nothing. A `leaf response reply` still commits at
@@ -49,8 +53,9 @@ from pathlib import Path
 from typing import Literal
 from xml.etree import ElementTree
 
-from .event_log import jsonl_line, write_cursor
+from .event_log import jsonl_line
 from .harness import session_harness
+from .interaction_log import acting_on
 from .refusals import Refused
 from .registry.kernel import verb_writers
 from .service import (
@@ -62,18 +67,15 @@ from .service import (
 from .state import (
     STRING,
     Record,
+    described,
     flocked,
     object_schema,
     open_session_turn,
+    retire_if_gone,
     session_lock_path,
     session_record,
     state_home,
 )
-
-
-def _described(description: str, schema: dict) -> dict:
-    return {"description": description, **schema}
-
 
 _INTEGER = {"type": "integer"}
 _STRINGS = {"type": "array", "items": STRING}
@@ -85,43 +87,59 @@ _ANCHOR = {
         {"$ref": "leaf:event/reanchor#/properties/anchor"},
     ]
 }
-# One thread a batch's events land in (`thread_context.batch_threads`), which a
-# `when` clause reads as the event's `thread`.
 _THREAD_DIGEST = object_schema(
     {
-        "id": STRING,
-        "title": _described(
+        "id": described("The thread's id, which the batch's events name.", STRING),
+        "title": described(
             "Null until the thread is named.", {"type": ["string", "null"]}
         ),
-        "anchor": _ANCHOR,
-        "detached_from": _described(
+        "anchor": described("Where the thread stands on the page.", _ANCHOR),
+        "detached_from": described(
             "The anchor a detached thread last had, or null.", _ANCHOR
         ),
-        "resolved": _described(
+        "resolved": described(
             "Who closed the thread, or null while it is open.",
             {"type": ["string", "null"]},
         ),
-        "elided": _described(
+        "elided": described(
             "How many messages and gestures a long thread leaves out of "
             "`messages` and `actions`.",
             object_schema({"messages": _INTEGER, "actions": _INTEGER}),
         ),
-        "messages": _described(
+        "messages": described(
             "Its earlier messages (`thread_context.MESSAGE_FIELDS`), less the "
             "batch's own events: the first and the latest of a long thread.",
             {
                 "type": "array",
                 "items": object_schema(
-                    {"id": STRING, "seq": _INTEGER, "author": STRING},
                     {
-                        "agent": STRING,
+                        "id": described("The message's event id.", STRING),
+                        "seq": described("Its event's place in the log.", _INTEGER),
+                        "author": STRING,
+                    },
+                    {
+                        "agent": described(
+                            "The name an agent's message is shown under.", STRING
+                        ),
                         "text": STRING,
-                        "ephemeral": {"const": True},
-                        "token": STRING,
-                        "markup": STRING,
+                        "ephemeral": described(
+                            "Marks a one-line progress reply, which answers nothing.",
+                            {"const": True},
+                        ),
+                        "token": described(
+                            "A reaction's word, in place of `text`.", STRING
+                        ),
+                        "markup": described(
+                            "The HTML an agent's message holds, such as a widget it "
+                            "sent.",
+                            STRING,
+                        ),
                         "drawing": {"$ref": "leaf:event/comment#/properties/drawing"},
-                        "suggestion": {"type": "boolean"},
-                        "edited": _described(
+                        "suggestion": described(
+                            "True where the comment is a suggestion.",
+                            {"type": "boolean"},
+                        ),
+                        "edited": described(
                             "The user's latest rewrite, and the words it replaced.",
                             object_schema(
                                 {
@@ -136,7 +154,7 @@ _THREAD_DIGEST = object_schema(
                 ),
             },
         ),
-        "summaries": _described(
+        "summaries": described(
             "The thread's summaries in force (`events.active_summaries`).",
             {
                 "type": "array",
@@ -144,17 +162,33 @@ _THREAD_DIGEST = object_schema(
                     {
                         "id": STRING,
                         "seq": _INTEGER,
-                        "from": STRING,
-                        "through": STRING,
-                        "covers": _STRINGS,
-                        "text": STRING,
-                        "label": STRING,
+                        "from": described(
+                            "The first message the summary folds.", STRING
+                        ),
+                        "through": described("The last message it folds.", STRING),
+                        "covers": described(
+                            "Every message it folds, in thread order.", _STRINGS
+                        ),
+                        "text": described(
+                            "The summary's Markdown, empty for a fold that only "
+                            "hides the messages.",
+                            STRING,
+                        ),
+                        "label": described(
+                            "What the folded run reads as in the thread.", STRING
+                        ),
                     },
-                    {"trigger": STRING},
+                    {
+                        "trigger": described(
+                            "The agent reply whose arrival folded earlier progress "
+                            "messages.",
+                            STRING,
+                        )
+                    },
                 ),
             },
         ),
-        "actions": _described(
+        "actions": described(
             "Gestures in force on widgets sent in the thread, other than the "
             "batch's own (`thread_context.ACTION_FIELDS`).",
             {
@@ -173,17 +207,16 @@ _THREAD_DIGEST = object_schema(
         ),
     },
     {
-        "summary_hint": _described(
-            "An earlier run of messages worth summarizing.",
+        "summary_hint": described(
+            "An earlier run of messages worth summarizing, from its first message "
+            "through its last.",
             object_schema({"from": STRING, "through": STRING}),
         )
     },
 )
-# The response one delivered event owes (`obligations.response_address`), addressed
-# by `ref` for `leaf response`.
 _ANSWER = {
     "anyOf": [
-        _described(
+        described(
             "A thread reply under `parent` answering the input `responds`, written "
             "by the agent or, for a Codex App Server turn, by the turn's final "
             "message.",
@@ -192,26 +225,36 @@ _ANSWER = {
                     "kind": {"const": "reply"},
                     "parent": STRING,
                     "responds": STRING,
-                    "ref": STRING,
-                    "writer": {"enum": ["agent", "turn"]},
+                    "ref": described(
+                        "The answer's address, which `leaf response` takes.", STRING
+                    ),
+                    "writer": described(
+                        "Who is to write the reply when the delivery was frozen: the "
+                        "agent, or the final message of the turn carrying it.",
+                        {"enum": ["agent", "turn"]},
+                    ),
                 }
             ),
         ),
-        _described(
+        described(
             "A stamped page revision recording the widget action `action`.",
             object_schema(
-                {"kind": {"const": "markup"}, "action": STRING, "ref": STRING}
+                {
+                    "kind": {"const": "markup"},
+                    "action": STRING,
+                    "ref": described(
+                        "The answer's address, which `leaf response` takes.", STRING
+                    ),
+                }
             ),
         ),
     ]
 }
-# One delivered event: the logged record, less the browser's `attempt`, with what
-# the delivery reads of it (`batch_data`, `handled`).
 _DELIVERED_EVENT = {
     "$ref": "leaf:event",
     **object_schema(
         {
-            "subject": _described(
+            "subject": described(
                 "What the event changes.",
                 {
                     "anyOf": [
@@ -222,26 +265,30 @@ _DELIVERED_EVENT = {
                     ]
                 },
             ),
-            "threads": _described("Every thread the event belongs to.", _STRINGS),
+            "threads": described("Every thread the event belongs to.", _STRINGS),
         },
         {
-            "says": _described(
+            "says": described(
                 "The words of each element the gesture names, by id, as the page "
                 "it was made on wrote them.",
                 {"type": "object", "additionalProperties": STRING},
             ),
-            "was": _described(
+            "was": described(
                 "On the user's rewrite of their own message, the words it replaced.",
                 STRING,
             ),
-            "suggestion": _described(
+            "suggestion": described(
                 "A comment's own flag; beside an edit's `was`, true where the "
                 "rewritten message is a suggestion, so its new text is the exact "
                 "replacement it proposes.",
                 {"type": "boolean"},
             ),
-            "answer": _ANSWER,
-            "handling": _described(
+            "answer": described(
+                "The response the event owed at capture "
+                "(`obligations.response_address`); absent where it owes none.",
+                _ANSWER,
+            ),
+            "handling": described(
                 "Ids of the batch's `handling` clauses that apply, in reading order.",
                 _STRINGS,
             ),
@@ -250,63 +297,100 @@ _DELIVERED_EVENT = {
 }
 _BATCH = object_schema(
     {
-        "page": STRING,
-        "claim": _described(
+        "page": described("The page directory.", STRING),
+        "claim": described(
             "The session that owned the page at capture.",
             {"type": ["string", "null"]},
         ),
-        "through_seq": _INTEGER,
-        "threads": {"type": "array", "items": _THREAD_DIGEST},
-        "handling": _described(
+        "through_seq": described(
+            "The log position the batch was captured through; a correction keeps its "
+            "original batch's.",
+            _INTEGER,
+        ),
+        "threads": described(
+            "The threads the batch's events land in, each with its messages other "
+            "than the batch's own (`thread_context.batch_threads`). A `when` clause "
+            "reads an event's as its `thread`.",
+            {"type": "array", "items": _THREAD_DIGEST},
+        ),
+        "handling": described(
             "Each clause's text once, by an id only this batch's events use.",
             {"type": "object", "additionalProperties": STRING},
         ),
-        "events": _described(
-            "In log order.", {"type": "array", "items": _DELIVERED_EVENT}
+        "events": described(
+            "In log order, each the logged record less the browser's `attempt`, with "
+            "what the delivery reads of it (`batch_data`, `handled`).",
+            {"type": "array", "items": _DELIVERED_EVENT},
         ),
     }
 )
-# The immutable envelope `leaf delivery read` prints (`references/event-batches.md`).
-# Registry `when` clauses read its events, with an event's thread digest as `thread`
-# (`registry.contract.event_clauses`).
 DELIVERY = Record(
     "delivery",
-    object_schema(
-        {
-            "id": STRING,
-            "created_at": {"type": "number"},
-            "acknowledge": _described(
-                "How the reader confirms receipt, or null where the harness did.",
-                {"type": ["string", "null"]},
-            ),
-            "batches": {"type": "array", "items": _BATCH},
-        },
-        {
-            "correction": _described(
-                "Asks again for one answer whose Codex turn final Leaf refused to "
-                "post (`codex.prepare_reply_correction`).",
-                object_schema(
-                    {
-                        "delivery": _described(
-                            "The delivery whose answer was refused.", STRING
-                        ),
-                        "turn": _described("The turn whose final was refused.", STRING),
-                        "claim": _described(
-                            "The claim the refused final was written under.",
-                            object_schema(
-                                {
-                                    "id": STRING,
-                                    "generation": STRING,
-                                    "acquisition": STRING,
-                                }
-                            ),
-                        ),
-                        "diagnostic": _described("Why Leaf refused it.", STRING),
-                        "instruction": STRING,
-                    }
+    described(
+        "The immutable envelope `leaf delivery read` prints "
+        "(`references/event-batches.md`), in the state home's "
+        "`deliveries/<id>.json`: the updates that need the agent's attention, one batch per page. Registry "
+        "`when` clauses read its events, with an event's thread digest as `thread` "
+        "(`registry.contract.event_clauses`).",
+        object_schema(
+            {
+                "id": described(
+                    "The delivery id, eight hex characters, which the agent's pointer "
+                    "names.",
+                    STRING,
                 ),
-            )
-        },
+                "created_at": described(
+                    "When it was first collected, in seconds since the epoch.",
+                    {"type": "number"},
+                ),
+                "acknowledge": described(
+                    "How the reader confirms receipt, or null where the harness did.",
+                    {"type": ["string", "null"]},
+                ),
+                "batches": described(
+                    "One per page.", {"type": "array", "items": _BATCH}
+                ),
+            },
+            {
+                "correction": described(
+                    "Asks again for one answer whose Codex turn final Leaf refused to "
+                    "post (`codex.prepare_reply_correction`).",
+                    object_schema(
+                        {
+                            "delivery": described(
+                                "The delivery whose answer was refused.", STRING
+                            ),
+                            "turn": described(
+                                "The turn whose final was refused.", STRING
+                            ),
+                            "claim": described(
+                                "The claim the refused final was written under.",
+                                object_schema(
+                                    {
+                                        "id": described(
+                                            "The claimant session.", STRING
+                                        ),
+                                        "generation": described(
+                                            "The session generation the claim named.",
+                                            STRING,
+                                        ),
+                                        "acquisition": described(
+                                            "The claim's own identity.", STRING
+                                        ),
+                                    }
+                                ),
+                            ),
+                            "diagnostic": described("Why Leaf refused it.", STRING),
+                            "instruction": described(
+                                "What the agent is to do: fix the failure and answer the "
+                                "same input again.",
+                                STRING,
+                            ),
+                        }
+                    ),
+                )
+            },
+        ),
     ),
     since=15,
 )
@@ -344,33 +428,13 @@ def delivery_path(delivery_id: str) -> Path:
     return state_home() / "deliveries" / f"{delivery_id}.json"
 
 
-def pages_gone(batches: list[dict]) -> bool:
-    """Whether every page these captured batches came from is gone.
-
-    Nothing can answer a delivery once its pages are, so a record of one — the
-    envelope here, a Codex task's record of it — is removed by whoever next
-    enumerates its directory. Pages are usually deleted from outside leaf, with a
-    worktree or a scratch directory, so no leaf process sees the moment."""
-    return bool(batches) and not any(Path(batch["page"]).is_dir() for batch in batches)
-
-
-def retire_if_gone(path: Path, kind: Record) -> None:
-    """Remove a record of `kind` once every page it names is gone.
-
-    Other installed versions share these directories, and a record this Leaf
-    does not read may still belong to one of their live sessions."""
-    record = kind.read(path)
-    if record is not None and pages_gone(record["batches"]):
-        path.unlink(missing_ok=True)
-
-
 def _retire_gone_deliveries() -> None:
-    """Remove readable envelopes whose pages are all gone.
+    """Remove envelopes whose pages are all gone, whichever Leaf froze them.
 
     Envelopes are read one id at a time, so the only enumeration of them is here,
     under the lock every new one is written under."""
     for path in (state_home() / "deliveries").glob("*.json"):
-        retire_if_gone(path, DELIVERY)
+        retire_if_gone(path)
 
 
 def _delivery_lock_path() -> Path:
@@ -529,6 +593,7 @@ def response_address(reference: str) -> dict:
     payload = read_delivery(reference.partition(":")[0])
     for address in response_addresses(payload):
         if address["ref"] == reference:
+            acting_on(Path(address["page"]))
             return address
     raise Refused(f"unknown response reference {reference!r}")
 
@@ -696,6 +761,13 @@ def read_delivery(delivery_id: str) -> dict:
     return payload
 
 
+def acting_on_delivery(payload: dict) -> None:
+    """Note each page the delivery `payload` carries input from as one the running
+    command acts on (`interaction_log.acting_on`)."""
+    for batch in payload["batches"]:
+        acting_on(Path(batch["page"]))
+
+
 # Bound each CLI reading in bytes, including JSON escaping and instructions. A
 # single event may exceed this budget, so page the immutable serialized text
 # rather than dropping fields or changing the captured batch boundaries.
@@ -752,7 +824,9 @@ def delivery_reading(payload: dict, *, part: int = 1) -> dict:
 
 def cmd_delivery_read(delivery_id: str, *, part: int = 1) -> dict:
     """Bounded immutable input, read without changing receipt or ownership."""
-    return delivery_reading(read_delivery(delivery_id), part=part)
+    payload = read_delivery(delivery_id)
+    acting_on_delivery(payload)
+    return delivery_reading(payload, part=part)
 
 
 def cmd_delivery_ack(delivery_id: str) -> None:
@@ -912,8 +986,9 @@ def deliverable(
     Which updates are owed is the page's fold, whose page model costs about 70 ms
     of CPU to import. Codex's tool hook runs after every tool call, so it passes
     `received=False` and hands over only what the cursor has not passed, answered
-    without loading the page's layer where nothing is pending; its Stop hook hands
-    over the rest (`harness.CodexHarness.offer_at_step`)."""
+    without loading the page's layer where nothing is pending; the adapter, or the
+    Stop hook where no adapter runs, hands over the rest
+    (`harness.CodexHarness.offer_at_step`)."""
     pending = unacknowledged(page.events, page.cursor)
     owed = unreferenced(page, obligations) if received else []
     if not pending and not owed:
@@ -938,10 +1013,11 @@ def unreferenced(
 
         obligations = read_page(page.page_dir, page.events).work.obligations
     by_id = {event["id"]: event for event in page.events}
+    cursor = page.cursor
     return [
         by_id[item["input"]]
         for item in obligations
-        if item["seq"] <= page.cursor
+        if item["seq"] <= cursor
         and ("ref" not in item["answer"] or not reads_reference(item["answer"]["ref"]))
     ]
 
@@ -958,7 +1034,7 @@ def receive_batch(
     """Commit receipt after the consumer records its durable pickup evidence.
 
     Every transport confirms here once its durable consumer accepts input.
-    The body records pickup and turn entry before this advances the cursor, so
+    The body records pickup and turn entry before this records the receipt, so
     interruption leaves input available for retry. Work remains separate.
     Current ownership authorizes the write, not capture-time ownership: the
     page is still the receiver's (`service.claim_names_session`), even between a
@@ -972,7 +1048,7 @@ def receive_batch(
     from .event_contracts import write_refusal
 
     # The page is already locked; keep lifecycle admission valid through pickup
-    # and cursor commit. SessionEnd cannot cross between those writes.
+    # and receipt. SessionEnd cannot cross between those writes.
     with (
         flocked(session_lock_path(session_id), deadline=page.deadline)
         if session_id
@@ -992,8 +1068,20 @@ def receive_batch(
                 f"delivery no longer matches its page log: {page.page_dir}"
             )
         yield [delivered[seq] for seq in expected]
-        if max(expected) > page.cursor:
-            write_cursor(page.page_dir, max(expected))
+        record_receipt(page, max(expected))
+
+
+def record_receipt(page: PageTransaction, through: int) -> None:
+    """Confirm receipt of the page's input through seq `through`, under the
+    caller's page transaction: a `receipt` event, which moves the acknowledgement
+    cursor (`service.acknowledged`) and nothing else. A position the cursor has
+    already passed writes nothing, so the cursor only moves forward and a retried
+    receipt appends nothing."""
+    if through <= page.cursor:
+        return
+    from .event_contracts import append_admitted
+
+    append_admitted(page, {"kind": "receipt", "author": "page", "through": through})
 
 
 def receive_delivery(delivery_id: str) -> list[Path]:
@@ -1006,6 +1094,7 @@ def receive_delivery(delivery_id: str) -> list[Path]:
     provider receipts observe an already-open turn through `receive` instead.
     """
     payload = read_delivery(delivery_id)
+    acting_on_delivery(payload)
     harness = session_harness()
     if harness:
         open_session_turn(harness.session)

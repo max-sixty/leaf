@@ -66,6 +66,7 @@ variants:
         "On me: a branch review exposes every independent proposal even while preparation
         remains agent work."
     vars:
+      now: "2026-10-12T18:00:00-07:00"
       prompt: |
         We have been splitting a large UI branch into independently reviewable changes.
         I asked for a Leaf explaining the work that is left and what we should do next.

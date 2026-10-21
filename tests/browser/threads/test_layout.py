@@ -78,7 +78,7 @@ def test_thread_actions_share_consistently_sized_message_headers(
               const box = selector => card.querySelector(selector).getBoundingClientRect();
               const title = card.querySelector('.lf-thread-head')?.getBoundingClientRect();
               const head = box('.lf-msg-head');
-              // The panel's Resolve stands in its view's head, off the messages' rows.
+              // The panel's Resolve stands among its view's controls, off the messages' rows.
               const action = card.querySelector('.lf-resolve')?.getBoundingClientRect()
                 ?? null;
               const body = box('.lf-msg-body');
@@ -764,7 +764,8 @@ def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
 def test_a_short_window_keeps_media_choices_and_send_around_the_scrolling_draft(
     browser, serve, scaled
 ):
-    """A whole-frame cap reserves the image, choices and Send before text scrolls."""
+    """A whole-frame cap reserves the choices and Send before text scrolls; the attached
+    image hangs outside the frame (annotation-chrome.css)."""
     source = LONG_PAGE
     if scaled:
         source = source.replace(
@@ -800,8 +801,7 @@ def test_a_short_window_keeps_media_choices_and_send_around_the_scrolling_draft(
     assert bounds["top"] >= 6
     assert bounds["bottom"] <= height - 8
     parts = bar.locator(
-        ".lf-compose-field, .lf-fab-input, .lf-compose-submit, .lf-composer-media-item, "
-        ".lf-composer-media-remove, "
+        ".lf-compose-field, .lf-fab-input, .lf-compose-submit, "
         ".lf-response-options, .lf-response-action:visible"
     ).evaluate_all("nodes => nodes.map(node => node.getBoundingClientRect().toJSON())")
     for part in parts:

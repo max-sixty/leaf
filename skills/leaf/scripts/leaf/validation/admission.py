@@ -9,7 +9,7 @@ from leaf.events import build_threads
 from leaf.files import list_revisions
 from leaf.findings import Finding, Rejected
 from leaf.passages import SourceReading
-from leaf.piped_input import piped_stdin
+from leaf.piped_input import NO_BODY
 from leaf.registry.kernel import kinds_declaring
 from leaf.registry.storage import require_registry
 from leaf.revision_artifact import read_revision
@@ -30,8 +30,10 @@ from .markup import (
 )
 
 
-def read_text_arg(page_dir: Path, text, *, allow_empty: bool = False) -> str:
-    """Every body an agent writes, read at the one place they all come through.
+def checked_text(page_dir: Path, text: str | None, *, allow_empty: bool = False) -> str:
+    """Every body an agent writes, checked at the one place they all come through.
+    None, where the agent gave none, is refused, and so is an empty body unless
+    `allow_empty`.
 
     Prose needs no vocabulary gate — the runtime escapes every tag in it, so it
     cannot claim a widget — but its Markdown can point at a file, and a picture the
@@ -39,12 +41,11 @@ def read_text_arg(page_dir: Path, text, *, allow_empty: bool = False) -> str:
     page exists. `check_markup` asks that of `--markup` and runs only when one is
     given; this asks it of the link and image destinations beside it, which is where
     the runtime resolves one — a path quoted in a sentence stays the author's words."""
-    body = text if text is not None else piped_stdin()
-    if not body and not allow_empty:
-        raise Refused("empty text (pass --text or pipe via stdin)")
-    if errs := text_media_errors(body, page_dir):
+    if text is None or not (text or allow_empty):
+        raise Refused(f"empty text ({NO_BODY})")
+    if errs := text_media_errors(text, page_dir):
         raise Rejected(errs, "text names media the page won't show")
-    return body
+    return text
 
 
 def thread_obligation(events: list, responses: dict, message: str) -> dict | None:
@@ -152,7 +153,7 @@ def check_markup(
     door refuses `markup` outright, so nothing reaches the log under that name
     unvalidated. Text needs no vocabulary gate — the runtime renders it with every tag
     escaped, so it cannot claim a widget — but its Markdown can still point at a file,
-    which `read_text_arg` asks about wherever a body arrives. `thread` is the thread
+    which `checked_text` asks about wherever a body arrives. `thread` is the thread
     a reply joins; a comment opens one whose id is not yet assigned. Refuses with
     what's wrong.
 

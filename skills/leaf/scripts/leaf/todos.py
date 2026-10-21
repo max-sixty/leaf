@@ -37,12 +37,11 @@ A start lasts until its item ends: the to-do's end, or for an update, the reply 
 stamped version that answers it (`workflows.handed_over`). It names the turn
 that wrote it and holds its item only for that turn; once that turn ends with the
 item still running, `activity` shows it stalled. A later start on the same item
-replaces it, which is how the next turn takes the item up again. `leaf status
-waiting` and `idle` first write a `put_down` event when any start is in force
-(`put_down`). The `put_down` ends every earlier start, leaving their to-dos open
-with nothing running. It is an event so that admission, which reads only the
-document and the log, sees it. A start on a page declared `idle` reopens the page with a plain
-`waiting` after it, which writes no `put_down`.
+replaces it, which is how the next turn takes the item up again. The `status` event
+that `leaf status waiting` and `idle` write puts down every earlier start
+(`item_starts`), leaving their to-dos open with nothing running; admission, which
+reads only the document and the log, sees it there. A start on a page declared
+`idle` reopens the page (`activity.declaration`).
 
 Only the session that wrote an agent to-do's latest start can end it, by `todo_end`
 or a stamp's `--completes` (`TodoReading.completion_error`), and a later start from
@@ -114,12 +113,12 @@ def start_reading(event: dict) -> dict | None:
 
 def item_starts(events: list) -> dict[str, dict]:
     """The start in force on each item, by the item's id: the newest naming it, unless
-    a `put_down` came after it."""
+    a `status` declaration came after it."""
     starts: dict[str, dict] = {}
     for event in events:
         if start := start_reading(event):
             starts[start["item"]] = start
-        elif event["kind"] == "put_down":
+        elif event["kind"] == "status":
             starts.clear()
     return starts
 
@@ -203,8 +202,8 @@ class TodoReading:
     def completion_error(self, event: dict, todo: dict) -> Finding | None:
         """Whether the writer can end this agent to-do under its latest start.
 
-        Read the log rather than `starts`, whose in-hand reading a `put_down`
-        clears. Admission alone checks authority; projections consume admitted
+        Read the log rather than `starts`, whose in-hand reading a `status`
+        declaration clears. Admission alone checks authority; projections consume admitted
         endings without reclassifying them against later activity or claims.
         """
         if todo["owner"] != "agent":
@@ -409,7 +408,8 @@ def take_in_hand(page, item: str, text: str, identity: dict) -> dict:
     Claude Code subagent runs as its parent's session, so workers leave starts to the
     session driving the page. `leaf task start` writes this explicit event. Addressed ephemeral replies
     carry their start on the message itself (`thread.post_reply`), and every
-    start consumer reads either form through `start_reading`."""
+    start consumer reads either form through `start_reading`. A start on a page
+    declared `idle` reopens it (`activity.declaration`)."""
     from .event_contracts import append_admitted
 
     claim = page.claim
@@ -425,11 +425,6 @@ def take_in_hand(page, item: str, text: str, identity: dict) -> dict:
             **({"turn": turn} if turn else {}),
         },
     )
-    # Work in hand reopens a page the agent had closed: `idle` says it was done with
-    # the page, and every watcher stands down for an idle page. The reopening is a
-    # bare declaration, with no `put_down` to take this start back.
-    if page.status["state"] == "idle":
-        page.set_status("waiting", "")
     return record
 
 
@@ -448,21 +443,6 @@ def cmd_start(page_dir: Path, item: str, text: str) -> dict:
             return take_in_hand(page, item, text, message_identity())
 
     return write(page_dir)
-
-
-def put_down(page) -> dict | None:
-    """Put down every start in force on the page `page`, an open
-    `service.PageTransaction`, as `leaf status waiting` and `idle` do; the record, or
-    None when no start stands and the log has nothing to add."""
-    from .event_contracts import append_admitted
-    from .harness import message_identity
-
-    if not item_starts(page.events):
-        return None
-    record, _ = append_admitted(
-        page, {"kind": "put_down", "author": "agent", **message_identity()}
-    )
-    return record
 
 
 def cmd_end(page_dir: Path, todo: str, outcome: str, detail: str | None) -> dict:

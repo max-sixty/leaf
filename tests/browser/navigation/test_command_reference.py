@@ -201,7 +201,12 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     stays selectable, but explains the scope it needs instead of closing and doing
     nothing. Stable command IDs are exposed on the results so words can change without
     breaking this route or tooling built on it."""
-    page = open_page(browser, serve(NOTED_PAGE, comments=2))
+    # Go-to's kind filters need a visible page target; the page's old skip button
+    # used to supply one implicitly.
+    page_with_target = NOTED_PAGE.replace(
+        '<p id="p2">', '<a href="#p1">Jump to the first passage</a><p id="p2">'
+    )
+    page = open_page(browser, serve(page_with_target, comments=2))
     help_el = page.locator(".lf-command-reference")
     search = page.get_by_role("combobox", name="Search commands")
 
@@ -479,6 +484,24 @@ def test_the_reference_enters_named_go_to_destinations(
         "selector => document.querySelector(selector).contains(document.activeElement)",
         arg=surface,
     )
+
+
+def test_a_command_reference_versions_press_enters_the_menu_from_the_leaf(
+    browser, serve
+):
+    """A command chosen in the reference enters its destination from the panel leaf."""
+    page = open_page(browser, serve(OBLIGATIONS_PAGE, comments=2))
+    leaf = page.locator(".lf-fp-leaf")
+    leaf.click()
+    page.keyboard.press("Escape")
+    expect(leaf).to_be_focused()
+    page.keyboard.press("?")
+    reference = page.locator(".lf-command-reference")
+    page.get_by_role("combobox", name="Search commands").fill("version.open")
+    reference.locator('tr[data-lf-command="version.open"] button').click()
+    versions = page.locator('.lf-fp-menu[data-level="versions"]')
+    expect(versions).to_be_visible()
+    expect(versions.locator(".lf-fp-item:focus")).to_have_count(1)
 
 
 @pytest.mark.parametrize("viewport", [(1280, 800), (390, 800), (800, 320)])

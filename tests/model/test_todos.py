@@ -25,7 +25,6 @@ from interact_support import (
     page_packages,
     page_state,
     publish,
-    read_record,
     record_claim,
     refused_on,
     response_reference,
@@ -975,7 +974,7 @@ def test_only_the_latest_starting_session_can_complete_agent_work(task_log, outc
     )
     for session in ("older", "newer"):
         latest = append("start", session=session, item=todo["id"], text="Working")
-    append("put_down", session="newer")
+    append("status", session="newer", state="waiting", detail="")
     assert todos_model.TodoReading(log).owed[0]["running"] is None
 
     for session in ("older", "opener", "third", None):
@@ -1197,10 +1196,10 @@ def test_a_start_reopens_a_page_its_agent_closed(page_dir):
 
 def test_a_waiting_declaration_puts_down_every_start_before_it(page_dir):
     """`status waiting` says what the agent wants back, and the panel shows it: every
-    start written before it is put down, by a `put_down` in the log that a declaration
-    with no start in force does not repeat. A started move goes back to its delivery
-    stage, and a started to-do stays open with nothing running on it. A start after
-    the declaration is in hand again."""
+    start written before it is put down, by the `status` event the declaration
+    writes. A started move goes back to its delivery stage, and a started to-do stays
+    open with nothing running on it. A start after the declaration is in hand
+    again."""
     publish(page_dir)
     comment = append_carried_log_record(
         page_dir,
@@ -1212,10 +1211,9 @@ def test_a_waiting_declaration_puts_down_every_start_before_it(page_dir):
     assert state_json(page_dir)["activity"]["kind"] == "working"
 
     written(leaf("status", page_dir, "waiting", "Pick a plan"))
-    log = events_model.read_events(page_dir)
-    assert log[-1]["kind"] == "put_down"
-    written(leaf("status", page_dir, "waiting", "Pick a plan"))
-    assert events_model.read_events(page_dir) == log
+    # The declaration is the agent's own word: it asks the agent for nothing.
+    declaration = events_model.read_events(page_dir)[-1]
+    assert (declaration["kind"], declaration["attention"]) == ("status", False)
     state = state_json(page_dir)
     assert state["status"]["detail"] == "Pick a plan"
     assert state["activity"]["kind"] not in {"working", "stalled"}
@@ -1226,6 +1224,25 @@ def test_a_waiting_declaration_puts_down_every_start_before_it(page_dir):
     written(leaf("task", "start", page_dir, todo["id"], "Drafting the second plan"))
     state = state_json(page_dir)
     assert state["activity"]["detail"] == "Drafting the second plan"
+
+
+def test_work_taken_in_hand_reopens_an_idle_page(page_dir):
+    """`idle` says the agent is done with the page, so every watcher stands down; a
+    start after it says the agent is back. The page reads waiting from that start
+    on, with no declaration written for it, since one would put the start down."""
+    publish(page_dir)
+    written(leaf("status", page_dir, "idle"))
+    assert state_json(page_dir)["status"]["state"] == "idle"
+    comment = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "One more."},
+    )
+
+    start = written(leaf("task", "start", page_dir, comment["id"], "Looking again"))
+    assert events_model.read_events(page_dir)[-1]["id"] == start["id"]
+    state = state_json(page_dir)
+    assert (state["status"]["state"], state["status"]["ts"]) == ("waiting", start["ts"])
+    assert state["activity"]["detail"] == "Looking again"
 
 
 def test_idle_refuses_over_an_open_todo(page_dir):
@@ -1675,7 +1692,6 @@ def test_a_start_is_one_log_record_read_at_the_status_and_the_move(
         "reading the traces",
         "Trace reader",
     )
-    assert "work" not in (read_record(page_dir / "status.json") or {})
     live = page_state(page_dir)
     assert "claims" not in live
     [workflow] = live["workflows"]
@@ -1714,7 +1730,9 @@ def test_a_start_is_one_log_record_read_at_the_status_and_the_move(
     assert service_model.claim_page(page_dir)
     assert session_model.cmd_wait(page_dir) == 0
     delivered(capsys)
-    pickup = events_model.read_events(page_dir)[-1]
+    *_, pickup = (
+        e for e in events_model.read_events(page_dir) if e["kind"] == "pickup"
+    )
     assert pickup["kind"] == "pickup"
     assert pickup["events"] == ["c1", "c2"]
     assert [

@@ -19,6 +19,7 @@ from render_harness import (
     any_owner_entry,
     leaf_page,
     open_page,
+    panel_settled,
     resized,
     select_words,
     selection_field,
@@ -50,6 +51,9 @@ def open_from_threads(page, root):
     margin = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
     expect(view.or_(margin).filter(visible=True).first).to_be_visible()
     rendered(page)
+    if view.filter(visible=True).count():
+        # A painted view can still be moving; later tests read its touch reach.
+        panel_settled(page, view="thread")
     return view if view.filter(visible=True).count() else margin
 
 

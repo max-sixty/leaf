@@ -21,7 +21,7 @@ import json
 import shlex
 import sys
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, TextIO
 
 import click
 
@@ -42,6 +42,7 @@ def resolve_dir(dir_arg: str, must_exist: bool = True, *, renew: bool = True) ->
     the session running the command (`vendoring.renew_layer`), whose finding on what
     still holds it back is noted; `renew` is off for a command that would undo the
     re-vendor's restart."""
+    from leaf.interaction_log import acting_on
     from leaf.locations import canonical_path
 
     page_dir = canonical_path(Path(dir_arg).expanduser())
@@ -56,6 +57,7 @@ def resolve_dir(dir_arg: str, must_exist: bool = True, *, renew: bool = True) ->
             f"{page_dir} is not an initialized page; "
             f"run `leaf page init {shlex.quote(str(page_dir))}`"
         )
+    acting_on(page_dir)
     if not renew:
         return page_dir
     from leaf.findings import note
@@ -65,6 +67,39 @@ def resolve_dir(dir_arg: str, must_exist: bool = True, *, renew: bool = True) ->
     if unready := renew_layer(page_dir, session_harness()):
         note(unready)
     return page_dir
+
+
+def body_options(subject: str):
+    """Declare the options a command takes its body by, such as a reply's text or a
+    plan's JSON: `--text` inline, or `--file` naming a file, `-` for stdin. With
+    neither, the body is what a pipe or heredoc gives stdin (`read_body`)."""
+
+    def decorate(command):
+        command = click.option(
+            "--file",
+            "body_file",
+            type=click.File("r", encoding="utf-8"),
+            metavar="PATH",
+            help=f"read {subject} from PATH, - for stdin; with neither option, "
+            "from piped stdin",
+        )(command)
+        return click.option("--text", help=subject)(command)
+
+    return decorate
+
+
+def read_body(text: str | None, body_file: TextIO | None) -> str | None:
+    """The body `body_options` took: `--text`, the file `--file` named, or what was
+    piped to stdin (`piped_input`); None when none of them gave one."""
+    if text is not None and body_file is not None:
+        raise click.UsageError("give the body as --text or --file, not both")
+    if body_file is not None:
+        return body_file.read()
+    if text is not None:
+        return text
+    from leaf.piped_input import piped_stdin
+
+    return piped_stdin() or None
 
 
 def _print_result(result) -> None:
@@ -156,6 +191,24 @@ class LeafGroup(click.Group):
     ):
         if not standalone_mode:
             return super().main(args, prog_name, complete_var, False, **extra)
+        from leaf.interaction_log import record_command
+
+        try:
+            self._run_standalone(args, prog_name, complete_var, **extra)
+        finally:
+            record_command(self.command_name(sys.argv[1:] if args is None else args))
+
+    def command_name(self, args: list[str]) -> str:
+        """The command words `args` begin with, such as `response reply`."""
+        words, group = [], self
+        for word in args:
+            if not isinstance(group, click.Group) or word not in group.commands:
+                break
+            words.append(word)
+            group = group.commands[word]
+        return " ".join(words)
+
+    def _run_standalone(self, args, prog_name, complete_var, **extra) -> None:
         try:
             result = super().main(args, prog_name, complete_var, False, **extra)
         except click.exceptions.NoArgsIsHelpError as error:
@@ -493,7 +546,7 @@ def state(dir: str, target: str | None, after: int | None, limit: int | None) ->
 
 @page.command(short_help="Stamp the current source as the next version.")
 @click.argument("dir", metavar="PAGE")
-@click.option("--text", help="changelog text (default: stdin)")
+@body_options("the changelog")
 @click.option(
     "--from-directory",
     type=click.Path(exists=True, file_okay=False, path_type=Path),
@@ -512,7 +565,8 @@ def state(dir: str, target: str | None, after: int | None, limit: int | None) ->
 )
 def stamp(
     dir: str,
-    text: str,
+    text: str | None,
+    body_file,
     completes: tuple[str, ...],
     from_directory: Path | None,
     if_source: str | None,
@@ -532,7 +586,7 @@ def stamp(
 
     return cmd_stamp(
         resolve_dir(dir),
-        text,
+        read_body(text, body_file),
         completes,
         from_directory=from_directory,
         if_source=if_source,
@@ -747,27 +801,31 @@ def thread() -> None:
 @click.argument("dir", metavar="PAGE")
 @click.option("--from", "from_message", required=True, metavar="MESSAGE")
 @click.option("--through", "through_message", required=True, metavar="MESSAGE")
-@click.option(
-    "--text", help="summary Markdown; pass '' to fold without prose (default: stdin)"
-)
+@body_options("the summary's Markdown")
 @click.option("--label", help="disclosure label (default: Earlier discussion)")
 def thread_summarize(
     dir: str,
     from_message: str,
     through_message: str,
     text: str | None,
+    body_file,
     label: str | None,
 ) -> dict:
     """Replace --from through --through in the panel with a Markdown summary.
 
-    Both name messages in one thread, which is the thread summarized. The original
-    messages remain in the append-only transcript and can always be revealed. A
-    later overlapping summary replaces this one.
+    Both name messages in one thread, which is the thread summarized. An empty
+    summary, such as `--text ''`, folds them without prose. The original messages
+    remain in the append-only transcript and can always be revealed. A later
+    overlapping summary replaces this one.
     """
     from leaf.thread import cmd_summarize
 
     return cmd_summarize(
-        resolve_dir(dir), from_message, through_message, text, label=label
+        resolve_dir(dir),
+        from_message,
+        through_message,
+        read_body(text, body_file),
+        label=label,
     )
 
 
@@ -786,22 +844,18 @@ def file_bind(dir: str, binding: str, path: Path) -> dict:
     from leaf.file_bindings import bind_file, bound_paths
 
     page_dir = resolve_dir(dir)
-    snapshot = bind_file(page_dir, binding, path)
-    return {
-        "binding": binding,
-        "path": str(bound_paths(page_dir)[binding]),
-        "bytes": snapshot["bytes"],
-    }
+    bind_file(page_dir, binding, path)
+    bound = bound_paths(page_dir)[binding]
+    return {"binding": binding, "path": str(bound), "bytes": bound.stat().st_size}
 
 
-def json_input(input_file):
-    """The JSON value a command's `--file` holds, or else its piped stdin
-    (`piped_input`)."""
-    from leaf.piped_input import piped_stdin
+def json_body(text: str | None, body_file: TextIO | None):
+    """The JSON value a command's body holds (`read_body`)."""
+    text = read_body(text, body_file)
+    if text is None or not text.strip():
+        from leaf.piped_input import NO_BODY
 
-    text = input_file.read() if input_file else piped_stdin()
-    if not text.strip():
-        raise click.ClickException("no JSON given")
+        raise click.ClickException(f"no JSON given ({NO_BODY})")
     try:
         return json.loads(text)
     except json.JSONDecodeError as error:
@@ -818,17 +872,12 @@ def data() -> None:
 @data.command("set", short_help="Replace one bound source value.")
 @click.argument("dir", metavar="PAGE")
 @click.argument("source", metavar="SOURCE")
-@click.option(
-    "--file",
-    "input_file",
-    type=click.File("r", encoding="utf-8"),
-    help="JSON value to read (default: stdin)",
-)
-def data_set(dir: str, source: str, input_file) -> dict:
+@body_options("the JSON value")
+def data_set(dir: str, source: str, text: str | None, body_file) -> dict:
     """Validate and replace SOURCE with one complete JSON value."""
     from leaf.data import cmd_data_set
 
-    value = json_input(input_file)
+    value = json_body(text, body_file)
     return cmd_data_set(resolve_dir(dir), source, value)
 
 
@@ -1047,7 +1096,7 @@ def _title_option(command):
 @click.option("--quote", help="passage text from the active revision")
 @click.option("--section", metavar="ID", help="element ID to anchor or scope --quote")
 @click.option("--part", metavar="ID", help="declared visual part within --section")
-@click.option("--text", help="comment text (default: stdin)")
+@body_options("the comment's text")
 @click.option("--markup", help="HTML fragment after the text, validated here")
 @_title_option
 def thread_open(
@@ -1055,11 +1104,12 @@ def thread_open(
     quote: str,
     section: str,
     part: str,
-    text: str,
+    text: str | None,
+    body_file,
     markup: str,
     title: str | None,
 ) -> dict:
-    """Open a thread as the agent (--text or stdin): anchored where --quote or
+    """Open a thread as the agent: anchored where --quote or
     --section points at a passage, general where neither does — a question about
     the work as a whole.
 
@@ -1070,7 +1120,13 @@ def thread_open(
     from leaf.thread import cmd_comment
 
     return cmd_comment(
-        resolve_dir(dir), quote, section, part, text, markup, title=title
+        resolve_dir(dir),
+        quote,
+        section,
+        part,
+        read_body(text, body_file),
+        markup,
+        title=title,
     )
 
 
@@ -1085,7 +1141,7 @@ def _reply_options(command):
             "--part", metavar="ID", help="new declared visual part within --section"
         ),
         click.option("--detach", is_flag=True, help="remove the thread's page target"),
-        click.option("--text", help="reply text (default: stdin)"),
+        body_options("the reply's text"),
         click.option(
             "--markup", default="", help="frozen HTML fragment after the text"
         ),
@@ -1174,7 +1230,8 @@ def response_reply(
     options["asks_back"] = not declared and answers
     if attempt is not None:
         options["attempt"] = attempt
-    return post_response(reference, failure=failure, **options)
+    text = read_body(options.pop("text"), options.pop("body_file"))
+    return post_response(reference, text, failure=failure, **options)
 
 
 @thread.command("reply", short_help="Add an agent-initiated reply to a thread.")
@@ -1182,7 +1239,7 @@ def response_reply(
 @click.argument("thread", metavar="THREAD")
 @_reply_options
 def thread_reply(dir: str, thread: str, **options) -> dict | None:
-    """Post a new agent message to THREAD (--text or stdin).
+    """Post a new agent message to THREAD.
 
     A message is refused while the thread owes a response; answer it with
     `leaf response reply <answer.ref>`. --ephemeral posts progress. Saved page
@@ -1190,24 +1247,26 @@ def thread_reply(dir: str, thread: str, **options) -> dict | None:
     """
     from leaf.thread import post_reply
 
+    text = read_body(options.pop("text"), options.pop("body_file"))
     return post_reply(
-        resolve_dir(dir), {"parent": thread}, validate_source=True, **options
+        resolve_dir(dir), {"parent": thread}, text, validate_source=True, **options
     )
 
 
 @thread.command("edit", short_help="Edit a message's text, or its thread's title.")
 @click.argument("dir", metavar="PAGE")
 @click.argument("message", metavar="MESSAGE")
-@click.option("--text", help="replacement text (default: stdin, unless --title)")
+@body_options("the replacement text")
 @click.option(
     "--title",
     help="rename MESSAGE's thread for the panel: a few words, at most 80 characters",
 )
 def thread_edit(
-    dir: str, message: str, text: str | None, title: str | None
+    dir: str, message: str, text: str | None, body_file, title: str | None
 ) -> list[dict]:
     """Replace the visible text of MESSAGE, an agent-authored comment or reply,
-    or with --title rename the thread MESSAGE is in, whoever opened it.
+    or with --title rename the thread MESSAGE is in, whoever opened it. --title
+    alone leaves the text as it is.
 
     The original and every revision remain in the append-only event log. Frozen
     markup is not editable. Keep a title stable unless the thread's
@@ -1215,7 +1274,9 @@ def thread_edit(
     """
     from leaf.thread import cmd_edit
 
-    return cmd_edit(resolve_dir(dir), message, text, title=title)
+    renames_only = title is not None and text is None and body_file is None
+    body = None if renames_only else read_body(text, body_file)
+    return cmd_edit(resolve_dir(dir), message, body, title=title)
 
 
 @thread.command("resolve", short_help="Close a thread as the agent.")
@@ -1319,13 +1380,8 @@ def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> dict:
 
 @task.command("plan", short_help="Write your plan for the page's work as one outline.")
 @click.argument("dir", metavar="PAGE")
-@click.option(
-    "--file",
-    "input_file",
-    type=click.File("r", encoding="utf-8"),
-    help="JSON outline to read (default: stdin)",
-)
-def task_plan(dir: str, input_file) -> dict:
+@body_options("the JSON outline")
+def task_plan(dir: str, text: str | None, body_file) -> dict:
     """Replace the page's plan with the JSON list of steps given, in order.
 
     Each step has a `depth`, 0 for a goal and one more for each level under it.
@@ -1344,5 +1400,5 @@ def task_plan(dir: str, input_file) -> dict:
     nothing; it stays on its list. `[]` clears the plan."""
     from leaf.plans import cmd_plan
 
-    steps = json_input(input_file)
+    steps = json_body(text, body_file)
     return cmd_plan(resolve_dir(dir), steps)

@@ -1,11 +1,11 @@
 """Canonical page availability and agent work projected from durable evidence.
 
-Status is the agent's waiting or idle declaration, a start in the log is the item it
-has in hand (`todos`), claims prove ownership and turn lifetime, and pickup events
-prove delivery. Delivery remains interaction evidence rather than becoming the
-page's execution state. This module is the one fold that orders those facts and
-supplies every reader — browser chrome, hooks, and agent-facing state — with one
-answer.
+Status is the agent's waiting or idle declaration, the newest `status` event in the
+log (`declaration`), a start in the log is the item it has in hand (`todos`), claims
+prove ownership and turn lifetime, and pickup events prove delivery. Delivery remains
+interaction evidence rather than becoming the page's execution state. This module is
+the one fold that orders those facts and supplies every reader — browser chrome,
+hooks, and agent-facing state — with one answer.
 """
 
 import json
@@ -35,6 +35,35 @@ AWAITING_KINDS = {"awaiting_approval", "awaiting_input", "awaiting_user"}
 BACKGROUND_DETAIL = "in the background"
 
 
+def undeclared() -> dict:
+    """The status of a page whose agent has declared nothing, such as one before any
+    `leaf status` or a copy a host serves: no work under way and nothing ended, so
+    the page waits on its user and a wait keeps watching it."""
+    return {"state": "waiting", "detail": ""}
+
+
+def declaration(events: list) -> dict:
+    """The agent's declaration about the page: the state, detail and time of the
+    newest `status` event in `events`, or `undeclared` before the first.
+
+    Work taken in hand reopens a page the agent had closed: `idle` says it was done
+    with the page, and every watcher stands down for an idle page. So a start after
+    an `idle` (`todos.start_reading`) reads as a bare `waiting` from that start on.
+    It has no event of its own, since a declaration puts down every start before
+    it."""
+    from .todos import start_reading
+
+    reopened = None
+    for event in reversed(events):
+        if event["kind"] == "status":
+            if event["state"] == "idle" and reopened is not None:
+                return {"state": "waiting", "detail": "", "ts": reopened["ts"]}
+            return {key: event[key] for key in ("state", "detail", "ts")}
+        if start_reading(event):
+            reopened = event
+    return undeclared()
+
+
 def _moment(value: str | None) -> datetime | None:
     # Every stamp read here is Leaf's own `now_iso`, or None where nothing was stamped.
     return datetime.fromisoformat(value) if value else None
@@ -57,17 +86,22 @@ def _dropped(ts: str | None, ended: datetime | None, now: datetime) -> bool:
 def canonical_stream_reply(
     present: dict, now_iso: str, reply: dict | None
 ) -> dict | None:
-    """Project one provisional reply against its session lease and age."""
+    """Project one provisional reply against its session lease and age. A withheld
+    draft is written once and never renewed, so only its lease ages it."""
     if reply is None:
         return None
     result = dict(reply)
-    if result["state"] == "active" and (
+    state = result["state"]
+    if state in {"active", "withheld"} and (
         result["session"] != present.get("claim_session")
         or not present["listening"]
-        or _quiet(
-            result["updated_at"],
-            datetime.fromisoformat(now_iso),
-            WORKING_GRACE,
+        or (
+            state == "active"
+            and _quiet(
+                result["updated_at"],
+                datetime.fromisoformat(now_iso),
+                WORKING_GRACE,
+            )
         )
     ):
         result["state"] = "disconnected"
@@ -203,18 +237,22 @@ def unanswered(obligations: list[dict], page_dir: Path, of: str = "") -> str:
 
 
 def _turn_wrote(obligation: dict, state: dict) -> bool:
-    """Whether the claimant's open turn finished the reply it owes this update.
+    """Whether the claimant's open turn is done with the reply it owes this update.
 
     A provider-owned reply is written by the claimant's own turn, and the App Server
     client commits it once the turn ends, after the agent's last command. So the
     update is answered now when the turn's final message is complete, with text, in
-    the reply draft bound to it."""
+    the reply draft bound to it. A draft the client `withheld`, because a user
+    message shares the turn, leaves the update to the correction the client offers
+    as the turn ends (`codex.carries_user_message`)."""
     draft = obligation["response"]
     return bool(
         draft
         and obligation["answer"].get("writer") == "turn"
-        and draft["state"] == "active"
-        and draft["settles"]
+        and (
+            draft["state"] == "withheld"
+            or (draft["state"] == "active" and draft["settles"])
+        )
         and draft["turn"] == state["claim_turn"]
     )
 

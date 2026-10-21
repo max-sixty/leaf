@@ -787,7 +787,6 @@ export class ThreadView {
         {
           id: reopen ? "thread.reopen" : "thread.resolve",
           keys: PRESS,
-          description: `${word} it`,
           title: word.toLowerCase(),
           control: button,
           when: () => !this.#model.settlement?.pending,

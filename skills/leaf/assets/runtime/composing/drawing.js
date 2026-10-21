@@ -660,7 +660,6 @@ export function createDrawingController({
         id: "draw.mode.undo",
         keys: UNDO_STROKE,
         title: "undo stroke",
-        description: "Undo the last stroke drawn",
         // A finger undoes a stroke with the undo button on its drawing's composer.
         touch: false,
         when: () => Boolean(undoTarget()),

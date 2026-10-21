@@ -162,7 +162,6 @@ export function createGoToSequence({
     {
       id: "navigation.panel.threads",
       keys: ["Shift+t"],
-      description: () => (doors.threads.shows() ? "Close Threads" : "Go to Threads"),
       title: () => (doors.threads.shows() ? "close Threads" : "Threads"),
       run: () => doors.threads.press(),
       when: () => true,
@@ -172,7 +171,6 @@ export function createGoToSequence({
       keys: ["Shift+m"],
       // Its door is On me's, so where the On view shows the agent's list it turns to
       // the user's rather than closing.
-      description: () => (doors.queue.shows() ? "Close On me" : "Go to On me"),
       title: () => (doors.queue.shows() ? "close On me" : "On me"),
       run: () => doors.queue.press(),
       when: () => true,
@@ -180,7 +178,6 @@ export function createGoToSequence({
     {
       id: "navigation.panel.leaves",
       keys: ["Shift+l"],
-      description: () => (doors.leaves.shows() ? "Close All pages" : "Go to All pages"),
       title: () => (doors.leaves.shows() ? "close All pages" : "All pages"),
       run: () => doors.leaves.press(),
       when: (...args) => doors.leaves.shows() || leavesOffered(...args),
@@ -188,7 +185,6 @@ export function createGoToSequence({
     {
       id: "navigation.page-map",
       keys: ["Shift+p"],
-      description: "Open the Page Map dialog",
       title: "Page Map dialog",
       run: () => openPageMap(),
       when: () => true,
@@ -535,7 +531,6 @@ export function createGoToSequence({
         touch: false,
         // This changes focus without unwinding an open surface.
         keys: PAGE_RETURN_KEYS,
-        description: "Focus the page",
         title: "page",
         when: () => atGoToTargets(),
         run: () => {
@@ -579,7 +574,6 @@ export function createGoToSequence({
         })),
         label: FILTER_KEYS.join(" / "),
         sequenceSteps: ["kind"],
-        description: "Filter visible targets by kind",
         title: "filter by kind",
         when: () => atGoToTargets() && targetCapability(),
         run: filterTargets,
@@ -588,7 +582,6 @@ export function createGoToSequence({
         id: "navigation.target",
         when: () => (goToActive ? hints.candidates().length > 0 : targetCapability()),
         choose: {
-          description: "Go to the target just announced",
           title: "go to target",
         },
       }),
@@ -637,12 +630,6 @@ export function createGoToSequence({
         touch: false,
         keys: ["Escape"],
         sequenceControl: true,
-        description: () =>
-          hints.prefix()
-            ? "Remove the last hint letter"
-            : targetFilter
-              ? "Show all visible targets"
-              : "Cancel the sequence",
         title: () =>
           hints.prefix() ? "back one letter" : targetFilter ? "all targets" : "cancel",
         run: () => {

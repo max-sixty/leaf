@@ -81,7 +81,6 @@ standingOn("disclosure", "On a disclosure", DISCLOSURE_SELECTOR, [
     id: "disclosure.toggle",
     touch: false,
     keys: () => DISCLOSE(focused()),
-    description: "Open or close it",
     // Read where it is painted rather than named once for both branches, the way a diff's
     // own file rows read theirs: what the press does is whichever way the disclosure is
     // set, and a word fixed at declaration could only ever say one of them.
@@ -140,7 +139,6 @@ export function declareStanding({ pageState }) {
         id: "navigation.release",
         touch: false,
         keys: ["Escape"],
-        description: "Let go of the current item",
         title: "let go",
         when: () => Boolean(standingFloor()),
         run: release,
@@ -165,7 +163,6 @@ pageRung("page", () => {
       ? null
       : {
           title: "back to the page",
-          description: "Back out onto the page",
           out: letGo,
         };
   // A sample has one more containing page. Its own controls and standing unwind
@@ -174,7 +171,6 @@ pageRung("page", () => {
   return document.documentElement.lfSample
     ? {
         title: "return to containing page",
-        description: "Leave this sample and return to its containing page",
         out: () => sampleNotice("return"),
       }
     : null;

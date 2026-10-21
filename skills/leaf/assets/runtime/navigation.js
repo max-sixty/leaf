@@ -377,13 +377,11 @@ export function createNavigation({ threadDestinations, placedAt, heldPlace }) {
       {
         id: "scroll.down",
         binding: "j",
-        description: "Scroll down a little",
         title: "scroll down",
       },
       {
         id: "scroll.up",
         binding: "k",
-        description: "Scroll up a little",
         title: "scroll up",
       },
     ],

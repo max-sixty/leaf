@@ -361,7 +361,6 @@ function createThreadPreview({
       id: "margin.card.back",
       keys: ["Shift+Tab"],
       title: "back to the margin entry",
-      description: "Leave the thread card for the margin entry it hangs from",
       repeat: true,
       runFromCommandReference: false,
       when: () => atCardEdge(-1),
@@ -384,7 +383,6 @@ function createThreadPreview({
       id: "margin.card.enter",
       keys: ["Tab"],
       title: "into the thread card",
-      description: "Enter the thread card the margin entry opened",
       repeat: true,
       runFromCommandReference: false,
       when: () => onOpener() && tabStops(preview).length > 0,
@@ -995,7 +993,6 @@ function mountAnnotationControls() {
   pageCommand({
     id: "annotations.toggle",
     keys: ["o"],
-    description: "Hide or show the annotations drawn over the page",
     title: () => hidden ? "show annotations" : "hide annotations",
     touch: () => hidden ? "Show annotations" : "Hide annotations",
     menu: "annotate",
@@ -1333,7 +1330,6 @@ function createMarginProjection({
         {
           id: "margin.press",
           keys: PRESS,
-          description: "Open or close what the focused margin entry holds",
           title: "open / close",
           run: () => control.click()
         }
@@ -1668,7 +1664,6 @@ function createMarginProjection({
     {
       id: "margin.controls",
       keys: ["ArrowLeft", "ArrowRight"],
-      description: "Move through the margin entries on this target",
       title: "move through margin entries",
       repeat: true,
       when: () => {
@@ -2070,13 +2065,11 @@ function createMarginProjection({
     if (stepsOut())
       return {
         root: preview,
-        description: "Return to the page element this thread is about",
         title: "back to element",
         out: () => focusDestination(stepsOut(), "return")
       };
     return {
       root: preview,
-      description: "Dismiss the thread view",
       title: "dismiss thread",
       // Where it lands turns on whether a level of the user's own stands under it. A
       // cluster they unfolded themselves is that level, and it folds the moment focus
@@ -2109,7 +2102,6 @@ function createMarginProjection({
     if (expandedOptionsKey === forcedInlineOptionsKey()) return null;
     return {
       root: host,
-      description: "Fold the secondary page actions",
       title: "close options",
       out: () => setOptionsOpen(host.lfEntry, false, { land: landOnToggle(host.lfEntry) })
     };

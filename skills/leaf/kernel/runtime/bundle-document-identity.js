@@ -2011,7 +2011,6 @@ function createSelectionComposer({
     id: "response.move",
     touch: false,
     keys: ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
-    description: "Move through other responses",
     title: "move",
     repeat: true,
     when: () => focusedResponseOption(),
@@ -2021,7 +2020,6 @@ function createSelectionComposer({
     id: "response.activate",
     touch: false,
     keys: PRESS,
-    description: "Use the focused response",
     title: "choose",
     when: () => focusedResponseOption() && (!focused().classList.contains("lf-react") || reactionAvailable2()),
     run: () => focused()?.click()
@@ -2030,7 +2028,6 @@ function createSelectionComposer({
     id: "response.close",
     touch: false,
     keys: ["Escape"],
-    description: "Close other responses",
     title: "close",
     // Closing the other responses hands the user back to the bar they opened them from.
     run: () => closeLayer(
@@ -3259,7 +3256,6 @@ function createVersionController({
     id: "version.open",
     ready: savedReadingSettled,
     keys: ["Shift+v"],
-    description: "The versions, and what each one changed",
     title: "versions",
     run: () => versions.press(),
     // The same predicate the menu's Escape stands on, so the key cannot open a layer the
@@ -4920,7 +4916,6 @@ function createReactionController({
         touch: false,
         runFromCommandReference: false,
         keys: ["Tab", "Shift+Tab", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
-        description: "Move through reactions",
         title: "move",
         repeat: true,
         run: stepResponse
@@ -4930,7 +4925,6 @@ function createReactionController({
         touch: false,
         runFromCommandReference: false,
         keys: PRESS,
-        description: "Use the focused response",
         title: "choose",
         when: () => responseChoices(reactSurface).includes(focused()),
         run: () => focused()?.click()
@@ -4939,7 +4933,6 @@ function createReactionController({
         id: "reaction.cancel",
         touch: false,
         keys: ["Escape"],
-        description: "Close response choices",
         title: "cancel",
         run: () => setReact(false)
       }
@@ -6960,7 +6953,6 @@ function createReadTracking({ markRead, openThread }) {
     id: "thread.unread.first",
     ready: savedReadingSettled,
     keys: ["u"],
-    description: "Go to the first unread message",
     title: "first unread",
     touch: false,
     when: () => actionableUnread().length > 0,
@@ -8144,7 +8136,6 @@ function declareThreadKeys(landIn) {
         id: "thread.primary",
         touch: false,
         keys: ["Enter"],
-        description: () => resolutionControl(cardThread())?.matches(".lf-reopen") ? "Reopen it" : "Write a reply",
         title: () => resolutionControl(cardThread())?.matches(".lf-reopen") ? "reopen" : "reply",
         when: () => Boolean(threadInput(cardThread())) || resolutionControl(cardThread())?.matches(
           '.lf-reopen:not(:disabled, [aria-disabled="true"])'
@@ -8162,7 +8153,6 @@ function declareThreadKeys(landIn) {
         id: "thread.resolution.toggle",
         touch: false,
         keys: ["r"],
-        description: () => resolutionControl(heldThread())?.matches(".lf-reopen") ? "Reopen it" : "Resolve it",
         title: () => resolutionControl(heldThread())?.matches(".lf-reopen") ? "reopen" : "resolve",
         when: () => resolutionControl(heldThread())?.matches(
           ':not(:disabled, [aria-disabled="true"])'

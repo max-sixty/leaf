@@ -399,7 +399,6 @@ export function createQueueWalk({
         id: "queue.todo.done",
         keys: ["x"],
         title: "done",
-        description: "Mark this to-do done",
         touch: false,
         when: () => Boolean(doneTodo()),
         run: () => {

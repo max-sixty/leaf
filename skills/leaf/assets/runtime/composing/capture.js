@@ -57,7 +57,6 @@ export function createPassageSelection({ restore }) {
       id: "selection.restore",
       keys: ["v"],
       title: "Restore selection",
-      description: "Restore the last selected passage",
       touch: "Restore selection",
       menu: "keys",
       when: () => previous !== null,

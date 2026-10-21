@@ -21,11 +21,14 @@
      The command reference presents each route separately. A
      route may override `title`, `description` and `label` for the case where a nearer scope shadows only
      its sibling binding. A route without a description of its own lists under the
-     row's, so the row's says what every route shares ("Filter visible targets by kind"),
-     never what tells them apart ("Next / previous match").
+     row's, so a row's description repeats under every route.
    - `title` is the command's required concise name, or a function when state changes
-     it. `description` optionally explains information the title cannot carry. The obligation,
-     menu rows, reference, and announcements read these same words.
+     it. The obligation, menu rows, reference, and announcements read these same words.
+   - `description` is the reference's grey second line, for what the reader can't tell
+     from the title and its section heading: a consequence ("discard changes"), a
+     mechanic ("Shift and arrow keys resize it"), a measure ("60% of a page"). Most rows
+     have none. A description that spells the title out as a sentence, or that repeats
+     down a run of rows such as an option group's digits, is noise.
    - `label` overrides the compact keycap, independently of the action name. A keyless
      command remains named by its title in the reference.
    - `contextKeys` are explicit aliases that work inside the widget and may be forwarded

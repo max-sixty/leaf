@@ -35,7 +35,6 @@ export function mountAnnotationControls() {
   pageCommand({
     id: "annotations.toggle",
     keys: ["o"],
-    description: "Hide or show the annotations drawn over the page",
     title: () => (hidden ? "show annotations" : "hide annotations"),
     touch: () => (hidden ? "Show annotations" : "Hide annotations"),
     menu: "annotate",

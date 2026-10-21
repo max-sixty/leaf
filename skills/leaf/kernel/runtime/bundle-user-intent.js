@@ -1606,7 +1606,6 @@ function declareCopy(pre, copy, noun) {
       {
         id: "code.copy",
         keys: ["Enter"],
-        description: `Copy this block's ${noun} to the clipboard`,
         title: `copy ${noun}`,
         run: () => copy.shadowRoot.querySelector("button").click()
       }
@@ -2923,7 +2922,6 @@ function createWritingResume({
   return {
     id: "writing.resume",
     keys: ["i"],
-    description: "Resume writing",
     title: "Resume writing",
     touch: "Resume writing",
     menu: "keys",
@@ -4383,7 +4381,6 @@ function createPassageSelection({ restore }) {
       id: "selection.restore",
       keys: ["v"],
       title: "Restore selection",
-      description: "Restore the last selected passage",
       touch: "Restore selection",
       menu: "keys",
       when: () => previous !== null,
@@ -4867,7 +4864,6 @@ function wireReply(key, row, input, send, wireInput, { hint, accessibleName, bus
       {
         id: "message.edit.last",
         keys: ["ArrowUp"],
-        description: "Edit my last message in the thread",
         title: "edit last message",
         when: () => !sync.value() && Boolean(composition.binding?.editLast?.available()),
         run: () => composition.binding?.editLast?.open()
@@ -6912,7 +6908,6 @@ var ThreadView = class {
         {
           id: reopen ? "thread.reopen" : "thread.resolve",
           keys: PRESS,
-          description: `${word} it`,
           title: word.toLowerCase(),
           control: button,
           when: () => !this.#model.settlement?.pending,

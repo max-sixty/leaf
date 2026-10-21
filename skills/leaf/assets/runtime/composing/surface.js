@@ -1336,7 +1336,6 @@ export function createResponseSurface({
     {
       id: "comment.options",
       keys: ["Tab"],
-      description: "Show other responses",
       title: "other responses",
       when: () => fabOptionsAvailable() && !composer.responseOptionsAreOpen(),
       run: () => showFabOptions(),
@@ -1354,10 +1353,6 @@ export function createResponseSurface({
         id: "composer.close",
         touch: false,
         keys: ["Escape"],
-        description: () =>
-          composer.composerHolds()
-            ? "Close the comment box, keeping the draft"
-            : "Close the comment box",
         title: () => (composer.composerHolds() ? "close — draft kept" : "close"),
         when: () => !composer.responseOptionsAreOpen(),
         run: () => dismissFab(),
@@ -1371,7 +1366,6 @@ export function createResponseSurface({
     pageSelection() || (fabAnchorAt() && !placement?.withheld())
       ? {
           title: "unselect",
-          description: "Clear the selection",
           out: dismissFab,
         }
       : null,

@@ -922,7 +922,7 @@ def test_r_resolves_the_focused_thread_while_x_is_unbound(browser, serve):
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_contain_text("In a thread")
     thread_section = command_reference_rows(page, "In a thread")
-    expect(thread_section.get_by_text("Resolve it", exact=True)).to_have_count(1)
+    expect(thread_section.get_by_text("Resolve", exact=True)).to_have_count(1)
     page.keyboard.press("Escape")
 
     # x has no command. r resolves the thread the walk stands on.

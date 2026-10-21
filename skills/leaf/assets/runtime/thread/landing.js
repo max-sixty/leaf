@@ -205,10 +205,6 @@ export function declareThreadKeys(landIn) {
         id: "thread.primary",
         touch: false,
         keys: ["Enter"],
-        description: () =>
-          resolutionControl(cardThread())?.matches(".lf-reopen")
-            ? "Reopen it"
-            : "Write a reply",
         title: () =>
           resolutionControl(cardThread())?.matches(".lf-reopen") ? "reopen" : "reply",
         when: () =>
@@ -231,10 +227,6 @@ export function declareThreadKeys(landIn) {
         id: "thread.resolution.toggle",
         touch: false,
         keys: ["r"],
-        description: () =>
-          resolutionControl(heldThread())?.matches(".lf-reopen")
-            ? "Reopen it"
-            : "Resolve it",
         title: () =>
           resolutionControl(heldThread())?.matches(".lf-reopen") ? "reopen" : "resolve",
         when: () =>

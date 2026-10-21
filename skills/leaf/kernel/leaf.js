@@ -6842,6 +6842,7 @@ function createFloatingPanel({
   let outline = null;
   let viewMovingUntil = 0;
   let riding = [];
+  let drafted = null;
   const outlineClip = (box, grow = 0) => `inset(${box.top - grow}px ${box.right - grow}px ${box.bottom - grow}px ${box.left - grow}px round ${box.radius + grow}px)`;
   const clipTop = (clip) => Number.parseFloat(/inset\(([-\d.]+)px/.exec(clip)?.[1]);
   const within = (room, element) => {
@@ -6859,13 +6860,12 @@ function createFloatingPanel({
   const near = (a, b) => Math.abs(a - b) < 0.5;
   function followBox() {
     const room = ground.getBoundingClientRect();
-    const rect2 = card.getBoundingClientRect();
     const next = within(room, card);
-    const editor = [...row.querySelectorAll("leaf-text")].find(
+    const editor = [...row.querySelectorAll(":scope > .lf-fp-field leaf-text")].find(
       (text) => text.checkVisibility()
     );
-    next.editor = editor ?? null;
-    next.field = editor?.offsetHeight ?? null;
+    const grew = drafted;
+    drafted = editor ? { editor, height: editor.getBoundingClientRect().height } : null;
     const was = outline;
     if (was && ["top", "right", "bottom", "left", "radius"].every(
       (side) => near(was[side], next[side])
@@ -6875,14 +6875,15 @@ function createFloatingPanel({
     setRuntimeRootStyle(
       document.documentElement,
       "--lf-panel-reach",
-      layoutPx(rect2.height > 0 ? room.bottom - rect2.top : 0)
+      layoutPx(next.height > 0 ? next.bottom + next.height : 0)
     );
     const duration = performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
     const moving = Boolean(was) && !reducedMotion() && pagePresented();
     const standing = moving && fill.getAnimations().length ? clipTop(getComputedStyle(fill).clipPath) : was?.top;
+    const revealing = card.getAnimations().some((running) => !riding.includes(running));
     for (const running of [...riding, ...card.getAnimations()]) running.cancel();
     riding = [];
-    const ride = moving && next.editor !== null && next.editor === was.editor && near(was.width, next.width) && near(was.bottom, next.bottom) && near(next.field - was.field, next.height - was.height);
+    const ride = moving && !revealing && drafted !== null && grew?.editor === drafted.editor && near(was.width, next.width) && near(was.bottom, next.bottom) && near(drafted.height - grew.height, next.height - was.height);
     const lift = getComputedStyle(ground);
     const shadowReach = ["--raise-2-drop", "--raise-2-blur"].map((token) => Number.parseFloat(lift.getPropertyValue(token))).reduce((reach2, part) => reach2 + part);
     const timing = { duration, easing: EASE };
@@ -6909,7 +6910,7 @@ function createFloatingPanel({
         opened,
         context2,
         ...row.querySelectorAll(":scope > .lf-fp-expand"),
-        ...card.querySelectorAll(".lf-composer-media:not([hidden])")
+        ...row.querySelectorAll(".lf-composer-media:not([hidden])")
       ];
       for (const rider of riders) riding.push(rider.animate([shifted, rest], timing));
       if (lag > 0)
@@ -6936,8 +6937,7 @@ function createFloatingPanel({
         for (const [layer, grow] of [
           [fieldRing, Number.parseFloat(outlineWidth)],
           [fieldFill, 0]
-        ]) {
-          for (const running of layer.getAnimations()) running.cancel();
+        ])
           riding.push(
             layer.animate(
               [
@@ -6947,13 +6947,12 @@ function createFloatingPanel({
               timing
             )
           );
-        }
       }
       return;
     }
     if (next.width <= was.width + 0.5 && next.height <= was.height + 0.5) return;
     const inside = {
-      top: Math.max(0, was.top - next.top),
+      top: Math.max(0, standing - next.top),
       right: Math.max(0, was.right - next.right),
       bottom: Math.max(0, was.bottom - next.bottom),
       left: Math.max(0, was.left - next.left),

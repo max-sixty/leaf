@@ -1051,6 +1051,11 @@ export function createFloatingPanel({
   // replaced is gone after its fade.
   let viewMovingUntil = 0;
   let riding = [];
+  // The editor in the panel's field, the page's or a thread's reply, and its height,
+  // as of the last time the box was read, whether or not its outline moved then. The
+  // comment box seated in the field's place is drawn as a card of its own, whose face
+  // the surface doesn't draw, so it keeps the reveal.
+  let drafted = null;
   const outlineClip = (box, grow = 0) =>
     `inset(${box.top - grow}px ${box.right - grow}px ${box.bottom - grow}px ${
       box.left - grow
@@ -1071,16 +1076,12 @@ export function createFloatingPanel({
   const near = (a, b) => Math.abs(a - b) < 0.5;
   function followBox() {
     const room = ground.getBoundingClientRect();
-    const rect = card.getBoundingClientRect();
     const next = within(room, card);
-    // The editor standing in the row: the page's or a thread's field, or the seated
-    // comment box.
-    const editor = [...row.querySelectorAll("leaf-text")].find((text) =>
-      text.checkVisibility(),
+    const editor = [...row.querySelectorAll(":scope > .lf-fp-field leaf-text")].find(
+      (text) => text.checkVisibility(),
     );
-    next.editor = editor ?? null;
-    // Its height as laid out, which a line riding in it doesn't change.
-    next.field = editor?.offsetHeight ?? null;
+    const grew = drafted;
+    drafted = editor ? { editor, height: editor.getBoundingClientRect().height } : null;
     const was = outline;
     if (
       was &&
@@ -1098,7 +1099,7 @@ export function createFloatingPanel({
     setRuntimeRootStyle(
       document.documentElement,
       "--lf-panel-reach",
-      layoutPx(rect.height > 0 ? room.bottom - rect.top : 0),
+      layoutPx(next.height > 0 ? next.bottom + next.height : 0),
     );
     const duration = performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
     const moving = Boolean(was) && !reducedMotion() && pagePresented();
@@ -1107,16 +1108,20 @@ export function createFloatingPanel({
       moving && fill.getAnimations().length
         ? clipTop(getComputedStyle(fill).clipPath)
         : was?.top;
+    // A reveal still under way leaves the box's contents where they will rest, cut to
+    // the surface, so a line arriving meanwhile is revealed with them.
+    const revealing = card.getAnimations().some((running) => !riding.includes(running));
     for (const running of [...riding, ...card.getAnimations()]) running.cancel();
     riding = [];
     // The field grew or shrank a line, and nothing else in the box moved.
     const ride =
       moving &&
-      next.editor !== null &&
-      next.editor === was.editor &&
+      !revealing &&
+      drafted !== null &&
+      grew?.editor === drafted.editor &&
       near(was.width, next.width) &&
       near(was.bottom, next.bottom) &&
-      near(next.field - was.field, next.height - was.height);
+      near(drafted.height - grew.height, next.height - was.height);
     // The ground is cut too, to the outline grown by its shadow's reach (`--raise-2`'s
     // blur dropped by its drop, theme.css), so it stands over nothing else in the window:
     // a layer over the whole window that paints nothing left every word under it
@@ -1152,7 +1157,7 @@ export function createFloatingPanel({
         opened,
         context,
         ...row.querySelectorAll(":scope > .lf-fp-expand"),
-        ...card.querySelectorAll(".lf-composer-media:not([hidden])"),
+        ...row.querySelectorAll(".lf-composer-media:not([hidden])"),
       ];
       for (const rider of riders) riding.push(rider.animate([shifted, rest], timing));
       // The words already written travel with the edge inside the field, whose box
@@ -1184,8 +1189,7 @@ export function createFloatingPanel({
         for (const [layer, grow] of [
           [fieldRing, Number.parseFloat(outlineWidth)],
           [fieldFill, 0],
-        ]) {
-          for (const running of layer.getAnimations()) running.cancel();
+        ])
           riding.push(
             layer.animate(
               [
@@ -1195,14 +1199,13 @@ export function createFloatingPanel({
               timing,
             ),
           );
-        }
       }
       return;
     }
     if (next.width <= was.width + 0.5 && next.height <= was.height + 0.5) return;
     // Within its own box, the outline the surface still stands at.
     const inside = {
-      top: Math.max(0, was.top - next.top),
+      top: Math.max(0, standing - next.top),
       right: Math.max(0, was.right - next.right),
       bottom: Math.max(0, was.bottom - next.bottom),
       left: Math.max(0, was.left - next.left),

@@ -45,11 +45,11 @@ test("the kernel preserves native packages, shared state, and stampable generati
     "widgets/custom.js":
       'import { state } from "/runtime/widget-api.js"; state.clicks += 1;',
     "vendor/example.js": 'export { state } from "/runtime/vendor-bridge.js";',
-    "vendor/lit.js": "export const html = (strings) => strings.join('');\n",
+    "vendor/solid.js": "export const html = (strings) => strings.join('');\n",
     "vendor/browser-runtime.js":
       'export { rendered } from "./browser-runtime/render.js";\n',
     "vendor/browser-runtime/render.js":
-      'import { html } from "../lit.js";\nimport { state } from "../../runtime/state.js";\n\nexport const rendered = () => html([state]);\n',
+      'import { html } from "../solid.js";\nimport { state } from "../../runtime/state.js";\n\nexport const rendered = () => html([state]);\n',
   };
   try {
     for (const [path, source] of Object.entries(sources)) {
@@ -121,9 +121,9 @@ test("the kernel preserves native packages, shared state, and stampable generati
       .map(([, bytes]) => bytes)
       .join("\n");
     assert.equal(javascript.split('"__LEAF_LAYER_GENERATION__"').length - 1, 0);
-    // The framework shares the runtime's one state instance and the page's one Lit.
+    // The framework shares the runtime's one state instance and the page's one Solid.
     assert.equal(javascript.split("clicks: 0").length - 1, 1);
-    assert.match(javascript, /from "\/vendor\/lit\.js"/);
+    assert.match(javascript, /from "\/vendor\/solid\.js"/);
     // A lazily imported kernel module is a chunk, and its vendor import stays native.
     assert.match(javascript, /import\("\/vendor\/example\.js"\)/);
     assert.doesNotMatch(javascript, /from "[^"]*browser-runtime|bundle-[A-Z0-9]{8}/);

@@ -491,7 +491,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
 
     expect(widget.locator(".lf-vr-title")).to_have_text(record["title"])
     case_select = widget.locator(".lf-vr-case-select")
-    expect(case_select.locator("wa-option")).to_have_count(2)
+    expect(case_select.locator("option")).to_have_count(2)
     expect(first).to_be_visible()
     expect(second).to_be_hidden()
     expect(first).to_have_attribute("data-lf-projection", "visual-run")

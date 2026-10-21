@@ -1,7 +1,7 @@
 /* A moving widget for readiness and covered-word checks.
  * Its offset is authoritative; deep stages animated words in a shadow root, and
  * bare deliberately omits their element so the page must refuse presentation. */
-import { LeafElement, motion, nothing, shadowStage } from "/runtime/widget-api.js";
+import { LeafElement, motion, shadowStage } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-drift",
@@ -29,7 +29,7 @@ customElements.define(
     render() {
       const from = this.getAttribute("offset");
       const to = String(this.state.settle.value);
-      if (from === to) return nothing;
+      if (from === to) return;
       this.setAttribute("offset", to);
       this.#place();
       // Held at the old offset for nine tenths of the run, so the words are over
@@ -46,7 +46,7 @@ customElements.define(
         ],
         1200,
       );
-      return nothing;
+      return;
     }
     #place() {
       this.style.transform = `translateY(${this.getAttribute("offset")}px)`;

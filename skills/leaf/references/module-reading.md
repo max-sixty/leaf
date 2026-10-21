@@ -137,7 +137,7 @@ on a generated image or link, so it resolves on published pages too.
 
 ### Icons
 
-`iconElement(name, className)` and `iconTemplate(name, className)` draw Leaf's icons.
+`iconElement(name, className)` draws a native SVG from Leaf's icon vocabulary.
 For a thread control, put `iconElement("comment", "lf-action-icon")` in an
 `lf-icon-action` button, which gives the label.
 

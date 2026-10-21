@@ -61,13 +61,7 @@ import { readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "../media.
 import { announce } from "../notifications.js";
 import { iconElement } from "../icons.js";
 import { drawingThumbnail } from "./drawing-context.js";
-import {
-  solidHtml as html,
-  createView,
-  Show,
-  For,
-  render as renderHint,
-} from "/vendor/browser-runtime.js";
+import { html, createView, Show, For } from "/vendor/browser-runtime.js";
 import "./text-field.js";
 import { followBoxGrowth, readBoxPlace } from "../thread/reply-landing.js";
 import { focusDestination, focused } from "../focus.js";
@@ -298,6 +292,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // A structured visual hint can mark the exact words its owner observes. It
       // shares the existing placeholder slot and send key; null keeps the plain hint.
       hintParts = null,
+      hintView = null,
       accessibleName = null,
       save,
       send,
@@ -339,6 +334,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     visibleHint.className = "lf-compose-placeholder";
     visibleHint.slot = "placeholder";
     const hintLabel = document.createElement("span");
+    const hintDrawing = hintView
+      ? createView(hintLabel, hintView, { parts: null, word: "" })
+      : null;
     const hintKey = document.createElement("kbd");
     hintKey.className = "lf-key-badge";
     visibleHint.append(hintLabel, hintKey);
@@ -536,9 +534,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const placeholder = suffix && !status ? `${word} ${suffix}` : word;
       if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
       const parts = status ? null : hintParts?.();
-      if (hintParts) renderHint(parts ?? word, hintLabel);
+      hintDrawing?.update({ parts, word });
       if ((suffix && !status) || (parts !== null && parts !== undefined)) {
-        if (!hintParts) keepsText(hintLabel, word);
+        if (!hintDrawing) keepsText(hintLabel, word);
         keepsText(hintKey, suffix);
         if (visibleHint.parentNode !== ta) move(ta, visibleHint, null);
       } else visibleHint.remove();

@@ -24,7 +24,7 @@
    viewer (layer-stack.js, `showNativeLayer`). A queued close from an earlier opening leaves a reopened viewer's
    image and focus intact. */
 
-import { solidHtml as html, createView, Show } from "/vendor/browser-runtime.js";
+import { html, createView, Show } from "/vendor/browser-runtime.js";
 import { offlineInteractive, pageUrl, runtimeResource } from "./context.js";
 import {
   handBack,
@@ -33,7 +33,7 @@ import {
   openLayer,
   openerOf,
 } from "./focus.js";
-import { closeControl, offerRef } from "./widget-elements.js";
+import { closeControl, offered } from "./widget-elements.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import {
   nativeLayers,
@@ -131,7 +131,7 @@ function presentViewer(model) {
                 },
                 children: (model) =>
                   html`<a
-                    ref=${offerRef("lf-media-viewer-original", true)}
+                    ref=${offered("lf-media-viewer-original", true)}
                     href=${() => model().url}
                     target="_blank"
                     rel="noopener"

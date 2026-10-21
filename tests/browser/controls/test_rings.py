@@ -146,17 +146,15 @@ def test_controls_share_pointer_and_keyboard_focus_rings(browser, serve):
             layer_registry={"lf-shadow-focus": declaration},
             layer_widgets={
                 "lf-shadow-focus.js": """
-import {once, shadowStage} from '/runtime/widget-api.js';
-import '/vendor/webawesome.esm.js';
+import {once, offer, shadowStage} from '/runtime/widget-api.js';
 customElements.define('lf-shadow-focus', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
-    const select = document.createElement('wa-select');
-    select.label = 'Choose a route';
-    select.withClear = true;
+    const select = offer('select', '');
+    select.ariaLabel = 'Choose a route';
     select.value = 'first';
     for (const [value, label] of [['first', 'First route'], ['second', 'Second route']]) {
-      const option = document.createElement('wa-option');
+      const option = document.createElement('option');
       option.value = value;
       option.textContent = label;
       select.append(option);
@@ -211,11 +209,7 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
         "retargeting focus to the widget host drew a second ring around its button"
     )
 
-    select = page.locator("#focus-shadow wa-select")
-    combobox = select.get_by_role("combobox")
-    listbox = select.locator('[part~="listbox"]')
-    first = select.get_by_role("option", name="First route", exact=True)
-    second = select.get_by_role("option", name="Second route", exact=True)
+    select = page.locator("#focus-shadow select")
 
     def one_select_ring(control, where):
         expect(control).to_be_focused()
@@ -225,29 +219,17 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
         assert len(drawn) == 1 and drawn[0]["sample"], (where, drawn)
         assert not ring_faults(drawn, where)
 
-    # The popup's options are slotted beside the combobox. Focus within the select
-    # host must not ring both the combobox and an option outside its ancestry.
-    combobox.click()
-    one_select_ring(first, "after opening the select")
-    page.keyboard.press("ArrowDown")
-    one_select_ring(second, "after moving to the next option")
-    page.keyboard.press("Enter")
-    expect(select).to_have_js_property("value", "second")
-    one_select_ring(combobox, "after choosing an option")
-    expect(listbox).to_be_hidden()
-    combobox.click()
-    one_select_ring(second, "after reopening the select")
-    page.keyboard.press("Escape")
-    one_select_ring(combobox, "after closing the select")
-    expect(listbox).to_be_hidden()
-    select.locator('[part~="clear-button"]').click()
-    expect(select).to_have_js_property("value", None)
-    one_select_ring(combobox, "after clearing the select")
+    select.focus()
+    one_select_ring(select, "on the native select")
+    select.press("ArrowDown")
+    expect(select).to_have_value("second")
+    one_select_ring(select, "after choosing the next native option")
+    select.press("ArrowUp")
+    expect(select).to_have_value("first")
+    one_select_ring(select, "after returning to the first native option")
     shadow_button.click()
     one_select_ring(shadow_button, "after leaving the select")
-    assert not select.locator('[part~="combobox"]').evaluate(
-        "el => el.part.contains('lf-focus-within')"
-    ), "the field retained its public focus part after focus left"
+    expect(select).not_to_have_attribute("data-lf-focus-within", "")
 
 
 def test_forced_colors_restore_a_real_outline_to_shadow_focused_fields(browser, serve):

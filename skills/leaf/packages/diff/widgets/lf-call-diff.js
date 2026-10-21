@@ -9,12 +9,12 @@
  * for removed rows (calldiff's diffNode/pickLoc contract). Source navigation keeps
  * that side even when the same number names a different line on the other side.
  * Comments stay bound to the capture's source revision: callee keys do not identify
- * persistent invocation instances. Rows are keyed by call and placed with setChildren rather than a Lit repeat per root:
+ * persistent invocation instances. Rows retain their call identity in a keyed Solid view:
  * a capture can move a call under another root, and a row leaving one repeat list
  * for another is recreated, which would drop the focus of a user standing on it. */
 import {
   announce,
-  solidHtml as html,
+  html,
   createView,
   Show,
   iconElement,

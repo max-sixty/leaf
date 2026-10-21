@@ -18,7 +18,7 @@ import { sameAnchor } from "./anchor-coordinate.js";
 import { sectionLabel } from "./addressable-names.js";
 import { createAnchorNoteProjection } from "./anchor-note-view.js";
 import { shelve, unshelve } from "./details-shelf.js";
-import { solidHtml as html, createView, For } from "/vendor/browser-runtime.js";
+import { html, createView, For } from "/vendor/browser-runtime.js";
 import {
   fragmentTarget,
   annotationAt,

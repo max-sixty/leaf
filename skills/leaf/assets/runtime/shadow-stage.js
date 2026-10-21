@@ -21,7 +21,7 @@
 
    The root is infrastructure owned here, not a template render container. Stage a
    concrete container and render templates inside it; retaining that container across
-   stage updates keeps Lit's markers, native editors, and directive lifetimes intact. */
+   stage updates keeps Solid's markers, native editors, and directive lifetimes intact. */
 import { SHADOW_LEADING_CSS, shadowRules } from "./shadow.js";
 import { annotationMarkSheets, marksSheet } from "./stylesheets.js";
 import { watchStandingIn } from "./focus.js";

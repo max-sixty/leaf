@@ -5,7 +5,7 @@
 // call Promise.prototype.then. Their owner captures the callback that commits an
 // effect before awaiting, and invokes it afterwards. Leaf draft sends put words away
 // synchronously before awaiting delivery (drafts.js). A reactive element's update is
-// the exception the watch follows itself: Lit defers it behind a native await, and the
+// the exception the watch follows itself: an async element defers it behind a native await, and the
 // request that starts it names its cause (`adoptReactive`).
 // Native edit starts identify their field through DOM capture or EditContext's
 // attachment; a watch confirms the value that field's input commits.
@@ -538,7 +538,7 @@
       );
     };
   }
-  // A reactive element (Lit's lifecycle: `requestUpdate` starts an update, which a native
+  // A reactive element (`requestUpdate` starts an update, which a native
   // `await` defers to `scheduleUpdate`) commits its update for whatever requested it.
   // The request that starts the update names its source, as scheduling a timer does,
   // and connecting the element names the source of its first; the update runs under

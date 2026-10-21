@@ -10,7 +10,7 @@
 // node's data) change nothing when the place ends the script holding the value it
 // started with, whether the script restated it or took it away and put it back, and a
 // child-list write changes nothing when it puts back rendered nodes equal to the ones
-// it took out. Comments draw no content; renderers such as Lit replace their ownership
+// it took out. Comments draw no content; renderers replace their ownership
 // markers while updating real content, so comment-only restoration is not judged.
 // Such a rendered write still costs a style pass and a repaint, of the whole document while
 // a CSS highlight holds a range, so code writes only what changed
@@ -228,9 +228,6 @@
     // A repeated live announcement replaces its text node so assistive technology
     // hears a fresh arrival even when the words match the previous announcement.
     (what, node) => what === "children" && is(node, "div.lf-ui.lf-live"),
-    // Lit's keyed repeat moves equivalent marker nodes when a visual action in
-    // the group changes identity, while the rendered controls update in place.
-    (what, node) => what === "children" && is(node, "div.lf-visual-actions"),
     // CodeMirror writes every attribute of its content element when it mounts a view,
     // the tab-size style that element already holds among them.
     (what, node) => what === "style" && is(node, "div.cm-content"),
@@ -253,10 +250,6 @@
       what === "children" &&
       is(node, "div.cm-scroller") &&
       hosts(node)[0]?.localName === "lf-file-editor",
-    // Web Awesome's components reflect each property onto the attribute it came from
-    // as they update, and restate what their own shadow trees hold.
-    (what, node) => what !== "children" && node.localName?.startsWith("wa-"),
-    (what, node) => hosts(node).some((host) => host.localName.startsWith("wa-")),
     // Viewer.js reapplies image/canvas classes and magnifier visibility when an
     // inspected image changes. It is an upstream-owned renderer; Leaf's adapter
     // controls remain watched.

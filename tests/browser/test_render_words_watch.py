@@ -1574,10 +1574,10 @@ def test_words_a_native_passive_await_stays_passive_inside_a_press(browser, defe
     page.wait_for_function("window.done === true")
 
 
-# A reactive element in the shape Lit gives one: `requestUpdate` starts an update that a
+# A reactive element with an asynchronous lifecycle: `requestUpdate` starts an update that a
 # native `await` defers to `scheduleUpdate`, and the first update, requested while the
 # element is constructed, waits for it to be connected. Its value is drawn into a field
-# in its shadow tree, as a Web Awesome input draws the Threads search. Escape clears the
+# in its shadow tree, as an independent package can draw its editor. Escape clears the
 # host's value; `k` makes an element whose first update clears it, which a passive
 # timer later connects; and a passive timer, armed when the page loads, clears it on cue.
 REACTIVE = """<!doctype html><body>

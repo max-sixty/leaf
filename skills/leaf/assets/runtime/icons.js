@@ -2,7 +2,6 @@
    module: composing/selection.js builds its response button with an icon as it
    evaluates. */
 
-import { html } from "/vendor/browser-runtime.js";
 
 // Built-in margin entry faces use one stroked, currentColor icon vocabulary. Reaction tokens
 // are authored content and may supply emoji; structural Leaf faces keep their line
@@ -58,18 +57,6 @@ const iconMarkup = (icon) => {
   if (!markup) throw new TypeError(`Unknown Leaf icon: ${icon}`);
   return markup;
 };
-
-/** A Lit icon template; a parent refresh keeps its SVG and rewrites only a changed icon. */
-export function iconTemplate(icon, className = "lf-margin-entry-icon") {
-  return html`<svg
-    viewBox="0 0 16 16"
-    focusable="false"
-    aria-hidden="true"
-    class=${className}
-    data-lf-icon=${icon}
-    .innerHTML=${iconMarkup(icon)}
-  ></svg>`;
-}
 
 export function iconElement(icon, className = "lf-margin-entry-icon") {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");

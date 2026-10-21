@@ -413,10 +413,8 @@ customElements.define(
       keeps(this.#copy, "data-copy-state", "rest");
     }
 
-    // The copy control is a native button rather than a `wa-copy-button`, because the
-    // initial producer draws it before any module loads and the theme reserves its
-    // feedback words' width in place. Its label shows the result where the press was;
-    // the page's live region says it, as Web Awesome's copy button says its own.
+    // The initial producer draws this native control and reserves its feedback
+    // words' width. The label and shared live region say the copy's result.
     async #copyInstruction() {
       const instruction = this.#instruction();
       let feedback;

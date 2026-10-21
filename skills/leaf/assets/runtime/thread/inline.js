@@ -17,7 +17,7 @@
    are inert. Opening the disclosure, undo or refusal ends that fold immediately. HeldNews
    still decides when a passive settlement may move the reader. */
 import { setChildren } from "../dom-children.js";
-import { solidHtml as html, createView, Show } from "/vendor/browser-runtime.js";
+import { html, createView, Show } from "/vendor/browser-runtime.js";
 import { seatRoot } from "./model.js";
 import { ThreadView, threadReading } from "./thread-card.js";
 import { elementById } from "../passages.js";

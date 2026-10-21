@@ -10,32 +10,20 @@
    the references/module-*.md files document each one; the exports below it serve Leaf's
    bundled packages and kernel widgets alone (tests/runtime/widget-api.test.mjs). */
 export {
-  html,
-  noChange,
-  nothing,
-  render,
-  classMap,
-  createRef,
-  guard,
-  keyed,
-  live,
-  ref,
-  repeat,
-  styleMap,
-  unsafeHTML,
   createSignal,
   createMemo,
   createEffect,
   createRoot,
+  onCleanup,
   createView,
-  solidHtml,
+  html,
   For,
   Show,
   flush,
   untrack,
 } from "/vendor/browser-runtime.js";
 export { move } from "./dom-move.js";
-export { iconElement, iconTemplate } from "./icons.js";
+export { iconElement } from "./icons.js";
 export { widgetController } from "./widget-controller.js";
 export { LeafElement } from "./leaf-element.js";
 export { quoted } from "./widget-descriptors.js";
@@ -125,7 +113,6 @@ export { PRESS, labelOf, rowArrows } from "./keyboard/bindings.js";
 export {
   commandScope,
   commandsOn,
-  scopeRef,
   keys as commands,
   paintKeys,
   saying,
@@ -257,7 +244,6 @@ export {
   motionPreview,
   offer,
   offered,
-  offerRef,
   reachedForWords,
   relabel,
   searchField,

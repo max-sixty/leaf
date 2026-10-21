@@ -37,7 +37,7 @@ import {
   ensureSyntaxLanguage,
   focusDestination,
   holdFocus,
-  solidHtml as html,
+  html,
   createView,
   Show,
   inChrome,
@@ -83,7 +83,6 @@ import {
   readDiffCoordinate,
 } from "./diff-coordinates.js";
 import { disclose, disclosure } from "./disclosure.js";
-import "/vendor/webawesome.esm.js";
 import { pierre, markSyntax } from "/widgets/pierre.js";
 // Only a diff that is actually rendering has any use for Pierre's renderer —
 // an authored <lf-diff> bound to data

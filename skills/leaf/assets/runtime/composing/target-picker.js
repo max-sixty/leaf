@@ -1,12 +1,12 @@
 /* This module owns the target picker and whole-page text search. Its transient hints,
- * search marks, and status are synchronous Lit projections over native controller state. */
+ * search marks, and status are synchronous Solid projections over native controller state. */
 import { keepsText } from "../keeps.js";
 import { anchoringIsReady } from "../anchor-resolution.js";
 import { bindings, bindingEnabled, cycledRow } from "../keyboard/bindings.js";
 import { el, LAYOUT, searchField } from "../widget-elements.js";
 import { iconElement } from "../icons.js";
 import { coarsePointer } from "../pointer.js";
-import { solidHtml as html, createSignal, flush } from "/vendor/browser-runtime.js";
+import { html, createSignal, flush } from "/vendor/browser-runtime.js";
 
 import {
   contextAround,
@@ -156,7 +156,7 @@ export function createTargetPicker({
   const matchNodeIds = new WeakMap();
   let nextMatchNodeId = 1;
 
-  // Target elements and text coordinates stay outside the immutable readings. Lit receives
+  // Target elements and text coordinates stay outside the immutable readings. Solid receives
   // only opaque primitive identities, retaining unchanged hint and keycap nodes on repaint.
   const hintRenderKey = renderKeys();
   // The open search's mark stands over its words in the frames that cut them, carried

@@ -1,7 +1,7 @@
 /* A Solid view tracks the fields it draws while preserving native editing state. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createView, solidHtml, For } from "/vendor/browser-runtime.js";
+import { createView, html, For } from "/vendor/browser-runtime.js";
 
 test("updating one field leaves an independent binding and native editor alone", () => {
   const host = document.createElement("section");
@@ -9,7 +9,7 @@ test("updating one field leaves an independent binding and native editor alone",
   let labelReads = 0;
   const view = createView(
     host,
-    (props) => solidHtml`
+    (props) => html`
     <label>${() => {
       labelReads++;
       return props().label;
@@ -47,8 +47,8 @@ test("reordering keyed records preserves each row's kind and native editor", () 
         keyed: (item) => item.key,
         children: (item) =>
           item().kind === "entry"
-            ? solidHtml`<label>${() => item().entry.label}<input /></label>`
-            : solidHtml`<h2>${() => item().title}</h2>`,
+            ? html`<label>${() => item().entry.label}<input /></label>`
+            : html`<h2>${() => item().title}</h2>`,
       }),
     { items: [row, heading] },
   );

@@ -14,7 +14,7 @@ import test from "node:test";
 import { createHintSession, hintCodes } from "/runtime/keyboard/hints.js";
 import { setQuickShortcuts } from "/runtime/keyboard/bindings.js";
 import { liveEl } from "/runtime/notifications.js";
-import { solidHtml as html } from "/vendor/browser-runtime.js";
+import { html } from "/vendor/browser-runtime.js";
 
 // Three letters, so a fourth link branches: a, s, da, ds.
 const KEYS = ["a", "s", "d"];

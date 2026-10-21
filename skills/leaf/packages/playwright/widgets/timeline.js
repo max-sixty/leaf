@@ -18,10 +18,9 @@
  */
 import {
   html,
-  keyed,
-  nothing,
-  render,
-  repeat,
+  createView,
+  For,
+  Show,
   frameFor,
   sizeObserver,
   whileConnected,
@@ -98,6 +97,9 @@ export class RecordingTimeline {
   #callRows = 1;
   #callRowOf = new Map();
   #tipAnchor = null;
+  #drawing = null;
+  #rulerDrawing = null;
+  #rulerNode = null;
 
   /**
    * `host` receives the timeline. `options`: `onSeek(time, final)`, `onPick(lane,
@@ -387,29 +389,41 @@ export class RecordingTimeline {
   }
   // Each name in a label is its own mark's target; a count zooms to its marks.
   #labelWords(cluster, lane) {
-    const word = (item) =>
-      html`<span
-        class="lf-trace-word"
-        data-word=${item.id}
-        data-tip=${item.title}
-        ?data-current=${item.current}
-        >${item.label}</span
-      >`;
     const kind = lane === "moments" ? "moments" : "inputs";
-    if (cluster.compact)
-      return html`${word(cluster.items[0])}
-        <span
+    return html`${For({
+      get each() {
+        return cluster().compact ? cluster().items.slice(0, 1) : cluster().items;
+      },
+      keyed: (item) => item.id,
+      children: (item, index) =>
+        html`${() => (index() ? " " : "")}<span
+            class="lf-trace-word"
+            data-word=${() => item().id}
+            data-tip=${() => item().title}
+            data-current=${() => (item().current ? "" : undefined)}
+            >${() => item().label}</span
+          >`,
+    })}${Show({
+      get when() {
+        return cluster().compact;
+      },
+      children: (_visible) =>
+        html` <span
           class="lf-trace-more"
           data-more
-          ?data-current=${cluster.items.slice(1).some((item) => item.current)}
-          data-tip=${
-            cluster.spread
-              ? `${cluster.items.length - 1} more ${kind}: zoom to separate them`
-              : `${cluster.items.length - 1} more ${kind} at this time; ${kind === "moments" ? "the Moments list" : "Shift with Left and Right"} reaches each`
-          }
-          >+${cluster.items.length - 1}</span
-        >`;
-    return cluster.items.map((item, index) => html`${index ? " " : ""}${word(item)}`);
+          data-current=${() =>
+            cluster()
+              .items.slice(1)
+              .some((item) => item.current)
+              ? ""
+              : undefined}
+          data-tip=${() =>
+            cluster().spread
+              ? `${cluster().items.length - 1} more ${kind}: zoom to separate them`
+              : `${cluster().items.length - 1} more ${kind} at this time; ${kind === "moments" ? "the Moments list" : "Shift with Left and Right"} reaches each`}
+          >+${() => cluster().items.length - 1}</span
+        >`,
+    })}`;
   }
 
   // Drawing ------------------------------------------------------------------------
@@ -443,191 +457,210 @@ export class RecordingTimeline {
         "Dark ticks have an image; light ticks are checkpoints without one",
       ],
     ];
-    render(
-      html`<div class="lf-trace-lane-names" aria-hidden="true">
-          <span class="lf-trace-lane-name lf-trace-lane-name-ruler"></span>
-          ${lanes.map(
-            ([lane, name, about]) =>
-              html`<span
-                class="lf-trace-lane-name lf-trace-lane-name-${lane}"
-                title=${about}
-                style="--lf-trace-rows: ${lane === "calls" ? this.#callRows : 1}"
-                >${name}</span
-              >`,
-          )}
-        </div>
-        <div
-          class="lf-trace-scroller"
-          @scroll=${() => this.#scrolled()}
-          @wheel=${(event) => this.#wheel(event)}
-        >
-          ${keyed(
-            // A different recording, scope or time scale is a new drawing: its
-            // marks are replaced rather than carried to new positions.
-            model.signature,
-            html`<div
-              class="lf-trace-track"
-              @touchstart=${{
-                handleEvent: (event) => this.#landed(event),
-                passive: true,
-              }}
-              @pointerdown=${(event) => this.#press(event)}
-              @click=${(event) => this.#tap(event)}
-              @pointerover=${(event) => this.#hover(event)}
-              @pointerout=${(event) => this.#hover(event, true)}
-            >
-              <div class="lf-trace-ruler"></div>
-              ${
-                model.moments.length
-                  ? html`<div class="lf-trace-lane lf-trace-lane-moments">
-                      ${this.#labels.moments.map(
-                        (cluster, index) =>
-                          html`<span
-                            class="lf-trace-moment-pin"
-                            ?data-flip=${cluster.flip}
-                            data-pick="moments"
-                            data-id=${cluster.items[0].id}
-                            data-cluster=${index}
-                            data-tip=${cluster.items.map((item) => item.title).join("\n")}
-                            ?data-current=${cluster.items.some((item) => item.current)}
-                            style="--t: ${fraction(cluster.items[0].at)}; max-inline-size: ${this.#labelRoom(
-                              this.#labels.moments,
-                              index,
-                            )}"
-                            ><span class="lf-trace-moment-flag"
-                              >${this.#labelWords(cluster, "moments")}</span
-                            ></span
-                          >`,
-                      )}
-                    </div>`
-                  : nothing
-              }
-              ${
-                model.inputs.length
-                  ? html`<div class="lf-trace-lane lf-trace-lane-input">
-                      ${this.#labels.input.map(
-                        (cluster, index) =>
-                          html`<span
-                            class="lf-trace-input-label"
-                            ?data-flip=${cluster.flip}
-                            data-pick="input"
-                            data-id=${cluster.items[0].id}
-                            data-cluster=${index}
-                            data-tip=${cluster.items.map((item) => item.title).join("\n")}
-                            style="--t: ${fraction(cluster.items[0].at)}; max-inline-size: ${this.#labelRoom(
-                              this.#labels.input,
-                              index,
-                            )}"
-                            >${this.#labelWords(cluster, "input")}</span
-                          >`,
-                      )}
-                      ${repeat(
-                        model.inputs.filter((input) => input.send !== null),
-                        (input) => input.id,
-                        (input) =>
-                          html`<span
-                            class="lf-trace-input-send"
-                            data-pick="input"
-                            data-id=${input.id}
-                            data-tip=${input.title}
-                            ?data-current=${input.current}
-                            style="--t: ${fraction(input.send)}"
-                          ></span>`,
-                      )}
-                      ${repeat(
-                        model.inputs,
-                        (input) => input.id,
-                        (input) =>
-                          html`<span
-                            class="lf-trace-bar lf-trace-input-bar"
-                            data-pick="input"
-                            data-id=${input.id}
-                            data-tip=${input.title}
-                            ?data-current=${input.current}
-                            ?data-active=${input.active}
-                            style="--t: ${fraction(input.start)}; --d: ${length(
-                              input.start,
-                              input.end,
-                            )}"
-                          ></span>`,
-                      )}
-                    </div>`
-                  : nothing
-              }
-              ${
-                model.calls.length
-                  ? html`<div
-                      class="lf-trace-lane lf-trace-lane-calls"
-                      style="--lf-trace-rows: ${this.#callRows}"
-                    >
-                      ${repeat(
-                        model.calls,
-                        (call) => call.id,
-                        (call) =>
-                          html`<span
-                            class="lf-trace-bar lf-trace-call-bar"
-                            data-pick="calls"
-                            data-id=${call.id}
-                            data-tip=${call.title}
-                            ?data-current=${call.current}
-                            ?data-active=${call.active}
-                            ?data-error=${call.error}
-                            style="--t: ${fraction(call.start)}; --d: ${length(
-                              call.start,
-                              call.end,
-                            )}; --row: ${this.#callRowOf.get(call.id) ?? 0}"
-                            ><span class="lf-trace-call-name">${call.label}</span></span
-                          >`,
-                      )}
-                    </div>`
-                  : nothing
-              }
-              <div class="lf-trace-lane lf-trace-lane-captures">
-                ${repeat(
-                  model.captures,
-                  (capture) => capture.id,
-                  (capture) =>
-                    html`<span
-                      class="lf-trace-capture"
-                      ?data-image=${capture.image}
-                      ?data-current=${capture.current}
-                      style="--t: ${fraction(capture.time)}"
-                    ></span>`,
-                )}
-              </div>
-              <div class="lf-trace-playhead" aria-hidden="true">
-                <span
-                  class="lf-trace-playhead-handle"
-                  title=${quoted ? "Selected recorded time" : "Drag to scrub the recording"}
-                ></span>
-              </div>
-            </div>`,
-          )}
-        </div>
-        <div
-          class="lf-trace-overview"
-          title="Whole recording; drag to move the zoomed window"
-          @pointerdown=${(event) => this.#overviewPress(event)}
-        >
-          <span class="lf-trace-overview-window"></span>
-          <span class="lf-trace-overview-time"></span>
-        </div>
-        ${
-          model.inputs.length
-            ? html`<p class="lf-trace-legend">
-                Input bars span each recorded call; the notch is its Action checkpoint,
-                just before the input is sent. Key-down and hold times are not recorded.
-              </p>`
-            : nothing
-        }
-        <div class="lf-trace-tip" role="tooltip" hidden></div>`,
-      this.#host,
-    );
+    const mark = (item) => ({
+      ...item,
+      t: fraction(item.start ?? item.time),
+      d: length(item.start, item.end),
+      row: this.#callRowOf.get(item.id) ?? 0,
+    });
+    const clusters = (lane) =>
+      this.#labels[lane].map((cluster, index) => ({
+        ...cluster,
+        index,
+        t: fraction(cluster.items[0].at),
+        room: this.#labelRoom(this.#labels[lane], index),
+        tip: cluster.items.map((item) => item.title).join("\n"),
+        current: cluster.items.some((item) => item.current),
+      }));
+    const props = {
+      signature: model.signature,
+      lanes,
+      rows: this.#callRows,
+      quoted,
+      moments: clusters("moments"),
+      inputs: clusters("input"),
+      sends: model.inputs
+        .filter((input) => input.send !== null)
+        .map((input) => ({ ...input, t: fraction(input.send) })),
+      inputBars: model.inputs.map(mark),
+      calls: model.calls.map(mark),
+      captures: model.captures.map(mark),
+    };
+    if (this.#drawing) this.#drawing.update(props);
+    else this.#drawing = createView(this.#host, (read) => this.#template(read), props);
     const track = this.#host.querySelector(".lf-trace-track");
     keepVar(track, "--lf-trace-zoom", String(this.#zoom));
     keepVar(track, "--lf-trace-edge", `${EDGE}px`);
     keepVar(track, "--lf-trace-time", String(this.#fraction(this.#time)));
     this.#drawRuler();
+  }
+
+  #template(read) {
+    const labels = (lane) =>
+      For({
+        get each() {
+          return read()[lane];
+        },
+        keyed: (cluster) => cluster.items[0].id,
+        children: (cluster) =>
+          html`<span
+            class=${lane === "moments" ? "lf-trace-moment-pin" : "lf-trace-input-label"}
+            data-flip=${() => (cluster().flip ? "" : undefined)}
+            data-pick=${lane === "moments" ? "moments" : "input"}
+            data-id=${() => cluster().items[0].id}
+            data-cluster=${() => cluster().index}
+            data-tip=${() => cluster().tip}
+            data-current=${() => (lane === "moments" && cluster().current ? "" : undefined)}
+            style=${() => ({ "--t": cluster().t, "max-inline-size": cluster().room })}
+          >
+            ${lane === "moments" ? html`<span class="lf-trace-moment-flag">${this.#labelWords(cluster, lane)}</span>` : this.#labelWords(cluster, lane)}
+          </span>`,
+      });
+    const bars = (lane) =>
+      For({
+        get each() {
+          return read()[lane];
+        },
+        keyed: (item) => item.id,
+        children: (item) =>
+          html`<span
+            class=${lane === "calls" ? "lf-trace-bar lf-trace-call-bar" : "lf-trace-bar lf-trace-input-bar"}
+            data-pick=${lane === "calls" ? "calls" : "input"}
+            data-id=${() => item().id}
+            data-tip=${() => item().title}
+            data-current=${() => (item().current ? "" : undefined)}
+            data-active=${() => (item().active ? "" : undefined)}
+            data-error=${() => (lane === "calls" && item().error ? "" : undefined)}
+            style=${() => ({ "--t": item().t, "--d": item().d, "--row": String(item().row) })}
+          >
+            ${lane === "calls" ? html`<span class="lf-trace-call-name">${() => item().label}</span>` : undefined}
+          </span>`,
+      });
+    return html`<div class="lf-trace-lane-names" aria-hidden="true">
+        <span class="lf-trace-lane-name lf-trace-lane-name-ruler"></span>
+        ${For({
+          get each() {
+            return read().lanes;
+          },
+          keyed: (lane) => lane[0],
+          children: (lane) =>
+            html` <span
+              class=${() => `lf-trace-lane-name lf-trace-lane-name-${lane()[0]}`}
+              title=${() => lane()[2]}
+              style=${() => ({ "--lf-trace-rows": String(lane()[0] === "calls" ? read().rows : 1) })}
+              >${() => lane()[1]}</span
+            >`,
+        })}
+      </div>
+      <div
+        class="lf-trace-scroller"
+        onScroll=${() => this.#scrolled()}
+        onWheel=${(event) => this.#wheel(event)}
+      >
+        ${Show({
+          get when() {
+            return read().signature;
+          },
+          keyed: true,
+          children: (_signature) =>
+            html` <div
+              class="lf-trace-track"
+              ref=${(node) => node.addEventListener("touchstart", (event) => this.#landed(event), { passive: true })}
+              onPointerDown=${(event) => this.#press(event)}
+              onClick=${(event) => this.#tap(event)}
+              onPointerOver=${(event) => this.#hover(event)}
+              onPointerOut=${(event) => this.#hover(event, true)}
+            >
+              <div class="lf-trace-ruler"></div>
+              ${Show({
+              get when() {
+                return read().moments.length;
+              },
+              children: (_visible) =>
+                html` <div class="lf-trace-lane lf-trace-lane-moments">
+                  ${labels("moments")}
+                </div>`,
+            })}
+              ${Show({
+              get when() {
+                return read().inputBars.length;
+              },
+              children: (_visible) =>
+                html` <div class="lf-trace-lane lf-trace-lane-input">
+                  ${labels("inputs")}
+                  ${For({
+                  get each() {
+                    return read().sends;
+                  },
+                  keyed: (item) => item.id,
+                  children: (item) =>
+                    html` <span
+                      class="lf-trace-input-send"
+                      data-pick="input"
+                      data-id=${() => item().id}
+                      data-tip=${() => item().title}
+                      data-current=${() => (item().current ? "" : undefined)}
+                      style=${() => ({ "--t": String(item().t) })}
+                    ></span>`,
+                })}
+                  ${bars("inputBars")}
+                </div>`,
+            })}
+              ${Show({
+              get when() {
+                return read().calls.length;
+              },
+              children: (_visible) =>
+                html` <div
+                  class="lf-trace-lane lf-trace-lane-calls"
+                  style=${() => ({ "--lf-trace-rows": String(read().rows) })}
+                >
+                  ${bars("calls")}
+                </div>`,
+            })}
+              <div class="lf-trace-lane lf-trace-lane-captures">
+                ${For({
+                get each() {
+                  return read().captures;
+                },
+                keyed: (capture) => capture.id,
+                children: (capture) =>
+                  html` <span
+                    class="lf-trace-capture"
+                    data-image=${() => (capture().image ? "" : undefined)}
+                    data-current=${() => (capture().current ? "" : undefined)}
+                    style=${() => ({ "--t": String(capture().t) })}
+                  ></span>`,
+              })}
+              </div>
+              <div class="lf-trace-playhead" aria-hidden="true">
+                <span
+                  class="lf-trace-playhead-handle"
+                  title=${() => (read().quoted ? "Selected recorded time" : "Drag to scrub the recording")}
+                ></span>
+              </div>
+            </div>`,
+        })}
+      </div>
+      <div
+        class="lf-trace-overview"
+        title="Whole recording; drag to move the zoomed window"
+        onPointerDown=${(event) => this.#overviewPress(event)}
+      >
+        <span class="lf-trace-overview-window"></span
+        ><span class="lf-trace-overview-time"></span>
+      </div>
+      ${Show({
+        get when() {
+          return read().inputBars.length;
+        },
+        children: (_visible) =>
+          html` <p class="lf-trace-legend">
+            Input bars span each recorded call; the notch is its Action checkpoint, just
+            before the input is sent. Key-down and hold times are not recorded.
+          </p>`,
+      })}
+      <div class="lf-trace-tip" role="tooltip" hidden></div>`;
   }
 
   // The overview shows the visible window within the whole recording.
@@ -692,20 +725,37 @@ export class RecordingTimeline {
       const major = Math.abs(rounded / step - Math.round(rounded / step)) < 1e-6;
       ticks.push({ time: rounded, major });
     }
-    render(
-      repeat(
-        ticks,
-        (tick) => `${step}:${tick.time}`,
-        (tick) =>
-          html`<span
-            class="lf-trace-tick ${tick.major ? "lf-trace-tick-major" : ""}"
-            ?data-flip=${tick.major && (this.#model.duration - tick.time) * pxPerMs < 44}
-            style="--t: ${this.#fraction(tick.time)}"
-            >${tick.major ? tickLabel(tick.time, step) : nothing}</span
-          >`,
-      ),
-      ruler,
-    );
+    const props = {
+      ticks: ticks.map((tick) => ({
+        ...tick,
+        key: `${step}:${tick.time}`,
+        t: this.#fraction(tick.time),
+        flip: tick.major && (this.#model.duration - tick.time) * pxPerMs < 44,
+        label: tick.major ? tickLabel(tick.time, step) : "",
+      })),
+    };
+    if (this.#rulerNode !== ruler) {
+      this.#rulerDrawing?.dispose();
+      this.#rulerNode = ruler;
+      this.#rulerDrawing = createView(
+        ruler,
+        (read) =>
+          html`${For({
+            get each() {
+              return read().ticks;
+            },
+            keyed: (tick) => tick.key,
+            children: (tick) =>
+              html`<span
+                class=${() => `lf-trace-tick${tick().major ? " lf-trace-tick-major" : ""}`}
+                data-flip=${() => (tick().flip ? "" : undefined)}
+                style=${() => ({ "--t": String(tick().t) })}
+                >${() => tick().label}</span
+              >`,
+          })}`,
+        props,
+      );
+    } else this.#rulerDrawing.update(props);
   }
 
   // Gestures -------------------------------------------------------------------------

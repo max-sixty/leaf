@@ -9,7 +9,7 @@ import "/widgets/lf-shot.js";
 
 import {
   commands,
-  scopeRef as commandsOn,
+  commandsOn as commandsOn,
   countAreas,
   describeDifference,
   compoundReadingRegionId,
@@ -21,8 +21,8 @@ import {
   keeps,
   layoutChanged,
   notice,
-  offerRef as offered,
-  solidHtml as html,
+  offered as offered,
+  html,
   createView,
   For,
   Show,
@@ -218,13 +218,15 @@ customElements.define(
 
     #choices(kind, label, values, current, hidden = () => false) {
       return html`<fieldset
-        ref=${offered(`lf-vr-inspector-group lf-vr-${kind}-group lf-compact-control`)}
+        ref=${offered(`lf-radio-group lf-vr-inspector-group lf-vr-${kind}-group lf-compact-control`)}
         hidden=${hidden}
       >
         <legend>${label}</legend>
         ${Object.entries(values).map(
           ([value, text]) =>
-            html`<label class="lf-vr-inspector-choice lf-compact-control">
+            html`<label
+              class="lf-radio-choice lf-vr-inspector-choice lf-compact-control"
+            >
               <input
                 type="radio"
                 name=${`${this.id}-${kind}`}
@@ -291,7 +293,7 @@ customElements.define(
                 ${this.#choices("scale", "Size", SCALE, () => read().scale)}
                 <div
                   ref=${offered("lf-vr-opacity-control")}
-                  data-active=${() => read().mode === "overlay"}
+                  data-active=${() => (read().mode === "overlay" ? "true" : undefined)}
                 >
                   <span ref=${offered("lf-vr-inspector-label lf-label")}
                     >Candidate opacity</span

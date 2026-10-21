@@ -385,7 +385,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
         assert reading["copyAnchor"] in reading["names"], anchors
 
     def copy(pre_selector, control, expected, *, keyboard=False):
-        button = control.get_by_role("button")
+        button = control
         pre = page.locator(pre_selector)
         expect(button).to_have_attribute("aria-label", "Copy code")
         pre.scroll_into_view_if_needed()
@@ -405,7 +405,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
                     padding: getComputedStyle(pre).paddingTop,
                     frame: rect(pre.getBoundingClientRect()),
                     source: rect(range.getClientRects()[0]),
-                    button: rect(copy.shadowRoot.querySelector('button').getBoundingClientRect()),
+                    button: rect(copy.getBoundingClientRect()),
                   };
                 }""",
                 pre_selector,
@@ -648,10 +648,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     suffix_uncovered()
     touch_pre.tap(position={"x": 20, "y": 20})
     expect(touch_pre).to_be_focused()
-    # The control takes no press while it still says its last copy succeeded.
-    touch.wait_for_function(
-        "() => !document.querySelector('.lf-chrome .lf-code-copy').isCopying"
-    )
+    # A completed copy can be activated again from the focused source.
     touch.keyboard.press("Enter")
     copied(fitting)
     expect(touch_pre).to_be_focused()

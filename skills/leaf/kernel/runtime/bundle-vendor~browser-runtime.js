@@ -8,17 +8,6 @@ import {
   flush as flush5,
   untrack as untrack2
 } from "/vendor/solid.js";
-import { LitElement, html, noChange, nothing, render as render2 } from "/vendor/lit.js";
-import { Directive, PartType, directive } from "/vendor/lit.js";
-import { AsyncDirective } from "/vendor/lit.js";
-import { classMap } from "/vendor/lit.js";
-import { guard } from "/vendor/lit.js";
-import { keyed } from "/vendor/lit.js";
-import { live } from "/vendor/lit.js";
-import { createRef, ref } from "/vendor/lit.js";
-import { repeat } from "/vendor/lit.js";
-import { styleMap } from "/vendor/lit.js";
-import { unsafeHTML } from "/vendor/lit.js";
 
 // vendor/browser-runtime/observe.js
 import { createEffect, createRoot, createTrackedEffect, flush } from "/vendor/solid.js";
@@ -44,24 +33,56 @@ function watchEffect(run) {
 // vendor/browser-runtime/views.js
 import { createSignal, createProjection, flush as flush2 } from "/vendor/solid.js";
 import { render } from "/vendor/solid.js";
+var roots = /* @__PURE__ */ new WeakMap();
+function resetViewsWithin(container) {
+  const nodes = [container];
+  for (const node of container.querySelectorAll("*")) {
+    nodes.push(node);
+    if (node.shadowRoot) resetViewsWithin(node.shadowRoot);
+  }
+  const resets = nodes.flatMap((node) => {
+    const reset = roots.get(node);
+    return reset ? [reset] : [];
+  });
+  for (const reset of resets.reverse()) reset();
+}
 function createView(container, component, initial) {
-  const [snapshot, setSnapshot] = createSignal(
-    { current: initial },
-    { ownedWrite: true }
-  );
-  const dispose = render(() => {
-    const props = createProjection(
-      () => ({ ...snapshot().current }),
-      null,
-      { shallow: true }
-    );
-    return component(() => props);
-  }, container);
+  let current = initial;
+  let stop = null;
+  let disposed = false;
+  let publish;
+  const mount = () => {
+    if (container.firstChild) container.replaceChildren();
+    stop = render(() => {
+      const [snapshot, setSnapshot] = createSignal({ current }, { ownedWrite: true });
+      publish = setSnapshot;
+      const props = createProjection(
+        () => ({ ...snapshot().current }),
+        null,
+        { shallow: true }
+      );
+      return component(() => props);
+    }, container);
+  };
+  const reset = () => {
+    stop?.();
+    stop = null;
+  };
+  mount();
+  roots.set(container, reset);
   return Object.freeze({
     update(next) {
-      flush2(() => setSnapshot({ current: next }));
+      if (disposed) throw new Error("Cannot update a disposed Solid view");
+      current = next;
+      if (stop) flush2(() => publish({ current }));
+      else mount();
     },
-    dispose
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      roots.delete(container);
+      reset();
+    }
   });
 }
 
@@ -1628,9 +1649,9 @@ function createSemanticApplication({
       });
     },
     entry,
-    identify(revision, stamp = null, live2 = false) {
+    identify(revision, stamp = null, live = false) {
       return publish({
-        document: { ...publisher.peek().document, revision, stamp, live: live2 }
+        document: { ...publisher.peek().document, revision, stamp, live }
       });
     },
     setHostAvailable(hostAvailable) {
@@ -2704,6 +2725,7 @@ export {
   bindQueuedWork,
   cancelWork,
   watchEffect,
+  resetViewsWithin,
   createView,
   collectReads,
   outsideReading,
@@ -2749,23 +2771,6 @@ export {
   createEffect2 as createEffect,
   flush5 as flush,
   untrack2 as untrack,
-  html,
-  noChange,
-  nothing,
-  render2 as render,
-  Directive,
-  PartType,
-  directive,
-  AsyncDirective,
-  classMap,
-  guard,
-  keyed,
-  live,
-  createRef,
-  ref,
-  repeat,
-  styleMap,
-  unsafeHTML,
   For,
   Show,
   onCleanup,

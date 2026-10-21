@@ -47,13 +47,13 @@ describe("published runtime bundle", () => {
       }
       await writeFile(
         join(layer, "widgets", "lf-study.js"),
-        `import { state } from "${root}/page/state.js"; import { html } from "../vendor/lit.js"; console.log(state, html);`,
+        `import { state } from "${root}/page/state.js"; import { html } from "../vendor/solid.js"; console.log(state, html);`,
       );
       await writeFile(
         join(layer, "page", "state.js"),
         `export const state = { revision: "${revision}" };`,
       );
-      await writeFile(join(layer, "vendor", "lit.js"), "export const html = 1;\n");
+      await writeFile(join(layer, "vendor", "solid.js"), "export const html = 1;\n");
     }
 
     await bundleSite(directory);
@@ -71,7 +71,7 @@ describe("published runtime bundle", () => {
       );
       // A relative import of a vendor module keeps the page's one copy.
       expect(await readFile(join(layer, "widgets", "lf-study.js"), "utf8")).toContain(
-        `from"${root}/vendor/lit.js"`,
+        `from"${root}/vendor/solid.js"`,
       );
       expect(await readFile(join(layer, "leaf.js"), "utf8")).toContain(
         `new URL("${root}/runtime/url.js",location.origin).href`,
@@ -126,7 +126,7 @@ describe("published runtime bundle", () => {
         ).toBeTruthy();
       }
       expect(bundled).not.toMatch(/from"\.\/runtime\/(?!bundle-)/);
-      // The kernel holds the framework; the page still shares one Lit, which the
+      // The kernel holds the framework; the page still shares one Solid, which the
       // revision's import map sends to its own vendor directory.
       const kernel = (
         await Promise.all(
@@ -136,7 +136,8 @@ describe("published runtime bundle", () => {
         )
       ).join("\n");
       expect(kernel).toContain('"accepted:presented"');
-      expect(kernel).toContain('from"/vendor/lit.js"');
+      expect(kernel).toContain('from"/vendor/solid.js"');
+      expect(kernel).not.toContain("/vendor/lit.js");
       expect(kernel).not.toContain("litHtmlVersions");
       expect(kernel).not.toContain("browser-runtime");
       expect(

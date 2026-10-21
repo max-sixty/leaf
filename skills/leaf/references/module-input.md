@@ -31,10 +31,13 @@ const actions = commandScope("In a classifier", [
 commands(classifier, actions);
 ```
 
-In a template, `commandsOn(title, rows, options)` attaches a scope to the element it is
-bound on, takes the current rows on each render, and detaches when the element goes.
-Where the rows need the element, pass a function of it, such as
+In a Solid template, `ref=${commandsOn(title, rows, options)}` attaches a scope
+for the view's lifetime and restores it after a DOM reconnection. Where rows need
+the native element, pass a function of it, such as
 `commandsOn(title, (summary) => [{ keys: () => DISCLOSE(summary), … }])`.
+For changing declarations use `commandsOn(() => props().scope)`, where `scope`
+is a `commandScope()` capability or null; withdrawal leaves independently projected
+scopes intact.
 
 ### Command rows
 

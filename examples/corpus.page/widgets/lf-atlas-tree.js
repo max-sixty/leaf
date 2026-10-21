@@ -4,6 +4,8 @@ import {
   ago,
   HeldReading,
   html,
+  createView,
+  Show,
   LeafElement,
   projectData,
 } from "/runtime/widget-api.js";
@@ -12,6 +14,7 @@ customElements.define(
   class extends LeafElement {
     pending = false;
     #view = null;
+    #drawing = null;
     setup() {
       this.held = new HeldReading(
         this,
@@ -31,37 +34,52 @@ customElements.define(
         this.dispatchEvent(new CustomEvent("atlas-reading", { bubbles: true }));
       }
       const record = this.#record(view);
-      return html`<details class="atlas-tree">
-        <summary>Worktree evidence</summary>
-        ${
-          record
-            ? html`<dl class="facts">
+      const props = { record, observed: record ? ago(record.observedAt) : "" };
+      if (this.#drawing) this.#drawing.update(props);
+      else
+        this.#drawing = createView(
+          this.renderRoot,
+          (read) =>
+            html` <details class="atlas-tree">
+              <summary>Worktree evidence</summary>
+              ${Show({
+            get when() {
+              return read().record;
+            },
+            fallback: html`<p>No worktree snapshot.</p>`,
+            children: (record) =>
+              html` <dl class="facts">
                   <dt>Branch</dt>
-                  <dd>${record.branch}</dd>
+                  <dd>${() => record().branch}</dd>
                   <dt>Revision</dt>
-                  <dd>${record.base}…${record.head}</dd>
+                  <dd>${() => record().base}…${() => record().head}</dd>
                   <dt>Against base</dt>
                   <dd>
-                    ↑${record.ahead} ↓${record.behind} · +${record.additions}
-                    −${record.deletions} · ${record.commits} commits
+                    ↑${() => record().ahead} ↓${() => record().behind} ·
+                    +${() => record().additions} −${() => record().deletions} ·
+                    ${() => record().commits} commits
                   </dd>
                   <dt>Tests</dt>
-                  <dd>${record.tests}</dd>
+                  <dd>${() => record().tests}</dd>
                   <dt>Observed</dt>
                   <dd>
-                    <time datetime=${record.observedAt} title=${record.observedAt}
-                      >${ago(record.observedAt)}</time
+                    <time
+                      datetime=${() => record().observedAt}
+                      title=${() => record().observedAt}
+                      >${() => read().observed}</time
                     >
                   </dd>
                 </dl>
                 <h4>Files</h4>
-                <pre>${record.files ?? "No files recorded."}</pre>
+                <pre>${() => record().files ?? "No files recorded."}</pre>
                 <h4>Diff</h4>
-                <pre>${record.diff ?? "No diff recorded."}</pre>`
-            : html`<p>No worktree snapshot.</p>`
-        }
-      </details>`;
+                <pre>${() => record().diff ?? "No diff recorded."}</pre>`,
+          })}
+            </details>`,
+          props,
+        );
     }
+
     #holds(view) {
       return Object.hasOwn(view?.value ?? {}, this.id);
     }

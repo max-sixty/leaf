@@ -960,11 +960,11 @@ DATA_PROJECTION_PAGE = leaf_page(
 )
 
 DATA_PROJECTION_MODULE = """
-import {offer, LeafElement, nothing, projectData, setChildren} from '/runtime/widget-api.js';
+import {offer, LeafElement, projectData, setChildren} from '/runtime/widget-api.js';
 customElements.define('lf-feed', class extends LeafElement {
   render() {
     this.show(this.data('rows'));
-    return nothing;
+    return;
   }
   show(snapshot) {
     const datums = (snapshot?.value ?? []).map(({key, value}, index) => {

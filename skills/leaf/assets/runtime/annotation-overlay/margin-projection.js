@@ -4,7 +4,7 @@
    directory. This renderer selects clusters and controls from those readings; it does
    not gather Threads, the On lists, workflows or contributed actions. Shared contribution
    controls retain native entries across page and frozen-Thread seats. This renderer's
-   Lit view owns direct/disclosed child order; margin-layout.js owns rail/pin posture,
+   Solid view owns direct/disclosed child order; margin-layout.js owns rail/pin posture,
    lanes and packing. Page Map consumes the inventory independently of this renderer.
 
    Keyboard and pointer expansion share one state. Focus arrival through Tab unfolds a
@@ -29,7 +29,7 @@
    else an enclosing one's), never those of a target inside it: a thread on an obligation's
    options shows from the options, not from the obligation (`threadEntryAt`).
 
-   Each frozen cluster model names controls by contribution and entry identity. The Lit view
+   Each frozen cluster model names controls by contribution and entry identity. The Solid view
    retains their native nodes, so a state refresh cannot cancel a held pointer or move focus.
    A print-media render is deferred until screen media returns because print removes the
    injected controls and cannot supply their geometry.

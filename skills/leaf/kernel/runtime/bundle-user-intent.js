@@ -222,7 +222,6 @@ import {
   default as default2,
   editable,
   flush,
-  html,
   isElementName,
   isReaction,
   lastMovedAt,
@@ -1458,11 +1457,11 @@ function renderQuiet(root, also = []) {
 }
 
 // runtime/copy-control.js
-function copyControl(className, { label = "Copy", success, error }) {
+function copyControl(className, { label = "Copy", title = label, success, error }) {
   const copy = offer("button", `lf-copy-control ${className}`);
   copy.type = "button";
   copy.setAttribute("aria-label", label);
-  copy.title = label;
+  copy.title = title;
   const glyph = el("span", "lf-copy-glyph");
   glyph.setAttribute("aria-hidden", "true");
   copy.append(glyph);
@@ -1483,7 +1482,7 @@ function copyControl(className, { label = "Copy", success, error }) {
     clearTimeout(reset);
     drawing.update({ icon: "copy" });
     keeps(copy, "aria-label", label);
-    keeps(copy, "title", label);
+    keeps(copy, "title", title);
   };
   whileConnected(copy, () => {
     idle();
@@ -1658,7 +1657,7 @@ function declareCopy(pre, copy, noun) {
         keys: ["Enter"],
         description: `Copy this block's ${noun} to the clipboard`,
         title: `copy ${noun}`,
-        run: () => copy.shadowRoot.querySelector("button").click()
+        run: () => copy.click()
       }
     ])
   );
@@ -1740,9 +1739,9 @@ var renderInline = escapedSource;
 var tokenize = null;
 var ready;
 var renderMarkdown = (text) => render(text);
-function renderedWords(html2, imageAlt = false) {
+function renderedWords(html, imageAlt = false) {
   const parsed = document.createElement("template");
-  parsed.innerHTML = html2;
+  parsed.innerHTML = html;
   return fragmentWords(parsed.content, imageAlt);
 }
 function fragmentWords(fragment, imageAlt = false) {
@@ -3860,16 +3859,16 @@ function proseReading(message) {
   let reading = renderedProse.get(key);
   if (!reading || reading.id !== message.id || reading.edited !== edited || reading.text !== text || reading.markdown !== markdown) {
     const pasted = readAttachedMedia(text);
-    const html2 = renderMarkdown(pasted.text);
+    const html = renderMarkdown(pasted.text);
     const mediaHtml = renderMarkdown(writeAttachedMedia("", pasted.paths));
     reading = Object.freeze({
       id: message.id,
       edited,
       text,
       markdown,
-      html: html2,
+      html,
       mediaHtml,
-      plainText: renderedWords(html2 + mediaHtml)
+      plainText: renderedWords(html + mediaHtml)
     });
     renderedProse.set(key, reading);
   }
@@ -3891,8 +3890,18 @@ function threadName(thread) {
   return words || (root.drawing ? "Drawing" : "");
 }
 var titlePending = (thread) => thread.title == null && thread.attention?.kind === "waiting" && thread.attention.reason === "workflow" && pageClaimed();
-var threadHeading = (thread) => titlePending(thread) ? html`<span class="lf-thread-name-pending">Generating thread name…</span
-        ><span class="lf-quiet"> ${threadName(thread)}</span>` : threadName(thread);
+var threadHeadingModel = (thread) => ({
+  pending: titlePending(thread),
+  name: threadName(thread)
+});
+var threadHeadingView = (read) => default2`${Show({
+  get when() {
+    return read().pending;
+  },
+  fallback: default2`${() => read().name}`,
+  children: (_visible) => default2`<span class="lf-thread-name-pending">Generating thread name…</span
+        ><span class="lf-quiet"> ${() => read().name}</span>`
+})}`;
 var threadSummary = (thread) => ({
   topic: threadName(thread),
   latest: lastMovedAt(thread)
@@ -8183,7 +8192,8 @@ export {
   loadMessageMarkdown,
   messageText,
   threadName,
-  threadHeading,
+  threadHeadingModel,
+  threadHeadingView,
   threadSummary,
   prepareAuthoredMessage,
   releaseAuthoredUnder,

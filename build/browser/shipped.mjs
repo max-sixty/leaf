@@ -1,7 +1,7 @@
 /**
  * What every third-party bundle Leaf commits must be, and what it must carry.
  *
- * Every bundle passes through this module: `build.mjs`'s browser framework and Lit,
+ * Every bundle passes through this module: `build.mjs`'s browser framework and Solid,
  * and each of `build/vendor.mjs`'s, including the files it copies as published. So
  * one parser decides whether an output loads in an export, and one writer states the
  * licenses of the packages that reached it.

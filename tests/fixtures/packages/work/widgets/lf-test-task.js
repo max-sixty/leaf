@@ -6,7 +6,6 @@ import {
   keeps,
   keepsText,
   LeafElement,
-  nothing,
   readWork,
   workAncestor,
 } from "/runtime/widget-api.js";
@@ -42,7 +41,7 @@ customElements.define(
         workAncestor(this, "scope") ?? this.parentElement,
       ).goals.find((row) => row.element === this);
       keepsText(this.progress, `${row.finished}/${row.leaves.length} done`);
-      return nothing;
+      return;
     }
   },
 );

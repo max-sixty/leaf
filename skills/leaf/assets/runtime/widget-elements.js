@@ -1,8 +1,8 @@
 /* The chrome a widget injects, the words it labels, and the room it measures.
 
    A behavior module builds injected controls with `offer`, and uses `relabel` when a
-   control's label is also one of the page's words. A Lit template reaches the same
-   writers through element directives built by `elementDirective`. A behavior module
+   control's label is also one of the page's words. A Solid template reaches the same
+   writers through Solid refs. A behavior module
    reads a box from inside `measure`: a widget upgrades wherever the runtime connects
    it, and a shut panel is `display: none`, where every word measures zero. A label
    whose words change holds one room for all of them with `data-lf-room`, which the
@@ -48,11 +48,7 @@ import { iconElement } from "./icons.js";
 import { renderedParent } from "./shadow.js";
 import { keeps, keepsText } from "./keeps.js";
 import {
-  Directive,
-  PartType,
-  directive,
-  nothing,
-  solidHtml as html,
+  html,
   createView,
   Show,
   createSignal,
@@ -300,36 +296,8 @@ export function searchField(cls, { name, label, placeholder = label }) {
   return field;
 }
 
-// A template's element part handed to an imperative writer: `${name(...args)}` calls
-// `write(element, ...args)` on every render, so a template and retained DOM share one
-// writer for the attributes it owns while Lit keeps the element's content and bindings.
-export function elementDirective(name, write) {
-  return directive(
-    class extends Directive {
-      constructor(part) {
-        super(part);
-        if (part.type !== PartType.ELEMENT)
-          throw new TypeError(`${name} belongs in a template's element part`);
-      }
-      // The values the template passes, which `update` writes.
-      render(...args) {
-        return nothing;
-      }
-      update(part, args) {
-        write(part.element, ...args);
-        return nothing;
-      }
-    },
-  );
-}
-
-// The template form of `offer`: `<button ${offered("lf-btn")}>`. It owns the
-// element's class and generated-control markers; attributes, values and handlers
-// remain ordinary Lit bindings. Both forms use the same chrome anatomy.
-export const offered = elementDirective("offered", offerElement);
-
 /** A Solid ref that gives an existing element Leaf's generated-control anatomy. */
-export const offerRef =
+export const offered =
   (...args) =>
   (element) =>
     offerElement(element, ...args);

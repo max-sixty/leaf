@@ -31,7 +31,7 @@ import {
   authoredRank,
   isElementName,
   readPart,
-  render,
+  resetViewsWithin,
   runtime
 } from "./bundle-vendor~browser-runtime.js";
 
@@ -423,18 +423,12 @@ function showFailure(el, text, source) {
   }
   if (placers.get(el)?.(box)) return;
   if (el.shadowRoot) {
+    resetViewsWithin(el.shadowRoot);
     shadowStage(el, [box]);
     return;
   }
-  releaseTemplate(el);
-  el.replaceChildren();
-  render(box, el);
-}
-function releaseTemplate(el) {
-  const part = el._$litPart$;
-  if (!part) return;
-  part.setConnected(false);
-  delete el._$litPart$;
+  resetViewsWithin(el);
+  el.replaceChildren(box);
 }
 
 // runtime/projection/authored.js

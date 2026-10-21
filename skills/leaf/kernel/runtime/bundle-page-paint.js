@@ -3,23 +3,18 @@ import {
   preserveMoveFocus
 } from "./bundle-dom-move.js";
 import {
-  AsyncDirective,
   DELIVERY,
-  Directive,
   PAGE_ROOT,
-  PartType,
   Show,
   cancelWork,
+  createEffect,
   createSignal,
   createView,
   default as default2,
   describeFailure,
-  directive,
   enqueueWork,
   flush,
-  html,
   isElementName,
-  nothing,
   offlineInteractive,
   onCleanup,
   pageUrl,
@@ -2743,45 +2738,19 @@ function keys(where, title, rows, options) {
     return attachScope(where, title.scope).rows;
   return attachScope(where, declaredScope(title, rows, options)).rows;
 }
-var commandsOn = directive(
-  class extends AsyncDirective {
-    #element;
-    #declaration;
-    #scope = null;
-    constructor(part) {
-      super(part);
-      if (part.type !== PartType.ELEMENT)
-        throw new TypeError("commandsOn belongs in a template's element part");
-    }
-    // The values the template passes, which `update` reads.
-    render(title, rows, options) {
-      return nothing;
-    }
-    update(part, [title, rows, options]) {
-      this.#element = part.element;
-      this.#declaration = rows === void 0 && isCommandScope(title) ? title.scope : declaredScope(
-        title,
-        typeof rows === "function" ? rows(part.element) : rows,
-        options
-      );
-      if (this.isConnected) this.reconnected();
-      return nothing;
-    }
-    reconnected() {
-      this.#scope = attachScope(this.#element, this.#declaration);
-    }
-    disconnected() {
-      if (detachScope(this.#element, this.#scope)) repaint();
-    }
-  }
-);
-function scopeRef(title, rows, options) {
+function commandsOn(title, rows, options) {
   let element;
   let attachment;
+  let declaration;
+  let connected = true;
   let stop;
   const withdraw = () => {
     if (element && detachScope(element, attachment)) repaint();
     attachment = null;
+  };
+  const connect = () => {
+    connected = true;
+    if (declaration) attachment ??= attachScope(element, declaration);
   };
   onCleanup(() => {
     stop?.();
@@ -2789,12 +2758,29 @@ function scopeRef(title, rows, options) {
   });
   return (node) => {
     element = node;
-    const declaration = rows === void 0 && isCommandScope(title) ? title.scope : declaredScope(title, typeof rows === "function" ? rows(node) : rows, options);
-    const connect = () => {
-      attachment ??= attachScope(node, declaration);
-    };
-    connect();
-    stop = watchOwner(node, { connect, disconnect: withdraw });
+    createEffect(
+      () => {
+        const capability = rows === void 0 && typeof title === "function" ? title(node) : title;
+        if (capability === null) return null;
+        return rows === void 0 && isCommandScope(capability) ? capability.scope : declaredScope(
+          capability,
+          typeof rows === "function" ? rows(node) : rows,
+          options
+        );
+      },
+      (next) => {
+        declaration = next;
+        if (!next) withdraw();
+        else if (connected) attachment = attachScope(element, next);
+      }
+    );
+    stop = watchOwner(node, {
+      connect,
+      disconnect: () => {
+        connected = false;
+        withdraw();
+      }
+    });
   };
 }
 function commandScope(title, rows, options) {
@@ -3783,16 +3769,6 @@ var iconMarkup = (icon) => {
   if (!markup) throw new TypeError(`Unknown Leaf icon: ${icon}`);
   return markup;
 };
-function iconTemplate(icon, className = "lf-margin-entry-icon") {
-  return html`<svg
-    viewBox="0 0 16 16"
-    focusable="false"
-    aria-hidden="true"
-    class=${className}
-    data-lf-icon=${icon}
-    .innerHTML=${iconMarkup(icon)}
-  ></svg>`;
-}
 function iconElement(icon, className = "lf-margin-entry-icon") {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   for (const [name, value] of Object.entries({
@@ -3919,27 +3895,7 @@ function searchField(cls, { name, label, placeholder = label }) {
   field.spellcheck = false;
   return field;
 }
-function elementDirective(name, write) {
-  return directive(
-    class extends Directive {
-      constructor(part) {
-        super(part);
-        if (part.type !== PartType.ELEMENT)
-          throw new TypeError(`${name} belongs in a template's element part`);
-      }
-      // The values the template passes, which `update` writes.
-      render(...args) {
-        return nothing;
-      }
-      update(part, args) {
-        write(part.element, ...args);
-        return nothing;
-      }
-    }
-  );
-}
-var offered = elementDirective("offered", offerElement);
-var offerRef = (...args) => (element) => offerElement(element, ...args);
+var offered = (...args) => (element) => offerElement(element, ...args);
 function selectableOffer(role, cls, label) {
   const node = document.createElement("span");
   node.setAttribute("role", role);
@@ -4655,7 +4611,6 @@ export {
   merge,
   keys,
   commandsOn,
-  scopeRef,
   commandScope,
   projectCommandScope,
   commandDeclarationsWithin,
@@ -4723,7 +4678,6 @@ export {
   placeBox,
   clippedPlace,
   stackLevel,
-  iconTemplate,
   iconElement,
   reveal,
   el,
@@ -4735,9 +4689,7 @@ export {
   worksInside,
   offer,
   searchField,
-  elementDirective,
   offered,
-  offerRef,
   selectableOffer,
   PRESSABLE,
   reachedForWords,

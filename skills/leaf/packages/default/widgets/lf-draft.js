@@ -50,10 +50,10 @@ import {
   motion,
   returnDuration,
   iconElement,
-  solidHtml as html,
+  html,
   createView,
   Show,
-  offerRef,
+  offered,
   LeafElement,
   offer,
   TEXT_FIELD,
@@ -320,13 +320,13 @@ customElements.define(
         this.#toolsDrawing = createView(
           this.#tools,
           (state) =>
-            html` <span ref=${offerRef("lf-draft-status")} role="status"
+            html` <span ref=${offered("lf-draft-status")} role="status"
                 >${() => (state().failed ? "Save failed. The edit is kept." : "")}</span
               >
               ${ACTIONS.map(([key, title, icon]) => {
                 const name = () => (key === "save" && state().failed ? "Retry" : title);
                 return html`<button
-                  ref=${offerRef("lf-btn lf-quiet-action lf-draft-action")}
+                  ref=${offered("lf-btn lf-quiet-action lf-draft-action")}
                   data-lf-draft-action=${key}
                   hidden=${() => (key === "edit" ? state().editing : !state().editing)}
                   aria-expanded=${() => (key === "edit" ? String(state().editing) : undefined)}

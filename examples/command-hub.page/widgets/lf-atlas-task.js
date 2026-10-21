@@ -6,7 +6,6 @@ import {
   keeps,
   keepsText,
   LeafElement,
-  nothing,
 } from "/runtime/widget-api.js";
 customElements.define(
   "lf-atlas-task",
@@ -32,7 +31,7 @@ customElements.define(
       const status = this.state.status.value;
       keeps(this, "status", status);
       keepsText(this.statusLine, status);
-      return nothing;
+      return;
     }
   },
 );

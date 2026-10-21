@@ -101,6 +101,20 @@
   background: transparent;
   pointer-events: none;
 }
+/* Once its thumb is pressed, the entire native track must keep receiving the
+   drag. A thumb-only hit route loses Chromium's native tracking on the first
+   move; at rest the image still takes its endpoint click. */
+:scope:is(lf-shot) .lf-shot-divider-input:active {
+  pointer-events: auto;
+}
+/* Vendor pseudo-elements need separate rules: an unsupported selector invalidates
+   an ordinary selector list, including the native input's :active rule. */
+:scope:is(lf-shot) .lf-shot-divider-input:active::-webkit-slider-runnable-track {
+  pointer-events: auto;
+}
+:scope:is(lf-shot) .lf-shot-divider-input:active::-moz-range-track {
+  pointer-events: auto;
+}
 :scope:is(lf-shot) .lf-shot-divider-input::-webkit-slider-thumb {
   appearance: none;
   width: var(--handle-size);

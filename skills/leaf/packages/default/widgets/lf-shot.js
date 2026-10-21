@@ -60,9 +60,9 @@
  * comparison choice and its focused control. A different image pair is a new shot.
  * Commentary about the change belongs in authored prose around the widget. */
 import {
-  solidHtml as html,
+  html,
   createView,
-  offerRef,
+  offered,
   HOLDS_WORD,
   PRESS,
   afterPresentation,
@@ -438,19 +438,19 @@ customElements.define(
                 step="1"
                 class="lf-shot-divider-input"
                 ref=${[
-              offerRef("lf-shot-divider-input"),
-              (input) => {
-                this.#dividerInput = input;
-              },
-            ]}
+                  offered("lf-shot-divider-input"),
+                  (input) => {
+                    this.#dividerInput = input;
+                  },
+                ]}
                 value=${() => read().before}
                 aria-label=${() => `Before and after — ${read().alt}`}
                 aria-valuetext=${() => `Before ${read().before}%, after ${100 - read().before}%`}
                 onInput=${() => {
-              this.#endpointChosen = true;
-              this.#leavePixels();
-              this.#paint();
-            }}
+                  this.#endpointChosen = true;
+                  this.#leavePixels();
+                  this.#paint();
+                }}
               />`,
           { before, alt: this.#alt },
         );

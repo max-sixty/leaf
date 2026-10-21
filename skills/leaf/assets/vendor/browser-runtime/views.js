@@ -1,39 +1,74 @@
-/** A Solid view mounted once in an imperative Leaf owner's generated container.
+/** A Solid view mounted in an imperative Leaf owner's generated container.
  *
- * The owner publishes complete view props. Components read the accessor in their
- * bindings, so updating a view retains its DOM, native state and Solid ownership.
- * The explicit flush is Leaf's imperative presentation boundary: once update
- * returns, focus, measurement and presentation proof can read the resulting DOM.
+ * The owner publishes complete props. Top-level projection fields track bindings
+ * independently; immutable lists keep the identities their For component chooses.
+ * Updates flush synchronously so gesture, focus and measurement share one reading.
+ * Failure replacement releases affected roots. A retained owner can publish again
+ * into the same container; terminal dispose ends that owner's lifetime.
  */
 import { createSignal, createProjection, flush } from "../solid.js";
 import { render } from "../solid.js";
 
 
+
+const roots = new WeakMap                           ();
+
+/** Release generated views before their DOM is replaced by a failure surface. */
+export function resetViewsWithin(container                          ) {
+  const nodes                               = [container];
+  for (const node of container.querySelectorAll             ("*")) {
+    nodes.push(node);
+    if (node.shadowRoot) resetViewsWithin(node.shadowRoot);
+  }
+  // Capture all owners before an outer disposer removes their containers.
+  const resets = nodes.flatMap((node) => {
+    const reset = roots.get(node);
+    return reset ? [reset] : [];
+  });
+  for (const reset of resets.reverse()) reset();
+}
+
 export function createView                  (
-  container             ,
+  container               ,
   component                                 ,
   initial   ,
 ) {
-  const [snapshot, setSnapshot] = createSignal(
-    { current: initial },
-    { ownedWrite: true },
-  );
-  const dispose = render(() => {
-    // Track top-level props without merging records inside them. Immutable lists
-    // keep their own identities: For's key, rather than a store's default id key,
-    // decides which row survives a reorder or filter.
-    const props = createProjection                         (
-      () => ({ ...snapshot().current })                           ,
-      null,
-      { shallow: true },
-    );
-    return component(() => props     );
-  }, container);
+  let current = initial;
+  let stop                      = null;
+  let disposed = false;
+  let publish                                   ;
+  const mount = () => {
+    if (container.firstChild) container.replaceChildren();
+    stop = render(() => {
+      const [snapshot, setSnapshot] = createSignal({ current }, { ownedWrite: true });
+      publish = setSnapshot;
+      const props = createProjection                         (
+        () => ({ ...snapshot().current })                           ,
+        null,
+        { shallow: true },
+      );
+      return component(() => props     );
+    }, container);
+  };
+  const reset = () => {
+    stop?.();
+    stop = null;
+  };
+  mount();
+  roots.set(container, reset);
   return Object.freeze({
     update(next   ) {
-      flush(() => setSnapshot({ current: next }));
+      if (disposed) throw new Error("Cannot update a disposed Solid view");
+      current = next;
+      if (stop) flush(() => publish({ current }));
+      else mount();
     },
-    dispose,
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      roots.delete(container);
+      reset();
+    },
   });
 }
 // Generated from build/browser/views.ts by build/browser/build.mjs.

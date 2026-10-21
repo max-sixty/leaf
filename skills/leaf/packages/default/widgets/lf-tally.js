@@ -29,7 +29,7 @@ import {
   obligationActions,
   readObligations,
   relabel,
-  render,
+  keepsText,
 } from "/runtime/widget-api.js";
 
 // The count's words: what remains of the whole, or that nothing does.
@@ -85,8 +85,8 @@ customElements.define(
       keeps(this, "data-lf-done", held.length && !open ? "" : null);
       // Two digits are in the drawing; a longer count widens its room once.
       const digits = "0".repeat(Math.max(2, String(held.length).length));
-      render(words(digits, digits), this.#room);
-      render(ready ? words(open, held.length) : "", this.#words);
+      keepsText(this.#room, words(digits, digits));
+      keepsText(this.#words, ready ? words(open, held.length) : "");
       if (this.#next)
         keeps(
           this.#next,

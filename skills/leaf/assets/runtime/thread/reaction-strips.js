@@ -1,6 +1,6 @@
 /* Thread reaction projection and its Solid view owner. The controller
    registers template-owned controls and owns only disclosure, keyboard and focus. */
-import { solidHtml as html, createView, For } from "/vendor/browser-runtime.js";
+import { html, createView, For } from "/vendor/browser-runtime.js";
 import { iconElement } from "../icons.js";
 import { HOLDS_WORD } from "../held-word.js";
 

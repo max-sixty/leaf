@@ -29,29 +29,30 @@ modules, query Leaf's own chrome, or copy a runtime helper. Each helper is descr
 the section for the task it serves, and the header of its module under `runtime/` has
 the full contract. A DOM helper takes the element it acts for as its first argument.
 
-From Lit, `widget-api.js` exports `render`, `html`, `nothing`, `repeat`, `keyed`,
-`live`, `ref`, `createRef`, `classMap`, `styleMap`, `guard` and `unsafeHTML`. From
-Solid 2 it exports `createSignal`, `createMemo`, `createEffect`, `createRoot`,
+From Solid 2, `widget-api.js` exports `html`, `createView`, `For`, `Show`,
+`onCleanup`, `createSignal`, `createMemo`, `createEffect`, `createRoot`,
 `flush` and `untrack`. Private state a command's `when` reads uses
 `const [value, setValue] = createSignal(initial)` (`module-input.md`, "Command rows").
 Read it with `value()`. Solid batches writes on a microtask; use
 `flush(() => setValue(next))` at an imperative boundary that reads the result in
 the same task. `createMemo` derives a reading, `createEffect` separates its tracked
 compute from its effect, `createRoot` owns an external subscription's lifetime,
-and `untrack` takes a deliberate one-time reading.
+and `untrack` takes a deliberate one-time reading. `onCleanup(callback)` releases a
+component's external work when its owner retires.
 
 ### Solid views
 
 `createView(container, component, initial)` mounts a Solid component once in a
-generated container. The component receives a props accessor. Its returned
+generated container, owning its children. Keep authored children outside it. The
+component receives a props accessor. Its returned
 `update(next)` publishes complete props and flushes the changed bindings before
 returning; `dispose()` releases the view and clears the container. Build-free
-components use `solidHtml`, wrapping changing expressions in functions:
+components use `html`, wrapping changing expressions in functions:
 
 ```js
 const view = createView(
   container,
-  (props) => solidHtml`<span>${() => props().label}</span>`,
+  (props) => html`<span>${() => props().label}</span>`,
   { label: "Ready" },
 );
 view.update({ label: "Working" });
@@ -59,9 +60,9 @@ view.update({ label: "Working" });
 
 `Show` conditionally mounts a branch while keeping its current reactive reading.
 `For` renders lists. Supply a `keyed` function for records whose identity survives
-replacement; its children receive an accessor for the current record. `offerRef`
-is a Solid ref factory for generated-control anatomy, and `scopeRef` attaches a
-command scope for the component's lifetime. Use `ref=${offerRef("lf-btn")}` or
+replacement; its children receive an accessor for the current record. `offered`
+is a Solid ref factory for generated-control anatomy, and `commandsOn` attaches a
+command scope for the component's lifetime. Use `ref=${offered("lf-btn")}` or
 compose ref factories in an array when a control also needs a scope.
 
 ## What a behavior module owes
@@ -102,8 +103,7 @@ back. Its presentation and view state still work.
 
 When an upgrade fails, or one part of it, `failSoft(element, error, source)` replaces
 the widget or part with an error box naming it, shows `source` beneath when given, and
-reports a page error, which fails `page check`. The next `render` into the same
-container, or the next `shadowStage` call, replaces the box; a `LeafElement` shows the
+reports a page error, which fails `page check`. The next update of its retained `createView`, or the next `shadowStage` call, replaces the box; a `LeafElement` shows the
 box beside what it drew, and its next draw takes it away. Where the widget shows a
 failed part its own way and the rest keeps working, as `lf-diff` does for a file whose
 patch it cannot draw, call `reportFailure(element, error)`, which only reports.
@@ -225,19 +225,21 @@ the box it keeps. `leaf package check --render` reports a widget that moves as
 
 ## Rendering
 
-### Template rendering
+### Native components
 
-`render(template, container)` draws synchronously, so a gesture's result shows in the
-same turn. Render only into containers the module generated, never into authored
-children, and once `render` draws into a container, change its children only through
-`render`. `repeat(items, identity, template)` keeps a row's nodes when rows reorder, but
-rebuilds a row that moves to another `repeat`; place nodes you keep yourself as
-"Retained nodes" describes. A widget keeps no reactive copy of its state; it reads it
-again in each `render()`.
+A retained `createView` is the synchronous rendering boundary. Build a complete
+props object in the owner's `render()` or presentation pass, then call `update(next)`;
+component bindings read this raw snapshot. Domain state stays in the authored page
+and its log. Do not read Leaf's semantic readers inside retained bindings.
 
-Bind a property the user can also change with `live`, as in `.value=${live(value)}`, so
-a refused gesture restores the recorded value even when the template input is
-unchanged. Don't bind an initial default onto a property the browser owns.
+Bind changing text and native properties with accessors, as `value=${() => props().value}`.
+The renderer skips unchanged native form values, preserving editing and selection.
+Leave initial defaults to the browser unless the owner controls that property.
+Use `onClick`, `onInput` and other native event props; a capture listener belongs in
+a ref's `addEventListener`. Use `prop:innerHTML` only with trusted generated markup,
+such as `renderMarkdown()` output. `For` owns keyed list identity; its record accessor
+keeps the same node while callbacks and words follow the current immutable record.
+Supply each view complete object props, with stable defaults for conditional lists.
 
 ### Drawing what a widget reads
 
@@ -264,7 +266,7 @@ parents, place every list at once with `setChildLists([[parent, nodes], …])`, 
 parents first. For a subtree the renderer owns entirely, `setRenderedChildren(parent,
 nodes)` edits only changed text and keeps a text selection the user made in it.
 
-These helpers, `render` and `repeat` keep the user's focus in a moved node, so a reorder
+These helpers and Solid's keyed `For` keep the user's focus in a moved node, so a reorder
 needs no `holdFocus`. A plain `append` or `insertBefore` of a node already in the page
 blurs it. Where the browser lacks native `moveBefore`, as Safari does, an iframe inside a
 moved node reloads. A moved editable loses its selection even under `moveBefore`, so a
@@ -275,7 +277,7 @@ custom element holding a `LeafEditorView` calls the view's `placeSelection()` fr
 
 Build an `x-shadow` widget's shadow root with `shadowStage(host, nodes)`, never
 `attachShadow`; it applies the theme's styles and returns the root. For a template,
-stage a container with `shadowStage(host, [container])` and render into that container.
+stage a container with `shadowStage(host, [container])` and mount its view there.
 
 Wrap stylesheet text the module writes itself in `inBaseLayer(css)`, so its rules sit in
 the theme's `lf-base` cascade layer, below Layouts, theme packages and the page's own
@@ -317,9 +319,8 @@ layout's 1/64px; `atLayoutPrecision(length)` returns the rounded number.
 `offer(tag, className, label, inputType, pressable)` makes a native control, or a box of
 controls, marked as Leaf-generated; the browser keeps its activation, focus and
 accessibility. `inputType` is for an `input`. Pass `pressable: true` for a custom element
-whose host implements `focus()` and `click()`. In a template, `<button
-${offered("lf-btn")}>` does the same, with an input's `type` binding placed before
-`offered`.
+whose host implements `focus()` and `click()`. In a native template, `<button ref=${offered("lf-btn")}>` does the same.
+Place an input's `type` binding before its ref.
 
 A control whose label is the page's own words, such as a tab's name, must stay
 selectable, so build it with `selectableOffer(role, className, label)`, a focusable span

@@ -3,7 +3,7 @@
  *
  * Entry URLs are delivery boundaries; every other private module can move into
  * shared chunks. Both builds keep vendor modules native, at their public URL however
- * a runtime module names them, so a page loads one Lit, and each runtime module a
+ * a runtime module names them, so a page loads one Solid, and each runtime module a
  * vendor module imports stays an entry at its own URL. The kernel also leaves native
  * package widgets, whose absolute URLs resolve through the revision's import map,
  * and the generation module, so page init can stamp it without rebuilding any chunk.
@@ -23,7 +23,7 @@
  * kernel, 2 of them conflicted in this form, against 30 with minified chunks and 26
  * with unminified chunks named by hash, and none merged cleanly into bytes a rebuild
  * would not make. A conflict is resolved by merging `main` and rebuilding. One file per entry, without shared chunks, was rejected: it
- * duplicated 169 modules across entries, gave package widgets a second Lit, and
+ * duplicated 169 modules across entries, gave package widgets a second Solid, and
  * made `leaf.js` 1.9 MB. A kernel CI commits to `main` after each runtime merge was
  * rejected for the commit and push credential every merge would need.
  */

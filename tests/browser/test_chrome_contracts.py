@@ -283,7 +283,7 @@ def test_a_phone_comment_field_keeps_its_passage_clear(iphone, serve):
     page = open_page(None, serve(PHONE_READING_PAGE), context=iphone)
     # Every field in the composed tree, the vendored controls' own native fields in
     # their shadow roots included: the Threads find box and the Map's search are
-    # Web Awesome inputs, and Safari zooms onto the field inside them.
+    # native inputs, and Safari zooms onto smaller fields.
     sizes = page.evaluate("""() => {
       const sizes = {};
       const walk = (root) => {
@@ -300,7 +300,7 @@ def test_a_phone_comment_field_keeps_its_passage_clear(iphone, serve):
       walk(document);
       return sizes;
     }""")
-    assert any(name.startswith("wa-input.") for name in sizes), sizes
+    assert any(name.startswith("input.lf-search-field") for name in sizes), sizes
     assert min(sizes.values()) >= 16, sizes
     note = page.locator("#note")
     shown = note.locator(".lf-draft-body").evaluate(

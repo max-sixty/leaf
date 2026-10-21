@@ -66,6 +66,16 @@ def test_a_visual_review_in_flow_takes_its_evidence_height(browser, serve):
         for mode in ("Compare", "Flip", "Overlay"):
             widget.get_by_role("radio", name=mode).click()
             page.wait_for_function(whole, arg=host.element_handle())
+            opacity = widget.get_by_role("slider", name="Candidate opacity")
+            if mode == "Overlay":
+                expect(opacity).to_be_visible()
+                opacity.focus()
+                opacity.press("Home")
+                expect(opacity).to_have_value("0")
+                opacity.press("End")
+                expect(opacity).to_have_value("100")
+            else:
+                expect(opacity).to_be_hidden()
     point = host.evaluate(
         "node => { const r = node.getBoundingClientRect();"
         " return {x: r.left + r.width / 2, y: r.top + r.height / 2}; }"

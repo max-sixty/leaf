@@ -2,7 +2,7 @@
  * performs the action; a retained Solid glyph and Leaf's status line show its
  * outcome, including activation while focus stands elsewhere. A failed copy remains
  * in Leaf's errors after the transient face resets. */
-import { solidHtml as html, createView, Show } from "/vendor/browser-runtime.js";
+import { html, createView, Show } from "/vendor/browser-runtime.js";
 import { offer, el } from "./widget-elements.js";
 import { iconElement } from "./icons.js";
 import { notice } from "./notifications.js";
@@ -11,11 +11,14 @@ import { keeps } from "./keeps.js";
 import { whileConnected } from "./arrivals.js";
 
 /** A copy control named `label` that says `success` or `error` once pressed. */
-export function copyControl(className, { label = "Copy", success, error }) {
+export function copyControl(
+  className,
+  { label = "Copy", title = label, success, error },
+) {
   const copy = offer("button", `lf-copy-control ${className}`);
   copy.type = "button";
   copy.setAttribute("aria-label", label);
-  copy.title = label;
+  copy.title = title;
   const glyph = el("span", "lf-copy-glyph");
   glyph.setAttribute("aria-hidden", "true");
   copy.append(glyph);
@@ -37,7 +40,7 @@ export function copyControl(className, { label = "Copy", success, error }) {
     clearTimeout(reset);
     drawing.update({ icon: "copy" });
     keeps(copy, "aria-label", label);
-    keeps(copy, "title", label);
+    keeps(copy, "title", title);
   };
   whileConnected(copy, () => {
     idle();

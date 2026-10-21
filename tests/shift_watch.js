@@ -2354,7 +2354,7 @@
             prior.paint.labelText !== next.paint.labelText)
         )
           continue;
-        // A changed text node is a new reading, even when Lit retained its DOM
+        // A changed text node is a new reading, even when a renderer retained its DOM
         // identity. Its old and new glyph fragments are not the same landmark.
         if (node.nodeType === Node.TEXT_NODE && prior.words !== next.words) continue;
         const scroll = scrollMotion(node, around[before].at, around[after].at);

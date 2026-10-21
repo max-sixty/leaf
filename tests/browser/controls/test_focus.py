@@ -911,7 +911,7 @@ def test_retained_moves_keep_native_editor_and_frame_state(browser, serve, subte
     cases = [
         (native_move, renderer)
         for native_move in (True, False)
-        for renderer in ("children", "lit")
+        for renderer in ("children", "solid")
     ]
     parents = "".join(
         f'<div id="rows-{index}"></div><div id="other-{index}"></div>'
@@ -925,7 +925,7 @@ def test_retained_moves_keep_native_editor_and_frame_state(browser, serve, subte
         with subtests.test(native_move=native_move, renderer=renderer):
             page.evaluate(
                 """async ([index, nativeMove, renderer]) => {
-              const {render, repeat, setChildren: orderChildren, move} =
+              const {createView, For, setChildren: orderChildren, move} =
                 await window.__lfWidgetApi();
               const rows = document.querySelector(`#rows-${index}`);
               if (!nativeMove) Element.prototype.moveBefore = undefined;
@@ -936,9 +936,8 @@ def test_retained_moves_keep_native_editor_and_frame_state(browser, serve, subte
                   <iframe title="${id}-${index}" srcdoc="<p>Retained frame</p>"></iframe>`;
                 return row;
               });
-              const paint = nodes => renderer === 'lit'
-                ? render(repeat(nodes, node => node.dataset.row, node => node), rows)
-                : orderChildren(rows, nodes);
+              const drawing = renderer === 'solid' ? createView(rows, read => For({get each() {return read().nodes;}, keyed: node => node.dataset.row, children: node => node()}), {nodes: []}) : null;
+              const paint = nodes => drawing ? drawing.update({nodes}) : orderChildren(rows, nodes);
               paint(nodes);
               const editor = rows.querySelector('[data-row=c] input');
               editor.addEventListener('blur', () => window.blurs++);
@@ -949,7 +948,7 @@ def test_retained_moves_keep_native_editor_and_frame_state(browser, serve, subte
                 } else if (event.key === 'ArrowDown' && event.altKey) {
                   event.preventDefault();
                   const other = document.querySelector(`#other-${index}`);
-                  if (renderer === 'lit') render(nodes[2], other);
+                  if (renderer === 'solid') createView(other, () => nodes[2], {});
                   else move(other, nodes[2], null);
                 }
               });

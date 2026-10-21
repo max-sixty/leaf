@@ -77,12 +77,11 @@
 }
 /* Keep source names visible and let the shared control own keyboard selection. */
 .lf-trace-sources {
-  --wa-form-control-height: var(--lf-trace-control-size);
   flex: 0 1 auto;
   min-inline-size: 0;
   max-inline-size: 100%;
 }
-.lf-trace-sources::part(form-control-input) {
+.lf-trace-sources {
   flex-wrap: wrap;
   gap: var(--sp-2);
 }
@@ -94,7 +93,7 @@
   max-inline-size: 100%;
   box-sizing: border-box;
 }
-.lf-trace-source::part(label) {
+.lf-trace-source > span {
   white-space: normal;
   overflow-wrap: anywhere;
 }

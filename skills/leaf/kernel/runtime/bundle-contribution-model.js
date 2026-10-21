@@ -17,7 +17,6 @@ import {
   commandBinding,
   commandRoutes,
   controlAvailabilityOutput,
-  elementDirective,
   focusDestination,
   focused,
   iconElement,
@@ -606,21 +605,10 @@ function presentContributionHost(control, offered, {
   projectCommandScope(control, CONTRIBUTION_ENTRY, commandScopes.get(record));
   return record;
 }
-var contributionHost = elementDirective(
-  "contributionHost",
-  (control, source, surface, record, options) => {
-    presentContributionHost(control, record, options);
-    trackContributionControl(source, surface, record.key, control);
-  }
-);
 function presentContributionReceipts(control, receipt, awaitsUser) {
   syncContributionAgentWorkflow(control, receipt);
   syncContributionTurn(control, awaitsUser);
 }
-var contributionReceipts = elementDirective(
-  "contributionReceipts",
-  presentContributionReceipts
-);
 var contributionDrawings = /* @__PURE__ */ new WeakMap();
 function presentContributionEntry(control, offered, options = {}) {
   const record = presentContributionHost(control, offered, options);
@@ -651,8 +639,8 @@ function presentContributionEntry(control, offered, options = {}) {
         keyed: true,
         children: (icon) => icon,
         fallback: default2`<span class="lf-margin-entry-glyph" aria-hidden="true"
-          >${() => state().record.glyph}</span
-        >`
+              >${() => state().record.glyph}</span
+            >`
       })}
           <span class="lf-margin-entry-space" aria-hidden="true"> </span>
           <span class="lf-margin-entry-label" aria-hidden="true">
@@ -1264,10 +1252,10 @@ export {
   contributionEntrySource,
   syncContributionSelection,
   syncContributionUnread,
-  contributionHost,
+  presentContributionHost,
   presentContributionReceipts,
-  contributionReceipts,
   presentContributionEntry,
+  trackContributionControl,
   clearContributionControls,
   activateContributionControl,
   materializeContributionControls,

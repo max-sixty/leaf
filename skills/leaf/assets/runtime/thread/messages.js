@@ -1,4 +1,4 @@
-/* Synchronous Lit message presentation and frozen authored message islands.
+/* Synchronous Solid message presentation and frozen authored message islands.
 
    Every surface uses the same message, header and body vocabulary. Generated
    metadata, prose, workflow and reaction placement have one owner. Each message
@@ -14,12 +14,7 @@
    admission and later descriptor paints never replay the cue.
    The fragment is captured inertly before its first upgrade; presentation waits for
    preparation before capturing typed authored state. */
-import {
-  html as litHtml,
-  solidHtml as html,
-  createView,
-  Show,
-} from "/vendor/browser-runtime.js";
+import { html, createView, Show } from "/vendor/browser-runtime.js";
 import {
   loadMarkdown,
   markdownReady,
@@ -142,12 +137,21 @@ const titlePending = (thread) =>
 // its title.
 // The opening words stay in its accessible name, after the placeholder, so a screen
 // reader still tells two pending threads apart.
-/** @param {Parameters<typeof titlePending>[0]} thread */
-export const threadHeading = (thread) =>
-  titlePending(thread)
-    ? litHtml`<span class="lf-thread-name-pending">Generating thread name…</span
-        ><span class="lf-quiet"> ${threadName(thread)}</span>`
-    : threadName(thread);
+/** Snapshot domain reads before mounting a retained heading. */
+export const threadHeadingModel = (thread) => ({
+  pending: titlePending(thread),
+  name: threadName(thread),
+});
+export const threadHeadingView = (read) =>
+  html`${Show({
+    get when() {
+      return read().pending;
+    },
+    fallback: html`${() => read().name}`,
+    children: (_visible) =>
+      html`<span class="lf-thread-name-pending">Generating thread name…</span
+        ><span class="lf-quiet"> ${() => read().name}</span>`,
+  })}`;
 
 /** @param {Parameters<typeof threadName>[0] & Parameters<typeof lastMovedAt>[0]} thread */
 export const threadSummary = (thread) => ({
@@ -475,7 +479,7 @@ export class MessageView {
       renderQuiet(this.node);
       this.#dressed = true;
     }
-    // Markdown is an opaque property part: tokenization never rewrites Lit markers.
+    // Markdown is an opaque property part: tokenization never rewrites Solid markers.
     highlightBlocks(this.node);
     this.#stopRead = this.#commands.read.observeMessage(
       this.node.querySelector(":scope > .lf-msg-body"),

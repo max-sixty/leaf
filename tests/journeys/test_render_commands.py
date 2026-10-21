@@ -24,7 +24,6 @@ from render_cases_layout import (
     SHOT_SRC,
     SHOTS,
     UNPARSABLE_DIAGRAM,
-    ring_rule,
     shown_frames,
     solid_png,
 )
@@ -410,267 +409,73 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
 
 
 def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
-    """The live pair is continuously comparable, with direct endpoint alternatives.
-
-    Pointer drag and the component's complete keyboard pattern move one divider. The
-    rail jumps to the named endpoints, while print keeps the two complete frames
-    and their order. The gate's pass over the pair is
-    `test_render_reads_widget_chrome_where_it_stands`'s."""
-    url = serve(
-        SHOT_PAGE,
-        media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
-    )
-
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    page.add_init_script(
-        """new MutationObserver(() => {
-          if (document.body?.hasAttribute('data-lf-presented') &&
-              window.__lfPresentedAt === undefined)
-            window.__lfPresentedAt = performance.now();
-        }).observe(document, {attributes: true, subtree: true});
-        new PerformanceObserver(list => {
-          for (const entry of list.getEntries())
-            if (entry.name.endsWith('/vendor/webawesome.esm.js'))
-              window.__lfComparisonRequestedAt = entry.startTime;
-        }).observe({type: 'resource', buffered: true});"""
-    )
-    page.goto(url)
-    page.wait_for_function(
-        "document.body.hasAttribute('data-lf-presented') && "
-        "document.querySelector('lf-shot wa-comparison')"
-    )
-    comparison = page.locator("lf-shot wa-comparison")
-    handle = comparison.get_by_role("scrollbar")
-    expect(handle).to_be_visible()
-    page.wait_for_function("window.__lfComparisonRequestedAt !== undefined")
-    timing = page.evaluate(
-        """() => ({
-          presented: window.__lfPresentedAt,
-          requested: window.__lfComparisonRequestedAt,
-        })"""
-    )
-    assert timing["requested"] >= timing["presented"]
+    """Native keys and a drag from the edge adjust the pair; captions choose and
+    retain each endpoint, and print keeps the complete frames in reading order."""
+    url = serve(SHOT_PAGE, media={SHOT_SRC[name]: data for name, data in SHOTS.items()})
+    page = open_page(browser, url)
+    comparison = page.locator("lf-shot .lf-shotcomparison")
+    handle = comparison.get_by_role("slider")
+    expect(handle).to_have_value("50")
+    expect(handle).to_have_accessible_name("Before and after — the navigation rail")
+    expect(handle).to_have_attribute("aria-valuetext", "Before 50%, after 50%")
     rail = page.locator("lf-shot .lf-shotrail")
     expect(rail).to_have_count(1)
     expect(rail.locator(".lf-shotcap")).to_have_text(["before", "after"])
-    before_bounds = rail.locator('[data-lf-state="before"]').bounding_box()
-    after_bounds = rail.locator('[data-lf-state="after"]').bounding_box()
-    assert before_bounds is not None and after_bounds is not None
-    expect(comparison).to_have_attribute("position", "50")
-    glyph = comparison.locator('[slot="handle"].lf-shot-handle')
-    expect(glyph).to_have_count(1)
-    assert glyph.evaluate(
-        "node => [getComputedStyle(node).borderStyle, "
-        "getComputedStyle(node).borderRadius]"
-    ) == ["solid", "50%"]
-    expect(handle).to_have_accessible_name("Before and after — the navigation rail")
-    expect(handle).to_have_attribute("aria-valuetext", "Before 50%, after 50%")
-    # Each half of the split shows the frame its rail caption names: the image the
-    # user hits below a caption is that caption's own. Web Awesome's `after` slot is
-    # the inline-start side, so wiring the frames to their same-named slots put the
-    # after image under BEFORE.
     comparison.scroll_into_view_if_needed()
-    under_captions = page.evaluate(
-        """() => {
-          const box = document.querySelector('lf-shot wa-comparison')
-            .getBoundingClientRect();
-          return [...document.querySelectorAll('lf-shot .lf-shotcap')].map(cap => {
-            const x = cap.getBoundingClientRect().left + cap.offsetWidth / 2;
-            const hit = document.elementFromPoint(x, box.top + box.height / 2);
-            return [cap.dataset.lfState, hit?.closest('.lf-shotframe')?.dataset.lfState];
-          });
-        }"""
-    )
+    under_captions = page.evaluate("""() => {
+      const box = document.querySelector('lf-shot .lf-shotcomparison').getBoundingClientRect();
+      return [...document.querySelectorAll('lf-shot .lf-shotcap')].map(cap => {
+        const x = cap.getBoundingClientRect().left + cap.offsetWidth / 2;
+        const hit = document.elementFromPoint(x, box.top + box.height / 2);
+        return [cap.dataset.lfState, hit?.closest('.lf-shotframe')?.dataset.lfState];
+      });
+    }""")
     assert under_captions == [["before", "before"], ["after", "after"]]
+    handle.focus()
+    for key, value in (
+        ("ArrowRight", "51"),
+        ("ArrowLeft", "50"),
+        ("Home", "0"),
+        ("End", "100"),
+    ):
+        handle.press(key)
+        expect(handle).to_have_value(value)
+        expect(handle).to_be_focused()
+    # The thumb at the endpoint must retain the entire native drag, including
+    # movement far beyond its initial hit area.
+    bounds = comparison.bounding_box()
+    y = bounds["y"] + bounds["height"] / 2
+    page.mouse.move(bounds["x"] + bounds["width"] - 5, y)
+    page.mouse.down()
+    page.mouse.move(bounds["x"] + bounds["width"] / 4, y, steps=8)
+    page.mouse.up()
+    value = float(handle.input_value())
+    assert value == pytest.approx(25, abs=1)
+    expect(handle).to_have_attribute(
+        "aria-valuetext", f"Before {value:g}%, after {100 - value:g}%"
+    )
+    # Clicking image space keeps the direct endpoint alternative.
+    page.mouse.click(bounds["x"] + bounds["width"] * 0.75, y)
+    expect(handle).to_have_value("100")
+    for state, value, key in (("after", "0", "Enter"), ("before", "100", "Space")):
+        caption = rail.locator(f'[data-lf-state="{state}"]')
+        caption.focus()
+        caption.press(key)
+        expect(handle).to_have_value(value)
+        expect(caption).to_be_focused()
+        expect(caption).to_have_attribute("aria-pressed", "true")
+        scroll = page.evaluate("scrollY")
+        caption.press("Space")
+        assert page.evaluate("scrollY") == scroll
+    handle.focus()
+    assert comparison.locator(".lf-shot-divider").evaluate("""node => {
+      const ring = getComputedStyle(node, '::after');
+      return ring.outlineStyle === 'solid' && parseFloat(ring.outlineWidth) > 0;
+    }""")
     page.emulate_media(media="print")
     assert shown_frames(page) == ["before", "after"]
-    printed_tops = [
-        page.locator(f'lf-shot .lf-shotframe[data-lf-state="{state}"]').bounding_box()[
-            "y"
-        ]
-        for state in ("before", "after")
-    ]
-    assert printed_tops[0] < printed_tops[1], "paper put the after frame on top"
-    assert (
-        rail.locator('[data-lf-state="before"]').evaluate(
-            "cap => getComputedStyle(cap, '::after').content"
-        )
-        == '" · top"'
-    )
-    assert (
-        rail.locator('[data-lf-state="after"]').evaluate(
-            "cap => getComputedStyle(cap, '::after').content"
-        )
-        == '" · bottom"'
-    )
-    page.emulate_media(media="screen")
-    expect(comparison).to_be_visible()
-    page.mouse.move(0, 0)
-    divider_face = comparison.evaluate(
-        """async node => {
-          const divider = node.shadowRoot.querySelector('[part~="divider"]');
-          const handle = node.shadowRoot.querySelector('[part~="handle"]');
-          await Promise.all(handle.getAnimations().map(animation => animation.finished));
-          return {
-            divider: getComputedStyle(divider).backgroundColor,
-            handle: getComputedStyle(handle).backgroundColor,
-            opacity: parseFloat(getComputedStyle(handle).opacity),
-          };
-        }"""
-    )
-    assert divider_face["divider"] != divider_face["handle"]
-    assert 0.45 < divider_face["opacity"] < 0.6
-
-    comparison.scroll_into_view_if_needed()
-    bounds = comparison.bounding_box()
-    assert bounds is not None
-    image_point = (bounds["x"] + bounds["width"] / 4, bounds["y"] + 80)
-    page.mouse.move(*image_point)
-    active_midpoint = comparison.evaluate(
-        """async node => {
-          const handle = node.shadowRoot.querySelector('[part~="handle"]');
-          await Promise.all(handle.getAnimations().map(animation => animation.finished));
-          return parseFloat(getComputedStyle(handle).opacity);
-        }"""
-    )
-    assert active_midpoint == 1
-    page.mouse.down()
-    page.mouse.up()
-    expect(comparison).to_have_attribute("position", "0")
-    page.mouse.move(0, 0)
-    quiet_handle = comparison.evaluate(
-        """async node => {
-          const handle = node.shadowRoot.querySelector('[part~="handle"]');
-          await Promise.all(handle.getAnimations().map(animation => animation.finished));
-          return parseFloat(getComputedStyle(handle).opacity);
-        }"""
-    )
-    assert quiet_handle < 0.25
-    handle.focus()
-    active_handle = comparison.evaluate(
-        """async node => {
-          const handle = node.shadowRoot.querySelector('[part~="handle"]');
-          await Promise.all(handle.getAnimations().map(animation => animation.finished));
-          return parseFloat(getComputedStyle(handle).opacity);
-        }"""
-    )
-    assert active_handle == 1
-    page.mouse.click(*image_point)
-    expect(comparison).to_have_attribute("position", "100")
-    comparison.evaluate("node => { node.position = 50; }")
-    before_caption = page.get_by_role(
-        "button", name="before — the navigation rail", exact=True
-    )
-    # A second finger does not replace the primary contact's input destination.
-    before_caption.focus()
-    handle.evaluate("""handle => handle.dispatchEvent(new PointerEvent('pointerdown', {
-      bubbles: true, composed: true, pointerId: 98, pointerType: 'touch',
-      isPrimary: false, button: 0
-    }))""")
-    expect(before_caption).to_be_focused()
-    handle.click()
-    expect(handle).to_be_focused()
-    expect(comparison).to_have_attribute("position", "50")
-    page.keyboard.press("ArrowRight")
-    expect(comparison).to_have_attribute("position", "51")
-
-    after_caption = page.get_by_role(
-        "button", name="after — the navigation rail", exact=True
-    )
-    expect(before_caption).to_have_attribute("aria-pressed", "false")
-    expect(after_caption).to_have_attribute("aria-pressed", "false")
-    after_caption.click()
-    expect(comparison).to_have_attribute("position", "0")
-    expect(before_caption).to_have_attribute("aria-pressed", "false")
-    expect(after_caption).to_have_attribute("aria-pressed", "true")
-    page.mouse.move(0, 0)
-    assert after_caption.evaluate("node => getComputedStyle(node).backgroundColor") != (
-        before_caption.evaluate("node => getComputedStyle(node).backgroundColor")
-    )
-    # A selectable caption owns Space even at its current endpoint so it cannot
-    # fall through to browser scrolling (the widget's existing command contract).
-    after_caption.focus()
-    page.evaluate("() => { document.scrollingElement.scrollTop -= 120; }")
-    expect(after_caption).to_be_in_viewport()
-    selected_scroll = page.evaluate("() => document.scrollingElement.scrollTop")
-    assert (
-        page.evaluate(
-            "() => document.scrollingElement.scrollHeight - innerHeight - "
-            "document.scrollingElement.scrollTop"
-        )
-        >= 100
-    )
-    page.keyboard.press("Space")
-    expect(comparison).to_have_attribute("position", "0")
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == selected_scroll
-    after_caption.click()
-    expect(comparison).to_have_attribute("position", "0")
-    before_caption.click()
-    expect(comparison).to_have_attribute("position", "100")
-    after_caption.focus()
-    page.keyboard.press("Enter")
-    expect(comparison).to_have_attribute("position", "0")
-    before_caption.focus()
-    page.keyboard.press("Space")
-    expect(comparison).to_have_attribute("position", "100")
-    for locator, bounds in (
-        (rail.locator('[data-lf-state="before"]'), before_bounds),
-        (rail.locator('[data-lf-state="after"]'), after_bounds),
-    ):
-        flipped_bounds = locator.bounding_box()
-        assert flipped_bounds is not None
-        assert {key: flipped_bounds[key] for key in ("x", "width", "height")} == {
-            key: bounds[key] for key in ("x", "width", "height")
-        }
-
-    handle.focus()
-    expect(handle).to_be_focused()
-    page.keyboard.press("ArrowLeft")
-    expect(comparison).to_have_attribute("position", "99")
-    expect(handle).to_have_attribute("aria-valuetext", "Before 99%, after 1%")
-    page.keyboard.press("Shift+ArrowLeft")
-    expect(comparison).to_have_attribute("position", "89")
-    page.keyboard.press("End")
-    expect(comparison).to_have_attribute("position", "100")
-    page.keyboard.press("Home")
-    expect(comparison).to_have_attribute("position", "0")
-
-    comparison.evaluate("node => { node.position = 50; }")
-    expect(comparison).to_have_attribute("position", "50")
-    bounds = comparison.bounding_box()
-    handle_bounds = handle.bounding_box()
-    assert bounds is not None and handle_bounds is not None
-    at = (
-        handle_bounds["x"] + handle_bounds["width"] / 2,
-        handle_bounds["y"] + handle_bounds["height"] / 2,
-    )
-    page.mouse.move(*at)
-    page.mouse.down()
-    page.mouse.move(at[0] + bounds["width"] / 4, at[1], steps=4)
-    page.mouse.up()
-    dragged = float(comparison.get_attribute("position"))
-    assert 70 <= dragged <= 80
-    expect(handle).to_have_attribute(
-        "aria-valuetext", f"Before {dragged:g}%, after {100 - dragged:g}%"
-    )
-
-    comparison.evaluate("node => { node.position = 100; }")
-    expect(comparison).to_have_attribute("position", "100")
-    # The existing rail owns endpoint actions and retains focus after each press.
-    for state, position in (("after", "0"), ("before", "100")):
-        caption = page.locator(f'.lf-shotcap[data-lf-state="{state}"]')
-        caption.focus()
-        expect(caption).to_be_focused()
-        page.keyboard.press("Enter" if state == "after" else "Space")
-        expect(comparison).to_have_attribute("position", position)
-        expect(caption).to_be_focused()
-
-    handle.focus()
-    width = handle.evaluate(
-        "node => getComputedStyle(node).outlineStyle === 'none' ? 0 :"
-        " parseFloat(getComputedStyle(node).outlineWidth)"
-    )
-    assert width > 0 and "wa-comparison::part(lf-focus)" in ring_rule(handle)
+    frames = page.locator("lf-shot .lf-shotframe")
+    assert frames.nth(0).bounding_box()["y"] < frames.nth(1).bounding_box()["y"]
 
 
 def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path, headless_shell):

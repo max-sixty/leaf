@@ -14,7 +14,7 @@ def test_keyed_reordering_keeps_typed_words_focus_and_selection(
     )
     script = r"""
     <script type="module">
-      import {createView, solidHtml, For} from "/runtime/widget-api.js";
+      import {createView, html, For} from "/runtime/widget-api.js";
       let rows = [{id: "first", label: "First"}, {id: "second", label: "Second"}];
       const reorder = (event) => {
         if (event.key !== "F2") return;
@@ -26,7 +26,7 @@ def test_keyed_reordering_keeps_typed_words_focus_and_selection(
         (props) => For({
           get each() { return props().rows; },
           keyed: (row) => row.id,
-          children: (row) => solidHtml`<label>${() => row().label}
+          children: (row) => html`<label>${() => row().label}
             <input aria-label=${() => row().label} onKeyDown=${reorder} />
           </label>`,
         }), {rows});
@@ -56,14 +56,14 @@ def test_views_deliver_immediate_events_upgrade_refs_and_release_detached_roots(
     )
     result = page.evaluate(
         """async () => {
-      const {createView, solidHtml} = await import('/runtime/widget-api.js');
+      const {createView, html} = await import('/runtime/widget-api.js');
       customElements.define('lf-native-ref-probe', class extends HTMLElement {
         inspect() { return 'upgraded'; }
       });
       let clicks = 0, focuses = 0, inspected, sibling;
       const host = document.createElement('section');
-      const drawing = createView(host, read => solidHtml`
-        <div><span ref=${node => node.append(solidHtml`<i>Nested</i>`)}></span>
+      const drawing = createView(host, read => html`
+        <div><span ref=${node => node.append(html`<i>Nested</i>`)}></span>
           <b data-probe="sibling" ref=${node => sibling = node.dataset.probe}></b></div>
         <lf-native-ref-probe ref=${node => inspected = node.inspect()}></lf-native-ref-probe>
         <button onClick=${() => clicks++}>Press</button>
@@ -83,7 +83,7 @@ def test_views_deliver_immediate_events_upgrade_refs_and_release_detached_roots(
       window.detachedViewRefs = [];
       for (let i = 0; i < 20; i++) {
         const transient = document.createElement('section');
-        createView(transient, () => solidHtml`<button onClick=${() => {}}>Temporary</button>`, {});
+        createView(transient, () => html`<button onClick=${() => {}}>Temporary</button>`, {});
         document.body.append(transient);
         window.detachedViewRefs.push(new WeakRef(transient));
         transient.remove();

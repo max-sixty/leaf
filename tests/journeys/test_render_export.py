@@ -84,10 +84,11 @@ def requested_documents(page):
 # ---------- export: the page as one file ----------
 
 OFFLINE_WIDGET = """\
-import { html, LeafElement } from "/runtime/widget-api.js";
+import { html, createView, Show, LeafElement } from "/runtime/widget-api.js";
 
 customElements.define("lf-offline-test", class extends LeafElement {
   #local = 0;
+  #drawing = null;
 
   createRenderRoot() {
     return this.attachShadow({mode: "open"});
@@ -103,18 +104,16 @@ customElements.define("lf-offline-test", class extends LeafElement {
     const {state, actions} = this.reading;
     const action = actions.choose;
     const unavailable = action.unavailable;
-    return html`
+    const props = {available: action.available, unavailable, value: state.choose.value, local: this.#local};
+    if (this.#drawing) this.#drawing.update(props);
+    else this.#drawing = createView(this.renderRoot, read => html`
       <style>#local { color: rgb(12, 34, 56); }</style>
-      <button id="local" @click=${() => { this.#local += 1; this.requestUpdate(); }}>
-        Increment locally
-      </button>
-      <output id="local-value">${this.#local}</output>
-      <button id="choose" ?disabled=${!action.available} @click=${this.choose}>
-        Choose on host
-      </button>
-      <output id="choice">${state.choose.value}</output>
-      ${unavailable ? html`<p id="unavailable">${unavailable}</p>` : null}
-    `;
+      <button id="local" onClick=${() => { this.#local += 1; this.requestUpdate(); }}>Increment locally</button>
+      <output id="local-value">${() => read().local}</output>
+      <button id="choose" disabled=${() => !read().available} onClick=${() => this.choose()}>Choose on host</button>
+      <output id="choice">${() => read().value}</output>
+      ${Show({get when() {return read().unavailable;}, children: _visible => html`<p id="unavailable">${() => read().unavailable}</p>`})}
+    `, props);
   }
 });
 """

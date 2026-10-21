@@ -338,15 +338,15 @@ RING_CASES = (
                     ".lf-rendered:has(> :is(lf-tab, lf-part)[data-lf-focus])::after",
                 ),
                 ("lf-gloss:visible > .lf-gloss-mark", ".lf-gloss-mark"),
-                (".lf-diff-search input", "wa-input::part"),
+                ("input.lf-diff-search", "[data-lf-focus]"),
                 ("lf-diff summary", ".lf-diff-file > details > summary"),
                 ("lf-diff code", "code[data-code]"),
             ),
             "release-notes": (
                 ("main p.lf-mark-el", ".lf-mark-el"),
                 (
-                    'lf-shot .lf-shotcomparison [part~="handle"]',
-                    "wa-comparison::part(lf-focus)",
+                    "lf-shot .lf-shot-divider-input",
+                    ".lf-shot-divider-input",
                 ),
                 (".lf-shotcap", "[data-lf-offer]"),
             ),
@@ -382,7 +382,7 @@ RING_CASES = (
     (
         "passage search",
         ("/",),
-        {RING_CHROME: ((".lf-page-search-box input:visible", "wa-input::part"),)},
+        {RING_CHROME: ((".lf-page-search-box input:visible", "[data-lf-focus]"),)},
     ),
     # Item hints, and the anchored bar the user answers a chosen item on. Both open the
     # same mode, and both step back and then forward through it, which lands on the last
@@ -466,7 +466,7 @@ RING_CASES = (
         ("?",),
         {
             RING_CHROME: (
-                (".lf-command-reference-search input:visible", "wa-input::part"),
+                ("input.lf-command-reference-search:visible", "[data-lf-focus]"),
                 (".lf-command-reference-command", ".lf-command-reference-command"),
             )
         },
@@ -498,7 +498,7 @@ RING_CASES = (
         {
             RING_CHROME: (
                 (".lf-page-map-action:visible", ".lf-page-map-action"),
-                (".lf-page-map-search input:visible", "wa-input::part"),
+                ("input.lf-page-map-search:visible", "[data-lf-focus]"),
             )
         },
     ),
@@ -2444,9 +2444,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     assert search.evaluate(
         "input => input.ariaControlsElements?.[0] === document.querySelector('.lf-command-reference-results')"
     )
-    # The editor is inside Web Awesome's shadow root while its grid is outside it.
-    # Chromium exposes the element-reference relationship to assistive technology;
-    # axe reads only an aria-controls IDREF attribute, which cannot name across roots.
+    # The native editor names its result grid in the same document tree.
     cdp = page.context.new_cdp_session(page)
     try:
         nodes = cdp.send("Accessibility.getFullAXTree")["nodes"]
@@ -2465,18 +2463,6 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
         for prop in combobox["properties"]
     )
     violations, report = serious_axe_violations(page)
-    violations = [
-        violation
-        for violation in violations
-        if not (
-            violation["id"] == "aria-required-attr"
-            and len(violation["nodes"]) == 1
-            and violation["nodes"][0]["target"]
-            == [[".lf-command-reference-search", "#input"]]
-            and [check.get("data") for check in violation["nodes"][0]["any"]]
-            == [["aria-controls"]]
-        )
-    ]
     assert violations == [], f"in the command reference: {report}"
     page.keyboard.press("Escape")
     expect(page.locator(".lf-command-reference")).to_be_hidden()

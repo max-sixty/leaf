@@ -43,17 +43,17 @@ import {
   boundFile,
   closeLayer,
   closeNativeLayer,
-  scopeRef,
+  commandsOn,
   el,
   focusDestination,
   focused,
   handBack,
-  solidHtml as html,
+  html,
   createView,
   iconElement,
   isNativeLayer,
   LeafElement,
-  offerRef,
+  offered,
   rove,
   rowWalk,
   shadowStage,
@@ -305,7 +305,7 @@ customElements.define(
           html` <div class="lf-file-editor-head">
               <span class="lf-file-editor-name">${() => state().label}</span>
               <span
-                ref=${offerRef("lf-file-editor-status")}
+                ref=${offered("lf-file-editor-status")}
                 title=${() => state().failure}
               >
                 ${() => state().status}
@@ -313,7 +313,7 @@ customElements.define(
                   >&nbsp;·&nbsp;</span
                 >
                 <button
-                  ref=${offerRef("lf-file-editor-retry")}
+                  ref=${offered("lf-file-editor-retry")}
                   hidden=${() => !state().retryable}
                   aria-description=${() => state().failure}
                   aria-disabled=${() => (state().busy ? "true" : undefined)}
@@ -322,7 +322,7 @@ customElements.define(
                   Retry
                 </button>
                 <button
-                  ref=${offerRef("lf-file-editor-conflict")}
+                  ref=${offered("lf-file-editor-conflict")}
                   hidden=${() => !state().conflicted}
                   aria-description=${() => state().failure}
                   popovertarget="lf-file-editor-choices"
@@ -335,8 +335,8 @@ customElements.define(
             </div>
             <div
               ref=${[
-                offerRef("lf-file-editor-choices"),
-                scopeRef("In the file's conflict menu", choiceKeys, {
+                offered("lf-file-editor-choices"),
+                commandsOn("In the file's conflict menu", choiceKeys, {
                   claims: allButCommandReference,
                 }),
               ]}
@@ -347,7 +347,7 @@ customElements.define(
               onToggle=${choiceOpened}
             >
               <button
-                ref=${offerRef("lf-btn")}
+                ref=${offered("lf-btn")}
                 role="menuitemcheckbox"
                 aria-checked=${() => String(state().comparing)}
                 aria-controls="lf-file-editor-compared"
@@ -361,7 +361,7 @@ customElements.define(
               ].map(
                 ([label, run]) =>
                   html`<button
-                    ref=${offerRef("lf-btn")}
+                    ref=${offered("lf-btn")}
                     role="menuitem"
                     aria-disabled=${() => (state().busy ? "true" : undefined)}
                     onClick=${run}

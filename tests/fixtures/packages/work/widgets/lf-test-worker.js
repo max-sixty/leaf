@@ -3,9 +3,10 @@
 import {
   ago,
   html,
+  createView,
+  Show,
   keeps,
   LeafElement,
-  noChange,
   quietSince,
   saidAt,
   reportSequence,
@@ -14,6 +15,7 @@ import {
 customElements.define(
   "lf-test-worker",
   class extends LeafElement {
+    #drawing = null;
     setup() {
       this.line = document.createElement("div");
       this.line.dataset.lfGen = "1";
@@ -25,16 +27,40 @@ customElements.define(
     render() {
       const state = this.state.state.value;
       keeps(this, "state", state);
-      if (!reportsReady(this)) return noChange;
+      if (!reportsReady(this)) return;
       const reports = reportSequence(this).filter(
         (row) => row.source === "report" && row.action === "state",
       );
       const heard = reports.at(-1)?.ts ?? saidAt(this);
       const current = reports.findLast((row) => row.disposition === "effective");
-      return html`<span class="lf-state">${state}</span>
-        ${current?.text ? html`<span class="lf-doing">${current.text}</span>` : ""}
-        ${["working", "waiting"].includes(state) && quietSince(heard) ? html`<span class="lf-cold">quiet</span>` : ""}
-        <span class="lf-heard">last heard ${ago(heard)}</span>`;
+      const props = {
+        state,
+        doing: current?.text ?? "",
+        quiet: ["working", "waiting"].includes(state) && quietSince(heard),
+        heard: ago(heard),
+      };
+      if (this.#drawing) this.#drawing.update(props);
+      else
+        this.#drawing = createView(
+          this.renderRoot,
+          (read) =>
+            html` <span class="lf-state">${() => read().state}</span>
+              ${Show({
+          get when() {
+            return read().doing;
+          },
+          children: (_visible) =>
+            html`<span class="lf-doing">${() => read().doing}</span>`,
+        })}
+              ${Show({
+          get when() {
+            return read().quiet;
+          },
+          children: (_visible) => html`<span class="lf-cold">quiet</span>`,
+        })}
+              <span class="lf-heard">last heard ${() => read().heard}</span>`,
+          props,
+        );
     }
   },
 );

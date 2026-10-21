@@ -10,7 +10,10 @@ import {
   keeps,
   layoutChanged,
   once,
-  offer,
+  offered,
+  createView,
+  html,
+  For,
   openingView,
   quoted,
 } from "/runtime/widget-api.js";
@@ -23,6 +26,7 @@ customElements.define(
     #recordings = [];
     #selected = 0;
     #moment = null;
+    #drawing = null;
 
     connectedCallback() {
       if (!once(this)) return;
@@ -37,23 +41,52 @@ customElements.define(
       this.#selected = this.#views.indexOf(openingView(this, this.#views));
       const header = el("div", "lf-trace-compare-controls");
       header.dataset.lfGen = "1";
-      /** @type {any} Web Awesome's radio group exposes form properties. */
-      const choices = offer("wa-radio-group", "lf-trace-sources lf-label-hidden");
-      choices.label = "Recording";
-      choices.name = `${this.id}-recording`;
-      choices.size = "s";
-      choices.orientation = "horizontal";
+      const options = this.#recordings.map((recording, index) => ({
+        index,
+        label: recording.getAttribute("label") ?? recording.getAttribute("source"),
+      }));
+      this.#drawing = createView(
+        header,
+        (read) =>
+          html` <fieldset
+            role="radiogroup"
+            ref=${offered("lf-trace-sources lf-radio-group")}
+            disabled=${quoted(this)}
+          >
+            <legend>Recording</legend>
+            ${For({
+              each: options,
+              children: (option) =>
+                html` <label class="lf-radio-choice lf-trace-source">
+                  <input
+                    ref=${offered("")}
+                    type="radio"
+                    name=${`${this.id}-recording`}
+                    value=${String(option.index)}
+                    checked=${() => read().selected === option.index}
+                    onChange=${(event) => {
+                    if (!event.currentTarget.checked) return;
+                    const view = this.#recordings[this.#selected].inspectionView;
+                    this.#selected = option.index;
+                    this.#draw();
+                    this.#recordings[this.#selected].inspectionView = view;
+                  }}
+                  />
+                  <span>${option.label}</span>
+                </label>`,
+            })}
+          </fieldset>`,
+        { selected: this.#selected },
+      );
       for (const [index, recording] of this.#recordings.entries()) {
         const view = this.#views[index];
         view.addEventListener("lf-reveal", (event) => {
           if (index !== this.#selected) event.detail.replacedView();
           this.#selected = index;
-          choices.value = String(index);
           event.detail.present(this.#draw());
         });
         view.addEventListener("beforematch", () => {
           this.#selected = index;
-          choices.value = String(index);
           this.#draw();
         });
         recording.addEventListener("lf-trace-ready", () => {
@@ -64,29 +97,13 @@ customElements.define(
           for (const peer of this.#recordings)
             if (peer !== recording) peer.selectMoment(this.#moment);
         });
-        const choice = offer(
-          "wa-radio",
-          "lf-trace-source",
-          recording.getAttribute("label") ?? recording.getAttribute("source"),
-        );
-        choice.value = String(index);
-        choice.appearance = "button";
-        choice.disabled = quoted(this);
-        choices.append(choice);
       }
-      choices.value = String(this.#selected);
-      choices.addEventListener("change", () => {
-        const view = this.#recordings[this.#selected].inspectionView;
-        this.#selected = Number(choices.value);
-        this.#draw();
-        this.#recordings[this.#selected].inspectionView = view;
-      });
-      header.append(choices);
       this.prepend(header);
       this.#draw();
     }
 
     #draw() {
+      this.#drawing.update({ selected: this.#selected });
       // Reveal first, so a synchronous layout read never observes an empty
       // workspace and clamps the document's scroll position to its shorter end.
       keeps(this.#views[this.#selected], "hidden", null);

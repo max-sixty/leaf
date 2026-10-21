@@ -241,7 +241,7 @@ customElements.define("lf-tally", class extends LeafElement {
 
 
 LEAF_OWNER = """\
-import { LeafElement, nothing } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/widget-api.js";
 customElements.define("lf-owner", class extends LeafElement {
   render() {
     for (const [id, order] of Object.entries(this.state.move.value)) {
@@ -251,24 +251,24 @@ customElements.define("lf-owner", class extends LeafElement {
         if (member.parentElement !== zone) zone.append(member);
       }
     }
-    return nothing;
+    return;
   }
 });
 """
 
 
 LEAF_PIECE = """\
-import { keeps, LeafElement, nothing } from "/runtime/widget-api.js";
+import { keeps, LeafElement } from "/runtime/widget-api.js";
 customElements.define("lf-piece", class extends LeafElement {
   render() {
     keeps(this, "pinned", this.state.move.value);
-    return nothing;
+    return;
   }
 });
 """
 
 
-def test_lit_parent_moves_before_controller_members_render_selection(
+def test_keyed_parent_moves_before_controller_members_render_selection(
     browser, serve, tmp_path, monkeypatch
 ):
     """A later-upgraded parent moves a member before its destination clears it."""

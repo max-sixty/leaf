@@ -588,11 +588,12 @@ def test_a_changed_datum_keeps_its_old_words_open_when_its_label_changes(
     """Subject identity survives a rewrite; neither its label nor location is the quote."""
     old = "The original requirement keeps a human review before release. " * 12
     module = """
-import {projectData, html, render} from '/runtime/widget-api.js';
+import {projectData, html, createView} from '/runtime/widget-api.js';
 customElements.define('lf-quote-subject', class extends HTMLElement {
   connectedCallback() { window.quoteSubject = this; this.show('Old plan', this.dataset.words); }
   show(label, words) {
-    render(html`<p>${words}</p>`, this);
+    if (this.drawing) this.drawing.update({words});
+    else this.drawing = createView(this, read => html`<p>${() => read().words}</p>`, {words});
     projectData(this, [{key: 'plan', node: this.querySelector('p'), label,
       identity: 'plan', origin: {derived: [{widget: 'subject'}]}}]);
   }

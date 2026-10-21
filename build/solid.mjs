@@ -197,7 +197,7 @@ export const solidNamespace = () =>
   [
     'export { createSignal, createMemo, createRoot, createEffect, createTrackedEffect, createProjection, flush, untrack, For, Show, onCleanup } from "solid-js";',
     'export { render, insert, spread } from "@solidjs/web";',
-    'export { default, default as solidHtml } from "@solidjs/html";',
+    'export { default, default as html } from "@solidjs/html";',
   ].join("\n");
 
 export function solidModule(root) {

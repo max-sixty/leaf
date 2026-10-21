@@ -1045,14 +1045,9 @@ def page_end(page: Page) -> None:
 
 
 def visual_review_menu(page: Page) -> None:
-    """The review case picker open on its selected option."""
+    """The native review case picker, focused for keyboard selection."""
     control = page.locator(".lf-vr-case-select")
-    control.evaluate("""node => {
-      node.reviewShown = new Promise(resolve => node.addEventListener(
-        'wa-after-show', () => resolve(), {once: true}));
-    }""")
-    control.get_by_role("combobox").click()
-    control.evaluate("node => node.reviewShown")
+    control.focus()
     page.mouse.move(0, 0)
 
 

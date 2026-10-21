@@ -5,7 +5,7 @@
    holds, are the browser suite's. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { LeafElement, nothing } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/widget-api.js";
 import { failSoftUnreported } from "/runtime/widget-upgrade.js";
 import {
   applicationState,
@@ -250,7 +250,7 @@ test("a failure keeps the nodes the render paints, and the next draw takes the b
         const now = phase();
         if (failing) throw new Error("cannot paint");
         this.shown.value = now;
-        return nothing;
+        return;
       }
     },
   );

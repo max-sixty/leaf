@@ -24,7 +24,7 @@
      progress the reader opened stays open when a fold takes it over or splits it. */
 import { setChildLists } from "../dom-children.js";
 import { focusDestination, focused } from "../focus.js";
-import { solidHtml as html, createView, Show } from "/vendor/browser-runtime.js";
+import { html, createView, Show } from "/vendor/browser-runtime.js";
 import { MessageView } from "./messages.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import { renderMarkdown } from "../markdown.js";

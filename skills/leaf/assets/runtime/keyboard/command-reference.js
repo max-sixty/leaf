@@ -36,7 +36,7 @@ import {
   dismissPopoversOutside,
 } from "./layer-stack.js";
 import { scrollIntoView } from "../landing-scroll.js";
-import { solidHtml as html, createView, For, Show } from "/vendor/browser-runtime.js";
+import { html, createView, For, Show } from "/vendor/browser-runtime.js";
 
 import {
   bindings,
@@ -647,34 +647,34 @@ function commandEntryTemplate(read, selected) {
   >
     <td role="gridcell">
       ${optional(
-      () => entry().keySequence,
-      () =>
-        keySequenceTemplate(() => entry().keySequence, {
-          id: () => entry().keyId,
-          label: () => entry().keyLabel,
-        }),
-    )}
+        () => entry().keySequence,
+        () =>
+          keySequenceTemplate(() => entry().keySequence, {
+            id: () => entry().keyId,
+            label: () => entry().keyLabel,
+          }),
+      )}
     </td>
     <td role="gridcell">
       <div class="lf-command-reference-action">
         <div class="lf-command-reference-action-main">
           ${action}${optional(
-      () => read().promoted,
-      () =>
-        html`<span class="lf-command-reference-scope"
-          >${() => entry().sectionTitle}</span
-        >`,
-    )}
+            () => read().promoted,
+            () =>
+              html`<span class="lf-command-reference-scope"
+                >${() => entry().sectionTitle}</span
+              >`,
+          )}
         </div>
         ${optional(
-      () => entry().description,
-      () =>
-        html`<span
-          id=${() => entry().descriptionId}
-          class="lf-command-reference-description"
-          >${() => entry().description}</span
-        >`,
-    )}
+          () => entry().description,
+          () =>
+            html`<span
+              id=${() => entry().descriptionId}
+              class="lf-command-reference-description"
+              >${() => entry().description}</span
+            >`,
+        )}
       </div>
     </td>
   </tr>`;
@@ -768,11 +768,11 @@ function commandReferenceTemplate(read) {
         aria-labelledby="lf-quick-keyboard-label"
         aria-describedby="lf-quick-keyboard-help"
         onChange=${(event) => {
-        setQuickShortcuts(event.currentTarget.checked);
-        commandReferenceCatalog = captureCommandReferenceCatalog();
-        presentCommandReference();
-        repaint();
-      }}
+          setQuickShortcuts(event.currentTarget.checked);
+          commandReferenceCatalog = captureCommandReferenceCatalog();
+          presentCommandReference();
+          repaint();
+        }}
       /><span id="lf-quick-keyboard-label">Quick keyboard shortcuts</span
       ><small id="lf-quick-keyboard-help"
         >Use letters, numbers and symbols for Leaf actions.</small
@@ -825,24 +825,21 @@ function presentCommandReference() {
       commandReferenceTemplate,
       props,
     );
-  // The combobox belongs to the native editor. Element
-  // references keep its result relationships valid across the editor's shadow root.
+  // The native editor and its results share the dialog's document tree.
   const search = commandReferenceSearch;
   keeps(search, "role", "combobox");
   keeps(search, "aria-autocomplete", "list");
   keeps(search, "aria-expanded", "true");
   keeps(search, "aria-haspopup", "grid");
   const results = commandReferenceDialog.querySelector(".lf-command-reference-results");
-  if (search.ariaControlsElements?.[0] !== results)
-    search.ariaControlsElements = [results];
+  keeps(search, "aria-controls", results.id);
   const selected = commandReferenceView.visibleCommands.find(
     ({ entry }) => entry.id === commandReferenceView.selectedCommandId,
   );
   const row = selected
     ? commandReferenceDialog.querySelector(`#${selected.entry.rowId}`)
     : null;
-  if (search.ariaActiveDescendantElement !== row)
-    search.ariaActiveDescendantElement = row;
+  keeps(search, "aria-activedescendant", row?.id ?? null);
   // The results are one roving group: Tab reaches the selected command, or the first,
   // and the arrows walk the rest (focus.js, `rove`).
   rove(

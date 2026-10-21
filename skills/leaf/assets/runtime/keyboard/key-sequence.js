@@ -1,7 +1,7 @@
 /* This module owns how a binding is drawn: the steps a row's sequence or label breaks
  * into, which leading steps match presses the active interaction has accepted, and the
  * immutable key-sequence reading every keyboard surface renders through one Solid component. */
-import { solidHtml as html, For } from "/vendor/browser-runtime.js";
+import { html, For } from "/vendor/browser-runtime.js";
 
 import { labelOf, spell, word } from "./bindings.js";
 

@@ -23,14 +23,7 @@
    activation checks the current command. Withdrawal returns both original attributes.
    Preserve the order of that list because the dispatcher and hints walk inward to
    outward while the full reference groups the same scopes for reading. */
-import {
-  AsyncDirective,
-  PartType,
-  directive,
-  watchEffect,
-  onCleanup,
-  nothing,
-} from "/vendor/browser-runtime.js";
+import { createEffect, watchEffect, onCleanup } from "/vendor/browser-runtime.js";
 import { watchOwner } from "../arrivals.js";
 import {
   activeRows,
@@ -597,57 +590,24 @@ export function keys(where, title, rows, options) {
   return attachScope(where, declaredScope(title, rows, options)).rows;
 }
 
-// Template scopes use the same attachment as `keys`. Each render stands its latest
-// declaration — title, rows, callbacks and availability — in place of the last, owing
-// one reading of this element alone, so an unchanged render costs that one element.
-// Removing the directive withdraws only its own attachment, including when Lit keeps
-// the element. Temporary disconnection restores that declaration on reconnection. Rows
-// that read the element they stand on, as a disclosure's toggle does, come as a function
-// of it, called on each render, since the template declaring them renders that element.
-export const commandsOn = directive(
-  class extends AsyncDirective {
-    #element;
-    #declaration;
-    #scope = null;
-    constructor(part) {
-      super(part);
-      if (part.type !== PartType.ELEMENT)
-        throw new TypeError("commandsOn belongs in a template's element part");
-    }
-    // The values the template passes, which `update` reads.
-    render(title, rows, options) {
-      return nothing;
-    }
-    update(part, [title, rows, options]) {
-      this.#element = part.element;
-      this.#declaration =
-        rows === undefined && isCommandScope(title)
-          ? title.scope
-          : declaredScope(
-              title,
-              typeof rows === "function" ? rows(part.element) : rows,
-              options,
-            );
-      if (this.isConnected) this.reconnected();
-      return nothing;
-    }
-    reconnected() {
-      this.#scope = attachScope(this.#element, this.#declaration);
-    }
-    disconnected() {
-      if (detachScope(this.#element, this.#scope)) repaint();
-    }
-  },
-);
-
-/** Solid's owned setup creates the scope; its ref only captures the element. */
-export function scopeRef(title, rows, options) {
+/** A Solid ref owns one command attachment through DOM and view lifetimes.
+ * A capability accessor publishes changing declarations; null withdraws only this
+ * attachment, preserving independent projected scopes. Static title/rows use the
+ * same declaration contract as commands(). Rows can read their native element.
+ */
+export function commandsOn(title, rows, options) {
   let element;
   let attachment;
+  let declaration;
+  let connected = true;
   let stop;
   const withdraw = () => {
     if (element && detachScope(element, attachment)) repaint();
     attachment = null;
+  };
+  const connect = () => {
+    connected = true;
+    if (declaration) attachment ??= attachScope(element, declaration);
   };
   onCleanup(() => {
     stop?.();
@@ -655,15 +615,32 @@ export function scopeRef(title, rows, options) {
   });
   return (node) => {
     element = node;
-    const declaration =
-      rows === undefined && isCommandScope(title)
-        ? title.scope
-        : declaredScope(title, typeof rows === "function" ? rows(node) : rows, options);
-    const connect = () => {
-      attachment ??= attachScope(node, declaration);
-    };
-    connect();
-    stop = watchOwner(node, { connect, disconnect: withdraw });
+    createEffect(
+      () => {
+        const capability =
+          rows === undefined && typeof title === "function" ? title(node) : title;
+        if (capability === null) return null;
+        return rows === undefined && isCommandScope(capability)
+          ? capability.scope
+          : declaredScope(
+              capability,
+              typeof rows === "function" ? rows(node) : rows,
+              options,
+            );
+      },
+      (next) => {
+        declaration = next;
+        if (!next) withdraw();
+        else if (connected) attachment = attachScope(element, next);
+      },
+    );
+    stop = watchOwner(node, {
+      connect,
+      disconnect: () => {
+        connected = false;
+        withdraw();
+      },
+    });
   };
 }
 

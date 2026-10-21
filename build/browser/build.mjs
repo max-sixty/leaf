@@ -29,9 +29,8 @@
  * in, so its file count costs requests only where a page serves source modules.
  *
  * The framework's third-party packages are minified builds from the lock and the
- * adaptations below. `vendor/lit.js` is the page's one copy of Lit (`build/lit.mjs`);
- * the framework imports Lit from it, as Web Awesome's bundle does. Signals are the
- * framework's own and sit inside its directory. `shipped.mjs` decides whether each
+ * adaptations below. `vendor/solid.js` is the page's one Solid instance
+ * (`build/solid.mjs`), including signals, the DOM renderer and build-free templates. `shipped.mjs` decides whether each
  * output's imports resolve on every page and writes the notices for the packages
  * that reached them, as it does for every vendored bundle.
  */
@@ -47,12 +46,11 @@ import { build } from "../esbuild.mjs";
 import { contractTypes, protocolSchemas } from "./contract-types.mjs";
 import { protocolBreaks } from "./protocol.mjs";
 import { initialOutputs } from "../initial.mjs";
-import { litNamespace, litPath } from "../lit.mjs";
 import { solidModule, solidMoves, solidPath } from "../solid.mjs";
 import { registryOutputs } from "../registry.mjs";
 import { styleOutputs } from "../styles.mjs";
 import { kernelOutputs } from "../runtime-bundle.mjs";
-import { adapt, seam, vendorOutputs } from "../vendor.mjs";
+import { vendorOutputs } from "../vendor.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./shipped.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
@@ -100,7 +98,6 @@ export async function compilerPaths(directory = root) {
 }
 /** The layer path each package the framework imports is vendored at. */
 const packages = {
-  lit: litPath,
   "@solidjs/signals": solidPath,
   "@solidjs/web": solidPath,
   "@solidjs/html": solidPath,
@@ -116,10 +113,7 @@ const layerPathOf = (source) => {
 /** The layer path an import in a framework source module names, and its source. */
 function importTarget(specifier, source) {
   if (!/^\.{1,2}\//.test(specifier)) {
-    // Its tags go by their lit-all names, which a bare rebinding would not reach.
-    if (specifier === "lit/static-html.js")
-      throw new Error(`${source}: import staticHtml and its kin from lit`);
-    const name = specifier.startsWith("lit/") ? "lit" : specifier;
+    const name = specifier;
     if (!Object.hasOwn(packages, name))
       throw new Error(`${source}: ${specifier} is not a package the framework vendors`);
     return { target: packages[name] };
@@ -163,66 +157,6 @@ function compileModule(text, source) {
     code: code.endsWith("\n") ? code + trailer : `${code}\n${trailer}`,
     imports,
   };
-}
-
-/**
- * Build `lit.js` (`build/lit.mjs`), adapting the locked published modules in memory.
- *
- * Backport lit/lit#5218 while 3.3.0 avoids the repeat marker leak (#5298). Route
- * keyed and child-part insertions through `runtime/dom-move.js`, which keeps the
- * user's place and native state across the move.
- */
-async function litModule() {
-  const contents = await litNamespace();
-  const move = 'import {move as leafMove} from "/runtime/dom-move.js";\n';
-  return [
-    {
-      name: "leaf-lit",
-      setup(build) {
-        build.onResolve({ filter: /^leaf:lit$/ }, () => ({
-          path: "lit",
-          namespace: "leaf-lit",
-        }));
-        build.onLoad({ filter: /.*/, namespace: "leaf-lit" }, () => ({
-          contents,
-          resolveDir: root,
-        }));
-      },
-    },
-    adapt([
-      {
-        file: /[/\\]lit-html[/\\]directives[/\\]ref\.js$/,
-        edit: (source) =>
-          seam(
-            seam(
-              source,
-              "e&&void 0!==this.G&&this.rt(void 0)",
-              "e&&this.rt(void 0)",
-              "Lit ref",
-            ),
-            "rt(t){if(this.isConnected",
-            "rt(t){if(void 0===this.G)return;if(this.isConnected",
-            "Lit ref",
-          ),
-      },
-      {
-        file: /[/\\]lit-html[/\\]lit-html\.js$/,
-        edit: (source) =>
-          move +
-          seam(
-            source,
-            "this._$AA.parentNode.insertBefore(t,this._$AB)",
-            "leafMove(this._$AA.parentNode,t,this._$AB)",
-            "Lit move",
-          ),
-      },
-      {
-        file: /[/\\]lit-html[/\\]directive-helpers\.js$/,
-        edit: (source) =>
-          move + seam(source, "e.insertBefore(o,l)", "leafMove(e,o,l)", "Lit move"),
-      },
-    ]),
-  ];
 }
 
 // Every schema a page vendored at the current protocol relies on, and every record's,
@@ -349,11 +283,11 @@ export async function buildOutputs({ acceptServed = false } = {}) {
     entryPoints: Object.fromEntries(
       Object.entries(packages).map(([name, layerPath]) => [
         layerPath.slice("vendor/".length, -".js".length),
-        layerPath === solidPath ? "leaf:solid" : name === "lit" ? "leaf:lit" : name,
+        layerPath === solidPath ? "leaf:solid" : name,
       ]),
     ),
     outdir: `${assets}/vendor`,
-    plugins: [...(await litModule()), solidModule(root), solidMoves()],
+    plugins: [solidModule(root), solidMoves()],
     external: ["/runtime/dom-move.js"],
     platform: "browser",
     format: "esm",

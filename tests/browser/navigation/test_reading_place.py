@@ -1353,7 +1353,7 @@ def test_restore_selection_reveals_a_filtered_diff_datum(browser, serve):
     assert selected
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     page.keyboard.press("Escape")
-    search = page.locator('lf-diff wa-input[name="diff-search"]')
+    search = page.locator('lf-diff input[name="diff-search"]')
     write(search, "Dockerfile")
     expect(line).not_to_be_visible()
     page.locator("h1").click()

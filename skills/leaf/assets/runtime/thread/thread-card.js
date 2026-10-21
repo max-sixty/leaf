@@ -1,4 +1,4 @@
-/* One synchronous Lit owner for complete page, outlet and margin threads.
+/* One synchronous Solid owner for complete page, outlet and margin threads.
 
    Every surface uses the same metadata, transcript, message and reply vocabulary.
    Containers own navigation and placement, including whether their transcript scrolls;
@@ -37,7 +37,7 @@ import {
   standingIn,
 } from "../focus.js";
 import {
-  solidHtml as html,
+  html,
   createView,
   Show,
   share,

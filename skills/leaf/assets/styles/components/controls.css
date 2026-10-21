@@ -544,12 +544,8 @@ svg[data-lf-icon] {
 :is(.lf-btn, .button):not(:disabled, [aria-disabled="true"]):hover {
   background: var(--chip);
 }
-/* Secondary actions wear one quiet face, independent of their toolbar's geometry.
- * The vendor part and native button share this rule; the host keeps no second face.
- * lf-ui identifies offered vendor controls, and gives this modifier precedence over
- * the ordinary copy-button face in integration.css. */
-:is(button, .lf-btn, .button).lf-quiet-action,
-.lf-quiet-action.lf-ui::part(button) {
+/* Secondary native actions share one quiet face across toolbars. */
+:is(button, .lf-btn, .button).lf-quiet-action {
   border: 1px solid transparent;
   border-radius: var(--r);
   background: transparent;
@@ -559,16 +555,12 @@ svg[data-lf-icon] {
 :is(button, .lf-btn, .button).lf-quiet-action:not(:disabled, [aria-disabled="true"]):is(
     :hover,
     [data-lf-focus]
-  ),
-.lf-quiet-action.lf-ui:not(:disabled, [aria-disabled="true"])::part(button):hover,
-.lf-quiet-action.lf-ui::part(lf-focus) {
+  ) {
   background: var(--chip);
   color: var(--ink);
 }
-/* The same compact size maps to native minimum height and the vendor's supported
- * form-control property. Labels can still grow; icon-only tools set their width. */
+/* Compact controls share a native minimum height. Labels may grow wider. */
 .lf-compact-control {
-  --wa-form-control-height: var(--lf-control-compact);
   min-block-size: var(--lf-control-compact);
 }
 /* The committing action carries the accent as ink on the ordinary card, under a
@@ -615,17 +607,17 @@ svg[data-lf-icon] {
 }
 
 /* Native search fields share one frame, including any trailing readings/controls. */
-.lf-search-field,
+input.lf-search-field,
 .lf-search-frame {
   box-sizing: border-box;
   min-inline-size: 0;
   inline-size: 100%;
-  min-block-size: max(30px, var(--aim-floor));
+  min-block-size: max(38px, var(--aim-floor));
   border: 1px solid var(--border-2);
   border-radius: var(--r);
   background: var(--field);
   color: var(--ink);
-  font: var(--t-6) / var(--lf-ui-lh) var(--sans);
+  font: var(--t-5) / var(--lf-ui-lh) var(--sans);
 }
 .lf-search-field {
   padding: var(--sp-1) var(--sp-2);
@@ -665,4 +657,71 @@ svg[data-lf-icon] {
 .lf-copy-icon {
   inline-size: 100%;
   block-size: 100%;
+}
+
+/* Native segmented radios share the browser's selection and arrow-key model. */
+.lf-radio-group {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.lf-radio-group:not([hidden]) {
+  display: flex;
+}
+.lf-radio-group > legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.lf-radio-choice {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--aim-floor);
+  min-inline-size: var(--aim-floor);
+  box-sizing: border-box;
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--border-2);
+  background: var(--field);
+  color: var(--ink-2);
+  font: var(--t-6) / var(--lf-ui-lh) var(--sans);
+  cursor: pointer;
+}
+.lf-radio-choice + .lf-radio-choice {
+  border-inline-start: 0;
+}
+.lf-radio-choice:first-of-type {
+  border-start-start-radius: var(--r);
+  border-end-start-radius: var(--r);
+}
+.lf-radio-choice:last-child {
+  border-start-end-radius: var(--r);
+  border-end-end-radius: var(--r);
+}
+.lf-radio-choice:has(:checked) {
+  background: var(--chip);
+  color: var(--ink);
+}
+.lf-radio-choice:has(:focus-visible, [data-lf-focus]) {
+  outline: var(--focus-ring);
+  outline-offset: 1px;
+  z-index: 1;
+}
+.lf-radio-choice > input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+
+.lf-radio-choice:has(:disabled) {
+  opacity: 0.5;
+  cursor: default;
 }

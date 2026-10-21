@@ -679,7 +679,7 @@ export const authoredScope = (node) =>
 // widget rather than the thing in it, and each root answers for its own. Mark hit testing
 // and item aim both use this exact reading, so a projected datum inside a declared shadow
 // tree can outrank its host. Only a declared root is entered: another library's tree is
-// its control's insides, whose ids (Web Awesome Copy's `#copy-button`) the page never
+// its control's insides, whose private ids the page never
 // authored, so the hit stays at the control.
 export const elementFromPointAcross = (x, y) => {
   let el = document.elementFromPoint(x, y);

@@ -2,11 +2,11 @@
    retains their command scopes and presented controls, independently of the renderer
    that seats them. Every projection uses this directory for control, focus and
    containment, so a producer updates one registration whichever surface shows it. */
-import { solidHtml as html, createView, Show } from "/vendor/browser-runtime.js";
+import { html, createView, Show } from "/vendor/browser-runtime.js";
 import { iconElement } from "./icons.js";
 import { HOLDS_WORD } from "./held-word.js";
 import { progressFace, workflowLabel } from "./thread/workflow.js";
-import { elementDirective, offer } from "./widget-elements.js";
+import { offer } from "./widget-elements.js";
 import { keeps, keepsText } from "./keeps.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { focusDestination } from "./focus.js";
@@ -373,30 +373,14 @@ export function presentContributionHost(
   return record;
 }
 
-// Template hosts use the same writer as retained margin controls, and are tracked on
-// their surface as every presented control is: `${contributionHost(source, "map",
-// record, options)}`. Templates own the body and event bindings; this directive owns
-// the record's host attributes and scope.
-export const contributionHost = elementDirective(
-  "contributionHost",
-  (control, source, surface, record, options) => {
-    presentContributionHost(control, record, options);
-    trackContributionControl(source, surface, record.key, control);
-  },
-);
-
 // A control's receipts are seat state, not entry semantics: the seat that shows a
 // control paints what its projection chose, on every pass, so a control keeps no
 // receipt from the seat or the projection it last stood in. Retained controls call
-// it directly; templates bind `${contributionReceipts(receipt, awaitsUser)}`.
+// it directly; a Solid view owns the same writer in a scoped effect.
 export function presentContributionReceipts(control, receipt, awaitsUser) {
   syncContributionAgentWorkflow(control, receipt);
   syncContributionTurn(control, awaitsUser);
 }
-export const contributionReceipts = elementDirective(
-  "contributionReceipts",
-  presentContributionReceipts,
-);
 
 const contributionDrawings = new WeakMap();
 
@@ -425,36 +409,36 @@ export function presentContributionEntry(control, offered, options = {}) {
       control,
       (state) =>
         html` ${Show({
-        get when() {
-          return state().icon;
-        },
-        keyed: true,
-        children: (icon) => icon,
-        fallback: html`<span class="lf-margin-entry-glyph" aria-hidden="true"
-          >${() => state().record.glyph}</span
-        >`,
-      })}
+            get when() {
+              return state().icon;
+            },
+            keyed: true,
+            children: (icon) => icon,
+            fallback: html`<span class="lf-margin-entry-glyph" aria-hidden="true"
+              >${() => state().record.glyph}</span
+            >`,
+          })}
           <span class="lf-margin-entry-space" aria-hidden="true"> </span>
           <span class="lf-margin-entry-label" aria-hidden="true">
             <span class="lf-margin-entry-label-word"
               >${() => state().visibleLabel}</span
             >
             ${Show({
-          get when() {
-            return state().record.context;
-          },
-          children: (context) =>
-            html`<span class="lf-margin-entry-context">${context}</span>`,
-        })}
+              get when() {
+                return state().record.context;
+              },
+              children: (context) =>
+                html`<span class="lf-margin-entry-context">${context}</span>`,
+            })}
             <span class="lf-margin-entry-more"></span>
           </span>
           ${Show({
-        get when() {
-          return state().record.count > 1 ? state().record.count : null;
-        },
-        children: (count) =>
-          html`<span class="lf-margin-count" aria-hidden="true">${count}</span>`,
-      })}`,
+            get when() {
+              return state().record.count > 1 ? state().record.count : null;
+            },
+            children: (count) =>
+              html`<span class="lf-margin-count" aria-hidden="true">${count}</span>`,
+          })}`,
       props,
     );
     contributionDrawings.set(control, drawing);

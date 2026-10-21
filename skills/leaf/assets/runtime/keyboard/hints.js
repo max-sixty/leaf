@@ -24,7 +24,7 @@
    than removed. Geometry belongs to each caller and is passed in so this module
    introduces no ownership cycle through its callers. */
 import { bindingEnabled, spell } from "./bindings.js";
-import { solidHtml as html, createView, Show } from "/vendor/browser-runtime.js";
+import { html, createView, Show } from "/vendor/browser-runtime.js";
 import { keySequenceModel, keySequenceTemplate } from "./key-sequence.js";
 import { clamp, overlaps, overlapsAcross } from "../rect.js";
 import { chipSeats } from "./chip-seats.js";

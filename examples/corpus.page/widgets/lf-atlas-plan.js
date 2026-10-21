@@ -8,13 +8,14 @@ import {
   keepsText,
   once,
   readWork,
-  render,
-  repeat,
+  createView,
+  For,
   watchProjection,
 } from "/runtime/widget-api.js";
 customElements.define(
   "lf-atlas-plan",
   class extends HTMLElement {
+    #drawing = null;
     connectedCallback() {
       if (!once(this)) return;
       keeps(this, "role", "group");
@@ -62,14 +63,22 @@ customElements.define(
           (child) => child.pending,
         );
       this.button.toggleAttribute("disabled", !pending);
-      render(
-        repeat(
-          JSON.parse(shown),
-          ([id]) => id,
-          ([id, title]) => html`<li><a href=${`#${id}`}>${title}</a></li>`,
-        ),
-        this.overview.querySelector(".atlas-stopped > ul"),
-      );
+      const props = { rows: JSON.parse(shown) };
+      if (this.#drawing) this.#drawing.update(props);
+      else
+        this.#drawing = createView(
+          this.overview.querySelector(".atlas-stopped > ul"),
+          (read) =>
+            For({
+              get each() {
+                return read().rows;
+              },
+              keyed: (row) => row[0],
+              children: (row) =>
+                html`<li><a href=${() => `#${row()[0]}`}>${() => row()[1]}</a></li>`,
+            }),
+          props,
+        );
     }
   },
 );

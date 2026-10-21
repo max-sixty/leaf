@@ -61,7 +61,7 @@ import {
   keySequenceTemplate,
   progressStates,
 } from "./key-sequence.js";
-import { solidHtml as html } from "/vendor/browser-runtime.js";
+import { html } from "/vendor/browser-runtime.js";
 import { isExternalPageLink } from "../declared-words.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { el, PRESSABLE } from "../widget-elements.js";

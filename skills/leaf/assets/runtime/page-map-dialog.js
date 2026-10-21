@@ -1,7 +1,7 @@
 /* The complete searchable Page Map dialog.
 
    The neutral annotation inventory supplies current target entries and live activation.
-   One keyed Lit projection renders its groups and contributed records, filters
+   One keyed Solid projection renders its groups and contributed records, filters
    them, and returns focus through the route that opened it. Retained nodes keep a state
    refresh from cancelling a held pointer or moving focus.
    Compact clusters use this same complete dialog for overflow.
@@ -37,8 +37,14 @@ import {
   openLayer,
   openerOf,
 } from "./focus.js";
-import { html, nothing, render, repeat } from "/vendor/browser-runtime.js";
-import { iconTemplate } from "./icons.js";
+import {
+  html,
+  createView,
+  createEffect,
+  For,
+  Show,
+} from "/vendor/browser-runtime.js";
+import { iconElement } from "./icons.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import { coarsePointer, pressIsKeyboardActivation } from "./pointer.js";
 import { rowWalk } from "./walk-position.js";
@@ -53,8 +59,9 @@ import {
 } from "./page-controls.js";
 import {
   clearContributionControls,
-  contributionHost,
-  contributionReceipts,
+  presentContributionHost,
+  presentContributionReceipts,
+  trackContributionControl,
 } from "./contribution-controls.js";
 import { contributionSource } from "./contributions.js";
 import { railStands } from "./content-layout.js";
@@ -62,7 +69,7 @@ import { commandSteps } from "./keyboard/control-keys.js";
 
 import { contributionItemKey, KINDS } from "./contribution-model.js";
 import { marginMapGroups } from "./margin-map-model.js";
-import { threadHeading } from "./thread/messages.js";
+import { threadHeadingModel, threadHeadingView } from "./thread/messages.js";
 
 const dialog = document.createElement("dialog");
 dialog.className = "lf-ui lf-page-map-dialog";
@@ -115,6 +122,7 @@ export function createPageMapDialog({
   let groups = [];
   let target = null;
   let trackedOffers = new Set();
+  let drawing;
   // The Map is a row of the page's controls while it has entries, which a keyboard
   // reaches by `g P` (keyboard/go-to-sequence.js). Beside the rail, whose markers show
   // the page's annotations where they stand, it is a keyboard's convenience; where the
@@ -150,24 +158,33 @@ export function createPageMapDialog({
     return dialog.open && target === candidate && dialog.contains(node);
   }
 
-  // A thread's row names it as Threads does (`threadHeading`).
-  const sheetName = (item, visibleLabel) => {
-    const thread = item && inventory.sourceItem(item)?.thread;
-    return thread ? threadHeading(thread) : visibleLabel;
-  };
-  const sheetFace = ({ icon, glyph, item, visibleLabel, context }) =>
-    html`${
-        icon
-          ? iconTemplate(icon, "lf-margin-kind")
-          : html`<span class="lf-margin-kind">${glyph}</span>`
-      }<span class="lf-page-map-action-label"
-        ><span class="lf-page-map-action-label-word"
-          >${sheetName(item, visibleLabel)}</span
-        >${
-          context
-            ? html`<span class="lf-page-map-action-context">${context}</span>`
-            : nothing
-        }</span
+  // A thread's domain reading is captured with the rest of the sheet snapshot.
+  const sheetFace = (read) =>
+    html`${Show({
+        get when() {
+          return read().icon;
+        },
+        keyed: true,
+        fallback: html`<span class="lf-margin-kind">${() => read().glyph}</span>`,
+        children: (icon) => iconElement(icon, "lf-margin-kind"),
+      })}<span class="lf-page-map-action-label"
+        ><span class="lf-page-map-action-label-word">
+          ${Show({
+            get when() {
+              return read().heading;
+            },
+            fallback: html`${() => read().visibleLabel}`,
+            children: (heading) => threadHeadingView(heading),
+          })} </span
+        >${Show({
+          get when() {
+            return read().context;
+          },
+          children: (_visible) =>
+            html` <span class="lf-page-map-action-context"
+              >${() => read().context}</span
+            >`,
+        })}</span
       >`;
 
   function activateSheetControl(event, action) {
@@ -208,27 +225,38 @@ export function createPageMapDialog({
     });
   }
 
-  const sheetHost = (action, actions) =>
-    contributionHost(contributionSource(action.offered), "map", action.record, {
-      accessibleLabel: [action.record.accessibleLabel, action.record.context]
-        .filter(Boolean)
-        .join(", "),
-      relatedControlIds: relatedControlIds(action, actions),
-    });
-
-  const sheetItemTemplate = (action) => html`
-    <button
+  const sheetHost = (read, actions) => (control) =>
+    createEffect(
+      () => ({ action: read(), actions: actions() }),
+      ({ action, actions }) => {
+        const source = contributionSource(action.offered);
+        presentContributionHost(control, action.record, {
+          accessibleLabel: [action.record.accessibleLabel, action.record.context]
+            .filter(Boolean)
+            .join(", "),
+          relatedControlIds: relatedControlIds(action, actions),
+        });
+        trackContributionControl(source, "map", action.record.key, control);
+        presentContributionReceipts(control, action.receipt, action.awaitsUser);
+      },
+    );
+  const sheetItemTemplate = (read) =>
+    html`<button
       type="button"
       class="lf-page-map-action"
-      data-lf-map-key=${action.key}
-      data-lf-map-item=${action.item.id}
-      aria-label=${[action.label, action.context].filter(Boolean).join(", ")}
-      ${contributionReceipts(action.receipt, action.awaitsUser)}
-      @click=${() => activateItem(action.item, action.entry)}
+      data-lf-map-key=${() => read().key}
+      data-lf-map-item=${() => read().item.id}
+      aria-label=${() => [read().label, read().context].filter(Boolean).join(", ")}
+      ref=${(control) =>
+        createEffect(
+          () => ({ receipt: read().receipt, awaitsUser: read().awaitsUser }),
+          ({ receipt, awaitsUser }) =>
+            presentContributionReceipts(control, receipt, awaitsUser),
+        )}
+      onClick=${() => activateItem(read().item, read().entry)}
     >
-      ${sheetFace(action)}
-    </button>
-  `;
+      ${sheetFace(read)}
+    </button>`;
 
   function relatedControlIds(action, actions) {
     if (action.record.relation?.kind !== "entries") return [];
@@ -244,51 +272,55 @@ export function createPageMapDialog({
     return ids;
   }
 
-  const sheetControlTemplate = (action, actions) => {
-    const body = sheetFace(action);
-    if (action.record.behavior === "status")
-      return html`<span
-        id=${action.id}
-        class="lf-page-map-action"
-        data-lf-map-key=${action.key}
-        data-lf-map-margin-entry=${action.key}
-        ${sheetHost(action, actions)}
-        ${contributionReceipts(action.receipt, action.awaitsUser)}
-        >${body}</span
-      >`;
-    return html`<button
-      id=${action.id}
-      type="button"
-      class="lf-page-map-action"
-      data-lf-map-key=${action.key}
-      data-lf-map-margin-entry=${action.key}
-      ${sheetHost(action, actions)}
-      ${contributionReceipts(action.receipt, action.awaitsUser)}
-      @click=${(event) => activateSheetControl(event, action)}
-    >
-      ${body}
-    </button>`;
-  };
+  const sheetControlTemplate = (read, actions) =>
+    read().record.behavior === "status"
+      ? html`<span
+          id=${() => read().id}
+          class="lf-page-map-action"
+          data-lf-map-key=${() => read().key}
+          data-lf-map-margin-entry=${() => read().key}
+          ref=${sheetHost(read, actions)}
+          >${sheetFace(read)}</span
+        >`
+      : html`<button
+          id=${() => read().id}
+          type="button"
+          class="lf-page-map-action"
+          data-lf-map-key=${() => read().key}
+          data-lf-map-margin-entry=${() => read().key}
+          ref=${sheetHost(read, actions)}
+          onClick=${(event) => activateSheetControl(event, read())}
+        >
+          ${sheetFace(read)}
+        </button>`;
 
-  const sheetGroupTemplate = (group, query) => html`
-    <section
+  const sheetGroupTemplate = (group, read) =>
+    html`<section
       class="lf-page-map-group"
-      data-lf-map-group=${group.key}
-      ?hidden=${Boolean(query) && !group.search.includes(query)}
+      data-lf-map-group=${() => group().key}
+      hidden=${() => !!read().query && !group().search.includes(read().query)}
     >
-      <h3>${group.entry.title}</h3>
+      <h3>${() => group().entry.title}</h3>
       <div class="lf-page-map-actions">
-        ${repeat(
-          group.actions,
-          ({ key }) => key,
-          (action) =>
-            action.kind === "item"
+        ${For({
+          get each() {
+            return group().actions;
+          },
+          // A status and an action own different native hosts. Retire the old
+          // host before publishing a record intended for its replacement.
+          keyed: (action) =>
+            JSON.stringify([
+              action.key,
+              action.kind,
+              action.record?.behavior === "status",
+            ]),
+          children: (action) =>
+            action().kind === "item"
               ? sheetItemTemplate(action)
-              : sheetControlTemplate(action, group.actions),
-        )}
+              : sheetControlTemplate(action, () => group().actions),
+        })}
       </div>
-    </section>
-  `;
+    </section>`;
 
   function renderSheet() {
     const restoreFocus = holdFocus(dialog);
@@ -306,14 +338,30 @@ export function createPageMapDialog({
       }),
     );
     groups = marginMapGroups(entries, (item) => KINDS[item.kind], searchTextByKey);
-    render(
-      html`${repeat(
-        groups,
-        ({ key }) => key,
-        (group) => sheetGroupTemplate(group, query),
-      )}`,
-      dialogList,
-    );
+    const props = {
+      query,
+      groups: groups.map((group) => ({
+        ...group,
+        actions: group.actions.map((action) => {
+          const thread = action.item && inventory.sourceItem(action.item)?.thread;
+          return { ...action, heading: thread ? threadHeadingModel(thread) : null };
+        }),
+      })),
+    };
+    if (drawing) drawing.update(props);
+    else
+      drawing = createView(
+        dialogList,
+        (read) =>
+          html`${For({
+            get each() {
+              return read().groups;
+            },
+            keyed: (group) => group.key,
+            children: (group) => sheetGroupTemplate(group, read),
+          })}`,
+        props,
+      );
     const liveOffers = new Set(
       groups.flatMap(({ entry }) => entry.offers.map(contributionSource)),
     );

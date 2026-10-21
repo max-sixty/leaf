@@ -16,7 +16,7 @@ import {
   keepsText,
   keys,
   nativeLayers,
-  offerRef,
+  offered,
   openLayer,
   openerOf,
   paintKeys,
@@ -99,7 +99,7 @@ function presentViewer(model) {
           return state().model;
         },
         children: (model2) => default2`<a
-                    ref=${offerRef("lf-media-viewer-original", true)}
+                    ref=${offered("lf-media-viewer-original", true)}
                     href=${() => model2().url}
                     target="_blank"
                     rel="noopener"

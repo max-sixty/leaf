@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { adoptRegistry } from "/runtime/registry.js";
 import { acceptData, notifyDataSubscribers } from "/runtime/data.js";
-import { LeafElement, nothing } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/widget-api.js";
 
 let fixtureSequence = 0;
 async function scene() {
@@ -48,7 +48,7 @@ async function feed(
     class extends LeafElement {
       render() {
         this.snapshot = this.data("rows");
-        return nothing;
+        return;
       }
       updated(changed) {
         super.updated(changed);
@@ -478,7 +478,7 @@ function outputScene(draw) {
     class extends LeafElement {
       render() {
         this.snapshot = this.data("rows");
-        return nothing;
+        return;
       }
       updated(changed) {
         super.updated(changed);
@@ -579,7 +579,7 @@ test("source readiness includes asynchronous LeafElement output consumers", asyn
     class extends LeafElement {
       render() {
         this.snapshot = this.data("rows");
-        return nothing;
+        return;
       }
       updated(changed) {
         super.updated(changed);

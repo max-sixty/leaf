@@ -3,8 +3,7 @@ import test from "node:test";
 import {
   contributionControl,
   contributionEntry,
-  contributionHost,
-  contributionReceipts,
+  trackContributionControl,
   presentContributionHost,
   presentContributionReceipts,
 } from "../../skills/leaf/assets/runtime/contribution-controls.js";
@@ -58,19 +57,35 @@ test("a reply streaming paints the working face under its own word", () => {
 });
 
 test("template contribution hosts paint the retained-host contract and are found on their surface", async () => {
-  const { html, render } = await import("/vendor/browser-runtime.js");
+  const {
+    html,
+    createView,
+    createEffect,
+  } = await import("/vendor/browser-runtime.js");
   const root = document.createElement("section");
   document.body.append(root);
   const imperative = document.createElement("button");
   const source = {};
-  const paint = (record, options, receipt, awaitsUser) =>
-    render(
+  const drawing = createView(
+    root,
+    (read) =>
       html`<button
-        ${contributionHost(source, "map", record, options)}
-        ${contributionReceipts(receipt, awaitsUser)}
+        ref=${(control) =>
+          createEffect(
+            () => read().current,
+            (current) => {
+              if (!current) return;
+              const { record, options, receipt, awaitsUser } = current;
+              presentContributionHost(control, record, options);
+              trackContributionControl(source, "map", record.key, control);
+              presentContributionReceipts(control, receipt, awaitsUser);
+            },
+          )}
       ></button>`,
-      root,
-    );
+    { current: null },
+  );
+  const paint = (record, options, receipt, awaitsUser) =>
+    drawing.update({ current: { record, options, receipt, awaitsUser } });
   for (const [record, receipt, awaitsUser] of [
     [
       contributionEntry({
@@ -105,5 +120,6 @@ test("template contribution hosts paint the retained-host contract and are found
     assert.equal(control.outerHTML, imperative.outerHTML);
     assert.equal(contributionControl(source, "apply", "map"), control);
   }
+  drawing.dispose();
   root.remove();
 });

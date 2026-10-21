@@ -305,7 +305,7 @@ const anchorTravel = createAnchorTravel({
   announce,
 });
 const landing = createThreadLanding();
-declareThreadKeys(landing.landIn);
+declareThreadKeys(landing.landIn, () => app.threadDestinations.threadHere());
 const anchorControls = createAnchorControls({
   commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
   openThread: (...args) => app.threadDestinations.openPageThread(...args),

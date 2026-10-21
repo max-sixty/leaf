@@ -2785,7 +2785,7 @@ function createResponseSurface({
     const threadId = threadAtStanding();
     const replyId = replyThreadAtStanding();
     const target = threadId && threadTarget(threadId);
-    const inlineBox = inline && drawnThreadId(inline) === threadId && (!here || standingIn(inline) || target && under(target, heldObligation() ?? here.element)) && threadInput(inline);
+    const inlineBox = inline && (!here || standingIn(inline) || target && under(target, heldObligation() ?? here.element)) && threadInput(inline);
     const said = standingThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
     const subject = threadId && (!here || target && under(target, heldObligation() ?? here.element));
     const replySubject = subject && replyId;
@@ -11322,7 +11322,7 @@ var anchorTravel = createAnchorTravel({
   announce
 });
 var landing = createThreadLanding();
-declareThreadKeys(landing.landIn);
+declareThreadKeys(landing.landIn, () => app.threadDestinations.threadHere());
 var anchorControls = createAnchorControls({
   commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
   openThread: (...args) => app.threadDestinations.openPageThread(...args),

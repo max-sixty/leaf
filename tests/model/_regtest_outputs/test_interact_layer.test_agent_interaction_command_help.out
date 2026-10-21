@@ -30,7 +30,9 @@ Options:
 Usage: leaf delivery ack [OPTIONS] DELIVERY_ID
 
   Confirm that every part of DELIVERY_ID is in your context, so its updates read
-  Picked up. Reread any part whose output is missing first.
+  Picked up. Reread any part whose output is missing first. Where an earlier
+  turn already picked it up, a note says so and names what its updates still
+  owe.
 
 Options:
   --help  Show this message and exit.

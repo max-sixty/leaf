@@ -46,7 +46,6 @@ def resolve_dir(dir_arg: str, must_exist: bool = True, *, renew: bool = True) ->
     from leaf.locations import canonical_path
 
     page_dir = canonical_path(Path(dir_arg).expanduser())
-    acting_on(page_dir)
     if not must_exist:
         return page_dir
     if page_dir.is_file():
@@ -58,6 +57,7 @@ def resolve_dir(dir_arg: str, must_exist: bool = True, *, renew: bool = True) ->
             f"{page_dir} is not an initialized page; "
             f"run `leaf page init {shlex.quote(str(page_dir))}`"
         )
+    acting_on(page_dir)
     if not renew:
         return page_dir
     from leaf.findings import note

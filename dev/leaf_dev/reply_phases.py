@@ -230,10 +230,10 @@ def covered(spans: list[tuple[float, float]]) -> float:
     return total
 
 
-def leaf_commands_ms(commands: list[dict], admitted: str, replied: str) -> int:
-    """The elapsed time Leaf's commands took on a reply from the comment's admission
-    (`command_spans`)."""
-    spans = command_spans(commands, instant(admitted), instant(replied))
+def leaf_commands_ms(commands: list[dict], since: str, replied: str) -> int:
+    """The elapsed time Leaf's commands took on a reply from `since`, where the
+    harness took the comment (`command_spans`)."""
+    spans = command_spans(commands, instant(since), instant(replied))
     return round(covered(spans) * 1000)
 
 

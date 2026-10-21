@@ -32,11 +32,12 @@
    travelling arrival captures its return place before releasing held content or
    changing layout and commits it only after the destination is reached.
 
-   Held identity is the focused Thread across shadow roots. An unheld preview
-   conversation may accompany its page target; when focus returns to the body,
-   a visible accompanying preview remains the current conversation. Canonical page
-   targets always come from anchor placement, independently of whichever view draws a
-   Thread. */
+   Held identity is the focused Thread across shadow roots. An unheld conversation
+   drawn with its page target, by the preview accompanying the target or by a widget's
+   seat beside it, is the current conversation while the user stands at that target,
+   so every thread key reaches it from there (`threadHere`); when focus returns to the
+   body, a visible accompanying preview remains the current conversation. Canonical page targets always come from anchor
+   placement, independently of whichever view draws a Thread. */
 import { aborted } from "../abort.js";
 import { threadDraft } from "../drafts.js";
 import { focused } from "../focus.js";
@@ -84,20 +85,34 @@ export function createThreadDestinations({
     const thread = allThreads().find((candidate) => candidate.id === id);
     return thread ? placementOf(thread, placedAt) : null;
   };
-  const threadHere = () => heldThread() ?? preview?.accompanied() ?? null;
-  // Discussion identity precedes the view that realizes it. Reply availability
-  // narrows an editable destination without erasing the user's standing thread.
-  const threadAtStanding = () => {
+  // The thread the user is at, the one every thread key acts on: the thread they hold,
+  // else the one conversation drawn with the place they stand at, which is one place
+  // with it (glossary, Standing target). The preview accompanying the place draws one,
+  // and a widget may seat its threads beside it, as lf-diff does under a line; where
+  // several are drawn there, the user is at none of them. Chrome standing at no place
+  // is at none. Returning to the page can leave a margin card open with focus on the
+  // body, and its visible conversation remains the current one in that state.
+  const threadHere = () => {
     const held = heldThread();
-    if (held) return drawnThreadId(held);
+    if (held) return held;
+    const shown = preview?.accompanied() ?? null;
     const active = focused();
-    const ids = active ? threadIdsAt(active) : [];
-    const shown = threadHere();
-    const shownId = drawnThreadId(shown);
-    // Returning to the page can leave a margin card open with focus on the body.
-    // Its visible conversation remains the destination of Comment in that state.
-    if ((!active || active === document.body) && shownId) return shownId;
-    return ids.includes(shownId) ? shownId : (ids[0] ?? null);
+    if (!active || active === document.body) return shown;
+    const ids = threadIdsAt(active);
+    const drawn = [
+      shown,
+      ...ids.map((id) => surfaceFocusTarget(id, { part: "thread" })),
+    ].filter((thread) => thread && ids.includes(drawnThreadId(thread)));
+    return drawn.length === 1 ? drawn[0] : null;
+  };
+  // Discussion identity precedes the view that realizes it: where no thread is shown,
+  // the first thread at the place. Reply availability narrows an editable destination
+  // without erasing the user's standing thread.
+  const threadAtStanding = () => {
+    const here = drawnThreadId(threadHere());
+    if (here) return here;
+    const active = focused();
+    return (active && threadIdsAt(active)[0]) ?? null;
   };
   const replyThreadAtStanding = () => {
     const id = threadAtStanding();

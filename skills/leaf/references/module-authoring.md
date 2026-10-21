@@ -290,6 +290,9 @@ whose host implements `focus()` and `click()`. In a template, `<button
 ${offered("lf-btn")}>` does the same, with an input's `type` binding placed before
 `offered`.
 
+Shared control styles are listed in `page-layout.md`, "Page CSS and Leaf's controls";
+they apply to generated controls too.
+
 A control whose label is the page's own words, such as a tab's name, must stay
 selectable, so build it with `selectableOffer(role, className, label)`, a focusable span
 for which the widget supplies the keyboard behavior. `el(tag, className, text)` makes a

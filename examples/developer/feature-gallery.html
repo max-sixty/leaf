@@ -1028,11 +1028,24 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               >
                 Progress messages
               </button>
-              <label for="bg-panel-width">Sample width</label>
-              <select id="bg-panel-width" class="field">
-                <option value="30rem">Wide</option>
-                <option value="20rem">Narrow</option>
-              </select>
+              <span id="bg-panel-width-label">Sample width</span>
+              <div
+                id="bg-panel-width"
+                role="radiogroup"
+                aria-labelledby="bg-panel-width-label"
+              >
+                <label class="choice"
+                  ><input
+                    type="radio"
+                    name="panel-width"
+                    value="30rem"
+                    checked
+                  />Wide</label
+                >
+                <label class="choice"
+                  ><input type="radio" name="panel-width" value="20rem" />Narrow</label
+                >
+              </div>
             </div>
             <lf-sample id="bg-panel-sample" label="workshop threads">
               <template

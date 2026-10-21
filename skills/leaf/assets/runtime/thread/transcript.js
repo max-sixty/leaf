@@ -31,6 +31,7 @@ import { renderMarkdown } from "../markdown.js";
 import { summaryRanges, withPendingProgress, workingPlace } from "./summary-ranges.js";
 import { growthAfterIsSeen, growthIsSeen, seenRect } from "../geometry.js";
 import { scrollThreadIntoView } from "./reply-landing.js";
+import { iconTemplate } from "../icons.js";
 
 // A progress run's face: its latest step, drawn as a message is, with who wrote it and
 // when at its head, but dimmed, and under a passing sheen while it is the working
@@ -474,13 +475,12 @@ export class Transcript {
     const expanded = ranges.every((range) => range.expanded);
     const count = ranges.reduce((total, range) => total + range.messages.length, 0);
     const subject = `${count} ${progress ? "progress" : "earlier"} message${count === 1 ? "" : "s"}`;
-    const label = `${expanded ? (progress ? "Hide" : "Collapse") : "Show"} ${subject}`;
+    const label = `${expanded ? "Hide" : "Show"} ${subject}`;
     return html`<button
       type="button"
       class="lf-thread-disclosure lf-summary-expand ${
         progress ? "lf-progress-expand" : ""
       }"
-      data-lf-room=${progress ? `Show ${subject}` : nothing}
       data-summary-toggle=${ids[0]}
       aria-expanded=${String(expanded)}
       aria-controls=${ids
@@ -488,7 +488,8 @@ export class Transcript {
         .join(" ")}
       @click=${() => this.#setSummaryExpanded(ids, !expanded)}
     >
-      ${progress ? html`<span>${label}</span>` : label}
+      ${iconTemplate("down", "lf-disclosure-icon")}
+      <span data-lf-room=${`Show ${subject}`}><span>${label}</span></span>
     </button>`;
   }
 

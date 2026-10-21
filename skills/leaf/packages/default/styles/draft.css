@@ -132,10 +132,6 @@
     block-size: var(--lf-draft-mark);
     min-block-size: 0;
     padding: 0;
-    border: 0;
-    border-radius: calc(var(--r) - 2px);
-    background: transparent;
-    color: var(--muted);
   }
   .lf-draft-action::before {
     content: "";
@@ -147,12 +143,6 @@
     content: "";
     position: absolute;
     inset: min(0px, (var(--lf-draft-mark) - var(--aim-floor)) / 2) 0;
-  }
-  .lf-draft-action:hover,
-  .lf-draft-tools > .lf-code-copy::part(button):hover {
-    color: var(--ink);
-    background: var(--chip);
-    box-shadow: none;
   }
   /* The ring stays inside its mark, off the words beside the toolbar. */
   .lf-draft-action[data-lf-focus],

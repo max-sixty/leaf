@@ -544,15 +544,25 @@ summary {
 .lf-thread-seat > .lf-say {
   margin-top: 0;
 }
-/* Threads stacked in one seat are ruled apart. Parts are pieces of one thread, so a
-   part on either side takes no rule: the presentation drawing them spaces them as its
-   transcript (floating-panel.css, `.lf-fp-messages`). */
-.lf-page-thread:not(.lf-primary-part)
-  + :is(.lf-page-thread:not(.lf-primary-part), .lf-resolved-threads) {
+/* Adjacent whole threads are ruled apart; parts belong to their author's
+   transcript. A seat contains only whole cards, its resolved group and reply row;
+   there, inert outgoing pixels may stand between the live neighbors. */
+:is(
+  .lf-page-thread:not(.lf-primary-part, [inert])
+    + :is(.lf-page-thread:not(.lf-primary-part, [inert]), .lf-resolved-threads),
+  .lf-thread-seat
+    > .lf-page-thread:not([inert])
+    ~ :is(.lf-page-thread:not([inert]), .lf-resolved-threads)
+) {
   margin-top: var(--sp-3);
 }
-.lf-page-thread:not(.lf-primary-part)
-  + :is(.lf-page-thread:not(.lf-primary-part), .lf-resolved-threads)::before {
+:is(
+  .lf-page-thread:not(.lf-primary-part, [inert])
+    + :is(.lf-page-thread:not(.lf-primary-part, [inert]), .lf-resolved-threads),
+  .lf-thread-seat
+    > .lf-page-thread:not([inert])
+    ~ :is(.lf-page-thread:not([inert]), .lf-resolved-threads)
+)::before {
   content: "";
   position: absolute;
   inset-inline: var(--sp-1);
@@ -736,6 +746,9 @@ summary {
   margin-bottom: 0;
 }
 .lf-thread-disclosure {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   min-height: var(--aim-floor);
   max-inline-size: 100%;
   flex-shrink: 0;

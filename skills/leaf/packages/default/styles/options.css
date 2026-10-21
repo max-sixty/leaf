@@ -796,7 +796,8 @@
  * `settled`: the decision is made, so the group reads as one disclosure row with the
  * cards behind it. The row is offered only on screen, where its handler answers; every
  * other medium gets the cards by never being handed it. Its face is the chrome's
- * (lf-ui); this states its box. Open or closed is its aria-expanded. */
+ * (lf-ui); the explicit Settled label states the outcome without a filled frame.
+ * Open or closed is its aria-expanded. */
 :scope:is(lf-options)[settled] > .lf-settled {
   display: none;
   width: 100%;
@@ -804,12 +805,12 @@
   min-height: var(--aim-floor);
   gap: var(--sp-2);
   margin: 0 0 var(--sp-2);
-  padding: 7px 12px;
+  padding: 7px 0;
   font-weight: 600;
   text-align: left;
-  background: var(--field);
+  background: transparent;
   cursor: pointer;
-  border: 1px solid var(--rule);
+  border: 1px solid transparent;
   border-radius: var(--r);
 }
 :scope:is(lf-options)[settled] > .lf-settled[aria-expanded="false"] {
@@ -821,14 +822,6 @@
 :scope:is(lf-options)[settled] > .lf-settled[data-lf-focus] {
   outline: var(--focus-ring);
   outline-offset: 1px;
-}
-.lf-settled::before {
-  content: "▸";
-  color: var(--muted);
-  font-weight: 400;
-}
-.lf-settled[aria-expanded="true"]::before {
-  content: "▾";
 }
 .lf-settled-count {
   margin-left: auto;

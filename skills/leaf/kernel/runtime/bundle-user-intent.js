@@ -16,6 +16,7 @@ import {
 } from "./bundle-media.js";
 import {
   flashDuration,
+  foldBlock,
   motion,
   scrollBehavior
 } from "./bundle-motion.js";
@@ -6411,17 +6412,17 @@ var Transcript = class _Transcript {
     const expanded = ranges.every((range) => range.expanded);
     const count = ranges.reduce((total, range) => total + range.messages.length, 0);
     const subject = `${count} ${progress ? "progress" : "earlier"} message${count === 1 ? "" : "s"}`;
-    const label = `${expanded ? progress ? "Hide" : "Collapse" : "Show"} ${subject}`;
+    const label = `${expanded ? "Hide" : "Show"} ${subject}`;
     return html`<button
       type="button"
       class="lf-thread-disclosure lf-summary-expand ${progress ? "lf-progress-expand" : ""}"
-      data-lf-room=${progress ? `Show ${subject}` : nothing}
       data-summary-toggle=${ids[0]}
       aria-expanded=${String(expanded)}
       aria-controls=${ids.map((id) => `lf-summary-originals-${this.#id}-${id}`).join(" ")}
       @click=${() => this.#setSummaryExpanded(ids, !expanded)}
     >
-      ${progress ? html`<span>${label}</span>` : label}
+      ${iconTemplate("down", "lf-disclosure-icon")}
+      <span data-lf-room=${`Show ${subject}`}><span>${label}</span></span>
     </button>`;
   }
   #setSummaryExpanded(ids, expanded) {
@@ -6660,11 +6661,16 @@ var ThreadView = class {
   repaint() {
     this.#paint(this.#received);
   }
-  // What holds the card folded away: the closed Resolved disclosure its seat gathers it
-  // in (inline.js).
+  // The seat owns placement, including while the card's outgoing pixels still fold
+  // outside its Resolved disclosure. Landing and held news read that same placement.
+  #foldedInto = null;
+  #retirement = null;
+  setFoldedInto(group, retirement = null) {
+    this.#foldedInto = group;
+    this.#retirement = retirement;
+  }
   get #fold() {
-    const group = this.node.parentElement;
-    return group?.matches(".lf-resolved-threads:not([open])") ? group : null;
+    return this.#foldedInto && !this.#foldedInto.open ? this.#foldedInto : null;
   }
   // Where the seat's flow would grow if the card's settlement changed (inline.js), read
   // as the news comes: before the seat's next open thread, or before its Resolved
@@ -6988,13 +6994,17 @@ var ThreadView = class {
       source: this.node,
       available: () => this.node.isConnected
     });
-    const land2 = (may = mayLand) => {
+    const land2 = async (may = mayLand, reverse = false) => {
+      await this.#retirement?.catch(() => {
+      });
       const place2 = this.#fold?.querySelector(":scope > summary") ?? this.node;
-      if (!may() || !standingIn(place2)) return false;
+      if (!may()) return false;
+      if (reverse) may.handoff(() => focusDestination(place2, "return"));
+      if (!standingIn(place2)) return false;
       scrollThreadIntoView(place2, focused());
       return true;
     };
-    return { optimistic: () => land2(), reverse: land2 };
+    return { optimistic: () => land2(), reverse: (may) => land2(may, true) };
   };
   #createReply(model) {
     const replyChanged = () => {
@@ -7046,14 +7056,17 @@ var ResolvedThreads = class {
   node = document.createElement("details");
   summary = document.createElement("summary");
   #threads = [];
-  constructor() {
+  constructor(opened) {
     this.node.className = "lf-resolved-threads lf-ui";
     this.node.dataset.lfRuntime = "";
     this.node.dataset.lfGen = "1";
     this.node.dataset.lfOffer = "";
     this.summary.className = "lf-resolved-summary";
     new MutationObserver(() => {
-      if (this.node.open) for (const thread of this.#threads) thread.news?.open();
+      if (this.node.open) {
+        opened();
+        for (const thread of this.#threads) thread.news?.open();
+      }
     }).observe(this.node, { attributeFilter: ["open"] });
   }
   // The summary says what its threads hold back in one notice of one line: the one
@@ -7074,6 +7087,9 @@ var ResolvedThreads = class {
 var ThreadSeat = class {
   #views = /* @__PURE__ */ new Map();
   #resolved = null;
+  #folding = /* @__PURE__ */ new Map();
+  #place = () => {
+  };
   #model = EMPTY;
   #shown = EMPTY;
   #committed = EMPTY;
@@ -7103,7 +7119,10 @@ var ThreadSeat = class {
     const stoodIn = [...this.#views.values()].find(
       ({ node }) => standingIn(node)
     )?.node;
-    const gathered = this.#resolved && standingIn(this.#resolved.summary) ? [...this.#resolved.node.children].slice(1) : [];
+    const gathered = this.#resolved && standingIn(this.#resolved.summary) ? [
+      ...[...this.#resolved.node.children].slice(1),
+      ...[...this.#folding.values()].map(({ node }) => node)
+    ] : [];
     this.#model = model;
     if (model.surface)
       this.#held ??= new HeldNews(
@@ -7131,27 +7150,80 @@ var ThreadSeat = class {
         releaseReplies(view.node);
         view.retire();
       }
-    const nodes = [];
-    const settled = [];
+    const settled = shown2.threads.filter(
+      (thread) => thread.surface !== "margin" && thread.resolved && !thread.reply
+    );
+    if (!settled.length) this.#resolved = null;
+    else
+      this.#resolved ??= new ResolvedThreads(() => {
+        if (!this.#folding.size) return;
+        for (const key of this.#folding.keys()) this.#stopFold(key);
+        this.present(this.#model);
+      });
+    for (const key of this.#folding.keys())
+      if (!settled.some((thread) => thread.key === key) || this.#resolved?.node.open)
+        this.#stopFold(key);
+    const departing = settled.filter((thread) => {
+      const was = prior.threads.find(({ key }) => key === thread.key);
+      return was && !was.resolved && !this.#resolved.node.open && this.#views.get(thread.key)?.node.parentElement === this.node;
+    });
+    const priorSize = departing.length ? this.node.getBoundingClientRect().height : 0;
     for (const descriptor of shown2.threads) {
       let view = this.#views.get(descriptor.key);
       if (!view)
         this.#views.set(descriptor.key, view = new ThreadView(this.#commands));
+      const resolved2 = settled.includes(descriptor);
       view.setMarginControls(this.#marginControls);
       view.present(descriptor);
-      if (descriptor.surface !== "margin" && descriptor.resolved && !descriptor.reply)
-        settled.push(descriptor);
-      else nodes.push(view.node);
-    }
-    if (!settled.length) this.#resolved = null;
-    else {
-      this.#resolved ??= new ResolvedThreads();
-      this.#resolved.present(
-        settled,
-        settled.map(({ key }) => this.#views.get(key).node)
+      view.setFoldedInto(
+        resolved2 ? this.#resolved.node : null,
+        this.#folding.get(descriptor.key)?.played?.finished
       );
-      nodes.push(this.#resolved.node);
+      if (departing.includes(descriptor)) {
+        view.node.inert = true;
+        this.#folding.set(descriptor.key, { node: view.node, played: null });
+      }
     }
+    const place2 = () => {
+      const nodes = shown2.threads.flatMap(
+        (thread) => !settled.includes(thread) || this.#folding.has(thread.key) ? [this.#views.get(thread.key).node] : []
+      );
+      if (settled.length) {
+        this.#resolved.present(
+          settled,
+          settled.filter(({ key }) => !this.#folding.has(key)).map(({ key }) => this.#views.get(key).node)
+        );
+        nodes.push(this.#resolved.node);
+      }
+      setChildren(this.node, foot ? [...nodes, foot] : nodes);
+    };
+    this.#place = place2;
+    place2();
+    let immediate = false;
+    for (const { key } of departing) {
+      const retirement = this.#folding.get(key);
+      const played = foldBlock(retirement.node, { container: this.node, priorSize });
+      if (!played) {
+        this.#folding.delete(key);
+        retirement.node.inert = false;
+        immediate = true;
+        continue;
+      }
+      retirement.played = played;
+      this.#views.get(key).setFoldedInto(this.#resolved.node, played.finished);
+      played.finished.then(
+        () => {
+          if (this.#folding.get(key) !== retirement) return;
+          this.#folding.delete(key);
+          played.cancel();
+          retirement.node.inert = false;
+          this.#place();
+        },
+        () => {
+        }
+      );
+    }
+    if (immediate) place2();
     const fold2 = this.#resolved;
     const joins = () => fold2?.node.open ? fold2.node : null;
     let next = fold2?.node ?? null;
@@ -7165,7 +7237,6 @@ var ThreadSeat = class {
         view.setSettlesAt(() => before);
       }
     }
-    setChildren(this.node, foot ? [...nodes, foot] : nodes);
     this.claim();
     const own = added.filter(({ messages }) => messages[0]?.author === "user");
     const start = own.length === 1 ? own[0] : added.length === 1 ? added[0] : null;
@@ -7175,12 +7246,18 @@ var ThreadSeat = class {
       ...gathered
     );
     const now = focused();
-    if (fold2 && !fold2.node.open && fold2.node.contains(stoodIn ?? null) && (!now || now === document.body || standingIn(fold2.node) && now !== fold2.summary)) {
+    if (fold2 && !fold2.node.open && (fold2.node.contains(stoodIn ?? null) || [...this.#folding.values()].some(({ node }) => node === stoodIn)) && (!now || now === document.body || standingIn(stoodIn) || standingIn(fold2.node) && now !== fold2.summary)) {
       focusDestination(fold2.summary, "return");
-      passOn(fold2.node, fold2.summary);
+      passOn(stoodIn, fold2.summary);
     }
     restoreBox();
     if (!batch) this.commit();
+  }
+  #stopFold(key) {
+    const { node, played } = this.#folding.get(key);
+    this.#folding.delete(key);
+    node.inert = false;
+    played.cancel();
   }
   // Each thread the seat shows takes the reply being written in it where no view holds
   // it (replies.js, `claim`), once the seat stands in the document, so the move keeps the
@@ -7209,6 +7286,7 @@ var ThreadSeat = class {
   prune() {
     if (!this.#connected || this.node.isConnected) return false;
     this.#held?.dispose();
+    for (const key of this.#folding.keys()) this.#stopFold(key);
     for (const view of this.#views.values()) view.dispose();
     this.#views.clear();
     return true;

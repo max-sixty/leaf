@@ -10,6 +10,8 @@
 .lf-resolved-threads {
   position: relative;
   min-width: 0;
+  /* The seat's live predecessor owns its gap, including while a card retires. */
+  margin-block-start: 0;
 }
 /* Closed, the disclosure hides its threads by display rather than by the
    content-visibility a closed details gives its content: Chrome drops scroll anchoring
@@ -261,6 +263,25 @@ svg[data-lf-icon] {
   stroke-width: 1.6;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+/* A disclosure's direction and motion have one face across thread history and
+   settled choices. Its fixed slot turns without delaying content or moving the label. */
+.lf-disclosure-icon {
+  inline-size: 16px;
+  block-size: 16px;
+  flex: none;
+  align-self: center;
+  rotate: -90deg;
+  transition: rotate var(--lf-motion-disclosure) ease-out;
+}
+[aria-expanded="true"] > .lf-disclosure-icon {
+  rotate: 0deg;
+}
+.lf-disclosure-icon:dir(rtl) {
+  rotate: 90deg;
+}
+[aria-expanded="true"] > .lf-disclosure-icon:dir(rtl) {
+  rotate: 0deg;
 }
 .lf-msg-control-icon {
   inline-size: 16px;
@@ -522,6 +543,33 @@ svg[data-lf-icon] {
 }
 :is(.lf-btn, .button):not(:disabled, [aria-disabled="true"]):hover {
   background: var(--chip);
+}
+/* Secondary actions wear one quiet face, independent of their toolbar's geometry.
+ * The vendor part and native button share this rule; the host keeps no second face.
+ * lf-ui identifies offered vendor controls, and gives this modifier precedence over
+ * the ordinary copy-button face in integration.css. */
+:is(button, .lf-btn, .button).lf-quiet-action,
+.lf-quiet-action.lf-ui::part(button) {
+  border: 1px solid transparent;
+  border-radius: var(--r);
+  background: transparent;
+  color: var(--muted);
+  box-shadow: none;
+}
+:is(button, .lf-btn, .button).lf-quiet-action:not(:disabled, [aria-disabled="true"]):is(
+    :hover,
+    [data-lf-focus]
+  ),
+.lf-quiet-action.lf-ui:not(:disabled, [aria-disabled="true"])::part(button):hover,
+.lf-quiet-action.lf-ui::part(lf-focus) {
+  background: var(--chip);
+  color: var(--ink);
+}
+/* The same compact size maps to native minimum height and the vendor's supported
+ * form-control property. Labels can still grow; icon-only tools set their width. */
+.lf-compact-control {
+  --wa-form-control-height: var(--lf-control-compact);
+  min-block-size: var(--lf-control-compact);
 }
 /* The committing action carries the accent as ink on the ordinary card, under a
    softened accent hairline, with the tint rising on hover. The selected face below is its

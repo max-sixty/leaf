@@ -51,6 +51,10 @@
  * Travel into a hidden panel briefly highlights its selected name, without moving
  * focus from the destination or delaying it. Reduced motion keeps the selected state
  * without the highlight; switching again or disconnecting cancels an unfinished cue.
+ * Adjacent pointer choices along a horizontal strip move only the selection underline
+ * for 160ms. Content and accessible selection change at once; keyboard and vertical
+ * navigation stay immediate. A reversed choice continues from the line's painted place,
+ * and scrolling or resizing the strip ends the cue at its selected tab.
  * Every tab's accessible name is its label; what else the tab shows describes it. A
  * side list stands each run of neighbouring panels that share a `group` under a label
  * of that group, which each of their tabs' descriptions names. A side list's row adds
@@ -113,6 +117,8 @@ import {
   scrollIntoView,
   focused,
   fitsWhole,
+  motion,
+  pressIsKeyboardActivation,
 } from "/runtime/widget-api.js";
 
 // The sets whose strip stands over the whole document as its sticky header
@@ -156,6 +162,7 @@ export class TabSet extends HTMLElement {
   #pageFlow = false;
   #revealMotion = null;
   #stopList = null;
+  #selectionMotion = null;
 
   connectedCallback() {
     if (!once(this)) {
@@ -222,6 +229,10 @@ export class TabSet extends HTMLElement {
       name.className = "lf-tab-name";
       relabel(name, panel.getAttribute("label"), { says: true });
       btn.append(name);
+      const mark = document.createElement("span");
+      mark.className = "lf-tab-mark";
+      mark.setAttribute("aria-hidden", "true");
+      if (!down) name.append(mark);
       btn.setAttribute("aria-label", panel.getAttribute("label"));
       // A row in a list down the side says more than its name: the panel's `summary`
       // stands under it, the page's words like the name.
@@ -245,7 +256,9 @@ export class TabSet extends HTMLElement {
       chip.className = "lf-tabdiff";
       chip.setAttribute("aria-hidden", "true");
       btn.append(chip);
-      btn.onclick = () => this.#activate(panel, "ordinary");
+      if (down) btn.append(mark);
+      btn.onclick = (event) =>
+        this.#activate(panel, "ordinary", !pressIsKeyboardActivation(event));
       run.append(btn);
       this.#buttons.set(panel, btn);
       panel.setAttribute("role", "tabpanel");
@@ -342,6 +355,7 @@ export class TabSet extends HTMLElement {
       this.#syncRootContext();
       this.#listenForHistory(signal);
       const stripSize = this.#watchStrip();
+      strip.addEventListener("scroll", this.#stopSelectionMotion, { signal });
       const stopPanels = this.#side
         ? [...this.#buttons.keys()].map((panel) =>
             registerReadingRegion({
@@ -358,6 +372,7 @@ export class TabSet extends HTMLElement {
         this.#stopList = null;
         this.#revealMotion?.cancel();
         this.#revealMotion = null;
+        this.#stopSelectionMotion();
         stripSize.disconnect();
         this.#contextObserver?.disconnect();
         this.#contextObserver = null;
@@ -452,7 +467,7 @@ export class TabSet extends HTMLElement {
     this.#stopObligations = watchProjection(this, () => this.#marks());
   }
 
-  #activate(active, reason) {
+  #activate(active, reason, pointer = false) {
     if (!this.#buttons.has(active)) return;
     // The open tab pressed again, or walked to, is the user's way back to it after
     // scrolling the row away.
@@ -461,6 +476,21 @@ export class TabSet extends HTMLElement {
       return Promise.resolve();
     }
     const previous = this.#active;
+    const order = [...this.#buttons.keys()];
+    const travels =
+      pointer &&
+      previous &&
+      Math.abs(order.indexOf(active) - order.indexOf(previous)) === 1 &&
+      getComputedStyle(this.#strip).flexDirection === "row";
+    // Read before cancelling: a second press starts at the line the eye sees,
+    // which can still be between the two names.
+    const first = travels
+      ? this.#buttons
+          .get(previous)
+          .querySelector(".lf-tab-mark")
+          .getBoundingClientRect()
+      : null;
+    this.#stopSelectionMotion();
     // A press or a traversal between views switches them; a reveal is travel to
     // something inside the view, which the traveller lands.
     const switched = this.#pageFlow && ["ordinary", "history"].includes(reason);
@@ -508,6 +538,20 @@ export class TabSet extends HTMLElement {
       if (switched) this.#open(active, from);
       else if (pinnedBox) scrollIntoReadingBand(this, this, "start", "instant");
       else if (reason === "history") this.#land();
+      if (first) {
+        const mark = button.querySelector(".lf-tab-mark");
+        const last = mark.getBoundingClientRect();
+        this.#selectionMotion = motion(
+          mark,
+          [
+            {
+              transform: `translate(${first.left - last.left}px, ${first.top - last.top}px) scaleX(${first.width / last.width})`,
+            },
+            { transform: "none" },
+          ],
+          160,
+        );
+      }
       keepView(this, active);
       const presentation = [];
       for (const panel of [previous, active].filter(Boolean)) {
@@ -652,10 +696,16 @@ export class TabSet extends HTMLElement {
   }
 
   #positionStrip = frameFor(this, () => {
+    this.#stopSelectionMotion();
     this.#syncRegions();
     this.#declareHeader();
     this.#showTab(this.#buttons.get(this.#active));
   });
+
+  #stopSelectionMotion = () => {
+    this.#selectionMotion?.cancel();
+    this.#selectionMotion = null;
+  };
 
   #listenForHistory(signal) {
     // Back or Forward to an entry in another view switches to it, as a press does.

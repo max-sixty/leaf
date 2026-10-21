@@ -39,6 +39,7 @@ from interact_support import (
     status_and_stream,
     take_stream_activity,
     wait_for,
+    write_record,
 )
 from leaf import activity as activity_model
 from leaf import cli as cli_model
@@ -1290,7 +1291,11 @@ def test_a_turn_that_shares_a_user_message_leaves_the_delivery_owed(
                 )
             )
         start = json.loads(socket.recv())
-        send(socket, "turn/started", {"turn": {"id": "shared-turn", "items": []}})
+        send(
+            socket,
+            "turn/started",
+            {"turn": {"id": "shared-turn", "status": "inProgress", "items": []}},
+        )
         for item in items:
             for state in ("started", "completed"):
                 send(
@@ -1331,9 +1336,9 @@ def test_a_turn_that_shares_a_user_message_leaves_the_delivery_owed(
     # A dropped connection leaves the draft withheld, and a long turn doesn't
     # age it, since nothing renews a withheld draft.
     connection.turns["shared-turn"].reply_stream.disconnect()
-    status = read_record(page_dir / "status.json")
-    status["stream"]["reply"]["updated_at"] = "2000-01-01T00:00:00+00:00"
-    write_record(page_dir / "status.json", status)
+    stream = read_record(page_dir / "stream.json")
+    stream["reply"]["updated_at"] = "2000-01-01T00:00:00+00:00"
+    write_record(page_dir / "stream.json", stream)
     [plan] = hook_transport_model.read_plans("codex-thread")
     assert plan.owed == []
     release.set()
@@ -1362,7 +1367,7 @@ def test_a_turn_that_shares_a_user_message_leaves_the_delivery_owed(
         assert [(reply["text"], reply.get("ephemeral")) for reply in replies] == [
             ("USER FOLLOW-UP", True)
         ]
-    draft = read_record(page_dir / "status.json")["stream"]["reply"]
+    draft = read_record(page_dir / "stream.json")["reply"]
     corrections = _offered_again("codex-thread")
     if ending == "interrupted":
         # Ended as any unanswered turn does: the update stays owed, shown stopped.

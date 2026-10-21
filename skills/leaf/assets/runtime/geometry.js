@@ -212,7 +212,7 @@ export function shownBand(el) {
 // (`scrollContainer`). `userScrollport` is the same test without `hidden`: what the
 // user, rather than a script, can scroll, which keyboard stops and edge marks read
 // (reach.js, `paintSlot`), and the render checks asking what a reader can reach.
-export const scrollport = (overflow) => /^(auto|scroll|hidden)$/.test(overflow);
+const scrollport = (overflow) => /^(auto|scroll|hidden)$/.test(overflow);
 export const userScrollport = (overflow) => /^(auto|scroll)$/.test(overflow);
 export const scrollsBy = ({ overflowX, overflowY }) =>
   scrollport(overflowX) || scrollport(overflowY);
@@ -603,7 +603,7 @@ export function watchRoom(callback) {
 // one that grows with what it holds, such as a code block that scrolls only sideways,
 // hands the change out to the box around it; one scrolled to its top anchors nothing, so
 // there the band starts at that scroller's own top, wherever the window cuts it.
-export function motionBand(item, clips) {
+function motionBand(item, clips) {
   const walk = clipWalk(item, clips, false);
   const all = { left: -Infinity, top: -Infinity, right: Infinity, bottom: Infinity };
   const heights = walk.cuts.map((each) => ({
@@ -957,7 +957,7 @@ export const clipsPastSurfaces = () => clipsPast(occluders);
 // bring it into view. A surface standing over part of that height, as a view open in the
 // floating panel stands over its foot, covers a destination only where it stands now,
 // so it is asked of both axes there: more than half the destination's area.
-export function hides(surface, where) {
+function hides(surface, where) {
   const holder = placeHolder(where);
   if (!holder || !occluders.has(surface) || !standsNow(surface)) return false;
   if (under(holder, surface) || stackLevel(holder) >= stackLevel(surface)) return false;

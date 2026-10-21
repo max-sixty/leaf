@@ -1,4 +1,3 @@
-import "./theme.mjs";
 // These controls carry their internal elements; Leaf does not load the full catalogue.
 import "@awesome.me/webawesome/dist/components/copy-button/copy-button.js";
 import "@awesome.me/webawesome/dist/components/comparison/comparison.js";

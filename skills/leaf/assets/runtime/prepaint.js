@@ -1120,6 +1120,9 @@
   };
   const mark = () => {
     for (const holder of document.querySelectorAll("[data-lf-views]")) {
+      const flow = getComputedStyle(holder).getPropertyValue("--lf-views-flow").trim();
+      if (flow && holder.getAttribute("data-lf-views-flow") !== flow)
+        holder.setAttribute("data-lf-views-flow", flow);
       const members = [...holder.children];
       const open = choose(holder, members);
       for (const member of members) {

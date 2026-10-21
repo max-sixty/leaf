@@ -922,6 +922,17 @@ def contents_by_keyboard(page: Page) -> None:
     page.locator("lf-toc li a").first.focus()
 
 
+def topic_contents(page: Page) -> None:
+    """The topic's inline index in the gallery's page-tabs sample."""
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Page & layout", exact=True
+    ).click()
+    page.locator("#bg-tab-set").scroll_into_view_if_needed()
+    sample = page.locator("#bg-topic-contents")
+    sample.scroll_into_view_if_needed()
+    page.evaluate("document.getElementById('bg-topic-contents').ready")
+
+
 def contents_over_reading(page: Page) -> None:
     """Reveal the margin map over a section, including its title's background."""
     contents_by_keyboard(page)
@@ -1364,6 +1375,12 @@ STATES = (
         touch=True,
     ),
     State("contents-spine", "developer/feature-gallery", at_rest),
+    State(
+        "topic-contents",
+        "developer/feature-gallery",
+        topic_contents,
+        region="#bg-topic-contents",
+    ),
     State("contents-spine-keyboard", "developer/feature-gallery", contents_by_keyboard),
     State(
         "contents-over-reading",

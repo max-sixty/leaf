@@ -401,6 +401,5 @@ export function createDesignMode({
     open: openOnDesign,
     name: designName,
     inspectElement: inspectEl,
-    legendElement: legendRoot,
   };
 }

@@ -24,13 +24,13 @@ import {
   declarationFor,
   elementById,
   keeps,
-  keepsText,
+  LeafElement,
+  nothing,
   offer,
-  once,
   obligationActions,
   readObligations,
   relabel,
-  watchProjection,
+  render,
 } from "/runtime/widget-api.js";
 
 // The count's words: what remains of the whole, or that nothing does.
@@ -42,18 +42,18 @@ function words(open, total) {
 
 customElements.define(
   "lf-tally",
-  class extends HTMLElement {
+  class extends LeafElement {
     #room = null;
     #words = null;
     #next = null;
 
-    connectedCallback() {
-      if (!once(this)) return;
+    setup() {
       const drawing = document.createElement("template");
       drawing.innerHTML = declarationFor(this, "x-prepaint");
       const face = /** @type {HTMLElement} */ (drawing.content.firstElementChild);
       face.dataset.lfGen = "1";
       this.#room = face.querySelector(".lf-tally-room");
+      this.#room.replaceChildren();
       this.#words = face.querySelector(".lf-tally-words");
       const seat = face.querySelector(".lf-tally-next");
       if (this.hasAttribute("next")) {
@@ -70,32 +70,31 @@ customElements.define(
       } else seat.remove();
       this.querySelector(":scope > [data-lf-prepaint]")?.remove();
       this.append(face);
-      watchProjection(this, () => this.#paint(readObligations()));
     }
 
     #region() {
       return elementById(this.getAttribute("for"));
     }
 
-    #paint(items) {
+    render() {
+      const items = readObligations();
       const region = this.#region();
       const ready = items.phase === "ready" && Boolean(region);
-      keeps(this, "data-lf-ready", ready ? "" : null);
-      if (!ready) {
-        keepsText(this.#words, "");
-        return;
-      }
-      const held = obligationsIn(region, items.all);
+      const held = ready ? obligationsIn(region, items.all) : [];
       const open = held.filter((item) => item.status === "open").length;
+      keeps(this, "data-lf-ready", ready ? "" : null);
       keeps(this, "data-lf-done", held.length && !open ? "" : null);
-      keepsText(this.#words, words(open, held.length));
       // Two digits are in the drawing; a longer count widens its room once.
       const digits = "0".repeat(Math.max(2, String(held.length).length));
-      keepsText(this.#room, words(digits, digits));
-      this.#next?.toggleAttribute(
-        "disabled",
-        obligationsIn(region, items.user).length === 0,
-      );
+      render(words(digits, digits), this.#room);
+      render(ready ? words(open, held.length) : "", this.#words);
+      if (this.#next)
+        keeps(
+          this.#next,
+          "disabled",
+          !ready || obligationsIn(region, items.user).length === 0 ? "" : null,
+        );
+      return nothing;
     }
   },
 );

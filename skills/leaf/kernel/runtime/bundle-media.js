@@ -16,11 +16,6 @@ import {
   showNativeLayer
 } from "./bundle-page-paint.js";
 import {
-  offlineInteractive,
-  pageUrl,
-  runtimeResource
-} from "./bundle-semantic-state.js";
-import {
   closeLayer,
   focusDestination,
   handBack,
@@ -30,6 +25,11 @@ import {
   openLayer,
   openerOf
 } from "./bundle-frame-visibility.js";
+import {
+  offlineInteractive,
+  pageUrl,
+  runtimeResource
+} from "./bundle-semantic-state.js";
 import {
   html,
   render

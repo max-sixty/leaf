@@ -144,7 +144,7 @@
   },
   "lf-text-document": {
     "description": "A text file from page data with numbered lines, syntax coloring, and an optional Markdown or HTML preview.",
-    "x-instructions": "Bind `source` to the page's data source and name the file with `label`. Set `preview` to `markdown` or `html` to add Preview and Source tabs over the same text. `language` colors the source, and defaults to the preview's language. An HTML preview is a separate document that inherits no Leaf styles. With a preview, each tab scrolls inside a box `--lf-bound` tall, 28rem by default. To start it collapsed, put it inside `details`.",
+    "x-instructions": "Bind `source` to the page's data source and name the file with `label`. Set `preview` to `markdown` or `html` to add Preview and Source tabs over the same text. `language` colors the source, and defaults to the preview's language. An HTML preview is a separate document that inherits no Leaf styles. The listing, or with a preview each tab, scrolls inside a box `--lf-bound` tall, 28rem by default, however long the text. To start it collapsed, put it inside `details`.",
     "x-name": "label",
     "type": "object",
     "properties": {
@@ -178,6 +178,7 @@
       }
     },
     "x-language": "language",
+    "x-bound": "start",
     "x-upgrade": true,
     "x-example": "<lf-text-document id=\"leaf-skill\" source=\"leaf-skill\" language=\"markdown\"></lf-text-document>"
   },

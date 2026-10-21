@@ -302,25 +302,17 @@ Boxes that still move without input, which the "Stability" rule in
 `skills/leaf/assets/AGENTS.md` forbids. `tests/known_widget_findings.py` lists each widget
 that changes size after first paint, with its cause.
 
-- **Size text documents at first paint.** An `lf-text-document` without `preview` is
-  as tall as its source's value wrapped at the column's width. `leaf data set` writes
-  that value to the page directory, and the browser reads it from `/api/state` (on
-  leaf.page, from the build's static state answer); only an export inlines it in the
-  document (`exporting.py`). A page that opens with a 20-line document first paints
-  before its state answer arrives, at about 200 ms against 300 ms in `leaf-dev probe`,
-  so the document draws later and pushes the paragraph below it down 470px at 1440px
-  wide and 850px at 390px (a 0.06 layout shift at each). A `preview` document's
-  height doesn't depend on its value (caption, tab strip and a `--lf-bound`
-  viewport), so an initial renderer can paint it final under any of the fixes below.
-  Choosing one is Max's decision:
-  - serve each value the document binds inside the document, as an export already
-    does, and draw it unhighlighted in Pierre's line geometry from an initial
-    renderer, so the box is final before highlighting loads;
-  - have the author state `data-height`, as `lf-diff` does (`x-height: true`), though
-    the stated height goes stale whenever the data or the width changes;
-  - give every text document a fixed height that scrolls inside, as a `preview`
-    document already has, or open it closed behind a one-line summary, as the
-    activity feed opens on a gesture and holds later growth with `HeldReading`.
+- **Draw a text document's listing once its text has arrived.** Every
+  `lf-text-document` now keeps its final box from first paint, but its module draws
+  the listing as soon as it upgrades, before the state answer brings the text: one
+  empty row under a caption reading “· no data”. When the text arrives, the gutter
+  widens for two-digit line numbers and the code column moves right inside the box.
+  `leaf-dev probe` on a page with a 20-line, a 3-line and a preview document scores
+  that move 0.12 of layout shift at 1440px and 0.44 at 390px, though nothing outside
+  the boxes moves, except where the “· no data” suffix wraps a long label onto
+  another line and its removal shortens the box. Drawing nothing until the first
+  state answer has been read would leave the theme's stand-in frame and caption until
+  then.
 - **Draw the contents map's spine in its first frame.** `lf-toc`'s initial drawing
   (`initial/lf-toc.js`) gives it its final box and rows, but in the margin its
   disclosure stays closed until the module opens it, so the spine and its markers

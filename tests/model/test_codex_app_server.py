@@ -10,7 +10,7 @@ import subprocess
 import sys
 import threading
 import time
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import psutil
@@ -22,6 +22,8 @@ from interact_support import (
     _codex_delivery,
     _delivery_item,
     _observer,
+    acknowledge_through,
+    acknowledged_through,
     append_carried_log_record,
     append_command,
     codex_records,
@@ -34,9 +36,9 @@ from interact_support import (
     refused_on,
     response_reference,
     served_thread,
+    status_and_stream,
     take_stream_activity,
     wait_for,
-    write_record,
 )
 from leaf import activity as activity_model
 from leaf import cli as cli_model
@@ -47,6 +49,7 @@ from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import harness as harness_model
 from leaf import hooks as hooks_model
+from leaf import interaction_log as interaction_log_model
 from leaf import leases as leases_model
 from leaf import revisioning as revisioning_model
 from leaf import service as service_model
@@ -54,6 +57,7 @@ from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf.refusals import Refused
+from leaf_dev.commands.response_times import page_timings
 
 
 def test_only_one_turn_reply_can_bind_the_app_server_final_message():
@@ -138,7 +142,11 @@ def codex_app_server(app_server):
                     "method": "turn/started",
                     "params": {
                         "threadId": "codex-thread",
-                        "turn": {"id": "turn-live"},
+                        "turn": {
+                            "id": "turn-live",
+                            "items": [],
+                            "status": "inProgress",
+                        },
                     },
                 }
             )
@@ -155,6 +163,9 @@ def codex_app_server(app_server):
                             "id": "command-live",
                             "type": "commandExecution",
                             "command": "uv run pytest tests",
+                            "commandActions": [],
+                            "cwd": "/work",
+                            "status": "inProgress",
                         },
                     },
                 }
@@ -168,6 +179,8 @@ def codex_app_server(app_server):
                     "params": {
                         "threadId": "codex-thread",
                         "turnId": "turn-live",
+                        "itemId": "command-live",
+                        "startedAtMs": 0,
                     },
                 }
             )
@@ -178,7 +191,7 @@ def codex_app_server(app_server):
                     "method": "turn/completed",
                     "params": {
                         "threadId": "codex-thread",
-                        "turn": {"id": "turn-live"},
+                        "turn": {"id": "turn-live", "items": [], "status": "completed"},
                     },
                 }
             )
@@ -190,7 +203,11 @@ def codex_app_server(app_server):
                     "method": "turn/started",
                     "params": {
                         "threadId": "codex-thread",
-                        "turn": {"id": "turn-next"},
+                        "turn": {
+                            "id": "turn-next",
+                            "items": [],
+                            "status": "inProgress",
+                        },
                     },
                 }
             )
@@ -201,7 +218,7 @@ def codex_app_server(app_server):
                     "method": "turn/completed",
                     "params": {
                         "threadId": "codex-thread",
-                        "turn": {"id": "turn-next"},
+                        "turn": {"id": "turn-next", "items": [], "status": "completed"},
                     },
                 }
             )
@@ -235,91 +252,48 @@ def test_app_server_delivery_id_reads_only_canonical_delivery_inputs():
         "batches": [],
     }
 
+    def started_turn(item):
+        return {
+            "method": "turn/started",
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "turn", "items": [item], "status": "inProgress"},
+            },
+        }
+
+    def started_item(item):
+        return {
+            "method": "item/started",
+            "params": {
+                "threadId": "codex-thread",
+                "turnId": "turn",
+                "startedAtMs": 0,
+                "item": item,
+            },
+        }
+
+    def said(text):
+        return {
+            "id": "said",
+            "type": "userMessage",
+            "content": [{"type": "text", "text": text}],
+        }
+
+    delivery = {
+        "id": "delivery",
+        "type": "functionCallOutput",
+        "name": "leaf_delivery",
+        "output": json.dumps(payload),
+    }
+    assert codex_model.app_server_delivery_id(started_turn(said(pointer))) == "aaaaaaaa"
     assert (
-        codex_model.app_server_delivery_id(
-            {
-                "method": "turn/started",
-                "params": {
-                    "turn": {
-                        "items": [
-                            {
-                                "type": "userMessage",
-                                "content": [{"type": "text", "text": pointer}],
-                            }
-                        ]
-                    }
-                },
-            }
-        )
-        == "aaaaaaaa"
+        codex_model.app_server_delivery_id(started_item(said(invalid_pointer))) is None
     )
+    assert codex_model.app_server_delivery_id(started_turn(delivery)) == "bbbbbbbb"
+    assert codex_model.app_server_delivery_id(started_item(said(pointer))) == "aaaaaaaa"
     assert (
         codex_model.app_server_delivery_id(
-            {
-                "method": "item/started",
-                "params": {
-                    "item": {
-                        "type": "userMessage",
-                        "content": [{"type": "text", "text": invalid_pointer}],
-                    }
-                },
-            }
-        )
-        is None
-    )
-    assert (
-        codex_model.app_server_delivery_id(
-            {
-                "method": "turn/started",
-                "params": {
-                    "turn": {
-                        "items": [
-                            {
-                                "type": "functionCallOutput",
-                                "name": "leaf_delivery",
-                                "output": json.dumps(payload),
-                            }
-                        ]
-                    }
-                },
-            }
-        )
-        == "bbbbbbbb"
-    )
-    assert (
-        codex_model.app_server_delivery_id(
-            {
-                "method": "item/started",
-                "params": {
-                    "item": {
-                        "type": "userMessage",
-                        "content": [{"type": "text", "text": pointer}],
-                    }
-                },
-            }
-        )
-        == "aaaaaaaa"
-    )
-    assert (
-        codex_model.app_server_delivery_id(
-            {
-                "method": "turn/started",
-                "params": {
-                    "turn": {
-                        "items": [
-                            {
-                                "type": "userMessage",
-                                "content": [
-                                    {
-                                        "type": "text",
-                                        "text": pointer + "\nPlease do this.",
-                                    }
-                                ],
-                            }
-                        ]
-                    }
-                },
-            }
+            started_turn(said(pointer + "\nPlease do this."))
         )
         is None
     )
@@ -331,7 +305,10 @@ def test_app_server_events_report_semantic_codex_progress():
     assert events.read(
         {
             "method": "turn/started",
-            "params": {"threadId": "codex-thread", "turn": {"id": "turn-live"}},
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "turn-live", "items": [], "status": "inProgress"},
+            },
         }
     ) == {"turn": "turn-live", "activity": {"kind": "working"}}
     assert events.read(
@@ -396,6 +373,9 @@ def test_app_server_events_report_semantic_codex_progress():
                     "id": "command-live",
                     "type": "commandExecution",
                     "command": "uv run pytest tests",
+                    "commandActions": [],
+                    "cwd": "/work",
+                    "status": "inProgress",
                 },
             },
         }
@@ -513,7 +493,14 @@ def test_app_server_events_report_semantic_codex_progress():
     assert events.read(
         {
             "method": "item/tool/requestUserInput",
-            "params": {"threadId": "codex-thread", "turnId": "turn-live"},
+            "params": {
+                "threadId": "codex-thread",
+                "turnId": "turn-live",
+                "itemId": "question",
+                "isBlocking": True,
+                "questions": [],
+            },
+            "id": 1,
         }
     ) == {"turn": "turn-live", "activity": {"kind": "awaiting_input"}}
     completed_reply = events.read(
@@ -553,7 +540,10 @@ def test_app_server_events_report_semantic_codex_progress():
     assert events.read(
         {
             "method": "turn/completed",
-            "params": {"threadId": "codex-thread", "turn": {"id": "turn-live"}},
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "turn-live", "items": [], "status": "completed"},
+            },
         }
     ) == {"turn": "turn-live", "completed": "completed"}
     # A committed reply is the final answer alone; a turn that never reached one
@@ -644,7 +634,10 @@ def test_app_server_activity_keeps_waiting_and_concurrent_item_evidence():
     events.read(
         {
             "method": "turn/started",
-            "params": {"threadId": "codex-thread", "turn": {"id": "turn-live"}},
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "turn-live", "items": [], "status": "inProgress"},
+            },
         }
     )
 
@@ -661,6 +654,11 @@ def test_app_server_activity_keeps_waiting_and_concurrent_item_evidence():
                         "id": item_id,
                         "type": item_type,
                         "command": f"run {item_id}",
+                        "commandActions": [],
+                        "cwd": "/work",
+                        "status": "inProgress"
+                        if method == "item/started"
+                        else "completed",
                     },
                 },
             }
@@ -674,7 +672,13 @@ def test_app_server_activity_keeps_waiting_and_concurrent_item_evidence():
     approval = events.read(
         {
             "method": "item/commandExecution/requestApproval",
-            "params": {"threadId": "codex-thread", "turnId": "turn-live"},
+            "params": {
+                "threadId": "codex-thread",
+                "turnId": "turn-live",
+                "itemId": "first",
+                "startedAtMs": 0,
+            },
+            "id": 1,
         }
     )
     assert approval["activity"] == {"kind": "awaiting_approval"}
@@ -697,7 +701,7 @@ def test_app_server_activity_keeps_waiting_and_concurrent_item_evidence():
             "params": {
                 "threadId": "codex-thread",
                 "turnId": "turn-live",
-                "status": {"activeFlags": []},
+                "status": {"activeFlags": [], "type": "active"},
             },
         }
     )
@@ -710,7 +714,14 @@ def test_app_server_activity_keeps_waiting_and_concurrent_item_evidence():
     awaiting_input = events.read(
         {
             "method": "item/tool/requestUserInput",
-            "params": {"threadId": "codex-thread", "turnId": "turn-live"},
+            "params": {
+                "threadId": "codex-thread",
+                "turnId": "turn-live",
+                "itemId": "question",
+                "isBlocking": True,
+                "questions": [],
+            },
+            "id": 1,
         }
     )
     assert awaiting_input["activity"] == {"kind": "awaiting_input"}
@@ -728,14 +739,20 @@ def test_app_server_activity_reads_only_its_own_turn():
     events.read(
         {
             "method": "turn/started",
-            "params": {"threadId": "codex-thread", "turn": {"id": "turn-live"}},
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "turn-live", "items": [], "status": "inProgress"},
+            },
         }
     )
 
     for message in (
         {
             "method": "turn/started",
-            "params": {"threadId": "codex-thread", "turn": {"id": "turn-other"}},
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "turn-other", "items": [], "status": "inProgress"},
+            },
         },
         {
             "method": "item/reasoning/summaryTextDelta",
@@ -744,6 +761,7 @@ def test_app_server_activity_reads_only_its_own_turn():
                 "turnId": "turn-other",
                 "itemId": "other-reasoning",
                 "delta": "another turn's thought",
+                "summaryIndex": 0,
             },
         },
         {
@@ -751,14 +769,14 @@ def test_app_server_activity_reads_only_its_own_turn():
             "params": {
                 "threadId": "codex-thread",
                 "turnId": "turn-other",
-                "status": {"activeFlags": ["waitingOnUserInput"]},
+                "status": {"activeFlags": ["waitingOnUserInput"], "type": "active"},
             },
         },
         {
             "method": "turn/completed",
             "params": {
                 "threadId": "codex-thread",
-                "turn": {"id": "turn-other", "status": "completed"},
+                "turn": {"id": "turn-other", "status": "completed", "items": []},
             },
         },
         {
@@ -767,7 +785,14 @@ def test_app_server_activity_reads_only_its_own_turn():
                 "threadId": "another-thread",
                 "turnId": "turn-live",
                 "startedAtMs": 1,
-                "item": {"id": "elsewhere", "type": "commandExecution"},
+                "item": {
+                    "id": "elsewhere",
+                    "type": "commandExecution",
+                    "commandActions": [],
+                    "cwd": "/work",
+                    "status": "inProgress",
+                    "command": "ls",
+                },
             },
         },
     ):
@@ -781,7 +806,7 @@ def test_app_server_activity_reads_only_its_own_turn():
             "method": "turn/completed",
             "params": {
                 "threadId": "codex-thread",
-                "turn": {"id": "turn-live", "status": "interrupted"},
+                "turn": {"id": "turn-live", "status": "interrupted", "items": []},
             },
         }
     ) == {"turn": "turn-live", "completed": "interrupted"}
@@ -1003,7 +1028,11 @@ def test_a_task_connection_streams_and_commits_its_delivery_reply(
                     "method": "turn/started",
                     "params": {
                         "threadId": "codex-thread",
-                        "turn": {"id": "leaf-turn"},
+                        "turn": {
+                            "id": "leaf-turn",
+                            "items": [],
+                            "status": "inProgress",
+                        },
                     },
                 }
             )
@@ -1146,7 +1175,7 @@ def test_a_task_connection_streams_and_commits_its_delivery_reply(
                 for event in events_model.read_events(page_dir)
                 if event["kind"] == "reply"
             ],
-            read_record(page_dir / "status.json")["stream"],
+            read_record(page_dir / "stream.json"),
         ),
         lambda reading: bool(reading[0]) and reading[1]["reply"] is None,
         failure="the streamed reply was not committed after completion",
@@ -1336,14 +1365,19 @@ def test_reconnect_binds_a_delivery_a_followed_turn_carried_unseen(page_dir, sta
     observer._read(
         {
             "method": "turn/started",
-            "params": {"threadId": "codex-thread", "turn": {"id": "leaf-turn"}},
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "leaf-turn", "items": [], "status": "inProgress"},
+            },
         }
     )
     observer._disconnect_turns()
 
     observer._resume(
         {
-            "status": {"type": "active" if status == "inProgress" else "idle"},
+            "status": {"type": "active", "activeFlags": []}
+            if status == "inProgress"
+            else {"type": "idle"},
             "turns": [
                 {
                     "id": "leaf-turn",
@@ -1459,6 +1493,7 @@ def test_reconnect_recovers_a_completed_delivery_reply(page_dir):
 
 
 def test_a_completed_stream_reply_survives_the_claim_advancing(page_dir):
+    revisioning_model.activate_source(page_dir)
     comment = append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "text": "Answer the first turn"},
@@ -1474,6 +1509,34 @@ def test_a_completed_stream_reply_survives_the_claim_advancing(page_dir):
     stream = codex_model.AppServerReplyStream(
         "codex-thread", "turn-1", "delivery-1", target
     )
+    stream.restore(" \n")
+    [initial] = page_timings(page_dir, since=None, until=datetime.now(UTC))["samples"]
+    assert "first_reply" not in initial["milestones"]
+    for text in ("I am checking.", "I am checking the report."):
+        stream.update(
+            {
+                "message": {
+                    "item": "answer",
+                    "phase": "final_answer",
+                    "text": text,
+                    "complete": True,
+                }
+            }
+        )
+    [thread] = served_thread(page_state(page_dir)["browser"])["threads"]
+    assert thread["msgs"][-1]["provisional"]
+    assert thread["msgs"][-1]["text"] == "I am checking the report."
+    [marker] = interaction_log_model.read_interactions(
+        page_dir, types=("reply_stream_words",)
+    )
+    assert marker["input_id"] == comment["id"]
+    assert marker["attempt"] == stream.attempt
+    assert "text" not in marker
+    [before] = page_timings(page_dir, since=None, until=datetime.now(UTC))["samples"]
+    assert before["first_reply_kind"] == "stream"
+    assert before["milestones"]["first_reply"]["turn"] == "turn-1"
+    assert "answered" not in before["milestones"]
+    assert "send_to_visible" not in before["milestones"]
     cleanup_model.close_session_turn("codex-thread", "turn-1")
     cleanup_model.open_session_turn("codex-thread", "turn-2")
 
@@ -1488,6 +1551,42 @@ def test_a_completed_stream_reply_survives_the_claim_advancing(page_dir):
         (comment["id"], "First turn reply")
     ]
     assert service_model.page_claim(page_dir)["turn"] == "turn-2"
+    [after] = page_timings(page_dir, since=None, until=datetime.now(UTC))["samples"]
+    assert after["milestones"]["first_reply"] == before["milestones"]["first_reply"]
+    assert after["milestones"]["answered"]["event_id"] == replies[0]["id"]
+
+
+def test_a_stream_reply_finishes_when_its_diagnostic_sink_is_unwritable(page_dir):
+    comment = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "Answer this input"},
+    )
+    record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
+    cleanup_model.open_session_turn("codex-thread", "turn-1")
+    stream = codex_model.AppServerReplyStream(
+        "codex-thread",
+        "turn-1",
+        "delivery-1",
+        {
+            "page": str(page_dir),
+            "parent": comment["id"],
+            "responds": comment["id"],
+            "ref": response_reference(page_dir, comment),
+        },
+    )
+    # The diagnostic file cannot be opened, while normal page writes remain valid.
+    (page_dir / interaction_log_model.INTERACTIONS_FILE).mkdir()
+    assert stream.restore("The complete answer.")
+    reply = read_record(page_dir / "stream.json")["reply"]
+    assert reply["text"] == "The complete answer."
+    assert reply["responds"] == comment["id"]
+
+    assert stream.finish("completed", "The complete answer.") is None
+    [answer] = thread_model.successful_replies(
+        events_model.read_events(page_dir), comment["id"]
+    )
+    assert answer["text"] == "The complete answer."
+    assert read_record(page_dir / "stream.json")["reply"] is None
 
 
 def test_an_interrupted_stream_reply_finishes_after_the_claim_advances(page_dir):
@@ -1522,7 +1621,7 @@ def test_an_interrupted_stream_reply_finishes_after_the_claim_advances(page_dir)
 
     assert stream.finish("interrupted") is None
 
-    stream_state = read_record(page_dir / "status.json")["stream"]
+    stream_state = read_record(page_dir / "stream.json")
     assert (stream_state["reply"]["text"], stream_state["reply"]["state"]) == (
         "Partial answer",
         "interrupted",
@@ -1571,7 +1670,7 @@ def test_provider_reservation_refuses_unaddressed_competing_writes(page_dir):
         if event["kind"] == "reply"
     ]
     assert [reply["text"] for reply in replies] == ["Transcript closeout"]
-    assert read_record(page_dir / "status.json")["stream"]["reply"] is None
+    assert read_record(page_dir / "stream.json")["reply"] is None
 
 
 def test_a_delivery_reserves_its_final_before_provider_execution(page_dir):
@@ -1638,7 +1737,7 @@ def test_a_delivery_bound_final_cannot_append_after_claim_transfer(page_dir):
     }
     thread_model.reserve_delivery_reply("successor-thread", "delivery-2", successor)
     with service_model.PageTransaction(page_dir) as page:
-        assert page.status["stream"]["reply_reservations"][comment["id"]] == {
+        assert page.stream["reply_reservations"][comment["id"]] == {
             "session": "successor-thread",
             "attempt": service_model.delivery_reply_attempt("delivery-2"),
             "turn": "turn-1",
@@ -1666,12 +1765,17 @@ def test_a_streamed_final_rejects_invalid_source_without_stranding_the_draft(pag
     error = stream.finish("completed", "I made the change.")
 
     assert isinstance(error, Refused)
-    reply = read_record(page_dir / "status.json")["stream"]["reply"]
+    reply = read_record(page_dir / "stream.json")["reply"]
     assert (reply["state"], reply["text"], reply["settles"]) == (
         "failed",
         "I made the change.",
         False,
     )
+    [marker] = interaction_log_model.read_interactions(
+        page_dir, types=("reply_stream_words",)
+    )
+    assert marker["input_id"] == comment["id"]
+    assert marker["attempt"] == stream.attempt
     assert not any(
         event["kind"] == "reply" for event in events_model.read_events(page_dir)
     )
@@ -1711,7 +1815,7 @@ def test_partial_text_is_not_committed_without_a_completed_final(page_dir):
     assert not any(
         event["kind"] == "reply" for event in events_model.read_events(page_dir)
     )
-    reply = read_record(page_dir / "status.json")["stream"]["reply"]
+    reply = read_record(page_dir / "stream.json")["reply"]
     assert (reply["state"], reply["text"], reply["settles"]) == (
         "partial",
         "Only a partial",
@@ -1735,7 +1839,7 @@ def test_a_stream_reply_refreshes_its_lease_without_changing_its_message_time(
             {"parent": "comment", "responds": "comment"},
             service_model.delivery_reply_attempt("delivery-1"),
             None,
-            "",
+            "First visible",
             "active",
         )
         page.set_stream_reply(
@@ -1747,8 +1851,16 @@ def test_a_stream_reply_refreshes_its_lease_without_changing_its_message_time(
             "Now visible",
             "active",
         )
-        reply = page.status["stream"]["reply"]
+        reply = page.stream["reply"]
 
+    [marker] = interaction_log_model.read_interactions(
+        page_dir, types=("reply_stream_words",)
+    )
+    assert marker["input_id"] == "comment"
+    assert marker["attempt"] == reply["attempt"]
+    assert marker["turn"] == "turn-1"
+    assert "text" not in marker
+    assert reply["text"] == "Now visible"
     assert reply["ts"] == created.isoformat()
     assert reply["updated_at"] == refreshed.isoformat()
     projected = activity_model.canonical_stream_reply(
@@ -1847,6 +1959,7 @@ def test_a_reply_reservation_lapses_when_a_turn_it_does_not_name_opens(page_dir)
                 "turn": {
                     "id": "delivery-turn",
                     "items": [_delivery_item(prepared.payload)],
+                    "status": "inProgress",
                 },
             },
         }
@@ -1924,6 +2037,7 @@ def test_a_reply_reservation_lapses_when_its_turn_closes(page_dir):
                 "turn": {
                     "id": "delivery-turn",
                     "items": [_delivery_item(prepared.payload)],
+                    "status": "inProgress",
                 },
             },
         }
@@ -1962,9 +2076,7 @@ def test_the_prompt_hook_and_the_observer_open_one_codex_turn(page_dir, capsys):
     append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Handle me"}
     )
-    write_record(
-        page_dir / "cursor.json", {"seq": events_model.read_events(page_dir)[-1]["seq"]}
-    )
+    acknowledge_through(page_dir, events_model.read_events(page_dir)[-1]["seq"])
     cleanup_model.close_session_turn("codex-thread")
 
     hooks_model.cmd_hook(
@@ -1979,7 +2091,10 @@ def test_the_prompt_hook_and_the_observer_open_one_codex_turn(page_dir, capsys):
     _observer()._read(
         {
             "method": "turn/started",
-            "params": {"threadId": "codex-thread", "turn": {"id": "codex-turn"}},
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "codex-turn", "items": [], "status": "inProgress"},
+            },
         }
     )
 
@@ -2250,7 +2365,7 @@ def test_a_reply_that_cannot_be_written_still_closes_its_turn(page_dir, monkeypa
         turn.commit({"id": "leaf-turn", "status": "completed", "items": []})
 
     assert service_model.page_claim(page_dir)["turn_closed"] is not None
-    assert read_record(page_dir / "status.json")["stream"]["activity"] is None
+    assert read_record(page_dir / "stream.json")["activity"] is None
     # The reservation is released too: a reply that faulted part-written holds one
     # nothing will ever commit, and every other writer waits behind it.
     assert not thread_model.delivery_reply_reserved(
@@ -2277,7 +2392,10 @@ def test_an_observed_turn_whose_reply_cannot_be_written_still_closes(
     observer._read(
         {
             "method": "turn/started",
-            "params": {"threadId": "codex-thread", "turn": {"id": "leaf-turn"}},
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "leaf-turn", "items": [], "status": "inProgress"},
+            },
         }
     )
     observer._read(
@@ -2389,7 +2507,11 @@ def test_a_running_turn_holds_a_delivery_back_without_asking_the_task(
             "method": "turn/started",
             "params": {
                 "threadId": "codex-thread",
-                "turn": {"id": "a-turn-the-user-started"},
+                "turn": {
+                    "id": "a-turn-the-user-started",
+                    "items": [],
+                    "status": "inProgress",
+                },
             },
         }
     )
@@ -2409,7 +2531,11 @@ def test_a_running_turn_holds_a_delivery_back_without_asking_the_task(
             "method": "turn/completed",
             "params": {
                 "threadId": "codex-thread",
-                "turn": {"id": "a-turn-the-user-started", "status": "completed"},
+                "turn": {
+                    "id": "a-turn-the-user-started",
+                    "status": "completed",
+                    "items": [],
+                },
             },
         }
     )
@@ -2433,7 +2559,12 @@ def test_an_active_task_whose_turn_is_not_named_records_no_turn(monkeypatch):
 
     def send(_socket, _method, _request_id, params):
         sent.append(params)
-        return {"thread": {"id": "codex-thread", "status": {"type": "active"}}}
+        return {
+            "thread": {
+                "id": "codex-thread",
+                "status": {"type": "active", "activeFlags": []},
+            }
+        }
 
     observer._send = send
 
@@ -2823,6 +2954,7 @@ def test_one_subscription_commits_completion_before_the_start_response(
                         {
                             "id": "quick-turn",
                             "items": [_delivery_item(prepared.payload)],
+                            "status": "inProgress",
                         },
                     ),
                     (
@@ -2976,6 +3108,7 @@ def test_status_callbacks_cannot_resend_an_already_accepted_delivery(
                             {
                                 "id": "earlier-turn",
                                 "items": [_delivery_item(prepared.payload)],
+                                "status": "inProgress",
                             },
                         ),
                         (
@@ -3070,7 +3203,7 @@ def test_abandonment_recovery_releases_the_seat_and_preserves_manual_answers(
     assert replies[0]["text"] == (
         "Manual answer" if manual else codex_model.UNCONFIRMED_TEXT
     )
-    assert service_model.read_cursor(page_dir) > 0
+    assert acknowledged_through(page_dir) > 0
     # Late provider evidence keeps its exact delivery identity but cannot replace
     # the manual answer that won before this harness retired its unknown attempt.
     if manual:
@@ -3260,7 +3393,7 @@ def test_an_unloaded_running_user_turn_retains_its_notification_fold(page_dir):
     connection = _observer()
     connection._resume(
         {
-            "status": {"type": "active"},
+            "status": {"type": "active", "activeFlags": []},
             "turns": [
                 {
                     "id": "ordinary-turn",
@@ -3296,7 +3429,9 @@ def test_an_unloaded_running_user_turn_retains_its_notification_fold(page_dir):
                 "threadId": "codex-thread",
                 "turnId": "ordinary-turn",
                 "itemId": "approval",
+                "startedAtMs": 0,
             },
+            "id": 1,
         }
     )
     assert connection.turns["ordinary-turn"].events.waiting_kind == "awaiting_approval"
@@ -3360,7 +3495,12 @@ def test_full_history_restores_the_running_identity_omitted_from_resume(
             if method == "initialize":
                 result = {}
             elif method == "thread/resume":
-                result = {"thread": {"status": {"type": "active"}, "turns": []}}
+                result = {
+                    "thread": {
+                        "status": {"type": "active", "activeFlags": []},
+                        "turns": [],
+                    }
+                }
             elif method == "thread/turns/list":
                 result = {
                     "data": [
@@ -3415,7 +3555,7 @@ def test_unloaded_running_metadata_preserves_the_disconnected_reply_draft(page_d
     connection._disconnect_turns()
     connection._resume(
         {
-            "status": {"type": "active"},
+            "status": {"type": "active", "activeFlags": []},
             "turns": [
                 {
                     "id": "draft-turn",
@@ -3427,10 +3567,7 @@ def test_unloaded_running_metadata_preserves_the_disconnected_reply_draft(page_d
         }
     )
     assert connection.turns["draft-turn"].events.text["draft"] == "Retained draft"
-    assert (
-        read_record(page_dir / "status.json")["stream"]["reply"]["text"]
-        == "Retained draft"
-    )
+    assert read_record(page_dir / "stream.json")["reply"]["text"] == "Retained draft"
 
 
 def test_archived_abandonment_recovers_a_late_final_from_paginated_history(
@@ -3537,7 +3674,10 @@ def test_observer_rejects_stale_running_snapshot(existing_fold, claimed):
         observer._read(
             {
                 "method": "turn/started",
-                "params": {"threadId": "s1", "turn": {"id": "old"}},
+                "params": {
+                    "threadId": "s1",
+                    "turn": {"id": "old", "items": [], "status": "inProgress"},
+                },
             }
         )
     cleanup_model.prompt_turn("s1", "new")
@@ -3545,7 +3685,7 @@ def test_observer_rejects_stale_running_snapshot(existing_fold, claimed):
     current = cleanup_model.session_record("s1")
     observer._resume(
         {
-            "status": {"type": "active"},
+            "status": {"type": "active", "activeFlags": []},
             "turns": [{"id": "old", "status": "inProgress", "items": []}],
         }
     )
@@ -3557,7 +3697,13 @@ def test_observer_continues_after_a_recovered_provider_completion(claimed):
     cleanup_model.prompt_turn("s1", "old")
     observer = codex_adapter_model.TaskConnection("ws://127.0.0.1:1", "s1")
     observer._read(
-        {"method": "turn/started", "params": {"threadId": "s1", "turn": {"id": "old"}}}
+        {
+            "method": "turn/started",
+            "params": {
+                "threadId": "s1",
+                "turn": {"id": "old", "items": [], "status": "inProgress"},
+            },
+        }
     )
     observer._resume(
         {
@@ -3567,7 +3713,13 @@ def test_observer_continues_after_a_recovered_provider_completion(claimed):
     )
     assert cleanup_model.session_record("s1")["turn_closed"] is not None
     observer._read(
-        {"method": "turn/started", "params": {"threadId": "s1", "turn": {"id": "next"}}}
+        {
+            "method": "turn/started",
+            "params": {
+                "threadId": "s1",
+                "turn": {"id": "next", "items": [], "status": "inProgress"},
+            },
+        }
     )
     assert observer.running == "next"
     assert cleanup_model.session_record("s1")["turn"] == "next"
@@ -3609,7 +3761,7 @@ def test_resume_metadata_cannot_replace_a_newer_observation_during_the_request(
             "method": "turn/started",
             "params": {
                 "threadId": "codex-thread",
-                "turn": {"id": "old-turn"},
+                "turn": {"id": "old-turn", "items": [], "status": "inProgress"},
             },
         }
     )
@@ -3627,7 +3779,11 @@ def test_resume_metadata_cannot_replace_a_newer_observation_during_the_request(
                                 "method": "turn/started",
                                 "params": {
                                     "threadId": "codex-thread",
-                                    "turn": {"id": "new-turn"},
+                                    "turn": {
+                                        "id": "new-turn",
+                                        "items": [],
+                                        "status": "inProgress",
+                                    },
                                 },
                             }
                         )
@@ -3666,7 +3822,7 @@ def test_resume_metadata_cannot_replace_a_newer_observation_during_the_request(
         codex_model.app_server_handshake(socket, 0, "test", "test", connection._read)
         thread, expected = connection._resume_task(socket, exclude_turns=False)
         winner = cleanup_model.session_record("codex-thread")
-        status_before = service_model.PageTransaction(page_dir).status
+        status_before = status_and_stream(page_dir)
         connection._resume(thread, expected)
     assert cleanup_model.session_record("codex-thread") == winner
     assert winner["turn"] == "new-turn"
@@ -3676,7 +3832,7 @@ def test_resume_metadata_cannot_replace_a_newer_observation_during_the_request(
     if replacement == "provider_notification":
         assert connection.turns["new-turn"].events.waiting_kind is None
     else:
-        assert service_model.PageTransaction(page_dir).status == status_before
+        assert status_and_stream(page_dir) == status_before
 
 
 def test_stale_live_notifications_cannot_reuse_a_fold_after_a_newer_prompt(page_dir):
@@ -3688,22 +3844,32 @@ def test_stale_live_notifications_cannot_reuse_a_fold_after_a_newer_prompt(page_
             "method": "turn/started",
             "params": {
                 "threadId": "codex-thread",
-                "turn": {"id": "old-turn"},
+                "turn": {"id": "old-turn", "items": [], "status": "inProgress"},
             },
         }
     )
     cleanup_model.prompt_turn("codex-thread", "new-turn")
     winner = cleanup_model.session_record("codex-thread")
-    for method, params in [
-        ("turn/started", {"turn": {"id": "old-turn"}}),
-        (
-            "item/commandExecution/requestApproval",
-            {"turnId": "old-turn", "itemId": "old-approval"},
-        ),
+    for message in [
+        {
+            "method": "turn/started",
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "old-turn", "items": [], "status": "inProgress"},
+            },
+        },
+        {
+            "method": "item/commandExecution/requestApproval",
+            "id": 1,
+            "params": {
+                "threadId": "codex-thread",
+                "turnId": "old-turn",
+                "itemId": "old-approval",
+                "startedAtMs": 0,
+            },
+        },
     ]:
-        connection._read(
-            {"method": method, "params": {"threadId": "codex-thread", **params}}
-        )
+        connection._read(message)
     assert cleanup_model.session_record("codex-thread") == winner
     assert connection.turns["old-turn"].events.waiting_kind is None
 
@@ -3717,7 +3883,7 @@ def test_a_matching_live_completion_allows_the_next_turn_without_prompt_hooks(pa
                 "method": "turn/started",
                 "params": {
                     "threadId": "codex-thread",
-                    "turn": {"id": turn_id},
+                    "turn": {"id": turn_id, "items": [], "status": "inProgress"},
                 },
             }
         )
@@ -3747,7 +3913,10 @@ def test_completion_after_stop_advances_observation_without_a_running_fold(
     connection._read(
         {
             "method": "turn/started",
-            "params": {"threadId": "codex-thread", "turn": {"id": "first-turn"}},
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "first-turn", "items": [], "status": "inProgress"},
+            },
         }
     )
     assert "first-turn" not in connection.turns
@@ -3764,7 +3933,10 @@ def test_completion_after_stop_advances_observation_without_a_running_fold(
     connection._read(
         {
             "method": "turn/started",
-            "params": {"threadId": "codex-thread", "turn": {"id": "second-turn"}},
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "second-turn", "items": [], "status": "inProgress"},
+            },
         }
     )
     assert connection.running == "second-turn"
@@ -3783,7 +3955,10 @@ def test_old_completion_cannot_close_a_newer_lifecycle(
         connection._read(
             {
                 "method": "turn/started",
-                "params": {"threadId": "codex-thread", "turn": {"id": "old-turn"}},
+                "params": {
+                    "threadId": "codex-thread",
+                    "turn": {"id": "old-turn", "items": [], "status": "inProgress"},
+                },
             }
         )
     if replacement == "new_generation":
@@ -3830,7 +4005,7 @@ def test_old_fold_cannot_change_activity_in_a_reused_session_generation(
         expected=cleanup_model.session_record("codex-thread"),
     )
     winner = cleanup_model.session_record("codex-thread")
-    status = service_model.PageTransaction(page_dir).status
+    status = status_and_stream(page_dir)
     if cleanup == "completion":
         old.commit({"id": "same-turn", "status": "completed", "items": []})
     elif cleanup == "disconnect":
@@ -3847,12 +4022,15 @@ def test_old_fold_cannot_change_activity_in_a_reused_session_generation(
                         "id": "old-command",
                         "type": "commandExecution",
                         "command": "old command",
+                        "commandActions": [],
+                        "cwd": "/work",
+                        "status": "inProgress",
                     },
                 },
             }
         )
     assert cleanup_model.session_record("codex-thread") == winner
-    assert service_model.PageTransaction(page_dir).status == status
+    assert status_and_stream(page_dir) == status
 
 
 @pytest.mark.parametrize("replacement", ["prompt", "stop"])
@@ -3880,7 +4058,7 @@ def test_an_old_fold_cannot_publish_working_or_tool_activity_after_its_turn(
     else:
         cleanup_model.close_session_turn("codex-thread", "old-turn")
         fold.clear_activity()
-    status = service_model.PageTransaction(page_dir).status
+    status = status_and_stream(page_dir)
     epoch = cleanup_model.session_record("codex-thread")
     fold.set_activity({"kind": "working"})
     fold.absorb(
@@ -3894,11 +4072,14 @@ def test_an_old_fold_cannot_publish_working_or_tool_activity_after_its_turn(
                     "id": "old-command",
                     "type": "commandExecution",
                     "command": "old command",
+                    "commandActions": [],
+                    "cwd": "/work",
+                    "status": "inProgress",
                 },
             },
         }
     )
-    assert service_model.PageTransaction(page_dir).status == status
+    assert status_and_stream(page_dir) == status
     assert cleanup_model.session_record("codex-thread") == epoch
 
 
@@ -3929,7 +4110,7 @@ def test_a_rejected_started_fold_cannot_publish_initial_working_activity(
             expected=cleanup_model.session_record("codex-thread"),
         )
         winner["epoch"] = cleanup_model.session_record("codex-thread")
-        winner["status"] = service_model.PageTransaction(page_dir).status
+        winner["status"] = status_and_stream(page_dir)
         return construct(turn_id, delivery_id, **scope)
 
     monkeypatch.setattr(connection, "_fold", supersede_before_construction)
@@ -3957,7 +4138,7 @@ def test_a_rejected_started_fold_cannot_publish_initial_working_activity(
             connection._start_delivery(socket, offered.payload)
     assert not connection.turns
     assert cleanup_model.session_record("codex-thread") == winner["epoch"]
-    assert service_model.PageTransaction(page_dir).status == winner["status"]
+    assert status_and_stream(page_dir) == winner["status"]
 
 
 def test_fresh_resume_replaces_a_fold_from_an_earlier_session_generation(page_dir):
@@ -3967,7 +4148,10 @@ def test_fresh_resume_replaces_a_fold_from_an_earlier_session_generation(page_di
     connection._read(
         {
             "method": "turn/started",
-            "params": {"threadId": "codex-thread", "turn": {"id": "same-turn"}},
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "same-turn", "items": [], "status": "inProgress"},
+            },
         }
     )
     old = connection.turns["same-turn"]
@@ -3998,10 +4182,7 @@ def test_fresh_resume_replaces_a_fold_from_an_earlier_session_generation(page_di
     connection.turns["same-turn"].set_activity(
         {"kind": "tool", "detail": "New activity"}
     )
-    assert (
-        service_model.PageTransaction(page_dir).status["stream"]["activity"]["detail"]
-        == "New activity"
-    )
+    assert service_model.read_stream(page_dir)["activity"]["detail"] == "New activity"
     connection._read(
         {
             "method": "turn/completed",

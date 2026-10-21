@@ -792,9 +792,9 @@ def test_a_closing_layer_hands_the_user_back_to_the_first_place_that_takes_them(
     for step in ["nothing to land on", "body"]:
         assert page.evaluate(HAND_BACK, step) == "body"
         page.keyboard.press("Tab")
-        assert page.evaluate(
-            "() => !document.activeElement.matches('#open, #shut, .lf-skip')"
-        ), f"{step}: the next Tab did not carry on from the block being read"
+        assert page.evaluate("() => !document.activeElement.matches('#open, #shut')"), (
+            f"{step}: the next Tab did not carry on from the block being read"
+        )
 
 
 @pytest.mark.parametrize("new_composer", [False, True], ids=["control", "composer"])

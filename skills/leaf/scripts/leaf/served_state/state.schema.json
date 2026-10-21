@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://leaf.page/schema/served-state.json",
   "title": "Served state",
-  "description": "The answer `GET /api/state` serves a page's runtime, which the POST /api/event answer carries as `state` and leaf.page publishes as `/_leaf/state/*.json`: `Reading`, which `served_state.page.read_served_page` composes, with what the serving route adds. Leaf alone writes it, so nothing validates it in flight; the tests validate real readings against this schema, and the browser build generates its type from it (`build/browser/contract-types.mjs`) and holds it to the schema pages vendored at the current protocol read (`build/browser/protocol.mjs`). `leaf:event` refers to any kernel event record and `leaf:event/<kind>` to one kind's, as `$events.kinds` in skills/leaf/assets/registry.json declares them, and `leaf:verb` to an x-state verb as `schema.VERB_SCHEMA` declares it. Whoever reads this schema composes those in, each event record open so that an object here adding served fields to it closes it again with `unevaluatedProperties`.",
+  "description": "The answer `GET /api/state` serves a page's runtime, which the POST /api/event answer carries as `state` and leaf.page publishes as `/_leaf/state/*.json`: `Reading`, which `served_state.page.read_served_page` composes, with what the serving route adds. Leaf alone writes it, so nothing validates it in flight; the tests validate real readings against this schema, and the browser build generates its type from it (`build/browser/contract-types.mjs`) and holds it to the schema pages vendored at the current protocol read (`build/browser/protocol.mjs`). `leaf:event` refers to any kernel event record, `leaf:event/<kind>` to one kind's and `leaf:verb` to an x-state verb, as `registry.schema.leaf_resources` composes them; an object here adding served fields to an event record closes it again with `unevaluatedProperties`.",
   "$ref": "#/$defs/Reading",
   "properties": {
     "others": {
@@ -123,7 +123,7 @@
           "additionalProperties": { "type": "string" }
         },
         "status": {
-          "description": "The agent's declaration (`leaf status`), as `presence.presence_with_activity` reads it; that module owns the presence fields below.",
+          "description": "The agent's declaration, the newest `status` event (`activity.declaration`), as `presence.presence_with_activity` reads it; that module owns the presence fields below.",
           "type": "object",
           "properties": {
             "state": { "type": "string" },
@@ -158,7 +158,6 @@
         "turn_closed": { "type": ["string", "null"] },
         "turn_opened": { "type": ["string", "null"] },
         "turn_takes_input": { "type": "boolean" },
-        "viewed": { "type": ["number", "null"] },
         "session_cwd": { "type": ["string", "null"] },
         "activity": { "$ref": "#/$defs/Activity" },
         "workflows": {
@@ -232,7 +231,6 @@
         "turn_closed",
         "turn_opened",
         "turn_takes_input",
-        "viewed",
         "session_cwd",
         "activity",
         "workflows",
@@ -1369,6 +1367,104 @@
       "type": "object",
       "properties": { "browser": { "$ref": "#/$defs/Browser" } },
       "required": ["browser"],
+      "additionalProperties": false
+    },
+    "EventAnswer": {
+      "description": "The answer `POST /api/event` gives once its gates pass (`event_endpoint`).",
+      "anyOf": [
+        {
+          "description": "Accepted, with the page's state, which holds the event's receipt.",
+          "type": "object",
+          "properties": { "ok": { "const": true }, "state": { "$ref": "#" } },
+          "required": ["ok", "state"],
+          "additionalProperties": false
+        },
+        {
+          "description": "Refused, and final: nothing was appended. `error` is the words the tab shows its user. A refusal admission made carries `state`, which restores the tab from current truth; a gate's refusal (`http.PageEndpoint._refuse`) carries none.",
+          "type": "object",
+          "properties": {
+            "ok": { "const": false },
+            "final": { "const": true },
+            "error": { "type": "string" },
+            "findings": { "type": "array", "items": { "$ref": "#/$defs/Finding" } },
+            "attempt": { "description": "The posted `attempt`, echoed as it came." },
+            "state": { "$ref": "#" }
+          },
+          "required": ["ok", "final", "error", "findings"],
+          "additionalProperties": false
+        },
+        {
+          "description": "A fault that may have landed either side of the append, so the next identical request finds out (`event_endpoint.event_fault`).",
+          "type": "object",
+          "properties": {
+            "ok": { "const": false },
+            "error": { "type": "string" },
+            "attempt": { "description": "The posted `attempt`, echoed as it came." }
+          },
+          "required": ["ok", "error"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Finding": {
+      "description": "What a refusal refused on (`findings.Finding.json`, less its words). The browser shows the refusal's `error` instead.",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "severity": { "enum": ["error", "advice"] },
+        "at": { "type": "string" },
+        "values": { "type": "object" }
+      },
+      "required": ["code", "severity"],
+      "additionalProperties": false
+    },
+    "SampleAnswer": {
+      "description": "The answer `POST /api/samples` gives: the new live sample's address, and its interaction page (`http.PageEndpoint._create_sample`).",
+      "type": "object",
+      "properties": { "url": { "type": "string" }, "page": { "type": "string" } },
+      "required": ["url", "page"],
+      "additionalProperties": false
+    },
+    "MediaAnswer": {
+      "description": "The answer `POST /api/media` gives: the stored image's page-relative path (`media.store_uploaded_media`).",
+      "type": "object",
+      "properties": { "path": { "type": "string" } },
+      "required": ["path"],
+      "additionalProperties": false
+    },
+    "FileSnapshot": {
+      "description": "One bound file as `GET` and a successful `POST /api/files/<binding>` answer it (`file_bindings`): its name, its text with LF line endings, and the revision a save names.",
+      "type": "object",
+      "properties": {
+        "label": { "type": "string" },
+        "text": { "type": "string" },
+        "revision": { "type": "string" }
+      },
+      "required": ["label", "text", "revision"],
+      "additionalProperties": false
+    },
+    "StaleFile": {
+      "description": "A save refused because the file changed since the revision it named, with the file as it is now.",
+      "type": "object",
+      "properties": {
+        "error": { "type": "string" },
+        "current": { "$ref": "#/$defs/FileSnapshot" }
+      },
+      "required": ["error", "current"],
+      "additionalProperties": false
+    },
+    "Refusal": {
+      "description": "Any route's refusal of a request (`http.PageEndpoint._refuse`): the words the page shows.",
+      "type": "object",
+      "properties": { "error": { "type": "string" } },
+      "required": ["error"],
+      "additionalProperties": false
+    },
+    "LayerAnswer": {
+      "description": "A write held because the tab speaks another layer (`http.PageEndpoint._layer_gate`): the generation it should speak, which the `Leaf-Layer` header also carries, so the tab reloads without reading this.",
+      "type": "object",
+      "properties": { "layer": { "type": "string" } },
+      "required": ["layer"],
       "additionalProperties": false
     }
   }

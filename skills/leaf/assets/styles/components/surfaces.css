@@ -425,7 +425,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     [data-lf-offer=""],
     [data-lf-offer="checkbox"],
     [data-lf-offer="radio"],
-    .lf-skip
+    .lf-mark-note
   )
 ),
 .lf-btn,
@@ -445,7 +445,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     [data-lf-offer=""],
     [data-lf-offer="checkbox"],
     [data-lf-offer="radio"],
-    .lf-skip,
+    .lf-mark-note,
     .lf-btn
   )
 ),

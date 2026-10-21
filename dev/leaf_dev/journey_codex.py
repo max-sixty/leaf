@@ -26,8 +26,9 @@ The steps, in order:
 - `rich-choice` and `rich-question`: comments asking, in the author's own words, for
   clickable choices in the thread and for a question awaiting the user's answer, each
   moving its thread to the release rationale, are answered so;
-- `mid-turn`: a comment sent during a shell command is answered once, and the claim
-  names the user's turn while it runs; on `codex-queue` the comment must also enter
+- `mid-turn`: the working case's ask (`journey.CASES`), sent during a shell
+  command, is answered once and recorded on the page, and the claim names the
+  user's turn while it runs; on `codex-queue` the comment must also enter
   that turn and be answered before its first final response, starting no turn of
   its own;
 - `resume`, on `codex-queue`: a turn interrupted during its shell command is resumed
@@ -72,8 +73,15 @@ from leaf.server import running_server
 from leaf.service import page_claim
 
 from leaf_dev import ROOT
-from leaf_dev.arms import PageClient, codex_home, environment, now, run_leaf
-from leaf_dev.codex_task import Task, install_plugin
+from leaf_dev.arms import (
+    PageClient,
+    codex_home,
+    environment,
+    install_codex_plugin,
+    now,
+    run_leaf,
+)
+from leaf_dev.codex_task import Task, trust_plugin_hooks
 from leaf_dev.commands.journey import (
     STEP_LIMIT,
     Isolation,
@@ -116,11 +124,19 @@ class Codex(Terminal):
         self.commands = self.task.commands
 
     def record(self, message: dict) -> None:
+        """Keep a notification of the task's thread as records, with where each turn
+        starts and ends and each model response's end, which App Server reports with
+        the response's token usage."""
         if self.task.thread and self.task.owns(message):
-            self.trace.extend(
-                {**normalized, "received_at": now()}
-                for normalized in records_for(message, self.task.thread, "")
-            )
+            normalized = records_for(message, self.task.thread, "")
+            marker = {
+                "turn/started": "turn_start",
+                "turn/completed": "turn_end",
+                "thread/tokenUsage/updated": "model_response",
+            }.get(message.get("method"))
+            if marker is not None:
+                normalized.append({"type": marker})
+            self.trace.extend({**record, "received_at": now()} for record in normalized)
 
     def hear(self, seconds: float) -> None:
         self.task.listen(seconds)
@@ -147,7 +163,7 @@ def check(page: Path, codex: Codex, sent: dict[str, str]) -> str | None:
     titled = None
     if sent:
         last = list(sent)[-1]
-        record = codex.page_server_title(codex.task.thread, sent[last])
+        record = codex.page_server_title(page, sent[last])
         require(record is not None, f"the page server did not title `{last}`'s thread")
         titled = (
             f"titled in {record['durationMs']} ms, {record['inputTokens']} input tokens"
@@ -319,7 +335,7 @@ def steps(
     previous_turns = len(task.started)
     user_turn = task.say(USER_TURN)
     codex.await_command(SLEEP, "the user turn did not start its command")
-    mid_turn = user.comment("mid-turn")
+    mid_turn = user.ask_while_working()
     if transport == "queue":
 
         def before_final(turn: str) -> None:
@@ -356,6 +372,7 @@ def steps(
             f"the active hook did not deliver the comment into turn {user_turn}",
         )
     codex.settle(lambda: user.answered("mid-turn"), "`mid-turn` was not answered")
+    user.require_recorded()
     sent.append("mid-turn")
     details = check_step()
     if transport == "queue":
@@ -554,10 +571,18 @@ def answering(
             )
         else:
             prepare(ROOT, place.state, place.page)
+        with (place.evidence / "stderr.txt").open("w") as output:
+            install_codex_plugin(
+                Path(executable),
+                place.payload,
+                cwd=place.work,
+                env=dict(os.environ),
+                output=output,
+            )
         with private_app_server(executable) as endpoint:
             codex = Codex(endpoint)
             try:
-                install_plugin(codex.task, payload=place.payload, cwd=place.work)
+                trust_plugin_hooks(codex.task, place.work)
                 codex.task.thread = codex.task.request(
                     "thread/start",
                     {

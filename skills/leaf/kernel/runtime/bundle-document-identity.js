@@ -218,7 +218,9 @@ import {
   scrollersOf,
   settlePageInterface,
   shownRegionBounds,
+  stopScroll,
   tickClock,
+  unconcealedReadingRegions,
   watchReadingRegionTransitions
 } from "./bundle-presence.js";
 import {
@@ -376,7 +378,6 @@ import {
   keepsHidden,
   move,
   nextAnimation,
-  nextFrame,
   nextRender,
   onFrameVisibility,
   onStanding,
@@ -551,15 +552,9 @@ function mountHistory({ followFragment, returnToFragment }) {
           if (!mayReturn()) return;
           const scrollers = /* @__PURE__ */ new Set([
             pageScroller,
-            ...readingRegions().map((region) => region.body)
+            ...unconcealedReadingRegions().map((region) => region.body)
           ]);
-          for (const scroller of scrollers)
-            scroller.scrollTo({
-              left: scroller.scrollLeft,
-              top: scroller.scrollTop,
-              behavior: "instant"
-            });
-          await new Promise((resolve) => nextFrame(() => nextFrame(resolve)));
+          await stopScroll(scrollers);
           if (!mayReturn()) return;
           let work;
           mayReturn.handoff(() => {
@@ -829,7 +824,7 @@ function sentDrawing(drawing) {
 }
 
 // runtime/protocol.js
-var DRAFT_FORMAT = "leaf-draft/13";
+var DRAFT_FORMAT = "leaf-draft/15";
 
 // runtime/composing/text-field.js
 import {
@@ -2260,6 +2255,16 @@ function createAnchorTravel({
     return Boolean(where && seenOf(where));
   }
   async function arrive(resolve, { intent, present = null, departure = null }) {
+    const initial = intent() && resolve();
+    if (!initial?.where) return false;
+    if (initial.scroll.length)
+      await stopScroll(
+        /* @__PURE__ */ new Set([
+          pageScroller,
+          ...unconcealedReadingRegions().map((region) => region.body)
+        ])
+      );
+    if (!intent()) return false;
     const first = resolve();
     const holder = first && placeHolder(first.where);
     if (!holder || !intent()) return false;
@@ -2451,7 +2456,7 @@ function createAnchorTravel({
       return false;
     }
     const destination = addressedElements(source, key)[0] ?? null;
-    const moving = departure.plan(destination);
+    departure.plan(destination);
     if (!destination) {
       await arrive(
         () => {
@@ -2470,7 +2475,9 @@ function createAnchorTravel({
         return where && {
           where,
           focus: focus ? where : null,
-          scroll: moving ? [{ at: where, block: "start" }] : []
+          scroll: [
+            { at: where, block: "start", when: () => !readableDestination(where) }
+          ]
         };
       },
       { intent: mayArrive, departure }
@@ -5017,7 +5024,7 @@ function createQueueActions({ post: post2, arrive }) {
 async function readState(bound) {
   countTraffic("asked");
   try {
-    if (offlineInteractive) return offlineState();
+    if (offlineInteractive) return { state: offlineState(), fault: null };
     const signal = globalThis.AbortSignal.timeout(bound);
     const held = runtime.data;
     let res;
@@ -5029,14 +5036,18 @@ async function readState(bound) {
         signal
       });
     } catch {
-      return null;
+      return NOTHING;
     }
-    if (!admitResponse(res)) return null;
-    if (!res.ok) return null;
+    if (!admitResponse(res)) return NOTHING;
+    if (!res.ok) {
+      if (res.status === 401 || NO_SERVER_BEHIND.has(res.status)) return NOTHING;
+      const answer = await res.json().catch(() => null);
+      return { state: null, fault: answer?.error ?? `HTTP ${res.status}` };
+    }
     try {
-      return completeData(await res.json(), held);
+      return { state: completeData(await res.json(), held), fault: null };
     } catch (error) {
-      if (signal.aborted) return null;
+      if (signal.aborted) return NOTHING;
       throw error;
     }
   } finally {
@@ -5044,10 +5055,7 @@ async function readState(bound) {
   }
 }
 function buffer(bound) {
-  return readState(bound).then(
-    (state) => ({ state }),
-    (error) => ({ error })
-  );
+  return readState(bound).catch((error) => ({ error }));
 }
 function beginRead() {
   return buffer(FIRST_READ_TIMEOUT_MS);
@@ -5070,19 +5078,20 @@ function createStateFeed({
     if (stateApplying()) return;
     document.dispatchEvent(new Event("lf-tick"));
   }
-  async function readNothing() {
+  async function readNothing(fault = null) {
     readAnswered = false;
     if (runtime.statePhase === "waiting") applicationState.setPhase("offline");
-    applicationState.setReach(runtime.keyRefused ? "refused" : "unreachable");
+    if (fault !== null) applicationState.setReach("faulted", fault);
+    else applicationState.setReach(runtime.keyRefused ? "refused" : "unreachable");
     await invalidateDom2();
     await tick();
   }
   async function readAndApply(read2 = buffer(STATE_READ_TIMEOUT_MS)) {
     const answer = await read2;
     if ("error" in answer) throw answer.error;
-    const { state } = answer;
+    const { state, fault } = answer;
     if (!state) {
-      await readNothing();
+      await readNothing(fault);
       return;
     }
     await receiveState(state);
@@ -5130,7 +5139,7 @@ function createStateFeed({
     const askOnce = async () => {
       const returned = readingReturn();
       try {
-        const state = await readState(STATE_READ_TIMEOUT_MS);
+        const { state, fault } = await readState(STATE_READ_TIMEOUT_MS);
         if (state) {
           applyingReads += 1;
           void receiveState(state).then(
@@ -5150,7 +5159,7 @@ function createStateFeed({
             applyingReads -= 1;
           });
         } else {
-          void readNothing().then(async () => {
+          void readNothing(fault).then(async () => {
             await present();
             if (!applyingReads && !stateApplying()) completeReadingReturn(returned);
           }).catch(failed);
@@ -5250,6 +5259,8 @@ var TICK_MS = 2e3;
 var LOOK_MS = 250;
 var FIRST_READ_TIMEOUT_MS = 12e4;
 var STATE_READ_TIMEOUT_MS = 1e4;
+var NOTHING = Object.freeze({ state: null, fault: null });
+var NO_SERVER_BEHIND = /* @__PURE__ */ new Set([502, 503, 504]);
 
 // runtime/pending/state.js
 function createPendingLedger({ newAttempt, enqueue }) {
@@ -5386,7 +5397,8 @@ function createCommandDispatch() {
 // runtime/delivery.js
 var RETRY_MS = 2e3;
 var retryPause = () => new Promise((resolve) => setTimeout(resolve, RETRY_MS));
-var readEventAnswer = (response, answer) => response.ok && answer?.ok === true && answer.state ? "accepted" : answer?.final === true ? "refused" : "incomplete";
+var acceptedAnswer = (response, answer) => response.ok && !!answer && "state" in answer && !("final" in answer);
+var refusedAnswer = (answer) => !!answer && "final" in answer;
 var applyAnswerState = (apply, state) => apply(state).catch((error) => reportCarried(error, "state in event response"));
 function createDelivery({
   ledger,
@@ -5419,12 +5431,12 @@ function createDelivery({
           (response) => ({ response }),
           (error) => ({ error })
         ),
-        entry.read.then((accepted2) => ({ accepted: accepted2 }))
+        entry.read.then((accepted) => ({ accepted }))
       ]);
       if (sent.accepted) return { accepted: sent.accepted };
       if (sent.error) {
         await retry(
-          runtime.keyRefused ? "Key refused \u2014 open Leaf's link in a new tab and the change will send" : "Connection lost \u2014 retrying the change\u2026"
+          runtime.keyRefused ? "Key refused \u2014 open Leaf's link in a new tab and the change will send" : "Connection lost \u2014 keep this page open while it retries"
         );
         continue;
       }
@@ -5438,7 +5450,7 @@ function createDelivery({
           (answer2) => ({ answer: answer2 }),
           (error) => ({ error })
         ),
-        entry.read.then((accepted2) => ({ accepted: accepted2 }))
+        entry.read.then((accepted) => ({ accepted }))
       ]);
       if (decoded.accepted) return { accepted: decoded.accepted };
       if (decoded.error) {
@@ -5446,19 +5458,20 @@ function createDelivery({
         continue;
       }
       const answer = decoded.answer;
-      const reading = readEventAnswer(sent.response, answer);
-      const accepted = reading === "accepted" && answer.state.browser?.receipts?.find(
-        (candidate) => candidate.attempt === event.attempt
-      );
-      if (accepted)
-        return {
-          accepted,
-          application: applyAnswerState(
-            applyAcceptedState,
-            completeData(answer.state, held)
-          )
-        };
-      if (reading === "refused" && (!("attempt" in answer) || answer.attempt === event.attempt) && answer.ok === false) {
+      if (acceptedAnswer(sent.response, answer)) {
+        const accepted = answer.state.browser?.receipts?.find(
+          (candidate) => candidate.attempt === event.attempt
+        );
+        if (accepted)
+          return {
+            accepted,
+            application: applyAnswerState(
+              applyAcceptedState,
+              completeData(answer.state, held)
+            )
+          };
+      }
+      if (refusedAnswer(answer) && (!("attempt" in answer) || answer.attempt === event.attempt)) {
         return {
           accepted: null,
           state: completeData(answer.state, held),
@@ -5529,10 +5542,9 @@ async function deliverBookkeeping(event, applyState) {
   } catch {
     return "unreached";
   }
-  const reading = readEventAnswer(response, answer);
-  if (answer?.state)
+  if (answer && "state" in answer)
     await applyAnswerState(applyState, completeData(answer.state, held));
-  return reading === "incomplete" ? "unreached" : reading;
+  return acceptedAnswer(response, answer) ? "accepted" : refusedAnswer(answer) ? "refused" : "unreached";
 }
 
 // runtime/undo.js
@@ -6176,15 +6188,21 @@ function createThreadDestinations({
         if (trip) {
           if (!await scrollToThread(id, { part: localPart, focus, intent }))
             return null;
-        } else {
+        } else if (focus === false) {
           await reveal(surfaceFocusTarget(id, { part: localPart }), intent).ready;
-          const current = surfaceFocusTarget(id, { part: localPart });
-          if (!current || !mayPresent() || focus !== false && !intent.handoff(() => {
-            focusDestination(current, "move");
-            if (scroll) scrollIntoView(current, { block: "nearest" });
-          }))
-            return null;
-        }
+          if (!mayPresent()) return null;
+        } else if (!await arrive(
+          () => {
+            const current = surfaceFocusTarget(id, { part: localPart });
+            return current && {
+              where: current,
+              focus: current,
+              scroll: scroll ? [{ at: current, block: "nearest", behavior: "auto" }] : []
+            };
+          },
+          { intent }
+        ))
+          return null;
         return surfaceFocusTarget(id, { part: localPart });
       };
       if (surfaceFocusTarget(id, { part: localPart })) return openSurface();
@@ -6212,15 +6230,17 @@ function createThreadDestinations({
             return null;
         } else {
           if (!await opened.presented || !mayPresent()) return null;
-          const current = threadFocusTarget(id, { part });
-          if (!current || !mayPresent() || focus !== false && !intent.handoff(() => {
-            focusDestination(current, "move");
-            if (scroll)
-              scrollIntoView(current, {
-                behavior: scrollBehavior(),
-                block: "nearest"
-              });
-          }))
+          if (focus !== false && !await arrive(
+            () => {
+              const current = threadFocusTarget(id, { part });
+              return current && {
+                where: current,
+                focus: current,
+                scroll: scroll ? [{ at: current, block: "nearest" }] : []
+              };
+            },
+            { intent }
+          ))
             return null;
         }
         return threadFocusTarget(id, { part });

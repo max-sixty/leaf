@@ -14,6 +14,7 @@ from conftest import LEAF_COMMAND
 from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
+    declared,
     fetch,
     fetch_hanging_up,
     install_payload,
@@ -194,7 +195,7 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
     url = reading["url"]
     assert url.startswith("http://127.0.0.1:")
     assert reading["lifetime"] == lifetime
-    prior_status = service_model.read_status(page_dir)
+    prior_status = declared(page_dir)
     prior_owner = service_model.page_claim(page_dir)
 
     endpoint = urllib.parse.urlsplit(url)._replace(path="/api/event").geturl()
@@ -227,7 +228,7 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
     assert server_model.running_server(page_dir)["url"] == url
     assert read_record(page_dir / "service.json")["lifetime"] == lifetime
     assert service_model.page_claim(page_dir) == prior_owner
-    restored = service_model.read_status(page_dir)
+    restored = declared(page_dir)
     assert restored == prior_status
 
     status, body = fetch(endpoint, data=json.dumps(comment).encode(), token=None)

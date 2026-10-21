@@ -14,7 +14,7 @@ immutable envelope (`delivery.freeze_delivery`, read with `leaf delivery read <i
 Its progress is one mutable record per delivery under the state home, whose class
 says how far it has got: `Collecting` while `append_batch` adds events, `Offering`
 once `offer_delivery` freezes the envelope and hands out a pointer to it,
-`HookOffer` when that pointer went to a hook's running turn, `StartingOffer` while an
+`HookOffer` when the envelope went to a hook's running turn, `StartingOffer` while an
 App Server start is unconfirmed, then `Accepted` (the queue took it), `Opened` (a
 known turn took it) or `Abandoned`. Every transport shares the record, writing it
 under the session's delivery lock: an App Server turn, the `codex queue` command, and
@@ -31,9 +31,10 @@ finds its envelope. A batch whose page is gone, or whose events no longer match 
 page, is retired without writing (`delivery.receive_batch`).
 
 While Codex's tool hook can reach the running turn, `offer_hook_delivery` offers the
-pointer between steps and records the turn in a `HookOffer`. The Stop hook does the
-same, even for a resumed turn that ran no tool. `leaf delivery ack` in that turn
-accepts it (`codex_state.confirm_codex_pointer`). A hook never re-offers a pointer or
+complete envelope as one line of JSON, or its pointer above Codex's context limit,
+and records the turn in a `HookOffer`. The Stop hook does the same, even for a resumed
+turn that ran no tool. `leaf delivery ack` in that turn
+accepts it (`codex_state.confirm_codex_pointer`). A hook never re-offers input or
 takes one another transport holds. Once Stop or Interrupt closes the turn, or the
 turn no longer reads as running, the adapter's `_offer_queued_delivery` offers the
 unread pointer itself. Without an App Server connection it hands the pointer to
@@ -55,7 +56,7 @@ to the reservation, and each client decides what an uncertain start means. A
 `TurnFold` writes activity only while its session generation and turn are current
 (`TurnFold.activity_epoch`), so a fold from an older generation never touches a
 newer one's activity. `delivery`'s header owns the reply reservation, and
-`../../references/harness-codex-app-server.md`, "Replies", is the agent's side of it.
+`../../references/harness-codex.md`, "Replies", is the agent's side of it.
 
 Codex's hooks import this module between steps and before Stop
 (`offer_hook_delivery`), so `thread`, which brings the page model and its validators,
@@ -94,8 +95,8 @@ from .delivery import (
     delivery_pointer_prompt,
     freeze_delivery,
     new_delivery_id,
-    pages_gone,
     read_delivery,
+    reader_envelope,
     receive_batch,
     record_pickup,
     stored_delivery,
@@ -116,12 +117,19 @@ from .state import (
     close_session_turn,
     flocked,
     renew_turn,
+    retire_if_gone,
     session_lock_path,
     session_record,
     start_session_turn,
 )
 
 START_TIMEOUT = 20
+# Codex 0.160.0 spills hook context above 2,500 approximate tokens, counted as
+# ceil(UTF-8 bytes / 4), including Stop continuation fragments. The preview is
+# incomplete JSON, so keep a larger delivery behind its existing reader pointer.
+# https://github.com/openai/codex/blob/rust-v0.160.0/codex-rs/hooks/src/output_spill.rs
+# https://github.com/openai/codex/blob/rust-v0.160.0/codex-rs/utils/string/src/truncate.rs
+HOOK_CONTEXT_BYTES = 10_000
 # Names the App Server a task runs on to the `leaf` commands it runs, so they hand
 # its pages to that server (`private_app_server`, `leaf codex start`).
 APP_SERVER_ENV = "LEAF_CODEX_APP_SERVER"
@@ -1745,8 +1753,8 @@ RECORD = Record("codex-delivery", RECORD_SCHEMA, since=14)
 def read_record(path: Path) -> DeliveryRecord | None:
     """Decode one task record, live or archived, or None where this Leaf reads
     none, as for one in a state this Leaf does not know, or an offered record
-    whose delivery this Leaf does not read. An unreadable record never authorizes
-    deletion."""
+    whose delivery this Leaf does not read. Only its pages being gone authorizes
+    deleting a record (`state.retire_if_gone`)."""
     record = RECORD.read(path)
     variant = RECORD_VARIANTS.get(record["state"]) if record else None
     if variant is None:
@@ -1760,13 +1768,6 @@ def read_record(path: Path) -> DeliveryRecord | None:
     return variant(**values)
 
 
-def _retire_record_if_gone(path: Path) -> None:
-    """Retire only task records this version reads, under the task's lock."""
-    record = read_record(path)
-    if record is not None and pages_gone(record.batches):
-        path.unlink(missing_ok=True)
-
-
 def archive_record(path: Path, record: DeliveryRecord) -> bool:
     """Move completed delivery records out of the adapter's hot scan.
 
@@ -1777,7 +1778,7 @@ def archive_record(path: Path, record: DeliveryRecord) -> bool:
     history = path.parent / "history"
     history.mkdir(parents=True, exist_ok=True)
     for archived in history.glob("*.json"):
-        _retire_record_if_gone(archived)
+        retire_if_gone(archived)
     path.replace(history / path.name)
     return True
 
@@ -1803,7 +1804,7 @@ def retire_gone_task_records() -> None:
         with flocked(directory.with_suffix(".delivery.lock")):
             history = directory / "history"
             for path in (*directory.glob("*.json"), *history.glob("*.json")):
-                _retire_record_if_gone(path)
+                retire_if_gone(path)
             for emptied in (history, directory):
                 if emptied.is_dir() and not any(emptied.iterdir()):
                     emptied.rmdir()
@@ -1811,7 +1812,7 @@ def retire_gone_task_records() -> None:
 
 def delivery_records(session_id: str) -> list[tuple[Path, DeliveryRecord]]:
     """Every current delivery record one task holds, oldest first, removing each
-    whose pages are all gone (`delivery.pages_gone`). Every caller holds the
+    whose pages are all gone (`state.retire_if_gone`). Every caller holds the
     task's delivery lock."""
     directory = delivery_dir(session_id)
     if not directory.is_dir():
@@ -1822,11 +1823,10 @@ def delivery_records(session_id: str) -> list[tuple[Path, DeliveryRecord]]:
             validate_delivery_id(path.stem)
         except ValueError:
             continue
+        if retire_if_gone(path):
+            continue
         record = read_record(path)
         if record is None:
-            continue
-        if pages_gone(record.batches):
-            path.unlink()
             continue
         if archive_record(path, record):
             continue
@@ -2014,7 +2014,7 @@ def append_batch(
 def offer_hook_delivery(
     session_id: str, expected: dict | None, *, received: bool = True
 ) -> tuple[str | None, dict | None]:
-    """Offer one plain-reply pointer through a tool or Stop hook, without receipt.
+    """Offer complete input inline, or by pointer above Codex's limit, without receipt.
     `received` is `delivery.deliverable`'s: the tool hook leaves it false.
 
     The agent's explicit `delivery ack` confirms complete input in its turn. If the
@@ -2022,7 +2022,7 @@ def offer_hook_delivery(
     pointer instead. An offering already owned by another transport is left alone.
 
     The caller's exact lifecycle owns every renewal and reservation. Return the
-    supplied lifecycle or this operation's last renewal, even without a pointer,
+    supplied lifecycle or this operation's last renewal, even without input,
     so the caller cannot adopt a prompt that arrives during or after the offer.
     """
     lock = delivery_lock_path(session_id)
@@ -2063,7 +2063,16 @@ def offer_hook_delivery(
             return None, expected
         path, record = pending
         prepared = offer_delivery(path, record, transport=HookTurn(expected["turn"]))
-        return prepared.prompt, expected
+        context = json.dumps(
+            reader_envelope(prepared.payload),
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        return (
+            context
+            if len(context.encode("utf-8")) <= HOOK_CONTEXT_BYTES
+            else prepared.prompt
+        ), expected
 
 
 def finish_codex_batch(

@@ -17,3 +17,5 @@ export const syntaxLanguages = {
   "typescript": () => import("/vendor/syntax/typescript.js"),
   "yaml": () => import("/vendor/syntax/yaml.js"),
 };
+// prettier-ignore
+export const syntaxLanguageNames = {"shellscript":"bash","bash":"bash","sh":"bash","shell":"bash","zsh":"bash","css":"css","diff":"diff","go":"go","html":"html","java":"java","javascript":"javascript","js":"javascript","cjs":"javascript","mjs":"javascript","json":"json","markdown":"markdown","md":"markdown","python":"python","py":"python","rust":"rust","rs":"rust","sql":"sql","toml":"toml","typescript":"typescript","ts":"typescript","cts":"typescript","mts":"typescript","yaml":"yaml","yml":"yaml"};

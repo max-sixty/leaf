@@ -8,15 +8,14 @@ import pytest
 from interact_support import (
     append_carried_log_record,
     append_command,
+    declare,
     declare_work,
     end_work,
     record_claim,
     working,
-    write_record,
 )
 from leaf import leases as leases_model
 from leaf import service as service_model
-from leaf import state as cleanup_model
 from playwright.sync_api import expect
 from render_cases_interaction import SUGGESTION_PAGE
 from render_cases_layout import (
@@ -33,6 +32,7 @@ from render_harness import (
     http_error_console,
     nudge,
     open_page,
+    panel_field,
     panel_settled,
     refuse,
     stamp_page,
@@ -99,15 +99,31 @@ def test_a_status_kind_change_is_announced_in_the_status_s_own_words(browser, se
         # A healthy page never asks without news, so give it one: the read that follows
         # is the one the route refuses.
         nudge(serve.page_dir)
-        expect(page.locator(".lf-fp-leaf .lf-dot.offline")).to_be_visible()
+        # An unreachable server turns the leaf red, and the field says it as a status
+        # rather than an error.
         expect(live).to_contain_text("Server offline")
+        expect(page.locator(".lf-fp-leaf .lf-dot.blocked")).to_be_visible()
+        expect(panel_field(page)).to_have_attribute("data-says", "status")
         # The server coming back to refuse this tab's key asks something new of the
-        # user, so it is heard though the dot stays offline.
+        # user, which only they can end, so it is heard and the field says it as an
+        # error.
         page.route("**/api/state*", lambda route: route.fulfill(status=401, body="{}"))
         expect(live).to_contain_text("no longer accepts this tab's key")
-        # The refused reads recur on the page's clock until it closes.
+        expect(panel_field(page)).to_have_attribute("data-says", "error")
+        # A server that answers with an error of its own is up and failing, which is
+        # neither offline nor a key to replace: the status says its words.
+        page.route(
+            "**/api/state*",
+            lambda route: route.fulfill(
+                status=500, json={"error": "projection failed"}
+            ),
+        )
+        expect(live).to_contain_text(
+            "The server answered with an error: projection failed"
+        )
+        # The refused and failed reads recur on the page's clock until it closes.
         page.close()
-        consume_browser_errors(page, http_error_console(401))
+        consume_browser_errors(page, http_error_console(401), http_error_console(500))
     finally:
         if not page.is_closed():
             page.unroute("**/api/**")
@@ -263,14 +279,7 @@ def test_a_panel_row_follows_its_pages_status_live(
     # line ellipsizes at the panel's width, and it is the row's hover and not a part's,
     # the innermost title winning where two overlap.
     end_work(other_dir)
-    write_record(
-        other_dir / "status.json",
-        {
-            "state": "waiting",
-            "detail": "pick a storage engine",
-            "ts": cleanup_model.now_iso(),
-        },
-    )
+    declare(other_dir, "waiting", "pick a storage engine")
     told(page)
     expect(row).to_contain_text("Awaits — pick a storage engine")
     expect(row).to_have_attribute(
@@ -300,10 +309,7 @@ def test_a_closed_leaf_clears_itself_off_all_pages(browser, serve, other_leaf):
     rows = view.locator("a.lf-fp-page")
     expect(rows).to_have_count(1)
     rows.first.focus()
-    write_record(
-        other_dir / "status.json",
-        {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
-    )
+    declare(other_dir, "idle")
     told(page)
     expect(rows).to_have_count(0)
     expect(view.locator(".lf-fp-page")).to_contain_text("long")

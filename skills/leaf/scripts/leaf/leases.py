@@ -25,7 +25,6 @@ from leaf.schema import WAITER_LOCK
 from leaf.state import (
     HOOKS_SUFFIX,
     STEP_HOOK_SUFFIX,
-    TITLES_SUFFIX,
     session_file,
     state_home,
     still_named,
@@ -263,12 +262,6 @@ def sessions_home() -> Path:
 def hooks_path(session_id: str) -> Path:
     """The mark a Leaf hook leaves each time it runs for this session."""
     return session_state_path(session_id, HOOKS_SUFFIX)
-
-
-def titles_log(session_id: str) -> Path:
-    """Where this session's page servers record the thread titles they asked for
-    (`thread_titles`), until the session ends."""
-    return session_state_path(session_id, TITLES_SUFFIX)
 
 
 def mark_hooks(session_id: str) -> None:

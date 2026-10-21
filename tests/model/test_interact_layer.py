@@ -25,7 +25,6 @@ from interact_support import (
     SKILL_ROOT,
     STATED_TIMEOUT,
     add_test_widget,
-    append_carried_log_record,
     case_alias,
     command_findings,
     element_declaration,
@@ -35,7 +34,6 @@ from interact_support import (
     lock_contention,
     package_findings,
     publish,
-    read_record,
     record_claim,
     registry_refusal,
     shipped_payload,
@@ -43,7 +41,6 @@ from interact_support import (
     vendored_before_a_key_rename,
     wait_for,
     words,
-    write_record,
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -712,7 +709,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     assert "already stamped as v1" in again.output
 
     [waiting] = written(["status", str(page_dir), "waiting", "pick a storage engine"])
-    assert waiting.items() <= read_record(page_dir / schema_model.STATUS_FILE).items()
+    assert waiting == logged(waiting)
     assert (waiting["state"], waiting["detail"]) == ("waiting", "pick a storage engine")
 
     # The comment's id is the thread's; --title names it in the same command.
@@ -1061,7 +1058,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "skills/leaf/references/event-batches.md",
         "skills/leaf/references/harness-claude-code.md",
         "skills/leaf/references/harness-codex.md",
-        "skills/leaf/references/harness-codex-app-server.md",
+        "skills/leaf/references/codex-setup.md",
         "skills/leaf/references/page-checkpoints.md",
         "skills/leaf/references/packages.md",
         "skills/leaf/references/page-authoring.md",
@@ -1320,7 +1317,7 @@ def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypa
     (first / "leaf.js").symlink_to(tmp_path / "nowhere")
     (first / "widgets" / "lf-planted.js").symlink_to(tmp_path / "nowhere")
     (first / "media" / "elsewhere").symlink_to(tmp_path, target_is_directory=True)
-    (first / "status.json").write_text("{}")
+    (first / "stream.json").write_text("{}")
     pool.give_back("plain", first)
 
     second = pool.lend("plain", tmp_path / "second", initialize)
@@ -1329,8 +1326,8 @@ def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypa
     assert {path.relative_to(second).as_posix() for path in second.rglob("*")} == shape
     for name in ("theme.css", "widgets/lf-tabs.js", "registry.json"):
         assert (second / name).read_bytes() == (template / name).read_bytes(), name
-    # A status the test wrote is a file it added, so the reset takes it away.
-    assert not (second / "status.json").exists()
+    # A stream the test wrote is a file it added, so the reset takes it away.
+    assert not (second / "stream.json").exists()
     linked = "runtime/chrome.css"
     assert (second / linked).stat().st_ino == (template / linked).stat().st_ino
 
@@ -2295,7 +2292,7 @@ def test_fresh_page_state_points_only_to_readable_authorities(tmp_path, monkeypa
     assert state["source"]["live"] is False
     assert "write index.html first" in state["source"]["error"]
     assert state["event_seq"] == 0
-    assert state["data"] == {"file": "data.json", "dir": "data", "errors": []}
+    assert state["data"] == {"dir": "data", "errors": []}
     assert (
         data_model.read_data(page, json.loads((page / "registry.json").read_text()))[
             "sources"
@@ -2322,7 +2319,7 @@ def test_init_composes_and_prunes_nested_browser_modules(tmp_path, monkeypatch):
         "export const model = 'package';\n"
     )
     assert schema_model.SERVED_PATH.fullmatch("/runtime/nested-package/fold/model.js")
-    assert not schema_model.SERVED_PATH.fullmatch("/vendor/../../status.json")
+    assert not schema_model.SERVED_PATH.fullmatch("/vendor/../../stream.json")
     assert not schema_model.SERVED_PATH.fullmatch("/vendor/../leaf.js")
 
     module.unlink()
@@ -3210,22 +3207,6 @@ def test_init_refuses_invalid_ids_in_a_registry_example(
     assert refused.values["finding"]["code"] == code
 
 
-def test_a_fresh_log_starts_without_the_cursor_of_the_log_it_replaced(page_dir):
-    """The acknowledgement cursor is a position in the log. A directory whose log
-    is absent takes the fresh-page path, so the position it kept names nothing."""
-    append_carried_log_record(
-        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
-    )
-    write_record(page_dir / "cursor.json", {"seq": 1})
-    (page_dir / "events.jsonl").unlink()
-
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
-
-    assert result.exit_code == 0, result.output
-    assert read_record(page_dir / "cursor.json") is None
-    assert events_model.read_cursor(page_dir) == 0
-
-
 def test_revendoring_removes_files_the_layer_retired(page_dir):
     stale = page_dir / "widgets" / "lf-retired.js"
     stale.write_text("// no longer in any layer")
@@ -4033,8 +4014,8 @@ def test_package_recognizes_a_page_without_runtime_status(tmp_path, monkeypatch)
     page = tmp_path / "page"
     initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
-    # A page has no status until its agent declares one.
-    assert not (page / "status.json").exists()
+    # A page has no stream until a harness observes a turn on it.
+    assert not (page / "stream.json").exists()
     before = (page / "theme.css").read_bytes()
 
     layer = project / ".leaf"

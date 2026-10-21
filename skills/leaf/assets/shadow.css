@@ -144,7 +144,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   outline: var(--focus-ring);
   outline-offset: var(--focus-ring-gap);
 }
-[data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer=checkbox], [data-lf-offer=radio], .lf-skip)),
+[data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer=checkbox], [data-lf-offer=radio], .lf-mark-note)),
 .lf-btn,
 .button,
 .lf-outline-chip:is(button, [role=button]),
@@ -157,7 +157,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-quote {
   min-width: var(--aim-floor);
 }
-[data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer=checkbox], [data-lf-offer=radio], .lf-skip, .lf-btn)),
+[data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer=checkbox], [data-lf-offer=radio], .lf-mark-note, .lf-btn)),
 .lf-outline-chip:is(button, [role=button]),
 .lf-thread-notice:is(button),
 .lf-react,

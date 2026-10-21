@@ -291,7 +291,7 @@ def presence_with_activity(
         # An opened delivery names this value; equality, rather than timestamps,
         # is what says that exact update is in the turn running now.
         "claim_turn": claim["turn"] if claim else None,
-        # When the claiming session's last turn ended, or None while none has.
+        # When the claiming session's current turn closed, or None while it is open.
         # A `working` claim older than this is one that no later turn renewed
         # across the boundary — the same judgment the runtime's grace
         # makes, available at the moment it becomes true instead of a quarter of

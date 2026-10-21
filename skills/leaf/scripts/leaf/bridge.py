@@ -62,18 +62,35 @@ from urllib.parse import unquote, urlsplit
 
 from .leases import release_lease, take_lease
 from .piped_input import STDIN_PIPED, piped
-from .state import STRING, Record, object_schema, state_home
+from .state import STRING, Record, described, object_schema, state_home
 
-# Where the running bridge listens, the token a request carries, and its process.
 ADDRESS = Record(
     "bridge",
-    object_schema(
-        {"port": {"type": "integer"}, "token": STRING, "pid": {"type": "integer"}}
+    described(
+        "Where an installed tree's running bridge listens, in the state home's "
+        "`bridge/<key>.json`.",
+        object_schema(
+            {
+                "port": described(
+                    "The loopback port it listens on.", {"type": "integer"}
+                ),
+                "token": described("The token a request carries.", STRING),
+                "pid": described("The bridge's process.", {"type": "integer"}),
+            }
+        ),
     ),
     since=13,
 )
-# A session the bridge serves, with the lifetime it lives by (`Harness.lifetime`).
-REGISTRATION = Record("bridge-session", object_schema({"id": STRING}), since=13)
+REGISTRATION = Record(
+    "bridge-session",
+    described(
+        "A session the bridge serves, in the state home's "
+        "`bridge/<key>.sessions/<digest>.json`, with the fields of the lifetime it "
+        "lives by (`Harness.lifetime`) beside its id.",
+        object_schema({"id": described("The harness's session id.", STRING)}),
+    ),
+    since=13,
+)
 
 # One bridge per installed tree: a plugin update is a new tree, whose sessions
 # reach its own bridge while the old one serves out the sessions still on it.

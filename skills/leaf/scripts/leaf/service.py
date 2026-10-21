@@ -44,6 +44,7 @@ from leaf.state import (
     Record,
     chat_exists,
     claims_lock,
+    described,
     drop_locator,
     ensure_session,
     flocked,
@@ -82,24 +83,32 @@ def claim_path(page_dir: Path) -> Path:
 
 CLAIM = Record(
     "claim",
-    object_schema(
-        {
-            "page": STRING,
-            "ts": TIME,
-            # The claimant session, and the generation of it this claim names
-            # (`state.SESSION`).
-            "id": STRING,
-            "generation": STRING,
-            # This publication's own identity (`same_claim`).
-            "acquisition": STRING,
-            # The claimant's `Harness.name`, and the name it shows.
-            "harness": STRING,
-            "agent": STRING,
-            "cwd": STRING,
-        },
-        # The turn ending after which input last messaged the session
-        # (`note_messaged`).
-        {"messaged_ending": STRING},
+    described(
+        "The session that receives a page's updates, in the state home's "
+        "`claims/<page key>.json` (`claim_path`).",
+        object_schema(
+            {
+                "page": described("The page directory.", STRING),
+                "ts": described("When the claim was published.", TIME),
+                "id": described("The claimant session (`state.SESSION`).", STRING),
+                "generation": described(
+                    "The generation of the session this claim names.", STRING
+                ),
+                "acquisition": described(
+                    "This publication's own identity (`same_claim`).", STRING
+                ),
+                "harness": described("The claimant's `Harness.name`.", STRING),
+                "agent": described("The name the claimant shows.", STRING),
+                "cwd": described("The claimant's working directory.", STRING),
+            },
+            {
+                "messaged_ending": described(
+                    "The turn ending after which input last messaged the session "
+                    "(`note_messaged`).",
+                    STRING,
+                )
+            },
+        ),
     ),
     since=13,
 )
@@ -783,49 +792,85 @@ def no_stream() -> dict:
     return {"activity": None, "reply": None, "reply_reservations": {}}
 
 
-_TURN = {"session": STRING, "turn": STRING}
+_TURN = {
+    "session": described("The claimant session the harness observed.", STRING),
+    "turn": described("The turn it observed.", STRING),
+}
 STREAM = Record(
     "stream",
-    object_schema(
-        {
-            # What the task is doing now (`set_stream_activity`).
-            "activity": {
-                **object_schema(
+    described(
+        "What the harness observes of the claimant's task as it runs, in the page "
+        "directory's `stream.json`; `no_stream` while it observes nothing.",
+        object_schema(
+            {
+                "activity": described(
+                    "What the task is doing now (`set_stream_activity`), or null.",
                     {
-                        **_TURN,
-                        "kind": STRING,
-                        "ts": TIME,
-                        "after": {"type": "integer"},
+                        **object_schema(
+                            {
+                                **_TURN,
+                                "kind": described(
+                                    "The step observed; the page reads one of "
+                                    "`activity.WORK_KINDS`.",
+                                    STRING,
+                                ),
+                                "ts": described("When it was last observed.", TIME),
+                                "after": described(
+                                    "The log's last `seq` when it was observed.",
+                                    {"type": "integer"},
+                                ),
+                            },
+                            {"detail": described("What the step names.", STRING)},
+                        ),
+                        "type": ["object", "null"],
                     },
-                    {"detail": STRING},
                 ),
-                "type": ["object", "null"],
-            },
-            # The reply it is drafting (`set_stream_reply`).
-            "reply": {
-                **object_schema(
+                "reply": described(
+                    "The reply it is drafting (`set_stream_reply`), or null.",
                     {
-                        **_TURN,
-                        "attempt": STRING,
-                        "parent": STRING,
-                        "responds": STRING,
-                        "item": {"type": ["string", "null"]},
-                        "text": STRING,
-                        "state": STRING,
-                        "settles": {"type": "boolean"},
-                        "agent": STRING,
-                        "ts": TIME,
-                        "updated_at": TIME,
-                    }
+                        **object_schema(
+                            {
+                                **_TURN,
+                                "attempt": described(
+                                    "The delivery attempt it is drafted under.",
+                                    STRING,
+                                ),
+                                "parent": described(
+                                    "The thread it replies in.", STRING
+                                ),
+                                "responds": described("The input it answers.", STRING),
+                                "item": described(
+                                    "The harness's id for the message supplying the "
+                                    "draft, or null while none is attached.",
+                                    {"type": ["string", "null"]},
+                                ),
+                                "text": described("Its words so far.", STRING),
+                                "state": STRING,
+                                "settles": {"type": "boolean"},
+                                "agent": described(
+                                    "The name the claimant shows.", STRING
+                                ),
+                                "ts": described("When the draft began.", TIME),
+                                "updated_at": described(
+                                    "When the draft last changed.", TIME
+                                ),
+                            }
+                        ),
+                        "type": ["object", "null"],
+                    },
                 ),
-                "type": ["object", "null"],
-            },
-            # By response address.
-            "reply_reservations": {
-                "type": "object",
-                "additionalProperties": object_schema({**_TURN, "attempt": STRING}),
-            },
-        }
+                "reply_reservations": described(
+                    "Each open reply reservation, by the response address it holds "
+                    "(`thread.reserve_delivery_reply`).",
+                    {
+                        "type": "object",
+                        "additionalProperties": object_schema(
+                            {**_TURN, "attempt": STRING}
+                        ),
+                    },
+                ),
+            }
+        ),
     ),
     since=16,
 )

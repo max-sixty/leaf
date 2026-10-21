@@ -74,9 +74,15 @@
           "items": {
             "type": "object",
             "properties": {
-              "version": { "type": "integer" },
-              "revision": { "type": "integer" },
-              "url": { "type": "string" }
+              "version": {
+                "description": "The public version number, `vN`'s `N`.",
+                "type": "integer"
+              },
+              "revision": {
+                "description": "The immutable revision the version stamped.",
+                "type": "integer"
+              },
+              "url": { "description": "The version's address.", "type": "string" }
             },
             "required": ["version", "revision", "url"],
             "additionalProperties": false
@@ -126,15 +132,30 @@
           "description": "The agent's declaration, the newest `status` event (`activity.declaration`), as `presence.presence_with_activity` reads it; that module owns the presence fields below.",
           "type": "object",
           "properties": {
-            "state": { "type": "string" },
-            "detail": { "type": "string" },
-            "ts": { "type": "string" }
+            "state": {
+              "description": "`waiting` on the user or `idle`, done with the page; `waiting` before the agent declares anything.",
+              "type": "string"
+            },
+            "detail": {
+              "description": "The declaration's words; empty before the first declaration and where a start reopened an idle page.",
+              "type": "string"
+            },
+            "ts": {
+              "description": "When the agent declared it, or when a start reopened an idle page; absent before the first declaration.",
+              "type": "string"
+            }
           },
           "required": ["state", "detail"],
           "additionalProperties": false
         },
-        "listening": { "type": "boolean" },
-        "session_alive": { "type": ["boolean", "null"] },
+        "listening": {
+          "description": "Whether a wait lease on the page is held: the active claimant session's, or the page's own where no session claims it.",
+          "type": "boolean"
+        },
+        "session_alive": {
+          "description": "Whether the claimant's lifetime stands, or null where nothing claimed the page.",
+          "type": ["boolean", "null"]
+        },
         "live_turn": {
           "description": "What the claimant's harness says of its turn now (`Harness.live_turn`), or null.",
           "anyOf": [
@@ -150,16 +171,46 @@
             { "type": "null" }
           ]
         },
-        "cursor": { "type": "integer" },
-        "pending": { "type": "integer" },
-        "agent": { "type": "string" },
-        "claim_session": { "type": ["string", "null"] },
-        "claim_turn": { "type": ["string", "null"] },
-        "turn_closed": { "type": ["string", "null"] },
-        "turn_opened": { "type": ["string", "null"] },
-        "turn_takes_input": { "type": "boolean" },
-        "session_cwd": { "type": ["string", "null"] },
-        "activity": { "$ref": "#/$defs/Activity" },
+        "cursor": {
+          "description": "The acknowledgement cursor, the greatest `through` a `receipt` in the log holds: the updates through it reached their durable consumer.",
+          "type": "integer"
+        },
+        "pending": {
+          "description": "How many of the user's events past the cursor the agent hasn't taken in.",
+          "type": "integer"
+        },
+        "agent": {
+          "description": "The name the page calls its agent (`presence.page_agent`).",
+          "type": "string"
+        },
+        "claim_session": {
+          "description": "The claimant session, or null.",
+          "type": ["string", "null"]
+        },
+        "claim_turn": {
+          "description": "The claimant's current turn, which an opened delivery names, or null.",
+          "type": ["string", "null"]
+        },
+        "turn_closed": {
+          "description": "When the claimant's current turn closed, or null while it is open or nothing claims the page.",
+          "type": ["string", "null"]
+        },
+        "turn_opened": {
+          "description": "When that turn opened or was last renewed, or null where nothing claims the page.",
+          "type": ["string", "null"]
+        },
+        "turn_takes_input": {
+          "description": "Whether an open turn of the claimant's takes new input before it ends (`Harness.turn_takes_input`).",
+          "type": "boolean"
+        },
+        "session_cwd": {
+          "description": "Where the claimant was working when it claimed the page, or null for a page nothing claimed.",
+          "type": ["string", "null"]
+        },
+        "activity": {
+          "description": "Where the agent's work on the whole page stands (`activity.py`), which the Leaf panel reads.",
+          "$ref": "#/$defs/Activity"
+        },
         "workflows": {
           "description": "The page's workflows, strongest first (`served_state.work.served_workflows`).",
           "type": "array",
@@ -178,10 +229,19 @@
           "description": "The identity a developer preview shows in browser chrome, as `leaf-dev preview` wrote it (`server.preview_metadata`); absent on a page that is not a preview.",
           "type": "object",
           "properties": {
-            "example": { "type": "string" },
-            "checkout": { "type": "string" },
-            "interaction": { "enum": ["user", "author"] },
-            "started": { "type": "string" },
+            "example": {
+              "description": "The name of the source file the preview serves, without its extension.",
+              "type": "string"
+            },
+            "checkout": {
+              "description": "The checkout whose Leaf serves it.",
+              "type": "string"
+            },
+            "interaction": {
+              "description": "`user` for a `--user` preview, whose presses reach the session that claimed it; `author` for a plain one.",
+              "enum": ["user", "author"]
+            },
+            "started": { "description": "When the preview started.", "type": "string" },
             "input": {
               "description": "The fixture publication the preview's watcher last applied.",
               "type": "object",
@@ -200,8 +260,14 @@
           "description": "On leaf.page, who answers a published page and where to install Leaf; absent elsewhere.",
           "type": "object",
           "properties": {
-            "agent": { "type": "string" },
-            "install_url": { "type": "string" },
+            "agent": {
+              "description": "Who answers the published page.",
+              "type": "string"
+            },
+            "install_url": {
+              "description": "Where to install Leaf.",
+              "type": "string"
+            },
             "kind": { "type": "string" }
           },
           "required": ["agent", "install_url", "kind"],
@@ -268,17 +334,24 @@
       }
     },
     "Revision": {
+      "description": "One revision's live address, public stamp or draft label, and captured identity (`files.document_descriptor`).",
       "type": "object",
       "properties": {
-        "revision": { "type": "integer" },
-        "version": { "type": ["integer", "null"] },
-        "url": { "type": "string" },
-        "label": { "type": "string" },
+        "revision": { "description": "The revision's number.", "type": "integer" },
+        "version": {
+          "description": "The public version that stamped it, or null for a draft.",
+          "type": ["integer", "null"]
+        },
+        "url": { "description": "The revision's address.", "type": "string" },
+        "label": {
+          "description": "Its public name, `vN` or a draft's (`files.revision_label`).",
+          "type": "string"
+        },
         "executable": {
           "description": "The capture's executable identity, independent of public stamps, which a client compares with its delivered document.",
           "type": "string"
         },
-        "activated_at": { "type": "string" }
+        "activated_at": { "description": "When it went live.", "type": "string" }
       },
       "required": ["revision", "version", "url", "label", "executable", "activated_at"],
       "additionalProperties": false
@@ -711,9 +784,11 @@
       "additionalProperties": false
     },
     "Browser": {
+      "description": "What the browser reads of the page's revisions and the work on them (`served_state.browser.browser_state`).",
       "type": "object",
       "properties": {
         "basis": {
+          "description": "The log position the reading was taken through.",
           "type": "object",
           "properties": { "through_seq": { "type": "integer" } },
           "required": ["through_seq"],
@@ -1110,29 +1185,55 @@
       ]
     },
     "ObligationRow": {
+      "description": "An obligation record's row in On me or On <agent> (`served_state.queues`).",
       "type": "object",
       "properties": {
         "kind": {
           "description": "The record's `source.kind`.",
           "enum": ["widget", "approval", "update"]
         },
-        "id": { "type": "string" },
-        "owner": { "enum": ["user", "agent"] },
+        "id": {
+          "description": "The obligation, whose record is the view's `obligations` entry.",
+          "type": "string"
+        },
+        "owner": {
+          "description": "The list the row stands on.",
+          "enum": ["user", "agent"]
+        },
         "subject": { "$ref": "#/$defs/Subject" },
-        "thread": { "type": ["string", "null"] },
-        "live": { "type": "boolean" }
+        "thread": {
+          "description": "The thread it stands in, or null.",
+          "type": ["string", "null"]
+        },
+        "live": {
+          "description": "Whether the agent has it in hand now: an update it is at work on whose work has not gone quiet or stopped.",
+          "type": "boolean"
+        }
       },
       "required": ["kind", "id", "owner", "subject", "thread", "live"]
     },
     "TodoRow": {
+      "description": "A to-do's row in On me or On <agent> (`served_state.queues`).",
       "type": "object",
       "properties": {
         "kind": { "const": "todo" },
-        "id": { "type": "string" },
-        "owner": { "enum": ["agent", "user"] },
+        "id": {
+          "description": "The to-do, whose record is the page's `todos` entry.",
+          "type": "string"
+        },
+        "owner": {
+          "description": "The list the row stands on.",
+          "enum": ["agent", "user"]
+        },
         "subject": { "$ref": "#/$defs/Subject" },
-        "thread": { "type": ["string", "null"] },
-        "live": { "type": "boolean" }
+        "thread": {
+          "description": "The thread it stands in, or null.",
+          "type": ["string", "null"]
+        },
+        "live": {
+          "description": "Whether a start holds the to-do now.",
+          "type": "boolean"
+        }
       },
       "required": ["kind", "id", "owner", "subject", "thread", "live"]
     },
@@ -1219,10 +1320,14 @@
       ]
     },
     "ContentVersion": {
+      "description": "One version of an agent message's content: the message, and its latest edit's id or else its own (`read_state.content_version`).",
       "type": "object",
       "properties": {
-        "message": { "type": "string" },
-        "version": { "type": "string" }
+        "message": { "description": "The message's event id.", "type": "string" },
+        "version": {
+          "description": "The content version's id, which a `read` event names.",
+          "type": "string"
+        }
       },
       "required": ["message", "version"],
       "additionalProperties": false

@@ -33,7 +33,7 @@ from .served_state.reading import page_reading
 from .served_state.service import PageStateService
 from .server import exit_serving
 from .service import page_claim
-from .state import STRING, Record, object_schema, page_key, state_home
+from .state import STRING, Record, described, object_schema, page_key, state_home
 
 ACTIVITY_FIELDS = frozenset(
     {
@@ -65,33 +65,54 @@ def row_path(page_dir: Path) -> Path:
 
 COUNT = {"type": "integer", "minimum": 0}
 
-# A serving page's row, under the server incarnation that published it.
 ROW = Record(
     "row",
-    object_schema(
-        {
-            "page": STRING,
-            "page_key": STRING,
-            "server_id": STRING,
-            "row": object_schema(
-                {
-                    "title": STRING,
-                    "session_cwd": {"type": ["string", "null"]},
-                    "activity": {
-                        "type": "object",
-                        "properties": {
-                            "counts": {
-                                "type": "object",
-                                "required": sorted(COUNT_FIELDS),
-                            }
-                        },
-                        "required": sorted(ACTIVITY_FIELDS),
-                    },
-                    "on_user": COUNT,
-                    "threads": object_schema({"open": COUNT, "unread": COUNT}),
-                }
-            ),
-        }
+    described(
+        "A serving page's row, which other pages show it by, in the state home's "
+        "`rows/<page key>.json`.",
+        object_schema(
+            {
+                "page": described("The page directory.", STRING),
+                "page_key": described("The page's key (`state.page_key`).", STRING),
+                "server_id": described(
+                    "The server incarnation that published the row; a reader "
+                    "takes only the live service's own.",
+                    STRING,
+                ),
+                "row": described(
+                    "What other pages show of it.",
+                    object_schema(
+                        {
+                            "title": described("The page's title.", STRING),
+                            "session_cwd": described(
+                                "The claimant session's working directory, or null.",
+                                {"type": ["string", "null"]},
+                            ),
+                            "activity": described(
+                                "The page's activity, bounded to the fields a row "
+                                "shows (`compact_activity`).",
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "counts": {
+                                            "type": "object",
+                                            "required": sorted(COUNT_FIELDS),
+                                        }
+                                    },
+                                    "required": sorted(ACTIVITY_FIELDS),
+                                },
+                            ),
+                            "on_user": described("How many rows On me holds.", COUNT),
+                            "threads": described(
+                                "What the Leaf panel's Threads mark counts (`thread_counts`): "
+                                "the open threads, and those the user hasn't read.",
+                                object_schema({"open": COUNT, "unread": COUNT}),
+                            ),
+                        }
+                    ),
+                ),
+            }
+        ),
     ),
     since=16,
 )

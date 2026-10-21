@@ -81,7 +81,9 @@ _PROPERTIES = {
     "visible": described("Whether the document was visible.", {"type": "boolean"}),
     "revision": described("The revision the document shows.", _REVISION),
     "through_seq": described(
-        "The last event the document had applied, or null before any.", _THROUGH_SEQ
+        "The log position the tab's latest server reading was taken through, or "
+        "null before one arrives.",
+        _THROUGH_SEQ,
     ),
     "viewport": described("The layout viewport, in CSS pixels.", _VIEWPORT),
     "visual_viewport": described(

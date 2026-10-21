@@ -71,9 +71,10 @@
       <section id="served">
         <h2>Served state</h2>
         <p id="served-lede">
-          The page's runtime reads the state from <code>GET /api/state</code>, and each
-          <code>POST</code> answers with one of the definitions at the end of this
-          section. <code>leaf page state</code> prints a selection of the same reading.
+          The page's runtime reads the state from <code>GET /api/state</code>. The
+          definitions at the end of this section are the JSON answers to its posts; a
+          user-view or interaction post answers with no body.
+          <code>leaf page state</code> prints a selection of the same reading.
         </p>
         <div class="schema-list" data-schemas="served"></div>
       </section>

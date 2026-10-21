@@ -301,11 +301,15 @@ _BATCH = object_schema(
             "The session that owned the page at capture.",
             {"type": ["string", "null"]},
         ),
-        "through_seq": described("The last captured event's `seq`.", _INTEGER),
+        "through_seq": described(
+            "The log position the batch was captured through; a correction keeps its "
+            "original batch's.",
+            _INTEGER,
+        ),
         "threads": described(
-            "The threads the batch's events land in, each with what was said before "
-            "the batch (`thread_context.batch_threads`). A `when` clause reads an "
-            "event's as its `thread`.",
+            "The threads the batch's events land in, each with its messages other "
+            "than the batch's own (`thread_context.batch_threads`). A `when` clause "
+            "reads an event's as its `thread`.",
             {"type": "array", "items": _THREAD_DIGEST},
         ),
         "handling": described(
@@ -324,7 +328,7 @@ DELIVERY = Record(
     described(
         "The immutable envelope `leaf delivery read` prints "
         "(`references/event-batches.md`), in the state home's "
-        "`deliveries/<id>.json`: the user's updates, one batch per page. Registry "
+        "`deliveries/<id>.json`: the updates that need the agent's attention, one batch per page. Registry "
         "`when` clauses read its events, with an event's thread digest as `thread` "
         "(`registry.contract.event_clauses`).",
         object_schema(
@@ -335,7 +339,7 @@ DELIVERY = Record(
                     STRING,
                 ),
                 "created_at": described(
-                    "When it was frozen, in seconds since the epoch.",
+                    "When it was first collected, in seconds since the epoch.",
                     {"type": "number"},
                 ),
                 "acknowledge": described(

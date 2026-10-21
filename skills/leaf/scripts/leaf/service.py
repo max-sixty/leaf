@@ -840,8 +840,8 @@ STREAM = Record(
                                 ),
                                 "responds": described("The input it answers.", STRING),
                                 "item": described(
-                                    "The harness's id for the message being drafted, "
-                                    "or null once the draft is finished.",
+                                    "The harness's id for the message supplying the "
+                                    "draft, or null while none is attached.",
                                     {"type": ["string", "null"]},
                                 ),
                                 "text": described("Its words so far.", STRING),

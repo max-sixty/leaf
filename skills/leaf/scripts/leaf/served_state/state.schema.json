@@ -137,11 +137,11 @@
               "type": "string"
             },
             "detail": {
-              "description": "The words the agent declared it with.",
+              "description": "The declaration's words; empty before the first declaration and where a start reopened an idle page.",
               "type": "string"
             },
             "ts": {
-              "description": "When it declared it; absent before the first declaration.",
+              "description": "When the agent declared it, or when a start reopened an idle page; absent before the first declaration.",
               "type": "string"
             }
           },
@@ -149,7 +149,7 @@
           "additionalProperties": false
         },
         "listening": {
-          "description": "Whether the claimant's wait lease is held, so its session hears new updates.",
+          "description": "Whether a wait lease on the page is held: the active claimant session's, or the page's own where no session claims it.",
           "type": "boolean"
         },
         "session_alive": {
@@ -192,11 +192,11 @@
           "type": ["string", "null"]
         },
         "turn_closed": {
-          "description": "When the claimant's last turn ended, or null while none has.",
+          "description": "When the claimant's current turn closed, or null while it is open or nothing claims the page.",
           "type": ["string", "null"]
         },
         "turn_opened": {
-          "description": "When that turn opened, or null.",
+          "description": "When that turn opened or was last renewed, or null where nothing claims the page.",
           "type": ["string", "null"]
         },
         "turn_takes_input": {
@@ -230,7 +230,7 @@
           "type": "object",
           "properties": {
             "example": {
-              "description": "The name of the source file the preview serves.",
+              "description": "The name of the source file the preview serves, without its extension.",
               "type": "string"
             },
             "checkout": {

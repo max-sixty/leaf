@@ -281,41 +281,75 @@ def field_rows(schema, path: str = "", skip: frozenset = frozenset()) -> list[tu
         rows.extend(field_rows(items, f"{path}[]"))
     where = f"<code>{path}</code> " if path else ""
     declared = {row[0] for row in rows}
+    # Each clause and the condition it holds under: a union's branch is picked by
+    # the constants it holds, a conditional by its `if`, and an `allOf` conjunct
+    # always holds.
     clauses = [
-        (branch, "") for branch in [*schema.get("anyOf", []), *schema.get("oneOf", [])]
+        (branch, when(variant_label(branch)), True)
+        for branch in [*schema.get("anyOf", []), *schema.get("oneOf", [])]
     ]
-    clauses += [
-        (clause.get("then", clause), variant_label(clause.get("if", {})))
-        for clause in schema.get("allOf", [])
-    ]
+    conditionals = [schema, *schema.get("allOf", [])]
+    for clause in conditionals:
+        if "if" in clause:
+            condition = when(variant_label(clause["if"]))
+            clauses.append((clause.get("then", {}), condition, False))
+            if "else" in clause:
+                clauses.append((clause["else"], "otherwise", False))
+        elif clause is not schema:
+            clauses.append((clause, "", False))
     # Each clause's own fields, less those it restates from beside it.
     adding = [
         [row for row in field_rows(branch, path) if row[0] not in declared]
-        for branch, _ in clauses
+        for branch, _, _ in clauses
     ]
     alternatives = []
-    for index, ((branch, condition), nested) in enumerate(zip(clauses, adding), 1):
-        names = (
-            ", ".join(f"<code>{name}</code>" for name in branch.get("required", ()))
-            if isinstance(branch, dict)
-            else ""
-        )
+    for index, ((branch, condition, alternative), nested) in enumerate(
+        zip(clauses, adding), 1
+    ):
         if nested:
-            when = condition or variant_label(branch)
-            label = f"when {when}" if when else f"variant {index}"
+            label = condition or f"variant {index}"
             description = key_prose(branch.get("description", ""))
             # A union with one branch of fields, such as an object or null, needs no
             # row telling its branches apart.
-            if when or description or sum(map(bool, adding)) > 1:
+            if condition or description or sum(map(bool, adding)) > 1:
                 rows.append((f"{where}{label}. {description}".strip(),))
             rows.extend(nested)
-        elif names and condition:
-            rows.append((f"{where}when {condition}, requires {names}.",))
-        elif names:
-            alternatives.append(names)
+        elif rule := requirement(branch):
+            if condition:
+                rows.append((f"{where}{condition}, {rule}.",))
+            elif alternative:
+                alternatives.append(rule)
+            else:
+                rows.append((f"{where}{rule}.",))
     if alternatives:
-        rows.append((f"{where}requires one of: {'; '.join(alternatives)}.",))
+        rows.append((f"{where}one of: {'; '.join(alternatives)}.",))
     return rows
+
+
+def when(label: str) -> str:
+    return f"when {label}" if label else ""
+
+
+def code_list(names) -> str:
+    return ", ".join(f"<code>{name}</code>" for name in names)
+
+
+def requirement(clause) -> str:
+    """The fields a clause requires and forbids, in words."""
+    if not isinstance(clause, dict):
+        return ""
+    parts = []
+    if clause.get("required"):
+        parts.append(f"requires {code_list(clause['required'])}")
+    excluded = clause.get("not", {})
+    forbidden = [
+        group["required"][0]
+        for group in [excluded, *excluded.get("anyOf", [])]
+        if len(group.get("required", ())) == 1
+    ]
+    if forbidden:
+        parts.append(f"forbids {code_list(forbidden)}")
+    return " and ".join(parts)
 
 
 def table_row(row: tuple) -> str:

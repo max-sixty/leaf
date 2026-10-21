@@ -420,7 +420,9 @@ def object_schema(required: dict, optional: dict | None = None) -> dict:
 def described(description: str, schema: dict) -> dict:
     """`schema` with its JSON Schema `description`, the one home of what a field
     means (the site's data-structures page renders it)."""
-    return {"description": description, **schema}
+    return {"description": description} | {
+        key: value for key, value in schema.items() if key != "description"
+    }
 
 
 STRING = {"type": "string"}

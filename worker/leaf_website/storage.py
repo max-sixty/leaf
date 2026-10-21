@@ -41,7 +41,7 @@ from leaf.schema import (
 )
 from leaf.served_state.reading import record_reading
 from leaf.service import PageTransaction
-from leaf.state import STRING, Record, object_schema, page_key, state_home
+from leaf.state import STRING, Record, described, object_schema, page_key, state_home
 from starlette.requests import Request
 
 CHUNK_BYTES = 1024 * 1024
@@ -289,10 +289,23 @@ def _responses(
     return result
 
 
-# The page reading a page's last publication was made from (`record_reading`), so
-# an unchanged page is not published again.
 PUBLISHED = Record(
-    "website-publication", object_schema({"fingerprint": STRING}), since=13
+    "website-publication",
+    described(
+        "What leaf.page's container last published of a page, in its state home's "
+        "`website-publications/<page key>.json`, so an unchanged page is not "
+        "published again.",
+        object_schema(
+            {
+                "fingerprint": described(
+                    "The page reading the publication was made from "
+                    "(`record_reading`).",
+                    STRING,
+                )
+            }
+        ),
+    ),
+    since=13,
 )
 
 

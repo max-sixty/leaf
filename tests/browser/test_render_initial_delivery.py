@@ -3,21 +3,26 @@
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Event
 
+import pytest
 from interact_support import running_http_server
 from leaf.render_gate.scheme import collect_page_exceptions
 from leaf.revision_artifact import Resource
 from leaf.revision_delivery import Delivery, compose_document
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_streamed_initial_host_first_shows_its_complete_drawing(
-    browser, compiled_installation
+    engine, request, compiled_installation
 ):
     """A pause inside a nested widget must not expose source layout before its drawing,
     and the drawn host stands among its authored siblings with no delivery script left.
 
     The same nodes then reach the behavior module, with tab memory already drawn and
     the original nested source still available for semantic intake and revisions.
+    Firefox reparses a document after an unbalanced `document.write` and warns of it,
+    so its run holds delivery to writing none.
     """
+    browser = request.getfixturevalue(engine)
     assets = compiled_installation / "skills/leaf/assets"
     host_source = (
         '<lf-initial-outer id="outer"><aside data-lf-exhibit="">'
@@ -25,7 +30,7 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(
         "</lf-initial-inner></aside></lf-initial-outer>"
     )
     source = (
-        "<html><head><title>Streamed initial drawing</title></head><body><main>"
+        "<!DOCTYPE html><html><head><title>Streamed initial drawing</title></head><body><main>"
         '<p id="already-reading">A paragraph already available to read.</p>'
         + host_source
         + '<p id="after">After the complete drawing.</p></main></body></html>'
@@ -92,8 +97,10 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(
         delivery=Delivery(
             address=lambda path: path if path in resources else None,
             runtime="",
+            # The theme holds the arriving host out of the page.
             inline_stylesheet=lambda _: (
-                "lf-initial-outer{display:block;margin-block:16px}"
+                (assets / "theme.css").read_text()
+                + "lf-initial-outer{display:block;margin-block:16px}"
                 ".initial-frame{padding:24px;border:1px solid black}"
             ),
         ),

@@ -120,11 +120,10 @@ class Samples:
             write_data(
                 child,
                 {
-                    name: reading["contract"]
-                    for name, reading in data["sources"].items()
-                },
-                {
-                    name: {key: reading[key] for key in ("run", "updated", "value")}
+                    name: {
+                        key: reading[key]
+                        for key in ("contract", "run", "updated", "value")
+                    }
                     for name, reading in data["sources"].items()
                     if "value" in reading
                 },

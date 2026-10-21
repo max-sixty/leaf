@@ -1,14 +1,18 @@
 """Ownership discovery must not mutate a claim that a new page has acquired."""
 
 import fcntl
+import json
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Event
 
+import pytest
+from click.testing import CliRunner
 from interact_support import STATED_TIMEOUT, record_claim
-from leaf import service
+from leaf import cli as cli_model
+from leaf import service, state
 from leaf.service import claim_path, claim_records, page_claim
-from leaf.state import flocked
+from leaf.state import flocked, holds_claims
 
 
 def test_session_discovery_reads_only_its_canonical_claim_partition(
@@ -57,6 +61,7 @@ def test_resident_flat_claim_updates_preserve_session_discovery(page_dir):
     assert prior_locator.is_symlink()
     record_claim(page, id="successor")
     # A delayed old alias is only a locator, never successor ownership in prior.
+    prior_locator.parent.mkdir(exist_ok=True)
     prior_locator.symlink_to(Path("..") / canonical.name)
     assert claim_records("prior") == []
     assert [claim["id"] for claim in claim_records()] == ["successor"]
@@ -66,20 +71,22 @@ def test_resident_flat_claim_updates_preserve_session_discovery(page_dir):
     assert [claim["id"] for claim in claim_records()] == ["successor"]
 
 
+@pytest.mark.parametrize("session", [None, "prior"])
 def test_a_scan_of_a_missing_page_preserves_its_concurrent_successor(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, session
 ):
+    """A scan retires a claim on a missing page, but never the successor's that
+    replaced it while the scan ran, even when the successor is the session whose
+    claims the scan reads."""
     page = tmp_path / "recreated"
-    prior = record_claim(page, id="prior")
-    assert claim_records() == []
-    assert page_claim(page) == prior
+    record_claim(page, id="prior")
 
     observed_missing = Event()
     successor_written = Event()
-    is_dir = Path.is_dir
+    stands = state.page_stands
 
     def observe_before_recreation(path):
-        exists = is_dir(path)
+        exists = stands(path)
         if path == page and not exists:
             observed_missing.set()
             assert successor_written.wait(STATED_TIMEOUT), (
@@ -87,22 +94,22 @@ def test_a_scan_of_a_missing_page_preserves_its_concurrent_successor(
             )
         return exists
 
-    monkeypatch.setattr(Path, "is_dir", observe_before_recreation)
+    monkeypatch.setattr(state, "page_stands", observe_before_recreation)
     with ThreadPoolExecutor(max_workers=1) as executor:
-        scan = executor.submit(claim_records)
+        scan = executor.submit(claim_records, session)
         try:
             assert observed_missing.wait(STATED_TIMEOUT), (
                 "scan did not observe the missing page"
             )
             page.mkdir()
-            successor = record_claim(page, id="successor")
+            successor = record_claim(page, id=session or "successor")
         finally:
             successor_written.set()
         assert scan.result(timeout=STATED_TIMEOUT) == []
 
     assert claim_path(page).exists()
     assert page_claim(page) == successor
-    assert claim_records("successor") == [successor]
+    assert claim_records(successor["id"]) == [successor]
 
 
 def test_a_waiting_page_transaction_follows_a_recreated_page(tmp_path, monkeypatch):
@@ -135,3 +142,38 @@ def test_a_waiting_page_transaction_follows_a_recreated_page(tmp_path, monkeypat
             log.write_bytes(b"new")
         assert waiter.result(timeout=STATED_TIMEOUT) == b"new"
     assert log.read_bytes() == b"new"
+
+
+def test_a_claim_on_a_page_that_is_gone_retires_whichever_leaf_wrote_it(tmp_path):
+    """A session's own scan removes its claim on a deleted page, with its locator,
+    so the session holds nothing and its hooks and files can end with it. A page
+    the scan can't reach, behind a folder it may not read, still stands."""
+    page = tmp_path / "deleted"
+    page.mkdir()
+    record_claim(page, id="owner")
+    payload = claim_path(page)
+    payload.write_text(json.dumps({**json.loads(payload.read_text()), "format": "x"}))
+    assert holds_claims("owner")
+    tmp_path.chmod(0)
+    try:
+        assert holds_claims("owner")
+    finally:
+        tmp_path.chmod(0o755)
+    page.rmdir()
+    assert not holds_claims("owner")
+    assert not payload.exists()
+    assert not service.session_claims("owner").exists()
+
+
+def test_initializing_a_recreated_page_releases_its_old_claimant(tmp_path):
+    """A fresh page at a deleted page's path starts unclaimed, and the session that
+    held the deleted page holds nothing."""
+    page = tmp_path / "recreated"
+    record_claim(page, id="prior")
+    page.mkdir()
+    assert holds_claims("prior")
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
+    assert result.exit_code == 0, result.output
+    assert page_claim(page) is None
+    assert not holds_claims("prior")
+    assert not (service.session_claims("prior") / claim_path(page).name).is_symlink()

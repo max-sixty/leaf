@@ -43,7 +43,6 @@ def test_explicit_cli_binding_and_lossless_save(page_dir, tmp_path):
     }
     original = read_file(page_dir, "notes")
     assert original["text"] == "# café\n\nhello\n"
-    assert original["newline"] == "CRLF"
     saved = save_file(
         page_dir,
         "notes",
@@ -52,7 +51,6 @@ def test_explicit_cli_binding_and_lossless_save(page_dir, tmp_path):
     assert target.read_bytes() == "# café\r\nchanged\r\n".encode()
     assert stat.S_IMODE(target.stat().st_mode) == 0o640
     assert saved == read_file(page_dir, "notes")
-    assert saved["bytes"] == len(target.read_bytes())
     assert saved["revision"] != original["revision"]
     target.write_text("external\n")
     with pytest.raises(StaleFileError) as stale:

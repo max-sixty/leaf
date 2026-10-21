@@ -58,7 +58,7 @@ var chromeSharedClasses = Object.freeze([
   "lf-ins-block",
   "lf-over-item",
   "lf-react-mark",
-  "lf-skip",
+  "lf-mark-note",
   "lf-ui",
   "lf-version-inline",
   "lf-version-inline-deletion",

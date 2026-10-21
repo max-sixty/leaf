@@ -21,9 +21,8 @@ and [packages.md](../skills/leaf/references/packages.md).
 Delivery belongs to the harness adapter: Claude Code's Stop hook watches claimed
 pages; ordinary Codex tasks receive queued deliveries; tasks with an accessible
 Codex App Server receive delivery turns through that server. Read the owning
-[Claude Code](../skills/leaf/references/harness-claude-code.md),
-[Codex queue](../skills/leaf/references/harness-codex.md), and
-[App Server](../skills/leaf/references/harness-codex-app-server.md) contracts rather
+[Claude Code](../skills/leaf/references/harness-claude-code.md) and
+[Codex](../skills/leaf/references/harness-codex.md) contracts rather
 than deriving a handoff from this comparison. Serving, authentication, persistent
 lifetimes, and offline export belong to
 [serving-pages.md](../skills/leaf/references/serving-pages.md).
@@ -33,24 +32,6 @@ boundaries. Repeated differences in the sections below refer to this Leaf
 baseline rather than restating a feature table for each project.
 
 ## Interaction lessons for Leaf, 2026-10-04
-
-**Host integration.** Plannotator's [session bridge](https://github.com/backnotprop/plannotator/blob/main/packages/ai/session-bridge.ts)
-separates host readiness, submission, and streaming behind an adapter. Its
-[Claude Code session module](https://github.com/backnotprop/plannotator/blob/v0.28.4/apps/hook/hooks/mod/register.ts)
-is released in v0.28.4 and enabled by default on supported interactive hosts
-(rechecked 2026-10-05). Leaf's opt-in
-[Claude hooks module](../hooks/claude-code.ts) now owns watching between turns,
-including interruption and delivery during a running turn. It landed with
-real-host verification in [PR #1936](https://github.com/max-sixty/leaf/pull/1936).
-The remaining cutover waits for Claude Code to load modules without an opt-in;
-the module's header owns that condition. Durable input, pickup, and response
-identity still belong to Leaf. The decisive case is a running turn
-ending without reading its offered hook pointer: the existing
-[delivery tests](../tests/model/test_codex_adapter.py) cover falling back to the
-queue without losing that input. An offer or queue acknowledgment is not pickup. I
-inspected those tests, without rerunning them. No peer demonstrated a general
-same-chat Codex solution; Plannotator's public sharing demo did not exercise a
-live bridge.
 
 **Task state.** [Workbench](https://workbench.md/agents.md) separates atomic Ask
 claims from Markdown-board claims using optimistic `If-Match` edits. Neither
@@ -71,15 +52,6 @@ workspace/task identities and [canonical summaries](../skills/leaf/scripts/leaf/
 should support navigation without making a serving process the obligation's owner.
 Opaque widget JSON persistence does not prove that a decision keeps its meaning.
 
-**Page-level threads.** I operated [Agentation's toolbar](https://www.agentation.com/)
-and contextual composer, typed a local draft, and dismissed it without sending.
-Plannotator's [global composer mode](https://github.com/backnotprop/plannotator/blob/main/packages/ui/components/CommentPopover.tsx)
-shares draft machinery. Leaf starts a page thread in the floating panel's comment
-field ([floating-panel.js](../skills/leaf/assets/runtime/floating-panel.js)), and
-Threads holds continuation. That separation landed in
-[PR #1930](https://github.com/max-sixty/leaf/pull/1930). Recovery of a global
-conversation among anchored threads remains a usability question.
-
 **UI stability.** Lavish's [bounded mobile sheet](https://github.com/kunchenguid/lavish-axi/blob/main/src/chrome.css)
 and Plannotator's central placement function offer useful mechanisms. Their
 source and browser tests were reviewed, not run. Agentation's toolbar was
@@ -87,63 +59,6 @@ desktop-only at 390px. Use Leaf's existing geometry owner, an explicit bounded
 mode when space runs out, and first-frame journeys covering nested scroll,
 reply expansion, and keyboard arrival. A component library or final screenshot
 does not prove the absence of layout churn.
-
-### Phone annotation placement, 2026-10-05
-
-The comparison report's 390px render showed an anchored pin covering prose.
-Leaf's [overlay contract](../skills/leaf/assets/AGENTS.md) explicitly permits
-pins to cover content without reflowing it; `o` and More → Hide annotations
-provide reading routes. The placement owner searches for a clear seat, but
-[its fallback](../skills/leaf/assets/runtime/annotation-overlay/margin-placement.js)
-can retain a pin without text clearance. The capture establishes the reading
-problem, not which fallback branch produced it. The existing annotation-placement
-TODO now includes this case. Compare a no-clear-seat disposition that preserves
-access through Page Map or Threads; enlarging the search alone still leaves the
-dense-prose fallback. No replacement policy was implemented or demonstrated.
-
-## Concrete follow-up proposals, 2026-10-04; revised 2026-10-05
-
-Proposals first checked against Leaf `486180b51888d8dd46584f6c84e3d2a96f2035cb`,
-then rechecked against `532be8f718f6a2f3bdf1391f936a4778fcf5735f` on October 5.
-IDs match the live report. Existing task starts, the On view's Done list,
-persistence, free HTML, general composing, constrained panels and CSS-anchor
-following are the baseline, not proposed additions.
-
-- **#1 — Quiet Codex feedback.** Keep the desktop queue's compact XML pointer
-  while that route needs it. The useful improvement is delivery without an
-  automatic user message. The existing [App Server request](../skills/leaf/scripts/leaf/codex.py)
-  sends empty user input and a structured `leaf_delivery` tool result. Desktop
-  access and rendering remain unverified. Prove agent wake-up and exact
-  input/reply identity while keeping automatic user-message text out of chat.
-- **#4 — Make finished task results easy to read.** The On view already
-  lists ended tasks under Done with their outcome. Their detail is in the row's
-  native tooltip; show it as visible text or a disclosure usable by a finger.
-  Test whether readers find the result after the active count drops. Retain
-  navigation to an existing thread where one belongs to the task, including
-  resolved threads. Page and widget tasks may have no thread, so the On view
-  remains their result route. This displays the logged outcome rather than creating
-  independent evidence of completion.
-- **#6 — Canonical task selectors and list/board experiment.** Workbench's
-  heading-driven board and [Sfora's map](https://www.sfora.ai/features/boards)
-  were operated, without persistence proof. Leaf's On view already consumes
-  canonical task readings; expose those through the existing package publication
-  API. Prove list and board consume one task outcome without agent-maintained
-  duplicate status markup. Preserve arbitrary authored HTML.
-- **#7 — Page threads visibility, usability hypothesis.** Leaf already has
-  Location → Page beneath View and separate creation and reply controls. Test a
-  visible count/toggle for that predicate. Compare context-blind recovery
-  of a global conversation among anchored threads before adopting the change.
-- **#8 — Shared visual-viewport fixed-panel bounds.**
-  [Lavish's sheet](https://github.com/kunchenguid/lavish-axi/blob/main/src/chrome.css)
-  consumes visible bounds. Leaf measures them but fixed auxiliary panels still
-  reach the layout bottom. Route bounds through `geometry.js` to all
-  affected surfaces. This condition is source-identified, not a reproduced bug;
-  keyboard-only shrink needs first-frame caret/Send and draft/focus proof.
-
-The October 5 report captures show Agentation’s targeted composer/desktop-only
-notice and Leaf’s then-current gallery Page filter, reply draft and creation footer.
-No live peer bridge or signed-in workspace was exercised. These recommendations
-extend the committed feature research.
 
 ## Claude Code Artifacts
 
@@ -546,3 +461,46 @@ package-design lead, not evidence that an animation dependency is ready to adopt
 The useful common idea is separating semantic states from motion between them.
 A Leaf package experiment can test that model without first building video export,
 autoplay policy, or a broad animation framework.
+
+## affectUI
+
+Read on 2026-10-15 from the [site](https://www.affectui.com/), its
+[`llms.txt`](https://www.affectui.com/llms.txt), the
+[license](https://www.affectui.com/license) and the free items'
+[repository](https://github.com/flohoeller/affectui). affectUI was a library of 103
+React 19 items for AI products, each one `.tsx` file whose styles sit in a CSS string,
+installed through the shadcn CLI or an MCP server. 40 items were MIT; the other 63
+were Pro, a one-time purchase of their source. Pro's license excluded a public
+repository and "a page builder, design tool or similar product for others", which
+rules out porting Pro source into Leaf. Every Pro item's live preview, keyboard map
+and motion notes were public.
+
+The CSS ports without React: folds animate `grid-template-rows` from `1fr` to `0fr`,
+one easing, `cubic-bezier(0.22, 1, 0.36, 1)`, runs throughout and is nearly the
+floating panel's, and each item honors `prefers-reduced-motion`. Colors are hex
+values per component rather than shared tokens.
+
+Patterns Leaf lacked on the read date:
+
+- **A plan drawn as a plan.** Agent Plan keeps a run's steps in order in one card,
+  done ones ticked and the current one timed, under "Running · 1 of 5". Leaf has
+  since drawn the agent's plan (`leaf task plan`) in the floating panel's Plan tab,
+  each goal with its steps done and each step's state in place (#3195). Tool Call
+  Card has no Leaf counterpart: tool calls belong to the harness's transcript.
+- **Answering in a list row.** Agent Inbox and Decision Inbox put Approve and Reject
+  in each row, with status and a live clock on the agent's rows. Leaf's floating
+  panel's On view already answers inline.
+- **Keys and stepping for suggestions.** Inline Diff binds Y and N at the current
+  change, steps between changes, and offers Reject all beside Accept all.
+- **A tray container.** A white card inside a gray tray, with status and actions on
+  the tray and key hints inside the buttons ("Deny Esc").
+- **Motion references** for the floating panel's motion pass: Number Ticker for
+  counts and Blur Crossfade for content swaps.
+
+Two of its behaviors conflict with Leaf's guarantees. An answered row confirms and
+then folds away, carrying the next row under the pointer, where Leaf keeps an
+answered item in place until its view closes. And toasts stack in a corner, where
+Leaf's notices take the status line's seat.
+
+On 2026-10-20 the user decided Leaf takes nothing further from affectUI: neither the
+suggestion keys nor the tray, and no Pro purchase.

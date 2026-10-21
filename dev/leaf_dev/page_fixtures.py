@@ -16,11 +16,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Protocol
 
-from leaf.event_log import read_events, write_cursor
+from leaf.delivery import record_receipt
+from leaf.event_log import read_events
 from leaf.interaction_log import append_interactions
 from leaf.media import media_name
 from leaf.revision_artifact import Resource, capture_artifact, capture_local_resource
 from leaf.schema import MEDIA_DIR, MEDIA_TYPES
+from leaf.service import PageTransaction
 from leaf.structure import SourceDocument
 
 from leaf_dev import ROOT, docs
@@ -286,8 +288,9 @@ def _seed_log(fixture: PageFixture, page: Path) -> None:
 def _acknowledge_seed(fixture: PageFixture, page: Path) -> None:
     if fixture.seed is None:
         return
-    events = read_events(page)
-    write_cursor(page, events[-1]["seq"] if events else 0)
+    with PageTransaction(page) as transaction:
+        if transaction.events:
+            record_receipt(transaction, transaction.events[-1]["seq"])
 
 
 def prepare_page(
@@ -311,9 +314,9 @@ def prepare_page(
     version is the one that has to bind it. Versions are then stamped oldest first,
     and the seed log goes in after the first stamp and before any later one, so a
     revised example reads in the order it happened: a version, what the user said
-    about it, then the version that answered. The cursor ends past the seed, since a
-    seed is history: a cursor at zero would hand the next agent session questions
-    the log already answers.
+    about it, then the version that answered. A receipt acknowledges the seed, since
+    a seed is history: an unacknowledged one would hand the next agent session
+    questions the log already answers.
 
     `each_version` is called with each version's source once it is stamped, and once
     the seed is in the log after the first, so it reads the page as a builder

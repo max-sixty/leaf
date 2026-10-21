@@ -35,6 +35,7 @@ import {
   alreadyShown,
   anchorLabel,
   answeredInWords,
+  authoredHolder,
   beginThreadSeats,
   beginWalk,
   blocksOnScreen,
@@ -131,6 +132,7 @@ import {
   tabStore,
   textBlocks,
   threadDraft,
+  threadIdNamed,
   threadList,
   threadName,
   threadNamed,
@@ -222,7 +224,9 @@ import {
   scrollersOf,
   settlePageInterface,
   shownRegionBounds,
+  stopScroll,
   tickClock,
+  unconcealedReadingRegions,
   watchReadingRegionTransitions
 } from "./bundle-presence.js";
 import {
@@ -348,7 +352,6 @@ import {
   keepsHidden,
   move,
   nextAnimation,
-  nextFrame,
   nextRender,
   onFrameVisibility,
   onStanding,
@@ -549,15 +552,9 @@ function mountHistory({ followFragment, returnToFragment }) {
           if (!mayReturn()) return;
           const scrollers = /* @__PURE__ */ new Set([
             pageScroller,
-            ...readingRegions().map((region) => region.body)
+            ...unconcealedReadingRegions().map((region) => region.body)
           ]);
-          for (const scroller of scrollers)
-            scroller.scrollTo({
-              left: scroller.scrollLeft,
-              top: scroller.scrollTop,
-              behavior: "instant"
-            });
-          await new Promise((resolve) => nextFrame(() => nextFrame(resolve)));
+          await stopScroll(scrollers);
           if (!mayReturn()) return;
           let work;
           mayReturn.handoff(() => {
@@ -827,7 +824,7 @@ function sentDrawing(drawing) {
 }
 
 // runtime/protocol.js
-var DRAFT_FORMAT = "leaf-draft/13";
+var DRAFT_FORMAT = "leaf-draft/15";
 
 // runtime/composing/text-field.js
 import {
@@ -868,6 +865,13 @@ sheet.replaceSync(`
      against. Both layers share one grid cell, inside the host's padding. */
   .lf-field { display: grid; }
   .lf-field > * { grid-area: 1 / 1; min-width: 0; }
+  /* An owner growing the field at its top can carry the words down to where they stood
+     and back with the edge, by the host's --lf-field-ride (theme.css), a transform
+     that moves neither the field nor its layout. The field's content box cuts off what
+     hasn't risen into it yet, the new line and its caret, and keeps that travel from
+     reading as words past the field's foot. */
+  .lf-field { overflow-y: clip; }
+  .lf-field > * { translate: 0 var(--lf-field-ride); }
   /* The placeholder is one line that never widens the box \u2014 a response bar sizes to the
      words \u2014 and shortens with an ellipsis where the box is narrow, so it reads the same
      height whether it shows the plain words or a keyed hint. */
@@ -2258,6 +2262,16 @@ function createAnchorTravel({
     return Boolean(where && seenOf(where));
   }
   async function arrive(resolve, { intent, present = null, departure = null }) {
+    const initial = intent() && resolve();
+    if (!initial?.where) return false;
+    if (initial.scroll.length)
+      await stopScroll(
+        /* @__PURE__ */ new Set([
+          pageScroller,
+          ...unconcealedReadingRegions().map((region) => region.body)
+        ])
+      );
+    if (!intent()) return false;
     const first = resolve();
     const holder = first && placeHolder(first.where);
     if (!holder || !intent()) return false;
@@ -2449,7 +2463,7 @@ function createAnchorTravel({
       return false;
     }
     const destination = addressedElements(source, key)[0] ?? null;
-    const moving = departure.plan(destination);
+    departure.plan(destination);
     if (!destination) {
       await arrive(
         () => {
@@ -2468,7 +2482,9 @@ function createAnchorTravel({
         return where && {
           where,
           focus: focus ? where : null,
-          scroll: moving ? [{ at: where, block: "start" }] : []
+          scroll: [
+            { at: where, block: "start", when: () => !readableDestination(where) }
+          ]
         };
       },
       { intent: mayArrive, departure }
@@ -5015,7 +5031,7 @@ function createQueueActions({ post: post2, arrive }) {
 async function readState(bound) {
   countTraffic("asked");
   try {
-    if (offlineInteractive) return offlineState();
+    if (offlineInteractive) return { state: offlineState(), fault: null };
     const signal = globalThis.AbortSignal.timeout(bound);
     const held = runtime.data;
     let res;
@@ -5027,14 +5043,18 @@ async function readState(bound) {
         signal
       });
     } catch {
-      return null;
+      return NOTHING;
     }
-    if (!admitResponse(res)) return null;
-    if (!res.ok) return null;
+    if (!admitResponse(res)) return NOTHING;
+    if (!res.ok) {
+      if (res.status === 401 || NO_SERVER_BEHIND.has(res.status)) return NOTHING;
+      const answer = await res.json().catch(() => null);
+      return { state: null, fault: answer?.error ?? `HTTP ${res.status}` };
+    }
     try {
-      return completeData(await res.json(), held);
+      return { state: completeData(await res.json(), held), fault: null };
     } catch (error) {
-      if (signal.aborted) return null;
+      if (signal.aborted) return NOTHING;
       throw error;
     }
   } finally {
@@ -5042,10 +5062,7 @@ async function readState(bound) {
   }
 }
 function buffer(bound) {
-  return readState(bound).then(
-    (state) => ({ state }),
-    (error) => ({ error })
-  );
+  return readState(bound).catch((error) => ({ error }));
 }
 function beginRead() {
   return buffer(FIRST_READ_TIMEOUT_MS);
@@ -5068,19 +5085,20 @@ function createStateFeed({
     if (stateApplying()) return;
     document.dispatchEvent(new Event("lf-tick"));
   }
-  async function readNothing() {
+  async function readNothing(fault = null) {
     readAnswered = false;
     if (runtime.statePhase === "waiting") applicationState.setPhase("offline");
-    applicationState.setReach(runtime.keyRefused ? "refused" : "unreachable");
+    if (fault !== null) applicationState.setReach("faulted", fault);
+    else applicationState.setReach(runtime.keyRefused ? "refused" : "unreachable");
     await invalidateDom2();
     await tick();
   }
   async function readAndApply(read2 = buffer(STATE_READ_TIMEOUT_MS)) {
     const answer = await read2;
     if ("error" in answer) throw answer.error;
-    const { state } = answer;
+    const { state, fault } = answer;
     if (!state) {
-      await readNothing();
+      await readNothing(fault);
       return;
     }
     await receiveState(state);
@@ -5128,7 +5146,7 @@ function createStateFeed({
     const askOnce = async () => {
       const returned = readingReturn();
       try {
-        const state = await readState(STATE_READ_TIMEOUT_MS);
+        const { state, fault } = await readState(STATE_READ_TIMEOUT_MS);
         if (state) {
           applyingReads += 1;
           void receiveState(state).then(
@@ -5148,7 +5166,7 @@ function createStateFeed({
             applyingReads -= 1;
           });
         } else {
-          void readNothing().then(async () => {
+          void readNothing(fault).then(async () => {
             await present();
             if (!applyingReads && !stateApplying()) completeReadingReturn(returned);
           }).catch(failed);
@@ -5248,6 +5266,8 @@ var TICK_MS = 2e3;
 var LOOK_MS = 250;
 var FIRST_READ_TIMEOUT_MS = 12e4;
 var STATE_READ_TIMEOUT_MS = 1e4;
+var NOTHING = Object.freeze({ state: null, fault: null });
+var NO_SERVER_BEHIND = /* @__PURE__ */ new Set([502, 503, 504]);
 
 // runtime/pending/state.js
 function createPendingLedger({ newAttempt, enqueue }) {
@@ -5384,7 +5404,8 @@ function createCommandDispatch() {
 // runtime/delivery.js
 var RETRY_MS = 2e3;
 var retryPause = () => new Promise((resolve) => setTimeout(resolve, RETRY_MS));
-var readEventAnswer = (response, answer) => response.ok && answer?.ok === true && answer.state ? "accepted" : answer?.final === true ? "refused" : "incomplete";
+var acceptedAnswer = (response, answer) => response.ok && !!answer && "state" in answer && !("final" in answer);
+var refusedAnswer = (answer) => !!answer && "final" in answer;
 var applyAnswerState = (apply, state) => apply(state).catch((error) => reportCarried(error, "state in event response"));
 function createDelivery({
   ledger,
@@ -5417,12 +5438,12 @@ function createDelivery({
           (response) => ({ response }),
           (error) => ({ error })
         ),
-        entry.read.then((accepted2) => ({ accepted: accepted2 }))
+        entry.read.then((accepted) => ({ accepted }))
       ]);
       if (sent.accepted) return { accepted: sent.accepted };
       if (sent.error) {
         await retry(
-          runtime.keyRefused ? "Key refused \u2014 open Leaf's link in a new tab and the change will send" : "Connection lost \u2014 retrying the change\u2026"
+          runtime.keyRefused ? "Key refused \u2014 open Leaf's link in a new tab and the change will send" : "Connection lost \u2014 keep this page open while it retries"
         );
         continue;
       }
@@ -5436,7 +5457,7 @@ function createDelivery({
           (answer2) => ({ answer: answer2 }),
           (error) => ({ error })
         ),
-        entry.read.then((accepted2) => ({ accepted: accepted2 }))
+        entry.read.then((accepted) => ({ accepted }))
       ]);
       if (decoded.accepted) return { accepted: decoded.accepted };
       if (decoded.error) {
@@ -5444,19 +5465,20 @@ function createDelivery({
         continue;
       }
       const answer = decoded.answer;
-      const reading = readEventAnswer(sent.response, answer);
-      const accepted = reading === "accepted" && answer.state.browser?.receipts?.find(
-        (candidate) => candidate.attempt === event.attempt
-      );
-      if (accepted)
-        return {
-          accepted,
-          application: applyAnswerState(
-            applyAcceptedState,
-            completeData(answer.state, held)
-          )
-        };
-      if (reading === "refused" && (!("attempt" in answer) || answer.attempt === event.attempt) && answer.ok === false) {
+      if (acceptedAnswer(sent.response, answer)) {
+        const accepted = answer.state.browser?.receipts?.find(
+          (candidate) => candidate.attempt === event.attempt
+        );
+        if (accepted)
+          return {
+            accepted,
+            application: applyAnswerState(
+              applyAcceptedState,
+              completeData(answer.state, held)
+            )
+          };
+      }
+      if (refusedAnswer(answer) && (!("attempt" in answer) || answer.attempt === event.attempt)) {
         return {
           accepted: null,
           state: completeData(answer.state, held),
@@ -5527,10 +5549,9 @@ async function deliverBookkeeping(event, applyState) {
   } catch {
     return "unreached";
   }
-  const reading = readEventAnswer(response, answer);
-  if (answer?.state)
+  if (answer && "state" in answer)
     await applyAnswerState(applyState, completeData(answer.state, held));
-  return reading === "incomplete" ? "unreached" : reading;
+  return acceptedAnswer(response, answer) ? "accepted" : refusedAnswer(answer) ? "refused" : "unreached";
 }
 
 // runtime/undo.js
@@ -6077,23 +6098,31 @@ function createThreadDestinations({
     const thread = allThreads().find((candidate) => candidate.id === id);
     return thread ? threadPlace(thread, placedAt) : null;
   };
-  const threadHere = () => heldThread() ?? preview?.accompanied() ?? null;
-  const threadAtStanding = () => {
+  const threadHere = () => {
     const held = heldThread();
-    if (held) return drawnThreadId(held);
+    if (held) return held;
+    const shown = preview?.accompanied() ?? null;
     const active = focused();
-    const ids = active ? threadIdsAt(active) : [];
-    const shown = threadHere();
-    const shownId = drawnThreadId(shown);
-    if ((!active || active === document.body) && shownId) return shownId;
-    return ids.includes(shownId) ? shownId : ids[0] ?? null;
+    if (!active || active === document.body) return shown;
+    const ids = threadIdsAt(active);
+    const drawn2 = [
+      shown,
+      ...ids.map((id) => surfaceFocusTarget(id, { part: "thread" }))
+    ].filter((thread) => thread && ids.includes(drawnThreadId(thread)));
+    return drawn2.length === 1 ? drawn2[0] : null;
+  };
+  const threadAtStanding = () => {
+    const here = drawnThreadId(threadHere());
+    if (here) return here;
+    const active = focused();
+    return (active && threadIdsAt(active)[0]) ?? null;
   };
   const replyThreadAtStanding = () => {
     const id = threadAtStanding();
     const thread = allThreads().find((candidate) => candidate.id === id);
     return thread && replyAvailable(thread) ? id : null;
   };
-  const threadFocusTarget = (id, { part = null } = {}) => part === "message" ? null : surfaceFocusTarget(id, { part }) ?? preview?.focusTarget(id, { part }) ?? null;
+  const threadFocusTarget = (id, { part = null } = {}) => surfaceFocusTarget(id, { part }) ?? preview?.focusTarget(id, { part }) ?? null;
   const DECLINED = /* @__PURE__ */ Symbol("declined");
   const UNDRAWN = /* @__PURE__ */ Symbol("undrawn");
   async function openPageThread(id, {
@@ -6110,7 +6139,9 @@ function createThreadDestinations({
     const selected = presentation?.owner.isConnected ? presentation : null;
     const thread = threadNamed(id);
     if (selected && (!thread || !discussed(thread))) return null;
-    function inPrimary(last) {
+    const holder = part === "message" ? authoredHolder(id) : null;
+    const drawn2 = Boolean(selected && holder && renderedUnder(holder, selected.owner));
+    function inPrimary(last2) {
       opening?.abort();
       const abort = new AbortController();
       opening = abort;
@@ -6120,7 +6151,7 @@ function createThreadDestinations({
         message: part === "message" ? thread.msgs.find((message) => message.id === id)?.key ?? null : null,
         part,
         focus,
-        last,
+        last: last2,
         signal: abort.signal,
         current: () => !abort.signal.aborted && presentation === selected && selected.owner.isConnected && (focus === false ? intent.available() : intent())
       };
@@ -6131,12 +6162,12 @@ function createThreadDestinations({
         intent: arriving
       }) : null;
       const result = selected.open(thread.key, request);
-      if (result === false) return mayPresent() ? DECLINED : null;
+      if (result === false && !drawn2) return mayPresent() ? DECLINED : null;
       return taken(result);
       async function taken(result2) {
         const selectedLayout = result2?.then ? await whileCurrent(result2) : result2;
         if (!mayPresent()) return null;
-        if (selectedLayout === false) return DECLINED;
+        if (selectedLayout === false && !drawn2) return DECLINED;
         await whileCurrent(selected.reader.update());
         if (!mayPresent()) return null;
         const destination = selected.reader.destination(thread.key, request);
@@ -6169,20 +6200,27 @@ function createThreadDestinations({
     async function onPage() {
       const mayPresent = () => focus === false ? intent.available() : intent();
       const localPart = part ?? "reply";
+      if (part === "message") showHeld(id);
       const openSurface = async () => {
         if (preview) intent.handoff(preview.close);
         if (trip) {
           if (!await scrollToThread(id, { part: localPart, focus, intent }))
             return null;
-        } else {
+        } else if (focus === false) {
           await reveal(surfaceFocusTarget(id, { part: localPart }), intent).ready;
-          const current = surfaceFocusTarget(id, { part: localPart });
-          if (!current || !mayPresent() || focus !== false && !intent.handoff(() => {
-            focusDestination(current, "move");
-            if (scroll) scrollIntoView(current, { block: "nearest" });
-          }))
-            return null;
-        }
+          if (!mayPresent()) return null;
+        } else if (!await arrive(
+          () => {
+            const current = surfaceFocusTarget(id, { part: localPart });
+            return current && {
+              where: current,
+              focus: current,
+              scroll: scroll ? [{ at: current, block: "nearest", behavior: "auto" }] : []
+            };
+          },
+          { intent }
+        ))
+          return null;
         return surfaceFocusTarget(id, { part: localPart });
       };
       if (surfaceFocusTarget(id, { part: localPart })) return openSurface();
@@ -6210,20 +6248,22 @@ function createThreadDestinations({
             return null;
         } else {
           if (!await opened.presented || !mayPresent()) return null;
-          const current = threadFocusTarget(id, { part });
-          if (!current || !mayPresent() || focus !== false && !intent.handoff(() => {
-            focusDestination(current, "move");
-            if (scroll)
-              scrollIntoView(current, {
-                behavior: scrollBehavior(),
-                block: "nearest"
-              });
-          }))
+          if (focus !== false && !await arrive(
+            () => {
+              const current = threadFocusTarget(id, { part });
+              return current && {
+                where: current,
+                focus: current,
+                scroll: scroll ? [{ at: current, block: "nearest" }] : []
+              };
+            },
+            { intent }
+          ))
             return null;
         }
         return threadFocusTarget(id, { part });
       }
-      const held = revealHeld([id]);
+      const held = revealHeld([threadIdNamed(id)]);
       if (held) {
         await held.presented;
         if (!mayPresent()) return null;
@@ -6234,13 +6274,11 @@ function createThreadDestinations({
     const asked = selected ? inPrimary(false) : DECLINED;
     const first = asked instanceof Promise ? await asked : asked;
     if (first !== DECLINED && first !== UNDRAWN) return first;
-    if (part !== "message") {
-      const shown2 = await onPage();
-      if (shown2 !== DECLINED) return shown2;
-    }
+    const shown = await onPage();
+    if (shown !== DECLINED) return shown;
     if (!selected || first !== DECLINED) return null;
-    const shown = await inPrimary(true);
-    return shown === DECLINED || shown === UNDRAWN ? null : shown;
+    const last = await inPrimary(true);
+    return last === DECLINED || last === UNDRAWN ? null : last;
   }
   async function openThreadSubject(id, { intent = retainUserIntent() } = {}) {
     const message = placedAt(id)?.message;
@@ -6494,7 +6532,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
     const candidate = held.prepare(
       {
         threads: collection.threads.map(
-          (thread) => threadReading(thread, "outlet", { ...commands, nativeAuthored: true })
+          (thread) => threadReading(thread, "outlet", { ...commands, authoredRank: 3 })
         )
       },
       { row: false }
@@ -6609,7 +6647,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
       let view = views.get(item.identity);
       if (!view) {
         if (item.kind === "thread")
-          view = new ThreadView({ ...commands, nativeAuthored: true });
+          view = new ThreadView({ ...commands, authoredRank: 3 });
         else if (item.kind === "news") {
           const notice2 = newsNotice();
           view = { node: notice2.node, notice: notice2, dispose() {
@@ -6740,7 +6778,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
           const message = item.thread.msgs.find((entry) => entry.key === item.message);
           view.headNotice = !nominated;
           view.reading = messageReading(message, {
-            nativeAuthored: true,
+            authoredRank: 3,
             reactions: message.reactions,
             workflows: message.workflows
           });
@@ -8104,12 +8142,12 @@ function createThreadLanding() {
   const landSent = standOnThread;
   return { landIn, landInThread: landInThread2, landSent };
 }
-function declareThreadKeys(landIn) {
+function declareThreadKeys(landIn, threadHere) {
   pageScope("thread", {
     title: "In a thread",
     root: focused,
     when: () => threadList().length > 0,
-    at: () => Boolean(heldThread()),
+    at: () => Boolean(threadHere()),
     rows: [
       {
         id: "thread.primary",
@@ -8133,12 +8171,12 @@ function declareThreadKeys(landIn) {
         id: "thread.resolution.toggle",
         touch: false,
         keys: ["r"],
-        description: () => resolutionControl(heldThread())?.matches(".lf-reopen") ? "Reopen it" : "Resolve it",
-        title: () => resolutionControl(heldThread())?.matches(".lf-reopen") ? "reopen" : "resolve",
-        when: () => resolutionControl(heldThread())?.matches(
+        description: () => resolutionControl(threadHere())?.matches(".lf-reopen") ? "Reopen it" : "Resolve it",
+        title: () => resolutionControl(threadHere())?.matches(".lf-reopen") ? "reopen" : "resolve",
+        when: () => resolutionControl(threadHere())?.matches(
           ':not(:disabled, [aria-disabled="true"])'
         ),
-        run: () => resolutionControl(heldThread()).click()
+        run: () => resolutionControl(threadHere()).click()
       }
     ]
   });

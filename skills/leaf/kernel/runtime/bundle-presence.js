@@ -232,22 +232,63 @@ async function settlePageInterface() {
 
 // runtime/scrolling.js
 var pageScroller = document.scrollingElement;
+var moving = /* @__PURE__ */ new WeakMap();
+function stopScroll(boxes) {
+  const stopped = [...boxes].filter((box) => moving.has(box)).map((box) => [box, moving.get(box)]);
+  if (!stopped.length) return null;
+  for (const [box] of stopped)
+    box.scrollTo({
+      left: box.scrollLeft,
+      top: box.scrollTop,
+      behavior: "instant"
+    });
+  return new Promise(
+    (resolve) => nextFrame(
+      () => nextFrame(() => {
+        for (const [box, sequence] of stopped)
+          if (moving.get(box) === sequence) moving.delete(box);
+        resolve(void 0);
+      })
+    )
+  );
+}
 var choices = 0;
 var chosen = /* @__PURE__ */ new WeakMap();
 var kept = /* @__PURE__ */ new WeakMap();
 var scrollChoices = () => choices;
 var chosenSince = (box, count) => (chosen.get(box) ?? 0) > count;
 var chooseScroll = (box) => chosen.set(box, ++choices);
+function startScroll(box) {
+  moving.set(box, { glide: true });
+  chooseScroll(box);
+}
+var eventScroller = (target) => target === document ? pageScroller : target;
+document.addEventListener(
+  "scroll",
+  ({ target }) => {
+    const box = eventScroller(target);
+    if (moving.get(box)?.glide) return;
+    const sequence = { glide: false };
+    moving.set(box, sequence);
+    nextFrame(
+      () => nextFrame(() => {
+        if (moving.get(box) === sequence) moving.delete(box);
+      })
+    );
+  },
+  {
+    capture: true,
+    passive: true
+  }
+);
 function placeKept(...boxes) {
   for (const box of boxes) kept.set(box, box.scrollTop);
 }
 document.addEventListener(
   "scrollend",
   ({ target }) => {
-    const box = target === document ? pageScroller : (
-      /** @type {Element} */
-      target
-    );
+    const box = eventScroller(target);
+    moving.delete(box);
     if (kept.get(box) !== box.scrollTop) chooseScroll(box);
     kept.delete(box);
   },
@@ -256,11 +297,17 @@ document.addEventListener(
 var scrollLimit = (box) => Math.max(0, box.scrollHeight - box.clientHeight);
 var SCROLL_SLACK = 2;
 var atScrollEnd = (box) => scrollLimit(box) - box.scrollTop <= SCROLL_SLACK;
-var scrollToEnd = (box, behavior = "instant") => box.scrollTo({ top: box.scrollHeight, behavior });
+var scrollToEnd = (box, behavior = "instant") => {
+  if (behavior !== "instant" && !atScrollEnd(box)) startScroll(box);
+  box.scrollTo({ top: box.scrollHeight, behavior });
+};
 var aims = /* @__PURE__ */ new WeakMap();
 var moveScrollerBy = (box, top, behavior = "instant") => {
   const aim = box.scrollTop + top;
-  if (Math.abs(top) >= 0.5) box.scrollBy({ top, behavior });
+  if (Math.abs(top) >= 0.5) {
+    if (behavior !== "instant" && reachable(box, top)) startScroll(box);
+    box.scrollBy({ top, behavior });
+  }
   if (behavior === "instant" && Math.abs(aim - box.scrollTop) < 1)
     aims.set(box, { aim, at: box.scrollTop });
   else aims.delete(box);
@@ -895,9 +942,10 @@ export {
   PAGE_INTERFACE,
   settlePageInterface,
   pageScroller,
+  stopScroll,
   scrollChoices,
   chosenSince,
-  chooseScroll,
+  startScroll,
   placeKept,
   scrollLimit,
   SCROLL_SLACK,

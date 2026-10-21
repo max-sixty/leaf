@@ -5,6 +5,9 @@
 # the rows, so only a join by id puts each to-do on its side. On Claude Code the merge
 # base passed 2 of 2 on the shrunk reading, both at 45ee9550e and again at b734b68b2
 # after items became obligations, and the change passed 2 of 2 each time.
+# The owed reply's row was rewritten at 6a66b9b7b as `page state` prints it: an
+# `update` row naming its obligation record, which joins `obligations`. Not
+# rescored.
 description: on-lists-read-todo-records
 metadata:
   purpose: "Conversation loop: the agent reads On me and its own list from `page state`,
@@ -13,6 +16,7 @@ metadata:
   tags:
     - wait-loop
 vars:
+  now: "2026-10-19T15:12:00+00:00"
   prompt: |
     You are a Claude Code session driving a live Leaf page at
     ~/.local/state/leaf/pages/latency, served with `leaf server start`. You were
@@ -30,6 +34,10 @@ vars:
         {"id": "widget:deploy-window", "source": {"kind": "widget", "id": "deploy-window", "tag": "lf-options"},
          "thread": null, "message": null, "status": "open", "next_actor": "user",
          "prompt": {"text": "Which window should the deploy go out in?", "target": "deploy-window"},
+         "answer": null, "end": null},
+        {"id": "update:a83f0e5d", "source": {"kind": "update", "id": "a83f0e5d", "subject": {"kind": "thread", "id": "5aa04c19"}},
+         "thread": "5aa04c19", "message": "a83f0e5d", "status": "open", "next_actor": "agent",
+         "prompt": {"text": null, "target": "5aa04c19"},
          "answer": null, "end": null}
       ],
       "todos": [
@@ -54,10 +62,8 @@ vars:
            "subject": {"kind": "element", "id": "phone-build"}, "thread": null, "live": false}
         ],
         "on_agent": [
-          {"kind": "answer", "id": "a83f0e5d", "owner": "agent",
-           "subject": {"kind": "thread", "id": "5aa04c19"}, "thread": "5aa04c19", "live": false,
-           "answer": {"kind": "reply", "to": "5aa04c19", "for": "a83f0e5d", "ref": "8d1f22e0:0:a83f0e5d"},
-           "stage": "delivered"},
+          {"kind": "update", "id": "update:a83f0e5d", "owner": "agent",
+           "subject": {"kind": "thread", "id": "5aa04c19"}, "thread": "5aa04c19", "live": false},
           {"kind": "todo", "id": "4be81d02", "owner": "agent",
            "subject": {"kind": "widget", "id": "p95-chart"}, "thread": null, "live": true},
           {"kind": "todo", "id": "0d2c55aa", "owner": "agent",

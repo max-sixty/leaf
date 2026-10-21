@@ -28,6 +28,7 @@ from interact_support import (
     ROOT,
     STATED_TIMEOUT,
     declare_idle,
+    declared,
     fetch,
     stamp,
     wait_for,
@@ -665,7 +666,7 @@ finally:
         )
         assert codex_adapter.adapter_is_live("preview-thread")
         if initially_idle:
-            assert service.read_status(page_dir)["state"] == "idle"
+            assert declared(page_dir)["state"] == "idle"
             session.cmd_waiting(page_dir, "Review this page")
         endpoint = urlsplit(url)._replace(path="/api/event").geturl()
         status, body = fetch(

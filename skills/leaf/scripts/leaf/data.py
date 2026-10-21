@@ -1,12 +1,17 @@
 """Page-bound external data: one durable publication per source.
 
-`data.json` (`CONTRACTS`) records the contract each source id was last set under;
-`data/<source>.json` (`PUBLICATION`) holds one publication: its opaque `run`
-receipt, `updated` instant, and complete `value`. `leaf data set` validates the value
-and writes all three together through `write_data`, which a sample's copy of its
-parent's data also uses: a reader trusts the files' shape and judges only the value,
-against the contract the source is bound to now, which a later document may have
-replaced.
+`data/<source>.json` (`PUBLICATION`) holds a source's one publication: the
+`contract` it was set under, its opaque `run` receipt, `updated` instant, and
+complete `value`. The page holds a source exactly while that file exists.
+`leaf data set` validates the value against the contract the source is bound to at
+the write (`data_contracts.working_data_bindings`) and writes the four together
+through `write_data`, which a sample's copy of its parent's data also uses;
+`leaf data clear` removes the file, so the source's next write takes its binding
+then. A reader trusts the file's shape and judges only the value, against the
+recorded contract's declaration in the registry it reads under, which a later
+layer may have changed. Readers take the recorded contract rather than the
+document's binding, so a state read never reads the page's history; a later
+document that binds the source to another contract governs from its next write.
 
 A source's revision identifies its encoded value; its run identifies the write,
 including a rerun with the same value. Both survive copying the page directory.
@@ -26,26 +31,32 @@ from .files import file_stamp, replace_files
 from .page_memory import memo
 from .registry.schema import json_value
 from .registry.storage import read_page_registry
-from .schema import DATA_DIR, DATA_FILE, DATA_SOURCE_NAME
+from .schema import DATA_DIR, DATA_SOURCE_NAME
 from .service import PageTransaction
-from .state import STRING, TIME, Record, json_bytes, now_iso, object_schema
+from .state import STRING, TIME, Record, described, json_bytes, now_iso, object_schema
 
-CONTRACTS = Record(
-    "data",
-    object_schema(
-        {
-            "sources": {
-                "type": "object",
-                "additionalProperties": object_schema({"contract": STRING}),
-            }
-        }
-    ),
-    since=13,
-)
 PUBLICATION = Record(
     "data-source",
-    object_schema({"run": STRING, "updated": TIME, "value": {}}),
-    since=13,
+    described(
+        "One source's publication, in the page directory's `data/<source>.json`, "
+        "which `leaf data set` writes whole.",
+        object_schema(
+            {
+                "contract": described(
+                    "The data contract the value was validated against at the write.",
+                    STRING,
+                ),
+                "run": described(
+                    "An opaque receipt naming the write, a rerun with the same value "
+                    "included.",
+                    STRING,
+                ),
+                "updated": described("When the value was written.", TIME),
+                "value": described("The source's complete value.", {}),
+            }
+        ),
+    ),
+    since=16,
 )
 
 
@@ -57,32 +68,38 @@ def source_file(page_dir: Path, source: str) -> Path:
     return page_dir / DATA_DIR / f"{source}.json"
 
 
+def _source_names(page_dir: Path) -> list[str]:
+    """Each source the page holds a publication file for."""
+    try:
+        names = [entry.name for entry in (page_dir / DATA_DIR).iterdir()]
+    except FileNotFoundError:
+        return []
+    return sorted(
+        name.removesuffix(".json") for name in names if name.endswith(".json")
+    )
+
+
 def read_contracts(page_dir: Path) -> dict[str, str]:
-    """Source id → the contract `data.json` records for it."""
-    stored = CONTRACTS.read(page_dir / DATA_FILE)
-    if stored is None:
-        return {}
-    return {source: entry["contract"] for source, entry in stored["sources"].items()}
+    """Source id → the contract its publication was set under."""
+    readings = {
+        source: _publication(page_dir, source) for source in _source_names(page_dir)
+    }
+    return {
+        source: kept[0]["contract"]
+        for source, kept in readings.items()
+        if kept is not None
+    }
 
 
-def write_data(
-    page_dir: Path, contracts: dict[str, str] | None, publications: dict[str, dict]
-) -> None:
-    """Atomically replace these sources' publications, and the recorded contracts
-    where `contracts` is given: the one writer of both."""
+def write_data(page_dir: Path, publications: dict[str, dict]) -> None:
+    """Atomically replace these sources' publications: their one writer."""
     (page_dir / DATA_DIR).mkdir(exist_ok=True)
-    writes = [
-        (source_file(page_dir, source), PUBLICATION.encode(publication), False)
-        for source, publication in publications.items()
-    ]
-    if contracts is not None:
-        index = {
-            "sources": {
-                name: {"contract": contracts[name]} for name in sorted(contracts)
-            }
-        }
-        writes.append((page_dir / DATA_FILE, CONTRACTS.encode(index), False))
-    replace_files(writes)
+    replace_files(
+        [
+            (source_file(page_dir, source), PUBLICATION.encode(publication), False)
+            for source, publication in publications.items()
+        ]
+    )
 
 
 # (source, contract declaration, revision) → validation error. A large value costs far
@@ -141,46 +158,45 @@ def _publication(page_dir: Path, source: str) -> tuple[dict, str] | None:
     return reading
 
 
-def read_source(page_dir: Path, source: str, contract: str, registry: dict) -> dict:
-    """One source as readers receive it: its contract, and, once a value file
-    exists, that file's revision, run receipt, `updated` instant, and `value` or
-    `error`."""
-    reading = {"contract": contract}
+def read_source(page_dir: Path, source: str, registry: dict) -> dict | None:
+    """One source as readers receive it: its contract, revision, run receipt,
+    `updated` instant, and `value` or `error`; None where the page holds none."""
     kept = _publication(page_dir, source)
     if kept is None:
-        return reading
+        return None
     publication, revision = kept
-    value = publication["value"]
-    reading.update(
-        revision=revision,
-        run=publication["run"],
-        updated=publication["updated"],
-    )
-    if error := _value_error(source, contract, value, reading["revision"], registry):
+    contract, value = publication["contract"], publication["value"]
+    reading = {
+        "contract": contract,
+        "revision": revision,
+        "run": publication["run"],
+        "updated": publication["updated"],
+    }
+    if error := _value_error(source, contract, value, revision, registry):
         return {**reading, "error": error}
     return {**reading, "value": value}
 
 
 def read_data(page_dir: Path, registry: dict | None) -> dict:
-    """Every recorded source, read and judged against `registry`.
+    """Every source the page holds, read and judged against `registry`.
 
     `version` digests each source's contract, publication and validity, so a
-    changed binding or validation result is news even when the file bytes match.
+    changed contract or validation result is news even when the value matches.
     A rerun is news even when it writes the same value. A page whose layer cannot be
     read has no contracts to judge its values by, and reads as holding none."""
-    contracts = read_contracts(page_dir)
-    sources = (
-        {
-            source: read_source(page_dir, source, contract, registry)
-            for source, contract in sorted(contracts.items())
-        }
+    names = _source_names(page_dir)
+    # A source the page no longer holds keeps nothing.
+    held = memo(page_dir, _Publications).held
+    for source in held.keys() - set(names):
+        held.pop(source, None)
+    readings = (
+        {source: read_source(page_dir, source, registry) for source in names}
         if registry is not None
         else {}
     )
-    # A source the page no longer binds keeps nothing.
-    held = memo(page_dir, _Publications).held
-    for source in held.keys() - contracts.keys():
-        held.pop(source, None)
+    sources = {
+        source: reading for source, reading in readings.items() if reading is not None
+    }
     identity = json.dumps(
         {
             source: [
@@ -271,7 +287,7 @@ def deferred_value(
     """One record's deferred field in the source value at `revision`, which must
     still be current.
 
-    `reading` is the source as `read_source` read it, or None where the page records
+    `reading` is the source as `read_source` read it, or None where the page holds
     no such source."""
     if reading is None:
         raise DataError(f"unknown data source {source!r}")
@@ -331,16 +347,20 @@ def _write_source(page_dir: Path, source: str, value) -> dict:
                 f"source {source!r} is not bound by the page source, a version, or "
                 f"a thread widget; choose one of {json_value(sorted(bindings))}"
             )
-        contracts = read_contracts(page_dir)
-        recorded = contracts.get(source)
         if error := payload_error(source, contract, value, registry):
             raise DataError(error)
         write_data(
             page_dir,
-            {**contracts, source: contract} if recorded != contract else None,
-            {source: {"run": uuid4().hex, "updated": now_iso(), "value": value}},
+            {
+                source: {
+                    "contract": contract,
+                    "run": uuid4().hex,
+                    "updated": now_iso(),
+                    "value": value,
+                }
+            },
         )
-        return read_source(page_dir, source, contract, registry)
+        return read_source(page_dir, source, registry)
 
 
 def cmd_data_set(page_dir: Path, source: str, value) -> dict:
@@ -353,7 +373,8 @@ def cmd_data_set(page_dir: Path, source: str, value) -> dict:
 
 
 def cmd_data_clear(page_dir: Path, source: str) -> dict:
-    """Remove one source's current value; its next write uses its current binding."""
+    """Remove one source's publication, its value with the contract it was set
+    under; its next write takes the binding it has then."""
     if re.fullmatch(DATA_SOURCE_NAME, source) is None:
         raise DataError(f"invalid source name {source!r}")
     with PageTransaction(page_dir):

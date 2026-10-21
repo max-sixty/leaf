@@ -20,7 +20,7 @@ from leaf.files import (
     latest_revision,
     require_revision,
 )
-from leaf.findings import Finding, Rejected
+from leaf.findings import Finding, Rejected, note
 from leaf.harness import message_identity
 from leaf.leases import contract_writer
 from leaf.obligations import asking, local_obligation_entry, quoted_in
@@ -37,11 +37,12 @@ from leaf.service import PageTransaction, delivery_reply_attempt, same_claim
 from leaf.thread_context import thread_message, thread_names
 from leaf.validation.admission import (
     check_markup,
+    checked_text,
     logged_id,
-    read_text_arg,
     revision_publication,
     thread_obligation,
 )
+from leaf.validation.source import SourceCheck, moved_threads, source_advice
 
 
 def _messages(events: list) -> dict[str, dict]:
@@ -239,8 +240,7 @@ def cmd_comment(
     revision they are looking at and read as they see it: a slot
     their decision retired is off the page, and a draft they edited holds their words,
     so a quote is met here the way it would land there."""
-    # Reading a body may wait on stdin; do that before taking the page lease.
-    body = read_text_arg(page_dir, text)
+    body = checked_text(page_dir, text)
     with PageTransaction(page_dir) as page:
         events = page.events
         revision, anchor = current_anchor(
@@ -372,7 +372,7 @@ def post_reply(
     the user's message gets the agent's first words and its Working line from one
     write.
     """
-    text = read_text_arg(page_dir, text)
+    text = checked_text(page_dir, text)
     posting_identity = message_identity() if identity is None else identity
     with PageTransaction(page_dir) as page:
         if claimed_session is not None:
@@ -414,7 +414,7 @@ def post_reply(
         )
         if obligation is None:
             return None
-        return _compose_and_append(
+        record, published = _compose_and_append(
             page,
             obligation,
             posting_identity,
@@ -432,6 +432,53 @@ def post_reply(
             detach=detach,
             title=title,
         )
+    if published is not None:
+        # Read apart from the page lease, so the user's page sees the reply at once.
+        note(*_revision_advice(page_dir, published))
+    return record
+
+
+class _Published(NamedTuple):
+    """A successful reply's checked publication: its preceding log, the revision,
+    the source check, and the thread the reply moves itself, if it does."""
+
+    events: list
+    revision: int
+    checked: SourceCheck
+    moving_thread: str | None
+
+
+def _revision_advice(page_dir: Path, published: _Published) -> list[Finding]:
+    """What `page check` would advise on the revisions published since the agent's
+    last successful reply, which the first successful reply on a revision reports
+    beside its result; nothing for a later reply. Failure reports can name the
+    active revision without checking source, so they neither emit nor consume advice.
+    Progress carries no revision: it cannot include markup or move a thread.
+
+    A successful reply publishes the source it checked, so a revision that answers a
+    message needs no check before its reply. It names the threads those revisions
+    moved (`validation.source.moved_threads`) other than one it moves itself."""
+    events, checked = published.events, published.checked
+    last = max(
+        (
+            event.get("revision", 0)
+            for event in events
+            if event["kind"] == "reply"
+            and event["author"] == "agent"
+            and "failure" not in event
+        ),
+        default=0,
+    )
+    if published.revision <= last:
+        return []
+    return [
+        *(
+            finding
+            for finding in moved_threads(page_dir, events, last, checked)
+            if finding.values["thread"] != published.moving_thread
+        ),
+        *source_advice(page_dir, checked),
+    ]
 
 
 def _repeated_reply(
@@ -590,10 +637,12 @@ def _compose_and_append(
     part: str,
     detach: bool,
     title: str | None,
-) -> dict:
+) -> tuple[dict, "_Published | None"]:
     """Check the reply's content against the page, compose its event and append it
-    at `obligation`, publishing saved page edits first where `validate_source` or a
-    detach reads them."""
+    at `obligation`. Successful replies publish saved edits when `validate_source`
+    requests it. Progress and failure reports use the active revision; detaching
+    still checks saved source. Return the appended record and any checked
+    publication for `_revision_advice` to read."""
     page_dir, events = page.page_dir, page.events
     parent, thread_id, responds, in_hand = obligation
     event = {
@@ -624,7 +673,7 @@ def _compose_and_append(
     prospective_anchor = None
     source_events = events
     checked = None
-    if validate_source or detach:
+    if (validate_source and not ephemeral and failure is None) or detach:
         if relocating:
             source_events = [
                 *events,
@@ -672,7 +721,9 @@ def _compose_and_append(
             quote,
             section,
             part,
-            revision=reply_revision,
+            revision=require_revision(page_dir)
+            if failure is not None
+            else reply_revision,
             transaction=page,
         )
     elif detach:
@@ -738,15 +789,18 @@ def _compose_and_append(
         event["anchor"] = anchor
     if title is not None:
         event["title"] = title
+    published = None
     if checked is not None:
         from leaf.revisioning import publish_checked_event
 
         record = publish_checked_event(page, checked, event)
+        if failure is None:
+            published = _Published(
+                events, record["revision"], checked, thread_id if relocating else None
+            )
     else:
         record, _ = append_admitted(page, event)
-    if in_hand is not None and page.status["state"] == "idle":
-        page.set_status("waiting", "")
-    return record
+    return record, published
 
 
 def post_response(
@@ -909,8 +963,7 @@ def cmd_edit(
     from leaf.page_view import PageView
     from leaf.registry.storage import require_registry
 
-    # Text comes from stdin when neither option gives it; read it before the lease.
-    body = read_text_arg(page_dir, text) if text is not None or title is None else None
+    body = checked_text(page_dir, text) if text is not None or title is None else None
     with PageTransaction(page_dir) as page:
         require_registry(page_dir)
         named = None
@@ -946,7 +999,7 @@ def cmd_summarize(
     thread its first message sits in."""
     from leaf.registry.storage import require_registry
 
-    body = read_text_arg(page_dir, text, allow_empty=text == "")
+    body = checked_text(page_dir, text, allow_empty=True)
     with PageTransaction(page_dir) as page:
         require_registry(page_dir)
         record, _ = append_admitted(

@@ -141,3 +141,29 @@ def test_obsolete_records_are_absent_and_inactive_documents_are_pruned_on_write(
     assert user_views.read_user_views(tmp_path, 1)["sessions"] == []
     user_views.observe_user_view(tmp_path, report(session="b" * 32))
     assert list(read_json(path)["sessions"]) == ["b" * 32]
+
+
+def test_viewed_records_the_last_visible_report_and_outlives_pruning(
+    tmp_path, monkeypatch
+):
+    """`viewed` moves only with a report that the page was showing, so a tab opened
+    hidden never stamps it, and it survives the day after which its report goes."""
+    instant = datetime(2026, 10, 2, tzinfo=UTC)
+    monkeypatch.setattr(user_views, "_now", lambda: instant)
+    assert user_views.viewed_at(tmp_path) is None
+    user_views.observe_user_view(tmp_path, {**report(), "visible": False})
+    assert user_views.viewed_at(tmp_path) is None
+
+    user_views.observe_user_view(tmp_path, report(sequence=2))
+    shown = instant.timestamp()
+    assert user_views.viewed_at(tmp_path) == shown
+    instant += timedelta(seconds=10)
+    user_views.observe_user_view(tmp_path, {**report(sequence=3), "visible": False})
+    assert user_views.viewed_at(tmp_path) == shown
+
+    instant += timedelta(days=1, seconds=1)
+    later = {**report(session="b" * 32), "visible": False}
+    user_views.observe_user_view(tmp_path, later)
+    sessions = user_views.read_user_views(tmp_path, 1)["sessions"]
+    assert [view["session"] for view in sessions] == ["b" * 32]
+    assert user_views.viewed_at(tmp_path) == shown

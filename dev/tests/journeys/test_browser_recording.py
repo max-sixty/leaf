@@ -168,7 +168,7 @@ def test_recorded_leaf_source_still_uses_its_readiness_contract(tmp_path):
     assert result.returncode == 0, result.stdout + result.stderr
     reading = json.loads(result.stdout)
     assert "startup" in reading
-    assert reading["errors"] == []
+    assert reading["console"] == []
     assert reading["result"] is False
     assert (output / "worktree" / "trace.zip").is_file()
     assert (output / "worktree" / "video.webm").stat().st_size > 1000

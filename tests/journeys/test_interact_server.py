@@ -19,6 +19,7 @@ from interact_support import (
     TOKEN,
     append_carried_log_record,
     check,
+    declare,
     declare_work,
     end_work,
     fetch,
@@ -205,9 +206,8 @@ def test_server_round_trip(server, page_dir):
         assert fetch(server + path)[0] == 200, path
     for path in [
         "/events.jsonl",
-        "/data.json",
         "/vendor/..",
-        "/status.json",
+        "/stream.json",
         "/../secret",
     ]:
         assert fetch(server + path)[0] == 404, path
@@ -721,10 +721,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
         stderr=subprocess.DEVNULL,
     )
     record_claim(neighbor, id="invisible", pid=agent.pid, cwd="/work/invisible")
-    write_record(
-        neighbor / "status.json",
-        {"state": "waiting", "detail": "", "ts": cleanup_model.now_iso()},
-    )
+    declare(neighbor)
     declare_work(neighbor, "measuring", ts=cleanup_model.now_iso())
     hosting_model.start_server(neighbor, persistent=True, harness=None)
 
@@ -756,10 +753,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
         )
     )
     end_work(neighbor)
-    write_record(
-        neighbor / "status.json",
-        {"state": "waiting", "detail": "pick one", "ts": cleanup_model.now_iso()},
-    )
+    declare(neighbor, "waiting", "pick one")
     session = cleanup_model.session_record("invisible")
     cleanup_model.write_session({**session, "turn_closed": cleanup_model.now_iso()})
     await_row(lambda row: row["activity"]["kind"] == "away")
@@ -804,10 +798,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     """
     pages = cleanup_model.state_home() / "pages"
     live_url = neighbour_page(pages / "live", title="The other page")
-    write_record(
-        pages / "live" / "status.json",
-        {"state": "waiting", "detail": "", "ts": "2026-01-01T00:00:00-08:00"},
-    )
+    declare(pages / "live", ts="2026-01-01T00:00:00-08:00")
     declare_work(pages / "live", "measuring", ts="2026-01-01T00:00:00-08:00")
     record_claim(
         pages / "live",
@@ -827,19 +818,12 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     corrupt_url = neighbour_page(pages / "corrupt", title="A corrupted page")
     (pages / "corrupt" / "events.jsonl").write_text('{"kind": "note", "author"')
     # Presence belongs to the same isolation boundary as the log and version. A
-    # status record carrying a field no version reads, as an older leaf's work list,
+    # stream record carrying a field no version reads, as an older leaf's work list,
     # must not make this page's poll fail: the field is ignored.
-    malformed = pages / "malformed-status"
-    neighbour_page(malformed, title="Malformed status")
-    write_record(
-        malformed / "status.json",
-        {
-            "state": "waiting",
-            "detail": "unknown",
-            "ts": cleanup_model.now_iso(),
-            "work": [{}],
-        },
-    )
+    malformed = pages / "malformed-stream"
+    neighbour_page(malformed, title="Malformed stream")
+    declare(malformed, detail="unknown")
+    write_record(malformed / "stream.json", {"work": [{}]})
     # A page served from a session's scratch directory, plus the asking page
     # itself: the claim index finds the first, and the second stays out of its own
     # list. Untitled, so the title falls back to the directory's name.
@@ -853,7 +837,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     rows = {row["title"]: row for row in state["others"]}
     assert list(rows) == [
         "A corrupted page",
-        "Malformed status",
+        "Malformed stream",
         "Nothing to link",
         "scratch",
         "The other page",
@@ -864,7 +848,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     assert rows["The other page"]["url"] == live_url
     assert rows["The other page"]["session_cwd"] == "/work/api"
     assert rows["The other page"]["activity"]["kind"] == "away"
-    assert rows["Malformed status"]["activity"]["kind"] == "away"
+    assert rows["Malformed stream"]["activity"]["kind"] == "away"
     assert all("obligations" not in row["activity"] for row in rows.values())
 
 

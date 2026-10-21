@@ -206,8 +206,14 @@ var served = (
   /** @type {HTMLScriptElement | null} */
   document.querySelector("script[data-lf-runtime][data-lf-server]")
 );
+var offlineMarker = (
+  /** @type {HTMLScriptElement | null} */
+  document.querySelector(
+    'script[type="application/json"][data-lf-runtime][data-lf-offline]'
+  )
+);
 var DELIVERY = Object.freeze({
-  layer: served?.dataset.lfLayer,
+  layer: (served ?? offlineMarker)?.dataset.lfLayer,
   release: served?.dataset.lfRelease,
   runtime: served?.dataset.lfRuntimeIdentity,
   probe: served?.dataset.lfProbe
@@ -225,9 +231,6 @@ function shareUrl() {
   return url.href;
 }
 var pageUrl = (path) => new URL(path, PAGE_ROOT).href;
-var offlineMarker = document.querySelector(
-  'script[type="application/json"][data-lf-runtime][data-lf-offline]'
-);
 var offlinePayload = offlineMarker ? JSON.parse(offlineMarker.textContent || "null") : null;
 var allocation = (name) => (
   /** @type {any} */

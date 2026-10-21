@@ -629,19 +629,23 @@ class _ResourceCapture:
     """One capture's resource graph, including cycles and arbitrarily deep imports.
 
     Record a resource before following its edges, so each path is read once. The
-    explicit worklist keeps graph depth independent of Python's call stack.
+    explicit worklist keeps graph depth independent of Python's call stack. A public
+    entry point an authored module imports is the runtime's, which the delivering Leaf
+    supplies, so capture skips it unless the vendored layer holds its own (`vendored`),
+    as a package replacing a vendor module does; the layer's files are added first.
     """
 
     def __init__(self, read_resource: Callable[[str], Resource]) -> None:
         self.read_resource = read_resource
         self.resources: dict[str, Resource] = {}
 
-    def add(self, path: str) -> None:
+    def add(self, path: str, *, vendored: bool = False) -> None:
         pending = [path]
         while pending:
             path = pending.pop()
-            if path in self.resources or path in PUBLIC_MODULES:
+            if path in self.resources or (path in PUBLIC_MODULES and not vendored):
                 continue
+            vendored = False  # what it imports is a dependency
             resource = self.read_resource(path)
             data = resource.data
             edges = _resource_dependencies(path, data, resource.mime)
@@ -672,7 +676,7 @@ def _capture_artifact(
             if path.is_file() and SERVED_PATH.fullmatch(
                 "/" + path.relative_to(page_dir).as_posix()
             ):
-                capture.add("/" + path.relative_to(page_dir).as_posix())
+                capture.add("/" + path.relative_to(page_dir).as_posix(), vendored=True)
     resources["/registry.json"] = Resource(_json(registry), "application/json")
     for tag, entry in registry.items():
         if is_element_name(tag) and (initial := entry.get("x-initial")):

@@ -244,6 +244,50 @@ def test_saved_website_record_keeps_an_unstamped_revisions_publication_date(
     )
 
 
+def test_a_saved_published_revision_loads_its_layer_from_the_release(
+    page_dir, tmp_path, monkeypatch
+):
+    """A comment on a published revision saves its document, not the revision's
+    resources: the release publishes those beside the runtime it runs, so the saved
+    document names them there, and a reload while the container sleeps loads them
+    from the edge rather than waking it for them."""
+    from leaf_website.storage import restore
+
+    publish(page_dir)
+    site = tmp_path / "site"
+    private = site / "page"
+    shutil.copytree(page_dir, private)
+    write_manifest(site, {"/example": ("page", "example")})
+    manifest_path = site / website_server.SITE_MANIFEST
+    manifest = json.loads(manifest_path.read_text())
+    page = manifest["pages"]["/example"]
+    page["states"] = {"1": "unused"}
+    manifest_path.write_text(json.dumps(manifest))
+    monkeypatch.setenv("LEAF_SITE_ROOT", str(site))
+    with durable_page_store() as (store_url, stored):
+        monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
+        monkeypatch.delenv("LEAF_PAGE_COMMIT", raising=False)
+        restore(site)
+        append_command(
+            private,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": "Saved beside the published revision",
+                "attempt": "saved-comment-0001",
+            },
+        )
+        with PageTransaction(private):
+            pass
+        publication = stored["publications"][-1]
+    response = publication["responses"][""]
+    document = b"".join(stored["blobs"][digest] for digest in response["chunks"])
+    published = f"{page['assets']}/revisions/{revision_path(private, 1).stem}"
+    assert f'data-lf-entry="{published}/leaf.js"'.encode() in document
+    assert not any(path.startswith("revisions/") for path in publication["responses"])
+
+
 def test_saved_website_record_restores_comments_choices_and_private_revision(
     page_dir, tmp_path, monkeypatch
 ):

@@ -332,8 +332,12 @@ def export_document(
                     f"leaf:{path}": url for path, url in sorted(modules.items())
                 }
             },
+            # The generation the revision was captured at, which the runtime holds
+            # the embedded registry and reading to (`layer-client.js`), as it holds a
+            # served document's.
             runtime=(
                 '<script type="application/json" data-lf-runtime data-lf-offline '
+                f'data-lf-layer="{artifact.registry["$layer"]["generation"]}" '
                 'data-lf-page-root="" data-lf-entry="leaf:/leaf.js" data-lf-probe="">'
                 f"{payload}</script>"
             ),

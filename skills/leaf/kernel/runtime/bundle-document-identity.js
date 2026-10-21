@@ -254,10 +254,12 @@ import {
   wrote
 } from "./bundle-passage-facts.js";
 import {
+  LayerRefused,
   PAGE_PAINT_ATTRIBUTE,
   PRESS,
   PRESSABLE,
   TEXT_ENTRY,
+  admitReading,
   admitResponse,
   announce,
   ariaShortcuts,
@@ -2930,6 +2932,7 @@ async function baseReading(baseRevision, throughSeq) {
     through_seq: String(throughSeq)
   });
   const res = await fetch(pageUrl(`api/view?${params}`));
+  if (!admitReading(res)) throw new LayerRefused("Leaf changed while comparing");
   if (!res.ok) throw new Error(`couldn't project revision r${baseRevision}`);
   return (await res.json()).browser;
 }

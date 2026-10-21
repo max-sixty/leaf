@@ -3207,14 +3207,16 @@ function sameLayer(generation) {
   reloadDelivery("Leaf has been updated \u2014 reloading this page.");
   return false;
 }
-function admitResponse(response) {
+var admitResponse = (response) => admitted(response, true);
+var admitReading = (response) => admitted(response, false);
+function admitted(response, ofThisLayer) {
   observeSession(response);
   observeKey(response);
   if (!response.ok) return true;
   if (layerReloading) return false;
   const generation = response.headers.get("Leaf-Layer");
   const responseRelease = response.headers.get("Leaf-Release");
-  if (generation && !sameLayer(generation)) return false;
+  if (ofThisLayer && generation && !sameLayer(generation)) return false;
   if (!sameRuntime(response)) {
     reloadDelivery("Leaf has been updated \u2014 reloading this page.");
     return false;
@@ -3587,6 +3589,7 @@ export {
   requestJson,
   sameLayer,
   admitResponse,
+  admitReading,
   sessionIsActive,
   revealLayer,
   postEvent,

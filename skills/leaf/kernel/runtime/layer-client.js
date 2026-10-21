@@ -1,5 +1,6 @@
 import {
   LayerRefused,
+  admitReading,
   admitResponse,
   completeData,
   dataHeaders,
@@ -20,6 +21,7 @@ import "./bundle-queued-work.js";
 import "./bundle-__export.js";
 export {
   LayerRefused,
+  admitReading,
   admitResponse,
   completeData,
   dataHeaders,

@@ -189,7 +189,14 @@ export function sameLayer(generation) {
   return false;
 }
 
-export function admitResponse(response) {
+export const admitResponse = (response) => admitted(response, true);
+
+// An answer about another revision than the document's, such as the reading of an
+// older version a comparison asks `/api/view` for, speaks that revision's layer. Only
+// the runtime and release of the server answering are held to the document's.
+export const admitReading = (response) => admitted(response, false);
+
+function admitted(response, ofThisLayer) {
   observeSession(response);
   observeKey(response);
   // Failure responses still name session activation and its public reference. Their
@@ -198,7 +205,7 @@ export function admitResponse(response) {
   if (layerReloading) return false;
   const generation = response.headers.get("Leaf-Layer");
   const responseRelease = response.headers.get("Leaf-Release");
-  if (generation && !sameLayer(generation)) return false;
+  if (ofThisLayer && generation && !sameLayer(generation)) return false;
   if (!sameRuntime(response)) {
     reloadDelivery("Leaf has been updated — reloading this page.");
     return false;

@@ -479,6 +479,19 @@ def test_authored_lazy_positioning_import_uses_the_runtimes_public_provider(page
     ).data.decode() == module.replace(provider, ROOT + provider)
 
 
+def test_a_vendored_replacement_of_a_public_provider_is_captured_and_served(page_dir):
+    """A package may replace a public vendor module, and the page then runs its own:
+    the revision captures the vendored file, which wins over the runtime's."""
+    provider = "/vendor/floating-ui.esm.js"
+    own = b"export const computePosition = () => 'the package\\'s own';"
+    (page_dir / provider[1:]).write_bytes(own)
+    activated = revisioning_model.activate_source(page_dir)
+    assert activated.error is None, activated.error
+    artifact = read_artifact(page_dir, activated.revision)
+    assert artifact.resources[provider].data == own
+    assert executing(artifact).resources[provider].data == own
+
+
 def test_an_export_runs_the_exporters_runtime(page_dir, monkeypatch):
     """An export pairs the state the exporting Leaf reads with that Leaf's runtime,
     whichever Leaf captured the version, since only that runtime reads that state."""

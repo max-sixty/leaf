@@ -25,13 +25,19 @@ export const PAGE_ROOT =
 // serves (http.py) names the layer and release the document belongs to, the runtime it
 // runs where no release names one (`runtime_selection.py`), the probe its source
 // answers, and a keyed transport's share address. An interactive export carries
-// no such script. Its own marker (`offlineMarker` below) shares only `data-lf-entry`, the
-// seam a harness finds either delivery by.
+// no such script. Its own marker (`offlineMarker` below) shares `data-lf-entry`, the
+// seam a harness finds either delivery by, and `data-lf-layer`, the generation it was
+// captured at.
 const served = /** @type {HTMLScriptElement | null} */ (
   document.querySelector("script[data-lf-runtime][data-lf-server]")
 );
+const offlineMarker = /** @type {HTMLScriptElement | null} */ (
+  document.querySelector(
+    'script[type="application/json"][data-lf-runtime][data-lf-offline]',
+  )
+);
 export const DELIVERY = Object.freeze({
-  layer: served?.dataset.lfLayer,
+  layer: (served ?? offlineMarker)?.dataset.lfLayer,
   release: served?.dataset.lfRelease,
   runtime: served?.dataset.lfRuntimeIdentity,
   probe: served?.dataset.lfProbe,
@@ -64,9 +70,6 @@ export function shareUrl() {
 // URL.
 export const pageUrl = (path) => new URL(path, PAGE_ROOT).href;
 
-const offlineMarker = document.querySelector(
-  'script[type="application/json"][data-lf-runtime][data-lf-offline]',
-);
 const offlinePayload = offlineMarker
   ? JSON.parse(offlineMarker.textContent || "null")
   : null;

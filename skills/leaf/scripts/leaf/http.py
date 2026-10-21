@@ -1170,6 +1170,25 @@ class PageEndpoint:
             return self._refuse("the preview server is read-only", 403)
         return None
 
+    def _runtime_gate(self) -> Response | None:
+        """Hold a write to the runtime the tab runs.
+
+        A tab naming another runtime than this process's, as one from before a restart
+        under an updated Leaf does, gets the answer the layer gate gives a stale tab,
+        which names this runtime (`_delivery_headers`), so it reloads rather than
+        writes. Every served document's runtime names its own (`layer-client.js`,
+        `layerHeaders`); a client that runs none, such as a harness posting as the
+        user, names none. A website release names its runtime, so its tabs name none.
+        Every write route passes this first, whatever vocabulary it speaks."""
+        runtime = self.headers.get("Leaf-Runtime")
+        if (
+            self.release is None
+            and runtime is not None
+            and runtime != serving_runtime().identity
+        ):
+            return self._json({"layer": self.response_layer})
+        return None
+
     def _layer_gate(self) -> Response | None:
         """Hold a write to the vocabulary the tab speaks.
 
@@ -1179,22 +1198,13 @@ class PageEndpoint:
         speaks; the body was already read, so the connection stays reusable. The
         revision it held the write to is `layer_revision`, which a handler reads
         rather than resolving the active revision again after an activation may have
-        moved it, and the generation is resolved from that same reading. A tab naming
-        another runtime than this process's gets the same answer, which names this
-        runtime (`_delivery_headers`), so it reloads rather than writes. Every served
-        document's runtime names its own (`layer-client.js`, `layerHeaders`); a client
-        that runs none, such as a harness posting as the user, names none."""
+        moved it, and the generation is resolved from that same reading."""
         try:
             self.layer_revision = self.named_revision()
         except ValueError as error:
             return self._refuse(str(error))
         self.response_layer = self._revision_layer(self.layer_revision)
-        runtime = self.headers.get("Leaf-Runtime")
-        if self.headers.get("Leaf-Layer") != self.response_layer or (
-            self.release is None
-            and runtime is not None
-            and runtime != serving_runtime().identity
-        ):
+        if self.headers.get("Leaf-Layer") != self.response_layer:
             return self._json({"layer": self.response_layer})
         return None
 
@@ -1327,16 +1337,23 @@ class PageEndpoint:
     # a read-only preview creates one too.
     POST_ROUTES: Mapping[str, PostRoute] = {
         r"/api/files/(?P<name>[^/]+)": PostRoute(
-            _save_file, (_live_files_gate, _same_origin_gate, _body_gate)
+            _save_file,
+            (_runtime_gate, _live_files_gate, _same_origin_gate, _body_gate),
         ),
         "/api/user-view": PostRoute(_observe_user_view, (_body_gate,)),
         "/api/interaction": PostRoute(_record_interactions, (_body_gate,)),
-        "/api/samples": PostRoute(_create_sample, (_layer_gate, _body_gate)),
+        "/api/samples": PostRoute(
+            _create_sample, (_runtime_gate, _layer_gate, _body_gate)
+        ),
         "/api/media": PostRoute(
-            _store_media, (_writable_gate, _layer_gate, _body_gate), body="media"
+            _store_media,
+            (_writable_gate, _runtime_gate, _layer_gate, _body_gate),
+            body="media",
         ),
         "/api/event": PostRoute(
-            _accept_event, (_writable_gate, _layer_gate, _body_gate), events=True
+            _accept_event,
+            (_writable_gate, _runtime_gate, _layer_gate, _body_gate),
+            events=True,
         ),
     }
 

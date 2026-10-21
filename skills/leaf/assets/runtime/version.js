@@ -154,7 +154,7 @@ import { keeps } from "./keeps.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "./page-controls.js";
 import { pointerAt, restorePointer } from "./pointer.js";
 
-import { reportPageError } from "./layer-client.js";
+import { LayerRefused, admitReading, reportPageError } from "./layer-client.js";
 import { projectView, readApplication } from "./semantic-state.js";
 import { watchProjection } from "./projection-watch.js";
 
@@ -595,6 +595,8 @@ async function baseReading(baseRevision, throughSeq) {
     through_seq: String(throughSeq),
   });
   const res = await fetch(pageUrl(`api/view?${params}`));
+  // The reading is another revision's, so only its server is held to this document's.
+  if (!admitReading(res)) throw new LayerRefused("Leaf changed while comparing");
   if (!res.ok) throw new Error(`couldn't project revision r${baseRevision}`);
   return (await res.json()).browser;
 }

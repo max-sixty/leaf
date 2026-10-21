@@ -1462,14 +1462,23 @@ class WebsitePageEndpoint(PageEndpoint):
             head=site_metadata(self.page_root, self.pages[self.page_root or "/"]),
         )
 
-    def _sample_asset_root(self, revision: int) -> str:
+    def _published_root(self, revision: int) -> str | None:
+        """Where the release publishes a revision's resources beside the runtime it
+        runs (`live_shell`), for a revision the release published; None for one a
+        user's session created in this container, which serves its own."""
         page = self.pages[self.page_root or "/"]
-        # Published revisions share the public shell's release-captured graph.
-        # User-created revisions belong to this container, not that release.
-        if str(revision) in page["states"]:
-            name = self._revision_name(revision).removesuffix(".html")
-            return f"{page['assets']}/revisions/{name}"
-        return super()._sample_asset_root(revision)
+        if str(revision) not in page["states"]:
+            return None
+        name = self._revision_name(revision).removesuffix(".html")
+        return f"{page['assets']}/revisions/{name}"
+
+    # A published revision's documents and samples load its graph from the release, so
+    # a page the container saved while asleep needs no container to load it.
+    def _document_asset_root(self, revision: int) -> str:
+        return self._published_root(revision) or super()._document_asset_root(revision)
+
+    def _sample_asset_root(self, revision: int) -> str | None:
+        return self._published_root(revision) or super()._sample_asset_root(revision)
 
     def _acknowledge_startup_report(self) -> Response:
         # Every document the runtime delivers with a release carries the public

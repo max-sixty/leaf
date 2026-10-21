@@ -142,7 +142,7 @@ def test_authored_module_entry_exports_through_its_one_import_map_url(tmp_path, 
         f'<html><head><script type="module" src="./page/{quote(name, safe="")}"></script></head><body><main><h1>Authored entry</h1></main></body></html>'
     )
     artifact = running(
-        capture_artifact(tmp_path, document, {}),
+        capture_artifact(tmp_path, document, {"$layer": {"generation": "exported"}}),
         {
             path: "export {};" if path.endswith(".js") else ""
             for path in [

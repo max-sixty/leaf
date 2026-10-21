@@ -26,6 +26,7 @@ from render_harness import (
     compare_with,
     draft_control,
     open_page,
+    panel_field,
     panel_menu,
     panel_settled,
     round_trip,
@@ -253,6 +254,32 @@ def test_the_diff_marks_a_card_the_author_relocated(browser, serve):
     assert not page.evaluate(
         "document.getElementById('card-x-note').classList.contains('lf-ins-block')"
     ), "the card's passenger marked as its own move"
+
+
+def test_a_comparison_reads_nothing_from_a_server_running_another_runtime(
+    browser, serve
+):
+    """A comparison asks the server for the older version's reading. Right after a
+    restart under another Leaf, that server's runtime is not this tab's, and its state
+    is not this tab's code to read, so the comparison refuses it rather than mark the
+    page with it, and the page waits for the server as any refused answer does."""
+    url = serve(JOURNEY_V1)
+    _publish(serve.page_dir, 2, _card_done(JOURNEY_V1), "moved the card to Done")
+    page = open_page(browser, url.replace("v1.html", "v2.html"))
+
+    def another_runtime(route):
+        response = route.fetch()
+        route.fulfill(
+            response=response,
+            headers={**response.headers, "Leaf-Runtime": "0123456789abcdef"},
+        )
+
+    page.route("**/api/view*", another_runtime)
+    compare_with(page)
+    expect(panel_field(page)).to_have_attribute(
+        "placeholder", re.compile("^Waiting for the server to finish updating.")
+    )
+    expect(page.locator("#card-x.lf-ins-block")).to_have_count(0)
 
 
 def test_the_diff_marks_the_card_the_author_reordered_and_no_other(browser, serve):

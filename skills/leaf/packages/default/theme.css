@@ -3065,7 +3065,8 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   background: var(--pre-bg);
   --lf-block-frame: 1;
 }
-:scope:is(lf-text-document) figcaption {
+:scope:is(lf-text-document) figcaption,
+html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
   max-inline-size: none;
   padding: 7px 11px;
   border-bottom: 1px solid var(--rule);
@@ -3111,11 +3112,31 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
     --lf-top: inherit;
   }
   :scope:is(lf-text-document):not([preview])[data-lf-bound] pre {
-    max-block-size: var(--lf-bound, 28rem);
+    block-size: var(--lf-bound, 28rem);
     overflow: auto;
     --lf-bound-box: 1;
     --lf-holds-height: 1;
     --lf-top: 0px;
+  }
+  html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *)) {
+    border: 1px solid var(--code-border);
+    border-radius: var(--r);
+    background: var(--pre-bg);
+    &::before {
+      content: attr(label);
+      display: block;
+    }
+    &:not([label])::before {
+      content: attr(source);
+    }
+    &::after {
+      content: "";
+      display: block;
+      block-size: var(--lf-bound, 28rem);
+    }
+    &[preview]::after {
+      block-size: calc(var(--lf-tabstrip-h) + var(--lf-bound, 28rem));
+    }
   }
 }
 :scope:is(lf-text-document) .lf-text-document-listing {

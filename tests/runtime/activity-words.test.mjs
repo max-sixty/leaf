@@ -348,36 +348,56 @@ test("what the disclosure adds to the row says only what the row does not", () =
   assert.equal(pageStatus(null, { reach: "unreachable" }).adds, "");
 });
 
-test("a published page introduces itself and its links in place of the status", () => {
+test("a published page's agent is on call, and its explanation introduces the page", () => {
   const publication = { agent: "Agent", install_url: "/#install" };
-  const status = pageStatus({ ...state({ kind: "working" }), publication });
-  // Its line says who answers there, for a seat with room for one line.
-  assert.deepEqual(status, {
-    kind: "publication",
-    tone: "",
-    summary: "Agent revises your private copy",
-    publication,
-  });
-  const model = statusModel(status, NO_QUEUES, "Agent");
+  // The server names a hosted copy's agent after its publication.
+  const published = (activity, extra = {}) =>
+    pageStatus({
+      ...state(activity),
+      agent: "Agent",
+      publication: { ...publication, ...extra },
+    });
+  // A comment starts the agent, so whenever it isn't working it reads as listening,
+  // inviting that comment, whether no session holds the copy yet or one went quiet
+  // with a line of work it never finished.
+  for (const kind of ["closed", "unheld", "listening", "away", "stalled"]) {
+    const detail = kind === "listening" ? "" : "revising the plan";
+    const status = published({ kind, detail });
+    assert.equal(status.kind, "listening");
+    assert.equal(status.tone, "listening");
+    assert.equal(status.summary, "Agent awaits — comment to revise this copy");
+    assert.equal(status.asks, false);
+  }
+  // A request it declared still stands.
+  assert.equal(
+    published({ kind: "listening", detail: "pick a plan" }).summary,
+    "Agent awaits — pick a plan",
+  );
+  // Its work reads as on any page.
+  const working = published({ kind: "working", detail: "revising the plan" });
+  assert.equal(working.tone, "working");
+  assert.equal(working.summary, "Agent working — revising the plan");
+  const model = statusModel(published({ kind: "closed" }), NO_QUEUES, "Agent");
   assert.equal(
     model.explanation,
-    "This website is a Leaf page. Agent replies and revises this private copy. Install Leaf",
+    "Agent awaits — comment to revise this copy. This website is a Leaf page, and this copy is private to this browser. Install Leaf",
   );
+  assert.equal(model.adds, "");
   assert.deepEqual(model.publication, {
-    copy: "This website is a Leaf page. Agent replies and revises this private copy. ",
+    copy: "This website is a Leaf page, and this copy is private to this browser. ",
     examples: null,
     install: "Install Leaf",
     installUrl: "/#install",
     examplesUrl: null,
   });
   const example = statusModel(
-    pageStatus({ ...state({}), publication: { ...publication, kind: "example" } }),
+    published({ kind: "closed" }, { kind: "example" }),
     NO_QUEUES,
     "Agent",
   );
   assert.equal(
     example.explanation,
-    "This is an example on the Leaf website. Agent replies and revises this private copy. Other examples Install Leaf",
+    "Agent awaits — comment to revise this copy. This is an example on the Leaf website, and this copy is private to this browser. Other examples Install Leaf",
   );
   assert.equal(example.publication.examplesUrl, "/examples/");
 });

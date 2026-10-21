@@ -5576,7 +5576,7 @@ var OFFLINE_LINE = "Server offline \u2014 reconnecting. Keep this page open so p
 var KEY_REFUSED_LINE = "The server no longer accepts this tab's key. Open the link Leaf printed in a new tab, and keep this one open so pending changes can send.";
 var BROKEN_LINE = "Page couldn't apply current state \u2014 reload";
 var publicationWords = (published) => [
-  `${published.kind === "example" ? "This is an example on the Leaf website." : "This website is a Leaf page."} ${published.agent} replies and revises this private copy. `,
+  `${published.kind === "example" ? "This is an example on the Leaf website" : "This website is a Leaf page"}, and this copy is private to this browser. `,
   "Install Leaf"
 ];
 function pickedUpWords({ comments, answers }) {
@@ -5601,6 +5601,7 @@ function statusWords({
   detail,
   detailSource,
   handling,
+  invite,
   kind,
   listening,
   overdue,
@@ -5622,7 +5623,7 @@ function statusWords({
     ];
   }
   if (kind === "listening") {
-    const awaits = `${agent} awaits \u2014 ${detail || "select text to comment"}`;
+    const awaits = detail ? `${agent} awaits \u2014 ${detail}` : invite;
     return listening ? [
       `${agent} listening`,
       `${agent} is listening${detail ? " \u2014 " + detail : ""}.`,
@@ -5694,16 +5695,10 @@ function pageStatus(state, { reach: reach2 = "reached", fault: fault2 = null } =
       explanation: OFFLINE_LINE,
       adds: ""
     };
-  const { publication } = state;
-  if (publication)
-    return {
-      kind: "publication",
-      tone: "",
-      summary: `${publication.agent} revises your private copy`,
-      publication
-    };
-  const { activity, agent } = state;
-  const { kind, detail } = activity;
+  const { activity, agent, publication = null } = state;
+  const onCall = Boolean(publication) && activity.kind !== "working";
+  const kind = onCall ? "listening" : activity.kind;
+  const detail = !onCall || activity.kind === "listening" ? activity.detail : "";
   const facts = activityFacts(state);
   const saved = "Updates are saved.";
   const checkedIn = facts.silentSince ? `${agent} last checked in ${facts.silentSince}` : `No check-in from ${agent} is recorded`;
@@ -5720,6 +5715,7 @@ function pageStatus(state, { reach: reach2 = "reached", fault: fault2 = null } =
       comments: activity.counts.handling_comments,
       answers: activity.counts.handling - activity.counts.handling_comments
     },
+    invite: publication ? `${agent} awaits \u2014 comment to revise this copy` : `${agent} awaits \u2014 select text to comment`,
     kind,
     listening: facts.listening,
     overdue: activity.counts.overdue,
@@ -5743,7 +5739,7 @@ function pageStatus(state, { reach: reach2 = "reached", fault: fault2 = null } =
   if (waitsThere) append("It waits in its own session, not on this page.");
   return {
     kind,
-    tone: facts.tone,
+    tone: TONE[kind],
     summary: textOf(summaryParts),
     summaryParts,
     explanation: textOf(explanationParts),
@@ -5751,7 +5747,8 @@ function pageStatus(state, { reach: reach2 = "reached", fault: fault2 = null } =
     adds: textOf(addsParts),
     addsParts,
     asks: asked || waitsThere,
-    actionableWork
+    actionableWork,
+    publication
   };
 }
 var QUEUE_WORDS = Object.freeze({
@@ -5775,18 +5772,12 @@ function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {
   const named = (items2, whom) => items2.length ? `Waiting on ${whom}: ${queueKinds(items2).join(", ")}.` : "";
   return [named(onUser, "me"), named(onAgent, agent)].filter(Boolean).join(" ");
 }
-var WITHOUT_QUEUES = /* @__PURE__ */ new Set([
-  "broken",
-  "refused",
-  "faulted",
-  "unreachable",
-  "publication"
-]);
+var WITHOUT_QUEUES = /* @__PURE__ */ new Set(["broken", "refused", "faulted", "unreachable"]);
 function statusModel(status, queues, agent) {
   const { kind, tone: tone2, summary, asks = false, publication = null } = status;
   let { explanation, adds } = status;
-  let explanationParts = [...status.explanationParts ?? textParts(explanation)];
-  let addsParts = [...status.addsParts ?? textParts(adds)];
+  const explanationParts = [...status.explanationParts ?? textParts(explanation)];
+  const addsParts = [...status.addsParts ?? textParts(adds)];
   const counted = WITHOUT_QUEUES.has(kind) ? "" : queueWords(queues, agent);
   if (counted) {
     appendWords(explanationParts, counted);
@@ -5798,10 +5789,8 @@ function statusModel(status, queues, agent) {
   if (publication) {
     const [said, installs] = publicationWords(publication);
     const examples = publication.kind === "example" ? "Other examples" : null;
-    explanation = said + (examples ? `${examples} ` : "") + installs;
-    adds = explanation;
-    explanationParts = textParts(explanation);
-    addsParts = textParts(explanation);
+    appendWords(explanationParts, said + (examples ? `${examples} ` : "") + installs);
+    explanation = textOf(explanationParts);
     publicationModel = Object.freeze({
       copy: said,
       examples,
@@ -7288,9 +7277,10 @@ function createFloatingPanel({
       (group) => all.some((entry) => groupOf(entry) === group && listed(entry))
     );
     const { tone: tone2, summary, summaryParts, adds, addsParts, publication } = status();
-    const explains = publication ? html`${publication.copy}${publication.examplesUrl ? html`<a href=${publication.examplesUrl}>${publication.examples}</a> ` : nothing}<a href=${publication.installUrl} target="_blank" rel="noopener"
+    const said = adds && addsParts ? statusParts(addsParts) : adds;
+    const explains = publication ? html`${said}${adds ? " " : nothing}${publication.copy}${publication.examplesUrl ? html`<a href=${publication.examplesUrl}>${publication.examples}</a> ` : nothing}<a href=${publication.installUrl} target="_blank" rel="noopener"
             >${publication.install}</a
-          >` : adds && addsParts ? statusParts(addsParts) : adds;
+          >` : said;
     const part = (name2, text) => (held ? held[name2] : text) ? html`<span
             class="lf-fp-${name2}"
             style=${held ? `--lines: ${held[name2]}` : nothing}
@@ -8409,20 +8399,11 @@ function createFloatingPanel({
       }
     };
   }
-  function website() {
-    const { publication } = status();
-    if (!publication) return null;
-    return {
-      says: publication.examples ? "Example" : "Leaf page",
-      tone: "accent",
-      press: { label: publication.install, href: publication.installUrl }
-    };
-  }
   function approvedVersion() {
     if (!approvalReading()?.approved) return null;
     return { says: `\u2713 ${versionsReading().picker.token} approved`, tone: "ok" };
   }
-  const ROW_NOTICES = [olderVersion, website, approvedVersion];
+  const ROW_NOTICES = [olderVersion, approvedVersion];
   const rowNotice = () => {
     for (const read of ROW_NOTICES) {
       const notice2 = read();
@@ -8436,21 +8417,15 @@ function createFloatingPanel({
               ><span class="lf-fp-row-notice-act">${press.label}</span>` : nothing}</span
     >`;
     if (!press) return face;
-    return press.href ? html`<a
-          class="lf-fp-chip lf-fp-row-notice-press"
-          href=${press.href}
-          target="_blank"
-          rel="noopener"
-          >${face}</a
-        >` : html`<button
-          type="button"
-          class="lf-fp-chip lf-fp-row-notice-press"
-          title=${press.title ?? nothing}
-          ?disabled=${press.disabled}
-          @click=${press.run}
-        >
-          ${face}
-        </button>`;
+    return html`<button
+      type="button"
+      class="lf-fp-chip lf-fp-row-notice-press"
+      title=${press.title ?? nothing}
+      ?disabled=${press.disabled}
+      @click=${press.run}
+    >
+      ${face}
+    </button>`;
   }
   leaf.addEventListener("click", () => {
     if (host.dataset.rest === "mark") {

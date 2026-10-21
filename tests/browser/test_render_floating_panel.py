@@ -3015,9 +3015,9 @@ def test_a_failed_save_is_an_error_until_the_next_valid_one(browser, serve):
 
 
 def test_a_website_copy_says_who_revises_it_and_where_leaf_comes_from(browser, serve):
-    """On Leaf's website the field says who revises the visitor's copy, the row's notice
-    says where Leaf comes from, and the leaf's menu keeps the introduction with its
-    links."""
+    """On Leaf's website the agent is on call: the leaf wears listening's tone and the
+    field invites the comment that starts it, with no notice in the row, and the leaf's
+    menu keeps the introduction with its links."""
     page = floating(
         browser,
         serve(
@@ -3030,11 +3030,10 @@ def test_a_website_copy_says_who_revises_it_and_where_leaf_comes_from(browser, s
         ),
     )
     expect(field(page)).to_have_attribute(
-        "placeholder", re.compile("^Leaf guide revises your private copy")
+        "placeholder", re.compile("^Leaf guide awaits — comment to revise this copy")
     )
-    notice = page.locator(".lf-fp-row-notice a")
-    expect(notice).to_have_text(re.compile(r"^\s*Example\s*·\s*Install Leaf\s*$"))
-    expect(notice).to_have_attribute("href", "/#install")
+    expect(page.locator(".lf-fp-leaf .lf-dot")).to_have_class("lf-dot listening")
+    expect(page.locator(".lf-fp-row-notice")).to_be_hidden()
     page.locator(".lf-fp-leaf").click()
     links = page.locator(".lf-fp-menu .lf-fp-state a")
     expect(links).to_have_count(2)

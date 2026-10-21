@@ -18,7 +18,7 @@ None of these is a gate. Read the outputs as well as the pass counts.
 
 ```bash
 # Timed journeys, one harness at a time; each run adds a sample to journey.jsonl.
-uv run leaf-dev journey claude-code [--hooks-module]
+uv run leaf-dev journey claude-code
 uv run leaf-dev journey codex-app-server
 uv run leaf-dev journey pi
 uv run leaf-dev journey website-adapter

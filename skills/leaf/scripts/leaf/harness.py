@@ -73,18 +73,16 @@ class Harness:
     envelope states what the transport decides (`../../references/event-batches.md`).
     The methods below answer for each harness's watcher and transports:
 
-    - Claude Code runs Leaf's Stop hooks as each turn ends: one watches the
-      session's pages in the background and wakes the session when input arrives
-      (`watches_between_turns`), and the prompt hook, which runs as the turn the
-      wake opens begins, and the tool-batch hook within a turn put the input in
-      the turn's context and confirm it (`hook_delivers`); the other Stop hook
-      does only under plain `--print`, where no watch follows the turn
-      (`hook_transport`). A turn that ends without its Stop
-      hooks, as an interrupt does, leaves nothing watching while the session lives
-      on, which is why this is the harness with a `nudge`. With its option on,
-      Leaf's hooks module (`hooks/claude-code.ts`) keeps the watch in place of
-      that Stop hook, as Pi's extension does: it closes an interrupted turn
-      and goes on watching after it.
+    - Claude Code runs Leaf's hooks module (`hooks/claude-code.ts`), which
+      watches the session's pages as each turn ends, an interrupted one included,
+      and wakes the session with a prompt when input arrives
+      (`watches_between_turns`), as Pi's extension does. The prompt hook, which
+      runs as the turn the wake opens begins, and the tool-batch hook within a
+      turn put the input in the turn's context and confirm it (`hook_delivers`);
+      the Stop hook does only under plain `--print`, where no watch follows the
+      turn (`hook_transport`). Claude Code drops a plugin's prompt after an
+      Escape, and a Claude Code that loads no hooks module keeps no watch, which
+      is why this is the harness with a `nudge`.
     - Pi runs Leaf's extension in its own process, which calls the same hooks at
       the same points of a run and starts the same watch as each run settles, and
       starts the turn the watch wakes itself.
@@ -365,15 +363,12 @@ class ClaudeCodeHarness(EnvironmentHarness):
         return cls(session=claim["id"], agent=claim["agent"], job=claim.get("job"))
 
     def watches_between_turns(self) -> bool:
-        """Claude Code keeps an `asyncRewake` hook in the background and wakes the
-        session when it exits 2, except under plain `--print`, where it waits on
-        the hook as on any other and the turn would hold until input came
-        (measured at 2.1.286). A print session fed `--input-format stream-json`
-        backgrounds it like an interactive one; `--output-format stream-json`
-        alone does not. Only the process's own argv tells the two apart: the
-        hook's input and environment are the same.
-        Leaf's hooks module states CLAUDE_PID to the watch it keeps, so the same
-        reading holds there."""
+        """Leaf's hooks module watches between turns and wakes the session with a
+        prompt, except under plain `--print`, which ends with its one turn. A
+        print session fed `--input-format stream-json` takes further prompts like
+        an interactive one; `--output-format stream-json` alone does not. Only
+        the process's own argv tells the two apart, which the module states as
+        CLAUDE_PID."""
         argv = process_argv(int(os.environ["CLAUDE_PID"])) or []
         printing = "-p" in argv or "--print" in argv
         streaming = "--input-format=stream-json" in argv or (

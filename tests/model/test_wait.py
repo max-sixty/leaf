@@ -1,4 +1,4 @@
-"""Watching a page between turns: `leaf wait` and the background Stop hook's watch,
+"""Watching a page between turns: `leaf wait` and a harness's hook watch,
 what each watches and what wakes it, when a wait ends, bare-shell and Codex watcher
 waits, the one wait a page answers to, reviving a server that died under a wait,
 and messaging a Claude Code session nothing watches."""

@@ -1,11 +1,12 @@
 /**
- * Leaf's Claude Code hooks module: the session's watch between turns, kept by
- * the module rather than by the background Stop registration in `hooks.json`.
- * It runs only while the plugin's `hooks_module` option is on, and only in a
- * Claude Code that loads hooks modules, an early-access API.
+ * Leaf's Claude Code hooks module: the session's watch between turns, and the band
+ * above the prompt that shows the session's pages. Claude Code loads it from the
+ * installed plugin (measured at 2.1.305); a Claude Code that loads no hooks module
+ * keeps no watch, and input reaches its session only through the message Leaf
+ * sends a session nothing watches (`presence.nudge_unwatched`).
  *
- * It does for the watch what `hooks/pi.ts` does for a Pi session
- * (`ClaudeCodeHarness` in `skills/leaf/scripts/leaf/harness.py`):
+ * It keeps the watch as `hooks/pi.ts` does for a Pi session (`ClaudeCodeHarness`
+ * in `skills/leaf/scripts/leaf/harness.py`):
  *
  * - the session's start and each main-loop turn's end start the watch (`bin/leaf
  *   hook --harness claude-code --if-claimed --watch`), which prints a line and
@@ -20,22 +21,13 @@
  *   module sends Leaf a WakeRefused payload, and Leaf nudges the session through
  *   that message, as admission does for a session nothing watches. A watch that
  *   wakes during a turn leaves pending input to the native PostToolBatch
- *   boundary, shared with the default registration. A wake while Stop hooks run
- *   waits for their decision before starting an idle turn. The module never
- *   makes a second mid-turn delivery.
+ *   registration. A wake while Stop hooks run waits for their decision before
+ *   starting an idle turn. The module never makes a second mid-turn delivery.
  *
- * Once it has Claude Code's parent process, each Stop payload it passes on carries
- * `leaf_watch: "module"`, which stands down the background watch beneath it
- * (`hooks/scripts/background-watch.py`). A Claude Code that does not load the
- * module, or a module without that parent process, passes the payload unmarked, so
- * that registration goes on watching. A native spawn handle does not prove startup:
- * a watch that fails later reports its error and releases the owner's slot. The
- * prompt, Stop, SessionStart and SessionEnd registrations do the same work under
- * either watch and stay in `hooks.json`.
- *
- * TODO: once Claude Code loads modules without an opt-in, make this module the
- * only watcher and transport and drop the background Stop registration,
- * `background-watch.py`, and the interrupt half of the nudge.
+ * The prompt, tool-batch, Stop, SessionStart and SessionEnd registrations in
+ * `hooks.json` carry and confirm input; the module only watches and wakes. A
+ * native spawn handle does not prove startup: a watch that fails later reports its
+ * error and releases the owner's slot.
  *
  * A module's processes inherit Claude Code's own environment, which names no
  * session of its own, so every call states the session and Claude Code's process
@@ -44,16 +36,16 @@
  * their diagnostics through Claude Code's UI log. Replacing or closing a watch
  * cancels it quietly, after waiting for its process to exit.
  *
- * Whatever the option, the module also draws a band above the prompt for each live
- * page the session holds: a link to the page, what is On the user, and its open
- * threads with how many hold words the user hasn't read, the counts the page's own
- * Leaf panel marks. A follower (`bin/leaf hook --harness claude-code --if-claimed
- * --pages`) prints that list whenever it changes and exits once the session holds
- * no page; the launcher answers it without starting uv in a session holding none.
- * The session takes a page only through a `leaf` command, so the module starts the
- * follower as the session starts, after each Bash call that runs `leaf`, and as a
- * turn starts or a main-loop turn ends, once none is running; a request while one
- * runs starts another once it exits.
+ * The band has a line for each live page the session holds: a link to the page,
+ * what is On the user, and its open threads with how many hold words the user
+ * hasn't read, the counts the page's own Leaf panel marks. It goes above whatever
+ * other plugins draw there. A follower (`bin/leaf hook --harness claude-code
+ * --if-claimed --pages`) prints that list whenever it changes and exits once the
+ * session holds no page; the launcher answers it without starting uv in a session
+ * holding none. The session takes a page only through a `leaf` command, so the
+ * module starts the follower as the session starts, after each Bash call that
+ * runs `leaf`, and as a turn starts or a main-loop turn ends, once none is
+ * running; a request while one runs starts another once it exits.
  */
 
 import type { EngineInterface, Register, RenderElement } from "claude-code";
@@ -116,10 +108,9 @@ async function hook($: EngineInterface, payload: Payload): Promise<void> {
 }
 
 /** The watch owner serializes endings; the adapter supplies Claude Code's process
- * and wake operations. Without its parent process, the registration keeps watch. */
+ * and wake operations. */
 async function ensureWatch($: EngineInterface, session: string, interrupted: boolean) {
   const ended = Date.now() / 1000;
-  if (!claudePid) return;
   const owner = watch;
   await owner
     .ensure(
@@ -285,18 +276,14 @@ function follow($: EngineInterface, session: string) {
   })();
 }
 
-export const register: Register = (on, options) => {
-  const watching = options.hooks_module === true;
-
+export const register: Register = (on) => {
   on("session.start", async ($, e, next) => {
     const started = await next(e);
     const session = await $.session.id();
     follow($, session);
-    if (watching) {
-      const parent = await $.process.run(["/bin/sh", "-c", "echo $PPID"]);
-      claudePid = parent.stdout.trim();
-      void ensureWatch($, session, false);
-    }
+    const parent = await $.process.run(["/bin/sh", "-c", "echo $PPID"]);
+    claudePid = parent.stdout.trim();
+    void ensureWatch($, session, false);
     return started;
   });
 
@@ -314,18 +301,34 @@ export const register: Register = (on, options) => {
 
   // A resumed or cleared session raises no session.start, so its first turn follows.
   on("turn.start", ($, e, next) => {
-    if (watching) running = true;
+    running = true;
     void $.session.id().then((session) => follow($, session));
     return next(e);
+  });
+
+  on("classic.Stop", ($, e, next) => {
+    const ending = (async () => {
+      const result = await next(e);
+      // A Stop hook's context keeps the turn going.
+      running =
+        (result.additionalContext ?? []).length > 0 || result.block !== undefined;
+      return result;
+    })();
+    stopping = ending;
+    const settled = () => {
+      if (stopping === ending) stopping = undefined;
+    };
+    ending.then(settled, settled);
+    return ending;
   });
 
   on("turn.complete", async ($, e, next) => {
     const completed = await next(e);
     if (e.agentId !== undefined) return completed;
-    if (watching) running = false;
+    running = false;
     const session = await $.session.id();
     follow($, session);
-    if (watching) void ensureWatch($, session, e.isAborted);
+    void ensureWatch($, session, e.isAborted);
     return completed;
   });
 
@@ -362,27 +365,5 @@ export const register: Register = (on, options) => {
     // /clear and resume keep the module loaded without another session.start.
     if (watch === owner) watch = new WatchOwner();
     return ended;
-  });
-
-  if (!watching) return;
-
-  on("classic.Stop", ($, e, next) => {
-    const ending = (async () => {
-      // The mark stands the background watch down, since the module keeps the
-      // watch; without Claude Code's process it cannot, and that registration does.
-      const result = await next(
-        claudePid ? Object.assign({}, e, { leaf_watch: "module" }) : e,
-      );
-      // A Stop hook's context keeps the turn going.
-      running =
-        (result.additionalContext ?? []).length > 0 || result.block !== undefined;
-      return result;
-    })();
-    stopping = ending;
-    const settled = () => {
-      if (stopping === ending) stopping = undefined;
-    };
-    ending.then(settled, settled);
-    return ending;
   });
 };

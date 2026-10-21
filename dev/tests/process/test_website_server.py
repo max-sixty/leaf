@@ -534,9 +534,6 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
     refused = runner.invoke(journey.journey, ["website-adapter", "--http"])
     assert refused.exit_code == 2
     assert "a website's journey is its page in a browser" in refused.output
-    refused = runner.invoke(journey.journey, ["website-adapter", "--hooks-module"])
-    assert refused.exit_code == 2
-    assert "--hooks-module is an option of claude-code" in refused.output
     for target in ("website-adapter", "claude-code", "pi"):
         refused = runner.invoke(journey.journey, [target, "--preview"])
         assert refused.exit_code == 2
@@ -607,8 +604,8 @@ def test_the_journey_chart_draws_each_targets_latest_version_from_kept_samples()
         sample("codex-app-server", old, 4700, 200, None, 69600),
         sample("claude-code", new, 1300, 7000, 6900, 18600),
         sample("codex-app-server", old, 4600, 300, None, 102900),
-        # The hooks module is a row of its own, at its own latest version.
-        sample("claude-code", old, 1300, 7000, 6900, 15000, hooksModule=True),
+        # A user end over HTTP is a row of its own, at its own latest version.
+        sample("claude-code", old, 1300, 7000, 6900, 15000, userEnd="http"),
         # Each local run serves on a port of its own, but is the same target.
         sample(adapter, old, 900, 300, None, 30000, origin="http://127.0.0.1:8080"),
         sample(adapter, new, 800, 300, None, 25000, origin="http://127.0.0.1:9090"),
@@ -626,7 +623,7 @@ def test_the_journey_chart_draws_each_targets_latest_version_from_kept_samples()
     rows = journey_chart.chart_rows([*samples, unstepped])
     assert {r["row"] for r in rows} == {
         "Claude Code at bbbbbbbb+working-tree",
-        "Claude Code with the hooks module at aaaaaaaa",
+        "Claude Code over HTTP at aaaaaaaa",
         "Codex App Server at aaaaaaaa",
         "website-adapter at bbbbbbbb+working-tree",
     }
@@ -641,7 +638,7 @@ def test_the_journey_chart_draws_each_targets_latest_version_from_kept_samples()
     # A step the run never reached draws no dot.
     assert [r["row"] for r in rows if r["sign"] == "progress"] == [
         "Claude Code at bbbbbbbb+working-tree",
-        "Claude Code with the hooks module at aaaaaaaa",
+        "Claude Code over HTTP at aaaaaaaa",
     ]
     assert json.dumps(rows) in markup
 

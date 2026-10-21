@@ -18,7 +18,7 @@ user decisions carry into later revisions unless explicitly retracted. These
 contracts live in [page-storage.md](../skills/leaf/scripts/leaf/page-storage.md)
 and [packages.md](../skills/leaf/references/packages.md).
 
-Delivery belongs to the harness adapter: Claude Code's Stop hook watches claimed
+Delivery belongs to the harness adapter: Leaf's Claude Code hooks module watches claimed
 pages; ordinary Codex tasks receive queued deliveries; tasks with an accessible
 Codex App Server receive delivery turns through that server. Read the owning
 [Claude Code](../skills/leaf/references/harness-claude-code.md) and
@@ -37,7 +37,7 @@ baseline rather than restating a feature table for each project.
 separates host readiness, submission, and streaming behind an adapter. Its
 [Claude Code session module](https://github.com/backnotprop/plannotator/blob/v0.28.4/apps/hook/hooks/mod/register.ts)
 is released in v0.28.4 and enabled by default on supported interactive hosts
-(rechecked 2026-10-05). Leaf's opt-in
+(rechecked 2026-10-05). Leaf's
 [Claude hooks module](../hooks/claude-code.ts) now owns watching between turns,
 including interruption and delivery during a running turn. It landed with
 real-host verification in [PR #1936](https://github.com/max-sixty/leaf/pull/1936).

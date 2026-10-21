@@ -35,8 +35,8 @@ so a claim that command makes joins it. Hooks
 that do run with no retained claim avoid page reading, and import the harness
 declarations only once the payload names a session. Page-owning prompt and Stop
 hooks reach `hook_transport`; Codex's tool and Stop hooks reach its delivery
-records in `codex`; a second Claude Code Stop hook watches between turns (`cmd_watch`).
-Leaf's Claude Code hooks module also follows the session's pages (`cmd_pages`) to
+records in `codex`. Leaf's Claude Code hooks module and Pi's extension watch between
+turns (`cmd_watch`), and the hooks module follows the session's pages (`cmd_pages`) to
 draw them beside the prompt. The application entry routes `leaf hook` here before
 loading the CLI.
 
@@ -189,9 +189,9 @@ def cmd_hook(harness: str, payload: dict) -> None:
 
 
 def cmd_watch(harness: str, payload: dict) -> str | None:
-    """The Stop hook `harness` runs in the background as a turn ends, watching the
-    session's pages until input, and what it wakes the session with, or None
-    where it ends without waking it (`session.watch_between_turns`).
+    """The watch `harness`'s extension or hooks module starts as a turn ends,
+    watching the session's pages until input, and what it wakes the session with, or
+    None where it ends without waking it (`session.watch_between_turns`).
 
     It watches only while the session holds a page, and only where its harness
     watches between turns. Pi's extension and Leaf's Claude Code hooks module start
@@ -285,7 +285,7 @@ def main(harness: str, *, watch: bool = False, pages: bool = False) -> None:
     if launcher is not None and launcher != own_launcher():
         # Delegate the whole hook before publishing lifecycle or pickup. Keeping
         # the stdin as a file avoids a pipe-size limit on large tool payloads;
-        # exec retains cancellation and the background watch's exact lifetime.
+        # exec retains cancellation and the watch's exact lifetime.
         with tempfile.TemporaryFile() as incoming:
             incoming.write(json.dumps(payload).encode())
             incoming.seek(0)

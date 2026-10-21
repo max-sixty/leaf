@@ -1,12 +1,10 @@
 """Leaf's Claude Code hooks module (`hooks/claude-code.ts`) keeping a session's
-watch in place of the background Stop registration, and drawing the session's
-pages above the prompt.
+watch between turns, and drawing the session's pages above the prompt.
 
 `claude_code_driver.mjs` stands in for Claude Code around the module, which calls
 the real launcher, so these hold the module and the hooks it calls together."""
 
 import json
-import os
 import queue
 import socket
 import subprocess
@@ -137,15 +135,13 @@ class ClaudeCode:
 
 @pytest.fixture
 def claude_code(page_dir, monkeypatch, spawn, sessionless, request):
-    """A Claude Code session with the module turned on, holding a page claimed and
+    """A Claude Code session with the module loaded, holding a page claimed and
     served from a Bash tool command as Claude Code runs one: its session id and its
     process. Claude Code's own environment names no session, so neither does the
     module's. The session then starts, as one does when the module loads while it
     holds a page, and the module's watch holds the session's lease, so input posted afterwards
     arrived after the watch's first look rather than pending as it started."""
-    driven = ClaudeCode(
-        spawn, "cc-s1", {"hooks_module": True, **getattr(request, "param", {})}
-    )
+    driven = ClaudeCode(spawn, "cc-s1", getattr(request, "param", {}))
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", driven.session)
     monkeypatch.setenv("CLAUDE_PID", str(driven.pid))
     service_model.claim_page(page_dir)
@@ -160,24 +156,6 @@ def claude_code(page_dir, monkeypatch, spawn, sessionless, request):
         failure="the module started no watch as the session started",
     )
     yield driven
-    driven.quit()
-
-
-def test_the_module_keeps_no_watch_until_its_option_is_on(spawn, sessionless):
-    """Without its option the module hooks only what the pages band needs, so a
-    default install keeps the registrations in `hooks.json` for the watch."""
-    driven = ClaudeCode(spawn, "cc-off", {"hooks_module": False})
-    assert driven.events == [
-        "session.start",
-        "tool.call",
-        "turn.start",
-        "turn.complete",
-        "ui.render",
-        "session.end",
-    ]
-    driven.emit("session.start", {"cwd": "/", "isInteractive": True})
-    driven.end_turn()
-    assert driven.watches.empty()
     driven.quit()
 
 
@@ -270,7 +248,6 @@ def test_failed_module_processes_report_their_diagnostics(
         spawn,
         "cc-failure",
         {
-            "hooks_module": True,
             "pluginRoot": str(tmp_path),
             "throwWatchSpawn": failure == "spawn",
         },
@@ -316,46 +293,6 @@ def test_the_module_wakes_an_idle_session_with_a_prompt(page_dir, claude_code):
     sent = claude_code.message()
     assert sent["submitted"].startswith(f"Leaf: {page_dir} has new input"), sent
     assert comment["id"] not in sent["submitted"]
-
-
-def test_the_module_stands_the_background_registration_down(page_dir, claude_code):
-    """Each Stop payload the module passes on is marked, and `hooks.json`'s
-    background registration, given that payload with input pending and no other
-    watch running, ends silently where the unmarked payload wakes the session.
-    Driven the way Claude Code drives it, through a shell with the payload on
-    stdin."""
-    stamped = claude_code.stop()
-    assert stamped["leaf_watch"] == "module"
-    claude_code.quit()
-    [hook] = [
-        hook
-        for entry in json.loads((PLUGIN_ROOT / "hooks/hooks.json").read_text())[
-            "hooks"
-        ]["Stop"]
-        for hook in entry["hooks"]
-        if hook.get("asyncRewake")
-    ]
-    cleanup_model.close_session_turn(claude_code.session)
-    append_carried_log_record(
-        page_dir, {"kind": "comment", "author": "user", "text": "pending"}
-    )
-
-    def background(payload: dict) -> subprocess.CompletedProcess:
-        return subprocess.run(
-            ["sh", "-c", hook["command"]],
-            input=json.dumps(payload),
-            env=os.environ | {"CLAUDE_PLUGIN_ROOT": str(PLUGIN_ROOT)},
-            capture_output=True,
-            text=True,
-            timeout=STATED_TIMEOUT,
-            check=False,
-        )
-
-    marked = background(stamped)
-    assert (marked.returncode, marked.stderr) == (0, "")
-    unmarked = background({key: stamped[key] for key in stamped if key != "leaf_watch"})
-    assert unmarked.returncode == 2
-    assert unmarked.stderr.startswith(f"{page_dir} has new input")
 
 
 def test_the_module_hands_input_to_a_running_turn_and_closes_an_interrupted_one(

@@ -702,7 +702,7 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
             "stderr": said(result.stderr),
         }
 
-    # The turn ends over the page, and its Stop hook watches from here.
+    # The turn ends over the page, and Leaf watches it from here.
     assert hook("Stop") is None
     sent = append_carried_log_record(
         page,

@@ -218,7 +218,7 @@ def test_stop_hook_does_not_borrow_a_foreign_bare_waiter_lease(page_dir, monkeyp
 
 def test_stop_hook_holds_a_turn_only_where_nothing_will_watch_its_page(claimed, capsys):
     """Between turns a page is either watched or idle. Under Claude Code the
-    watch is Leaf's own background Stop hook, which the turn's ending starts, so a
+    watch is the one Leaf's hooks module starts as the turn ends, so a
     turn ends over a page nothing watches yet. A watcher that is a process of its
     own, as a Codex task's adapter is, has to be running before the turn may end:
     without it the page keeps saying "Codex is working" over nobody."""

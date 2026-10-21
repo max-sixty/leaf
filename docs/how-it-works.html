@@ -1089,10 +1089,10 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               </p>
               <p id="claude-activity">
                 Leaf reads Claude Code's session registry to tell whether a session is
-                busy, waiting or idle. If the background watch has stopped, Leaf can
-                message the session through its socket, or resume a retired background
-                session with <code>claude --bg --resume</code>. The socket accepting a
-                message doesn't show that the agent read it.
+                busy, waiting or idle. If nothing is watching the page, Leaf can message
+                the session through its socket, or resume a retired background session
+                with <code>claude --bg --resume</code>. The socket accepting a message
+                doesn't show that the agent read it.
               </p>
             </details>
             <details id="host-entry-points">

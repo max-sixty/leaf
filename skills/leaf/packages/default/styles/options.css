@@ -45,6 +45,8 @@
   --lf-joined: 0;
   --lf-option-font: var(--t-4)/1.6 var(--serif);
   --lf-option-line: 1lh;
+  --lf-option-action-size: max(28px, var(--aim-floor));
+  --lf-option-pad-block: 5px;
   container-type: inline-size;
 }
 /* Options are read as lines of text, so the group keeps the reading measure as its
@@ -59,6 +61,21 @@
   --lf-option-font: var(--t-5)/1.5 var(--sans);
   font: var(--lf-option-font);
 }
+@media screen {
+  :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *):not(
+      :has(> lf-option > strong)
+    ) {
+    /* The row and the option it becomes both contain the trailing action, including
+     * its larger touch target. Their words keep the same line height. */
+    --lf-option-pad-block: max(
+      5px,
+      (var(--lf-option-action-size) - var(--lf-option-line)) / 2
+    );
+  }
+}
+:scope:is(lf-options):has(> lf-option > strong) {
+  --lf-option-pad-block: var(--sp-3);
+}
 :scope:is(lf-option) {
   display: block;
   position: relative;
@@ -72,7 +89,7 @@
  * everywhere, bordered on its own ground only when not joined. The shadow carries only
  * the hover lift; chosen uses the border and the check. */
 :scope:is(lf-options):has(> lf-option > strong) > lf-option {
-  padding: var(--sp-3);
+  padding: var(--lf-option-pad-block) var(--sp-3);
   --lf-block-frame: 1;
   --lf-lift: 0 0 #0000;
   box-shadow: var(--lf-lift);
@@ -224,12 +241,12 @@
       padding-inline-start: var(--sp-3);
     }
     & > lf-option {
-      padding-bottom: var(--sp-3);
+      padding-bottom: var(--lf-option-pad-block);
     }
     /* The field takes the card's inset and the state band's height, so the row keeps its
     * height when the add lands. */
     & > .lf-another:not([hidden]) {
-      padding-block: var(--sp-3);
+      padding-block: var(--lf-option-pad-block);
     }
     & > .lf-another > .lf-compose-field {
       min-height: var(--lf-card-state-height);
@@ -292,11 +309,7 @@
       bottom: var(--lf-option-add-badge-end);
       margin: 0;
     }
-    /* The seat stands centred on the field's one line, above the card's inset. */
     & > .lf-another {
-      --lf-option-add-seat-end: calc(
-        var(--sp-3) + (var(--lf-option-line) - var(--lf-option-action-size)) / 2
-      );
       --lf-option-action-room: calc(
         var(--lf-option-write-badge-inset) + var(--lf-key-badge-size) + var(--sp-2)
       );
@@ -453,12 +466,13 @@
     overflow: clip;
     /* The authored options paint before the generated Add and Done cells, so their rows
      * are held until upgrade and the next block stays put. Add is one option line inside
-     * the inset of the option it becomes: a row's 5px, a card's --sp-3. */
-    --lf-add-cell-height: calc(var(--lf-option-line) + 2 * 5px);
+     * the same inset as the option it becomes. */
+    --lf-add-cell-height: calc(var(--lf-option-line) + 2 * var(--lf-option-pad-block));
     --lf-done-cell-height: 32px;
     &:has(> lf-option > strong) {
       --lf-add-cell-height: calc(
-        max(var(--lf-option-line), var(--lf-card-state-height)) + 2 * var(--sp-3)
+        max(var(--lf-option-line), var(--lf-card-state-height)) + 2 *
+          var(--lf-option-pad-block)
       );
     }
     &:not(:where(.lf-chrome *)):not(:has(> .lf-another)) {
@@ -604,9 +618,12 @@
     --lf-wears-ring: 1;
   }
   .lf-another {
-    --lf-option-action-size: max(28px, var(--aim-floor));
     --lf-option-add-seat-inset: var(--sp-1);
-    --lf-option-add-seat-end: var(--lf-option-add-seat-inset);
+    /* Centre Add on the last text line, using the same inset that sizes its row. */
+    --lf-option-add-seat-end: calc(
+      var(--lf-option-pad-block) +
+        (var(--lf-option-line) - var(--lf-option-action-size)) / 2
+    );
     --lf-option-add-badge-inset: calc(
       var(--lf-option-add-seat-inset) +
         (var(--lf-option-action-size) - var(--lf-key-badge-size)) / 2
@@ -701,7 +718,7 @@
   width: 100%;
   box-sizing: border-box;
   border-spacing: var(--lf-row-gap) 0;
-  padding: 5px 0;
+  padding: var(--lf-option-pad-block) 0;
   --lf-block-frame: 1;
 }
 /* The mark's own 17px column, after the binding badge's: a row is one line, so the two
@@ -723,7 +740,7 @@
  * vertical inset, so the draft and the option it becomes are one row. */
 :scope:is(lf-options):not(:has(> lf-option > strong)) > .lf-another:not([hidden]) {
   gap: 0;
-  padding-block: 5px;
+  padding-block: var(--lf-option-pad-block);
   padding-inline-end: var(--lf-row-gap);
 }
 :scope:is(lf-options):not(:has(> lf-option > strong)) > .lf-another {

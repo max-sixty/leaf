@@ -681,6 +681,8 @@
   --lf-joined: 0;
   --lf-option-font: var(--t-4)/1.6 var(--serif);
   --lf-option-line: 1lh;
+  --lf-option-action-size: max(28px, var(--aim-floor));
+  --lf-option-pad-block: 5px;
   container-type: inline-size;
 }
 @media screen {
@@ -693,6 +695,14 @@
   --lf-option-font: var(--t-5)/1.5 var(--sans);
   font: var(--lf-option-font);
 }
+@media screen {
+  :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > strong)) {
+    --lf-option-pad-block: max( 5px, (var(--lf-option-action-size) - var(--lf-option-line)) / 2 );
+  }
+}
+:scope:is(lf-options):has(> lf-option > strong) {
+  --lf-option-pad-block: var(--sp-3);
+}
 :scope:is(lf-option) {
   display: block;
   position: relative;
@@ -702,7 +712,7 @@
   white-space: normal;
 }
 :scope:is(lf-options):has(> lf-option > strong) > lf-option {
-  padding: var(--sp-3);
+  padding: var(--lf-option-pad-block) var(--sp-3);
   --lf-block-frame: 1;
   --lf-lift: 0 0 #0000;
   box-shadow: var(--lf-lift);
@@ -811,10 +821,10 @@
       padding-inline-start: var(--sp-3);
     }
     & > lf-option {
-      padding-bottom: var(--sp-3);
+      padding-bottom: var(--lf-option-pad-block);
     }
     & > .lf-another:not([hidden]) {
-      padding-block: var(--sp-3);
+      padding-block: var(--lf-option-pad-block);
     }
     & > .lf-another > .lf-compose-field {
       min-height: var(--lf-card-state-height);
@@ -871,7 +881,6 @@
       margin: 0;
     }
     & > .lf-another {
-      --lf-option-add-seat-end: calc( var(--sp-3) + (var(--lf-option-line) - var(--lf-option-action-size)) / 2 );
       --lf-option-action-room: calc( var(--lf-option-write-badge-inset) + var(--lf-key-badge-size) + var(--sp-2) );
     }
     & > .lf-another:has(.lf-compose-submit:not([data-lf-empty])) > .lf-key-badge {
@@ -987,10 +996,10 @@
     border: 1px solid var(--border-2);
     border-radius: var(--r);
     overflow: clip;
-    --lf-add-cell-height: calc(var(--lf-option-line) + 2 * 5px);
+    --lf-add-cell-height: calc(var(--lf-option-line) + 2 * var(--lf-option-pad-block));
     --lf-done-cell-height: 32px;
     &:has(> lf-option > strong) {
-      --lf-add-cell-height: calc( max(var(--lf-option-line), var(--lf-card-state-height)) + 2 * var(--sp-3) );
+      --lf-add-cell-height: calc( max(var(--lf-option-line), var(--lf-card-state-height)) + 2 * var(--lf-option-pad-block) );
     }
     &:not(:where(.lf-chrome *)):not(:has(> .lf-another)) {
       --lf-missing-cells: var(--lf-add-cell-height);
@@ -1088,9 +1097,8 @@
     --lf-wears-ring: 1;
   }
   .lf-another {
-    --lf-option-action-size: max(28px, var(--aim-floor));
     --lf-option-add-seat-inset: var(--sp-1);
-    --lf-option-add-seat-end: var(--lf-option-add-seat-inset);
+    --lf-option-add-seat-end: calc( var(--lf-option-pad-block) + (var(--lf-option-line) - var(--lf-option-action-size)) / 2 );
     --lf-option-add-badge-inset: calc( var(--lf-option-add-seat-inset) + (var(--lf-option-action-size) - var(--lf-key-badge-size)) / 2 );
     --lf-option-add-badge-end: calc( var(--lf-option-add-seat-end) + (var(--lf-option-action-size) - var(--lf-key-badge-size)) / 2 );
     --lf-option-write-badge-inset: calc( var(--lf-option-add-seat-inset) + var(--lf-option-action-size) + var(--sp-2) );
@@ -1158,7 +1166,7 @@
   width: 100%;
   box-sizing: border-box;
   border-spacing: var(--lf-row-gap) 0;
-  padding: 5px 0;
+  padding: var(--lf-option-pad-block) 0;
   --lf-block-frame: 1;
 }
 :scope:is(lf-options):not(:has(> lf-option > strong)) > :is(lf-option, .lf-another) {
@@ -1171,7 +1179,7 @@
 }
 :scope:is(lf-options):not(:has(> lf-option > strong)) > .lf-another:not([hidden]) {
   gap: 0;
-  padding-block: 5px;
+  padding-block: var(--lf-option-pad-block);
   padding-inline-end: var(--lf-row-gap);
 }
 :scope:is(lf-options):not(:has(> lf-option > strong)) > .lf-another {

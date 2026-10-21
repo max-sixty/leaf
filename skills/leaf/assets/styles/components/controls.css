@@ -4,9 +4,6 @@
   color: var(--muted-2);
   font: 500 var(--t-6)/1.35 var(--sans);
 }
-.lf-page-thread-open {
-  margin-top: var(--sp-2);
-}
 /* A seat's resolved threads stand under one disclosure (thread/inline.js), whose
    threads are page threads like any other. Its summary is one line at the aim floor,
    so a notice of what its threads hold back says so without growing it. */

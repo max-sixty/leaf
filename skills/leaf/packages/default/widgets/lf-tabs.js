@@ -14,8 +14,9 @@
  * follows those panel entries. A link inside a panel is still fragment travel
  * (history.js).
  *
- * How a set is drawn is one fact, its flow (`data-lf-tabs-flow`), which this module
- * writes and reads and every rule for the set's presentation reads. The root set with
+ * How a set is drawn is one fact, its flow (`data-lf-views-flow`), which prepaint
+ * reads from the package's `--lf-views-flow` declaration. This module and the
+ * presentation rules consume that reading. The root set with
  * its strip written as a row is the page's own flow ("page"): its strip sticks at the
  * window's top as a sticky header over the document it indexes, and its panels are sections of the
  * page, taking the page's width. Each is then a view with a place of its own: a switch,
@@ -540,8 +541,15 @@ export class TabSet extends HTMLElement {
       (this.#parts
         ? getComputedStyle(main).getPropertyValue("--lf-layout-box").trim() !== "1"
         : main.querySelector(":scope > lf-tabs") === this);
-    this.#pageFlow = this.#root && !this.#side;
-    if (!this.#parts) keeps(this, "data-lf-tabs-flow", this.#pageFlow ? "page" : "box");
+    if (!this.#parts)
+      keeps(
+        this,
+        "data-lf-views-flow",
+        getComputedStyle(this).getPropertyValue("--lf-views-flow").trim(),
+      );
+    this.#pageFlow = this.#parts
+      ? this.#root
+      : this.getAttribute("data-lf-views-flow") === "page";
     this.#declareHeader();
     // A set that changed flow drew its open panel at another width.
     if (wasFlow !== this.#pageFlow && this.#active) {

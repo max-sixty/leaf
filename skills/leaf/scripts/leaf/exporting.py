@@ -123,9 +123,7 @@ class AssetInliner:
     def resource(self, path: str) -> Resource:
         if path not in self.resources:
             resource = self.read(path)
-            self.resources[path] = Resource(
-                resource.data, resource.mime, resource.dependencies
-            )
+            self.resources[path] = Resource(resource.data, resource.mime)
         return self.resources[path]
 
     def address(self, reference: str) -> str | None:

@@ -314,7 +314,7 @@ def _stacked_headers(browser, serve, flow="page"):
     page.wait_for_function(
         "() => document.querySelectorAll('lf-diff.lf-rendered').length === 3"
     )
-    expect(page.locator("#tabs")).to_have_attribute("data-lf-tabs-flow", flow)
+    expect(page.locator("#tabs")).to_have_attribute("data-lf-views-flow", flow)
     return page
 
 
@@ -452,7 +452,7 @@ def test_tab_onto_a_link_in_a_wide_table_under_a_framed_strip_clears_the_strip(
     under the strip."""
     page = open_page(request.getfixturevalue(engine), serve(WIDE_TABLE_IN_A_FRAMED_SET))
     resized(page, 1280, 720)
-    expect(page.locator("#views")).to_have_attribute("data-lf-tabs-flow", "box")
+    expect(page.locator("#views")).to_have_attribute("data-lf-views-flow", "box")
     # Stick the strip, then stand row 11's link 20px under the strip's top: inside the
     # root's landing band, which the strip covers.
     page.evaluate(
@@ -490,7 +490,7 @@ def test_embedded_tab_selection_preserves_the_document_reading_position(browser,
     page = open_page(browser, serve(source))
     resized(page, 1280, 720)
     tabs = page.locator("#root-tabs")
-    expect(tabs).to_have_attribute("data-lf-tabs-flow", "box")
+    expect(tabs).to_have_attribute("data-lf-views-flow", "box")
     evidence = tabs.get_by_role("tab", name="Evidence", exact=True)
     evidence.evaluate("el => el.scrollIntoView({block: 'start', behavior: 'instant'})")
     scroll_settled(page)
@@ -548,7 +548,7 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
     page = open_page(browser, serve(source))
     resized(page, 1440, 900)
     tabs = page.locator("#root-tabs")
-    expect(tabs).to_have_attribute("data-lf-tabs-flow", "page")
+    expect(tabs).to_have_attribute("data-lf-views-flow", "page")
     boxes = page.evaluate(
         """() => {
           const box = (el) => {
@@ -706,7 +706,7 @@ def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
         for route in boot:
             route.continue_()
         page.unroute_all(behavior="wait")
-    expect(page.locator("#root-tabs")).to_have_attribute("data-lf-tabs-flow", "page")
+    expect(page.locator("#root-tabs")).to_have_attribute("data-lf-views-flow", "page")
     assert twins("desktop") == first
     # Wider than the reading column, which a workspace's prose does not keep.
     assert first["in-wide"]["width"] > 720, first

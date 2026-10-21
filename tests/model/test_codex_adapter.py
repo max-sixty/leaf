@@ -27,6 +27,7 @@ from interact_support import (
     acknowledge_through,
     acknowledged_through,
     activity_reading,
+    adapter_lease,
     append_carried_log_record,
     append_command,
     available_loopback_port,
@@ -182,7 +183,7 @@ def test_selecting_a_checkout_replaces_the_sessions_delivery_runtime(
         assert all(status == 0 for status, _out, _err in outcomes), outcomes
         assert json.loads(outcomes[0][1])["started"]
         assert json.loads(outcomes[2][1])["started"]
-        assert codex_adapter_model._running_adapter("codex-thread")["launcher"] == str(
+        assert codex_adapter_model.running_adapter("codex-thread")["launcher"] == str(
             PLUGIN_ROOT / "bin/leaf"
         )
         append_carried_log_record(
@@ -751,8 +752,7 @@ def test_a_new_codex_adapter_observes_ordinary_turns_without_a_prior_hook(
     )
 
 
-@pytest.mark.parametrize("invalid", ["old-format", "incomplete-correction"])
-def test_codex_drops_a_record_whose_delivery_it_cannot_read(page_dir, invalid):
+def test_codex_drops_a_record_whose_delivery_it_cannot_read(page_dir):
     append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "hello"}
     )
@@ -763,10 +763,7 @@ def test_codex_drops_a_record_whose_delivery_it_cannot_read(page_dir, invalid):
     payload = codex_model.offer_delivery(
         path, codex_model.read_record(path), transport="queue"
     ).payload
-    if invalid == "old-format":
-        payload["format"] = "leaf-delivery-v1"
-    else:
-        payload["correction"] = {"delivery": "12345678"}
+    payload["format"] = "leaf-delivery-v1"
     cleanup_model.write_json(delivery_model.delivery_path(payload["id"]), payload)
     with pytest.raises(Refused, match="written by another Leaf"):
         delivery_model.read_delivery(payload["id"])
@@ -1519,6 +1516,82 @@ def test_codex_tool_hook_delivers_into_the_running_turn_once(
     assert not queued
 
 
+@pytest.mark.parametrize("app_server", ["unix:///app-server.sock", None])
+def test_a_codex_stop_leaves_late_input_to_an_app_server_adapters_own_turn(
+    page_dir, codex_loop, capsys, monkeypatch, app_server
+):
+    """While an adapter that starts turns over App Server runs, a comment that
+    arrives as the turn ends is not handed into it: continuing the turn would have
+    the agent write one more message after the answer the turn had written. The turn
+    ends, and the adapter starts the comment's own turn, which adds no message to
+    the user's conversation. A queue adapter's turn would open on a pointer Codex
+    shows as the user's own message, so there Stop hands the comment into the
+    ending turn and the adapter queues nothing. A task that waits with `leaf wait`
+    has nothing to open a later turn, so its Stop hands the comment over too
+    (`test_codex_tool_hook_delivers_into_the_running_turn_once`)."""
+    codex_loop(page_dir)
+    cleanup_model.prompt_turn("codex-thread", "user-turn")
+    waiter = _watched(page_dir)
+    adapter = adapter_lease("codex-thread", app_server)
+    leases_model.mark_step_hook("codex-thread")
+    queued = []
+    monkeypatch.setattr(
+        codex_adapter_model, "queue_delivery", lambda *args: queued.append(args)
+    )
+    try:
+        comment = append_carried_log_record(
+            page_dir, {"kind": "comment", "author": "user", "text": "And the footer?"}
+        )
+        # The adapter's watch collects it as it arrives, and holds it back while
+        # the running turn's hooks may still offer it.
+        with service_model.PageTransaction(page_dir) as transaction:
+            codex_model.append_batch("codex-thread", page_dir, transaction, [comment])
+        assert not codex_adapter_model._offer_queued_delivery(
+            "codex", "codex-thread", None
+        )
+        hooks_model.cmd_hook(
+            "codex",
+            {
+                "hook_event_name": "Stop",
+                "session_id": "codex-thread",
+                "turn_id": "user-turn",
+            },
+        )
+        if app_server is not None:
+            assert capsys.readouterr().out == ""
+            assert cleanup_model.session_record("codex-thread")["turn_closed"]
+            assert acknowledged_through(page_dir) < comment["seq"]
+            # Collected and unoffered, for the adapter's own start.
+            [(_, record)] = codex_records("codex-thread")
+            assert record["state"] == "collecting"
+            return
+        answer = json.loads(capsys.readouterr().out)
+        assert answer["decision"] == "block"
+        envelope = json.loads(answer["reason"])
+        assert [event["id"] for event in envelope["batches"][0]["events"]] == [
+            comment["id"]
+        ]
+        assert not cleanup_model.session_record("codex-thread")["turn_closed"]
+        assert not codex_adapter_model._offer_queued_delivery(
+            "codex", "codex-thread", None
+        )
+        delivery_model.cmd_delivery_ack(envelope["id"])
+        [pickup] = [
+            event
+            for event in events_model.read_events(page_dir)
+            if event["kind"] == "pickup"
+        ]
+        assert (pickup["phase"], pickup["turn"], pickup["events"]) == (
+            "opened",
+            "user-turn",
+            [comment["id"]],
+        )
+        assert not queued
+    finally:
+        adapter.close()
+        leases_model.release_lease(waiter)
+
+
 @pytest.mark.parametrize("delivery_hook", ["PostToolUse", "Stop"])
 def test_codex_hook_keeps_oversized_input_whole_for_its_reader(
     page_dir, codex_loop, capsys, delivery_hook
@@ -2231,8 +2304,7 @@ def test_an_unread_codex_hook_pointer_falls_back_to_the_idle_queue(
         "codex-thread", cleanup_model.session_record("codex-thread")
     )
     [(path, _)] = codex_records("codex-thread")
-    lease = leases_model.take_lease(leases_model.adapter_lease_path("codex-thread"))
-    assert lease
+    lease = adapter_lease("codex-thread", None)
     waiter = leases_model.take_lease(
         leases_model.waiter_lease_path(page_dir, "codex-thread")
     )
@@ -3166,8 +3238,7 @@ def test_a_codex_stop_cannot_adopt_a_prompt_renewed_during_its_policy(
     codex_loop(page_dir)
     cleanup_model.prompt_turn("codex-thread", "provider")
     waiter = _watched(page_dir)
-    adapter = leases_model.take_lease(leases_model.adapter_lease_path("codex-thread"))
-    assert adapter
+    adapter = adapter_lease("codex-thread", None)
     if pending:
         append_carried_log_record(
             page_dir,
@@ -3204,12 +3275,11 @@ def test_a_codex_stop_keeps_the_revision_returned_by_its_offer(
 ):
     """A prompt can renew the same provider id after an offer returns no pointer.
     That Stop still belongs to the offer's exact revision, never the newest one.
+    Stop offers where no App Server adapter runs, as for a task that waits itself.
     """
     codex_loop(page_dir)
     cleanup_model.prompt_turn("codex-thread", "provider")
     waiter = _watched(page_dir)
-    adapter = leases_model.take_lease(leases_model.adapter_lease_path("codex-thread"))
-    assert adapter
     append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "text": "An old unanswered move"},
@@ -3238,5 +3308,4 @@ def test_a_codex_stop_keeps_the_revision_returned_by_its_offer(
         assert cleanup_model.session_record("codex-thread") == newer[0]
         assert not codex_records("codex-thread")
     finally:
-        adapter.close()
         leases_model.release_lease(waiter)

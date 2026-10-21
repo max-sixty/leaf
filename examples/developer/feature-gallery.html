@@ -1869,9 +1869,12 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <li>
                 Open a thread and shorten the window: its messages scroll between the
                 header and the reply field, and the scrollbar spans the messages alone.
-                Scroll the page to give a short conversation more room: the card expands
-                once all its messages fit. The reply field keeps the same inset at both
-                sides and below.
+                Scroll through a long message and into the next: its author's name stays
+                visible, and words fade beneath its lower edge as it moves away. At the
+                start the upper fade disappears; at the end the lower one does. Scroll
+                the page to give a short conversation more room: the card expands once
+                all its messages fit. The reply field keeps the same inset at both sides
+                and below.
               </li>
             </ul>
             <lf-margin-entry-gallery
@@ -2410,7 +2413,7 @@ gallery/
             </section>
 
             <section id="bg-tab-set">
-              <p class="eyebrow bg-feature-elements">lf-tabs · lf-tab</p>
+              <p class="eyebrow bg-feature-elements">lf-tabs · lf-tab · lf-toc</p>
               <h3>
                 <strong>Tabs</strong
                 ><span class="bg-feature-detail">: saved panel selection</span>
@@ -2454,6 +2457,63 @@ gallery/
                   </p>
                 </lf-tab>
               </lf-tabs>
+              <h4 id="bg-topic-contents-heading">An index for each topic</h4>
+              <p id="bg-topic-contents-guide">
+                Switch between Prepare and Operate: each index lists only that topic's
+                headings. In this narrow window, the index starts open below the tabs.
+                Follow “Save a snapshot” to reveal its closed details. Choose Full view
+                on a wide screen: the same contents sits in the left margin as a reading
+                map, with labels on hover or focus. Narrow the window to bring the index
+                back below the tabs.
+              </p>
+              <lf-sample id="bg-topic-contents" label="topic contents" window>
+                <template id="bg-topic-contents-page" data-sample class="layout-column">
+                  <h1>Release field guide</h1>
+                  <lf-tabs id="bg-guide-topics">
+                    <lf-tab id="bg-guide-prepare" label="Prepare">
+                      <aside class="sidebar">
+                        <lf-toc
+                          id="bg-guide-prepare-contents"
+                          open
+                          max-level="2"
+                        ></lf-toc>
+                      </aside>
+                      <h2 id="bg-guide-inventory">Take inventory</h2>
+                      <p>
+                        List the readers using the current index before changing its
+                        format.
+                      </p>
+                      <details>
+                        <summary>Detailed preparation</summary>
+                        <h2 id="bg-guide-snapshot">Save a snapshot</h2>
+                        <p>
+                          Keep the current index available until the new readers have
+                          verified their results.
+                        </p>
+                      </details>
+                    </lf-tab>
+                    <lf-tab id="bg-guide-operate" label="Operate">
+                      <aside class="sidebar">
+                        <lf-toc
+                          id="bg-guide-operate-contents"
+                          open
+                          max-level="2"
+                        ></lf-toc>
+                      </aside>
+                      <h2 id="bg-guide-watch">Watch the readers</h2>
+                      <p>
+                        Compare query latency and empty results while the first cohort
+                        uses the new index.
+                      </p>
+                      <h2 id="bg-guide-verify">Verify the result</h2>
+                      <p>
+                        Expand access once the cohort has completed a healthy working
+                        day.
+                      </p>
+                    </lf-tab>
+                  </lf-tabs>
+                </template>
+              </lf-sample>
               <h4 id="bg-overflow-tabs-heading">A rollout review in a narrow column</h4>
               <p id="bg-overflow-tabs-guide">
                 This review keeps six sections in one compact row, with the native

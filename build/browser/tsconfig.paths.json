@@ -13,6 +13,7 @@
         "../../skills/leaf/packages/file-editor/vendor/*",
         "../../skills/leaf/packages/file-tree/vendor/*",
         "../../skills/leaf/packages/monitoring/vendor/*",
+        "../../skills/leaf/packages/motion/vendor/*",
         "../../skills/leaf/packages/playground/vendor/*",
         "../../skills/leaf/packages/playwright/vendor/*",
         "../../skills/leaf/packages/visual-review/vendor/*"
@@ -26,6 +27,7 @@
         "../../skills/leaf/packages/file-editor/widgets/*",
         "../../skills/leaf/packages/file-tree/widgets/*",
         "../../skills/leaf/packages/monitoring/widgets/*",
+        "../../skills/leaf/packages/motion/widgets/*",
         "../../skills/leaf/packages/playground/widgets/*",
         "../../skills/leaf/packages/playwright/widgets/*",
         "../../skills/leaf/packages/visual-review/widgets/*"

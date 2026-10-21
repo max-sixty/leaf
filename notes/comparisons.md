@@ -33,24 +33,6 @@ baseline rather than restating a feature table for each project.
 
 ## Interaction lessons for Leaf, 2026-10-04
 
-**Host integration.** Plannotator's [session bridge](https://github.com/backnotprop/plannotator/blob/main/packages/ai/session-bridge.ts)
-separates host readiness, submission, and streaming behind an adapter. Its
-[Claude Code session module](https://github.com/backnotprop/plannotator/blob/v0.28.4/apps/hook/hooks/mod/register.ts)
-is released in v0.28.4 and enabled by default on supported interactive hosts
-(rechecked 2026-10-05). Leaf's opt-in
-[Claude hooks module](../hooks/claude-code.ts) now owns watching between turns,
-including interruption and delivery during a running turn. It landed with
-real-host verification in [PR #1936](https://github.com/max-sixty/leaf/pull/1936).
-The remaining cutover waits for Claude Code to load modules without an opt-in;
-the module's header owns that condition. Durable input, pickup, and response
-identity still belong to Leaf. The decisive case is a running turn
-ending without reading its offered hook pointer: the existing
-[delivery tests](../tests/model/test_codex_adapter.py) cover falling back to the
-queue without losing that input. An offer or queue acknowledgment is not pickup. I
-inspected those tests, without rerunning them. No peer demonstrated a general
-same-chat Codex solution; Plannotator's public sharing demo did not exercise a
-live bridge.
-
 **Task state.** [Workbench](https://workbench.md/agents.md) separates atomic Ask
 claims from Markdown-board claims using optimistic `If-Match` edits. Neither
 proves a result; version checks are optional across API writes. Its
@@ -70,15 +52,6 @@ workspace/task identities and [canonical summaries](../skills/leaf/scripts/leaf/
 should support navigation without making a serving process the obligation's owner.
 Opaque widget JSON persistence does not prove that a decision keeps its meaning.
 
-**Page-level threads.** I operated [Agentation's toolbar](https://www.agentation.com/)
-and contextual composer, typed a local draft, and dismissed it without sending.
-Plannotator's [global composer mode](https://github.com/backnotprop/plannotator/blob/main/packages/ui/components/CommentPopover.tsx)
-shares draft machinery. Leaf starts a page thread in the floating panel's comment
-field ([floating-panel.js](../skills/leaf/assets/runtime/floating-panel.js)), and
-Threads holds continuation. That separation landed in
-[PR #1930](https://github.com/max-sixty/leaf/pull/1930). Recovery of a global
-conversation among anchored threads remains a usability question.
-
 **UI stability.** Lavish's [bounded mobile sheet](https://github.com/kunchenguid/lavish-axi/blob/main/src/chrome.css)
 and Plannotator's central placement function offer useful mechanisms. Their
 source and browser tests were reviewed, not run. Agentation's toolbar was
@@ -86,63 +59,6 @@ desktop-only at 390px. Use Leaf's existing geometry owner, an explicit bounded
 mode when space runs out, and first-frame journeys covering nested scroll,
 reply expansion, and keyboard arrival. A component library or final screenshot
 does not prove the absence of layout churn.
-
-### Phone annotation placement, 2026-10-05
-
-The comparison report's 390px render showed an anchored pin covering prose.
-Leaf's [overlay contract](../skills/leaf/assets/AGENTS.md) explicitly permits
-pins to cover content without reflowing it; `o` and More → Hide annotations
-provide reading routes. The placement owner searches for a clear seat, but
-[its fallback](../skills/leaf/assets/runtime/annotation-overlay/margin-placement.js)
-can retain a pin without text clearance. The capture establishes the reading
-problem, not which fallback branch produced it. The existing annotation-placement
-TODO now includes this case. Compare a no-clear-seat disposition that preserves
-access through Page Map or Threads; enlarging the search alone still leaves the
-dense-prose fallback. No replacement policy was implemented or demonstrated.
-
-## Concrete follow-up proposals, 2026-10-04; revised 2026-10-05
-
-Proposals first checked against Leaf `486180b51888d8dd46584f6c84e3d2a96f2035cb`,
-then rechecked against `532be8f718f6a2f3bdf1391f936a4778fcf5735f` on October 5.
-IDs match the live report. Existing task starts, the On view's Done list,
-persistence, free HTML, general composing, constrained panels and CSS-anchor
-following are the baseline, not proposed additions.
-
-- **#1 — Quiet Codex feedback.** Keep the desktop queue's compact XML pointer
-  while that route needs it. The useful improvement is delivery without an
-  automatic user message. The existing [App Server request](../skills/leaf/scripts/leaf/codex.py)
-  sends empty user input and a structured `leaf_delivery` tool result. Desktop
-  access and rendering remain unverified. Prove agent wake-up and exact
-  input/reply identity while keeping automatic user-message text out of chat.
-- **#4 — Make finished task results easy to read.** The On view already
-  lists ended tasks under Done with their outcome. Their detail is in the row's
-  native tooltip; show it as visible text or a disclosure usable by a finger.
-  Test whether readers find the result after the active count drops. Retain
-  navigation to an existing thread where one belongs to the task, including
-  resolved threads. Page and widget tasks may have no thread, so the On view
-  remains their result route. This displays the logged outcome rather than creating
-  independent evidence of completion.
-- **#6 — Canonical task selectors and list/board experiment.** Workbench's
-  heading-driven board and [Sfora's map](https://www.sfora.ai/features/boards)
-  were operated, without persistence proof. Leaf's On view already consumes
-  canonical task readings; expose those through the existing package publication
-  API. Prove list and board consume one task outcome without agent-maintained
-  duplicate status markup. Preserve arbitrary authored HTML.
-- **#7 — Page threads visibility, usability hypothesis.** Leaf already has
-  Location → Page beneath View and separate creation and reply controls. Test a
-  visible count/toggle for that predicate. Compare context-blind recovery
-  of a global conversation among anchored threads before adopting the change.
-- **#8 — Shared visual-viewport fixed-panel bounds.**
-  [Lavish's sheet](https://github.com/kunchenguid/lavish-axi/blob/main/src/chrome.css)
-  consumes visible bounds. Leaf measures them but fixed auxiliary panels still
-  reach the layout bottom. Route bounds through `geometry.js` to all
-  affected surfaces. This condition is source-identified, not a reproduced bug;
-  keyboard-only shrink needs first-frame caret/Send and draft/focus proof.
-
-The October 5 report captures show Agentation’s targeted composer/desktop-only
-notice and Leaf’s then-current gallery Page filter, reply draft and creation footer.
-No live peer bridge or signed-in workspace was exercised. These recommendations
-extend the committed feature research.
 
 ## Claude Code Artifacts
 

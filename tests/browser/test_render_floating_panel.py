@@ -1464,8 +1464,8 @@ def test_a_thread_s_view_folds_progress_as_its_card_does(browser, serve):
     (thread/transcript.js): the progress the answer completed stands folded behind Show 2
     progress messages at the answer's head, and work still under way stands as one dim
     working message at the transcript's foot rather than as a reply. What anyone wrote,
-    messages and the working line alike, reads in the page's serif, as On me's
-    questions do, while the panel's own controls keep its sans."""
+    messages and the working line alike, reads in Leaf's sans rather than the page's
+    serif."""
     url = serve(LONG_PAGE)
     root = panel_comment(
         serve.page_dir, "Can you check that the workshop fits the afternoon?"
@@ -1497,13 +1497,13 @@ def test_a_thread_s_view_folds_progress_as_its_card_does(browser, serve):
     expect(working).to_be_visible()
     expect(working).to_contain_text("Checking whether the room stays free after five")
     face = "(node) => getComputedStyle(node).fontFamily"
-    serif = page.evaluate("getComputedStyle(document.body).fontFamily")
+    leaf = page.locator(".lf-fp-head .lf-fp-title").evaluate(face)
+    assert leaf != page.evaluate("getComputedStyle(document.body).fontFamily")
     for words in (
         shown.last.locator(".lf-msg-body"),
         working.locator(".lf-thread-working-words"),
     ):
-        assert words.evaluate(face) == serif
-    assert page.locator(".lf-fp-head .lf-fp-title").evaluate(face) != serif
+        assert words.evaluate(face) == leaf
 
     toggle.click()
     expect(shown).to_have_count(4)
@@ -3786,6 +3786,32 @@ def test_a_reply_its_card_cannot_draw_opens_in_the_panel(browser, serve):
     page.locator(".lf-page-thread-open").click()
     reader = page.locator(".lf-fp-view[data-view=thread]")
     expect(reader.locator("#first-job")).to_be_visible()
+
+
+def test_a_thread_s_messages_read_alike_in_its_card_and_the_panel(browser, serve):
+    """What anyone wrote in a thread reads in one face wherever the thread stands, its
+    card beside the passage and its view in the panel, and a rewrite types in it."""
+    url = serve(LONG_PAGE)
+    panel_comment(
+        serve.page_dir,
+        "Which job should come first?",
+        {"section": "p3", "quote": "Paragraph 3."},
+    )
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    face = "(node) => getComputedStyle(node).font"
+    card = page.locator(".lf-margin-thread-body .lf-msg")
+    expect(card).to_contain_text("Which job should come first?")
+    message = card.locator(".lf-msg-body").evaluate(face)
+    card.locator(".lf-msg-edit").click()
+    assert card.locator(".lf-msg-editor leaf-text").evaluate(face) == message
+    card.locator(".lf-msg-edit-cancel").click()
+    page.locator(".lf-fp-threads").click()
+    page.locator(".lf-fp-view[data-view=threads] .lf-fp-thread").click()
+    reader = page.locator(".lf-fp-view[data-view=thread] .lf-msg")
+    expect(reader).to_contain_text("Which job should come first?")
+    assert reader.locator(".lf-msg-body").evaluate(face) == message
 
 
 def test_a_page_comment_sent_before_the_first_reading_stands_in_the_panel(

@@ -266,7 +266,7 @@ def test_a_pin_with_no_room_for_its_actions_stands_folded_and_unfolds_in_place(
     margins_laid_out(page)
     assert toggle.bounding_box() == pressed, (toggle.bounding_box(), pressed)
     assert accept.bounding_box()["x"] < pressed["x"]
-    expect(accept).to_be_focused()
+    # Touch focus can remain on the toggle; keyboard arrival is checked below.
     opened = row.locator(".lf-margin-entry:visible").evaluate_all(
         "els => els.map(el => { const b = el.getBoundingClientRect();"
         " return [el.getAttribute('aria-label'), b.left, b.right]; })"

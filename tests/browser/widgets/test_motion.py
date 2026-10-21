@@ -72,7 +72,7 @@ study.renderFrame = time => {
     page.clock.run_for(160)
     expect(time).to_have_value("999")
 
-    page.get_by_role("button", name="Reset", exact=True).click()
+    time.press("Home")
     expect(forward).to_have_attribute("cx", "20")
     expect(backward).to_have_attribute("cx", "280")
 
@@ -80,12 +80,22 @@ study.renderFrame = time => {
     expect(play).to_have_text("Pause")
     page.clock.run_for(160)
     current = page.locator("#study").evaluate("study => study.currentTime")
-    assert 0 < current < 1000
+    assert current == pytest.approx(40, abs=4)
     assert float(forward.get_attribute("cx")) == 20 + 260 * current / 1000
     assert float(backward.get_attribute("cx")) == 280 - 260 * current / 1000
     play.click()
     page.clock.run_for(160)
     assert page.locator("#study").evaluate("study => study.currentTime") == current
+
+    time.press("End")
+    expect(play).to_have_text("Replay")
+    play.click()
+    page.clock.run_for(160)
+    assert page.locator("#study").evaluate("study => study.currentTime") == pytest.approx(
+        40, abs=4
+    )
+    play.click()
+    current = page.locator("#study").evaluate("study => study.currentTime")
 
     play.click()
     page.evaluate(

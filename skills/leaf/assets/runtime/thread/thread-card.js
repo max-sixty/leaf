@@ -224,7 +224,9 @@ export function threadReading(thread, surface, commands) {
         : null;
   const messages = turns(thread).map((message) =>
     messageReading(message, {
-      nativeAuthored: Boolean(commands.nativeAuthored),
+      // Where a message's widgets stand when several drawings show it (messages.js,
+      // `authoredHolders`): the primary reader's, then a margin card, then a seat.
+      authoredRank: commands.authoredRank ?? (surface === "margin" ? 2 : 1),
       reactions: surface === "outlet" ? message.reactions : null,
       workflows: message.workflows,
       leaves: leaves(message),
@@ -239,28 +241,11 @@ export function threadReading(thread, surface, commands) {
     recency: summary.latest
       ? Object.freeze({ short: shortAgo(summary.latest), long: ago(summary.latest) })
       : null,
-    // A title comes from the agent's answer or beside it, so an untitled thread
-    // waits for one only while the agent's work on it is under way. A turn that
-    // ended, stalled or was never picked up sends none, and the thread reads its
-    // opening words.
-    titlePending:
-      thread.title == null &&
-      thread.attention?.kind === "waiting" &&
-      thread.attention.reason === "workflow",
-    unreadCount: thread.unread.length,
     id: thread.id,
     attempt: thread.root.attempt ?? null,
     surface,
     resolved,
     attention,
-    // A waiting thread's status is the stage of one message's workflow, which that
-    // message already draws in its own header. The summary repeats it only for the
-    // folded row, where no message shows; whose turn it is stays, since no message
-    // says that.
-    statusFolded:
-      attention?.kind === "waiting" &&
-      attention.workflow !== null &&
-      messages.some((message) => message.workflow?.id === attention.workflow.id),
     // Where a resolved thread stands already says it is resolved: in a seat's Resolved
     // disclosure (inline.js). Who resolved it is said only where it was the agent.
     resolvedBy:
@@ -371,11 +356,16 @@ export class ThreadView {
     this.#paint(this.#received);
   }
 
-  // What holds the card folded away: the closed Resolved disclosure its seat gathers it
-  // in (inline.js).
+  // The seat owns placement, including while the card's outgoing pixels still fold
+  // outside its Resolved disclosure. Landing and held news read that same placement.
+  #foldedInto = null;
+  #retirement = null;
+  setFoldedInto(group, retirement = null) {
+    this.#foldedInto = group;
+    this.#retirement = retirement;
+  }
   get #fold() {
-    const group = this.node.parentElement;
-    return group?.matches(".lf-resolved-threads:not([open])") ? group : null;
+    return this.#foldedInto && !this.#foldedInto.open ? this.#foldedInto : null;
   }
 
   // Where the seat's flow would grow if the card's settlement changed (inline.js), read
@@ -412,42 +402,6 @@ export class ThreadView {
       this.#model?.id === id ||
       this.#model?.messages.some((message) => message.id === id)
     );
-  }
-
-  // The surface follows the whole thread; only this owner locates its message and
-  // reply regions. Geometry readings carry no descendant nodes across that boundary.
-  incomingTail(prior, next) {
-    const known = new Set(prior.messages.map((message) => message.key));
-    const incoming = next.messages.filter(
-      (message) => message.author === "agent" && !known.has(message.key),
-    );
-    const latest = prior.messages.at(-1);
-    const nextLatest = next.messages.at(-1);
-    const grown =
-      latest?.key === nextLatest?.key &&
-      nextLatest?.author === "agent" &&
-      latest.body.text !== nextLatest.body.text;
-    if (!incoming.length && !grown) return null;
-    const node = latest && this.#messageNode(latest.key);
-    if (!node) return null;
-    return {
-      id: incoming.at(-1)?.id ?? nextLatest.id,
-      tailStart: node.getBoundingClientRect().bottom,
-      end: this.node.getBoundingClientRect().bottom,
-      box: this.#reply?.node.getBoundingClientRect().top,
-      pinned: replyPinned(this.#reply?.node),
-    };
-  }
-
-  messageTail(id) {
-    const message = this.#model.messages.find((message) => message.id === id);
-    const node = message && this.#messageNode(message.key);
-    return node
-      ? {
-          bottom: node.getBoundingClientRect().bottom,
-          end: this.node.getBoundingClientRect().bottom,
-        }
-      : null;
   }
 
   // HeldNews compares readings; this owner decides whether their changed regions
@@ -787,7 +741,6 @@ export class ThreadView {
         {
           id: reopen ? "thread.reopen" : "thread.resolve",
           keys: PRESS,
-          description: `${word} it`,
           title: word.toLowerCase(),
           control: button,
           when: () => !this.#model.settlement?.pending,
@@ -848,13 +801,21 @@ export class ThreadView {
       source: this.node,
       available: () => this.node.isConnected,
     });
-    const land = (may = mayLand) => {
+    const land = async (may = mayLand, reverse = false) => {
+      // The summary is semantically available at once, but a long departing card
+      // still puts it below the viewport. Keep this gesture's original authority
+      // while its pixels leave; a later user move still vetoes the landing.
+      await this.#retirement?.catch(() => {});
       const place = this.#fold?.querySelector(":scope > summary") ?? this.node;
-      if (!may() || !standingIn(place)) return false;
+      if (!may()) return false;
+      // An existing resolved group survives when this card returns. Its summary
+      // cannot hand focus back by disappearing, so the reversal owns that handoff.
+      if (reverse) may.handoff(() => focusDestination(place, "return"));
+      if (!standingIn(place)) return false;
       scrollThreadIntoView(place, focused());
       return true;
     };
-    return { optimistic: () => land(), reverse: land };
+    return { optimistic: () => land(), reverse: (may) => land(may, true) };
   };
 
   #createReply(model) {

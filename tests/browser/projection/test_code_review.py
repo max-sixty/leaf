@@ -1002,11 +1002,12 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     expect(card).to_have_css("opacity", "1")
     rendered(page)
     # Reopening is a fresh placement on the datum's current full-width box; it
-    # need not retain the old quote's inline start after its words disappeared.
+    # need not retain the old quote's inline start after its words disappeared. The
+    # document scrolls inside its box, so the card may open over that box or under it.
     reopened = card.bounding_box()
     assert datum["x"] < reopened["x"] + reopened["width"]
     assert reopened["x"] < datum["x"] + datum["width"]
-    assert reopened["y"] == pytest.approx(datum["y"] + datum["height"] + 8, abs=2)
+    assert datum["y"] < reopened["y"] < datum["y"] + datum["height"] + 10
     # The thread's own head says the words it quotes are earlier data, as a plain word
     # rather than a boxed badge.
     status = open_panel_thread(page, comment["id"]).locator(".lf-anchor-status")

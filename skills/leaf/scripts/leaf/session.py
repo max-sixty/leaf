@@ -17,6 +17,7 @@ from .file_changes import FileChanges, existing_root, target_paths
 from .files import file_stamp
 from .findings import Finding, note
 from .harness import Harness, claim_harness, session_harness
+from .interaction_log import record_command
 from .leases import (
     end_if_terminated,
     release_lease,
@@ -543,6 +544,8 @@ def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
         from .delivery import receive_delivery
 
         received = receive_delivery(ack)
+    # Leaf's work ends here; the watch that follows is the agent waiting.
+    record_command("wait")
     harness = session_harness()
     explicit = (page_dir,) if page_dir else tuple(received) if harness is None else ()
     named = explicit[0] if len(explicit) == 1 else None

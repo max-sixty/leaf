@@ -134,6 +134,10 @@ html[data-lf-draw-mode] main {
   z-index: 1;
   opacity: 0;
   pointer-events: none;
+  /* A button at either end sits flush with the bar's edge, as the play button does. */
+  &:has(> .lf-video-full-screen) {
+    padding-inline: 0;
+  }
 }
 .lf-video-controls:is(
   :not(.lf-video-playing),
@@ -145,7 +149,8 @@ html[data-lf-draw-mode] main {
   opacity: 1;
   pointer-events: auto;
 }
-.lf-video-play {
+.lf-video-play,
+.lf-video-full-screen {
   flex: none;
   display: grid;
   place-items: center;

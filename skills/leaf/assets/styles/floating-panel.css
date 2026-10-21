@@ -55,7 +55,9 @@
   /* The surface: a layer over the whole window, cut to the box's outline by the
      panel's script, with a ring a pixel outside it and one soft shadow around both,
      cast at the height of what opens over the page. The layer itself is cut to that
-     outline grown by its shadow's reach. */
+     outline grown by its shadow's reach. While the box moves, a ring a part of it
+     wears, the field's focus ring, stands on it too, a ring and a fill like the box's
+     own, in the colour of the ring it stands in for (runtime/box-motion.js). */
   .lf-fp-ground {
     position: fixed;
     inset: 0;
@@ -64,12 +66,10 @@
     filter: drop-shadow(var(--raise-2));
   }
   .lf-fp-ground,
-  .lf-fp-ring,
-  .lf-fp-fill {
+  .lf-fp-ground > * {
     clip-path: inset(50%);
   }
-  .lf-fp-ring,
-  .lf-fp-fill {
+  .lf-fp-ground > * {
     position: absolute;
     inset: 0;
   }
@@ -198,8 +198,9 @@
   }
   /* With no view open the more-room mark stands over the leaf, in the corner a long
      draft leaves free beside the field's first line (floating-panel.js, `expand`). A
-     widened field may hold fewer lines than the two that corner needs, so the row keeps
-     their height while the mark stands. */
+     widened field may hold fewer lines than the two that corner needs, so the wide row
+     keeps their height. Only the wide row does, so the mark standing at the fourth line
+     resizes nothing and stands in the frame the line arrives. */
   .lf-fp-row > .lf-fp-expand {
     position: absolute;
     inset-block-start: var(--lf-fp-row-pad);
@@ -207,7 +208,7 @@
     width: var(--lf-fp-line);
     height: var(--lf-fp-line);
   }
-  .lf-floating-panel[data-long] .lf-fp-row:has(> .lf-fp-expand) {
+  .lf-floating-panel[data-expanded] .lf-fp-row:has(> .lf-fp-expand) {
     min-height: calc(2 * var(--lf-fp-line) + 2 * var(--lf-fp-row-pad) + 4px);
   }
   .lf-fp-leaf {
@@ -359,12 +360,13 @@
     border: 0;
     background: none;
     box-shadow: none;
-    padding: calc((var(--lf-fp-line) - 22px) / 2) 6px;
+    padding: calc((var(--lf-fp-line) - 1lh) / 2) 6px;
     min-height: var(--lf-fp-line);
     /* Half the window: a long comment reads whole before the field scrolls. */
     max-height: 50dvh;
     box-sizing: border-box;
-    font: 14px / 22px var(--sans);
+    /* The message's face, so each line of a draft stands where the message's will. */
+    font: var(--msg-font);
     /* At rest no press stands in the field, so the status takes its whole width. */
     --lf-field-end-room: 0px;
   }
@@ -596,8 +598,7 @@
   :where(.lf-floating-panel) .lf-fp-row-notice-press:hover {
     background: none;
   }
-  /* Its tone tints it: an older version in warning, the website's notice in the
-     accent, an approval in ok. */
+  /* Its tone tints it: an older version in warning, an approval in ok. */
   .lf-fp-row-notice-face {
     display: inline-flex;
     align-items: center;
@@ -612,10 +613,6 @@
       --lf-fp-notice-tint: var(--warn-tint);
       --lf-fp-notice-ink: var(--warn-ink);
     }
-    &[data-tone="accent"] {
-      --lf-fp-notice-tint: var(--accent-tint);
-      --lf-fp-notice-ink: var(--accent);
-    }
     &[data-tone="ok"] {
       --lf-fp-notice-tint: var(--ok-tint);
       --lf-fp-notice-ink: var(--ok-ink);
@@ -627,12 +624,6 @@
       var(--lf-fp-notice-ink) 16%,
       var(--lf-fp-notice-tint)
     );
-  }
-  a.lf-fp-row-notice-press {
-    display: inline-flex;
-    align-items: center;
-    color: inherit;
-    text-decoration: none;
   }
   .lf-fp-row-notice-sep {
     color: var(--lf-fp-quiet);
@@ -700,8 +691,9 @@
     .lf-fp-leaf .lf-dot {
       --lf-mark-w: 20px;
     }
-    /* The leaf and what it carries show once the surface has nearly reached them. */
-    :is(.lf-fp-leaf, .lf-fp-badge, .lf-fp-news-dot) {
+    /* The leaf rides the box into the corner (runtime/box-motion.js); what it carries
+       there shows once the box has nearly arrived. */
+    :is(.lf-fp-badge, .lf-fp-news-dot) {
       animation: lf-fp-arrive 160ms linear 140ms backwards;
     }
   }
@@ -790,7 +782,7 @@
     display: block;
   }
 
-  /* ---------- an opened view: where the user is at its top edge ---------- */
+  /* ---------- an opened view: its name over it, its controls at its foot ---------- */
   /* Drawn only while a view is open, since it stands over the page while it is
      (geometry.js, `declareOccluder`). */
   .lf-fp-opened {
@@ -801,15 +793,28 @@
   .lf-floating-panel:not([data-open]) .lf-fp-opened {
     display: none;
   }
-  .lf-fp-head {
+  /* The name, with nothing to press, stands at the edge the view grows from, so it
+     takes no room where only a heading for assistive tech stands, as On's does. */
+  .lf-fp-head:has(> .lf-fp-title:not(.lf-quiet)) {
+    display: flex;
+    align-items: center;
+    min-height: 36px;
+    padding: 8px 6px 0 calc(6px + var(--lf-fp-inset));
+    box-sizing: border-box;
+  }
+  /* The controls stand on the row, which their growing view never moves, set off from
+     what the view holds by a hairline inset as far as the words. */
+  .lf-fp-controls {
     display: flex;
     align-items: center;
     gap: 4px;
-    min-height: 42px;
-    padding: 6px 6px 0 calc(6px + var(--lf-fp-inset));
+    min-height: 40px;
+    padding: 3px 6px 0 calc(6px + var(--lf-fp-inset));
     box-sizing: border-box;
+    background: linear-gradient(var(--lf-fp-faint), var(--lf-fp-faint)) top center /
+      calc(100% - 2 * (6px + var(--lf-fp-inset))) 1px no-repeat;
   }
-  .lf-fp-head:empty {
+  .lf-fp-controls:empty {
     display: none;
   }
   .lf-fp-crumb {
@@ -831,23 +836,25 @@
   }
   .lf-fp-back {
     flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     min-height: 0;
     padding: 0;
     color: var(--lf-fp-muted);
+  }
+  .lf-fp-back .lf-fp-chevron {
+    scale: -1 1;
+    margin: 0;
   }
   .lf-fp-back:hover {
     background: none;
     color: var(--ink);
   }
-  .lf-fp-sep {
-    flex: none;
-    color: var(--lf-fp-muted);
-  }
-  /* The thread's facts after its title, the news it holds, keep the crumb's end
-     whole, so a title the agent or the user rewrites, or news arriving, gives or
-     takes room before them, truncating the title, and moves nothing else. They stand
-     further from the controls after them than those stand from each other, so they
-     read with the title rather than as controls. */
+  /* The thread's facts after the way back, the news it holds, take the room the crumb
+     leaves, so news arriving moves nothing else. They stand further from the controls
+     after them than those stand from each other, so they read as facts about the
+     thread rather than as controls. */
   .lf-fp-facts {
     flex: none;
     display: flex;
@@ -915,25 +922,14 @@
   .lf-fp-icon-btn[aria-pressed="true"] {
     color: var(--ink);
   }
-  /* Resolve and Reopen stand in one cell, the one shown over the other's room, so
-     the seat is as wide as the wider whichever the thread's state. */
-  .lf-fp-settle {
-    display: inline-grid;
-    color: var(--lf-fp-muted);
-  }
-  .lf-fp-face {
-    grid-area: 1 / 1;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-  }
-  .lf-fp-face:not([data-shown]),
   :is(.lf-fp-quiet, .lf-fp-next-unread)[data-unoffered] {
     visibility: hidden;
   }
-  .lf-fp-settle:hover {
-    color: var(--ink);
+  /* Resolve is the check, turning the ok ink on hover; Reopen in its place is the
+     check drawn done, as on a thread card's head (response.css). */
+  .lf-fp-settle.lf-resolve:not([aria-disabled="true"]):hover,
+  .lf-fp-settle.lf-reopen {
+    color: var(--ok-ink);
   }
   .lf-fp-settle .lf-action-icon {
     width: 14px;
@@ -966,7 +962,7 @@
   }
 
   /* The stage holds the view to its cap, and to what the box leaves it under a long
-     draft (`.lf-fp-card`), the height a list keeps across a filter included. */
+     draft (`.lf-fp-card`), the height a list holds against news included. */
   .lf-fp-stage {
     position: relative;
     display: grid;
@@ -983,7 +979,7 @@
     max-height: 100%;
     overflow-y: auto;
     overscroll-behavior: contain;
-    padding: 4px 6px 6px;
+    padding: 8px 6px 6px;
     box-sizing: border-box;
     scrollbar-width: thin;
   }
@@ -1002,7 +998,7 @@
   /* A thread scrolled past its first lines fades out at its top edge rather than
      cutting a line in half. */
   .lf-fp-view[data-view="thread"] {
-    padding-top: 8px;
+    padding-top: 10px;
     mask-image: linear-gradient(to bottom, transparent 0, #000 12px);
   }
   /* An answer waiting below the fold (floating-panel.js, `fitAnswer`): a press at the
@@ -1579,14 +1575,33 @@
   .lf-fp-menu[data-level="versions"] {
     width: min(360px, calc(100vw - 32px));
   }
-  /* A list in the menu's place: its head, the way back, over its rows as the state
-     stands over the menu's. Its bold name and a space set it apart, as a view's crumb
-     stands over the view, so it hovers as any row does. */
+  /* A list in the menu's place: its name over its rows, as the state stands over the
+     menu's, and the way back under them, over the leaf, set off from the list by a
+     hairline as a view's controls are. The list fills the height the menu holds
+     (floating-panel.js, `menuRoom`), so a row leaving it, as a dismissed error does,
+     moves the way back nowhere. */
   .lf-fp-menu-page {
     display: grid;
   }
-  .lf-fp-menu-back {
-    margin-bottom: 6px;
+  .lf-fp-menu[data-level] .lf-fp-menu-page {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+  }
+  .lf-fp-menu-name {
+    display: flex;
+    align-items: center;
+    min-height: 30px;
+    padding: 5px 8px;
+    box-sizing: border-box;
+    font-weight: 600;
+  }
+  .lf-fp-menu-rule {
+    flex: none;
+    height: 1px;
+    margin: auto 8px 3px;
+    padding-top: 3px;
+    background: var(--lf-fp-faint) content-box;
   }
   .lf-fp-menu-back .lf-fp-label {
     display: flex;
@@ -1597,12 +1612,6 @@
     flex: none;
     margin: 0;
     scale: -1 1;
-  }
-  .lf-fp-menu-back b {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-weight: 600;
   }
   .lf-fp-state {
     display: grid;
@@ -1700,8 +1709,7 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .lf-floating-panel[data-rest="mark"]
-      :is(.lf-fp-leaf, .lf-fp-badge, .lf-fp-news-dot) {
+    .lf-floating-panel[data-rest="mark"] :is(.lf-fp-badge, .lf-fp-news-dot) {
       animation: none;
     }
     .lf-fp-peek,

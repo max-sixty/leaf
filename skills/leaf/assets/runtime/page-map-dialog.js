@@ -62,6 +62,7 @@ import { commandSteps } from "./keyboard/control-keys.js";
 
 import { contributionItemKey, KINDS } from "./contribution-model.js";
 import { marginMapGroups } from "./margin-map-model.js";
+import { threadHeading } from "./thread/messages.js";
 
 const dialog = document.createElement("dialog");
 dialog.className = "lf-ui lf-page-map-dialog";
@@ -149,13 +150,20 @@ export function createPageMapDialog({
     return dialog.open && target === candidate && dialog.contains(node);
   }
 
-  const sheetFace = ({ icon, glyph, visibleLabel, context }) =>
+  // A thread's row names it as Threads does (`threadHeading`).
+  const sheetName = (item, visibleLabel) => {
+    const thread = item && inventory.sourceItem(item)?.thread;
+    return thread ? threadHeading(thread) : visibleLabel;
+  };
+  const sheetFace = ({ icon, glyph, item, visibleLabel, context }) =>
     html`${
         icon
           ? iconTemplate(icon, "lf-margin-kind")
           : html`<span class="lf-margin-kind">${glyph}</span>`
       }<span class="lf-page-map-action-label"
-        ><span class="lf-page-map-action-label-word">${visibleLabel}</span>${
+        ><span class="lf-page-map-action-label-word"
+          >${sheetName(item, visibleLabel)}</span
+        >${
           context
             ? html`<span class="lf-page-map-action-context">${context}</span>`
             : nothing
@@ -439,7 +447,6 @@ export function createPageMapDialog({
         {
           id: "map.search.enter",
           keys: ["ArrowDown"],
-          description: "Go from the search to the first entry",
           title: "to the entries",
           when: hasRows,
           run: () => {
@@ -451,7 +458,6 @@ export function createPageMapDialog({
         {
           id: "map.search.open",
           keys: ["Enter"],
-          description: "Open the first matching entry",
           title: "open first",
           when: hasRows,
           run: () => mapRows()[0].click(),

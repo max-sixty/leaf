@@ -21,6 +21,7 @@ from interact_support import (
     _start,
     _watched,
     acknowledged_through,
+    adapter_lease,
     append_carried_log_record,
     append_command,
     codex_records,
@@ -128,8 +129,7 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
 
     # The adapter's second lease proves that the watcher can deliver into a
     # later turn. With that adapter alive, this turn may end normally.
-    adapter = leases_model.take_lease(leases_model.adapter_lease_path("codex-thread"))
-    assert adapter
+    adapter = adapter_lease("codex-thread", None)
     hooks_model.cmd_hook(
         "codex", {"hook_event_name": "Stop", "session_id": "codex-thread"}
     )
@@ -218,7 +218,7 @@ def test_stop_hook_does_not_borrow_a_foreign_bare_waiter_lease(page_dir, monkeyp
 
 def test_stop_hook_holds_a_turn_only_where_nothing_will_watch_its_page(claimed, capsys):
     """Between turns a page is either watched or idle. Under Claude Code the
-    watch is Leaf's own background Stop hook, which the turn's ending starts, so a
+    watch is the one Leaf's hooks module starts as the turn ends, so a
     turn ends over a page nothing watches yet. A watcher that is a process of its
     own, as a Codex task's adapter is, has to be running before the turn may end:
     without it the page keeps saying "Codex is working" over nobody."""
@@ -889,10 +889,7 @@ def test_agent_sees_codex_watcher_recovery(codex_claimed_page, capsys, snapshot)
             page, {"kind": "comment", "author": "user", "text": "Check this."}
         )
         observations["direct wait has input"] = hook()
-        adapter = leases_model.take_lease(
-            leases_model.adapter_lease_path("codex-thread")
-        )
-        assert adapter
+        adapter = adapter_lease("codex-thread", None)
         try:
             observations["adapter carries input"] = hook()
         finally:
@@ -1092,12 +1089,13 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
 ):
     """The reminder recovers captured input and a usable response address, including
     after ownership changes. Consecutive user messages owe the newest one answer.
+    An update the previous owner received is offered to the new one as new input,
+    which, with a queue adapter running, Stop hands into the ending turn.
     """
     codex_loop(page_dir)
     cleanup_model.prompt_turn("codex-thread", "active")
     waiter = _watched(page_dir)
-    adapter = leases_model.take_lease(leases_model.adapter_lease_path("codex-thread"))
-    assert adapter
+    adapter = adapter_lease("codex-thread", None)
     try:
         latest = append_carried_log_record(
             page_dir, {"kind": "comment", "author": "user", "text": "why here?"}
@@ -1149,13 +1147,6 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
             )
             assert read.exit_code == 0, read.output
             envelope = json.loads(read.output)
-        else:
-            envelope = json.loads(reason)
-            assert envelope == delivery_model.cmd_delivery_read(envelope["id"])
-            assert envelope["acknowledge"] == delivery_model.pointer_acknowledgement(
-                envelope["id"]
-            )
-        if history == "lost-pointer":
             assert (
                 set(delivery_model.delivery_path(envelope["id"]).parent.glob("*.json"))
                 == deliveries
@@ -1163,6 +1154,8 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
             assert not codex_records("codex-thread")
         else:
             # The new owner is offered the update as Codex offers new input.
+            envelope = json.loads(reason)
+            assert envelope == delivery_model.cmd_delivery_read(envelope["id"])
             assert envelope["id"] != original["id"]
             [(offered, _)] = codex_records("codex-thread")
             assert offered.stem == envelope["id"]

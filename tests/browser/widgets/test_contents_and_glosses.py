@@ -116,6 +116,64 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
     )
 
 
+def test_contents_in_a_view_lists_its_topic_and_reveals_closed_details(
+    browser, serve, subtests
+):
+    """Each view owns its outline, including a view nested inside another view.
+
+    Visibility is not scope: a closed disclosure's heading remains a destination.
+    """
+    source = leaf_page(
+        "topic contents",
+        """
+<h1>Field guide</h1>
+<lf-tabs id="topics">
+  <lf-tab id="prepare-topic" label="Prepare">
+    <lf-toc id="prepare-contents"></lf-toc>
+    <h2 id="inventory">Take inventory</h2>
+    <details id="preparation-details">
+      <summary>Detailed preparation</summary>
+      <h3 id="snapshot">Save a snapshot</h3>
+    </details>
+  </lf-tab>
+  <lf-tab id="operate-topic" label="Operate">
+    <h2 id="operation">Run the operation</h2>
+    <lf-tabs id="operation-views">
+      <lf-tab id="monitor-view" label="Monitor">
+        <lf-toc id="monitor-contents"></lf-toc>
+        <h3 id="watch">Watch the readers</h3>
+      </lf-tab>
+      <lf-tab id="finish-view" label="Finish">
+        <h3 id="verify">Verify the result</h3>
+      </lf-tab>
+    </lf-tabs>
+  </lf-tab>
+</lf-tabs>
+""",
+    )
+    page = open_page(browser, serve(source))
+    contents = page.locator("#prepare-contents")
+    contents.locator("summary").click()
+    with subtests.test(scope="topic"):
+        assert contents.locator("li a").all_text_contents() == [
+            "Take inventory",
+            "Save a snapshot",
+        ]
+    contents.get_by_role("link", name="Save a snapshot").click()
+    expect(page.locator("#preparation-details")).to_have_attribute("open", "")
+    expect(page.locator("#snapshot")).to_be_visible()
+
+    page.get_by_role("tab", name="Operate", exact=True).click()
+    nested_contents = page.locator("#monitor-contents")
+    nested_contents.locator("summary").click()
+    with subtests.test(scope="nested view"):
+        assert nested_contents.locator("li a").all_text_contents() == [
+            "Watch the readers"
+        ]
+    nested_contents.get_by_role("link", name="Watch the readers").click()
+    expect(page).to_have_url(re.compile(r"#watch$"))
+
+
 def test_contents_addresses_a_title_group_and_maps_its_complete_box(browser, serve):
     """The heading supplies words; its group supplies the destination and map origin.
 
@@ -1324,5 +1382,5 @@ def test_a_comment_on_a_gloss_reopens_its_explanation(browser, serve):
     expect(bubble).to_be_hidden()
     page.locator(".lf-fp-threads").click()
     page.locator(".lf-fp-thread").click()
-    page.locator(".lf-fp-head").get_by_role("button", name="On the page").click()
+    page.locator(".lf-fp-controls").get_by_role("button", name="On the page").click()
     expect(bubble).to_be_visible()

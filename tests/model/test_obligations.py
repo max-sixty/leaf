@@ -60,6 +60,23 @@ def test_context_changes_prompt_target_without_changing_obligation_identity_or_v
     assert state["todos"] == []
 
 
+def test_an_approval_asks_about_the_version_and_names_no_element_to_go_to():
+    """A sign-off's prompt names no element of the page: the version as a whole is what
+    it asks about, and the chrome presents its approval. It once named `lf-approve`,
+    the id of a chrome button that no longer exists."""
+    document = page().replace(
+        "</head>", '<meta name="lf-review" content="sign-off"></head>'
+    )
+    stamp = {"kind": "note", "author": "agent", "version": 1, "text": "Ready"}
+    state = model.reading(document, [stamp])
+    [approval] = [
+        item
+        for item in page_obligations(state)["all"]
+        if item["source"]["kind"] == "approval"
+    ]
+    assert approval["prompt"] == {"text": "Approve v1?", "target": None}
+
+
 def test_obligations_name_their_exact_owning_message_without_conflating_thread_identity():
     document = page().replace(
         "</head>", '<meta name="lf-review" content="sign-off"></head>'

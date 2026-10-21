@@ -115,7 +115,7 @@ def test_a_reply_sent_while_the_agent_streams_moves_nothing_when_accepted(
     expect(streamed.locator(".lf-msg-text")).to_have_text(
         "First words and more of them"
     )
-    expect(page.locator(".lf-fp-head .lf-thread-news:visible")).to_have_count(0)
+    expect(page.locator(".lf-fp-controls .lf-thread-news:visible")).to_have_count(0)
 
 
 def test_a_diff_outlet_keeps_the_shared_attachment_controls(browser, serve):
@@ -393,7 +393,7 @@ def test_an_idle_open_panel_thread_shows_appended_replies(browser, serve, reply_
     reply = append_agent_reply(serve.page_dir, root, words)
     told(page)
     expect(thread.locator(f'.lf-msg[data-event="{reply["id"]}"]')).to_be_visible()
-    expect(page.locator(".lf-fp-head .lf-thread-news:visible")).to_have_count(0)
+    expect(page.locator(".lf-fp-controls .lf-thread-news:visible")).to_have_count(0)
     rendered(page)
     # The view grows to hold the answer, the message keeping its place within it.
     assert message.evaluate(
@@ -730,7 +730,7 @@ def test_the_user_rewrites_their_own_message_where_it_stands(browser, serve):
     page.keyboard.press("i")
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property("value", "Fit the south bracket. Or the east.")
-    message.get_by_role("button", name="Cancel").click()
+    message.get_by_role("button", name="Discard").click()
     expect(message.locator(".lf-msg-editor")).to_have_count(0)
     expect(message.locator(".lf-msg-kept")).to_have_count(0)
     round_trip(page)

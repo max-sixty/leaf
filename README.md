@@ -70,14 +70,15 @@ index. Render checks use the executable named by
 Chrome, then the first `google-chrome`, `google-chrome-stable`, `chrome`,
 `chromium`, or `chromium-browser` on `PATH`.
 
-In Claude Code, a page messages its session when input arrives while nothing watches
-it, as after a turn you interrupted. A session that bypasses permissions holds that message for
-your approval unless Claude Code's `crossSessionInbound` setting is `"accept"`.
-
-Leaf's "Watch pages with a hooks module" option, in `/config`, moves that watch into a
-Claude Code hooks module, an early-access Claude Code feature, which goes on watching
-after a turn you interrupt. A Claude Code that doesn't load hooks modules keeps the
-default watch.
+In Claude Code, Leaf's hooks module watches the session's pages between turns,
+including after a turn you interrupt, and shows a line above the prompt for each
+page the session holds: a link to the page, what is On you, its open threads with
+how many have replies you haven't read, and what the agent is doing or waiting for.
+Hooks modules are an early-access Claude Code feature. Where the module can't wake the session, as in a Claude Code that loads no
+hooks module or after you press Escape, a page messages its session when input
+arrives. A session
+that bypasses permissions holds that message for your approval unless Claude Code's
+`crossSessionInbound` setting is `"accept"`.
 
 </details>
 
@@ -114,6 +115,23 @@ chooses. To allow it without being asked, add this to `~/.codex/config.toml`:
 [plugins."leaf@leaf".mcp_servers.leaf]
 default_tools_approval_mode = "approve"
 ```
+
+The agent's own edits to a page's files still run in Codex's sandbox, which lets
+them write only the task's directory and the temporary directories. So Codex
+refuses each edit to a page in Leaf's state home, or asks you to approve it. To let
+the agent edit pages there, add the state home's `pages` directory to the sandbox's
+writable roots in `~/.codex/config.toml`, inside the `[sandbox_workspace_write]`
+table if you already have one:
+
+```toml
+[sandbox_workspace_write]
+writable_roots = ["~/.local/state/leaf/pages"]
+```
+
+If you set `XDG_STATE_HOME`, the directory is `$XDG_STATE_HOME/leaf/pages`. Every
+command the sandbox runs can then write every page's files, as it can the task's
+directory. Where a task's sandbox lacks the line, the MCP server's first answer in
+that task gives it to the agent to pass on.
 
 </details>
 

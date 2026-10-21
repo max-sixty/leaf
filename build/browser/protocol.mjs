@@ -30,7 +30,7 @@
  * never wrote, unless its object named none or holds a map, whose values it must take.
  * `pattern`, `format`, `not`, `if`/`then`/`else`, and at the browser door `oneOf`,
  * whose exclusivity a branch-by-branch comparison can't show, compare only for
- * equality. The comparison throws on any keyword it doesn't read, and on a field inside
+ * equality, apart from their annotations. The comparison throws on any keyword it doesn't read, and on a field inside
  * `prefixItems`, so a field's path names no position.
  */
 import { isDeepStrictEqual } from "node:util";
@@ -75,6 +75,31 @@ const closed = (schema) =>
 const others = (schema) =>
   schema.additionalProperties ?? schema.unevaluatedProperties ?? !schema.properties;
 const show = (value) => JSON.stringify(value ?? "none");
+// A schema without its annotations, for the keywords compared only for equality. A map
+// keeps every name, `$defs` included since a reference reads it, and a value under
+// `const` or `enum` is data.
+const MAPS = new Set("properties dependentSchemas dependentRequired $defs".split(" "));
+function bare(schema) {
+  if (typeof schema !== "object" || schema === null) return schema;
+  if (Array.isArray(schema)) return schema.map(bare);
+  const map = (fields) =>
+    Object.fromEntries(
+      Object.entries(fields).map(([name, field]) => [name, bare(field)]),
+    );
+  return Object.fromEntries(
+    Object.entries(schema)
+      .filter(([key]) => key === "$defs" || !ANNOTATIONS.has(key))
+      .map(([key, value]) => [
+        key,
+        key === "const" || key === "enum"
+          ? value
+          : MAPS.has(key)
+            ? map(value)
+            : bare(value),
+      ]),
+  );
+}
+const same = (a, b) => isDeepStrictEqual(bare(a), bare(b));
 
 // The path of each field `schema` names, at any depth and in any branch.
 function fields(schema, path = "", found = new Set()) {
@@ -166,7 +191,7 @@ function diff(old, now, path, side) {
     !offered?.every((v) => valuesOf(consumer).some((w) => isDeepStrictEqual(v, w)))
   )
     report("values", valuesOf(old), valuesOf(now));
-  for (const keyword of EQUAL) check(keyword, isDeepStrictEqual);
+  for (const keyword of EQUAL) check(keyword, same);
   for (const keyword of LOWER) check(keyword, (c, p) => c <= p);
   for (const keyword of UPPER) check(keyword, (c, p) => c >= p);
   check("uniqueItems", (c, p) => !c || p);
@@ -245,7 +270,7 @@ function diff(old, now, path, side) {
           if (!kept.has(field)) found.push([`${path}${field}`, "the field is gone"]);
     }
   }
-  if (side.validates && !isDeepStrictEqual(old.oneOf, now.oneOf))
+  if (side.validates && !same(old.oneOf, now.oneOf))
     found.push([path, `"oneOf" changed`]);
   for (const name of new Set([
     ...Object.keys(old.dependentSchemas ?? {}),

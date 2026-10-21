@@ -144,7 +144,7 @@
   },
   "lf-text-document": {
     "description": "A text file from page data with numbered lines, syntax coloring, and an optional Markdown or HTML preview.",
-    "x-instructions": "Bind `source` to the page's data source and name the file with `label`. Set `preview` to `markdown` or `html` to add Preview and Source tabs over the same text. `language` colors the source, and defaults to the preview's language. An HTML preview is a separate document that inherits no Leaf styles. With a preview, each tab scrolls inside a box `--lf-bound` tall, 28rem by default. To start it collapsed, put it inside `details`.",
+    "x-instructions": "Bind `source` to the page's data source and name the file with `label`. Set `preview` to `markdown` or `html` to add Preview and Source tabs over the same text. `language` colors the source, and defaults to the preview's language. An HTML preview is a separate document that inherits no Leaf styles. The listing, or with a preview each tab, scrolls inside a box `--lf-bound` tall, 28rem by default, however long the text. To start it collapsed, put it inside `details`.",
     "x-name": "label",
     "type": "object",
     "properties": {
@@ -178,12 +178,13 @@
       }
     },
     "x-language": "language",
+    "x-bound": "start",
     "x-upgrade": true,
     "x-example": "<lf-text-document id=\"leaf-skill\" source=\"leaf-skill\" language=\"markdown\"></lf-text-document>"
   },
   "lf-toc": {
     "description": "An outline of the document\u2019s h2\u2013h6 headings for navigating its sections and showing the reader\u2019s position.",
-    "x-instructions": "Write it empty with a stable id. Set `max-level` to leave out deeper headings that are local detail; by default it lists h2 to h6. Give sections or headings ids of your own where a link must keep its target across versions, since the ids Leaf generates aren't stable.",
+    "x-instructions": "Write it empty with a stable id. It outlines the nearest tab or part containing it, or the whole main when outside those views. Add `open` to show its compact inline links on arrival; the reader can still collapse them. Set `max-level` to leave out deeper headings that are local detail; by default it lists h2 to h6. Give sections or headings ids of your own where a link must keep its target across versions, since the ids Leaf generates aren't stable.",
     "type": "object",
     "properties": {
       "id": {
@@ -193,6 +194,9 @@
       "max-level": {
         "type": "string",
         "pattern": "^[2-6]$"
+      },
+      "open": {
+        "type": "boolean"
       }
     },
     "required": ["id"],
@@ -314,7 +318,7 @@
   },
   "lf-option": {
     "description": "One alternative in a decision: a compact label, or a card showing what choosing it gives the user.",
-    "x-instructions": "Word the alternatives as `references/authoring-decisions.md` says. For a card, start with small.tag labels naming the facts that tell the alternatives apart, then a `<strong>` title and its concrete consequence. Mark the option you recommend with `<small class=\"tag ok\">recommended</small>` after its labels, and give your reason in prose beside the group, such as the `lf-ask`'s paragraph, so every card states only what choosing it does. `chosen` records the user's pick. Below, show what choosing it gives the user (references/authoring-decisions.md): where options differ in arrangement, structure or mechanism, an svg.drawing thumbnail of each in the same frame, alike except where they differ; where they differ in how an existing interface looks, a capture of each, today's in the option that keeps it; where they differ in behavior, that behavior working inside each; where they differ in wording, the words as they would appear. Add paragraphs or a fact rail only when that is not enough. Direct text takes inline Markdown; block content needs HTML children. A `for` target must stay useful whatever is decided, and does not supply the option's words. Rewriting a picked option needs `restated` ($restated).",
+    "x-instructions": "Word, label and illustrate the alternatives as `references/authoring-decisions.md` says. A card opens with its small.tag labels, then `<small class=\"tag ok\">recommended</small>` on the option you advise, then a `<strong>` title and its consequence, then any picture as block HTML, such as an svg.drawing. Give your reason for the recommendation in prose beside the group, such as the `lf-ask`'s paragraph, so each card states only what choosing it does. Direct text takes inline Markdown. `chosen` records the user's pick, and rewriting a picked option needs `restated` ($restated). A `for` target must stay useful whatever is decided, and does not supply the option's words.",
     "type": "object",
     "properties": {
       "id": {

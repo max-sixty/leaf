@@ -68,16 +68,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     expect(reply).to_be_focused()
     write(reply, "While you look")
     turn.begin()
-    turn.reply_stream.update(
-        {
-            "message": {
-                "item": "msg-0",
-                "phase": "commentary",
-                "text": "Looking at the page.",
-                "complete": False,
-            }
-        }
-    )
+    turn.reply_stream.update({"opening": "Looking at the page."})
     # Present the accepted turn before resolving it: coalescing these server writes
     # would never exercise a workflow receipt disappearing beside the news control.
     told(page)
@@ -88,7 +79,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     metadata = thread.locator(".lf-msg").first.locator(":scope > .lf-msg-head")
     receipt = metadata.locator(".lf-msg-sending")
     expect(receipt).to_have_text("Replying")
-    news = page.locator(".lf-fp-head .lf-thread-news")
+    news = page.locator(".lf-fp-controls .lf-thread-news")
 
     def receipt_words():
         return receipt.evaluate("""node => {
@@ -107,7 +98,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     told(page)
     rendered(page)
     expect(receipt).to_have_text("Update stale")
-    expect(receipt).to_have_attribute("title", "Update stale")
+    expect(receipt).to_have_attribute("title", "Update stale · Looking at the page.")
     assert receipt_words() > receipt_width, (
         initial_receipt,
         receipt_width,
@@ -153,7 +144,6 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
 
     told(page)
     rendered(page)
-    drawn = page.evaluate("Date.now()")
     if read_elsewhere:
         # The user's new thread stands in the view, so the answer shows nowhere yet.
         expect(other_thread).to_be_visible()
@@ -162,7 +152,9 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
         [elsewhere] = [
             event
             for event in read_events(page_dir)
-            if event["kind"] == "reply" and event["parent"] == comment["id"]
+            if event["kind"] == "reply"
+            and event["parent"] == comment["id"]
+            and not event.get("ephemeral")
         ]
         # The resolve does not hide it: Threads still lists the thread among the open
         # ones, and opening it there shows the answer, which the page times then.
@@ -178,11 +170,9 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     else:
         # The answer completes the streamed opening in place at the thread's end, so it
         # moves nothing the user reads or writes and shows at once, the resolve it
-        # reopens with it; the page times it from its own message.
+        # reopens with it. The page times its notice and its own message.
         expect(news).to_be_hidden()
-        expect(page.locator(".lf-fp-settle")).to_have_text(
-            "Resolve", use_inner_text=True
-        )
+        expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Resolve thread")
         expect(
             thread.locator(".lf-msg.agent").filter(has_text="deployment verified")
         ).to_be_visible()
@@ -190,16 +180,26 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
         answer_id = next(
             event["id"]
             for event in read_events(page_dir)
-            if event["kind"] == "reply" and event["parent"] == comment["id"]
+            if event["kind"] == "reply"
+            and event["parent"] == comment["id"]
+            and not event.get("ephemeral")
+        )
+        page.wait_for_function(
+            "address => window.__leafVerifier.replyShownAt(address)?.message != null",
+            arg={"thread": comment["id"], "id": answer_id},
         )
         shown = page.evaluate(
             "window.__leafVerifier.replyShownAt",
             {"thread": comment["id"], "id": answer_id},
         )
-        assert shown["by"] == "message"
-        assert committed <= shown["at"] <= drawn
+        assert shown["message"] is not None
+        assert committed <= shown["at"] <= shown["message"]
         assert current_responses(page_dir, read_events(page_dir)) == {}
-    [answer] = [event for event in read_events(page_dir) if event["kind"] == "reply"]
+    [answer] = [
+        event
+        for event in read_events(page_dir)
+        if event["kind"] == "reply" and not event.get("ephemeral")
+    ]
     assert answer["parent"] == comment["id"]
     assert answer["text"] == "deployment verified"
     assert answer["responds"] == comment["id"]

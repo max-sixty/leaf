@@ -10,6 +10,7 @@ from dataclasses import replace
 
 import leaf_website as website_server
 import pytest
+from interact_support import comment as open_thread
 from interact_support import owed_answers, running_http_server
 from leaf.event_log import read_events
 from leaf.files import revision_path
@@ -322,6 +323,7 @@ def test_website_samples_serve_private_pages_without_starting_an_agent(
         assert b"sitenote.js" not in document
         assert b"data-lf-release=" not in document
         assert headers.get("Content-Security-Policy") is None
+        assert headers["Cache-Control"] == "no-store"
         assert headers["Access-Control-Allow-Origin"] == "*"
         assert headers["Referrer-Policy"] == "no-referrer"
         assert headers["Leaf-Layer"] == state["layer"]["generation"]
@@ -372,6 +374,14 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
     published = site / "examples" / "decision"
     published.parent.mkdir(parents=True)
     shutil.copytree(page_dir, published)
+    # The session that wrote the page left its voice in the log; the copy is still
+    # answered by the host's agent.
+    monkeypatch.setenv("LEAF_AGENT", "Claude")
+    monkeypatch.setenv("LEAF_SESSION_ID", "authoring-session")
+    opened = open_thread(published, "--text", "Which plan reads best?")
+    assert opened.exit_code == 0, opened.output
+    monkeypatch.delenv("LEAF_AGENT")
+    monkeypatch.delenv("LEAF_SESSION_ID")
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
 
     agent_harness = FakeCodexHarness()
@@ -391,6 +401,8 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         )
         assert headers["Content-Security-Policy"] == "frame-ancestors 'self'"
         assert headers["Leaf-Session"] == "active"
+        # A visitor's private page stays out of the browser's disk cache.
+        assert headers["Cache-Control"] == "no-store"
 
         # A released document sends the public startup beacon, which the deployed site
         # answers at the edge. Nothing stands in front of this adapter, so it owes the
@@ -413,8 +425,10 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
             "agent": "Agent",
             "install_url": "/#install",
         }
+        assert state["agent"] == "Agent"
         assert headers["Leaf-Layer"] == state["layer"]["generation"]
         assert headers["Leaf-Session"] == "active"
+        assert headers["Cache-Control"] == "no-store"
 
         raw_view, _ = get(
             verify_site.activation_url(f"{root}/examples/decision/", state)

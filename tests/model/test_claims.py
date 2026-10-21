@@ -738,8 +738,8 @@ def test_a_new_claim_cannot_borrow_the_previous_sessions_wait_lease(
 
 def test_page_claim_takes_a_page_without_watching_it(page_dir, monkeypatch):
     """A Claude Code session picks up a page another session served by claiming
-    it, and its own Stop hook watches the page from the end of the turn: a `leaf
-    wait` there would hold the lease that hook needs."""
+    it, and Leaf's hooks module watches the page from the end of the turn: a `leaf
+    wait` there would hold the lease that watch needs."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s7")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     record_claim(page_dir, id="s2")
@@ -804,16 +804,7 @@ def test_a_background_job_no_worker_hosts_is_resumed_with_its_input(
 def test_a_claim_an_older_leaf_wrote_is_dropped_rather_than_read_or_raised_on(
     tmp_path, page_dir, monkeypatch, capsys
 ):
-    """The claims directory is one per machine, and the worktrees writing it are
-    each on their own commit, so a session routinely reads records a different
-    version wrote. Found in the wild: a session held six preview pages claimed
-    before #811 named a harness, merged a main that had landed it, and every
-    `leaf wait` after that died in `owned_by` on `claim["harness"]` — taking the
-    watcher off the unrelated page the user was actually reading.
-
-    Stage owes nothing to what an older version wrote, so the record is not
-    migrated and its old shape is never read. It is dropped where it is read,
-    which leaves its page unclaimed and every other page working."""
+    """A foreign record format cannot disrupt another page's current watcher."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s8")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     leases_model.mark_hooks("s8")  # its harness runs Leaf's hooks
@@ -831,10 +822,9 @@ def test_a_claim_an_older_leaf_wrote_is_dropped_rather_than_read_or_raised_on(
     assert service_model.owned_pages("s8") == [stale.resolve(), page_dir.resolve()]
 
     claim = service_model.page_claim(stale)
-    written_before_811 = {**claim, "host": claim["harness"]}
-    del written_before_811["harness"]
     cleanup_model.write_json(
-        service_model.claim_path(stale), service_model.CLAIM.stored(written_before_811)
+        service_model.claim_path(stale),
+        {**service_model.CLAIM.stored(claim), "format": "leaf-claim/0"},
     )
 
     # The reported failure: the watcher walks every page the session holds, and
@@ -848,25 +838,16 @@ def test_a_claim_an_older_leaf_wrote_is_dropped_rather_than_read_or_raised_on(
     assert service_model.page_claim(stale) is None
     assert service_model.owned_pages("s8") == [page_dir.resolve()]
 
-    # The same reading answers for the two records a later rename leaves behind,
-    # and the Stop hook shows both: a harness name outside this version's table
-    # raises in `harness.claim_harness`, which dispatches on that value rather than
-    # reading it, and a record missing a field a user brackets is taken for a
-    # live claim, putting its page back in front of the guard — and in front of
-    # `event_endpoint`'s nudge, which brackets `turn_closed` under the append
-    # lock.
-    for unreadable in (
-        {**claim, "harness": "some-harness-a-later-leaf-named"},
-        {key: value for key, value in claim.items() if key != "generation"},
-    ):
-        cleanup_model.write_json(
-            service_model.claim_path(stale), service_model.CLAIM.stored(unreadable)
-        )
-        hooks_model.cmd_hook(
-            "claude-code", {"hook_event_name": "Stop", "session_id": "s8"}
-        )
-        assert str(stale) not in capsys.readouterr().out
-        assert service_model.page_claim(stale) is None
+    # An unknown harness is a dispatch value, independently of record format.
+    cleanup_model.write_json(
+        service_model.claim_path(stale),
+        service_model.CLAIM.stored(
+            {**claim, "harness": "some-harness-a-later-leaf-named"}
+        ),
+    )
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s8"})
+    assert str(stale) not in capsys.readouterr().out
+    assert service_model.page_claim(stale) is None
 
 
 def test_a_claim_is_active_while_the_lifetime_it_names_holds(

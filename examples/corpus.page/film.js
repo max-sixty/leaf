@@ -1421,12 +1421,6 @@ export class Painter {
       keeps(g, "opacity", tr.o);
       describe(g, `worktree ${tr.path}`, tr.info);
     }
-    for (const [id, node] of this.pool) {
-      if (!this.seen.has(id)) {
-        node.remove();
-        this.pool.delete(id);
-      }
-    }
 
     // Retained native controls give the terminal the same seek route under a
     // pointer and a keyboard, without losing focus when the selected frame paints.
@@ -1463,5 +1457,12 @@ export class Painter {
     setChildren(this.term, nodes);
 
     this.#paintNotes(world);
+    // Notes are keyed too, so a part leaves only once every layer has painted.
+    for (const [id, node] of this.pool) {
+      if (!this.seen.has(id)) {
+        node.remove();
+        this.pool.delete(id);
+      }
+    }
   }
 }

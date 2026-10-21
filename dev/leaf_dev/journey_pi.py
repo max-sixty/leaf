@@ -17,9 +17,10 @@ The steps, in order:
 - `setup`: the user asks for a page to review; Pi serves it, and as the run settles
   the extension starts watching the session's pages;
 - `release`: the journey's timed ask, sent while Pi is idle, starts a run that
-  answers it (`journey.run_journey`);
-- `mid-turn`: the working case's ask (`journey.CASES`), sent during a shell command,
-  is delivered into that run, recorded on the page and answered before it settles, with no run after it, and the claim holds the run's
+  answers it (`journey.run_journey`); with `--case working` it is sent during the
+  user's own run's shell command, which answers it;
+- `mid-turn`: a comment sent during a shell command is delivered into that run and
+  answered before it settles, with no run after it, and the claim holds the run's
   turn open while it goes;
 - `escape`: Escape during a shell command closes the turn and leaves Pi idle, and a
   comment sent afterwards starts a run that answers it;
@@ -186,6 +187,11 @@ class Pi(Terminal):
                 return record.get("data")
         raise click.ClickException(f"Pi did not answer `{command}`")
 
+    def work(self) -> None:
+        """Type the user's own turn and wait for its shell command."""
+        self.say(USER_TURN)
+        self.await_command(SLEEP, "the user's run did not start its command")
+
     def say(self, text: str) -> None:
         """Type one user turn into an idle session."""
         started = self.request("prompt", message=text)
@@ -231,21 +237,19 @@ def steps(pi: Pi, user: User, page: Path) -> None:
 
     started = time.monotonic()
     before = pi.settled
-    pi.say(USER_TURN)
-    pi.await_command(SLEEP, "the user's run did not start its command")
+    pi.work()
     claim = page_claim(page)
     require(
         claim["turn"] != turn and claim["turn_closed"] is None,
         "the claim does not hold the user's run open",
     )
     turn = claim["turn"]
-    mid_turn = user.ask_while_working()
+    mid_turn = user.comment("mid-turn")
     pi.until(pi.idle, "the user's run did not settle")
     require(
         user.answered("mid-turn"),
         "the user's run settled without answering the comment sent during it",
     )
-    user.require_recorded()
     require(
         any(
             event["turn"] == turn
@@ -264,8 +268,7 @@ def steps(pi: Pi, user: User, page: Path) -> None:
     user.passed("mid-turn", started, check()[1])
 
     started = time.monotonic()
-    pi.say(USER_TURN)
-    pi.await_command(SLEEP, "the user's run did not start its command")
+    pi.work()
     pi.escape()
     require(not pi.running, "the run went on after Escape")
     before = pi.settled
@@ -281,8 +284,7 @@ def steps(pi: Pi, user: User, page: Path) -> None:
     user.passed("escape", started, check()[1])
 
     started = time.monotonic()
-    pi.say(USER_TURN)
-    pi.await_command(SLEEP, "the user's run did not start its command")
+    pi.work()
     interrupted_turn = page_claim(page)["turn"]
     closed_watches = pi.closed_watches
     held = user.comment("held-escape")

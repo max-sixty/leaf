@@ -4,8 +4,9 @@
 // modelled in general for any markup, never for one shape Leaf ships: scrolling,
 // which layout coordinates remove; sticky positioning, through its scroller's travel;
 // CSS anchor positioning, through its anchor's scroll; and native animation, scroll-
-// driven included, through its sampled translation. Beside those it credits only what
-// the Stability contract itself declares: a gesture's rendering, the page before it
+// driven included, through sampled translation or reflow from size changes.
+// Beside those, it credits only what the Stability contract itself declares:
+// a gesture's rendering, the page before it
 // presents or as it returns from a hidden tab, and runtime regions declared with
 // `data-lf-reflow`. A script that moves a box by writing its geometry has no credit
 // of its own, however the page means it, so a surface that should follow something
@@ -58,8 +59,10 @@
 // cannot see; the gesture owns that preparation's landing, as a rendering from the
 // task that settles it until the loop settles again, and nothing while it waits. It
 // began one only when its declaration carries that input's exact callback source.
-// Native effects it began retain only their sampled displacement within their
-// own subtree; their continued lifetime never owns unrelated page movement.
+// Native effects it began retain their sampled displacement within their subtree.
+// A native size animation also credits a later box when its size change travels
+// through the layout path to that box and matches its movement. Its continued
+// lifetime never owns unrelated page movement.
 // Native scroll effects belong to their retained scroll source, regardless of the
 // gesture that created them. Stable timeline bindings and translation trajectories
 // credit only source-collinear travel bounded by that source's viewport scroll.
@@ -146,7 +149,8 @@
     while (list.length > 1 && list[1].at <= retainedFrom) list.shift();
   };
   const GEOMETRY =
-    /^(transform|translate|scale|rotate|inset|top|left|right|bottom|width|height|margin|padding)/;
+    /^(transform|translate|scale|rotate|inset|top|left|right|bottom|width|height|blockSize|inlineSize|minBlockSize|minInlineSize|maxBlockSize|maxInlineSize|margin|padding)/;
+  const SIZE_GEOMETRY = new Set(["blockSize", "height", "inlineSize", "width"]);
   // Use the runtime's rendered ancestry, including forwarding slots and shadow hosts.
   const up = renderedParent;
   // Decorative media is not an independent reading. Hidden accessibility trees
@@ -1645,10 +1649,10 @@
   // that growth, by no more than it, keeping its other edges. Its holdings are then
   // read from its head, which carries them all up by its rise, and so does every box
   // standing on its foot with it (its stand): what stands in that stand above the
-  // scrollport, such as the view's head, rises with it by the same distance and no
-  // more. This is the one place news
-  // may carry controls without a gesture (`skills/leaf/assets/AGENTS.md`, "Stability":
-  // an answer the user waits for grows the panel's thread view).
+  // scrollport, such as the view's name, rises with it by the same distance and no
+  // more. This is the one place news may carry what is read without a gesture
+  // (`skills/leaf/assets/AGENTS.md`, "Stability": an answer the user waits for grows the
+  // panel's thread view).
   const appendGrowth = (around) => {
     if (around.length !== 3) return [];
     const first = around[0].at,
@@ -2234,13 +2238,95 @@
         }
       : null;
   };
+  const inFlow = (element) => {
+    const style = getComputedStyle(element);
+    return !["absolute", "fixed"].includes(style.position) && style.float === "none";
+  };
+  const sizeReaches = (target, element, from, to, axis, change) => {
+    const size = axis === "top" ? "height" : "width";
+    let branch = target;
+    while (branch.parentElement && !branch.parentElement.contains(element)) {
+      if (!inFlow(branch)) return false;
+      branch = branch.parentElement;
+      const before = boxAt(branch, from),
+        after = boxAt(branch, to);
+      if (!before || !after || Math.abs(after[size] - before[size] - change) >= 1)
+        return false;
+    }
+    if (!inFlow(branch) || !branch.parentElement) return false;
+    let follower = element;
+    while (follower.parentElement !== branch.parentElement) {
+      if (!inFlow(follower) || !follower.parentElement) return false;
+      follower = follower.parentElement;
+    }
+    // Block-level children stack vertically in a horizontal-writing block flow.
+    // A block container can also hold inline siblings, whose height does not carry
+    // the next sibling down; flex, grid, and vertical writing have other axes.
+    if (
+      axis !== "top" ||
+      !["block", "flow-root"].includes(
+        getComputedStyle(branch.parentElement).display,
+      ) ||
+      getComputedStyle(branch.parentElement).writingMode !== "horizontal-tb" ||
+      !["block", "flow-root"].includes(getComputedStyle(branch).display) ||
+      !["block", "flow-root"].includes(getComputedStyle(follower).display)
+    )
+      return false;
+    return (
+      inFlow(follower) &&
+      branch !== follower &&
+      !!(branch.compareDocumentPosition(follower) & Node.DOCUMENT_POSITION_FOLLOWING)
+    );
+  };
   const animationMotion = (node, from, to, animations) => {
     const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
     const motion = { left: 0, top: 0, terms: [] };
+    if (!element) return motion;
     const seen = new Map();
     for (const animation of new Set(animations)) {
       const target = animation.effect.target;
-      if (!ancestryAt(element, to).includes(target)) continue;
+      if (!target) continue;
+      if (!ancestryAt(element, to).includes(target)) {
+        // A size animation can move boxes later in its flow. The size change
+        // must propagate through its ancestors to a following in-flow branch.
+        const properties = animationProperties(animation);
+        if (
+          !properties.some((property) => SIZE_GEOMETRY.has(property)) ||
+          target.getRootNode() !== element.getRootNode() ||
+          !(target.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING)
+        )
+          continue;
+        const before = boxAt(target, from),
+          after = boxAt(target, to);
+        const first = layoutAt(element, from),
+          last = layoutAt(element, to);
+        if (!before || !after || !first || !last) continue;
+        for (const axis of ["left", "top"]) {
+          const size = axis === "top" ? "height" : "width";
+          const logicalSize = axis === "top" ? "blockSize" : "inlineSize";
+          if (
+            !properties.some(
+              (property) => property === size || property === logicalSize,
+            )
+          )
+            continue;
+          const change = after[size] - before[size];
+          if (
+            Math.abs(change) < 1 ||
+            Math.abs(last[axis] - first[axis] - change) >= 1 ||
+            !sizeReaches(target, element, from, to, axis, change)
+          )
+            continue;
+          credit(motion, "animation_reflow", target, axis, change, {
+            before,
+            after,
+            first,
+            last,
+            properties,
+          });
+        }
+        continue;
+      }
       const readings = animated.get(animation);
       const before = readings?.findLast((reading) => reading.at <= from);
       const after = readings?.findLast((reading) => reading.at <= to);

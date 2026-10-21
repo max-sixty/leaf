@@ -15,11 +15,9 @@ from interact_support import (
     PAGE,
     STATED_TIMEOUT,
     _interaction_prompt_evidence,
-    _watched,
     acknowledged_through,
     activity_reading,
     append_carried_log_record,
-    codex_records,
     continued,
     declare_idle,
     declared,
@@ -42,6 +40,7 @@ from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
+from leaf import file_changes as file_changes_model
 from leaf import files as files_model
 from leaf import harness as harness_model
 from leaf import hook_transport as hook_transport_model
@@ -54,6 +53,21 @@ from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
+
+
+def test_pages_follower_without_owned_pages_does_not_open_a_watcher(
+    claimed, monkeypatch, capsys
+):
+    cleanup_model.end_session("s1")
+    assert cleanup_model.holds_claims("s1")
+    assert service_model.owned_pages("s1") == []
+
+    def unexpected_watcher(*_args, **_kwargs):
+        raise AssertionError("a session with no owned pages opened a watcher")
+
+    monkeypatch.setattr(file_changes_model, "FileChanges", unexpected_watcher)
+    hooks_model.cmd_pages({"session_id": "s1"})
+    assert capsys.readouterr().out == "[]\n"
 
 
 def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, capsys):
@@ -379,89 +393,6 @@ def test_a_repeated_stop_is_held_open_only_by_the_users_input(
     assert acknowledged_through(claimed) == last_deliverable_seq(claimed)
 
 
-@pytest.mark.parametrize("repeated", [False, True])
-def test_codex_stop_leaves_quiet_input_but_delivers_the_whole_batch_with_owed_input(
-    page_dir, codex_loop, capsys, repeated
-):
-    """A live adapter handles quiet updates after Stop. An owed user message keeps
-    that turn open and brings all earlier pending updates into its one delivery.
-    """
-    codex_loop(page_dir)
-    cleanup_model.prompt_turn("codex-thread", "quiet")
-    waiter = _watched(page_dir)
-    adapter = leases_model.take_lease(leases_model.adapter_lease_path("codex-thread"))
-    assert adapter
-    try:
-        asked = append_carried_log_record(
-            page_dir, {"kind": "comment", "author": "user", "text": "why?"}
-        )
-        receive_through(page_dir, last_deliverable_seq(page_dir))
-        thread_model.post_reply(
-            page_dir, {"parent": asked["id"], "responds": asked["id"]}, "Because."
-        )
-        cursor = acknowledged_through(page_dir)
-        quiet = [
-            append_carried_log_record(
-                page_dir, {"kind": "resolve", "author": "user", "parent": asked["id"]}
-            ),
-            append_carried_log_record(
-                page_dir,
-                {"kind": "error", "author": "page", "text": "a widget threw"},
-            ),
-        ]
-        cleanup_model.prompt_turn("codex-thread", "quiet")
-        hooks_model.cmd_hook(
-            "codex",
-            {
-                "hook_event_name": "Stop",
-                "session_id": "codex-thread",
-                "turn_id": "quiet",
-                "stop_hook_active": repeated,
-            },
-        )
-        assert capsys.readouterr().out == ""
-        assert cleanup_model.session_record("codex-thread")["turn_closed"]
-        assert acknowledged_through(page_dir) == cursor
-        assert not codex_records("codex-thread")
-        assert [
-            event["id"]
-            for event in service_model.unacknowledged(
-                events_model.read_events(page_dir), cursor
-            )
-        ] == [event["id"] for event in quiet]
-
-        cleanup_model.prompt_turn("codex-thread", "owed")
-        comment = append_carried_log_record(
-            page_dir, {"kind": "comment", "author": "user", "text": "is it broken?"}
-        )
-        hooks_model.cmd_hook(
-            "codex",
-            {
-                "hook_event_name": "Stop",
-                "session_id": "codex-thread",
-                "turn_id": "owed",
-                "stop_hook_active": repeated,
-            },
-        )
-        answer = json.loads(capsys.readouterr().out)
-        assert answer["decision"] == "block"
-        envelope = json.loads(answer["reason"])
-        assert envelope == delivery_model.cmd_delivery_read(envelope["id"])
-        assert envelope["acknowledge"] == delivery_model.pointer_acknowledgement(
-            envelope["id"]
-        )
-        assert acknowledged_through(page_dir) == cursor
-        [batch] = envelope["batches"]
-        assert [event["id"] for event in batch["events"]] == [
-            *(event["id"] for event in quiet),
-            comment["id"],
-        ]
-        assert cleanup_model.session_record("codex-thread")["turn_closed"] is None
-    finally:
-        adapter.close()
-        leases_model.release_lease(waiter)
-
-
 def test_a_page_that_changed_hands_before_receipt_keeps_its_input(
     claimed, printing, tmp_path, monkeypatch, capsys
 ):
@@ -546,8 +477,8 @@ def test_input_too_large_for_the_turn_goes_as_a_pointer_its_reader_confirms(
     assert all(e["kind"] != "pickup" for e in events_model.read_events(claimed))
 
     # Confirmed by a command the model runs anyway, and which only confirms: the
-    # session's watch is its Stop hook, which a wait the model ran would only take
-    # the lease from.
+    # session's watch is the hooks module's, which a wait the model ran would only
+    # take the lease from.
     read = CliRunner().invoke(cli_model.cli, ["delivery", "read", delivery_id])
     assert read.exit_code == 0, read.output
     pointer = json.loads(read.output)
@@ -699,7 +630,7 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
             "stderr": said(result.stderr),
         }
 
-    # The turn ends over the page, and its Stop hook watches from here.
+    # The turn ends over the page, and Leaf watches it from here.
     assert hook("Stop") is None
     sent = append_carried_log_record(
         page,

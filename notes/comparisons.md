@@ -461,3 +461,46 @@ package-design lead, not evidence that an animation dependency is ready to adopt
 The useful common idea is separating semantic states from motion between them.
 A Leaf package experiment can test that model without first building video export,
 autoplay policy, or a broad animation framework.
+
+## affectUI
+
+Read on 2026-10-15 from the [site](https://www.affectui.com/), its
+[`llms.txt`](https://www.affectui.com/llms.txt), the
+[license](https://www.affectui.com/license) and the free items'
+[repository](https://github.com/flohoeller/affectui). affectUI was a library of 103
+React 19 items for AI products, each one `.tsx` file whose styles sit in a CSS string,
+installed through the shadcn CLI or an MCP server. 40 items were MIT; the other 63
+were Pro, a one-time purchase of their source. Pro's license excluded a public
+repository and "a page builder, design tool or similar product for others", which
+rules out porting Pro source into Leaf. Every Pro item's live preview, keyboard map
+and motion notes were public.
+
+The CSS ports without React: folds animate `grid-template-rows` from `1fr` to `0fr`,
+one easing, `cubic-bezier(0.22, 1, 0.36, 1)`, runs throughout and is nearly the
+floating panel's, and each item honors `prefers-reduced-motion`. Colors are hex
+values per component rather than shared tokens.
+
+Patterns Leaf lacked on the read date:
+
+- **A plan drawn as a plan.** Agent Plan keeps a run's steps in order in one card,
+  done ones ticked and the current one timed, under "Running · 1 of 5". Leaf has
+  since drawn the agent's plan (`leaf task plan`) in the floating panel's Plan tab,
+  each goal with its steps done and each step's state in place (#3195). Tool Call
+  Card has no Leaf counterpart: tool calls belong to the harness's transcript.
+- **Answering in a list row.** Agent Inbox and Decision Inbox put Approve and Reject
+  in each row, with status and a live clock on the agent's rows. Leaf's floating
+  panel's On view already answers inline.
+- **Keys and stepping for suggestions.** Inline Diff binds Y and N at the current
+  change, steps between changes, and offers Reject all beside Accept all.
+- **A tray container.** A white card inside a gray tray, with status and actions on
+  the tray and key hints inside the buttons ("Deny Esc").
+- **Motion references** for the floating panel's motion pass: Number Ticker for
+  counts and Blur Crossfade for content swaps.
+
+Two of its behaviors conflict with Leaf's guarantees. An answered row confirms and
+then folds away, carrying the next row under the pointer, where Leaf keeps an
+answered item in place until its view closes. And toasts stack in a corner, where
+Leaf's notices take the status line's seat.
+
+On 2026-10-20 the user decided Leaf takes nothing further from affectUI: neither the
+suggestion keys nor the tray, and no Pro purchase.

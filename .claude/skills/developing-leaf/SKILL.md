@@ -9,8 +9,9 @@ Resolve the repository root three directories above this `SKILL.md`, check that
 `<root>/bin/leaf --root` prints that root, and run every `leaf` command through that
 absolute launcher; a bare `leaf` may run the installed plugin instead.
 
-Before naming or renaming anything the user sees or operates, or an identifier for one,
-read `references/glossary.md`, Leaf's canonical vocabulary.
+Before writing words the user sees, such as a label, status line or placeholder, or
+naming anything they operate or an identifier for one, read `references/glossary.md`,
+Leaf's canonical vocabulary and the voice its visible copy speaks in.
 
 ## Read the owning contract
 
@@ -242,11 +243,12 @@ running for their review.
 For response timing, run `uv run leaf-dev response-times PAGE... --json`;
 `dev/leaf_dev/commands/response_times.py` owns its measurements and limits.
 
-To benchmark replies, run each harness's journey a few times. It asks for the same
-small page change while the harness waits and while it works, and splits each reply
-into the whole reply, Leaf's share and the model calls
-(`dev/leaf_dev/reply_phases.py`); `uv run leaf-dev journey-chart --replies` tabulates
-the kept samples by target and case.
+To benchmark replies, run each harness's journey a few times in each case: its
+first comment asks for a small page change while the harness waits, or with
+`--case working` while the user's own turn runs. Each reply splits into the whole
+reply, Leaf's share and the model calls (`dev/leaf_dev/reply_phases.py`), and
+`uv run leaf-dev journey-chart --replies` tabulates the kept samples by target and
+case, `--since` selecting a batch.
 
 `uv run --project <root> leaf-dev journey TARGET` runs one user's journey against a real
 agent. On the triage board, it tells the agent that a release passed its checks and
@@ -263,9 +265,9 @@ The journey runs a session of the harness with this working tree as its plugin. 
 suite only stands in for each harness, so run the journey on the harness a change
 touches; each target's module header lists its steps and the promises it checks:
 
-- `claude-code` (`journey_claude_code.py`): with and without `--hooks-module`, after a
-  change to `hooks/hooks.json`, `hooks/claude-code.ts`, `ClaudeCodeHarness`,
-  `hooks.py`, `background-watch.py`, or the watch between turns in `session.py`. Add
+- `claude-code` (`journey_claude_code.py`): after a change to `hooks/hooks.json`,
+  `hooks/claude-code.ts`, `ClaudeCodeHarness`, `hooks.py`, or the watch between turns
+  in `session.py`. Add
   `--sandbox` after a change to `bridge.py`, the README's "Agent sandboxes" settings,
   or what a `leaf` command needs from outside its page directory.
 - `codex-app-server` and `codex-queue` (`journey_codex.py`): both, after a change to
@@ -316,6 +318,20 @@ order that exercises each verb the page explains, undo included. Before handoff,
 the sample using only what that prose says, and read each line the feed prints: a
 probe that knows more than the prose shows that the sample works, not that a user can
 work it.
+
+## Keep authoring a page fast
+
+Leaf is often a developer tool, used by one person waiting on the page in the middle
+of their own work, so the time an agent takes to produce a page is usually part of
+its quality. Shipped instructions keep that path short: write the page, run
+`page check`, look it over and hand it over. Avoid adding a reviewer subagent, a
+render pass or a critique round to the path most pages take. Keep such a step for a
+page that has to be especially well made, such as one that will be published or read
+by many people, in the reference that owns that kind of page.
+
+When pages keep failing the same way, improve the guidance the author reads while
+writing, and measure it in `evals/`, where a judge reading the page cold can stand in
+for the user.
 
 ## Score an instruction change
 

@@ -203,7 +203,9 @@ def approval_obligation(document, revision: int, events: list) -> dict | None:
     Draft revisions owe none. Only a done event in force for this public version
     supplies the typed answer; an undo makes the same obligation open again.
     Approval admission counts widget obligations alone, so this record cannot
-    block its own answer.
+    block its own answer. It asks about the version as a whole, so its prompt names
+    no element of the page to go to: the chrome presents the approval and brings the
+    user to it (page-status.js, `registerApprovalPresentation`).
     """
     version = stamped_version(events, revision)
     if version is None or review_mode(document) != "sign-off":
@@ -221,7 +223,7 @@ def approval_obligation(document, revision: int, events: list) -> dict | None:
         "source": {"kind": "approval", "version": version},
         "thread": None,
         "message": None,
-        "prompt": {"text": f"Approve v{version}?", "target": "lf-approve"},
+        "prompt": {"text": f"Approve v{version}?", "target": None},
         "answer": {"value": True, "event": event_reference(approved)}
         if approved
         else None,

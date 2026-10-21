@@ -6,6 +6,7 @@ import re
 import pytest
 from interact_support import append_carried_log_record
 from leaf import data as data_model
+from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, panel_comment
@@ -359,9 +360,11 @@ def blurs(box):
     return box.evaluate("box => box.lfBlurs")
 
 
-def seated_thread(serve, kind, messages, annotations="overlay"):
+def seated_thread(
+    serve, kind, messages, annotations="overlay", line='["app.py","new",1]'
+):
     """A thread of `messages` turns on a page seat (`task`, `verdict`) or on a diff
-    line (`diff`, drawn inside the widget's shadow tree), and the page's URL. A diff
+    `line` (`diff`, drawn inside the widget's shadow tree), and the page's URL. A diff
     page draws its margin as `annotations` says."""
     if kind == "diff":
         url = serve(
@@ -374,7 +377,7 @@ def seated_thread(serve, kind, messages, annotations="overlay"):
         data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
         anchor = {
             "section": "patch",
-            "datum": '["app.py","new",1]',
+            "datum": line,
             "source": "review-patch",
             "source_revision": source_revision(serve.page_dir, "review-patch"),
         }
@@ -534,6 +537,28 @@ def test_settling_a_long_diff_thread_by_key_keeps_it_in_view(browser, serve):
     rendered(page)
     scroll_settled(page)
     assert focus_clear_of_the_panel(page), "the reopened thread left the window"
+
+
+def test_r_settles_the_thread_seated_under_the_diff_line_the_user_stands_on(
+    browser, serve
+):
+    """A line and the thread the diff seats under it are one place, as an element and
+    the thread its card shows are, so `r` on the line `]` lands on settles that
+    thread. The user stays on the line."""
+    url, root = seated_thread(serve, "diff", 1, line='["app.py","old",1]')
+    page = open_page(browser, url)
+    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    expect(thread).to_be_visible()
+    page.keyboard.press("Shift")
+    page.locator("lf-diff .lf-diff-fold-all").focus()
+    page.keyboard.press("]")
+    line = page.locator('lf-diff div[data-lf-line=\'["app.py","old",1]\']')
+    expect(line).to_be_focused()
+    with sending(page, "the resolve"):
+        page.keyboard.press("r")
+    rendered(page)
+    assert events_model.read_events(serve.page_dir)[-1]["kind"] == "resolve"
+    expect(line).to_be_focused()
 
 
 @pytest.mark.parametrize("kind", ["diff", "bounded-short"])
@@ -873,7 +898,7 @@ def test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it(
         # A resolved thread the page draws nowhere opens in the panel.
         open_panel_thread(page, root)
         settle = page.locator(".lf-fp-settle")
-        expect(settle).to_have_text("Reopen", use_inner_text=True)
+        expect(settle).to_have_accessible_name("Reopen")
         with sending(page, "reopen the thread with the saved reply"):
             settle.click()
         round_trip(page)

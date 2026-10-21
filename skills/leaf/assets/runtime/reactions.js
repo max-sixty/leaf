@@ -536,7 +536,6 @@ export function createReactionController({
         touch: false,
         runFromCommandReference: false,
         keys: ["Tab", "Shift+Tab", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
-        description: "Move through reactions",
         title: "move",
         repeat: true,
         run: stepResponse,
@@ -546,7 +545,6 @@ export function createReactionController({
         touch: false,
         runFromCommandReference: false,
         keys: PRESS,
-        description: "Use the focused response",
         title: "choose",
         when: () => responseChoices(reactSurface).includes(focused()),
         run: () => focused()?.click(),
@@ -555,7 +553,6 @@ export function createReactionController({
         id: "reaction.cancel",
         touch: false,
         keys: ["Escape"],
-        description: "Close response choices",
         title: "cancel",
         run: () => setReact(false),
       },
@@ -602,11 +599,7 @@ export function createReactionController({
     ready: savedReadingSettled,
     touch: false,
     keys: ["e"],
-    description: () =>
-      `Open reactions — ${reactionTokens()
-        .slice(0, 9)
-        .map(([name, entry]) => `${entry.glyph} ${name}`)
-        .join(", ")} — for the selection, the focused item, or the open reply`,
+    description: "For the selection, the focused item, or the open reply",
     title: "reactions",
     when: () =>
       reactionAvailable() &&

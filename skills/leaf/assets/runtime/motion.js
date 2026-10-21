@@ -40,7 +40,7 @@ preference.addEventListener("change", (event) => {
 // state. Every motion this module plays shares one ease and one held-end-frame
 // contract. A duration a caller passes in is still a number this module has no reason
 // for; see AGENTS.md's "Motion".
-export function motion(el, keyframes, ms) {
+export function motion(el, keyframes, ms, pseudoElement = null) {
   // First replay happens behind the presentation boundary. Its state should be the
   // first frame the user sees, not a motion from authored state they never saw; it
   // collapses exactly as reduced motion does. This one shared check reaches folds and
@@ -48,6 +48,7 @@ export function motion(el, keyframes, ms) {
   if (reducedMotion() || !pagePresented()) return null;
   const played = el.animate(keyframes, {
     duration: ms,
+    pseudoElement,
     easing: "ease",
     fill: "forwards",
   });
@@ -96,8 +97,11 @@ export function backgroundFlash(el, ms) {
 // worth of page closing, short enough that the act still reads as having happened at
 // the press: the board's own FLIP is 150ms over a card's width, and this is a taller
 // distance travelled by the whole column below it. A decided suggestion's retired
-// slot folds over it, and a picture's zoom (media.js) takes the same time.
+// slot and a resolved inline thread fold over it, and a picture's zoom (media.js)
+// takes the same time.
 export const foldDuration = () => time("--lf-motion-fold");
+// A retained frame returns from an editor to its shorter reading.
+export const returnDuration = () => time("--lf-motion-return");
 
 // Give a block's room back from its ordinary CSS shape. Native intrinsic-size
 // interpolation supplies the starting height, and the other lengths start at their
@@ -108,13 +112,23 @@ export const foldDuration = () => time("--lf-motion-fold");
 // Without intrinsic interpolation, which Firefox and WebKit lack, use the caller's
 // immediate retirement path rather than a discrete height jump half way through an
 // opacity animation.
-export function foldBlock(el) {
+// When retiring also replaces adjacent UI, the container's prior allocation supplies
+// the starting room: its final composition may replace an editor with a disclosure.
+// Account for that difference in the retiring block's size, so the first
+// frame preserves the container's old size and one fold gives back the net room.
+// Unlike trailing margins, this room cannot collapse against a live neighbor's gap.
+// The caller measures only the container before composing; this owner reads the new
+// allocation, so consumers share the geometry rule.
+export function foldBlock(el, allocation = null) {
   if (!CSS.supports("block-size", "calc-size(auto, size)")) return null;
+  const adjustment = allocation
+    ? allocation.priorSize - allocation.container.getBoundingClientRect().height
+    : 0;
   return motion(
     el,
     [
       {
-        blockSize: "calc-size(auto, size)",
+        blockSize: `calc-size(auto, size + ${adjustment}px)`,
         display: "block",
         overflow: "clip",
         opacity: 1,

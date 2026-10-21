@@ -926,7 +926,13 @@ def write_row(path, page):
             "page": str(page),
             "page_key": cleanup_model.page_key(page),
             "server_id": "fixture-server",
-            "row": {"title": page.name, "session_cwd": None, "activity": activity},
+            "row": {
+                "title": page.name,
+                "session_cwd": None,
+                "activity": activity,
+                "on_user": 0,
+                "threads": {"open": 0, "unread": 0},
+            },
         },
     )
 
@@ -2871,4 +2877,15 @@ def _watched(page_dir):
         leases_model.waiter_lease_path(page_dir, session["id"])
     )
     assert lease
+    return lease
+
+
+def adapter_lease(session_id, app_server):
+    """Hold `session_id`'s adapter lease as a running adapter does, naming the App
+    Server it starts turns over, or None for one that queues them
+    (`codex_adapter.run_adapter`)."""
+    lease = leases_model.take_lease(leases_model.adapter_lease_path(session_id))
+    assert lease
+    lease.write(codex_adapter_model.ADAPTER.encode({"app_server": app_server}))
+    lease.flush()
     return lease

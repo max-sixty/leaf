@@ -41,7 +41,7 @@ import {
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { build } from "esbuild";
+import { build } from "./esbuild.mjs";
 import { parse } from "acorn";
 
 import { frameworkPaths, inFramework } from "./browser/build.mjs";

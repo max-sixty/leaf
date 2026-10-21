@@ -362,7 +362,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     assert "draw.mode.exit" in w_matches, w_matches
     assert w_results.index("page.down") >= len(w_matches), w_results
 
-    search.fill("resolve it")
+    search.fill("r resolve")
     result = help_el.locator(
         '.lf-command-reference-command[data-lf-command="thread.resolution.toggle"]'
     )
@@ -376,7 +376,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
         "aria-selected", "true"
     )
     page.keyboard.type("!")
-    expect(search).to_have_value("resolve it!")
+    expect(search).to_have_value("r resolve!")
     expect(help_el.locator(".lf-command-reference-empty")).to_be_visible()
     page.keyboard.press("Backspace")
     page.keyboard.press("ArrowDown")
@@ -386,7 +386,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     expect(help_el.locator(".lf-command-reference-meta")).to_have_text(
         "Available in a thread"
     )
-    search.fill("close response choices")
+    search.fill("reaction.cancel")
     cancel_reaction = help_el.locator(
         '.lf-command-reference-command[data-lf-command="reaction.cancel"]'
     )
@@ -414,7 +414,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     # The last thread, which has no card on the page, opens in the panel.
     expect(page.locator(PANEL_THREAD)).to_be_focused()
     page.keyboard.press("?")
-    search.fill("resolve it")
+    search.fill("r resolve")
     page.keyboard.press("ArrowDown")
     expect(search).to_be_focused()
     expect(result).to_have_attribute("data-lf-selected", "true")
@@ -484,6 +484,24 @@ def test_the_reference_enters_named_go_to_destinations(
         "selector => document.querySelector(selector).contains(document.activeElement)",
         arg=surface,
     )
+
+
+def test_a_command_reference_versions_press_enters_the_menu_from_the_leaf(
+    browser, serve
+):
+    """A command chosen in the reference enters its destination from the panel leaf."""
+    page = open_page(browser, serve(OBLIGATIONS_PAGE, comments=2))
+    leaf = page.locator(".lf-fp-leaf")
+    leaf.click()
+    page.keyboard.press("Escape")
+    expect(leaf).to_be_focused()
+    page.keyboard.press("?")
+    reference = page.locator(".lf-command-reference")
+    page.get_by_role("combobox", name="Search commands").fill("version.open")
+    reference.locator('tr[data-lf-command="version.open"] button').click()
+    versions = page.locator('.lf-fp-menu[data-level="versions"]')
+    expect(versions).to_be_visible()
+    expect(versions.locator(".lf-fp-item:focus")).to_have_count(1)
 
 
 @pytest.mark.parametrize("viewport", [(1280, 800), (390, 800), (800, 320)])
@@ -556,11 +574,11 @@ def test_the_reference_keeps_local_search_state_on_one_lit_surface(browser, serv
         }"""
     )
 
-    search.fill("resolveit")
-    search.evaluate("input => input.setSelectionRange(7, 7)")
+    search.fill("rresolve")
+    search.evaluate("input => input.setSelectionRange(1, 1)")
     page.keyboard.type(" ")
-    expect(search).to_have_value("resolve it")
-    assert search.evaluate("input => input.selectionStart") == 8
+    expect(search).to_have_value("r resolve")
+    assert search.evaluate("input => input.selectionStart") == 2
     page.keyboard.press("ArrowDown")
     expect(search).to_be_focused()
     expect(result).to_have_attribute("data-lf-selected", "true")
@@ -588,7 +606,7 @@ def test_the_reference_keeps_local_search_state_on_one_lit_surface(browser, serv
     search.fill("no command has these words")
     expect(reference.locator(".lf-command-reference-empty")).to_be_visible()
     assert search.evaluate("input => input.ariaActiveDescendantElement") is None
-    search.fill("resolve it")
+    search.fill("r resolve")
     expect(result).to_have_attribute("data-lf-selected", "false")
     assert page.evaluate(
         """() =>

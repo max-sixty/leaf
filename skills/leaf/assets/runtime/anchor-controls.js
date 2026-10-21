@@ -268,7 +268,6 @@ export function createAnchorControls({
             {
               id: "reaction.removal.close",
               keys: ["Escape"],
-              description: "Hide the remove action",
               title: "hide remove",
               when: () => Boolean(record.expanded),
               run: () => {

@@ -1,11 +1,10 @@
 """Leaf's Claude Code hooks module (`hooks/claude-code.ts`) keeping a session's
-watch in place of the background Stop registration.
+watch between turns, and drawing the session's pages above the prompt.
 
 `claude_code_driver.mjs` stands in for Claude Code around the module, which calls
 the real launcher, so these hold the module and the hooks it calls together."""
 
 import json
-import os
 import queue
 import socket
 import subprocess
@@ -16,12 +15,16 @@ import pytest
 from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
+    declare,
+    read_record,
     serving,
     wait_for,
 )
 from leaf import harness as harness_model
 from leaf import hooks as hooks_model
 from leaf import leases as leases_model
+from leaf import server as server_model
+from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
@@ -62,6 +65,7 @@ class ClaudeCode:
         self.watches = queue.Queue()
         self.exits = queue.Queue()
         self.diagnostics = queue.Queue()
+        self.bands = queue.Queue()
         threading.Thread(target=self.route, daemon=True).start()
         loaded = self.read()
         self.pid, self.events = loaded["pid"], loaded["events"]
@@ -77,6 +81,8 @@ class ClaudeCode:
                 self.sent.put(record)
             elif "diagnostic" in record:
                 self.diagnostics.put(record["diagnostic"])
+            elif "band" in record:
+                self.bands.put(record["band"])
             else:
                 self.answers.put(record)
 
@@ -130,15 +136,13 @@ class ClaudeCode:
 
 @pytest.fixture
 def claude_code(page_dir, monkeypatch, spawn, sessionless, request):
-    """A Claude Code session with the module turned on, holding a page claimed and
+    """A Claude Code session with the module loaded, holding a page claimed and
     served from a Bash tool command as Claude Code runs one: its session id and its
     process. Claude Code's own environment names no session, so neither does the
     module's. The session then starts, as one does when the module loads while it
     holds a page, and the module's watch holds the session's lease, so input posted afterwards
     arrived after the watch's first look rather than pending as it started."""
-    driven = ClaudeCode(
-        spawn, "cc-s1", {"hooks_module": True, **getattr(request, "param", {})}
-    )
+    driven = ClaudeCode(spawn, "cc-s1", getattr(request, "param", {}))
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", driven.session)
     monkeypatch.setenv("CLAUDE_PID", str(driven.pid))
     service_model.claim_page(page_dir)
@@ -156,10 +160,81 @@ def claude_code(page_dir, monkeypatch, spawn, sessionless, request):
     driven.quit()
 
 
-def test_the_module_is_off_until_its_option_is_on(spawn, sessionless):
-    """The module hooks nothing unless the user turns its option on, so a default
-    install keeps the registrations in `hooks.json`."""
-    assert ClaudeCode(spawn, "cc-off", {"hooks_module": False}).events == []
+def band_lines(band) -> list[tuple[str, str]]:
+    """Each page's line in the band, as its text and the address its link opens;
+    none where the module draws nothing."""
+    if band is None:
+        return []
+
+    def text(node) -> str:
+        if isinstance(node, str):
+            return node
+        return "".join(text(child) for child in node["children"])
+
+    return [
+        (text(line), link["props"]["href"])
+        for line in band["children"]
+        # What the plugins beneath drew, which the driver's bottom leaves empty.
+        if line is not None
+        for link in line["children"]
+        if isinstance(link, dict) and link["tag"] == "Link"
+    ]
+
+
+def test_the_band_follows_the_pages_the_session_holds(
+    page_dir, claude_code, monkeypatch
+):
+    """Above the prompt, each page the session holds is a link with the counts its
+    Leaf panel marks that aren't zero: On me, open threads, and those holding words
+    the user hasn't read; then what the agent last said it waits for. The band
+    redraws as the page's row changes, and empties once the session holds no
+    page."""
+
+    def band(expected):
+        server_rows_model.RowPublisher(page_dir, server_id).refresh()
+        return wait_for(
+            lambda: band_lines(claude_code.bands.get(timeout=STATED_TIMEOUT)),
+            lambda lines: lines == expected,
+            failure=f"the band never showed {expected}",
+        )
+
+    server_id = read_record(page_dir / "service.json")["server_id"]
+    server_rows_model.RowPublisher(page_dir, server_id).refresh()
+    published = server_rows_model.ROW.read(server_rows_model.row_path(page_dir))["row"]
+    url, title = server_model.running_server(page_dir)["url"], published["title"]
+    band([(f"Leaf {title}", url)])
+    # A /clear ends the session and starts none; the next turn follows again.
+    claude_code.emit(
+        "session.end", {"reason": "clear", "sessionId": claude_code.session}
+    )
+    band([])
+    claude_code.start_turn()
+    band([(f"Leaf {title}", url)])
+    comment = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "why?"}
+    )
+    band([(f"Leaf {title} · Threads 1", url)])
+    thread_model.post_reply(
+        page_dir, {"parent": comment["id"], "responds": comment["id"]}, "Because."
+    )
+    band([(f"Leaf {title} · Threads 1, 1 new", url)])
+    append_carried_log_record(
+        page_dir,
+        {
+            "kind": "todo",
+            "author": "agent",
+            "owner": "user",
+            "subject": {"kind": "page"},
+            "title": "Try it",
+        },
+    )
+    band([(f"Leaf {title} · On me 1 · Threads 1, 1 new", url)])
+    declare(page_dir, detail="Pick a layout")
+    band([(f"Leaf {title} · On me 1 · Threads 1, 1 new · Pick a layout", url)])
+    # Another session takes the page, so this one holds none.
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "cc-s2")
+    service_model.claim_page(page_dir)
+    band([])
 
 
 @pytest.mark.parametrize("failure", ["watch", "startup", "spawn"])
@@ -177,22 +252,36 @@ def test_failed_module_processes_report_their_diagnostics(
         spawn,
         "cc-failure",
         {
-            "hooks_module": True,
             "pluginRoot": str(tmp_path),
             "throwWatchSpawn": failure == "spawn",
         },
     )
     driven.start_turn()
     driven.emit("session.start", {"cwd": str(tmp_path), "isInteractive": True})
-    diagnostic = driven.diagnostics.get(timeout=STATED_TIMEOUT)
+    # The pages follower starts beside the watch, as the turn and the session start,
+    # and reports its own failures.
+    followers, watches = [], []
+    while not (followers and watches):
+        line = driven.diagnostics.get(timeout=STATED_TIMEOUT)
+        (watches if line.startswith("Leaf: watch") else followers).append(line)
+    [diagnostic] = watches
     if failure == "spawn":
         assert (
             diagnostic == "Leaf: watch could not start: Error: host cannot spawn watch"
         )
+        expected = (
+            "Leaf: the pages follower could not start: Error: host cannot spawn watch"
+        )
+        assert followers and set(followers) == {expected}, followers
     elif failure == "startup":
         assert "watch failed" in diagnostic and "ENOENT" in diagnostic, diagnostic
+        assert followers and all(
+            "pages follower failed" in line and "ENOENT" in line for line in followers
+        ), followers
     else:
         assert diagnostic == "Leaf: watch failed (exit code 23): watch launcher failed"
+        expected = "Leaf: the pages follower exited with code 23: watch launcher failed"
+        assert followers and set(followers) == {expected}, followers
     driven.quit()
 
 
@@ -208,46 +297,6 @@ def test_the_module_wakes_an_idle_session_with_a_prompt(page_dir, claude_code):
     sent = claude_code.message()
     assert sent["submitted"].startswith(f"Leaf: {page_dir} has new input"), sent
     assert comment["id"] not in sent["submitted"]
-
-
-def test_the_module_stands_the_background_registration_down(page_dir, claude_code):
-    """Each Stop payload the module passes on is marked, and `hooks.json`'s
-    background registration, given that payload with input pending and no other
-    watch running, ends silently where the unmarked payload wakes the session.
-    Driven the way Claude Code drives it, through a shell with the payload on
-    stdin."""
-    stamped = claude_code.stop()
-    assert stamped["leaf_watch"] == "module"
-    claude_code.quit()
-    [hook] = [
-        hook
-        for entry in json.loads((PLUGIN_ROOT / "hooks/hooks.json").read_text())[
-            "hooks"
-        ]["Stop"]
-        for hook in entry["hooks"]
-        if hook.get("asyncRewake")
-    ]
-    cleanup_model.close_session_turn(claude_code.session)
-    append_carried_log_record(
-        page_dir, {"kind": "comment", "author": "user", "text": "pending"}
-    )
-
-    def background(payload: dict) -> subprocess.CompletedProcess:
-        return subprocess.run(
-            ["sh", "-c", hook["command"]],
-            input=json.dumps(payload),
-            env=os.environ | {"CLAUDE_PLUGIN_ROOT": str(PLUGIN_ROOT)},
-            capture_output=True,
-            text=True,
-            timeout=STATED_TIMEOUT,
-            check=False,
-        )
-
-    marked = background(stamped)
-    assert (marked.returncode, marked.stderr) == (0, "")
-    unmarked = background({key: stamped[key] for key in stamped if key != "leaf_watch"})
-    assert unmarked.returncode == 2
-    assert unmarked.stderr.startswith(f"{page_dir} has new input")
 
 
 def test_the_module_hands_input_to_a_running_turn_and_closes_an_interrupted_one(
@@ -379,6 +428,29 @@ def test_clear_keeps_the_module_able_to_watch_the_next_session(claude_code):
     assert (
         claude_code.watches.get(timeout=STATED_TIMEOUT)["previous_active_watches"] == 0
     )
+
+
+def test_a_module_loaded_mid_session_watches_after_its_first_turn(
+    page_dir, monkeypatch, spawn, sessionless
+):
+    """A module loaded or reloaded mid-session sees no session.start, so the first
+    turn it sees reads Claude Code's process and the watch it starts holds the
+    session's lease."""
+    driven = ClaudeCode(spawn, "cc-late", {})
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", driven.session)
+    monkeypatch.setenv("CLAUDE_PID", str(driven.pid))
+    service_model.claim_page(page_dir)
+    serving(page_dir, 1)
+    session_model.cmd_waiting(page_dir, "")
+    leases_model.mark_hooks(driven.session)
+    driven.start_turn()
+    driven.end_turn()
+    wait_for(
+        lambda: leases_model.wait_is_live(None, driven.session),
+        bool,
+        failure="the module started no watch after its first turn",
+    )
+    driven.quit()
 
 
 @pytest.mark.parametrize("claude_code", [{"abortLagMs": 250}], indirect=True)

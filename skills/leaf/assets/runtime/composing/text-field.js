@@ -3,8 +3,9 @@
  * Every composer the runtime builds is a `leaf-text`. Inside a closed shadow root it
  * runs CodeMirror over the draft's exact source, and draws that source the way a sent
  * message will read: inline code in code type, emphasis and strong in their weights,
- * a link as a link, a heading in bold. The syntax that produces each (backticks,
- * asterisks, brackets, hashes) is hidden unless the selection touches the construct, so
+ * a link as a link, a heading in bold, a list item at the message's inset under the
+ * message's own marker. The syntax that produces each (backticks, asterisks, brackets,
+ * hashes, list markers) is hidden unless the selection touches the construct, so
  * the user sees their words rendered and can still reach every character they typed.
  * Nothing is converted: the value is always the source the user typed, which is what
  * the agent reads. The constructs come from the renderer that sends the message
@@ -131,6 +132,17 @@ sheet.replaceSync(`
      against. Both layers share one grid cell, inside the host's padding. */
   .lf-field { display: grid; }
   .lf-field > * { grid-area: 1 / 1; min-width: 0; }
+  /* An owner moving the field's edges can carry the words from where they stood with
+     them, by the host's --lf-field-carry, and cut them to the box it draws growing, by
+     --lf-field-cut (theme.css): a transform and a cut that move neither the field nor
+     its layout. The field's content box cuts off what the field doesn't hold yet,
+     such as a new line and its caret, and keeps the travel from widening the host's
+     scrolling. A cut naming none is invalid, which leaves the words uncut. */
+  .lf-field { overflow: clip; }
+  .lf-field > * {
+    translate: var(--lf-field-carry);
+    clip-path: inset(var(--lf-field-cut));
+  }
   /* The placeholder is one line that never widens the box — a response bar sizes to the
      words — and shortens with an ellipsis where the box is narrow, so it reads the same
      height whether it shows the plain words or a keyed hint. */
@@ -159,8 +171,10 @@ sheet.replaceSync(`
      the rest read the theme's tokens, since its element rules stop at this root. A
      heading is bold, as the platform draws one, at the size of the words around it. A
      block is drawn line by line, so a code block's frame is each line's sides, closed
-     above its first line and below its last. */
+     above its first line and below its last. Syntax that holds its room while the
+     caret is away, as a code fence's line does, is there unseen and unspoken. */
   .lf-md-mark { color: var(--muted); }
+  .lf-md-unseen { color: transparent; }
   code { font-family: var(--mono); font-size: var(--code-inline-size);
     background: var(--code-bg); border-radius: var(--code-inline-r);
     padding: var(--code-inline-pad); box-decoration-break: slice; }
@@ -168,16 +182,23 @@ sheet.replaceSync(`
   .lf-md-link { color: var(--accent); text-decoration: underline var(--link-underline);
     text-underline-offset: var(--link-underline-offset); }
   .lf-md-quote { border-inline-start: var(--quote-rule); font-style: var(--quote-style);
-    padding-inline-start: var(--quote-inset); color: var(--muted); }
-  /* A bullet item's marker is drawn as the message's bullet, in a box as wide as the
-     marker and its space, which the item's wrapped lines hang under. The dash it stands
-     for keeps that box while the caret touches it, so revealing it moves no word. */
-  .lf-md-item { padding-inline-start: 1.25em; text-indent: -1.25em; }
-  .lf-md-bullet { display: inline-block; inline-size: 1.25em; text-indent: 0;
-    white-space: pre; }
-  .lf-md-bullet:not(.lf-md-mark) { color: transparent; position: relative; }
-  .lf-md-bullet:not(.lf-md-mark)::before { content: "•"; position: absolute;
-    inset-inline-start: 0; color: var(--ink); }
+    padding-inline-start: var(--quote-inset); color: var(--muted);
+    --lf-marker-inset: var(--quote-inset); }
+  /* A quote's and a list item's words stand where the message's do, and the source's
+     marker stands in the inset before them, unseen while the caret is away, so
+     revealing it moves no word. A list item's lines stand one list inset in per level,
+     under the platform's own list marker, as in the message, so it is the same bullet
+     or number at the same place. */
+  .lf-md-item { margin-inline-start: calc(var(--lf-list-depth) * var(--list-inset));
+    --lf-marker-inset: var(--list-inset); }
+  .lf-md-marker { display: inline-flex; justify-content: flex-end; white-space: pre;
+    inline-size: var(--lf-marker-inset);
+    margin-inline-start: calc(-1 * var(--lf-marker-inset)); }
+  .lf-md-listed { display: list-item; }
+  .lf-md-disc { list-style-type: disc; }
+  .lf-md-circle { list-style-type: circle; }
+  .lf-md-square { list-style-type: square; }
+  .lf-md-number { list-style-type: decimal; }
   .lf-md-code-block { font-family: var(--mono); font-size: var(--code-size);
     line-height: var(--code-line); color: var(--code-ink); background: var(--pre-bg);
     font-variant-ligatures: none; border-inline: 1px solid var(--code-border);
@@ -186,6 +207,9 @@ sheet.replaceSync(`
     border-start-start-radius: var(--r); border-start-end-radius: var(--r); }
   .lf-md-code-last { border-block-end: 1px solid var(--code-border);
     border-end-start-radius: var(--r); border-end-end-radius: var(--r); }
+  /* Code with no fence lines takes the message's padding at its ends instead. */
+  .lf-md-code-bare.lf-md-code-first { padding-block-start: var(--pre-pad-block); }
+  .lf-md-code-bare.lf-md-code-last { padding-block-end: var(--pre-pad-block); }
 `);
 
 // A step an owner recorded in the words' history (`record`): `run` makes it happen when
@@ -195,9 +219,27 @@ const ownerStep = StateEffect.define();
 const hide = Decoration.replace({});
 const dim = Decoration.mark({ class: "lf-md-mark" });
 const link = Decoration.mark({ class: "lf-md-link" });
-const bullet = Decoration.mark({ class: "lf-md-bullet" });
-const shownBullet = Decoration.mark({ class: "lf-md-bullet lf-md-mark" });
+const unseen = Decoration.mark({
+  class: "lf-md-unseen",
+  attributes: { "aria-hidden": "true" },
+});
+const marker = Decoration.mark({
+  class: "lf-md-marker lf-md-unseen",
+  attributes: { "aria-hidden": "true" },
+});
+const shownMarker = Decoration.mark({ class: "lf-md-marker lf-md-mark" });
 const line = (cls) => Decoration.line({ class: cls });
+// A list item's line at its depth, wearing the marker a message's list draws there: the
+// bullet the platform's style sheet nests, or the item's number in its list. An item's
+// later line, and one whose source marker shows, wear none.
+const BULLETS = ["lf-md-disc", "lf-md-circle", "lf-md-square"];
+const itemLine = (depth, kind, number) =>
+  Decoration.line({
+    class: kind ? `lf-md-item lf-md-listed ${kind}` : "lf-md-item",
+    attributes: {
+      style: `--lf-list-depth: ${depth}${kind === "lf-md-number" ? `; counter-set: list-item ${number}` : ""}`,
+    },
+  });
 
 // The inline constructs the preview draws, by the renderer's token type: each as the
 // element the renderer sends it as.
@@ -220,6 +262,11 @@ const read = (state) => {
 
 function decorate(state, placed) {
   const out = [];
+  // The ends of the lists open at the token being read, each list line's item, and the
+  // code blocks, whose lines their own reading indents.
+  const lists = [];
+  const items = new Map();
+  const code = [];
   const add = (from, to, deco) => {
     if (from >= to) return;
     // A hidden range may not hold a line break; such syntax stays drawn.
@@ -265,27 +312,74 @@ function decorate(state, placed) {
       for (const [a, b] of markers)
         add(a, b, token.markup.startsWith("#") ? syntax : dim);
     } else if (token.type === "fence" || token.type === "code_block") {
+      code.push([from, to]);
+      // Each line of code keeps the indent the parser's reading of it keeps; the rest,
+      // a list item's or an indented block's own four spaces, the message drops.
+      const body = token.content.split("\n");
+      const opened = state.doc.lineAt(from).number + (token.type === "fence" ? 1 : 0);
       lines(from, to, (each) => {
         const ends = [
           each.from <= from ? " lf-md-code-first" : "",
           each.to + 1 >= to ? " lf-md-code-last" : "",
+          token.type === "code_block" ? " lf-md-code-bare" : "",
         ].join("");
         out.push(line(`lf-md-code-block${ends}`).range(each.from));
+        const kept = body[each.number - opened];
+        if (kept === undefined || each.number - opened >= body.length - 1) return;
+        const lead = each.text.match(/^[ \t]*/)[0].length;
+        add(each.from, each.from + lead - kept.match(/^[ \t]*/)[0].length, hide);
       });
-      for (const [a, b] of markers ?? []) add(a, b, dim);
+      // A fence's lines keep their room, as the message's code keeps its padding.
+      const fence = touches(state, from, to - 1) ? dim : unseen;
+      for (const [a, b] of markers ?? []) add(a, b, fence);
     } else if (token.type === "blockquote_open") {
       lines(from, to, (each) => {
         out.push(line("lf-md-quote").range(each.from));
       });
-      for (const [a, b] of markers) add(a, b, dim);
+      for (const [a, b] of markers)
+        add(a, b, touches(state, a, b) ? shownMarker : marker);
+    } else if (
+      token.type === "bullet_list_open" ||
+      token.type === "ordered_list_open"
+    ) {
+      while (lists.at(-1)?.to <= from) lists.pop();
+      const ordered = token.type === "ordered_list_open";
+      lists.push({ to, next: ordered ? Number(token.attrGet("start") ?? 1) : null });
     } else if (token.type === "list_item_open") {
+      while (lists.at(-1)?.to <= from) lists.pop();
+      const list = lists.at(-1);
+      const depth = lists.length;
+      // An item's later lines stand under its words, their indent hidden as the
+      // message drops it, and never revealed, so the words don't jump as the caret
+      // arrives: a paragraph's whole indent, and in code what the code's reading drops
+      // (above). A nested item, read after its parent, takes its own lines.
+      const head = state.doc.lineAt(from);
       const [at, end] = markers[0];
-      if (token.info) add(at, end, dim);
-      else {
-        out.push(line("lf-md-item").range(state.doc.lineAt(from).from));
-        add(at, end, touches(state, at, end) ? shownBullet : bullet);
+      // The marker's own indent stands in the inset with it. A quote's line keeps the
+      // quote's rule and prefix at its start, where the platform's marker can't stand,
+      // so an item there keeps its source marker, drawn as the prefix is.
+      const start = at - head.text.slice(0, at - head.from).match(/[ \t]*$/)[0].length;
+      if (head.text.slice(0, start - head.from).trim()) {
+        add(start, end, dim);
+        continue;
       }
+      lines(head.to + 1, Math.min(to, state.doc.length), (each) => {
+        items.set(each.from, { depth, continued: true });
+      });
+      const kind =
+        list.next === null
+          ? BULLETS[Math.min(depth, BULLETS.length) - 1]
+          : "lf-md-number";
+      const shown = touches(state, start, end);
+      items.set(head.from, { depth, kind: shown ? null : kind, number: list.next });
+      if (list.next !== null) list.next++;
+      add(start, end, shown ? shownMarker : marker);
     }
+  }
+  for (const [from, { depth, kind, number, continued }] of items) {
+    out.push(itemLine(depth, kind, number).range(from));
+    if (!continued || code.some(([a, b]) => from >= a && from < b)) continue;
+    add(from, from + state.doc.lineAt(from).text.match(/^[ \t]*/)[0].length, hide);
   }
   return Decoration.set(out, true);
 }

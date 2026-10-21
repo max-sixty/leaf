@@ -448,6 +448,9 @@
         ? target
         : target.importNode(sourceShells.get(source) ?? source, false);
     origins.set(copy, origins.get(source) ?? node);
+    // View geometry is read before modules start, not authored by the page. Leave
+    // it out of the baseline a revision compares with its unpainted source.
+    copy.removeAttribute?.("data-lf-views-flow");
     copy.removeAttribute?.("data-lf-opening");
     copy.removeAttribute?.("data-lf-sole-content");
     if (copy.hasAttribute?.(PLAYER)) {
@@ -926,8 +929,8 @@
     }
     return changed;
   };
-  // A page of parts' title, which its list sticks under (layouts.css, "A page of
-  // parts"): no CSS stacks one sticking box under another of unknown height. The title
+  // A page of parts' title, which its list stands fixed under (layouts.css, "A page of
+  // parts"): no CSS stacks one fixed box under another of unknown height. The title
   // is what stands before the parts, in the one row above the list.
   const TITLE = "--lf-parts-title-h";
   const title = () => {
@@ -1039,19 +1042,19 @@
       drawings.set(host, drawing);
       return drawing;
     },
-    mount(template) {
-      const host = template.content.firstElementChild;
-      // The host stays inert while any part of its source is still arriving. Put
-      // its complete source in place, then draw deepest-first in this same task:
-      // no frame can show an unfinished or uninitialized instance.
-      template.replaceWith(host);
+    mount(host) {
+      // The theme hides the host while any part of its source is still arriving
+      // (`data-lf-arriving`, revision_delivery.mark_declared). Once its end tag has
+      // parsed, show it and draw deepest-first in this same task: no frame can show
+      // an unfinished or uninitialized instance.
+      host.removeAttribute("data-lf-arriving");
       for (const node of [host, ...host.querySelectorAll("*")].reverse())
         if (producers.has(node.localName))
           this.paint(/** @type {HTMLElement} */ (node));
     },
     restoreSource(root) {
-      for (const template of root.querySelectorAll("template[data-lf-initial-source]"))
-        template.replaceWith(/** @type {HTMLTemplateElement} */ (template).content);
+      for (const host of root.querySelectorAll("[data-lf-arriving]"))
+        host.removeAttribute("data-lf-arriving");
       for (const delivery of root.querySelectorAll("script[data-lf-initial]"))
         delivery.remove();
       for (const placeholder of root.querySelectorAll("[data-lf-prepaint]"))
@@ -1120,6 +1123,9 @@
   };
   const mark = () => {
     for (const holder of document.querySelectorAll("[data-lf-views]")) {
+      const flow = getComputedStyle(holder).getPropertyValue("--lf-views-flow").trim();
+      if (flow && holder.getAttribute("data-lf-views-flow") !== flow)
+        holder.setAttribute("data-lf-views-flow", flow);
       const members = [...holder.children];
       const open = choose(holder, members);
       for (const member of members) {

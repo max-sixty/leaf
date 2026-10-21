@@ -309,15 +309,27 @@ def confirm_codex_pointer(session_id: str, payload: dict) -> list[Path]:
 
     A hook reservation remains bound to its offered turn. Already queued input
     and recovery reminders have no such reservation; their explicit reader
-    confirmation records the current receiver's turn under the page lock.
+    confirmation records the current receiver's turn under the page lock. So
+    does a queue offer whose acceptance went unrecorded, as when the adapter
+    failed after `codex queue` returned: the pointer in this turn proves the
+    queue took it, and accepting it here keeps the adapter from queueing it
+    again.
     """
-    from .codex import Accepted, accept_codex_delivery, read_task_delivery
+    from .codex import (
+        Accepted,
+        Offering,
+        accept_codex_delivery,
+        read_task_delivery,
+    )
     from .delivery import ReceiptRefused, receive
 
     observation = hook_turn(session_id)
     if not observation or not observation["running"]:
         raise ReceiptRefused("the receiving provider turn has ended")
     record = read_task_delivery(session_id, payload["id"])
+    if type(record) is Offering:
+        accept_codex_delivery(session_id, payload["id"], None)
+        return receive(payload, session_id)
     if record is None or isinstance(record, Accepted):
         return receive(payload, session_id)
     received = accept_codex_delivery(

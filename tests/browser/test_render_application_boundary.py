@@ -1481,8 +1481,8 @@ THREAD_ACTIONS_DECLARATION = {
 
 
 @pytest.mark.parametrize("surface", ["margin", "outlet"])
-def test_compact_reader_opens_the_native_interactive_message(browser, serve, surface):
-    """A compact reader's button addresses message content, not its own reply row."""
+def test_compact_reader_draws_the_native_interactive_message(browser, serve, surface):
+    """A thread the page draws holds its message's widgets, where the user answers them."""
     target = "jobs" if surface == "outlet" else "notes"
     source = (
         SEATED_OBLIGATION_PAGE
@@ -1518,17 +1518,9 @@ def test_compact_reader_opens_the_native_interactive_message(browser, serve, sur
         compact = page.locator(".lf-margin-thread")
     else:
         compact = page.locator('#jobs .lf-page-thread[data-thread="native-thread"]')
-    panel = page.locator(PANEL_THREAD)
-    expect(panel).to_have_count(0)
-    button = compact.get_by_role("button", name="Open interactive reply")
-    expect(button).to_be_visible()
-    button.focus()
-    button.press("Enter")
-    panel_settled(page, view="thread")
-    message = panel.locator('.lf-msg[data-message="native-message"]')
-    expect(message).to_be_focused()
-    email = message.locator("#native-email")
-    expect(email).to_be_in_viewport()
+    expect(page.locator(PANEL_THREAD)).to_have_count(0)
+    email = compact.locator('.lf-msg[data-message="native-message"] #native-email')
+    expect(email).to_be_visible()
     with sending(page, "answer the native interactive reply"):
         email.click()
     expect(email.get_by_role("checkbox")).to_be_checked()

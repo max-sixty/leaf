@@ -35,8 +35,10 @@ so a claim that command makes joins it. Hooks
 that do run with no retained claim avoid page reading, and import the harness
 declarations only once the payload names a session. Page-owning prompt and Stop
 hooks reach `hook_transport`; Codex's tool and Stop hooks reach its delivery
-records in `codex`; a second Claude Code Stop hook watches between turns (`cmd_watch`). The
-application entry routes `leaf hook` here before loading the CLI.
+records in `codex`. Leaf's Claude Code hooks module and Pi's extension watch between
+turns (`cmd_watch`), and the hooks module follows the session's pages (`cmd_pages`) to
+draw them beside the prompt. The application entry routes `leaf hook` here before
+loading the CLI.
 
 Claude Code's PostToolBatch carries pending input before the next model call,
 after successful or failed tools, using the same envelope and receipt as its
@@ -187,9 +189,9 @@ def cmd_hook(harness: str, payload: dict) -> None:
 
 
 def cmd_watch(harness: str, payload: dict) -> str | None:
-    """The Stop hook `harness` runs in the background as a turn ends, watching the
-    session's pages until input, and what it wakes the session with, or None
-    where it ends without waking it (`session.watch_between_turns`).
+    """The watch `harness`'s extension or hooks module starts as a turn ends,
+    watching the session's pages until input, and what it wakes the session with, or
+    None where it ends without waking it (`session.watch_between_turns`).
 
     It watches only while the session holds a page, and only where its harness
     watches between turns. Pi's extension and Leaf's Claude Code hooks module start
@@ -214,7 +216,58 @@ def cmd_watch(harness: str, payload: dict) -> str | None:
     return watch_between_turns(watching, interrupted=interrupted)
 
 
-def main(harness: str, *, watch: bool = False) -> None:
+# What `cmd_pages` prints of each page, so a change to anything else stays quiet.
+SHOWN_FIELDS = ("page_key", "url", "title", "on_user", "threads", "activity")
+
+
+def cmd_pages(payload: dict) -> None:
+    """Print the live pages the payload's session holds, as one JSON list
+    (`presence.live_leaves`), then again each time that list changes, until the
+    session holds no page. Leaf's Claude Code hooks module draws it beside the
+    prompt.
+
+    Rows and the session's claim locators wake the reading. A server that dies
+    leaves its row until a reader finds its lease unheld, so the list is read
+    again every presence interval too."""
+    sid = payload.get("session_id") or ""
+    if not owned_pages(sid):
+        print("[]", flush=True)
+        return
+
+    from .file_changes import FileChanges, existing_root
+    from .presence import PRESENCE_CACHE_S, live_leaves
+    from .state import session_claims, state_home
+
+    rows, claims = state_home().resolve() / "rows", session_claims(sid)
+    # A root above rows/ would hear its creation, not the rows written into it.
+    rows.mkdir(exist_ok=True)
+    roots = {rows: False, existing_root(claims): False}
+    changes = FileChanges(
+        roots,
+        lambda changed: changed.parent in (rows, claims) or changed in (rows, claims),
+    )
+    shown = None
+    try:
+        while True:
+            mark = changes.mark()
+            held = {page.resolve() for page in owned_pages(sid)}
+            listed = json.dumps(
+                [
+                    {field: leaf[field] for field in SHOWN_FIELDS}
+                    for _page, leaf in (live_leaves(held) if held else [])
+                ]
+            )
+            if listed != shown:
+                print(listed, flush=True)
+                shown = listed
+            if not held:
+                return
+            changes.wait(mark, PRESENCE_CACHE_S)
+    finally:
+        changes.close()
+
+
+def main(harness: str, *, watch: bool = False, pages: bool = False) -> None:
     """Read one harness payload and dispatch it, without importing the CLI.
 
     The application entry is the only caller.
@@ -236,7 +289,7 @@ def main(harness: str, *, watch: bool = False) -> None:
     if launcher is not None and launcher != own_launcher():
         # Delegate the whole hook before publishing lifecycle or pickup. Keeping
         # the stdin as a file avoids a pipe-size limit on large tool payloads;
-        # exec retains cancellation and the background watch's exact lifetime.
+        # exec retains cancellation and the watch's exact lifetime.
         with tempfile.TemporaryFile() as incoming:
             incoming.write(json.dumps(payload).encode())
             incoming.seek(0)
@@ -251,9 +304,13 @@ def main(harness: str, *, watch: bool = False) -> None:
                 "--harness",
                 harness,
                 *(["--watch"] if watch else []),
+                *(["--pages"] if pages else []),
             ],
             environment,
         )
+    if pages:
+        cmd_pages(payload)
+        return
     if watch:
         from .leases import release_on_termination
 

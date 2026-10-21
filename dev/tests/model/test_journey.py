@@ -170,7 +170,7 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(end):
         if end == "browser"
         else journey.HttpEnd(url, Path("page"), time.sleep)
     )
-    user = journey.User(user_end, "v", lambda: events, terminal)
+    user = journey.User(user_end, "v", lambda: events, terminal, list)
     user.release_reading = {
         "version": "v",
         "comment": {
@@ -388,9 +388,10 @@ def test_a_comment_picked_up_while_a_call_is_out_starts_in_that_tool_phase():
 
 def test_a_reply_taken_while_working_splits_into_leaf_share_and_model_calls():
     """A comment sent while the harness works waits for the tool boundary, which is
-    the harness's time, not Leaf's; Leaf's share is the delivery after it and every
-    tool phase running `leaf`. Model phases with no response ending between them are
-    one model call, whose tool calls ran while it still streamed."""
+    the harness's time, not Leaf's; Leaf's share is the delivery after it and the
+    time each `leaf` command recorded, from its start after the comment until the
+    reply. Model phases with no response ending between them are one model call,
+    whose tool calls ran while it still streamed."""
 
     def use(seconds: float, id: str, command: str) -> dict:
         part = {"type": "tool_use", "id": id, "name": "Bash", "input": {}}
@@ -432,14 +433,30 @@ def test_a_reply_taken_while_working_splits_into_leaf_share_and_model_calls():
         responded(12),
         use(12, "e", "leaf response reply c1"),
     ]
-    reply = reply_breakdown(records, at(1), at(5.2), at(12.5))
+
+    def ran(started: float, ended: float) -> dict:
+        return {"started": at(started), "ts": at(ended)}
+
+    # The watch running from before the comment and a command of the harness's
+    # other work while it was busy are no part of the reply, commands running
+    # together count once, and the reply's own command counts until the reply is
+    # admitted.
+    commands = [
+        ran(0, 20),
+        ran(2, 4),
+        ran(7, 7.4),
+        ran(7.1, 7.3),
+        ran(9.3, 10),
+        ran(12, 12.8),
+    ]
+    reply = reply_breakdown(records, commands, at(1), at(5.2), at(12.5))
     assert {key: value for key, value in reply.items() if key != "phases"} == {
         "wholeMs": 11500,
-        "leafMs": 1900,
+        "leafMs": 1800,
         "busyMs": 4000,
         "deliveryMs": 200,
-        "leafCommandsMs": 1700,
-        "otherToolsMs": 100,
+        "leafCommandsMs": 1600,
+        "otherToolsMs": 200,
         "modelMs": 5500,
         "idleMs": 0,
         "modelCalls": [
@@ -453,10 +470,10 @@ def test_a_reply_taken_while_working_splits_into_leaf_share_and_model_calls():
         "delivery",
         "model",
     ]
-    assert reply_breakdown(records, at(1), None, at(12.5)) is None
+    assert reply_breakdown(records, [], at(1), None, at(12.5)) is None
     # Where the agent works before the pickup, the boundary handed it a pointer it
     # read and acknowledged itself, and the delivery ended at that boundary.
-    acknowledged = reply_breakdown(records, at(1), at(9.2), at(12.5))
+    acknowledged = reply_breakdown(records, [], at(1), at(9.2), at(12.5))
     assert (acknowledged["busyMs"], acknowledged["deliveryMs"]) == (4000, 0)
     assert acknowledged["modelMs"] == 5700
     # A busy turn that ends before the agent takes the comment leaves the harness
@@ -468,7 +485,7 @@ def test_a_reply_taken_while_working_splits_into_leaf_share_and_model_calls():
         use(33, "r", "leaf delivery read c1"),
         result(33.5, "r"),
     ]
-    later = reply_breakdown(ended, at(1), at(34), at(35))
+    later = reply_breakdown(ended, [], at(1), at(34), at(35))
     assert (later["busyMs"], later["idleMs"], later["modelMs"]) == (1000, 30000, 2500)
     # Calls out together at the admission hold the harness until the last returns.
     batch = [
@@ -478,7 +495,7 @@ def test_a_reply_taken_while_working_splits_into_leaf_share_and_model_calls():
         result(2, "a"),
         result(10, "b"),
     ]
-    drained = reply_breakdown(batch, at(1), at(10.2), at(12))
+    drained = reply_breakdown(batch, [], at(1), at(10.2), at(12))
     assert (drained["busyMs"], drained["deliveryMs"]) == (9000, 200)
     # A call an interrupted turn left without a result holds no later turn.
     interrupted = [
@@ -489,7 +506,7 @@ def test_a_reply_taken_while_working_splits_into_leaf_share_and_model_calls():
         use(4, "y", "sleep 2"),
         result(6, "y"),
     ]
-    later = reply_breakdown(interrupted, at(5), at(6.2), at(8))
+    later = reply_breakdown(interrupted, [], at(5), at(6.2), at(8))
     assert (later["busyMs"], later["deliveryMs"]) == (1000, 200)
     assert later["phases"][2]["phase"] == "model"
 

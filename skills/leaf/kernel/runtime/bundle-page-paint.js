@@ -1,11 +1,4 @@
 import {
-  DELIVERY,
-  PAGE_ROOT,
-  offlineInteractive,
-  pageUrl,
-  runtime
-} from "./bundle-semantic-state.js";
-import {
   CARET_KEYS,
   TEXT_BOX,
   WORKS,
@@ -33,6 +26,13 @@ import {
   under,
   upFrom
 } from "./bundle-frame-visibility.js";
+import {
+  DELIVERY,
+  PAGE_ROOT,
+  offlineInteractive,
+  pageUrl,
+  runtime
+} from "./bundle-semantic-state.js";
 import {
   AsyncDirective,
   Directive,
@@ -2268,10 +2268,13 @@ function headerCuts(item, clips = /* @__PURE__ */ new Map()) {
   }));
 }
 function stuckBox(node, within = null) {
-  for (let el2 = node; el2?.nodeType === 1 && el2 !== within; el2 = renderedParent(el2))
-    if (getComputedStyle(el2).position === "sticky" && sticks(el2)) return el2;
+  for (let el2 = node; el2?.nodeType === 1 && el2 !== within; el2 = renderedParent(el2)) {
+    const style = getComputedStyle(el2);
+    if (style.position === "sticky" ? sticks(el2) : inWindow(el2, style)) return el2;
+  }
   return null;
 }
+var inWindow = (el2, style) => style.position === "fixed" && el2.offsetParent === null && !style.positionAnchor.startsWith("--");
 function sticks(sticky) {
   let scroller = renderedParent(sticky);
   while (scroller?.nodeType === 1 && !scrollContainer(scroller))
@@ -2497,16 +2500,16 @@ function nearWindow(target, clips = /* @__PURE__ */ new Map()) {
   return Boolean(box) && box.bottom >= -height && box.top <= 2 * height && box.right >= -width && box.left <= 2 * width;
 }
 var clippedContents = (box, holder, clips) => clipped(box, holder, clips, true);
-function clipped(box, item, clips, held, inWindow = true) {
+function clipped(box, item, clips, held, inWindow2 = true) {
   const root2 = item.ownerDocument.scrollingElement;
-  const shown = cutBy(box, clipWalk(item, clips, held).cuts, root2, inWindow);
+  const shown = cutBy(box, clipWalk(item, clips, held).cuts, root2, inWindow2);
   return shown && occluded(shown, item, clips);
 }
-function cutBy(box, cuts, root2, inWindow) {
-  let shown = inWindow ? intersect(box, layoutWindow()) : box;
+function cutBy(box, cuts, root2, inWindow2) {
+  let shown = inWindow2 ? intersect(box, layoutWindow()) : box;
   for (const { box: cut, band, axes, covered } of cuts) {
     if (!band) return null;
-    const edges = !inWindow && cut === root2 ? {
+    const edges = !inWindow2 && cut === root2 ? {
       left: -Infinity,
       top: covered ? band.top : -Infinity,
       right: Infinity,
@@ -3435,7 +3438,6 @@ export {
   watchOwner,
   whileConnected,
   frameFor,
-  liveStages,
   watchArrivals,
   watchArrivalsIn,
   watchScrolls,

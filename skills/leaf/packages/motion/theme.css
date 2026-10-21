@@ -1,0 +1,42 @@
+:scope {
+  display: block;
+  min-width: 0;
+}
+.lf-motion-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-block: 8px;
+  font: 12px/1.5 var(--sans);
+}
+.lf-motion-time {
+  flex: 1 1 120px;
+  min-inline-size: 80px;
+  min-block-size: 32px;
+  accent-color: var(--accent);
+}
+.lf-motion-clock {
+  inline-size: 10ch;
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.lf-motion-speed {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.lf-motion-speed select {
+  min-block-size: 32px;
+  font: inherit;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+}
+.lf-motion-controls :is(input, select):focus-visible {
+  outline: var(--focus-ring);
+  box-shadow: var(--focus-shadow);
+}

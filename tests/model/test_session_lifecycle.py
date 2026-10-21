@@ -497,12 +497,12 @@ def test_reconnect_notices_respect_intent_and_the_exact_page_owner(page_dir, cap
         elif case == "obsolete-claim":
             cleanup_model.write_json(
                 claim_path,
-                {key: value for key, value in raw.items() if key != "generation"},
+                {**raw, "format": "leaf-claim/0"},
             )
         elif case == "obsolete-service":
             cleanup_model.write_json(
                 page_dir / "service.json",
-                server_model.SERVICE.stored({"enabled": True}),
+                {**server_model.SERVICE.stored(service), "format": "leaf-service/0"},
             )
         elif case == "missing-service":
             (page_dir / "service.json").unlink()

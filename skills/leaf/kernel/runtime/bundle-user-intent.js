@@ -3,9 +3,11 @@ import {
   commitWidgetDescriptors,
   dataBody,
   rememberAuthoredParents,
+  setChildLists,
+  setChildren,
   stageAuthoredStates,
   stageWidgetDescriptors
-} from "./bundle-widget-upgrade.js";
+} from "./bundle-stylesheets.js";
 import {
   isCanonicalMediaUrl,
   readAttachedMedia,
@@ -75,10 +77,6 @@ import {
   shownRegionBounds,
   startScroll
 } from "./bundle-presence.js";
-import {
-  setChildLists,
-  setChildren
-} from "./bundle-stylesheets.js";
 import {
   COLLAPSE,
   alignText,
@@ -174,19 +172,6 @@ import {
   whenNone
 } from "./bundle-page-paint.js";
 import {
-  applicationState,
-  attachApplicationPresentation,
-  offlineInteractive,
-  readApplication,
-  readPart,
-  runtime,
-  runtimeModule,
-  runtimeResource,
-  whenApplicationPresented,
-  whenDocumentPresented,
-  whenWidgetsPresented
-} from "./bundle-semantic-state.js";
-import {
   CARET_KEYS,
   TEXT_FIELD,
   afterScript,
@@ -225,6 +210,20 @@ import {
   upFrom
 } from "./bundle-frame-visibility.js";
 import {
+  applicationState,
+  attachApplicationPresentation,
+  offlineInteractive,
+  pageClaimed,
+  readApplication,
+  readPart,
+  runtime,
+  runtimeModule,
+  runtimeResource,
+  whenApplicationPresented,
+  whenDocumentPresented,
+  whenWidgetsPresented
+} from "./bundle-semantic-state.js";
+import {
   M,
   PENDING,
   bindQueuedWork,
@@ -232,6 +231,7 @@ import {
   html,
   isElementName,
   isReaction,
+  keyed,
   lastMovedAt,
   messageKey,
   moved,
@@ -427,17 +427,17 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
       return node.checkVisibility() && box.width && box.height && box.bottom > topFor(node) && box.top < band.bottom;
     }).sort((a, b) => boxes.get(a).top - boxes.get(b).top);
     const beginning = visible.filter((node) => boxes.get(node).top >= topFor(node));
-    const shown = new Set(visible);
+    const shown2 = new Set(visible);
     const pointer = over ? document.elementFromPoint(x, y)?.closest?.(items) : null;
     const focus = focused()?.closest?.(items);
     const named = (recentPlaceInput() === "pointer" ? [pointer, focus] : [focus, pointer]).filter((node) => beginning.includes(node));
     const reading = preferred();
     const candidates = placeCandidates({
       inherited: prior?.references.find(
-        (candidate) => live(candidate) && shown.has(candidate.node)
+        (candidate) => live(candidate) && shown2.has(candidate.node)
       )?.node,
       named,
-      preferred: shown.has(reading) ? reading : null,
+      preferred: shown2.has(reading) ? reading : null,
       visible: beginning
     });
     const references = [.../* @__PURE__ */ new Set([...candidates, ...visible])].filter((node) => scroller.contains(node)).map((node) => ({
@@ -503,11 +503,11 @@ function topMargin(where, box, holder = holderOf(where)) {
   return Math.max(scrollMargin(where), readingTop(holder, box) - band.top);
 }
 var landingRoom = (where, until = where) => roomAround(shownFor(where), where, until);
-function roomAround(shown, where, until = where) {
-  const holder = placeHolder(shown);
+function roomAround(shown2, where, until = where) {
+  const holder = placeHolder(shown2);
   const regions = [...scrollersOf(holder)];
   let { width, height } = shownWindow();
-  for (let box = shown instanceof Range ? holder : renderedParent(shown); box instanceof Element; box = renderedParent(box)) {
+  for (let box = shown2 instanceof Range ? holder : renderedParent(shown2); box instanceof Element; box = renderedParent(box)) {
     const band = (until === where || renderedUnder(until, box)) && landingBand(box);
     if (band) {
       const axes = box === pageScroller ? { x: true, y: true } : clippingAxes(getComputedStyle(box));
@@ -753,9 +753,9 @@ function openingPassage(where) {
   return renderedBlocks(blocks).next().value?.[0] ?? null;
 }
 function readingBounds(region) {
-  const shown = region ? shownRegionBounds(region) : shownWindow();
-  if (!shown) return null;
-  return region && effectiveScroller(region) === pageScroller ? shownWindow({ within: shown }) : shown;
+  const shown2 = region ? shownRegionBounds(region) : shownWindow();
+  if (!shown2) return null;
+  return region && effectiveScroller(region) === pageScroller ? shownWindow({ within: shown2 }) : shown2;
 }
 function* blocksOnScreen(region = null, blocks = textBlocks(), band = null) {
   const bounds = readingBounds(region);
@@ -1859,7 +1859,7 @@ function markdownSourceOffset(body, node, offset) {
   range.setEnd(node, offset);
   const aim = fragmentWords(range.cloneContents()).length;
   const source = body.dataset.lfSourceWords;
-  const shown = fragmentWords(body.cloneNode(true));
+  const shown2 = fragmentWords(body.cloneNode(true));
   let shownAt = 0;
   let sourceEnd = 0;
   for (const placed2 of placedMarkdownTokens(source)) {
@@ -1867,7 +1867,7 @@ function markdownSourceOffset(body, node, offset) {
     if (token.nesting) continue;
     const words = placed2.words;
     if (!words) continue;
-    const start = shown.indexOf(words, shownAt);
+    const start = shown2.indexOf(words, shownAt);
     if (start < 0) continue;
     if (aim < start) return from;
     if (aim <= start + words.length) {
@@ -2820,15 +2820,15 @@ function keepRefusedWords(attempts) {
     return ctx === void 0 ? [] : [ctx];
   });
   const shownIn = (ctx) => [...draftEditors].filter((view) => view.ctx === ctx).map((view) => editorInput(view)).find((input) => input?.isConnected && input.checkVisibility()) ?? null;
-  const hidden = returned.filter((ctx) => !shownIn(ctx));
+  const hidden2 = returned.filter((ctx) => !shownIn(ctx));
   const resumes = returned.find((ctx) => ctx === writingPlace?.context);
   if (resumes !== void 0)
     keepWritingPlace({ ...writingPlace, selection: atEnd(resumes) });
-  for (const ctx of hidden.toReversed())
+  for (const ctx of hidden2.toReversed())
     if (writingPlace?.context !== ctx)
       keepWritingPlace({ context: ctx, selection: atEnd(ctx), generation: randomId() });
   const sentences = [
-    hidden.length && "Draft kept \u2014 g i resumes writing",
+    hidden2.length && "Draft kept \u2014 g i resumes writing",
     held && "Reply kept \u2014 it returns when its comment sends"
   ].filter(Boolean);
   return {
@@ -2945,16 +2945,16 @@ function captureDraftEditing(input = focused()) {
 }
 var draftEditingStands = (editing) => Boolean(editing) && activeDraftRecord(editing.context)?.attempt === editing.attempt;
 function draftEditingDestination(editing, handoff) {
-  const shown = (view) => Boolean(editorInput(view)?.checkVisibility({ visibilityProperty: true }));
+  const shown2 = (view) => Boolean(editorInput(view)?.checkVisibility({ visibilityProperty: true }));
   const placed2 = (view) => editorInput(view)?.isConnected;
   const roots = [...draftEditors].filter(
     (view) => view.ctx === editing.context && !view.mirrored && (placed2(view) || view.resume)
   );
-  const editor = roots.find(shown) ?? roots.find(placed2) ?? roots[0];
+  const editor = roots.find(shown2) ?? roots.find(placed2) ?? roots[0];
   if (!editor) return null;
-  const open2 = shown(editor) ? null : editor.resume?.()?.open;
+  const open2 = shown2(editor) ? null : editor.resume?.()?.open;
   if (open2) handoff(open2);
-  return shown(editor) ? editorInput(editor) : null;
+  return shown2(editor) ? editorInput(editor) : null;
 }
 function restoreDraftEditing(editing, input) {
   if (!draftEditingStands(editing)) return false;
@@ -3029,8 +3029,8 @@ function offFlowSurfaceOf(node) {
 var unseen = (node, surface) => {
   const box = node.getBoundingClientRect();
   const bounds = surface.getBoundingClientRect();
-  const shown = shownWindow();
-  return Math.max(box.top, bounds.top) < shown.top - 1 || Math.min(box.bottom, bounds.bottom) > shown.bottom + 1;
+  const shown2 = shownWindow();
+  return Math.max(box.top, bounds.top) < shown2.top - 1 || Math.min(box.bottom, bounds.bottom) > shown2.bottom + 1;
 };
 function follow(surface, node, behavior) {
   const { floats, away, bringBack } = surfaces.get(surface);
@@ -3386,16 +3386,16 @@ function threadRewrites({
       // its presentation draws then takes the caret, as Reopen's landing gives it
       // (#46, the user's decision, 2026-10-07).
       land: (message) => {
-        const shown = () => {
+        const shown2 = () => {
           const input2 = box();
           return input2 && seenRect(input2, /* @__PURE__ */ new Map()) ? input2 : null;
         };
-        const input = shown();
+        const input = shown2();
         if (input) return landInThread(input);
         landSent(home2(message));
         const mayLand = retainUserIntent();
         void whenDocumentPresented().then(() => {
-          const drawn3 = shown();
+          const drawn3 = shown2();
           if (drawn3 && mayLand()) landInThread(drawn3);
         });
       },
@@ -3797,6 +3797,9 @@ function threadName(thread) {
   );
   return words || (root.drawing ? "Drawing" : "");
 }
+var titlePending = (thread) => thread.title == null && thread.attention?.kind === "waiting" && thread.attention.reason === "workflow" && pageClaimed();
+var threadHeading = (thread) => titlePending(thread) ? html`<span class="lf-thread-name-pending">Generating thread name…</span
+        ><span class="lf-quiet"> ${threadName(thread)}</span>` : threadName(thread);
 var threadSummary = (thread) => ({
   topic: threadName(thread),
   latest: lastMovedAt(thread)
@@ -3844,8 +3847,48 @@ var authoredMessage = (message) => {
     throw new Error("authored message presentation preceded semantic preparation");
   return prepared;
 };
+var authoredDrawings = /* @__PURE__ */ new Map();
+var authoredHolders = /* @__PURE__ */ new Map();
+var shown = (view) => view.node.isConnected && view.node.checkVisibility();
+var hidden = (view) => view.node.isConnected && !view.node.checkVisibility();
+var outranks = (a, b) => a.model.authoredRank > b.model.authoredRank;
+function settleAuthored(key) {
+  const drawings = authoredDrawings.get(key) ?? /* @__PURE__ */ new Set();
+  const holder = authoredHolders.get(key);
+  const held = holder && drawings.has(holder) && !hidden(holder) ? holder : null;
+  let best = null;
+  for (const view of drawings)
+    if (shown(view) && (!best || outranks(view, best))) best = view;
+  if (!best || best === holder || held && !outranks(best, held)) return;
+  authoredHolders.set(key, best);
+  best.present(best.model);
+  if (holder && drawings.has(holder)) holder.present(holder.model);
+}
+var unsettled = /* @__PURE__ */ new Set();
+function settleAuthoredSoon(key) {
+  if (unsettled.has(key)) return;
+  unsettled.add(key);
+  queueMicrotask(() => {
+    unsettled.delete(key);
+    settleAuthored(key);
+  });
+}
+function releaseAuthored(key, view) {
+  if (authoredHolders.get(key) !== view) return;
+  authoredHolders.delete(key);
+  settleAuthored(key);
+}
+function releaseAuthoredUnder(root) {
+  for (const [key, view] of [...authoredHolders])
+    if (root.contains(view.node)) releaseAuthored(key, view);
+}
+function authoredHolder(id) {
+  for (const view of authoredHolders.values())
+    if (view.model.id === id && shown(view)) return view.node;
+  return null;
+}
 var FAILURE_LABEL = "Not answered";
-function messageReading(message, { nativeAuthored = false, reactions, workflows, leaves = null }) {
+function messageReading(message, { authoredRank = 0, reactions, workflows, leaves = null }) {
   const workflow = strongestWorkflow(workflows);
   const token = isReaction(message) ? tokenEntry(message.token) : null;
   const kind = isReaction(message) ? "reaction" : message.suggestion ? "suggestion" : "prose";
@@ -3893,7 +3936,9 @@ function messageReading(message, { nativeAuthored = false, reactions, workflows,
       glyph: token?.glyph ?? "",
       authored: message.body.kind === "authored"
     }),
-    nativeAuthored,
+    // Where this drawing ranks among those that may hold the message's widgets
+    // (`authoredHolders`); 0 for one that never does.
+    authoredRank,
     reactions
   });
 }
@@ -3902,6 +3947,8 @@ var MessageView = class {
   #model = null;
   #reaction = null;
   #authored = null;
+  // Bumped each time this view takes the message's widgets back from another drawing.
+  #authoredTake = 0;
   #dressed = false;
   #arrivalMotion = null;
   #stopRead = null;
@@ -3969,11 +4016,27 @@ var MessageView = class {
     keeps(this.node, "data-attempt", model.attempt || null);
     keeps(this.node, "aria-busy", model.pending ? "true" : null);
     keeps(this.node, "data-failure", model.failure || null);
-    if (model.nativeAuthored && model.body.authored && !this.#authored)
-      this.#authored = authoredMessage({
+    const authoredKey = model.attempt ?? model.id;
+    let displaced2 = null;
+    if (model.authoredRank && model.body.authored) {
+      this.#authored ??= authoredMessage({
         id: model.id,
         attempt: model.attempt
       }).nodes;
+      if (!authoredDrawings.has(authoredKey))
+        authoredDrawings.set(authoredKey, /* @__PURE__ */ new Set());
+      authoredDrawings.get(authoredKey).add(this);
+      const holder = authoredHolders.get(authoredKey);
+      const holding = holder && authoredDrawings.get(authoredKey).has(holder);
+      if (holder !== this && (holding ? shown(this) && (hidden(holder) || outranks(this, holder)) : !hidden(this))) {
+        authoredHolders.set(authoredKey, this);
+        if (holding) displaced2 = holder;
+      }
+      settleAuthoredSoon(authoredKey);
+    }
+    const holds = authoredHolders.get(authoredKey) === this;
+    if (holds && this.#authored.some((node) => !this.node.contains(node)))
+      this.#authoredTake++;
     if (!model.reactions) this.#reaction?.retire();
     const strip = model.reactions ? (this.#reaction ??= new ReactionStripView(this.#commands.reaction)).present(
       model.reactions
@@ -4020,17 +4083,8 @@ var MessageView = class {
         >
           ${editing ? this.#editor.node : this.#body(model.body)}
           ${model.body.drawing ? html`<span class="lf-drawing-reference">Drawing comment</span>` : nothing}
-          ${model.nativeAuthored && model.body.authored ? this.#authored : nothing}
+          ${holds ? keyed(this.#authoredTake, this.#authored) : nothing}
         </div>
-        ${model.body.authored && !model.nativeAuthored ? html`<button
-                type="button"
-                class="lf-btn lf-page-thread-open lf-ui"
-                data-lf-gen="1"
-                data-lf-offer="button"
-                @click=${() => this.#commands.openThread(this.#model.id, { part: "message" })}
-              >
-                Open interactive reply
-              </button>` : nothing}
         ${strip} ${rewrite}
       `,
       this.node
@@ -4046,6 +4100,7 @@ var MessageView = class {
       this.node.querySelector(":scope > .lf-msg-body"),
       model
     );
+    displaced2?.present(displaced2.model);
     if (!prior && (model.pending || arrived)) {
       this.#arrivalMotion = motion(
         this.node,
@@ -4101,6 +4156,12 @@ var MessageView = class {
     }
   }
   retire() {
+    if (this.#model) {
+      const key = this.#model.attempt ?? this.#model.id;
+      authoredDrawings.get(key)?.delete(this);
+      if (!authoredDrawings.get(key)?.size) authoredDrawings.delete(key);
+      releaseAuthored(key, this);
+    }
     this.#arrivalMotion?.cancel();
     this.#reaction?.retire();
     if (this.#model) releaseMessageEdit(this.#model.id, this);
@@ -4644,9 +4705,9 @@ function beginWalk(key, noun, read, wrapped = false) {
     boundaryTimer = 0;
     repaint();
   }, BOUNDARY_MS) : 0;
-  const shown = walkPosition();
+  const shown2 = walkPosition();
   repaint();
-  return shown?.text ?? null;
+  return shown2?.text ?? null;
 }
 
 // runtime/thread/state.js
@@ -4788,10 +4849,10 @@ function parkRow(row) {
 function releaseReplies(surface) {
   for (const { owner } of compositions.values()) {
     if (!owner?.binding || !surface.contains(owner.row)) continue;
-    const shown = [...views2.get(owner.context)].find(
+    const shown2 = [...views2.get(owner.context)].find(
       (view) => view !== owner && view.controls.input.checkVisibility()
     );
-    if (shown) handOver(shown, owner);
+    if (shown2) handOver(shown2, owner);
     else {
       const redrawGiver = owner.binding.give();
       parkRow(owner.row);
@@ -4978,9 +5039,9 @@ function createReplyView(key, commands2, redraw, {
     // A view drawing the thread takes its session's row where no view holds it: one
     // released to the park, or one whose view went. It does so once it stands in the
     // document, `shown`, so the move keeps the user in the row (dom-move.js).
-    claim(shown) {
+    claim(shown2) {
       const owner = compositions.get(composition.context)?.owner;
-      if (owner && owner !== composition && !owner.binding && !owner.retired && shown())
+      if (owner && owner !== composition && !owner.binding && !owner.retired && shown2())
         binding.take(owner);
     },
     dispose: () => detach()
@@ -5019,7 +5080,9 @@ var threadReplyInput = (thread) => {
   const input = thread && threadPart(thread, "reply");
   return input && shownBox(input).height ? input : null;
 };
-function threadFocusDestination(thread, { part = "reply" } = {}) {
+function threadFocusDestination(thread, { part = "reply", message = null } = {}) {
+  if (part === "message")
+    return thread.querySelector(`.lf-msg[data-event="${CSS.escape(message)}"]`);
   return (part === "thread" ? thread : null) ?? threadReplyInput(thread) ?? thread;
 }
 function focusedThreadTarget() {
@@ -5051,9 +5114,9 @@ var mayReplyTo = (id, intent) => restrictUserIntent(intent, () => {
 async function replyDestination(id, open2, intent, { destination = (thread) => threadPart(thread, "reply"), scroll = true } = {}) {
   const mayReply = mayReplyTo(id, intent);
   if (!mayReply()) return null;
-  const shown = await open2(id, { part: "reply", scroll, intent: mayReply });
-  const thread = shown instanceof Element ? closestAcross(shown, THREAD) : null;
-  if (!thread || focused() !== shown || !mayReply()) return null;
+  const shown2 = await open2(id, { part: "reply", scroll, intent: mayReply });
+  const thread = shown2 instanceof Element ? closestAcross(shown2, THREAD) : null;
+  if (!thread || focused() !== shown2 || !mayReply()) return null;
   const control = destination(thread);
   if (!control) return null;
   if (control !== focused()) mayReply.handoff(() => focusDestination(control, "move"));
@@ -5062,8 +5125,8 @@ async function replyDestination(id, open2, intent, { destination = (thread) => t
 async function threadDestination(id, open2, may) {
   const at = focused();
   if (at && at !== document.body && drawn(at)) return null;
-  const shown = await open2(id, { part: "thread", intent: may });
-  return shown instanceof Element && focused() === shown && may() ? shown : null;
+  const shown2 = await open2(id, { part: "thread", intent: may });
+  return shown2 instanceof Element && focused() === shown2 && may() ? shown2 : null;
 }
 var carried = /* @__PURE__ */ new WeakSet();
 var carrying = null;
@@ -5354,9 +5417,9 @@ var showHeld = (id) => everySeat(id, (held, thread) => held.show(thread));
 var showHeldThread = (id) => everySeat(id, (held, thread) => held.showThreads(thread));
 function everySeat(id, show) {
   const thread = threadIdNamed(id);
-  let shown = false;
-  for (const held of holders) shown = show(held, thread) || shown;
-  return shown;
+  let shown2 = false;
+  for (const held of holders) shown2 = show(held, thread) || shown2;
+  return shown2;
 }
 var standing = null;
 onStanding((node, cause) => {
@@ -5412,18 +5475,18 @@ var HeldNews = class {
     for (const key of this.#threads) if (!keys2.has(key)) this.#threads.delete(key);
     this.#keys = new Map(reading.threads.map(({ id, key }) => [id, key]));
     if (prior) this.#arrive(prior, reading, row);
-    const shown = this.#draw(prior, reading);
+    const shown2 = this.#draw(prior, reading);
     const released = new Map(this.#released);
     if (this.#holding())
       this.#stopWatching ??= whenNone([this.#seat], growthIsSeen, this.#all);
     else this.#stop();
     return {
-      reading: shown,
+      reading: shown2,
       commit: () => {
         for (const [key, token] of released)
           if (this.#released.get(key) === token) this.#released.delete(key);
         this.#known = keys2;
-        this.#shown = read ? shown : null;
+        this.#shown = read ? shown2 : null;
       }
     };
   }
@@ -5446,8 +5509,8 @@ var HeldNews = class {
     const drawn3 = new Map(prior?.threads.map((thread) => [thread.key, thread]));
     const threads = reading.threads.filter(({ key }) => !this.#threads.has(key)).map((thread) => {
       const was = drawn3.get(thread.key);
-      const shown = thread.visible !== false && !thread.folding;
-      const held = was && shown && !this.#released.has(thread.key) ? difference(was, thread, {
+      const shown2 = thread.visible !== false && !thread.folding;
+      const held = was && shown2 && !this.#released.has(thread.key) ? difference(was, thread, {
         progressOpen: this.#view(thread.key)?.progressOpen ?? false
       }) : null;
       if (!held || gestured(thread.key) || !this.#view(thread.key)?.newsMoves(held))
@@ -6480,7 +6543,9 @@ function threadReading(thread, surface, commands2) {
   const leaves = (message) => asking.has(message.id) ? "Waiting on me" : message.todo && openTodos.has(message.id) ? "To-do open" : null;
   const messages = turns(thread).map(
     (message) => messageReading(message, {
-      nativeAuthored: Boolean(commands2.nativeAuthored),
+      // Where a message's widgets stand when several drawings show it (messages.js,
+      // `authoredHolders`): the primary reader's, then a margin card, then a seat.
+      authoredRank: commands2.authoredRank ?? (surface === "margin" ? 2 : 1),
       reactions: surface === "outlet" ? message.reactions : null,
       workflows: message.workflows,
       leaves: leaves(message)
@@ -6493,22 +6558,11 @@ function threadReading(thread, surface, commands2) {
     // How long ago the thread last moved, read here with the rest of the reading, so a
     // card whose reading did not change shows the same age and need not draw again.
     recency: summary.latest ? Object.freeze({ short: shortAgo(summary.latest), long: ago(summary.latest) }) : null,
-    // A title comes from the agent's answer or beside it, so an untitled thread
-    // waits for one only while the agent's work on it is under way. A turn that
-    // ended, stalled or was never picked up sends none, and the thread reads its
-    // opening words.
-    titlePending: thread.title == null && thread.attention?.kind === "waiting" && thread.attention.reason === "workflow",
-    unreadCount: thread.unread.length,
     id: thread.id,
     attempt: thread.root.attempt ?? null,
     surface,
     resolved: resolved2,
     attention,
-    // A waiting thread's status is the stage of one message's workflow, which that
-    // message already draws in its own header. The summary repeats it only for the
-    // folded row, where no message shows; whose turn it is stays, since no message
-    // says that.
-    statusFolded: attention?.kind === "waiting" && attention.workflow !== null && messages.some((message) => message.workflow?.id === attention.workflow.id),
     // Where a resolved thread stands already says it is resolved: in a seat's Resolved
     // disclosure (inline.js). Who resolved it is said only where it was the agent.
     resolvedBy: thread.resolved?.author === "agent" ? `\u2713 Resolved by ${/** @type {{agent?: string}} */
@@ -6639,35 +6693,6 @@ var ThreadView = class {
   }
   ownsMessage(id) {
     return this.#model?.id === id || this.#model?.messages.some((message) => message.id === id);
-  }
-  // The surface follows the whole thread; only this owner locates its message and
-  // reply regions. Geometry readings carry no descendant nodes across that boundary.
-  incomingTail(prior, next) {
-    const known = new Set(prior.messages.map((message) => message.key));
-    const incoming = next.messages.filter(
-      (message) => message.author === "agent" && !known.has(message.key)
-    );
-    const latest = prior.messages.at(-1);
-    const nextLatest = next.messages.at(-1);
-    const grown = latest?.key === nextLatest?.key && nextLatest?.author === "agent" && latest.body.text !== nextLatest.body.text;
-    if (!incoming.length && !grown) return null;
-    const node = latest && this.#messageNode(latest.key);
-    if (!node) return null;
-    return {
-      id: incoming.at(-1)?.id ?? nextLatest.id,
-      tailStart: node.getBoundingClientRect().bottom,
-      end: this.node.getBoundingClientRect().bottom,
-      box: this.#reply?.node.getBoundingClientRect().top,
-      pinned: replyPinned(this.#reply?.node)
-    };
-  }
-  messageTail(id) {
-    const message = this.#model.messages.find((message2) => message2.id === id);
-    const node = message && this.#messageNode(message.key);
-    return node ? {
-      bottom: node.getBoundingClientRect().bottom,
-      end: this.node.getBoundingClientRect().bottom
-    } : null;
   }
   // HeldNews compares readings; this owner decides whether their changed regions
   // would move visible words. Existing-message changes and active compositions
@@ -6880,11 +6905,11 @@ var ThreadView = class {
       if (!this.#news.node.hasAttribute("data-lf-room"))
         this.#news.node.dataset.lfRoom = this.#model.news.label;
       const line = controls2.getBoundingClientRect();
-      const shown = shownRect(controls2, /* @__PURE__ */ new Map());
-      if (shown)
+      const shown2 = shownRect(controls2, /* @__PURE__ */ new Map());
+      if (shown2)
         controls2.style.setProperty(
           "--lf-thread-news-visible-end",
-          layoutPx(Math.max(0, shown.right - line.left))
+          layoutPx(Math.max(0, shown2.right - line.left))
         );
     } else this.#news.node.removeAttribute("data-lf-room");
   }
@@ -6995,8 +7020,8 @@ var ThreadView = class {
   }
   // The reply being written in this thread, which no view holds, comes into this one
   // once it is `shown` (replies.js, `claim`).
-  claimReply(shown) {
-    this.#reply?.claim(shown);
+  claimReply(shown2) {
+    this.#reply?.claim(shown2);
   }
   retire() {
     this.#reply?.cancelDictation();
@@ -7089,18 +7114,18 @@ var ThreadSeat = class {
     const prior = this.#shown;
     const box = model.surface === "page" ? this.#response() : null;
     const row = Boolean(box) && prior.response && !box.contains(standing2);
-    const shown = this.#held ? this.#held.hold(model, { row }) : model;
-    let foot = shown.response ? this.#response() : null;
-    if (shown.news) {
+    const shown2 = this.#held ? this.#held.hold(model, { row }) : model;
+    let foot = shown2.response ? this.#response() : null;
+    if (shown2.news) {
       this.#notice ??= seatNotice();
-      this.#notice.set(shown.news, box);
+      this.#notice.set(shown2.news, box);
       foot = this.#notice.node;
     }
-    this.#shown = shown;
-    const added = shown.threads.filter(
+    this.#shown = shown2;
+    const added = shown2.threads.filter(
       (thread) => !prior.threads.some(({ key }) => key === thread.key)
     );
-    const wanted = new Set(shown.threads.map((thread) => thread.key));
+    const wanted = new Set(shown2.threads.map((thread) => thread.key));
     for (const [key, view] of this.#views)
       if (!wanted.has(key)) {
         releaseReplies(view.node);
@@ -7108,7 +7133,7 @@ var ThreadSeat = class {
       }
     const nodes = [];
     const settled = [];
-    for (const descriptor of shown.threads) {
+    for (const descriptor of shown2.threads) {
       let view = this.#views.get(descriptor.key);
       if (!view)
         this.#views.set(descriptor.key, view = new ThreadView(this.#commands));
@@ -7130,7 +7155,7 @@ var ThreadSeat = class {
     const fold2 = this.#resolved;
     const joins = () => fold2?.node.open ? fold2.node : null;
     let next = fold2?.node ?? null;
-    for (const descriptor of shown.threads.toReversed()) {
+    for (const descriptor of shown2.threads.toReversed()) {
       const view = this.#views.get(descriptor.key);
       if (!settled.includes(descriptor)) {
         view.setSettlesAt(joins);
@@ -7162,8 +7187,8 @@ var ThreadSeat = class {
   // user in the editor. A seat drawn before it is placed, as the margin card's is, claims
   // once its owner places it (`claimSeatReplies`).
   claim() {
-    const shown = () => this.node.isConnected;
-    for (const { key } of this.#shown.threads) this.#views.get(key).claimReply(shown);
+    const shown2 = () => this.node.isConnected;
+    for (const { key } of this.#shown.threads) this.#views.get(key).claimReply(shown2);
   }
   commit() {
     this.#committed = this.#model;
@@ -7614,15 +7639,14 @@ function revealHeld(ids) {
   }
   return null;
 }
-function surfaceFocusTarget(id, { part = "reply" } = {}) {
-  if (part === "message") return null;
-  id = threadIdNamed(id);
+function surfaceFocusTarget(name, { part = "reply" } = {}) {
+  const id = threadIdNamed(name);
   for (const registration of registrations.values()) {
     const thread = [...registration.outlets].map(
       (outlet) => outlet.querySelector(`.lf-page-thread[data-thread="${CSS.escape(id)}"]`)
     ).find(Boolean);
     if (!thread) continue;
-    return threadFocusDestination(thread, { part });
+    return threadFocusDestination(thread, { part, message: name });
   }
   return null;
 }
@@ -7753,8 +7777,11 @@ export {
   loadMessageMarkdown,
   messageText,
   threadName,
+  threadHeading,
   threadSummary,
   prepareAuthoredMessage,
+  releaseAuthoredUnder,
+  authoredHolder,
   messageReading,
   MessageView,
   messageHolding,

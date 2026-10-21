@@ -486,6 +486,24 @@ def test_the_reference_enters_named_go_to_destinations(
     )
 
 
+def test_a_command_reference_versions_press_enters_the_menu_from_the_leaf(
+    browser, serve
+):
+    """A command chosen in the reference enters its destination from the panel leaf."""
+    page = open_page(browser, serve(OBLIGATIONS_PAGE, comments=2))
+    leaf = page.locator(".lf-fp-leaf")
+    leaf.click()
+    page.keyboard.press("Escape")
+    expect(leaf).to_be_focused()
+    page.keyboard.press("?")
+    reference = page.locator(".lf-command-reference")
+    page.get_by_role("combobox", name="Search commands").fill("version.open")
+    reference.locator('tr[data-lf-command="version.open"] button').click()
+    versions = page.locator('.lf-fp-menu[data-level="versions"]')
+    expect(versions).to_be_visible()
+    expect(versions.locator(".lf-fp-item:focus")).to_have_count(1)
+
+
 @pytest.mark.parametrize("viewport", [(1280, 800), (390, 800), (800, 320)])
 def test_the_reference_keeps_its_top_and_search_still_when_filtering(
     browser, serve, viewport

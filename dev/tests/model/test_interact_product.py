@@ -2,6 +2,7 @@
 
 import json
 
+from leaf.structure import SourceDocument
 from leaf_dev import ROOT
 
 
@@ -11,9 +12,21 @@ def test_corpus_is_generated_from_the_examples():
 
     committed = (ROOT / "examples" / "corpus.html").read_text()
     assert corpus.build() == committed, "examples changed — rerun leaf-dev corpus"
-    assert "<lf-toc" not in committed, (
-        "a source page's document map becomes a repeated whole-corpus outline in a tab"
+
+    # Composition keeps each source's outline, including the ones inside live
+    # samples: the corpus tab and sample document provide their existing scopes.
+    def contents(document):
+        return {
+            node["attrs"]["id"]
+            for node in document.lf_elements
+            if node["tag"] == "lf-toc"
+        }.union(*(contents(sample["document"]) for sample in document.samples))
+
+    expected = set().union(
+        *(contents(SourceDocument(source.read_text())) for source in corpus.SOURCES)
     )
+    assert expected
+    assert contents(SourceDocument(committed)) == expected
     committed_data = json.loads((ROOT / "examples" / "corpus.data.json").read_text())
     assert corpus.build_data() == committed_data, (
         "example data changed — rerun leaf-dev corpus"

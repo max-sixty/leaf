@@ -20,9 +20,10 @@ server's clock. The harness's record splits that span into phases (`turn_phases`
   start, as where the agent waits on a background task before replying.
 
 `reply_breakdown` sums them into the two numbers a reply budget reads: the whole
-reply, and Leaf's share of it, delivery plus the tool phases that ran a `leaf`
-command. The rest is the harness's other work, the model, the agent's own reads and
-edits, and idle time. It also groups the model phases into the model calls the
+reply, and Leaf's share of it, delivery plus the time Leaf's own commands took,
+which each `leaf` command records in the page it acted on
+(`leaf.interaction_log.record_command`). The rest is the harness's other work, the
+model, the agent's own reads and edits, and idle time. It also groups the model phases into the model calls the
 harness made, each with the calls it issued, since a model call is the unit a
 shorter reply would have to save.
 
@@ -42,10 +43,6 @@ import shlex
 from datetime import datetime
 from pathlib import Path
 
-# A shell command that names Leaf's launcher anywhere in it: bare, by its path
-# (including where it assigns the path to a variable the command then runs), or as
-# `$LEAF`, the variable a harness that sets one gives it (`SKILL.md`).
-LEAF_COMMAND = re.compile(r"(?:^|[\s;&|(/'\"=])leaf(?:[\s;&|)'\"]|$)|\$\{?LEAF\b")
 # The directory change an agent puts before a command, which says nothing of it.
 CD_PREFIX = re.compile(r"^cd \S+ && ")
 # How much of each call a reading keeps.
@@ -65,11 +62,6 @@ def call_label(part: dict) -> str:
     if part["name"].startswith("mcp__leaf__") and "args" in arguments:
         return shlex.join(["leaf", *arguments["args"]])
     return part["name"]
-
-
-def leaf_call(call: str) -> bool:
-    """Whether a call (`call_label`) ran a `leaf` command."""
-    return bool(LEAF_COMMAND.search(call))
 
 
 def _phases(
@@ -213,18 +205,53 @@ def turn_phases(
     ]
 
 
-def reply_breakdown(
-    records: list[dict], admitted: str, picked_up: str | None, replied: str
-) -> dict | None:
-    """The whole reply, Leaf's share of it, and its model calls, in milliseconds.
+def command_spans(
+    commands: list[dict], start: float, end: float
+) -> list[tuple[float, float]]:
+    """When Leaf's `commands` records ran on a reply: each that started after
+    `start`, the comment's admission or the boundary where a working harness took
+    it, and before `end`, the reply's admission, up to that admission, since the
+    command that replies exits after it. A command running from before, as a page
+    server does or the harness's other work did, is no part of it."""
+    return [
+        (began, min(instant(command["ts"]), end))
+        for command in commands
+        if start <= (began := instant(command["started"])) < end
+    ]
 
-    A tool phase counts toward Leaf's share when any of its calls names `leaf`, so a
-    batch mixing a read with a `leaf` command counts whole, as does one shell command
-    that runs `leaf` among slower work: Leaf's share is an upper bound, close where
-    the agent runs `leaf` on its own, as the journey's agents do. A model call is the run
-    of model phases that the same `model_response` is the first to follow: they were
-    one response, whose tool calls ran while it still streamed. Each call names the
-    tool calls it led to. Returns None for a comment never picked up."""
+
+def covered(spans: list[tuple[float, float]]) -> float:
+    """The seconds the union of `spans` covers, so overlapping ones count once."""
+    total, reached = 0.0, float("-inf")
+    for since, until in sorted(spans):
+        if until > reached:
+            total += until - max(since, reached)
+            reached = until
+    return total
+
+
+def leaf_commands_ms(commands: list[dict], since: str, replied: str) -> int:
+    """The elapsed time Leaf's commands took on a reply from `since`, where the
+    harness took the comment (`command_spans`)."""
+    spans = command_spans(commands, instant(since), instant(replied))
+    return round(covered(spans) * 1000)
+
+
+def reply_breakdown(
+    records: list[dict],
+    commands: list[dict],
+    admitted: str,
+    picked_up: str | None,
+    replied: str,
+) -> dict | None:
+    """The whole reply, Leaf's share of it, and its model calls, in milliseconds,
+    from the session's `records` and the `leaf_command` records of the session's `leaf`
+    commands (`command_spans`). Leaf's share is the time delivery or a command
+    covered, each moment once. The tool time that isn't Leaf's is the agent's own
+    reads and edits. A model call is the run of model phases that the same
+    `model_response` is the first to follow: they were one response, whose tool
+    calls ran while it still streamed. Each call names the tool calls it led to.
+    Returns None for a comment never picked up."""
     if picked_up is None:
         return None
     phases = _phases(records, admitted, picked_up, replied)
@@ -237,14 +264,9 @@ def reply_breakdown(
     def ms(seconds: float) -> int:
         return round(seconds * 1000)
 
-    def total(*kinds: str, leaf: bool | None = None) -> int:
+    def total(*kinds: str) -> int:
         return ms(
-            sum(
-                until - since
-                for phase, since, until, calls in phases
-                if phase in kinds
-                and (leaf is None or any(map(leaf_call, calls)) == leaf)
-            )
+            sum(until - since for phase, since, until, _ in phases if phase in kinds)
         )
 
     model_calls: list[dict] = []
@@ -260,14 +282,34 @@ def reply_breakdown(
         elif phase == "tool" and model_calls:
             model_calls[-1]["calls"].extend(call[:SHOWN] for call in calls)
     delivery = total("delivery")
-    leaf_commands = total("tool", leaf=True)
+    took = next(
+        (until for phase, _, until, _ in phases if phase == "busy"), instant(admitted)
+    )
+    spans = command_spans(commands, took, instant(replied))
+    leaf_commands = ms(covered(spans))
+    # The tool time Leaf's commands didn't cover, phase by phase.
+    other_tools = sum(
+        (until - since)
+        - covered(
+            [
+                (max(a, since), min(b, until))
+                for a, b in spans
+                if a < until and b > since
+            ]
+        )
+        for phase, since, until, _ in phases
+        if phase == "tool"
+    )
+    delivering = [
+        (since, until) for phase, since, until, _ in phases if phase == "delivery"
+    ]
     return {
         "wholeMs": ms(instant(replied) - instant(admitted)),
-        "leafMs": delivery + leaf_commands,
+        "leafMs": ms(covered(spans + delivering)),
         "busyMs": total("busy"),
         "deliveryMs": delivery,
         "leafCommandsMs": leaf_commands,
-        "otherToolsMs": total("tool", leaf=False),
+        "otherToolsMs": ms(other_tools),
         "modelMs": total("model"),
         "idleMs": total("idle"),
         "modelCalls": model_calls,

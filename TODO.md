@@ -394,9 +394,9 @@ on 2026-10-07.
 ### The agent's text interface
 
 - **Decide whether an owed answer may continue a turn whose answer is written.**
-  Where a watch follows the turn, Stop no longer hands new input into it
-  (`hook_transport`), but it still continues the turn once for an update picked up
-  and unanswered, and for a page it could not re-vendor. The agent then writes one
+  Where a watch or Codex's App Server adapter follows the turn, Stop no longer hands
+  new input into it (`hook_transport`), but it still continues the turn once for an update
+  picked up and unanswered, and for a page it could not re-vendor. The agent then writes one
   more message, which Claude Code's focus view shows in place of the turn's answer:
   9 of the 65 Leaf continuations in Max's sessions of 2026-10-10 to 10-19 were these,
   as when a report on "check leaf, do #18" gave way to "I've answered the last item
@@ -405,26 +405,6 @@ on 2026-10-07.
   keeps the answer, but needs a record that it reminded, or an agent that won't act
   is woken without end; dropping the reminder leaves the next prompt's one. Max to
   choose.
-- **Decide how a Codex delivery avoids joining the user's follow-up turn.** App
-  Server's `turn/start` steers into a running turn. A follow-up the user queued in
-  the Codex TUI starts just after Leaf's idle check reads idle, so Leaf's delivery
-  joins it and Leaf posts that turn's answer as its reply to the comment. Queueing
-  each delivery (#3357) was reverted because it put every delivery into the Codex
-  transcript as a user message. Reading App Server's queue before starting can't
-  help either: the TUI keeps its queued follow-ups itself. The
-  [Codex brief](notes/codex-integration.md#delivery-start-race) holds the
-  measurements, the reproduction and the options. Max to choose.
-- **Decide what a Codex delivery turn answers once the user steers into it.** Leaf
-  starts each App Server delivery as a turn of its own and posts that turn's final
-  message as the reply. Pressing Enter in the Codex TUI while that turn runs sends
-  `turn/steer`, and App Server adds the user's message to Leaf's turn (measured
-  with codex-cli 0.160.0: the turn's items became the delivery, then the user's
-  message). The final answer, written to the user's message, still posts as the
-  reply to the page comment. Either the fold stops treating the final message as
-  the reply once a user message it did not start joins the turn, releasing the
-  reservation so the update stays owed for `leaf response reply`, or App Server
-  deliveries drop final-as-reply as the hook and `codex queue` routes do, which
-  loses the opening. Max to choose.
 - **Decide how a Claude Code hook delivery is confirmed.** `hook_transport` records a
   pickup when the prompt hook returns, but Escape while any UserPromptSubmit hook is
   still running drops the whole prompt, Leaf's output included. Measured on Claude

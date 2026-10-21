@@ -70,13 +70,19 @@
    * (`data-lf-views="parts"`, lf-parts.js), each a member whose child is the box its own
    * Layout arranges (above). Live, a column down the left holds what the page writes
    * before the parts, its title, and under it the parts' list (its `tablist`); the open
-   * part takes the rest of the width from the top of the page. Title and list both stick
-   * at the top of the window, the list below the title by the title's height, which
-   * prepaint.js measures (`--lf-parts-title-h`), since no CSS can stack one sticking box
-   * under another of unknown height. So the column stands still whichever part is open
-   * and wherever it is read. The page is at least the window's height, from first paint
-   * and before the list is drawn, so a short part leaves nothing to scroll and a
-   * full-height workspace takes the whole window. The holder itself draws nothing. The
+   * part takes the rest of the width from the top of the page. Title and list both stand
+   * fixed in the window, the list below the title by the title's height, which
+   * prepaint.js measures (`--lf-parts-title-h`), since no CSS can stack one such box
+   * under another of unknown height; the grid keeps their column's width. A title too
+   * tall to leave the list 8rem, a few names' room, scrolls on its own, so neither stands
+   * out of reach in a short window. So the column stands still whichever part is open
+   * and wherever it is read, the rubber band at the page's end included: every engine
+   * holds a fixed box still through overscroll, while Firefox and Chrome move a stuck
+   * sticky one with the page (notes/browser-support.md). The runtime reads a box fixed
+   * in the window as riding along with every scroll, as a stuck one (geometry.js,
+   * `stuckBox`). The page is at least the window's height, from first paint and before
+   * the list is drawn, so a short part leaves nothing to scroll and a full-height
+   * workspace takes the whole window. The holder itself draws nothing. The
    * part is the shell its Layout's box stands in. On a phone the title, the list and the
    * part stack. Before the module upgrades the holder, the column holds only the title.
    *
@@ -124,11 +130,17 @@
       ) {
       grid-column: 1;
       grid-row: 1;
-      position: sticky;
+      position: fixed;
       top: var(--lf-top);
       box-sizing: border-box;
+      inline-size: var(--lf-parts-list);
+      max-block-size: calc(100dvh - var(--lf-head-room) - 8rem);
+      overflow-y: auto;
+      --lf-holds-height: 1;
       margin: 0;
-      padding: var(--sp-4) 20px 0;
+      /* Room for a focus ring at its foot, where it scrolls, taken from the list's top
+       * (the package theme). */
+      padding: var(--sp-4) 20px var(--focus-ring-room);
       --lf-parts-title: 1;
     }
     html[data-lf-interactive]
@@ -218,6 +230,10 @@
           [data-lf-views="parts"] ~ *
         ) {
         position: static;
+        inline-size: auto;
+        max-block-size: none;
+        overflow-y: visible;
+        padding-block-end: 0;
       }
       html[data-lf-interactive]
         body
@@ -352,95 +368,89 @@
     syntax: "*";
     inherits: false;
   }
-  /* An empty map-only slot already has its margin posture: no margin and no
-   * formatting context between the blocks around it. */
-  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-column
-    > aside.sidebar:nth-child(1 of aside.sidebar):has(
-      > [data-lf-resident="map"]:only-child:empty
-    ) {
-    display: block;
-    margin-block: 0;
-  }
-  /* A resident anchors no scroll (its passage does), and is a reading region of the
-   * Layout's own in either posture (`--lf-reading-region`, reading-regions.js), so the
-   * reader's place in it survives a change of posture. */
-  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-column
-    > aside.sidebar:nth-child(1 of aside.sidebar) {
-    --lf-resident: sidebar;
-    --lf-sidebar-slot: margin;
-    overflow-anchor: none;
-    --lf-reading-region: layout;
-  }
-  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-column
-    aside.sidenote {
-    --lf-resident: note;
-    overflow-anchor: none;
-  }
-  @media screen {
-    /* Sticky, it can stand level with any band, so it takes its whole side. */
-    :is(
-        main,
-        main > *,
-        main > [data-lf-views="parts"] > * > *
-      ).layout-column[data-lf-margin~="sidebar"] {
-      --lf-sidebar-posture: margin;
-      --lf-taken-l: calc(var(--lf-beside) + var(--lf-shift));
-      --lf-top-outer: var(--lf-top);
-    }
-    /* It sticks and scrolls what it holds, as a sidebar page's track block does
-     * (Sticking blocks, below). */
-    :is(
-        main,
-        main > *,
-        main > [data-lf-views="parts"] > * > *
-      ).layout-column[data-lf-margin~="sidebar"]
-      > aside.sidebar:nth-child(1 of aside.sidebar) {
-      float: left;
-      clear: left;
-      width: calc(var(--sidebar) - var(--sp-4));
-      margin: 0 var(--sp-4) var(--sp-4) calc(-1 * var(--sidebar));
-    }
-  }
-  /* A contents map (whatever declares `x-resident: map`, painted as
-   * `data-lf-resident`) rests as a spine in that slot and reveals its labels over the
-   * page; its package draws it there once the slot is in the margin. */
-  @media screen and (hover: hover) and (pointer: fine) {
-    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-column
-      > aside.sidebar:nth-child(1 of aside.sidebar):has([data-lf-resident="map"]) {
-      --lf-resident: sidebar map;
-    }
-    /* A sidebar holding only the map stands as the map alone. */
-    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-column
+  /* Page navigation's members share the column's margins. A nested boxed view
+   * keeps its sidebar inside that box; only the view owner declares page flow.
+   * A direct sidebar owns the slot before any view's sidebar. */
+  @scope (:is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-column) {
+    /* An empty map-only slot already has its margin posture: no margin and no
+     * formatting context between the blocks around it. */
+    :is(:scope, :scope:not(:has(> aside.sidebar)) > [data-lf-views-flow="page"] > *)
       > aside.sidebar:nth-child(1 of aside.sidebar):has(
-        > [data-lf-resident="map"]:only-child
-      ) {
-      --lf-resident: map;
-    }
-    :is(
-        main,
-        main > *,
-        main > [data-lf-views="parts"] > * > *
-      ).layout-column[data-lf-margin~="map"] {
-      --lf-sidebar-posture: margin;
-    }
-    /* At rest the map is its spine, so a breakout stops short of it. */
-    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-column:is(
-        [data-lf-margin~="map"],
-        [data-lf-margin~="sidebar"]
-      ):has(> aside.sidebar:nth-child(1 of aside.sidebar) [data-lf-resident="map"]) {
-      --lf-taken-l: var(--map);
-    }
-    /* A sidebar whose map stands alone takes no room in the flow. */
-    :is(
-        main,
-        main > *,
-        main > [data-lf-views="parts"] > * > *
-      ).layout-column[data-lf-margin~="map"]
-      > aside.sidebar:nth-child(1 of aside.sidebar):has(
-        > [data-lf-resident="map"]:only-child
+        > [data-lf-resident="map"]:only-child:empty
       ) {
       display: block;
       margin-block: 0;
+    }
+    /* A resident anchors no scroll (its passage does), and is a reading region of the
+     * Layout's own in either posture (`--lf-reading-region`, reading-regions.js), so the
+     * reader's place in it survives a change of posture. */
+    :is(:scope, :scope:not(:has(> aside.sidebar)) > [data-lf-views-flow="page"] > *)
+      > aside.sidebar:nth-child(1 of aside.sidebar) {
+      --lf-resident: sidebar;
+      --lf-sidebar-slot: margin;
+      overflow-anchor: none;
+      --lf-reading-region: layout;
+    }
+    :scope aside.sidenote {
+      --lf-resident: note;
+      overflow-anchor: none;
+    }
+    @media screen {
+      /* Sticky, it can stand level with any band, so it takes its whole side. */
+      :scope[data-lf-margin~="sidebar"] {
+        --lf-sidebar-posture: margin;
+        --lf-taken-l: calc(var(--lf-beside) + var(--lf-shift));
+        --lf-top-outer: var(--lf-top);
+      }
+      /* It sticks and scrolls what it holds, as a sidebar page's track block does
+       * (Sticking blocks, below). */
+      :is(
+          :scope[data-lf-margin~="sidebar"],
+          :scope[data-lf-margin~="sidebar"]:not(:has(> aside.sidebar))
+            > [data-lf-views-flow="page"]
+            > *
+        )
+        > aside.sidebar:nth-child(1 of aside.sidebar) {
+        float: left;
+        clear: left;
+        width: calc(var(--sidebar) - var(--sp-4));
+        margin: 0 var(--sp-4) var(--sp-4) calc(-1 * var(--sidebar));
+      }
+    }
+    /* A contents map (whatever declares `x-resident: map`, painted as
+     * `data-lf-resident`) rests as a spine in that slot and reveals its labels over the
+     * page; its package draws it there once the slot is in the margin. */
+    @media screen and (hover: hover) and (pointer: fine) {
+      :is(:scope, :scope:not(:has(> aside.sidebar)) > [data-lf-views-flow="page"] > *)
+        > aside.sidebar:nth-child(1 of aside.sidebar):has([data-lf-resident="map"]) {
+        --lf-resident: sidebar map;
+      }
+      /* A sidebar holding only the map stands as the map alone. */
+      :is(:scope, :scope:not(:has(> aside.sidebar)) > [data-lf-views-flow="page"] > *)
+        > aside.sidebar:nth-child(1 of aside.sidebar):has(
+          > [data-lf-resident="map"]:only-child
+        ) {
+        --lf-resident: map;
+      }
+      /* The admitted posture owns its width. A sidebar with other content keeps
+       * its full claim; a map in an inactive view cannot shrink that claim. */
+      :scope[data-lf-margin~="map"] {
+        --lf-sidebar-posture: margin;
+        --lf-taken-l: var(--map);
+      }
+      /* A sidebar whose map stands alone takes no room in the flow. */
+      :is(
+          :scope[data-lf-margin~="map"],
+          :scope[data-lf-margin~="map"]:not(:has(> aside.sidebar))
+            > [data-lf-views-flow="page"]
+            > *
+        )
+        > aside.sidebar:nth-child(1 of aside.sidebar):has(
+          > [data-lf-resident="map"]:only-child
+        ) {
+        display: block;
+        margin-block: 0;
+      }
     }
   }
   @media screen {
@@ -755,6 +765,14 @@
             main > *,
             main > [data-lf-views="parts"] > * > *
           ).layout-column[data-lf-margin~="sidebar"]
+          > aside.sidebar:nth-child(1 of aside.sidebar),
+        :is(
+            main,
+            main > *,
+            main > [data-lf-views="parts"] > * > *
+          ).layout-column[data-lf-margin~="sidebar"]:not(:has(> aside.sidebar))
+          > [data-lf-views-flow="page"]
+          > *
           > aside.sidebar:nth-child(1 of aside.sidebar),
         :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
           > aside[data-lf-beside]

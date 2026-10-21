@@ -26,12 +26,10 @@
     filter: drop-shadow(var(--raise-2));
   }
   .lf-fp-ground,
-  .lf-fp-ring,
-  .lf-fp-fill {
+  .lf-fp-ground > * {
     clip-path: inset(50%);
   }
-  .lf-fp-ring,
-  .lf-fp-fill {
+  .lf-fp-ground > * {
     position: absolute;
     inset: 0;
   }
@@ -128,7 +126,7 @@
     width: var(--lf-fp-line);
     height: var(--lf-fp-line);
   }
-  .lf-floating-panel[data-long] .lf-fp-row:has(> .lf-fp-expand) {
+  .lf-floating-panel[data-expanded] .lf-fp-row:has(> .lf-fp-expand) {
     min-height: calc(2 * var(--lf-fp-line) + 2 * var(--lf-fp-row-pad) + 4px);
   }
   .lf-fp-leaf {
@@ -434,10 +432,6 @@
       --lf-fp-notice-tint: var(--warn-tint);
       --lf-fp-notice-ink: var(--warn-ink);
     }
-    &[data-tone=accent] {
-      --lf-fp-notice-tint: var(--accent-tint);
-      --lf-fp-notice-ink: var(--accent);
-    }
     &[data-tone=ok] {
       --lf-fp-notice-tint: var(--ok-tint);
       --lf-fp-notice-ink: var(--ok-ink);
@@ -445,12 +439,6 @@
   }
   .lf-fp-row-notice-press:hover .lf-fp-row-notice-face {
     background: color-mix(in srgb, var(--lf-fp-notice-ink) 16%, var(--lf-fp-notice-tint));
-  }
-  a.lf-fp-row-notice-press {
-    display: inline-flex;
-    align-items: center;
-    color: inherit;
-    text-decoration: none;
   }
   .lf-fp-row-notice-sep {
     color: var(--lf-fp-quiet);

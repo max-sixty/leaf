@@ -122,7 +122,11 @@
  * thread stays where it was. Every change of the box's size takes effect in
  * one step, and the surface behind it, a separate layer, follows by a clip from where it
  * stood to where it stands, the way the Codex app's floating panel moves: nothing's
- * layout tweens, so nothing a user aims at travels after the gesture that moved it. */
+ * layout tweens, so nothing a user aims at travels after the gesture that moved it.
+ * What a line the field gains moved, the words, the field's ring and the attachments
+ * over the box, rides that edge by a transform rather than being revealed by it
+ * (`followBox`), after the user found the attachment vanishing and the ring outrunning
+ * the box on 20 October. */
 import {
   html,
   keyed as keyedBy,
@@ -154,7 +158,7 @@ import { readThreads } from "./thread/state.js";
 import { hasUnread, threadCounts } from "./thread/model.js";
 import { watchProjection } from "./projection-watch.js";
 import { threadAttention, workflowStep } from "./thread/workflow.js";
-import { messageReading, threadName } from "./thread/messages.js";
+import { messageReading, threadHeading, threadName } from "./thread/messages.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { declareThreadParts } from "./thread/focus.js";
 import { quoteReading } from "./thread/thread-card.js";
@@ -332,7 +336,11 @@ export function createFloatingPanel({
   ground.setAttribute("aria-hidden", "true");
   const ring = el("div", "lf-fp-ring");
   const fill = el("div", "lf-fp-fill");
-  ground.append(ring, fill);
+  // The field's focus ring, drawn here only while the field grows or shrinks a line
+  // (`followBox`), so its top edge can ride the box's.
+  const fieldRing = el("div", "lf-fp-field-ring");
+  const fieldFill = el("div", "lf-fp-fill");
+  ground.append(ring, fill, fieldRing, fieldFill);
   const card = el("div", "lf-fp-card");
   const inner = el("div", "lf-fp-inner");
   // What stands above the row while a view is open: its name, with nothing to press, the
@@ -458,10 +466,15 @@ export function createFloatingPanel({
       : 0;
     if (lines > 3.5 === long) return;
     long = lines > 3.5;
-    // The row's floor while the mark stands resizes the field this watches, so it
-    // paints in the next frame rather than inside the observer's delivery.
-    nextRender(paint);
+    // In the frame the field grows, so the mark rides in with the line that brought it
+    // (`followBox`); standing it resizes nothing the observer watches.
+    markRoom();
   });
+  // The mark stands while the draft runs long, and while the field is wide, where the
+  // draft may fit three lines again; a resolved thread's field takes no words.
+  let fieldRests = false;
+  const markRoom = () =>
+    keeps(host, "data-long", (long || expanded) && !fieldRests ? "" : null);
   lengthWatch.observe(field);
   const rowNoticeSeat = el("div", "lf-fp-row-notice");
   const quick = el("div", "lf-fp-quick");
@@ -542,7 +555,9 @@ export function createFloatingPanel({
   // October over the counts coming back as the caret left, which rewrapped the draft
   // each time the user stepped out and again as they came back. Words a refused send
   // hands back move nothing, so its action stays in the seat the empty field gave it,
-  // Dictate's, until the user types again; emptied words always end it.
+  // Dictate's, until the user types again; emptying the field always ends it. A draft is
+  // anything typed, a line break included: a new line grows the field as words do, so
+  // the field takes its room from the first key (20 October).
   let drafted = false;
   let postureMoved = true;
   // The thread the reader lands at the end of, once Leaf has drawn more than `after`
@@ -721,10 +736,10 @@ export function createFloatingPanel({
       : replyOutlet.hidden
         ? null
         : replyInput();
-  // Words arriving in an empty field, or the last of them going, re-seat the row.
+  // A draft arriving in an empty field, or the last of it going, re-seats the row.
   function retype() {
     postureMoved = true;
-    if (Boolean(draftOf(fieldInput()).trim()) !== drafted) paint();
+    if (Boolean(draftOf(fieldInput())) !== drafted) paint();
   }
   field.addEventListener("input", retype);
   // A press on the page's editor while words stand selected on the page comments on
@@ -999,7 +1014,6 @@ export function createFloatingPanel({
   function showMenuAt(level) {
     const before = menuOpen.value ? menuAt.value : undefined;
     if (before && level && routeKey(before) === routeKey(level)) return;
-    const outside = !standingIn(host);
     if (renderedUnder(focused(), menu)) focusDestination(leaf, "return");
     menuOpen.value = true;
     menuAt.value = level;
@@ -1022,7 +1036,10 @@ export function createFloatingPanel({
         { duration: VIEW_RESIZE_MS, easing: EASE },
       );
     }
-    if (!keyed && !outside) return;
+    // A press on a menu row leaves focus on that row. A command-reference press
+    // originates outside the panel even when closing the reference hands focus back
+    // to the leaf before this door runs, so enter the menu in that case.
+    if (pointedInPanel) return;
     const target = level
       ? page?.querySelector(".lf-fp-item:not(.lf-fp-menu-back, :disabled)")
       : before && menu.querySelector(`[data-row="${levelRow(before)}"]`);
@@ -1033,36 +1050,63 @@ export function createFloatingPanel({
   // The box's layout changes in one step, whatever changed it: a view opening, the line
   // naming where the words go, a field growing a line, folding to the leaf. The surface
   // then follows from the outline it stood at to the box's new one by a clip, which
-  // moves nothing's layout; while the box grows, its own contents are clipped to the
-  // same outline, so they appear as the surface reaches them. The first outline, and
-  // any under reduced motion, is taken as it is.
+  // moves nothing's layout. The first outline, and any under reduced motion, is taken
+  // as it is.
+  //
+  // A view arriving, or anything else new in the box, is revealed: while the box grows,
+  // its own contents are clipped to the surface's outline, so they appear as the surface
+  // reaches them. The field growing or shrinking a line brings nothing new but its line,
+  // so everything it moved rides the surface's top edge instead (`ride`): the words
+  // already written, the field's focus ring, what stands above the field and the
+  // attachments hanging over the box are drawn where they stood and travel with the edge,
+  // by a transform, while the new line rises into the field from its foot. The field's
+  // ring is a box whose top moves while its foot stays, which no transform draws, so
+  // meanwhile the surface draws it as it draws its own ring, a fill inside a fill, and
+  // the card stands transparent over it, unclipped.
   let outline = null;
   // Until when a change of outline is a view arriving or leaving (`transition`), which
   // takes the shorter tween: the view's own change, and the one when the view it
   // replaced is gone after its fade.
   let viewMovingUntil = 0;
+  let riding = [];
+  // The editor in the panel's field, the page's or a thread's reply, and its height,
+  // as of the last time the box was read, whether or not its outline moved then. The
+  // comment box seated in the field's place is drawn as a card of its own, whose face
+  // the surface doesn't draw, so it keeps the reveal.
+  let lastEditor = null;
   const outlineClip = (box, grow = 0) =>
     `inset(${box.top - grow}px ${box.right - grow}px ${box.bottom - grow}px ${
       box.left - grow
     }px round ${box.radius + grow}px)`;
-  function followBox() {
-    const room = ground.getBoundingClientRect();
-    const rect = card.getBoundingClientRect();
-    const radius = Number.parseFloat(getComputedStyle(card).borderTopLeftRadius) || 0;
-    const next = {
+  const clipTop = (clip) => Number.parseFloat(/inset\(([-\d.]+)px/.exec(clip)?.[1]);
+  const within = (room, element) => {
+    const rect = element.getBoundingClientRect();
+    return {
       top: rect.top - room.top,
       right: room.right - rect.right,
       bottom: room.bottom - rect.bottom,
       left: rect.left - room.left,
       width: rect.width,
       height: rect.height,
-      radius,
+      radius: Number.parseFloat(getComputedStyle(element).borderTopLeftRadius) || 0,
     };
+  };
+  const near = (a, b) => Math.abs(a - b) < 0.5;
+  function followBox() {
+    const room = ground.getBoundingClientRect();
+    const next = within(room, card);
+    const editor = [...row.querySelectorAll(":scope > .lf-fp-field leaf-text")].find(
+      (text) => text.checkVisibility(),
+    );
+    const grew = lastEditor;
+    lastEditor = editor
+      ? { editor, height: editor.getBoundingClientRect().height }
+      : null;
     const was = outline;
     if (
       was &&
-      ["top", "right", "bottom", "left", "radius"].every(
-        (side) => Math.abs(was[side] - next[side]) < 0.5,
+      ["top", "right", "bottom", "left", "radius"].every((side) =>
+        near(was[side], next[side]),
       )
     )
       return;
@@ -1075,9 +1119,29 @@ export function createFloatingPanel({
     setRuntimeRootStyle(
       document.documentElement,
       "--lf-panel-reach",
-      layoutPx(rect.height > 0 ? room.bottom - rect.top : 0),
+      layoutPx(next.height > 0 ? next.bottom + next.height : 0),
     );
     const duration = performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
+    const moving = Boolean(was) && !reducedMotion() && pagePresented();
+    // Where the surface's top edge stands now, mid-tween or at rest.
+    const standing =
+      moving && fill.getAnimations().length
+        ? clipTop(getComputedStyle(fill).clipPath)
+        : was?.top;
+    // A reveal still under way leaves the box's contents where they will rest, cut to
+    // the surface, so a line arriving meanwhile is revealed with them.
+    const revealing = card.getAnimations().some((running) => !riding.includes(running));
+    for (const running of [...riding, ...card.getAnimations()]) running.cancel();
+    riding = [];
+    // The field grew or shrank a line, and nothing else in the box moved.
+    const ride =
+      moving &&
+      !revealing &&
+      lastEditor !== null &&
+      grew?.editor === lastEditor.editor &&
+      near(was.width, next.width) &&
+      near(was.bottom, next.bottom) &&
+      near(lastEditor.height - grew.height, next.height - was.height);
     // The ground is cut too, to the outline grown by its shadow's reach (`--raise-2`'s
     // blur dropped by its drop, theme.css), so it stands over nothing else in the window:
     // a layer over the whole window that paints nothing left every word under it
@@ -1087,6 +1151,7 @@ export function createFloatingPanel({
     const shadowReach = ["--raise-2-drop", "--raise-2-blur"]
       .map((token) => Number.parseFloat(lift.getPropertyValue(token)))
       .reduce((reach, part) => reach + part);
+    const timing = { duration, easing: EASE };
     for (const [layer, grow] of [
       [ground, shadowReach],
       [ring, 1],
@@ -1095,26 +1160,83 @@ export function createFloatingPanel({
       const from = was ? getComputedStyle(layer).clipPath : null;
       for (const running of layer.getAnimations()) running.cancel();
       keeps(layer, "style", `clip-path: ${outlineClip(next, grow)}`);
-      if (!was || reducedMotion() || !pagePresented()) continue;
-      layer.animate([{ clipPath: from }, { clipPath: outlineClip(next, grow) }], {
-        duration,
-        easing: EASE,
-      });
+      if (moving)
+        layer.animate(
+          [{ clipPath: from }, { clipPath: outlineClip(next, grow) }],
+          timing,
+        );
     }
-    for (const running of card.getAnimations()) running.cancel();
-    if (!was || reducedMotion() || !pagePresented()) return;
+    if (!moving) return;
+    if (ride) {
+      // How far below their places what the field moved still stands: where the
+      // surface's edge stands, from the box's new top.
+      const lag = standing - next.top;
+      const shifted = { translate: `0 ${lag}px` };
+      const rest = { translate: "0 0" };
+      const riders = [
+        opened,
+        context,
+        ...row.querySelectorAll(":scope > .lf-fp-expand"),
+        ...row.querySelectorAll(".lf-composer-media:not([hidden])"),
+      ];
+      for (const rider of riders) riding.push(rider.animate([shifted, rest], timing));
+      // The words already written travel with the edge inside the field, whose box
+      // grows at its top as typing may (text-field.js, `--lf-field-ride`), and the new
+      // line rises into it from its foot. A line taken away leaves the words where the
+      // field now holds them, and the edge closes down onto them.
+      if (lag > 0)
+        riding.push(
+          editor.animate(
+            [{ "--lf-field-ride": `${lag}px` }, { "--lf-field-ride": "0px" }],
+            timing,
+          ),
+        );
+      const hold = (property, value) => [{ [property]: value }, { [property]: value }];
+      riding.push(
+        card.animate(hold("backgroundColor", "transparent"), timing),
+        card.animate(hold("overflow", "visible"), timing),
+      );
+      // The box wearing the field's focus ring, where the caret has painted one.
+      let wearer = null;
+      for (let box = editor; box && box !== row; box = box.parentElement)
+        if (getComputedStyle(box).outlineStyle !== "none") wearer = box;
+      if (wearer) {
+        const { outlineColor, outlineWidth } = getComputedStyle(wearer);
+        const to = within(room, wearer);
+        const from = { ...to, top: to.top + lag };
+        riding.push(wearer.animate(hold("outlineColor", "transparent"), timing));
+        keeps(fieldRing, "style", `background: ${outlineColor}`);
+        for (const [layer, grow] of [
+          [fieldRing, Number.parseFloat(outlineWidth)],
+          [fieldFill, 0],
+        ])
+          riding.push(
+            layer.animate(
+              [
+                { clipPath: outlineClip(from, grow) },
+                { clipPath: outlineClip(to, grow) },
+              ],
+              timing,
+            ),
+          );
+      }
+      return;
+    }
     if (next.width <= was.width + 0.5 && next.height <= was.height + 0.5) return;
     // Within its own box, the outline the surface still stands at.
-    const within = {
-      top: Math.max(0, was.top - next.top),
+    const inside = {
+      top: Math.max(0, standing - next.top),
       right: Math.max(0, was.right - next.right),
       bottom: Math.max(0, was.bottom - next.bottom),
       left: Math.max(0, was.left - next.left),
       radius: was.radius,
     };
     card.animate(
-      [{ clipPath: outlineClip(within) }, { clipPath: `inset(0 round ${radius}px)` }],
-      { duration, easing: EASE },
+      [
+        { clipPath: outlineClip(inside) },
+        { clipPath: `inset(0 round ${next.radius}px)` },
+      ],
+      timing,
     );
   }
   // Leaf's reader draws into the open thread's view on its own schedule, a sent turn
@@ -1582,14 +1704,18 @@ export function createFloatingPanel({
     if (target) focusDestination(target, "move");
   }
 
-  // Whether the gesture now under way is a key in the panel: a key arriving in a view
-  // stands on its first control, a pointer in the view itself, with no ring drawn. A
-  // gesture outside the panel, `g T` from the page among them, is neither, whatever the
-  // panel last heard, so the view it opens holds focus itself.
+  // Where the gesture now under way began: a key in a view stands on its first
+  // control, while a pointer in the panel leaves focus on the pressed control. A
+  // gesture outside the panel, `g T` from the page among them, is neither, whatever
+  // the panel last heard, so the view it opens holds focus itself.
   let keyed = false;
+  let pointedInPanel = false;
   onUserInput((event) => {
-    if (["keydown", "pointerdown"].includes(event.type))
-      keyed = event.type === "keydown" && event.composedPath().includes(host);
+    if (["keydown", "pointerdown"].includes(event.type)) {
+      const inPanel = event.composedPath().includes(host);
+      keyed = event.type === "keydown" && inPanel;
+      pointedInPanel = event.type === "pointerdown" && inPanel;
+    }
   });
 
   // ---------- the leaf's menu ----------
@@ -1742,18 +1868,17 @@ export function createFloatingPanel({
     // pointer, key and finger alike. Each line names the state itself ("Codex away"),
     // so no word for the tone stands over it.
     const { tone, summary, summaryParts, adds, addsParts, publication } = status();
-    // A published page's introduction keeps its links.
+    // A published page's introduction follows, with its links.
+    const said = adds && addsParts ? statusParts(addsParts) : adds;
     const explains = publication
-      ? html`${publication.copy}${
+      ? html`${said}${adds ? " " : nothing}${publication.copy}${
             publication.examplesUrl
               ? html`<a href=${publication.examplesUrl}>${publication.examples}</a> `
               : nothing
           }<a href=${publication.installUrl} target="_blank" rel="noopener"
             >${publication.install}</a
           >`
-      : adds && addsParts
-        ? statusParts(addsParts)
-        : adds;
+      : said;
     const part = (name, text) =>
       (held ? held[name] : text)
         ? html`<span
@@ -2051,7 +2176,7 @@ export function createFloatingPanel({
                   @click=${() => open({ view: "thread", thread: thread.key })}
                 >
                   <span class="lf-fp-news-mark" aria-hidden="true"></span>
-                  <span class="lf-fp-label">${threadName(thread)}</span>
+                  <span class="lf-fp-label">${threadHeading(thread)}</span>
                   <span class="lf-fp-value"
                     >${threadStatus(thread, query.trim() ? null : filter)}</span
                   >
@@ -2093,7 +2218,7 @@ export function createFloatingPanel({
   // reply is the thread's reply box, which the reader draws in the field below rather
   // than in the outlet. A thread anchored to a passage stays the page's where the page
   // draws it: its card opens beside the words it is about, and the panel shows it only
-  // where nothing on the page does (`reveal`).
+  // where nothing on the page does (`reveal`), or for a message of it the view shows.
   let presentation = null;
   // The thread's held news is a fact about the thread, so it reads whole after the way
   // back, at the start of the view's controls, and pressing it shows what was held. The
@@ -2493,6 +2618,10 @@ export function createFloatingPanel({
         ? messageReading(asking, { reactions: [], workflows: [] }).body.plainText
         : record?.prompt?.text;
     const prompt = said && said.trim() !== title.trim() ? said : "";
+    // Where the thread's name stands for the card, it reads as Threads names the thread
+    // (`threadHeading`).
+    const heading =
+      thread && title === threadName(thread) ? threadHeading(thread) : title;
     const answered = record && record.status !== "open";
     const choices =
       record && !answered && record.source.kind === "widget" && !inWords
@@ -2611,16 +2740,16 @@ export function createFloatingPanel({
     >
       ${about.length ? html`<p class="lf-fp-on-kind">${about.join(" · ")}</p>` : nothing}${
         message
-          ? html`${title ? html`<h3 class="lf-fp-on-title">${title}</h3>` : nothing}
+          ? html`${title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : nothing}
               <div
                 class="lf-fp-asked lf-fp-outlet"
                 data-thread=${thread.key}
                 data-message=${message.key}
               ></div>`
           : prompt
-            ? html`<h3 class="lf-fp-on-title">${title}</h3>
+            ? html`<h3 class="lf-fp-on-title">${heading}</h3>
                 <p class="lf-fp-prompt">${prompt}</p>`
-            : html`<p class="lf-fp-prompt">${title}</p>`
+            : html`<p class="lf-fp-prompt">${heading}</p>`
       }
       <div class="lf-fp-answers">${answers}${show}</div>
     </section>`;
@@ -2796,11 +2925,16 @@ export function createFloatingPanel({
     focusDestination(controls.querySelector(".lf-fp-search"), "move");
   }
   // The view's name, over it. On's is its selected tab's, which the tabs at its foot
-  // already show, so the heading names the view to assistive tech alone.
-  const headTemplate = (top) =>
-    html`<h2 class=${top.view === "queue" ? "lf-fp-title lf-quiet" : "lf-fp-title"}>
-      ${titleOf(top)}
+  // already show, so the heading names the view to assistive tech alone. A thread's
+  // says when its title is still on its way (`threadHeading`).
+  const headTemplate = (top) => {
+    const thread = top.view === "thread" ? threadByKey(top.thread) : null;
+    return html`<h2
+      class=${top.view === "queue" ? "lf-fp-title lf-quiet" : "lf-fp-title"}
+    >
+      ${thread ? threadHeading(thread) : titleOf(top)}
     </h2>`;
+  };
   function controlsTemplate(top) {
     const parent = trail.value.at(-2);
     const thread = top.view === "thread" ? threadByKey(top.thread) : null;
@@ -3210,15 +3344,14 @@ export function createFloatingPanel({
     keeps(host, "data-writing", writing ? "" : null);
     // While the field holds a draft, Send stands in its corner and the counts step
     // aside for it (`drafted`).
-    const words = Boolean(draftOf(input).trim());
+    const words = Boolean(draftOf(input));
     if (postureMoved || !words) drafted = words;
     postureMoved = false;
     keeps(host, "data-drafted", drafted ? "" : null);
     keeps(host, "data-words", words ? "" : null);
     if (!words) expanded = false;
-    // The mark stays while the field is wide, where the draft may fit three lines again.
-    const marked = (long || expanded) && !resting;
-    keeps(host, "data-long", marked ? "" : null);
+    fieldRests = resting;
+    markRoom();
     keeps(host, "data-expanded", expanded ? "" : null);
     keeps(expand, "aria-pressed", String(expanded));
     keeps(expand, "aria-label", expanded ? "Less room to write" : "More room to write");
@@ -3325,8 +3458,8 @@ export function createFloatingPanel({
 
   // ---------- the row's notice ----------
   // One small notice beside the marks, for a state the user should not miss while they
-  // read: a few words (`says`), a `tone` that tints it, and at most one `press`, a
-  // button or a link. Leaf's own readings raise each, and a notice ends when the state
+  // read: a few words (`says`), a `tone` that tints it, and at most one `press`.
+  // Leaf's own readings raise each, and a notice ends when the state
   // it reads does. The slot shows the first that holds, most urgent first, so the
   // field's room never goes to a stack of them. Each case is a reading below; a new
   // one joins `ROW_NOTICES` in its place.
@@ -3350,23 +3483,12 @@ export function createFloatingPanel({
       },
     };
   }
-  // A copy of a page on Leaf's website: the field says who revises it, and the notice
-  // where Leaf comes from; the menu's head holds the introduction and its links.
-  function website() {
-    const { publication } = status();
-    if (!publication) return null;
-    return {
-      says: publication.examples ? "Example" : "Leaf page",
-      tone: "accent",
-      press: { label: publication.install, href: publication.installUrl },
-    };
-  }
   // The version shown is approved, until a new version asks again.
   function approvedVersion() {
     if (!approvalReading()?.approved) return null;
     return { says: `✓ ${versionsReading().picker.token} approved`, tone: "ok" };
   }
-  const ROW_NOTICES = [olderVersion, website, approvedVersion];
+  const ROW_NOTICES = [olderVersion, approvedVersion];
   const rowNotice = () => {
     for (const read of ROW_NOTICES) {
       const notice = read();
@@ -3384,23 +3506,15 @@ export function createFloatingPanel({
       }</span
     >`;
     if (!press) return face;
-    return press.href
-      ? html`<a
-          class="lf-fp-chip lf-fp-row-notice-press"
-          href=${press.href}
-          target="_blank"
-          rel="noopener"
-          >${face}</a
-        >`
-      : html`<button
-          type="button"
-          class="lf-fp-chip lf-fp-row-notice-press"
-          title=${press.title ?? nothing}
-          ?disabled=${press.disabled}
-          @click=${press.run}
-        >
-          ${face}
-        </button>`;
+    return html`<button
+      type="button"
+      class="lf-fp-chip lf-fp-row-notice-press"
+      title=${press.title ?? nothing}
+      ?disabled=${press.disabled}
+      @click=${press.run}
+    >
+      ${face}
+    </button>`;
   }
 
   // ---------- gestures ----------
@@ -3827,23 +3941,25 @@ export function createFloatingPanel({
         return () => openInPackage(top.thread, { focus, message });
       },
       // A thread about the whole page opens here; one about a passage opens beside it,
-      // where the page draws it, and here only for one of its messages, which Leaf's
-      // reader alone draws whole, or where nothing on the page shows it, as on a page
-      // drawing no margin, the destination's last resort (`request.last`,
-      // thread/destination.js). Where the user lands in it is the route's
-      // (`request.part`), which Leaf's destinations take them to once it is drawn: the
-      // reply, a message, or the thread itself, the view, where the `t` walk goes on from.
+      // where the page draws it, widgets in its messages included, and here only where
+      // nothing on the page shows it, as on a page drawing no margin, the destination's
+      // last resort (`request.last`, thread/destination.js), or for one of its messages
+      // while the view already shows it, so a walk to an ask in it leaves the user
+      // where they read. Where the user lands in it is the route's (`request.part`),
+      // which Leaf's destinations take them to once it is drawn: the reply, a message,
+      // or the thread itself, the view, where the `t` walk goes on from.
       reveal: (key, { part, last }) => {
         const thread = threadByKey(key);
         if (!thread) return false;
-        if (thread.anchor && part !== "message") {
+        const top = trail.value.at(-1);
+        const shown =
+          top?.view === "thread" && threadByKey(top.thread)?.key === thread.key;
+        if (thread.anchor && !(part === "message" && shown)) {
           if (!last) {
             unplaced.delete(thread.key);
             // The page draws it, so a view of it here goes, as On the page puts it
             // away, and the thread shows once.
-            const top = trail.value.at(-1);
-            if (top?.view === "thread" && threadByKey(top.thread)?.key === thread.key)
-              close();
+            if (shown) close();
             return false;
           }
           unplaced.add(thread.key);

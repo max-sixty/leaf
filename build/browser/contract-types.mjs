@@ -187,21 +187,16 @@ function servedTypes(schema, verb) {
 }
 
 // The schemas whose home is Python: those `leaf:` references name
-// (`registry.schema.leaf_resources`), and each `state.Record`'s, read once every module
-// declaring one is imported.
+// (`registry.schema.leaf_resources`), and each `state.Record`'s
+// (`leaf_dev.declared_records`).
 function pythonSchemas(root) {
   const program = `
-import importlib, json, pkgutil
-import leaf, leaf_website
+import json
 from leaf.registry.schema import leaf_resources
-from leaf.state import RECORDS
-for package in (leaf, leaf_website):
-    for module in pkgutil.walk_packages(package.__path__, package.__name__ + "."):
-        if not module.name.endswith(".__main__"):
-            importlib.import_module(module.name)
+from leaf_dev import declared_records
 records = {
     kind: {"since": record.since, "schema": record.schema}
-    for kind, record in sorted(RECORDS.items())
+    for kind, record in declared_records().items()
 }
 print(json.dumps({"references": leaf_resources(), "records": records}))
 `;

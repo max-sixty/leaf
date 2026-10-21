@@ -1,11 +1,9 @@
 /* The contents' initial drawing: the frame as the parser finishes the widget, and the
  * outline once the document it outlines has parsed, since its headings usually follow
- * it. The frame alone has the box the widget keeps in either form, a closed disclosure
- * in flow or the map's full height in the margin. Whether any heading qualifies is
- * known only once parsing ends, so the frame shows until then, and a contents with
- * none is hidden there, as its module hides it. Hiding it until a heading arrives would
- * instead move what follows it on any page with headings that paints while parsing. */
-import { drawOutline, drawToc } from "../widgets/toc-view.js";
+ * it. A closed disclosure already has its final height. An authored open outline
+ * depends on later headings, so its reading scope first paints once those inputs have
+ * parsed, without waiting for behavior modules or the server's state. */
+import { drawOutline, drawToc, outlineDocument } from "../widgets/toc-view.js";
 
 // Before modules run, a heading holds only the words its author wrote, and the only
 // chrome is the light document's.
@@ -26,8 +24,17 @@ document.documentElement.lfInitial.register("lf-toc", (host, { keeps }) => {
       drawOutline(host, drawing, { ...reading, keeps }).length ? null : "",
     );
   const doc = host.ownerDocument;
-  if (doc.readyState === "loading")
-    doc.addEventListener("readystatechange", outline, { once: true });
-  else outline();
+  if (doc.readyState === "loading") {
+    const pending = host.hasAttribute("open") && outlineDocument(host);
+    if (pending) keeps(pending, "data-lf-initial-pending", "");
+    doc.addEventListener(
+      "readystatechange",
+      () => {
+        outline();
+        if (pending) keeps(pending, "data-lf-initial-pending", null);
+      },
+      { once: true },
+    );
+  } else outline();
   return drawing;
 });

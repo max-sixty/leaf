@@ -137,7 +137,9 @@ function readBreakouts() {
   layoutChanged(pageDocument());
   repaintPage();
 }
-var mayHoldLayoutBox = (node) => node.matches('body > main > *, body > main > [data-lf-views="parts"] > *');
+var mayChangeResidency = (node) => node.matches(
+  'body > main > *, body > main > [data-lf-views="parts"] > *, [data-lf-views-flow="page"] > *'
+);
 function openResidency({ onRead }) {
   readFinished = onRead;
   residencyOpen = true;
@@ -147,7 +149,7 @@ function openResidency({ onRead }) {
   if (main)
     new MutationObserver((records) => {
       if (records.some(
-        (record) => record.type === "attributes" && record.attributeName === "hidden" && mayHoldLayoutBox(record.target)
+        (record) => record.type === "attributes" && record.attributeName === "hidden" && mayChangeResidency(record.target)
       ))
         readResidency();
       else if (records.some(

@@ -131,7 +131,6 @@ keys(
       id: "image.zoom",
       keys: ["z"],
       title: "zoom / fit",
-      description: "Toggle actual size and fitted image",
       control: viewerZoom,
       when: () => {
         const slide = inspector?.currSlide;

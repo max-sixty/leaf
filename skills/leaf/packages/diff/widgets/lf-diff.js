@@ -1063,11 +1063,8 @@ customElements.define(
               if (!search) return false;
               return standingIn(this) && Boolean(search.value || standingIn(search));
             },
-            title: () => (this.diffTools?.search.value ? "show all files" : "back"),
-            description: () =>
-              this.diffTools?.search.value
-                ? "Show every file again"
-                : "Leave the diff filter",
+            title: () =>
+              this.diffTools?.search.value ? "show all files" : "leave filter",
             run: () => {
               const search = this.diffTools?.search;
               if (search?.value) {

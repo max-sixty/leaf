@@ -293,8 +293,6 @@ export function createNavigation({ threadDestinations, placedAt, heldPlace }) {
     id: "reading.align.top",
     keys: ["z"],
     title: "Align current item at top",
-    description:
-      "Align the current reading item at the top, keeping focus and selection",
     touch: "Align current item at top",
     menu: "keys",
     retainStanding: true,
@@ -355,13 +353,11 @@ export function createNavigation({ threadDestinations, placedAt, heldPlace }) {
       {
         id: "page.down",
         binding: "d",
-        description: "Move 60% of a page down",
         title: "page down",
       },
       {
         id: "page.up",
         binding: "u",
-        description: "Move 60% of a page up",
         title: "page up",
       },
     ],

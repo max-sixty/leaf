@@ -654,7 +654,6 @@ export function createDrawingController({
         keys: [],
         label: "drag",
         title: "Draw on the page",
-        description: "Each stroke adds to one drawing",
       },
       {
         id: "draw.mode.undo",
@@ -688,7 +687,6 @@ export function createDrawingController({
   pageCommand({
     id: "draw.mode.enter",
     keys: ["w"],
-    description: "Draw on the page and attach the drawing to a comment",
     title: "draw mode",
     touch: "Draw mode",
     menu: "annotate",

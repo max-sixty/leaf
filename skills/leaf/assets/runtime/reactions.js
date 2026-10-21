@@ -599,11 +599,7 @@ export function createReactionController({
     ready: savedReadingSettled,
     touch: false,
     keys: ["e"],
-    description: () =>
-      `Open reactions — ${reactionTokens()
-        .slice(0, 9)
-        .map(([name, entry]) => `${entry.glyph} ${name}`)
-        .join(", ")} — for the selection, the focused item, or the open reply`,
+    description: "For the selection, the focused item, or the open reply",
     title: "reactions",
     when: () =>
       reactionAvailable() &&

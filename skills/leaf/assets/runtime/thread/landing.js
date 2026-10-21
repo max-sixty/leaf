@@ -98,7 +98,7 @@ pageScope("text entry", {
       id: "text.leave",
       touch: false,
       keys: ["Escape"],
-      description: "Leave the box, keeping what is typed",
+      description: "Keeps what is typed",
       title: () => backFromBox()?.line ?? "back",
       // The thread the box belongs to. A page text box that is not in one leaves the
       // row dead and the page's rung in place, which is the honest answer: nothing

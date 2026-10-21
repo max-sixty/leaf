@@ -388,8 +388,7 @@ export class MessageEditor {
         {
           id: "message.edit.previous",
           keys: ["ArrowUp"],
-          description:
-            "From the start of an unchanged box, edit my message before this one",
+          description: "From the start of an unchanged box",
           title: "edit previous message",
           // A walk passes over words as they stand: words the user changed hold ↑ for
           // the caret, as a reply box holding words does, until Save or Escape. It
@@ -420,8 +419,7 @@ export class MessageEditor {
         {
           id: "message.edit.close",
           keys: ["Escape"],
-          description: "Stop editing, leaving the message as it was",
-          title: "stop editing",
+          title: "discard changes",
           run: () => close(),
         },
       ],

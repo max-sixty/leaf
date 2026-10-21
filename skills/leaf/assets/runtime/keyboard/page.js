@@ -101,8 +101,7 @@ pageCommand({
   touch: false,
   keys: ["F7"],
   title: "Caret browsing",
-  description:
-    "Select text with the browser's keyboard caret, then comment on the selection",
+  description: "Select text with the keyboard caret to comment on it",
 });
 
 // Standing is a destination on the page. Releasing it lands at its floor, the document.

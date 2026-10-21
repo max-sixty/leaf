@@ -555,7 +555,6 @@ export function createGoToSequence({
           ...(targetFilter ? [targetFilter.key] : []),
           "letters",
         ],
-        description: "Type a visible target's hint",
         title: "visible target",
         // Once armed, keep the alphabet claimed even when a filter has no members. A key
         // then reports the miss inside this sequence rather than falling through to a page

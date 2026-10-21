@@ -4961,7 +4961,7 @@ function createReactionController({
     ready: savedReadingSettled,
     touch: false,
     keys: ["e"],
-    description: () => `Open reactions \u2014 ${reactionTokens().slice(0, 9).map(([name, entry]) => `${entry.glyph} ${name}`).join(", ")} \u2014 for the selection, the focused item, or the open reply`,
+    description: "For the selection, the focused item, or the open reply",
     title: "reactions",
     when: () => reactionAvailable() && reactionTokens().length > 0 && hasReactionTarget() && (anchoringIsReady() || !pageSelection()),
     run: () => {
@@ -8073,7 +8073,7 @@ pageScope("text entry", {
       id: "text.leave",
       touch: false,
       keys: ["Escape"],
-      description: "Leave the box, keeping what is typed",
+      description: "Keeps what is typed",
       title: () => backFromBox()?.line ?? "back",
       // The thread the box belongs to. A page text box that is not in one leaves the
       // row dead and the page's rung in place, which is the honest answer: nothing

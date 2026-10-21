@@ -3367,8 +3367,7 @@ function createDrawingController({
         id: "draw.mode.stroke",
         keys: [],
         label: "drag",
-        title: "Draw on the page",
-        description: "Each stroke adds to one drawing"
+        title: "Draw on the page"
       },
       {
         id: "draw.mode.undo",
@@ -3398,7 +3397,6 @@ function createDrawingController({
   pageCommand({
     id: "draw.mode.enter",
     keys: ["w"],
-    description: "Draw on the page and attach the drawing to a comment",
     title: "draw mode",
     touch: "Draw mode",
     menu: "annotate",
@@ -3493,7 +3491,6 @@ function createRegionCapture({
     id: "capture.region.open",
     keys: [],
     title: "Capture area",
-    description: "Select an area of the page and attach its image to a comment",
     touch: "Capture area",
     menu: "annotate",
     retainStanding: true,
@@ -6179,14 +6176,12 @@ function createQueueWalk({
       {
         id: "queue.next",
         binding: "m",
-        title: "Next on me",
-        description: "Go to the next of everything waiting on me, anywhere on the page"
+        title: "Next on me"
       },
       {
         id: "queue.previous",
         binding: "Shift+m",
-        title: "Previous on me",
-        description: "Go to the previous of everything waiting on me, anywhere on the page"
+        title: "Previous on me"
       }
     ],
     title: "On me",
@@ -8659,7 +8654,7 @@ function createFloatingPanel({
     {
       id: "panel.floating.leave",
       keys: ["Escape"],
-      description: "Leave the comment field, keeping the view open above it",
+      description: "The view above stays open",
       title: "leave field",
       when: () => !menuOpen.value && trail.value.length > 0,
       run: () => focusDestination(leaf, "return")
@@ -8668,7 +8663,6 @@ function createFloatingPanel({
   pageCommand({
     id: FOLD,
     keys: ["."],
-    description: "Fold the Leaf panel to the leaf in the window's corner, or unfold it",
     title: () => prefs().rest === "mark" ? "unfold" : "fold",
     touch: () => prefs().rest === "mark" ? "Unfold the panel" : "Fold to the leaf",
     menu: "page",
@@ -10016,7 +10010,7 @@ function createDesignMode({
   pageCommand({
     id: "design.mode.enter",
     keys: ["l"],
-    description: "Enter Design mode: comment on how the page looks and works \u2014 a widget, a control, a picture \u2014 rather than its words",
+    description: "Comment on how the page looks and works, rather than its words",
     title: "design mode",
     touch: "Design mode",
     menu: "annotate",
@@ -10563,7 +10557,6 @@ function createGoToSequence({
           ...targetFilter ? [targetFilter.key] : [],
           "letters"
         ],
-        description: "Type a visible target's hint",
         title: "visible target",
         // Once armed, keep the alphabet claimed even when a filter has no members. A key
         // then reports the miss inside this sequence rather than falling through to a page
@@ -10724,7 +10717,7 @@ pageCommand({
   touch: false,
   keys: ["F7"],
   title: "Caret browsing",
-  description: "Select text with the browser's keyboard caret, then comment on the selection"
+  description: "Select text with the keyboard caret to comment on it"
 });
 var holding = () => {
   const active = focused(document);
@@ -11057,7 +11050,6 @@ function createNavigation({ threadDestinations, placedAt, heldPlace }) {
     id: "reading.align.top",
     keys: ["z"],
     title: "Align current item at top",
-    description: "Align the current reading item at the top, keeping focus and selection",
     touch: "Align current item at top",
     menu: "keys",
     retainStanding: true,
@@ -11112,13 +11104,11 @@ function createNavigation({ threadDestinations, placedAt, heldPlace }) {
       {
         id: "page.down",
         binding: "d",
-        description: "Move 60% of a page down",
         title: "page down"
       },
       {
         id: "page.up",
         binding: "u",
-        description: "Move 60% of a page up",
         title: "page up"
       }
     ],

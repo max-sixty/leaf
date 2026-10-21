@@ -417,7 +417,7 @@ summary {
   margin-top: var(--lf-msg-body-gap);
   inline-size: fit-content;
   max-inline-size: 100%;
-  font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans);
+  font: var(--msg-font);
   color: color-mix(in srgb, var(--ink) 50%, transparent);
 }
 .lf-thread-working[data-lf-live] .lf-thread-working-words {
@@ -744,7 +744,7 @@ button.lf-thread-notice[data-lf-focus] {
 }
 leaf-text.lf-fab-input,
 .lf-msg-body {
-  font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans);
+  font: var(--msg-font);
   color: var(--ink);
 }
 .lf-msg-body {

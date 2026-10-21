@@ -4,7 +4,6 @@ Each test is one journey a user takes through the panel: writing a page comment 
 threads and taking in news, answering obligations, travelling between versions, and
 folding the panel to the leaf in the window's corner and back."""
 
-import base64
 import json
 import re
 from datetime import datetime, timedelta
@@ -13,16 +12,15 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     append_carried_log_record,
+    declare,
     declare_idle,
     declare_work,
     working,
-    write_record,
 )
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import interaction_log as interaction_model
 from leaf import service as service_model
-from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf.render_checks import one_frame, wait_until_ready
 from model_folds import leaf_page
@@ -47,6 +45,8 @@ from render_harness import (
     write,
 )
 from render_harness import leaf_page as titled_page
+
+from browser.threads import paste_image
 
 SIGN_OFF = LONG_PAGE.replace(
     "<title>long</title>",
@@ -1464,8 +1464,8 @@ def test_a_thread_s_view_folds_progress_as_its_card_does(browser, serve):
     (thread/transcript.js): the progress the answer completed stands folded behind Show 2
     progress messages at the answer's head, and work still under way stands as one dim
     working message at the transcript's foot rather than as a reply. What anyone wrote,
-    messages and the working line alike, reads in the page's serif, as On me's
-    questions do, while the panel's own controls keep its sans."""
+    messages and the working line alike, reads in Leaf's sans rather than the page's
+    serif."""
     url = serve(LONG_PAGE)
     root = panel_comment(
         serve.page_dir, "Can you check that the workshop fits the afternoon?"
@@ -1497,13 +1497,13 @@ def test_a_thread_s_view_folds_progress_as_its_card_does(browser, serve):
     expect(working).to_be_visible()
     expect(working).to_contain_text("Checking whether the room stays free after five")
     face = "(node) => getComputedStyle(node).fontFamily"
-    serif = page.evaluate("getComputedStyle(document.body).fontFamily")
+    leaf = page.locator(".lf-fp-head .lf-fp-title").evaluate(face)
+    assert leaf != page.evaluate("getComputedStyle(document.body).fontFamily")
     for words in (
         shown.last.locator(".lf-msg-body"),
         working.locator(".lf-thread-working-words"),
     ):
-        assert words.evaluate(face) == serif
-    assert page.locator(".lf-fp-head .lf-fp-title").evaluate(face) != serif
+        assert words.evaluate(face) == leaf
 
     toggle.click()
     expect(shown).to_have_count(4)
@@ -1857,7 +1857,7 @@ def test_nothing_lies_over_a_view_s_foot_but_new_reply(browser, serve):
     expect(inventory.locator(".lf-fp-thread")).to_have_count(13)
     field(page).click()
     page.keyboard.type("Could")
-    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-typing", "")
+    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-drafted", "")
     at_end(".lf-fp-thread")
 
     page.keyboard.press("ControlOrMeta+a")
@@ -1867,7 +1867,7 @@ def test_nothing_lies_over_a_view_s_foot_but_new_reply(browser, serve):
     expect(reader.locator(".lf-msg")).to_have_count(9)
     field(page).click()
     page.keyboard.type("Could")
-    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-typing", "")
+    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-drafted", "")
     at_end(".lf-msg")
 
     # The answer to the user's turn waits below the fold behind New reply, and its
@@ -2215,59 +2215,42 @@ def test_a_folded_status_keeps_its_reading_until_the_next_exposure(
     expect(peek).to_have_text("Saved for later")
 
 
-def test_pointing_at_the_row_s_leaf_or_field_says_the_status_in_full(browser, serve):
-    """In the row, pointing at the leaf or at the empty field shows the leaf's peek, the
-    box the folded leaf shows, at once and over the row, with the status the field cuts
-    short in full; the field keeps no browser tooltip of its own. The peek stands down
-    while the leaf's menu, which says the status itself, stands, and over a field the
-    user writes in or whose words hide the status."""
+def test_only_the_folded_leaf_shows_a_status_peek(browser, serve):
+    """The row's status and errors remain inline; its menu carries the full reading.
+    Hover and keyboard focus reveal status only when the leaf is folded."""
     page = floating(browser, serve(LONG_PAGE))
     peek = page.locator(".lf-fp-peek")
     leaf = page.locator(".lf-fp-leaf")
     seat = page.locator(".lf-fp-field")
-    shown = "peek => peek.hasAttribute('data-shown')"
     expect(field(page)).to_have_attribute("placeholder", re.compile(r" away\b"))
     assert seat.get_attribute("title") is None
-    row = page.locator(".lf-fp-row").bounding_box()
-    for asker in (leaf, seat):
-        page.mouse.move(5, 5)
-        expect(peek).to_be_hidden()
-        asker.hover()
-        assert peek.evaluate(shown)
-        expect(peek).to_have_text(re.compile(r"isn't watching right now\."))
-        box = peek.bounding_box()
-        assert box["y"] + box["height"] <= row["y"], (box, row)
+    for target in (leaf, seat):
+        target.hover()
+        assert not peek.evaluate("peek => peek.hasAttribute('data-shown')")
 
     leaf.click()
-    expect(page.locator(".lf-fp-menu")).to_be_visible()
+    expect(page.locator(".lf-fp-menu")).to_contain_text("Updates are saved.")
     expect(peek).to_be_hidden()
-    field(page).click()
-    expect(page.locator(".lf-fp-menu")).to_be_hidden()
-    expect(peek).to_be_hidden()
-    write(field(page), "Could the rollback cover the weekend?")
-    page.mouse.click(5, 5)
-    seat.hover()
-    expect(peek).to_be_hidden()
-
-
-def test_the_peek_says_what_its_asker_says_now(browser, serve):
-    """The leaf's peek keeps the status it opened with through one exposure, but a
-    different thing to say is said at once: the leaf holding keyboard focus shows the
-    status, and the pointer then on a field saying an error shows the error, and a newer
-    error under the still pointer replaces it."""
-    page = floating(browser, serve(LONG_PAGE))
-    peek = page.locator(".lf-fp-peek")
-    say = "async (text) => (await window.__lfWidgetApi()).raiseError(text)"
-    page.evaluate(say, "Couldn't save the draft")
+    page.keyboard.press("Escape")
+    page.evaluate(
+        "async text => (await window.__lfWidgetApi()).raiseError(text)",
+        "Couldn't save the draft",
+    )
     expect(field(page)).to_have_attribute("data-says", "error")
-    leaf = page.locator(".lf-fp-leaf")
-    leaf.focus()
+    seat.hover()
+    assert not peek.evaluate("peek => peek.hasAttribute('data-shown')")
+    page.locator("body").click(position={"x": 5, "y": 5})
+    page.keyboard.press(".")
+    leaf.hover()
+    expect(peek).to_be_visible()
+    expect(peek).to_contain_text("isn't watching right now.")
+    leaf.click()
+    expect(peek).to_be_hidden()
+    # Tab back onto the expanded leaf: keyboard focus must not repeat the status.
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
     expect(leaf).to_be_focused()
-    expect(peek).to_have_text(re.compile(r"isn't watching right now\."))
-    page.locator(".lf-fp-field").hover()
-    expect(peek).to_have_text("Couldn't save the draft")
-    page.evaluate(say, "Couldn't load v1")
-    expect(peek).to_have_text("Couldn't load v1")
+    assert not peek.evaluate("peek => peek.hasAttribute('data-shown')")
 
 
 def test_floating_menu_tracks_stalled_detail_hidden_by_a_draft(browser, serve, request):
@@ -2398,11 +2381,9 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
 
 
 def test_a_refused_key_is_an_error_the_field_says(browser, serve):
-    """A status that only reports reads in the dim face, with the status in full in the
-    leaf's peek on pointing at the field. Once the server refuses this tab's key, which
-    asks the user to act, that stands as an error: the field says it in the danger's
-    ink, and the peek over the still pointer says it in full in the status's place. The
-    caret going in leaves it in the field until the user writes."""
+    """A report reads dimly in the field. A refused key asks the user to act, so
+    the field says it as an error and the menu keeps the full status. Focus leaves
+    the error in the field until the user writes."""
     url = serve(LONG_PAGE)
     working(serve.page_dir, "Drafting the rollout")
     page = floating(browser, url)
@@ -2416,14 +2397,19 @@ def test_a_refused_key_is_an_error_the_field_says(browser, serve):
 
     expect(field(page)).to_have_attribute("placeholder", re.compile("^Claude working"))
     page.locator(".lf-fp-field").hover()
-    expect(peek).to_have_text(re.compile("^Claude is working — Drafting the rollout"))
+    expect(peek).to_be_hidden()
 
     page.route("**/api/state*", lambda route: route.fulfill(status=401, body="{}"))
     declare_idle(serve.page_dir)
     expect(field(page)).to_have_attribute("data-says", "error")
     expect(field(page)).to_have_attribute("placeholder", re.compile("^Key refused"))
     assert alpha() > 0.6, "the refused key reads as dim as a report"
-    expect(peek).to_have_text(re.compile("^Key refused — open Leaf's link"))
+    expect(peek).to_be_hidden()
+    page.locator(".lf-fp-leaf").click()
+    expect(page.locator(".lf-fp-menu")).to_contain_text(
+        "Key refused — open Leaf's link in a new tab"
+    )
+    page.keyboard.press("Escape")
     field(page).click()
     expect(field(page)).to_have_attribute("data-says", "error")
     expect(peek).to_be_hidden()
@@ -3204,10 +3190,7 @@ def test_all_pages_in_the_menu_counts_the_pages_it_lists(
         ".lf-fp-menu[data-level=group] .lf-fp-item", has_text="All pages"
     )
     expect(row.locator(".lf-fp-value")).to_have_text("3")
-    write_record(
-        closing_dir / "status.json",
-        {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
-    )
+    declare(closing_dir, "idle")
     told(page)
     expect(row.locator(".lf-fp-value")).to_have_text("2")
 
@@ -3805,6 +3788,32 @@ def test_a_reply_its_card_cannot_draw_opens_in_the_panel(browser, serve):
     expect(reader.locator("#first-job")).to_be_visible()
 
 
+def test_a_thread_s_messages_read_alike_in_its_card_and_the_panel(browser, serve):
+    """What anyone wrote in a thread reads in one face wherever the thread stands, its
+    card beside the passage and its view in the panel, and a rewrite types in it."""
+    url = serve(LONG_PAGE)
+    panel_comment(
+        serve.page_dir,
+        "Which job should come first?",
+        {"section": "p3", "quote": "Paragraph 3."},
+    )
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    face = "(node) => getComputedStyle(node).font"
+    card = page.locator(".lf-margin-thread-body .lf-msg")
+    expect(card).to_contain_text("Which job should come first?")
+    message = card.locator(".lf-msg-body").evaluate(face)
+    card.locator(".lf-msg-edit").click()
+    assert card.locator(".lf-msg-editor leaf-text").evaluate(face) == message
+    card.locator(".lf-msg-edit-cancel").click()
+    page.locator(".lf-fp-threads").click()
+    page.locator(".lf-fp-view[data-view=threads] .lf-fp-thread").click()
+    reader = page.locator(".lf-fp-view[data-view=thread] .lf-msg")
+    expect(reader).to_contain_text("Which job should come first?")
+    assert reader.locator(".lf-msg-body").evaluate(face) == message
+
+
 def test_a_page_comment_sent_before_the_first_reading_stands_in_the_panel(
     browser, serve
 ):
@@ -4021,20 +4030,9 @@ def test_a_comment_on_words_where_the_page_draws_no_margin_is_written_in_the_row
     # its words stay where they are.
     card = page.locator(".lf-fp-card")
     before = (card.bounding_box(), box.bounding_box())
-    box.evaluate(
-        """(box, encoded) => {
-          const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
-          const transfer = new DataTransfer();
-          transfer.items.add(new File([bytes], 'pasted.png', {type: 'image/png'}));
-          box.dispatchEvent(new ClipboardEvent('paste', {
-            bubbles: true, cancelable: true, clipboardData: transfer,
-          }));
-        }""",
-        base64.b64encode(solid_png(40, 30, (255, 128, 64))).decode(),
-    )
+    paste_image(box, solid_png(40, 30, (255, 128, 64)))
     picture = response.locator(".lf-composer-media-open")
     expect(picture).to_have_count(1)
-    expect(box).not_to_have_attribute("aria-busy", "true")
     assert (card.bounding_box(), box.bounding_box()) == before
     tile = picture.bounding_box()
     assert tile["y"] + tile["height"] <= before[0]["y"], (tile, before)
@@ -4092,26 +4090,57 @@ def test_an_image_pasted_in_the_page_s_field_hangs_above_the_panel(browser, serv
     field(page).click()
     card = page.locator(".lf-fp-card")
     before = card.bounding_box()
-    field(page).evaluate(
-        """(box, encoded) => {
-          const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
-          const transfer = new DataTransfer();
-          transfer.items.add(new File([bytes], 'pasted.png', {type: 'image/png'}));
-          box.dispatchEvent(new ClipboardEvent('paste', {
-            bubbles: true, cancelable: true, clipboardData: transfer,
-          }));
-        }""",
-        base64.b64encode(solid_png(40, 30, (255, 128, 64))).decode(),
-    )
+    paste_image(field(page), solid_png(40, 30, (255, 128, 64)))
     shelf = page.locator(".lf-fp-box .lf-composer-media-item")
     expect(shelf).to_have_count(1)
-    expect(field(page)).not_to_have_attribute("aria-busy", "true")
     assert card.bounding_box() == before
     assert field(page).bounding_box()["width"] > 300
     tile = shelf.bounding_box()
     assert tile["y"] + tile["height"] <= before["y"], (tile, before)
     assert tile["x"] >= field(page).bounding_box()["x"] - 1, tile
     expect(field(page)).not_to_have_attribute("placeholder", re.compile("Image added"))
+
+
+def test_looking_at_an_attached_image_keeps_the_draft_where_it_stands(browser, serve):
+    """The image viewer opened from a draft's attachment stands over the panel, and
+    Escape hands the user back to the attachment: they never left what they were
+    writing, so the page's field keeps Send in its corner and the counts aside, behind
+    the viewer, after it and as they press back into the words, and a rewrite keeps
+    its thread view's height."""
+    page = floating(browser, serve(LONG_PAGE))
+    viewer = page.locator("dialog.lf-media-viewer")
+
+    def look_at(picture):
+        picture.click()
+        expect(viewer).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(viewer).to_be_hidden()
+        expect(picture).to_be_focused()
+
+    write(field(page), "A draft long enough to wrap once the counts stand beside it")
+    paste_image(field(page), solid_png(40, 30, (255, 128, 64)))
+    host = page.locator(".lf-floating-panel")
+    expect(host).to_have_attribute("data-drafted", "")
+    words = field(page).bounding_box()
+    look_at(page.locator(".lf-fp-box .lf-composer-media-open"))
+    expect(host).to_have_attribute("data-drafted", "")
+    assert field(page).bounding_box() == words
+    field(page).click()
+    assert field(page).bounding_box() == words
+
+    page.keyboard.press("Enter")
+    view = page.locator(".lf-fp-view[data-view=thread]")
+    expect(view.locator(".lf-msg")).to_contain_text("A draft long enough")
+    settled(page)
+    view.locator(".lf-msg-body").dblclick()
+    rewrite = view.locator(".lf-msg-editor leaf-text")
+    expect(rewrite).to_be_focused()
+    paste_image(rewrite, solid_png(40, 30, (64, 128, 255)))
+    settled(page)
+    stood = view.bounding_box()
+    look_at(view.locator(".lf-msg-editor .lf-composer-media-open").last)
+    settled(page)
+    assert view.bounding_box() == stood
 
 
 def test_a_long_draft_fades_where_words_run_past_the_field(browser, serve):
@@ -4186,13 +4215,14 @@ def test_a_draft_draws_a_bullet_list_as_the_message_will(browser, serve):
     assert [mark["drawn"] for mark in nested["marks"]] == ['"•"', '"•"'], nested
 
 
-def test_send_stands_in_the_counts_place_while_the_user_types(browser, serve):
+def test_send_stands_in_the_counts_place_while_the_field_holds_a_draft(browser, serve):
     """Typing puts Send where the counts stood, wearing every composer's accent arrow
-    rather than the panel's own press face, and a press that takes the caret away
-    brings the counts back while the words stay where they were."""
+    rather than the panel's own press face. A press that takes the caret away leaves
+    the draft as it stands, Send and every line in place, and so does a press back
+    into it; the counts come back once the field empties."""
     page = floating(browser, serve(LONG_PAGE))
     field(page).click()
-    page.keyboard.type("Could the rollback cover the weekend?")
+    page.keyboard.type("Could the rollback cover the weekend, and the Monday after it?")
     send = page.locator(".lf-fp-send")
     expect(send).to_be_visible()
     accent = page.evaluate(
@@ -4206,11 +4236,16 @@ def test_send_stands_in_the_counts_place_while_the_user_types(browser, serve):
     words = field(page).bounding_box()
     page.mouse.click(5, 5)
     expect(field(page)).not_to_be_focused()
-    expect(send).to_be_hidden()
-    expect(page.locator(".lf-fp-on-user")).to_be_visible()
     settled(page)
-    after = field(page).bounding_box()
-    assert (after["x"], after["y"]) == (words["x"], words["y"])
+    expect(send).to_be_visible()
+    expect(page.locator(".lf-fp-on-user")).to_be_hidden()
+    assert field(page).bounding_box() == words
+    field(page).click()
+    settled(page)
+    assert field(page).bounding_box() == words
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.press("Backspace")
+    expect(page.locator(".lf-fp-on-user")).to_be_visible()
 
 
 def test_writing_reaches_the_field_however_the_panel_stands(browser, serve):

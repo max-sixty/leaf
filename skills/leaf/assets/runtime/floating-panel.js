@@ -33,11 +33,9 @@
  *   took a stance's steps away while it stood, accepting that a press on the field
  *   addresses selected words whenever they stand. A status that reports reads dimmer
  *   than anything written, and while the agent works it carries the one sheen that marks
- *   work under way; one that asks the user to act reads in its tone's ink. Pointing at
- *   the leaf or the empty field says the status, or the field's error, in full in the
- *   leaf's peek, the box the folded leaf shows, at once and above the row, so it covers
- *   nothing the user aims at; the panel's review chose that on 19 October over
- *   nothing on the leaf and the browser's own late tooltip on the field. Clicking in
+ *   work under way; one that asks the user to act reads in its tone's ink. The row
+ *   shows no status tooltip: the user rejected the repeated words over the page on
+ *   20 October. The leaf's menu holds the full status and the Errors list. Clicking in
  *   gives the placeholder to where the words go, and from then on nothing that passes
  *   is said while the caret is in the field: news, an acknowledgement, a walk's position and Go-to's word go unsaid
  *   there but for the live region, and the empty field says what still stands once the
@@ -97,7 +95,10 @@
  * the menu to the panel's top. A
  * keyboard's convenience for where the reader stands, such as Resume writing, stands
  * under Navigate only where no keyboard is there to reach it (page-controls.js, the
- * `keys` group). The field the user clicks in is the field they write in: a page
+ * `keys` group). The panel shows no key hints of its own: the menu's rows carry their
+ * keys and `?` opens the full reference, which the user chose on 13 October over a
+ * hint or two in the line over the field, to keep the panel quietest. The field the
+ * user clicks in is the field they write in: a page
  * comment where no thread is open, a reply where one is: the reply box every view of a
  * thread draws (thread/replies.js), with its ↑ to the user's last message, which Leaf's
  * reader draws in the field's place. Each destination keeps its own native editor (its
@@ -108,9 +109,8 @@
  * menu holds what it showed while it stands, and a control the user pressed stays where
  * it was. Every change of the box's size takes effect in
  * one step, and the surface behind it, a separate layer, follows by a clip from where it
- * stood to where it stands, the way the Codex app's floating panel moves
- * (`notes/floating-panel/GOAL.md`): nothing's layout tweens, so nothing a user aims at
- * travels after the gesture that moved it. */
+ * stood to where it stands, the way the Codex app's floating panel moves: nothing's
+ * layout tweens, so nothing a user aims at travels after the gesture that moved it. */
 import {
   html,
   keyed as keyedBy,
@@ -340,11 +340,7 @@ export function createFloatingPanel({
   const peek = el("div", "lf-fp-peek");
   peek.id = "lf-fp-peek";
   peek.setAttribute("role", "tooltip");
-  // The leaf or the field whose pointer or focus asks the leaf's peek to show, and what
-  // the field would have it say: the status, an error's words, or nothing (`paintPeek`).
-  const STATUS = Symbol("status");
-  let peekAsked = null;
-  let fieldSays = null;
+  let peekAsked = false; // pointer or focus on the folded leaf
   let peekReading = null;
   context.append(contextWords);
   inner.append(opened, context, row);
@@ -523,12 +519,16 @@ export function createFloatingPanel({
   let query = "";
   let searching = false;
   let writing = false;
-  // Whether the user is typing, as the row last showed it: Send in the field's corner,
-  // the counts stepped aside. The row takes that posture, or gives it up, only at the
-  // user's own move: typing, coming into or leaving the field, a view changing. Words
-  // a refused send hands back move nothing, so its action stays in the seat the empty
-  // field gave it, Dictate's, until the user types again; emptied words always end it.
-  let typing = false;
+  // Whether the field holds a draft, as the row last showed it: Send in the field's
+  // corner, the counts stepped aside. The row takes that posture, or gives it up, only
+  // at the user's own move: typing, or a view changing, which stands another editor in
+  // the field. The caret coming into or leaving the field moves nothing, so a draft the
+  // user steps away from keeps every line where it was. The user chose this on 20
+  // October over the counts coming back as the caret left, which rewrapped the draft
+  // each time the user stepped out and again as they came back. Words a refused send
+  // hands back move nothing, so its action stays in the seat the empty field gave it,
+  // Dictate's, until the user types again; emptied words always end it.
+  let drafted = false;
   let postureMoved = true;
   // The thread the reader lands at the end of, once Leaf has drawn more than `after`
   // of its messages: the whole of it on opening, or past the turn the user just sent.
@@ -723,7 +723,7 @@ export function createFloatingPanel({
   // Words arriving in an empty field, or the last of them going, re-seat the row.
   function retype() {
     postureMoved = true;
-    if (Boolean(draftOf(fieldInput()).trim()) !== typing) paint();
+    if (Boolean(draftOf(fieldInput()).trim()) !== drafted) paint();
   }
   field.addEventListener("input", retype);
   // A press on the page's editor while words stand selected on the page comments on
@@ -1296,9 +1296,15 @@ export function createFloatingPanel({
     if (press?.landed) queueMicrotask(() => judgePress(press));
   });
   const inRewrite = (node) => Boolean(node && closestAcross(node, ".lf-msg-editor"));
+  // A modal over the panel, such as the image viewer opened from a rewrite's attachment,
+  // is a layer the user steps into from the panel, which hands them back as it closes:
+  // standing in it leaves them rewriting, so the view keeps the height it holds for the
+  // rewrite behind the modal and on the way back.
+  const overPanel = (node) =>
+    Boolean(node) && nativeModalAdmits(node) && !nativeModalAdmits(host);
   onStanding((node, cause) => {
     const top = trail.value.at(-1);
-    if (top?.view !== "thread" || cause === "drop") return;
+    if (top?.view !== "thread" || cause === "drop" || overPanel(node)) return;
     const view = openView();
     const writing = inRewrite(node) && Boolean(view) && renderedUnder(node, view);
     if (writing === rewriting) return;
@@ -3199,14 +3205,14 @@ export function createFloatingPanel({
     const input = fieldInput();
     if (input) syncInput(input);
     keeps(host, "data-writing", writing ? "" : null);
-    // While the user types, Send stands in the field's corner and the counts step
-    // aside for the field.
-    const typed = writing && Boolean(draftOf(input).trim());
-    if (postureMoved || !typed) typing = typed;
+    // While the field holds a draft, Send stands in its corner and the counts step
+    // aside for it (`drafted`).
+    const words = Boolean(draftOf(input).trim());
+    if (postureMoved || !words) drafted = words;
     postureMoved = false;
-    keeps(host, "data-typing", typing ? "" : null);
-    keeps(host, "data-words", draftOf(input).trim() ? "" : null);
-    if (!draftOf(input).trim()) expanded = false;
+    keeps(host, "data-drafted", drafted ? "" : null);
+    keeps(host, "data-words", words ? "" : null);
+    if (!words) expanded = false;
     // The mark stays while the field is wide, where the draft may fit three lines again.
     const marked = (long || expanded) && !resting;
     keeps(host, "data-long", marked ? "" : null);
@@ -3218,23 +3224,13 @@ export function createFloatingPanel({
     // Whose reading the empty field says, which its face follows (`saying`): a status
     // dims, and carries the sheen while the agent works, unless it asks the user to act,
     // such as to nudge the agent in its terminal, which it says in its tone's ink
-    // (`pageStatus`, `asks`). The field's room cuts a long status, or an error, short,
-    // so pointing at the field says it in full in the leaf's peek (`paintPeek`), while
-    // the field shows it: not while the user writes there or words hide it.
+    // (`pageStatus`, `asks`). The menu holds the full status and the Errors list.
     const reading = fieldReading(replying ? top.thread : null, input);
     // The field quoting selected words stands in an open comment box's place
     // (floating-panel.css, `data-offers`).
     keeps(host, "data-offers", reading.says === "selection" ? "" : null);
     keeps(host, "data-tone", status().tone || null);
     keeps(host, "data-asks", status().asks ? "" : null);
-    fieldSays =
-      writing || draftOf(input) !== ""
-        ? null
-        : reading.says === "status"
-          ? STATUS
-          : reading.says === "error"
-            ? reading.words
-            : null;
     // The line over the field says what the field cannot while words hide its
     // placeholder with the caret elsewhere and no view is open: the selected words a
     // press there comments on, else the passing notice. While the caret is in the
@@ -3417,21 +3413,9 @@ export function createFloatingPanel({
       if (first) focusDestination(first, "move");
     }
   });
-  // The leaf's peek says the status in full while the pointer or focus on the leaf asks
-  // for it, folded or in the row, and in the row what the field says cut short while
-  // the pointer is on the field: the status, or an error. It shows at once, where the
-  // browser's own tooltip on the field came late. The leaf's menu says the status
-  // itself, so the peek stands down while the menu stands. Folded, it says a passing
-  // notice by itself, since a folded panel has no field to say it in. An error the
-  // folded panel holds waits under the leaf's dot.
-  const peekAsks = () =>
-    menuOpen.value
-      ? null
-      : peekAsked === leaf
-        ? STATUS
-        : peekAsked === field && host.dataset.rest !== "mark"
-          ? fieldSays
-          : null;
+  // Only the folded leaf needs a status peek; the row and menu already show status.
+  // Folded, it also carries passing notices because there is no field to show them.
+  const peekAsks = () => host.dataset.rest === "mark" && peekAsked;
   function paintPeek() {
     const folded = host.dataset.rest === "mark";
     const notice = passing();
@@ -3441,35 +3425,22 @@ export function createFloatingPanel({
       { text: reading.explanation || reading.summary },
     ];
     const asked = peekAsks();
-    const said = asked === STATUS ? parts : asked ? [{ text: asked }] : null;
-    // The status it opened with stands through one exposure, so aging words move
-    // nothing being read; a different thing to say, such as the field's error once the
-    // pointer leaves the focused leaf for it, or a newer error, is said at once.
-    if (!asked || !readingIsContinuous() || peekReading?.asked !== asked)
-      peekReading = null;
-    if (asked && !telling && pagePresented()) peekReading ??= { asked, parts: said };
-    render(
-      telling ? notice.message : statusParts(peekReading?.parts ?? said ?? parts),
-      peek,
-    );
+    // Keep words still through one exposure, even as the live status ages.
+    if (!asked || !readingIsContinuous()) peekReading = null;
+    if (asked && !telling && pagePresented()) peekReading ??= parts;
+    render(telling ? notice.message : statusParts(peekReading ?? parts), peek);
     keeps(peek, "data-shown", telling || asked ? "" : null);
   }
-  // A pointer that asks nothing new, such as one passing over a field holding words,
-  // paints nothing: a repaint would register the status's words for exposure again
-  // (`statusParts`).
-  const showPeek = (asker) => {
+  // Hovering the expanded row must not register a new exposure of status words.
+  const showPeek = (on) => {
     const before = peekAsks();
-    peekAsked = asker;
+    peekAsked = on;
     if (peekAsks() !== before) paintPeek();
   };
-  for (const asker of [leaf, field]) {
-    asker.addEventListener("pointerenter", () => showPeek(asker));
-    asker.addEventListener("pointerleave", () => showPeek(null));
-  }
-  leaf.addEventListener("focus", () =>
-    showPeek(leaf.matches(":focus-visible") ? leaf : null),
-  );
-  leaf.addEventListener("blur", () => showPeek(null));
+  leaf.addEventListener("pointerenter", () => showPeek(true));
+  leaf.addEventListener("pointerleave", () => showPeek(false));
+  leaf.addEventListener("focus", () => showPeek(leaf.matches(":focus-visible")));
+  leaf.addEventListener("blur", () => showPeek(false));
   // What stands open, the menu first and then a view, is a step of the page's Escape,
   // taken wherever focus has fallen once the field has been left
   // (`panel.floating.leave`); with nothing open, the page's own foot of the ladder takes
@@ -3703,11 +3674,10 @@ export function createFloatingPanel({
     const next = inside ? writing || node.localName === "leaf-text" : false;
     if (next === writing && !inside) return;
     writing = next;
-    postureMoved = true;
     paint();
   });
   // A press on the page puts away what stands open above the row. A press in a modal
-  // over the panel, such as the image viewer opened from a draft, is not on the page.
+  // over the panel is not on the page (`overPanel`).
   document.addEventListener(
     "pointerdown",
     (event) => {

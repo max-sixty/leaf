@@ -10536,15 +10536,23 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 while you read it. Code adds line numbers and Notes, and quotes an
                 excerpt under its file's own numbers with an elided row where it skips;
                 A native preformatted block shows file structure. Use “Copy code” on the
-                right of either code block below, or <kbd>Tab</kbd> to it and press
+                right of a code block below, or <kbd>Tab</kbd> to it and press
                 <kbd>Enter</kbd>. The clipboard keeps the code's whitespace and leaves
                 out line numbers and Notes. Bash separates commands, arguments, and
-                flags with the same syntax colors as a diff.
+                flags with the same syntax colors as a diff. Native blocks accept the
+                grammar's short language labels, such as <code>sh</code> and
+                <code>js</code>; both examples should show syntax colors.
               </p>
               <pre
                 id="bg-plain-code"
-              ><code class="language-bash">leaf page check ./proposal --render
+              ><code class="language-sh">leaf page check ./proposal --render
 leaf page stamp ./proposal --text "Ready for review"</code></pre>
+              <pre
+                id="bg-javascript-code"
+              ><code class="language-js">const source = referencedElement(card, "for");
+const api = widgetController(source);
+// Read the source widget's current selection.
+const ids = api.read().state.choose.value;</code></pre>
               <lf-code id="bg-code" language="python" lines="40-43,58-59" hi="41-42">
                 <pre>
 def route(weather):

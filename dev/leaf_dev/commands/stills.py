@@ -80,6 +80,14 @@ def captured_source(page: Page) -> None:
     page.locator("#bg-source-captures").scroll_into_view_if_needed()
 
 
+def native_code(page: Page) -> None:
+    """Native fenced code using short language labels."""
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Page & layout", exact=True
+    ).click()
+    page.locator("#bg-javascript-code").scroll_into_view_if_needed()
+
+
 def recorded_video(page: Page) -> None:
     """The gallery's recording at rest under its play bar, beside the audio player."""
     page.locator("#bg-gallery-tabs").get_by_role(
@@ -235,6 +243,11 @@ def panel_leaf(page: Page) -> None:
     paint."""
     page.keyboard.press("Tab")
     page.locator(".lf-fp-leaf").focus()
+
+
+def panel_status_hover(page: Page) -> None:
+    """The expanded panel while the pointer rests over its leaf."""
+    page.locator(".lf-fp-leaf").hover()
 
 
 def open_threads(page: Page) -> None:
@@ -1056,6 +1069,19 @@ class State:
 
 STATES = (
     State(
+        "native-code",
+        "developer/feature-gallery",
+        native_code,
+        region="#bg-javascript-code",
+    ),
+    State(
+        "native-code-dark",
+        "developer/feature-gallery",
+        native_code,
+        scheme="dark",
+        region="#bg-javascript-code",
+    ),
+    State(
         "markdown-preview-scrolled",
         "developer/feature-gallery",
         markdown_preview_scrolled,
@@ -1108,6 +1134,7 @@ STATES = (
         touch=True,
         region=".lf-fp-leaf",
     ),
+    State("panel-status-hover", "review-a-plan", panel_status_hover),
     State("floating-thread", "ship-review", floating_thread, region=".lf-fp-head"),
     State(
         "floating-thread-retitled",

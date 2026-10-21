@@ -5655,11 +5655,11 @@ function statusWords({
     `${saved} It picks them up next turn.`
   ];
 }
-function pageStatus(state, { reach: reach2 = "reached" } = {}) {
+function pageStatus(state, { reach: reach2 = "reached", fault: fault2 = null } = {}) {
   if (reach2 === "broken")
     return {
       kind: "broken",
-      tone: "offline",
+      tone: "blocked",
       summary: BROKEN_LINE,
       explanation: BROKEN_LINE,
       adds: "",
@@ -5668,17 +5668,27 @@ function pageStatus(state, { reach: reach2 = "reached" } = {}) {
   if (reach2 === "refused")
     return {
       kind: "refused",
-      tone: "offline",
+      tone: "blocked",
       summary: "Key refused \u2014 open Leaf's link in a new tab",
       explanation: KEY_REFUSED_LINE,
       adds: "Keep this tab open so pending changes can send.",
       asks: true
     };
+  if (reach2 === "faulted") {
+    const said = fault2.replace(/\.$/, "");
+    return {
+      kind: "faulted",
+      tone: "blocked",
+      summary: "Server error \u2014 retrying",
+      explanation: `The server answered with an error: ${said}. Retrying.`,
+      adds: `It answered: ${said}. Retrying.`
+    };
+  }
   if (reach2 !== "reached")
     return {
       kind: "unreachable",
-      tone: "offline",
-      summary: "Server offline \u2014 reconnecting; keep page open",
+      tone: "blocked",
+      summary: "Server offline \u2014 reconnecting",
       explanation: OFFLINE_LINE,
       adds: ""
     };
@@ -5763,7 +5773,13 @@ function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {
   const named = (items2, whom) => items2.length ? `Waiting on ${whom}: ${queueKinds(items2).join(", ")}.` : "";
   return [named(onUser, "me"), named(onAgent, agent)].filter(Boolean).join(" ");
 }
-var WITHOUT_QUEUES = /* @__PURE__ */ new Set(["broken", "refused", "unreachable", "publication"]);
+var WITHOUT_QUEUES = /* @__PURE__ */ new Set([
+  "broken",
+  "refused",
+  "faulted",
+  "unreachable",
+  "publication"
+]);
 function statusModel(status, queues, agent) {
   const { kind, tone: tone2, summary, asks = false, publication = null } = status;
   let { explanation, adds } = status;
@@ -5825,11 +5841,12 @@ var LOADING = Object.freeze({
   adds: LOADING_LINE
 });
 var reach = readPart((root) => root.reach);
+var fault = readPart((root) => root.fault);
 var upgraded = false;
 function currentStatus() {
   const answer = reach();
   if (answer === "waiting" && !upgraded) return null;
-  const status = answer === "waiting" ? LOADING : pageStatus(runtime.state, { reach: answer });
+  const status = answer === "waiting" ? LOADING : pageStatus(runtime.state, { reach: answer, fault: fault() });
   return { status, model: statusModel(status, readQueues(), agentName()) };
 }
 var statusReading = () => currentStatus()?.model ?? null;
@@ -5879,11 +5896,11 @@ function paintTab() {
 }
 var saidKind;
 var saidActionableWork;
-var holdUnreached = holdingError({ announce: false });
+var holdBlocked = holdingError({ announce: false });
 function paintStatus() {
   const current = currentStatus();
-  holdUnreached(
-    ["unreachable", "refused", "broken"].includes(current?.status.kind) ? current.status.summary : null
+  holdBlocked(
+    ["refused", "broken"].includes(current?.status.kind) ? current.status.summary : null
   );
   if (!current) return;
   const { status, model } = current;
@@ -6364,9 +6381,7 @@ function createFloatingPanel({
   const peek = el("div", "lf-fp-peek");
   peek.id = "lf-fp-peek";
   peek.setAttribute("role", "tooltip");
-  const STATUS = /* @__PURE__ */ Symbol("status");
-  let peekAsked = null;
-  let fieldSays = null;
+  let peekAsked = false;
   let peekReading = null;
   context2.append(contextWords);
   inner.append(opened, context2, row);
@@ -6474,7 +6489,7 @@ function createFloatingPanel({
   let query = "";
   let searching = false;
   let writing = false;
-  let typing = false;
+  let drafted = false;
   let postureMoved = true;
   let landAtEnd = null;
   const drawnTurns = () => outletOf()?.querySelectorAll(".lf-msg").length ?? 0;
@@ -6599,7 +6614,7 @@ function createFloatingPanel({
   const fieldInput = () => field.firstElementChild !== replyOutlet ? pageEditor().input : replyOutlet.hidden ? null : replyInput();
   function retype() {
     postureMoved = true;
-    if (Boolean(draftOf(fieldInput()).trim()) !== typing) paint();
+    if (Boolean(draftOf(fieldInput()).trim()) !== drafted) paint();
   }
   field.addEventListener("input", retype);
   let pressedWords = null;
@@ -6973,9 +6988,10 @@ function createFloatingPanel({
     if (press?.landed) queueMicrotask(() => judgePress(press));
   });
   const inRewrite = (node) => Boolean(node && closestAcross(node, ".lf-msg-editor"));
+  const overPanel = (node) => Boolean(node) && nativeModalAdmits(node) && !nativeModalAdmits(host);
   onStanding((node, cause) => {
     const top = trail.value.at(-1);
-    if (top?.view !== "thread" || cause === "drop") return;
+    if (top?.view !== "thread" || cause === "drop" || overPanel(node)) return;
     const view = openView();
     const writing2 = inRewrite(node) && Boolean(view) && renderedUnder(node, view);
     if (writing2 === rewriting) return;
@@ -8301,12 +8317,12 @@ function createFloatingPanel({
     const input = fieldInput();
     if (input) syncInput(input);
     keeps(host, "data-writing", writing ? "" : null);
-    const typed = writing && Boolean(draftOf(input).trim());
-    if (postureMoved || !typed) typing = typed;
+    const words = Boolean(draftOf(input).trim());
+    if (postureMoved || !words) drafted = words;
     postureMoved = false;
-    keeps(host, "data-typing", typing ? "" : null);
-    keeps(host, "data-words", draftOf(input).trim() ? "" : null);
-    if (!draftOf(input).trim()) expanded = false;
+    keeps(host, "data-drafted", drafted ? "" : null);
+    keeps(host, "data-words", words ? "" : null);
+    if (!words) expanded = false;
     const marked = (long || expanded) && !resting;
     keeps(host, "data-long", marked ? "" : null);
     keeps(host, "data-expanded", expanded ? "" : null);
@@ -8318,7 +8334,6 @@ function createFloatingPanel({
     keeps(host, "data-offers", reading.says === "selection" ? "" : null);
     keeps(host, "data-tone", status().tone || null);
     keeps(host, "data-asks", status().asks ? "" : null);
-    fieldSays = writing || draftOf(input) !== "" ? null : reading.says === "status" ? STATUS : reading.says === "error" ? reading.words : null;
     const notice2 = passing();
     const hidden = !top && reading.says !== "destination" && reading.says !== "error" && draftOf(input) !== "";
     keepsText(
@@ -8453,7 +8468,7 @@ function createFloatingPanel({
       if (first) focusDestination(first, "move");
     }
   });
-  const peekAsks = () => menuOpen.value ? null : peekAsked === leaf ? STATUS : peekAsked === field && host.dataset.rest !== "mark" ? fieldSays : null;
+  const peekAsks = () => host.dataset.rest === "mark" && peekAsked;
   function paintPeek() {
     const folded = host.dataset.rest === "mark";
     const notice2 = passing();
@@ -8463,30 +8478,20 @@ function createFloatingPanel({
       { text: reading.explanation || reading.summary }
     ];
     const asked2 = peekAsks();
-    const said = asked2 === STATUS ? parts : asked2 ? [{ text: asked2 }] : null;
-    if (!asked2 || !readingIsContinuous() || peekReading?.asked !== asked2)
-      peekReading = null;
-    if (asked2 && !telling && pagePresented()) peekReading ??= { asked: asked2, parts: said };
-    render(
-      telling ? notice2.message : statusParts(peekReading?.parts ?? said ?? parts),
-      peek
-    );
+    if (!asked2 || !readingIsContinuous()) peekReading = null;
+    if (asked2 && !telling && pagePresented()) peekReading ??= parts;
+    render(telling ? notice2.message : statusParts(peekReading ?? parts), peek);
     keeps(peek, "data-shown", telling || asked2 ? "" : null);
   }
-  const showPeek = (asker) => {
+  const showPeek = (on) => {
     const before = peekAsks();
-    peekAsked = asker;
+    peekAsked = on;
     if (peekAsks() !== before) paintPeek();
   };
-  for (const asker of [leaf, field]) {
-    asker.addEventListener("pointerenter", () => showPeek(asker));
-    asker.addEventListener("pointerleave", () => showPeek(null));
-  }
-  leaf.addEventListener(
-    "focus",
-    () => showPeek(leaf.matches(":focus-visible") ? leaf : null)
-  );
-  leaf.addEventListener("blur", () => showPeek(null));
+  leaf.addEventListener("pointerenter", () => showPeek(true));
+  leaf.addEventListener("pointerleave", () => showPeek(false));
+  leaf.addEventListener("focus", () => showPeek(leaf.matches(":focus-visible")));
+  leaf.addEventListener("blur", () => showPeek(false));
   pageRung("floating panel", () => {
     if (focused()?.matches?.(".lf-fp-search"))
       return query ? {
@@ -8665,7 +8670,6 @@ function createFloatingPanel({
     const next = inside ? writing || node.localName === "leaf-text" : false;
     if (next === writing && !inside) return;
     writing = next;
-    postureMoved = true;
     paint();
   });
   document.addEventListener(

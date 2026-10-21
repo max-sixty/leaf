@@ -3,9 +3,16 @@
 before reply:
   exit: 0
   status:
+    kind: status
+    author: agent
+    agent: Claude
+    session: s1
     state: waiting
     detail: >-
       pick one
+    id: event-2
+    attention: false
+    seq: 2
   note:
     - code: waiting-owes
       severity: advice
@@ -19,7 +26,14 @@ before reply:
 after reply:
   exit: 0
   status:
+    kind: status
+    author: agent
+    agent: Claude
+    session: s1
     state: waiting
     detail: >-
       pick one
+    id: event-4
+    attention: false
+    seq: 4
   note: []

@@ -30,7 +30,14 @@ from .service import (
     claim_records,
     page_claim,
 )
-from .state import Record, flocked, session_file, session_lock_path, session_record
+from .state import (
+    RECONNECT_SUFFIX,
+    Record,
+    flocked,
+    session_file,
+    session_lock_path,
+    session_record,
+)
 
 # The pages a session has been told to reconnect, one notice each per outage.
 NOTICES = Record(
@@ -44,17 +51,18 @@ NOTICES = Record(
 )
 
 
-def _notice_path(harness: str, session_id: str) -> Path:
-    return session_file(session_id, f"{harness}.reconnect")
+def _notice_path(session_id: str) -> Path:
+    # The session's key names one harness's session, as its lifecycle's does.
+    return session_file(session_id, RECONNECT_SUFFIX)
 
 
-def _reported(harness: str, session_id: str) -> set[str]:
-    record = NOTICES.read(_notice_path(harness, session_id))
+def _reported(session_id: str) -> set[str]:
+    record = NOTICES.read(_notice_path(session_id))
     return set(record["pages"]) if record else set()
 
 
-def _report(harness: str, session_id: str, reported: set[str]) -> None:
-    NOTICES.write(_notice_path(harness, session_id), {"pages": sorted(reported)})
+def _report(session_id: str, reported: set[str]) -> None:
+    NOTICES.write(_notice_path(session_id), {"pages": sorted(reported)})
 
 
 def _healthy(page_dir: Path, claim: dict) -> bool:
@@ -63,12 +71,12 @@ def _healthy(page_dir: Path, claim: dict) -> bool:
     return claim_is_active(claim) and running_server(page_dir) is not None
 
 
-def _forget(page_dir: Path, harness: str, session_id: str) -> None:
+def _forget(page_dir: Path, session_id: str) -> None:
     """Close a reported outage while holding its session lock."""
-    reported = _reported(harness, session_id)
+    reported = _reported(session_id)
     if str(page_dir) in reported:
         reported.remove(str(page_dir))
-        _report(harness, session_id, reported)
+        _report(session_id, reported)
 
 
 def recovered(page_dir: Path, claim: dict) -> None:
@@ -77,11 +85,10 @@ def recovered(page_dir: Path, claim: dict) -> None:
     The publisher calls this after releasing its claim-publication session lock.
     A healthy start rearms even if the server fails before the next harness hook.
     """
-    harness, sid = claim["harness"], claim["id"]
-    with flocked(session_lock_path(sid)):
+    with flocked(session_lock_path(claim["id"])):
         if not _healthy(page_dir, claim):
             return
-        _forget(page_dir, harness, sid)
+        _forget(page_dir, claim["id"])
 
 
 @contextmanager
@@ -145,13 +152,13 @@ def publishing_notices(
                 continue
             key = str(page_dir)
             if _healthy(page_dir, claim):
-                _forget(page_dir, harness, session_id)
+                _forget(page_dir, session_id)
             else:
-                reported = _reported(harness, session_id)
+                reported = _reported(session_id)
                 if key in reported:
                     continue
                 reported.add(key)
-                _report(harness, session_id, reported)
+                _report(session_id, reported)
                 command = shlex.join(["leaf", "server", "start", key])
                 messages.append(
                     f"Your Leaf page needs reconnecting: {page_dir}. "

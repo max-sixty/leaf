@@ -87,7 +87,6 @@ import threading
 import time
 from collections import Counter
 from collections.abc import Callable
-from datetime import datetime
 from pathlib import Path
 
 from .codex import (
@@ -99,7 +98,7 @@ from .codex import (
 from .event_log import EventRefused
 from .events import build_threads, spoken_turns
 from .harness import IDENTITY_VARIABLES, claim_harness
-from .leases import titles_log
+from .interaction_log import append_interactions
 from .revision_artifact import active_enclosing
 from .service import PageTransaction, claim_is_active, page_claim
 from .thread import name_untitled
@@ -693,21 +692,11 @@ def name_admitted_thread(
     generate: Generate, page_dir: Path, message: str, session_id: str
 ) -> None:
     """Start naming the thread a user's comment or reply `message` was just admitted
-    to, if it is untitled, and return at once. What happens is recorded in the claimant session's `titles_log`, since a page
-    server's own output goes nowhere."""
-    log = titles_log(session_id)
+    to, if it is untitled, and return at once. What happens is a server row in the
+    page's diagnostics (`interaction_log`), since a page server's own output goes
+    nowhere."""
 
     def record(event: str, **fields) -> None:
-        line = {"event": event, "ts": datetime.now().astimezone().isoformat()}
-        # Only while the session holds the page, under the lock SessionEnd releases
-        # the claim under before it removes the log, so a request that outlives
-        # its session leaves no log behind.
-        with PageTransaction(page_dir) as page:
-            if page.claim_of(session_id) is None:
-                return
-            with log.open("a") as output:
-                output.write(
-                    json.dumps({**line, "page": str(page_dir), **fields}) + "\n"
-                )
+        append_interactions(page_dir, [{"source": "server", "type": event, **fields}])
 
     name_thread(generate, page_dir, message, session_id, record)

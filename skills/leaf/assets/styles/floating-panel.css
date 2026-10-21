@@ -4,8 +4,9 @@
 
    The panel stands on the page's own ground, set off by a hairline and the faintest
    shadow, with 12px corners: part of the page rather than a widget laid on it. Its
-   controls are set in the sans at 13px, with 12px for what qualifies them, and the
-   page's words (questions, messages) in the page's serif; two inks, full and 72%, and
+   controls are set in the sans at 13px, with 12px for what qualifies them, and what
+   anyone wrote (questions, messages, a plan) in a thread's face, `--msg-font`; none of
+   it takes the page's prose face. Two inks, full and 72%, and
    the accent for what is on the user, with the empty field's status a step dimmer
    at 62%. The dim inks are as dim as WCAG AA's 4.5:1 for text lets them be on the
    panel's ground in the light scheme, whose paper is the brighter: 62% reads 4.7:1
@@ -37,11 +38,6 @@
        quote's and each message's, so all three start on one edge. What marks them
        off, the quote's rule and a rewrite's frame, stands at the padding. */
     --lf-fp-inset: 8px;
-    /* The page's words in the panel, an On me question's and a thread's messages,
-       rewrites included: the page's serif, a step above the panel's own sans, on a
-       whole-pixel line, so a fold opening over several lines moves nothing by a
-       fraction. */
-    --lf-fp-words: 15px / 22px var(--serif);
     /* The panel is as wide as its measure (`--lf-fp-max`, wider while the field has
        more room) where the window holds it, and the window less a gutter where not. */
     --lf-fp-max: 540px;
@@ -465,8 +461,16 @@
   .lf-floating-panel[data-asks][data-tone="away"] {
     --lf-fp-asks: var(--warn-ink);
   }
-  .lf-floating-panel[data-asks][data-tone="offline"] {
+  .lf-floating-panel[data-asks][data-tone="blocked"] {
     --lf-fp-asks: var(--danger-ink);
+  }
+  /* A report in the blocked tone, a server the page can't reach or one answering with
+     its own error, reads in the danger's ink at the quiet face's strength: red, so the
+     words agree with the leaf, and dim, since the page retries on its own. */
+  .lf-floating-panel[data-tone="blocked"]:not([data-asks])
+    .lf-fp-field
+    leaf-text[data-says="status"]::part(placeholder) {
+    color: color-mix(in srgb, var(--danger-ink) 62%, transparent);
   }
   .lf-fp-field .lf-compose-placeholder kbd {
     display: none;
@@ -487,19 +491,26 @@
     min-height: 0;
     padding: 0;
   }
-  .lf-floating-panel[data-writing] .lf-fp-field .lf-compose-field > leaf-text {
+  .lf-floating-panel:is([data-writing], [data-drafted])
+    .lf-fp-field
+    .lf-compose-field
+    > leaf-text {
     --lf-field-end-room: calc(var(--lf-fp-line) - 6px);
   }
   /* Send shows while the user writes words, in every composer's face: the accent arrow,
-     not a press of its own, in Dictate's seat. Once they type, the counts step aside, so
-     the field takes their room (floating-panel.js, `typing`). */
+     not a press of its own, in Dictate's seat. While the field holds a draft, the
+     counts step aside, so the field takes their room, and Send stays in its corner
+     with the caret elsewhere, so no line of the draft moves (floating-panel.js,
+     `drafted`). */
   .lf-fp-field .lf-compose-submit {
     display: none;
   }
-  .lf-floating-panel[data-writing] .lf-fp-field .lf-compose-submit {
+  .lf-floating-panel:is([data-writing], [data-drafted])
+    .lf-fp-field
+    .lf-compose-submit {
     display: grid;
   }
-  .lf-floating-panel[data-typing] .lf-fp-quick {
+  .lf-floating-panel[data-drafted] .lf-fp-quick {
     display: none;
   }
   .lf-fp-field .lf-compose-dictate {
@@ -1338,9 +1349,9 @@
     color: var(--ink);
   }
 
-  /* An item reads as the thread it belongs to, its words in the page's serif, and the
-     answers it takes, answered here. The serif heading each item and the space between
-     them set items apart, so no rule runs between them. */
+  /* An item reads as the thread it belongs to, its words in a thread's face, and the
+     answers it takes, answered here. The heading each item and the space between them
+     set items apart, so no rule runs between them. */
   .lf-fp-on-item {
     padding: 10px 8px 12px;
   }
@@ -1365,7 +1376,7 @@
   }
   .lf-fp-prompt {
     margin: 0;
-    font: var(--lf-fp-words);
+    font: var(--msg-font);
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 4;
@@ -1413,10 +1424,6 @@
     --lf-thread-text-inset: var(--lf-fp-inset);
     padding-inline-start: 0;
   }
-  /* The working line is drawn as a message is, so it takes the messages' face. */
-  .lf-fp-messages :is(.lf-msg-body, .lf-thread-working-words) {
-    font: var(--lf-fp-words);
-  }
   /* A rewrite in a thread's view is the reply box of the field below it, at the field's
      height, frame included: its words keep the message's face, set in the field's
      line, and its place, the box reaching back over their inset as in a card's
@@ -1443,7 +1450,8 @@
     align-items: baseline;
     gap: 8px;
     margin: 0 0 6px;
-    font: 600 15px / 1.4 var(--serif);
+    font: var(--msg-font);
+    font-weight: 600;
   }
   .lf-fp-plan-count {
     margin-left: auto;
@@ -1634,14 +1642,11 @@
   .lf-fp-state[data-tone="away"] .lf-fp-summary {
     color: var(--warn-ink);
   }
-  .lf-fp-state[data-tone="offline"] .lf-fp-summary {
+  .lf-fp-state[data-tone="blocked"] .lf-fp-summary {
     color: var(--danger-ink);
   }
 
-  /* The status in full, on hover or focus of the leaf, or what the field says on hover
-     of it (floating-panel.js, `paintPeek`); and, folded, a passing notice. In the row it
-     stands over the row from the leaf's left edge, where it reads along the panel
-     rather than out past its side. */
+  /* The folded leaf's status on hover or focus, and passing notices. */
   .lf-fp-leaf {
     anchor-name: --lf-fp-leaf;
   }
@@ -1663,10 +1668,6 @@
     pointer-events: none;
     display: none;
     transition: opacity 120ms;
-  }
-  .lf-floating-panel[data-rest="row"] .lf-fp-peek {
-    right: auto;
-    left: anchor(left);
   }
   /* It fades in where it stands: a peek that rose into place would move its words
      under nobody's input. */

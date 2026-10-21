@@ -305,7 +305,8 @@ def test_a_box_fixed_in_the_window_rides_every_scroll_and_an_anchored_one_does_n
     """A box fixed in the window, as a page of parts' column is, stands over whatever
     the page scrolls to, so it names no place in it, as a stuck sticky box doesn't. A
     fixed box anchored to the page's words, as the inline thread card is, moves with
-    them, so a reply focused in it still marks where the reader is."""
+    them, so a reply focused in it still marks where the reader is, as does a fixed
+    box a transformed box holds."""
     page = open_page(
         browser,
         live_url(
@@ -319,6 +320,9 @@ def test_a_box_fixed_in_the_window_rides_every_scroll_and_an_anchored_one_does_n
                     '<div id="card" style="position: fixed; position-anchor: --words;'
                     ' top: anchor(bottom); left: anchor(left)">'
                     "<button>In the card</button></div>"
+                    '<div style="transform: translateX(0)">'
+                    '<div id="held" style="position: fixed; top: 0">'
+                    "<button>Held</button></div></div>"
                     "<style>#words { anchor-name: --words; }</style>",
                 )
             )
@@ -329,8 +333,8 @@ def test_a_box_fixed_in_the_window_rides_every_scroll_and_an_anchored_one_does_n
     assert page.evaluate("""async () => {
         const {stuckBox} = await window.__lfCheckApi();
         const ask = (id) => stuckBox(document.querySelector(`#${id} button`))?.id ?? null;
-        return [ask("column"), ask("card")];
-    }""") == ["column", None]
+        return [ask("column"), ask("card"), ask("held")];
+    }""") == ["column", None, None]
 
 
 @pytest.mark.parametrize("engine", ["browser", "webkit_browser"])

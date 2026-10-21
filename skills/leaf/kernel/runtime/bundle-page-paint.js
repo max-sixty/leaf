@@ -2270,11 +2270,11 @@ function headerCuts(item, clips = /* @__PURE__ */ new Map()) {
 function stuckBox(node, within = null) {
   for (let el2 = node; el2?.nodeType === 1 && el2 !== within; el2 = renderedParent(el2)) {
     const style = getComputedStyle(el2);
-    if (style.position === "sticky" ? sticks(el2) : inWindow(style)) return el2;
+    if (style.position === "sticky" ? sticks(el2) : inWindow(el2, style)) return el2;
   }
   return null;
 }
-var inWindow = (style) => style.position === "fixed" && !style.positionAnchor.startsWith("--");
+var inWindow = (el2, style) => style.position === "fixed" && el2.offsetParent === null && !style.positionAnchor.startsWith("--");
 function sticks(sticky) {
   let scroller = renderedParent(sticky);
   while (scroller?.nodeType === 1 && !scrollContainer(scroller))

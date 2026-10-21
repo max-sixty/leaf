@@ -73,14 +73,16 @@
    * part takes the rest of the width from the top of the page. Title and list both stand
    * fixed in the window, the list below the title by the title's height, which
    * prepaint.js measures (`--lf-parts-title-h`), since no CSS can stack one such box
-   * under another of unknown height; the grid keeps their column's width. So the column
-   * stands still whichever part is open and wherever it is read, the rubber band at the
-   * page's end included: every engine holds a fixed box still through overscroll, while
-   * Firefox and Chrome move a stuck sticky one with the page (notes/browser-support.md).
-   * The runtime reads a box fixed in the window as riding along with every scroll, as a
-   * stuck one (geometry.js, `stuckBox`). The page is at least the window's height, from first paint
-   * and before the list is drawn, so a short part leaves nothing to scroll and a
-   * full-height workspace takes the whole window. The holder itself draws nothing. The
+   * under another of unknown height; the grid keeps their column's width. A title too
+   * tall to leave the list 8rem, a few names' room, scrolls on its own, so neither stands
+   * out of reach in a short window. So the column stands still whichever part is open
+   * and wherever it is read, the rubber band at the page's end included: every engine
+   * holds a fixed box still through overscroll, while Firefox and Chrome move a stuck
+   * sticky one with the page (notes/browser-support.md). The runtime reads a box fixed
+   * in the window as riding along with every scroll, as a stuck one (geometry.js,
+   * `stuckBox`). The page is at least the window's height, from first paint and before
+   * the list is drawn, so a short part leaves nothing to scroll and a full-height
+   * workspace takes the whole window. The holder itself draws nothing. The
    * part is the shell its Layout's box stands in. On a phone the title, the list and the
    * part stack. Before the module upgrades the holder, the column holds only the title.
    *
@@ -132,6 +134,9 @@
       top: var(--lf-top);
       box-sizing: border-box;
       inline-size: var(--lf-parts-list);
+      max-block-size: calc(100dvh - var(--lf-head-room) - 8rem);
+      overflow-y: auto;
+      --lf-holds-height: 1;
       margin: 0;
       padding: var(--sp-4) 20px 0;
       --lf-parts-title: 1;
@@ -224,6 +229,8 @@
         ) {
         position: static;
         inline-size: auto;
+        max-block-size: none;
+        overflow-y: visible;
       }
       html[data-lf-interactive]
         body

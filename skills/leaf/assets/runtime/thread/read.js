@@ -176,7 +176,6 @@ export function createReadTracking({ markRead, openThread }) {
     id: "thread.unread.first",
     ready: savedReadingSettled,
     keys: ["u"],
-    description: "Go to the first unread message",
     title: "first unread",
     touch: false,
     when: () => actionableUnread().length > 0,

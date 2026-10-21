@@ -368,14 +368,11 @@ export function createQueueWalk({
         id: "queue.next",
         binding: "m",
         title: "Next on me",
-        description: "Go to the next of everything waiting on me, anywhere on the page",
       },
       {
         id: "queue.previous",
         binding: "Shift+m",
         title: "Previous on me",
-        description:
-          "Go to the previous of everything waiting on me, anywhere on the page",
       },
     ],
     title: "On me",
@@ -399,7 +396,6 @@ export function createQueueWalk({
         id: "queue.todo.done",
         keys: ["x"],
         title: "done",
-        description: "Mark this to-do done",
         touch: false,
         when: () => Boolean(doneTodo()),
         run: () => {

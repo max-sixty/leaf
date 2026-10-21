@@ -1034,7 +1034,6 @@ customElements.define(
             id: "diff.next-file",
             keys: ["}"],
             title: "next file",
-            description: "Go to the next file's header",
             when: () => this.navigationEntries().length > 1,
             run: () => this.present(this.stepFile(false)),
           },
@@ -1042,7 +1041,6 @@ customElements.define(
             id: "diff.previous-file",
             keys: ["{"],
             title: "previous file",
-            description: "Go to the previous file's header",
             when: () => this.navigationEntries().length > 1,
             run: () => this.present(this.stepFile(true)),
           },
@@ -1051,7 +1049,6 @@ customElements.define(
             keys: ["/"],
             title: "filter files",
             when: () => !this.singleFile,
-            description: "Filter the files in this diff",
             run: () => {
               const search = this.diffTools?.search;
               if (search) {
@@ -1071,11 +1068,8 @@ customElements.define(
               if (!search) return false;
               return standingIn(this) && Boolean(search.value || standingIn(search));
             },
-            title: () => (this.diffTools?.search.value ? "show all files" : "back"),
-            description: () =>
-              this.diffTools?.search.value
-                ? "Show every file again"
-                : "Leave the diff filter",
+            title: () =>
+              this.diffTools?.search.value ? "show all files" : "leave filter",
             run: () => {
               const search = this.diffTools?.search;
               if (search?.value) {

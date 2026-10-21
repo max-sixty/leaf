@@ -33,8 +33,10 @@ The steps, in order:
   its own;
 - `resume`: a turn interrupted during its shell command is resumed with empty input,
   as the desktop app resumes one, to report the interruption, so its first boundary is
-  its Stop; a comment sent as it starts doesn't enter it, since the Stop hook leaves
-  input to the adapter while one runs, and is answered in a turn of its own;
+  its Stop. On `codex-app-server` a comment sent as it starts doesn't enter it, since
+  the Stop hook leaves input to the adapter's own turn, and is answered in a turn of
+  its own. On `codex-queue` it enters the resumed turn, starting no turn of its own,
+  since a queued turn would open on a message in the user's name;
 - `restart`: with the adapter killed, the user's next turn ends with the agent having
   started it again, and a comment sent afterwards is answered.
 
@@ -105,7 +107,7 @@ from leaf_dev.review_scenario import (
 
 RESTART_TURN = "Reply with the single word OK."
 # A resumed turn only reports its interruption, so the first boundary it reaches is
-# its Stop, which leaves the comment sent while it runs to a turn of its own.
+# its Stop, which decides where the comment sent while it runs goes.
 RESUME_TURN = (
     f"Run `python3 -c 'import time; {SLEEP}'` in the shell, then in a separate tool "
     "call run `printf 'verified\\n'`, then say done. If interrupted and resumed, "
@@ -419,19 +421,25 @@ def steps(
     )
     sent.append("resume")
     details = check_step()
-    require(
-        not any(
-            event["turn"] == resumed
-            for event in pickup_receipts(
-                read_events(page), phase="opened", input_id=during
-            )
-        ),
-        "the Stop hook handed the comment into the empty-input resumed turn",
+    entered = any(
+        event["turn"] == resumed
+        for event in pickup_receipts(read_events(page), phase="opened", input_id=during)
     )
-    require(
-        len(task.started[previous_turns:]) == 2,
-        "the resumed-turn comment was not answered in one turn of its own",
-    )
+    if transport == "queue":
+        require(entered, "the comment did not enter the empty-input resumed turn")
+        require(
+            task.started[previous_turns:] == [resumed],
+            "the resumed-turn comment started another turn",
+        )
+    else:
+        require(
+            not entered,
+            "the Stop hook handed the comment into the empty-input resumed turn",
+        )
+        require(
+            len(task.started[previous_turns:]) == 2,
+            "the resumed-turn comment was not answered in one turn of its own",
+        )
     step("resume", started, details)
 
     started = time.monotonic()

@@ -27,6 +27,7 @@ from interact_support import (
     acknowledge_through,
     acknowledged_through,
     activity_reading,
+    adapter_lease,
     append_carried_log_record,
     append_command,
     available_loopback_port,
@@ -182,7 +183,7 @@ def test_selecting_a_checkout_replaces_the_sessions_delivery_runtime(
         assert all(status == 0 for status, _out, _err in outcomes), outcomes
         assert json.loads(outcomes[0][1])["started"]
         assert json.loads(outcomes[2][1])["started"]
-        assert codex_adapter_model._running_adapter("codex-thread")["launcher"] == str(
+        assert codex_adapter_model.running_adapter("codex-thread")["launcher"] == str(
             PLUGIN_ROOT / "bin/leaf"
         )
         append_carried_log_record(
@@ -1519,20 +1520,23 @@ def test_codex_tool_hook_delivers_into_the_running_turn_once(
     assert not queued
 
 
-def test_a_codex_stop_leaves_late_input_to_the_adapters_own_turn(
-    page_dir, codex_loop, capsys, monkeypatch
+@pytest.mark.parametrize("app_server", ["unix:///app-server.sock", None])
+def test_a_codex_stop_leaves_late_input_to_an_app_server_adapters_own_turn(
+    page_dir, codex_loop, capsys, monkeypatch, app_server
 ):
-    """While the adapter runs, a comment that arrives as the turn ends is not handed
-    into it: continuing the turn would have the agent write one more message after
-    the answer the turn had written. The turn ends, and the adapter offers the
-    comment in a turn of its own. A task that waits with `leaf wait` has nothing to
-    open that turn, so its Stop still hands the comment over
+    """While an adapter that starts turns over App Server runs, a comment that
+    arrives as the turn ends is not handed into it: continuing the turn would have
+    the agent write one more message after the answer the turn had written. The turn
+    ends, and the adapter starts the comment's own turn, which adds no message to
+    the user's conversation. A queue adapter's turn would open on a pointer Codex
+    shows as the user's own message, so there Stop hands the comment into the
+    ending turn and the adapter queues nothing. A task that waits with `leaf wait`
+    has nothing to open a later turn, so its Stop hands the comment over too
     (`test_codex_tool_hook_delivers_into_the_running_turn_once`)."""
     codex_loop(page_dir)
     cleanup_model.prompt_turn("codex-thread", "user-turn")
     waiter = _watched(page_dir)
-    adapter = leases_model.take_lease(leases_model.adapter_lease_path("codex-thread"))
-    assert adapter
+    adapter = adapter_lease("codex-thread", app_server)
     leases_model.mark_step_hook("codex-thread")
     queued = []
     monkeypatch.setattr(
@@ -1557,18 +1561,36 @@ def test_a_codex_stop_leaves_late_input_to_the_adapters_own_turn(
                 "turn_id": "user-turn",
             },
         )
-        assert capsys.readouterr().out == ""
-        assert cleanup_model.session_record("codex-thread")["turn_closed"]
-        assert acknowledged_through(page_dir) < comment["seq"]
-
-        assert codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+        if app_server is not None:
+            assert capsys.readouterr().out == ""
+            assert cleanup_model.session_record("codex-thread")["turn_closed"]
+            assert acknowledged_through(page_dir) < comment["seq"]
+            # Collected and unoffered, for the adapter's own start.
+            [(_, record)] = codex_records("codex-thread")
+            assert record["state"] == "collecting"
+            return
+        answer = json.loads(capsys.readouterr().out)
+        assert answer["decision"] == "block"
+        envelope = json.loads(answer["reason"])
+        assert [event["id"] for event in envelope["batches"][0]["events"]] == [
+            comment["id"]
+        ]
+        assert not cleanup_model.session_record("codex-thread")["turn_closed"]
+        assert not codex_adapter_model._offer_queued_delivery(
+            "codex", "codex-thread", None
+        )
+        delivery_model.cmd_delivery_ack(envelope["id"])
         [pickup] = [
             event
             for event in events_model.read_events(page_dir)
             if event["kind"] == "pickup"
         ]
-        assert (pickup["phase"], pickup["events"]) == ("queued", [comment["id"]])
-        assert len(queued) == 1
+        assert (pickup["phase"], pickup["turn"], pickup["events"]) == (
+            "opened",
+            "user-turn",
+            [comment["id"]],
+        )
+        assert not queued
     finally:
         adapter.close()
         leases_model.release_lease(waiter)
@@ -2286,8 +2308,7 @@ def test_an_unread_codex_hook_pointer_falls_back_to_the_idle_queue(
         "codex-thread", cleanup_model.session_record("codex-thread")
     )
     [(path, _)] = codex_records("codex-thread")
-    lease = leases_model.take_lease(leases_model.adapter_lease_path("codex-thread"))
-    assert lease
+    lease = adapter_lease("codex-thread", None)
     waiter = leases_model.take_lease(
         leases_model.waiter_lease_path(page_dir, "codex-thread")
     )
@@ -3221,8 +3242,7 @@ def test_a_codex_stop_cannot_adopt_a_prompt_renewed_during_its_policy(
     codex_loop(page_dir)
     cleanup_model.prompt_turn("codex-thread", "provider")
     waiter = _watched(page_dir)
-    adapter = leases_model.take_lease(leases_model.adapter_lease_path("codex-thread"))
-    assert adapter
+    adapter = adapter_lease("codex-thread", None)
     if pending:
         append_carried_log_record(
             page_dir,
@@ -3259,7 +3279,7 @@ def test_a_codex_stop_keeps_the_revision_returned_by_its_offer(
 ):
     """A prompt can renew the same provider id after an offer returns no pointer.
     That Stop still belongs to the offer's exact revision, never the newest one.
-    Stop offers only where no adapter runs, as for a task that waits itself.
+    Stop offers where no App Server adapter runs, as for a task that waits itself.
     """
     codex_loop(page_dir)
     cleanup_model.prompt_turn("codex-thread", "provider")

@@ -800,11 +800,12 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   Each reason is given once. When the agent ends the turn again, it
                   ends. A new update that arrives as the turn ends opens a turn of its
                   own once this one ends, so this turn's last message stays its answer;
-                  only where nothing watches after the turn, as under Claude Code's
-                  plain <code>--print</code> or a Codex task that waits with
-                  <code>leaf wait</code>, does the hook hand an update that needs an
-                  answer into the turn. An update that needs no answer waits for the
-                  next turn.
+                  only where nothing would open that turn, as under Claude Code's plain
+                  <code>--print</code> or a Codex task that waits with
+                  <code>leaf wait</code>, or where opening it would add a message in the
+                  user's name, as Codex's <code>codex queue</code> does, does the hook
+                  hand an update that needs an answer into the turn. An update that
+                  needs no answer waits for the next turn.
                 </p>
                 <lf-diagram id="turn-end-check" data-height="834" parts="all">
                   <pre>

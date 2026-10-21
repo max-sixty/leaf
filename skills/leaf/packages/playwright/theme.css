@@ -171,18 +171,26 @@
   padding-inline: var(--sp-2);
   overflow: hidden;
   white-space: nowrap;
+}
+.lf-trace-lane-name,
+.lf-trace-lane {
   block-size: calc(var(--lf-trace-rows, 1) * var(--lf-trace-row-h) + 6px);
   box-sizing: border-box;
   border-block-start: 1px solid var(--border-2);
 }
-.lf-trace-lane-name-ruler {
+.lf-trace-lane-name-ruler,
+.lf-trace-ruler {
   block-size: var(--lf-trace-ruler-h);
+}
+.lf-trace-lane-name-ruler {
   border-block-start: 0;
 }
-.lf-trace-lane-name-input {
+.lf-trace-lane-name-input,
+.lf-trace-lane-input {
   block-size: var(--lf-trace-input-h);
 }
-.lf-trace-lane-name-captures {
+.lf-trace-lane-name-captures,
+.lf-trace-lane-captures {
   block-size: var(--lf-trace-capture-h);
 }
 .lf-trace-scroller {
@@ -204,20 +212,10 @@
 }
 .lf-trace-ruler {
   position: relative;
-  block-size: var(--lf-trace-ruler-h);
   color: var(--muted);
 }
 .lf-trace-lane {
   position: relative;
-  block-size: calc(var(--lf-trace-rows, 1) * var(--lf-trace-row-h) + 6px);
-  box-sizing: border-box;
-  border-block-start: 1px solid var(--border-2);
-}
-.lf-trace-lane-input {
-  block-size: var(--lf-trace-input-h);
-}
-.lf-trace-lane-captures {
-  block-size: var(--lf-trace-capture-h);
 }
 :is(
   .lf-trace-tick,
@@ -447,7 +445,7 @@
 .lf-trace-playhead-handle::after {
   content: "";
   position: absolute;
-  inset-block-start: calc(var(--lf-trace-ruler-h) - 10px);
+  inset-block-end: 0;
   left: 50%;
   inline-size: 12px;
   block-size: 10px;

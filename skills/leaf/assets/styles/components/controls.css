@@ -503,7 +503,7 @@ svg[data-lf-icon] {
 :is(.lf-btn, .button) {
   padding: max(4px, (var(--aim-floor) - 1lh) / 2 - 1px) 10px;
   border: 1px solid var(--border-2);
-  border-radius: 6px;
+  border-radius: var(--r);
   background: var(--card);
   cursor: pointer;
   color: var(--ink);

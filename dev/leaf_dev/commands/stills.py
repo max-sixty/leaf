@@ -1227,12 +1227,7 @@ STATES = (
         touch=True,
         region="#fix-before",
     ),
-    State(
-        "drawing-photo-comment",
-        "developer/feature-gallery",
-        drawing_photo_comment,
-        region=".lf-fab-bar",
-    ),
+    State("drawing-photo-comment", "developer/feature-gallery", drawing_photo_comment),
     State("page-comment-photo", "developer/feature-gallery", page_comment_photo),
     State("share-link", "developer/feature-gallery", share_link, region=".lf-fp-menu"),
     State("share-link-dark", "developer/feature-gallery", share_link, scheme="dark"),

@@ -103,6 +103,7 @@ from urllib.parse import urljoin
 
 import click
 import psutil
+from leaf import thread_titles
 from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
 from leaf.events import build_threads
@@ -152,9 +153,9 @@ VISIBLE_REPLY_PATIENCE = 30_000
 # How long a reply first shown by its notice gets for its own message to come into
 # view, which in an open thread is the next frame or two.
 VISIBLE_MESSAGE_PATIENCE = 2
-# How long the page server gets to title the thread after the turn ends: its title
-# request's own limit (`TIMEOUT` in `thread_titles.py`).
-TITLE_PATIENCE = 60
+# How long the page server gets to title the thread after the turn ends: as long as
+# it asks again after a refusal, then the last request's own limit.
+TITLE_PATIENCE = thread_titles.RETRY_FOR + thread_titles.TIMEOUT
 # How long a harness journey's step waits for the session, and how long a session
 # must stay idle with a step's outcome before the step counts it settled.
 STEP_LIMIT = 300

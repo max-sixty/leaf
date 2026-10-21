@@ -204,7 +204,9 @@ test("a description changes nothing, even inside a keyword compared only for equ
   // A field named like an annotation is still a field.
   assert.deepEqual(
     changed((s) => delete then(s).title, conditional),
-    refused('record claim: then {"properties":{"title":{"type":"string"}}} → {"properties":{}}'),
+    refused(
+      'record claim: then {"properties":{"title":{"type":"string"}}} → {"properties":{}}',
+    ),
   );
 });
 

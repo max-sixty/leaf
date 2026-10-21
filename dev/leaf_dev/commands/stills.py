@@ -677,6 +677,14 @@ def option_long(page: Page) -> None:
     )
 
 
+def option_add_hover(page: Page) -> None:
+    """A compact alternative's Add face beside its one-line draft."""
+    form = page.locator("#bg-choice > .lf-another")
+    form.locator("leaf-text").click()
+    page.keyboard.insert_text("Keep the current behavior")
+    form.get_by_role("button", name="Add and select option", exact=True).hover()
+
+
 def options_in_pane(page: Page) -> None:
     """An option list in a workspace pane, under the paragraphs it answers."""
     page.get_by_text("Checkout p99 latency", exact=True).click()
@@ -1798,6 +1806,20 @@ STATES = (
         viewport=(390, 844),
         touch=True,
         scheme="dark",
+    ),
+    State(
+        "option-add-hover",
+        "developer/feature-gallery",
+        option_add_hover,
+        region="#bg-choice",
+    ),
+    State(
+        "option-add-hover-touch",
+        "developer/feature-gallery",
+        option_add_hover,
+        region="#bg-choice",
+        viewport=(390, 844),
+        touch=True,
     ),
     State("alert-option-long", "alert-review", option_long),
     State("alert-options-in-pane", "alert-review", options_in_pane),

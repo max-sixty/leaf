@@ -111,6 +111,7 @@ from leaf.files import revision_path
 from leaf.findings import Finding
 from leaf.interaction_log import read_interactions
 from leaf.server import running_server
+from leaf.service import page_claim
 from leaf.structure import SourceDocument
 from leaf.thread import successful_replies
 from leaf.todos import start_reading
@@ -966,7 +967,11 @@ def user_at(
         checkout_version(),
         lambda: read_events(place.page),
         terminal,
-        lambda: read_interactions(place.page, types=("leaf_command",)),
+        lambda: [
+            command
+            for command in read_interactions(place.page, types=("leaf_command",))
+            if command["session"] == page_claim(place.page)["id"]
+        ],
     )
     try:
         user.passed("setup", started)

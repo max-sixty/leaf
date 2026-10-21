@@ -205,18 +205,34 @@ def turn_phases(
     ]
 
 
-def leaf_commands_ms(commands: list[dict], admitted: str, replied: str) -> int:
-    """The time Leaf's `commands` records took on a reply: each that started after
-    the comment's admission and before the reply's, up to the reply's admission,
-    since the command that replies exits after it. A command running from before
-    the comment, as a watch or a page server does, is no part of it."""
+def command_spans(
+    commands: list[dict], admitted: str, replied: str
+) -> list[tuple[float, float]]:
+    """When Leaf's `commands` records ran on a reply: each that started after the
+    comment's admission and before the reply's, up to the reply's admission, since
+    the command that replies exits after it. A command running from before the
+    comment, as a page server does, is no part of it."""
     start, end = instant(admitted), instant(replied)
-    total = 0.0
-    for command in commands:
-        began = instant(command["started"])
-        if start <= began < end:
-            total += min(instant(command["ts"]), end) - began
-    return round(total * 1000)
+    return [
+        (began, min(instant(command["ts"]), end))
+        for command in commands
+        if start <= (began := instant(command["started"])) < end
+    ]
+
+
+def covered(spans: list[tuple[float, float]]) -> float:
+    """The seconds the union of `spans` covers, so overlapping ones count once."""
+    total, reached = 0.0, float("-inf")
+    for since, until in sorted(spans):
+        if until > reached:
+            total += until - max(since, reached)
+            reached = until
+    return total
+
+
+def leaf_commands_ms(commands: list[dict], admitted: str, replied: str) -> int:
+    """The elapsed time Leaf's commands took on a reply (`command_spans`)."""
+    return round(covered(command_spans(commands, admitted, replied)) * 1000)
 
 
 def reply_breakdown(
@@ -228,8 +244,9 @@ def reply_breakdown(
 ) -> dict | None:
     """The whole reply, Leaf's share of it, and its model calls, in milliseconds,
     from the session's `records` and the `leaf_command` records of the session's `leaf`
-    commands (`leaf_commands_ms`). The tool time that isn't Leaf's is the agent's
-    own reads and edits. A model call is the run of model phases that the same
+    commands (`command_spans`). Leaf's share is the time delivery or a command
+    covered, each moment once. The tool time that isn't Leaf's is the agent's own
+    reads and edits. A model call is the run of model phases that the same
     `model_response` is the first to follow: they were one response, whose tool
     calls ran while it still streamed. Each call names the tool calls it led to.
     Returns None for a comment never picked up."""
@@ -263,10 +280,14 @@ def reply_breakdown(
         elif phase == "tool" and model_calls:
             model_calls[-1]["calls"].extend(call[:SHOWN] for call in calls)
     delivery = total("delivery")
-    leaf_commands = leaf_commands_ms(commands, admitted, replied)
+    spans = command_spans(commands, admitted, replied)
+    leaf_commands = ms(covered(spans))
+    delivering = [
+        (since, until) for phase, since, until, _ in phases if phase == "delivery"
+    ]
     return {
         "wholeMs": ms(instant(replied) - instant(admitted)),
-        "leafMs": delivery + leaf_commands,
+        "leafMs": ms(covered(spans + delivering)),
         "busyMs": total("busy"),
         "deliveryMs": delivery,
         "leafCommandsMs": leaf_commands,

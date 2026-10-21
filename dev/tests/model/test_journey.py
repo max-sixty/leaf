@@ -437,9 +437,10 @@ def test_a_reply_taken_while_working_splits_into_leaf_share_and_model_calls():
     def ran(started: float, ended: float) -> dict:
         return {"started": at(started), "ts": at(ended)}
 
-    # The watch running from before the comment is no part of the reply, and the
-    # reply's own command counts until the reply is admitted.
-    commands = [ran(0, 20), ran(7, 7.4), ran(9.3, 10), ran(12, 12.8)]
+    # The watch running from before the comment is no part of the reply, commands
+    # running together count once, and the reply's own command counts until the
+    # reply is admitted.
+    commands = [ran(0, 20), ran(7, 7.4), ran(7.1, 7.3), ran(9.3, 10), ran(12, 12.8)]
     reply = reply_breakdown(records, commands, at(1), at(5.2), at(12.5))
     assert {key: value for key, value in reply.items() if key != "phases"} == {
         "wholeMs": 11500,

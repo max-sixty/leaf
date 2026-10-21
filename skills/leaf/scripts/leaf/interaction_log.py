@@ -8,11 +8,15 @@ observations.jsonl.
 Each `leaf` command records how long it took in every page it acted on, one
 `leaf_command` observation as it exits (`record_command`), so a page says Leaf's own
 share of an agent's reply on any harness. A command acts on the pages it names: a
-`PAGE` argument (`cli.resolve_dir`) or a delivery's pages (`delivery.read_delivery`,
-which an answer reference reaches too); each notes its page (`acting_on`). Its
-time runs from its launcher's start, `bin/leaf`'s uv included, to its exit; a
-command the sandbox bridge runs for Claude Code is timed from the bridge's start of
-it.
+`PAGE` argument (`cli.resolve_dir`), an answer reference's page
+(`delivery.response_address`), or the pages a delivery it reads or acknowledges
+carries (`delivery.acting_on_delivery`); each notes its page (`acting_on`). A
+command that names none, as `leaf wait` watching every page a session owns,
+records nothing: its time is the agent waiting, not Leaf answering. Harness hooks
+don't pass through the CLI, and their time shows as delivery in the page's pickup
+receipts. A command's time runs from its launcher's start, `bin/leaf`'s uv
+included, to its exit; one the sandbox bridge runs for Claude Code is timed from
+the bridge's start of it.
 
 A browser batch is admitted whole by `interaction-batch.schema.json`, the schema
 leaf.page's Worker admits it by too (`admit_batch`). The reader skips malformed lines,
@@ -87,31 +91,35 @@ def launched() -> float:
 
 def record_command(command: str) -> None:
     """Record in each page this command acted on how long it took, with the harness
-    session that ran it. A diagnostic the page can't take is dropped, since the
-    command's own result has already been decided."""
-    if not _ACTED_ON:
-        return
+    session that ran it. A diagnostic the system won't let this process gather or
+    write, as a sandbox may refuse a session record or a page, is dropped, since
+    the command's own result has already been decided."""
+    import psutil
+
     from .harness import session_harness
 
-    started = launched()
-    harness = session_harness()
-    session = harness.session if harness is not None else None
-    record = {
-        "source": "cli",
-        "type": "leaf_command",
-        "command": command,
-        "started": datetime.fromtimestamp(started, UTC).isoformat(),
-        "durationMs": round((time.time() - started) * 1000, 1),
-        "session": session,
-        "context": session_context(session),
-    }
-    for page_dir in _ACTED_ON:
-        if (page_dir / "events.jsonl").is_file():
-            try:
-                append_interactions(page_dir, [record])
-            except OSError:
-                continue
+    pages, ended = list(_ACTED_ON), time.time()
     _ACTED_ON.clear()
+    if not pages:
+        return
+    try:
+        started = launched()
+        harness = session_harness()
+        session = harness.session if harness is not None else None
+        record = {
+            "source": "cli",
+            "type": "leaf_command",
+            "command": command,
+            "started": datetime.fromtimestamp(started, UTC).isoformat(),
+            "durationMs": round((ended - started) * 1000, 1),
+            "session": session,
+            "context": session_context(session),
+        }
+        for page_dir in pages:
+            if (page_dir / "events.jsonl").is_file():
+                append_interactions(page_dir, [record])
+    except (OSError, psutil.Error):
+        return
 
 
 def admit_batch(batch: object) -> dict:

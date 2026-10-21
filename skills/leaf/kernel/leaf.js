@@ -10069,8 +10069,7 @@ function createDesignMode({
     press: designPress,
     open: openOnDesign,
     name: designName,
-    inspectElement: inspectEl,
-    legendElement: legendRoot
+    inspectElement: inspectEl
   };
 }
 

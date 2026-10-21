@@ -267,6 +267,9 @@ html {
 html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) {
   display: none;
 }
+html[data-lf-interactive] [data-lf-arriving] {
+  display: none;
+}
 @layer {
   [hidden]:not([hidden=until-found]) {
     display: none !important;

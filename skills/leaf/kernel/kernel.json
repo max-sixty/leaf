@@ -149,7 +149,7 @@
     "runtime/pending/state.js": "9258557a778b98da2dcb0720311a41b242488994d84cd63c1c8d3ef308942710",
     "runtime/pointed-place.js": "24f8b6848776ad5fe5439a04b9c84878122cdd7a6826dbf4a727bbcd3e025002",
     "runtime/pointer.js": "4407db2b4c88f9ab08eb17d20f7529554e8870e2c4703256d88e2ead7bd66b5a",
-    "runtime/prepaint.js": "ea219a3770124eaa6f16570f2b37ad43be1ec403909916c4597167ba251b7063",
+    "runtime/prepaint.js": "4feabc15cccdebc9cc7d392f35b28bbcb2130001d29788d94139dd71b5be24d6",
     "runtime/presence.js": "777eae4782b891296b888c1daa331deaff522ac8280cd83a8a48a949b808a35a",
     "runtime/presentation.js": "31e34685bd8a9f71d5e388d6b2aa9c21805895db88dc9038c7c48fab66a77172",
     "runtime/projection-watch.js": "49d264f7fc2052d45a8947ca4ea3abf9d8a58aeee748e2add055d907b8d3e547",

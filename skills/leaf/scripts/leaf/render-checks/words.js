@@ -137,6 +137,9 @@ export function coveredWords({
     let box = drawn;
     for (let ancestor = el; ancestor && ancestor !== document.body && box;) {
       const style = getComputedStyle(ancestor);
+      // SVG text ranges retain geometry below display:none groups, and Chromium's
+      // checkVisibility still returns true for them. Their ancestry paints no words.
+      if (style.display === "none") return null;
       if (style.overflowX !== "visible" || style.overflowY !== "visible") {
         const bounds = ancestor.getBoundingClientRect();
         const left = Math.max(box.left, bounds.left);

@@ -146,6 +146,7 @@
 import { growthAfterIsSeen, growthIsSeen, whenNone } from "../geometry.js";
 import { offer } from "../widget-elements.js";
 import { keeps, layoutPx } from "../keeps.js";
+import { sizeObserver } from "../rendering.js";
 import { keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { focusThread } from "./focus.js";
@@ -455,7 +456,10 @@ const said = (news) => {
  *  pass the notice's width drops whole rather than cutting the facts before it, so
  *  "1 new reply" with a message arriving after it still reads "1 new reply", where a cut
  *  read "1 new re…" (components/surfaces.css); the title and the accessible name keep
- *  every fact. */
+ *  every fact. While facts are dropped, the notice counts them at its end ("+1",
+ *  `data-lf-more`), so a reader with no tooltip, as on a phone, knows more waits. The
+ *  count reads the layout, so a size observer recounts whenever the words or a fact
+ *  change size, a fact's first observation included. */
 export function newsNotice(header = false) {
   const node = offer(
     "button",
@@ -465,6 +469,12 @@ export function newsNotice(header = false) {
   );
   const words = document.createElement("span");
   node.append(words);
+  // A dropped fact wraps onto a line below the first (components/surfaces.css).
+  const dropped = sizeObserver(() => {
+    const [first, ...later] = /** @type {HTMLElement[]} */ ([...words.children]);
+    const count = later.filter((fact) => fact.offsetTop !== first.offsetTop).length;
+    keeps(words, "data-lf-more", count ? `+${count}` : null);
+  });
   let open = () => null;
   const show = () => {
     const standing = focused() === node;
@@ -483,7 +493,7 @@ export function newsNotice(header = false) {
   return {
     node,
     set(news) {
-      if (words.textContent !== news.label)
+      if (words.textContent !== news.label) {
         words.replaceChildren(
           ...news.parts.map((part) => {
             const fact = document.createElement("span");
@@ -491,6 +501,9 @@ export function newsNotice(header = false) {
             return fact;
           }),
         );
+        dropped.disconnect();
+        for (const box of [words, ...words.children]) dropped.observe(box);
+      }
       keeps(node, "title", news.label);
       node.classList.toggle("lf-reopen", news.reopened);
       open = news.open;

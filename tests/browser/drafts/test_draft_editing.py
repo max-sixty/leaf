@@ -731,3 +731,55 @@ def test_a_draft_button_keeps_its_target_when_pointerdown_focuses_it(browser, se
             if e.get("action") == "edit"
         ]
         assert len(edits) == (0 if saved == "Keep this note." else 1), action
+
+
+def test_pointer_cancel_returns_draft_room_without_delaying_reading_or_focus(
+    browser, serve
+):
+    from render_cases_interaction import HOLD_MOTION
+
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Cancel draft",
+                '<h1>Review</h1><div style="height:1100px"></div>'
+                '<lf-draft id="copy"><pre>Original short text.</pre></lf-draft>'
+                '<p id="after">Next section</p>',
+            )
+        ),
+        init_script=HOLD_MOTION,
+    )
+    page.emulate_media(reduced_motion="no-preference")
+    draft = page.locator("#copy")
+    rest = draft.bounding_box()["height"]
+    draft_control(page, "edit", "copy").click()
+    editor = draft.locator("leaf-text")
+    editor.focus()
+    editor.evaluate("e=>e.select()")
+    page.keyboard.insert_text("\n\n".join(["A longer paragraph in the draft."] * 8))
+    page.evaluate("scrollTo(0, document.documentElement.scrollHeight)")
+    scroll_settled(page)
+    before = draft.bounding_box()["height"]
+    scroll_before = page.evaluate("scrollY")
+    draft_control(page, "cancel", "copy").click()
+    expect(editor).to_have_count(0)
+    expect(draft.locator(".lf-draft-body")).to_have_text("Original short text.")
+    expect(draft_control(page, "edit", "copy")).to_be_focused()
+    assert draft.bounding_box()["height"] == pytest.approx(before, abs=1)
+    assert page.evaluate("scrollY") == pytest.approx(scroll_before, abs=1)
+    draft.evaluate("d=>d.getAnimations()[0].currentTime=90")
+    middle = draft.bounding_box()["height"]
+    assert rest < middle < before
+    draft_control(page, "edit", "copy").click()
+    expect(editor).to_be_focused()
+    assert draft.evaluate("d=>d.getAnimations().length") == 0
+    page.keyboard.insert_text("\n" * 8)
+    page.keyboard.press("Escape")
+    expect(editor).to_have_count(0)
+    assert draft.evaluate("d=>d.getAnimations().length") == 0
+    page.emulate_media(reduced_motion="reduce")
+    draft_control(page, "edit", "copy").click()
+    page.keyboard.insert_text("\n" * 8)
+    draft_control(page, "cancel", "copy").click()
+    assert draft.evaluate("d=>d.getAnimations().length") == 0

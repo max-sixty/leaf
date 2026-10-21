@@ -619,6 +619,13 @@ def diff_file_keeps_focus(page, serve, diff, source, value, rename, starts_as_re
     told(page)
     rendered(page)
     summary.click()
+    # The next form shares this page; finish this file's pointer fold first.
+    summary.evaluate(
+        "node => Promise.all(node.getRootNode().getAnimations()"
+        ".filter(animation => animation.effect.target === node.parentElement"
+        " && animation.effect.pseudoElement === '::details-content')"
+        ".map(animation => animation.finished.catch(() => {})))"
+    )
     expect(
         page.locator(f'{diff} [data-lf-datum=\'["app/handlers.py","new",2]\']')
     ).to_contain_text("new beginning")

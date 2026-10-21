@@ -61,11 +61,6 @@
   grid-template-columns: minmax(0, 1fr) repeat(2, var(--lf-vr-step-width));
   gap: var(--sp-2);
 }
-.lf-vr-case-select,
-.lf-vr-inspector-group,
-.lf-vr-inspector-choice {
-  --wa-form-control-height: max(30px, var(--aim-floor));
-}
 .lf-vr-case-select {
   min-width: 0;
   width: 100%;
@@ -103,7 +98,7 @@
 }
 @media screen {
   .lf-vr-evidence-region {
-    --lf-vr-queue-h: calc(max(30px, var(--aim-floor)) + 2 * var(--sp-2) + 1px);
+    --lf-vr-queue-h: calc(var(--lf-control-compact) + 2 * var(--sp-2) + 1px);
     --lf-top-outer: var(--lf-top);
   }
   .lf-vr-queue {
@@ -406,7 +401,7 @@
     grid-row: 1;
   }
   .lf-vr-evidence-region {
-    --lf-vr-queue-h: calc(2 * max(30px, var(--aim-floor)) + 3 * var(--sp-2) + 1px);
+    --lf-vr-queue-h: calc(2 * var(--lf-control-compact) + 3 * var(--sp-2) + 1px);
   }
 }
 @media print {

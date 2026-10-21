@@ -121,8 +121,10 @@ removed. The commit names the readers checked.
 
 The promise runs one way: an older Leaf serving a page a newer one vendored may refuse
 a field it does not know. Every page vendored before a bump, and one vendored before the number was
-declared, is refused until `leaf page init` re-vendors it, which the first command or
-hook of the session holding the page runs itself (`vendoring.renew_layer`).
+declared, is refused until `leaf page init` re-vendors it. The first write command or
+hook of the session holding the page runs that renewal itself (`vendoring.renew_layer`);
+read commands leave its layer and service alone. A writer from another session does
+not renew when the claim or its session lifecycle has a format it cannot read.
 
 The number is also the only version of what Leaf keeps outside a page's log and
 document: every JSON record in a page directory or in the state home, which every

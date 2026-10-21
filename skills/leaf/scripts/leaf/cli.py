@@ -37,11 +37,8 @@ class Reported(NamedTuple):
 
 
 def resolve_dir(dir_arg: str, must_exist: bool = True, *, renew: bool = True) -> Path:
-    """The page a command names. An initialized one this Leaf cannot serve, as a
-    plugin update that bumps the page protocol leaves it, is re-vendored first for
-    the session running the command (`vendoring.renew_layer`), whose finding on what
-    still holds it back is noted; `renew` is off for a command that would undo the
-    re-vendor's restart."""
+    """The page a command names. A write may renew an older layer for its owning
+    session (`vendoring.renew_layer`); reads and service stops leave it alone."""
     from leaf.interaction_log import acting_on
     from leaf.locations import canonical_path
 
@@ -466,7 +463,7 @@ def check(dir: str, render: bool) -> Reported:
     """
     from leaf.validation.command import cmd_check
 
-    report = cmd_check(resolve_dir(dir), render)
+    report = cmd_check(resolve_dir(dir, renew=False), render)
     return Reported(report, report["status"])
 
 
@@ -509,7 +506,7 @@ def instructions(
     """
     from leaf.page import page_instructions
 
-    return page_instructions(resolve_dir(dir), entries=entries, contracts=contracts)
+    return page_instructions(resolve_dir(dir, renew=False), entries=entries, contracts=contracts)
 
 
 @page.command(short_help="Print where the page, a thread, or a widget stands.")
@@ -541,7 +538,7 @@ def state(dir: str, target: str | None, after: int | None, limit: int | None) ->
 
     if target is None and (after is not None or limit is not None):
         raise click.UsageError("--after and --limit page a thread; name one as ID")
-    return cmd_page_state(resolve_dir(dir), target, after=after, limit=limit)
+    return cmd_page_state(resolve_dir(dir, renew=False), target, after=after, limit=limit)
 
 
 @page.command(short_help="Stamp the current source as the next version.")
@@ -680,7 +677,7 @@ def events(dir: str, after: int, follow: bool) -> None:
     """
     from leaf.event_log import cmd_events
 
-    cmd_events(resolve_dir(dir), after, follow=follow)
+    cmd_events(resolve_dir(dir, renew=False), after, follow=follow)
 
 
 @page.command(short_help="Read browser interactions and request diagnostics.")
@@ -727,7 +724,7 @@ def interactions(
     if start is not None and stop is not None and start >= stop:
         raise click.ClickException("--since must precede --until")
     return read_interactions(
-        resolve_dir(dir), session=session, since=start, until=stop, types=types
+        resolve_dir(dir, renew=False), session=session, since=start, until=stop, types=types
     )
 
 
@@ -748,7 +745,7 @@ def transcript(dir: str) -> str:
     """Print the page's exchange as Markdown."""
     from leaf.transcript import cmd_transcript
 
-    return cmd_transcript(resolve_dir(dir))
+    return cmd_transcript(resolve_dir(dir, renew=False))
 
 
 @cli.group(short_help="Read a delivery by its id, and confirm you received it.")

@@ -301,13 +301,22 @@ def test_a_page_another_leaf_vendored_at_this_protocol_takes_its_writes(
 
 def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(claimed, server):
     """A reply through a reference names no page, so it is refused on a page an older
-    Leaf vendored, naming the re-vendor. The session's next command naming the page
+    Leaf vendored, naming the re-vendor. The session's next write naming the page
     makes that re-vendor itself (`vendoring.renew_layer`), restarting the server at
     its address, and the reply then goes."""
     replied = _replying_after(claimed, server, vendored_at_another_protocol)
     assert replied.returncode != 0, replied.stdout
     assert f"leaf page init {claimed}" in replied.stderr
-    for command in (["page", "state", str(claimed)], replied.args[len(LEAF_COMMAND) :]):
+    read = subprocess.run(
+        [*LEAF_COMMAND, "page", "state", str(claimed)],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
+    )
+    assert read.returncode == 0, read.stderr
+    assert "page protocol" in json.loads(read.stdout)["source"]["error"]
+    for command in (["page", "claim", str(claimed)], replied.args[len(LEAF_COMMAND) :]):
         ran = subprocess.run(
             [*LEAF_COMMAND, *command],
             capture_output=True,
@@ -318,6 +327,48 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(claimed, 
         assert ran.returncode == 0, ran.stderr
         assert "re-vendor" not in ran.stderr
     assert fetch(f"{server}/api/state")[0] == 200
+
+
+@pytest.mark.parametrize("unreadable", ["claim", "lifecycle"])
+def test_read_commands_leave_an_older_page_and_its_server_alone(
+    claimed, server, unreadable
+):
+    """A read by another session cannot take a held page across a protocol bump."""
+    from leaf.service import claim_path
+
+    publish(claimed)
+    vendored = vendored_at_another_protocol(claimed)
+    record = (
+        claim_path(claimed)
+        if unreadable == "claim"
+        else cleanup_model.session_file("s1", cleanup_model.SESSION_SUFFIX)
+    )
+    stored = interact_files.read_json(record)
+    stored["format"] = "leaf-" + unreadable + "/999"
+    cleanup_model.write_json(record, stored)
+    revisions = interact_files.list_revisions(claimed)
+    registry = (claimed / "registry.json").read_bytes()
+    for command in (
+        ["page", "state", str(claimed)],
+        ["page", "events", str(claimed)],
+        ["page", "instructions", str(claimed)],
+        ["page", "check", str(claimed)],
+    ):
+        subprocess.run(
+            [*LEAF_COMMAND, *command],
+            capture_output=True,
+            text=True,
+            timeout=STATED_TIMEOUT,
+            check=False,
+            env={**os.environ, "CLAUDE_CODE_SESSION_ID": "s2"},
+        )
+        same_registry = (claimed / "registry.json").read_bytes() == registry
+        assert same_registry, command
+        assert interact_files.list_revisions(claimed) == revisions
+        assert fetch(f"{server}/api/state")[0] == 200
+    assert interact_files.read_json(claimed / "registry.json")["$events"]["protocol"] == vendored
+    assert vendoring_model.renew_layer(claimed, None) is None
+    assert (claimed / "registry.json").read_bytes() == registry
 
 
 @pytest.mark.parametrize(

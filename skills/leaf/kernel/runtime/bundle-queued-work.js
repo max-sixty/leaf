@@ -968,7 +968,7 @@ function describeFailure(reason) {
 function createPresentationCoordinator({ reportFailure }) {
   const changes = Z(0);
   const changed = () => {
-    changes.value += 1;
+    changes.value = changes.peek() + 1;
   };
   let document = null;
   let documentGeneration = 0;

@@ -19,9 +19,9 @@ export function focusThread(thread, cause) {
 // A drawn thread's own parts: the box its reply is written in, and the control that
 // settles it, whose `lf-resolve` or `lf-reopen` says which way. A card draws both inside
 // itself. A presentation that draws one elsewhere, as the floating panel draws the reply
-// as its field and Resolve in its view's head, declares on the thread element where each
-// stands (`declareThreadParts`): `reply` and `settlement`, each a function of that
-// element answering the part, or null while the thread has none there. Every reading
+// as its field and Resolve among its view's controls, declares on the thread element
+// where each stands (`declareThreadParts`): `reply` and `settlement`, each a function of
+// that element answering the part, or null while the thread has none there. Every reading
 // of a thread's reply or settlement goes through here (`threadPart`), so Enter, `r` and
 // `c` answer alike whichever chrome draws the thread. A thread drawn in pieces within
 // one that declares, as a reader's message parts in the panel's view, has the

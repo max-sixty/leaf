@@ -264,16 +264,16 @@ def open_thread(page: Page, key: str) -> None:
 
 
 def floating_thread(page: Page) -> None:
-    """The floating panel with a thread opened from Threads: its head names the way
-    back and the thread's title, beside On the page, Resolve and Close."""
+    """The floating panel with a thread opened from Threads: the thread's title over
+    its view, and under it, on the row, the way back, On the page, Resolve and Close."""
     open_threads(page)
     page.locator(".lf-fp-thread", has_text="One reconnect in forty").click()
     expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
 
 
 def floating_thread_retitled(page: Page) -> None:
-    """The same head once the thread's opening message is rewritten short, so its
-    title is far narrower than the head."""
+    """The same thread once its opening message is rewritten short, so its title is far
+    narrower than the view it names."""
     floating_thread(page)
     page.locator(".lf-fp-view[data-view=thread] .lf-msg-body").first.dblclick()
     page.keyboard.press("ControlOrMeta+a")
@@ -1135,12 +1135,12 @@ STATES = (
         region=".lf-fp-leaf",
     ),
     State("panel-status-hover", "review-a-plan", panel_status_hover),
-    State("floating-thread", "ship-review", floating_thread, region=".lf-fp-head"),
+    State("floating-thread", "ship-review", floating_thread, region=".lf-fp-opened"),
     State(
         "floating-thread-retitled",
         "ship-review",
         floating_thread_retitled,
-        region=".lf-fp-head",
+        region=".lf-fp-opened",
     ),
     State(
         "playground-choice",

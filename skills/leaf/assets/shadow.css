@@ -815,9 +815,6 @@ leaf-text.lf-fab-input,
   color: var(--muted-2);
   font: 500 var(--t-6)/1.35 var(--sans);
 }
-.lf-page-thread-open {
-  margin-top: var(--sp-2);
-}
 .lf-resolved-threads {
   position: relative;
   min-width: 0;

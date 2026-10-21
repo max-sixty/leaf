@@ -1194,7 +1194,6 @@ def test_a_shared_passage_steps_between_single_thread_cards(browser, serve):
     expect(preview.locator(".lf-margin-preview-nav")).to_be_hidden()
     expect(preview).to_contain_text(COMMENT_ON_OBLIGATION["text"])
     expect(preview).not_to_contain_text(second_comment["text"])
-    expect(preview.locator(".lf-page-thread-open")).to_have_count(0)
     expect(preview.get_by_role("button", name=re.compile(r"Threads?"))).to_have_count(0)
     page.locator(".lf-fp-threads").click()
     panel_settled(page, view="threads")

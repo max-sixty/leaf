@@ -175,7 +175,8 @@ const authoredMessage = (message) => {
 // Which drawing of an authored message holds its widgets, the one instance above. A
 // message can stand in several drawings at once (the primary reader's, a margin card,
 // a seat on the page), and the shown one of highest `authoredRank` holds them, the
-// first to draw it among equals. Every other drawing offers the way there. A drawing
+// first to draw it among equals. Every other drawing draws only the message's words:
+// the holder is then the one shown, so the widgets already stand in view. A drawing
 // shown as it draws takes them where it should hold them, as does the first to draw
 // them, and after each draw the holder is settled again among the drawings shown, so
 // one hidden in a fold or a closed card gives them to one in view. A drawing not yet
@@ -487,21 +488,6 @@ export class MessageView {
           }
           ${holds ? keyed(this.#authoredTake, this.#authored) : nothing}
         </div>
-        ${
-          // Another drawing of this message holds its widgets, so this one offers the
-          // way there.
-          model.body.authored && !holds
-            ? html`<button
-                type="button"
-                class="lf-btn lf-page-thread-open lf-ui"
-                data-lf-gen="1"
-                data-lf-offer="button"
-                @click=${() => this.#commands.openThread(this.#model.id, { part: "message" })}
-              >
-                Open interactive reply
-              </button>`
-            : nothing
-        }
         ${strip} ${rewrite}
       `,
       this.node,

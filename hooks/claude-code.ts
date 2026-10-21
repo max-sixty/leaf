@@ -36,10 +36,14 @@
  * their diagnostics through Claude Code's UI log. Replacing or closing a watch
  * cancels it quietly, after waiting for its process to exit.
  *
- * The band has a line for each live page the session holds: a link to the page,
- * what is On the user, and its open threads with how many hold words the user
- * hasn't read, the counts the page's own Leaf panel marks. It goes above whatever
- * other plugins draw there. A follower (`bin/leaf hook --harness claude-code
+ * The band has a line for each live page the session holds: the word Leaf in the
+ * tone the page's Leaf panel gives its leaf, a link to the page, what is On the
+ * user, and its open threads with how many hold words the user hasn't read, the
+ * counts the panel marks, then the agent's status. It goes above whatever other
+ * plugins draw there. Claude Code keeps an empty row between the band and the
+ * prompt (measured at 2.1.306); a negative margin to close it hides the band.
+ *
+ * A follower (`bin/leaf hook --harness claude-code
  * --if-claimed --pages`) prints that list whenever it changes and exits once the
  * session holds no page; the launcher answers it without starting uv in a session
  * holding none. The session takes a page only through a `leaf` command, so the
@@ -71,7 +75,30 @@ type Leaf = {
   title: string;
   on_user: number;
   threads: { open: number; unread: number };
+  activity: { kind: string; detail: string };
 };
+
+// The color the word Leaf wears for each activity kind, in Claude Code's theme: the
+// tone the page's Leaf panel paints its leaf (`.lf-dot` in chrome.css), muted for the
+// rest.
+const TONES: Record<string, string> = {
+  working: "suggestion",
+  listening: "success",
+  stalled: "warning",
+  away: "warning",
+};
+
+/** What a line says of the agent's work, in the words of an All pages row
+ * (`leafRow` in activity-words.js), less its bare Awaits: a listening page shows
+ * only the detail the agent declared, since listening is the usual case. */
+function statusOf({ kind, detail }: Leaf["activity"]) {
+  const stated = (word: string) => (detail ? `${word} — ${detail}` : word);
+  if (kind === "working") return stated("Working");
+  if (kind === "stalled") return stated("Quiet");
+  if (kind === "away") return "Away";
+  return detail;
+}
+
 // The follower's last list, how to stop the follower while one runs, and whether
 // something asked for one while it ran, which may have outlived its last read.
 let leaves: Leaf[] = [];
@@ -344,19 +371,36 @@ export const register: Register = (on) => {
     if (leaves.length === 0 || e.props.hasSurvey) return beneath;
     const { Box, Text, Link } = $.ui.resolve(e);
     // What JSX would type; the module stays `.ts` for Node, which runs it in tests.
+    const dim = (text: string) => h(Text, { dimColor: true }, text);
+    // A line keeps one row, its status cut first; only the counts that aren't zero
+    // show, and what waits on the user takes a color.
+    const line = ({ url, title, on_user, threads, activity }: Leaf) => {
+      const status = statusOf(activity);
+      return h(
+        Text,
+        { wrap: "truncate-end" },
+        h(
+          Text,
+          { color: TONES[activity.kind] ?? "inactive", weight: "semibold" },
+          "Leaf",
+        ),
+        " ",
+        h(Link, { href: url }, h(Text, { underline: true }, title)),
+        ...(on_user
+          ? [dim(" · "), h(Text, { color: "warning" }, `On me ${on_user}`)]
+          : []),
+        // A resolved thread can still hold unread words.
+        ...(threads.open || threads.unread ? [dim(` · Threads ${threads.open}`)] : []),
+        ...(threads.unread
+          ? [dim(", "), h(Text, { color: "suggestion" }, `${threads.unread} new`)]
+          : []),
+        ...(status ? [dim(` · ${status}`)] : []),
+      );
+    };
     return h(
       Box,
       { flexDirection: "column" },
-      ...leaves.map(({ url, title, on_user, threads }) =>
-        h(
-          Text,
-          { dimColor: true },
-          "Leaf ",
-          h(Link, { href: url }, title),
-          ` · On me ${on_user} · Threads ${threads.open}`,
-          threads.unread ? `, ${threads.unread} new` : "",
-        ),
-      ),
+      ...leaves.map(line),
       beneath,
     ) as RenderElement;
   });

@@ -202,8 +202,9 @@
   }
   /* With no view open the more-room mark stands over the leaf, in the corner a long
      draft leaves free beside the field's first line (floating-panel.js, `expand`). A
-     widened field may hold fewer lines than the two that corner needs, so the row keeps
-     their height while the mark stands. */
+     widened field may hold fewer lines than the two that corner needs, so the wide row
+     keeps their height. Only the wide row does, so the mark standing at the fourth line
+     resizes nothing and stands in the frame the line arrives. */
   .lf-fp-row > .lf-fp-expand {
     position: absolute;
     inset-block-start: var(--lf-fp-row-pad);
@@ -211,7 +212,7 @@
     width: var(--lf-fp-line);
     height: var(--lf-fp-line);
   }
-  .lf-floating-panel[data-long] .lf-fp-row:has(> .lf-fp-expand) {
+  .lf-floating-panel[data-expanded] .lf-fp-row:has(> .lf-fp-expand) {
     min-height: calc(2 * var(--lf-fp-line) + 2 * var(--lf-fp-row-pad) + 4px);
   }
   .lf-fp-leaf {

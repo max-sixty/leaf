@@ -6444,8 +6444,10 @@ function createFloatingPanel({
     const lines = input ? (input.getBoundingClientRect().height - 10) / Number.parseFloat(getComputedStyle(input).lineHeight) : 0;
     if (lines > 3.5 === long) return;
     long = lines > 3.5;
-    nextRender(paint);
+    markRoom();
   });
+  let fieldRests = false;
+  const markRoom = () => keeps(host, "data-long", (long || expanded) && !fieldRests ? "" : null);
   lengthWatch.observe(field);
   const rowNoticeSeat = el("div", "lf-fp-row-notice");
   const quick = el("div", "lf-fp-quick");
@@ -6616,7 +6618,7 @@ function createFloatingPanel({
   const fieldInput = () => field.firstElementChild !== replyOutlet ? pageEditor().input : replyOutlet.hidden ? null : replyInput();
   function retype() {
     postureMoved = true;
-    if (Boolean(draftOf(fieldInput()).trim()) !== drafted) paint();
+    if (Boolean(draftOf(fieldInput())) !== drafted) paint();
   }
   field.addEventListener("input", retype);
   let pressedWords = null;
@@ -8387,14 +8389,14 @@ function createFloatingPanel({
     const input = fieldInput();
     if (input) syncInput(input);
     keeps(host, "data-writing", writing ? "" : null);
-    const words = Boolean(draftOf(input).trim());
+    const words = Boolean(draftOf(input));
     if (postureMoved || !words) drafted = words;
     postureMoved = false;
     keeps(host, "data-drafted", drafted ? "" : null);
     keeps(host, "data-words", words ? "" : null);
     if (!words) expanded = false;
-    const marked = (long || expanded) && !resting;
-    keeps(host, "data-long", marked ? "" : null);
+    fieldRests = resting;
+    markRoom();
     keeps(host, "data-expanded", expanded ? "" : null);
     keeps(expand, "aria-pressed", String(expanded));
     keeps(expand, "aria-label", expanded ? "Less room to write" : "More room to write");

@@ -445,10 +445,15 @@ export function createFloatingPanel({
       : 0;
     if (lines > 3.5 === long) return;
     long = lines > 3.5;
-    // The row's floor while the mark stands resizes the field this watches, so it
-    // paints in the next frame rather than inside the observer's delivery.
-    nextRender(paint);
+    // In the frame the field grows, so the mark rides in with the line that brought it
+    // (`followBox`); standing it resizes nothing the observer watches.
+    markRoom();
   });
+  // The mark stands while the draft runs long, and while the field is wide, where the
+  // draft may fit three lines again; a resolved thread's field takes no words.
+  let fieldRests = false;
+  const markRoom = () =>
+    keeps(host, "data-long", (long || expanded) && !fieldRests ? "" : null);
   lengthWatch.observe(field);
   const rowNoticeSeat = el("div", "lf-fp-row-notice");
   const quick = el("div", "lf-fp-quick");
@@ -529,7 +534,9 @@ export function createFloatingPanel({
   // October over the counts coming back as the caret left, which rewrapped the draft
   // each time the user stepped out and again as they came back. Words a refused send
   // hands back move nothing, so its action stays in the seat the empty field gave it,
-  // Dictate's, until the user types again; emptied words always end it.
+  // Dictate's, until the user types again; emptying the field always ends it. A draft is
+  // anything typed, a line break included: a new line grows the field as words do, so
+  // the field takes its room from the first key (20 October).
   let drafted = false;
   let postureMoved = true;
   // The thread the reader lands at the end of, once Leaf has drawn more than `after`
@@ -722,10 +729,10 @@ export function createFloatingPanel({
       : replyOutlet.hidden
         ? null
         : replyInput();
-  // Words arriving in an empty field, or the last of them going, re-seat the row.
+  // A draft arriving in an empty field, or the last of it going, re-seats the row.
   function retype() {
     postureMoved = true;
-    if (Boolean(draftOf(fieldInput()).trim()) !== drafted) paint();
+    if (Boolean(draftOf(fieldInput())) !== drafted) paint();
   }
   field.addEventListener("input", retype);
   // A press on the page's editor while words stand selected on the page comments on
@@ -3314,15 +3321,14 @@ export function createFloatingPanel({
     keeps(host, "data-writing", writing ? "" : null);
     // While the field holds a draft, Send stands in its corner and the counts step
     // aside for it (`drafted`).
-    const words = Boolean(draftOf(input).trim());
+    const words = Boolean(draftOf(input));
     if (postureMoved || !words) drafted = words;
     postureMoved = false;
     keeps(host, "data-drafted", drafted ? "" : null);
     keeps(host, "data-words", words ? "" : null);
     if (!words) expanded = false;
-    // The mark stays while the field is wide, where the draft may fit three lines again.
-    const marked = (long || expanded) && !resting;
-    keeps(host, "data-long", marked ? "" : null);
+    fieldRests = resting;
+    markRoom();
     keeps(host, "data-expanded", expanded ? "" : null);
     keeps(expand, "aria-pressed", String(expanded));
     keeps(expand, "aria-label", expanded ? "Less room to write" : "More room to write");

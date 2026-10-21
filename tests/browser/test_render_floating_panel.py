@@ -4245,13 +4245,18 @@ def test_a_draft_draws_a_bullet_list_as_the_message_will(browser, serve):
 
 def test_send_stands_in_the_counts_place_while_the_field_holds_a_draft(browser, serve):
     """Typing puts Send where the counts stood, wearing every composer's accent arrow
-    rather than the panel's own press face. A press that takes the caret away leaves
-    the draft as it stands, Send and every line in place, and so does a press back
-    into it; the counts come back once the field empties."""
+    rather than the panel's own press face; a line break is a draft as a word is. A
+    press that takes the caret away leaves the draft as it stands, Send and every line
+    in place, and so does a press back into it; the counts come back once the field
+    empties."""
     page = floating(browser, serve(LONG_PAGE))
     field(page).click()
-    page.keyboard.type("Could the rollback cover the weekend, and the Monday after it?")
     send = page.locator(".lf-fp-send")
+    page.keyboard.press("Shift+Enter")
+    expect(page.locator(".lf-fp-on-user")).to_be_hidden()
+    page.keyboard.press("Backspace")
+    expect(page.locator(".lf-fp-on-user")).to_be_visible()
+    page.keyboard.type("Could the rollback cover the weekend, and the Monday after it?")
     expect(send).to_be_visible()
     accent = page.evaluate(
         "() => { const probe = document.createElement('span'); probe.style.color = 'var(--accent)';"

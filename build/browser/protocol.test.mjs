@@ -332,6 +332,21 @@ test("an annotation changes nothing, inside a conditional too", () => {
     changed((s) => (then(s).pid.description = "The server's process"), conditional),
     none,
   );
+  // A map keeps every name, and `$defs` is compared, since a reference reads it.
+  assert.deepEqual(
+    changed(
+      (s) => (s.records.claim.schema.then.dependentRequired = { description: ["pid"] }),
+      conditional,
+    ).refused.length,
+    1,
+  );
+  const defs = structuredClone(conditional);
+  defs.records.claim.schema.then.$defs = { rule: { type: "string" } };
+  assert.deepEqual(
+    changed((s) => (s.records.claim.schema.then.$defs.rule.type = "integer"), defs)
+      .refused.length,
+    1,
+  );
   // A field named like an annotation is still a field.
   assert.deepEqual(
     changed((s) => (then(s).description.type = "integer"), conditional),

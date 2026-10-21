@@ -76,7 +76,9 @@ const others = (schema) =>
   schema.additionalProperties ?? schema.unevaluatedProperties ?? !schema.properties;
 const show = (value) => JSON.stringify(value ?? "none");
 // A schema without its annotations, for the keywords compared only for equality. A map
-// of fields keeps every name, and a value under `const` or `enum` is data.
+// keeps every name, `$defs` included since a reference reads it, and a value under
+// `const` or `enum` is data.
+const MAPS = new Set("properties dependentSchemas dependentRequired $defs".split(" "));
 function bare(schema) {
   if (typeof schema !== "object" || schema === null) return schema;
   if (Array.isArray(schema)) return schema.map(bare);
@@ -86,12 +88,12 @@ function bare(schema) {
     );
   return Object.fromEntries(
     Object.entries(schema)
-      .filter(([key]) => !ANNOTATIONS.has(key))
+      .filter(([key]) => key === "$defs" || !ANNOTATIONS.has(key))
       .map(([key, value]) => [
         key,
         key === "const" || key === "enum"
           ? value
-          : key === "properties" || key === "dependentSchemas"
+          : MAPS.has(key)
             ? map(value)
             : bare(value),
       ]),

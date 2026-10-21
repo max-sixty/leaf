@@ -326,6 +326,7 @@
 :is(.lf-msg-body, leaf-text) {
   --quote-inset: 10px;
   --pre-inset: 10px;
+  --pre-pad-block: 8px;
 }
 leaf-text.lf-fab-input,
 .lf-msg-body {
@@ -376,7 +377,7 @@ leaf-text.lf-fab-input,
   margin: 2px 0;
 }
 .lf-msg-body pre {
-  padding-block: 8px;
+  padding-block: var(--pre-pad-block);
 }
 /* A message written in Markdown stands its blocks as the draft it was typed in showed
    them: a line apart for each blank line the source left before one, and touching

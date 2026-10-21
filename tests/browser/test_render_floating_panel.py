@@ -4425,20 +4425,25 @@ def test_a_draft_draws_a_list_as_the_message_will(browser, serve):
     page.keyboard.insert_text(
         "Notes:\n- "
         + "an item long enough to wrap in the field " * 3
-        + "\n- parent\n      deeper\n    - child\n\n1. one\n\n```\ncode\n```\nend"
+        + "\n- parent\n      deeper\n    - child\n\n1. one\n\n       indented"
+        + "\n\n```\ncode\n```\nend"
     )
-    # Where the words "deeper", on a line continuing the parent's, stand in a box.
-    deeper = """box => {
+    # The field grows to hold the draft; let it come to rest before reading it.
+    settled(page)
+    # Where a word stands in a box: "deeper", on a line continuing the parent's, and
+    # "indented", the code an item holds.
+    seen = """(box, word) => {
       const walk = document.createTreeWalker(box, NodeFilter.SHOW_TEXT);
       while (walk.nextNode()) {
-        const at = walk.currentNode.data.indexOf('deeper');
+        const at = walk.currentNode.data.indexOf(word);
         if (at < 0) continue;
         const words = document.createRange();
         words.setStart(walk.currentNode, at);
-        words.setEnd(walk.currentNode, at + 6);
+        words.setEnd(walk.currentNode, at + word.length);
         return Math.round(words.getBoundingClientRect().left - box.getBoundingClientRect().left);
       }
     }"""
+    words = ("deeper", "indented")
 
     def drafted():
         return field(page).evaluate(
@@ -4466,9 +4471,14 @@ def test_a_draft_draws_a_list_as_the_message_will(browser, serve):
         )
 
     away = drafted()
-    drafted_deeper = field(page).evaluate(
-        f"host => ({deeper})(window.editorRoots.get(host).querySelector('.cm-content'))"
-    )
+    drafted_words = [
+        field(page).evaluate(
+            f"(host, word) => ({seen})("
+            "window.editorRoots.get(host).querySelector('.cm-content'), word)",
+            word,
+        )
+        for word in words
+    ]
     assert [item["marker"] for item in away] == ["disc", "disc", "circle", "decimal"]
     assert not any(item["source"] for item in away), away
     assert away[0]["wrapped"] == away[0]["words"], away
@@ -4486,7 +4496,9 @@ def test_a_draft_draws_a_list_as_the_message_will(browser, serve):
           const box = text.getBoundingClientRect();
           return [...text.querySelectorAll('li')].map((li) => {
             const words = document.createRange();
-            words.selectNodeContents(li.firstChild);
+            const walk = document.createTreeWalker(li, NodeFilter.SHOW_TEXT);
+            while (walk.nextNode() && !walk.currentNode.data.trim());
+            words.selectNodeContents(walk.currentNode);
             const row = words.getClientRects()[0];
             return {
               words: row.left - box.left,
@@ -4506,7 +4518,8 @@ def test_a_draft_draws_a_list_as_the_message_will(browser, serve):
 
     keys = ("words", "top", "marker", "height")
     assert placed(away) == placed(shown)
-    assert drafted_deeper == sent.evaluate(deeper) == round(away[1]["words"])
+    assert drafted_words == [sent.evaluate(seen, word) for word in words]
+    assert drafted_words[0] == round(away[1]["words"])
 
 
 def test_send_stands_in_the_counts_place_while_the_field_holds_a_draft(browser, serve):

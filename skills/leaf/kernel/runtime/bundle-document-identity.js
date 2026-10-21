@@ -940,6 +940,9 @@ sheet.replaceSync(`
     border-start-start-radius: var(--r); border-start-end-radius: var(--r); }
   .lf-md-code-last { border-block-end: 1px solid var(--code-border);
     border-end-start-radius: var(--r); border-end-end-radius: var(--r); }
+  /* Code with no fence lines takes the message's padding at its ends instead. */
+  .lf-md-code-bare.lf-md-code-first { padding-block-start: var(--pre-pad-block); }
+  .lf-md-code-bare.lf-md-code-last { padding-block-end: var(--pre-pad-block); }
 `);
 var ownerStep = StateEffect2.define();
 var hide = Decoration.replace({});
@@ -1019,12 +1022,19 @@ function decorate(state, placed) {
         add(a, b, token.markup.startsWith("#") ? syntax : dim);
     } else if (token.type === "fence" || token.type === "code_block") {
       code.push([from, to]);
+      const body = token.content.split("\n");
+      const opened = state.doc.lineAt(from).number + (token.type === "fence" ? 1 : 0);
       lines(from, to, (each) => {
         const ends = [
           each.from <= from ? " lf-md-code-first" : "",
-          each.to + 1 >= to ? " lf-md-code-last" : ""
+          each.to + 1 >= to ? " lf-md-code-last" : "",
+          token.type === "code_block" ? " lf-md-code-bare" : ""
         ].join("");
         out.push(line(`lf-md-code-block${ends}`).range(each.from));
+        const kept = body[each.number - opened];
+        if (kept === void 0 || each.number - opened >= body.length - 1) return;
+        const lead = each.text.match(/^[ \t]*/)[0].length;
+        add(each.from, each.from + lead - kept.match(/^[ \t]*/)[0].length, hide);
       });
       const fence = touches(state, from, to - 1) ? dim : unseen;
       for (const [a, b] of markers ?? []) add(a, b, fence);
@@ -1050,7 +1060,7 @@ function decorate(state, placed) {
         continue;
       }
       lines(head.to + 1, Math.min(to, state.doc.length), (each) => {
-        items.set(each.from, { depth, indent: end - head.from });
+        items.set(each.from, { depth, continued: true });
       });
       const kind = list.next === null ? BULLETS[Math.min(depth, BULLETS.length) - 1] : "lf-md-number";
       const shown = touches(state, start, end);
@@ -1059,13 +1069,10 @@ function decorate(state, placed) {
       add(start, end, shown ? shownMarker : marker);
     }
   }
-  for (const [from, { depth, kind, number, indent }] of items) {
+  for (const [from, { depth, kind, number, continued }] of items) {
     out.push(itemLine(depth, kind, number).range(from));
-    if (indent === void 0) continue;
-    const { text } = state.doc.lineAt(from);
-    const inCode = code.some(([a, b]) => from >= a && from < b);
-    const lead = (inCode ? text.slice(0, indent) : text).match(/^[ \t]*/)[0].length;
-    add(from, from + lead, hide);
+    if (!continued || code.some(([a, b]) => from >= a && from < b)) continue;
+    add(from, from + state.doc.lineAt(from).text.match(/^[ \t]*/)[0].length, hide);
   }
   return Decoration.set(out, true);
 }

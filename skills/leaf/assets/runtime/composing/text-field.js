@@ -207,6 +207,9 @@ sheet.replaceSync(`
     border-start-start-radius: var(--r); border-start-end-radius: var(--r); }
   .lf-md-code-last { border-block-end: 1px solid var(--code-border);
     border-end-start-radius: var(--r); border-end-end-radius: var(--r); }
+  /* Code with no fence lines takes the message's padding at its ends instead. */
+  .lf-md-code-bare.lf-md-code-first { padding-block-start: var(--pre-pad-block); }
+  .lf-md-code-bare.lf-md-code-last { padding-block-end: var(--pre-pad-block); }
 `);
 
 // A step an owner recorded in the words' history (`record`): `run` makes it happen when
@@ -260,7 +263,7 @@ const read = (state) => {
 function decorate(state, placed) {
   const out = [];
   // The ends of the lists open at the token being read, each list line's item, and the
-  // code blocks, whose indent past an item's is the code's own.
+  // code blocks, whose lines their own reading indents.
   const lists = [];
   const items = new Map();
   const code = [];
@@ -310,12 +313,21 @@ function decorate(state, placed) {
         add(a, b, token.markup.startsWith("#") ? syntax : dim);
     } else if (token.type === "fence" || token.type === "code_block") {
       code.push([from, to]);
+      // Each line of code keeps the indent the parser's reading of it keeps; the rest,
+      // a list item's or an indented block's own four spaces, the message drops.
+      const body = token.content.split("\n");
+      const opened = state.doc.lineAt(from).number + (token.type === "fence" ? 1 : 0);
       lines(from, to, (each) => {
         const ends = [
           each.from <= from ? " lf-md-code-first" : "",
           each.to + 1 >= to ? " lf-md-code-last" : "",
+          token.type === "code_block" ? " lf-md-code-bare" : "",
         ].join("");
         out.push(line(`lf-md-code-block${ends}`).range(each.from));
+        const kept = body[each.number - opened];
+        if (kept === undefined || each.number - opened >= body.length - 1) return;
+        const lead = each.text.match(/^[ \t]*/)[0].length;
+        add(each.from, each.from + lead - kept.match(/^[ \t]*/)[0].length, hide);
       });
       // A fence's lines keep their room, as the message's code keeps its padding.
       const fence = touches(state, from, to - 1) ? dim : unseen;
@@ -339,8 +351,8 @@ function decorate(state, placed) {
       const depth = lists.length;
       // An item's later lines stand under its words, their indent hidden as the
       // message drops it, and never revealed, so the words don't jump as the caret
-      // arrives: a paragraph's whole indent, and in code only the item's, since the
-      // rest is the code's. A nested item, read after its parent, takes its own lines.
+      // arrives: a paragraph's whole indent, and in code what the code's reading drops
+      // (above). A nested item, read after its parent, takes its own lines.
       const head = state.doc.lineAt(from);
       const [at, end] = markers[0];
       // The marker's own indent stands in the inset with it. A quote's line keeps the
@@ -352,7 +364,7 @@ function decorate(state, placed) {
         continue;
       }
       lines(head.to + 1, Math.min(to, state.doc.length), (each) => {
-        items.set(each.from, { depth, indent: end - head.from });
+        items.set(each.from, { depth, continued: true });
       });
       const kind =
         list.next === null
@@ -364,13 +376,10 @@ function decorate(state, placed) {
       add(start, end, shown ? shownMarker : marker);
     }
   }
-  for (const [from, { depth, kind, number, indent }] of items) {
+  for (const [from, { depth, kind, number, continued }] of items) {
     out.push(itemLine(depth, kind, number).range(from));
-    if (indent === undefined) continue;
-    const { text } = state.doc.lineAt(from);
-    const inCode = code.some(([a, b]) => from >= a && from < b);
-    const lead = (inCode ? text.slice(0, indent) : text).match(/^[ \t]*/)[0].length;
-    add(from, from + lead, hide);
+    if (!continued || code.some(([a, b]) => from >= a && from < b)) continue;
+    add(from, from + state.doc.lineAt(from).text.match(/^[ \t]*/)[0].length, hide);
   }
   return Decoration.set(out, true);
 }

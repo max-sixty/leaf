@@ -61,14 +61,20 @@ In Chrome the browser also sees the POST's answer and the reply showing, in the
 floating panel's view of its thread or on its card at its passage, which the page
 records itself (`shown_reply`); `sinceSendMs` reads those from the
 send. Where the journey runs the agent itself, its record of the session (Claude
-Code's transcript, Codex's App Server notifications, Pi's RPC events) also splits the
-agent's work from the comment's admission to its reply into delivery (until it is
-picked up), model and tool phases (`turn`), so a slow reply shows where it went. The
-JSON on stdout carries all of it: the user's end (`userEnd`), `comment` for the
-release ask, `steps` for each step's duration and its comments' timings, and the
-code version the journey ran. A comment whose step held a permission prompt the user
-answered says so (`approved`), since the prompt held the session for as long as it
-stood.
+Code's transcript, Codex's App Server notifications, Pi's RPC events) also splits each
+reply (`reply`, `reply_phases.reply_breakdown`) into the whole reply, Leaf's share of
+it, and the model calls it took, so a slow reply shows where it went.
+
+A harness journey asks for the same small page change in two cases (`CASES`): the
+release ask reaches a harness that is waiting, idle until Leaf's watch or hook wakes
+it, and the `mid-turn` step's ask reaches one that is working on the user's own turn,
+which takes it between steps or at the turn's end. Each names a release of its own
+(`markers`), and each step requires a published revision naming it. The JSON on
+stdout carries all of it: the user's end (`userEnd`), `comment` for the release ask,
+`steps` for each step's duration and its comments' timings, `cases` naming the
+comment each case asked with, and the code version the journey ran. A comment whose
+step held a permission prompt the user answered says so (`approved`), since the
+prompt held the session for as long as it stood.
 
 A `startup_failed` receipt gets one more ask; any other failure receipt fails on
 the first (`worker/README.md` owns that contract).
@@ -101,7 +107,7 @@ from leaf.event_log import read_events
 from leaf.events import build_threads
 from leaf.files import revision_path
 from leaf.findings import Finding
-from leaf.leases import titles_log
+from leaf.interaction_log import read_interactions
 from leaf.server import running_server
 from leaf.structure import SourceDocument
 from leaf.thread import successful_replies
@@ -125,6 +131,7 @@ from leaf_dev.commands.verify_site import (
     startup_profile,
 )
 from leaf_dev.page_fixtures import record_run_context
+from leaf_dev.reply_phases import instant, reply_breakdown
 from leaf_dev.review_scenario import COMMENTS, post
 from leaf_dev.startup import startup_reading
 
@@ -158,6 +165,15 @@ HARNESS_TARGETS = {
     "codex-queue": {"harness": "codex", "transport": "queue"},
     "pi": {"harness": "pi"},
 }
+# The comment each case asks for the small page change with: the release ask, sent
+# while the harness waits, and the `mid-turn` step's, sent while it works.
+CASES = {"waiting": "release", "working": "mid-turn"}
+
+
+def markers(version: str) -> dict[str, str]:
+    """The release each case's ask names: two spans of the commit the journey runs,
+    so each revision's check finds its own."""
+    return {"waiting": version[:8], "working": version[8:16]}
 
 
 def samples_path() -> Path:
@@ -248,10 +264,6 @@ class AgentAsks(NamedTuple):
     profile: AgentProfile
 
 
-def instant(ts: str) -> float:
-    return datetime.fromisoformat(ts).timestamp()
-
-
 def title(events: list[dict], thread: str) -> str | None:
     """The title `events` give `thread`, if any."""
     return build_threads(events, {}).get(thread, {}).get("title")
@@ -308,75 +320,6 @@ def recorded_steps(events: list[dict], comment: dict, published: dict | None) ->
             ("replied", replied and replied["ts"]),
         )
     }
-
-
-def turn_phases(
-    records: list[dict], admitted: str, picked_up: str | None, replied: str
-) -> list[dict]:
-    """The agent's work on a comment from its admission to its reply, as consecutive
-    phases in milliseconds from the admission: `delivery` until the comment is in the
-    agent's context (`picked_up`, its opened pickup), whether that opened a turn or
-    entered a running one, then alternating `model` (from the last tool result to the
-    next tool call) and `tool` (from that call until every call it started has
-    returned), each tool phase naming its calls. A comment that enters a running turn
-    while a call is out, as one sent mid-turn does, starts in a tool phase from its
-    pickup until those calls return. A record's time is when it was written or heard:
-    Claude Code's transcript stamps each record itself, and the journey stamps Codex's
-    notifications and Pi's events as it hears them. A comment never picked up has no
-    phases."""
-    if picked_up is None:
-        return []
-    start, began, end = instant(admitted), instant(picked_up), instant(replied)
-    timed = [
-        (instant(record["received_at"]), record)
-        for record in records
-        if instant(record["received_at"]) <= end
-    ]
-    phases: list[dict] = []
-
-    def close(phase: str, since: float, until: float, **detail) -> None:
-        phases.append(
-            {
-                "phase": phase,
-                "startMs": round((since - start) * 1000),
-                "ms": round((until - since) * 1000),
-                **detail,
-            }
-        )
-
-    close("delivery", start, began)
-    # The calls still out when the comment was picked up.
-    out: dict[str, str] = {}
-    for at, record in timed:
-        if at > began or record["type"] not in ("assistant", "user"):
-            continue
-        for part in record["message"]["content"]:
-            if part["type"] == "tool_use":
-                out[part["id"]] = part["input"].get("command", part["name"])[:200]
-            elif part["type"] == "tool_result":
-                out.pop(part["tool_use_id"], None)
-    phase = "tool" if out else "model"
-    since, pending, calls = began, set(out), list(out.values())
-    for at, record in timed:
-        if at <= began or record["type"] not in ("assistant", "user"):
-            continue
-        for part in record["message"]["content"]:
-            if part["type"] == "tool_use":
-                if phase == "model":
-                    close("model", since, at)
-                    phase, since, calls = "tool", at, []
-                pending.add(part["id"])
-                calls.append(part["input"].get("command", part["name"])[:200])
-            elif part["type"] == "tool_result" and part["tool_use_id"] in pending:
-                pending.remove(part["tool_use_id"])
-                if not pending:
-                    close("tool", since, at, calls=calls)
-                    phase, since = "model", at
-    if phase == "tool":
-        close("tool", since, end, calls=calls)
-    else:
-        close("model", since, end)
-    return phases
 
 
 def agent_profile(profile: AgentProfile, steps: dict) -> dict:
@@ -752,13 +695,13 @@ def run_journey(
     """Tell the agent that release `version` passed its checks and ask it to record
     that, at the user's `end`, then require a published revision naming the release
     and an answer, and in a browser a reload presenting it. Return the journey's
-    reading of the ask, its agent's work split into phases where `records` reads the
-    session.
+    reading of the ask, its reply broken down (`reply_breakdown`) where `records`
+    reads the session.
 
     The page check finds the release's short hash in the authored board markup:
     where on the board the agent records it is the agent's call.
     """
-    marker = version[:8]
+    marker = markers(version)["waiting"]
     opening = end.opening()
     turn, asks, revision, profile = ask_until_answered(end, marker)
     check_turn_answered(end.url, marker, turn, asks, revision)
@@ -771,7 +714,7 @@ def run_journey(
         profile, recorded_steps(events, answered_comment, published), answer
     )
     if records is not None:
-        comment["turn"] = turn_phases(
+        comment["reply"] = reply_breakdown(
             records(),
             answered_comment["ts"],
             pickup_at(events, answered_comment["id"], "opened"),
@@ -877,21 +820,15 @@ class Terminal:
                     return
         raise self.failure(what, STEP_LIMIT)
 
-    def page_server_title(self, session: str, thread: str) -> dict | None:
-        """The record the page server of `session`'s page made of the title it
+    def page_server_title(self, page: Path, thread: str) -> dict | None:
+        """The record `page`'s server made in its diagnostics of the title it
         generated for `thread`, hearing the session for as long as the request may
         take, or None where it made none. A thread's title says nothing of who made
         it; this says the page server did."""
-        log = titles_log(session)
         deadline = time.monotonic() + TITLE_PATIENCE
         while True:
-            records = log.read_text().splitlines() if log.exists() else []
-            for line in records:
-                record = json.loads(line)
-                if (record["event"], record["thread"]) == (
-                    "thread_title_generated",
-                    thread,
-                ):
+            for record in read_interactions(page, types=("thread_title_generated",)):
+                if record.get("thread") == thread:
                     return record
             if time.monotonic() > deadline:
                 return None
@@ -1028,14 +965,16 @@ class HttpEnd:
         """What the release ask reads after it: nothing, with no page to reload."""
         return {}
 
-    def write(self, name: str) -> Callable[[], tuple[str, AgentProfile]]:
-        """What posts step `name`'s comment, which takes no writing first."""
+    def write(
+        self, name: str, text: str | None = None
+    ) -> Callable[[], tuple[str, AgentProfile]]:
+        """What posts step `name`'s comment (`post`), which takes no writing first."""
 
         def send() -> tuple[str, AgentProfile]:
             profile = AgentProfile()
             profile.ask_count = 1
             profile.started = time.monotonic()
-            profile.event_ids.append(post(self.url, name))
+            profile.event_ids.append(post(self.url, name, text))
             return profile.event_ids[0], profile
 
         return send
@@ -1127,9 +1066,11 @@ class BrowserEnd:
             f"{url} reached revision {shown} but did not finish presenting it, "
             f"with its status reading ‘{status}’",
         )
+        # `inner_text` applies the theme's text-transform, so a release recorded in
+        # an uppercase eyebrow or panel heading reads `35B36571`. Compare ignoring case.
         rendered = page.locator("main").inner_text()
         check(
-            marker in rendered,
+            marker.casefold() in rendered.casefold(),
             f"{url} rendered a page that never names ‘{marker}’, which the agent's "
             "published revision did",
         )
@@ -1144,10 +1085,13 @@ class BrowserEnd:
             }
         }
 
-    def write(self, name: str) -> Callable[[], tuple[str, AgentProfile]]:
-        """Write step `name`'s comment (`COMMENTS`) on its passage, unsent, as a user
-        does before the moment they mean it for; return what sends it."""
-        section, text = COMMENTS[name]
+    def write(
+        self, name: str, text: str | None = None
+    ) -> Callable[[], tuple[str, AgentProfile]]:
+        """Write step `name`'s comment (`COMMENTS`) on its passage, or `text` on the
+        page, unsent, as a user does before the moment they mean it for; return what
+        sends it."""
+        section, text = COMMENTS[name] if text is None else (None, text)
         box = write_comment(self.session, text, section)
 
         def send() -> tuple[str, AgentProfile]:
@@ -1208,14 +1152,32 @@ class User:
         self.release()
         self.passed("release", started)
 
-    def comment(self, name: str) -> str:
-        """Send step `name`'s comment (`COMMENTS`) on its passage; return its id."""
-        return self.write(name)()
+    def comment(self, name: str, text: str | None = None) -> str:
+        """Send step `name`'s comment (`COMMENTS`) on its passage, or `text` on the
+        page; return its id."""
+        return self.write(name, text)()
 
-    def write(self, name: str) -> Callable[[], str]:
-        """Make step `name`'s comment ready to send, as a user writes one before the
-        moment they mean it for; return what sends it, which returns its id."""
-        send = self.end.write(name)
+    def ask_while_working(self) -> str:
+        """Send the working case's ask (`CASES`), the release ask naming its own
+        release, while the harness works on the user's turn; return its id."""
+        return self.comment(
+            CASES["working"], release_ask(markers(self.version)["working"])
+        )
+
+    def require_recorded(self) -> None:
+        """Require the page's active revision to name the working case's release,
+        once its ask is answered."""
+        marker = markers(self.version)["working"]
+        check(
+            self.end.names(self.end.state()["active"], marker),
+            f"`{CASES['working']}` was answered without a revision naming ‘{marker}’",
+        )
+
+    def write(self, name: str, text: str | None = None) -> Callable[[], str]:
+        """Make step `name`'s comment, or `text` on the page, ready to send, as a
+        user writes one before the moment they mean it for; return what sends it,
+        which returns its id."""
+        send = self.end.write(name, text)
 
         def sent() -> str:
             self.ids[name], self.profiles[name] = send()
@@ -1282,7 +1244,7 @@ class User:
                 profile, recorded_steps(events, comment, None), answer
             )
             if self.records is not None:
-                reading["turn"] = turn_phases(
+                reading["reply"] = reply_breakdown(
                     self.records(),
                     comment["ts"],
                     pickup_at(events, comment["id"], "opened"),
@@ -1303,7 +1265,8 @@ class User:
             {**step, "comments": {name: comments[name] for name in step["comments"]}}
             for step in self.steps
         ]
-        return {"userEnd": self.end.name, **release, "steps": steps}
+        cases = {case: name for case, name in CASES.items() if name in self.ids}
+        return {"userEnd": self.end.name, **release, "steps": steps, "cases": cases}
 
 
 def checkout_version() -> str:

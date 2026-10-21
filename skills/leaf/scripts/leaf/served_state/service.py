@@ -15,7 +15,7 @@ from types import MappingProxyType
 from typing import Protocol
 
 from .. import presence as presence_model
-from ..data import read_contracts, read_data, read_source
+from ..data import read_data, read_source
 from ..event_log import read_events
 from ..files import (
     latest_revision,
@@ -105,10 +105,7 @@ class LivePage:
         return require_registry(self.page_dir)
 
     def data_source(self, source: str, registry: dict) -> dict | None:
-        contract = read_contracts(self.page_dir).get(source)
-        if contract is None:
-            return None
-        return read_source(self.page_dir, source, contract, registry)
+        return read_source(self.page_dir, source, registry)
 
     def events(self) -> list[dict]:
         return read_events(self.page_dir)
@@ -134,14 +131,11 @@ class LivePage:
             return artifact, page.events, read_data(self.page_dir, artifact.registry)
 
     def news(self) -> str:
-        """The token, after renewing the user lease: only this explicit attention
-        door proves a user is looking."""
+        """The token naming the page's current reading."""
         files = served_reading.page_reading(self.page_dir)
-        reading = served_reading.join_reading(
+        return served_reading.join_reading(
             files, presence_model.presence_reading(self.page_dir, files)
         )
-        presence_model.renew_viewed(self.page_dir)
-        return reading
 
     def other_pages(self) -> list[dict]:
         return presence_model.neighbor_reading(self.page_dir)

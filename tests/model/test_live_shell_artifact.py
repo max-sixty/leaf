@@ -161,6 +161,6 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
         "widgets",
         "page",
         "events.jsonl",
-        "data.json",
+        "data",
     ):
         assert not (destination / mutable).exists()

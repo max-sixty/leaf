@@ -1,6 +1,6 @@
-"""Page and neighboring-leaf presence readings, and the two writes that follow
-from them: the user-attention lease (`renew_viewed`) and the one message to a
-claimant whose input nothing will carry (`nudge_unwatched`)."""
+"""Page and neighboring-leaf presence readings, and the one write that follows
+from them: the message to a claimant whose input nothing will carry
+(`nudge_unwatched`)."""
 
 import hashlib
 import json
@@ -9,33 +9,34 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from .activity import Turn, current_turn, declared_at, takes_input
-from .event_log import read_cursor
+from .activity import (
+    Turn,
+    current_turn,
+    declaration,
+    declared_at,
+    takes_input,
+    undeclared,
+)
 from .files import file_stamp
 from .harness import claim_harness
 from .leases import lock_is_held, wait_is_live, waiter_lease_path
 from .page_memory import memo
-from .schema import SERVER_LOCK, UNNAMED_AGENT, VIEWED_FILE
+from .schema import SERVER_LOCK, UNNAMED_AGENT
 from .server import running_server
 from .service import (
     PageTransaction,
+    acknowledged,
     claim_is_active,
     page_claim,
-    read_status,
+    read_stream,
     unacknowledged,
-    undeclared,
 )
-from .state import Record, now_iso, object_schema, state_home
+from .state import named_pages, now_iso, state_home, stored_record
 
 # Presence is deliberately a short-lived reading: process and lock leases can change
 # without touching a page file. Readers share one observation for two seconds, while
 # a changed page file invalidates it immediately.
 PRESENCE_CACHE_S = 2.0
-# How stale the user-attention lease may grow while a visible tab keeps asking for
-# news before the next ask renews it.
-VIEWED_RENEW_S = 30
-# When a browser last had the page visible, in POSIX seconds (`renew_viewed`).
-VIEWED = Record("viewed", object_schema({"t": {"type": "number"}}), since=13)
 # (row-directory stamp, producer publications): the machine's, so one slot.
 _candidates = ((), ())
 _candidates_lock = threading.Lock()
@@ -89,7 +90,8 @@ def neighbor_candidates() -> tuple:
     Every server already publishes a row, including pages outside pages/, so its
     publication is the one discovery surface. Atomic replacements move rows/'s
     stamp; readers hold the parsed envelopes until a producer changes them.
-    Server leases are still checked on every observation, independent of files.
+    Server leases are still checked on every observation, independent of files,
+    including those of the pages rows at another format name (`_row_reading`).
     """
     global _candidates, _row_home, _row_files
     home = state_home()
@@ -113,16 +115,26 @@ def neighbor_candidates() -> tuple:
             if key is None:
                 _row_files.pop(path, None)
             elif path not in _row_files or _row_files[path][0] != key:
-                try:
-                    _row_files[path] = (key, ROW.read(path))
-                except (OSError, ValueError):
-                    _row_files[path] = (key, None)
-        found = []
-        for _key, record in _row_files.values():
-            if record is not None:
-                found.append((Path(record["page"]), record))
-        _candidates = (stamp, tuple(found))
+                _row_files[path] = (key, *_row_reading(path, ROW))
+        found = tuple(
+            (page, record) for _key, page, record in _row_files.values() if page
+        )
+        _candidates = (stamp, found)
         return _candidates[1]
+
+
+def _row_reading(path: Path, kind) -> tuple:
+    """The page a row names and the row, or the page alone for a row at a format
+    this Leaf doesn't read, so `other_leaves` still checks that page's server
+    lease, which means the same to every Leaf, and retires the row once none holds
+    it (`state.named_pages`)."""
+    try:
+        if record := kind.read(path):
+            return Path(record["page"]), record
+        pages = named_pages(stored_record(path) or {})
+    except (OSError, ValueError):
+        return None, None
+    return (pages[0] if pages else None), None
 
 
 def other_leaves(page_dir: Path) -> list:
@@ -169,6 +181,8 @@ def live_leaves(among: set[Path] | None = None) -> list:
             if info is None:
                 if not lock_is_held(candidate / SERVER_LOCK):
                     row_path(candidate).unlink(missing_ok=True)
+                continue
+            if record is None:
                 continue
             row = read_row(candidate, info, record=record)
             if row is not None and row["activity"]["kind"] != "closed":
@@ -243,20 +257,16 @@ def presence_with_activity(
     claim-against-proof judgment reads these fields. The server's row publication
     carries only the compact presentation fields derived from these facts. A captured
     host publication without a process keeps durable acknowledgement and pending
-    input, while omitting claimant, watcher, turn and live activity facts."""
-    stored_status = read_status(page_dir) if process else undeclared()
-    # The declaration's own fields; the harness's stream stays server-side.
-    status = {
-        key: value
-        for key, value in stored_status.items()
-        if key in {"state", "detail", "ts"}
-    }
+    input, while omitting claimant, watcher, turn and live activity facts, and the
+    declaration its log holds: whoever answers a hosted copy is the host's agent,
+    which has declared nothing (`page_agent`)."""
+    status = declaration(events) if process else undeclared()
     claim = page_claim(page_dir) if process else None
     active = claim if claim_is_active(claim) else None
     # What the wait owner has acknowledged after the complete batch reached its
     # next durable consumer. An action past this seq has not reached that point,
     # which lets the runtime carry it forward onto versions written without it.
-    cursor = read_cursor(page_dir)
+    cursor = acknowledged(events)
     reading = {
         "status": status,
         **live_facts(page_dir, claim, process=process),
@@ -291,12 +301,6 @@ def presence_with_activity(
         # new input before it ends (`Harness.turn_takes_input`).
         "turn_opened": claim["turn_opened"] if claim else None,
         "turn_takes_input": bool(active and claim_harness(active).turn_takes_input()),
-        # When a browser last had the page visible (the server bumps viewed.json,
-        # throttled, while a visible tab asks for news), or None for a page
-        # nobody has ever viewed, which keeps it distinct from one the user studied
-        # and left. Hidden tabs stop their freshness reads, so this records
-        # user attention rather than tab lifetime.
-        "viewed": _viewed_at(page_dir) if process else None,
         # Where the claimant is working (claim_page), for All pages' hover: what
         # tells one leaf from another is the work behind it, and neither the title
         # nor the page directory says which that is. It outlives the session that
@@ -305,7 +309,7 @@ def presence_with_activity(
         # None for a page nothing ever claimed, which is the honest nothing.
         "session_cwd": claim.get("cwd") if claim else None,
     }
-    return reading, stored_status["stream"] if process else None
+    return reading, read_stream(page_dir) if process else None
 
 
 def claimant_reading(page_dir: Path, events: list) -> tuple[dict, Turn]:
@@ -406,18 +410,3 @@ def nudge_unwatched(page: PageTransaction) -> None:
         and claim_harness(claim).nudge(page_dir)
     ):
         page.note_messaged(mark)
-
-
-def _viewed_at(page_dir: Path) -> float | None:
-    """When a browser last had the page visible, or None for a page nobody has
-    ever viewed."""
-    viewed = VIEWED.read(page_dir / VIEWED_FILE)
-    return viewed["t"] if viewed else None
-
-
-def renew_viewed(page_dir: Path) -> None:
-    """Renew the user-attention lease for a visible tab asking for news, at most
-    once per VIEWED_RENEW_S."""
-    viewed, now = _viewed_at(page_dir), time.time()
-    if viewed is None or now - viewed > VIEWED_RENEW_S:
-        VIEWED.write(page_dir / VIEWED_FILE, {"t": now})

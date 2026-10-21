@@ -824,7 +824,7 @@ function sentDrawing(drawing) {
 }
 
 // runtime/protocol.js
-var DRAFT_FORMAT = "leaf-draft/13";
+var DRAFT_FORMAT = "leaf-draft/15";
 
 // runtime/composing/text-field.js
 import {

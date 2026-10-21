@@ -187,7 +187,9 @@ for source and reading probes; Claude Code receives a request to use the plugin'
 skill. These probes may only read (Claude Code's Skill and Read tools; Codex's
 read-only sandbox), so a prompt that needs a page asks for its HTML in the reply,
 and one that grades what the
-agent would do asks for the commands it would run. Opus 5.5's safeguards refuse a
+agent would do asks for the commands it would run. The runner tells such a probe
+the time first, `now` in `workflows/eval.yaml` or the case's own `vars.now`, so
+the ages its fixtures' times give hold whenever it runs. Opus 5.5's safeguards refuse a
 prompt asking for its tool calls with their JSON input. The leading comment records
 where the case came from and what it measured, `metadata.purpose` the behavior it
 pins, and `metadata.tags` its area.

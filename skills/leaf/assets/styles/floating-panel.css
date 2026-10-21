@@ -468,6 +468,14 @@
   .lf-floating-panel[data-asks][data-tone="blocked"] {
     --lf-fp-asks: var(--danger-ink);
   }
+  /* A report in the blocked tone, a server the page can't reach or one answering with
+     its own error, reads in the danger's ink at the quiet face's strength: red, so the
+     words agree with the leaf, and dim, since the page retries on its own. */
+  .lf-floating-panel[data-tone="blocked"]:not([data-asks])
+    .lf-fp-field
+    leaf-text[data-says="status"]::part(placeholder) {
+    color: color-mix(in srgb, var(--danger-ink) 62%, transparent);
+  }
   .lf-fp-field .lf-compose-placeholder kbd {
     display: none;
   }
@@ -487,19 +495,26 @@
     min-height: 0;
     padding: 0;
   }
-  .lf-floating-panel[data-writing] .lf-fp-field .lf-compose-field > leaf-text {
+  .lf-floating-panel:is([data-writing], [data-drafted])
+    .lf-fp-field
+    .lf-compose-field
+    > leaf-text {
     --lf-field-end-room: calc(var(--lf-fp-line) - 6px);
   }
   /* Send shows while the user writes words, in every composer's face: the accent arrow,
-     not a press of its own, in Dictate's seat. Once they type, the counts step aside, so
-     the field takes their room (floating-panel.js, `typing`). */
+     not a press of its own, in Dictate's seat. While the field holds a draft, the
+     counts step aside, so the field takes their room, and Send stays in its corner
+     with the caret elsewhere, so no line of the draft moves (floating-panel.js,
+     `drafted`). */
   .lf-fp-field .lf-compose-submit {
     display: none;
   }
-  .lf-floating-panel[data-writing] .lf-fp-field .lf-compose-submit {
+  .lf-floating-panel:is([data-writing], [data-drafted])
+    .lf-fp-field
+    .lf-compose-submit {
     display: grid;
   }
-  .lf-floating-panel[data-typing] .lf-fp-quick {
+  .lf-floating-panel[data-drafted] .lf-fp-quick {
     display: none;
   }
   .lf-fp-field .lf-compose-dictate {

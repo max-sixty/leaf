@@ -800,8 +800,6 @@ def _compose_and_append(
             )
     else:
         record, _ = append_admitted(page, event)
-    if in_hand is not None and page.status["state"] == "idle":
-        page.set_status("waiting", "")
     return record, published
 
 

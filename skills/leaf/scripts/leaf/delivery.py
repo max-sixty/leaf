@@ -9,16 +9,20 @@ its events refer to; the ids mean nothing outside that batch.
 
 Receipt (`receive_batch`) checks, under the page transaction, that the receiver
 still owns the page and the events are the ones captured, then advances the page's
-cursor. The pickup it records (`record_pickup`) says a harness accepted the delivery
-or a turn opened it, and answers nothing. The envelope's `acknowledge` says who
-confirms receipt: Claude Code and Pi hooks confirm their inline input, while the
-agent confirms Codex hook input and a pointer it read with `leaf delivery ack`.
+acknowledgement cursor with a `receipt` event (`record_receipt`). The pickup it
+records (`record_pickup`) says a harness accepted the delivery or a turn opened it,
+and answers nothing. The two are separate events because neither implies the other:
+a failed or queued pickup confirms no receipt, and a receipt whose inputs were already
+picked up, or that the harness gave up on, records no opened pickup. The envelope's
+`acknowledge` says who confirms receipt: Claude Code and Pi hooks confirm their
+inline input, while the agent confirms Codex hook input and a pointer it read with
+`leaf delivery ack`.
 
 A reply reservation lets a Codex App Server turn's final message become the reply
 to one delivered update. Freezing with `turn_replies` marks each reply answer
 `writer: "turn"`, and the harness reserves the reply's address before it starts the
-turn (`thread.reserve_delivery_reply`). The page's status lists open reservations
-under `stream.reply_reservations`, and session-lifetime.md says when one is
+turn (`thread.reserve_delivery_reply`). The page's stream lists open reservations
+under `reply_reservations` (`service.STREAM`), and session-lifetime.md says when one is
 released. While a reservation is open, no other delivery can reserve the address,
 the turn's final message commits as the reply, and failure receipts and other
 turns' finals are refused or write nothing. A `leaf response reply` still commits at
@@ -49,7 +53,7 @@ from pathlib import Path
 from typing import Literal
 from xml.etree import ElementTree
 
-from .event_log import jsonl_line, write_cursor
+from .event_log import jsonl_line
 from .harness import session_harness
 from .refusals import Refused
 from .registry.kernel import verb_writers
@@ -65,6 +69,7 @@ from .state import (
     flocked,
     object_schema,
     open_session_turn,
+    retire_if_gone,
     session_lock_path,
     session_record,
     state_home,
@@ -344,33 +349,13 @@ def delivery_path(delivery_id: str) -> Path:
     return state_home() / "deliveries" / f"{delivery_id}.json"
 
 
-def pages_gone(batches: list[dict]) -> bool:
-    """Whether every page these captured batches came from is gone.
-
-    Nothing can answer a delivery once its pages are, so a record of one — the
-    envelope here, a Codex task's record of it — is removed by whoever next
-    enumerates its directory. Pages are usually deleted from outside leaf, with a
-    worktree or a scratch directory, so no leaf process sees the moment."""
-    return bool(batches) and not any(Path(batch["page"]).is_dir() for batch in batches)
-
-
-def retire_if_gone(path: Path, kind: Record) -> None:
-    """Remove a record of `kind` once every page it names is gone.
-
-    Other installed versions share these directories, and a record this Leaf
-    does not read may still belong to one of their live sessions."""
-    record = kind.read(path)
-    if record is not None and pages_gone(record["batches"]):
-        path.unlink(missing_ok=True)
-
-
 def _retire_gone_deliveries() -> None:
-    """Remove readable envelopes whose pages are all gone.
+    """Remove envelopes whose pages are all gone, whichever Leaf froze them.
 
     Envelopes are read one id at a time, so the only enumeration of them is here,
     under the lock every new one is written under."""
     for path in (state_home() / "deliveries").glob("*.json"):
-        retire_if_gone(path, DELIVERY)
+        retire_if_gone(path)
 
 
 def _delivery_lock_path() -> Path:
@@ -938,10 +923,11 @@ def unreferenced(
 
         obligations = read_page(page.page_dir, page.events).work.obligations
     by_id = {event["id"]: event for event in page.events}
+    cursor = page.cursor
     return [
         by_id[item["input"]]
         for item in obligations
-        if item["seq"] <= page.cursor
+        if item["seq"] <= cursor
         and ("ref" not in item["answer"] or not reads_reference(item["answer"]["ref"]))
     ]
 
@@ -958,7 +944,7 @@ def receive_batch(
     """Commit receipt after the consumer records its durable pickup evidence.
 
     Every transport confirms here once its durable consumer accepts input.
-    The body records pickup and turn entry before this advances the cursor, so
+    The body records pickup and turn entry before this records the receipt, so
     interruption leaves input available for retry. Work remains separate.
     Current ownership authorizes the write, not capture-time ownership: the
     page is still the receiver's (`service.claim_names_session`), even between a
@@ -972,7 +958,7 @@ def receive_batch(
     from .event_contracts import write_refusal
 
     # The page is already locked; keep lifecycle admission valid through pickup
-    # and cursor commit. SessionEnd cannot cross between those writes.
+    # and receipt. SessionEnd cannot cross between those writes.
     with (
         flocked(session_lock_path(session_id), deadline=page.deadline)
         if session_id
@@ -992,8 +978,20 @@ def receive_batch(
                 f"delivery no longer matches its page log: {page.page_dir}"
             )
         yield [delivered[seq] for seq in expected]
-        if max(expected) > page.cursor:
-            write_cursor(page.page_dir, max(expected))
+        record_receipt(page, max(expected))
+
+
+def record_receipt(page: PageTransaction, through: int) -> None:
+    """Confirm receipt of the page's input through seq `through`, under the
+    caller's page transaction: a `receipt` event, which moves the acknowledgement
+    cursor (`service.acknowledged`) and nothing else. A position the cursor has
+    already passed writes nothing, so the cursor only moves forward and a retried
+    receipt appends nothing."""
+    if through <= page.cursor:
+        return
+    from .event_contracts import append_admitted
+
+    append_admitted(page, {"kind": "receipt", "author": "page", "through": through})
 
 
 def receive_delivery(delivery_id: str) -> list[Path]:

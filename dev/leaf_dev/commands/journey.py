@@ -65,16 +65,16 @@ Code's transcript, Codex's App Server notifications, Pi's RPC events) also split
 reply (`reply`, `reply_phases.reply_breakdown`) into the whole reply, Leaf's share of
 it, and the model calls it took, so a slow reply shows where it went.
 
-A harness journey asks for the same small page change in two cases (`CASES`): the
-release ask reaches a harness that is waiting, idle until Leaf's watch or hook wakes
-it, and the `mid-turn` step's ask reaches one that is working on the user's own turn,
-which takes it between steps or at the turn's end. Each names a release of its own
-(`markers`), and each step requires a published revision naming it. The JSON on
-stdout carries all of it: the user's end (`userEnd`), `comment` for the release ask,
-`steps` for each step's duration and its comments' timings, `cases` naming the
-comment each case asked with, and the code version the journey ran. A comment whose
-step held a permission prompt the user answered says so (`approved`), since the
-prompt held the session for as long as it stood.
+The release ask, a small page change and each session's first comment, reaches the
+harness in one of two cases (`--case`, a harness target's option): `waiting`, idle
+until Leaf's watch or hook wakes it, or `working` on the user's own turn, which
+runs a 25 s shell command (`Terminal.work`) the harness finishes before it takes
+the comment at that tool boundary. Each journey runs one case in a session of its
+own, so both start from the same page and context. The JSON on stdout carries all
+of it: the user's end (`userEnd`), the `case`, `comment` for the release ask,
+`steps` for each step's duration and its comments' timings, and the code version
+the journey ran. A comment whose step held a permission prompt the user answered
+says so (`approved`), since the prompt held the session for as long as it stood.
 
 A `startup_failed` receipt gets one more ask; any other failure receipt fails on
 the first (`worker/README.md` owns that contract).
@@ -167,15 +167,8 @@ HARNESS_TARGETS = {
     "codex-queue": {"harness": "codex", "transport": "queue"},
     "pi": {"harness": "pi"},
 }
-# The comment each case asks for the small page change with: the release ask, sent
-# while the harness waits, and the `mid-turn` step's, sent while it works.
-CASES = {"waiting": "release", "working": "mid-turn"}
-
-
-def markers(version: str) -> dict[str, str]:
-    """The release each case's ask names: two spans of the commit the journey runs,
-    so each revision's check finds its own."""
-    return {"waiting": version[:8], "working": version[8:16]}
+# Where the harness is when the release ask reaches it (`--case`).
+CASES = ("waiting", "working")
 
 
 def samples_path() -> Path:
@@ -704,7 +697,7 @@ def run_journey(
     The page check finds the release's short hash in the authored board markup:
     where on the board the agent records it is the agent's call.
     """
-    marker = markers(version)["waiting"]
+    marker = version[:8]
     opening = end.opening()
     turn, asks, revision, profile = ask_until_answered(end, marker)
     check_turn_answered(end.url, marker, turn, asks, revision)
@@ -789,6 +782,11 @@ class Terminal:
 
     def idle(self) -> bool:
         """Whether no turn of the session is running."""
+        raise NotImplementedError
+
+    def work(self) -> object:
+        """Type the user's own turn (`review_scenario.USER_TURN`) and return once its
+        shell command runs, with what names the turn where the harness says."""
         raise NotImplementedError
 
     def records(self) -> list[dict]:
@@ -1019,16 +1017,14 @@ class HttpEnd:
         """What the release ask reads after it: nothing, with no page to reload."""
         return {}
 
-    def write(
-        self, name: str, text: str | None = None
-    ) -> Callable[[], tuple[str, AgentProfile]]:
-        """What posts step `name`'s comment (`post`), which takes no writing first."""
+    def write(self, name: str) -> Callable[[], tuple[str, AgentProfile]]:
+        """What posts step `name`'s comment, which takes no writing first."""
 
         def send() -> tuple[str, AgentProfile]:
             profile = AgentProfile()
             profile.ask_count = 1
             profile.started = time.monotonic()
-            profile.event_ids.append(post(self.url, name, text))
+            profile.event_ids.append(post(self.url, name))
             return profile.event_ids[0], profile
 
         return send
@@ -1139,13 +1135,10 @@ class BrowserEnd:
             }
         }
 
-    def write(
-        self, name: str, text: str | None = None
-    ) -> Callable[[], tuple[str, AgentProfile]]:
-        """Write step `name`'s comment (`COMMENTS`) on its passage, or `text` on the
-        page, unsent, as a user does before the moment they mean it for; return what
-        sends it."""
-        section, text = COMMENTS[name] if text is None else (None, text)
+    def write(self, name: str) -> Callable[[], tuple[str, AgentProfile]]:
+        """Write step `name`'s comment (`COMMENTS`) on its passage, unsent, as a user
+        does before the moment they mean it for; return what sends it."""
+        section, text = COMMENTS[name]
         box = write_comment(self.session, text, section)
 
         def send() -> tuple[str, AgentProfile]:
@@ -1190,6 +1183,7 @@ class User:
         self.end, self.version = end, version
         self.events, self.terminal, self.commands = events, terminal, commands
         self.records = terminal.records if terminal is not None else None
+        self.case = "waiting"
         self.ids: dict[str, str] = {}
         self.profiles: dict[str, AgentProfile] = {}
         self.sent: list[str] = []
@@ -1197,7 +1191,10 @@ class User:
         self.release_reading: dict = {}
 
     def release(self) -> None:
-        """The ask every target answers, timed (`run_journey`)."""
+        """The ask every target answers, timed (`run_journey`), in the journey's
+        `case`: in the working one, while the user's turn runs its command."""
+        if self.case == "working":
+            self.terminal.work()
         self.release_reading = run_journey(
             self.end, self.version, self.records, self.commands
         )
@@ -1210,32 +1207,14 @@ class User:
         self.release()
         self.passed("release", started)
 
-    def comment(self, name: str, text: str | None = None) -> str:
-        """Send step `name`'s comment (`COMMENTS`) on its passage, or `text` on the
-        page; return its id."""
-        return self.write(name, text)()
+    def comment(self, name: str) -> str:
+        """Send step `name`'s comment (`COMMENTS`) on its passage; return its id."""
+        return self.write(name)()
 
-    def ask_while_working(self) -> str:
-        """Send the working case's ask (`CASES`), the release ask naming its own
-        release, while the harness works on the user's turn; return its id."""
-        return self.comment(
-            CASES["working"], release_ask(markers(self.version)["working"])
-        )
-
-    def require_recorded(self) -> None:
-        """Require the page's active revision to name the working case's release,
-        once its ask is answered."""
-        marker = markers(self.version)["working"]
-        check(
-            self.end.names(self.end.state()["active"], marker),
-            f"`{CASES['working']}` was answered without a revision naming ‘{marker}’",
-        )
-
-    def write(self, name: str, text: str | None = None) -> Callable[[], str]:
-        """Make step `name`'s comment, or `text` on the page, ready to send, as a
-        user writes one before the moment they mean it for; return what sends it,
-        which returns its id."""
-        send = self.end.write(name, text)
+    def write(self, name: str) -> Callable[[], str]:
+        """Make step `name`'s comment ready to send, as a user writes one before the
+        moment they mean it for; return what sends it, which returns its id."""
+        send = self.end.write(name)
 
         def sent() -> str:
             self.ids[name], self.profiles[name] = send()
@@ -1324,8 +1303,7 @@ class User:
             {**step, "comments": {name: comments[name] for name in step["comments"]}}
             for step in self.steps
         ]
-        cases = {case: name for case, name in CASES.items() if name in self.ids}
-        return {"userEnd": self.end.name, **release, "steps": steps, "cases": cases}
+        return {"userEnd": self.end.name, "case": self.case, **release, "steps": steps}
 
 
 def checkout_version() -> str:
@@ -1451,6 +1429,13 @@ def target_session(
     help="On a codex target, serve the page with `leaf-dev preview --user`.",
 )
 @click.option(
+    "--case",
+    type=click.Choice(CASES),
+    default="waiting",
+    help="On a harness, whether the release ask reaches it waiting or working on the "
+    "user's own turn.",
+)
+@click.option(
     "--browser/--http",
     default=None,
     help="Where the user is: in Chrome, every comment typed as a user types it and what the "
@@ -1462,6 +1447,7 @@ def journey(
     release: str | None,
     sandbox: bool,
     preview: bool,
+    case: str,
     browser: bool | None,
 ) -> None:
     """Run the user's journey against TARGET, checking each step, and print its
@@ -1483,6 +1469,8 @@ def journey(
     if preview and sandbox:
         raise click.UsageError("--preview runs leaf-dev, which a sandbox refuses")
     website = target not in HARNESS_TARGETS
+    if website and case == "working":
+        raise click.UsageError("a website's journey has no terminal to start a turn")
     if website and browser is False:
         raise click.UsageError(
             "a website's journey is its page in a browser, so it has no --http"
@@ -1498,6 +1486,7 @@ def journey(
                 preview=preview,
             )
         )
+        user.case = case
         try:
             run()
             sample = {**named, **user.sample()}

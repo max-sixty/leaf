@@ -58,6 +58,18 @@ def _answer_key(event: dict, first_answers: dict[str, str]) -> dict:
     return _response_key(event["responds"])
 
 
+def thread_counts(threads: list[dict]) -> dict:
+    """What the Leaf panel's Threads mark counts of `browser_thread`'s threads
+    (`threadCounts` in the runtime's `thread/model.js`): of those more than a bare
+    reaction, the ones still open and the ones holding words the user hasn't read.
+    `tests/thread_count_cases.json` holds both runtimes to the same cases."""
+    listed = [thread for thread in threads if not thread["bare_reaction"]]
+    return {
+        "open": sum(not thread["resolved"] for thread in listed),
+        "unread": sum(bool(thread["unread"]) for thread in listed),
+    }
+
+
 def browser_thread(
     work, live_reply: dict | None = None
 ) -> tuple[dict, FrozenThreadReading]:

@@ -33,6 +33,7 @@ from . import browser as served_browser
 from . import page as served_page
 from . import reading as served_reading
 from .context import PageRead, read_page
+from .thread import thread_counts
 
 
 class PageSource(Protocol):
@@ -214,7 +215,7 @@ class PageStateService:
         this publication on its next look. Owed updates and reply bodies stay in
         the page's projection; the row carries their counts, never their copies.
         The user's counts are the active view's, as the Leaf panel's marks count
-        them: On me, open threads, and threads holding content they haven't read.
+        them: its On me list, and its threads by `thread_counts`.
         """
         from ..server_rows import compact_activity
 
@@ -241,10 +242,7 @@ class PageStateService:
                 "session_cwd": context.presence["session_cwd"],
                 "activity": compact_activity(work.activity),
                 "on_user": len(view["queues"]["on_user"]) if view is not None else 0,
-                "threads": {
-                    "open": sum(not thread["resolved"] for thread in threads),
-                    "unread": sum(bool(thread["unread"]) for thread in threads),
-                },
+                "threads": thread_counts(threads),
             }
             live = {
                 key: context.presence[key]

@@ -2259,6 +2259,13 @@
       if (!inFlow(follower) || !follower.parentElement) return false;
       follower = follower.parentElement;
     }
+    // A block container stacks its in-flow children vertically. In flex, grid,
+    // and inline layout, DOM order does not establish where a size change flows.
+    if (
+      axis !== "top" ||
+      !["block", "flow-root"].includes(getComputedStyle(branch.parentElement).display)
+    )
+      return false;
     return (
       inFlow(follower) &&
       branch !== follower &&

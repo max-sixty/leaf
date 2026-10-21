@@ -4,7 +4,7 @@
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { build } from "esbuild";
+import { build } from "./esbuild.mjs";
 import { checkModule } from "./browser/shipped.mjs";
 const root = fileURLToPath(new URL("../", import.meta.url));
 export async function initialOutputs() {

@@ -4178,6 +4178,12 @@ def test_a_draft_draws_a_bullet_list_as_the_message_will(browser, serve):
     page.keyboard.type("- " + "an item long enough to wrap in the field " * 3)
     page.keyboard.press("Shift+Enter")
     page.keyboard.type("two")
+    # The renderer the draft is read by loads lazily, and its arrival draws the field.
+    page.wait_for_function(
+        """host => window.editorRoots.get(host).querySelectorAll('.lf-md-bullet')
+          .length === 2""",
+        arg=field(page).element_handle(),
+    )
 
     def reading():
         return field(page).evaluate(

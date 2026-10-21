@@ -682,8 +682,8 @@
   --lf-joined: 0;
   --lf-option-font: var(--t-4)/1.6 var(--serif);
   --lf-option-line: 1lh;
-  --lf-option-action-size: max(28px, var(--aim-floor));
-  --lf-option-pad-block: 5px;
+  --lf-option-pad-min: 5px;
+  --lf-option-pad-block: var(--lf-option-pad-min);
   container-type: inline-size;
 }
 @media screen {
@@ -696,13 +696,8 @@
   --lf-option-font: var(--t-5)/1.5 var(--sans);
   font: var(--lf-option-font);
 }
-@media screen {
-  :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > strong)) {
-    --lf-option-pad-block: max( 5px, (var(--lf-option-action-size) - var(--lf-option-line)) / 2 );
-  }
-}
 :scope:is(lf-options):has(> lf-option > strong) {
-  --lf-option-pad-block: var(--sp-3);
+  --lf-option-pad-min: var(--sp-3);
 }
 :scope:is(lf-option) {
   display: block;
@@ -1099,11 +1094,11 @@
   }
   .lf-another {
     --lf-option-add-seat-inset: var(--sp-1);
-    --lf-option-add-seat-end: calc( var(--lf-option-pad-block) + (var(--lf-option-line) - var(--lf-option-action-size)) / 2 );
-    --lf-option-add-badge-inset: calc( var(--lf-option-add-seat-inset) + (var(--lf-option-action-size) - var(--lf-key-badge-size)) / 2 );
-    --lf-option-add-badge-end: calc( var(--lf-option-add-seat-end) + (var(--lf-option-action-size) - var(--lf-key-badge-size)) / 2 );
-    --lf-option-write-badge-inset: calc( var(--lf-option-add-seat-inset) + var(--lf-option-action-size) + var(--sp-2) );
-    --lf-option-action-room: calc( var(--lf-option-add-seat-inset) + var(--lf-option-action-size) + var(--sp-2) );
+    --lf-option-add-seat-end: calc( var(--lf-option-pad-block) + (var(--lf-option-line) - var(--lf-icon-action-hit)) / 2 );
+    --lf-option-add-badge-inset: calc( var(--lf-option-add-seat-inset) + (var(--lf-icon-action-hit) - var(--lf-key-badge-size)) / 2 );
+    --lf-option-add-badge-end: calc( var(--lf-option-add-seat-end) + (var(--lf-icon-action-hit) - var(--lf-key-badge-size)) / 2 );
+    --lf-option-write-badge-inset: calc( var(--lf-option-add-seat-inset) + var(--lf-icon-action-hit) + var(--sp-2) );
+    --lf-option-action-room: var(--lf-option-write-badge-inset);
     position: relative;
     display: flex;
     align-items: center;
@@ -1121,7 +1116,6 @@
     margin: auto 0;
   }
   .lf-another > .lf-compose-field {
-    --lf-icon-action-hit: var(--lf-option-action-size);
     --lf-compose-pad-block: 0px;
     --lf-compose-pad-inline-start: 0px;
     position: static;
@@ -1146,7 +1140,6 @@
     line-height: var(--lf-option-line);
   }
   .lf-another .lf-compose-submit {
-    --lf-icon-action-hit: var(--lf-option-action-size);
     inset-inline-end: var(--lf-option-add-seat-inset);
     inset-block-end: var(--lf-option-add-seat-end);
   }
@@ -1154,6 +1147,7 @@
     visibility: hidden;
   }
   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) {
+    --lf-option-pad-block: max( var(--lf-option-pad-min), (var(--lf-icon-action-hit) - var(--lf-option-line)) / 2 );
     --lf-key-badge-start: var(--sp-2);
     --lf-key-badge-col: calc( var(--lf-key-badge-start) + var(--lf-key-badge-size) + 6px );
   }

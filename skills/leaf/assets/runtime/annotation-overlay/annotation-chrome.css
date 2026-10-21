@@ -518,9 +518,31 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     background: var(--paper);
   }
   .lf-margin-thread .lf-page-thread::after {
-    content: none;
+    /* Share the transcript's grid track without reserving reading space. The
+       author stays crisp while words fade into its moving lower edge. */
+    content: "";
+    position: absolute;
+    inset: var(--lf-thread-fade-top, 0px) 0 auto;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    align-self: start;
+    height: var(--lf-thread-fade-height, 0px);
+    border-radius: 0;
+    outline: none;
+    background: linear-gradient(var(--paper), transparent);
+    pointer-events: none;
+    z-index: 1;
+  }
+  .lf-margin-thread
+    .lf-page-thread:has(
+      > .lf-thread-transcript:is([data-lf-focus], :has([data-lf-focus]))
+    )::after {
+    display: none;
   }
   @media (forced-colors: active) {
+    .lf-margin-thread .lf-page-thread::after {
+      display: none;
+    }
     .lf-margin-thread .lf-page-thread[data-lf-focus-within] {
       outline: none;
     }
@@ -606,7 +628,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     grid-column: 2;
     grid-row: 2;
     align-self: start;
-    z-index: 1;
+    z-index: 2;
     display: flex;
     align-items: center;
     gap: 4px;

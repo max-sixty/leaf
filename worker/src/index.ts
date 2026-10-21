@@ -355,10 +355,10 @@ async function passiveEvent(
   return parsed.success ? parsed.data : null;
 }
 
-// Refused as final, which the runtime takes as "don't send it again this visit", and
-// under a 200, since a browser logs a failed fetch as a console error. The visitor's
-// messages stay unread until they act on the page; from then on its reads reach the
-// container and are recorded.
+// The runtime sends no read until its session is active (`thread/read.js`), so this
+// answers one that arrives anyway, as from a tab whose runtime predates that rule. It
+// is refused as final, which the runtime takes as "don't send it again this visit", and
+// under a 200, since a browser logs a failed fetch as a console error.
 function unrecordedRead(
   read: z.infer<typeof pageReadSchema>,
   manifest: SiteManifest,

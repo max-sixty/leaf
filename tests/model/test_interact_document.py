@@ -2549,7 +2549,7 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
         assert rejected.exit_code != 0
         error = json.loads(rejected.stderr)["error"]
         assert "source 'deployments' value is invalid" in error
-        assert ("false" if isinstance(invalid, list) else encoded) in error
+        assert repr(invalid[0] if isinstance(invalid, list) else invalid) in error
         assert read_page_data(page_dir) == first
 
     non_json = runner.invoke(
@@ -3744,7 +3744,7 @@ def test_page_inspection_fragments_only_the_manifest_branch_of_a_data_contract(
 @pytest.mark.parametrize(
     ("files", "refusal"),
     [
-        ([], "does not satisfy minItems: 1"),
+        ([], "should be non-empty"),
         (
             [{"path": "a.py"}] * 2,
             "record keys must be unique",

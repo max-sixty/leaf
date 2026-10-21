@@ -170,6 +170,8 @@ def cached_installation(runtime: Path = ROOT) -> Path:
             if identity() != selected:
                 continue
             if output.is_dir():
+                if identity() != selected:
+                    continue
                 return output
             with tempfile.TemporaryDirectory(prefix=".preparing-", dir=cache) as raw:
                 staged = Path(raw) / "installation"

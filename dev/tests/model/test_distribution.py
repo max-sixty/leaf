@@ -114,8 +114,9 @@ def test_identical_extracted_arms_share_the_compiled_content_identity(tmp_path):
     ) == distribution.installation_identity(arms[1])
 
 
-def test_cached_installation_reselects_after_an_edit_while_acquiring_lock(
-    prepared_cache, monkeypatch
+@pytest.mark.parametrize("edit_at", ["lock", "cache-hit"])
+def test_cached_installation_reselects_after_an_edit_while_selecting(
+    prepared_cache, monkeypatch, edit_at
 ):
     """A preview waiting for a cached revision returns the edit that woke it."""
     from contextlib import contextmanager
@@ -140,7 +141,19 @@ def test_cached_installation_reselects_after_an_edit_while_acquiring_lock(
         with flocked(path):
             yield
 
-    monkeypatch.setattr(distribution, "flocked", edit_before_acquisition)
+    if edit_at == "lock":
+        monkeypatch.setattr(distribution, "flocked", edit_before_acquisition)
+    else:
+        is_dir = type(previous).is_dir
+
+        def edit_during_cache_hit(path):
+            nonlocal edited
+            if path == previous and not edited:
+                module.write_bytes(second)
+                edited = True
+            return is_dir(path)
+
+        monkeypatch.setattr(type(previous), "is_dir", edit_during_cache_hit)
     selected = distribution.cached_installation(runtime)
     assert selected == current != previous
     assert (selected / "runtime/bundle.js").read_bytes() == module.read_bytes()

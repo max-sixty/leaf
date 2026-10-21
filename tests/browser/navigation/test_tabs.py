@@ -335,3 +335,28 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
         }"""
     )
     assert focus["width"] > 0 and focus["style"] != "none", focus
+
+
+def test_a_pressed_tab_stops_naming_the_key_that_opens_it(browser, serve):
+    """The strip names Enter and Space while focus stands on a closed tab. A press
+    focuses the tab before it opens it, and a person's press spans frames, so the strip
+    reads the focused closed tab first and must drop those keys once the tab opens."""
+    body = (
+        "<header><h1>Two views</h1></header><section><h2>Views</h2>"
+        '<lf-tabs id="views"><lf-tab id="views-one" label="One"><p>First view.</p>'
+        '</lf-tab><lf-tab id="views-two" label="Two"><p>Second view.</p></lf-tab>'
+        "</lf-tabs></section>"
+    )
+    page = open_page(browser, live_url(serve(leaf_page("Two views", body))))
+    strip = page.locator("#views > .lf-tabstrip")
+    tab = page.locator("#views").get_by_role("tab", name="Two")
+    box = tab.bounding_box()
+    assert box is not None
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.down()
+    rendered(page)
+    expect(strip).to_have_attribute("aria-keyshortcuts", re.compile(r"\bEnter\b"))
+    page.mouse.up()
+    expect(tab).to_have_attribute("aria-selected", "true")
+    rendered(page)
+    assert "Enter" not in strip.get_attribute("aria-keyshortcuts")

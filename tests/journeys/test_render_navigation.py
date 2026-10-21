@@ -2237,10 +2237,11 @@ _REPAINTED_KEYS = (
 def _stale_keys(page):
     """What a forced repaint of every element's keys changes, once the page has
     rendered what the input so far asked for: each change is an attribute that was
-    stale. A live sample's Reset is unavailable while its child loads, which is
-    `lf-sample`'s own state rather than a row's, so the reading waits for the page's
-    readiness, which includes every sample's arrival."""
+    stale. A control a send or a load holds unavailable is ready again once that
+    finishes, so the reading waits for both: for the page's readiness, which includes
+    every live sample's arrival, and for every send to come back."""
     wait_until_ready(page)
+    round_trip(page)
     rendered(page)
     painted = page.evaluate_handle(_PAINTED_KEYS)
     page.evaluate("async () => (await window.__lfWidgetApi()).paintKeys()")
@@ -2283,9 +2284,13 @@ def test_presses_and_fills_leave_no_element_naming_stale_keys(browser, serve, ex
             try:
                 control.click(force=True)
             except PlaywrightError as error:
-                # Fixed chrome can hold a control no scroll brings into the viewport,
-                # where no pointer reaches it either.
-                if "outside of the viewport" not in error.message:
+                # A pointer cannot reach a control that fixed chrome holds outside the
+                # viewport, or one that scrolling it into view hides, as a virtualized
+                # list does to a row it recycles.
+                if not any(
+                    reason in error.message
+                    for reason in ("outside of the viewport", "not visible")
+                ):
                     raise
                 continue
             did = f"press {did}"

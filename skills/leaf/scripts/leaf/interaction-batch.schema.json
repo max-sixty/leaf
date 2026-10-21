@@ -9,6 +9,7 @@
       "pattern": "^[0-9a-f]{32}$"
     },
     "entries": {
+      "description": "The observations, each numbered by `sequence`.",
       "minItems": 1,
       "maxItems": 100,
       "type": "array",
@@ -31,7 +32,11 @@
             "minimum": 1,
             "maximum": 9007199254740991
           },
-          "visibility": { "type": "string", "enum": ["visible", "hidden"] },
+          "visibility": {
+            "description": "The document's `visibilityState` when it observed the entry.",
+            "type": "string",
+            "enum": ["visible", "hidden"]
+          },
           "type": {
             "description": "What was observed, such as a DOM event's type.",
             "type": "string",

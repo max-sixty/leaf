@@ -15,7 +15,9 @@
 // until the user next types, which this driver's user never does. Every watch it
 // starts prints as `{"watching": <its payload>}`. Once a watch has exited and what its exit set
 // going in the module has run as far as it can without waiting on anything
-// outside, `{"watched": <its payload>}` prints. The first line printed is
+// outside, `{"watched": <its payload>}` prints. Each redraw the module asks for
+// prints `{"band": <tree>}`, the band above the prompt as its render hook draws
+// it, each element `{tag, props, children}`. The first line printed is
 // `{"pid", "events"}`: the process the module's processes see as their parent,
 // and the events it hooks.
 import { spawn } from "node:child_process";
@@ -41,9 +43,9 @@ function start(argv, env, input) {
   return child;
 }
 
-/** `$.process.spawn`: the child's output, here in one piece once it exits, then
- * how it ended. As in Claude Code, `return()` ends the read at once and
- * terminates the child, even while a read waits on it. */
+/** `$.process.spawn`: the child's output as it arrives, then how it ended. As in
+ * Claude Code, `return()` ends the read at once and terminates the child, even
+ * while a read waits on it. */
 function stream(request) {
   if (options.throwWatchSpawn) throw new Error("host cannot spawn watch");
   if (request.argv.includes("--watch")) {
@@ -55,8 +57,22 @@ function stream(request) {
   if (request.argv.includes("--watch")) watches.add(child);
   let output = "";
   let errors = "";
-  child.stdout.on("data", (text) => (output += text));
-  child.stderr.on("data", (text) => (errors += text));
+  let arrived;
+  const arrival = () => new Promise((resolve) => (arrived = resolve));
+  let arriving = arrival();
+  const append = (add) => (text) => {
+    add(text);
+    arrived();
+    arriving = arrival();
+  };
+  child.stdout.on(
+    "data",
+    append((text) => (output += text)),
+  );
+  child.stderr.on(
+    "data",
+    append((text) => (errors += text)),
+  );
   const ended = new Promise((resolve, reject) => {
     child.on("error", reject);
     child.on("close", (code, signal) => {
@@ -78,7 +94,9 @@ function stream(request) {
       return this;
     },
     async next() {
-      const how = await Promise.race([ended, stopped]);
+      if (!output && !errors && !finished)
+        await Promise.race([ended, stopped, arriving]);
+      const how = await Promise.race([ended, stopped, Promise.resolve(null)]);
       if (how === undefined && options.abortLagMs)
         throw new Error("the op was aborted");
       if (finished || how === undefined) return { done: true, value: how };
@@ -127,7 +145,13 @@ const $ = {
       return { text };
     },
   },
-  ui: { log: (text) => print({ diagnostic: text }) },
+  ui: {
+    log: (text) => print({ diagnostic: text }),
+    // Each element is its name, which `h` records with its props and children.
+    resolve: () => ({ Box: "Box", Text: "Text", Link: "Link" }),
+    // A redraw of the band, printed as `{"band": <its tree, or null>}`.
+    invalidate: () => setImmediate(drawBand),
+  },
   process: {
     run: (argv, init = {}) =>
       new Promise((resolve, reject) => {
@@ -146,8 +170,21 @@ const $ = {
 };
 
 const hooks = new Map();
+globalThis.h = (tag, props, ...children) => ({ tag, props, children });
+
+/** The band above the prompt, as the module's render hooks draw it over nothing. */
+async function drawBand() {
+  const band = { component: "AbovePrompt", props: { hasSurvey: false } };
+  const chain = (hooks.get("ui.render") ?? []).reduceRight(
+    (next, hook) => (input) => hook($, input, next),
+    async () => null,
+  );
+  print({ band: await chain(band) });
+}
+
+// The driver raises each event it is given, so a matcher selects nothing here.
 await register(
-  (event, hook) => hooks.set(event, [...(hooks.get(event) ?? []), hook]),
+  (event, ...rest) => hooks.set(event, [...(hooks.get(event) ?? []), rest.at(-1)]),
   options,
 );
 print({ pid: process.pid, events: [...hooks.keys()] });

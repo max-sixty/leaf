@@ -1324,5 +1324,5 @@ def test_a_comment_on_a_gloss_reopens_its_explanation(browser, serve):
     expect(bubble).to_be_hidden()
     page.locator(".lf-fp-threads").click()
     page.locator(".lf-fp-thread").click()
-    page.locator(".lf-fp-head").get_by_role("button", name="On the page").click()
+    page.locator(".lf-fp-controls").get_by_role("button", name="On the page").click()
     expect(bubble).to_be_visible()

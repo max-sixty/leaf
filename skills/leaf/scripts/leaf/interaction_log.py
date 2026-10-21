@@ -5,6 +5,22 @@ events. The developer response-time query interprets events through the current
 application readers. Browser gestures, request timings and run context use
 observations.jsonl.
 
+Each `leaf` command records how long it took in every page it acted on, one
+`leaf_command` observation as it exits (`record_command`), so a page says Leaf's own
+share of an agent's reply on any harness. A command acts on the pages it names: an
+initialized page as a `PAGE` argument (`cli.resolve_dir`; `page init`, which
+creates or re-vendors one, records nothing), an answer reference's page
+(`delivery.response_address`), or the pages a delivery it reads or acknowledges
+carries (`delivery.acting_on_delivery`); each notes its page (`acting_on`). A
+command that names none, as `leaf wait` watching every page a session owns,
+records nothing: its time is the agent waiting, not Leaf answering. One that
+names a page and then waits, as `leaf wait --ack` does, records its own work as it
+starts waiting. Harness hooks
+don't pass through the CLI, and their time shows as delivery in the page's pickup
+receipts. A command's time runs from its launcher's start, `bin/leaf`'s uv
+included, to its exit; one the sandbox bridge runs for Claude Code is timed from
+the bridge's start of it.
+
 A browser batch is admitted whole by `interaction-batch.schema.json`, the schema
 leaf.page's Worker admits it by too (`admit_batch`). The reader skips malformed lines,
 deduplicates retries and reports sequence gaps before selection. Stored ts belongs
@@ -18,8 +34,10 @@ decide which fields to redact or omit for those users.
 import fcntl
 import json
 import os
+import sys
+import time
 from collections import defaultdict
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .event_log import jsonl_line
@@ -47,6 +65,68 @@ def append_interactions(page_dir: Path, records: list[dict]) -> list[dict]:
         fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
         stream.write(data)
     return records
+
+
+# The pages the running `leaf` command acts on, which its `leaf_command` record goes to.
+_ACTED_ON: set[Path] = set()
+
+
+def acting_on(page_dir: Path) -> None:
+    """Note that this process's `leaf` command acts on `page_dir`."""
+    _ACTED_ON.add(page_dir)
+
+
+def launched() -> float:
+    """When this `leaf` command started: its launcher's start where `bin/leaf`'s uv
+    runs this process as `python -m leaf` with the same arguments, else this
+    process's own."""
+    import psutil
+
+    process = psutil.Process()
+    args = sys.argv[1:]
+    parent = process.parent()
+    words = parent.cmdline() if parent is not None else []
+    tail = words[len(words) - len(args) - 2 :]
+    if tail == ["-m", "leaf", *args]:
+        return parent.create_time()
+    return process.create_time()
+
+
+def record_command(command: str) -> None:
+    """Record in each page this command acted on how long it has taken, with the
+    harness session that ran it, once: a later call records nothing. A diagnostic
+    the system won't let this process gather or write, as a sandbox may refuse a
+    session record or a page, is dropped, since the command's own result has
+    already been decided."""
+    import psutil
+
+    from .harness import session_harness
+
+    pages, ended = list(_ACTED_ON), time.time()
+    _ACTED_ON.clear()
+    if not pages:
+        return
+    try:
+        started = launched()
+        harness = session_harness()
+        session = harness.session if harness is not None else None
+        record = {
+            "source": "cli",
+            "type": "leaf_command",
+            "command": command,
+            "started": datetime.fromtimestamp(started, UTC).isoformat(),
+            "durationMs": round((ended - started) * 1000, 1),
+            "session": session,
+            "context": session_context(session),
+        }
+    except (OSError, psutil.Error):
+        return
+    for page_dir in pages:
+        try:
+            if (page_dir / "events.jsonl").is_file():
+                append_interactions(page_dir, [record])
+        except OSError:
+            continue
 
 
 def admit_batch(batch: object) -> dict:

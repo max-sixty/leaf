@@ -39,12 +39,19 @@ from .state import (
     session_record,
 )
 
-# The pages a session has been told to reconnect, one notice each per outage.
 NOTICES = Record(
     "reconnect",
     {
+        "description": "The pages a session has been told to reconnect, one notice "
+        "each per outage, in the state home's `sessions/<digest>.reconnect`.",
         "type": "object",
-        "properties": {"pages": {"type": "array", "items": {"type": "string"}}},
+        "properties": {
+            "pages": {
+                "description": "Each page directory the session was told about.",
+                "type": "array",
+                "items": {"type": "string"},
+            }
+        },
         "required": ["pages"],
     },
     since=13,

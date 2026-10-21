@@ -619,15 +619,18 @@ def test_workflow_shell_continuations_use_literal_blocks():
 @pytest.mark.parametrize(
     ("argv", "usage"),
     [
-        (["hook"], "leaf hook --harness NAME [--if-claimed] [--watch]"),
-        (["hook", "--harness"], "leaf hook --harness NAME [--if-claimed] [--watch]"),
+        (["hook"], "leaf hook --harness NAME [--if-claimed] [--watch | --pages]"),
+        (
+            ["hook", "--harness"],
+            "leaf hook --harness NAME [--if-claimed] [--watch | --pages]",
+        ),
         (
             ["hook", "--watch", "--harness", "codex"],
-            "leaf hook --harness NAME [--if-claimed] [--watch]",
+            "leaf hook --harness NAME [--if-claimed] [--watch | --pages]",
         ),
         (
             ["hook", "--harness", "codex", "--bogus"],
-            "leaf hook --harness NAME [--if-claimed] [--watch]",
+            "leaf hook --harness NAME [--if-claimed] [--watch | --pages]",
         ),
         (["session-end", "now"], "leaf session-end"),
     ],
@@ -1047,7 +1050,6 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "hooks/hooks.json",
         "hooks/claude-code.ts",
         "hooks/codex.json",
-        "hooks/scripts/background-watch.py",
         "skills/leaf/SKILL.md",
         "skills/leaf/references/authoring-decisions.md",
         "skills/leaf/references/authoring-evidence.md",

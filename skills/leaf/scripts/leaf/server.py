@@ -23,43 +23,71 @@ from .service import PageTransaction, claim_is_active, page_claim
 from .state import (
     STRING,
     Record,
+    described,
     flocked,
     hold_mode,
     object_schema,
     state_home,
 )
 
-# The page's desired service (`hosting.py` writes it).
 SERVICE = Record(
     "service",
-    object_schema(
-        {
-            # The address a URL names, and the one the server binds.
-            "host": STRING,
-            "bind": STRING,
-            "port": {"type": "integer"},
-            "enabled": {"type": "boolean"},
-            "lifetime": {"enum": ["session", "persistent"]},
-            # The Leaf that served it (`hosting.payload_provenance`).
-            "runtime": {"type": "object"},
-            # The serving incarnation the server lease names.
-            "server_id": STRING,
-        },
-        # The mark `page init` leaves while it holds a served page down to
-        # re-vendor it (`hosting.restarting_server`).
-        {"restart": STRING},
+    described(
+        "The page's desired service, in the page directory's `service.json`, which "
+        "`hosting.py` writes.",
+        object_schema(
+            {
+                "host": described("The address a URL names.", STRING),
+                "bind": described("The address the server binds.", STRING),
+                "port": described(
+                    "The port the server listens on.", {"type": "integer"}
+                ),
+                "enabled": described(
+                    "Whether the page should be served.", {"type": "boolean"}
+                ),
+                "lifetime": described(
+                    "Whether the server stops when no live session claims the page, "
+                    "or runs until `leaf server stop`.",
+                    {"enum": ["session", "persistent"]},
+                ),
+                "runtime": described(
+                    "The Leaf that served it (`hosting.payload_provenance`).",
+                    {"type": "object"},
+                ),
+                "server_id": described(
+                    "The serving incarnation the server lease names.", STRING
+                ),
+            },
+            {
+                "restart": described(
+                    "The mark `page init` leaves while it holds a served page down "
+                    "to re-vendor it (`hosting.restarting_server`).",
+                    STRING,
+                )
+            },
+        ),
     ),
     since=13,
 )
-# The key every page this machine serves is read with (`host_key`).
-ACCESS = Record("access", object_schema({"token": STRING}), since=13)
-# What a developer preview shows in browser chrome, as `leaf-dev preview` writes it.
+ACCESS = Record(
+    "access",
+    described(
+        "The key every page this machine serves is read with (`host_key`), in the "
+        "state home's `access.json`.",
+        object_schema({"token": STRING}),
+    ),
+    since=13,
+)
 # The page receives it whole, so its shape is the served state's `preview`.
 PREVIEW = Record(
     "preview",
-    read_json(Path(__file__).with_name("served_state") / "state.schema.json")["$defs"][
-        "Reading"
-    ]["properties"]["preview"],
+    described(
+        "What a developer preview shows in browser chrome, as `leaf-dev preview` "
+        "writes it to the page directory's `preview.json`.",
+        read_json(Path(__file__).with_name("served_state") / "state.schema.json")[
+            "$defs"
+        ]["Reading"]["properties"]["preview"],
+    ),
     since=13,
 )
 

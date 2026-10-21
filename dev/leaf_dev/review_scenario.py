@@ -25,6 +25,7 @@ REQUEST = definition("delivery_eval")["prompts"]["initial"]
 
 # Each step's comment, on the section it is posted on.
 COMMENTS = {
+    "mid-turn": ("triage-why", "Is the migration the only blocker, or the first?"),
     "restart": ("triage-lede", "Anything else I should check before we ship?"),
     "reconnect": ("triage-lede", "Is the same review still connected?"),
     "escape": ("triage-why", "Did the interrupted check change anything?"),

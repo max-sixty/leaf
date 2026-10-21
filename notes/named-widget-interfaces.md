@@ -85,7 +85,7 @@ visual parts under their existing authorities.
 - [Diff registry](../skills/leaf/packages/diff/registry.json): `$diff.widgets`
   and `lf-call-diff.x-refers.diff`.
 - [Registry contract](../skills/leaf/scripts/leaf/registry/contract.py):
-  `registry_path` and `reference_relation_error`.
+  `registry_path` and `reference_relation_problem`.
 - [Instance validation](../skills/leaf/scripts/leaf/validation/instances.py):
   target matching, reference checks, and ownership checks.
 - [Public work projection](../skills/leaf/assets/runtime/work.js):

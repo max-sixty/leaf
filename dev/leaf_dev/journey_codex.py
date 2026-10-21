@@ -31,10 +31,18 @@ The steps, in order:
   names the user's turn while it runs; on `codex-queue` the comment must also enter
   that turn and be answered before its first final response, starting no turn of
   its own;
-- `resume`, on `codex-queue`: a turn interrupted during its shell command is resumed
-  with empty input, as the desktop app resumes one, to report the interruption, so its
-  first boundary is its Stop; a comment sent as it starts enters it, starting no turn
-  of its own;
+- `resume`: a turn interrupted during its shell command is resumed with empty input,
+  as the desktop app resumes one, to report the interruption, so its first boundary is
+  its Stop. On `codex-app-server` a comment sent as it starts doesn't enter it, since
+  the Stop hook leaves input to the adapter's own turn, and is answered in a turn of
+  its own. On `codex-queue` it enters the resumed turn, starting no turn of its own,
+  since a queued turn would open on a message in the user's name;
+- `unload`: a comment is sent as the user's next turn starts, before its first tool
+  call, and must enter that turn at its first tool step, starting no turn of its
+  own. On `codex-queue` the user first leaves the task, which unloads it and ends
+  its instance, as the desktop app unloads an idle chat, so nothing the instance
+  ran before the turn proves Leaf's hooks run; over App Server the adapter's own
+  subscription keeps the task loaded;
 - `restart`: with the adapter killed, the user's next turn ends with the agent having
   started it again, and a comment sent afterwards is answered.
 
@@ -68,7 +76,7 @@ import psutil
 from leaf.codex import private_app_server
 from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
-from leaf.leases import adapter_is_live, lock_is_held
+from leaf.leases import adapter_is_live, hooks_ran, lock_is_held
 from leaf.server import running_server
 from leaf.service import page_claim
 
@@ -105,11 +113,17 @@ from leaf_dev.review_scenario import (
 
 RESTART_TURN = "Reply with the single word OK."
 # A resumed turn only reports its interruption, so the first boundary it reaches is
-# its Stop, which must carry the comment sent while it runs.
+# its Stop, which decides where the comment sent while it runs goes.
 RESUME_TURN = (
     f"Run `python3 -c 'import time; {SLEEP}'` in the shell, then in a separate tool "
     "call run `printf 'verified\\n'`, then say done. If interrupted and resumed, "
     "skip the remaining shell command and report the interruption."
+)
+# A turn whose first tool call comes after a few sentences, long enough for a comment
+# sent as it starts to arrive before that call.
+UNLOAD_TURN = (
+    "Before any tool call, tell me in three sentences what a release triage board "
+    "is for. Then run `printf 'verified\\n'` in the shell, then say done."
 )
 
 
@@ -122,6 +136,8 @@ class Codex(Terminal):
         self.task = Task(endpoint, self.record)
         self.running_commands = self.task.running_commands
         self.commands = self.task.commands
+        # The task's cwd, approval policy and sandbox, which resuming it restores.
+        self.settings: dict[str, str] = {}
 
     def record(self, message: dict) -> None:
         """Keep a notification of the task's thread as records, with where each turn
@@ -387,55 +403,100 @@ def steps(
         )
     step("mid-turn", started, details)
 
+    started = time.monotonic()
+    interrupted = task.say(RESUME_TURN)
+    codex.await_command(SLEEP, "the turn to interrupt did not start its command")
+    task.request("turn/interrupt", {"threadId": task.thread, "turnId": interrupted})
+    codex.until(
+        lambda: interrupted not in task.running, "the interrupted turn did not end"
+    )
+    # Aborted command items need not emit item/completed. They cannot stand
+    # in for execution of the resumed turn's first command.
+    task.running_commands.clear()
+    # The user writes the comment now and sends it the moment the resumed turn
+    # starts; in a browser its admission then does not wait on typing in a turn
+    # this short.
+    send = user.write("resume")
+    previous_turns = len(task.started)
+    resumed = task.request(
+        "turn/start",
+        {
+            "threadId": task.thread,
+            "input": [],
+            "turnTrigger": "resume_interrupted_task",
+        },
+    )["turn"]["id"]
+    codex.until(lambda: resumed in task.started, "the empty-input resume did not start")
+    require(resumed in task.running, "the empty-input resume already ended")
+    during = send()
+    codex.settle(
+        lambda: user.answered("resume"),
+        "the comment sent during resume was not answered",
+    )
+    sent.append("resume")
+    details = check_step()
+    entered = any(
+        event["turn"] == resumed
+        for event in pickup_receipts(read_events(page), phase="opened", input_id=during)
+    )
     if transport == "queue":
-        started = time.monotonic()
-        interrupted = task.say(RESUME_TURN)
-        codex.await_command(SLEEP, "the turn to interrupt did not start its command")
-        task.request("turn/interrupt", {"threadId": task.thread, "turnId": interrupted})
-        codex.until(
-            lambda: interrupted not in task.running, "the interrupted turn did not end"
-        )
-        # Aborted command items need not emit item/completed. They cannot stand
-        # in for execution of the resumed turn's first command.
-        task.running_commands.clear()
-        # The user writes the comment now and sends it the moment the resumed turn
-        # starts; in a browser its admission then does not wait on typing in a turn
-        # this short.
-        send = user.write("resume")
-        previous_turns = len(task.started)
-        resumed = task.request(
-            "turn/start",
-            {
-                "threadId": task.thread,
-                "input": [],
-                "turnTrigger": "resume_interrupted_task",
-            },
-        )["turn"]["id"]
-        codex.until(
-            lambda: resumed in task.started, "the empty-input resume did not start"
-        )
-        require(resumed in task.running, "the empty-input resume already ended")
-        during = send()
-        codex.settle(
-            lambda: user.answered("resume"),
-            "the comment sent during resume was not answered",
-        )
-        sent.append("resume")
-        details = check_step()
+        require(entered, "the comment did not enter the empty-input resumed turn")
         require(
             task.started[previous_turns:] == [resumed],
             "the resumed-turn comment started another turn",
         )
+    else:
         require(
-            any(
-                event["turn"] == resumed
-                for event in pickup_receipts(
-                    read_events(page), phase="opened", input_id=during
-                )
-            ),
-            "the comment did not enter the empty-input resumed turn",
+            not entered,
+            "the Stop hook handed the comment into the empty-input resumed turn",
         )
-        step("resume", started, details)
+        require(
+            len(task.started[previous_turns:]) == 2,
+            "the resumed-turn comment was not answered in one turn of its own",
+        )
+    step("resume", started, details)
+
+    started = time.monotonic()
+    if transport == "queue":
+        task.request("thread/unsubscribe", {"threadId": task.thread})
+        # The instance's SessionEnd retires the evidence that Leaf's hooks run in
+        # it (`state.end_harness_instance`).
+        codex.until(
+            lambda: not hooks_ran(task.thread),
+            "the task left by its last client did not end its instance",
+        )
+        task.request("thread/resume", {"threadId": task.thread, **codex.settings})
+    previous_turns, previous_commands = len(task.started), len(task.commands)
+    early = task.say(UNLOAD_TURN)
+    codex.until(
+        lambda: page_claim(page)["turn"] == early,
+        f"the claim never named the user's turn {early}",
+    )
+    require(
+        not task.running_commands and len(task.commands) == previous_commands,
+        "the turn ran a command before the comment could be sent",
+    )
+    during = user.comment("unload")
+    codex.settle(
+        lambda: user.answered("unload"),
+        "the comment sent before the turn's first tool call was not answered",
+    )
+    sent.append("unload")
+    details = check_step()
+    require(
+        any(
+            event["turn"] == early
+            for event in pickup_receipts(
+                read_events(page), phase="opened", input_id=during
+            )
+        ),
+        f"the comment sent before the first tool call did not enter turn {early}",
+    )
+    require(
+        task.started[previous_turns:] == [early],
+        "the comment sent before the first tool call started a turn of its own",
+    )
+    step("unload", started, details)
 
     started = time.monotonic()
     for process in adapter_processes(executable):
@@ -553,10 +614,12 @@ def answering(
             # The journey's state home is under TMPDIR, which the sandbox otherwise
             # lets a command write, where a user's is not. And the journey cannot
             # answer Codex's question whether to allow Leaf's MCP tool, so it
-            # allows it as a user who answered "always" has.
+            # allows it as a user who answered "always" has. The state home's pages
+            # directory is writable, as the README asks a user to make it.
             config += (
                 "[sandbox_workspace_write]\n"
                 "exclude_tmpdir_env_var = true\n"
+                f'writable_roots = ["{place.state / "leaf" / "pages"}"]\n'
                 '[plugins."leaf@leaf".mcp_servers.leaf]\n'
                 'default_tools_approval_mode = "approve"\n'
             )
@@ -588,16 +651,14 @@ def answering(
             codex = Codex(endpoint)
             try:
                 trust_plugin_hooks(codex.task, place.work)
-                codex.task.thread = codex.task.request(
-                    "thread/start",
-                    {
-                        "cwd": str(place.work),
-                        "approvalPolicy": "never",
-                        "sandbox": "workspace-write"
-                        if sandbox
-                        else "danger-full-access",
-                    },
-                )["thread"]["id"]
+                codex.settings = {
+                    "cwd": str(place.work),
+                    "approvalPolicy": "never",
+                    "sandbox": "workspace-write" if sandbox else "danger-full-access",
+                }
+                codex.task.thread = codex.task.request("thread/start", codex.settings)[
+                    "thread"
+                ]["id"]
                 started = time.monotonic()
                 setup(
                     codex,

@@ -39,6 +39,7 @@ from interact_support import (
     status_and_stream,
     take_stream_activity,
     wait_for,
+    write_record,
 )
 from leaf import activity as activity_model
 from leaf import cli as cli_model
@@ -48,6 +49,7 @@ from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import harness as harness_model
+from leaf import hook_transport as hook_transport_model
 from leaf import hooks as hooks_model
 from leaf import interaction_log as interaction_log_model
 from leaf import leases as leases_model
@@ -1194,6 +1196,216 @@ def test_a_task_connection_streams_and_commits_its_delivery_reply(
     ]
     [thread] = served_thread(page_state(page_dir)["browser"])["threads"]
     assert thread["msgs"][-1]["id"] == replies[0]["id"]
+
+
+def _joined_items(payload: dict, join: str) -> list[dict]:
+    """A shared turn's items in the order App Server records them (codex-cli
+    0.160.0): the user's follow-up ahead of the delivery Leaf's start steered in,
+    or the delivery ahead of the message the user steered into Leaf's turn."""
+    user = {
+        "id": "follow-up",
+        "type": "userMessage",
+        "content": [{"type": "text", "text": "Reply: USER FOLLOW-UP"}],
+    }
+    opening = {
+        "id": "opening",
+        "type": "agentMessage",
+        "phase": "commentary",
+        "text": "USER FOLLOW-UP",
+    }
+    answer = {
+        "id": "answer",
+        "type": "agentMessage",
+        "phase": "final_answer",
+        "text": "USER FOLLOW-UP",
+    }
+    delivery = _delivery_item(payload)
+    if join == "start-joins-follow-up":
+        return [user, opening, delivery, answer]
+    return [delivery, opening, user, answer]
+
+
+def _offered_again(session_id: str) -> list[dict]:
+    return [
+        delivery_model.read_delivery(path.stem)
+        for path, record in codex_model.delivery_records(session_id)
+        if isinstance(record, codex_model.Offering)
+    ]
+
+
+@pytest.mark.parametrize("ending", ["completed", "interrupted"])
+@pytest.mark.parametrize("join", ["start-joins-follow-up", "user-steers-in"])
+def test_a_turn_that_shares_a_user_message_leaves_the_delivery_owed(
+    page_dir, request, app_server, task_connection, join, ending
+):
+    """A delivery turn whose answer was also written for the user is not its reply.
+
+    `turn/start` on a running turn steers into it and answers with its id. A
+    follow-up the user queued in the Codex TUI starts just after the turn before
+    it ends, while App Server still reads idle, so Leaf's idle check can pass and
+    its start join the follow-up's turn; a user can also steer into Leaf's turn.
+    Either way the turn's final message answers the user's message too. Leaf posts
+    none of it, nor the opening of a turn the user opened, and withholds its draft
+    so Stop doesn't continue the turn over the update. A completed
+    turn offers the comment again as a correction; one the user interrupted leaves
+    it owed and shows the turn stopped, as any turn that ends without an answer
+    does.
+    """
+    prepared = _codex_delivery(page_dir, "Why here?")
+    target = codex_model.stream_reply_target(prepared.payload)
+    items = _joined_items(prepared.payload, join)
+    # The task's watcher, which the Stop hook asks whether the reply will commit.
+    lease = leases_model.take_lease(
+        leases_model.waiter_lease_path(page_dir, "codex-thread")
+    )
+    assert lease
+    request.addfinalizer(lease.close)
+    release = threading.Event()
+    completed = threading.Event()
+
+    def send(socket, method, params):
+        socket.send(
+            json.dumps(
+                {"method": method, "params": {"threadId": "codex-thread", **params}}
+            )
+        )
+
+    def handle(socket):
+        initialize = json.loads(socket.recv())
+        socket.send(json.dumps({"id": initialize["id"], "result": {}}))
+        socket.recv()  # initialized
+        for _ in range(2):
+            resume = json.loads(socket.recv())
+            socket.send(
+                json.dumps(
+                    {
+                        "id": resume["id"],
+                        "result": {
+                            "thread": {
+                                "id": "codex-thread",
+                                "status": {"type": "idle"},
+                                "turns": [],
+                            }
+                        },
+                    }
+                )
+            )
+        start = json.loads(socket.recv())
+        send(
+            socket,
+            "turn/started",
+            {"turn": {"id": "shared-turn", "status": "inProgress", "items": []}},
+        )
+        for item in items:
+            for state in ("started", "completed"):
+                send(
+                    socket,
+                    f"item/{state}",
+                    {"turnId": "shared-turn", f"{state}AtMs": 1, "item": item},
+                )
+        socket.send(
+            json.dumps(
+                {
+                    "id": start["id"],
+                    "result": {"turn": {"id": "shared-turn", "status": "inProgress"}},
+                }
+            )
+        )
+        release.wait(timeout=STATED_TIMEOUT)
+        send(
+            socket,
+            "turn/completed",
+            {"turn": {"id": "shared-turn", "status": ending, "items": items}},
+        )
+        completed.set()
+
+    connection = task_connection(app_server(handle))
+    assert connection.start_delivery(prepared.payload)
+    wait_for(
+        lambda: connection.turns.get("shared-turn"),
+        lambda fold: fold is not None and fold.events.joined,
+        failure="the shared turn's user message was not read",
+    )
+    # While the turn runs it holds the update, and the Stop hook reads the turn as
+    # done with it, so it lets the turn end on its own answer.
+    assert thread_model.delivery_reply_reserved(
+        "codex-thread", prepared.payload["id"], target
+    )
+    [plan] = hook_transport_model.read_plans("codex-thread")
+    assert plan.owed == []
+    # A dropped connection leaves the draft withheld, and a long turn doesn't
+    # age it, since nothing renews a withheld draft.
+    connection.turns["shared-turn"].reply_stream.disconnect()
+    stream = read_record(page_dir / "stream.json")
+    stream["reply"]["updated_at"] = "2000-01-01T00:00:00+00:00"
+    write_record(page_dir / "stream.json", stream)
+    [plan] = hook_transport_model.read_plans("codex-thread")
+    assert plan.owed == []
+    release.set()
+    assert completed.wait(timeout=STATED_TIMEOUT), "the shared turn never completed"
+    # The fold releases the reply, then offers a completed turn's correction.
+    wait_for(
+        lambda: (
+            thread_model.delivery_reply_reserved(
+                "codex-thread", prepared.payload["id"], target
+            ),
+            _offered_again("codex-thread"),
+        ),
+        lambda reading: not reading[0] and (ending != "completed" or reading[1]),
+        failure="the joined turn was not settled",
+    )
+
+    replies = [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "reply"
+    ]
+    if join == "start-joins-follow-up":
+        assert replies == []
+    else:
+        # Leaf's own turn opened on the delivery, so its opening was Leaf's.
+        assert [(reply["text"], reply.get("ephemeral")) for reply in replies] == [
+            ("USER FOLLOW-UP", True)
+        ]
+    draft = read_record(page_dir / "stream.json")["reply"]
+    corrections = _offered_again("codex-thread")
+    if ending == "interrupted":
+        # Ended as any unanswered turn does: the update stays owed, shown stopped.
+        assert (draft["state"], draft["text"]) == ("interrupted", "")
+        assert corrections == []
+        return
+    assert draft is None
+    [correction] = corrections
+    assert correction["correction"]["delivery"] == prepared.payload["id"]
+    assert delivery_model.stream_reply_target(correction) == target
+
+
+def test_a_joined_turn_read_back_from_history_is_not_the_reply(page_dir):
+    """A joined turn that ended while nobody read it settles the same way when
+    the provider's history brings it back."""
+    prepared = _codex_delivery(page_dir, "Why here?")
+    target = codex_model.stream_reply_target(prepared.payload)
+    terminal = {
+        "id": "shared-turn",
+        "status": "completed",
+        "items": _joined_items(prepared.payload, "start-joins-follow-up"),
+    }
+    assert cleanup_model.start_session_turn(
+        "codex-thread", "shared-turn", cleanup_model.session_record("codex-thread")
+    )
+
+    assert _observer()._reconcile(terminal)
+
+    assert [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "reply"
+    ] == []
+    assert not thread_model.delivery_reply_reserved(
+        "codex-thread", prepared.payload["id"], target
+    )
+    [correction] = _offered_again("codex-thread")
+    assert correction["correction"]["delivery"] == prepared.payload["id"]
 
 
 def test_a_quiet_stream_is_a_fault_only_once_its_silence_outlasts_its_bound():

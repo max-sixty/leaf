@@ -127,7 +127,7 @@ export const userIn = (scope) => {
 // was the one place it was not true. The sequence is what made it bite: its `when` reaches the
 // decisions fold and then every link on the page, once per keydown, from the first keystroke of
 // the first comment.
-export const standing = (scope) => userIn(scope) && pageHas(scope);
+const standing = (scope) => userIn(scope) && pageHas(scope);
 /** The stance the user stands in, innermost, with its way out (register.js, `stances`),
  * or null. */
 export const innermostStance = () =>
@@ -297,7 +297,7 @@ const runsElsewhere = (row, scope, control) => {
   if (controls.includes(control)) return false;
   return ownsLeafInvocation(row) || controls.some((each) => each != null);
 };
-export const shadow = (quick = quickShortcuts()) => {
+const shadow = (quick = quickShortcuts()) => {
   const claims = [];
   let activation = null;
   return {

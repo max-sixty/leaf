@@ -64,7 +64,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     every edit door stays closed and the exact body remains recoverable, and the busy
     draft is readable content.
 
-    A refused save is then an editable state, with Retry and Cancel at the same
+    A refused save is then an editable state, with Retry and Discard at the same
     target."""
     page = open_page(browser, serve(JOURNEY_V1))
     page.evaluate(
@@ -134,7 +134,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     expect(item.get_by_role("status")).to_have_text("Save failed. The edit is kept.")
     expect(editor).to_have_js_property("value", "Keep these unsent words.")
     expect(item.get_by_role("button", name="Retry", exact=True)).to_be_visible()
-    expect(item.get_by_role("button", name="Cancel", exact=True)).to_be_visible()
+    expect(item.get_by_role("button", name="Discard", exact=True)).to_be_visible()
 
     write(editor, "Keep the revised unsent words.")
     expect(item.locator(".lf-draft-status")).to_be_empty()

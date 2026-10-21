@@ -212,7 +212,7 @@ export function shownBand(el) {
 // (`scrollContainer`). `userScrollport` is the same test without `hidden`: what the
 // user, rather than a script, can scroll, which keyboard stops and edge marks read
 // (reach.js, `paintSlot`), and the render checks asking what a reader can reach.
-export const scrollport = (overflow) => /^(auto|scroll|hidden)$/.test(overflow);
+const scrollport = (overflow) => /^(auto|scroll|hidden)$/.test(overflow);
 export const userScrollport = (overflow) => /^(auto|scroll)$/.test(overflow);
 export const scrollsBy = ({ overflowX, overflowY }) =>
   scrollport(overflowX) || scrollport(overflowY);
@@ -302,7 +302,13 @@ export function headerCuts(item, clips = new Map()) {
       },
     }));
 }
-// The sticky box holding `node` while it is stuck, else null. A stuck box stands at the
+// The sticky box holding `node` while it is stuck, or the box fixed in the window
+// holding it, else null. A box fixed in the window, as a page of parts' column is
+// (layouts.css), stands there wherever the page is scrolled, so it is always stuck; a
+// fixed box anchored to the page's words, as the inline thread card is
+// (annotation-overlay/floating.js), or held by a transformed box around it, moves with
+// what holds it as the page scrolls, so it is not. A
+// stuck box stands at the
 // edge of the scroller it sticks in, or is pushed past it by its holder's end, rather
 // than at its own place in its holder, whose edge has scrolled beyond it: a page tab
 // strip over its panel's sixtieth paragraph, an open thread's title over the turns read
@@ -327,10 +333,18 @@ export function headerCuts(item, clips = new Map()) {
 // Which band a sticky box covers is a different question, answered from its stated
 // height whether it is stuck or not (`headerInset`, `footerInset`).
 export function stuckBox(node, within = null) {
-  for (let el = node; el?.nodeType === 1 && el !== within; el = renderedParent(el))
-    if (getComputedStyle(el).position === "sticky" && sticks(el)) return el;
+  for (let el = node; el?.nodeType === 1 && el !== within; el = renderedParent(el)) {
+    const style = getComputedStyle(el);
+    if (style.position === "sticky" ? sticks(el) : inWindow(el, style)) return el;
+  }
   return null;
 }
+// A fixed box stands in the window where nothing around it holds it instead, which
+// leaves it no offset parent, and no anchor positions it.
+const inWindow = (el, style) =>
+  style.position === "fixed" &&
+  el.offsetParent === null &&
+  !style.positionAnchor.startsWith("--");
 // Whether `sticky` stands where sticking holds it, in the scroller around it. A sticky
 // box that clips what it holds, as a tab strip does, still sticks in that scroller.
 function sticks(sticky) {
@@ -589,7 +603,7 @@ export function watchRoom(callback) {
 // one that grows with what it holds, such as a code block that scrolls only sideways,
 // hands the change out to the box around it; one scrolled to its top anchors nothing, so
 // there the band starts at that scroller's own top, wherever the window cuts it.
-export function motionBand(item, clips) {
+function motionBand(item, clips) {
   const walk = clipWalk(item, clips, false);
   const all = { left: -Infinity, top: -Infinity, right: Infinity, bottom: Infinity };
   const heights = walk.cuts.map((each) => ({
@@ -943,7 +957,7 @@ export const clipsPastSurfaces = () => clipsPast(occluders);
 // bring it into view. A surface standing over part of that height, as a view open in the
 // floating panel stands over its foot, covers a destination only where it stands now,
 // so it is asked of both axes there: more than half the destination's area.
-export function hides(surface, where) {
+function hides(surface, where) {
   const holder = placeHolder(where);
   if (!holder || !occluders.has(surface) || !standsNow(surface)) return false;
   if (under(holder, surface) || stackLevel(holder) >= stackLevel(surface)) return false;

@@ -121,12 +121,15 @@
  * menu holds what it showed while it stands, and a control the user pressed in a
  * thread stays where it was. Every change of the box's size takes effect in
  * one step, and the surface behind it, a separate layer, follows by a clip from where it
- * stood to where it stands, the way the Codex app's floating panel moves: nothing's
+ * stood to where it stands, the way the Codex app's floating panel moves: no control's
  * layout tweens, so nothing a user aims at travels after the gesture that moved it.
  * What a line the field gains moved, the words, the field's ring and the attachments
  * over the box, rides that edge by a transform rather than being revealed by it
  * (`followBox`), after the user found the attachment vanishing and the ring outrunning
- * the box on 20 October. */
+ * the box on 20 October. Folding and unfolding carries the Leaf's paint with the
+ * surface, outside the card's reveal clip, with the row's words revealed behind it;
+ * its button and focus ring take their final place immediately. Reversing the fold
+ * starts from the paint's current position. */
 import {
   html,
   keyed as keyedBy,
@@ -158,7 +161,7 @@ import { readThreads } from "./thread/state.js";
 import { hasUnread, threadCounts } from "./thread/model.js";
 import { watchProjection } from "./projection-watch.js";
 import { threadAttention, workflowStep } from "./thread/workflow.js";
-import { messageReading, threadName } from "./thread/messages.js";
+import { messageReading, threadHeading, threadName } from "./thread/messages.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { declareThreadParts } from "./thread/focus.js";
 import { quoteReading } from "./thread/thread-card.js";
@@ -327,6 +330,7 @@ export function createFloatingPanel({
   placedAt,
   openThreadSubject,
 }) {
+  const scene = el("div", "lf-fp-scene");
   const host = el("section", "lf-ui lf-floating-panel");
   host.setAttribute("aria-label", "Leaf");
   // The surface the box stands on: a layer of its own over the whole window, cut to the
@@ -370,7 +374,7 @@ export function createFloatingPanel({
   card.append(inner);
   // The menu and the peek stand over the leaf by anchoring to it, which they can only
   // do from after it in the tree.
-  host.append(card, menu, badge, newsDot, peek);
+  host.append(card, menu, peek);
   // The pointer's way to fold, which the user asked for as a minimize shown on hover: a
   // round button on the box's top-right corner, chosen over one at the row's end on 15
   // October. It presses the fold command's own row, as the menu's row does; that row and
@@ -430,10 +434,15 @@ export function createFloatingPanel({
   leaf.setAttribute("aria-controls", menu.id);
   leaf.setAttribute("aria-describedby", peek.id);
   const mark = el("span", "lf-dot");
+  // The mark travels with the surface, outside the card's reveal clip. Its real
+  // button stays in layout, so focus and the next press never wait for the paint.
+  const leafPaint = el("span", "lf-fp-leaf-paint");
+  leafPaint.setAttribute("aria-hidden", "true");
   // An error the user has not seen yet, waiting in the leaf's menu (`errorsList`).
   const errorDot = el("span", "lf-fp-error-dot");
   errorDot.setAttribute("aria-hidden", "true");
-  leaf.append(mark, errorDot);
+  leafPaint.append(mark, errorDot, badge, newsDot);
+  host.append(leafPaint);
   const field = el("div", "lf-fp-field");
   // A long draft offers more room, by the user's press rather than on its own: past
   // three lines a quiet mark stands over the leaf, in the corner the draft leaves free
@@ -809,15 +818,12 @@ export function createFloatingPanel({
     const queues = readQueues();
     return queues.phase === "ready" ? queues.on_user.length : 0;
   };
-  // A thread row's state in words, less the one the filter the list is shown by already
-  // says: under Open no row says "Open", under Unread none "New".
+  // Ordinary open state is implicit. Rows name attention, resolution, news and drafts,
+  // less the state the selected filter already says, such as "New" under Unread.
   const threadStatus = (thread, shownBy) => {
-    const state = thread.resolved
-      ? "Resolved"
-      : (threadAttention(thread)?.label ?? "Open");
+    const state = thread.resolved ? "Resolved" : threadAttention(thread)?.label;
     const said = {
       unread: "New",
-      open: "Open",
       resolved: "Resolved",
       drafts: "Draft",
     }[shownBy];
@@ -1064,6 +1070,8 @@ export function createFloatingPanel({
   // meanwhile the surface draws it as it draws its own ring, a fill inside a fill, and
   // the card stands transparent over it, unclipped.
   let outline = null;
+  let lastLeaf = null;
+  let endFoldTravel = null;
   // Until when a change of outline is a view arriving or leaving (`transition`), which
   // takes the shorter tween: the view's own change, and the one when the view it
   // replaced is gone after its fade.
@@ -1079,6 +1087,19 @@ export function createFloatingPanel({
       box.left - grow
     }px round ${box.radius + grow}px)`;
   const clipTop = (clip) => Number.parseFloat(/inset\(([-\d.]+)px/.exec(clip)?.[1]);
+  const clipBox = (clip) => {
+    const [sides, radius] = clip.slice(6, -1).split(" round ");
+    const [top, right = top, bottom = top, left = right] = sides
+      .split(" ")
+      .map(Number.parseFloat);
+    return { top, right, bottom, left, radius: Number.parseFloat(radius) };
+  };
+  const between = (from, to) =>
+    `calc(${from}px + ${to - from}px * var(--lf-fp-fold-progress))`;
+  const travellingClip = (from, to) =>
+    `inset(${["top", "right", "bottom", "left"]
+      .map((side) => between(from[side], to[side]))
+      .join(" ")} round ${between(from.radius, to.radius)})`;
   const within = (room, element) => {
     const rect = element.getBoundingClientRect();
     return {
@@ -1111,6 +1132,16 @@ export function createFloatingPanel({
     )
       return;
     outline = next;
+    const leafBox = within(room, leaf);
+    const priorLeaf = lastLeaf;
+    const rest = host.dataset.rest;
+    lastLeaf = { ...leafBox, rest };
+    const folding = priorLeaf && (priorLeaf.rest !== rest || endFoldTravel !== null);
+    // In-flight paint has its own position; otherwise its previous anchor supplies
+    // the starting place, since layout has already put the button at its destination.
+    const leafFrom = endFoldTravel ? getComputedStyle(leafPaint) : null;
+    const leafLeft = leafFrom ? Number.parseFloat(leafFrom.left) : priorLeaf?.left;
+    const leafTop = leafFrom ? Number.parseFloat(leafFrom.top) : priorLeaf?.top;
     // How far the box reaches up from the window's foot, which the root's
     // `scroll-padding-bottom` keeps every landing clear of (theme.css), so `m`, `t`, a
     // Go-to or an On me row's Show lands what it reaches above an open view rather than
@@ -1121,11 +1152,12 @@ export function createFloatingPanel({
       "--lf-panel-reach",
       layoutPx(next.height > 0 ? next.bottom + next.height : 0),
     );
-    const duration = performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
+    const duration =
+      !folding && performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
     const moving = Boolean(was) && !reducedMotion() && pagePresented();
     // Where the surface's top edge stands now, mid-tween or at rest.
     const standing =
-      moving && fill.getAnimations().length
+      moving && (endFoldTravel || fill.getAnimations().length)
         ? clipTop(getComputedStyle(fill).clipPath)
         : was?.top;
     // A reveal still under way leaves the box's contents where they will rest, cut to
@@ -1152,19 +1184,82 @@ export function createFloatingPanel({
       .map((token) => Number.parseFloat(lift.getPropertyValue(token)))
       .reduce((reach, part) => reach + part);
     const timing = { duration, easing: EASE };
-    for (const [layer, grow] of [
+    const contours = [
       [ground, shadowReach],
       [ring, 1],
       [fill, 0],
-    ]) {
-      const from = was ? getComputedStyle(layer).clipPath : null;
+    ].map(([layer, grow]) => ({
+      layer,
+      from: was ? getComputedStyle(layer).clipPath : null,
+      to: outlineClip(next, grow),
+    }));
+    endFoldTravel?.();
+    for (const { layer, to } of contours) {
       for (const running of layer.getAnimations()) running.cancel();
-      keeps(layer, "style", `clip-path: ${outlineClip(next, grow)}`);
-      if (moving)
-        layer.animate(
-          [{ clipPath: from }, { clipPath: outlineClip(next, grow) }],
-          timing,
-        );
+      keeps(layer, "style", `clip-path: ${to}`);
+    }
+    // The current surface expressed inside the card's destination box. Both the
+    // ordinary reveal and a fold use this same geometry, including interruptions.
+    const current = was ? clipBox(contours.at(-1).from) : null;
+    const inside = current && {
+      top: Math.max(0, current.top - next.top),
+      right: Math.max(0, current.right - next.right),
+      bottom: Math.max(0, current.bottom - next.bottom),
+      left: Math.max(0, current.left - next.left),
+      radius: current.radius,
+    };
+    const reveal =
+      was && (next.width > was.width + 0.5 || next.height > was.height + 0.5);
+    if (moving && folding) {
+      // One painted progress drives the whole fold. Independently composited
+      // transforms or insets can outrun the contour's clip by a frame, even with
+      // identical animation times. These expressions are read in the same paint.
+      for (const { layer, from, to } of contours)
+        layer.style.clipPath = travellingClip(clipBox(from), clipBox(to));
+      const leafStart = leafLeft + (priorLeaf.width - leafBox.width) / 2;
+      leafPaint.style.left = between(leafStart, leafBox.left);
+      leafPaint.style.top = between(
+        leafTop + (priorLeaf.height - leafBox.height) / 2,
+        leafBox.top,
+      );
+      if (reveal)
+        card.style.clipPath = travellingClip(inside, {
+          top: 0,
+          right: 0,
+          bottom: 0,
+          left: 0,
+          radius: next.radius,
+        });
+      if (rest !== "mark") {
+        // The row's words follow the Leaf's trailing edge, so the travelling mark
+        // never crosses words or another control as the surface reveals them. Only
+        // its horizontal footprint is clipped; attachments can stand above the row.
+        const rowLeft = within(room, row).left;
+        row.style.clipPath = `inset(${-room.height}px 0 ${-room.height}px ${between(
+          leafStart + leafBox.width - rowLeft,
+          leafBox.left + leafBox.width - rowLeft,
+        )})`;
+      }
+      const played = scene.animate(
+        [{ "--lf-fp-fold-progress": 0 }, { "--lf-fp-fold-progress": 1 }],
+        timing,
+      );
+      const finish = () => {
+        if (endFoldTravel !== finish) return;
+        endFoldTravel = null;
+        for (const { layer, to } of contours) layer.style.clipPath = to;
+        leafPaint.style.removeProperty("left");
+        leafPaint.style.removeProperty("top");
+        card.style.removeProperty("clip-path");
+        row.style.removeProperty("clip-path");
+        played.cancel();
+      };
+      endFoldTravel = finish;
+      played.finished.then(finish, () => {});
+      return;
+    }
+    for (const { layer, from, to } of contours) {
+      if (moving) layer.animate([{ clipPath: from }, { clipPath: to }], timing);
     }
     if (!moving) return;
     if (ride) {
@@ -1222,15 +1317,7 @@ export function createFloatingPanel({
       }
       return;
     }
-    if (next.width <= was.width + 0.5 && next.height <= was.height + 0.5) return;
-    // Within its own box, the outline the surface still stands at.
-    const inside = {
-      top: Math.max(0, standing - next.top),
-      right: Math.max(0, was.right - next.right),
-      bottom: Math.max(0, was.bottom - next.bottom),
-      left: Math.max(0, was.left - next.left),
-      radius: was.radius,
-    };
+    if (!reveal) return;
     card.animate(
       [
         { clipPath: outlineClip(inside) },
@@ -2176,7 +2263,7 @@ export function createFloatingPanel({
                   @click=${() => open({ view: "thread", thread: thread.key })}
                 >
                   <span class="lf-fp-news-mark" aria-hidden="true"></span>
-                  <span class="lf-fp-label">${threadName(thread)}</span>
+                  <span class="lf-fp-label">${threadHeading(thread)}</span>
                   <span class="lf-fp-value"
                     >${threadStatus(thread, query.trim() ? null : filter)}</span
                   >
@@ -2218,7 +2305,7 @@ export function createFloatingPanel({
   // reply is the thread's reply box, which the reader draws in the field below rather
   // than in the outlet. A thread anchored to a passage stays the page's where the page
   // draws it: its card opens beside the words it is about, and the panel shows it only
-  // where nothing on the page does (`reveal`).
+  // where nothing on the page does (`reveal`), or for a message of it the view shows.
   let presentation = null;
   // The thread's held news is a fact about the thread, so it reads whole after the way
   // back, at the start of the view's controls, and pressing it shows what was held. The
@@ -2618,6 +2705,10 @@ export function createFloatingPanel({
         ? messageReading(asking, { reactions: [], workflows: [] }).body.plainText
         : record?.prompt?.text;
     const prompt = said && said.trim() !== title.trim() ? said : "";
+    // Where the thread's name stands for the card, it reads as Threads names the thread
+    // (`threadHeading`).
+    const heading =
+      thread && title === threadName(thread) ? threadHeading(thread) : title;
     const answered = record && record.status !== "open";
     const choices =
       record && !answered && record.source.kind === "widget" && !inWords
@@ -2736,16 +2827,16 @@ export function createFloatingPanel({
     >
       ${about.length ? html`<p class="lf-fp-on-kind">${about.join(" · ")}</p>` : nothing}${
         message
-          ? html`${title ? html`<h3 class="lf-fp-on-title">${title}</h3>` : nothing}
+          ? html`${title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : nothing}
               <div
                 class="lf-fp-asked lf-fp-outlet"
                 data-thread=${thread.key}
                 data-message=${message.key}
               ></div>`
           : prompt
-            ? html`<h3 class="lf-fp-on-title">${title}</h3>
+            ? html`<h3 class="lf-fp-on-title">${heading}</h3>
                 <p class="lf-fp-prompt">${prompt}</p>`
-            : html`<p class="lf-fp-prompt">${title}</p>`
+            : html`<p class="lf-fp-prompt">${heading}</p>`
       }
       <div class="lf-fp-answers">${answers}${show}</div>
     </section>`;
@@ -2921,11 +3012,16 @@ export function createFloatingPanel({
     focusDestination(controls.querySelector(".lf-fp-search"), "move");
   }
   // The view's name, over it. On's is its selected tab's, which the tabs at its foot
-  // already show, so the heading names the view to assistive tech alone.
-  const headTemplate = (top) =>
-    html`<h2 class=${top.view === "queue" ? "lf-fp-title lf-quiet" : "lf-fp-title"}>
-      ${titleOf(top)}
+  // already show, so the heading names the view to assistive tech alone. A thread's
+  // says when its title is still on its way (`threadHeading`).
+  const headTemplate = (top) => {
+    const thread = top.view === "thread" ? threadByKey(top.thread) : null;
+    return html`<h2
+      class=${top.view === "queue" ? "lf-fp-title lf-quiet" : "lf-fp-title"}
+    >
+      ${thread ? threadHeading(thread) : titleOf(top)}
     </h2>`;
+  };
   function controlsTemplate(top) {
     const parent = trail.value.at(-2);
     const thread = top.view === "thread" ? threadByKey(top.thread) : null;
@@ -3562,7 +3658,6 @@ export function createFloatingPanel({
         ? {
             root: host,
             title: "clear search",
-            description: "Clear the search",
             out: () => {
               query = "";
               refit();
@@ -3572,7 +3667,6 @@ export function createFloatingPanel({
         : {
             root: host,
             title: "close search",
-            description: "Close the search and return to Threads",
             out: () => {
               focusDestination(shownView(), "return");
               searching = false;
@@ -3583,14 +3677,12 @@ export function createFloatingPanel({
       return {
         root: host,
         title: "back to menu",
-        description: "Go back from the list to the page menu",
         out: () => showMenuAt(null),
       };
     if (menuOpen.value)
       return {
         root: host,
         title: "close menu",
-        description: "Close the page menu",
         out: () => {
           setMenu(false);
           focusDestination(leaf, "return");
@@ -3600,7 +3692,6 @@ export function createFloatingPanel({
     return {
       root: host,
       title: `close ${titleOf(trail.value.at(-1)).toLowerCase()}`,
-      description: `Close ${titleOf(trail.value.at(-1))}`,
       // Putting a view away returns the user to the page, where the view's thread or
       // list took them from.
       out: () => {
@@ -3647,8 +3738,6 @@ export function createFloatingPanel({
       {
         id: "panel.floating.menu.level",
         keys: ["ArrowLeft", "ArrowRight"],
-        description:
-          "Open the list a row of the page menu leads to, or go back to the menu",
         title: "open or leave a list",
         when: () => menuOpen.value && renderedUnder(focused(), menu),
         run: (binding) => {
@@ -3663,7 +3752,6 @@ export function createFloatingPanel({
       ["Tab", "Shift+Tab"].map((key) => ({
         id: `panel.floating.menu.leave-${key === "Tab" ? "forward" : "backward"}`,
         keys: [key],
-        description: `Leave the page menu ${key === "Tab" ? "forward" : "backward"}`,
         title: key === "Tab" ? "leave forward" : "leave backward",
         native: true,
         when: () => menuOpen.value && renderedUnder(focused(), menu),
@@ -3685,7 +3773,6 @@ export function createFloatingPanel({
       {
         id: "panel.floating.threads.find",
         keys: ["/"],
-        description: "Find a thread or message in Threads",
         title: "find a thread",
         run: findThreads,
       },
@@ -3712,7 +3799,6 @@ export function createFloatingPanel({
           const top = numbered().at(-1)?.version;
           return top > 1 ? `1–${top}` : "1";
         },
-        description: "Show the version with that number",
         title: "show version",
         when: () => numbered().length > 0,
         run: (binding) =>
@@ -3742,7 +3828,7 @@ export function createFloatingPanel({
     {
       id: "panel.floating.leave",
       keys: ["Escape"],
-      description: "Leave the comment field, keeping the view open above it",
+      description: "The view above stays open",
       title: "leave field",
       when: () => !menuOpen.value && trail.value.length > 0,
       run: () => focusDestination(leaf, "return"),
@@ -3752,7 +3838,6 @@ export function createFloatingPanel({
   pageCommand({
     id: FOLD,
     keys: ["."],
-    description: "Fold the Leaf panel to the leaf in the window's corner, or unfold it",
     title: () => (prefs().rest === "mark" ? "unfold" : "fold"),
     touch: () => (prefs().rest === "mark" ? "Unfold the panel" : "Fold to the leaf"),
     menu: "page",
@@ -3912,7 +3997,8 @@ export function createFloatingPanel({
   });
 
   function mount(parent) {
-    parent.append(ground, host);
+    scene.append(ground, host);
+    parent.append(scene);
     follow.observe(card);
     presentation = registerChromeThreadPresentation(host, {
       render: nominate,
@@ -3932,23 +4018,25 @@ export function createFloatingPanel({
         return () => openInPackage(top.thread, { focus, message });
       },
       // A thread about the whole page opens here; one about a passage opens beside it,
-      // where the page draws it, and here only for one of its messages, which Leaf's
-      // reader alone draws whole, or where nothing on the page shows it, as on a page
-      // drawing no margin, the destination's last resort (`request.last`,
-      // thread/destination.js). Where the user lands in it is the route's
-      // (`request.part`), which Leaf's destinations take them to once it is drawn: the
-      // reply, a message, or the thread itself, the view, where the `t` walk goes on from.
+      // where the page draws it, widgets in its messages included, and here only where
+      // nothing on the page shows it, as on a page drawing no margin, the destination's
+      // last resort (`request.last`, thread/destination.js), or for one of its messages
+      // while the view already shows it, so a walk to an ask in it leaves the user
+      // where they read. Where the user lands in it is the route's (`request.part`),
+      // which Leaf's destinations take them to once it is drawn: the reply, a message,
+      // or the thread itself, the view, where the `t` walk goes on from.
       reveal: (key, { part, last }) => {
         const thread = threadByKey(key);
         if (!thread) return false;
-        if (thread.anchor && part !== "message") {
+        const top = trail.value.at(-1);
+        const shown =
+          top?.view === "thread" && threadByKey(top.thread)?.key === thread.key;
+        if (thread.anchor && !(part === "message" && shown)) {
           if (!last) {
             unplaced.delete(thread.key);
             // The page draws it, so a view of it here goes, as On the page puts it
             // away, and the thread shows once.
-            const top = trail.value.at(-1);
-            if (top?.view === "thread" && threadByKey(top.thread)?.key === thread.key)
-              close();
+            if (shown) close();
             return false;
           }
           unplaced.add(thread.key);

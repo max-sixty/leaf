@@ -40,6 +40,12 @@ UNAVAILABLE_MODEL = {
     ),
     "codexErrorInfo": "other",
 }
+# What it reports when the model refuses the turn for rate limits (codex-cli 0.160).
+RATE_LIMITED = {
+    "message": "exceeded retry limit, last status: 429 Too Many Requests",
+    "codexErrorInfo": {"responseTooManyFailedAttempts": {"httpStatusCode": 429}},
+    "additionalDetails": None,
+}
 
 
 def title_records(page_dir: Path) -> list[dict]:
@@ -52,10 +58,14 @@ def title_records(page_dir: Path) -> list[dict]:
     ]
 
 
-def titling_app_server(app_server, answer: str | None) -> tuple[str, list[dict]]:
+def titling_app_server(
+    app_server, answer: str | None, refusals: int = 0
+) -> tuple[str, list[dict]]:
     """An App Server that answers each titling thread with `answer`, or fails its
-    turn as an account without the title model does where `answer` is None."""
+    turn as an account without the title model does where `answer` is None. Its
+    first `refusals` turns are refused for rate limits instead."""
     received = []
+    refused = []
 
     def handle(socket):
         for raw in socket:
@@ -76,12 +86,16 @@ def titling_app_server(app_server, answer: str | None) -> tuple[str, list[dict]]
                     json.dumps({"id": message["id"], "result": {"turn": {"id": "t"}}})
                 )
                 completed = {"id": "t", "items": [], "status": "completed"}
-                if answer is None:
+                if len(refused) < refusals or answer is None:
+                    error = UNAVAILABLE_MODEL
+                    if len(refused) < refusals:
+                        refused.append(message)
+                        error = RATE_LIMITED
                     completed = {
                         "id": "t",
                         "items": [],
                         "status": "failed",
-                        "error": UNAVAILABLE_MODEL,
+                        "error": error,
                     }
                 else:
                     item = {"id": "title", "type": "agentMessage", "text": answer}
@@ -228,6 +242,63 @@ def test_a_title_the_model_refuses_leaves_the_thread_to_the_agent(page_dir, app_
     assert UNAVAILABLE_MODEL["message"] in fields["detail"]
     kinds = [e["kind"] for e in events_model.read_events(page_dir)]
     assert "thread_title" not in kinds
+
+
+def test_a_title_refused_for_rate_limits_is_asked_again_until_its_cap(
+    page_dir, app_server, monkeypatch
+):
+    """A burst of comments meets the title model's rate limit, and an App Server
+    turn's final message can't name the thread, so a refused title is asked again
+    until it is answered. One refused past the cap fails, so a title never retries
+    forever."""
+    monkeypatch.setattr(thread_titles, "RETRY_INTERVAL", 0.01)
+
+    def name(comment, endpoint):
+        records = []
+        thread_titles.name_thread(
+            thread_titles.app_server_title(endpoint),
+            page_dir,
+            comment["id"],
+            "hosted-thread",
+            lambda event, **fields: records.append((event, fields)),
+        )
+        [(event, fields)] = wait_for(
+            lambda: records, bool, failure="the title request never reported"
+        )
+        return event, fields
+
+    answered = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Why is it slow?"}
+    )
+    codex_model.prepare_codex_delivery(
+        page_dir,
+        harness_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
+    )
+    endpoint, received = titling_app_server(
+        app_server, '{"title": "Export speed"}', refusals=2
+    )
+    event, fields = name(answered, endpoint)
+    assert (event, fields["written"], fields["refusals"]) == (
+        "thread_title_generated",
+        True,
+        2,
+    )
+    # Each ask is a thread of its own, holding only the request.
+    assert len([m for m in received if m.get("method") == "thread/start"]) == 3
+
+    monkeypatch.setattr(thread_titles, "RETRY_FOR", 0.05)
+    capped = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "And the import?"}
+    )
+    endpoint, _ = titling_app_server(app_server, '{"title": "Import"}', refusals=1000)
+    event, fields = name(capped, endpoint)
+    assert (event, fields["error"]) == ("thread_title_failed", "RateLimited")
+    titled = {
+        e["thread"]
+        for e in events_model.read_events(page_dir)
+        if e["kind"] == "thread_title"
+    }
+    assert titled == {answered["id"]}
 
 
 def test_a_generated_title_yields_to_one_the_agent_wrote_first(page_dir):

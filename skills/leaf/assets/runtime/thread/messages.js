@@ -14,7 +14,7 @@
    admission and later descriptor paints never replay the cue.
    The fragment is captured inertly before its first upgrade; presentation waits for
    preparation before capturing typed authored state. */
-import { html, render, nothing } from "/vendor/browser-runtime.js";
+import { html, keyed, render, nothing } from "/vendor/browser-runtime.js";
 import {
   loadMarkdown,
   markdownReady,
@@ -57,6 +57,7 @@ import { ReactionStripView } from "./reaction-strips.js";
 import { iconTemplate } from "../icons.js";
 import { keeps } from "../keeps.js";
 import { flashDuration, motion } from "../motion.js";
+import { pageClaimed } from "../semantic-state.js";
 
 export const loadMessageMarkdown = () =>
   loadMarkdown((error) => reportPageError(error, `markdown renderer failed to load`));
@@ -104,9 +105,10 @@ export function messageText(message) {
   return message.suggestion ? (message.text ?? "") : proseReading(message).plainText;
 }
 
-// A thread's name, on every surface that names one: its title, else the words its
-// opening message renders (an agent's authored opening, its captured text), else
-// Drawing for one drawn without words. A surface clips it to its own room.
+// A thread's name in words, as search, accessible names and prose read it: its title,
+// else the words its opening message renders (an agent's authored opening, its captured
+// text), else Drawing for one drawn without words. A surface clips it to its own room,
+// and one that draws the name draws `threadHeading`.
 /** @param {{readonly title: string | null, readonly root: Parameters<typeof messageText>[0] & {readonly body: {readonly kind: string, readonly text?: string}, readonly drawing?: unknown}}} thread */
 export function threadName(thread) {
   if (thread.title != null) return thread.title;
@@ -116,6 +118,31 @@ export function threadName(thread) {
   );
   return words || (root.drawing ? "Drawing" : "");
 }
+
+// Whether a title is on its way to an untitled thread. Leaf asks the claimant's
+// harness for one as the user's words are admitted, and the agent for one with its
+// reply (thread_titles.py), so one comes while a session holds the page's claim and the
+// agent owes the thread work. A turn that ended, stalled or was never picked up sends
+// none, nor does a page nobody has claimed, and the thread reads its opening words.
+/** @param {Parameters<typeof threadName>[0] & {readonly attention?: {readonly kind: string, readonly reason: string} | null}} thread */
+const titlePending = (thread) =>
+  thread.title == null &&
+  thread.attention?.kind === "waiting" &&
+  thread.attention.reason === "workflow" &&
+  pageClaimed();
+
+// A thread's name wherever a surface draws it, as Threads, the thread's view, Page Map
+// and On cards do: while a title is on its way, a placeholder in the face of a step
+// under way (`.lf-thread-working-words`) rather than opening words that would read as
+// its title.
+// The opening words stay in its accessible name, after the placeholder, so a screen
+// reader still tells two pending threads apart.
+/** @param {Parameters<typeof titlePending>[0]} thread */
+export const threadHeading = (thread) =>
+  titlePending(thread)
+    ? html`<span class="lf-thread-name-pending">Generating thread name…</span
+        ><span class="lf-quiet"> ${threadName(thread)}</span>`
+    : threadName(thread);
 
 /** @param {Parameters<typeof threadName>[0] & Parameters<typeof lastMovedAt>[0]} thread */
 export const threadSummary = (thread) => ({
@@ -171,10 +198,65 @@ const authoredMessage = (message) => {
     throw new Error("authored message presentation preceded semantic preparation");
   return prepared;
 };
+
+// Which drawing of an authored message holds its widgets, the one instance above. A
+// message can stand in several drawings at once (the primary reader's, a margin card,
+// a seat on the page), and the shown one of highest `authoredRank` holds them, the
+// first to draw it among equals. Every other drawing draws only the message's words:
+// the holder is then the one shown, so the widgets already stand in view. A drawing
+// shown as it draws takes them where it should hold them, as does the first to draw
+// them, and after each draw the holder is settled again among the drawings shown, so
+// one hidden in a fold or a closed card gives them to one in view. A drawing not yet
+// placed in the page, as a card draws before its owner places it, is neither shown
+// nor hidden: it waits for that settling to take them, and keeps what it holds.
+// Whichever drawings gain or lose them draw again at once, as their own containers
+// would not.
+const authoredDrawings = new Map();
+const authoredHolders = new Map();
+const shown = (view) => view.node.isConnected && view.node.checkVisibility();
+const hidden = (view) => view.node.isConnected && !view.node.checkVisibility();
+const outranks = (a, b) => a.model.authoredRank > b.model.authoredRank;
+function settleAuthored(key) {
+  const drawings = authoredDrawings.get(key) ?? new Set();
+  const holder = authoredHolders.get(key);
+  const held = holder && drawings.has(holder) && !hidden(holder) ? holder : null;
+  let best = null;
+  for (const view of drawings)
+    if (shown(view) && (!best || outranks(view, best))) best = view;
+  if (!best || best === holder || (held && !outranks(best, held))) return;
+  authoredHolders.set(key, best);
+  best.present(best.model);
+  if (holder && drawings.has(holder)) holder.present(holder.model);
+}
+const unsettled = new Set();
+function settleAuthoredSoon(key) {
+  if (unsettled.has(key)) return;
+  unsettled.add(key);
+  queueMicrotask(() => {
+    unsettled.delete(key);
+    settleAuthored(key);
+  });
+}
+function releaseAuthored(key, view) {
+  if (authoredHolders.get(key) !== view) return;
+  authoredHolders.delete(key);
+  settleAuthored(key);
+}
+// Lets go of the widgets the drawings under `root` hold, as a card closing does.
+export function releaseAuthoredUnder(root) {
+  for (const [key, view] of [...authoredHolders])
+    if (root.contains(view.node)) releaseAuthored(key, view);
+}
+// The drawn message holding the widgets of the message `id`, if a drawing holds them.
+export function authoredHolder(id) {
+  for (const view of authoredHolders.values())
+    if (view.model.id === id && shown(view)) return view.node;
+  return null;
+}
 const FAILURE_LABEL = "Not answered";
 export function messageReading(
   message,
-  { nativeAuthored = false, reactions, workflows, leaves = null },
+  { authoredRank = 0, reactions, workflows, leaves = null },
 ) {
   const workflow = strongestWorkflow(workflows);
   const token = isReaction(message) ? tokenEntry(message.token) : null;
@@ -229,7 +311,9 @@ export function messageReading(
       glyph: token?.glyph ?? "",
       authored: message.body.kind === "authored",
     }),
-    nativeAuthored,
+    // Where this drawing ranks among those that may hold the message's widgets
+    // (`authoredHolders`); 0 for one that never does.
+    authoredRank,
     reactions,
   });
 }
@@ -239,6 +323,8 @@ export class MessageView {
   #model = null;
   #reaction = null;
   #authored = null;
+  // Bumped each time this view takes the message's widgets back from another drawing.
+  #authoredTake = 0;
   #dressed = false;
   #arrivalMotion = null;
   #stopRead = null;
@@ -320,11 +406,34 @@ export class MessageView {
     keeps(this.node, "data-attempt", model.attempt || null);
     keeps(this.node, "aria-busy", model.pending ? "true" : null);
     keeps(this.node, "data-failure", model.failure || null);
-    if (model.nativeAuthored && model.body.authored && !this.#authored)
-      this.#authored = authoredMessage({
+    const authoredKey = model.attempt ?? model.id;
+    let displaced = null;
+    if (model.authoredRank && model.body.authored) {
+      this.#authored ??= authoredMessage({
         id: model.id,
         attempt: model.attempt,
       }).nodes;
+      if (!authoredDrawings.has(authoredKey))
+        authoredDrawings.set(authoredKey, new Set());
+      authoredDrawings.get(authoredKey).add(this);
+      const holder = authoredHolders.get(authoredKey);
+      const holding = holder && authoredDrawings.get(authoredKey).has(holder);
+      if (
+        holder !== this &&
+        (holding
+          ? shown(this) && (hidden(holder) || outranks(this, holder))
+          : !hidden(this))
+      ) {
+        authoredHolders.set(authoredKey, this);
+        if (holding) displaced = holder;
+      }
+      settleAuthoredSoon(authoredKey);
+    }
+    const holds = authoredHolders.get(authoredKey) === this;
+    // Lit keeps nodes it already placed, so where another drawing took them since this
+    // one drew them, a new key puts them back here.
+    if (holds && this.#authored.some((node) => !this.node.contains(node)))
+      this.#authoredTake++;
     if (!model.reactions) this.#reaction?.retire();
     const strip = model.reactions
       ? (this.#reaction ??= new ReactionStripView(this.#commands.reaction)).present(
@@ -404,21 +513,8 @@ export class MessageView {
               ? html`<span class="lf-drawing-reference">Drawing comment</span>`
               : nothing
           }
-          ${model.nativeAuthored && model.body.authored ? this.#authored : nothing}
+          ${holds ? keyed(this.#authoredTake, this.#authored) : nothing}
         </div>
-        ${
-          model.body.authored && !model.nativeAuthored
-            ? html`<button
-                type="button"
-                class="lf-btn lf-page-thread-open lf-ui"
-                data-lf-gen="1"
-                data-lf-offer="button"
-                @click=${() => this.#commands.openThread(this.#model.id, { part: "message" })}
-              >
-                Open interactive reply
-              </button>`
-            : nothing
-        }
         ${strip} ${rewrite}
       `,
       this.node,
@@ -435,6 +531,8 @@ export class MessageView {
       this.node.querySelector(":scope > .lf-msg-body"),
       model,
     );
+    // The drawing these widgets left draws the way here instead.
+    displaced?.present(displaced.model);
     if (!prior && (model.pending || arrived)) {
       // One phase drives the message's ground and its sticky header. CSS resolves
       // the tint and resting colour at this message after insertion; Firefox's
@@ -507,6 +605,12 @@ export class MessageView {
   }
 
   retire() {
+    if (this.#model) {
+      const key = this.#model.attempt ?? this.#model.id;
+      authoredDrawings.get(key)?.delete(this);
+      if (!authoredDrawings.get(key)?.size) authoredDrawings.delete(key);
+      releaseAuthored(key, this);
+    }
     this.#arrivalMotion?.cancel();
     this.#reaction?.retire();
     if (this.#model) releaseMessageEdit(this.#model.id, this);
@@ -520,8 +624,8 @@ export class MessageView {
 
 // Where an element an agent sent in a message stands, by its id: the one instance of it
 // the message keeps (`prepareAuthoredMessage`), with the message and its thread. It
-// stands on the page only while a reader draws that message, as the floating panel
-// draws only the thread open in it, so a thread about it is named by its words, and
+// stands on the page only while a drawing of that message does, as a margin card or the
+// floating panel's view of its thread, so a thread about it is named by its words, and
 // placed in its message (anchor-placement.js), while the message is put away.
 export function messageHolding(id) {
   for (const { nodes, body } of authoredMessages.values())

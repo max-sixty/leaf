@@ -60,7 +60,6 @@ import {
 } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
 import { CARET_KEYS, selectsAll, WORKS } from "../control-selectors.js";
-import { drawnThreadId } from "../thread/selectors.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { seenRect, underOccluder } from "../geometry.js";
 import { cancelRender, nextRender } from "../rendering.js";
@@ -1221,7 +1220,6 @@ export function createResponseSurface({
     const target = threadId && threadTarget(threadId);
     const inlineBox =
       inline &&
-      drawnThreadId(inline) === threadId &&
       (!here ||
         standingIn(inline) ||
         (target && under(target, heldObligation() ?? here.element))) &&
@@ -1336,7 +1334,6 @@ export function createResponseSurface({
     {
       id: "comment.options",
       keys: ["Tab"],
-      description: "Show other responses",
       title: "other responses",
       when: () => fabOptionsAvailable() && !composer.responseOptionsAreOpen(),
       run: () => showFabOptions(),
@@ -1354,10 +1351,6 @@ export function createResponseSurface({
         id: "composer.close",
         touch: false,
         keys: ["Escape"],
-        description: () =>
-          composer.composerHolds()
-            ? "Close the comment box, keeping the draft"
-            : "Close the comment box",
         title: () => (composer.composerHolds() ? "close — draft kept" : "close"),
         when: () => !composer.responseOptionsAreOpen(),
         run: () => dismissFab(),
@@ -1371,7 +1364,6 @@ export function createResponseSurface({
     pageSelection() || (fabAnchorAt() && !placement?.withheld())
       ? {
           title: "unselect",
-          description: "Clear the selection",
           out: dismissFab,
         }
       : null,

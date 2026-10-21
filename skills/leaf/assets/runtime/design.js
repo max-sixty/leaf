@@ -380,8 +380,7 @@ export function createDesignMode({
   pageCommand({
     id: "design.mode.enter",
     keys: ["l"],
-    description:
-      "Enter Design mode: comment on how the page looks and works — a widget, a control, a picture — rather than its words",
+    description: "Comment on how the page looks and works, rather than its words",
     title: "design mode",
     touch: "Design mode",
     menu: "annotate",
@@ -402,6 +401,5 @@ export function createDesignMode({
     open: openOnDesign,
     name: designName,
     inspectElement: inspectEl,
-    legendElement: legendRoot,
   };
 }

@@ -2,10 +2,11 @@
 
    A registered primary reader is asked first. Its `open(key, request)` may decline,
    returning false: Leaf's own chrome, the floating panel, declines a thread about a
-   passage, which opens beside its passage. A message part needs the reader that
-   renders its native authored content, so it goes to the primary alone. A thread or
-   reply part the primary declined uses the page's nearest drawing of it: the exact
-   outlet, then a page preview, then a deliberately revealed widget seat. Where none of
+   passage, which opens beside its passage. A message whose widgets the primary holds
+   goes there even where it declines (messages.js, `authoredHolders`). A part the
+   primary declined uses the page's nearest drawing of its thread: the exact outlet,
+   then a page preview, then a deliberately revealed widget seat; a message part lands
+   on its message there. Where none of
    those shows it, the primary is asked again with `request.last` set, which says
    nothing else will show the thread, so the floating panel takes any thread then; a
    second refusal leaves the thread unopened. A thread about an element an agent sent
@@ -31,19 +32,20 @@
    travelling arrival captures its return place before releasing held content or
    changing layout and commits it only after the destination is reached.
 
-   Held identity is the focused Thread across shadow roots. An unheld preview
-   conversation may accompany its page target; when focus returns to the body,
-   a visible accompanying preview remains the current conversation. Canonical page
-   targets always come from anchor placement, independently of whichever view draws a
-   Thread. */
+   Held identity is the focused Thread across shadow roots. An unheld conversation
+   drawn with its page target, by the preview accompanying the target or by a widget's
+   seat beside it, is the current conversation while the user stands at that target,
+   so every thread key reaches it from there (`threadHere`); when focus returns to the
+   body, a visible accompanying preview remains the current conversation. Canonical page targets always come from anchor
+   placement, independently of whichever view draws a Thread. */
 import { aborted } from "../abort.js";
 import { threadDraft } from "../drafts.js";
 import { focused } from "../focus.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { replyAvailable } from "./replies.js";
-import { allThreads, threadNamed } from "./state.js";
+import { allThreads, threadIdNamed, threadNamed } from "./state.js";
 import { heldThread } from "./focus.js";
-import { showHeldThread } from "./held-news.js";
+import { showHeld, showHeldThread } from "./held-news.js";
 import { revealHeld, surfaceFocusTarget } from "./surfaces.js";
 import { reveal } from "../widget-elements.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
@@ -51,7 +53,7 @@ import { closestAcross } from "../passages.js";
 import { renderedUnder } from "../shadow.js";
 import { discussed, threadKey } from "./model.js";
 import { openMessageEditIn } from "./message-edit.js";
-import { messageHolding } from "./messages.js";
+import { authoredHolder, messageHolding } from "./messages.js";
 import { drawnThreadId, THREAD } from "./selectors.js";
 import { threadPlace as placementOf } from "./placement.js";
 
@@ -83,20 +85,34 @@ export function createThreadDestinations({
     const thread = allThreads().find((candidate) => candidate.id === id);
     return thread ? placementOf(thread, placedAt) : null;
   };
-  const threadHere = () => heldThread() ?? preview?.accompanied() ?? null;
-  // Discussion identity precedes the view that realizes it. Reply availability
-  // narrows an editable destination without erasing the user's standing thread.
-  const threadAtStanding = () => {
+  // The thread the user is at, the one every thread key acts on: the thread they hold,
+  // else the one conversation drawn with the place they stand at, which is one place
+  // with it (glossary, Standing target). The preview accompanying the place draws one,
+  // and a widget may seat its threads beside it, as lf-diff does under a line; where
+  // several are drawn there, the user is at none of them. Chrome standing at no place
+  // is at none. Returning to the page can leave a margin card open with focus on the
+  // body, and its visible conversation remains the current one in that state.
+  const threadHere = () => {
     const held = heldThread();
-    if (held) return drawnThreadId(held);
+    if (held) return held;
+    const shown = preview?.accompanied() ?? null;
     const active = focused();
-    const ids = active ? threadIdsAt(active) : [];
-    const shown = threadHere();
-    const shownId = drawnThreadId(shown);
-    // Returning to the page can leave a margin card open with focus on the body.
-    // Its visible conversation remains the destination of Comment in that state.
-    if ((!active || active === document.body) && shownId) return shownId;
-    return ids.includes(shownId) ? shownId : (ids[0] ?? null);
+    if (!active || active === document.body) return shown;
+    const ids = threadIdsAt(active);
+    const drawn = [
+      shown,
+      ...ids.map((id) => surfaceFocusTarget(id, { part: "thread" })),
+    ].filter((thread) => thread && ids.includes(drawnThreadId(thread)));
+    return drawn.length === 1 ? drawn[0] : null;
+  };
+  // Discussion identity precedes the view that realizes it: where no thread is shown,
+  // the first thread at the place. Reply availability narrows an editable destination
+  // without erasing the user's standing thread.
+  const threadAtStanding = () => {
+    const here = drawnThreadId(threadHere());
+    if (here) return here;
+    const active = focused();
+    return (active && threadIdsAt(active)[0]) ?? null;
   };
   const replyThreadAtStanding = () => {
     const id = threadAtStanding();
@@ -104,11 +120,7 @@ export function createThreadDestinations({
     return thread && replyAvailable(thread) ? id : null;
   };
   const threadFocusTarget = (id, { part = null } = {}) =>
-    part === "message"
-      ? null
-      : (surfaceFocusTarget(id, { part }) ??
-        preview?.focusTarget(id, { part }) ??
-        null);
+    surfaceFocusTarget(id, { part }) ?? preview?.focusTarget(id, { part }) ?? null;
 
   // What `inPrimary` returns where the primary declined the thread, or took it and drew
   // no destination for it, so another surface may show it; and what `onPage` returns
@@ -134,6 +146,10 @@ export function createThreadDestinations({
     const selected = presentation?.owner.isConnected ? presentation : null;
     const thread = threadNamed(id);
     if (selected && (!thread || !discussed(thread))) return null;
+    // A message whose widgets the primary reader holds is reached there, in whichever
+    // of its views draws it, though the reader declines to show the thread.
+    const holder = part === "message" ? authoredHolder(id) : null;
+    const drawn = Boolean(selected && holder && renderedUnder(holder, selected.owner));
     // The registered primary reader, asked to show the thread: `last` says nothing on the
     // page will show it if the reader declines.
     function inPrimary(last) {
@@ -174,13 +190,13 @@ export function createThreadDestinations({
       // A reader that declines at once is answered at once, so the page's own drawing
       // of the thread opens in the task of the gesture that asked for it (`onPage`), as
       // a walk's card does, rather than after a wait that no longer belongs to it.
-      if (result === false) return mayPresent() ? DECLINED : null;
+      if (result === false && !drawn) return mayPresent() ? DECLINED : null;
       return taken(result);
       // The reader takes the thread: its layout, then its drawing of it.
       async function taken(result) {
         const selectedLayout = result?.then ? await whileCurrent(result) : result;
         if (!mayPresent()) return null;
-        if (selectedLayout === false) return DECLINED;
+        if (selectedLayout === false && !drawn) return DECLINED;
         await whileCurrent(selected.reader.update());
         if (!mayPresent()) return null;
         const destination = selected.reader.destination(thread.key, request);
@@ -221,6 +237,8 @@ export function createThreadDestinations({
     async function onPage() {
       const mayPresent = () => (focus === false ? intent.available() : intent());
       const localPart = part ?? "reply";
+      // A route to a message is an arrival at it, so a seat holding it back shows it.
+      if (part === "message") showHeld(id);
       const openSurface = async () => {
         if (preview) intent.handoff(preview.close);
         if (trip) {
@@ -303,7 +321,7 @@ export function createThreadDestinations({
         }
         return threadFocusTarget(id, { part });
       }
-      const held = revealHeld([id]);
+      const held = revealHeld([threadIdNamed(id)]);
       if (held) {
         await held.presented;
         if (!mayPresent()) return null;
@@ -315,14 +333,12 @@ export function createThreadDestinations({
     const asked = selected ? inPrimary(false) : DECLINED;
     const first = asked instanceof Promise ? await asked : asked;
     if (first !== DECLINED && first !== UNDRAWN) return first;
-    if (part !== "message") {
-      const shown = await onPage();
-      if (shown !== DECLINED) return shown;
-    }
+    const shown = await onPage();
+    if (shown !== DECLINED) return shown;
     // Only a reader that declined is asked again; one that took the thread has shown it.
     if (!selected || first !== DECLINED) return null;
-    const shown = await inPrimary(true);
-    return shown === DECLINED || shown === UNDRAWN ? null : shown;
+    const last = await inPrimary(true);
+    return last === DECLINED || last === UNDRAWN ? null : last;
   }
 
   // Where a thread about an element an agent sent in a message goes to its subject: the
@@ -355,7 +371,7 @@ export function createThreadDestinations({
 
   // Where a thread holds the user's draft `context`, with its box ready for the caret:
   // the thread's reply box, or the rewrite of one of its messages, which opens on that
-  // message where a message part lands, in the primary reader (`message-edit.js`).
+  // message where a message part lands (`message-edit.js`).
   // Landed on the thread instead, a long one's landing on its latest turn took the view
   // away from a rewrite it had just opened higher up.
   async function openThreadDraft(context, intent) {

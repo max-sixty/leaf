@@ -17,6 +17,7 @@ import socket
 import sys
 import threading
 import time
+import traceback
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
@@ -35,6 +36,8 @@ from .leases import (
 from .refusals import Refused
 from .schema import SERVER_LOCK, SERVICE_FILE
 from .server import (
+    exit_serving,
+    exit_serving_on_signals,
     host_key,
     loopback_only,
     page_access,
@@ -599,7 +602,6 @@ def cmd_serve(
                             from .reconnect import recovered
 
                             recovered(page_dir, claim)
-                        return {"url": url, "claim": claim}
                 except BaseException:
                     # A freshly bound resource is ours to withdraw. Reused servers
                     # have no mutation to undo. Once acquisition published, owner
@@ -613,6 +615,11 @@ def cmd_serve(
                         else:
                             write_service(page_dir, previous_service)
                     raise
+                if httpd is not None:
+                    # Before the URL leaves this process, so that a stop sent as
+                    # soon as it arrives also ends through `exit_serving`.
+                    exit_serving_on_signals()
+                return {"url": url, "claim": claim}
 
             if handshake is not None:
                 announced = handshake.announce(
@@ -630,7 +637,11 @@ def cmd_serve(
             args=(page_dir,),
             daemon=True,
         ).start()
-        httpd.serve_forever()
+        try:
+            httpd.serve_forever()
+        except BaseException:  # noqa: BLE001 - reported, since `exit_serving` skips the interpreter's report
+            traceback.print_exc()
+        exit_serving(1)
     finally:
         if httpd is not None:
             httpd.server_close()

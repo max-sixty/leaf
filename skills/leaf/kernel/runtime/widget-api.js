@@ -95,18 +95,24 @@ import {
   watchDraft
 } from "./bundle-user-intent.js";
 import {
+  DISCLOSE,
   aborted,
   bodyText,
   dataBody,
   descriptorStillMatches,
   failSoft,
   failSoftUnreported,
+  inBaseLayer,
   once,
   placesFailure,
   quoted,
   reportFailure,
+  setChildLists,
+  setChildren,
+  setRenderedChildren,
+  shadowStage,
   widgetDescriptor
-} from "./bundle-widget-upgrade.js";
+} from "./bundle-stylesheets.js";
 import {
   isCanonicalMediaUrl,
   scopedMediaUrl
@@ -118,6 +124,7 @@ import {
   motion,
   onMotionPreferenceChange,
   reducedMotion,
+  returnDuration,
   scrollBehavior
 } from "./bundle-motion.js";
 import "./bundle-page-controls.js";
@@ -154,14 +161,6 @@ import {
   showReadingSubject,
   watchReadingRegionTransitions
 } from "./bundle-presence.js";
-import {
-  DISCLOSE,
-  inBaseLayer,
-  setChildLists,
-  setChildren,
-  setRenderedChildren,
-  shadowStage
-} from "./bundle-stylesheets.js";
 import {
   alignText,
   authoredScope,
@@ -226,20 +225,6 @@ import {
   worksInside
 } from "./bundle-page-paint.js";
 import {
-  applicationRegionsPresented,
-  applicationState,
-  attachApplicationPresentation,
-  attachWidgetPresentation,
-  offlineInteractive,
-  pageUrl,
-  projectionRegionsPresented,
-  proofReading,
-  queueWidgetUpdate,
-  readPart,
-  readsProof,
-  revisionLabel
-} from "./bundle-semantic-state.js";
-import {
   TEXT_BOX,
   TEXT_FIELD,
   afterScript,
@@ -271,6 +256,20 @@ import {
   under,
   whenLeft
 } from "./bundle-frame-visibility.js";
+import {
+  applicationRegionsPresented,
+  applicationState,
+  attachApplicationPresentation,
+  attachWidgetPresentation,
+  offlineInteractive,
+  pageUrl,
+  projectionRegionsPresented,
+  proofReading,
+  queueWidgetUpdate,
+  readPart,
+  readsProof,
+  revisionLabel
+} from "./bundle-semantic-state.js";
 import {
   LitElement,
   M,
@@ -955,7 +954,6 @@ function goalView(goal, open, read) {
     leaves: progressLeaves,
     finished: progressLeaves.filter((leaf) => done(leaf, read)).length,
     liveWorkers,
-    openInterventions: nested,
     stoppedAt: reportedStoppedAt ?? (role.stoppedAt ? goal.getAttribute(role.stoppedAt) : null)
   };
 }
@@ -1814,6 +1812,7 @@ export {
   reportsReady,
   restorePlace,
   retainUserIntent,
+  returnDuration,
   revisionLabel,
   rove,
   rowArrows,

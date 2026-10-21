@@ -3,8 +3,9 @@
  * Every composer the runtime builds is a `leaf-text`. Inside a closed shadow root it
  * runs CodeMirror over the draft's exact source, and draws that source the way a sent
  * message will read: inline code in code type, emphasis and strong in their weights,
- * a link as a link, a heading in bold. The syntax that produces each (backticks,
- * asterisks, brackets, hashes) is hidden unless the selection touches the construct, so
+ * a link as a link, a heading in bold, a list item at the message's inset under the
+ * message's own marker. The syntax that produces each (backticks, asterisks, brackets,
+ * hashes, list markers) is hidden unless the selection touches the construct, so
  * the user sees their words rendered and can still reach every character they typed.
  * Nothing is converted: the value is always the source the user typed, which is what
  * the agent reads. The constructs come from the renderer that sends the message
@@ -169,15 +170,21 @@ sheet.replaceSync(`
     text-underline-offset: var(--link-underline-offset); }
   .lf-md-quote { border-inline-start: var(--quote-rule); font-style: var(--quote-style);
     padding-inline-start: var(--quote-inset); color: var(--muted); }
-  /* A bullet item's marker is drawn as the message's bullet, in a box as wide as the
-     marker and its space, which the item's wrapped lines hang under. The dash it stands
-     for keeps that box while the caret touches it, so revealing it moves no word. */
-  .lf-md-item { padding-inline-start: 1.25em; text-indent: -1.25em; }
-  .lf-md-bullet { display: inline-block; inline-size: 1.25em; text-indent: 0;
-    white-space: pre; }
-  .lf-md-bullet:not(.lf-md-mark) { color: transparent; position: relative; }
-  .lf-md-bullet:not(.lf-md-mark)::before { content: "•"; position: absolute;
-    inset-inline-start: 0; color: var(--ink); }
+  /* A list item's lines stand where the message's do, one list inset in per level, and
+     its marker stands in the inset before them. The marker is the platform's own list
+     marker, as in the message, so it is the same bullet or number at the same place.
+     The source's marker stays in the inset unseen, and shows instead while the caret
+     touches it, so revealing it moves no word. */
+  .lf-md-item { margin-inline-start: calc(var(--lf-list-depth) * var(--list-inset)); }
+  .lf-md-marker { display: inline-flex; justify-content: flex-end; white-space: pre;
+    inline-size: var(--list-inset); margin-inline-start: calc(-1 * var(--list-inset)); }
+  .lf-md-listed { display: list-item; }
+  .lf-md-marker:not(.lf-md-mark) { color: transparent; }
+  .lf-md-listed:has(.lf-md-marker.lf-md-mark) { list-style-type: none; }
+  .lf-md-disc { list-style-type: disc; }
+  .lf-md-circle { list-style-type: circle; }
+  .lf-md-square { list-style-type: square; }
+  .lf-md-number { list-style-type: decimal; }
   .lf-md-code-block { font-family: var(--mono); font-size: var(--code-size);
     line-height: var(--code-line); color: var(--code-ink); background: var(--pre-bg);
     font-variant-ligatures: none; border-inline: 1px solid var(--code-border);
@@ -195,9 +202,21 @@ const ownerStep = StateEffect.define();
 const hide = Decoration.replace({});
 const dim = Decoration.mark({ class: "lf-md-mark" });
 const link = Decoration.mark({ class: "lf-md-link" });
-const bullet = Decoration.mark({ class: "lf-md-bullet" });
-const shownBullet = Decoration.mark({ class: "lf-md-bullet lf-md-mark" });
+const marker = Decoration.mark({ class: "lf-md-marker" });
+const shownMarker = Decoration.mark({ class: "lf-md-marker lf-md-mark" });
 const line = (cls) => Decoration.line({ class: cls });
+// A list item's line at its depth, wearing the marker a message's list draws there: the
+// bullet the platform's style sheet nests, or the item's number in its list. An item's
+// later line wears none. The line is the same wherever the caret stands, so moving it
+// rewrites no line's attributes.
+const BULLETS = ["lf-md-disc", "lf-md-circle", "lf-md-square"];
+const itemLine = (depth, kind, number) =>
+  Decoration.line({
+    class: kind ? `lf-md-item lf-md-listed ${kind}` : "lf-md-item",
+    attributes: {
+      style: `--lf-list-depth: ${depth}${kind === "lf-md-number" ? `; counter-set: list-item ${number}` : ""}`,
+    },
+  });
 
 // The inline constructs the preview draws, by the renderer's token type: each as the
 // element the renderer sends it as.
@@ -220,6 +239,9 @@ const read = (state) => {
 
 function decorate(state, placed) {
   const out = [];
+  // The ends of the lists open at the token being read, and each list line's item.
+  const lists = [];
+  const items = new Map();
   const add = (from, to, deco) => {
     if (from >= to) return;
     // A hidden range may not hold a line break; such syntax stays drawn.
@@ -278,14 +300,45 @@ function decorate(state, placed) {
         out.push(line("lf-md-quote").range(each.from));
       });
       for (const [a, b] of markers) add(a, b, dim);
+    } else if (
+      token.type === "bullet_list_open" ||
+      token.type === "ordered_list_open"
+    ) {
+      while (lists.at(-1)?.to <= from) lists.pop();
+      const ordered = token.type === "ordered_list_open";
+      lists.push({ to, next: ordered ? Number(token.attrGet("start") ?? 1) : null });
     } else if (token.type === "list_item_open") {
+      while (lists.at(-1)?.to <= from) lists.pop();
+      const list = lists.at(-1);
+      const depth = lists.length;
+      // An item's later lines stand under its words, their indent hidden as the
+      // message drops it; a nested item, read after its parent, takes its own lines.
+      const head = state.doc.lineAt(from);
       const [at, end] = markers[0];
-      if (token.info) add(at, end, dim);
-      else {
-        out.push(line("lf-md-item").range(state.doc.lineAt(from).from));
-        add(at, end, touches(state, at, end) ? shownBullet : bullet);
+      // The marker's own indent stands in the inset with it. A quote's line keeps the
+      // quote's rule and prefix at its start, where the platform's marker can't stand,
+      // so an item there keeps its source marker, drawn as the prefix is.
+      const start = at - head.text.slice(0, at - head.from).match(/[ \t]*$/)[0].length;
+      if (head.text.slice(0, start - head.from).trim()) {
+        add(start, end, dim);
+        continue;
       }
+      lines(head.to + 1, Math.min(to, state.doc.length), (each) => {
+        const lead = each.text.slice(0, end - head.from).match(/^[ \t]*/)[0].length;
+        items.set(each.from, { depth, hidden: [each.from, each.from + lead] });
+      });
+      const kind =
+        list.next === null
+          ? BULLETS[Math.min(depth, BULLETS.length) - 1]
+          : "lf-md-number";
+      items.set(head.from, { depth, kind, number: list.next });
+      if (list.next !== null) list.next++;
+      add(start, end, touches(state, start, end) ? shownMarker : marker);
     }
+  }
+  for (const [from, { depth, kind, number, hidden }] of items) {
+    out.push(itemLine(depth, kind, number).range(from));
+    if (hidden) add(...hidden, touches(state, ...hidden) ? dim : hide);
   }
   return Decoration.set(out, true);
 }

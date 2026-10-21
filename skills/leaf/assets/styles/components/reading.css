@@ -305,7 +305,7 @@
 }
 :where(:root, .lf-thread-transcript) :is(ul, ol) {
   margin: 10px 0;
-  padding-inline-start: 24px;
+  padding-inline-start: var(--list-inset);
 }
 :where(:root, .lf-thread-transcript) li {
   margin: 6px 0;

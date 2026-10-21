@@ -240,6 +240,10 @@
       what === "class" &&
       is(node, "div.cm-line.lf-field-last") &&
       hosts(node)[0]?.localName === "leaf-text",
+    // CodeMirror's setAttrs assigns a line's style whenever it syncs the line's
+    // attributes, as a list item's line carries its depth and number.
+    (what, node) =>
+      what === "style" && is(node, "div.cm-line.lf-md-item") && hosts(node).length > 0,
     // CodeMirror's CompositeTile.sync replaces a line's children while reconciling
     // editor updates, including equivalent line-break nodes in either editor host.
     (what, node) =>

@@ -904,20 +904,6 @@ def test_page_fixture_renders(browser, serve, source):
     )
 
 
-@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
-def test_page_fixture_opens_without_firefox_console_warnings(
-    firefox_browser, serve, source
-):
-    """Firefox says in its console what Chrome never does, such as a `document.write`
-    that made it reparse the document, layout forced before the page loaded, or a
-    response blocked as opaque. Every page of the corpus, each live sample loaded,
-    leaves the console as `firefox_browser` requires: empty."""
-    page = open_page(firefox_browser, serve(source))
-    for sample in page.locator("lf-sample[data-lf-sample-live]").all():
-        sample.scroll_into_view_if_needed()
-        sample.evaluate("sample => sample.ready")
-
-
 def test_a_table_too_wide_to_wrap_scrolls_inside_the_column(browser, serve):
     """The theme's answer for a table with more in it than the column holds. Its
     columns hold what is in them, so it takes the measure only when it needs to

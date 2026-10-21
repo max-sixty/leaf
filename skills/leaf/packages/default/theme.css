@@ -33,59 +33,105 @@
   }
 }
 :scope:is(lf-shot) .lf-shotcomparison {
+  position: relative;
   grid-area: 2 / 1;
   aspect-ratio: var(--lf-shot-ratio);
+  overflow: clip;
   border: var(--lf-shot-frame-border) solid var(--rule);
   border-radius: 0 0 var(--r) var(--r);
   background: var(--card);
-  --divider-width: 2px;
   --handle-size: 38px;
-  --wa-color-surface-default: var(--card);
-  --wa-color-neutral-on-quiet: var(--ink-2);
-  --wa-focus-ring: var(--focus-ring);
-  --wa-focus-ring-offset: 1px;
 }
-:scope:is(lf-shot) .lf-shotcomparison::part(divider) {
-  background: color-mix(in srgb, var(--ink-2) 48%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--card) 72%, transparent);
-  transition: background-color 120ms ease;
-}
-:scope:is(lf-shot) .lf-shotcomparison::part(handle) {
-  border: 1px solid var(--ink-2);
-  box-shadow: var(--raise-1);
-  opacity: 0.52;
-  scale: 0.88;
-  transition: opacity 120ms ease, scale 120ms ease;
-}
-@media (prefers-reduced-motion: reduce) {
-  :scope:is(lf-shot) .lf-shotcomparison::part(divider),
-  :scope:is(lf-shot) .lf-shotcomparison::part(handle) {
-    transition: none;
-  }
-}
-:scope:is(lf-shot) .lf-shot-handle {
-  display: block;
-  box-sizing: border-box;
-  width: 13px;
-  height: 13px;
-  border: 1.5px solid currentColor;
-  border-radius: 50%;
-  pointer-events: none;
-}
-:scope:is(lf-shot) .lf-shotcomparison::part(before),
-:scope:is(lf-shot) .lf-shotcomparison::part(after) {
+:scope:is(lf-shot) .lf-shotcomparison > .lf-shotframe {
+  position: absolute;
+  inset: 0;
   cursor: pointer;
 }
-:scope:is(lf-shot) .lf-shotcomparison:is(:hover, [data-lf-focus-within], :state(dragging))::part(divider) {
+:scope:is(lf-shot) .lf-shotcomparison > .lf-shotframe[data-lf-state=before] {
+  z-index: 1;
+  clip-path: inset(0 calc(100% - var(--lf-shot-before, 50%)) 0 0);
+}
+:scope:is(lf-shot) .lf-shot-divider {
+  position: absolute;
+  z-index: 2;
+  inset-block: 0;
+  left: var(--lf-shot-before, 50%);
+  width: 2px;
+  transform: translateX(-50%);
+  pointer-events: none;
+  background: color-mix(in srgb, var(--ink-2) 48%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--card) 72%, transparent);
+}
+:scope:is(lf-shot) .lf-shot-divider-input {
+  position: absolute;
+  z-index: 3;
+  left: calc(var(--handle-size) / -2);
+  top: 0;
+  width: calc(100% + var(--handle-size));
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  appearance: none;
+  background: transparent;
+  pointer-events: none;
+  outline: none;
+}
+:scope:is(lf-shot) .lf-shot-divider-input::-webkit-slider-runnable-track {
+  height: 100%;
+  background: transparent;
+  pointer-events: none;
+}
+:scope:is(lf-shot) .lf-shot-divider-input::-moz-range-track {
+  background: transparent;
+  pointer-events: none;
+}
+:scope:is(lf-shot) .lf-shot-divider-input::-webkit-slider-thumb {
+  appearance: none;
+  width: var(--handle-size);
+  height: 100%;
+  border: 0;
+  background: transparent;
+  cursor: ew-resize;
+  pointer-events: auto;
+}
+:scope:is(lf-shot) .lf-shot-divider-input::-moz-range-thumb {
+  width: var(--handle-size);
+  height: 100%;
+  border: 0;
+  background: transparent;
+  cursor: ew-resize;
+  pointer-events: auto;
+}
+:scope:is(lf-shot) .lf-shot-divider::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  box-sizing: border-box;
+  width: var(--handle-size);
+  height: var(--handle-size);
+  border: 1px solid var(--ink-2);
+  border-radius: 50%;
+  background:
+    radial-gradient(
+      circle,
+      transparent 5px,
+      var(--ink-2) 5px 6.5px,
+      var(--card) 7px);
+  box-shadow: var(--raise-1);
+  opacity: 0.52;
+}
+:scope:is(lf-shot) .lf-shotcomparison:is(:hover, [data-lf-focus-within]) .lf-shot-divider {
   background: var(--ink-2);
 }
-:scope:is(lf-shot) .lf-shotcomparison:is(:hover, [data-lf-focus-within], :state(dragging))::part(handle) {
+:scope:is(lf-shot) .lf-shotcomparison:is(:hover, [data-lf-focus-within]) .lf-shot-divider::after {
   opacity: 1;
-  scale: 1;
 }
-:scope:is(lf-shot) .lf-shotcomparison:is([position="0"], [position="100"]):not(:hover, [data-lf-focus-within])::part(handle) {
-  opacity: 0.18;
-  scale: 0.68;
+:scope:is(lf-shot) .lf-shotcomparison:has(.lf-shot-divider-input[data-lf-focus]) .lf-shot-divider::after {
+  outline: var(--focus-ring);
+  outline-offset: 1px;
 }
 :scope:is(lf-shot) .lf-shotframe {
   position: relative;
@@ -409,18 +455,13 @@
     border: 0;
     overflow: visible;
   }
-  :scope:is(lf-shot) > .lf-shotcomparison::part(comparison) {
-    display: flex;
-    flex-direction: column-reverse;
-  }
-  :scope:is(lf-shot) > .lf-shotcomparison::part(before),
-  :scope:is(lf-shot) > .lf-shotcomparison::part(after) {
+  :scope:is(lf-shot) > .lf-shotcomparison > .lf-shotframe {
     position: relative;
     width: auto;
     height: auto;
     clip-path: none !important;
   }
-  :scope:is(lf-shot) > .lf-shotcomparison::part(divider) {
+  :scope:is(lf-shot) > .lf-shotcomparison > :is(.lf-shot-divider, .lf-shot-divider-input) {
     display: none;
   }
   :scope:is(lf-shot) .lf-shotframe {

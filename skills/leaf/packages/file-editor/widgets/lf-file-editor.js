@@ -53,7 +53,6 @@ import {
   iconElement,
   isNativeLayer,
   LeafElement,
-  nothing,
   offerRef,
   rove,
   rowWalk,
@@ -81,7 +80,7 @@ customElements.define(
 
     render() {
       this.#refreshView?.();
-      return nothing;
+      return;
     }
 
     // What follows a draw runs outside the render, since configuring CodeMirror can
@@ -336,11 +335,11 @@ customElements.define(
             </div>
             <div
               ref=${[
-          offerRef("lf-file-editor-choices"),
-          scopeRef("In the file's conflict menu", choiceKeys, {
-            claims: allButCommandReference,
-          }),
-        ]}
+                offerRef("lf-file-editor-choices"),
+                scopeRef("In the file's conflict menu", choiceKeys, {
+                  claims: allButCommandReference,
+                }),
+              ]}
               id="lf-file-editor-choices"
               popover="auto"
               role="menu"
@@ -357,19 +356,19 @@ customElements.define(
                 Compare
               </button>
               ${[
-            ["Save draft", keepDraft],
-            ["Use file version", choose(useFile)],
-          ].map(
-            ([label, run]) =>
-              html`<button
-                ref=${offerRef("lf-btn")}
-                role="menuitem"
-                aria-disabled=${() => (state().busy ? "true" : undefined)}
-                onClick=${run}
-              >
-                ${label}
-              </button>`,
-          )}
+                ["Save draft", keepDraft],
+                ["Use file version", choose(useFile)],
+              ].map(
+                ([label, run]) =>
+                  html`<button
+                    ref=${offerRef("lf-btn")}
+                    role="menuitem"
+                    aria-disabled=${() => (state().busy ? "true" : undefined)}
+                    onClick=${run}
+                  >
+                    ${label}
+                  </button>`,
+              )}
             </div>
             ${mount}
             <div

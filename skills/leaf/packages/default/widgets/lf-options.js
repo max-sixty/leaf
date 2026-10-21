@@ -107,7 +107,6 @@ import {
   keepsText,
   commands,
   LeafElement,
-  nothing,
   landInThread,
   markdownWords,
   offer,
@@ -554,7 +553,7 @@ customElements.define(
     render() {
       if (!this.reading) {
         this.#syncChoice(this.#authoredChoice());
-        return nothing;
+        return;
       }
       const { state } = this.reading;
       // A settled group may have no choose projection, so its authored attributes
@@ -572,7 +571,7 @@ customElements.define(
       this.#syncChoice(detail);
       if (created.length) this.#keys();
       this.#refreshAvailability();
-      return nothing;
+      return;
     }
 
     lfWord() {

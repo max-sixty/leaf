@@ -39,7 +39,6 @@ import {
   initialRender,
   keeps,
   LeafElement,
-  nothing,
   paintKeys,
   registerReadingRegion,
   says,
@@ -485,7 +484,7 @@ customElements.define(
         this.#drawnThrough = Math.max(this.#drawnThrough, choice.seq);
       this.#paint();
       this.#paintAvailability();
-      return nothing;
+      return;
     }
   },
 );

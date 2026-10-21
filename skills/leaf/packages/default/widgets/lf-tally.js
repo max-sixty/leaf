@@ -25,7 +25,6 @@ import {
   elementById,
   keeps,
   LeafElement,
-  nothing,
   offer,
   obligationActions,
   readObligations,
@@ -94,7 +93,7 @@ customElements.define(
           "disabled",
           !ready || obligationsIn(region, items.user).length === 0 ? "" : null,
         );
-      return nothing;
+      return;
     }
   },
 );

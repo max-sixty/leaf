@@ -2588,14 +2588,14 @@ def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serv
     )
     page = open_page(browser, url)
 
-    comparison = page.locator("lf-shot wa-comparison")
-    handle = comparison.get_by_role("scrollbar")
+    comparison = page.locator("lf-shot .lf-shotcomparison")
+    handle = comparison.get_by_role("slider")
     handle.scroll_into_view_if_needed()
     handle.focus()
     page.keyboard.press("ArrowRight")
-    expect(comparison).to_have_attribute("position", "51")
+    expect(comparison.get_by_role("slider")).to_have_value("51")
     page.keyboard.press("End")
-    expect(comparison).to_have_attribute("position", "100")
+    expect(comparison.get_by_role("slider")).to_have_value("100")
 
     summary = page.locator("lf-diff summary").first
     details = page.locator("lf-diff details").first

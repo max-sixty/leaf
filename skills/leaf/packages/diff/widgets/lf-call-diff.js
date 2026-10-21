@@ -23,7 +23,6 @@ import {
   keepsText,
   LeafElement,
   navigateToDatum,
-  nothing,
   offer,
   projectData,
   setChildLists,
@@ -260,7 +259,7 @@ customElements.define(
   class extends LeafElement {
     render() {
       this.show(this.data("document"));
-      return nothing;
+      return;
     }
 
     message(snapshot) {

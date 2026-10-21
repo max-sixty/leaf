@@ -153,9 +153,9 @@ def test_shot_captions_have_disjoint_targets_inside_their_rail(browser, serve, t
     for index, position in [(0, "100"), (1, "0")]:
         cap = caps.nth(index)
         cap.click()
-        expect(page.locator("lf-shot wa-comparison")).to_have_attribute(
-            "position", position
-        )
+        expect(
+            page.locator("lf-shot .lf-shotcomparison").get_by_role("slider")
+        ).to_have_value(position)
         assert cap.bounding_box() == boxes[index]
     # The captions remain selectable words, rather than native buttons that swallow a drag.
     box = boxes[0]
@@ -165,7 +165,9 @@ def test_shot_captions_have_disjoint_targets_inside_their_rail(browser, serve, t
         (box["x"] + box["width"] - 5, box["y"] + box["height"] / 2),
     )
     assert "before" in page.evaluate("getSelection().toString()").lower()
-    expect(page.locator("lf-shot wa-comparison")).to_have_attribute("position", "0")
+    expect(
+        page.locator("lf-shot .lf-shotcomparison").get_by_role("slider")
+    ).to_have_value("0")
 
 
 @pytest.mark.parametrize("touch", [False, True])
@@ -199,8 +201,8 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
     )
     shot = page.locator("lf-shot")
     shot.scroll_into_view_if_needed()
-    comparison = shot.locator("wa-comparison")
-    expect(comparison).to_have_attribute("position", "50")
+    comparison = shot.locator(".lf-shotcomparison")
+    expect(comparison.get_by_role("slider")).to_have_value("50")
     before = shot.bounding_box()
     links = shot.get_by_role("link")
     link_bounds = [link.bounding_box() for link in links.all()]
@@ -241,7 +243,7 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
         page.keyboard.press("Escape")
         expect(viewer).not_to_be_visible()
         expect(link).to_be_focused()
-        expect(comparison).to_have_attribute("position", "50")
+        expect(comparison.get_by_role("slider")).to_have_value("50")
         assert shot.bounding_box() == before
         assert link.bounding_box() == link_bounds[index]
 
@@ -255,12 +257,12 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
     assert original.url.endswith(sources["after"])
     original.close()
     expect(viewer).not_to_be_visible()
-    expect(comparison).to_have_attribute("position", "50")
+    expect(comparison.get_by_role("slider")).to_have_value("50")
 
     shot.locator('.lf-shotcap[data-lf-state="before"]').click()
-    expect(comparison).to_have_attribute("position", "100")
+    expect(comparison.get_by_role("slider")).to_have_value("100")
     comparison.click(position={"x": 20, "y": 40})
-    expect(comparison).to_have_attribute("position", "0")
+    expect(comparison.get_by_role("slider")).to_have_value("0")
     assert shot.bounding_box() == before
     shot.evaluate("node => node.setAttribute('alt', 'the updated rail')")
     expect(after).to_have_accessible_name("Open after image — the updated rail")
@@ -284,7 +286,7 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
     assert shown_frames(page) == ["before", "after"]
     shot.evaluate("node => node.inspect({mode: 'flip'})")
     expect(comparison).to_have_count(1)
-    expect(comparison).to_have_attribute("position", "0")
+    expect(comparison.get_by_role("slider")).to_have_value("0")
     expect(links.first).to_be_visible()
     expect(box).to_be_checked()
     page.emulate_media(media="print")
@@ -315,7 +317,7 @@ def test_a_wide_shot_owns_comparison_actions_in_its_native_rail(browser, serve, 
     )
     widget = page.locator("#wide-shot")
     rail = widget.locator(".lf-shotrail")
-    comparison = widget.locator("wa-comparison")
+    comparison = widget.locator(".lf-shotcomparison")
     expect(comparison).to_be_visible()
     rail.scroll_into_view_if_needed()
     # Comparison chrome belongs to the rail and native divider. An extra floating
@@ -323,7 +325,7 @@ def test_a_wide_shot_owns_comparison_actions_in_its_native_rail(browser, serve, 
     for state, position in (("before", "100"), ("after", "0")):
         caption = rail.locator(f'.lf-shotcap[data-lf-state="{state}"]')
         caption.tap() if touch else caption.press("Enter")
-        expect(comparison).to_have_attribute("position", position)
+        expect(comparison.get_by_role("slider")).to_have_value(position)
         control = caption.bounding_box()
         capture = comparison.bounding_box()
         assert control["y"] + control["height"] <= capture["y"] + 0.5
@@ -341,7 +343,7 @@ def test_a_wide_shot_owns_comparison_actions_in_its_native_rail(browser, serve, 
             page.keyboard.press("Escape")
             expect(viewer).not_to_be_visible()
             expect(opener).to_be_focused()
-            expect(comparison).to_have_attribute("position", position)
+            expect(comparison.get_by_role("slider")).to_have_value(position)
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
 
 
@@ -385,13 +387,15 @@ def test_a_tall_shot_drags_where_it_was_grabbed_without_moving_the_page(browser,
         media={SHOT_SRC["before"]: before, SHOT_SRC["after"]: after},
     )
     page = open_page(browser, url)
-    comparison = page.locator("lf-shot wa-comparison")
-    handle = comparison.get_by_role("scrollbar")
+    comparison = page.locator("lf-shot .lf-shotcomparison")
+    handle = comparison.get_by_role("slider")
     expect(handle).to_have_accessible_name("Before and after — the navigation rail")
 
     for width in (1200, 390):
         resized(page, width, 900)
-        comparison.evaluate("node => { node.position = 50; }")
+        comparison.get_by_role("slider").evaluate(
+            "input => { input.value = '50'; input.dispatchEvent(new Event('input', {bubbles:true})); }"
+        )
         page.evaluate(
             """() => { const r = document.querySelector('lf-shot .lf-shotframe')
                                   .getBoundingClientRect();
@@ -414,7 +418,10 @@ def test_a_tall_shot_drags_where_it_was_grabbed_without_moving_the_page(browser,
         page.mouse.move(divider[0] + 24, divider[1], steps=3)
         page.mouse.up()
         scroll_settled(page)
-        assert float(comparison.get_attribute("position")) > 50
+        assert (
+            float(comparison.get_by_role("slider", include_hidden=True).input_value())
+            > 50
+        )
         assert (
             abs(page.evaluate("document.scrollingElement.scrollTop") - scroll_before)
             <= 1
@@ -445,7 +452,7 @@ def test_a_tall_shot_keeps_its_endpoint_labels_in_view(browser, serve, holder):
         serve(markup, media={SHOT_SRC["before"]: before, SHOT_SRC["after"]: after}),
     )
     resized(page, 1200, 800)
-    comparison = page.locator("#sticky-shot wa-comparison")
+    comparison = page.locator("#sticky-shot .lf-shotcomparison")
     expect(comparison).to_be_visible()
     rail = page.locator("#sticky-shot .lf-shotrail")
     page.mouse.move(600, 350)
@@ -462,7 +469,7 @@ def test_a_tall_shot_keeps_its_endpoint_labels_in_view(browser, serve, holder):
     assert abs(reading["top"] - reading["expected"]) <= 1, reading
     for state, position in (("before", "100"), ("after", "0")):
         rail.locator(f'[data-lf-state="{state}"]').click()
-        expect(comparison).to_have_attribute("position", position)
+        expect(comparison.get_by_role("slider")).to_have_value(position)
     scroll = page.evaluate("document.scrollingElement.scrollTop")
     page.keyboard.press("Shift+Tab")
     scroll_settled(page)
@@ -550,62 +557,10 @@ def test_a_shot_keeps_its_reserved_frame_while_images_load(browser, serve):
         route.continue_()
     page.unroute("**/media/*.png")
     render_checks_model.wait_until_ready(page)
-    expect(shot.locator("wa-comparison")).to_be_visible()
+    expect(shot.locator(".lf-shotcomparison")).to_be_visible()
     complete = shot.bounding_box()
     assert pending == pytest.approx(before, abs=1), (before, pending, complete)
     assert complete == pytest.approx(before, abs=1), (before, pending, complete)
-
-
-def test_a_shot_adopts_a_fallback_choice_when_the_divider_arrives(browser, serve):
-    """View choices preserve the initial split; endpoint choices survive upgrade."""
-    after = solid_png(600, 300, (210, 220, 235), patch=(420, 200, 60, 40, (30, 30, 30)))
-    url = serve(
-        SHOT_PAGE.replace("<lf-shot ", "<lf-shot outlines pixels "),
-        media={SHOT_SRC["before"]: SHOTS["before"], SHOT_SRC["after"]: after},
-    )
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    held = []
-    page.route("**/vendor/webawesome.esm.js", lambda route: held.append(route))
-    page.goto(url, wait_until="domcontentloaded")
-    holding(page, held, 1, "the deferred comparison divider")
-    shot = page.locator("lf-shot")
-    views = shot.get_by_role("radiogroup", name="Comparison view")
-    expect(views.locator('[aria-checked="true"]')).to_have_text("Outlines")
-    for view in ("Plain", "Pixels", "Plain"):
-        views.get_by_role("radio", name=view, exact=True).click()
-        expect(views.locator('[aria-checked="true"]')).to_have_text(view)
-    expect(shot.locator("wa-comparison")).to_have_count(0)
-    for route in held:
-        route.continue_()
-    expect(shot.locator("wa-comparison")).to_have_attribute("position", "50")
-    expect(views.locator('[aria-checked="true"]')).to_have_text("Plain")
-
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    page.add_init_script(
-        """new MutationObserver(() => {
-          if (!document.body?.hasAttribute('data-lf-presented') || window.__lfFlipped)
-            return;
-          const box = document.querySelector('lf-shot input.lf-shotflip');
-          if (!box) return;
-          window.__lfFlipped = true;
-          window.__lfHadComparison = !!document.querySelector('lf-shot wa-comparison');
-          box.click();
-          // The second press is a second gesture, in a task of its own as a user's is.
-          setTimeout(() => {
-            window.__lfHadComparison ||= !!document.querySelector('lf-shot wa-comparison');
-            box.click();
-            window.__lfFallbackShown = [...document.querySelectorAll('.lf-shotframe')]
-              .filter(frame => getComputedStyle(frame).visibility === 'visible')
-              .map(frame => frame.dataset.lfState);
-          });
-        }).observe(document, {attributes: true, subtree: true});"""
-    )
-    page.goto(url)
-    comparison = page.locator("lf-shot wa-comparison")
-    expect(comparison).to_have_attribute("position", "100")
-    assert page.evaluate(
-        "() => [window.__lfHadComparison, window.__lfFallbackShown]"
-    ) == [False, ["before"]]
 
 
 def test_a_shot_owns_inspection_without_a_containing_package(browser, serve):
@@ -839,7 +794,7 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
         )
     comparison = shot.locator(".lf-shotcomparison")
     expect(comparison).to_be_attached()
-    before = comparison.get_attribute("position")
+    before = comparison.get_by_role("slider", include_hidden=True).input_value()
     pixels.press("Enter")
     expect(view).to_be_visible()
     for state in ("before", "after"):
@@ -850,14 +805,14 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
     pixels.press("ArrowLeft")
     expect(views.get_by_role("radio", name="Plain", exact=True)).to_be_focused()
     expect(view).to_be_hidden()
-    assert comparison.get_attribute("position") == before
+    assert comparison.get_by_role("slider", include_hidden=True).input_value() == before
     page.keyboard.press("ArrowRight")
     expect(pixels).to_be_focused()
     expect(view).to_be_visible()
     view.click()
     expect(view).to_be_hidden()
     expect(views.locator('[aria-checked="true"]')).to_have_text("Plain")
-    assert comparison.get_attribute("position") == before
+    assert comparison.get_by_role("slider", include_hidden=True).input_value() == before
     pixels.click()
     after = shot.locator('.lf-shotcap[data-lf-state="after"]')
     after.click()
@@ -886,20 +841,20 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
     expect(views.locator('[aria-checked="true"]')).to_have_text("Outlines")
     expect(views.locator('[tabindex="0"]')).to_have_count(1)
     comparison = both.locator(".lf-shotcomparison")
-    handle = comparison.locator('[role="scrollbar"]')
+    handle = comparison.get_by_role("slider")
     handle.press("Home")
     handle.press("ArrowRight")
     expect(comparison).to_be_attached()
-    before = comparison.get_attribute("position")
+    before = comparison.get_by_role("slider", include_hidden=True).input_value()
     views.get_by_role("radio", name="Pixels", exact=True).click()
     both.locator(".lf-shotpixels").click()
     expect(views.locator('[aria-checked="true"]')).to_have_text("Outlines")
-    assert comparison.get_attribute("position") == before
+    assert comparison.get_by_role("slider", include_hidden=True).input_value() == before
     views.get_by_role("radio", name="Plain", exact=True).click()
     views.get_by_role("radio", name="Pixels", exact=True).click()
     both.locator(".lf-shotpixels").click()
     expect(views.locator('[aria-checked="true"]')).to_have_text("Plain")
-    assert comparison.get_attribute("position") == before
+    assert comparison.get_by_role("slider", include_hidden=True).input_value() == before
 
 
 def stage_reach_cases(page):

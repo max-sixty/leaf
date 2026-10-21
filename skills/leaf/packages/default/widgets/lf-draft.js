@@ -54,7 +54,6 @@ import {
   createView,
   Show,
   offerRef,
-  nothing,
   LeafElement,
   offer,
   TEXT_FIELD,
@@ -335,12 +334,12 @@ customElements.define(
                   title=${name}
                 >
                   ${Show({
-                get when() {
-                  return key === "save" && state().failed ? "retry" : icon;
-                },
-                keyed: true,
-                children: (icon) => iconElement(icon, "lf-draft-icon"),
-              })}
+                    get when() {
+                      return key === "save" && state().failed ? "retry" : icon;
+                    },
+                    keyed: true,
+                    children: (icon) => iconElement(icon, "lf-draft-icon"),
+                  })}
                 </button>`;
               })}
               ${this.#copy}`,
@@ -487,14 +486,14 @@ customElements.define(
     render() {
       const { state, actions } = this.reading;
       paintMarkdown(this.#body, state.edit.value);
-      if (quoted(this)) return nothing;
+      if (quoted(this)) return;
       // Recovery chooses the first action face: an unsent editor opens with Save
       // and Cancel, without briefly publishing the resting Edit control.
       this.#recoverEdit();
       this.#paintTools();
       if (this.#editor && !this.#resumeProjection && actions.edit.available)
         this.#resumeProjection = this.controller.defer();
-      return nothing;
+      return;
     }
   },
 );

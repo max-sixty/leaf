@@ -40,7 +40,6 @@ import {
   solidHtml as html,
   createView,
   Show,
-  nothing,
   inChrome,
   iconElement,
   inBaseLayer,
@@ -1158,7 +1157,7 @@ customElements.define(
 
     render() {
       if (this.hasAttribute("source")) this.#delivered = this.data("document");
-      return nothing;
+      return;
     }
 
     // A bound patch renders each delivery once, after the draw that read it, whose

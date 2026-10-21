@@ -473,7 +473,7 @@ customElements.define(
 
     render() {
       this.#delivered = this.data("trace");
-      return nothing;
+      return;
     }
 
     // A recording draws each delivery once, after Lit's update, since showing it moves

@@ -25,7 +25,6 @@
 import Sortable from "/vendor/sortable.esm.js";
 import {
   LeafElement,
-  nothing,
   move,
   offer,
   quoted,
@@ -556,10 +555,10 @@ customElements.define(
     // once around that placement so FLIP animates the resulting layout together.
     render() {
       // A quoted board is an exhibit with no reading: the theme draws it as authored.
-      if (!this.reading) return nothing;
+      if (!this.reading) return;
       this.#arrange(this.state.move.value);
       this.#paintAvailability();
-      return nothing;
+      return;
     }
 
     #arrange(columns) {

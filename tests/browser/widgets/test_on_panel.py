@@ -5,7 +5,7 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ALL_OBLIGATIONS_IN_ORDER,
@@ -642,8 +642,11 @@ def test_an_answer_in_on_me_keeps_its_groups_and_the_m_walk_in_one_order(
         [re.compile(r"^\s*Options\s*1\s*$"), re.compile(r"^\s*To-do\s*1\s*$")]
     )
     runners = on_card(page, "widget:runners")
+    # Where the first `m` lands depends on the reading position, so it may take a
+    # second; read the ring only once the press's repaint has landed.
     for _ in range(2):
         page.keyboard.press("m")
+        rendered(page)
         if runners.get_attribute("data-walked") is not None:
             break
     expect(runners).to_have_attribute("data-walked", "")

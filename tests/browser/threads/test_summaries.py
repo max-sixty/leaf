@@ -231,9 +231,8 @@ def test_a_summary_folds_originals_and_reveals_them(browser, serve):
 
 
 def test_previous_progress_messages_can_fold_without_summary_prose(browser, serve):
-    """The same disclosure keeps progress available without an authored digest."""
-    # The disclosure is the same at any width; the narrow one has the least room.
-    width = 390
+    """Progress stays available without a digest, including when the readable label
+    and disclosure need separate lines on a narrow screen."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(
         serve.page_dir, "Please check the schedule.", {"section": "jobs"}
@@ -246,7 +245,6 @@ def test_previous_progress_messages_can_fold_without_summary_prose(browser, serv
     )
 
     page = open_page(browser, url)
-    resized(page, width, 900)
     card = page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
     checkpoint = card.locator(
         f'.lf-thread-checkpoint[data-summary-id="{summary["id"]}"]'
@@ -257,10 +255,25 @@ def test_previous_progress_messages_can_fold_without_summary_prose(browser, serv
     expect(checkpoint.locator(".lf-summary-text")).to_have_count(0)
     expect(card.locator(f'.lf-msg[data-event="{answer["id"]}"]')).to_be_visible()
     expect(card.locator(f'.lf-msg[data-event="{first["id"]}"]')).to_be_hidden()
-    label_box = label.bounding_box()
-    control_box = expand.bounding_box()
-    assert label_box["x"] + label_box["width"] <= control_box["x"]
-    assert control_box["y"] <= label_box["y"] < control_box["y"] + control_box["height"]
+    # Font metrics decide whether they share a line; both arrangements must remain
+    # readable and inside the checkpoint. The narrower screen exercises wrapping
+    # even with macOS's smaller text metrics.
+    for width in (390, 320):
+        resized(page, width, 900)
+        expect(label).to_be_visible()
+        label_box = label.bounding_box()
+        control_box = expand.bounding_box()
+        bounds = checkpoint.bounding_box()
+        assert (
+            label_box["x"] + label_box["width"] <= control_box["x"]
+            or label_box["y"] + label_box["height"] <= control_box["y"]
+        ), (label_box, control_box)
+        for box in (label_box, control_box):
+            assert bounds["x"] <= box["x"]
+            assert box["x"] + box["width"] <= bounds["x"] + bounds["width"]
+        assert label.evaluate(
+            "e => e.scrollWidth <= e.clientWidth && e.scrollHeight <= e.clientHeight"
+        )
     expand.focus()
     page.keyboard.press("Enter")
     expect(card.locator(f'.lf-msg[data-event="{first["id"]}"]')).to_be_visible()

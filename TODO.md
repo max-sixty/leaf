@@ -175,14 +175,13 @@ has tried; settle that before building it.
   buckets scroll horizontally and the release rationale sits below the board.
   Keep comparison context available during a move, preserving direct destination
   controls and undo.
-- **Decide whether Back may restore a served page whole.** Every served page and
-  API answer carries `Cache-Control: no-store`, so Chrome and Firefox load the page
-  afresh on Back rather than restoring it from their back/forward cache, and Firefox
-  also refuses a page holding a sample ([browser support](notes/browser-support.md),
-  "Page cache"). With `no-store` lifted, a Chrome probe restored a page that caught
-  up with the log and recorded gestures. Weigh an instant Back against what
-  `no-store` protects, a private page's copy in the browser's disk cache, and
-  exercise Safari.
+- **Decide whether Back may restore a leaf.page page whole.** The local server
+  sends `no-cache`, so Chrome and Firefox restore its pages on Back. leaf.page's
+  container and the edge's state answers still send `no-store`, which keeps its
+  pages out of Chrome's back/forward cache ([browser support](notes/browser-support.md),
+  "Page cache"). Weigh an instant Back against what `no-store` protects there, a
+  visitor's private page in the browser's disk cache on a shared computer, and
+  exercise Safari on both.
 - **Consider automatic Leaf recovery on resume.** Reuse the reconnect notice's
   eligibility checks to restore serving, ownership, and feedback delivery, while
   respecting explicit stops and transfers to another session.
@@ -303,25 +302,17 @@ Boxes that still move without input, which the "Stability" rule in
 `skills/leaf/assets/AGENTS.md` forbids. `tests/known_widget_findings.py` lists each widget
 that changes size after first paint, with its cause.
 
-- **Size text documents at first paint.** An `lf-text-document` without `preview` is
-  as tall as its source's value wrapped at the column's width. `leaf data set` writes
-  that value to the page directory, and the browser reads it from `/api/state` (on
-  leaf.page, from the build's static state answer); only an export inlines it in the
-  document (`exporting.py`). A page that opens with a 20-line document first paints
-  before its state answer arrives, at about 200 ms against 300 ms in `leaf-dev probe`,
-  so the document draws later and pushes the paragraph below it down 470px at 1440px
-  wide and 850px at 390px (a 0.06 layout shift at each). A `preview` document's
-  height doesn't depend on its value (caption, tab strip and a `--lf-bound`
-  viewport), so an initial renderer can paint it final under any of the fixes below.
-  Choosing one is Max's decision:
-  - serve each value the document binds inside the document, as an export already
-    does, and draw it unhighlighted in Pierre's line geometry from an initial
-    renderer, so the box is final before highlighting loads;
-  - have the author state `data-height`, as `lf-diff` does (`x-height: true`), though
-    the stated height goes stale whenever the data or the width changes;
-  - give every text document a fixed height that scrolls inside, as a `preview`
-    document already has, or open it closed behind a one-line summary, as the
-    activity feed opens on a gesture and holds later growth with `HeldReading`.
+- **Draw a text document's listing once its text has arrived.** Every
+  `lf-text-document` now keeps its final box from first paint, but its module draws
+  the listing as soon as it upgrades, before the state answer brings the text: one
+  empty row under a caption reading “· no data”. When the text arrives, the gutter
+  widens for two-digit line numbers and the code column moves right inside the box.
+  `leaf-dev probe` on a page with a 20-line, a 3-line and a preview document scores
+  that move 0.12 of layout shift at 1440px and 0.44 at 390px, though nothing outside
+  the boxes moves, except where the “· no data” suffix wraps a long label onto
+  another line and its removal shortens the box. Drawing nothing until the first
+  state answer has been read would leave the theme's stand-in frame and caption until
+  then.
 - **Draw the contents map's spine in its first frame.** `lf-toc`'s initial drawing
   (`initial/lf-toc.js`) gives it its final box and rows, but in the margin its
   disclosure stays closed until the module opens it, so the spine and its markers
@@ -613,22 +604,32 @@ export` writes a file that boots the page's own runtime offline, and that file
 
 ### Implementation candidates
 
-- **Remove the early-key hold once startup is fast.** Keys pressed before the
-  runtime upgrades or the first saved state lands are queued, a "Page still
-  loading" chip appears after 150 ms, and the keyboard controller replays them
-  (`holdEarlyKeys` in `runtime/bootstrap.js`, `takeHeldKeys` in
+- **Remove the early-key hold once startup is fast on slower machines too.** Keys
+  pressed before the runtime upgrades or the first saved state lands are queued, a
+  "Page still loading" chip appears after 150 ms, and the keyboard controller
+  replays them (`holdEarlyKeys` in `runtime/bootstrap.js`, `takeHeldKeys` in
   `keyboard/controller.js`, `INPUT_PENDING` in `keyboard/dispatch.js`, the pending
-  clause of `scopeAvailable` in `keyboard/bindings.js`). It is worth keeping while
-  startup takes up to a couple of seconds. Trigger: a page presents in about 250 ms
-  consistently, measured with `leaf-dev probe`'s startup phases on the examples;
-  then delete the hold, which a 2026-10-14 trial measured at 240 runtime and 540
-  test lines. On 2026-10-19 it had not fired. Reloading each example five times
-  on one running server, the median `startup.presented.at` was 167 to 238 ms on
-  six of nine examples, but 289 ms on `code-comparison`, 335 ms on `command-hub`
-  and 487 ms on `pr-walkthrough`. With a 4x CPU throttle the same medians were
-  632 ms (`triage-board`) to 1826 ms (`pr-walkthrough`). On four examples, a
-  server's first load took 120 to 230 ms longer than its reloads.
-  `uv run leaf-dev probe EXAMPLE [--cpu-throttle 4]` reads one first load; the
+  clause of `scopeAvailable` in `keyboard/bindings.js`). Without the hold, such a
+  key is lost or runs the browser's own action, such as Space scrolling or `/`
+  opening Firefox's Quick Find. Trigger: every example presents in about 250 ms
+  both on this Mac and with Chromium's CPU slowed 4x, which stands in for a slower
+  laptop as Lighthouse's mobile run does; then delete the hold, which a 2026-10-14
+  trial measured at 240 runtime and 540 test lines. This Mac is the fastest machine
+  pages run on, so its reading alone would delete the hold where it still helps.
+  The throttled bar is also 250 ms because the bar is how soon a reader presses a
+  key after a page appears, which is the same on any machine. A throttled bar near
+  1 s would add nothing to the unthrottled one, since the throttle multiplied the
+  medians below by 3.7 to 4.3. Take each reading as the median of five runs per
+  example, with the Mac's load average beside it, of
+  `uv run leaf-dev probe EXAMPLE` and `uv run leaf-dev probe EXAMPLE --cpu-throttle 4`,
+  reading `.startup.presented.at` from the JSON line each prints. A probe reads a
+  fresh server's first load, which is what a reader gets when an agent hands them
+  a page. On 2026-10-19 the trigger had not fired. Reloading each example five
+  times on one running server, the median `startup.presented.at` was 167 to 238 ms
+  on six of nine examples, but 289 ms on `code-comparison`, 335 ms on
+  `command-hub` and 487 ms on `pr-walkthrough`. With a 4x CPU throttle the same
+  medians were 632 ms (`triage-board`) to 1826 ms (`pr-walkthrough`). On four
+  examples, a server's first load took 120 to 230 ms longer than its reloads. The
   Mac's load average was near 12 on 18 cores throughout.
 - **Draw the margin's annotations once per thread pass.** They draw from their own
   watcher, which waits only for the projection's chrome, and again when the thread

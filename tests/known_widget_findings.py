@@ -18,12 +18,6 @@ PACKAGES = [
 ]
 
 KNOWN = {
-    "default": {
-        # What these draw is the page's state, which arrives with the first state
-        # answer after the first paint and which the served document does not carry:
-        # a text document's lines are its bound source's value, wrapped at the column's width.
-        ("lf-text-document", "keeps-first-box"),
-    },
     "diff": {
         # The worked example states its drawing's height in pixels (`data-height="151"`),
         # measured at reading density; at working density the drawing's rows are

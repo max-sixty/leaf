@@ -251,6 +251,9 @@ def test_a_missing_native_frame_cannot_retarget_another_svg(browser, serve, chan
     assert [after[key] for key in ("width", "height")] == pytest.approx(
         [before[key] for key in ("width", "height")], abs=0.03
     )
+    # The floating composer follows its page anchor. Return there before pressing
+    # its control after the viewport change has scrolled the anchor away.
+    page.locator("#title").scroll_into_view_if_needed()
     page.get_by_role("button", name="Remove drawing").click()
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
 

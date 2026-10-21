@@ -63,12 +63,7 @@ words in `error` or `text`.
    live and reports the error in page state and the browser. You write
    `index.html` and `page/`; only Leaf writes revisions and version mappings.
 3. **Check the page.** Before you first hand the page over, run
-   `leaf page check <page>` and fix every failure. Where the page puts decisions
-   on On me, also have a subagent read them as the user would, knowing the
-   project but given none of your notes or sources, and name each decision it
-   couldn't answer without asking what something is or does. Explain each thing
-   it names in that decision, or cut it. The user lands on each decision cold,
-   and you can't tell which of your words they lack. That is the whole check for a
+   `leaf page check <page>` and fix every failure. That is the whole check for a
    quick page, one the user reacts to once and then revises or drops: hand it over
    without stamping or a browser review. A revision that answers a user's message,
    even on a record, goes straight to the reply. The reply checks your saved edits

@@ -817,7 +817,7 @@ def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(
 
 
 def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_shell):
-    """A quick page takes plain `page check` and no render check, so that is the check
+    """A quick page takes plain `page check` and nothing else, so that is the check
     that has to run the page's own code: a widget that throws on its first paint, or
     a load that rejects, is otherwise heard of only once the user's browser reports
     it to the watcher. The check fails on those reports, worded as the watcher gets

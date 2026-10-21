@@ -53,6 +53,8 @@ from interact_support import (
 )
 from leaf import activity as activity_model
 from leaf import cli as cli_model
+from leaf import codex as codex_model
+from leaf import codex_adapter as codex_adapter_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -1088,10 +1090,12 @@ def test_a_stop_keeps_the_turn_going_only_for_owed_input(claimed, capsys):
 
 @pytest.mark.parametrize("history", ["handoff", "lost-pointer", "newest-in-thread"])
 def test_a_stop_reminder_recovers_the_exact_reply_address(
-    page_dir, codex_loop, capsys, history
+    page_dir, codex_loop, capsys, monkeypatch, history
 ):
     """The reminder recovers captured input and a usable response address, including
     after ownership changes. Consecutive user messages owe the newest one answer.
+    An update the previous owner received is offered to the new one as new input,
+    which, with the adapter running, it offers in a turn of its own after Stop.
     """
     codex_loop(page_dir)
     cleanup_model.prompt_turn("codex-thread", "active")
@@ -1139,8 +1143,8 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
                 "turn_id": "active",
             },
         )
-        reason = json.loads(capsys.readouterr().out)["reason"]
         if history == "lost-pointer":
+            reason = json.loads(capsys.readouterr().out)["reason"]
             [pointer_xml] = re.findall(r"<leaf-delivery\b[^>]*?/>", reason)
             pointer = ElementTree.fromstring(pointer_xml)
             assert pointer.attrib["operation"] == "delivery read"
@@ -1149,23 +1153,31 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
             )
             assert read.exit_code == 0, read.output
             envelope = json.loads(read.output)
-        else:
-            envelope = json.loads(reason)
-            assert envelope == delivery_model.cmd_delivery_read(envelope["id"])
-            assert envelope["acknowledge"] == delivery_model.pointer_acknowledgement(
-                envelope["id"]
-            )
-        if history == "lost-pointer":
             assert (
                 set(delivery_model.delivery_path(envelope["id"]).parent.glob("*.json"))
                 == deliveries
             )
             assert not codex_records("codex-thread")
         else:
-            # The new owner is offered the update as Codex offers new input.
+            assert capsys.readouterr().out == ""
+            assert cleanup_model.session_record("codex-thread")["turn_closed"]
+            queued = []
+            monkeypatch.setattr(
+                codex_adapter_model, "queue_delivery", lambda *args: queued.append(args)
+            )
+            with service_model.PageTransaction(page_dir) as page:
+                codex_model.append_batch(
+                    "codex-thread", page_dir, page, delivery_model.deliverable(page)
+                )
+            assert codex_adapter_model._offer_queued_delivery(
+                "codex", "codex-thread", None
+            )
+            [(_, _, prompt)] = queued
+            [pointer_xml] = re.findall(r"<leaf-delivery\b[^>]*?/>", prompt)
+            envelope = delivery_model.cmd_delivery_read(
+                ElementTree.fromstring(pointer_xml).attrib["id"]
+            )
             assert envelope["id"] != original["id"]
-            [(offered, _)] = codex_records("codex-thread")
-            assert offered.stem == envelope["id"]
         assert acknowledged_through(page_dir) == cursor
         [batch] = envelope["batches"]
         [event] = batch["events"]

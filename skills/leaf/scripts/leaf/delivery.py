@@ -986,8 +986,9 @@ def deliverable(
     Which updates are owed is the page's fold, whose page model costs about 70 ms
     of CPU to import. Codex's tool hook runs after every tool call, so it passes
     `received=False` and hands over only what the cursor has not passed, answered
-    without loading the page's layer where nothing is pending; its Stop hook hands
-    over the rest (`harness.CodexHarness.offer_at_step`)."""
+    without loading the page's layer where nothing is pending; the adapter, or the
+    Stop hook where no adapter runs, hands over the rest
+    (`harness.CodexHarness.offer_at_step`)."""
     pending = unacknowledged(page.events, page.cursor)
     owed = unreferenced(page, obligations) if received else []
     if not pending and not owed:

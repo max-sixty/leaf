@@ -153,7 +153,8 @@ A package that provides the page's main conversation reader, such as a shelf of
 conversations or a feed of turns, registers
 `registerThreadPresentation(owner, {render, reveal})`, in `whileConnected`. A page has
 at most one. Leaf then opens threads there instead of in its floating panel, and widgets
-inside messages live there.
+inside the messages it draws live there; a message it doesn't draw keeps its widgets
+wherever the page draws its thread, such as a margin card.
 
 `render(shownCollection, parts)` names outlets inside the widget: a whole conversation
 with `parts.thread(thread.key, outlet)`, or its parts with
@@ -177,10 +178,11 @@ to show held news for a deliberate change of view. A pass in which `render` thro
 names an outlet outside the widget, rejects and hands the threads back to Leaf's
 floating panel, so their asks stay reachable; `primary` reads false until the next
 `update()` takes them back. `reveal(key, request)` shows the
-requested part in the package's layout, or returns `false` to leave a thread or reply
-part to the thread's place on the page, such as its margin card. Where nothing there
+requested part in the package's layout, or returns `false` to leave the part to the
+thread's place on the page, such as its margin card. Where nothing there
 shows it, Leaf asks again with `request.last` set, and a second `false` leaves the
-thread unopened. `request` also carries `part`, `message`, `focus`, `signal` and
+thread unopened. A message part for a message the reader already draws goes there
+even where `reveal` returns `false`. `request` also carries `part`, `message`, `focus`, `signal` and
 `current()`. Leaf then handles focus, scrolling and arrival. The feature gallery's
 `lf-conversation-workspace` is the worked example.
 

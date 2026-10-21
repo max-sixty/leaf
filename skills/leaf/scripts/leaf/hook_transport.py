@@ -20,19 +20,21 @@ input pending or a status other than idle (`stop_continues`). A repeated Stop
 (`stop_hook_active`) continues only for a newly delivered update that owes an
 answer.
 
-Where a watch follows the turn (`Harness.watches_between_turns`), Stop hands no
-input over: the watch wakes once the turn closes and opens a turn whose prompt hook
-does. Continuing the turn for the input would have the agent write one more message,
-and a harness that shows each turn's final message alone, as Claude Code's focus
-view does, would show that reply in place of the answer the turn had written. Under
-plain `--print` nothing watches after the run, so Stop hands the input into the turn
-it continues.
+Where something that outlives the turn opens a turn of its own for the input
+(`Harness.later_turn_takes_input`), Stop hands no input over: a watch wakes once
+the turn closes and opens a turn whose prompt hook does, and Codex's adapter starts
+or queues one. Continuing the turn for the input would have the agent write one
+more message, and a harness that shows each turn's final message alone, as Claude
+Code's focus view does, would show that reply in place of the answer the turn had
+written. Under plain `--print`, or a Codex task that waits with `leaf wait`, nothing
+opens that turn, so Stop hands the input into the turn it continues.
 
 For an update already picked up and still owed an answer, the hook reminds the
 agent by naming the delivery that holds its answer reference. An update the page's
 current owner holds no usable reference for, as when another session received it
 before the page changed hands, is deliverable again (`delivery.deliverable`), so
-the hook hands it over with the owner's other input.
+it is input rather than a reminder: the hook hands it over with the owner's other
+input, or leaves it to the later turn that takes them.
 
 The hook confirms an inline delivery itself (`receive_held`), so the updates read
 Picked up without waiting for the model, and the envelope's `acknowledge` is null.
@@ -74,7 +76,6 @@ from .delivery import (
     deliverable,
     delivery_pointer_prompt,
     freeze_delivery,
-    inline_delivery,
     reads_reference,
     receive_held,
     record_pickup,
@@ -177,8 +178,13 @@ def read_plans(session_id: str) -> list[PagePlan]:
                     continue
                 pending = deliverable(page, work.obligations)
                 watched = harness.watcher_live(listening=state["listening"])
-                # A reference into a delivery an earlier Leaf wrote is no use to
-                # this one, which cannot read it, so its update is deliverable again.
+                # An owed update this owner holds no usable reference for, as when
+                # another session received it before the page changed hands, is
+                # deliverable again (`delivery.unreferenced`): input the hook hands
+                # over or leaves to a later turn, not a debt to name. A reference
+                # into a delivery an earlier Leaf wrote is no use to this one, which
+                # cannot read it.
+                redelivered = {event["id"] for event in pending}
                 owed = [
                     {
                         **item,
@@ -192,6 +198,7 @@ def read_plans(session_id: str) -> list[PagePlan]:
                     and not reads_reference(item["answer"]["ref"])
                     else item
                     for item in turn_obligations(state, watched=watched)
+                    if item["input"] not in redelivered
                 ]
                 responses = {item["input"]: item["answer"] for item in work.obligations}
                 plans.append(
@@ -355,8 +362,10 @@ HOOK_CONTEXT_LIMIT = 10_000
 CONFIRM_WITHIN = 10.0
 
 
-# The words that open a delivery's context by pointer; `delivery.INLINE_OPENING`
-# opens one handed over whole.
+# The words that open a delivery's context, inline or by pointer.
+INLINE_OPENING = (
+    "Leaf has new input for your turn. Read this complete delivery before answering."
+)
 POINTED_OPENING = "Leaf has new input for this turn. Read it with"
 
 
@@ -375,7 +384,9 @@ def render(
     reading."""
     if delivery is None:
         return harness.hook_context(event, "\n".join(attention)) if attention else None
-    message = "\n".join([inline_delivery(delivery), *attention])
+    message = "\n".join(
+        [INLINE_OPENING, json.dumps(delivery, ensure_ascii=False), *attention]
+    )
     inline = len(message.encode("utf-8")) < HOOK_CONTEXT_LIMIT and confirm()
     if not inline:
         message = "\n".join(
@@ -415,7 +426,7 @@ def carry_turn(
     ):
         return
     carries = event in {"UserPromptSubmit", "PostToolBatch"} or (
-        event == "Stop" and not harness.watches_between_turns()
+        event == "Stop" and not harness.later_turn_takes_input()
     )
     batches = (
         [plan.batch for plan in plans if plan.batch and plan.harness.hooks_carry()]

@@ -337,6 +337,7 @@ def media_size(data: bytes) -> tuple[int, int] | None:
 # `unmarked`; `runtime/version.js`) and passages skip it as generated words. The theme
 # holds its room and paints none of its placeholder words (theme.css).
 _PREPAINT_MARKS = ' data-lf-prepaint data-lf-gen="1"'
+_ARRIVING_MARK = " data-lf-arriving"
 
 
 def mark_declared(
@@ -348,17 +349,18 @@ def mark_declared(
 ) -> str:
     """Paint each element's declared marks (`registry.kernel.kernel_marks`) onto its
     start tag, the rest byte-for-byte, the size of the page media it names, and its declared
-    `x-prepaint` as its first child. With `initial`, an `x-initial` host receives
-    an inert source template and a parser invocation immediately after that template
-    closes. The complete host is then inserted and drawn in one synchronous turn;
-    nested initial hosts share the outer template and draw deepest-first.
+    `x-prepaint` as its first child. With `initial`, an `x-initial` host is marked
+    `data-lf-arriving`, which the theme hides while the runtime will run, and a
+    parser invocation follows its end tag. The script takes the mark off and draws
+    the complete host in one synchronous turn; nested initial hosts share the outer
+    mark and draw deepest-first.
 
-    The opening script writes only the fixed template delimiter at the parser's
-    active insertion point. Each script removes itself as it runs, so the host keeps
-    its authored siblings, and a rule for the first or last child still finds it. With
-    scripts disabled, or in a DOMParser source reading,
-    no template opens and the unmatched closing delimiter is ignored: the one raw
-    authored host remains readable, including code containing raw-text delimiters.
+    The script removes itself as it runs, so the host keeps its authored siblings, and
+    a rule for the first or last child still finds it. With scripts disabled, or in a
+    DOMParser source reading, the mark hides nothing (`html[data-lf-interactive]`)
+    and the raw authored host stays readable. A template opened by `document.write`
+    once held the arriving source instead; Firefox reparses the rest of the document
+    after any unbalanced write, and says so in the console of every such page.
 
     A mark painted by the runtime would land a registry fetch after the document first
     draws, so a workspace would draw its panes before knowing they are panes. An image
@@ -460,21 +462,11 @@ def mark_declared(
                 )
             start = index(location.start_tag.start_line, location.start_tag.start_col)
             end = index(location.end_tag.end_line, location.end_tag.end_col)
-            edits.append(
-                (
-                    start,
-                    (
-                        "<script data-lf-runtime data-lf-initial>"
-                        'document.write("<template data-lf-runtime data-lf-initial-source>");'
-                        "document.currentScript.remove();</script>"
-                    ),
-                )
-            )
+            edits.append((start + 1 + len(element.tag), _ARRIVING_MARK))
             edits.append(
                 (
                     end,
                     (
-                        "</template>"
                         "<script data-lf-runtime data-lf-initial>"
                         "document.documentElement.lfInitial.mount("
                         "document.currentScript.previousElementSibling);"

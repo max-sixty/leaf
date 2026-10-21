@@ -15,12 +15,10 @@ import leaf_website as website_server
 import pytest
 from interact_support import STATED_TIMEOUT, Prose, yaml_document
 from interact_support import append_carried_log_record as append_event
-from leaf.delivery import INLINE_OPENING
 from leaf.machine import pid_alive
 from leaf.service import delivery_reply_attempt
 
 from process.website_server import (
-    queued_turn,
     write_manifest,
 )
 
@@ -38,25 +36,24 @@ def test_hosted_agent_receives_the_response_instructions_and_delivery(
     )
     harness = website_server.WebsiteCodexHarness("codex")
     outgoing = {}
-    sent = []
 
     def request(resources, method, params):
         outgoing[method] = params
         result = {"thread": {"id": "hosted-thread"}}
         return "socket", result, []
 
+    def send(socket, method, params, pending=None):
+        outgoing[method] = params
+        return {"turn": {"id": "initial-turn"}}
+
     monkeypatch.setattr(harness, "_request", request)
     monkeypatch.setattr(harness, "_follow", lambda *_: None)
-    monkeypatch.setattr(harness, "_send", queued_turn("initial-turn", sent))
+    monkeypatch.setattr(harness, "_send", send)
     assert (
         harness._start_thread(page_dir, SimpleNamespace(pid=os.getpid()), event["id"])
         == "hosted-thread"
     )
-    outgoing.update(sent)
-    [message] = outgoing["thread/queue/add"]["input"]
-    opening, serialized = message["text"].split("\n")
-    assert opening == INLINE_OPENING
-    payload = json.loads(serialized)
+    payload = json.loads(outgoing["turn/start"]["toolOutput"]["output"])
     [delivered] = payload["batches"][0]["events"]
     # Frozen for App Server, a reply is the turn's to write with its messages.
     assert delivered["answer"]["writer"] == "turn"
@@ -80,8 +77,7 @@ def test_hosted_agent_receives_the_response_instructions_and_delivery(
         yaml_document(
             "Actual outgoing App Server requests for an admitted user event.\n"
             "Only the page path, event/delivery identities, and timestamps are pinned.\n"
-            "The queued input's text is the user message the agent receives: Leaf's\n"
-            "opening line, then the complete serialized delivery.",
+            "toolOutput.output is the complete serialized delivery the agent receives.",
             recorded,
         )
     )
@@ -100,7 +96,12 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
 
     monkeypatch.setattr(harness, "_request", request)
     monkeypatch.setattr(harness, "_follow", lambda *_: None)
-    monkeypatch.setattr(harness, "_send", queued_turn("initial-turn", sent))
+
+    def send(socket, method, params, pending=None):
+        sent.append((socket, method, params, pending))
+        return {"turn": {"id": "initial-turn"}}
+
+    monkeypatch.setattr(harness, "_send", send)
     monkeypatch.setattr(
         website_server,
         "prepare_codex_delivery",
@@ -130,21 +131,22 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
     assert prepared == [(page_dir, website_server.website_harness("hosted-thread", 41))]
     assert sent == [
         (
-            "thread/queue/add",
+            "socket",
+            "turn/start",
             {
                 "threadId": "hosted-thread",
                 "clientUserMessageId": "delivery-1",
-                "input": [
-                    {
-                        "type": "text",
-                        "text": INLINE_OPENING
-                        + '\n{"id": "delivery-1", "batches": [{"events": [], "threads": []}]}',
-                    }
-                ],
+                "input": [],
+                "toolOutput": {
+                    "name": "leaf_delivery",
+                    "output": '{"id":"delivery-1","batches":[{"events":[],"threads":[]}]}',
+                },
+                "turnTrigger": "leaf",
             },
-        ),
-        ("thread/queue/list", {"threadId": "hosted-thread", "cursor": None}),
+            [],
+        )
     ]
+    assert sent[0][-1] == []
 
 
 def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatch):

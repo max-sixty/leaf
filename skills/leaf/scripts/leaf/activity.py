@@ -1,11 +1,11 @@
 """Canonical page availability and agent work projected from durable evidence.
 
-Status is the agent's waiting or idle declaration, a start in the log is the item it
-has in hand (`todos`), claims prove ownership and turn lifetime, and pickup events
-prove delivery. Delivery remains interaction evidence rather than becoming the
-page's execution state. This module is the one fold that orders those facts and
-supplies every reader — browser chrome, hooks, and agent-facing state — with one
-answer.
+Status is the agent's waiting or idle declaration, the newest `status` event in the
+log (`declaration`), a start in the log is the item it has in hand (`todos`), claims
+prove ownership and turn lifetime, and pickup events prove delivery. Delivery remains
+interaction evidence rather than becoming the page's execution state. This module is
+the one fold that orders those facts and supplies every reader — browser chrome,
+hooks, and agent-facing state — with one answer.
 """
 
 import json
@@ -30,6 +30,38 @@ WORK_KINDS = frozenset(
 # `awaiting_user` is a dialog whose kind, approval or question, the harness does not
 # say.
 AWAITING_KINDS = {"awaiting_approval", "awaiting_input", "awaiting_user"}
+# The step a Working status shows while the claimant's session works on after its
+# turn ended (`Turn.background`).
+BACKGROUND_DETAIL = "in the background"
+
+
+def undeclared() -> dict:
+    """The status of a page whose agent has declared nothing, such as one before any
+    `leaf status` or a copy a host serves: no work under way and nothing ended, so
+    the page waits on its user and a wait keeps watching it."""
+    return {"state": "waiting", "detail": ""}
+
+
+def declaration(events: list) -> dict:
+    """The agent's declaration about the page: the state, detail and time of the
+    newest `status` event in `events`, or `undeclared` before the first.
+
+    Work taken in hand reopens a page the agent had closed: `idle` says it was done
+    with the page, and every watcher stands down for an idle page. So a start after
+    an `idle` (`todos.start_reading`) reads as a bare `waiting` from that start on.
+    It has no event of its own, since a declaration puts down every start before
+    it."""
+    from .todos import start_reading
+
+    reopened = None
+    for event in reversed(events):
+        if event["kind"] == "status":
+            if event["state"] == "idle" and reopened is not None:
+                return {"state": "waiting", "detail": "", "ts": reopened["ts"]}
+            return {key: event[key] for key in ("state", "detail", "ts")}
+        if start_reading(event):
+            reopened = event
+    return undeclared()
 
 
 def _moment(value: str | None) -> datetime | None:
@@ -54,17 +86,22 @@ def _dropped(ts: str | None, ended: datetime | None, now: datetime) -> bool:
 def canonical_stream_reply(
     present: dict, now_iso: str, reply: dict | None
 ) -> dict | None:
-    """Project one provisional reply against its session lease and age."""
+    """Project one provisional reply against its session lease and age. A withheld
+    draft is written once and never renewed, so only its lease ages it."""
     if reply is None:
         return None
     result = dict(reply)
-    if result.get("state") == "active" and (
-        result.get("session") != present.get("claim_session")
+    state = result["state"]
+    if state in {"active", "withheld"} and (
+        result["session"] != present.get("claim_session")
         or not present["listening"]
-        or _quiet(
-            result.get("updated_at") or result.get("ts"),
-            datetime.fromisoformat(now_iso),
-            WORKING_GRACE,
+        or (
+            state == "active"
+            and _quiet(
+                result["updated_at"],
+                datetime.fromisoformat(now_iso),
+                WORKING_GRACE,
+            )
         )
     ):
         result["state"] = "disconnected"
@@ -73,13 +110,7 @@ def canonical_stream_reply(
 
 def _reply_evidence(reply: dict) -> dict:
     """Keep response settlement evidence in activity without duplicating its text."""
-    return {
-        key: reply.get(key)
-        for key in ("state", "session", "turn", "parent", "responds", "settles")
-    } | {
-        **({"attempt": reply["attempt"]} if reply.get("attempt") else {}),
-        "has_text": bool(reply.get("text")),
-    }
+    return {key: reply[key] for key in ("state", "turn", "settles", "attempt")}
 
 
 def _receipt_bindings(workflows: list[dict], present: dict) -> dict[str, dict]:
@@ -103,10 +134,10 @@ def _bind_reply(workflows: list[dict], reply: dict | None) -> None:
 
     A durable response outranks it: a harness's failure reply has already answered
     the input, and the turn's leftover stream must not paint it as still replying."""
-    if reply is None or not reply.get("responds"):
+    if reply is None:
         return
     workflow = next(
-        (item for item in workflows if item.get("input") == reply["responds"]), None
+        (item for item in workflows if item["input"] == reply["responds"]), None
     )
     if workflow is None or workflow["stage"] == "answered":
         return
@@ -116,9 +147,9 @@ def _bind_reply(workflows: list[dict], reply: dict | None) -> None:
         {
             "kind": "replying",
             "detail": None,
-            "ts": reply.get("updated_at") or reply.get("ts"),
-            "session": reply.get("session"),
-            "turn": reply.get("turn"),
+            "ts": reply["updated_at"],
+            "session": reply["session"],
+            "turn": reply["turn"],
         }
     ]
     # `partial` is a turn that completed without a final answer: it ended with
@@ -128,7 +159,7 @@ def _bind_reply(workflows: list[dict], reply: dict | None) -> None:
         "interrupted": "interrupted",
         "failed": "failed",
         "partial": "ended",
-    }.get(reply.get("state"))
+    }.get(reply["state"])
     workflow["condition"] = (
         {"kind": condition, "operation": "response"} if condition else None
     )
@@ -206,19 +237,23 @@ def unanswered(obligations: list[dict], page_dir: Path, of: str = "") -> str:
 
 
 def _turn_wrote(obligation: dict, state: dict) -> bool:
-    """Whether the claimant's open turn finished the reply it owes this update.
+    """Whether the claimant's open turn is done with the reply it owes this update.
 
     A provider-owned reply is written by the claimant's own turn, and the App Server
     client commits it once the turn ends, after the agent's last command. So the
     update is answered now when the turn's final message is complete, with text, in
-    the reply draft bound to it."""
-    draft = obligation.get("response") or {}
+    the reply draft bound to it. A draft the client `withheld`, because a user
+    message shares the turn, leaves the update to the correction the client offers
+    as the turn ends (`codex.carries_user_message`)."""
+    draft = obligation["response"]
     return bool(
-        obligation["answer"].get("writer") == "turn"
-        and draft.get("state") == "active"
-        and draft.get("settles")
-        and draft.get("has_text")
-        and draft.get("turn") == state["claim_turn"]
+        draft
+        and obligation["answer"].get("writer") == "turn"
+        and (
+            draft["state"] == "withheld"
+            or (draft["state"] == "active" and draft["settles"])
+        )
+        and draft["turn"] == state["claim_turn"]
     )
 
 
@@ -291,14 +326,16 @@ def turn_obligations(state: dict, *, watched: bool) -> list[dict]:
 class Turn(NamedTuple):
     """The claimant session's current turn, as the one reading every rule of the
     fold takes: whether it is running; when it was seen to end, where something saw
-    that; until when a running turn is believed on its stamps alone; and an observed
-    step while it waits on the user in its own window, with when that wait began."""
+    that; until when a running turn is believed on its stamps alone; an observed
+    step while it waits on the user in its own window, with when that wait began;
+    and whether the session still works in the background after its turn ended."""
 
     running: bool
     ended: datetime | None = None
     until: datetime | None = None
     step: str | None = None
     step_since: datetime | None = None
+    background: bool = False
 
 
 def claimant_turn(
@@ -324,10 +361,13 @@ def claimant_turn(
     sees, each only when newer than what it contradicts: an `idle` newer than
     every renewal ends the open turn at that moment (an interrupt), and a
     `waiting` newer than the stamps is a dialog open now, a step shown whether or
-    not the stamps say a turn is open. Its `busy` is never read, since the harness
-    keeps it across turn endings while background work runs. `awaiting` says the
-    claimant's observer reports a wait on the user right now, which holds the
-    turn open for as long as that observer lives."""
+    not the stamps say a turn is open. Its `busy` never says a turn runs, since
+    the harness keeps it across turn endings while background work runs; after a
+    turn the stamps closed, it says the session works on in the background
+    (`Turn.background`), for as long as the record keeps it. It says nothing of
+    which turn left that work, so it keeps no start from being dropped. `awaiting` says the claimant's observer
+    reports a wait on the user right now, which holds the turn open for as long as
+    that observer lives."""
     opened = _moment(present.get("turn_opened"))
     closed = _moment(present.get("turn_closed"))
     if present["session_alive"] is not True:
@@ -338,7 +378,8 @@ def claimant_turn(
     dialog = live.get("state") == "waiting" and since and since >= (stamped or since)
     step = {"step": "awaiting_user", "step_since": since} if dialog else {}
     if closed is not None or opened is None or present.get("claim_turn") is None:
-        return Turn(False, ended=closed, **step)
+        background = closed is not None and live.get("state") == "busy"
+        return Turn(False, ended=closed, background=background, **step)
     if awaiting or dialog:
         return Turn(True, **step)
     renewals = [opened, _moment(declared)]
@@ -519,12 +560,19 @@ def canonical_activity(
     declared = declared_at(present, events)
     turn, stream_live = current_turn(present, declared, stream, now)
     # What the harness observed the agent doing now: a live stream step while its turn
-    # runs, or the harness's own word that the turn waits on the user in its window.
+    # runs, the harness's own word that the turn waits on the user in its window, or
+    # that work the ended turn left, such as a coordinator's workers, still runs.
     observed = None
     if stream_live and turn.running:
         observed = stream
     elif turn.step is not None and status["state"] != "idle":
         observed = {"kind": turn.step, "detail": "", "ts": turn.step_since.isoformat()}
+    elif turn.background and status["state"] != "idle":
+        observed = {
+            "kind": "working",
+            "detail": BACKGROUND_DETAIL,
+            "ts": turn.ended.isoformat(),
+        }
     status_dropped = _dropped(status.get("ts"), turn.ended, now)
     declared_quiet = _quiet(declared, now, WORKING_GRACE) or _dropped(
         declared, turn.ended, now
@@ -589,10 +637,8 @@ def canonical_activity(
     ]
     if stream and stream.get("kind") not in AWAITING_KINDS:
         lapses.append((_moment(stream.get("ts")), WORKING_GRACE))
-    if reply and reply.get("state") == "active":
-        lapses.append(
-            (_moment(reply.get("updated_at") or reply.get("ts")), WORKING_GRACE)
-        )
+    if reply and reply["state"] == "active":
+        lapses.append((_moment(reply["updated_at"]), WORKING_GRACE))
     deadlines = [
         moment + grace for moment, grace in lapses if moment and moment + grace > now
     ]
@@ -741,5 +787,4 @@ def canonical_activity(
             }
             for item in obligations
         ],
-        **({"reply": _reply_evidence(reply)} if reply is not None else {}),
     }

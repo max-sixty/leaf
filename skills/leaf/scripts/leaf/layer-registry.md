@@ -89,25 +89,35 @@ Any other Leaf at the same number serves and writes the page, so a plugin update
 leaves open pages working: admission validates a kernel record against the running
 Leaf's own `$events` (`registry.kernel`), so a field a newer Leaf writes passes on a
 page an older one vendored. Bump the number when a page an older Leaf vendored at it
-would break under this one: the served state, a runtime module the server relies on,
-or an event drops, renames or changes the meaning of something the other side reads,
-or a field the page's runtime sends becomes required.
-Adding a field the older code ignores needs no bump. The browser build holds the
-event records and the served state to this. It keeps `$events`,
+would break under this one: this Leaf refuses what the page's runtime sends, a Leaf at
+the number misreads an event another wrote into the log, a runtime module the server
+relies on drops, renames or changes the meaning of something the server reads, or the
+runtime mishandles what this Leaf now serves, because a field it reads is gone,
+renamed, retyped or means something else, or a value it reads reaches code that
+doesn't handle it. A served change no such runtime reads needs no bump. Serving `null`
+as an approval obligation's `prompt.target` breaks no page, for example, since the
+runtime reads the target only for a widget's obligation.
+
+The browser build holds the schemas to this. It keeps `$events`,
 `served_state/state.schema.json`, the one declaration of the served state and of the
 `/api/view` answer, and `schema.VERB_SCHEMA` for the x-state verb the state carries,
 as they last stood at the current number (`build/browser/protocol-baseline.json`), and
-`build/browser/protocol.mjs` compares each build's schemas with them. It fails a change
-to what a page sends or holds that drops a kind or a field at any depth, requires a new
-field, or tightens a constraint, such as a narrower type, enum or constant, a changed
-pattern or a lower maximum, until the change takes what it took or the number moves.
-The served state runs the other way, since a page's older runtime reads what this Leaf
-serves: the check fails a change that stops serving a field or loosens a constraint,
-such as one that makes a field nullable, raises a maximum or adds an event kind. An
-event record holds both ways, since the state carries every kind. The check lays each
-schema beside its baseline keyword by keyword, comparing a reference by its text and
-its target where it is declared, and compares patterns and conditional clauses only
-for equality, so changing one fails even where it loosens.
+`build/browser/protocol.mjs` compares each build's schemas with them keyword by
+keyword (its header says how). The build judges what a page sends and the event
+records by itself, since the append door validates what a page sends and every Leaf at
+the number reads the events the others wrote. It refuses a change to what a page sends
+that drops a kind or a field at any depth, requires a new field, or tightens a
+constraint, such as a narrower type, enum or constant, a changed pattern or a lower
+maximum, and an event record's change either way, until the change takes what it took
+or the number moves. The served state runs the other way, since a page's older runtime
+reads what this Leaf serves: the build names each change that stops serving a field or
+loosens a constraint, such as one that makes a field nullable or raises a maximum. A
+runtime reads only some of the served state, so the build can't tell whether such a
+change breaks a page, and refuses it until the author either bumps the number or runs
+`pnpm run build:browser --accept-served`. Before accepting, check each reader of a
+named field in the runtime and packages, as they stand now and at every commit since
+the number was set; `git log -S` over that range finds a reader a later commit
+removed. The commit names the readers checked.
 
 The promise runs one way: an older Leaf serving a page a newer one vendored may refuse
 a field it does not know. Every page vendored before a bump, and one vendored before the number was
@@ -119,17 +129,19 @@ document: every JSON record in a page directory or in the state home, which ever
 installed Leaf on the machine shares (`state.Record`), and the composer's draft in
 browser storage, which outlives a re-vendor. Each carries `leaf-<kind>/<number>`
 in its `format`, and a reader at another format leaves it alone: it reads the record
-as absent, or keeps a draft's words without its drawing.
+as absent, or keeps a draft's words without its drawing. Only retirement crosses
+formats: every record names its pages at the same keys, so one whose pages are gone
+is removed whichever Leaf wrote it (`state.named_pages`).
 A record's number is its `since`, the protocol at which its own shape last changed,
-so a bump for another change leaves a session's claim, its delivery cursor and a
+so a bump for another change leaves a session's claim, its deliveries and a
 page's port readable. A change to a record's shape that a reader at the same format
 would misread sets its `since` to the current protocol, bumping the protocol first
 where `since` already names it. The same build check holds this: the baseline keeps
 each record's schema at its `since`, and fails a change at the same `since` that a
 reader at either end would misread, or a `since` moved anywhere but the current
-protocol. The composer's draft is held the same way: its format names
-`$events.draft_since`, and the baseline keeps the comment record's `drawing`, the part
-of a draft its format guards, beside the records.
+protocol. The composer's draft is held the same way: `$events.draft` declares its
+schema and `since`, which its format names, and the baseline keeps that schema, with
+the comment record's fields it refers to written in, beside the records.
 
 The render gate's probes are outside the number. They come from the Leaf running the
 check and import `check-api.js` and `widget-api.js` from the page's runtime, so a

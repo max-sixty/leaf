@@ -52,7 +52,6 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 from browser.navigation import (
     READING_REGIONS_PAGE,
-    STANDING,
 )
 from browser.threads import open_panel_thread
 
@@ -68,7 +67,7 @@ def go_to_passage(page, page_dir, words):
         if event["kind"] == "comment" and event["anchor"].get("quote") == words
     )
     open_panel_thread(page, thread)
-    page.locator(".lf-fp-head").get_by_role("button", name="On the page").click()
+    page.locator(".lf-fp-controls").get_by_role("button", name="On the page").click()
 
 
 # An obligation's digits beside a page-scoped command with a context key of its own,
@@ -1552,41 +1551,6 @@ def test_c_travels_to_an_item_its_own_scroller_has_taken_away(browser, serve):
     expect(page.locator(".lf-composer")).to_be_visible()
     assert page.evaluate(seen)["onScreen"], (
         "the box opened on a card the board had carried out of sight"
-    )
-
-
-def test_a_user_at_the_top_of_the_document_is_one_press_from_the_chrome(browser, serve):
-    """The runtime's layer follows `main`, so reaching it by Tab meant reaching it last.
-
-    Document order is right for reading — the page is what the user came for — and it
-    is the whole tab order too, so on a page of any length the banner, the panel and the
-    shortcut bar stood behind every link, fold and control the author wrote. A keyboard user
-    arriving at the top of the document had no way to the layer that is not the page.
-
-    The press is what is asserted rather than the link's presence: a skip link that is in
-    the DOM and does not land anybody is the failure this is about, one step later.
-
-    On the PR walkthrough, which opens on its contents links, because a page of plain
-    paragraphs would put the chrome one Tab away on its own and this would pass with
-    the link taken out.
-    """
-    example = next(e for e in EXAMPLES if e.stem == "pr-walkthrough")
-    page = open_page(browser, serve(example))
-    page.evaluate(RELEASE_FOCUS)
-    page.keyboard.press("Tab")
-    standing = page.evaluate(STANDING)
-    assert standing["isFirstStop"], (
-        f"the first Tab from the top of the document landed on {standing['name']}, so "
-        f"the layer is still behind the whole page"
-    )
-    assert standing["top"] >= 0, (
-        f"the skip link takes focus and is not on screen: {standing}"
-    )
-    page.keyboard.press("Enter")
-    landed = page.evaluate(STANDING)
-    assert landed["inChrome"], (
-        f"the skip link's press left the user on {landed['name']}, outside the layer "
-        f"it names"
     )
 
 

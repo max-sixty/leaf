@@ -10,7 +10,7 @@ import subprocess
 import sys
 import threading
 import time
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import psutil
@@ -22,6 +22,8 @@ from interact_support import (
     _codex_delivery,
     _delivery_item,
     _observer,
+    acknowledge_through,
+    acknowledged_through,
     append_carried_log_record,
     append_command,
     codex_records,
@@ -34,9 +36,9 @@ from interact_support import (
     refused_on,
     response_reference,
     served_thread,
+    status_and_stream,
     take_stream_activity,
     wait_for,
-    write_record,
 )
 from leaf import activity as activity_model
 from leaf import cli as cli_model
@@ -46,7 +48,9 @@ from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import harness as harness_model
+from leaf import hook_transport as hook_transport_model
 from leaf import hooks as hooks_model
+from leaf import interaction_log as interaction_log_model
 from leaf import leases as leases_model
 from leaf import revisioning as revisioning_model
 from leaf import service as service_model
@@ -54,6 +58,7 @@ from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf.refusals import Refused
+from leaf_dev.commands.response_times import page_timings
 
 
 def test_only_one_turn_reply_can_bind_the_app_server_final_message():
@@ -138,7 +143,11 @@ def codex_app_server(app_server):
                     "method": "turn/started",
                     "params": {
                         "threadId": "codex-thread",
-                        "turn": {"id": "turn-live"},
+                        "turn": {
+                            "id": "turn-live",
+                            "items": [],
+                            "status": "inProgress",
+                        },
                     },
                 }
             )
@@ -155,6 +164,9 @@ def codex_app_server(app_server):
                             "id": "command-live",
                             "type": "commandExecution",
                             "command": "uv run pytest tests",
+                            "commandActions": [],
+                            "cwd": "/work",
+                            "status": "inProgress",
                         },
                     },
                 }
@@ -168,6 +180,8 @@ def codex_app_server(app_server):
                     "params": {
                         "threadId": "codex-thread",
                         "turnId": "turn-live",
+                        "itemId": "command-live",
+                        "startedAtMs": 0,
                     },
                 }
             )
@@ -178,7 +192,7 @@ def codex_app_server(app_server):
                     "method": "turn/completed",
                     "params": {
                         "threadId": "codex-thread",
-                        "turn": {"id": "turn-live"},
+                        "turn": {"id": "turn-live", "items": [], "status": "completed"},
                     },
                 }
             )
@@ -190,7 +204,11 @@ def codex_app_server(app_server):
                     "method": "turn/started",
                     "params": {
                         "threadId": "codex-thread",
-                        "turn": {"id": "turn-next"},
+                        "turn": {
+                            "id": "turn-next",
+                            "items": [],
+                            "status": "inProgress",
+                        },
                     },
                 }
             )
@@ -201,7 +219,7 @@ def codex_app_server(app_server):
                     "method": "turn/completed",
                     "params": {
                         "threadId": "codex-thread",
-                        "turn": {"id": "turn-next"},
+                        "turn": {"id": "turn-next", "items": [], "status": "completed"},
                     },
                 }
             )
@@ -235,94 +253,48 @@ def test_app_server_delivery_id_reads_only_canonical_delivery_inputs():
         "batches": [],
     }
 
+    def started_turn(item):
+        return {
+            "method": "turn/started",
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "turn", "items": [item], "status": "inProgress"},
+            },
+        }
+
+    def started_item(item):
+        return {
+            "method": "item/started",
+            "params": {
+                "threadId": "codex-thread",
+                "turnId": "turn",
+                "startedAtMs": 0,
+                "item": item,
+            },
+        }
+
+    def said(text):
+        return {
+            "id": "said",
+            "type": "userMessage",
+            "content": [{"type": "text", "text": text}],
+        }
+
+    delivery = {
+        "id": "delivery",
+        "type": "functionCallOutput",
+        "name": "leaf_delivery",
+        "output": json.dumps(payload),
+    }
+    assert codex_model.app_server_delivery_id(started_turn(said(pointer))) == "aaaaaaaa"
     assert (
-        codex_model.app_server_delivery_id(
-            {
-                "method": "turn/started",
-                "params": {
-                    "turn": {
-                        "items": [
-                            {
-                                "type": "userMessage",
-                                "content": [{"type": "text", "text": pointer}],
-                            }
-                        ]
-                    }
-                },
-            }
-        )
-        == "aaaaaaaa"
+        codex_model.app_server_delivery_id(started_item(said(invalid_pointer))) is None
     )
+    assert codex_model.app_server_delivery_id(started_turn(delivery)) == "bbbbbbbb"
+    assert codex_model.app_server_delivery_id(started_item(said(pointer))) == "aaaaaaaa"
     assert (
         codex_model.app_server_delivery_id(
-            {
-                "method": "item/started",
-                "params": {
-                    "item": {
-                        "type": "userMessage",
-                        "content": [{"type": "text", "text": invalid_pointer}],
-                    }
-                },
-            }
-        )
-        is None
-    )
-    assert (
-        codex_model.app_server_delivery_id(
-            {"method": "item/started", "params": {"item": _delivery_item(payload)}}
-        )
-        == "bbbbbbbb"
-    )
-    # A message the user queued in Codex carries Codex's own client id, and its
-    # text names no delivery even when it pastes one.
-    assert (
-        codex_model.app_server_delivery_id(
-            {
-                "method": "item/started",
-                "params": {
-                    "item": {
-                        **_delivery_item(payload),
-                        "clientId": "01a15a70-0e24-7c32-85c1-58d34c405a5d",
-                    }
-                },
-            }
-        )
-        is None
-    )
-    assert (
-        codex_model.app_server_delivery_id(
-            {
-                "method": "item/started",
-                "params": {
-                    "item": {
-                        "type": "userMessage",
-                        "content": [{"type": "text", "text": pointer}],
-                    }
-                },
-            }
-        )
-        == "aaaaaaaa"
-    )
-    assert (
-        codex_model.app_server_delivery_id(
-            {
-                "method": "turn/started",
-                "params": {
-                    "turn": {
-                        "items": [
-                            {
-                                "type": "userMessage",
-                                "content": [
-                                    {
-                                        "type": "text",
-                                        "text": pointer + "\nPlease do this.",
-                                    }
-                                ],
-                            }
-                        ]
-                    }
-                },
-            }
+            started_turn(said(pointer + "\nPlease do this."))
         )
         is None
     )
@@ -334,7 +306,10 @@ def test_app_server_events_report_semantic_codex_progress():
     assert events.read(
         {
             "method": "turn/started",
-            "params": {"threadId": "codex-thread", "turn": {"id": "turn-live"}},
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "turn-live", "items": [], "status": "inProgress"},
+            },
         }
     ) == {"turn": "turn-live", "activity": {"kind": "working"}}
     assert events.read(
@@ -399,6 +374,9 @@ def test_app_server_events_report_semantic_codex_progress():
                     "id": "command-live",
                     "type": "commandExecution",
                     "command": "uv run pytest tests",
+                    "commandActions": [],
+                    "cwd": "/work",
+                    "status": "inProgress",
                 },
             },
         }
@@ -516,7 +494,14 @@ def test_app_server_events_report_semantic_codex_progress():
     assert events.read(
         {
             "method": "item/tool/requestUserInput",
-            "params": {"threadId": "codex-thread", "turnId": "turn-live"},
+            "params": {
+                "threadId": "codex-thread",
+                "turnId": "turn-live",
+                "itemId": "question",
+                "isBlocking": True,
+                "questions": [],
+            },
+            "id": 1,
         }
     ) == {"turn": "turn-live", "activity": {"kind": "awaiting_input"}}
     completed_reply = events.read(
@@ -556,7 +541,10 @@ def test_app_server_events_report_semantic_codex_progress():
     assert events.read(
         {
             "method": "turn/completed",
-            "params": {"threadId": "codex-thread", "turn": {"id": "turn-live"}},
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "turn-live", "items": [], "status": "completed"},
+            },
         }
     ) == {"turn": "turn-live", "completed": "completed"}
     # A committed reply is the final answer alone; a turn that never reached one
@@ -647,7 +635,10 @@ def test_app_server_activity_keeps_waiting_and_concurrent_item_evidence():
     events.read(
         {
             "method": "turn/started",
-            "params": {"threadId": "codex-thread", "turn": {"id": "turn-live"}},
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "turn-live", "items": [], "status": "inProgress"},
+            },
         }
     )
 
@@ -664,6 +655,11 @@ def test_app_server_activity_keeps_waiting_and_concurrent_item_evidence():
                         "id": item_id,
                         "type": item_type,
                         "command": f"run {item_id}",
+                        "commandActions": [],
+                        "cwd": "/work",
+                        "status": "inProgress"
+                        if method == "item/started"
+                        else "completed",
                     },
                 },
             }
@@ -677,7 +673,13 @@ def test_app_server_activity_keeps_waiting_and_concurrent_item_evidence():
     approval = events.read(
         {
             "method": "item/commandExecution/requestApproval",
-            "params": {"threadId": "codex-thread", "turnId": "turn-live"},
+            "params": {
+                "threadId": "codex-thread",
+                "turnId": "turn-live",
+                "itemId": "first",
+                "startedAtMs": 0,
+            },
+            "id": 1,
         }
     )
     assert approval["activity"] == {"kind": "awaiting_approval"}
@@ -700,7 +702,7 @@ def test_app_server_activity_keeps_waiting_and_concurrent_item_evidence():
             "params": {
                 "threadId": "codex-thread",
                 "turnId": "turn-live",
-                "status": {"activeFlags": []},
+                "status": {"activeFlags": [], "type": "active"},
             },
         }
     )
@@ -713,7 +715,14 @@ def test_app_server_activity_keeps_waiting_and_concurrent_item_evidence():
     awaiting_input = events.read(
         {
             "method": "item/tool/requestUserInput",
-            "params": {"threadId": "codex-thread", "turnId": "turn-live"},
+            "params": {
+                "threadId": "codex-thread",
+                "turnId": "turn-live",
+                "itemId": "question",
+                "isBlocking": True,
+                "questions": [],
+            },
+            "id": 1,
         }
     )
     assert awaiting_input["activity"] == {"kind": "awaiting_input"}
@@ -731,14 +740,20 @@ def test_app_server_activity_reads_only_its_own_turn():
     events.read(
         {
             "method": "turn/started",
-            "params": {"threadId": "codex-thread", "turn": {"id": "turn-live"}},
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "turn-live", "items": [], "status": "inProgress"},
+            },
         }
     )
 
     for message in (
         {
             "method": "turn/started",
-            "params": {"threadId": "codex-thread", "turn": {"id": "turn-other"}},
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "turn-other", "items": [], "status": "inProgress"},
+            },
         },
         {
             "method": "item/reasoning/summaryTextDelta",
@@ -747,6 +762,7 @@ def test_app_server_activity_reads_only_its_own_turn():
                 "turnId": "turn-other",
                 "itemId": "other-reasoning",
                 "delta": "another turn's thought",
+                "summaryIndex": 0,
             },
         },
         {
@@ -754,14 +770,14 @@ def test_app_server_activity_reads_only_its_own_turn():
             "params": {
                 "threadId": "codex-thread",
                 "turnId": "turn-other",
-                "status": {"activeFlags": ["waitingOnUserInput"]},
+                "status": {"activeFlags": ["waitingOnUserInput"], "type": "active"},
             },
         },
         {
             "method": "turn/completed",
             "params": {
                 "threadId": "codex-thread",
-                "turn": {"id": "turn-other", "status": "completed"},
+                "turn": {"id": "turn-other", "status": "completed", "items": []},
             },
         },
         {
@@ -770,7 +786,14 @@ def test_app_server_activity_reads_only_its_own_turn():
                 "threadId": "another-thread",
                 "turnId": "turn-live",
                 "startedAtMs": 1,
-                "item": {"id": "elsewhere", "type": "commandExecution"},
+                "item": {
+                    "id": "elsewhere",
+                    "type": "commandExecution",
+                    "commandActions": [],
+                    "cwd": "/work",
+                    "status": "inProgress",
+                    "command": "ls",
+                },
             },
         },
     ):
@@ -784,7 +807,7 @@ def test_app_server_activity_reads_only_its_own_turn():
             "method": "turn/completed",
             "params": {
                 "threadId": "codex-thread",
-                "turn": {"id": "turn-live", "status": "interrupted"},
+                "turn": {"id": "turn-live", "status": "interrupted", "items": []},
             },
         }
     ) == {"turn": "turn-live", "completed": "interrupted"}
@@ -952,13 +975,12 @@ def test_app_server_observer_restores_the_resumed_turns_waiting_kind(
 def test_a_task_connection_streams_and_commits_its_delivery_reply(
     page_dir, request, app_server, task_connection
 ):
-    """One connection carries the turn from the submission that queued it to its
-    reply.
+    """One connection carries the turn from the start that made it to its reply.
 
     `thread/resume` subscribes the connection that asked, for as long as it lives,
-    and queueing neither subscribes nor unsubscribes, so everything this turn says
-    arrives on the task subscription. The owner binds the turn whose user message
-    carries the delivery, even while the submission's own answer is still pending.
+    and `turn/start` neither subscribes nor unsubscribes, so everything this turn
+    says arrives on the task subscription. The owner binds the returned turn
+    before replaying notifications buffered while the start response was pending.
     """
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
@@ -984,39 +1006,44 @@ def test_a_task_connection_streams_and_commits_its_delivery_reply(
         initialize = json.loads(socket.recv())
         socket.send(json.dumps({"id": initialize["id"], "result": {}}))
         socket.recv()  # initialized
-        resume = json.loads(socket.recv())
-        socket.send(
-            json.dumps(
-                {
-                    "id": resume["id"],
-                    "result": {
-                        "thread": {
-                            "id": "codex-thread",
-                            "status": {"type": "idle"},
-                            "turns": [],
-                        }
-                    },
-                }
+        for _ in range(2):
+            resume = json.loads(socket.recv())
+            socket.send(
+                json.dumps(
+                    {
+                        "id": resume["id"],
+                        "result": {
+                            "thread": {
+                                "id": "codex-thread",
+                                "status": {"type": "idle"},
+                                "turns": [],
+                            }
+                        },
+                    }
+                )
             )
-        )
-        add = json.loads(socket.recv())
-        assert add["method"] == "thread/queue/add"
+        start = json.loads(socket.recv())
         socket.send(
             json.dumps(
                 {
                     "method": "turn/started",
                     "params": {
                         "threadId": "codex-thread",
-                        "turn": {"id": "leaf-turn"},
+                        "turn": {
+                            "id": "leaf-turn",
+                            "items": [],
+                            "status": "inProgress",
+                        },
                     },
                 }
             )
         )
         delivery = {
             "id": "delivery",
-            "type": "userMessage",
-            "clientId": add["params"]["clientUserMessageId"],
-            "content": add["params"]["input"],
+            "type": "functionCallOutput",
+            "name": "leaf_delivery",
+            "namespace": None,
+            "output": start["params"]["toolOutput"]["output"],
         }
         socket.send(
             json.dumps(
@@ -1078,22 +1105,16 @@ def test_a_task_connection_streams_and_commits_its_delivery_reply(
         socket.send(
             json.dumps(
                 {
-                    "id": add["id"],
+                    "id": start["id"],
                     "result": {
-                        "queuedSubmission": {
-                            "id": "submission",
-                            "clientUserMessageId": add["params"]["clientUserMessageId"],
-                            "input": add["params"]["input"],
+                        "turn": {
+                            "id": "leaf-turn",
+                            "status": "inProgress",
+                            "items": [],
+                            "itemsView": "notLoaded",
                         }
                     },
                 }
-            )
-        )
-        listing = json.loads(socket.recv())
-        assert listing["method"] == "thread/queue/list"
-        socket.send(
-            json.dumps(
-                {"id": listing["id"], "result": {"data": [], "nextCursor": None}}
             )
         )
         release.wait(timeout=STATED_TIMEOUT)
@@ -1155,7 +1176,7 @@ def test_a_task_connection_streams_and_commits_its_delivery_reply(
                 for event in events_model.read_events(page_dir)
                 if event["kind"] == "reply"
             ],
-            read_record(page_dir / "status.json")["stream"],
+            read_record(page_dir / "stream.json"),
         ),
         lambda reading: bool(reading[0]) and reading[1]["reply"] is None,
         failure="the streamed reply was not committed after completion",
@@ -1174,6 +1195,212 @@ def test_a_task_connection_streams_and_commits_its_delivery_reply(
     ]
     [thread] = served_thread(page_state(page_dir)["browser"])["threads"]
     assert thread["msgs"][-1]["id"] == replies[0]["id"]
+
+
+def _joined_items(payload: dict, join: str) -> list[dict]:
+    """A shared turn's items in the order App Server records them (codex-cli
+    0.160.0): the user's follow-up ahead of the delivery Leaf's start steered in,
+    or the delivery ahead of the message the user steered into Leaf's turn."""
+    user = {
+        "id": "follow-up",
+        "type": "userMessage",
+        "content": [{"type": "text", "text": "Reply: USER FOLLOW-UP"}],
+    }
+    opening = {
+        "id": "opening",
+        "type": "agentMessage",
+        "phase": "commentary",
+        "text": "USER FOLLOW-UP",
+    }
+    answer = {
+        "id": "answer",
+        "type": "agentMessage",
+        "phase": "final_answer",
+        "text": "USER FOLLOW-UP",
+    }
+    delivery = _delivery_item(payload)
+    if join == "start-joins-follow-up":
+        return [user, opening, delivery, answer]
+    return [delivery, opening, user, answer]
+
+
+def _offered_again(session_id: str) -> list[dict]:
+    return [
+        delivery_model.read_delivery(path.stem)
+        for path, record in codex_model.delivery_records(session_id)
+        if isinstance(record, codex_model.Offering)
+    ]
+
+
+@pytest.mark.parametrize("ending", ["completed", "interrupted"])
+@pytest.mark.parametrize("join", ["start-joins-follow-up", "user-steers-in"])
+def test_a_turn_that_shares_a_user_message_leaves_the_delivery_owed(
+    page_dir, request, app_server, task_connection, join, ending
+):
+    """A delivery turn whose answer was also written for the user is not its reply.
+
+    `turn/start` on a running turn steers into it and answers with its id. A
+    follow-up the user queued in the Codex TUI starts just after the turn before
+    it ends, while App Server still reads idle, so Leaf's idle check can pass and
+    its start join the follow-up's turn; a user can also steer into Leaf's turn.
+    Either way the turn's final message answers the user's message too. Leaf posts
+    none of it, nor the opening of a turn the user opened, and withholds its draft
+    so Stop doesn't continue the turn over the update. A completed
+    turn offers the comment again as a correction; one the user interrupted leaves
+    it owed and shows the turn stopped, as any turn that ends without an answer
+    does.
+    """
+    prepared = _codex_delivery(page_dir, "Why here?")
+    target = codex_model.stream_reply_target(prepared.payload)
+    items = _joined_items(prepared.payload, join)
+    # The task's watcher, which the Stop hook asks whether the reply will commit.
+    lease = leases_model.take_lease(
+        leases_model.waiter_lease_path(page_dir, "codex-thread")
+    )
+    assert lease
+    request.addfinalizer(lease.close)
+    release = threading.Event()
+    completed = threading.Event()
+
+    def send(socket, method, params):
+        socket.send(
+            json.dumps(
+                {"method": method, "params": {"threadId": "codex-thread", **params}}
+            )
+        )
+
+    def handle(socket):
+        initialize = json.loads(socket.recv())
+        socket.send(json.dumps({"id": initialize["id"], "result": {}}))
+        socket.recv()  # initialized
+        for _ in range(2):
+            resume = json.loads(socket.recv())
+            socket.send(
+                json.dumps(
+                    {
+                        "id": resume["id"],
+                        "result": {
+                            "thread": {
+                                "id": "codex-thread",
+                                "status": {"type": "idle"},
+                                "turns": [],
+                            }
+                        },
+                    }
+                )
+            )
+        start = json.loads(socket.recv())
+        send(socket, "turn/started", {"turn": {"id": "shared-turn", "items": []}})
+        for item in items:
+            for state in ("started", "completed"):
+                send(
+                    socket,
+                    f"item/{state}",
+                    {"turnId": "shared-turn", f"{state}AtMs": 1, "item": item},
+                )
+        socket.send(
+            json.dumps(
+                {
+                    "id": start["id"],
+                    "result": {"turn": {"id": "shared-turn", "status": "inProgress"}},
+                }
+            )
+        )
+        release.wait(timeout=STATED_TIMEOUT)
+        send(
+            socket,
+            "turn/completed",
+            {"turn": {"id": "shared-turn", "status": ending, "items": items}},
+        )
+        completed.set()
+
+    connection = task_connection(app_server(handle))
+    assert connection.start_delivery(prepared.payload)
+    wait_for(
+        lambda: connection.turns.get("shared-turn"),
+        lambda fold: fold is not None and fold.events.joined,
+        failure="the shared turn's user message was not read",
+    )
+    # While the turn runs it holds the update, and the Stop hook reads the turn as
+    # done with it, so it lets the turn end on its own answer.
+    assert thread_model.delivery_reply_reserved(
+        "codex-thread", prepared.payload["id"], target
+    )
+    [plan] = hook_transport_model.read_plans("codex-thread")
+    assert plan.owed == []
+    # A dropped connection leaves the draft withheld, and a long turn doesn't
+    # age it, since nothing renews a withheld draft.
+    connection.turns["shared-turn"].reply_stream.disconnect()
+    status = read_record(page_dir / "status.json")
+    status["stream"]["reply"]["updated_at"] = "2000-01-01T00:00:00+00:00"
+    write_record(page_dir / "status.json", status)
+    [plan] = hook_transport_model.read_plans("codex-thread")
+    assert plan.owed == []
+    release.set()
+    assert completed.wait(timeout=STATED_TIMEOUT), "the shared turn never completed"
+    # The fold releases the reply, then offers a completed turn's correction.
+    wait_for(
+        lambda: (
+            thread_model.delivery_reply_reserved(
+                "codex-thread", prepared.payload["id"], target
+            ),
+            _offered_again("codex-thread"),
+        ),
+        lambda reading: not reading[0] and (ending != "completed" or reading[1]),
+        failure="the joined turn was not settled",
+    )
+
+    replies = [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "reply"
+    ]
+    if join == "start-joins-follow-up":
+        assert replies == []
+    else:
+        # Leaf's own turn opened on the delivery, so its opening was Leaf's.
+        assert [(reply["text"], reply.get("ephemeral")) for reply in replies] == [
+            ("USER FOLLOW-UP", True)
+        ]
+    draft = read_record(page_dir / "status.json")["stream"]["reply"]
+    corrections = _offered_again("codex-thread")
+    if ending == "interrupted":
+        # Ended as any unanswered turn does: the update stays owed, shown stopped.
+        assert (draft["state"], draft["text"]) == ("interrupted", "")
+        assert corrections == []
+        return
+    assert draft is None
+    [correction] = corrections
+    assert correction["correction"]["delivery"] == prepared.payload["id"]
+    assert delivery_model.stream_reply_target(correction) == target
+
+
+def test_a_joined_turn_read_back_from_history_is_not_the_reply(page_dir):
+    """A joined turn that ended while nobody read it settles the same way when
+    the provider's history brings it back."""
+    prepared = _codex_delivery(page_dir, "Why here?")
+    target = codex_model.stream_reply_target(prepared.payload)
+    terminal = {
+        "id": "shared-turn",
+        "status": "completed",
+        "items": _joined_items(prepared.payload, "start-joins-follow-up"),
+    }
+    assert cleanup_model.start_session_turn(
+        "codex-thread", "shared-turn", cleanup_model.session_record("codex-thread")
+    )
+
+    assert _observer()._reconcile(terminal)
+
+    assert [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "reply"
+    ] == []
+    assert not thread_model.delivery_reply_reserved(
+        "codex-thread", prepared.payload["id"], target
+    )
+    [correction] = _offered_again("codex-thread")
+    assert correction["correction"]["delivery"] == prepared.payload["id"]
 
 
 def test_a_quiet_stream_is_a_fault_only_once_its_silence_outlasts_its_bound():
@@ -1345,20 +1572,30 @@ def test_reconnect_binds_a_delivery_a_followed_turn_carried_unseen(page_dir, sta
     observer._read(
         {
             "method": "turn/started",
-            "params": {"threadId": "codex-thread", "turn": {"id": "leaf-turn"}},
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "leaf-turn", "items": [], "status": "inProgress"},
+            },
         }
     )
     observer._disconnect_turns()
 
     observer._resume(
         {
-            "status": {"type": "active" if status == "inProgress" else "idle"},
+            "status": {"type": "active", "activeFlags": []}
+            if status == "inProgress"
+            else {"type": "idle"},
             "turns": [
                 {
                     "id": "leaf-turn",
                     "status": status,
                     "items": [
-                        _delivery_item(prepared.payload),
+                        {
+                            "id": "delivery",
+                            "type": "functionCallOutput",
+                            "name": "leaf_delivery",
+                            "output": json.dumps(prepared.payload),
+                        },
                         {
                             "id": "answer",
                             "type": "agentMessage",
@@ -1406,7 +1643,12 @@ def test_reconnect_recovers_a_completed_delivery_reply(page_dir):
                     "id": "completed-while-disconnected",
                     "status": "completed",
                     "items": [
-                        _delivery_item(prepared.payload),
+                        {
+                            "id": "delivery",
+                            "type": "functionCallOutput",
+                            "name": "leaf_delivery",
+                            "output": json.dumps(prepared.payload),
+                        },
                         {
                             "id": "answer",
                             "type": "agentMessage",
@@ -1458,6 +1700,7 @@ def test_reconnect_recovers_a_completed_delivery_reply(page_dir):
 
 
 def test_a_completed_stream_reply_survives_the_claim_advancing(page_dir):
+    revisioning_model.activate_source(page_dir)
     comment = append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "text": "Answer the first turn"},
@@ -1473,6 +1716,34 @@ def test_a_completed_stream_reply_survives_the_claim_advancing(page_dir):
     stream = codex_model.AppServerReplyStream(
         "codex-thread", "turn-1", "delivery-1", target
     )
+    stream.restore(" \n")
+    [initial] = page_timings(page_dir, since=None, until=datetime.now(UTC))["samples"]
+    assert "first_reply" not in initial["milestones"]
+    for text in ("I am checking.", "I am checking the report."):
+        stream.update(
+            {
+                "message": {
+                    "item": "answer",
+                    "phase": "final_answer",
+                    "text": text,
+                    "complete": True,
+                }
+            }
+        )
+    [thread] = served_thread(page_state(page_dir)["browser"])["threads"]
+    assert thread["msgs"][-1]["provisional"]
+    assert thread["msgs"][-1]["text"] == "I am checking the report."
+    [marker] = interaction_log_model.read_interactions(
+        page_dir, types=("reply_stream_words",)
+    )
+    assert marker["input_id"] == comment["id"]
+    assert marker["attempt"] == stream.attempt
+    assert "text" not in marker
+    [before] = page_timings(page_dir, since=None, until=datetime.now(UTC))["samples"]
+    assert before["first_reply_kind"] == "stream"
+    assert before["milestones"]["first_reply"]["turn"] == "turn-1"
+    assert "answered" not in before["milestones"]
+    assert "send_to_visible" not in before["milestones"]
     cleanup_model.close_session_turn("codex-thread", "turn-1")
     cleanup_model.open_session_turn("codex-thread", "turn-2")
 
@@ -1487,6 +1758,44 @@ def test_a_completed_stream_reply_survives_the_claim_advancing(page_dir):
         (comment["id"], "First turn reply")
     ]
     assert service_model.page_claim(page_dir)["turn"] == "turn-2"
+    [after] = page_timings(page_dir, since=None, until=datetime.now(UTC))["samples"]
+    assert after["milestones"]["first_reply"] == before["milestones"]["first_reply"]
+    assert after["milestones"]["answered"]["event_id"] == replies[0]["id"]
+
+
+def test_a_stream_reply_finishes_when_its_diagnostic_sink_is_unwritable(page_dir):
+    comment = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "Answer this input"},
+    )
+    record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
+    cleanup_model.open_session_turn("codex-thread", "turn-1")
+    stream = codex_model.AppServerReplyStream(
+        "codex-thread",
+        "turn-1",
+        "delivery-1",
+        {
+            "page": str(page_dir),
+            "parent": comment["id"],
+            "responds": comment["id"],
+            "ref": response_reference(page_dir, comment),
+        },
+    )
+    # The diagnostic file cannot be opened, while normal page writes remain valid.
+    sink = page_dir / interaction_log_model.INTERACTIONS_FILE
+    sink.unlink(missing_ok=True)
+    sink.mkdir()
+    assert stream.restore("The complete answer.")
+    reply = read_record(page_dir / "stream.json")["reply"]
+    assert reply["text"] == "The complete answer."
+    assert reply["responds"] == comment["id"]
+
+    assert stream.finish("completed", "The complete answer.") is None
+    [answer] = thread_model.successful_replies(
+        events_model.read_events(page_dir), comment["id"]
+    )
+    assert answer["text"] == "The complete answer."
+    assert read_record(page_dir / "stream.json")["reply"] is None
 
 
 def test_an_interrupted_stream_reply_finishes_after_the_claim_advances(page_dir):
@@ -1521,7 +1830,7 @@ def test_an_interrupted_stream_reply_finishes_after_the_claim_advances(page_dir)
 
     assert stream.finish("interrupted") is None
 
-    stream_state = read_record(page_dir / "status.json")["stream"]
+    stream_state = read_record(page_dir / "stream.json")
     assert (stream_state["reply"]["text"], stream_state["reply"]["state"]) == (
         "Partial answer",
         "interrupted",
@@ -1570,7 +1879,7 @@ def test_provider_reservation_refuses_unaddressed_competing_writes(page_dir):
         if event["kind"] == "reply"
     ]
     assert [reply["text"] for reply in replies] == ["Transcript closeout"]
-    assert read_record(page_dir / "status.json")["stream"]["reply"] is None
+    assert read_record(page_dir / "stream.json")["reply"] is None
 
 
 def test_a_delivery_reserves_its_final_before_provider_execution(page_dir):
@@ -1637,7 +1946,7 @@ def test_a_delivery_bound_final_cannot_append_after_claim_transfer(page_dir):
     }
     thread_model.reserve_delivery_reply("successor-thread", "delivery-2", successor)
     with service_model.PageTransaction(page_dir) as page:
-        assert page.status["stream"]["reply_reservations"][comment["id"]] == {
+        assert page.stream["reply_reservations"][comment["id"]] == {
             "session": "successor-thread",
             "attempt": service_model.delivery_reply_attempt("delivery-2"),
             "turn": "turn-1",
@@ -1665,12 +1974,17 @@ def test_a_streamed_final_rejects_invalid_source_without_stranding_the_draft(pag
     error = stream.finish("completed", "I made the change.")
 
     assert isinstance(error, Refused)
-    reply = read_record(page_dir / "status.json")["stream"]["reply"]
+    reply = read_record(page_dir / "stream.json")["reply"]
     assert (reply["state"], reply["text"], reply["settles"]) == (
         "failed",
         "I made the change.",
         False,
     )
+    [marker] = interaction_log_model.read_interactions(
+        page_dir, types=("reply_stream_words",)
+    )
+    assert marker["input_id"] == comment["id"]
+    assert marker["attempt"] == stream.attempt
     assert not any(
         event["kind"] == "reply" for event in events_model.read_events(page_dir)
     )
@@ -1710,7 +2024,7 @@ def test_partial_text_is_not_committed_without_a_completed_final(page_dir):
     assert not any(
         event["kind"] == "reply" for event in events_model.read_events(page_dir)
     )
-    reply = read_record(page_dir / "status.json")["stream"]["reply"]
+    reply = read_record(page_dir / "stream.json")["reply"]
     assert (reply["state"], reply["text"], reply["settles"]) == (
         "partial",
         "Only a partial",
@@ -1734,7 +2048,7 @@ def test_a_stream_reply_refreshes_its_lease_without_changing_its_message_time(
             {"parent": "comment", "responds": "comment"},
             service_model.delivery_reply_attempt("delivery-1"),
             None,
-            "",
+            "First visible",
             "active",
         )
         page.set_stream_reply(
@@ -1746,8 +2060,16 @@ def test_a_stream_reply_refreshes_its_lease_without_changing_its_message_time(
             "Now visible",
             "active",
         )
-        reply = page.status["stream"]["reply"]
+        reply = page.stream["reply"]
 
+    [marker] = interaction_log_model.read_interactions(
+        page_dir, types=("reply_stream_words",)
+    )
+    assert marker["input_id"] == "comment"
+    assert marker["attempt"] == reply["attempt"]
+    assert marker["turn"] == "turn-1"
+    assert "text" not in marker
+    assert reply["text"] == "Now visible"
     assert reply["ts"] == created.isoformat()
     assert reply["updated_at"] == refreshed.isoformat()
     projected = activity_model.canonical_stream_reply(
@@ -1846,6 +2168,7 @@ def test_a_reply_reservation_lapses_when_a_turn_it_does_not_name_opens(page_dir)
                 "turn": {
                     "id": "delivery-turn",
                     "items": [_delivery_item(prepared.payload)],
+                    "status": "inProgress",
                 },
             },
         }
@@ -1923,6 +2246,7 @@ def test_a_reply_reservation_lapses_when_its_turn_closes(page_dir):
                 "turn": {
                     "id": "delivery-turn",
                     "items": [_delivery_item(prepared.payload)],
+                    "status": "inProgress",
                 },
             },
         }
@@ -1961,9 +2285,7 @@ def test_the_prompt_hook_and_the_observer_open_one_codex_turn(page_dir, capsys):
     append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Handle me"}
     )
-    write_record(
-        page_dir / "cursor.json", {"seq": events_model.read_events(page_dir)[-1]["seq"]}
-    )
+    acknowledge_through(page_dir, events_model.read_events(page_dir)[-1]["seq"])
     cleanup_model.close_session_turn("codex-thread")
 
     hooks_model.cmd_hook(
@@ -1978,7 +2300,10 @@ def test_the_prompt_hook_and_the_observer_open_one_codex_turn(page_dir, capsys):
     _observer()._read(
         {
             "method": "turn/started",
-            "params": {"threadId": "codex-thread", "turn": {"id": "codex-turn"}},
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "codex-turn", "items": [], "status": "inProgress"},
+            },
         }
     )
 
@@ -2044,12 +2369,11 @@ def task_connection(request):
     return start
 
 
-def _queue_app_server(answers=()):
-    """A provider whose idle task resumes repeatedly, has an empty queue, and
-    answers each `thread/queue/add` in turn: an answer is the messages it sends."""
+def _idle_app_server(answers=None, *, status="idle"):
+    """A provider that resumes repeatedly and answers delivery starts in order."""
 
     def handle(socket):
-        remaining = iter(answers)
+        remaining = iter(answers or ())
         for raw in socket:
             request = json.loads(raw)
             method = request.get("method")
@@ -2063,59 +2387,18 @@ def _queue_app_server(answers=()):
                             "result": {
                                 "thread": {
                                     "id": "codex-thread",
-                                    "status": {"type": "idle"},
+                                    "status": {"type": status},
                                     "turns": [],
                                 }
                             },
                         }
                     )
                 )
-            elif method == "thread/queue/list":
-                socket.send(
-                    json.dumps(
-                        {
-                            "id": request["id"],
-                            "result": {"data": [], "nextCursor": None},
-                        }
-                    )
-                )
-            elif method == "thread/queue/add":
-                for message in next(remaining)(request):
-                    socket.send(message)
+            elif method == "turn/start":
+                answer = next(remaining)
+                socket.send(answer(request) if callable(answer) else answer)
 
     return handle
-
-
-def _notification(method: str, **params) -> str:
-    return json.dumps(
-        {"method": method, "params": {"threadId": "codex-thread", **params}}
-    )
-
-
-def _turn_messages(turn: str, items: list[dict], answer: str) -> list[str]:
-    """Everything one turn says, from its start to its completion."""
-    final = {"id": f"{turn}-answer", "type": "agentMessage", "phase": "final_answer"}
-    return [
-        _notification("turn/started", turn={"id": turn, "items": []}),
-        *(
-            _notification("item/started", turnId=turn, startedAtMs=1, item=item)
-            for item in items
-        ),
-        _notification(
-            "item/completed",
-            turnId=turn,
-            completedAtMs=2,
-            item={**final, "text": answer},
-        ),
-        _notification(
-            "turn/completed",
-            turn={
-                "id": turn,
-                "status": "completed",
-                "items": [*items, {**final, "text": answer}],
-            },
-        ),
-    ]
 
 
 def _unopenable(*_args):
@@ -2123,274 +2406,50 @@ def _unopenable(*_args):
     raise OSError("the page could not be opened")
 
 
-def test_a_delivery_queued_behind_the_users_follow_up_answers_in_its_own_turn(
+def test_a_busy_codex_task_keeps_its_delivery_for_a_later_turn(
     page_dir, app_server, task_connection
 ):
-    """Leaf's delivery never joins a turn another client started.
+    """A delivery waits for an idle task rather than joining the user's turn.
 
-    The order is the one measured with codex-cli 0.160.0: the user queued a
-    follow-up in Codex behind their running turn, and when that turn completed App
-    Server started the follow-up at once. `turn/start` sent then steered the
-    delivery into the follow-up's turn, whose final answer Leaf posted as its
-    reply. Queued, the delivery waits behind the follow-up, Leaf starts nothing
-    while it is not the queue's head, and the turn that carries it is its own.
+    `turn/start` against a running turn does not refuse. App Server steers the
+    delivery into that turn instead, and says so of `turnTrigger`: "Ignored when
+    this request steers an already-active turn". That turn has one final answer and
+    it answers whatever the user asked, so the status is read on this connection,
+    one request before the start, and a working task keeps the frozen delivery for
+    the next pass.
     """
-    comment = append_carried_log_record(
-        page_dir, {"kind": "comment", "author": "user", "text": "Answer this"}
-    )
-    prepared = codex_model.prepare_codex_delivery(
-        page_dir,
-        harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid()),
-    )
-    follow_up = {
-        "id": "follow-up",
-        "type": "userMessage",
-        "clientId": "01a15a70-0e24-7c32-85c1-58d34c405a5d",
-        "content": [{"type": "text", "text": "Reply: USER FOLLOW-UP"}],
-    }
-    started = []
+    prepared = _codex_delivery(page_dir, "Answer when idle")
+    target = codex_model.stream_reply_target(prepared.payload)
 
     def handle(socket):
-        for raw in socket:
-            request = json.loads(raw)
-            method = request.get("method")
-            if method == "initialize":
-                socket.send(json.dumps({"id": request["id"], "result": {}}))
-            elif method == "thread/resume":
-                socket.send(
-                    json.dumps(
-                        {
-                            "id": request["id"],
-                            "result": {
-                                "thread": {
-                                    "id": "codex-thread",
-                                    "status": {"type": "active", "activeFlags": []},
-                                    "turns": [],
-                                }
-                            },
-                        }
-                    )
-                )
-            elif method == "thread/queue/add":
-                socket.send(json.dumps({"id": request["id"], "result": {}}))
-            elif method == "thread/queue/list":
-                queued = [
+        initialize = json.loads(socket.recv())
+        socket.send(json.dumps({"id": initialize["id"], "result": {}}))
+        socket.recv()  # initialized
+        for _ in range(2):
+            resume = json.loads(socket.recv())
+            socket.send(
+                json.dumps(
                     {
-                        "id": "user-submission",
-                        "clientUserMessageId": follow_up["clientId"],
-                    },
-                    {
-                        "id": "leaf-submission",
-                        "clientUserMessageId": prepared.payload["id"],
-                    },
-                ]
-                socket.send(
-                    json.dumps(
-                        {
-                            "id": request["id"],
-                            "result": {"data": queued, "nextCursor": None},
-                        }
-                    )
-                )
-                # The user's turn ends, and App Server drains its queue in order.
-                socket.send(
-                    _notification(
-                        "turn/completed",
-                        turn={"id": "user-turn", "status": "completed"},
-                    )
-                )
-                for message in (
-                    *_turn_messages("follow-up-turn", [follow_up], "USER FOLLOW-UP"),
-                    *_turn_messages(
-                        "leaf-turn", [_delivery_item(prepared.payload)], "Leaf's answer"
-                    ),
-                ):
-                    socket.send(message)
-            elif method == "thread/queue/start":
-                started.append(request)
-
-    connection = task_connection(app_server(handle))
-    assert connection.start_delivery(prepared.payload) is False
-
-    replies = wait_for(
-        lambda: [
-            (event["responds"], event["text"])
-            for event in events_model.read_events(page_dir)
-            if event["kind"] == "reply"
-        ],
-        bool,
-        failure="the delivery's own turn did not answer",
-    )
-    assert replies == [(comment["id"], "Leaf's answer")]
-    assert started == []
-    assert [
-        (event["phase"], event["turn"])
-        for event in events_model.read_events(page_dir)
-        if event["kind"] == "pickup"
-    ] == [("opened", "leaf-turn")]
-
-
-def test_a_delivery_heading_a_held_queue_starts_it(
-    page_dir, app_server, task_connection
-):
-    """After an interrupted turn App Server keeps its queue until a client starts
-    it, so a delivery added then waits at the head of an idle task. Leaf starts
-    that submission, and only that one."""
-    prepared = _codex_delivery(page_dir)
-    started = []
-
-    def handle(socket):
-        added = None
-        for raw in socket:
-            request = json.loads(raw)
-            method = request.get("method")
-            if method == "initialize":
-                socket.send(json.dumps({"id": request["id"], "result": {}}))
-            elif method == "thread/resume":
-                socket.send(
-                    json.dumps(
-                        {
-                            "id": request["id"],
-                            "result": {
-                                "thread": {
-                                    "id": "codex-thread",
-                                    "status": {"type": "idle"},
-                                    "turns": [],
-                                }
-                            },
-                        }
-                    )
-                )
-            elif method == "thread/queue/add":
-                added = request["params"]
-                socket.send(json.dumps({"id": request["id"], "result": {}}))
-            elif method == "thread/queue/list":
-                queued = [
-                    {
-                        "id": "leaf-submission",
-                        "clientUserMessageId": added["clientUserMessageId"],
+                        "id": resume["id"],
+                        "result": {
+                            "thread": {
+                                "id": "codex-thread",
+                                "status": {"type": "active", "activeFlags": []},
+                            }
+                        },
                     }
-                ]
-                socket.send(
-                    json.dumps(
-                        {
-                            "id": request["id"],
-                            "result": {"data": queued, "nextCursor": None},
-                        }
-                    )
                 )
-            elif method == "thread/queue/start":
-                started.append(request["params"])
-                for message in _turn_messages(
-                    "leaf-turn", [_delivery_item(prepared.payload)], "Started"
-                ):
-                    socket.send(message)
-                socket.send(
-                    json.dumps(
-                        {"id": request["id"], "result": {"turn": {"id": "leaf-turn"}}}
-                    )
-                )
+            )
 
-    connection = task_connection(app_server(handle))
-    assert connection.start_delivery(prepared.payload)
-
-    assert started == [
-        {"threadId": "codex-thread", "queuedSubmissionId": "leaf-submission"}
-    ]
-    assert wait_for(
-        lambda: [
-            event["text"]
-            for event in events_model.read_events(page_dir)
-            if event["kind"] == "reply"
-        ],
-        bool,
-        failure="the started delivery did not answer",
-    ) == ["Started"]
-
-
-def test_a_delivery_held_behind_the_users_input_waits_rather_than_being_abandoned(
-    page_dir, app_server, task_connection
-):
-    """A submitted delivery the queue still holds is waiting, not lost.
-
-    After an interrupted turn App Server keeps its queue, here with a message the
-    user queued ahead of Leaf's delivery, on a task that reads idle. No turn has
-    carried the delivery, but abandoning it would tell the user Leaf could not
-    confirm it, and starting it would run it ahead of the user's own message.
-    """
-    prepared = _codex_delivery(page_dir)
-    path = codex_model.record_path("codex-thread", prepared.payload["id"])
-    record = files_model.read_json(path)
-    record["state"] = "starting"
-    cleanup_model.write_json(path, record)
-    held = [
-        {"id": "user-submission", "clientUserMessageId": "user-held"},
-        {"id": "leaf-submission", "clientUserMessageId": prepared.payload["id"]},
-    ]
-    requests = []
-
-    def handle(socket):
-        for raw in socket:
-            request = json.loads(raw)
-            method = request.get("method")
-            requests.append(method)
-            if method == "initialize":
-                result = {}
-            elif method == "thread/queue/list":
-                result = {"data": held, "nextCursor": None}
-            elif method == "thread/resume":
-                result = {
-                    "thread": {
-                        "id": "codex-thread",
-                        "status": {"type": "idle"},
-                        "turns": [],
-                    }
-                }
-            elif method == "thread/turns/list":
-                result = {"data": [], "nextCursor": None}
-            else:
-                continue
-            socket.send(json.dumps({"id": request["id"], "result": result}))
-
-    connection = task_connection(app_server(handle))
-    assert connection.start_delivery(prepared.payload) is False
-
+    endpoint = app_server(handle)
+    assert task_connection(endpoint).start_delivery(prepared.payload) is False
     assert isinstance(
         codex_model.read_task_delivery("codex-thread", prepared.payload["id"]),
-        codex_model.StartingOffer,
+        codex_model.Offering,
     )
-    assert "thread/queue/start" not in requests
-    assert not [
-        event
-        for event in events_model.read_events(page_dir)
-        if event["kind"] in {"pickup", "reply"}
-    ]
-
-
-def test_a_codex_without_the_delivery_queue_is_refused_when_delivery_starts(
-    app_server,
-):
-    """Every delivery goes through App Server's experimental queue, so a Codex
-    without it is refused by `leaf codex start`, in front of the agent, rather than
-    refusing each delivery into the adapter's log."""
-
-    def handle(socket):
-        for raw in socket:
-            request = json.loads(raw)
-            if "id" not in request:
-                continue
-            if request["method"] == "initialize":
-                answer = {"result": {}}
-            else:
-                answer = {
-                    "error": {
-                        "message": "Invalid request: unknown variant `thread/queue/list`"
-                    }
-                }
-            socket.send(json.dumps({"id": request["id"], **answer}))
-
-    with pytest.raises(Refused, match="App Server queue.*unknown variant"):
-        codex_adapter_model.check_delivery_queue(app_server(handle), "codex-thread")
+    assert not thread_model.delivery_reply_reserved(
+        "codex-thread", prepared.payload["id"], target
+    )
 
 
 @pytest.mark.parametrize(
@@ -2403,28 +2462,30 @@ def test_a_codex_without_the_delivery_queue_is_refused_when_delivery_starts(
         },
     ],
 )
-def test_a_refused_submission_gives_up_the_reply_it_reserved(
+def test_a_refused_turn_gives_up_the_reply_it_reserved(
     page_dir, app_server, task_connection, refusal
 ):
-    """A provider that refuses a submission holds nothing.
+    """A provider that refuses before executing has started nothing.
 
     The reply reservation is what stops any other writer answering the user while the
-    provider is about to. A submission that certainly did not happen gives it up,
-    because until it does the user has neither an answer nor anything able to say
-    one is not coming.
+    provider is about to. A start that certainly did not happen gives it up, because
+    until it does the user has neither an answer nor anything able to say one is
+    not coming.
     """
     prepared = _codex_delivery(page_dir)
     target = codex_model.stream_reply_target(prepared.payload)
     endpoint = app_server(
-        _queue_app_server(
+        _idle_app_server(
             [
-                lambda request: [json.dumps({"id": request["id"], "error": refusal})],
-                lambda request: [
-                    *_turn_messages(
-                        "retry-turn", [_delivery_item(prepared.payload)], "Retried"
-                    ),
-                    json.dumps({"id": request["id"], "result": {}}),
-                ],
+                lambda request: json.dumps(
+                    {
+                        "id": request["id"],
+                        "error": refusal,
+                    }
+                ),
+                lambda request: json.dumps(
+                    {"id": request["id"], "result": {"turn": {"id": "retry-turn"}}}
+                ),
             ]
         )
     )
@@ -2450,19 +2511,19 @@ def test_a_refused_submission_gives_up_the_reply_it_reserved(
     )
 
 
-def test_an_unacknowledged_submission_keeps_the_reply_it_reserved(
+def test_an_unacknowledged_turn_keeps_the_reply_it_reserved(
     page_dir, app_server, task_connection
 ):
-    """A submission whose answer never came back may be in App Server's queue.
+    """A request whose answer never came back may have started a turn.
 
     Nothing here can tell, so the reply stays reserved: no other writer may answer
-    for a delivery a turn might be about to answer itself. The observer adopts
-    that turn the moment it says anything, and the delivery record stays offered
-    until it does.
+    for a delivery a running turn might be about to answer itself. The observer
+    adopts that turn the moment it says anything, and the delivery record stays
+    offered until it does.
     """
     prepared = _codex_delivery(page_dir)
     target = codex_model.stream_reply_target(prepared.payload)
-    endpoint = app_server(_queue_app_server([lambda _request: ["this is not json"]]))
+    endpoint = app_server(_idle_app_server([lambda _request: "this is not json"]))
 
     with pytest.raises(
         codex_model.AppServerDeliveryUncertain, match="not acknowledged"
@@ -2513,7 +2574,7 @@ def test_a_reply_that_cannot_be_written_still_closes_its_turn(page_dir, monkeypa
         turn.commit({"id": "leaf-turn", "status": "completed", "items": []})
 
     assert service_model.page_claim(page_dir)["turn_closed"] is not None
-    assert read_record(page_dir / "status.json")["stream"]["activity"] is None
+    assert read_record(page_dir / "stream.json")["activity"] is None
     # The reservation is released too: a reply that faulted part-written holds one
     # nothing will ever commit, and every other writer waits behind it.
     assert not thread_model.delivery_reply_reserved(
@@ -2540,7 +2601,10 @@ def test_an_observed_turn_whose_reply_cannot_be_written_still_closes(
     observer._read(
         {
             "method": "turn/started",
-            "params": {"threadId": "codex-thread", "turn": {"id": "leaf-turn"}},
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "leaf-turn", "items": [], "status": "inProgress"},
+            },
         }
     )
     observer._read(
@@ -2550,7 +2614,12 @@ def test_an_observed_turn_whose_reply_cannot_be_written_still_closes(
                 "threadId": "codex-thread",
                 "turnId": "leaf-turn",
                 "startedAtMs": 1,
-                "item": _delivery_item(payload),
+                "item": {
+                    "id": "delivery",
+                    "type": "functionCallOutput",
+                    "name": "leaf_delivery",
+                    "output": json.dumps(payload),
+                },
             },
         }
     )
@@ -2575,6 +2644,43 @@ def test_an_observed_turn_whose_reply_cannot_be_written_still_closes(
     )
 
 
+def test_a_task_that_will_never_take_a_turn_is_reported_rather_than_waited_on(
+    page_dir, app_server, task_connection
+):
+    """`systemError` is not a state a task comes out of by being left alone.
+
+    Holding the delivery for an idle task that never arrives leaves the user's
+    move picked up, unanswered, and unexplained for the adapter's life. Raising
+    puts it in the log and on the delivery loop's retry ladder, where every other
+    failure this adapter cannot fix by itself already is.
+    """
+    prepared = _codex_delivery(page_dir)
+
+    def handle(socket):
+        initialize = json.loads(socket.recv())
+        socket.send(json.dumps({"id": initialize["id"], "result": {}}))
+        socket.recv()  # initialized
+        for _ in range(2):
+            resume = json.loads(socket.recv())
+            socket.send(
+                json.dumps(
+                    {
+                        "id": resume["id"],
+                        "result": {
+                            "thread": {
+                                "id": "codex-thread",
+                                "status": {"type": "systemError"},
+                            }
+                        },
+                    }
+                )
+            )
+
+    endpoint = app_server(handle)
+    with pytest.raises(RuntimeError, match="not taking turns: systemError"):
+        task_connection(endpoint).start_delivery(prepared.payload)
+
+
 def test_a_running_turn_holds_a_delivery_back_without_asking_the_task(
     codex_claimed_page, monkeypatch
 ):
@@ -2583,10 +2689,9 @@ def test_a_running_turn_holds_a_delivery_back_without_asking_the_task(
     Status is only readable by opening a connection, so asking the task each pass
     would reconnect, handshake and resume once a second for as long as the user's
     turn runs. The observer is already subscribed and already folds every
-    `turn/started` and `turn/completed`, so the loop reads that instead. Holding
-    back leaves the delivery collecting, where the running turn's tool hook can
-    still take it; App Server's queue, not this reading, decides when a queued
-    delivery starts.
+    `turn/started` and `turn/completed`, so the loop reads that instead. It can
+    lag, which is why it only holds a delivery back — the status that lets one
+    start is still read on the starting connection.
     """
     page = codex_claimed_page
     append_carried_log_record(
@@ -2611,7 +2716,11 @@ def test_a_running_turn_holds_a_delivery_back_without_asking_the_task(
             "method": "turn/started",
             "params": {
                 "threadId": "codex-thread",
-                "turn": {"id": "a-turn-the-user-started"},
+                "turn": {
+                    "id": "a-turn-the-user-started",
+                    "items": [],
+                    "status": "inProgress",
+                },
             },
         }
     )
@@ -2631,7 +2740,11 @@ def test_a_running_turn_holds_a_delivery_back_without_asking_the_task(
             "method": "turn/completed",
             "params": {
                 "threadId": "codex-thread",
-                "turn": {"id": "a-turn-the-user-started", "status": "completed"},
+                "turn": {
+                    "id": "a-turn-the-user-started",
+                    "status": "completed",
+                    "items": [],
+                },
             },
         }
     )
@@ -2655,7 +2768,12 @@ def test_an_active_task_whose_turn_is_not_named_records_no_turn(monkeypatch):
 
     def send(_socket, _method, _request_id, params):
         sent.append(params)
-        return {"thread": {"id": "codex-thread", "status": {"type": "active"}}}
+        return {
+            "thread": {
+                "id": "codex-thread",
+                "status": {"type": "active", "activeFlags": []},
+            }
+        }
 
     observer._send = send
 
@@ -2849,7 +2967,7 @@ def test_codex_activity_rejects_nonlocal_or_invalid_app_servers(endpoint):
         codex_model.app_server_socket_path(endpoint)
 
 
-@pytest.mark.parametrize("lost", ["submission", "stream", "restart"])
+@pytest.mark.parametrize("lost", ["start", "malformed", "stream", "restart"])
 @pytest.mark.parametrize("reply_kind", ["thread", "action"])
 def test_one_subscription_recovers_delivery_without_a_second_start(
     page_dir, app_server, task_connection, lost, reply_kind
@@ -2928,21 +3046,19 @@ def test_one_subscription_recovers_delivery_without_a_second_start(
                         }
                     )
                 )
-            elif method == "thread/queue/add":
+            elif method == "turn/start":
                 starts.append(request)
-                if lost == "submission":
-                    socket.close()
-                    return
-                socket.send(json.dumps({"id": request["id"], "result": {}}))
-            elif method == "thread/queue/list":
-                socket.send(
-                    json.dumps(
-                        {
-                            "id": request["id"],
-                            "result": {"data": [], "nextCursor": None},
-                        }
+                if lost == "malformed":
+                    socket.send(json.dumps({"id": request["id"], "result": {}}))
+                elif lost != "start":
+                    socket.send(
+                        json.dumps(
+                            {
+                                "id": request["id"],
+                                "result": {"turn": {"id": "provider-turn"}},
+                            }
+                        )
                     )
-                )
                 if lost == "restart":
                     for _ in socket:
                         pass
@@ -2952,11 +3068,11 @@ def test_one_subscription_recovers_delivery_without_a_second_start(
 
     endpoint = app_server(handle)
     connection = task_connection(endpoint)
-    if lost == "submission":
+    if lost in {"start", "malformed"}:
         with pytest.raises(codex_model.AppServerDeliveryUncertain):
             connection.start_delivery(payload)
     else:
-        assert connection.start_delivery(payload) is False
+        assert connection.start_delivery(payload)
         if lost == "restart":
             connection.stop()
             assert not connection.thread.is_alive()
@@ -3005,24 +3121,69 @@ def test_one_subscription_recovers_delivery_without_a_second_start(
     ) == (1 if reply_kind == "thread" else 0)
 
 
-def test_one_subscription_commits_completion_before_the_submission_response(
+def test_one_subscription_commits_completion_before_the_start_response(
     page_dir, app_server, task_connection
 ):
-    """A provider may finish the delivery's turn while the submission request is
-    still waiting on its id."""
+    """A provider may finish while the start request is still waiting on its id."""
     prepared = _codex_delivery(page_dir)
     starts = []
+    answer = {
+        "id": "answer",
+        "type": "agentMessage",
+        "phase": "final_answer",
+        "text": "Already complete",
+    }
 
-    def answer(request):
-        starts.append(request)
-        return [
-            *_turn_messages(
-                "quick-turn", [_delivery_item(prepared.payload)], "Already complete"
-            ),
-            json.dumps({"id": request["id"], "result": {}}),
-        ]
-
-    handle = _queue_app_server([answer])
+    def handle(socket):
+        for raw in socket:
+            request = json.loads(raw)
+            method = request.get("method")
+            if method == "initialize":
+                socket.send(json.dumps({"id": request["id"], "result": {}}))
+            elif method == "thread/resume":
+                socket.send(
+                    json.dumps(
+                        {
+                            "id": request["id"],
+                            "result": {
+                                "thread": {
+                                    "id": "codex-thread",
+                                    "status": {"type": "idle"},
+                                    "turns": [],
+                                }
+                            },
+                        }
+                    )
+                )
+            elif method == "turn/start":
+                starts.append(request)
+                for method, turn in (
+                    (
+                        "turn/started",
+                        {
+                            "id": "quick-turn",
+                            "items": [_delivery_item(prepared.payload)],
+                            "status": "inProgress",
+                        },
+                    ),
+                    (
+                        "turn/completed",
+                        {"id": "quick-turn", "status": "completed", "items": [answer]},
+                    ),
+                ):
+                    socket.send(
+                        json.dumps(
+                            {
+                                "method": method,
+                                "params": {"threadId": "codex-thread", "turn": turn},
+                            }
+                        )
+                    )
+                socket.send(
+                    json.dumps(
+                        {"id": request["id"], "result": {"turn": {"id": "quick-turn"}}}
+                    )
+                )
 
     connection = task_connection(app_server(handle))
     assert connection.start_delivery(prepared.payload)
@@ -3037,12 +3198,11 @@ def test_one_subscription_commits_completion_before_the_submission_response(
     ] == ["Already complete"]
 
 
-def test_an_uncertain_submission_without_a_reply_reservation_survives_adapter_restart(
+def test_an_uncertain_start_without_a_reply_reservation_survives_adapter_restart(
     page_dir, app_server, task_connection
 ):
     """An action delivery has no reply reservation that could prevent a duplicate
-    submission. Once neither App Server's queue nor its history holds it on an idle
-    task, it is abandoned rather than queued again."""
+    start."""
     (page_dir / "index.html").write_text(
         PAGE.replace("<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1)
     )
@@ -3084,10 +3244,7 @@ def test_an_uncertain_submission_without_a_reply_reservation_survives_adapter_re
                         }
                     )
                 )
-            elif (
-                request.get("method") == "thread/turns/list"
-                or request.get("method") == "thread/queue/list"
-            ):
+            elif request.get("method") == "thread/turns/list":
                 socket.send(
                     json.dumps(
                         {
@@ -3096,7 +3253,7 @@ def test_an_uncertain_submission_without_a_reply_reservation_survives_adapter_re
                         }
                     )
                 )
-            elif request.get("method") == "thread/queue/add":
+            elif request.get("method") == "turn/start":
                 starts.append(request)
                 socket.close()
                 return
@@ -3131,6 +3288,99 @@ def test_an_uncertain_submission_without_a_reply_reservation_survives_adapter_re
     assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
 
 
+def test_status_callbacks_cannot_resend_an_already_accepted_delivery(
+    page_dir, app_server, task_connection
+):
+    """The status reader may consume the exact delivery before it returns idle."""
+    prepared = _codex_delivery(page_dir)
+    starts = []
+    resumes = []
+    answer = {
+        "id": "answer",
+        "type": "agentMessage",
+        "phase": "final_answer",
+        "text": "Accepted while checking",
+    }
+
+    def handle(socket):
+        for raw in socket:
+            request = json.loads(raw)
+            method = request.get("method")
+            if method == "initialize":
+                socket.send(json.dumps({"id": request["id"], "result": {}}))
+            elif method == "thread/resume":
+                resumes.append(request)
+                if len(resumes) == 2:
+                    for method, turn in (
+                        (
+                            "turn/started",
+                            {
+                                "id": "earlier-turn",
+                                "items": [_delivery_item(prepared.payload)],
+                                "status": "inProgress",
+                            },
+                        ),
+                        (
+                            "turn/completed",
+                            {
+                                "id": "earlier-turn",
+                                "status": "completed",
+                                "items": [answer],
+                            },
+                        ),
+                    ):
+                        socket.send(
+                            json.dumps(
+                                {
+                                    "method": method,
+                                    "params": {
+                                        "threadId": "codex-thread",
+                                        "turn": turn,
+                                    },
+                                }
+                            )
+                        )
+                socket.send(
+                    json.dumps(
+                        {
+                            "id": request["id"],
+                            "result": {
+                                "thread": {
+                                    "id": "codex-thread",
+                                    "status": {"type": "idle"},
+                                    "turns": [],
+                                }
+                            },
+                        }
+                    )
+                )
+            elif method == "turn/start":
+                starts.append(request)
+                socket.send(
+                    json.dumps(
+                        {
+                            "id": request["id"],
+                            "result": {"turn": {"id": "duplicate-turn"}},
+                        }
+                    )
+                )
+
+    connection = task_connection(app_server(handle))
+    assert connection.start_delivery(prepared.payload)
+    assert starts == []
+    assert connection.turns == {}
+    assert not connection.working()
+    assert isinstance(
+        codex_model.read_task_delivery("codex-thread", prepared.payload["id"]),
+        codex_model.Accepted,
+    )
+    assert [
+        event["text"]
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "reply"
+    ] == ["Accepted while checking"]
+
+
 @pytest.mark.parametrize("manual", [False, True])
 def test_abandonment_recovery_releases_the_seat_and_preserves_manual_answers(
     page_dir, manual
@@ -3162,7 +3412,7 @@ def test_abandonment_recovery_releases_the_seat_and_preserves_manual_answers(
     assert replies[0]["text"] == (
         "Manual answer" if manual else codex_model.UNCONFIRMED_TEXT
     )
-    assert service_model.read_cursor(page_dir) > 0
+    assert acknowledged_through(page_dir) > 0
     # Late provider evidence keeps its exact delivery identity but cannot replace
     # the manual answer that won before this harness retired its unknown attempt.
     if manual:
@@ -3323,8 +3573,6 @@ def test_unloaded_provider_history_cannot_abandon_an_uncertain_start(
             request = json.loads(raw)
             if request.get("method") == "initialize":
                 result = {}
-            elif request.get("method") == "thread/queue/list":
-                result = {"data": [], "nextCursor": None}
             elif request.get("method") == "thread/turns/list":
                 result = {
                     "data": [{"id": "unknown", "itemsView": "notLoaded", "items": []}],
@@ -3354,7 +3602,7 @@ def test_an_unloaded_running_user_turn_retains_its_notification_fold(page_dir):
     connection = _observer()
     connection._resume(
         {
-            "status": {"type": "active"},
+            "status": {"type": "active", "activeFlags": []},
             "turns": [
                 {
                     "id": "ordinary-turn",
@@ -3390,7 +3638,9 @@ def test_an_unloaded_running_user_turn_retains_its_notification_fold(page_dir):
                 "threadId": "codex-thread",
                 "turnId": "ordinary-turn",
                 "itemId": "approval",
+                "startedAtMs": 0,
             },
+            "id": 1,
         }
     )
     assert connection.turns["ordinary-turn"].events.waiting_kind == "awaiting_approval"
@@ -3454,7 +3704,12 @@ def test_full_history_restores_the_running_identity_omitted_from_resume(
             if method == "initialize":
                 result = {}
             elif method == "thread/resume":
-                result = {"thread": {"status": {"type": "active"}, "turns": []}}
+                result = {
+                    "thread": {
+                        "status": {"type": "active", "activeFlags": []},
+                        "turns": [],
+                    }
+                }
             elif method == "thread/turns/list":
                 result = {
                     "data": [
@@ -3509,7 +3764,7 @@ def test_unloaded_running_metadata_preserves_the_disconnected_reply_draft(page_d
     connection._disconnect_turns()
     connection._resume(
         {
-            "status": {"type": "active"},
+            "status": {"type": "active", "activeFlags": []},
             "turns": [
                 {
                     "id": "draft-turn",
@@ -3521,10 +3776,7 @@ def test_unloaded_running_metadata_preserves_the_disconnected_reply_draft(page_d
         }
     )
     assert connection.turns["draft-turn"].events.text["draft"] == "Retained draft"
-    assert (
-        read_record(page_dir / "status.json")["stream"]["reply"]["text"]
-        == "Retained draft"
-    )
+    assert read_record(page_dir / "stream.json")["reply"]["text"] == "Retained draft"
 
 
 def test_archived_abandonment_recovers_a_late_final_from_paginated_history(
@@ -3631,7 +3883,10 @@ def test_observer_rejects_stale_running_snapshot(existing_fold, claimed):
         observer._read(
             {
                 "method": "turn/started",
-                "params": {"threadId": "s1", "turn": {"id": "old"}},
+                "params": {
+                    "threadId": "s1",
+                    "turn": {"id": "old", "items": [], "status": "inProgress"},
+                },
             }
         )
     cleanup_model.prompt_turn("s1", "new")
@@ -3639,7 +3894,7 @@ def test_observer_rejects_stale_running_snapshot(existing_fold, claimed):
     current = cleanup_model.session_record("s1")
     observer._resume(
         {
-            "status": {"type": "active"},
+            "status": {"type": "active", "activeFlags": []},
             "turns": [{"id": "old", "status": "inProgress", "items": []}],
         }
     )
@@ -3651,7 +3906,13 @@ def test_observer_continues_after_a_recovered_provider_completion(claimed):
     cleanup_model.prompt_turn("s1", "old")
     observer = codex_adapter_model.TaskConnection("ws://127.0.0.1:1", "s1")
     observer._read(
-        {"method": "turn/started", "params": {"threadId": "s1", "turn": {"id": "old"}}}
+        {
+            "method": "turn/started",
+            "params": {
+                "threadId": "s1",
+                "turn": {"id": "old", "items": [], "status": "inProgress"},
+            },
+        }
     )
     observer._resume(
         {
@@ -3661,7 +3922,13 @@ def test_observer_continues_after_a_recovered_provider_completion(claimed):
     )
     assert cleanup_model.session_record("s1")["turn_closed"] is not None
     observer._read(
-        {"method": "turn/started", "params": {"threadId": "s1", "turn": {"id": "next"}}}
+        {
+            "method": "turn/started",
+            "params": {
+                "threadId": "s1",
+                "turn": {"id": "next", "items": [], "status": "inProgress"},
+            },
+        }
     )
     assert observer.running == "next"
     assert cleanup_model.session_record("s1")["turn"] == "next"
@@ -3703,7 +3970,7 @@ def test_resume_metadata_cannot_replace_a_newer_observation_during_the_request(
             "method": "turn/started",
             "params": {
                 "threadId": "codex-thread",
-                "turn": {"id": "old-turn"},
+                "turn": {"id": "old-turn", "items": [], "status": "inProgress"},
             },
         }
     )
@@ -3721,7 +3988,11 @@ def test_resume_metadata_cannot_replace_a_newer_observation_during_the_request(
                                 "method": "turn/started",
                                 "params": {
                                     "threadId": "codex-thread",
-                                    "turn": {"id": "new-turn"},
+                                    "turn": {
+                                        "id": "new-turn",
+                                        "items": [],
+                                        "status": "inProgress",
+                                    },
                                 },
                             }
                         )
@@ -3760,7 +4031,7 @@ def test_resume_metadata_cannot_replace_a_newer_observation_during_the_request(
         codex_model.app_server_handshake(socket, 0, "test", "test", connection._read)
         thread, expected = connection._resume_task(socket, exclude_turns=False)
         winner = cleanup_model.session_record("codex-thread")
-        status_before = service_model.PageTransaction(page_dir).status
+        status_before = status_and_stream(page_dir)
         connection._resume(thread, expected)
     assert cleanup_model.session_record("codex-thread") == winner
     assert winner["turn"] == "new-turn"
@@ -3770,7 +4041,7 @@ def test_resume_metadata_cannot_replace_a_newer_observation_during_the_request(
     if replacement == "provider_notification":
         assert connection.turns["new-turn"].events.waiting_kind is None
     else:
-        assert service_model.PageTransaction(page_dir).status == status_before
+        assert status_and_stream(page_dir) == status_before
 
 
 def test_stale_live_notifications_cannot_reuse_a_fold_after_a_newer_prompt(page_dir):
@@ -3782,22 +4053,32 @@ def test_stale_live_notifications_cannot_reuse_a_fold_after_a_newer_prompt(page_
             "method": "turn/started",
             "params": {
                 "threadId": "codex-thread",
-                "turn": {"id": "old-turn"},
+                "turn": {"id": "old-turn", "items": [], "status": "inProgress"},
             },
         }
     )
     cleanup_model.prompt_turn("codex-thread", "new-turn")
     winner = cleanup_model.session_record("codex-thread")
-    for method, params in [
-        ("turn/started", {"turn": {"id": "old-turn"}}),
-        (
-            "item/commandExecution/requestApproval",
-            {"turnId": "old-turn", "itemId": "old-approval"},
-        ),
+    for message in [
+        {
+            "method": "turn/started",
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "old-turn", "items": [], "status": "inProgress"},
+            },
+        },
+        {
+            "method": "item/commandExecution/requestApproval",
+            "id": 1,
+            "params": {
+                "threadId": "codex-thread",
+                "turnId": "old-turn",
+                "itemId": "old-approval",
+                "startedAtMs": 0,
+            },
+        },
     ]:
-        connection._read(
-            {"method": method, "params": {"threadId": "codex-thread", **params}}
-        )
+        connection._read(message)
     assert cleanup_model.session_record("codex-thread") == winner
     assert connection.turns["old-turn"].events.waiting_kind is None
 
@@ -3811,7 +4092,7 @@ def test_a_matching_live_completion_allows_the_next_turn_without_prompt_hooks(pa
                 "method": "turn/started",
                 "params": {
                     "threadId": "codex-thread",
-                    "turn": {"id": turn_id},
+                    "turn": {"id": turn_id, "items": [], "status": "inProgress"},
                 },
             }
         )
@@ -3841,7 +4122,10 @@ def test_completion_after_stop_advances_observation_without_a_running_fold(
     connection._read(
         {
             "method": "turn/started",
-            "params": {"threadId": "codex-thread", "turn": {"id": "first-turn"}},
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "first-turn", "items": [], "status": "inProgress"},
+            },
         }
     )
     assert "first-turn" not in connection.turns
@@ -3858,7 +4142,10 @@ def test_completion_after_stop_advances_observation_without_a_running_fold(
     connection._read(
         {
             "method": "turn/started",
-            "params": {"threadId": "codex-thread", "turn": {"id": "second-turn"}},
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "second-turn", "items": [], "status": "inProgress"},
+            },
         }
     )
     assert connection.running == "second-turn"
@@ -3877,7 +4164,10 @@ def test_old_completion_cannot_close_a_newer_lifecycle(
         connection._read(
             {
                 "method": "turn/started",
-                "params": {"threadId": "codex-thread", "turn": {"id": "old-turn"}},
+                "params": {
+                    "threadId": "codex-thread",
+                    "turn": {"id": "old-turn", "items": [], "status": "inProgress"},
+                },
             }
         )
     if replacement == "new_generation":
@@ -3924,7 +4214,7 @@ def test_old_fold_cannot_change_activity_in_a_reused_session_generation(
         expected=cleanup_model.session_record("codex-thread"),
     )
     winner = cleanup_model.session_record("codex-thread")
-    status = service_model.PageTransaction(page_dir).status
+    status = status_and_stream(page_dir)
     if cleanup == "completion":
         old.commit({"id": "same-turn", "status": "completed", "items": []})
     elif cleanup == "disconnect":
@@ -3941,12 +4231,15 @@ def test_old_fold_cannot_change_activity_in_a_reused_session_generation(
                         "id": "old-command",
                         "type": "commandExecution",
                         "command": "old command",
+                        "commandActions": [],
+                        "cwd": "/work",
+                        "status": "inProgress",
                     },
                 },
             }
         )
     assert cleanup_model.session_record("codex-thread") == winner
-    assert service_model.PageTransaction(page_dir).status == status
+    assert status_and_stream(page_dir) == status
 
 
 @pytest.mark.parametrize("replacement", ["prompt", "stop"])
@@ -3974,7 +4267,7 @@ def test_an_old_fold_cannot_publish_working_or_tool_activity_after_its_turn(
     else:
         cleanup_model.close_session_turn("codex-thread", "old-turn")
         fold.clear_activity()
-    status = service_model.PageTransaction(page_dir).status
+    status = status_and_stream(page_dir)
     epoch = cleanup_model.session_record("codex-thread")
     fold.set_activity({"kind": "working"})
     fold.absorb(
@@ -3988,11 +4281,14 @@ def test_an_old_fold_cannot_publish_working_or_tool_activity_after_its_turn(
                     "id": "old-command",
                     "type": "commandExecution",
                     "command": "old command",
+                    "commandActions": [],
+                    "cwd": "/work",
+                    "status": "inProgress",
                 },
             },
         }
     )
-    assert service_model.PageTransaction(page_dir).status == status
+    assert status_and_stream(page_dir) == status
     assert cleanup_model.session_record("codex-thread") == epoch
 
 
@@ -4023,7 +4319,7 @@ def test_a_rejected_started_fold_cannot_publish_initial_working_activity(
             expected=cleanup_model.session_record("codex-thread"),
         )
         winner["epoch"] = cleanup_model.session_record("codex-thread")
-        winner["status"] = service_model.PageTransaction(page_dir).status
+        winner["status"] = status_and_stream(page_dir)
         return construct(turn_id, delivery_id, **scope)
 
     monkeypatch.setattr(connection, "_fold", supersede_before_construction)
@@ -4037,24 +4333,21 @@ def test_a_rejected_started_fold_cannot_publish_initial_working_activity(
                 result = {}
             elif request["method"] == "thread/resume":
                 result = {"thread": {"status": {"type": "idle"}, "turns": []}}
-            elif request["method"] == "thread/queue/add":
-                for message in _turn_messages(
-                    "same-turn", [_delivery_item(offered.payload)], "Too late"
-                )[:2]:
-                    socket.send(message)
-                result = {}
-            elif request["method"] == "thread/queue/list":
-                result = {"data": [], "nextCursor": None}
+            elif request["method"] == "turn/start":
+                result = {"turn": {"id": "same-turn"}}
             else:
                 raise AssertionError(request["method"])
             socket.send(json.dumps({"id": request["id"], "result": result}))
 
     with codex_model.app_server_connect(app_server(handle)) as socket:
         codex_model.app_server_handshake(socket, 0, "test", "test", connection._read)
-        assert connection._start_delivery(socket, offered.payload) is False
+        with pytest.raises(
+            codex_model.AppServerDeliveryUncertain, match="newer session epoch"
+        ):
+            connection._start_delivery(socket, offered.payload)
     assert not connection.turns
     assert cleanup_model.session_record("codex-thread") == winner["epoch"]
-    assert service_model.PageTransaction(page_dir).status == winner["status"]
+    assert status_and_stream(page_dir) == winner["status"]
 
 
 def test_fresh_resume_replaces_a_fold_from_an_earlier_session_generation(page_dir):
@@ -4064,7 +4357,10 @@ def test_fresh_resume_replaces_a_fold_from_an_earlier_session_generation(page_di
     connection._read(
         {
             "method": "turn/started",
-            "params": {"threadId": "codex-thread", "turn": {"id": "same-turn"}},
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "same-turn", "items": [], "status": "inProgress"},
+            },
         }
     )
     old = connection.turns["same-turn"]
@@ -4095,10 +4391,7 @@ def test_fresh_resume_replaces_a_fold_from_an_earlier_session_generation(page_di
     connection.turns["same-turn"].set_activity(
         {"kind": "tool", "detail": "New activity"}
     )
-    assert (
-        service_model.PageTransaction(page_dir).status["stream"]["activity"]["detail"]
-        == "New activity"
-    )
+    assert service_model.read_stream(page_dir)["activity"]["detail"] == "New activity"
     connection._read(
         {
             "method": "turn/completed",
@@ -4236,12 +4529,9 @@ def test_an_invalid_automatic_final_delivers_one_exact_correction(
 
     def start_delivery(payload):
         assert payload == correction
-        codex_model.queue_app_server_delivery(lambda *_: {}, "codex-thread", payload)
         restarted.append(
-            cleanup_model.start_session_turn(
-                "codex-thread",
-                "repair-turn",
-                cleanup_model.session_record("codex-thread"),
+            codex_model.start_app_server_delivery(
+                lambda *_: {"turn": {"id": "repair-turn"}}, "codex-thread", payload
             )
         )
         return True

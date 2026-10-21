@@ -1,8 +1,7 @@
 # Further Codex integration work
 
 Leaf's current companion workflow is documented in
-[harness-codex.md](../skills/leaf/references/harness-codex.md) and
-[harness-codex-app-server.md](../skills/leaf/references/harness-codex-app-server.md).
+[harness-codex.md](../skills/leaf/references/harness-codex.md).
 [Session lifetime, “Watchers”](../skills/leaf/scripts/leaf/session-lifetime.md#watchers)
 owns the delivery and connection lifecycle. This note holds open design work.
 
@@ -10,8 +9,11 @@ owns the delivery and connection lifecycle. This note holds open design work.
 
 Provide model tools for reading page state, replying, declaring work, and
 validating authored changes. MCP tools or App Server dynamic tools could call the
-same Python functions as the CLI. Keep event admission and reply settlement in
-those existing owners.
+same Python functions as the CLI. Leaf's Codex plugin already declares an MCP server
+whose one generic tool, `run`, runs a `leaf` command outside the sandbox
+(`codex_tool.py`); a typed tool would stand beside it. Keep event admission and reply
+settlement in those existing owners. "Evaluate a typed reply body" below measures
+what Codex would send such a tool.
 
 First test a complete feedback turn with the smallest useful tool set. Compare
 it with the CLI path for target-selection errors and unnecessary model work.

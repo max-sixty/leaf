@@ -10,6 +10,7 @@ from dataclasses import replace
 
 import leaf_website as website_server
 import pytest
+from interact_support import comment as open_thread
 from interact_support import owed_answers, running_http_server
 from leaf.event_log import read_events
 from leaf.files import revision_path
@@ -340,27 +341,6 @@ def test_website_samples_serve_private_pages_without_starting_an_agent(
         assert harness.attached == []
 
 
-def test_attention_is_recorded_for_each_page_on_a_shared_server(page_dir, tmp_path):
-    """One visible page cannot throttle another page's canonical user recency."""
-    site = tmp_path / "site"
-    pages = {}
-    for name in ("first", "second"):
-        published = site / "examples" / name
-        published.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(page_dir, published)
-        pages[f"/examples/{name}"] = (f"examples/{name}", "example")
-    write_manifest(site, pages)
-    httpd = LeafHTTPServer(("127.0.0.1", 0), website_server.site_endpoint(site, None))
-    root = f"http://127.0.0.1:{httpd.server_address[1]}"
-    with running_http_server(httpd):
-        for name in ("first", "second"):
-            get(f"{root}/examples/{name}/api/news")
-            assert (
-                json.loads((site / "examples" / name / "viewed.json").read_text())["t"]
-                > 0
-            )
-
-
 def test_the_website_refuses_a_page_vendored_at_another_protocol(page_dir, tmp_path):
     """The container serves only pages vendored at its own Leaf's protocol, as every
     page server does; a site built across a breaking change breaks in the browser
@@ -393,6 +373,14 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
     published = site / "examples" / "decision"
     published.parent.mkdir(parents=True)
     shutil.copytree(page_dir, published)
+    # The session that wrote the page left its voice in the log; the copy is still
+    # answered by the host's agent.
+    monkeypatch.setenv("LEAF_AGENT", "Claude")
+    monkeypatch.setenv("LEAF_SESSION_ID", "authoring-session")
+    opened = open_thread(published, "--text", "Which plan reads best?")
+    assert opened.exit_code == 0, opened.output
+    monkeypatch.delenv("LEAF_AGENT")
+    monkeypatch.delenv("LEAF_SESSION_ID")
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
 
     agent_harness = FakeCodexHarness()
@@ -434,6 +422,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
             "agent": "Agent",
             "install_url": "/#install",
         }
+        assert state["agent"] == "Agent"
         assert headers["Leaf-Layer"] == state["layer"]["generation"]
         assert headers["Leaf-Session"] == "active"
 

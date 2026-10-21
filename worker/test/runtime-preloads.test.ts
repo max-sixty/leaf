@@ -100,14 +100,10 @@ it("bundles each document's static graph without fetching optional modules or ch
         "/widgets/": `${root}/widgets/`,
       };
       const body = revision === 2 ? "<lf-used>Study</lf-used>" : "Study";
-      // Initial paint opens a template at execution time. Its literal closing tag
-      // must survive the build even though an HTML parser sees no matching opener.
-      const initial =
-        '<script data-lf-runtime data-lf-initial>document.write("<template data-lf-runtime data-lf-initial-source>");</script><span>First paint</span></template><p id="after-first-paint">Still visible</p>';
       const authored = `<script>const mapMarker = '<script type="importmap" data-lf-runtime>'; const hintLiteral = '<link rel="modulepreload" href="${root}/leaf.js" data-lf-runtime>';</script>`;
       const importMap = `<script type="importmap" data-lf-runtime>${JSON.stringify({ imports })}</script>`;
       const prefix = `<!DOCTYPE html><html><!--${importMap}--><head>${authored}<link rel="stylesheet" href="${root}/leaf.css" data-lf-runtime>${importMap}`;
-      const source = `${prefix}<script data-lf-runtime data-lf-probe="${root}/registry.json">throw new Error("never execute authored scripts during the build");</script><script type="module" src="${root}/leaf.js" data-lf-runtime></script></head><body>${body}${initial}<template><lf-unused></lf-unused></template></body></html>`;
+      const source = `${prefix}<script data-lf-runtime data-lf-probe="${root}/registry.json">throw new Error("never execute authored scripts during the build");</script><script type="module" src="${root}/leaf.js" data-lf-runtime></script></head><body>${body}<template><lf-unused></lf-unused></template></body></html>`;
       const insertion = prefix.length;
       const shared = join(directory, `shared-${revision}.html`);
       await writeFile(shared, source);

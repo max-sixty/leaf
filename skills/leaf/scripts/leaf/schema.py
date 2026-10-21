@@ -602,21 +602,18 @@ MEDIA_TYPES = {
 # browser and the Worker know the directory and never the name.
 MEDIA_DIGEST = 16
 NO_KEY = "open the link leaf printed; it carries the key"
-DATA_FILE = "data.json"
 FILE_BINDINGS_FILE = "files.json"
 DATA_DIR = "data"
 # The diagnostic request and interaction trace (`interaction_log.py`).
 INTERACTIONS_FILE = "observations.jsonl"
 PREVIEW_FILE = "preview.json"
-VIEWED_FILE = "viewed.json"
 USER_VIEWS_FILE = "user-views.json"
 USER_VIEWS_LOCK = "user-views.lock"
 RENDER_CHECKS_DIR = "checks"
 # How long a bare address stays authorized after the last handover link (`host_key`),
 # the lifetime Jupyter gives its login cookie.
 KEY_COOKIE_MAX_AGE = 30 * 24 * 60 * 60
-STATUS_FILE = "status.json"
-CURSOR_FILE = "cursor.json"
+STREAM_FILE = "stream.json"
 SERVICE_FILE = "service.json"
 SERVER_LOCK = "server.lock"
 WAITER_LOCK = "waiter.lock"
@@ -625,26 +622,21 @@ WAITER_LOCK = "waiter.lock"
 # Neither validation nor a revision's capture reads these, so a write to one is news to
 # an open tab and never a candidate revision.
 SESSION_FILES = (
-    STATUS_FILE,
+    STREAM_FILE,
     WAITER_LOCK,
-    VIEWED_FILE,
     USER_VIEWS_FILE,
     USER_VIEWS_LOCK,
     SERVICE_FILE,
     SERVER_LOCK,
     PREVIEW_FILE,
 )
-# Acknowledgement belongs to the log, and survives replacement of its reader.
-LOG_STATE_FILES = (CURSOR_FILE,)
 # Process declarations, leases, browser observations and diagnostics are disposable.
 PAGE_PROCESS_FILES = (*SESSION_FILES, INTERACTIONS_FILE)
 # The files Leaf writes in a page directory as it runs. With the author's index.html,
 # the vendored files, and PAGE_OWNED_DIRS, the whole of page-storage.md's "Files".
 PAGE_STATE_FILES = (
     EVENTS_FILE,
-    *LOG_STATE_FILES,
     INTERACTIONS_FILE,
-    DATA_FILE,
     FILE_BINDINGS_FILE,
     *SESSION_FILES,
 )

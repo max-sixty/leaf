@@ -1125,7 +1125,6 @@ leaf server start ./review</code></pre>
 leaf page state ./review
 leaf page state ./review &lt;thread-id&gt;
 # Revise ./review/index.html.
-leaf page check ./review
 leaf response reply &lt;answer.ref&gt; --done --text "The importer policy is updated."
 leaf status ./review waiting "Does the revised policy match the workload?"</code></pre>
               <p id="answers-kinds">
@@ -1191,7 +1190,7 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
                   instructions. A delivery id supplied by the harness names this whole
                   envelope; an event’s <code>id</code> names one recorded event.
                   <a href="#wait-ack">Harness connections and receipt</a> describes how
-                  to read and confirm a delivery pointer.
+                  to read and confirm a delivery pointer. <a href="/data-structures/#record-delivery">Data structures</a> lists every field.
                 </p>
                 <table id="delivery-fields">
                   <thead>
@@ -1224,8 +1223,7 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
                     <tr>
                       <td><code>answer</code></td>
                       <td>
-                        The response owed at capture: <code>reply</code>,
-                        <code>turn</code>, or <code>markup</code>, with its address.
+                        The response owed at capture, with its address and <code>ref</code>: a thread <code>reply</code>, whose <code>writer</code> is the agent or the turn’s final message, or a stamped <code>markup</code> revision.
                       </td>
                     </tr>
                     <tr>
@@ -1252,14 +1250,14 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
                 >
                   <pre id="handling-json"><code class="language-json">{
   "handling": {
-    "c1": "Read the thread context before answering.",
-    "c2": "Write the answer with leaf response reply using its answer.ref."
+    "h1": "Read the thread context before answering.",
+    "h2": "Write the answer with leaf response reply using its answer.ref."
   },
   "events": [
     {
       "id": "9d41b20f",
       "kind": "comment",
-      "handling": ["c1", "c2"],
+      "handling": ["h1", "h2"],
       "answer": {
         "kind": "reply",
         "parent": "9d41b20f",
@@ -1272,7 +1270,7 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
 }</code></pre>
                 </lf-sample>
                 <p id="handling-example-reading">
-                  The event's list selects <code>c1</code> and then <code>c2</code> from
+                  The event's list selects <code>h1</code> and then <code>h2</code> from
                   this batch. These ids belong only to that batch. The event id
                   identifies the update being answered.
                 </p>
@@ -1372,8 +1370,8 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   unanswered updates and delivery between turns. Claude Code shows a
                   reminder as context, not an error. A new update normally opens a turn
                   of its own after this one ends, preserving this turn’s final message
-                  as its answer. Where nothing watches afterward, as with plain
-                  <code>--print</code>, an update needing an answer enters the current
+                  as its answer. Where nothing watches afterward, as with Claude Code’s plain
+                  <code>--print</code> or a Codex task waiting with <code>leaf wait</code>, an update needing an answer enters the current
                   turn instead. An update needing no answer waits for the next turn.
                 </p>
                 <figure id="turn-end-check" class="decision-flow">
@@ -1598,7 +1596,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
           <section id="delivery">
             <h2>Harness connections and receipt</h2>
             <p id="wait-trick">
-              Claude Code’s background hook watches between turns and wakes the agent;
+              Claude Code’s hooks module watches between turns and wakes the agent;
               its prompt hook puts the update into the new turn. Codex’s adapter queues
               the update as the next message, or starts a turn when Leaf is an App
               Server client. Pi’s experimental extension runs inside Pi. Each route
@@ -1691,16 +1689,15 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               <summary>Claude Code integration</summary>
               <p id="claude-hooks">
                 <code>leaf hook</code> handles Claude Code's prompt and Stop hooks, and
-                <code>leaf session-end</code> releases the session's pages. A background
-                Stop hook runs <code>leaf hook --watch</code> and wakes the session when
-                an update arrives.
+                <code>leaf session-end</code> releases the session's pages. Leaf's hooks
+                module runs <code>leaf hook --watch</code> as each turn ends and wakes
+                the session when an update arrives.
               </p>
               <p id="claude-activity">
                 Leaf reads Claude Code's session registry to tell whether a session is
-                busy, waiting or idle. If the background watch has stopped, Leaf can
-                message the session through its socket, or resume a retired background
-                session with
-                <code>claude --bg --resume</code>. The socket accepting a message
+                busy, waiting or idle. If nothing is watching the page, Leaf can message
+                the session through its socket, or resume a retired background session
+                with <code>claude --bg --resume</code>. The socket accepting a message
                 doesn't show that the agent read it.
               </p>
             </details>
@@ -1747,11 +1744,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 >,
                 <a
                   href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/harness-codex.md"
-                  >Codex queue delivery</a
-                >,
-                <a
-                  href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/harness-codex-app-server.md"
-                  >Codex App Server</a
+                  >Codex</a
                 >, and
                 <a
                   href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/harness-pi.md"
@@ -3793,23 +3786,20 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   </tr>
                 </thead>
                 <tbody>
-                  <tr id="data-row-cursor">
-                    <td><code>cursor.json</code></td>
-                    <td>
-                      The position in the event log through which delivery is confirmed
-                    </td>
-                  </tr>
                   <tr id="data-row-viewed">
-                    <td><code>viewed.json</code></td>
-                    <td>The last time a browser tab showed the page</td>
-                  </tr>
-                  <tr id="data-row-status">
-                    <td><code>status.json</code></td>
-                    <td>
-                      The agent's declared waiting or idle status and observed activity
-                    </td>
-                  </tr>
-                  <tr id="data-row-interactions">
+                  <td><code>user-views.json</code></td>
+                  <td>
+                    Each open tab's view of the page, and the last time a tab showed it
+                  </td>
+                </tr>
+<tr id="data-row-stream">
+                  <td><code>stream.json</code></td>
+                  <td>
+                    What the agent's harness observes of a turn as it runs: its activity
+                    and the reply it is drafting
+                  </td>
+                </tr>
+<tr id="data-row-interactions">
                     <td><code>observations.jsonl</code></td>
                     <td>A diagnostic trace of requests and browser interactions</td>
                   </tr>
@@ -3822,29 +3812,21 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   </tr>
                 </tbody>
               </table>
-              <p id="data-record-format">
-                Leaf installations share the machine's state home. Each bookkeeping
-                record declares its format and the protocol at which that shape last
-                changed. A record with another format or missing required fields reads
-                as absent; malformed JSON raises an error. These records coordinate
-                running sessions, while the page directory remains the durable page
-                record.
-              </p>
+              <p id="data-structures-link">
+              <a href="/data-structures/">Data structures</a> lists the fields of each
+              of these records, of every event kind, and of the state the server sends
+              the browser.
+            </p>
             </section>
             <section id="data-sources">
               <h2>External data</h2>
               <p id="data-sources-lede">
-                External values, such as benchmarks or build status, use one JSON
-                publication per named source. <code>leaf data set</code> validates the
-                value against the page's declaration, records the contract in
-                <code>data.json</code>, and replaces the publication atomically. Any
-                process can call it. Leaf validates the value against the recorded
-                contract on read and displays a source error for a mismatch.
-              </p>
+External values, such as benchmarks or build status, use one JSON publication per named source. <code>leaf data set</code> validates the value against the page’s declaration, records the contract beside the value in the source file, and replaces the publication atomically. Any process can call it. Leaf validates the value against the recorded contract on read and displays a source error for a mismatch.
+</p>
               <p id="data-sources-live">
                 A source replacement updates the open page without creating a revision;
                 each publication holds its latest value. A later page revision may
-                change the source's contract. An <code>lf-num</code> instead freezes a
+                bind the source to another contract, which its next write takes. An <code>lf-num</code> instead freezes a
                 number into authored text. It retains that number when the source
                 changes, and <code>leaf page check</code> reports when its source has
                 changed.

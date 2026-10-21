@@ -3,22 +3,21 @@
 Two programs connect to a Codex task's App Server for Leaf: the detached
 `codex_adapter.py`, which watches a task the user owns, and `leaf_website`
 (`worker/`), which owns the tasks it starts. Both use this module's App Server
-connection, `queue_app_server_delivery` and `start_queued_delivery` to hand a
-delivery to the task, `TurnFold` to turn a turn's notifications into page activity,
-a reply and an ending, and `CarriedTurn` to follow a turn on the connection that
-queued it. Each client's header says how notifications reach its folds and what it
-does when a submission or a connection fails.
+connection, `start_app_server_delivery` to start a delivery's turn, `TurnFold` to
+turn a turn's notifications into page activity, a reply and an ending, and
+`CarriedTurn` to follow a turn on the connection that started it. Each client's
+header says how notifications reach its folds and what it does when a start or a
+connection fails.
 
 A delivery carries a batch of the user's updates to the task. Its content is an
 immutable envelope (`delivery.freeze_delivery`, read with `leaf delivery read <id>`).
 Its progress is one mutable record per delivery under the state home, whose class
 says how far it has got: `Collecting` while `append_batch` adds events, `Offering`
 once `offer_delivery` freezes the envelope and hands out a pointer to it,
-`HookOffer` when that pointer went to a hook's running turn, `StartingOffer` once
-the delivery went to App Server's queue and no turn has yet been seen to carry it,
-then `Accepted` (`codex queue` took it), `Opened` (a known turn took it) or
-`Abandoned`. Every transport shares the record, writing it under the session's
-delivery lock: an App Server turn, the `codex queue` command, and
+`HookOffer` when the envelope went to a hook's running turn, `StartingOffer` while an
+App Server start is unconfirmed, then `Accepted` (the queue took it), `Opened` (a
+known turn took it) or `Abandoned`. Every transport shares the record, writing it
+under the session's delivery lock: an App Server turn, the `codex queue` command, and
 Codex's tool and Stop hooks. A record is offered once, accepted once
 (`accept_codex_delivery`), and receipted on each page (`finish_codex_batch`).
 
@@ -32,16 +31,20 @@ finds its envelope. A batch whose page is gone, or whose events no longer match 
 page, is retired without writing (`delivery.receive_batch`).
 
 While Codex's tool hook can reach the running turn, `offer_hook_delivery` offers the
-pointer between steps and records the turn in a `HookOffer`. The Stop hook does the
-same, even for a resumed turn that ran no tool. `leaf delivery ack` in that turn
-accepts it (`codex_state.confirm_codex_pointer`). A hook never re-offers a pointer or
-takes one another transport holds. Once Stop or Interrupt closes the turn, or the
-turn no longer reads as running, the adapter's `_offer_queued_delivery` offers the
-unread pointer itself. Without an App Server connection it hands the pointer to
-`codex queue`, retrying the same pointer while the session owns a page. With a
-connection it puts the whole delivery on the task's App Server queue once no turn is
-running. A delivery offered by a hook or `codex queue` asks the agent for a plain
-reply; one queued over App Server takes its turn's final message as its reply.
+complete envelope as one line of JSON, or its pointer above Codex's context limit,
+and records the turn in a `HookOffer`. `leaf delivery ack` in that turn accepts it
+(`codex_state.confirm_codex_pointer`). A hook never re-offers input or takes one
+another transport holds. The Stop hook offers nothing while the adapter runs
+(`Harness.later_turn_takes_input`): the turn ends on its own answer, and the adapter
+offers what arrived as it ended in a turn of its own. Where no adapter runs, as in a
+task that waits with `leaf wait`, Stop offers the input into the turn it continues,
+even a resumed turn that ran no tool. Once Stop or Interrupt closes the turn, or the turn no longer reads
+as running, the adapter's `_offer_queued_delivery` offers the pending input, or the
+unread pointer, itself. Without an App Server connection it hands the pointer to
+`codex queue`, retrying the same pointer while the session owns a page, and never
+calls `turn/start`. With a connection it waits until the task is idle and starts the
+turn. A delivery offered by a hook or the queue asks the agent for a plain reply; one
+started over App Server takes the turn's final message as its reply.
 
 When a session loses its last page, its `Collecting` or `Offering` record waits until
 the same session claims a page again. The adapter finishes an accepted record's
@@ -49,26 +52,33 @@ remaining receipts before it checks ownership and exits. When the website gives 
 starting a delivery, `abandon_codex_delivery` removes the unaccepted record and keeps
 the envelope, in case a turn took it after all.
 
-App Server's `turn/start` steers its input into a turn that is already running and
-answers with that turn's id, so a delivery started that way can join a turn the user
-started, and Leaf would post that turn's answer, written for another prompt, as its
-reply. With codex-cli 0.160.0, a follow-up the user queued in Codex started about
-0.4 s after the running turn ended, so a delivery whose idle check fell in that gap
-joined the follow-up's turn. So Leaf never sends `turn/start` for a delivery. The
-delivery joins the task's queue (`thread/queue/add`, which needs the
-`experimentalApi` capability) as the user message of a turn of its own, after any
-input the user queued. The adapter adopts the turn whose user message carries the
-delivery's id (`app_server_delivery_id`); the website, its thread's only client,
-adopts the next turn to start.
+`start_app_server_delivery` reserves the delivery's reply, sends `turn/start` with the
+delivery id as `clientUserMessageId`, and raises `AppServerDeliveryUncertain` when a
+failed start may have left a turn running. Its docstring says what each failure does
+to the reservation, and each client decides what an uncertain start means. A
+`TurnFold` writes activity only while its session generation and turn are current
+(`TurnFold.activity_epoch`), so a fold from an older generation never touches a
+newer one's activity. `delivery`'s header owns the reply reservation, and
+`../../references/harness-codex.md`, "Replies", is the agent's side of it.
 
-`queue_app_server_delivery` reserves the delivery's reply and queues it, raising
-`AppServerDeliveryUncertain` when App Server may hold a submission it never
-acknowledged; its docstring says what each failure does to the reservation, and
-each client decides what an uncertain submission means. A `TurnFold` writes activity
-only while its session generation and turn are current (`TurnFold.activity_epoch`),
-so a fold from an older generation never touches a newer one's activity.
-`delivery`'s header owns the reply reservation, and
-`../../references/harness-codex-app-server.md`, "Replies", is the agent's side of it.
+A delivery enters its turn as a `leaf_delivery` tool output, so it adds no user
+message to the user's Codex transcript or queue. Its start can still land in a turn
+another client started: `turn/start` on a running turn steers into it and answers
+with its id, and a follow-up the user queued in the Codex TUI starts just after the
+turn before it ends, while App Server still reads idle. No reading closes that gap,
+since the TUI holds its queued follow-ups itself, out of `thread/queue/list`'s
+sight, and App Server's one start-if-idle, `thread/queue/start`, takes only user
+input. A user can also steer into Leaf's turn. So the turn's items decide whether
+its answer is the delivery's: a turn Leaf starts opens with the delivery's tool
+output and holds no user message, and a turn that holds one, ahead of the delivery
+or after it (`carries_user_message`), is joined. Once a fold sees the user's
+message it posts no more of the reply, neither opening nor draft, and marks the
+draft withheld, so Stop lets the turn end on its own answer rather than continuing
+it over the update. As the turn ends it releases the reservation,
+and a completed joined turn's final message is refused, so `TurnFold.commit`
+offers the update again as a correction (`prepare_reply_correction`), answered in
+a turn of its own. Rejected: queueing each delivery with `thread/queue/add`
+(#3357, reverted), which put every delivery in the transcript as a user message.
 
 Codex's hooks import this module between steps and before Stop
 (`offer_hook_delivery`), so `thread`, which brings the page model and its validators,
@@ -96,6 +106,7 @@ from .codex_state import (
     hook_turn,
 )
 from .delivery import (
+    DELIVERY,
     DeliveryIdConflict,
     ReceiptRefused,
     batch_data,
@@ -105,10 +116,9 @@ from .delivery import (
     delivery_path,
     delivery_pointer_prompt,
     freeze_delivery,
-    inline_delivery,
     new_delivery_id,
-    pages_gone,
     read_delivery,
+    reader_envelope,
     receive_batch,
     record_pickup,
     stored_delivery,
@@ -129,11 +139,19 @@ from .state import (
     close_session_turn,
     flocked,
     renew_turn,
+    retire_if_gone,
     session_lock_path,
     session_record,
+    start_session_turn,
 )
 
 START_TIMEOUT = 20
+# Codex 0.160.0 spills hook context above 2,500 approximate tokens, counted as
+# ceil(UTF-8 bytes / 4), including Stop continuation fragments. The preview is
+# incomplete JSON, so keep a larger delivery behind its existing reader pointer.
+# https://github.com/openai/codex/blob/rust-v0.160.0/codex-rs/hooks/src/output_spill.rs
+# https://github.com/openai/codex/blob/rust-v0.160.0/codex-rs/utils/string/src/truncate.rs
+HOOK_CONTEXT_BYTES = 10_000
 # Names the App Server a task runs on to the `leaf` commands it runs, so they hand
 # its pages to that server (`private_app_server`, `leaf codex start`).
 APP_SERVER_ENV = "LEAF_CODEX_APP_SERVER"
@@ -141,7 +159,7 @@ STREAM_UPDATE_INTERVAL = 0.2
 STREAM_TEXT_METHODS = {"item/reasoning/summaryTextDelta"}
 STREAM_MESSAGE_METHOD = "item/agentMessage/delta"
 # The items a turn's opening may follow: its input, and the model's reasoning.
-OPENING_PRELUDE_ITEM_TYPES = {"userMessage", "reasoning"}
+OPENING_PRELUDE_ITEM_TYPES = {"userMessage", "functionCallOutput", "reasoning"}
 STREAM_HEARTBEAT_METHODS = {
     "item/commandExecution/outputDelta",
     "item/fileChange/outputDelta",
@@ -154,6 +172,11 @@ STREAM_THROTTLED_METHODS = (
 
 class AppServerRequestRejected(RuntimeError):
     """The App Server definitively rejected a request before executing it."""
+
+
+class JoinedTurn(RuntimeError):
+    """A delivery's turn carried a user message too, so its final answer is not the
+    delivery's reply (`carries_user_message`)."""
 
 
 class AppServerDeliveryUncertain(RuntimeError):
@@ -308,12 +331,12 @@ def app_server_request(
 ) -> dict:
     """Make one request on an App Server connection and return its result.
 
-    A notification read while waiting is not a stray: the subscription carries
-    every turn's notifications while a request waits, and dropping one could lose
+    A notification read while waiting is not a stray: App Server sends a turn's own
+    `turn/started` behind the response that started it, and dropping it would lose
     the binding a caller is watching for. Each caller says what to do with those
     messages — buffer them to replay in arrival order, or fold them immediately —
-    because that choice is what separates a stream it is
-    following from a snapshot request whose answer outranks everything sent before it.
+    because that choice is what separates a stream it is following from a snapshot
+    request whose answer outranks everything sent before it.
 
     `stopped` lets a client being shut down stop waiting on a peer that is still
     talking.
@@ -352,35 +375,41 @@ def app_server_handshake(
     socket.send(json.dumps({"method": "initialized", "params": {}}))
 
 
-def app_server_queue_params(thread_id: str, payload: dict) -> dict:
-    """The one App Server submission of a Leaf delivery: the whole delivery as the
-    user message of the turn that takes it, named by the delivery id."""
+def app_server_turn_start_params(thread_id: str, payload: dict) -> dict:
+    """Build the one App Server request shape for a Leaf delivery turn."""
     return {
         "threadId": thread_id,
         "clientUserMessageId": payload["id"],
-        "input": [{"type": "text", "text": inline_delivery(payload)}],
+        "input": [],
+        "toolOutput": {
+            "name": "leaf_delivery",
+            "output": json.dumps(payload, separators=(",", ":")),
+        },
+        "turnTrigger": "leaf",
     }
 
 
-def queue_app_server_delivery(send, thread_id: str, payload: dict) -> None:
-    """Add one delivery to the task's App Server queue with its reply reserved.
+def start_app_server_delivery(send, thread_id: str, payload: dict) -> dict:
+    """Start one delivery's turn on an idle thread with its reply reserved.
 
     `send(method, params)` is the client's request on its own connection, under
-    its own request ids. The task thread id is the Leaf session id. App Server
-    starts the submission at once on an idle task, and otherwise as a turn of its
-    own when the turns queued ahead of it end; `start_queued_delivery` starts a
-    queue nothing else will. The client adopts the turn whose user message carries
-    the delivery id when it starts, so this returns nothing.
+    its own request ids. The task thread id is the Leaf session id. Immediately
+    before the request, this boundary captures its epoch; the returned identity
+    is adopted only against that epoch or its own synchronous provider prompt.
+    A newer different prompt leaves the start uncertain and its reply reserved.
+    Return the admitted lifecycle publication, whose turn names the provider ID;
+    every follower retains this authority instead of rereading it after other work.
 
-    The reply is reserved before the submission goes out, so no other writer answers
-    the delivery its turn will answer. What happens to the reservation when the
-    submission fails depends on what the failure says. A definitive refusal
-    (`AppServerRequestRejected`) means App Server holds nothing, so the reservation
-    is released before this raises. A request that went out with no answer raises
-    `AppServerDeliveryUncertain` with the reply still reserved: App Server may hold
-    the submission, and until something sees its turn or finds it gone, no other
-    writer may answer for the delivery. Each client decides what an uncertain
-    submission means.
+    The reply is reserved before `turn/start` goes out, so no other writer answers
+    the delivery its turn is about to answer. What happens to the reply reservation
+    when the start fails depends on what the failure says. A definitive refusal
+    (`AppServerRequestRejected`) means no turn exists, so the reservation is
+    released before this raises. A successful answer missing the turn identity is
+    uncertain too. A request that went out with no answer
+    raises `AppServerDeliveryUncertain` with the reply still reserved: a turn carrying
+    this delivery may be running, and until something sees it, no other writer may
+    answer for the delivery. Each client decides what an uncertain start means for
+    the turn it may have made.
     """
     from .thread import release_delivery_reply, reserve_delivery_reply
 
@@ -397,77 +426,40 @@ def queue_app_server_delivery(send, thread_id: str, payload: dict) -> None:
             abandon_uncertain_delivery(thread_id, payload)
             raise
     try:
-        send("thread/queue/add", app_server_queue_params(thread_id, payload))
+        expected = session_record(thread_id)
+        started = send("turn/start", app_server_turn_start_params(thread_id, payload))
     except AppServerRequestRejected:
         if reply_target is not None:
             release_delivery_reply(thread_id, payload["id"], reply_target)
         raise
     # An interrupt mid-request leaves the same uncertainty and keeps the reply
     # reservation too, but it passes through unwrapped so it ends the process
-    # rather than reading as a submission to retry.
+    # rather than reading as a start to retry.
     except Exception as error:
         raise AppServerDeliveryUncertain(
-            f"the Codex App Server queue submission was not acknowledged: {error}"
+            f"the Codex App Server turn was not acknowledged: {error}"
         ) from error
-
-
-def start_queued_delivery(send, thread_id: str, delivery_id: str) -> bool:
-    """Start the task's queue when this delivery heads it, and return whether App
-    Server holds the delivery, queued or just started.
-
-    App Server starts the queue's head when a turn completes, and a submission
-    added to an idle task at once, but after an interrupted turn it keeps the queue
-    until a client starts it (measured with codex-cli 0.160.0). Starting only this
-    delivery, and only from the head, leaves the user's own queued input in their
-    order: a delivery behind input the user holds waits until they start their
-    queue, and once Leaf's turn ends, App Server goes on to whatever the user queued
-    behind it. While a turn runs or is about to start, App Server refuses the start,
-    and that turn's ending starts the queue instead.
-    """
-    held = queued_submissions(send, thread_id)
-    ids = [submission["clientUserMessageId"] for submission in held]
-    if delivery_id not in ids:
-        return False
-    if ids[0] == delivery_id:
-        try:
-            send(
-                "thread/queue/start",
-                {"threadId": thread_id, "queuedSubmissionId": held[0]["id"]},
-            )
-        except AppServerRequestRejected:
-            pass
-    return True
-
-
-def queued_submissions(send, thread_id: str) -> list[dict]:
-    """Every submission the task's App Server queue holds, in the order it runs them."""
-    held = []
-    cursor = None
-    while True:
-        page = send("thread/queue/list", {"threadId": thread_id, "cursor": cursor})
-        held.extend(page["data"])
-        cursor = page["nextCursor"]
-        if cursor is None:
-            return held
+    turn_id = (started.get("turn") or {}).get("id")
+    if not turn_id:
+        raise AppServerDeliveryUncertain("Codex App Server returned no turn id")
+    admitted = start_session_turn(thread_id, turn_id, expected)
+    if admitted is None:
+        raise AppServerDeliveryUncertain(
+            "a newer session epoch superseded the provider start"
+        )
+    return admitted
 
 
 def _initialize_params(name: str, title: str) -> dict:
-    """Name the Leaf client one connection introduces itself as, opting into the
-    experimental methods its delivery queue uses."""
+    """Name the Leaf client one connection introduces itself as."""
     return {
         "clientInfo": {"name": name, "title": title, "version": "0"},
-        "capabilities": {"requestAttestation": False, "experimentalApi": True},
+        "capabilities": {"requestAttestation": False},
     }
 
 
 def app_server_delivery_id(message: dict) -> str | None:
-    """Read the exact Leaf delivery identity carried by one provider notification.
-
-    A delivery Leaf queued is the user message App Server names by the delivery's
-    `clientUserMessageId`, as its `clientId`. A pointer `codex queue` took arrives
-    as the user message's whole text. A turn's `turn/started` lists no items, so
-    a live turn names its delivery in the user message's `item/started`.
-    """
+    """Read the exact Leaf delivery identity carried by one provider notification."""
     method = message.get("method")
     params = message.get("params") or {}
     if method == "turn/started":
@@ -476,37 +468,60 @@ def app_server_delivery_id(message: dict) -> str | None:
         items = [params.get("item") or {}]
     else:
         return None
-
-    found = set()
-
-    def add(identity) -> None:
-        try:
-            found.add(validate_delivery_id(identity))
-        except ValueError:
-            pass
-
-    for item in items:
-        if item.get("type") != "userMessage":
-            continue
-        if item.get("clientId") is not None:
-            add(item["clientId"])
-        for content in item.get("content", []):
-            if content.get("type") != "text":
-                continue
-            lines = content.get("text", "").strip().splitlines()
-            if len(lines) != 3 or lines[0] != "```xml" or lines[2] != "```":
-                continue
-            try:
-                pointer = ElementTree.fromstring(lines[1])
-            except ElementTree.ParseError:
-                continue
-            if (
-                pointer.tag == "leaf-delivery"
-                and set(pointer.attrib) == {"id", "operation"}
-                and pointer.attrib["operation"] == "delivery read"
-            ):
-                add(pointer.attrib["id"])
+    found = {identity for item in items if (identity := _item_delivery_id(item))}
     return next(iter(found)) if len(found) == 1 else None
+
+
+def _item_delivery_id(item: dict) -> str | None:
+    """The Leaf delivery one transcript item carries: a `leaf_delivery` tool output,
+    or a user message that is only a `leaf-delivery` pointer."""
+
+    def valid(identity) -> str | None:
+        try:
+            return validate_delivery_id(identity)
+        except ValueError:
+            return None
+
+    if (
+        item.get("type") == "functionCallOutput"
+        and item.get("name") == "leaf_delivery"
+        and isinstance(item.get("output"), str)
+    ):
+        try:
+            payload = json.loads(item["output"])
+        except json.JSONDecodeError:
+            return None
+        if (
+            isinstance(payload, dict)
+            and payload.get("format") == DELIVERY.format
+            and isinstance(payload.get("id"), str)
+        ):
+            return valid(payload["id"])
+        return None
+    if item.get("type") != "userMessage":
+        return None
+    for content in item.get("content", []):
+        if content.get("type") != "text":
+            continue
+        lines = content.get("text", "").strip().splitlines()
+        if len(lines) != 3 or lines[0] != "```xml" or lines[2] != "```":
+            continue
+        try:
+            pointer = ElementTree.fromstring(lines[1])
+        except ElementTree.ParseError:
+            continue
+        if (
+            pointer.tag == "leaf-delivery"
+            and set(pointer.attrib) == {"id", "operation"}
+            and pointer.attrib["operation"] == "delivery read"
+        ):
+            return valid(pointer.attrib["id"])
+    return None
+
+
+def _user_input(item: dict) -> bool:
+    """Whether a transcript item is a message from the user rather than Leaf's."""
+    return item.get("type") == "userMessage" and _item_delivery_id(item) is None
 
 
 def _head(text: str, limit: int = 180) -> str:
@@ -544,13 +559,14 @@ class TurnStream:
     """The notifications one subscribed connection carries, in order.
 
     `thread/start` and `thread/resume` subscribe the connection that asked, for as
-    long as that connection lives, so the socket a delivery was queued on already
-    carries everything its turn will say. Nothing here reconnects: a connection
+    long as that connection lives, so the socket a turn was started on already
+    carries everything the turn will say. Nothing here reconnects: a connection
     that drops takes its turn's remaining notifications with it, and the follower
     treats that as the turn's ending rather than a gap to read across.
 
-    Notifications the client read before following the turn arrive first; the
-    turn's own `turn/started` is routinely among them.
+    Notifications buffered behind a request arrive first. They were sent before the
+    response that carried them was read, so a turn's own `turn/started` is routinely
+    among them.
     """
 
     def __init__(self, socket, buffered=(), *, silence: float | None = None):
@@ -598,6 +614,9 @@ class AppServerEvents:
     Rejected: streaming the opening as the head of the reply, which held words said at
     the turn's start in a draft at the thread's end until the answer committed, so a
     message the user sent meanwhile stood above them.
+
+    `joined` says a user message shares the turn (`carries_user_message`), so its
+    answer is not a delivery's alone (`TurnFold`).
     """
 
     def __init__(self, thread_id: str, turn_id: str):
@@ -614,6 +633,7 @@ class AppServerEvents:
         self.item_started_at: dict[str, int] = {}
         self.active_items: dict[str, dict] = {}
         self.waiting_kind: str | None = None
+        self.joined = False
 
     def restore_turn(self, turn: dict) -> None:
         """Replace transient message state with a snapshot of this turn."""
@@ -627,6 +647,7 @@ class AppServerEvents:
         self.item_started_at.clear()
         self.active_items.clear()
         self.waiting_kind = None
+        self.joined = self.joined or carries_user_message(turn)
         for item in turn.get("items", []):
             if item.get("type") == "agentMessage":
                 self._record_message(item)
@@ -717,6 +738,7 @@ class AppServerEvents:
                     "activity": self._running_activity(),
                 }
             self._close_opening(item)
+            self.joined = self.joined or _user_input(item)
             detail = self._item_detail(item)
             if detail:
                 self._set_active(item["id"], {"kind": "tool", "detail": detail})
@@ -729,6 +751,7 @@ class AppServerEvents:
         if method == "item/completed":
             item = params["item"]
             lifecycle = self._item_lifecycle(params, "completed")
+            self.joined = self.joined or _user_input(item)
             self.active_items.pop(item["id"], None)
             if item["type"] == "agentMessage":
                 self._record_message(item)
@@ -949,6 +972,14 @@ class AppServerEvents:
         return None
 
 
+def carries_user_message(turn: dict) -> bool:
+    """Whether a message from the user shares this turn. A turn Leaf starts opens
+    with its delivery's tool output and holds no user message, and a `leaf-delivery`
+    pointer is Leaf's input, so a user message there came from another client: a
+    turn Leaf's start steered into, or a message the user steered into Leaf's turn."""
+    return any(_user_input(item) for item in turn.get("items", []))
+
+
 def _final_answer(turn: dict) -> list[str]:
     """One turn's final-answer texts."""
     return [
@@ -983,6 +1014,7 @@ class AppServerReplyStream:
         self.delivery_id = delivery_id
         self.attempt = delivery_reply_attempt(delivery_id)
         self.text = ""
+        self.withheld = False
         self._replace(None, "")
         self.last_update = 0.0
 
@@ -1112,9 +1144,34 @@ class AppServerReplyStream:
             if not committed:
                 release_delivery_reply(self.session_id, self.delivery_id, self.target)
 
+    def withhold(self) -> None:
+        """Empty the draft and mark it `withheld`, once, for a turn whose answer is
+        not this delivery's alone. The reservation stands until the turn ends
+        (`withdraw`), and the Stop hook reads the turn as done with the update
+        (`activity._turn_wrote`), since the correction offered as it ends answers
+        it."""
+        if not self.withheld:
+            self.withheld = True
+            self.text = ""
+            self._set_state("withheld", "")
+
+    def withdraw(self) -> None:
+        """Take the draft down and give up the reply reservation as a joined turn
+        ends. The update stays owed."""
+        from .thread import release_delivery_reply
+
+        try:
+            with PageTransaction(Path(self.target["page"])) as page:
+                page.clear_stream_reply(self.session_id, self.turn_id)
+        except FileNotFoundError:
+            pass
+        release_delivery_reply(self.session_id, self.delivery_id, self.target)
+
     def disconnect(self) -> None:
-        """Keep partial text visible while its provider connection recovers."""
-        self._set_state("disconnected", self.text)
+        """Keep partial text visible while its provider connection recovers. A
+        withheld draft stays withheld: it has no text to keep."""
+        if not self.withheld:
+            self._set_state("disconnected", self.text)
 
     def _set_state(self, state: str, text: str) -> None:
         try:
@@ -1287,11 +1344,15 @@ class TurnFold:
                 self.delivery_id,
                 self.reply_target,
             )
+            if self.events.joined:
+                self.reply_stream.withhold()
 
     def restore(self, turn: dict) -> None:
         """Take up a still-running turn from a snapshot of what it has said."""
         self.events.restore_turn(turn)
-        if self.reply_stream is not None:
+        if self.reply_stream is not None and self.events.joined:
+            self.reply_stream.withhold()
+        elif self.reply_stream is not None:
             # An opening the turn completed while nobody was reading posts now.
             self.reply_stream.open(self.events.said_opening())
             self.reply_stream.restore(self.events.reply_so_far(turn))
@@ -1301,9 +1362,11 @@ class TurnFold:
         update = self.events.read(message)
         self.observe(message, update)
         self._project(message, update)
-        published = (
-            self.reply_stream.update(update) if self.reply_stream is not None else False
-        )
+        published = False
+        if self.reply_stream is not None and self.events.joined:
+            self.reply_stream.withhold()
+        elif self.reply_stream is not None:
+            published = self.reply_stream.update(update)
         self.observe_reply(update, published)
         return update
 
@@ -1378,7 +1441,21 @@ class TurnFold:
 
     def settle_reply(self, terminal: dict) -> BaseException | None:
         """Commit the turn's final answer, or release the reply reservation held
-        for one."""
+        for one. A completed joined turn's answer is refused, so `commit` offers a
+        correction; one that ended otherwise leaves the update owed, as any turn
+        that ends without an answer does."""
+        if self.reply_stream is not None and (
+            self.events.joined or carries_user_message(terminal)
+        ):
+            if terminal.get("status") != "completed":
+                # Ended as any unanswered turn does, its condition shown.
+                self.reply_stream.withhold()
+                return self.reply_stream.finish(terminal.get("status") or "failed")
+            self.reply_stream.withdraw()
+            return JoinedTurn(
+                "a message the user sent in Codex shared the turn, so its final "
+                "message was not posted as the reply to this input"
+            )
         if self.reply_stream is not None:
             return self.reply_stream.finish(
                 terminal.get("status") or "failed",
@@ -1420,13 +1497,13 @@ class TurnFold:
 
 
 class CarriedTurn(TurnFold):
-    """One delivery's Codex turn, read on the connection that queued it.
+    """One delivery's Codex turn, read on the connection that started it.
 
-    The client names the turn that took the delivery before following it. The
-    connection belongs to the turn for the turn's whole life: `thread/start` and
-    `thread/resume` subscribe it, queueing and starting neither subscribe nor
-    unsubscribe, and losing it is the turn ending. The notifications the client
-    read while it looked for the turn come first (`buffered`).
+    The turn exists because `turn/start` answered with it, so a client knows
+    which turn is its own before reading a notification and nothing recovers the
+    binding off the stream. The connection belongs to the turn for the turn's
+    whole life: `thread/start` and `thread/resume` subscribe it, `turn/start`
+    neither subscribes nor unsubscribes, and losing it is the turn ending.
 
     Every way the read can stop other than the completion composes a terminal of
     its own in `ended`, so a turn ends exactly once however it ended. What each
@@ -1568,7 +1645,7 @@ def prepare_reply_correction(
                         key: claim[key] for key in ("id", "generation", "acquisition")
                     },
                     "diagnostic": str(error),
-                    "instruction": "The previous final was not published. Correct the reported failure, then answer this same input. Retain completed work; do not repeat edits or external actions already performed.",
+                    "instruction": "The previous final message was not posted as this input's reply, for the reason in `diagnostic`; fix that reason where it is a fault in your work. Then answer this same input. Retain completed work; do not repeat edits or external actions already performed.",
                 },
             )
             record = Offering(
@@ -1709,9 +1786,10 @@ _COLLECTED_BATCH = {
 _BATCH = {
     "type": "object",
     "properties": {
-        "page": _STRING,
+        "page": {"description": "The page directory.", **_STRING},
         "session": _STRING,
         "events": {
+            "description": "The captured events, by id and `seq`.",
             "type": "array",
             "minItems": 1,
             "items": {
@@ -1731,14 +1809,28 @@ def _when_variant(holds, then: dict) -> dict:
     return {"if": {"properties": {"state": {"enum": states}}}, "then": then}
 
 
-# A record at another format is ignored, and the events its page has not
-# acknowledged are captured afresh.
 RECORD_SCHEMA = {
+    "description": "One delivery a Codex task is handing to its agent "
+    "(`DeliveryRecord`), in the state home's `sessions/<digest>.deliveries/<id>.json` "
+    "and, once nothing is owed on it, that directory's `history/`. A record at "
+    "another format is ignored, and the events its page has not acknowledged are "
+    "captured afresh.",
     "type": "object",
     "properties": {
-        "state": {"enum": list(RECORD_VARIANTS)},
-        "created_at": {"type": "number"},
-        "batches": {"type": "array", "minItems": 1, "items": _BATCH},
+        "state": {
+            "description": "How far the handoff has gone (`RECORD_VARIANTS`).",
+            "enum": list(RECORD_VARIANTS),
+        },
+        "created_at": {
+            "description": "When it was captured, in seconds since the epoch.",
+            "type": "number",
+        },
+        "batches": {
+            "description": "One per page.",
+            "type": "array",
+            "minItems": 1,
+            "items": _BATCH,
+        },
     },
     "required": ["state", "created_at", "batches"],
     "allOf": [
@@ -1751,6 +1843,8 @@ RECORD_SCHEMA = {
             {
                 "properties": {
                     "pending": {
+                        "description": "The indexes into `batches` whose page "
+                        "receipts are still to be written.",
                         "type": "array",
                         "items": {"type": "integer", "minimum": 0},
                     }
@@ -1761,7 +1855,15 @@ RECORD_SCHEMA = {
         _when_variant(
             lambda variant: "turn" in {item.name for item in fields(variant)},
             {
-                "properties": {"turn": {"type": "string", "minLength": 1}},
+                "properties": {
+                    "turn": {
+                        "description": "The Codex turn that carries the delivery: "
+                        "the one its hook ran in, or the one its App Server "
+                        "delivery entered.",
+                        "type": "string",
+                        "minLength": 1,
+                    }
+                },
                 "required": ["turn"],
             },
         ),
@@ -1773,8 +1875,8 @@ RECORD = Record("codex-delivery", RECORD_SCHEMA, since=14)
 def read_record(path: Path) -> DeliveryRecord | None:
     """Decode one task record, live or archived, or None where this Leaf reads
     none, as for one in a state this Leaf does not know, or an offered record
-    whose delivery this Leaf does not read. An unreadable record never authorizes
-    deletion."""
+    whose delivery this Leaf does not read. Only its pages being gone authorizes
+    deleting a record (`state.retire_if_gone`)."""
     record = RECORD.read(path)
     variant = RECORD_VARIANTS.get(record["state"]) if record else None
     if variant is None:
@@ -1788,13 +1890,6 @@ def read_record(path: Path) -> DeliveryRecord | None:
     return variant(**values)
 
 
-def _retire_record_if_gone(path: Path) -> None:
-    """Retire only task records this version reads, under the task's lock."""
-    record = read_record(path)
-    if record is not None and pages_gone(record.batches):
-        path.unlink(missing_ok=True)
-
-
 def archive_record(path: Path, record: DeliveryRecord) -> bool:
     """Move completed delivery records out of the adapter's hot scan.
 
@@ -1805,7 +1900,7 @@ def archive_record(path: Path, record: DeliveryRecord) -> bool:
     history = path.parent / "history"
     history.mkdir(parents=True, exist_ok=True)
     for archived in history.glob("*.json"):
-        _retire_record_if_gone(archived)
+        retire_if_gone(archived)
     path.replace(history / path.name)
     return True
 
@@ -1831,7 +1926,7 @@ def retire_gone_task_records() -> None:
         with flocked(directory.with_suffix(".delivery.lock")):
             history = directory / "history"
             for path in (*directory.glob("*.json"), *history.glob("*.json")):
-                _retire_record_if_gone(path)
+                retire_if_gone(path)
             for emptied in (history, directory):
                 if emptied.is_dir() and not any(emptied.iterdir()):
                     emptied.rmdir()
@@ -1839,7 +1934,7 @@ def retire_gone_task_records() -> None:
 
 def delivery_records(session_id: str) -> list[tuple[Path, DeliveryRecord]]:
     """Every current delivery record one task holds, oldest first, removing each
-    whose pages are all gone (`delivery.pages_gone`). Every caller holds the
+    whose pages are all gone (`state.retire_if_gone`). Every caller holds the
     task's delivery lock."""
     directory = delivery_dir(session_id)
     if not directory.is_dir():
@@ -1850,11 +1945,10 @@ def delivery_records(session_id: str) -> list[tuple[Path, DeliveryRecord]]:
             validate_delivery_id(path.stem)
         except ValueError:
             continue
+        if retire_if_gone(path):
+            continue
         record = read_record(path)
         if record is None:
-            continue
-        if pages_gone(record.batches):
-            path.unlink()
             continue
         if archive_record(path, record):
             continue
@@ -2042,7 +2136,7 @@ def append_batch(
 def offer_hook_delivery(
     session_id: str, expected: dict | None, *, received: bool = True
 ) -> tuple[str | None, dict | None]:
-    """Offer one plain-reply pointer through a tool or Stop hook, without receipt.
+    """Offer complete input inline, or by pointer above Codex's limit, without receipt.
     `received` is `delivery.deliverable`'s: the tool hook leaves it false.
 
     The agent's explicit `delivery ack` confirms complete input in its turn. If the
@@ -2050,7 +2144,7 @@ def offer_hook_delivery(
     pointer instead. An offering already owned by another transport is left alone.
 
     The caller's exact lifecycle owns every renewal and reservation. Return the
-    supplied lifecycle or this operation's last renewal, even without a pointer,
+    supplied lifecycle or this operation's last renewal, even without input,
     so the caller cannot adopt a prompt that arrives during or after the offer.
     """
     lock = delivery_lock_path(session_id)
@@ -2091,7 +2185,16 @@ def offer_hook_delivery(
             return None, expected
         path, record = pending
         prepared = offer_delivery(path, record, transport=HookTurn(expected["turn"]))
-        return prepared.prompt, expected
+        context = json.dumps(
+            reader_envelope(prepared.payload),
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        return (
+            context
+            if len(context.encode("utf-8")) <= HOOK_CONTEXT_BYTES
+            else prepared.prompt
+        ), expected
 
 
 def finish_codex_batch(
@@ -2177,17 +2280,17 @@ def recover_codex_receipt(session_id: str) -> bool:
 UNCONFIRMED_DELIVERY = "delivery_unconfirmed"
 UNCONFIRMED_TEXT = (
     "Leaf could not confirm this delivery and will not retry it automatically. "
-    "Send it again if you still need an answer."
+    "Send it again if I still need an answer."
 )
 
 
 def reply_target_answered(target: dict) -> bool | None:
     """Read exact reply completion, or None when its page no longer exists."""
-    from .thread import answered_by_reply
+    from .thread import successful_replies
 
     try:
         with PageTransaction(Path(target["page"])) as page:
-            return answered_by_reply(page.events, target["responds"])
+            return bool(successful_replies(page.events, target["responds"]))
     except FileNotFoundError:
         return None
 

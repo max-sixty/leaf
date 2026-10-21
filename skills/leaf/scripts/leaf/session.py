@@ -17,6 +17,7 @@ from .file_changes import FileChanges, existing_root, target_paths
 from .files import file_stamp
 from .findings import Finding, note
 from .harness import Harness, claim_harness, session_harness
+from .interaction_log import record_command
 from .leases import (
     end_if_terminated,
     release_lease,
@@ -31,12 +32,7 @@ from .registry.kernel import kinds_declaring
 from .schema import ANSWER_INSTRUCTION
 from .served_state.reading import outside_inputs, page_input, page_reading
 from .server import read_service, running_server
-from .service import (
-    PageTransaction,
-    owned_pages,
-    read_status,
-    unacknowledged,
-)
+from .service import PageTransaction, owned_pages, unacknowledged
 from .state import SESSION_SUFFIX, session_claims, session_file, state_home, still_named
 
 # How often a watch rechecks a live page's server. It is also the longest a watch goes
@@ -50,16 +46,14 @@ STOP_HOOK_S = 20
 
 
 def cmd_waiting(page_dir: Path, detail: str) -> tuple[dict, list[dict]]:
-    """Declare the page waiting on its user, putting down every start that stands
-    (`todos.put_down`), and return the declaration, with the updates still owed an
-    answer, which the page goes on showing over it."""
+    """Declare the page waiting on its user, which puts down every start that stands
+    (`todos.item_starts`), and return the declaration's record, with the updates
+    still owed an answer, which the page goes on showing over it."""
     from .revisioning import activate_source
     from .served_state.context import read_page
-    from .todos import put_down
 
     with PageTransaction(page_dir) as page:
         activate_source(page_dir, transaction=page)
-        put_down(page)
         status = page.set_status("waiting", detail)
         return status, read_page(page_dir, page.events).work.obligations
 
@@ -79,7 +73,6 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
     or an acknowledgement advancing the cursor orders against them."""
     from .activity import blocking_obligations, unanswered
     from .served_state.context import read_page
-    from .todos import put_down
 
     with PageTransaction(page_dir) as page:
         events = page.events
@@ -118,7 +111,6 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
                 '`leaf task end <page> <id> done "<where the result is>"`, or '
                 '`dropped "<why>"`.'
             )
-        put_down(page)
         return page.set_status("idle", detail)
 
 
@@ -296,15 +288,12 @@ class Watch:
             return
         self.watched = self.pages()
         for page_dir in self.watched:
-            # This is only the account returned if ownership is already gone.
-            # Every act uses the current reading under the lock below. Keeping
-            # the harmless observation outside makes the lock boundary itself
-            # testable: a claim or SessionEnd can win after page selection,
-            # and _read must then decline every stale act.
-            observed = read_status(page_dir)
+            # Every act uses the reading under the lock below: a claim or
+            # SessionEnd can win after page selection, and _read must then decline
+            # every stale act.
             try:
                 with PageTransaction(page_dir) as page:
-                    reading, revive = self._read(page, observed)
+                    reading, revive = self._read(page)
                     if not revive:
                         yield reading
                         continue
@@ -336,7 +325,7 @@ class Watch:
             # ran. Only this second transactional reading may be delivered.
             try:
                 with PageTransaction(page_dir) as page:
-                    reading, _ = self._read(page, observed)
+                    reading, _ = self._read(page)
                     if (
                         started
                         and reading.watch_state == "watching"
@@ -348,11 +337,11 @@ class Watch:
             except FileNotFoundError:
                 continue
 
-    def _read(self, page: PageTransaction, observed: dict) -> tuple[PageTick, bool]:
+    def _read(self, page: PageTransaction) -> tuple[PageTick, bool]:
         """Read one page transaction and say whether revival is due."""
         page_dir = page.page_dir
         watch_state = page.watch_state(self.harness)
-        status = observed if watch_state == "lost" else page.status
+        status = page.status
         live = status["state"] != "idle"
         from .delivery import deliverable
 
@@ -555,6 +544,8 @@ def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
         from .delivery import receive_delivery
 
         received = receive_delivery(ack)
+    # Leaf's work ends here; the watch that follows is the agent waiting.
+    record_command("wait")
     harness = session_harness()
     explicit = (page_dir,) if page_dir else tuple(received) if harness is None else ()
     named = explicit[0] if len(explicit) == 1 else None
@@ -601,7 +592,7 @@ def wake_inputs(page: PageTransaction, batch: list[dict]) -> list[dict]:
     delivery was never received. Unsettled inputs read their existing canonical
     workflow. A completed receipt advances the cursor, so handed input is already
     absent from this unreceived batch. An opened record without the completed
-    cursor write does not prove delivery. Other admitted attention (including
+    `receipt` does not prove delivery. Other admitted attention (including
     reports, errors, reactions and widget actions) remains
     transport input, independent of whether it carries a response obligation.
     """

@@ -955,7 +955,6 @@ function goalView(goal, open, read) {
     leaves: progressLeaves,
     finished: progressLeaves.filter((leaf) => done(leaf, read)).length,
     liveWorkers,
-    openInterventions: nested,
     stoppedAt: reportedStoppedAt ?? (role.stoppedAt ? goal.getAttribute(role.stoppedAt) : null)
   };
 }

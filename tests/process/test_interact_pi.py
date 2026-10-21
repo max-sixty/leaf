@@ -221,7 +221,9 @@ def test_an_escape_leaves_input_handed_to_the_run_for_the_next_prompt(page_dir, 
     continued = pi.emit("turn_end")
     [entry] = continued["entries"]
     assert f"`leaf response reply {ref}`" in entry["content"]
-    pickup = events_model.read_events(page_dir)[-1]
+    *_, pickup = (
+        e for e in events_model.read_events(page_dir) if e["kind"] == "pickup"
+    )
     assert (pickup["kind"], pickup["events"], pickup["turn"]) == (
         "pickup",
         [comment["id"]],

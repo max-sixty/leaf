@@ -420,9 +420,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
 
     exported = tmp_path / "review.html"
     exporting_model.cmd_export(review_dir, exported, None)
-    data_text = (review_dir / "data.json").read_text() + data_model.source_file(
-        review_dir, "journey-run"
-    ).read_text()
+    data_text = data_model.source_file(review_dir, "journey-run").read_text()
     assert capture_key not in exported.read_text(encoding="utf-8")
     assert capture_key not in data_text
     assert "?t=" not in data_text

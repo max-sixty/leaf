@@ -12,7 +12,7 @@ headers state them.
 ## Page activity
 
 The page's current agent state is `activity`, one server projection over the agent's
-declarations and the page's stronger evidence. `status.json` and the log's work
+declarations and the page's stronger evidence. The log's `status` and work
 starts are declarations, not current agent state. The stronger evidence is claim and
 turn identity, watcher lifetime, exact pickup transitions, and unsettled updates.
 `/api/state` and agent-facing page state carry this same projection. A
@@ -24,16 +24,16 @@ The table lists each fact the projection reads, and when it stops being believed
 
 | Fact                                                                                                                                       | Where                                                                                                                                                         | Writer                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Stops being believed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| page declaration: `waiting` or `idle`, detail                                                                                              | `status.json`                                                                                                                                                 | `leaf status`, which first writes a `put_down` to the log when a start stands                                                                                                                                                                                                                                                                                                                                                                                                                                                   | stands until the next declaration, and its age dates the page's other readings                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| the item in hand: an update's event id or an open to-do's id, the line, and the claimant turn that wrote it, or none for another session's | an explicit `start` or an addressed progress reply's `start` metadata in `events.jsonl`, read by `todos.start_reading`                                        | `leaf task start`, or `leaf response reply --ephemeral` on an update owed, from a turn of the session driving the page                                                                                                                                                                                                                                                                                                                                                                                                          | the item ending: an update's answer, or a to-do's end; a later `put_down` event, which `leaf status waiting` and `idle` write; and as a belief, a short grace after the turn that wrote it closes, about a quarter of an hour with no renewal, or at once when the claimant's lifetime has ended                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| live App Server activity: session, turn, typed kind, detail, event floor                                                                   | `stream.activity` in `status.json`                                                                                                                            | the App Server connection that starts an embedded turn, or the detached adapter's task connection                                                                                                                                                                                                                                                                                                                                                                                                                               | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| live App Server reply: one displayed reply plus reply reservations by response address                                                     | `stream.reply` and `stream.reply_reservations` in `status.json`                                                                                               | an App Server connection bound to a delivery's reply; explicit `response reply` writes directly to the event log                                                                                                                                                                                                                                                                                                                                                                                                                | the draft joins its thread once it has words, drawn under its response address, which the durable answer to that input shares, and remains on failure or disconnect until a logged event naming its delivery attempt or its response address retires it; each reply reservation names the claim turn it belongs to (the delivery's turn once its reply opens, the turn current at reservation before then), clears after durable commit or terminal failure, and survives a lost connection; it holds only while that is still the claim's turn and the turn is open (`activity.reply_reservation_stands`), and a turn's answer committed after its reservation lapsed yields to a reply another writer already gave |
+| page declaration: `waiting` or `idle`, detail                                                                                              | the newest `status` event in `events.jsonl`, read by `activity.declaration`                                                                                   | `leaf status`, which puts down every start before it; the website harness as it ends a turn and starts one on an idle page, since its agent leaves status to the harness                                                                                                                                                                                                                                                                                                                                                        | stands until the next declaration, or for `idle` until a start after it reopens the page as `waiting`; its age dates the page's other readings; a copy a host serves without a process reads no declaration                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| the item in hand: an update's event id or an open to-do's id, the line, and the claimant turn that wrote it, or none for another session's | an explicit `start` or an addressed progress reply's `start` metadata in `events.jsonl`, read by `todos.start_reading`                                        | `leaf task start`, or `leaf response reply --ephemeral` on an update owed, from a turn of the session driving the page                                                                                                                                                                                                                                                                                                                                                                                                          | the item ending: an update's answer, or a to-do's end; a later `status` event, which `leaf status waiting` and `idle` write; and as a belief, a short grace after the turn that wrote it closes, about a quarter of an hour with no renewal, or at once when the claimant's lifetime has ended                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| live App Server activity: session, turn, typed kind, detail, event floor                                                                   | `activity` in `stream.json`                                                                                                                                   | the App Server connection that starts an embedded turn, or the detached adapter's task connection                                                                                                                                                                                                                                                                                                                                                                                                                               | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| live App Server reply: one displayed reply plus reply reservations by response address                                                     | `reply` and `reply_reservations` in `stream.json`                                                                                                             | an App Server connection bound to a delivery's reply; explicit `response reply` writes directly to the event log                                                                                                                                                                                                                                                                                                                                                                                                                | the draft joins its thread once it has words, drawn under its response address, which the durable answer to that input shares, and remains on failure or disconnect until a logged event naming its delivery attempt or its response address retires it; each reply reservation names the claim turn it belongs to (the delivery's turn once its reply opens, the turn current at reservation before then), clears after durable commit or terminal failure, and survives a lost connection; it holds only while that is still the claim's turn and the turn is open (`activity.reply_reservation_stands`), and a turn's answer committed after its reservation lapsed yields to a reply another writer already gave |
 | turn identity, when it last opened or took a prompt, and open or closed state                                                              | the session lifecycle record                                                                                                                                  | a prompt, an explicit reader acknowledgement for an unnamed harness turn, the queue adapter observing Codex’s native transcript (`codex_state.py`), or an App Server client following a provider turn opens `turn` and stamps `turn_opened`, or renews that stamp on a turn still open; the id is the harness's where it names one (Codex's hooks and App Server name the same turn) and one Leaf mints otherwise; the Stop hook stamps `turn_closed` on whatever turn is open, and an App Server client on the turn it follows | the next opening of another id; the next closing stamps it, and a closed id never reopens                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | the harness's own word on the claimant's session: `idle`, `waiting` on a dialog, or `busy`, dated by its last change                       | the harness's record, read at each state read (`Harness.live_turn`): for Claude Code, the `status` of the session's newest registry record whose process runs | the harness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | read live, so it moves with the harness; absent where the harness publishes nothing, as for a background job whose worker has retired                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | the turn ending this page nudged its session after                                                                                         | `messaged_ending` in the page's claim record: the turn id and its close stamp, or for an interrupted turn its last opening                                    | browser-event admission, once the harness's nudge lands                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | a later ending, a close under a new id or an interrupt after a new prompt renewed the same one, differs                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| wait lease                                                                                                                                 | `waiter.lock`, or `sessions/<session>.wait` for a harness session                                                                                             | the live `leaf wait` process, or Claude Code's background Stop hook watching between turns (`leaf hook --harness claude-code --if-claimed --watch`), holding an exclusive kernel lock on a stable file; file existence does not prove liveness                                                                                                                                                                                                                                                                                  | descriptor close or process exit, including a crash; a later hook watch's supersession, which puts a fresh, held file at the name                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| wait lease                                                                                                                                 | `waiter.lock`, or `sessions/<session>.wait` for a harness session                                                                                             | the live `leaf wait` process, or a harness's watch between turns (`leaf hook --harness <name> --if-claimed --watch`), holding an exclusive kernel lock on a stable file; file existence does not prove liveness                                                                                                                                                                                                                                                                                                                 | descriptor close or process exit, including a crash; a later hook watch's supersession, which puts a fresh, held file at the name                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | the harness runs Leaf's hooks for this session                                                                                             | `sessions/<session>.hooks`                                                                                                                                    | every Leaf hook the harness runs for the session                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | removed by its SessionEnd hook                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| acknowledgement cursor                                                                                                                     | `cursor.json`                                                                                                                                                 | whatever confirms the complete delivery reached its durable consumer: a Claude Code or Pi hook once it has published an inline delivery, the session's explicit `leaf delivery ack` after a pointer reading, `leaf wait --ack` after a printed one, or the Codex adapter                                                                                                                                                                                                                                                        | when its seq is past the log's end, or a fresh log replaces the one it named; monotonic within one log                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| acknowledgement cursor                                                                                                                     | the greatest `through` among the `receipt` events in `events.jsonl` (`service.acknowledged`), or 0 before any                                                 | whatever confirms the complete delivery reached its durable consumer, through `delivery.receive_batch`: a Claude Code or Pi hook once it has published an inline delivery, the session's explicit `leaf delivery ack` after a pointer reading, `leaf wait --ack` after a printed one, or the Codex adapter                                                                                                                                                                                                                      | never within its log, where it only moves forward; a log `page init` starts afresh holds no receipt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | pickup transition                                                                                                                          | a `pickup` event in `events.jsonl`                                                                                                                            | the adapter records `queued` when Codex accepts a batch it does not observe; whatever puts the batch into a turn records `opened` with session and turn identity: a direct `leaf wait --ack` confirmation, an inline hook's or a pointer reader's explicit confirmation of a Claude Code or Pi hook delivery, the prompt hook re-presenting an acknowledged unanswered update, or an App Server turn start                                                                                                                      | never; each event/phase/session/turn transition is idempotent                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | page claim: unique acquisition, session generation, display name, harness                                                                  | `<state-home>/claims/<page-key>.json`; the session partition holds a symlink locator to it                                                                    | `server start` from an agent harness; references the session lifetime publication                                                                                                                                                                                                                                                                                                                                                                                                                                               | the referenced generation ended or was replaced, or the shared harness lifetime is gone: the pid, the background job's directory, or the desktop Codex chat's validated native transcript at the path in its session record; archive moves that source and delete removes it                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | service lifetime                                                                                                                           | `service.json`                                                                                                                                                | `server start` at launch: session, or persistent                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | `leaf server stop`; a session server also retires when no live claim holds it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
@@ -53,8 +53,13 @@ within the working grace. The harness's record adds the two things no hook sees,
 only when newer than what it contradicts: an `idle` newer than every renewal ends the
 open turn (an interrupt), and a `waiting` newer than the stamps is a dialog open now,
 observed as `awaiting_user` since the record does not say whether it asks for
-approval or an answer. Its `busy` is never read, since a background job's record
-keeps it across turn endings. Browser-event admission reads the same turn before it
+approval or an answer. Its `busy` never says a turn runs, since Claude Code's record
+keeps it across a turn's ending while the background subagents that turn left run
+(a background shell leaves it `shell`, read as `idle`). After a turn the stamps
+closed, `busy` says the session works on: the status reads working, observed as
+`working` in the background, for as long as the record stays `busy`. The record
+doesn't say which turn left that work, so the ended turn's starts are dropped as
+usual. Browser-event admission reads the same turn before it
 nudges a session (`presence.claimant_reading`), and nudges only after an ending
 something saw: a turn Leaf merely stopped believing in may still be running a long
 step.
@@ -167,7 +172,7 @@ settlement each input retains a workflow, while only the newest carries the thre
 input and leaves the newer obligation. A response to the newest settles the batch.
 Widget obligations remain independent and settle through their declared state.
 
-Pickup never rewrites `status.json` or makes the page itself Picked up. Turn identity
+Pickup never declares a status or makes the page itself Picked up. Turn identity
 decides whether a receipt belongs to the open turn; ending a turn does not settle its
 input. A delivery's completed final answer retains the exact delivered `responds`
 address, even when a resolution, the user's ✓, or authored state settled that update
@@ -223,34 +228,25 @@ name and asks it what proves the watcher live and what to say when it is not, ra
 than comparing the name itself. A watcher is a hook watch, a model wait, the adapter,
 or the host:
 
-- A hook watch under Claude Code: Leaf's own Stop hook. Claude Code starts it in the
-  background as each turn ends and wakes the session when it exits 2
-  (`Harness.watches_between_turns`), and the model starts no watcher. It holds the
-  session's wait lease until a page has input, exits 2 to wake the session, and the
-  prompt hook of the turn the wake opens or reaches puts the batch in that turn's
-  context; its reader acknowledges the complete envelope before work. Input that was
-  already pending as the turn ended waits until the other Stop hook closes the turn,
-  since that hook may still continue it over what it owes, and then gets a turn of
-  its own.
-  Claude Code leaves an earlier turn's watch running when it starts the next, so
-  the newest takes the lease from it (`leases.supersede_lease`), and the one it
-  displaces ends without waking the session. The newest runs the Leaf the harness
-  runs now; an earlier one may run a Leaf the session has since left, which cannot
-  read a page vendored by a later one and would otherwise hold the lease over it.
-  Claude Code bounds a background command at two hours and a hook only at its own
-  `timeout`, which is why the watch is a hook. Plain `--print` runs the hook in the
-  foreground, holding the turn, so there it watches nothing.
-- A hook watch under Claude Code with the `hooks_module` option on: the same watch,
-  which Leaf's hooks module (`hooks/claude-code.ts`) starts as the session starts and
-  as each main-loop turn ends, in place of that Stop hook. A watch that wakes an idle
-  session submits its line as a prompt, whose prompt hook hands the batch over. From
-  an Escape until the user next types, Claude Code drops a plugin's prompt (measured
-  at 2.1.300), so for a dropped one the module sends a WakeRefused payload and Leaf
-  nudges the session as admission would (`session.nudge_pending`). A watch that
-  wakes during a turn leaves pending input to the native PostToolBatch boundary.
-  An interrupted turn runs no Stop hook,
-  but the module still sees it end, so it starts the watch with the Interrupt payload,
-  as Pi's extension does.
+- A hook watch under Claude Code: the watch Leaf's hooks module
+  (`hooks/claude-code.ts`) starts as the session starts and as each main-loop turn
+  ends (`Harness.watches_between_turns`), and the model starts no watcher. It holds
+  the session's wait lease until a page has input and then exits with a line, which
+  the module submits as a prompt to an idle session; the prompt hook of the turn
+  that prompt opens puts the batch in that turn's context, and its reader
+  acknowledges the complete envelope before work. A watch that wakes during a turn
+  leaves pending input to the native PostToolBatch boundary. Input that was already
+  pending as the turn ended waits until the Stop hook closes the turn, since that
+  hook may still continue it over what it owes, and then gets a turn of its own.
+  From an Escape until the user next types, Claude Code drops a plugin's prompt
+  (measured at 2.1.300), so for a dropped one the module sends a WakeRefused payload
+  and Leaf nudges the session as admission would (`session.nudge_pending`). An
+  interrupted turn runs no Stop hook, but the module still sees it end, so it starts
+  the watch with the Interrupt payload, as Pi's extension does. A new watch takes
+  the lease from the one before it (`leases.supersede_lease`), and the one it
+  displaces ends without waking the session. Plain `--print` runs no watch, since
+  nothing would start the turn its wake asks for. A Claude Code that loads no hooks
+  module keeps no watch, and its input waits on admission's nudge.
 - A hook watch under Pi: the same watch, which Leaf's extension (`hooks/pi.ts`) starts
   as the session starts and as each run settles. When the watch exits with input and
   no run is going, the extension sends an unreceived notification to start one. The
@@ -261,7 +257,7 @@ or the host:
   enters the session. After an interrupted run it starts the watch with the Interrupt
   payload, which first answers the Interrupt hook, closing the turn, and then wakes
   for input that never entered the stopped turn. The completed receipt advances its
-  cursor before the hook returns context; an opened pickup without that cursor write
+  cursor before the hook returns context; an opened pickup without that `receipt`
   does not prove delivery. Settled thread input stays in its next delivery batch
   without waking alone.
 - A model wait: a sequence of `leaf wait` runs the model itself starts. Every explicit
@@ -274,8 +270,8 @@ or the host:
   the same task-wide wait lease plus an adapter lease of its own, and stores exact
   batches from every page in one task-wide delivery (`codex_adapter.py`).
 - The host: a harness that drives App Server itself, as the website's per-user
-  container does. It queues each delivery on the thread it owns, follows the turn
-  that takes it, and needs nothing between turns (`codex.py`).
+  container does. It starts the turn directly and needs nothing between turns
+  (`codex.py`).
 
 Every watcher watches every page the session holds, re-reading the set on each pass,
 and every transport hands over the same envelope (`../../references/event-batches.md`,
@@ -294,7 +290,8 @@ session's pages unwatched or a delivered update unanswered and unstarted. It is
 registered on SessionStart/resume, Stop, UserPromptSubmit, SessionEnd,
 Claude Code's PostToolBatch, and Codex's PostToolUse and Interrupt, and Leaf's Pi extension (`hooks/pi.ts`) calls it at the
 accepted run boundaries. An unwatched page is one whose watcher is a process of its
-own; Claude Code's watch is its next Stop hook. The hook also stamps that turn's
+own; Claude Code's watch is the one its hooks module starts as the turn ends. The
+hook also stamps that turn's
 ending and the next one's opening, surfaces unacknowledged user events at the next
 prompt, ends process-backed ownership when the session exits, and retains a
 desktop chat's or background job's ownership when its instance ends.
@@ -303,13 +300,14 @@ The Stop hook continues a turn only for what the turn owes. It keeps a turn goin
 through the harness's continuation channel (`Harness.hook_context`): the non-error
 `additionalContext` Claude Code and Pi's extension read, or a block where, as in
 Codex, the harness's Stop output has nothing else. What the turn owes is an
-obligation above, or, where no watch follows the turn (Codex, plain `--print`),
-input that arrives as it ends and is owed an answer, which the hook hands over.
-Where a watch follows (`Harness.watches_between_turns`), the hook hands no input
-over and the watch gives it a turn of its own: continuing the turn would have the
-agent write one more message, which Claude Code's focus view, showing a turn's final
-message alone, would show in place of the answer the turn had written. Input that
-owes nothing, such as a resolve, a report or a page error, waits for the watcher and
+obligation above, or, where nothing opens a turn of its own for it (plain `--print`,
+a Codex task that waits with `leaf wait`), input that arrives as it ends and is owed
+an answer, which the hook hands over. Where something does
+(`Harness.later_turn_takes_input`), the hook hands no input over: a watch wakes a
+turn for it, and Codex's adapter starts or queues one. Continuing the turn would
+have the agent write one more message, which Claude Code's focus view, showing a
+turn's final message alone, would show in place of the answer the turn had written.
+Input that owes nothing, such as a resolve, a report or a page error, waits for the watcher and
 rides along when the turn goes on anyway. A repeated Stop (`stop_hook_active`) has
 named its obligations once and lets the turn end; only newly arrived owed input
 continues it again.
@@ -317,17 +315,11 @@ continues it again.
 Each harness has its own registrations, which pass its name
 (`hook --harness <name>`); the hook takes the session from its payload and infers
 neither from its environment (`harness.hook_harness`). A server the hook's watch
-revives is handed that harness too (`harness.harness_argument`). A second Claude Code
-Stop registration runs the watch (`--watch`), which Claude Code keeps in the
-background (`asyncRewake`) as the session's watch between turns
-(`session.watch_between_turns`): its exit 2 wakes the session with its stderr, and
-startup or application failures retain stderr and return nonblocking exit 1.
-Cancellation stays quiet. Where the user turns on the plugin's `hooks_module` option
-and Claude Code loads hooks modules, Leaf's module (`hooks/claude-code.ts`) runs the
-watch itself and marks the Stop payloads it passes on, which stands the background
-registration down (`hooks/scripts/background-watch.py`); the native PostToolBatch hook
-owns mid-turn delivery under either watcher, and a module wake during a turn
-leaves its input there rather than capturing a second delivery.
+revives is handed that harness too (`harness.harness_argument`). Claude Code's
+watch between turns (`--watch`, `session.watch_between_turns`) runs from Leaf's hooks
+module (`hooks/claude-code.ts`) rather than a registration; the native PostToolBatch
+hook owns mid-turn delivery, and a module wake during a turn leaves its input there
+rather than capturing a second delivery.
 Claude Code's worker tool batches name their parent session with a native
 `agent_id`, and the hook leaves that session's input to the parent. Pi opens its
 lifecycle with `TurnStart` only after the SDK accepts the run. That hook reads no page
@@ -346,14 +338,19 @@ unsettled. Every hook effect checks its captured session generation and revision
 including no-ID and same-ID prompt renewal, and the decision to publish is taken under
 that epoch guard.
 
-A hook hands a delivery over inline only when the harness will read all of it. A
-harness reads a hook's output only once it exits, discards it for a hook it times out,
-and Claude Code cuts a large context to a preview, so the hook hands a delivery over
-inline only once it fits, and only once the hook has confirmed every batch while well
-inside its timeout (`hook_transport.CONFIRM_WITHIN`); otherwise it hands over a
-pointer. After reading all its parts, the session confirms receipt with
-`leaf delivery ack`, which shows any refusal the hook met. Every hook envelope's
-`acknowledge` is null. Receipt revalidates current ownership and exact event
+A Claude Code or Pi hook hands a delivery over inline only when the harness will
+read all of it. A harness reads a hook's output only once it exits, discards it for
+a hook it times out, and Claude Code cuts a large context to a preview, so these
+hooks hand a delivery over inline only once it fits, and only once the hook has
+confirmed every batch while well inside its timeout
+(`hook_transport.CONFIRM_WITHIN`); otherwise they hand over a pointer. A Codex hook
+hands over the complete envelope as one line of JSON, or a pointer above Codex's
+context limit (`codex.HOOK_CONTEXT_BYTES`). Inline input carries the explicit reader
+acknowledgement that `delivery.reader_envelope` also gives a pointer reader.
+Neither printing nor reading Codex hook output confirms it; discarded output leaves
+the same frozen delivery pending for the idle adapter. After reading all input,
+the session follows its `acknowledge` instruction with `leaf delivery ack`.
+Receipt revalidates current ownership and exact event
 identities under page→session locks held through pickup and cursor commit, batch by
 batch, so a page the session no longer holds keeps its input pending. Hook and
 provider receipt observe an open turn and cannot open or replace one. Explicit reader
@@ -388,9 +385,7 @@ discovery, page locks or claim rewrites, including for claims made by another ch
 when this plugin has no uv environment. Managed Leaf delegates SessionEnd to the same
 owner. Registrations retain stderr and return nonblocking exit 1 when the application
 cannot answer, including when uv uses exit 2 for its own startup failure. The harness
-owns their deadlines. `hooks/scripts/background-watch.py` supervises the background
-watch, calling the launcher and converting its successful result into Claude Code's
-exit-2 wake.
+owns their deadlines.
 
 Only a page handed to a user owes a watcher, so the unwatched clause passes over a
 page carrying `preview.json`, which only a checkout's `leaf-dev preview` writes;
@@ -407,8 +402,9 @@ serving and the delivery of updates. The notice also covers the orphan grace per
 while the old listener may still be running. Stopped services, persistent services,
 developer previews, and pages another session claimed are excluded.
 
-`reconnect.py` reserves one notice per harness/session/page in
-`sessions/<session>.<harness>.reconnect`. This notification record survives
+`reconnect.py` reserves one notice per session and page in
+`sessions/<session>.reconnect` (`reconnect.NOTICES`). The session key names one
+harness's session, as its lifecycle's does. This notification record survives
 SessionEnd and generation changes. Matching active ownership and exact live serving
 close the outage, both when a hook observes recovery and when a serve commits it. A
 later outage can then emit another notice. Reservation is serialized with ownership
@@ -422,10 +418,9 @@ reconnect notice.
 
 When a watcher stops while its session lives on, browser-event admission asks the
 claimant's harness to nudge the session. Only a watcher the session's own turns start
-can stop that way: a turn interrupted without its Stop hooks starts no watch unless
-Leaf's hooks module keeps it, a watch fails open or reaches its hook's timeout, the
-hooks module's watch wakes the session with a prompt Claude Code drops, or a
-model-run wait is stopped after the turn ends. Input that reaches the page after that
+can stop that way: a Claude Code that loads no hooks module keeps no watch, a watch
+fails, the hooks module's watch wakes the session with a prompt Claude Code drops, or
+a model-run wait is stopped after the turn ends. Input that reaches the page after that
 has no watcher, and a nudge is the one way to reach such a session, which only some
 harnesses offer. Claude Code's is the Unix socket it binds for each session, found by
 session id in Claude Code's session registry (`message_claude_code_session`).
@@ -489,14 +484,13 @@ The files a session keeps in the state home's `sessions/` all carry its name
 (`state.session_file`), and its end removes those nothing will read again
 (`state.end_session`, `end_harness_instance`). A session that left none there, as
 most sessions of a harness Leaf is installed in never use Leaf, ends without
-writing one. The observations that end with a session go at its end. Its
-lifecycle, session lock and reconnect notices stay, since a claim can name the
-session after its end: a failed takeover restores the claim it replaced
-(`service.restore_page_claim`), the page shows that session's turn from the
-lifecycle, and a resumed session's hooks read the notices. A session holding no
-claim loses every other file that no process holds a lock on, so a lease still
-held, such as a watch's, stays with its holder. A session whose harness died
-without a SessionEnd keeps its files.
+writing one. The observations that end with a session go at its end. While a
+claim still names the session, its lifecycle, session lock and reconnect notices
+stay: the page shows that session's turn from the lifecycle, and a resumed
+session's hooks read the notices. A session holding no claim, on a page that
+still stands (`state.held_claims`), loses every file that no other process holds
+a lock on, so a lease still held, such as a watch's, stays with its holder. A
+session whose harness died without a SessionEnd keeps its files.
 
 ### Starting a server
 

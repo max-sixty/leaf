@@ -1256,12 +1256,7 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
     page.mouse.move(0, 0)
     expect(bubble).to_be_hidden()
     page.evaluate(RELEASE_FOCUS)
-    # Walk from the layer's skip link through the chrome's controls to the first
-    # action in the page. The exact number of chrome stops can change.
-    for _ in range(12):
-        page.keyboard.press("Tab")
-        if mark.evaluate("node => document.activeElement === node"):
-            break
+    page.keyboard.press("Tab")
     expect(mark).to_be_focused()
     expect(bubble).to_be_visible()
     expect(gloss).to_have_css("outline-style", "solid")
@@ -1329,5 +1324,5 @@ def test_a_comment_on_a_gloss_reopens_its_explanation(browser, serve):
     expect(bubble).to_be_hidden()
     page.locator(".lf-fp-threads").click()
     page.locator(".lf-fp-thread").click()
-    page.locator(".lf-fp-head").get_by_role("button", name="On the page").click()
+    page.locator(".lf-fp-controls").get_by_role("button", name="On the page").click()
     expect(bubble).to_be_visible()

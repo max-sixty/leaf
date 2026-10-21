@@ -376,8 +376,8 @@ def test_sample_data_bindings_use_copied_data_but_not_parent_history(page_dir):
     result = check(page_dir)
     assert result.exit_code == 0, result.output
     registry = registry_storage.require_registry(page_dir)
-    reading = data_model.read_source(page_dir, "shared", "child", registry)
-    assert "error" in reading and "value" not in reading
+    value = data_model.read_source(page_dir, "shared", registry)["value"]
+    assert data_contracts_model.payload_error("shared", "child", value, registry)
     assert data_model.read_contracts(page_dir)["shared"] == "parent"
 
 

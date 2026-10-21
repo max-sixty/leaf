@@ -21,12 +21,10 @@ def _answers_live_reply(event: dict, live_reply: dict) -> bool:
     A provisional reply is reserved under a delivery attempt and addressed to a
     response, and the durable answer names itself by either. Reading only the response
     address let an answer whose address had moved stand beside its own placeholder, and
-    the panel drew the draft rather than the answer the log held. A draft this reading
-    finds no identity on is one nothing in the log can answer, and it stands.
+    the panel drew the draft rather than the answer the log held.
     """
     return any(
-        live_reply.get(named) is not None and event.get(named) == live_reply[named]
-        for named in ("attempt", "responds")
+        event.get(named) == live_reply[named] for named in ("attempt", "responds")
     )
 
 
@@ -58,6 +56,18 @@ def _answer_key(event: dict, first_answers: dict[str, str]) -> dict:
     if not is_answer(event) or first_answers[event["responds"]] != event["id"]:
         return {}
     return _response_key(event["responds"])
+
+
+def thread_counts(threads: list[dict]) -> dict:
+    """What the Leaf panel's Threads mark counts of `browser_thread`'s threads
+    (`threadCounts` in the runtime's `thread/model.js`): of those more than a bare
+    reaction, the ones still open and the ones holding words the user hasn't read.
+    `tests/thread_count_cases.json` holds both runtimes to the same cases."""
+    listed = [thread for thread in threads if not thread["bare_reaction"]]
+    return {
+        "open": sum(not thread["resolved"] for thread in listed),
+        "unread": sum(bool(thread["unread"]) for thread in listed),
+    }
 
 
 def browser_thread(
@@ -124,7 +134,7 @@ def browser_thread(
         )
     if (
         live_reply is not None
-        and live_reply.get("text")
+        and live_reply["text"]
         and not any(_answers_live_reply(event, live_reply) for event in events)
     ):
         target = next(
@@ -132,8 +142,7 @@ def browser_thread(
                 thread
                 for thread in rendered_threads
                 if any(
-                    message["id"] == live_reply.get("parent")
-                    for message in thread["msgs"]
+                    message["id"] == live_reply["parent"] for message in thread["msgs"]
                 )
             ),
             None,
@@ -152,9 +161,9 @@ def browser_thread(
                     "author": "agent",
                     "agent": live_reply["agent"],
                     "parent": live_reply["parent"],
-                    "text": live_reply.get("text", ""),
+                    "text": live_reply["text"],
                     "ts": live_reply["ts"],
-                    "pending": live_reply.get("state") == "active",
+                    "pending": live_reply["state"] == "active",
                 },
             ]
     return (

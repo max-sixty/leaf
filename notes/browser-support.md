@@ -64,23 +64,6 @@ what fails and what still works.
   was found in the compatibility data. Native accessibility behavior in Firefox
   and Safari has not been exercised here.
 
-### Task group names
-
-- **Owner:** `lf-task.js` in the Command Hub package. `ariaLabelledByElements`
-  names each task group from its own visible title without adding identifiers or
-  copying the title into a second label.
-- **Compatibility checked 2026-10-08:** Chrome/Edge 135+, Firefox 136+, and
-  Safari/iOS Safari 16.4+, according to
-  [MDN's compatibility data](https://github.com/mdn/browser-compat-data/blob/main/api/Element.json).
-  The property is defined by
-  [WAI-ARIA's element-reference reflection](https://w3c.github.io/aria/#dom-ariamixin-arialabelledbyelements).
-- **Observed:** Chrome 155's native accessibility tree exposes the task names
-  and nested group ancestry, including after reports and title revisions.
-  Playwright's DOM-based `aria_snapshot` omits names supplied by this property;
-  `test_task_hierarchy_is_accessible_through_reports_and_revisions` therefore
-  reads Chrome's native accessibility tree. This is a test-tool limitation,
-  rather than an observed browser support gap.
-
 ### Contents spine lens
 
 - **Owner:** `lf-toc.js` in the default package. The lens, the darker stretch of
@@ -123,8 +106,7 @@ what fails and what still works.
 
 - **Owners:** widgets that fold with `hidden="until-found"` (`lf-tabs`,
   `lf-options`, `lf-trace-compare`); `runtime/passages.js` (`pageRange`, through
-  `Selection.getComposedRanges`); `runtime/css-anchors.js` (`anchor-scope`) and the
-  Page Map toggle in `styles/chrome.css` (anchor positioning).
+  `Selection.getComposedRanges`); `runtime/css-anchors.js` (`anchor-scope`).
 - **Compatibility checked 2026-10-14:** `hidden="until-found"` and `beforematch`
   support Chrome 102+, Firefox 139+ and Safari 26.2+; `getComposedRanges` Chrome
   137+, Firefox 142+ and Safari 17+; `anchor-name` Chrome 125+ and `anchor-scope`
@@ -141,8 +123,8 @@ what fails and what still works.
 ### The sheen over a line cut short
 
 - **Owner:** `@keyframes lf-sheen` in `styles/components/surfaces.css`, run by the
-  floating panel's field (`floating-panel.css`), the thread card's working words
-  (`surfaces.css`) and a pending thread title (`chrome.css`). It paints the words in
+  floating panel's field (`floating-panel.css`) and the thread card's working words
+  (`surfaces.css`). It paints the words in
   ink and dims them with a moving `mask-image` to each box's rest face.
 - **Observed 2026-10-15:** the sheen it replaced, a background clipped to the glyphs
   under a transparent fill, hid a cut line's ellipsis in Playwright Firefox 155, and
@@ -173,8 +155,7 @@ what fails and what still works.
 
 ### Intrinsic block retirement motion
 
-- **Owner:** `runtime/motion.js` (`foldBlock`), used by resolved thread cards and
-  block suggestion slots. The browser interpolates the ordinary intrinsic block
+- **Owner:** `runtime/motion.js` (`foldBlock`), used by block suggestion slots. The browser interpolates the ordinary intrinsic block
   size to zero with `calc-size(auto, size)`; the other block metrics start at their
   underlying CSS values. Neither caller measures or reconstructs the starting box.
 - **Checked 2026-10-14:** installed Playwright Chromium 153.0.8010.12 supports
@@ -358,7 +339,7 @@ what fails and what still works.
   bare wrappers, skips generated apparatus, and stops at a declared row boundary.
   Native `margin-trim` cannot replace that mechanism across the checked engines.
 - **Owner:** frame-edge rules in
-  [`theme.css`](../skills/leaf/assets/theme.css), with readings in
+  [`styles/theme.css`](../skills/leaf/assets/styles/theme.css), with readings in
   [`framing.js`](../skills/leaf/scripts/leaf/render-checks/framing.js).
 - **Observed, 2026-10-08:** installed Chrome 155 and Playwright WebKit 26.6 accept
   `margin-trim: block`; Playwright Chromium 153.0.8010.12 and Firefox 155 do not.
@@ -457,17 +438,6 @@ PY
 
 This checks API availability, not preservation behavior or the installed Safari
 application. Recheck the affected Leaf journey when resolving this entry.
-
-### Live sample host controls
-
-- **Owner:** `lf-sample.js` and the default theme's sample rules.
-- **Observed, 2026-10-10:** Firefox 157 and Playwright's Firefox lay out only a
-  table's first caption. The sample's label was the first and its Reset and Full
-  view controls a second, so Firefox drew the controls at zero size. A minimal
-  table with two captions reproduces it.
-- **Disposition:** fixed. A live sample keeps the label as its only caption; the
-  controls stand in the cell and the gutter is drawn on the exhibit around the
-  frame. Firefox, Chrome and WebKit show the controls above the gutter.
 
 ### Area capture rendering
 
@@ -616,12 +586,36 @@ document, and the runtime relies on it (next entry).
   `position-anchor: --t; top: anchor(top)` after the scroller; scroll the scroller
   past the header's start and compare the two rectangles' tops.
 
+### A stuck sticky box bounces with the page
+
+- **Disposition: answered for a page of parts.** Its title and list stand fixed in
+  the window (layouts.css, "A page of parts"), which every engine holds still through
+  overscroll, and the runtime reads a box fixed in the window as riding along with
+  every scroll (`stuckBox` in geometry.js). Other boxes stuck to the root, such as a column's
+  margin sidebar, still bounce. Revisit them if a reader notices, and drop the fixed
+  column if the engines hold stuck sticky boxes still.
+- **Observed, 2026-10-20, Firefox on macOS:** a fast trackpad scroll to a page of
+  parts' end bounced its sticky column with the page; made fixed, the column held
+  still while the part bounced. Headless Playwright draws no overscroll, so this was
+  seen in the user's own browser. The CSS Working Group resolved that a sticky box,
+  while stuck, takes no part in overscroll, as a fixed one doesn't
+  ([csswg-drafts#6299](https://github.com/w3c/csswg-drafts/issues/6299)). Firefox 103
+  implemented that for fixed boxes
+  ([bug 1760368](https://bugzilla.mozilla.org/show_bug.cgi?id=1760368)); for sticky
+  boxes [bug 1772626](https://bugzilla.mozilla.org/show_bug.cgi?id=1772626) is open.
+  Chrome had not implemented the sticky half as of 2023.
+- **Cost:** a mark or comment card on the column's title drifts in Safari while the
+  page is scrolled ("An anchor under a fixed box in WebKit", below).
+- **Alternative rejected:** `overscroll-behavior-y: none` on the root stops the column
+  moving only by removing the page's own bounce in every browser.
+- **Recheck:** on macOS with a trackpad, a document with a `position: sticky; top: 0`
+  column beside a long body; fling to the end and watch whether the column moves.
+
 ### An anchor under a fixed box in WebKit
 
-- **Disposition: accepted.** As above, no script or scroll-driven layer answers it.
-  Revisit if a page puts marks inside fixed panels for Safari readers, such as a
-  contents list or side panel that is `position: fixed` and holds commented or
-  highlighted targets.
+- **Disposition: accepted.** No script or scroll-driven layer answers it. A page of
+  parts' column is fixed (above), so its title's marks drift in Safari while the page
+  is scrolled; revisit if Safari readers comment on it.
 - **Affected:** a margin row, highlight or floating card whose target stands in a
   `position: fixed` box, while the document is scrolled.
 - **Observed, 2026-10-14, WebKit 26.6:** a box anchored to an element inside a
@@ -631,8 +625,8 @@ document, and the runtime relies on it (next entry).
   Firefox 155 place it on the anchor. Standing the box in a fixed frame anchored to
   the panel and cut with `clip-path` does not change WebKit's answer.
 - **Effect:** in Safari, the mark or row for a target in a fixed panel drifts from
-  its target as the page scrolls, and comes back at the top of the page. Leaf's own
-  fixed chrome holds no page targets.
+  its target as the page scrolls, and comes back at the top of the page. Of Leaf's own
+  fixed boxes only a page of parts' column holds page targets.
 - **Recheck:** a `position: fixed; overflow: auto` panel holding an element named
   `--t`, a `position: fixed` box with `position-anchor: --t; top: anchor(top)`
   after it, and a document tall enough to scroll; scroll the document and the panel

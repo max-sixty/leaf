@@ -1583,6 +1583,22 @@ def test_the_list_of_parts_lands_its_last_name_above_the_floating_row(browser, s
     assert box["y"] + box["height"] <= row["y"], (box, row)
 
 
+def test_a_short_window_keeps_the_list_of_parts_in_reach(browser, serve):
+    """The column stands fixed in the window, so a title taller than a short window
+    scrolls on its own and leaves the list a few names' room, rather than pushing the
+    list below the window's foot."""
+    page = open_page(browser, serve(ROOT_PARTS_PAGE))
+    resized(page, 1280, 300)
+    tabs = page.locator("#root-parts")
+    tabs.get_by_role("tab", name="Plan", exact=True).focus()
+    page.keyboard.press("End")
+    last = tabs.get_by_role("tab", name="Summary", exact=True)
+    expect(last).to_be_focused()
+    scroll_settled(page)
+    box = last.bounding_box()
+    assert 0 <= box["y"] and box["y"] + box["height"] <= 300, box
+
+
 def test_a_phone_keeps_the_list_of_parts_in_reach_and_each_part_s_place(browser, serve):
     """On a phone the list of parts is a row over the open part, and it sticks there as
     page tabs' strip does: the reader reaches another part from deep in this one, the

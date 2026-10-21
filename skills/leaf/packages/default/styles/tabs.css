@@ -771,10 +771,10 @@
    * no frame; its list stands on the page's ground under the page's title, and marks
    * the open part as every strip marks its open tab, by the way it runs (above): a
    * painted face in the column, a rule under the tab in a row. The open part is ruled off
-   * from the column. The list sticks under the title, so it stands in one place
-   * whichever part is open and wherever it is read, and scrolls on its own where it
-   * holds more names than the window's height leaves under the title, a height it holds
-   * on purpose (`--lf-holds-height`), as a sticking block does. It reaches the window's
+   * from the column. The list stands fixed under the title (layouts.css), so it stands in
+   * one place whichever part is open and wherever it is read, and scrolls on its own
+   * where it holds more names than the window's height leaves under the title, a height
+   * it holds on purpose (`--lf-holds-height`), as a sticking block does. It reaches the window's
    * foot, as the open part does (layouts.css), and keeps the foot's room inside its
    * scroll and its landing band, as the root does, so its last name scrolls and lands
    * clear of the floating panel's row where a narrow window puts the row over the
@@ -806,14 +806,17 @@
   }
   @scope (body > main:not(.layout-column, .layout-sidebar, .layout-workspace) > :scope) {
     :scope:is(lf-parts).lf-rendered > .lf-tabstrip {
-      position: sticky;
+      position: fixed;
       top: calc(var(--lf-top) + var(--lf-parts-title-h, 0px));
+      inline-size: var(--lf-parts-list);
+      box-sizing: border-box;
       align-self: start;
       block-size: calc(100dvh - var(--lf-head-room) - var(--lf-parts-title-h, 0px));
       min-block-size: 0;
       --lf-tabstrip-flow: column;
       gap: 0;
-      padding: var(--sp-4) 8px calc(var(--sp-4) + var(--lf-foot-room));
+      padding: calc(var(--sp-4) - var(--focus-ring-room)) 8px
+        calc(var(--sp-4) + var(--lf-foot-room));
       scroll-padding-block-end: var(--lf-foot-room);
       overflow-x: hidden;
       overflow-y: auto;
@@ -840,7 +843,9 @@
         --lf-top: calc(var(--lf-top-outer) + var(--lf-tabstrip-h));
       }
       :scope:is(lf-parts).lf-rendered > .lf-tabstrip {
+        position: sticky;
         top: var(--lf-top);
+        inline-size: auto;
         z-index: 2;
         block-size: var(--lf-tabstrip-h);
         --lf-tabstrip-flow: row;

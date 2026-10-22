@@ -589,8 +589,8 @@ export class ThreadView {
       measure(this.node, () => this.#retainHeaderSlot());
     else this.#releaseHeaderSlot();
     this.#continuity?.after(bodyPlace);
-    // A summary gathering the message the user stands on moves it; a page thread whose
-    // render took their place puts them in its reply, or on the thread itself.
+    // A page thread whose render took the user's place puts them in its reply, or on
+    // the thread itself.
     // Handing it on is the card's own act, which the list holding the card defers to.
     // A progress disclosure the user stood on that this render replaced hands them to
     // its successor (transcript.js).

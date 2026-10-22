@@ -6415,15 +6415,11 @@ var Transcript = class _Transcript {
     const node = document.createElement("section");
     node.className = "lf-thread-checkpoint";
     node.dataset.summaryId = id;
-    node.id = this.#foldId(id);
     const name = `--lf-fold-${this.#id}-${++this.#named}`;
     const foot = `${name}-foot`;
     node.style.setProperty("--lf-fold-head", name);
     node.style.setProperty("--lf-fold-foot", foot);
     return { node, foot };
-  }
-  #foldId(id) {
-    return `lf-fold-${this.#id}-${id}`;
   }
   #paintCheckpoint({ node }, range, covered2) {
     const progress = Boolean(range.summary.pending);
@@ -6457,7 +6453,7 @@ var Transcript = class _Transcript {
       class="lf-thread-disclosure lf-summary-expand ${progress ? "lf-progress-expand" : ""}"
       data-summary-toggle=${ids[0]}
       aria-expanded=${String(expanded)}
-      aria-controls=${ids.map((id) => this.#foldId(id)).join(" ")}
+      aria-controls=${ranges.flatMap((range) => range.messages.map(({ key }) => this.messageNode(key)?.id)).filter(Boolean).join(" ")}
       @click=${() => this.#setSummaryExpanded(ids, !expanded)}
     >
       ${iconTemplate("down", "lf-disclosure-icon")}

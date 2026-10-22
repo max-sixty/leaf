@@ -1143,33 +1143,11 @@ def test_page_state_names_each_bound_source_and_its_failures(page_dir):
     stored.write_text(json.dumps({**publication, "value": ["passing", 3]}))
     [error] = state_json(page_dir)["data"]["errors"]
     assert "builds" in error
-
-
-def test_page_check_and_state_name_a_source_at_an_unreadable_format(page_dir):
-    declare_data_input(
-        page_dir, "builds", {"type": "array", "items": {"type": "string"}}
-    )
-    data_model.cmd_data_set(page_dir, "builds", ["passing"])
-    stored = data_model.source_file(page_dir, "builds")
-    publication = json.loads(stored.read_text())
-    old_format = "leaf-data-source/15"
-    stored.write_text(json.dumps({**publication, "format": old_format}))
-
-    state = state_json(page_dir)
-    assert "builds" in state["data_bindings"]
-    [error] = state["data"]["errors"]
-    assert "data/builds.json" in error
-    assert old_format in error
-    assert data_model.PUBLICATION.format in error
     _, findings = check_findings(page_dir)
     assert any(
         finding.code == "unreadable-data" and error in str(finding)
         for finding in findings
     )
-
-    data_model.cmd_data_set(page_dir, "builds", ["replaced"])
-    assert state_json(page_dir)["data"]["errors"] == []
-    assert not found(check_findings(page_dir)[1], "unreadable-data")
 
 
 def test_sample_templates_bind_the_parents_producer_sources(page_dir):

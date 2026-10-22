@@ -86,8 +86,8 @@ durable stage:
   close or the harness's record. It does not claim an interruption.
 - `stale` work: a Working start quiet past its lease, or a pickup in another or older
   turn, or in one nothing has renewed within the working grace.
-- On a provisional reply, which makes only the input its `responds` names Replying,
-  the reply's own state sets the condition: `stale` when disconnected, `interrupted`,
+- A provisional reply makes only the input its `responds` names Replying, and its own
+  state sets that input's condition: `stale` when disconnected, `interrupted`,
   `failed`, or `ended` for a turn that completed without a final answer. `response`
   names the delivery attempt.
 
@@ -108,14 +108,10 @@ to-do itself, which no turn or session ending lapses (`todos.py`).
 
 ### Turns and generations
 
-A turn's stamps belong to the session, not the page: prompts and endings publish one
-atomic lifecycle record (`state.py`), and claims reference its generation, so no
-opening or ending rewrites a claim. SessionEnd ends a process-backed generation, and a
-resumed process-backed session starts a new one, which leaves its old claims inactive.
-Where the lifetime outlives the harness instance, as a desktop Codex chat's native
-transcript or a Claude Code background job whose daemon retires its worker between
-sittings, SessionEnd closes the instance's observations and keeps the generation, so
-resuming the chat or job keeps its pages (`state.end_harness_instance`).
+A turn's stamps and generation belong to the session's one lifecycle record, so no
+opening or ending rewrites a claim (`state.py`). `state.end_harness_instance` says
+which generations SessionEnd ends and which, such as a desktop Codex chat's or a
+background job's, outlive the harness instance.
 
 Where nothing answers for the declaration, activity reports the page `unheld`. A page
 with a persistent service spends most of its life unheld, and picks up again when a
@@ -137,8 +133,7 @@ comparing the name. A watcher is one of:
   exiting 2 (`hooks/scripts/background-watch.py`). It is a hook because Claude Code
   bounds a background command at two hours and a hook only by its `timeout`.
   `session.watch_between_turns` says what it wakes for and when, and
-  `Harness.watches_between_turns` why plain `--print` has none. The newest watch takes
-  the lease from an older one (`leases.supersede_lease`), which ends without waking.
+  `Harness.watches_between_turns` why plain `--print` has none.
 - **A hook watch under Pi**: the same watch, which Leaf's extension (`hooks/pi.ts`)
   starts as the session starts and as each run settles. When the watch exits with input
   and no run is going, the extension starts one.
@@ -157,20 +152,23 @@ updates a page's previous owner received and left unanswered.
 
 ### The hook
 
-Each harness registers `leaf hook` with its own name (`--harness`), in
-`hooks/hooks.json`, `hooks/codex.json` or `hooks/pi.ts`, and the hook takes the session
-from its payload (`harness.hook_harness`). `hooks.py` owns what each hook does before it
-reads a page, including SessionEnd's standalone entry. `hook_transport.py` owns what
-the prompt, tool-boundary and Stop hooks hand into a turn:
+Each harness registers its hooks in `hooks/hooks.json`, `hooks/codex.json` or
+`hooks/pi.ts`, passing its name to `leaf hook --harness`, and the hook takes the
+session from its payload (`harness.hook_harness`). `hooks.py` owns what each hook does
+before it reads a page. SessionEnd runs `leaf session-end`, which `bin/leaf` hands to
+`state.py`'s standalone stdlib entry. `hook_transport.py` owns what the prompt,
+tool-boundary and Stop hooks hand into a turn:
 
-- Stop continues a turn only for what the turn owes. Where a watch follows the turn, it
-  lets the turn end on its answer, and the watch wakes a turn of its own that names an
-  owed update once per delivery (`session.left_owed`).
+- Stop continues a turn for a page of the session's that has no running watcher and
+  holds pending input or a status other than idle, and, where no watch follows the
+  turn, for each owed update the turn has not started (`activity.turn_obligations`).
+  Where a watch follows the turn, the turn ends on its answer, and the watch wakes a
+  turn of its own that names an owed update once per delivery (`session.left_owed`).
+- A page carrying `preview.json` owes no watcher for its status, since only a page
+  handed to a user does.
 - A hook hands a delivery over inline only where the harness will read all of it
   before the hook's deadline, and otherwise as a pointer the agent confirms with
   `leaf delivery ack`.
-- The Stop hook's unwatched-page clause passes over a page carrying `preview.json`,
-  since only a page handed to a user owes a watcher.
 
 `delivery.py` owns receipt: when each harness's hook output counts as read, and how a
 handover the turn never confirmed becomes input again. Session death is neither
@@ -179,12 +177,9 @@ were.
 
 ### Reconnect notices
 
-Resume and prompt hooks tell the agent how to restore a page the session still means to
-serve: an enabled session service whose ownership is inactive or whose server lease no
-live server holds gets `leaf server start <page>`, repeated on every resume and prompt
-until the agent restores serving or stops the page (`reconnect.py`). Stopped and
-persistent services, developer previews and pages another session claimed get none,
-and the Stop hook never continues a turn to deliver one.
+Resume and prompt hooks repeat `leaf server start <page>` for a page whose session
+service is enabled but whose ownership or server is down (`reconnect.py`, which lists
+the exclusions). The Stop hook never continues a turn to deliver one.
 
 ### Nudging a session with no watcher
 
@@ -217,7 +212,8 @@ Neither changes the page's authored work status.
 `leaf wait` revives an enabled service whose process has died, once per death, and
 notes it (`server-restarted`). A revival is a start, so it is refused for a page this
 Leaf cannot serve (`layer.incompatible_layer`). A page nothing will serve is lost:
-never served, or dead again after a revival that was refused or did not hold. A lost
+never served, or one whose revival was refused or died again. A refused revival leaves
+the service enabled until `server stop`. A lost
 page ends a wait that names it, and a session's wait once no other live page is left,
 with the `leaf server start` command that serves it. A stopped service is not lost
 (`session.Watch`): the wait watches it without reviving it until the page goes idle or
@@ -260,11 +256,9 @@ session and the session has not ended (`service.claim_names_session`).
 Desktop Codex unloads an idle instance without ending the chat, so an existing chat
 keeps its server, preview and adapter across inactivity and unload, and loses them
 only on archive, deletion or transfer. Its startup hook captures the chat's native
-transcript, which a new desktop start refuses to proceed without (`codex_state.py`).
-A desktop user preview detaches its input watcher for the same reason
-(`dev/leaf_dev/commands/preview.py`).
+transcript (`codex_state.py`), without which a new desktop start owns nothing
+(`state.chat_exists`). A desktop user preview detaches its input watcher for the same
+reason (`dev/leaf_dev/commands/preview.py`).
 
-The detached Codex adapter follows the session's page ownership, not the pages'
-declarations: while every owned page is idle it delivers nothing and waits, and a later
-start or `waiting` declaration resumes delivery through the same adapter. It retires
-once ownership ends (`codex_adapter.py`).
+The adapter follows the session's page ownership, not the pages' declarations, and
+retires once ownership ends (`codex_adapter.py`).

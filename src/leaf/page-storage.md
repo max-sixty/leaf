@@ -38,7 +38,8 @@ record whose pages are gone is removed whichever Leaf wrote it (`state.retire_if
   ([layer-registry.md](layer-registry.md)).
 
 - `instructions/` — package instructions by audience, which `page instructions`
-  composes (`../../skills/leaf/references/packages.md`, "Package contract").
+  composes (`layer.composed_instructions`; `../../skills/leaf/references/packages.md`,
+  "Package contract").
 
 - `icon.svg` — the tab icon, whose `lf-tone` element follows the page's status colour.
 
@@ -59,7 +60,7 @@ record whose pages are gone is removed whichever Leaf wrote it (`state.retire_if
 
 - `events.jsonl` — the append-only event log, where an event's seq is its line number
   from 1. Stored rows keep the native session `context`, which application readers strip
-  before admission, projection, delivery or output (`interaction_log.py`). The log also
+  before admission, projection, delivery or output (`event_log.py`). The log also
   holds the acknowledgement cursor, the greatest `through` among its `receipt` events,
   so a cursor lives and ends with its log ([session-lifetime.md](session-lifetime.md)).
 
@@ -127,8 +128,9 @@ record whose pages are gone is removed whichever Leaf wrote it (`state.retire_if
 
 The live root serves the active revision, and revision and version addresses go through
 the same delivery, all naming the page root as canonical (`revision_delivery.py`). The
-revision manifest's executable digest decides whether an open tab replaces its document
-or keeps its widgets (`revision_artifact.py`).
+revision manifest's `executable` digest decides whether an open tab patches its
+document or replaces it, and its `widgets` digests decide which widgets a patch keeps
+(`revision_artifact.py`).
 
 A publication that also changes the log stages its bundle, names it in its first
 admitted event, and writes the revision marker last, and the next page transaction
@@ -136,13 +138,13 @@ finishes one that was interrupted (`revisioning.py`).
 
 ## Page state
 
-`leaf page state` is an on-demand reading of these files; its `--help` lists what it
-holds. It doesn't repeat the document: an agent reads the HTML at `active.file` beside
-its `state`, which lists each user action in force. `event_seq` is the last event the
-reading folded, which `leaf page events --after` takes, and is not the acknowledgement
-cursor. `leaf page state <page> <id>` narrows the reading to a thread or a widget, and
-since page ids and event ids share one address space, `page check` refuses an authored
-id shaped like an event id. `leaf page events` holds raw history.
+`leaf page state` is an on-demand reading of these files, which `agent_state.py`
+assembles from the reading `/api/state` serves. It doesn't repeat the document: an
+agent reads the HTML at `active.file` beside its `state`, which lists each user action
+in force. `event_seq` is the last event the reading folded, which
+`leaf page events --after` takes, and is not the acknowledgement cursor. Page ids and
+event ids share one address space, so `page check` refuses an authored id shaped like
+an event id.
 
 Deliveries live outside page directories, at `<state-home>/deliveries/<id>.json`,
 because one envelope can hold batches from several pages and must resolve the same in

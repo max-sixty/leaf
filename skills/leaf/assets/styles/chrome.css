@@ -800,12 +800,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     color: var(--muted);
     font-size: var(--t-6);
   }
-  .lf-command-reference-description {
-    display: block;
-    margin-top: 2px;
-    color: var(--muted);
-    font-size: var(--t-6);
-  }
   @media (max-width: 640px) {
     .lf-command-reference-binding-matches .lf-command-reference-action-main {
       display: block;

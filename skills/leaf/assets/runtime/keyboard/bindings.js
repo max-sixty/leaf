@@ -24,13 +24,11 @@
      row's, so a row's description repeats under every route.
    - `title` is the command's required concise name, or a function when state changes
      it. The obligation, menu rows, reference, and announcements read these same words.
-   - `description` is the reference's grey second line, for what the reader can't tell
-     from the title and its section heading and that no short title could say: a
-     consequence ("Keeps what is typed"), a mechanic ("prose still selects"), a state
-     the title hides ("Undo: …"). Most rows have none. Where the missing words fit, put
-     them in the title ("discard", not "stop editing" over "leaving the message as it
-     was"). A description that spells the title out as a sentence, or that repeats down
-     a run of rows such as an option group's digits, is noise.
+   - `description` is the row's tooltip in the reference, and its meta line when the
+     row is selected. Most rows need none. Write one only for something the title and
+     section heading leave out and a short title can't hold, such as "Keeps what is
+     typed" or the action Undo would take back. If the missing words fit in the title,
+     put them there ("discard" rather than "stop editing").
    - `label` overrides the compact keycap, independently of the action name. A keyless
      command remains named by its title in the reference.
    - `contextKeys` are explicit aliases that work inside the widget and may be forwarded

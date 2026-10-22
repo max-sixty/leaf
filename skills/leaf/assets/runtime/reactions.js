@@ -599,7 +599,7 @@ export function createReactionController({
     ready: savedReadingSettled,
     touch: false,
     keys: ["e"],
-    description: "For the selection, the focused item, or the open reply",
+    description: "On the selection, the focused item or the open reply",
     title: "reactions",
     when: () =>
       reactionAvailable() &&

@@ -350,7 +350,7 @@ export function createDesignMode({
         keys: [],
         label: "click",
         title: "Comment on appearance",
-        description: "Click a widget, control, or picture; prose still selects",
+        description: "Click a widget, control or picture. Text still selects as usual",
       },
       {
         id: "design.mode.exit",
@@ -380,7 +380,7 @@ export function createDesignMode({
   pageCommand({
     id: "design.mode.enter",
     keys: ["l"],
-    description: "Comment on how the page looks and works, rather than its words",
+    description: "Comment on how the page looks and works",
     title: "design mode",
     touch: "Design mode",
     menu: "annotate",

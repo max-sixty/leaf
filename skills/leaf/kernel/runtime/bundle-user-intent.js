@@ -3542,7 +3542,7 @@ var MessageEditor = class {
         {
           id: "message.edit.previous",
           keys: ["ArrowUp"],
-          description: "From the start of an unchanged box",
+          description: "When the box is unchanged and the caret is at its start",
           title: "edit previous message",
           // A walk passes over words as they stand: words the user changed hold ↑ for
           // the caret, as a reply box holding words does, until Save or Escape. It

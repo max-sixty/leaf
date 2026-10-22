@@ -22,6 +22,10 @@
    so in the meta line; muting those rows put most of a page's catalog in a second face
    that read as a different font beside the first.
 
+   A row's description is its button's tooltip, and the meta line under the search
+   repeats it for the row ↑↓ selects, so the keyboard reaches it too. As a grey line
+   under the title it made the catalog harder to scan for the few rows that have one.
+
    The catalog is deliberately frozen while open. A command that becomes live waits until
    the next opening; one that becomes unavailable is rejected by fresh dispatch and causes
    the reference to reopen with an explanation.
@@ -624,7 +628,11 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
         ]
           .filter(Boolean)
           .join(" ")}
-        title=${entry.available ? "Run command" : entry.unavailableMessage}
+        title=${
+          [entry.description, entry.available ? "" : entry.unavailableMessage]
+            .filter(Boolean)
+            .join("\n") || nothing
+        }
         @click=${() => activateCommandEntry(entry)}
         .textContent=${entry.title}
       ></button>`
@@ -634,7 +642,7 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
     : nothing;
   // Whitespace in this cell is observable to accessibility and command consumers.
   // prettier-ignore
-  const actionBody = html`<div class="lf-command-reference-action"><div class="lf-command-reference-action-main">${action}${scope}</div>${entry.description ? html`<span id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</span>` : nothing}</div>`;
+  const actionBody = html`<div class="lf-command-reference-action"><div class="lf-command-reference-action-main">${action}${scope}</div>${entry.description ? html`<span id=${entry.descriptionId} class="lf-command-reference-description" hidden>${entry.description}</span>` : nothing}</div>`;
   const actionCell = html`<td role="gridcell">${actionBody}</td>`;
   return html`
     <tr
@@ -955,9 +963,14 @@ function moveCommandReferenceSelection(dir) {
   commandReferenceState = {
     ...commandReferenceState,
     selectedCommandId: nextId,
-    metaOverride: `${nextRecord.entry.title} · ${
-      nextRecord.entry.steps[0]
-    } · ⏎ activate`,
+    metaOverride: [
+      nextRecord.entry.title,
+      nextRecord.entry.description,
+      nextRecord.entry.steps[0],
+      "⏎ activate",
+    ]
+      .filter(Boolean)
+      .join(" · "),
   };
   presentCommandReference();
   const next = commandButton(nextId);

@@ -178,9 +178,9 @@ function compileModule(text, source) {
  * keyed and child-part insertions through `runtime/dom-move.js`, which keeps the
  * user's place and native state across the move.
  *
- * `package.json` pins `lit-html` at 3.3.0 because from 3.3.1 `repeat` leaves a comment
- * behind for each item it removes, so a list the chrome redraws grows for as long as
- * the page is open. Lift the pin to a release that carries lit/lit#5299; the
+ * `package.json` holds `lit-html` at 3.3.0 for that leak: from 3.3.1 `repeat` leaves a
+ * comment behind for each item it removes, so a list the chrome redraws grows for as
+ * long as the page is open. Lift the pin to a release that carries lit/lit#5299; the
  * closed-surface journey of `test_page_fixture_renders` fails while the leak remains.
  */
 async function litModule() {

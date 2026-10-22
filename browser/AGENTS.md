@@ -6,8 +6,7 @@ its local contract, the contracts modules and packages build on are in
 `../skills/leaf/references/module-*.md` and `../skills/leaf/references/packages.md`, and the rules shared with
 Python are in root `AGENTS.md`, "Cross-runtime invariants".
 
-Edit the stylesheet sources, `styles/components/`, `styles/shadow.css`,
-`styles/theme.css` and `styles/chrome.css`, and rebuild the generated sheets from them
+Edit stylesheet sources under `styles/`, never the generated sheets, and rebuild them
 (`build/AGENTS.md`).
 
 ## Layout and motion
@@ -74,7 +73,7 @@ representative desktop viewport.
   on the box that owns the space: `text` where its labels may rewrap while its controls
   stay put, as in a message header, and `append` where it grows only at its end, as a
   thread card's transcript does. A nested region keeps every guarantee of the regions
-  around it. The `tests/shift_watch.js` header says what each value permits.
+  around it. The `tests/shift_watch.js` header says how the watch credits an `append` region.
 - **News never moves what the reader is reading.** News from the server grows above
   the screen, where scroll anchoring absorbs it, or below it. Anywhere else it waits
   behind a fixed-size control until the reader goes to it, and an editor in use stays
@@ -105,11 +104,12 @@ representative desktop viewport.
 - **A gesture shows the result the page can draw as it is made** (root `AGENTS.md`,
   "The document starts state; the log changes it"). `standGesture` in `drafts.js`
   handles a send and the refusal that returns the words to their box. The new content
-  and its Undo confirm success, so success needs no notice beyond the announcement for
-  a listener. A gesture that moves the user, such as resolving a thread, moves them
-  back when it is refused or undone (`thread/folding.js`). A result only the log can
-  supply waits with `aria-busy`, shown after a delay so a fast answer shows nothing.
-  Persistent status text is for a state the user must return to, such as a failure.
+  and its Undo confirm success, so success needs no notice beyond the announcement
+  for a listener. A gesture that moves the
+  user, such as resolving a thread, moves them back when it is refused or undone
+  (`thread/folding.js`). A result only the log can supply waits with `aria-busy`, shown
+  after a delay so a fast answer shows nothing. Persistent status text is for a
+  state the user must return to, such as a failure.
 
 ### Words stay where they were typed
 
@@ -146,8 +146,7 @@ representative desktop viewport.
 - **Nothing the user must read, press, or decide waits on a clock.** Motion the user
   waits on stays under 300ms. A delay may hide a flicker but never adds a minimum
   spinner time or a staged reveal. `runtime/motion.js` owns the shared motion gate,
-  easing and reduced-motion check, and the theme's `--lf-motion-*` properties set
-  durations.
+  easing and reduced-motion check, and the theme's `--lf-motion-*` properties set durations.
 
 ## Runtime ownership
 
@@ -216,7 +215,7 @@ changes that CSS can't follow is read again when the scroll ends (`watchScrollEn
 Write a DOM value only when it changes, through `keeps` in `runtime/keeps.js`, whose
 header says what a redundant write costs. Give each value one writer, since two owners
 that set it in turn rewrite it whenever either paints. Checks: `tests/write_watch.js`
-fails a write that changes nothing, and `scroll_findings` in the render gate fails a
+fails a write that changes nothing, and `scroll_findings` in `test_page_fixture_renders` fails a
 value a scroll rewrites on every step.
 
 A page's state depends on its present conditions, not on the path that led there.
@@ -228,7 +227,7 @@ width or gesture behind it ends, and an absent value is a missing attribute, whi
 around the rows already there (`margin-layout.js`). `test_page_fixture_renders` checks
 these rules on every corpus page.
 
-Stylesheets apply in the cascade layers `CASCADE_LAYERS` in `layer.py` declares
+Stylesheets apply in cascade layers, in the order `CASCADE_LAYERS` in `layer.py` declares
 (`../skills/leaf/references/packages.md`, "Styles and composition"). A widget package's rules
 reach only its own widgets (`widget_confinement`), so a rule several packages need
 belongs in the kernel. Page and theme-package rules skip the chrome and every `.lf-ui`
@@ -263,9 +262,9 @@ that reason the change doesn't land. The same holds for patching a built-in prot
 or a dependency's internals.
 
 Feature-detect only what a current stable engine lacks, and name that engine beside
-the check (`// Firefox lacks ScrollTimeline.`), so the check goes when the engine
-ships it. Call an API every engine ships directly, with no fallback, and record the
-check in `notes/browser-support.md`.
+the check (`// Firefox lacks ScrollTimeline.`), so the check goes when the engine ships
+it. Call an API every engine ships directly, with no fallback, and record the check in
+`notes/browser-support.md`.
 
 Two script answers already exist. `focus.js` sets `data-lf-focus` and
 `data-lf-focus-within`, because native `:focus` also matches retargeted shadow hosts
@@ -289,7 +288,7 @@ reads (root `AGENTS.md`, "The document starts state; the log changes it"):
 | version shown                                                                                                 | the revision the delivery prelude names; a newer revision with the same executable identity patches in place, and a different one loads a fresh document                                           |
 | accepted history                                                                                              | the server's event log and its `/api/state` answer, which the publisher adopts whole; each answer has one `through_seq`, and a version comparison asks `/api/view` at the sequence already applied |
 | unresolved browser work, refusals included                                                                    | the publisher's one ordered list; the server records no refusal, since the condition behind one can change while the user's words stay the same                                                    |
-| threads, workflow, attention, obligations, to-dos, activity, unread                                           | the server's state (`obligations/model.js`); the browser adds only its own unresolved sends and the versions it is marking read                                                                    |
+| threads, workflow, attention, obligations, to-dos, activity, unread                                           | the server's state, which the browser selects without folding again (obligations: `obligations/model.js`); the browser adds only its own unresolved sends and the versions it is marking read      |
 | what waits on the user and on the agent                                                                       | the server's `served_state.queues`, which `page state` prints; the publisher adds this tab's sends (`localQueues`)                                                                                 |
 | what the DOM shows                                                                                            | the presentation coordinator's renderer tickets and preparation regions                                                                                                                            |
 | when a document-wide renderer paints                                                                          | the order `PRESENTATION_ORDER` in `runtime/semantic-state.js` declares                                                                                                                             |
@@ -445,10 +444,10 @@ visible change").
 ## Working on the runtime
 
 A paint that must land in the current turn uses `render`. `LitElement` schedules
-updates on a microtask, which suits only runtime views that can wait: code that reads
-the document right after a paint, such as a focus move onto a control just drawn, a
-measurement, held news or a region committing in `PRESENTATION_ORDER`'s pass, would
-have to await `updateComplete` and let other work run in between. A paint reads state
+updates on a microtask, so code that reads the document right after a paint (a focus
+move onto a control just drawn, a measurement, held news, a region committing in
+`PRESENTATION_ORDER`'s pass) would have to await `updateComplete` and let other work
+run first. Use it only for runtime views that can wait. A paint reads state
 through `readPart` selectors that return exactly what it draws, so it reruns only when
 that answer changes (`semantic-state.js`).
 

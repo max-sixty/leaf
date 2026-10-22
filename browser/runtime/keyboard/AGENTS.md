@@ -9,9 +9,8 @@ scope answers a press.
 A command is one capability, owned by the layer that implements its result. A binding
 is a key that invokes it, and a scope says where the binding applies. Dispatch, the
 floating panel's menu rows, the command reference, tooltips, announcements and
-`aria-keyshortcuts` all read one register, so register a capability once and derive
-every presentation from its row. A visible control names an existing command rather
-than copying its callback.
+`aria-keyshortcuts` all read one register, so register a capability once and derive every presentation from
+its row. A visible control names an existing command rather than copying its callback.
 
 Core owns commands on the page, the chrome, navigation, comments and shared thread
 state. A widget owns commands that read or change its content, and its scopes join the
@@ -42,7 +41,7 @@ keep the browser's order.
   containing page.
 - Draw and Design are page modes; surfaces opened inside them close first.
 - A surface's own state, such as a Threads filter, clears before the surface closes.
-  Page-side selections, targets and the page composer coexist beside a view the
+  Page-side selections, targets, margin clusters and the page composer coexist beside a view the
   floating panel opens, and focus decides which answers first.
 - A composer, reply box or find box returns to its container: an element comment's
   composer to its element, a reply box to its thread, a find box to its panel. A layer
@@ -50,9 +49,9 @@ keep the browser's order.
 - After Send, a reply or a thread's first comment leaves focus on the thread's card or
   title, never on the page. The panel's field, and a box that stays open for more
   messages such as a widget's thread box (`x-thread-seat`), keep focus.
-- A selected destination (a thread, an obligation, a heading) steps back to the
-  document through `letGo` (`focus.js`), landing on the visible block rather than on
-  the control that opened it. Page Map returns focus to whatever opened it.
+- A selected destination (a thread, an obligation, a heading) steps back to the document
+  through `letGo` (`focus.js`), landing on the visible block rather than on the control
+  that opened it. Page Map returns focus to whatever opened it.
 
 Go-to, target hints, page search, reactions and the command reference own the keyboard
 while active and handle their own exit. Escape closes a surface even if it was open
@@ -76,17 +75,19 @@ page's controls (`page-controls.js`), which serves a finger and a mouse alike an
 built from the same row the key uses (`touch-controls.js`). What a gesture does next, a
 finger does on what the gesture acts on: a search's arrows walk its matches from its
 box, a drawing's composer undoes its stroke, and the page's field comments on selected
-words. So a page scope's rows get no row of their own: each one that runs a press says
-`touch: false`, or is the `exit` of a stance a finger can enter, such as page search,
+words. So a page scope's rows take no words: each that runs a press says
+`touch: false` or is the `exit` of a stance a finger can enter, such as page search,
 the target picker or Draw mode. While that stance is the innermost one standing, the
 panel offers its exit as one ✕, which leaves the stance even where Escape would first
-close something inside it. The register refuses a page command without `touch` and a
-scope row whose `run` is neither `exit` nor `touch: false`. `false` says a finger
-reaches the result directly, as it reaches a walk's stops by scrolling and tapping.
+close something inside it. The picker's ✕ is the exception: while typed hint letters
+stand, it takes back one (`target-picker.js`). The register refuses a page command
+without `touch` and a scope row whose `run` is neither `exit` nor `touch: false`.
+`false` says a finger reaches the result directly, by scrolling and tapping or through
+a control of the row's own beside what it changes.
 
 The comment field has one primary action, Dictate while empty and Send once it has
 words; Suggest and reactions open by Tab from the field. The field has no ellipsis
-menu, on phones too, by the user's choice; change that only with the user, through a
+menu, on phones too; change that only with the user, through a
 rendered design comparison.
 
 A command that should leave the user where they are declares `retainStanding`: the

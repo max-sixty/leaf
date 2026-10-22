@@ -1,9 +1,8 @@
 # Committed bundles
 
-This directory builds the browser files Leaf commits: everything under
-`browser/vendor/`, including the framework compiled from the TypeScript in
-`browser/framework/`, each package's `vendor/`, the stylesheets built from
-`browser/styles/`, and the compiled kernel in `dist/kernel/`. Installation, page init
+This directory builds every browser file Leaf commits but doesn't write by hand: the
+framework compiled from `browser/framework/`, the third-party bundles, the stylesheets,
+the registry's runtime modules and the kernel in `dist/kernel/`. Installation, page init
 and export use the committed files and never run a compiler, and package authors write
 native JavaScript with no build.
 
@@ -11,11 +10,6 @@ native JavaScript with no build.
 script that writes it. `pnpm run build:browser` type-checks and writes them all;
 `pnpm run check:browser`, part of `pnpm run check`, compares a fresh build with the
 committed bytes without writing.
-
-```sh
-pnpm install --frozen-lockfile
-pnpm run build:browser
-```
 
 After `pnpm install --frozen-lockfile`, a build reproduces the committed bytes, so a
 diff after rebuilding means the lock, a build script, a runtime module or a registry

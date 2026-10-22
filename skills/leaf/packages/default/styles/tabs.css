@@ -254,7 +254,8 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
     z-index: 0;
     anchor-name: --lf-tab-panel;
   }
-  :scope:is(lf-tabs, lf-parts).lf-rendered > :is(lf-tab, lf-part)[data-lf-focus-visible] {
+  :scope:is(lf-tabs, lf-parts).lf-rendered
+    > :is(lf-tab, lf-part)[data-lf-focus-visible] {
     outline: none;
   }
   :scope:is(lf-tabs, lf-parts).lf-rendered:has(

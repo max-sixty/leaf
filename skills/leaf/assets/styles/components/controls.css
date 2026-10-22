@@ -39,7 +39,10 @@
 .lf-page-thread .lf-btn {
   font: inherit;
 }
-:is(.lf-page-thread :is(.lf-btn, summary), .lf-resolved-summary)[data-lf-focus-visible] {
+:is(
+  .lf-page-thread :is(.lf-btn, summary),
+  .lf-resolved-summary
+)[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 1px;
 }

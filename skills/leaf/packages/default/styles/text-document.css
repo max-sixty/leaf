@@ -130,7 +130,8 @@ html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
 :scope:is(lf-text-document) .lf-text-document-listing > pre[data-lf-focus-visible] {
   outline: none;
 }
-:scope:is(lf-text-document) .lf-text-document-listing:has(> pre[data-lf-focus-visible])::after {
+:scope:is(lf-text-document)
+  .lf-text-document-listing:has(> pre[data-lf-focus-visible])::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -139,7 +140,8 @@ html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
-:scope:is(lf-text-document) .lf-text-document-listing:has(> pre[data-lf-focus-visible]) {
+:scope:is(lf-text-document)
+  .lf-text-document-listing:has(> pre[data-lf-focus-visible]) {
   --lf-wears-ring: 1;
 }
 

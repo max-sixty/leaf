@@ -10,6 +10,10 @@
 # goals. Runs that read no reference (2 of 9 there) can't see either wording.
 # Asked the same of the HTML rather than the script, base labelled both in 3 of 3,
 # so the script's unused labels argument is what reproduces the session.
+# When the rule was cut back to its goal (labels for the facts the user weighs, with no
+# order or every-option requirement) the rubric came to check that goal: base and
+# candidate 5 of 5 each. Under the rubric before it, candidate runs left the reach label
+# off the keep-today option in 2 of 5.
 description: options-label-what-sets-them-apart
 metadata:
   purpose:
@@ -98,13 +102,13 @@ assert:
       tuples passed to `opt(i, title, body, rec=False, tags=())`; the `tags`
       argument becomes `small.tag` labels before the option's title. The
       alternatives differ in how much work each is and in how far back `z` can
-      reach. Pass only if every option in the rewritten decision carries labels,
-      through `tags` or literal `<small class="tag">` markup before its title,
-      that state its value for those differences (such as "effort: small" and
-      "reach: no limit", in any wording), the same facts in the same order on each
-      option. Fail if any option states its effort only in its title or body text,
-      such as a trailing "Small." or "A medium change", or if an option lacks the
-      labels the others carry. The `recommended` label alone does not count.
+      reach. Pass only if a reader can compare the options on those differences
+      from labels, through `tags` or literal `<small class="tag">` markup (such as
+      "effort: small" and "reach: no limit", in any wording), without reading the
+      options' prose. An option that keeps today's behavior may leave a value to
+      the context that describes today. Fail if any option states its effort only
+      in its title or body text, such as a trailing "Small." or "A medium change".
+      The `recommended` label alone does not count.
   - type: llm-rubric
     metric: reason-beside-options
     value: |

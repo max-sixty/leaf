@@ -6,7 +6,8 @@
  * One upstream model survives updates and departures. Identical paths leave the
  * model untouched; changed paths retain surviving focus, selection, active search, and the
  * folders the reader expanded, including expanded descendants of a closed folder.
- * A search filter survives navigation so several related files can be visited.
+ * Search clears on blur or activation. Enter in search chooses a row; Enter on
+ * that row opens its file through Leaf's ordinary datum route.
  * Trees draws into the widget's one declared shadow stage, sharing it with Leaf's
  * focus and arrival observers. No nested, unregistered shadow root holds controls.
  *
@@ -98,7 +99,6 @@ customElements.define(
         const search = root.querySelector("input");
         keeps(search, "aria-label", `Search ${label}`);
         keeps(search, "name", "files");
-        commands(search, fileActions);
         stopModel = tree.subscribe(rememberExpansion);
         mounted = true;
       };
@@ -131,11 +131,8 @@ customElements.define(
         {
           id: "files.open",
           title: "Open file or toggle folder",
-          keys: () => (focusedRow() ? PRESS : ["Enter"]),
-          when: () =>
-            focusedRow() ||
-            (focused() === root.querySelector("input") &&
-              Boolean(tree?.getFocusedItem())),
+          keys: PRESS,
+          when: focusedRow,
           run: () => activate(true),
         },
         {
@@ -204,7 +201,6 @@ customElements.define(
             paths: files.map((file) => file.path),
             initialExpansion: "open",
             search: true,
-            searchBlurBehavior: "retain",
             // The virtualizer and the drawn rows use the same hit-target height.
             itemHeight: matchMedia("(pointer: coarse)").matches ? 44 : 30,
           });

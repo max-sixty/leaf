@@ -112,8 +112,7 @@ widget.
 ### Text alignment
 
 `alignText(before, after)` aligns two texts by words and returns runs `{kind, text}`,
-with `kind` `same`, `delete` or `insert`. A large rewritten middle comes back as one
-delete and one insert. To align by sentences, pass an `Intl.Segmenter` with
+with `kind` `same`, `delete` or `insert`. A large rewrite comes back as one delete and one insert. To align by sentences, pass an `Intl.Segmenter` with
 `granularity: "sentence"` as the third argument.
 
 ### Image comparison

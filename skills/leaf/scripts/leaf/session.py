@@ -461,10 +461,11 @@ def read_watch_pass[DeliveryResult](
     watch: Watch,
     named: Path | None,
     deliver: Callable[[PageTick], DeliveryResult],
-    ready: Callable[[PageTick], bool] = lambda reading: True,
+    ready: Callable[[PageTick], bool] = lambda reading: bool(reading.batch),
 ) -> _WatchPass[DeliveryResult]:
-    """Read pages until this pass completes or one page ends the wait. A batch
-    the watch is not `ready` to hand over waits for a later pass."""
+    """Read pages until this pass completes or one page ends the wait, delivering
+    the first page the watch is `ready` to wake for: by default one with a batch
+    to hand over. A page it is not ready for waits for a later pass."""
     readings = []
     live = []
     for reading in watch.tick():
@@ -487,7 +488,7 @@ def read_watch_pass[DeliveryResult](
         # A batch outranks the page's state: a wait already holding events owes
         # them to the agent whatever became of the leaf, so an idled page still
         # delivers here — it just no longer holds the wait open below.
-        if reading.batch and ready(reading):
+        if ready(reading):
             return _WatchPass(readings, live, 0, deliver(reading))
         if reading.lost:
             # A session-wide watcher still serves its other leaves. Treat the
@@ -528,12 +529,18 @@ def _ended_watch(readings: list[PageTick], page_dir: Path | None) -> int:
     return 2
 
 
-def new_input_line(page_dir: Path) -> str:
-    """What a watch says on finding input where the harness's prompt hook carries it
-    into the turn: it only wakes the session."""
+def wake_line(page_dir: Path, *, new_input: bool) -> str:
+    """What a watch says as it wakes the session, where the harness's prompt hook
+    carries what woke it into the turn: `new_input`, or an answer a closed turn left
+    owed (`left_owed`)."""
+    if new_input:
+        return (
+            f"{page_dir} has new input; Leaf's prompt hook puts it in your context "
+            "with this notification"
+        )
     return (
-        f"{page_dir} has new input; Leaf's prompt hook puts it in your context with "
-        "this notification"
+        f"{page_dir} has an update still owed an answer; Leaf's prompt hook names it "
+        "in your context with this notification"
     )
 
 
@@ -606,6 +613,8 @@ def wake_inputs(page: PageTransaction, batch: list[dict]) -> list[dict]:
     from .served_state.context import read_page
     from .workflows import agent_inputs
 
+    if not batch:
+        return []
     agents = agent_inputs(read_page(page.page_dir, page.events).work.durable)
     pending = []
     for event in batch:
@@ -613,6 +622,29 @@ def wake_inputs(page: PageTransaction, batch: list[dict]) -> list[dict]:
             continue
         pending.append(event)
     return pending
+
+
+def left_owed(page: PageTransaction) -> list[dict]:
+    """The updates whose answers the claimant's closed turn left owed and no prompt
+    has named since their delivery (`activity.left_owed`). The Stop hook lets such
+    a turn end on its answer, and the watch wakes a turn of its own for them, whose
+    prompt hook names them."""
+    from .activity import left_owed as owed_after
+    from .delivery import reminded
+    from .served_state.context import read_page
+
+    claim = page.active_claim
+    if claim is None or claim["turn_closed"] is None:
+        return []
+    work = read_page(page.page_dir, page.events).work
+    by_id = {event["id"]: event for event in page.events}
+    return [
+        by_id[obligation["input"]]
+        for obligation in owed_after(
+            {**work.presence, "activity": work.activity},
+            lambda input_id: reminded(page.events, input_id),
+        )
+    ]
 
 
 def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str | None:
@@ -661,8 +693,25 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
         live = harness.live_turn()
         return live is None or live["state"] == "idle"
 
+    # What `left_owed` found on each page, by the log and turn it read, so a pass
+    # that finds nothing changed folds no page.
+    owed: dict[Path, tuple[tuple, list[dict]]] = {}
+
+    def reminders(page: PageTransaction) -> list[dict]:
+        claim = page.active_claim
+        key = (
+            len(page.events),
+            claim and claim["turn"],
+            claim and claim["turn_closed"],
+        )
+        if (kept := owed.get(page.page_dir)) is None or kept[0] != key:
+            owed[page.page_dir] = kept = (key, left_owed(page))
+        return kept[1]
+
     def ready(reading: PageTick) -> bool:
-        pending = wake_inputs(reading.transaction, reading.batch)
+        pending = wake_inputs(reading.transaction, reading.batch) or (
+            [] if interrupted else reminders(reading.transaction)
+        )
         if not pending:
             return False
         if interrupted:
@@ -682,13 +731,21 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
     try:
         while harness.process_runs():
             mark = watch.mark()
-            reading = read_watch_pass(watch, None, lambda tick: tick.page_dir, ready)
+            reading = read_watch_pass(
+                watch,
+                None,
+                lambda tick: wake_line(
+                    tick.page_dir,
+                    new_input=bool(wake_inputs(tick.transaction, tick.batch)),
+                ),
+                ready,
+            )
             # Superseded during the pass, it leaves what it found to its successor.
             if not watch.holds():
                 return None
             if reading.delivered is not None:
                 woke_after(harness.session)
-                return new_input_line(reading.delivered)
+                return reading.delivered
             if reading.outcome is not None:
                 return "\n".join(
                     f"{tick.page_dir}: server is not running; restart it with "

@@ -1017,13 +1017,13 @@ function decorate(state, placed) {
   } of placed) {
     const syntax = touches(state, from, to) ? dim : hide;
     if (token.type === "code_inline" || contentFrom !== void 0) {
-      const words2 = token.type === "code_inline" ? [from + token.markup.length, to - token.markup.length] : [contentFrom, contentTo];
-      if (words2[0] > words2[1]) continue;
+      const words = token.type === "code_inline" ? [from + token.markup.length, to - token.markup.length] : [contentFrom, contentTo];
+      if (words[0] > words[1]) continue;
       if (INLINE[token.type]) add(from, to, INLINE[token.type]);
       else if (token.type === "link_open" && token.meta.linked)
-        add(words2[0], words2[1], link);
-      add(from, words2[0], syntax);
-      add(words2[1], to, syntax);
+        add(words[0], words[1], link);
+      add(from, words[0], syntax);
+      add(words[1], to, syntax);
     } else if (token.type === "text") {
       for (const at of escapes ?? [])
         add(at, at + 1, touches(state, at, at + 2) ? dim : hide);
@@ -1636,8 +1636,8 @@ var pendingDrawing = null;
 function wordsOf(element) {
   const range = document.createRange();
   range.selectNodeContents(element);
-  const words2 = anchorForRange(range);
-  return words2.quote?.trim() ? words2 : null;
+  const words = anchorForRange(range);
+  return words.quote?.trim() ? words : null;
 }
 var composerOpen = false;
 function createSelectionComposer({
@@ -4173,8 +4173,8 @@ function createAnnotationInventory({
   const entryPlace = (entry) => entryPoint(entry) ?? targetFor(entry);
   const passages = /* @__PURE__ */ new Map();
   const entryPassage = (entry) => entry ? passages.get(entry.key) ?? null : null;
-  const pointName = (words2) => {
-    const excerpt = words2 && excerptWords(words2, 32);
+  const pointName = (words) => {
+    const excerpt = words && excerptWords(words, 32);
     return excerpt ? `\u201C${excerpt}\u201D` : null;
   };
   const sourceItem = (item) => itemSources.get(item);
@@ -4223,8 +4223,8 @@ function createAnnotationInventory({
     const page = textNodesUnder(target);
     const at = page.findIndex(({ node }) => node === segments[0].node);
     const before = at < 0 ? page : [...page.slice(0, at), { ...page[at], end: segments[0].start }];
-    const words2 = quoteFrom(segments);
-    return JSON.stringify([words2, quoteFrom(before).split(words2).length - 1]);
+    const words = quoteFrom(segments);
+    return JSON.stringify([words, quoteFrom(before).split(words).length - 1]);
   }
   function add(groups, target, item, pointed = null) {
     if (!target?.isConnected || inChrome(target)) return;
@@ -4962,10 +4962,6 @@ function reactionPlace(event) {
   if (!event.anchor) return "the page";
   return anchorLabel(event.anchor, event.about);
 }
-var undoSentence = (undoable) => {
-  const event = undoable();
-  return event?.token ? `Undo: ${event.token} reaction on ${reactionPlace(event)}` : "Undo the latest update";
-};
 
 // runtime/queue-api.js
 var queueItemKey = (item) => JSON.stringify([item.kind, item.id]);
@@ -5520,13 +5516,54 @@ async function deliverBookkeeping(event, applyState) {
 
 // runtime/undo.js
 var WAIT = "Wait for the current change to finish before undoing";
-var words = {
-  resolve: "Reopened the thread",
-  unresolve: "Resolved the thread again",
-  action: "Undid the latest update",
-  done: "Undid the approval",
-  todo_end: "Put the to-do back on me"
+var quoted2 = (words, cap = 60) => `\u201C${excerptWords(words, cap)}\u201D`;
+function widgetNamed(id) {
+  const element = elementById(id);
+  if (!element) return "a widget";
+  const label = addressableLabel(element);
+  return label ? quoted2(label) : `the ${addressableWord(element)}`;
+}
+function actionWords(event, gesture) {
+  const widget = widgetNamed(event.widget);
+  switch (gesture?.form) {
+    case "choice":
+      return `chose ${gesture.chosen.map((words) => quoted2(words)).join(", ") || "nothing"} in ${widget}`;
+    case "move":
+      return `moved ${quoted2(gesture.unit)} to ${quoted2(gesture.to)} in ${widget}`;
+    case "edit":
+      return `edited ${widget}`;
+    case "add":
+      return `added ${quoted2(gesture.words)} to ${widget}`;
+    case "verb":
+      return `recorded \u201C${gesture.verb}\u201D on ${widget}`;
+    default:
+      return `updated ${widget}`;
+  }
+}
+var TODO_ENDINGS = {
+  done: (title) => `marked ${title} done`,
+  failed: (title) => `marked ${title} failed`,
+  dropped: (title) => `dropped ${title}`
 };
+function gestureWords(event, gesture) {
+  if (event.token) return `${event.token} reaction on ${reactionPlace(event)}`;
+  switch (event.kind) {
+    case "resolve":
+    case "unresolve": {
+      const thread = threadNamed(event.parent);
+      const name = thread ? quoted2(threadName(thread), 48) : "a thread";
+      return `${event.kind === "resolve" ? "resolved" : "reopened"} ${name}`;
+    }
+    case "done":
+      return `approved v${event.version}`;
+    case "todo_end": {
+      const todo = runtime.todos.find(({ id }) => id === event.todo);
+      return TODO_ENDINGS[event.outcome](todo ? quoted2(todo.title) : "a to-do");
+    }
+    default:
+      return actionWords(event, gesture);
+  }
+}
 function createUndo({ post: post2, stateApplying, unaccountedGesture }) {
   const gestures = /* @__PURE__ */ new Map();
   function retainGesture(attempt, facts) {
@@ -5541,15 +5578,17 @@ function createUndo({ post: post2, stateApplying, unaccountedGesture }) {
     }
     gestures.set(attempt, { ...gestures.get(attempt), ...facts });
   }
-  const undone = (event) => {
-    if (event.token) return `Undid the ${event.token} reaction`;
-    const says = gestures.get(event.attempt)?.says;
-    return says ? `Undid: ${says}` : words[event.kind];
+  const said = (event) => {
+    const gesture = runtime.undo.find((entry) => entry.event.id === event.id)?.gesture;
+    return gestures.get(event.attempt)?.says ?? gestureWords(event, gesture);
+  };
+  const takes = (event) => [said(event), ago(event.ts)].filter(Boolean).join(" \xB7 ");
+  const head = () => {
+    const [first] = runtime.undo;
+    return first?.newest ? first.event : null;
   };
   function undoable() {
-    if (stateApplying()) return null;
-    const head = runtime.undo[0];
-    return head?.newest ? head.event : null;
+    return stateApplying() ? null : head();
   }
   function withdrawable(event) {
     if (event.kind !== "action" && String(event.id).startsWith(PENDING)) return false;
@@ -5563,11 +5602,11 @@ function createUndo({ post: post2, stateApplying, unaccountedGesture }) {
       return null;
     }
     const reverse = gestures.get(event.attempt)?.reverse;
-    const said = undone(event);
+    const taken = takes(event);
     const mayLand = retainUserIntent();
     const answer = post2({ kind: "undo", undoes: event.id }).then((accepted) => {
       if (accepted) {
-        notice(`${said} \u2014 sent`);
+        notice(`Undid: ${taken} \u2014 sent`);
         gestures.delete(event.attempt);
       }
       return accepted;
@@ -5593,12 +5632,13 @@ function createUndo({ post: post2, stateApplying, unaccountedGesture }) {
     id: "history.undo",
     ready: savedReadingSettled,
     keys: ["z"],
-    description: () => {
-      const says = gestures.get(undoable()?.attempt)?.says;
-      return says ? `Undo: ${says}` : undoSentence(undoable);
-    },
+    // Said from the list the page holds rather than `undoable`, so a reading being
+    // applied leaves the words standing while it holds the press back. The menu's row
+    // cuts long words, so it says the age at its end rather than after them.
+    description: () => head() ? `Undo: ${takes(head())}` : "Undo the latest update",
     title: "undo",
-    touch: "Undo",
+    touch: () => head() ? `Undo: ${said(head())}` : "Undo",
+    touchValue: () => head() ? ago(head().ts) : "",
     menu: "page",
     // Dead while the page holds a gesture no log read accounts for, this one's own send
     // included. The line drops the chip for as long as that is true rather than
@@ -8812,8 +8852,8 @@ function answerWords(item) {
 function obligationEnding(item) {
   if (item.status === "withdrawn") return "Withdrawn";
   if (item.status === "answered_elsewhere") return "Answered elsewhere";
-  const words2 = answerWords(item);
-  return words2 ? `Answered: ${words2}` : "Answered";
+  const words = answerWords(item);
+  return words ? `Answered: ${words}` : "Answered";
 }
 
 export {

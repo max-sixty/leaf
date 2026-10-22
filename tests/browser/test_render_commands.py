@@ -149,6 +149,12 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
         before: 'Previous deployment with an unusually long source name',
         after: 'Current candidate with another unusually long source name'
     }})""")
+    expect(captions).to_have_text(
+        [
+            "Previous deployment with an unusually long source name",
+            "Current candidate with another unusually long source name",
+        ]
+    )
     assert [
         control.bounding_box() for control in controls if control.is_visible()
     ] == boxes

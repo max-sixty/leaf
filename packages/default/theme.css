@@ -33,8 +33,9 @@
 .lf-shot-actions {
   grid-area: actions;
 }
-.lf-shot-toolbar .lf-btn,
-.lf-shotoptions .lf-btn {
+.lf-shot-views > .lf-btn,
+.lf-shot-tools > .lf-btn,
+.lf-shot-scale-options > .lf-btn {
   font-weight: 500;
   white-space: nowrap;
 }

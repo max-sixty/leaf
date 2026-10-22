@@ -72,6 +72,7 @@ import { move } from "../dom-move.js";
 import { renderedUnder } from "../shadow.js";
 import { isNativeLayer, nativeLayerHolding, nativeLayerKind } from "../shadow-tree.js";
 import { chromeSheet } from "../stylesheets.js";
+import { watchOwner } from "../arrivals.js";
 
 const entries = [];
 const watchedRoots = new WeakSet();
@@ -193,7 +194,9 @@ export function showNativeLayer(layer, { source, modal = true } = {}) {
 // private styling scope with it, and adopt the same sheet if that popover is in a
 // shadow tree. The source popover and its controls then survive under the modal,
 // without a second reopening or focus-return mechanism. Other dialogs keep the
-// styles of their own home, so only move within that home.
+// styles of their own home, so only move within that home. A foreign seat can leave
+// with its widget or revision. Native removal keeps a dialog's open attribute and
+// emits no close event, so the shared connection lifetime closes and restores it.
 const modalHomes = new WeakMap();
 function seatModal(dialog, source) {
   let place = modalHomes.get(dialog);
@@ -204,10 +207,19 @@ function seatModal(dialog, source) {
       scope: null,
     };
     modalHomes.set(dialog, place);
-    dialog.addEventListener("close", () => {
-      if (dialog.open) return;
+    const restore = () => {
       if (dialog.parentNode !== place.home) move(place.home, dialog);
       place.scope?.remove();
+    };
+    dialog.addEventListener("close", () => {
+      if (!dialog.open) restore();
+    });
+    watchOwner(dialog, {
+      disconnect() {
+        if (dialog.parentNode === place.home) return;
+        closeNativeLayer(dialog);
+        restore();
+      },
     });
   }
   const holder = nativeLayerHolding(source);

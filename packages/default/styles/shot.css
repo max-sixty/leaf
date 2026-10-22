@@ -35,8 +35,9 @@
 .lf-shot-actions {
   grid-area: actions;
 }
-.lf-shot-toolbar .lf-btn,
-.lf-shotoptions .lf-btn {
+.lf-shot-views > .lf-btn,
+.lf-shot-tools > .lf-btn,
+.lf-shot-scale-options > .lf-btn {
   /* Selection changes the face, never the width of its words. */
   font-weight: 500;
   white-space: nowrap;

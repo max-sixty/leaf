@@ -10,7 +10,6 @@ import {
   iconTemplate,
   nothing,
   repeat,
-  keyed,
   ref,
   live,
   offered,
@@ -190,25 +189,13 @@ customElements.define(
           };
           entry.prepare = (shot) => {
             entry.shot = shot;
-            if (!shot) return;
-            this.#configure(entry);
-            shot.difference.then(
-              (reading) => {
-                if (entry.shot !== shot || this.#entries.get(record.id) !== entry)
-                  return;
-                entry.difference = reading;
-                this.requestUpdate();
-              },
-              () => {},
-            );
           };
           this.#entries.set(record.id, entry);
         }
         const before = scopedMediaUrl(record.before);
         const after = scopedMediaUrl(record.after);
-        const imageKey = `${before}\n${after}`;
-        if (entry.imageKey !== imageKey) entry.difference = null;
-        Object.assign(entry, { record, before, after, imageKey });
+        if (entry.before !== before || entry.after !== after) entry.difference = null;
+        Object.assign(entry, { record, before, after });
       }
       if (!ids.has(this.#selected))
         this.#selected = (
@@ -356,6 +343,29 @@ customElements.define(
           })),
           { snapshot: this.#snapshot ?? null },
         );
+        for (const entry of this.#entries.values()) {
+          const { shot, record } = entry;
+          shot?.inspect({
+            pixelRatio: record.capture.deviceScaleFactor,
+            captureWidth: record.capture.viewport.width,
+            focus: record.focus,
+          });
+          if (!shot || entry.pendingDifference === shot.difference) continue;
+          const pending = shot.difference;
+          entry.pendingDifference = pending;
+          pending.then(
+            (reading) => {
+              if (
+                entry.pendingDifference !== pending ||
+                this.#entries.get(record.id) !== entry
+              )
+                return;
+              entry.difference = reading;
+              this.requestUpdate();
+            },
+            () => {},
+          );
+        }
         this.#projected = this.#snapshot;
       }
       threadSurface(this).update();
@@ -369,17 +379,6 @@ customElements.define(
       });
       this.#restoreFocus = null;
       paintKeys();
-      for (const entry of this.#entries.values()) this.#configure(entry);
-    }
-
-    #configure(entry) {
-      const { shot, record } = entry;
-      shot?.inspect({
-        pixelRatio: record.capture.deviceScaleFactor,
-        captureWidth: record.capture.viewport.width,
-        focus: record.focus,
-        labels: { before: "Before", after: "After" },
-      });
     }
 
     #review(record, approved) {
@@ -393,7 +392,7 @@ customElements.define(
     }
 
     #case(entry, approved, available) {
-      const { record, before, after, imageKey } = entry;
+      const { record, before, after } = entry;
       const run = this.#snapshot.value;
       const threads = readThreads().threads.filter(
         (thread) =>
@@ -561,17 +560,14 @@ customElements.define(
             </div>
           </header>
           <div class="lf-vr-capture">
-            ${keyed(
-              imageKey,
-              html`<lf-shot
-                id=${`${this.id}-${record.id}-capture`}
-                before=${before}
-                after=${after}
-                alt=${`${record.title}. ${record.result}`}
-                ._lfPresentGenerated=${this.#presentShot}
-                ${ref(entry.prepare)}
-              ></lf-shot>`,
-            )}
+            <lf-shot
+              id=${`${this.id}-${record.id}-capture`}
+              before=${before}
+              after=${after}
+              alt=${`${record.title}. ${record.result}`}
+              ._lfPresentGenerated=${this.#presentShot}
+              ${ref(entry.prepare)}
+            ></lf-shot>
             <div class="lf-vr-claim">
               <p class="lf-vr-result" data-lf-gen="1" data-lf-said>${record.result}</p>
               <p class="lf-vr-action" data-lf-gen="1" data-lf-said>

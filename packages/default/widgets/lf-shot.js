@@ -23,7 +23,10 @@
  * the focus rectangle. Pixel comparison runs after presentation, one pair per
  * frame. The expensive pixel masks and Web Awesome slider load only on selection.
  * The native image planes remain visible while either prepares. The divider's exact
- * position survives switching views. Original-image links use the shared viewer.
+ * position survives switching views. Replacing either capture refreshes evidence
+ * inside the retained controls and viewports, preserving the reader's inspection.
+ * `difference` reads the requested pair; a superseded or refused load resolves null.
+ * Original-image links use the shared viewer.
  * Print shows both complete original images. */
 // A containing widget can create a pair absent from the authored document.
 import "/vendor/lf-shot-initial.js";
@@ -37,6 +40,7 @@ import {
   once,
   offer,
   failSoft,
+  placesFailure,
   focusDestination,
   showNativeLayer,
   closeNativeLayer,
@@ -108,18 +112,38 @@ customElements.define(
     #reading;
     #pixelsView;
     #pixelsPainted;
-    #difference = Promise.withResolvers();
-    difference = this.#difference.promise;
-    static observedAttributes = ["alt"];
+    #pixelUrls = [];
+    #capture;
+    #error;
+    static observedAttributes = ["alt", "before", "after"];
 
-    inspect({ pixelRatio, captureWidth, focus, labels }) {
-      this.#metadata = { pixelRatio, captureWidth, focus, labels };
-      this.#fit();
-      this.#paintAlt();
+    get difference() {
+      return this.#capture.difference;
+    }
+
+    inspect(metadata) {
+      if (!this.#capture) {
+        this.#metadata = metadata;
+        return;
+      }
+      if (JSON.stringify(metadata) === JSON.stringify(this.#capture.metadata)) return;
+      this.#prepare(this.#capture.images, this.#capture.loaded, metadata);
+      if (!this.#reading) {
+        this.#metadata = metadata;
+        this.#fit();
+        this.#paintAlt();
+      }
     }
 
     connectedCallback() {
       if (!once(this)) return;
+      placesFailure(this, (box) => {
+        if (this.#error?.textContent === box.textContent) return true;
+        this.#error?.remove();
+        this.#error = box;
+        this.append(box);
+        return true;
+      });
       const drawing = initialRender(this);
       this.#toolbar = drawing.toolbar;
       this.#viewButtons = drawing.views.choices;
@@ -195,12 +219,7 @@ customElements.define(
           },
           { passive: true },
         );
-        const image = this.#shots[index];
-        const source = this.getAttribute(state);
-        image.src = isCanonicalMediaUrl(source) ? scopedMediaUrl(source) : source;
         const open = this.#openers.get(state);
-        open.href = image.src;
-        open.dataset.lfMediaUrl = image.src;
         open.prepend(iconElement("expand", "lf-action-icon"));
       }
       this.#paintAlt();
@@ -228,24 +247,96 @@ customElements.define(
           for (const release of unregister) release();
         };
       });
+      this.#loadImages();
+    }
+
+    #loadImages() {
+      const images = [];
+      const loaded = Promise.all(
+        ["before", "after"].map((state) => {
+          const image = document.createElement("img");
+          image.crossOrigin = "anonymous";
+          images.push(image);
+          return new Promise((resolve) => {
+            image.onload = () => resolve(true);
+            image.onerror = () => resolve(false);
+            const source = this.getAttribute(state);
+            image.src = isCanonicalMediaUrl(source) ? scopedMediaUrl(source) : source;
+          });
+        }),
+      ).then((loaded) => loaded.every(Boolean));
+      this.#prepare(images, loaded, this.#capture?.metadata ?? this.#metadata);
+    }
+
+    #prepare(images, loaded, metadata) {
+      // A requested capture owns its metadata snapshot. A metadata revision reuses
+      // this pair's load; it cannot mutate validation already in flight or retry a
+      // failed network request as a side effect of an unrelated presentation.
+      const capture = { images, loaded, metadata, difference: null };
+      this.#capture = capture;
       const present =
         /** @type {{_lfPresentGenerated?: (promise: Promise<unknown>) => void}} */ (
           this
         )._lfPresentGenerated ?? ((promise) => widgetController(this).present(promise));
-      const registered = this.#register();
+      const registered = loaded.then((loaded) => {
+        if (capture !== this.#capture) return false;
+        if (!loaded) {
+          failSoft(
+            this,
+            new Error(
+              metadata.focus
+                ? "focus needs two decoded images"
+                : "could not load the capture pair",
+            ),
+          );
+          return false;
+        }
+        if (!this.#validImages(images, metadata)) return false;
+        // First arrival can show its images before deferred comparison. A refresh
+        // keeps the complete outgoing evidence until its replacement reading is ready.
+        if (!this.#reading) this.#commitImages(capture);
+        return true;
+      });
       present(registered);
-      this.#difference.resolve(
-        registered.then((aligned) =>
+      capture.difference = registered
+        .then((aligned) =>
           aligned
-            ? afterPresentation(() => inTurn(() => this.#markDifference()))
+            ? afterPresentation(() => inTurn(() => this.#markDifference(capture)))
             : null,
-        ),
-      );
-      void this.difference.catch((reason) => failSoft(this, reason));
+        )
+        .catch((reason) => {
+          if (capture === this.#capture) failSoft(this, reason);
+          return null;
+        });
     }
 
-    attributeChangedCallback() {
-      if (this.#toolbar) this.#paintAlt();
+    #commitImages(capture, pixels = null) {
+      const changed = this.#shots !== capture.images;
+      for (const [index, state] of ["before", "after"].entries()) {
+        const image = capture.images[index];
+        if (this.#shots[index].src === image.src)
+          capture.images[index] = this.#shots[index];
+        else this.#shots[index].replaceWith(image);
+        const open = this.#openers.get(state);
+        keeps(open, "href", image.src);
+        keeps(open, "data-lf-media-url", image.src);
+      }
+      this.#shots = capture.images;
+      this.#metadata = capture.metadata;
+      this.#error?.remove();
+      this.#error = null;
+      if (changed) {
+        this.#paintPixels(pixels ?? []);
+        this.#pixelsPainted = pixels ? Promise.resolve() : null;
+      }
+      this.#fit();
+      this.#paintAlt();
+    }
+
+    attributeChangedCallback(name, before, after) {
+      if (!this.#toolbar || before === after) return;
+      if (name === "alt") this.#paintAlt();
+      else this.#loadImages();
     }
 
     #paintAlt() {
@@ -289,31 +380,6 @@ customElements.define(
       // Capture metadata fixes the cropped viewport before images decode; source
       // dimensions become available independently and size only its inner plane.
       if (!(crop || (sourceWidth && sourceHeight))) return;
-      if (
-        focus &&
-        this.#shots.every((image) => image.complete) &&
-        this.#shots.some((image) => !image.naturalWidth)
-      ) {
-        failSoft(this, new Error("focus needs two decoded images"));
-        return;
-      }
-      if (
-        focus &&
-        ((sourceWidth && focus.x + focus.width > sourceWidth) ||
-          this.#shots.some(
-            (image) =>
-              image.naturalHeight &&
-              focus.y + focus.height > image.naturalHeight / ratio,
-          ))
-      ) {
-        failSoft(
-          this,
-          new Error(
-            `focus ${focus.x},${focus.y} ${focus.width}×${focus.height} CSS px falls outside its captured images`,
-          ),
-        );
-        return;
-      }
       const geometry = fitShotGeometry({
         available,
         availableHeight:
@@ -478,8 +544,18 @@ customElements.define(
       paintKeys();
     }
 
-    async #markDifference() {
-      const reading = await compareImages(...this.#shots);
+    async #markDifference(capture) {
+      if (capture !== this.#capture) return null;
+      const reading = await compareImages(...capture.images);
+      const pixels =
+        this.#view === "pixels" && this.#shots !== capture.images
+          ? await this.#pixelMasks(capture.images)
+          : null;
+      if (capture !== this.#capture) {
+        for (const url of pixels ?? []) URL.revokeObjectURL(url);
+        return null;
+      }
+      this.#commitImages(capture, pixels);
       this.#reading = reading;
       const { width, height, regions } = reading;
       for (const frame of this.#frames) {
@@ -498,12 +574,15 @@ customElements.define(
             mark.style.setProperty(`--lf-shot-${key}`, `${(100 * value) / whole}%`);
           marks.append(mark);
         }
-        frame.querySelector(".lf-shotplane").append(marks);
+        const plane = frame.querySelector(".lf-shotplane");
+        const previous = plane.querySelector(".lf-shotdiff");
+        if (!previous) plane.append(marks);
+        else if (!previous.isEqualNode(marks)) previous.replaceWith(marks);
       }
       const description = describeDifference(reading);
-      this.#delta.dataset.lfShotDelta = differenceKind(reading);
+      keeps(this.#delta, "data-lf-shot-delta", differenceKind(reading));
       relabel(this.#delta, description, { says: false });
-      this.#outlinesButton.setAttribute("aria-description", description);
+      keeps(this.#outlinesButton, "aria-description", description);
       this.#paint();
       return reading;
     }
@@ -527,27 +606,20 @@ customElements.define(
         view.append(plane);
         this.#canvas.append(view);
         this.#pixelsView = view;
+      }
+      if (!this.#pixelsPainted) {
+        const images = this.#shots;
         this.#pixelsPainted = inTurn(async () => {
-          const { width, height, ...masks } = compareImagePixels(...this.#shots);
-          await Promise.all(
-            paints.map(async (paint) => {
-              const canvas = new OffscreenCanvas(width, height);
-              canvas
-                .getContext("2d")
-                .putImageData(
-                  new ImageData(masks[paint.dataset.lfShotSide], width, height),
-                  0,
-                  0,
-                );
-              const blob = await canvas.convertToBlob({ type: "image/png" });
-              paint.style.setProperty(
-                "--lf-shot-pixels",
-                `url("${URL.createObjectURL(blob)}")`,
-              );
-            }),
-          );
+          const urls = await this.#pixelMasks(images);
+          if (images !== this.#shots) {
+            for (const url of urls) URL.revokeObjectURL(url);
+            return;
+          }
+          this.#paintPixels(urls);
         });
-        void this.#pixelsPainted.catch((reason) => failSoft(this, reason));
+        void this.#pixelsPainted.catch((reason) => {
+          if (images === this.#shots) failSoft(this, reason);
+        });
       }
       this.#syncComparison();
       this.#fit();
@@ -555,21 +627,65 @@ customElements.define(
       return this.#pixelsPainted;
     }
 
-    async #register() {
-      await Promise.all(this.#shots.map((image) => image.decode().catch(() => {})));
-      const [before, after] = this.#shots.map((image) => image.naturalWidth);
-      if (before && after && before !== after) {
-        failSoft(
-          this,
-          new Error(
-            `before is ${before}px wide and after is ${after}px — a pair has to be shot at one viewport, or the flip moves everything`,
-          ),
+    async #pixelMasks(images) {
+      const { width, height, ...masks } = compareImagePixels(...images);
+      const blobs = await Promise.all(
+        ["both", "before", "after"].map(async (side) => {
+          const canvas = new OffscreenCanvas(width, height);
+          canvas
+            .getContext("2d")
+            .putImageData(new ImageData(masks[side], width, height), 0, 0);
+          return canvas.convertToBlob({ type: "image/png" });
+        }),
+      );
+      const urls = blobs.map((blob) => URL.createObjectURL(blob));
+      try {
+        await Promise.all(
+          urls.map((url) => {
+            const image = document.createElement("img");
+            image.src = url;
+            return image.decode();
+          }),
         );
-        return false;
+        return urls;
+      } catch (reason) {
+        for (const url of urls) URL.revokeObjectURL(url);
+        throw reason;
       }
-      this.#fit();
-      this.dispatchEvent(new Event("captureload"));
-      return Boolean(before && after);
+    }
+
+    #paintPixels(urls) {
+      if (this.#pixelsView) {
+        keeps(this.#pixelsView.querySelector("img"), "src", this.#shots[1].src);
+        for (const [index, paint] of [
+          ...this.#pixelsView.querySelectorAll("[data-lf-shot-side]"),
+        ].entries()) {
+          if (urls[index])
+            paint.style.setProperty("--lf-shot-pixels", `url("${urls[index]}")`);
+          else paint.style.removeProperty("--lf-shot-pixels");
+        }
+      }
+      for (const url of this.#pixelUrls) URL.revokeObjectURL(url);
+      this.#pixelUrls = urls;
+    }
+
+    #validImages(images, { focus = undefined, pixelRatio = 1 }) {
+      const [before, after] = images.map((image) => image.naturalWidth);
+      let error;
+      if (before && after && before !== after)
+        error = `before is ${before}px wide and after is ${after}px — a pair has to be shot at one viewport, or the flip moves everything`;
+      else if (
+        focus &&
+        images.some(
+          (image) =>
+            focus.x + focus.width > image.naturalWidth / pixelRatio ||
+            focus.y + focus.height > image.naturalHeight / pixelRatio,
+        )
+      )
+        error = `focus ${focus.x},${focus.y} ${focus.width}×${focus.height} CSS px falls outside its captured images`;
+      if (!error) return true;
+      failSoft(this, new Error(error));
+      return false;
     }
   },
 );

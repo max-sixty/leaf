@@ -7,9 +7,8 @@
 # full-width crops passed on both arms (3 of 3 each).
 description: shot-frames-read-at-size
 metadata:
-  purpose:
-    "Source files and media: a pair's frames stay near the column's width, so a small
-    change reads near the size it was captured at."
+  purpose: "Source files and media: the rendered pair makes the relevant change readable
+    before the reader zooms or opens an original."
   authoring: true
   tags:
     - evidence
@@ -35,8 +34,19 @@ vars:
     Write the Leaf page's section on the gaps, with its before/after pair.
 assert:
   - type: javascript
+    metric: capture-pair
+    value: file://capture-pair.cjs:pair
+  - type: agent-rubric
     metric: frames-read-at-size
-    value: file://capture-pair.cjs:readablePair
+    transform: "JSON.stringify({html: output, captures: context.metadata.capture_evidence})"
+    value: |
+      Open the rendered page screenshots in captures.screens, and the before/after
+      images in captures. Judge the displayed result, not source-image dimensions.
+      Pass if the pair as it first appears makes the changed gaps between file rows
+      readable together with enough surrounding rows to locate them. Fail if the
+      relevant difference is too small or clipped to inspect without zooming or
+      opening an original image. Cropping and a wider page layout are both valid.
+      If no rendered screenshot can be read, fail for missing evidence.
   - type: agent-rubric
     metric: captures-in-order
     transform: "JSON.stringify({html: output, captures: context.metadata.capture_evidence})"

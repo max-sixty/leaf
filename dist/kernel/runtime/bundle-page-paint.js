@@ -2090,10 +2090,19 @@ function seatModal(dialog, source) {
       scope: null
     };
     modalHomes.set(dialog, place);
-    dialog.addEventListener("close", () => {
-      if (dialog.open) return;
+    const restore = () => {
       if (dialog.parentNode !== place.home) move(place.home, dialog);
       place.scope?.remove();
+    };
+    dialog.addEventListener("close", () => {
+      if (!dialog.open) restore();
+    });
+    watchOwner(dialog, {
+      disconnect() {
+        if (dialog.parentNode === place.home) return;
+        closeNativeLayer(dialog);
+        restore();
+      }
     });
   }
   const holder = nativeLayerHolding(source);

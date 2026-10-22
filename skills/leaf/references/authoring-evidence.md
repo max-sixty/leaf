@@ -152,7 +152,9 @@ tickets, source locations and URLs as real links.
 `lf-shot` shows two versions of an interface, before and after, captured at the same
 viewport. Before writing the prose and `alt`, open both images and compare them where
 the change should be. For a small change, crop both frames to the subject rather than
-making the reader search a whole window.
+making the reader search a whole window. Check the pair as it first appears: Fit
+may shrink its frames to keep both visible. Choose crops and page space that make
+the relevant change readable there, without requiring the reader to zoom first.
 
 Every pair offers **Pair**, **Slider** and **Pixels** in a shared header with explicit
 Before and After labels. Pair keeps the captures at the same scale. Fit keeps both frames visible in a bounded
@@ -167,8 +169,8 @@ In Slider, click or tap the image to alternate between the complete Before and A
 frames. Drag the divider for an intermediate comparison, or focus it and use the
 arrow keys; Home and End show the complete frames.
 
-**Outline changes** independently marks changed regions and uses the accent color for
-content that only moved. **Pixels** paints removed pixels red, added pixels
+**Outline changes** marks changed regions in Pair and Slider, using the accent color
+for content that only moved. **Pixels** paints removed pixels red, added pixels
 blue and recoloured pixels amber over the greyed after image, so build no difference
 image of your own. These controls belong to the reader; author the pair with `before`,
 `after` and `alt`.

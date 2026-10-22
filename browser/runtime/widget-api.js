@@ -179,7 +179,7 @@ export { announce, notice } from "./notifications.js";
 export { raiseError } from "./errors.js";
 export { alignText } from "./text-alignment.js";
 export { inChrome, says, wrote } from "./passages.js";
-export { ago, clockValue, quietSince, readingPaint, shortAgo } from "./presence.js";
+export { ago, clockValue, quietSince, shortAgo } from "./presence.js";
 export { shadowStage } from "./shadow-stage.js";
 export { inBaseLayer } from "./stylesheets.js";
 export { revisionLabel } from "./context.js";

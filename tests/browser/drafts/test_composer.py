@@ -700,12 +700,12 @@ def test_markdown_decoration_keeps_source_editable(browser, serve):
     assert reading()[-1]["shownMarkers"] == ["* "]
     field.press("ArrowRight")
     assert reading()[-1]["listed"]
-    page.keyboard.type("Second")
-    expect(field).to_have_js_property("value", "- First\n* Second")
+    page.keyboard.type("Carts")
+    expect(field).to_have_js_property("value", "- First\n* Carts")
     assert reading()[-1]["listed"]
     field.press("ArrowLeft")
     field.press("Backspace")
-    expect(field).to_have_js_property("value", "- First\n* Secod")
+    expect(field).to_have_js_property("value", "- First\n* Cars")
     field.press("ControlOrMeta+z")
-    expect(field).to_have_js_property("value", "- First\n* Second")
+    expect(field).to_have_js_property("value", "- First\n* Carts")
     cdp.detach()

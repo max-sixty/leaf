@@ -245,10 +245,13 @@ For response timing, run `uv run leaf-dev response-times PAGE... --json`;
 
 To benchmark replies, run each harness's journey a few times in each case: its
 first comment asks for a small page change while the harness waits, or with
-`--case working` while the user's own turn runs. Each reply splits into the whole
-reply, Leaf's share and the model calls (`dev/leaf_dev/reply_phases.py`), and
-`uv run leaf-dev journey-chart --replies` tabulates the kept samples by target and
-case, `--since` selecting a batch.
+`--case working` while the user's own turn runs. The benchmark is the whole reply's
+time, which `dev/leaf_dev/reply_phases.py` attributes to Leaf's delivery, commands
+and hooks, the harness, the model's wait for its first output and its generation,
+and the agent's other tools; `uv run leaf-dev journey-chart --replies` tabulates the
+kept samples by target and case, `--since` selecting a batch. Model time varies
+widely from run to run, so compare a phase Leaf owns directly, and the whole reply
+over enough runs to see past that spread.
 
 `uv run --project <root> leaf-dev journey TARGET` runs one user's journey against a real
 agent. On the triage board, it tells the agent that a release passed its checks and

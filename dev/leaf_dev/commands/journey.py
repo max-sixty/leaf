@@ -61,8 +61,8 @@ floating panel's view of its thread or on its card at its passage, which the pag
 records itself (`shown_reply`); `sinceSendMs` reads those from the
 send. Where the journey runs the agent itself, its record of the session (Claude
 Code's transcript, Codex's App Server notifications, Pi's RPC events) also splits each
-reply (`reply`, `reply_phases.reply_breakdown`) into the whole reply, Leaf's share of
-it, and the model calls it took, so a slow reply shows where it went.
+reply (`reply`, `reply_phases.reply_breakdown`): it attributes the whole reply to
+Leaf, the harness and the model, so a slow reply shows where it went.
 
 The release ask, a small page change and each session's first comment, reaches the
 harness in one of two cases (`--case`, a harness target's option): `waiting`, idle
@@ -1237,8 +1237,10 @@ class User:
     def sample(self) -> dict:
         """The journey's reading: the user's end, the release ask's, and each step's
         duration and the timings of the comments it sent (`end.reading`), each marked
-        with the permission prompts answered during its step."""
-        events = self.events() if self.profiles else []
+        with the permission prompts answered during its step. Each reply is broken
+        down from the session's whole record, since the call that replied ends after
+        the reply does."""
+        events = self.events() if self.profiles or self.records else []
         comments = {}
         for name, profile in self.profiles.items():
             comment = next(e for e in events if e["id"] == self.ids[name])
@@ -1257,6 +1259,17 @@ class User:
                 )
             comments[name] = reading
         release = self.release_reading
+        if self.records is not None and "release" in self.ids:
+            asked = next(e for e in events if e["id"] == self.ids["release"])
+            answer = deployment_answer(events, asked["id"])
+            reply = reply_breakdown(
+                self.records(),
+                self.commands(),
+                asked["ts"],
+                pickup_at(events, asked["id"], "opened"),
+                answer["ts"],
+            )
+            release = {**release, "comment": {**release["comment"], "reply": reply}}
         for step in self.steps:
             for name in step["comments"]:
                 if "approved" in step:

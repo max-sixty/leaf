@@ -497,7 +497,7 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
     monkeypatch.setattr(
         journey,
         "run_journey",
-        lambda end, version, records=None: {
+        lambda end, version, records=None, commands=None: {
             "version": version,
             "comment": {"eventIds": ["comment"]},
         },
@@ -512,6 +512,7 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
         "harness": "website",
         "origin": "http://127.0.0.1:8080",
         "userEnd": "browser",
+        "case": "waiting",
         "version": "a" * 40,
         "comment": {"eventIds": ["comment"]},
     }

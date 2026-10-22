@@ -89,7 +89,9 @@ const PRESS_SELECTORS = [
 // turn its content into an authored interactive region.
 export const LENT_REACH_STOP = "data-lf-lent-reach-stop";
 const REGION_SELECTORS = [
-  `[tabindex]:not([tabindex='-1']):not([${LENT_REACH_STOP}])`,
+  // A tab panel's stop lets the reader reach and scroll its contents; the panel
+  // itself has no press to protect from a thread mark inside those contents.
+  `[tabindex]:not([tabindex='-1']):not([${LENT_REACH_STOP}]):not([role='tabpanel'])`,
   "[contenteditable]:not([contenteditable='false'])",
   "[draggable='true']",
   "[role='application']",

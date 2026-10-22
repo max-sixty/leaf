@@ -717,16 +717,11 @@ def test_published_visual_evidence_loads_from_its_page(served_example, browser):
     _, url = served_example("visual-review-gallery")
     page = open_page(browser, url)
     review = page.locator("#visual-review-run")
-    case_select = review.locator(".lf-vr-case-select")
     for case_id in ("open-mobile-package-catalog", "keep-mobile-destinations"):
-        option = review.locator(f'wa-option[value="{case_id}"]')
-        case_select.click()
-        expect(option).to_be_visible()
-        option.click()
-        # Web Awesome finishes hiding the listbox after it records the selection.
-        expect(case_select.locator('[part~="listbox"]')).to_have_attribute("hidden", "")
-        expect(case_select).to_have_js_property("value", case_id)
-        comparison = review.locator(".lf-vr-case[data-selected] lf-shot")
+        review.locator(
+            f'.lf-vr-case-button[aria-controls="visual-review-run-{case_id}"]'
+        ).click()
+        comparison = review.locator('.lf-vr-case[aria-hidden="false"] lf-shot')
         expect(comparison).to_be_visible()
         images = comparison.locator("img")
         expect(images).to_have_count(2)

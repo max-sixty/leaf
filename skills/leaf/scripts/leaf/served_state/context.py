@@ -61,6 +61,7 @@ class PageRead:
             self.live_stream,
             revisions=self.revisions,
             revision_reader=self.revision,
+            data=self.data,
         )
 
     @cached_property

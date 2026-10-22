@@ -241,19 +241,13 @@ or the host:
   it displaces ends without waking the session. Claude Code bounds a background
   command at two hours and a hook only at its own `timeout`, which is why the watch
   is a hook. Plain `--print` runs the hook in the foreground, holding the turn, so
-  there it watches nothing. An interrupted turn runs no Stop hook, so nothing
-  watches after it and its input waits on admission's nudge.
-- A hook watch under Claude Code with the plugin's `hooks_module` option on: the same
-  watch, which Leaf's hooks module (`hooks/claude-code.ts`) starts as the session
-  starts and as each main-loop turn ends, in place of that Stop hook, which stands
-  down (`hooks/scripts/background-watch.py`). A watch that wakes an idle session
-  submits its line as a prompt, whose prompt hook hands the batch over. A watch that
-  wakes during a turn leaves pending input to the native PostToolBatch boundary.
-  From an Escape until the user next types, Claude Code drops a plugin's prompt
-  (measured at 2.1.300), so for a dropped one the module sends a WakeRefused payload
-  and Leaf nudges the session as admission would (`session.nudge_pending`). An
-  interrupted turn runs no Stop hook, but the module still sees it end, so it starts
-  the watch with the Interrupt payload, as Pi's extension does.
+  there it watches nothing. The watch goes on running into the user's next turn,
+  but wakes for nothing that turn could take: it takes input at its next tool
+  boundary or Stop hook, and the Stop hook that closes it starts the watch that
+  takes over (`watch_between_turns`). An interrupted turn runs no Stop hook and
+  leaves its record open; once Claude Code reads idle, that watch wakes for what
+  the turn left. A turn a wake opened has no watch from before, so input after its
+  interruption waits on admission's nudge.
 - A hook watch under Pi: the same watch, which Leaf's extension (`hooks/pi.ts`) starts
   as the session starts and as each run settles. When the watch exits with input and
   no run is going, the extension sends an unreceived notification to start one. The
@@ -328,11 +322,7 @@ Stop registration runs the watch (`--watch`), which Claude Code keeps in the
 background (`asyncRewake`) as the session's watch between turns
 (`session.watch_between_turns`): its exit 2 wakes the session with its stderr, and
 startup or application failures retain stderr and return nonblocking exit 1.
-Cancellation stays quiet. Where the user turns on the plugin's `hooks_module` option,
-Leaf's module (`hooks/claude-code.ts`) runs the watch itself and the background
-registration stands down; the native PostToolBatch hook owns mid-turn delivery
-under either watcher, and a module wake during a turn leaves its input there rather
-than capturing a second delivery.
+Cancellation stays quiet. The native PostToolBatch hook owns mid-turn delivery.
 Claude Code's worker tool batches name their parent session with a native
 `agent_id`, and the hook leaves that session's input to the parent. Pi opens its
 lifecycle with `TurnStart` only after the SDK accepts the run. That hook reads no page
@@ -428,10 +418,9 @@ hook does not continue a turn to deliver a reconnect notice.
 
 When a watcher stops while its session lives on, browser-event admission asks the
 claimant's harness to nudge the session. Only a watcher the session's own turns start
-can stop that way: a turn interrupted without its Stop hooks starts no watch unless
-Leaf's hooks module keeps it, a watch fails or reaches its hook's timeout, the hooks
-module's watch wakes the session with a prompt Claude Code drops, or a model-run wait
-is stopped after the turn ends. Input that reaches the page after that
+can stop that way: a turn interrupted without its Stop hooks starts no watch, a
+watch fails or reaches its hook's timeout, or a model-run wait is stopped after the
+turn ends. Input that reaches the page after that
 has no watcher, and a nudge is the one way to reach such a session, which only some
 harnesses offer. Claude Code's is the Unix socket it binds for each session, found by
 session id in Claude Code's session registry (`message_claude_code_session`).

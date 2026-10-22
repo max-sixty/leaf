@@ -1078,7 +1078,11 @@
               "properties": {
                 "kind": { "const": "widget" },
                 "id": { "type": "string" },
-                "tag": { "type": "string" }
+                "tag": { "type": "string" },
+                "unit": {
+                  "description": "A data record within the owning widget; its projected datum and action unit share this key.",
+                  "type": "string"
+                }
               },
               "required": ["kind", "id", "tag"],
               "additionalProperties": false

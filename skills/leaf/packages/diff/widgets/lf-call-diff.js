@@ -130,7 +130,7 @@ function buildToolbar(owner) {
   button.addEventListener("click", () => {
     const groups = [...owner.querySelectorAll(":scope > .lf-call-group")];
     const open = groups.some((group) => !group.open);
-    for (const group of groups) group.open = open;
+    for (const group of groups) if (group.open !== open) group.open = open;
     updateDisclosureControl(owner);
     announce(`${open ? "Expanded" : "Collapsed"} all call-tree roots`);
   });
@@ -322,7 +322,7 @@ customElements.define(
         if (
           children.some((node) => node.parentNode !== body && node.contains(standing))
         )
-          group.open = true;
+          if (!group.open) group.open = true;
       setChildLists([
         [
           this,

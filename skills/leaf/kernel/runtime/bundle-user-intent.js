@@ -41,6 +41,7 @@ import {
   marks,
   nameAnchor,
   nameable,
+  projectedDatum,
   refreshAnchorView,
   resolveAnchor,
   scrollAxes,
@@ -1056,17 +1057,18 @@ var approvalBlockingObligations = readPart((root) => {
 function obligationPlace(item, items = readObligations().all) {
   if (!item || item.source.kind !== "widget")
     return { source: null, context: null, node: null };
-  const source = elementById(item.source.id);
+  const owner = elementById(item.source.id);
+  const source = item.source.unit ? projectedDatum(owner, item.source.unit) : owner;
   const context = elementById(item.prompt.target);
   const shared = items.some(
     (other) => other.id !== item.id && other.source.kind === "widget" && other.prompt.target === item.prompt.target
   );
-  return { source, context, node: shared ? source : context };
+  return { source, context, node: item.source.unit || shared ? source : context };
 }
 function obligationsIn(region, items = readObligations().all) {
   return items.filter((item) => {
     if (item.source.kind !== "widget" || item.status === "withdrawn") return false;
-    const source = elementById(item.source.id);
+    const { source } = obligationPlace(item, items);
     return Boolean(source && under(source, region));
   });
 }

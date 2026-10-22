@@ -22,8 +22,7 @@ URL the user cannot reach.
 Once the page is handed over, end the turn; do not run `leaf wait`. When a turn ends,
 Claude Code runs Leaf's Stop hook in the background to watch every page this session
 holds. New input wakes the session: it opens a turn, or joins a running one at its
-next tool result. If the user turned on Leaf's hooks module, the module watches
-instead, and its wake arrives as a message from the leaf plugin.
+next tool result.
 
 Leaf's prompt hook, or the tool-batch boundary while you work, puts the whole
 delivery in your context; input that arrives after your last tool call opens the
@@ -37,9 +36,9 @@ next prompt.
 To pick up a page this session did not serve, run `leaf page claim <page>`; Leaf
 watches it from the end of the turn.
 
-When nothing was watching, as after a turn you interrupted, or Claude Code refused
-the hooks module's wake, or a background job sat idle for an hour, new input arrives
-with a message from Leaf naming the page. It comes through Claude
+When nothing was watching, as can happen after the user interrupts a turn or a
+background job sat idle for an hour, new input arrives with a message from Leaf
+naming the page. It comes through Claude
 Code's session messaging, so it looks as if it came from another session.
 
 ## Session list

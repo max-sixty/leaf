@@ -28,7 +28,7 @@ class DocumentReading(NamedTuple):
 
 
 def read_document(
-    page: PageReading, threads: dict, log: TodoReading
+    page: PageReading, threads: dict, log: TodoReading, *, data: dict | None = None
 ) -> DocumentReading:
     """Resolve a document's durable state and its user's outstanding obligations.
 
@@ -58,6 +58,7 @@ def read_document(
         prior=page.prior,
         revision=revision,
         events=events,
+        data=data,
     )
     if approval := approval_obligation(document, revision, events):
         items = collection([*items["all"], approval])

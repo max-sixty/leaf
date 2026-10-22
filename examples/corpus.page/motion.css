@@ -6,6 +6,7 @@
   padding-block: 1rem;
 }
 .study-pair figure {
+  --lf-block-frame: trim;
   margin: 0;
   min-width: 0;
   overflow-x: auto;

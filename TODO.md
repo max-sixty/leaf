@@ -82,6 +82,21 @@ has tried; settle that before building it.
   wider than its words under the pointer is acceptable; a "+1" for dropped facts is
   the other route. In a margin card the notice takes its width from the heads'
   track, and a wide one moved the head's time sideways in CI (PR #3250's first run).
+- **Stop moving live content between parents.** A thread summary and a progress fold
+  hide their messages in place, so a frame keeps its document and a selection stays.
+  Four places still move live nodes, which reloads a frame in WebKit (no
+  `moveBefore`) and drops a selection everywhere: resolving a thread moves its card
+  into the "Resolved · N" disclosure and reopening moves it back (`thread/inline.js`);
+  re-rendering a file in `lf-diff` moves its comment threads beside the new rows
+  (`lf-diff.js`); a modal dialog moves into its opener's popover for top-layer order
+  (`keyboard/layer-stack.js`); and a reply's widgets move to whichever view shows
+  them (see "A reply's widgets in every view of it"). Hiding resolved cards in place
+  would show them among open ones unless CSS reorders them, so it needs the user's
+  say; the `lf-diff` fix is keeping rows stable or the containers outside them.
+- **A summary's fold button ignores a press while words are selected.** With text
+  selected in a thread message, pressing "Show/Hide N earlier messages" does nothing,
+  even twice; Enter works. Reproduced in Chromium with a selection set by script,
+  before the flat transcript too.
 
 ### Agent and author experience
 

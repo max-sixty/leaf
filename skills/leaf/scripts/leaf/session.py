@@ -26,7 +26,7 @@ from .leases import (
     waiter_lease_path,
 )
 from .locations import path_location, paths_same
-from .presence import nudge_unwatched
+from .presence import nudge_unwatched, turn_ending
 from .refusals import Refused
 from .registry.kernel import kinds_declaring
 from .schema import ANSWER_INSTRUCTION
@@ -432,7 +432,7 @@ def wait_acknowledgement(harness: Harness | None) -> Callable[[str], str]:
     def acknowledge(delivery_id: str) -> str:
         return (
             "Whoever ran the `leaf wait` that printed this delivery acknowledges "
-            "it; until then the user's updates read Sent rather than Picked up. If "
+            "it; until then the user's updates read Sent rather than Delivered. If "
             f"the output was cut off, reread it with `leaf delivery read {delivery_id}`. "
             "Follow any `next` commands before confirming. If you handle it, "
             "acknowledge before any other "
@@ -624,8 +624,9 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
     that bounded grace; input arriving while the watch runs wakes immediately,
     unless it arrives in a later turn than the one the watch follows
     (`later_turn_wakes`), which takes it itself. A watch after Escape
-    trusts the receipt cursor: input held outside the stopped turn's context can
-    wake, while that turn's received input waits for a prompt.
+    wakes for what the stopped turn left deliverable: input that never entered its
+    context, and input its hooks handed over that no later hook of it confirmed
+    (`delivery.deliverable`); input the turn confirmed waits for a prompt.
     Settled thread input alone never wakes; it remains in the next receipt batch.
     The session lease and each page transaction retain ownership of delivery,
     revival and competing-watch decisions. The newest watch takes the lease from
@@ -686,6 +687,7 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
             if not watch.holds():
                 return None
             if reading.delivered is not None:
+                woke_after(harness.session)
                 return new_input_line(reading.delivered)
             if reading.outcome is not None:
                 return "\n".join(
@@ -703,6 +705,16 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
     # lease is gone, any such input is nudged as admission would have.
     nudge_pending(harness.session)
     return None
+
+
+def woke_after(session: str) -> None:
+    """Mark each page the session holds as messaged for the ending of its turn, as a
+    watch exits to wake the session, so the page's server does not nudge it too
+    in the moment before the woken turn starts (`presence.nudge_interrupted`)."""
+    for page_dir in owned_pages(session):
+        with contextlib.suppress(FileNotFoundError), PageTransaction(page_dir) as page:
+            if claim := page.active_claim:
+                page.note_messaged(turn_ending(claim))
 
 
 def nudge_pending(session: str) -> None:

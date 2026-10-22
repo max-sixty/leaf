@@ -69,7 +69,7 @@ from leaf_dev.browser import (
 
 OUT = ROOT / ".tmp" / "stills"
 CROP_MARGIN = 32
-DIFFERENCE = ROOT / "skills" / "leaf" / "assets" / "runtime" / "image-difference.js"
+DIFFERENCE = ROOT / "browser" / "runtime" / "image-difference.js"
 # Where `differences` serves the stills and the module that compares them.
 ORIGIN = "http://stills.invalid"
 OPEN_CARD = "() => document.querySelector('.lf-margin-preview:not([hidden])')"
@@ -218,6 +218,21 @@ def page_comment_photo(page: Page) -> None:
     field.click()
     page.keyboard.insert_text("Is this screenshot right?")
     paste_screenshot(page, field)
+
+
+def page_comment_photo_hover(page: Page) -> None:
+    """The panel's attached screenshot under the pointer, which shows its removal."""
+    page_comment_photo(page)
+    page.locator(".lf-fp-field .lf-composer-media-open").hover()
+
+
+def panel_corner_hover(page: Page) -> None:
+    """The pointer at the panel's top-right corner, which shows its fold."""
+    box = page.locator(".lf-fp-card").bounding_box()
+    assert box is not None
+    page.mouse.move(box["x"] + box["width"] - 24, box["y"] + 8)
+    expect(page.locator(".lf-fp-minimize")).to_be_visible()
+    settle(page)
 
 
 def share_link(page: Page) -> None:
@@ -1352,6 +1367,18 @@ STATES = (
     ),
     State("drawing-photo-comment", "developer/feature-gallery", drawing_photo_comment),
     State("page-comment-photo", "developer/feature-gallery", page_comment_photo),
+    State(
+        "page-comment-photo-hover",
+        "developer/feature-gallery",
+        page_comment_photo_hover,
+    ),
+    State(
+        "page-comment-photo-hover-dark",
+        "developer/feature-gallery",
+        page_comment_photo_hover,
+        scheme="dark",
+    ),
+    State("panel-corner-hover", "review-a-plan", panel_corner_hover),
     State("share-link", "developer/feature-gallery", share_link, region=".lf-fp-menu"),
     State("share-link-dark", "developer/feature-gallery", share_link, scheme="dark"),
     State(
@@ -2072,7 +2099,7 @@ def differences(browser, out: Path):
         if path == "/image-difference.js":
             route.fulfill(path=DIFFERENCE, content_type="text/javascript")
         elif path.startswith("/vendor/"):
-            route.fulfill(path=ROOT / "skills/leaf/assets" / path.lstrip("/"))
+            route.fulfill(path=ROOT / "browser" / path.lstrip("/"))
         elif path.endswith(".png"):
             route.fulfill(path=out / path.lstrip("/"))
         else:

@@ -169,6 +169,15 @@ including inside a declared shadow root, and returns its unsubscribe function. R
 it inside `whileConnected` and call that function in the connection's cleanup. The
 causes are `return`, `press`, `step`, `move`, and `drop`; a dropped place is `null`.
 
+Logical standing is marked by `data-lf-focus` and its composed ancestry by
+`data-lf-focus-within`. Use `data-lf-focus-visible` and
+`data-lf-focus-visible-within` for focus rings; the same names without `data-`
+are public shadow parts. Ordinary controls follow the browser's `:focus-visible`
+reading, text editors show their entry cue, and reading destinations retain a
+location ring. A pointer-focused control can therefore reveal its actions without
+wearing a keyboard ring. Shared `.choice` labels contain their ring inside the
+hit target so a clipping parent cannot cut it off.
+
 ### Layers
 
 A widget opening its own layer, such as a list over its contents, calls

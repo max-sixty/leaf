@@ -71,6 +71,9 @@ from interact_support import (
     write_record,
     write_row,
 )
+from leaf_dev.example_data import patch_manifest
+from leaf_dev.page_fixtures import example_media
+
 from leaf import activity as activity_model
 from leaf import cli as cli_model
 from leaf import codex_adapter as codex_adapter_model
@@ -81,6 +84,7 @@ from leaf import document_reading as document_reading_model
 from leaf import event_log as event_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
+from leaf import gesture_words as gesture_words_model
 from leaf import harness as harness_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
@@ -111,8 +115,6 @@ from leaf.served_state import document as served_document
 from leaf.served_state import page as served_page
 from leaf.served_state import reading as served_reading
 from leaf.served_state import service as served_service
-from leaf_dev.example_data import patch_manifest
-from leaf_dev.page_fixtures import example_media
 
 
 def browser_observation(kind, sequence=1, **fields):
@@ -300,7 +302,7 @@ def test_a_staged_write_does_not_move_the_page_reading(page_dir):
     past it, so the write moves it once, at the rename."""
     reading = served_reading.page_reading(page_dir)
 
-    (page_dir / ".0123456789abcdef.tmp").write_text("{}")
+    (page_dir / ".leaf-01234567.tmp").write_text("{}")
 
     assert served_reading.page_reading(page_dir) == reading
 
@@ -2216,7 +2218,9 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
 
 
 def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
-    """The DOM need not re-fold the log to know a prior action will reappear."""
+    """The DOM need not re-fold the log to know a prior action will reappear, and
+    the head `z` takes says what it did in its document's words, which no other
+    entry pays for."""
     version = page_dir / "index.html"
     version.write_text(
         version.read_text().replace(
@@ -2249,9 +2253,12 @@ def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
         )
         assert status == 200, body
 
-    latest = json.loads(body)["state"]["browser"]["views"]["1"]["undo"][0]
+    latest, prior = json.loads(body)["state"]["browser"]["views"]["1"]["undo"][:2]
     assert latest["event"]["id"] == json.loads(body)["state"]["events"][-1]["id"]
     assert latest["event"]["detail"] == {"value": ["delivery-later"]}
+    assert latest["gesture"] == {"form": "choice", "chosen": ["Later"]}
+    assert prior["event"]["detail"] == {"value": ["delivery-now"]}
+    assert "gesture" not in prior
 
 
 def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
@@ -2386,7 +2393,12 @@ def test_undo_candidates_keep_only_user_gestures_in_force():
     )
 
     candidates = served_document.browser_undo_candidates(
-        events, document, empty, undo_reading=undo_reading, stamp=None
+        events,
+        document,
+        empty,
+        undo_reading=undo_reading,
+        stamp=None,
+        words=gesture_words_model.GestureWords(events, {}, {}.__getitem__),
     )
 
     assert [candidate["event"]["id"] for candidate in candidates] == ["rx1", "r2"]
@@ -2420,6 +2432,7 @@ def test_undo_walk_ends_at_the_users_newest_gesture():
                 log, within={}, absorbed=frozenset()
             ),
             stamp=None,
+            words=gesture_words_model.GestureWords(log, {}, {}.__getitem__),
         )
         return [(item["event"]["id"], item.get("newest", False)) for item in candidates]
 
@@ -3306,8 +3319,9 @@ def test_a_reader_retires_rows_no_server_lease_holds(page_dir, tmp_path):
 
 def test_native_watcher_failure_reaches_its_owner(tmp_path, monkeypatch):
     import watchfiles.main
-    from leaf import file_changes
     from watchfiles._rust_notify import WatchfilesRustInternalError
+
+    from leaf import file_changes
 
     def exhausted(*_args, **_kwargs):
         raise WatchfilesRustInternalError(

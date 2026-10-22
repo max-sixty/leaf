@@ -4,14 +4,6 @@ import json
 from contextlib import contextmanager
 
 from click.testing import CliRunner
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import leases as leases_model
-from leaf import service as service_model
-from leaf.registry.storage import read_page_registry
-from leaf.render_checks import rendered
-from leaf.schema import ELEMENT_ID
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -26,6 +18,15 @@ from render_harness import (
     told,
     write,
 )
+
+from leaf import cli as cli_model
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf import leases as leases_model
+from leaf import service as service_model
+from leaf.registry.storage import read_page_registry
+from leaf.render_checks import rendered
+from leaf.schema import ELEMENT_ID
 
 
 def call_node(label, file=None, line=None, *, status="same", children=(), kind="call"):

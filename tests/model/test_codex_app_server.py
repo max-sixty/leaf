@@ -41,6 +41,8 @@ from interact_support import (
     wait_for,
     write_record,
 )
+from leaf_dev.commands.response_times import page_timings
+
 from leaf import activity as activity_model
 from leaf import cli as cli_model
 from leaf import codex as codex_model
@@ -59,7 +61,6 @@ from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf.refusals import Refused
-from leaf_dev.commands.response_times import page_timings
 
 
 def test_only_one_turn_reply_can_bind_the_app_server_final_message():

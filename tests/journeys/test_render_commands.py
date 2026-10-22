@@ -15,8 +15,6 @@ from interact_support import (
     install_payload,
     state_json,
 )
-from leaf import render_checks as render_checks_model
-from leaf.render_gate.page_code import run_page_code
 from playwright.sync_api import expect
 from render_cases_layout import (
     SHORT_CHIP_PAGE,
@@ -36,6 +34,9 @@ from render_harness import (
     open_page,
     page_registry,
 )
+
+from leaf import render_checks as render_checks_model
+from leaf.render_gate.page_code import run_page_code
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

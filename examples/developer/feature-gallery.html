@@ -581,7 +581,7 @@
 Write a **different invitation** here. Try a few lines to see the editor grow.</pre>
             </lf-draft>
             <p id="bg-history-guide">
-              <strong>Picked up</strong> means the saved edit entered an agent turn. The
+              <strong>Delivered</strong> means the saved edit entered an agent turn. The
               receipt follows that edit through delivery and response. The panel's
               status describes the agent’s overall availability, including work on other
               parts of the page.
@@ -1048,6 +1048,11 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 >
               </div>
             </div>
+            <p id="bg-focus-cues">
+              Click a Sample width choice, then use Tab and the arrow keys: the keyboard
+              cue encloses the label, while pointer selection keeps the native radio
+              mark. Text-entry fields retain their focus cue.
+            </p>
             <lf-sample id="bg-panel-sample" label="workshop threads">
               <template
                 id="bg-panel-sample-page"
@@ -1859,7 +1864,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <li>
                 Read the Turn and agent workflow samples, which follow one update:
                 “Sent” means the server recorded it, “Queued” that a later turn will
-                handle it, “Picked up” that a turn accepted it, and “Working” or
+                handle it, “Delivered” that a turn accepted it, and “Working” or
                 “Replying” that its answer is in progress. “Turn ended” and “Update
                 stale” show uncertainty without claiming an interruption.
               </li>
@@ -2001,8 +2006,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <strong>Quiet status pins without a rail.</strong> This sample starts with
               a recorded card move. The small upward arrow beside “Print the workshop
               map” says “Sent” on hover: the move was recorded, with nothing for you to
-              answer. After two minutes without pickup, it becomes “Waiting for pickup”;
-              Reset starts a fresh example. Queued, Picked up, and Working follow the
+              answer. After two minutes undelivered, it becomes “Waiting for delivery”;
+              Reset starts a fresh example. Queued, Delivered, and Working follow the
               same placement rule. When a target already has a control, that control can
               carry the status instead of adding a separate pin.
             </p>
@@ -3190,7 +3195,7 @@ switch --readers checkout-api,orders-api</code></pre>
             </h2>
             <p id="bg-delivery-guide">
               Drag the card to “Tried”, use its grip with <kbd>Enter</kbd> and the
-              arrows, or tap a destination on a phone. “Sent”, “Picked up”, and
+              arrows, or tap a destination on a phone. “Sent”, “Delivered”, and
               “Working” report the agent workflow. A refused send offers “Retry” and
               “Cancel”.
             </p>

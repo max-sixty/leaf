@@ -35,9 +35,9 @@ from math import hypot
 from pathlib import Path
 
 import click
-from leaf.media import media_name
 from PIL import Image, ImageDraw
 
+from leaf.media import media_name
 from leaf_dev import ROOT
 from leaf_dev.arms import base_ref, build_arm, run_directory, serving_source
 from leaf_dev.browser import headless_shell, load, tab, use_linux_fonts

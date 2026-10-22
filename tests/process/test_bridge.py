@@ -7,6 +7,7 @@ import subprocess
 
 import pytest
 from interact_support import ROOT, STATED_TIMEOUT
+
 from leaf import bridge as bridge_model
 from leaf import hooks as hooks_model
 from leaf import service as service_model

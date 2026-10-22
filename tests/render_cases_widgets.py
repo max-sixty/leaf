@@ -4,15 +4,16 @@ import html
 import json
 
 from browser_sources import browser_source
+from render_harness import (
+    SHELL_BOX,
+    leaf_page,
+)
+
 from leaf import anchor_capture as anchor_capture_model
 from leaf import passages as passages_model
 from leaf.registry import storage as registry_storage
 from leaf.schema import ELEMENT_ID
 from leaf.structure import SourceDocument
-from render_harness import (
-    SHELL_BOX,
-    leaf_page,
-)
 
 # ---------- anchors written without a browser ----------
 # `leaf thread open` writes an anchor by reading the mapped revision; the runtime

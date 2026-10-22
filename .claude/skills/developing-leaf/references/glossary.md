@@ -26,7 +26,7 @@ implementation terms keep their exact spelling where the reader needs them.
 | **Response** | Work owed to user input of unknown kind: “2 responses owed” |
 | **Answer** | The current value of an obligation, or the response that satisfies a user update. An obligation contains its answer; there is no separate Answer record |
 | **Reply** | A message in a conversation, including an answer or an unprompted message |
-| **Delivery** | How far an update has got toward the agent: **Sending**, **Sent**, **Queued**, then **Picked up**. Picked up doesn't mean work has begun |
+| **Delivery** | How far an update has got toward the agent: **Sending**, **Sent**, **Queued**, then **Delivered** (stage `picked_up`): handed into the agent's turn, and handed over again if that turn ends before reading it. Delivered doesn't mean work has begun |
 | **Sent** | An update Leaf has logged that no harness has queued or opened into a turn yet (stage `sent` in `workflows.py`); before the log accepts it, the browser shows **Sending** |
 | **Working** | The agent has explicitly started this update or to-do; page activity alone doesn't mean it has |
 | **Undo** | Taking back the user's latest update that can be taken back |

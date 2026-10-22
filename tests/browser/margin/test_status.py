@@ -8,11 +8,6 @@ import pytest
 from axe_playwright_python.sync_playwright import Axe
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, declare_idle, record_claim
-from leaf import cli as cli_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import service as service_model
-from leaf.served_state import context as served_context
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, live_url
 from render_cases_layout import token_colour
@@ -41,14 +36,19 @@ from browser.margin import (
     leave_card_by_its_target,
 )
 from browser.threads import open_panel_thread
+from leaf import cli as cli_model
+from leaf import delivery as delivery_model
+from leaf import event_log as events_model
+from leaf import service as service_model
+from leaf.served_state import context as served_context
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
 RECEIPT_PHASES = {
     "Sent": "sent",
-    "Waiting for pickup": "waiting",
-    "Picked up": "pickup",
+    "Waiting for delivery": "waiting",
+    "Delivered": "pickup",
 }
 
 
@@ -942,7 +942,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
 ):
     """A margin entry keeps the margin entry family visible without promising a press.
 
-    Sent, Waiting for pickup, and Picked up report a move already made. Their status
+    Sent, Waiting for delivery, and Picked up report a move already made. Their status
     margin entry therefore keeps the circular silhouette and full ink, while leaving the
     accessibility tree as a status rather than a control and showing no hover fill.
     Hovering the status draws a soft neutral trace to the
@@ -1064,7 +1064,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
             "borderStyle": "solid",
             "animation": "none",
             "ink": expected_ink,
-            "iconInk": pickup_ink if phase == "Picked up" else expected_ink,
+            "iconInk": pickup_ink if phase == "Delivered" else expected_ink,
             "opacity": "1",
             "width": "32px",
             "wordOpacity": "0",
@@ -1179,15 +1179,17 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         monkeypatch.setattr(clock_owner, "now_iso", advanced_now)
     declare_idle(page_dir)
     told(page)
-    expect(marker).to_have_attribute("aria-label", re.compile(r"^Waiting for pickup,"))
-    assert_status("Waiting for pickup", "3m ago")
+    expect(marker).to_have_attribute(
+        "aria-label", re.compile(r"^Waiting for delivery,")
+    )
+    assert_status("Waiting for delivery", "3m ago")
 
     # Pickup belongs to an active agent turn; an unclaimed pickup is stale work.
     record_claim(page_dir)
     with service_model.PageTransaction(page_dir) as transaction:
         delivery_model.record_pickup(transaction, [logged_action])
     told(page)
-    assert_status("Picked up", "just now")
+    assert_status("Delivered", "just now")
 
     # A surviving semantic action carries pickup itself. Removing that carrier
     # restores the status fallback with the same canonical receipt.
@@ -1207,7 +1209,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     carrier = page.locator(".lf-workflow-primary-probe")
     expect(marker).to_be_hidden()
     expect(carrier).to_have_attribute("data-lf-agent-workflow", "picked_up")
-    expect(carrier).to_have_attribute("aria-description", "Picked up")
+    expect(carrier).to_have_attribute("aria-description", "Delivered")
     expect(carrier.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "edit"
     )
@@ -1322,7 +1324,7 @@ def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):
           registerContribution({
             key: 'shape-status', target: document.querySelector('#outer'),
             read: () => ({entries: [contributionEntry({
-              key: 'shape-status', icon: 'pickup', label: 'Picked up', behavior: 'status'
+              key: 'shape-status', icon: 'pickup', label: 'Delivered', behavior: 'status'
             })]}), activate: () => {}
           });
         }"""

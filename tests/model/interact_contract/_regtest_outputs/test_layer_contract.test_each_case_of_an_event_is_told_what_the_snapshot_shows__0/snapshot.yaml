@@ -144,7 +144,7 @@
 #        "format": "leaf-delivery/15",
 #        "id": "e8417b8a",
 #        "created_at": 1790046750.29,
-#        "acknowledge": "Whoever ran the `leaf wait` that printed this delivery acknowledges it; until then the user's updates read Sent rather than Picked up. If the output was cut off, reread it with `leaf delivery read e8417b8a`. Follow any `next` commands before confirming. If you handle it, acknowledge before any other work; if you forward it, acknowledge once it durably arrives there. To acknowledge, start `leaf wait --ack e8417b8a` as the next background task: it confirms this delivery and waits for the next.",
+#        "acknowledge": "Whoever ran the `leaf wait` that printed this delivery acknowledges it; until then the user's updates read Sent rather than Delivered. If the output was cut off, reread it with `leaf delivery read e8417b8a`. Follow any `next` commands before confirming. If you handle it, acknowledge before any other work; if you forward it, acknowledge once it durably arrives there. To acknowledge, start `leaf wait --ack e8417b8a` as the next background task: it confirms this delivery and waits for the next.",
 #        "batches": [
 #          {
 #            "page": "/path/to/page",
@@ -221,7 +221,7 @@
 # ----------------------
 #
 # Step 3, for one example of every case, using the clauses in
-# skills/leaf/assets/registry.json (the file `leaf page init` copies into a page).
+# browser/registry.json (the file `leaf page init` copies into a page).
 # Each top-level key below names a case and holds:
 #
 #   event:  the input: a log line's `kind`, the kind of answer its delivery

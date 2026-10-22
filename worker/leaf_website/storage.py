@@ -31,6 +31,9 @@ from typing import BinaryIO
 from urllib.parse import urlencode, urlsplit
 
 import anyio
+from starlette.datastructures import Headers
+from starlette.requests import Request
+
 from leaf.data import deferred_records
 from leaf.files import latest_revision, revision_path
 from leaf.layer import running_leaf
@@ -45,8 +48,6 @@ from leaf.schema import (
 from leaf.served_state.reading import record_reading
 from leaf.service import PageTransaction
 from leaf.state import STRING, Record, described, object_schema, page_key, state_home
-from starlette.datastructures import Headers
-from starlette.requests import Request
 
 CHUNK_BYTES = 1024 * 1024
 
@@ -268,6 +269,16 @@ def _responses(
     result = {}
     for path in sorted(paths):
         address = urlsplit(f"{root.rstrip('/')}/{path}")
+        request_sent = False
+
+        async def receive():
+            nonlocal request_sent
+            if not request_sent:
+                request_sent = True
+                return {"type": "http.request", "body": b"", "more_body": False}
+            # This capture has no client to disconnect while a file streams.
+            await asyncio.Event().wait()
+
         request = Request(
             {
                 "type": "http",
@@ -277,7 +288,8 @@ def _responses(
                 "path": address.path,
                 "query_string": address.query.encode(),
                 "headers": [],
-            }
+            },
+            receive,
         )
         endpoint = WebsitePageEndpoint(
             request,

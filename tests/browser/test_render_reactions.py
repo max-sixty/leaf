@@ -5,10 +5,6 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import thread as thread_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
@@ -56,6 +52,10 @@ from render_harness import (
 
 from browser.test_render_outbox import undo_offered
 from browser.threads import open_panel_thread
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf import thread as thread_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -542,11 +542,10 @@ def test_tab_opens_the_comment_picker_with_individual_emoji_buttons(browser, ser
     undo_offered(page)
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_be_visible()
-    undo_row = page.locator(
-        '.lf-command-reference [data-lf-command="history.undo"] button'
-    )
-    expect(undo_row).to_have_attribute(
-        "title", re.compile("Undo: shorten reaction on “The store is capped")
+    expect(
+        page.locator('.lf-command-reference-command[data-lf-command="history.undo"]')
+    ).to_have_attribute(
+        "title", re.compile("^Undo: shorten reaction on “The store is capped.* · ")
     )
     page.keyboard.press("Escape")
     expect(page.locator(".lf-command-reference")).to_be_hidden()
@@ -783,9 +782,7 @@ def test_comment_more_keeps_the_field_when_suggest_is_the_only_secondary_respons
     browser, serve
 ):
     """The action group has one disclosure contract independent of reactions."""
-    registry = json.loads(
-        (ROOT / "skills/leaf/packages/default/registry.json").read_text()
-    )
+    registry = json.loads((ROOT / "packages/default/registry.json").read_text())
     tokens = {name: None for name in registry["$reactions"]["tokens"]}
     page = open_page(
         browser,

@@ -22,6 +22,7 @@ from interact_support import (
     refused_on,
     wait_for,
 )
+
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import events as event_folds_model

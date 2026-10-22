@@ -4,10 +4,9 @@ import re
 from html import escape
 
 import pytest
-from leaf import data as data_model
-from leaf.render_checks import one_frame, rendered
 from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
+from render_cases_interaction import live_url
 from render_harness import (
     consume_browser_errors,
     holding,
@@ -17,7 +16,135 @@ from render_harness import (
     resized,
     scroll_settled,
     sending,
+    told,
 )
+
+from leaf import data as data_model
+from leaf.render_checks import one_frame, rendered, wait_until_ready
+
+
+def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
+    browser, serve
+):
+    """Several worktrees stay open independently, retaining each nested reader.
+
+    Missing evidence remains visibly unknown beside known totals; neither an empty
+    collection nor a fifth member needs a different browsing surface.
+    """
+    head = "1234567890abcdef1234567890abcdef12345678"
+    patch = "".join(
+        f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+        "@@ -1 +1 @@\n-old\n+new\n"
+        for path in ("app.py", "tests.py")
+    )
+    page = open_page(
+        browser,
+        live_url(
+            serve(
+                leaf_page(
+                    "Review worktrees",
+                    '<h1>Review worktrees</h1><lf-worktree-diffs id="trees">'
+                    '<lf-worktree id="drafts" label="retain-drafts" '
+                    'branch="codex/retain-drafts" path="/workspace/leaf.retain-drafts" '
+                    f'head="{head}" status="changed" files="2" additions="2" deletions="2"><details id="drafts-body" open>'
+                    "<p>Keep reply drafts keyed by thread</p>"
+                    "<aside>Drafts survive changing the selected thread.</aside>"
+                    "<details><summary>Snapshot details</summary>"
+                    f"<p>Current commit <code>{head}</code></p></details>"
+                    f'<lf-diff id="patch"><pre>{escape(patch)}</pre></lf-diff>'
+                    '</details></lf-worktree><lf-worktree id="missing" label="missing checkout" '
+                    'path="/workspace/missing" status="unavailable"><details id="missing-body">'
+                    "<p>The supplied checkout could not be read.</p></details></lf-worktree>"
+                    + "".join(
+                        f'<lf-worktree id="clean-{index}" label="clean {index}" '
+                        f'path="/workspace/clean-{index}" status="clean" files="0" '
+                        f'additions="0" deletions="0"><details id="clean-body-{index}">'
+                        "<p>No changes.</p></details></lf-worktree>"
+                        for index in range(3)
+                    )
+                    + '</lf-worktree-diffs><lf-worktree-diffs id="empty"></lf-worktree-diffs>'
+                    '<lf-file-tree id="files" for="patch"></lf-file-tree>',
+                ),
+                packages=("diff", "file-tree"),
+            )
+        ),
+    )
+    overview = page.locator("#trees > .lf-worktree-overview")
+    expect(overview).to_contain_text("5 worktrees")
+    expect(overview).to_contain_text("2 files")
+    expect(overview).to_contain_text("+2")
+    expect(overview).to_contain_text("−2")
+    expect(overview).to_contain_text("1 unavailable")
+    expect(page.locator("#empty").get_by_text("No worktrees supplied")).to_be_visible()
+    expect(
+        page.locator("#empty").get_by_text("0 files", exact=True)
+    ).not_to_be_visible()
+
+    row = page.locator("#drafts > details")
+    summary = row.locator(":scope > summary")
+    expect(row).to_contain_text("/workspace/leaf.retain-drafts")
+    expect(summary).to_contain_text(head[:8])
+    snapshot = row.locator(
+        "details", has=page.get_by_text("Snapshot details", exact=True)
+    )
+    snapshot.locator("summary").click()
+    expect(snapshot.locator("code")).to_have_text(head)
+    diff = page.locator("#patch")
+    search = diff.get_by_label("Filter diff files")
+    search.fill("app.py")
+    file_summary = diff.locator("summary").filter(has_text="app.py")
+    file_summary.click()
+    expect(file_summary.locator("..")).not_to_have_attribute("open")
+
+    summary.click()
+    expect(search).not_to_be_visible()
+    # Tab reaches the next worktree; Enter opens it independently of the first.
+    page.keyboard.press("Tab")
+    missing_summary = page.locator("#missing > details > summary")
+    expect(missing_summary).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(page.get_by_text("The supplied checkout could not be read.")).to_be_visible()
+    expect(missing_summary).to_contain_text("Unavailable")
+    expect(missing_summary).not_to_contain_text("0 files")
+    expect(missing_summary).not_to_contain_text("+0")
+
+    summary.click()
+    expect(search).to_have_value("app.py")
+    expect(file_summary.locator("..")).not_to_have_attribute("open")
+    expect(snapshot.locator("code")).to_be_visible()
+    expect(page.get_by_text("The supplied checkout could not be read.")).to_be_visible()
+    # Editing both the active row and its sibling retains nested reading state.
+    source = serve.page_dir / "index.html"
+    source.write_text(
+        source.read_text()
+        .replace(
+            "The supplied checkout could not be read.",
+            "The supplied checkout is temporarily unavailable.",
+        )
+        .replace(
+            "Keep reply drafts keyed by thread",
+            "Keep reply drafts safely keyed by thread",
+        )
+    )
+    told(page)
+    expect(
+        page.get_by_text("The supplied checkout is temporarily unavailable.")
+    ).to_be_visible()
+    expect(page.get_by_text("Keep reply drafts safely keyed by thread")).to_be_visible()
+    expect(search).to_have_value("app.py")
+    expect(file_summary.locator("..")).not_to_have_attribute("open")
+    expect(snapshot.locator("code")).to_be_visible()
+    file_summary.click()
+    expect(diff.locator("[data-line]:visible").filter(has_text="new")).to_be_visible()
+    fifth_summary = page.locator("#clean-2 > details > summary")
+    fifth_summary.click()
+    expect(page.locator("#clean-2").get_by_text("No changes.")).to_be_visible()
+    # A related navigator must reveal the worktree around its destination too.
+    summary.click()
+    expect(row).not_to_have_attribute("open")
+    page.locator("#files").get_by_role("treeitem", name="app.py", exact=True).click()
+    expect(row).to_have_attribute("open", "")
+    expect(diff.locator("[data-line]:visible").filter(has_text="new")).to_be_visible()
 
 
 def test_a_visible_datum_takes_over_pending_thread_motion(browser, serve):
@@ -106,12 +233,12 @@ def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(
     else:
         expect(page.locator("#patch .lf-diff-search")).to_have_count(0)
         expect(folds.first).to_have_attribute("open", "")
-    # Narrowing remains in place while visiting more than one related file.
+    # Search narrows the navigator until a file is opened.
     search = tree.get_by_role("textbox")
     search.fill("importer")
     row.click()
-    expect(search).to_have_value("importer")
-    expect(row).to_be_focused()
+    expect(search).to_have_value("")
+    expect(search).to_be_focused()
     expect(folds.first).to_have_attribute("open", "")
     expect(folds.first.locator("pre")).to_contain_text("keep_names = True")
     # The same selected file still has an activation route after its patch closes.
@@ -146,7 +273,7 @@ def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(
         expect(folds.first).not_to_be_visible()
         expect(folds.last).to_be_visible()
         expect(other).to_have_attribute("aria-selected", "true")
-        # Search is an activation route too, even while its text field owns focus.
+        # Trees confirms a search match onto its row; the row opens its file.
         for path, visible in [
             ("src/importer.py", folds.first),
             ("tests/importer.py", folds.last),
@@ -154,10 +281,10 @@ def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(
             search.fill(path)
             search.press("ArrowDown")
             search.press("Enter")
+            expect(search).to_have_value("")
+            expect(tree.locator(f'[data-item-path="{path}"]')).to_be_focused()
+            page.keyboard.press("Enter")
             expect(visible).to_be_visible()
-            expect(search).to_have_value(path)
-            expect(search).to_be_focused()
-        search.fill("importer")
         folds.last.locator("summary").press("{")
         expect(folds.first).to_be_visible()
         expect(folds.last).not_to_be_visible()
@@ -299,8 +426,8 @@ def test_file_tree_lands_at_the_file_start_in_a_scrolled_patch_pane(browser, ser
 def test_a_patch_that_failed_stays_failed_when_its_diff_returns(browser, serve, bound):
     """A refusal stands while its patch is unchanged: a diff that leaves the page and
     returns, as document reconciliation moves it, renders its patch again only when
-    the departure cut that rendering short, and does not tell the author twice. A bound
-    patch returns through its data subscription, an inline one through the widget."""
+    the departure cut that rendering short, and does not tell the author twice.
+    Both inline and bound patches use the widget's render lifecycle."""
     one = "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-x\n+y\n"
     diff = (
         '<lf-diff id="d-bad" source="bad-patch"><pre></pre></lf-diff>'
@@ -326,6 +453,47 @@ def test_a_patch_that_failed_stays_failed_when_its_diff_returns(browser, serve, 
     assert returned, "the returning diff rendered its refused patch again"
     errors = consume_browser_errors(page, '<lf-diff id="d-bad"> failed: ')
     assert len(errors) == 1, errors
+
+
+def test_an_inline_patch_resumes_preparation_on_return_and_keeps_its_finished_rows(
+    browser, serve
+):
+    """A departure cuts short preparation, but a settled return keeps its native rows."""
+    patch = "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-old\n+new\n"
+    url = serve(
+        leaf_page("Returning diff", f'<lf-diff id="patch"><pre>{patch}</pre></lf-diff>')
+    )
+    page = browser.new_page()
+    held = []
+    page.route("**/vendor/pierre-parser.esm.js", lambda route: held.append(route))
+    page.goto(url)
+    holding(page, held, 1, "the inline patch parser")
+    page.evaluate("""async () => {
+        const diff = document.getElementById('patch');
+        const parent = diff.parentNode;
+        const next = diff.nextSibling;
+        diff.remove();
+        // Cross the departure task boundary; preparation stays held by the route.
+        await new Promise((resolve) => setTimeout(resolve));
+        parent.insertBefore(diff, next);
+        await diff.updateComplete;
+    }""")
+    held[0].continue_()
+    wait_until_ready(page)
+    expect(page.locator("#patch [data-line]").last).to_contain_text("new")
+    assert page.evaluate("""async () => {
+        const diff = document.getElementById('patch');
+        const row = diff.shadowRoot.querySelector('[data-line]');
+        const parent = diff.parentNode;
+        const next = diff.nextSibling;
+        diff.remove();
+        // A separate task makes this a departure and return, not an in-page move.
+        await new Promise((resolve) => setTimeout(resolve));
+        parent.insertBefore(diff, next);
+        await diff.updateComplete;
+        await diff.sourceRendering;
+        return row !== null && row === diff.shadowRoot.querySelector('[data-line]');
+    }"""), "a completed inline patch replaced its rows on return"
 
 
 def test_an_expanded_diff_file_can_retry_its_failed_chunk_in_place(browser, serve):
@@ -991,7 +1159,7 @@ def test_file_tree_reads_standalone_data_without_a_diff_package(browser, serve):
     row.click()
     expect(row).to_have_attribute("aria-selected", "true")
     page.keyboard.press("c")
-    expect(page.locator(".lf-composer leaf-text")).to_be_focused(timeout=1000)
+    expect(page.locator(".lf-composer leaf-text")).to_be_focused()
     page.keyboard.press("Escape")
     data_model.cmd_data_set(
         serve.page_dir,

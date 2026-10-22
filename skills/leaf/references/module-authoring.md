@@ -247,6 +247,11 @@ by those callbacks or `write`. Use `afterRender(callback)` inside the commit for
 focus, DOM queries, measurement or third-party setup that needs the written DOM.
 Callbacks can write again; their descendants settle before the next outer callback.
 Errors reject the owning commit, including errors in retained template bindings.
+Bindings driven by a component's local signals can also fail between props
+publications. Their boundary shows an error and reports through the browser's error
+path; a cancelled publication cannot swallow that report. Publishing fresh props
+can remount a failed view. An error already delivered to a commit is not reported
+again as an independent fault.
 Outside a commit `afterRender` runs immediately, so wrap a gesture that draws and
 then focuses in one `renderCommit`, rather than scheduling focus after its call.
 `LeafElement` and projection owners already supply that commit to their hooks.

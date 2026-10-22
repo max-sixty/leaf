@@ -41,6 +41,7 @@ import { flush, onSettled, runWithOwner } from "../solid.js";
 
 
 
+
 let active               = null;
 const inline =    (callback         )    => callback();
 const unchanged =    (callback         )            => callback;
@@ -74,13 +75,18 @@ export function afterRender(callback               )       {
 
 /** Publish a retained view's props and check binding errors at the commit boundary.
  * The synchronous fallback is for imperative callers outside a rendering phase.
+ * The write receives its publication's retirement before it can flush an eager mount.
+ * An unconsumed binding failure can report once that owner commits or is cancelled.
  */
-export function writeView(write            , check            )       {
+export function writeView(
+  write                                  ,
+  check            ,
+)       {
   if (active) {
     active.checks.add(check);
-    write();
+    write(active.committed);
   } else {
-    flush(write);
+    flush(() => write(Promise.resolve()));
     check();
   }
 }
@@ -98,6 +104,7 @@ export function renderCommit   (
   const parent = options.root ? null : active;
   const frame        = {
     failed: false,
+    committed: committed.promise,
     callbacks: [],
     checks: new Set(),
     children: [],

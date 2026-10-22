@@ -48,7 +48,12 @@ function watchReaction(read, moved2) {
 }
 
 // vendor/browser-runtime/views.js
-import { createSignal, createProjection, runWithOwner as runWithOwner3 } from "/vendor/solid.js";
+import {
+  createSignal,
+  createProjection,
+  onSettled as onSettled2,
+  runWithOwner as runWithOwner3
+} from "/vendor/solid.js";
 import { Errored } from "/vendor/solid.js";
 import { render } from "/vendor/solid.js";
 
@@ -82,9 +87,9 @@ function afterRender(callback) {
 function writeView(write, check) {
   if (active) {
     active.checks.add(check);
-    write();
+    write(active.committed);
   } else {
-    flush2(write);
+    flush2(() => write(Promise.resolve()));
     check();
   }
 }
@@ -96,6 +101,7 @@ function renderCommit(write, options = {}) {
   const parent = options.root ? null : active;
   const frame = {
     failed: false,
+    committed: committed.promise,
     callbacks: [],
     checks: /* @__PURE__ */ new Set(),
     children: [],
@@ -187,6 +193,7 @@ function createView(container, component, initial) {
   let stop = null;
   let disposed = false;
   let publication = 0;
+  let retirement = Promise.resolve();
   let failure = null;
   let publish;
   const reset = () => {
@@ -201,7 +208,14 @@ function createView(container, component, initial) {
     throw error;
   };
   const check = (version) => () => {
-    if (!disposed && version === publication) checkFailure();
+    if (disposed || version !== publication) return;
+    checkFailure();
+  };
+  const write = (publish2, version) => {
+    writeView((retired) => {
+      retirement = retired;
+      publish2();
+    }, check(version));
   };
   const mount = () => {
     if (container.firstChild) container.replaceChildren();
@@ -220,14 +234,30 @@ function createView(container, component, initial) {
             return component(() => props);
           },
           fallback(error) {
-            failure = { error: error() };
-            return null;
+            const failed = failure = { error: error() };
+            const version = publication;
+            const retired = retirement;
+            const report = () => {
+              if (!disposed && version === publication && failure === failed)
+                reportError(failed.error);
+            };
+            runWithOwner3(
+              null,
+              () => onSettled2(() => {
+                void retired.then(report, report);
+              })
+            );
+            const box = container.ownerDocument.createElement("div");
+            box.className = "lf-error";
+            const message = failed.error instanceof Error ? failed.error.message : String(failed.error);
+            box.textContent = `View failed: ${message}`;
+            return box;
           }
         });
       }, container)
     );
   };
-  writeView(mount, check(publication));
+  write(mount, publication);
   roots.set(container, () => {
     publication++;
     failure = null;
@@ -242,10 +272,10 @@ function createView(container, component, initial) {
         failure = null;
         reset();
       }
-      writeView(() => {
+      write(() => {
         if (stop) publish({ current: current2 });
         else mount();
-      }, check(version));
+      }, version);
     },
     dispose() {
       if (disposed) return;

@@ -6,8 +6,15 @@
  * settlement separates prop publication from the owner's focus and measurements.
  * Failure replacement releases affected roots. A retained owner can publish again
  * into the same container; terminal dispose ends that owner's lifetime.
+ * Local signals also drive bindings between publications. Their failures retain a
+ * visible boundary and report through the platform when no publication owns them.
  */
-import { createSignal, createProjection, runWithOwner } from "../solid.js";
+import {
+  createSignal,
+  createProjection,
+  onSettled,
+  runWithOwner,
+} from "../solid.js";
 import { Errored } from "../solid.js";
 import { render } from "../solid.js";
 
@@ -40,6 +47,7 @@ export function createView                  (
   let stop                      = null;
   let disposed = false;
   let publication = 0;
+  let retirement = Promise.resolve();
   let failure                            = null;
   let publish                                   ;
   const reset = () => {
@@ -59,7 +67,14 @@ export function createView                  (
   // latest publication can consume that result; an older commit must not acknowledge
   // the latest failed view by taking its error first.
   const check = (version        ) => () => {
-    if (!disposed && version === publication) checkFailure();
+    if (disposed || version !== publication) return;
+    checkFailure();
+  };
+  const write = (publish            , version        ) => {
+    writeView((retired) => {
+      retirement = retired;
+      publish();
+    }, check(version));
   };
   const mount = () => {
     if (container.firstChild) container.replaceChildren();
@@ -77,14 +92,35 @@ export function createView                  (
             return component(() => props     );
           },
           fallback(error) {
-            failure = { error: error() };
-            return null;
+            const failed = (failure = { error: error() });
+            const version = publication;
+            const retired = retirement;
+            const report = () => {
+              if (!disposed && version === publication && failure === failed)
+                reportError(failed.error);
+            };
+            // Publications consume their error before retiring. A cancelled check
+            // leaves a started failure behind, which reports like a local signal's
+            // autonomous failure. The receipt exists even during an eager mount.
+            runWithOwner(null, () =>
+              onSettled(() => {
+                void retired.then(report, report);
+              }),
+            );
+            const box = container.ownerDocument.createElement("div");
+            box.className = "lf-error";
+            const message =
+              failed.error instanceof Error
+                ? failed.error.message
+                : String(failed.error);
+            box.textContent = `View failed: ${message}`;
+            return box;
           },
         });
       }, container),
     );
   };
-  writeView(mount, check(publication));
+  write(mount, publication);
   roots.set(container, () => {
     publication++;
     failure = null;
@@ -101,10 +137,10 @@ export function createView                  (
         failure = null;
         reset();
       }
-      writeView(() => {
+      write(() => {
         if (stop) publish({ current });
         else mount();
-      }, check(version));
+      }, version);
     },
     dispose() {
       if (disposed) return;

@@ -59,7 +59,13 @@ test("native effects commit retained view bindings before post-render work", asy
   }
 });
 
-test("a deferred binding failure rejects its commit and leaves unrelated views live", async () => {
+test("a deferred binding failure rejects its commit and leaves unrelated views live", async (t) => {
+  const reports = [];
+  const reporter = globalThis.reportError;
+  globalThis.reportError = (error) => reports.push(error);
+  t.after(() => {
+    globalThis.reportError = reporter;
+  });
   const host = document.createElement("section");
   const other = document.createElement("section");
   const view = createView(
@@ -93,11 +99,119 @@ test("a deferred binding failure rejects its commit and leaves unrelated views l
       view.update({ label: "Recovered" });
     }).ready;
     assert.equal(host.textContent, "Recovered");
+    assert.deepEqual(
+      reports,
+      [],
+      "an owned error is delivered only through its commit",
+    );
   } finally {
     view.dispose();
     independent.dispose();
   }
 });
+
+for (const cancelled of [false, true]) {
+  test(`a local binding failure reports and recovers${cancelled ? " after a cancelled publication" : ""}`, async (t) => {
+    const reports = [];
+    const reporter = globalThis.reportError;
+    globalThis.reportError = (error) => reports.push(error);
+    t.after(() => {
+      globalThis.reportError = reporter;
+    });
+    const failure = new Error("Local binding failed");
+    const [broken, setBroken] = createSignal(false, { ownedWrite: true });
+    const host = document.createElement("section");
+    const other = document.createElement("section");
+    const view = createView(
+      host,
+      () =>
+        html`<output
+          >${() => {
+            if (broken()) throw failure;
+            return "Local view healthy";
+          }}</output
+        >`,
+      {},
+    );
+    const independent = createView(
+      other,
+      (read) => html`<output>${() => read().label}</output>`,
+      { label: "Ready" },
+    );
+    try {
+      if (cancelled) {
+        let current = true;
+        const publication = renderCommit(() => view.update({}), {
+          current: () => current,
+        });
+        current = false;
+        await publication.ready;
+      }
+      // A reentrant native flush can stand inside a different owner's render frame.
+      // Only this view's outstanding publication receipt can own its failure.
+      await renderCommit(() => {
+        flush(() => setBroken(true));
+        independent.update({ label: "Still live" });
+      }).ready;
+      assert.match(
+        host.querySelector(".lf-error")?.textContent,
+        /Local binding failed/,
+      );
+      assert.deepEqual(reports, [failure], "the original error is reported once");
+      assert.equal(other.textContent, "Still live");
+      flush(() => setBroken(false));
+      assert.equal(host.textContent, "Local view healthy");
+      assert.equal(host.querySelector(".lf-error"), null);
+      independent.update({ label: "Still updating" });
+      assert.equal(other.textContent, "Still updating");
+      assert.deepEqual(reports, [failure]);
+    } finally {
+      view.dispose();
+      independent.dispose();
+    }
+  });
+}
+
+for (const stage of ["update", "initial mount"]) {
+  test(`a cancelled ${stage} reports a binding failure its owner did not consume`, async (t) => {
+    const reports = [];
+    const reporter = globalThis.reportError;
+    globalThis.reportError = (error) => reports.push(error);
+    t.after(() => {
+      globalThis.reportError = reporter;
+    });
+    const failure = new Error(`Cancelled ${stage} failed`);
+    const host = document.createElement("section");
+    const component = (read) =>
+      html`<output
+        >${() => {
+          if (read().broken) throw failure;
+          return "Recovered";
+        }}</output
+      >`;
+    let view =
+      stage === "update" ? createView(host, component, { broken: false }) : null;
+    let current = true;
+    const publication = renderCommit(
+      () => {
+        if (view) view.update({ broken: true });
+        else view = createView(host, component, { broken: true });
+      },
+      { current: () => current },
+    );
+    current = false;
+    try {
+      await publication.ready;
+      assert.deepEqual(reports, [failure]);
+      assert.match(host.querySelector(".lf-error")?.textContent, /failed/);
+      view.update({ broken: false });
+      assert.equal(host.textContent, "Recovered");
+      assert.deepEqual(reports, [failure]);
+    } finally {
+      view?.dispose();
+    }
+  });
+}
 
 test("overlapping view publications leave binding failure with the latest commit", async () => {
   const host = document.createElement("section");

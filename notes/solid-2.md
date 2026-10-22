@@ -52,6 +52,11 @@ props update can remount it. The regression test covers failed initial mounting,
 failed updates, cleanup, unrelated updates and recovery; a browser probe also
 checks recovery with the delivered shared runtime.
 
+Local component signals can fail between props publications too. Those failures
+keep a visible native boundary and report through the platform's error path. View
+error delivery waits for its publication to retire, so cancellation cannot swallow
+a fault, and a commit-owned error is not reported a second time.
+
 Reconsider adoption when Solid's release and the upstream fixes reduce the cost
 of these adaptations, or when a measured interaction or maintenance improvement
 outweighs it. Ordinary native controls and retaining WebAwesome can be chosen
@@ -106,14 +111,14 @@ and parent-widget ordering browser tests. These protect asynchronous holds, fail
 measurements, retained focus/editing, native/shadow owners, disconnection and
 supersession rather than the old queue's incidental order.
 
-The redesigned candidate passes 145 framework/build, 534 runtime and 85 Worker
-tests, plus 24 focused Chromium cases. Independent browser review covers delayed
+The redesigned candidate passes 145 framework/build, 538 runtime and 85 Worker
+tests, plus 28 focused Chromium cases. Independent browser review covers delayed
 image loads and acknowledgements during editing, disconnects, command-hub
 save/discard/undo, keyboard navigation and narrow dark layouts. The matched corpus
-load has no console errors or startup layout shifts in either arm. HTML plus
-external code is about 7.184 MB on Lit and 7.166 MB on this candidate
-(0.25% smaller); external JavaScript requests fall from 115 to 113. These single
-loads do not establish a timing improvement.
+load has no console errors or startup layout shifts in either arm. The reduction in
+delivered HTML plus external code remains below one percent; external JavaScript
+requests fall from 115 to 113. These single loads do not establish a timing
+improvement.
 
 An offline handoff check also found that the visual-review data contract omitted
 its capture resource declarations on both Lit and Solid. Declaring the before/after

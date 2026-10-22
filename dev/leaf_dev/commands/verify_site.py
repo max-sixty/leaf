@@ -42,12 +42,12 @@ from urllib.parse import urlencode, urljoin, urlsplit
 
 import click
 import psutil
-from leaf.findings import Finding
-from leaf.render_gate.scheme import collect_page_errors
 from playwright.sync_api import APIResponse, BrowserContext, Page
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
+from leaf.findings import Finding
+from leaf.render_gate.scheme import collect_page_errors
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     codex_home,

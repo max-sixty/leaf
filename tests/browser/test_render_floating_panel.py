@@ -18,12 +18,6 @@ from interact_support import (
     record_claim,
     working,
 )
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import interaction_log as interaction_model
-from leaf import service as service_model
-from leaf import thread as thread_model
-from leaf.render_checks import one_frame, wait_until_ready
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -54,6 +48,12 @@ from render_harness import (
 from render_harness import leaf_page as titled_page
 
 from browser.threads import paste_image
+from leaf import cli as cli_model
+from leaf import event_log as events_model
+from leaf import interaction_log as interaction_model
+from leaf import service as service_model
+from leaf import thread as thread_model
+from leaf.render_checks import one_frame, wait_until_ready
 
 SIGN_OFF = LONG_PAGE.replace(
     "<title>long</title>",
@@ -4271,7 +4271,8 @@ def test_a_comment_on_words_where_the_page_draws_no_margin_is_written_in_the_row
 
 def test_a_sample_shows_its_threads_in_its_panel(browser, serve):
     """A live sample's host asking for the panel (`surface: "panel"`) shows the thread
-    it names in the child's panel, or its Threads with none named."""
+    it names in the child's panel, or its Threads with none named. A narrow Full view
+    keeps the filters, search and Close reachable inside the child's panel."""
     url = serve(
         titled_page(
             "A sample's threads",
@@ -4307,6 +4308,24 @@ def test_a_sample_shows_its_threads_in_its_panel(browser, serve):
     expect(reader).to_have_count(0)
     page.locator("#show-threads").click()
     expect(child.locator(".lf-fp-view[data-view=threads]")).to_be_visible()
+    resized(page, 390, 844)
+    page.get_by_role("button", name="Full view", exact=True).click()
+    controls = child.locator(".lf-fp-controls")
+    close = child.get_by_role("button", name="Close", exact=True)
+    bounds = controls.bounding_box()
+    button = close.bounding_box()
+    assert bounds["x"] <= button["x"]
+    assert button["x"] + button["width"] <= bounds["x"] + bounds["width"]
+    filters = child.get_by_role("group", name="Show", exact=True)
+    filters.get_by_role("button", name="Resolved", exact=True).click()
+    filters.get_by_role("button", name=re.compile(r"^Open")).click()
+    child.get_by_role("button", name="Find a thread or message", exact=True).click()
+    search = child.get_by_role("searchbox", name="Find a thread or message")
+    assert search.bounding_box()["width"] > 0
+    search.fill("schedule")
+    expect(child.locator(".lf-fp-thread")).to_have_count(1)
+    close.click()
+    expect(child.locator(".lf-fp-view[data-view=threads]")).to_have_count(0)
 
 
 def test_an_image_pasted_in_the_page_s_field_hangs_above_the_panel(browser, serve):

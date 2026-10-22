@@ -6,12 +6,13 @@ from datetime import datetime, timedelta
 
 from browser_sources import browser_source
 from interact_support import add_test_widget, append_carried_log_record, append_command
-from leaf.schema import ELEMENT_ID
 from render_harness import (
     EXAMPLES,
     TOKEN,
     leaf_page,
 )
+
+from leaf.schema import ELEMENT_ID
 
 # A page with an outline: three headings, and passages under each to hang threads on.
 # LONG_PAGE has one heading and sixty paragraphs, which cannot tell an order that

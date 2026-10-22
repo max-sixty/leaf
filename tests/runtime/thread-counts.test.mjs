@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { threadCounts } from "../../skills/leaf/assets/runtime/thread/model.js";
+import { threadCounts } from "../../browser/runtime/thread/model.js";
 
 // `tests/model/test_thread_counts.py` reads the same cases against the served row's
 // `thread_counts`, so the panel's marks and Claude Code's band count alike.

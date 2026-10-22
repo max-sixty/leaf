@@ -6,8 +6,6 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
@@ -43,6 +41,8 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import event_log as events_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -51,9 +51,7 @@ def test_reactionless_other_responses_can_turn_the_compact_field_into_a_suggesti
     browser, serve
 ):
     """A reactionless layer keeps Suggest in the compact response fallback."""
-    registry = json.loads(
-        (ROOT / "skills/leaf/packages/default/registry.json").read_text()
-    )
+    registry = json.loads((ROOT / "packages/default/registry.json").read_text())
     tokens = {name: None for name in registry["$reactions"]["tokens"]}
     page = open_page(
         browser,

@@ -31,6 +31,9 @@ from typing import BinaryIO
 from urllib.parse import urlencode, urlsplit
 
 import anyio
+from starlette.datastructures import Headers
+from starlette.requests import Request
+
 from leaf.data import deferred_records
 from leaf.files import latest_revision, revision_path
 from leaf.layer import running_leaf
@@ -45,8 +48,6 @@ from leaf.schema import (
 from leaf.served_state.reading import record_reading
 from leaf.service import PageTransaction
 from leaf.state import STRING, Record, described, object_schema, page_key, state_home
-from starlette.datastructures import Headers
-from starlette.requests import Request
 
 CHUNK_BYTES = 1024 * 1024
 

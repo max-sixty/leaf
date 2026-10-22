@@ -5,7 +5,7 @@ import {
   shortAgo,
   clockValue,
   tickClock,
-} from "../../skills/leaf/assets/runtime/presence.js";
+} from "../../browser/runtime/presence.js";
 import { LeafElement, noChange } from "/runtime/widget-api.js";
 
 const before = (ms) => new Date(Date.now() - ms).toISOString();

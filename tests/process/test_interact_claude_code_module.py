@@ -5,6 +5,7 @@ pages above the prompt.
 the real launcher, so these hold the module and the follower it runs together."""
 
 import json
+import os
 import queue
 import re
 import subprocess
@@ -20,6 +21,7 @@ from interact_support import (
     serving,
     wait_for,
 )
+
 from leaf import leases as leases_model
 from leaf import server as server_model
 from leaf import server_rows as server_rows_model
@@ -48,6 +50,7 @@ class ClaudeCode:
         self.diagnostics = queue.Queue()
         self.debug = queue.Queue()
         self.bands = queue.Queue()
+        self.pressed = queue.Queue()
         threading.Thread(target=self.route, daemon=True).start()
         self.pid = self.read()["pid"]
 
@@ -60,6 +63,8 @@ class ClaudeCode:
                 self.debug.put(record["debug"])
             elif "band" in record:
                 self.bands.put(record["band"])
+            elif {"copied", "toast"} & record.keys():
+                self.pressed.put(record)
             else:
                 self.answers.put(record)
 
@@ -89,14 +94,12 @@ class ClaudeCode:
             self.ended = True
 
 
-@pytest.fixture
-def claude_code(page_dir, monkeypatch, spawn, sessionless):
-    """A Claude Code session with the module loaded, holding a page claimed and
-    served from a Bash tool command as Claude Code runs one: its session id and its
-    process. Claude Code's own environment names no session, so neither does the
-    module's. The session then starts, as one does when the module loads while it
-    holds a page."""
-    driven = ClaudeCode(spawn, "cc-s1", {})
+def holding_page(driven: ClaudeCode, page_dir: Path, monkeypatch) -> None:
+    """Have the session `driven` drives hold a page claimed and served from a Bash
+    tool command as Claude Code runs one: its session id and its process. Claude
+    Code's own environment names no session, so neither does the module's. The
+    session then starts, as one does when the module loads while it holds a
+    page."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", driven.session)
     monkeypatch.setenv("CLAUDE_PID", str(driven.pid))
     service_model.claim_page(page_dir)
@@ -105,8 +108,24 @@ def claude_code(page_dir, monkeypatch, spawn, sessionless):
     # hooks.json's prompt hook has run for the session by the time it holds a page.
     leases_model.mark_hooks(driven.session)
     driven.emit("session.start", {"cwd": str(page_dir), "isInteractive": True})
+
+
+@pytest.fixture
+def claude_code(page_dir, monkeypatch, spawn, sessionless):
+    """A Claude Code session with the module loaded, holding a page."""
+    driven = ClaudeCode(spawn, "cc-s1", {})
+    holding_page(driven, page_dir, monkeypatch)
     yield driven
     driven.quit()
+
+
+def elements(node, tag: str):
+    """The elements of `tag` in a drawn tree, in the order drawn."""
+    if isinstance(node, dict):
+        if node["tag"] == tag:
+            yield node
+        for child in node["children"]:
+            yield from elements(child, tag)
 
 
 def band_lines(band, surface) -> list[tuple[str, ...]]:
@@ -243,6 +262,58 @@ def test_the_band_follows_the_pages_the_session_holds(
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "cc-s2")
     service_model.claim_page(page_dir)
     band([])
+
+
+@pytest.mark.parametrize("ssh", [False, True], ids=["local", "ssh"])
+def test_the_band_opens_a_page_from_the_keyboard(
+    page_dir, monkeypatch, spawn, sessionless, tmp_path, ssh
+):
+    """In the terminal each line of the band ends with a button, the first focused
+    as the band takes the keyboard. On the user's own machine it opens the page in
+    the browser. Over SSH a browser started here would open on the wrong machine,
+    so it copies the link to the user's clipboard instead, and says so."""
+    opened = tmp_path / "opened"
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    # Whichever opener the platform runs records the address it was given.
+    for opener in ["open", "xdg-open"]:
+        stub = bin_dir / opener
+        stub.write_text(f'#!/bin/sh\nprintf %s "$1" > {opened}\n')
+        stub.chmod(0o755)
+    env = {"PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}"}
+    if ssh:
+        env["SSH_CONNECTION"] = "192.0.2.1 50000 192.0.2.2 22"
+    driven = ClaudeCode(spawn, "cc-open", {"env": env})
+    holding_page(driven, page_dir, monkeypatch)
+    server_id = read_record(page_dir / "service.json")["server_id"]
+    server_rows_model.RowPublisher(page_dir, server_id).refresh()
+    band = wait_for(
+        lambda: driven.bands.get(timeout=STATED_TIMEOUT)["terminal"],
+        lambda drawn: band_lines(drawn, "terminal"),
+        failure="the module drew no band",
+    )
+    url = server_model.running_server(page_dir)["url"]
+    title = server_rows_model.ROW.read(server_rows_model.row_path(page_dir))["row"][
+        "title"
+    ]
+    [button] = elements(band, "Button")
+    assert button["props"]["label"] == ("copy link" if ssh else "open")
+    assert button["props"]["autoFocus"] is True
+    driven.send({"press": button["props"]["key"]})
+    if ssh:
+        assert driven.pressed.get(timeout=STATED_TIMEOUT) == {"copied": url}
+        assert driven.pressed.get(timeout=STATED_TIMEOUT) == {
+            "toast": f"Copied the link to {title}"
+        }
+        assert not opened.exists()
+    else:
+        wait_for(
+            lambda: opened.exists() and opened.read_text(),
+            lambda address: address == url,
+            failure="the button opened nothing",
+        )
+        assert driven.pressed.empty()
+    driven.quit()
 
 
 @pytest.mark.parametrize("failure", ["exit", "startup", "spawn"])

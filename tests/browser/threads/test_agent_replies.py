@@ -11,13 +11,6 @@ from interact_support import (
     append_command,
     response_reference,
 )
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import interaction_log as interaction_model
-from leaf import service as service_model
-from leaf import thread as thread_model
-from leaf import todos as todos_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
@@ -46,6 +39,13 @@ from browser.threads import (
     stream_reply,
     thread_row,
 )
+from leaf import cli as cli_model
+from leaf import event_log as events_model
+from leaf import interaction_log as interaction_model
+from leaf import service as service_model
+from leaf import thread as thread_model
+from leaf import todos as todos_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

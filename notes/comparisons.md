@@ -15,7 +15,7 @@ The comparison asks what the agent authors, where the work lives, and how user
 input returns. Leaf authors HTML with an extensible registered vocabulary. A
 page directory holds immutable revisions and an append-only event log; surviving
 user decisions carry into later revisions unless explicitly retracted. These
-contracts live in [page-storage.md](../skills/leaf/scripts/leaf/page-storage.md)
+contracts live in [page-storage.md](../src/leaf/page-storage.md)
 and [packages.md](../skills/leaf/references/packages.md).
 
 Delivery belongs to the harness adapter: Claude Code's Stop hook watches claimed
@@ -39,7 +39,7 @@ proves a result; version checks are optional across API writes. Its
 [chief contract](https://workbench.md/chief.md) prescribes independent artifact
 and completion checks, but no supervisor run was observed. Nimbalyst's
 [recovery owner](https://github.com/nimbalyst/nimbalyst/blob/main/packages/runtime/src/ai/server/SessionStateManager.ts)
-resets missing running processes to idle. Leaf's [tasks](../skills/leaf/scripts/leaf/todos.py)
+resets missing running processes to idle. Leaf's [tasks](../src/leaf/todos.py)
 already outlive replies and sessions. Preserve that obligation across execution
 attempts, distinguish interrupted/resumable work from a terminal result, and
 name consequential changes to the expected result rather than resetting on every edit.
@@ -48,7 +48,7 @@ name consequential changes to the expected result rather than resetting on every
 Markdown heading into a board column; [Sfora's demo](https://www.sfora.ai/features/boards)
 retained cards across Board → Map. These demonstrate alternate views, not server
 persistence. Keep Leaf's authored HTML and declared semantic islands; stable
-workspace/task identities and [canonical summaries](../skills/leaf/scripts/leaf/server_rows.py)
+workspace/task identities and [canonical summaries](../src/leaf/server_rows.py)
 should support navigation without making a serving process the obligation's owner.
 Opaque widget JSON persistence does not prove that a decision keeps its meaning.
 
@@ -162,7 +162,7 @@ Its Mermaid-to-Excalidraw editing and standalone asset export are useful
 capabilities to study. Its live DOM checks also offer a different correction
 path: the user's browser reports overflow and clipping, and the user batches a
 repair prompt. Leaf checks a publication before handoff. Leaf's
-[render gate](../skills/leaf/scripts/leaf/render_gate/version.py) includes desktop
+[render gate](../src/leaf/render_gate/version.py) includes desktop
 and narrow viewports and sweeps layout transitions.
 
 ## Sideshow

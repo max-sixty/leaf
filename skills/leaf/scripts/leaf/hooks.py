@@ -6,8 +6,9 @@ that its harness supports hook delivery (`Harness.hooks_carry`). An explicit
 running after it. SessionEnd retires the harness instance without reading pages;
 persisted desktop chats retain their generation across instance unloads.
 
-Codex's synchronous prompt hook records the provider turn even before the session
-claims a page. Its native transcript also records turns resumed without input,
+Codex's startup hook captures its validated native source even when the first
+input is a dispatched tool message rather than a user prompt. Its synchronous
+prompt hook records the provider turn even before the session claims a page. Its native transcript also records turns resumed without input,
 which run no prompt hook. Hooks reconcile that provider evidence before checking
 their turn identity (`Harness.reconcile_turn`), then offer a pointer between steps
 or before Stop (`Harness.offer_at_step`) and leave receipt to the agent's explicit

@@ -290,7 +290,7 @@ binds a turn's reply.
 The `hook` command keeps a turn from ending while the turn leaves one of this
 session's pages unwatched, or, where no watch follows the turn, a delivered update
 unanswered and unstarted. It is
-registered on SessionStart/resume, Stop, UserPromptSubmit, SessionEnd,
+registered on SessionStart, Stop, UserPromptSubmit, SessionEnd,
 Claude Code's PostToolBatch, and Codex's PostToolUse and Interrupt, and Leaf's Pi extension (`hooks/pi.ts`) calls it at the
 accepted run boundaries. An unwatched page is one whose watcher is a process of its
 own; Claude Code's watch is its next Stop hook. The hook also stamps that turn's
@@ -433,8 +433,9 @@ developer previews, and pages another session claimed are excluded.
 advice until the agent restores serving or explicitly stops or releases the page.
 There is no notification record or reservation. A concurrent stop, transfer or
 recovery may make advice obsolete before it is read. A hook whose lifecycle changed
-while reading emits nothing. SessionStart does not open a new turn or reacquire a page. The Stop
-hook does not continue a turn to deliver a reconnect notice.
+while reading emits nothing. SessionStart reacquires no page and observes only a
+turn already recorded by the native harness. The Stop hook does not continue a
+turn to deliver a reconnect notice.
 
 ### Nudging a session with no watcher
 
@@ -569,7 +570,9 @@ persisted-chat lifecycle retains the generation at `SessionEnd`, closes an open 
 and retires hook capability observations while keeping the claimed-page marker. The
 next prompt and tool hook therefore resume the same ownership and delivery route. The
 session record owns the one validated `transcript_path`; lifetime records only
-`chat: true`. Missing source evidence refuses a new desktop start. An existing chat
+`chat: true`. The startup hook captures that validated source for a new chat even
+when its first input is a dispatched tool message and runs no prompt hook.
+Missing source evidence refuses a new desktop start. An existing chat
 keeps its server, preview and adapter across inactivity and unload; archival or
 deletion of its native source and transfer retire ownership. Process-backed harness
 sessions invalidate their generation at `SessionEnd`.

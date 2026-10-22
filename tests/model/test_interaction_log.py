@@ -4,6 +4,7 @@ import json
 
 import pytest
 from click.testing import CliRunner
+
 from leaf.cli import cli
 from leaf.interaction_log import (
     INTERACTIONS_FILE,

@@ -41,6 +41,10 @@ from interact_support import (
     wait_for,
     words,
 )
+from model_folds import leaf_page
+from packaging.requirements import Requirement
+from packaging.specifiers import SpecifierSet
+
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import delivery as delivery_model
@@ -63,9 +67,6 @@ from leaf.registry import widgets as registry_widgets
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
 from leaf.revisioning import activate_source
-from model_folds import leaf_page
-from packaging.requirements import Requirement
-from packaging.specifiers import SpecifierSet
 
 
 def storage_contract() -> tuple[list[str], list[str]]:
@@ -75,7 +76,7 @@ def storage_contract() -> tuple[list[str], list[str]]:
     directory (`revisions/rN-H.html`) is that directory's entry. A virtual address
     (`/versions/…`) and state kept outside the page (`<state-home>/…`) are not in it.
     """
-    text = (SKILL_ROOT / "scripts" / "leaf" / "page-storage.md").read_text()
+    text = (ROOT / "src" / "leaf" / "page-storage.md").read_text()
     section = text.split("\n## Files\n", 1)[1].split("\n## ", 1)[0]
     files, directories = set(), set()
     for name in re.findall(r"^- `([^`]+)`", section, re.MULTILINE):
@@ -601,7 +602,7 @@ def test_the_skill_routes_every_reference_it_ships():
 
 def test_the_python_instructions_name_every_module_they_own():
     """Every Python owner is named in the instruction scope that routes it."""
-    scripts = SKILL_ROOT / "scripts"
+    scripts = ROOT / "src"
     instructions = (scripts / "AGENTS.md").read_text(encoding="utf-8")
     paragraphs = instructions.split("\n\n")
     within = {
@@ -658,7 +659,7 @@ def test_the_root_instructions_name_every_directory_of_the_projects_own_tree():
 
     The prefix is matched without its closing backtick, because a part is named at
     whatever depth it is owned at — `bin/leaf` is a launcher and
-    `skills/leaf/assets/` is a tree, and both name their directory.
+    `browser/` is a tree, and both name their directory.
     """
     instructions = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
     tops = {
@@ -1047,7 +1048,7 @@ def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(
     # A harness's copy carries no `.git`, so the time it was made is the only date it
     # has: every file written then, the running module's own included.
     copied_at = 1_790_000_000
-    layer = cached / "skills" / "leaf" / "scripts" / "leaf" / "layer.py"
+    layer = cached / "src" / "leaf" / "layer.py"
     os.utime(layer, (copied_at, copied_at))
     elsewhere = tmp_path / "unrelated-project"
     elsewhere.mkdir()
@@ -1143,12 +1144,12 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "skills/leaf/references/page-layout.md",
         "skills/leaf/references/live-samples.md",
         "skills/leaf/references/serving-pages.md",
-        "skills/leaf/packages/default/registry.json",
-        "skills/leaf/packages/diagram/registry.json",
-        "skills/leaf/packages/diff/registry.json",
-        "skills/leaf/packages/playground/registry.json",
+        "packages/default/registry.json",
+        "packages/diagram/registry.json",
+        "packages/diff/registry.json",
+        "packages/playground/registry.json",
         # The form a leaf process re-launches itself in.
-        "skills/leaf/scripts/leaf/__main__.py",
+        "src/leaf/__main__.py",
     ]:
         assert (PLUGIN_ROOT / relative).is_file()
     # The shipped plugin carries its canonical project instructions.
@@ -1846,7 +1847,12 @@ def test_every_token_a_sheet_reads_is_set_somewhere():
     # Anything that names a property as a declaration, an `@property` or a string sets
     # it, a vendored component's sheet included; what is read is Leaf's own sheets.
     written, prefixes, reads = set(), set(), []
-    for source in sorted(schema_model.ASSETS.parent.rglob("*")):
+    sources = (
+        schema_model.ASSETS,
+        schema_model.BUNDLED_PACKAGES,
+        Path(schema_model.__file__).parent,
+    )
+    for source in sorted(path for root in sources for path in root.rglob("*")):
         if source.suffix not in (".css", ".js", ".py"):
             continue
         text = source.read_text()
@@ -1941,7 +1947,7 @@ def test_the_injected_control_face_is_a_default_only_the_document_reads():
     `test_a_pages_own_element_rules_leave_the_layers_controls_alone`; this one names the
     single rule all three depend on."""
     faces = [
-        (f"{sheet.parent.name}/{sheet.name}", selector)
+        (sheet, selector)
         for sheet in _LAYER_SHEET_ORDER
         for _conditions, _enclosing, selector, declarations in _style_rules(sheet)
         if any(name in _FACE for name, _value in declarations)
@@ -1950,7 +1956,7 @@ def test_the_injected_control_face_is_a_default_only_the_document_reads():
     # Public controls and injected controls share this one default; its root boundary
     # and class weight still protect shadow content and win over page element rules.
     control_face = ":where(:root) :is(.lf-ui-face, .button, .field)"
-    assert faces[0] == ("assets/shadow.css", control_face), faces[0]
+    assert faces[0] == (schema_model.ASSETS / "shadow.css", control_face), faces[0]
     defaults = [
         face
         for face in faces
@@ -2039,7 +2045,7 @@ def test_server_inputs_require_a_transition_without_browser_changes(
 ):
     """The installed browser bytes cannot identify a changed serving process."""
     payload = tmp_path / "payload"
-    script = payload / "skills/leaf/scripts/server.py"
+    script = payload / "src/server.py"
     script.parent.mkdir(parents=True)
     script.write_text("# original\n")
     for name in ("pyproject.toml", "uv.lock"):
@@ -4673,11 +4679,10 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     drift this register replaced began — a
     `keydown` beside a display list, the two of them free to disagree about which keys the
     widget answers."""
-    layer = ROOT / "skills/leaf"
     sources = [
-        layer / "assets/leaf.js",
-        *sorted((layer / "assets/runtime").rglob("*.js")),
-        *sorted((layer / "packages").glob("*/widgets/*.js")),
+        ROOT / "browser/leaf.js",
+        *sorted((ROOT / "browser/runtime").rglob("*.js")),
+        *sorted((ROOT / "packages").glob("*/widgets/*.js")),
         *sorted((ROOT / "examples/packages").glob("*/widgets/*.js")),
     ]
     listed = js_facts("keydown", sources).split()

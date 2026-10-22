@@ -3,14 +3,15 @@
 from html import escape
 
 import pytest
-from leaf import data as data_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_harness import (
     leaf_page,
     open_page,
     write,
 )
+
+from leaf import data as data_model
+from leaf.render_checks import rendered
 
 
 @pytest.mark.parametrize("width,scheme", [(1280, "light"), (390, "dark")])

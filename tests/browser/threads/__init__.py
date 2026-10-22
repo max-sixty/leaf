@@ -6,11 +6,6 @@ import json
 
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, record_claim
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import leases as leases_model
-from leaf import service as service_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
@@ -30,6 +25,12 @@ from render_harness import (
     scroll_settled,
     write,
 )
+
+from leaf import cli as cli_model
+from leaf import data as data_model
+from leaf import leases as leases_model
+from leaf import service as service_model
+from leaf.render_checks import rendered
 
 # The open thread's reply, the editor standing in the panel's field, and the thread's
 # held news, which the panel stands among its view's controls.

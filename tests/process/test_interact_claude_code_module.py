@@ -6,6 +6,7 @@ the real launcher, so these hold the module and the follower it runs together.""
 
 import json
 import queue
+import re
 import subprocess
 import threading
 from pathlib import Path
@@ -108,24 +109,40 @@ def claude_code(page_dir, monkeypatch, spawn, sessionless):
     driven.quit()
 
 
-def band_lines(band) -> list[tuple[str, str]]:
-    """Each page's line in the band, as its text and the address its link opens;
-    none where the module draws nothing."""
+def band_lines(band, surface) -> list[tuple[str, ...]]:
+    """Each page's line in the band, as its text and the addresses its links open,
+    or none where the module draws nothing. The desktop app draws a `Link` to
+    anything but https or localhost as plain text, and links any http URL in
+    `Markdown` (measured at Claude Code 2.1.304)."""
     if band is None:
         return []
 
     def text(node) -> str:
         if isinstance(node, str):
             return node
+        if node["tag"] == "Markdown":
+            label = re.fullmatch(r"\[(.*)\]\(.*\)", node["props"]["text"])[1]
+            return re.sub(r"\\(.)", r"\1", label)
         return "".join(text(child) for child in node["children"])
 
+    def href(node) -> list[str]:
+        if isinstance(node, str):
+            return []
+        if node["tag"] == "Link":
+            target = node["props"]["href"]
+            linked = surface == "terminal" or re.match(
+                r"https:|http://localhost[:/]", target
+            )
+            return [target] if linked else []
+        if node["tag"] == "Markdown":
+            return [re.fullmatch(r"\[.*\]\((.*)\)", node["props"]["text"])[1]]
+        return [found for child in node["children"] for found in href(child)]
+
     return [
-        (text(line), link["props"]["href"])
+        (text(line), *href(line))
         for line in band["children"]
         # What the plugins beneath drew, which the driver's bottom leaves empty.
         if line is not None
-        for link in line["children"]
-        if isinstance(link, dict) and link["tag"] == "Link"
     ]
 
 
@@ -170,17 +187,22 @@ def test_leaves_own_rows_in_the_conversation_stay_quiet(spawn, sessionless):
 def test_the_band_follows_the_pages_the_session_holds(
     page_dir, claude_code, monkeypatch
 ):
-    """Above the prompt, each page the session holds is a link with the counts its
-    Leaf panel marks that aren't zero: On me, open threads, and those holding words
-    the user hasn't read; then what the agent last said it waits for. The band
-    redraws as the page's row changes, and empties once the session holds no
-    page."""
+    """Above the prompt, in the terminal and the desktop app alike, each page the
+    session holds is a link with the counts its Leaf panel marks that aren't zero:
+    On me, open threads, and those holding words the user hasn't read; then what
+    the agent last said it waits for. The band redraws as the page's row changes,
+    and empties once the session holds no page."""
 
     def band(expected):
         server_rows_model.RowPublisher(page_dir, server_id).refresh()
         return wait_for(
-            lambda: band_lines(claude_code.bands.get(timeout=STATED_TIMEOUT)),
-            lambda lines: lines == expected,
+            lambda: {
+                surface: band_lines(drawn, surface)
+                for surface, drawn in claude_code.bands.get(
+                    timeout=STATED_TIMEOUT
+                ).items()
+            },
+            lambda lines: lines == {"terminal": expected, "desktop": expected},
             failure=f"the band never showed {expected}",
         )
 

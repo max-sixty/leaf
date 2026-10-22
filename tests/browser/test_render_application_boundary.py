@@ -44,22 +44,17 @@ from render_harness import (
 from browser.threads import open_panel_thread
 
 THREAD_READER = r"""
-import {keepsText, watchProjection, readThreads, threadSummary, threadTurns} from '/runtime/widget-api.js';
-customElements.define('lf-thread-reader', class extends HTMLElement {
-  connectedCallback() {
-    this.output = document.createElement('pre');
-    this.append(this.output);
-    this.stop = watchProjection(this, () => {
-      const collection = readThreads();
-      this.reading = collection;
-      this.sameReading = collection === readThreads();
-      keepsText(this.output, collection.threads.map(thread =>
-        threadTurns(thread).map(message => message.body.text).join('\n')
-      ).join('\n'));
-      this.topic = collection.threads[0] && threadSummary(collection.threads[0]).topic;
-    });
+import {LeafElement, html, readThreads, threadSummary, threadTurns} from '/runtime/widget-api.js';
+customElements.define('lf-thread-reader', class extends LeafElement {
+  render() {
+    const collection = readThreads();
+    this.collection = collection;
+    this.sameReading = collection === readThreads();
+    this.topic = collection.threads[0] && threadSummary(collection.threads[0]).topic;
+    return html`<pre>${collection.threads.map(thread =>
+      threadTurns(thread).map(message => message.body.text).join('\n')
+    ).join('\n')}</pre>`;
   }
-  disconnectedCallback() { this.stop(); }
 });
 """
 
@@ -75,47 +70,21 @@ THREAD_READER_DECLARATION = {
 }
 
 THREAD_FILTER = r"""
-import {keepsText, threadActions, readThreads, threadSummary, watchProjection} from '/runtime/widget-api.js';
-customElements.define('lf-thread-filter', class extends HTMLElement {
-  connectedCallback() {
-    if (!this.input) {
-      this.input = document.createElement('input');
-      this.input.setAttribute('aria-label', `Filter ${this.id}`);
-      this.input.value = this.getAttribute('filter') ?? '';
-      this.list = document.createElement('ul');
-      this.input.addEventListener('input', () => this.paint());
-      this.append(this.input, this.list);
-    }
-    this.stop ??= watchProjection(this, () => {
-      const collection = readThreads();
-      this.reading = collection;
-      this.sameReading = collection === readThreads();
-      this.updates = (this.updates ?? 0) + 1;
-      this.paint();
-    });
-  }
-  paint() {
-    if (!this.reading) return;
-    const query = this.input.value.toLowerCase();
-    const shown = this.reading.threads
-      .filter(thread => threadSummary(thread).topic.toLowerCase().includes(query));
-    // Each row is kept and says only what changed.
-    const items = [...this.list.children];
-    shown.forEach((thread, index) => {
-      let item = items[index];
-      if (!item) {
-        item = document.createElement('li');
-        item.append(document.createElement('button'));
-        this.list.append(item);
-      }
-      keepsText(item.firstChild, threadSummary(thread).topic);
-      item.firstChild.onclick = () => threadActions.open(thread.key);
-    });
-    for (const item of items.slice(shown.length)) item.remove();
-  }
-  disconnectedCallback() {
-    this.stop?.();
-    this.stop = null;
+import {LeafElement, html, repeat, signal, threadActions, readThreads, threadSummary} from '/runtime/widget-api.js';
+customElements.define('lf-thread-filter', class extends LeafElement {
+  query = signal('');
+  setup() { this.query.value = this.getAttribute('filter') ?? ''; }
+  render() {
+    const collection = readThreads();
+    this.collection = collection;
+    this.sameReading = collection === readThreads();
+    this.updates = (this.updates ?? 0) + 1;
+    const shown = collection.threads.filter(thread =>
+      threadSummary(thread).topic.toLowerCase().includes(this.query.value.toLowerCase()));
+    return html`<input aria-label=${`Filter ${this.id}`} .value=${this.query.value}
+      @input=${event => { this.query.value = event.target.value; }}>
+      <ul>${repeat(shown, thread => thread.key, thread => html`<li><button
+        @click=${() => threadActions.open(thread.key)}>${threadSummary(thread).topic}</button></li>`)}</ul>`;
   }
 });
 """
@@ -1440,16 +1409,11 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
 
 
 THREAD_ACTIONS = r"""
-import {keeps, readThreads, threadActions, watchProjection} from '/runtime/widget-api.js';
-customElements.define('lf-thread-actions', class extends HTMLElement {
-  connectedCallback() {
+import {LeafElement, noChange, keeps, readThreads, threadActions} from '/runtime/widget-api.js';
+customElements.define('lf-thread-actions', class extends LeafElement {
+  setup() {
     this.innerHTML = '<input aria-label="Package reply"><button>Reply</button>' +
       '<button>Resolve</button><button>Reopen</button><button>React</button>';
-    this.stop = watchProjection(this, () => {
-      this.thread = readThreads().threads[0];
-      keeps(this, 'data-resolved', Boolean(this.thread?.resolved));
-      keeps(this, 'data-reacted', Boolean(this.thread?.msgs.find(msg => msg.author === 'agent')?.reactions?.choices.find(choice => choice.name === 'keep')?.inForce));
-    });
     this.querySelectorAll('button').forEach(button => button.onclick = () => {
       const key = this.thread.key;
       const agent = this.thread.msgs.find(message => message.author === 'agent');
@@ -1463,7 +1427,12 @@ customElements.define('lf-thread-actions', class extends HTMLElement {
       keeps(this, 'data-accepted', this.last !== null);
     });
   }
-  disconnectedCallback() { this.stop(); }
+  render() {
+    this.thread = readThreads().threads[0];
+    keeps(this, 'data-resolved', Boolean(this.thread?.resolved));
+    keeps(this, 'data-reacted', Boolean(this.thread?.msgs.find(msg => msg.author === 'agent')?.reactions?.choices.find(choice => choice.name === 'keep')?.inForce));
+    return noChange;
+  }
 });
 """
 

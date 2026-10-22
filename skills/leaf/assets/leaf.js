@@ -327,7 +327,6 @@ const version = createVersionController({
   midComposition: (...args) => app.midComposition(...args),
   hasPending: () => app.hasPending(),
   readAndApply: (...args) => app.readAndApply(...args),
-  retireProjectionCoverage: () => app.retireProjectionCoverage(),
   syncLayout: () => layout.syncLayout(),
   // The chrome the reader stands in: a margin card or entry, and the panel's thread.
   captureRetainedStanding: () => ({

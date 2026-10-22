@@ -237,7 +237,6 @@ export {
   reportsReady,
 } from "./reports.js";
 // The one watcher of the page's readings (module-reading.md, "Page readings").
-export { watchProjection } from "./projection-watch.js";
 export {
   LAYOUT,
   dragging,
@@ -251,6 +250,7 @@ export {
   relabel,
   searchField,
   selectableOffer,
+  selectableOffered,
   worksInside,
 } from "./widget-elements.js";
 export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";

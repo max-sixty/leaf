@@ -324,30 +324,46 @@ test("a returning owner draws a reading again only where its paint did not finis
   }
 });
 
-test("a watcher's clock repaint fails by the reading paint's rule, reported once", async () => {
+test("a clock render reports its failure once and recovers on the next reading", async () => {
   const { reportCarried } = await import("/runtime/layer-client.js");
-  const { watchProjection } = await import("/runtime/projection-watch.js");
-  const owner = document.createElement("section");
-  owner.id = "clocked";
-  await mutate(() => document.body.append(owner));
+  const { LeafElement, html } = await import("/runtime/widget-api.js");
+  const { setPresentationFailureReporter } = await import("/runtime/semantic-state.js");
+  setPresentationFailureReporter(reportCarried);
   let clock = 0;
-  const stop = watchProjection(owner, () => {
-    if (clockValue(() => clock)) throw new Error("clock refused");
-  });
+  customElements.define(
+    "leaf-clocked",
+    class extends LeafElement {
+      render() {
+        if (clockValue(() => clock) === 1) throw new Error("clock refused");
+        return html`Ready`;
+      }
+    },
+  );
+  const owner = document.createElement("leaf-clocked");
+  owner.id = "clocked";
+  const settle = async () => {
+    await new Promise((resolve) => setTimeout(resolve));
+    await owner.updateComplete;
+  };
+  document.body.append(owner);
   const reports = [];
   const consoleError = console.error;
   console.error = (line) => reports.push(line.split("\n")[0]);
   try {
-    await Promise.resolve();
+    await settle();
     clock = 1;
     await tickClock(reportCarried);
-    await Promise.resolve();
-    assert.deepEqual(reports, [
-      "leaf: paint failed for section#clocked: clock refused",
-    ]);
+    await settle();
+    assert.equal(reports.length, 1, JSON.stringify(reports));
+    assert.match(reports[0], /clock refused/);
+    assert.match(owner.textContent, /failed: clock refused/);
+    clock = 2;
+    await tickClock(reportCarried);
+    await settle();
+    assert.equal(owner.textContent, "Ready");
+    assert.equal(reports.length, 1);
   } finally {
     console.error = consoleError;
-    stop();
     owner.remove();
   }
 });

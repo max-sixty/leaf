@@ -385,7 +385,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
         assert reading["copyAnchor"] in reading["names"], anchors
 
     def copy(pre_selector, control, expected, *, keyboard=False):
-        button = control
+        button = control.get_by_role("button")
         pre = page.locator(pre_selector)
         expect(button).to_have_attribute("aria-label", "Copy code")
         pre.scroll_into_view_if_needed()
@@ -405,7 +405,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
                     padding: getComputedStyle(pre).paddingTop,
                     frame: rect(pre.getBoundingClientRect()),
                     source: rect(range.getClientRects()[0]),
-                    button: rect(copy.getBoundingClientRect()),
+                    button: rect(copy.shadowRoot.querySelector('button').getBoundingClientRect()),
                   };
                 }""",
                 pre_selector,
@@ -526,7 +526,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     # out of a press's way, until a tap stands the user on the block: the touch form of
     # hover.
     touch_control = touch.locator(".lf-chrome .lf-code-copy")
-    touch_button = touch_control
+    touch_button = touch_control.get_by_role("button")
     expect(touch_control).to_have_count(1)
     expect(touch_control).to_have_css("opacity", "0")
     expect(touch_control).to_have_css("pointer-events", "none")
@@ -648,7 +648,10 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     suffix_uncovered()
     touch_pre.tap(position={"x": 20, "y": 20})
     expect(touch_pre).to_be_focused()
-    # A completed copy can be activated again from the focused source.
+    # The control takes no press while it still says its last copy succeeded.
+    touch.wait_for_function(
+        "() => !document.querySelector('.lf-chrome .lf-code-copy').isCopying"
+    )
     touch.keyboard.press("Enter")
     copied(fitting)
     expect(touch_pre).to_be_focused()
@@ -665,7 +668,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     expect(numbered_pre).to_be_focused()
     expect(numbered_control).to_have_css("opacity", "1")
     touch.evaluate("navigator.clipboard.writeText('cleared')")
-    numbered_control.tap()
+    numbered_control.get_by_role("button").tap()
     copied(widget)
     touch.locator("#title").tap()
     expect(numbered_pre).to_have_attribute("tabindex", "0")

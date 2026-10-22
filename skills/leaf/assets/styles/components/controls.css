@@ -560,8 +560,9 @@ svg[data-lf-icon] {
   background: var(--chip);
   color: var(--ink);
 }
-/* Compact controls share a native minimum height. Labels may grow wider. */
+/* Compact native and vendored controls share one minimum height. */
 .lf-compact-control {
+  --wa-form-control-height: var(--lf-control-compact);
   min-block-size: var(--lf-control-compact);
 }
 /* The committing action carries the accent as ink on the ordinary card, under a
@@ -644,20 +645,6 @@ input.lf-search-field,
 }
 .lf-search-frame > .lf-search-field[data-lf-focus] {
   outline: none;
-}
-
-.lf-copy-control {
-  cursor: pointer;
-}
-.lf-copy-glyph {
-  display: inline-flex;
-  inline-size: 1em;
-  block-size: 1em;
-  flex: none;
-}
-.lf-copy-icon {
-  inline-size: 100%;
-  block-size: 100%;
 }
 
 /* Native radio groups share the browser's selection and arrow-key model. */

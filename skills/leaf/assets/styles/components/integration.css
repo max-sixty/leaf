@@ -86,7 +86,7 @@ html[data-lf-draw-mode] main {
   opacity: 1;
   pointer-events: auto;
 }
-.lf-code-copy {
+.lf-code-copy::part(button) {
   width: var(--lf-code-copy-size);
   height: var(--lf-code-copy-size);
   padding: 6px;
@@ -97,7 +97,7 @@ html[data-lf-draw-mode] main {
   display: flex;
   font-size: var(--t-5);
 }
-.lf-code-copy:hover {
+.lf-code-copy::part(button):hover {
   color: var(--ink);
 }
 

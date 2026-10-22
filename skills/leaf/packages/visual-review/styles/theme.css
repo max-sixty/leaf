@@ -82,19 +82,15 @@
 .lf-vr-case-select {
   min-width: 0;
   width: 100%;
-  min-height: var(--aim-floor);
-  padding: var(--sp-1) var(--sp-2);
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  color: var(--ink);
-  background: var(--field);
-  font: var(--t-6) / var(--lf-ui-lh) var(--sans);
-  text-overflow: ellipsis;
 }
 
 .lf-vr-previous,
 .lf-vr-next {
   padding-inline: var(--sp-2);
+}
+
+.lf-vr-case-select::part(display-input) {
+  text-overflow: ellipsis;
 }
 
 .lf-vr-inspector {

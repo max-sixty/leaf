@@ -29,6 +29,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { applyPatch, parsePatch } from "diff";
 import { build } from "./esbuild.mjs";
+import { patchTransitions } from "./webawesome/transition-patch.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./browser/shipped.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -676,6 +677,48 @@ const bundles = {
     ],
     banner: {
       js: `/*! @pierre/trees ${version("@pierre/trees")} — Apache-2.0 — licenses: pierre-trees.LICENSES.txt */`,
+    },
+  }),
+  // WebAwesome owns its internal Lit runtime. Application views use Solid; the
+  // split control bundles share one private component graph and load on demand.
+  webawesome: async () => ({
+    out: `${packageVendor("default")}/webawesome.esm.js`,
+    entryPoints: {
+      "webawesome.esm": input("webawesome/entry.mjs"),
+      "webawesome-chrome": input("webawesome/chrome.mjs"),
+    },
+    outdir: `${assets}/vendor`,
+    place: {
+      [`${assets}/vendor/webawesome.esm.js`]: `${packageVendor("default")}/webawesome.esm.js`,
+    },
+    splitting: true,
+    chunkNames: "webawesome/[name]-[hash]",
+    // Web Awesome 3.14.0 prepends a comment naming its docs to an element's shadow root
+    // on every `connectedCallback`, so an element the chrome keeps and connects again,
+    // as the floating panel's menu does its copy rows, grows by a node each time it
+    // shows. The element module's adaptation, listed first so it wins its chunk, keeps
+    // the one comment the first connection writes.
+    adapt: [
+      {
+        file: /webawesome\/dist\/chunks\/chunk\.AOKMSJXD\.js$/,
+        edit: (source) =>
+          seam(
+            source,
+            "this.shadowRoot?.prepend(",
+            "this.shadowRoot?.firstChild?.nodeType !== Node.COMMENT_NODE && this.shadowRoot?.prepend(",
+            "Web Awesome docs comment",
+            2,
+          ),
+      },
+      {
+        file: /webawesome\/dist\/chunks\/chunk\.ZAVDMBWV\.js$/,
+        edit: patchTransitions,
+      },
+    ],
+    platform: "browser",
+    target: "chrome105",
+    banner: {
+      js: `/*! Web Awesome ${version("@awesome.me/webawesome")} — MIT — licenses: webawesome.LICENSES.txt */`,
     },
   }),
 };

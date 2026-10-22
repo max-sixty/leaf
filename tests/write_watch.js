@@ -257,6 +257,10 @@
       what === "children" &&
       is(node, "div.cm-scroller") &&
       hosts(node)[0]?.localName === "lf-file-editor",
+    // WebAwesome owns reflected properties and its shadow rendering. Its standard
+    // updates can restate those values; Leaf's light-DOM integration stays watched.
+    (what, node) => what !== "children" && node.localName?.startsWith("wa-"),
+    (what, node) => hosts(node).some((host) => host.localName.startsWith("wa-")),
     // Viewer.js reapplies image/canvas classes and magnifier visibility when an
     // inspected image changes. It is an upstream-owned renderer; Leaf's adapter
     // controls remain watched.

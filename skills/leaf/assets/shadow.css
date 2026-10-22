@@ -1260,6 +1260,7 @@ svg[data-lf-icon] {
   color: var(--ink);
 }
 .lf-compact-control {
+  --wa-form-control-height: var(--lf-control-compact);
   min-block-size: var(--lf-control-compact);
 }
 :is(.lf-btn, .button).primary {
@@ -1320,19 +1321,6 @@ input.lf-search-field,
 }
 .lf-search-frame > .lf-search-field[data-lf-focus] {
   outline: none;
-}
-.lf-copy-control {
-  cursor: pointer;
-}
-.lf-copy-glyph {
-  display: inline-flex;
-  inline-size: 1em;
-  block-size: 1em;
-  flex: none;
-}
-.lf-copy-icon {
-  inline-size: 100%;
-  block-size: 100%;
 }
 .lf-radio-group {
   min-width: 0;
@@ -1956,7 +1944,7 @@ html[data-lf-draw-mode] main {
   opacity: 1;
   pointer-events: auto;
 }
-.lf-code-copy {
+.lf-code-copy::part(button) {
   width: var(--lf-code-copy-size);
   height: var(--lf-code-copy-size);
   padding: 6px;
@@ -1967,7 +1955,7 @@ html[data-lf-draw-mode] main {
   display: flex;
   font-size: var(--t-5);
 }
-.lf-code-copy:hover {
+.lf-code-copy::part(button):hover {
   color: var(--ink);
 }
 :root {
@@ -2063,6 +2051,71 @@ html[data-lf-draw-mode] main {
 }
 .lf-reply-continuity > .lf-thread-reply leaf-text:not(:state(placeholder-shown)) {
   block-size: var(--lf-reply-writing-room, auto);
+}
+
+/* skills/leaf/assets/styles/components/webawesome.css */
+:where(:root),
+:is(wa-copy-button, wa-comparison, wa-select, wa-option, wa-input) {
+  --wa-font-family-body: var(--sans);
+  &:not(:root) {
+    font-family: var(--wa-font-family-body);
+    font-style: normal;
+    font-variant: normal;
+    font-stretch: normal;
+    font-feature-settings: normal;
+    font-variation-settings: normal;
+    letter-spacing: normal;
+    word-spacing: normal;
+    text-transform: none;
+  }
+  --wa-color-surface-raised: var(--card);
+  --wa-color-surface-default: var(--field);
+  --wa-color-surface-lowered: var(--card);
+  --wa-color-surface-border: var(--border-2);
+  --wa-color-text-normal: var(--ink);
+  --wa-color-text-quiet: var(--muted);
+  --wa-color-neutral-fill-quiet: var(--field);
+  --wa-color-neutral-fill-normal: var(--chip);
+  --wa-color-neutral-border-normal: var(--border-2);
+  --wa-color-neutral-on-quiet: var(--ink-2);
+  --wa-color-neutral-on-normal: var(--ink);
+  --wa-color-brand-fill-quiet: var(--accent-tint);
+  --wa-color-brand-on-quiet: var(--accent);
+  --wa-color-brand-border-quiet: var(--accent);
+  --wa-color-brand-fill-loud: var(--accent);
+  --wa-color-brand-on-loud: light-dark(var(--card), var(--paper));
+  --wa-color-focus: var(--accent);
+  --wa-focus-ring-style: none;
+  --wa-form-control-background-color: var(--field);
+  --wa-form-control-border-color: var(--border-2);
+  --wa-form-control-value-color: var(--ink);
+}
+.lf-label-hidden::part(form-control-label) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+wa-select::part(combobox) {
+  transition-property: background-color, border-color;
+}
+wa-copy-button::part(lf-focus) {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-gap);
+}
+wa-comparison::part(lf-focus) {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-gap);
+}
+wa-select::part(combobox lf-focus-within) {
+  outline: var(--focus-ring);
+}
+wa-option {
+  --focus-ring-gap: calc(-1 * var(--focus-ring-w));
 }
 
 /* skills/leaf/assets/styles/shadow.css */

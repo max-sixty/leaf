@@ -204,8 +204,7 @@ import {
   watchArrivals,
   watchCommandScopes,
   watchOwner,
-  whenNone,
-  whileConnected
+  whenNone
 } from "./bundle-page-paint.js";
 import {
   move
@@ -1458,61 +1457,14 @@ function renderQuiet(root, also = []) {
 }
 
 // runtime/copy-control.js
-function copyControl(className, { label = "Copy", title = label, success, error }) {
-  const copy = offer("button", `lf-copy-control ${className}`);
-  copy.type = "button";
-  copy.setAttribute("aria-label", label);
-  copy.title = title;
-  const glyph = el("span", "lf-copy-glyph");
-  glyph.setAttribute("aria-hidden", "true");
-  copy.append(glyph);
-  const drawing = createView(
-    glyph,
-    (read) => default2`${Show({
-      get when() {
-        return read().icon;
-      },
-      keyed: true,
-      children: (icon) => iconElement(icon, "lf-copy-icon")
-    })}`,
-    { icon: "copy" }
-  );
-  let reset;
-  let busy = false;
-  const idle = () => {
-    clearTimeout(reset);
-    drawing.update({ icon: "copy" });
-    keeps(copy, "aria-label", label);
-    keeps(copy, "title", title);
-  };
-  whileConnected(copy, () => {
-    idle();
-    return () => clearTimeout(reset);
-  });
-  copy.addEventListener("click", async (event) => {
-    if (event.defaultPrevented || busy || copy.disabled) return;
-    busy = true;
-    clearTimeout(reset);
-    try {
-      await navigator.clipboard.writeText(copy.value);
-      drawing.update({ icon: "check" });
-      keeps(copy, "aria-label", success);
-      keeps(copy, "title", success);
-      notice(success);
-      copy.dispatchEvent(new CustomEvent("lf-copy", { bubbles: true, composed: true }));
-    } catch {
-      drawing.update({ icon: "cross" });
-      keeps(copy, "aria-label", error);
-      keeps(copy, "title", error);
-      raiseError(error);
-      copy.dispatchEvent(
-        new CustomEvent("lf-copy-error", { bubbles: true, composed: true })
-      );
-    } finally {
-      busy = false;
-      if (copy.isConnected) reset = setTimeout(idle, 1500);
-    }
-  });
+function copyControl(className, { label = "", success, error }) {
+  const copy = offer("wa-copy-button", className);
+  if (label) copy.copyLabel = label;
+  copy.successLabel = success;
+  copy.errorLabel = error;
+  copy.tooltip = "none";
+  copy.addEventListener("wa-copy", () => notice(success, { announce: false }));
+  copy.addEventListener("wa-error", () => raiseError(error, { announce: false }));
   return copy;
 }
 
@@ -1657,7 +1609,7 @@ function declareCopy(pre, copy, noun) {
         id: "code.copy",
         keys: ["Enter"],
         title: `copy ${noun}`,
-        run: () => copy.click()
+        run: () => copy.shadowRoot.querySelector("button").click()
       }
     ])
   );

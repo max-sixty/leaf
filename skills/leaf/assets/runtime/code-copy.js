@@ -106,7 +106,7 @@ function declareCopy(pre, copy, noun) {
         id: "code.copy",
         keys: ["Enter"],
         title: `copy ${noun}`,
-        run: () => copy.click(),
+        run: () => copy.shadowRoot.querySelector("button").click(),
       },
     ]),
   );

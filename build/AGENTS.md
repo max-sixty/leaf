@@ -50,3 +50,8 @@ Its tests hold immediate events, upgrade-before-ref, independent template traver
 native form state, focus-safe keyed movement and collection of detached view roots.
 The signal integration also distinguishes a dependency read still in flight from one
 the draw completed, so a draw that publishes its own input receives a follow-up draw.
+
+WebAwesome supplies selected controls and keeps its own private Lit graph in split
+bundles (`webawesome/`). Leaf application views use Solid. Chrome loads copy feedback;
+case selection and screenshot comparison load with their consuming widgets. The
+WebAwesome build retains the pinned comment and popup-transition adaptations.

@@ -5,6 +5,7 @@
  * precedes judgment; inspection is a local disclosure. Remaining-case navigation
  * reads the same projected dispositions as their buttons, while the case picker
  * retains every case so a reviewer can revisit a judgment. */
+import "/vendor/webawesome.esm.js";
 import "/widgets/lf-shot.js";
 
 import {
@@ -943,9 +944,11 @@ customElements.define(
                     ref=${offered("lf-vr-queue-region")}
                     aria-label="Visual review cases"
                   >
-                    <select
-                      ref=${offered("lf-vr-case-select lf-compact-control")}
+                    <wa-select
+                      ref=${offered("lf-vr-case-select lf-compact-control lf-label-hidden")}
                       name="visual-case"
+                      size="s"
+                      label="Selected visual case"
                       aria-label="Selected visual case"
                       disabled=${() => !read().options.length}
                       value=${() => read().selected}
@@ -957,11 +960,11 @@ customElements.define(
                         },
                         keyed: (option) => option.id,
                         children: (option) =>
-                          html`<option value=${() => option().id}>
+                          html`<wa-option value=${() => option().id}>
                             ${() => option().label}
-                          </option>`,
+                          </wa-option>`,
                       })}
-                    </select>
+                    </wa-select>
                     <button
                       ref=${offered("lf-btn lf-quiet-action lf-compact-control lf-vr-previous")}
                     >

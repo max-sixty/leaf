@@ -29,6 +29,7 @@
   },
   "devDependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.295",
+    "@awesome.me/webawesome": "3.14.0",
     "@cloudflare/containers": "0.3.7",
     "@cloudflare/workers-types": "5.20261009.1",
     "@codemirror/autocomplete": "6.20.3",
@@ -62,6 +63,8 @@
     "esbuild": "0.28.2",
     "happy-dom": "20.14.6",
     "jsdom": "29.1.1",
+    "lit": "3.3.3",
+    "lit-html": "3.3.0",
     "markdown-it": "15.0.2",
     "markdown-it-task-lists": "2.1.1",
     "modern-tar": "0.8.5",
@@ -89,7 +92,8 @@
   "pnpm": {
     "overrides": {
       "@anthropic-ai/claude-agent-sdk": "$@anthropic-ai/claude-agent-sdk",
-      "get-uri>basic-ftp": "6.2.1"
+      "get-uri>basic-ftp": "6.2.1",
+      "lit-html": "$lit-html"
     }
   }
 }

@@ -499,7 +499,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
 
     expect(widget.locator(".lf-vr-title")).to_have_text(record["title"])
     case_select = widget.locator(".lf-vr-case-select")
-    expect(case_select.locator("option")).to_have_count(2)
+    expect(case_select.locator("wa-option")).to_have_count(2)
     expect(first).to_be_visible()
     expect(second).to_be_hidden()
     expect(first).to_have_attribute("data-lf-projection", "visual-run")
@@ -756,7 +756,8 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(first).to_have_attribute("data-disposition", "looks-right")
     expect(widget).to_have_attribute("data-inspection-mode", "overlay")
     expect(widget.locator(".lf-vr-opacity")).to_have_value("35")
-    case_select.select_option("run-list")
+    case_select.click()
+    widget.get_by_role("option", name="Run list", exact=False).click()
     next_button.click()
     expect(case_select).to_have_js_property("value", "run-middle")
     expect(next_button).to_be_focused()
@@ -789,7 +790,8 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     }
     data_model.cmd_data_set(serve.page_dir, "docs-run", invalid_focus)
     told(page)
-    case_select.select_option("run-list")
+    case_select.click()
+    widget.get_by_role("option", name="Run list", exact=False).click()
     expect(widget.locator(".lf-error")).to_contain_text(
         "focus 120,300 640×220 CSS px falls outside its captured images"
     )

@@ -518,6 +518,9 @@ import {
 } from "./runtime/bundle-vendor~browser-runtime.js";
 import "./runtime/bundle-__export.js";
 
+// leaf.js
+import "/vendor/webawesome-chrome.js";
+
 // runtime/composing/drawing-geometry.js
 var INTRINSIC_VISUAL = "svg, img, canvas, video";
 var contentChildren = (root) => [...root.children].filter((child) => !leafSurface(child));
@@ -7572,13 +7575,12 @@ function createFloatingPanel({
     if (!copy) {
       copy = copyControl("lf-fp-copy-item", {
         label: `Copy ${entry.label}`,
-        title: entry.value || `Copy ${entry.label}`,
         success: `${capital(entry.label)} copied`,
         error: `${capital(entry.label)} not copied \xB7 select it to copy`
       });
-      copy.addEventListener("lf-copy", () => putAwayThen(() => {
+      copy.addEventListener("wa-copy", () => putAwayThen(() => {
       }));
-      copy.addEventListener("lf-copy-error", () => {
+      copy.addEventListener("wa-error", () => {
         copyRefused = true;
         showMenuAt({ view: "group", group: "about" });
       });
@@ -7587,13 +7589,16 @@ function createFloatingPanel({
     if (copy.value !== entry.copies) copy.value = entry.copies;
     if (copy.disabled !== Boolean(entry.disabled))
       copy.disabled = Boolean(entry.disabled);
-    if (!copy.classList.contains("lf-fp-item")) copy.classList.add("lf-fp-item");
-    keeps(copy, "role", menuOpen() ? "menuitem" : null);
-    keeps(copy, "data-row", entry.key);
-    const glyph = copy.querySelector(".lf-copy-glyph");
     paintView(
       copy,
-      (read) => default2`<span class="lf-fp-label">Copy ${() => read().entry.label}</span><span class="lf-fp-end">${glyph}</span>`,
+      (read) => default2`<button type="button" class="lf-fp-item"
+        role=${() => menuOpen() ? "menuitem" : void 0}
+        data-row=${() => read().entry.key}
+        title=${() => read().entry.value || void 0}
+        disabled=${() => read().entry.disabled}>
+        <span class="lf-fp-label">Copy ${() => read().entry.label}</span>
+        <span class="lf-fp-end">${iconElement("copy", "lf-action-icon")}</span>
+      </button>`,
       { entry }
     );
     return copy;

@@ -345,8 +345,8 @@ RING_CASES = (
             "release-notes": (
                 ("main p.lf-mark-el", ".lf-mark-el"),
                 (
-                    "lf-shot .lf-shot-divider-input",
-                    ".lf-shot-divider-input",
+                    'lf-shot .lf-shotcomparison [part~="handle"]',
+                    "wa-comparison::part(lf-focus)",
                 ),
                 (".lf-shotcap", "[data-lf-offer]"),
             ),

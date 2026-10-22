@@ -1,0 +1,98 @@
+/* Upstream's document-root theme supplies defaults through inheritance, including
+   declared shadow stages. Map Leaf tokens at that same root so upstream's derived
+   tokens resolve against them, and on controls so local Leaf palettes still apply.
+   Public parts carry Leaf's logical focus, rather than a second native focus ring. */
+:where(:root),
+:is(wa-copy-button, wa-comparison, wa-select, wa-option, wa-input) {
+  --wa-font-family-body: var(--sans);
+  /* Controls inherit typography through their hosts. Reset the surrounding prose's
+     face without overriding the component's size, weight, line height or state ink. */
+  &:not(:root) {
+    font-family: var(--wa-font-family-body);
+    font-style: normal;
+    font-variant: normal;
+    font-stretch: normal;
+    font-feature-settings: normal;
+    font-variation-settings: normal;
+    letter-spacing: normal;
+    word-spacing: normal;
+    text-transform: none;
+  }
+  --wa-color-surface-raised: var(--card);
+  --wa-color-surface-default: var(--field);
+  --wa-color-surface-lowered: var(--card);
+  --wa-color-surface-border: var(--border-2);
+  --wa-color-text-normal: var(--ink);
+  --wa-color-text-quiet: var(--muted);
+  --wa-color-neutral-fill-quiet: var(--field);
+  /* The vendor's hover and track fill. It stands on --card (a listbox, a slider's
+     panel), so --card here drew an option's hover and a slider's unfilled track in the
+     colour of the ground they sit on; --chip is the hover fill .lf-btn uses. */
+  --wa-color-neutral-fill-normal: var(--chip);
+  --wa-color-neutral-border-normal: var(--border-2);
+  --wa-color-neutral-on-quiet: var(--ink-2);
+  --wa-color-neutral-on-normal: var(--ink);
+  --wa-color-brand-fill-quiet: var(--accent-tint);
+  --wa-color-brand-on-quiet: var(--accent);
+  --wa-color-brand-border-quiet: var(--accent);
+  /* A solid/active surface and its ink move together in either page scheme.
+     Components own which state uses the pair, through their upstream tokens. */
+  --wa-color-brand-fill-loud: var(--accent);
+  --wa-color-brand-on-loud: light-dark(var(--card), var(--paper));
+  --wa-color-focus: var(--accent);
+  /* Leaf's logical focus owner paints the band. The vendor's native focus and open
+     states must not paint another, including during a held label press. */
+  --wa-focus-ring-style: none;
+  --wa-form-control-background-color: var(--field);
+  --wa-form-control-border-color: var(--border-2);
+  --wa-form-control-value-color: var(--ink);
+}
+
+/* Compact controls opt into an accessible label without a second visible caption. */
+.lf-label-hidden::part(form-control-label) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The band appears with the focus. A running transition is reported as the value the
+   property is leaving, so a ring that fades in is a ring no reading sees at the moment
+   it is drawn — theme.css states the same for the layer's own rules, and these two are
+   the vendored controls that animate their outline. Naming the properties that stay
+   leaves the vendor's own durations and easing to it. */
+wa-select::part(combobox) {
+  transition-property: background-color, border-color;
+}
+
+/* Public parts carry the same focus band for pointer and keyboard arrival. Native
+   shadow hosts only retarget their internal focus; Leaf's focus owner marks the actual
+   input owner with data-lf-focus and the public lf-focus part, and its composed ancestry
+   with data-lf-focus-within and the public lf-focus-within part. Each control draws
+   one band at that logical destination, including while a label press temporarily
+   moves native focus elsewhere. */
+wa-copy-button::part(lf-focus) {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-gap);
+}
+wa-comparison::part(lf-focus) {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-gap);
+}
+
+/* Select frames cover their editor and auxiliary controls.
+   Their native input/button outlines stay off so a group has one focus carrier. */
+wa-select::part(combobox lf-focus-within) {
+  outline: var(--focus-ring);
+}
+/* An open select's options fill its listbox, which clips what it holds, so the ring on
+   the option the user stands on is inset: outside its box, three of its sides were cut
+   by the listbox's edge. The ring is the layer's focus floor (surfaces.css), which
+   outranks this layer and places the ring at the gap this sets. */
+wa-option {
+  --focus-ring-gap: calc(-1 * var(--focus-ring-w));
+}

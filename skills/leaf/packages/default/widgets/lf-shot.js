@@ -3,9 +3,9 @@
  * The rail's Before/After labels choose their endpoint by click, Enter or Space;
  * comparison controls stay in that rail or in the native divider, leaving captured
  * image content clear of an additional floating action. After the page presents
- * the static flip, a native range supplies pointer dragging, Arrow, Home and End
- * adjustment. Solid retains the frames and divider; `afterPresentation` keeps this
- * mechanical enhancement off the page's presentation path.
+ * the static flip, Web Awesome upgrades it with pointer dragging and Arrow,
+ * Home, and End adjustment. `afterPresentation` keeps that bundle off the
+ * presentation path while the page answers for its upgrade as its own arrival.
  * Clicking either image keeps the quick endpoint toggle; clicking the handle
  * only puts the user on it.
  * A small expand link beside each rail label inspects that full-size image in the
@@ -60,9 +60,6 @@
  * comparison choice and its focused control. A different image pair is a new shot.
  * Commentary about the change belongs in authored prose around the widget. */
 import {
-  html,
-  createView,
-  offered,
   HOLDS_WORD,
   PRESS,
   afterPresentation,
@@ -102,6 +99,8 @@ const inTurn = (work) => {
   return turn;
 };
 
+let comparisonReady;
+const loadComparison = () => (comparisonReady ??= import("/vendor/webawesome.esm.js"));
 const VIEW_READINGS = {
   plain: "plain comparison",
   outlines: "change outlines",
@@ -114,8 +113,6 @@ customElements.define(
     #box;
     #alt;
     #comparison;
-    #comparisonDrawing;
-    #dividerInput;
     #chromeState;
     #endpointChosen = false;
     #view = "plain";
@@ -360,7 +357,7 @@ customElements.define(
         this.#leavePixels();
         this.#paint();
       });
-      // The native checkbox owns endpoint toggling until the range divider mounts.
+      // The native checkbox owns endpoint toggling until the divider upgrades.
       commands(box, "On a screenshot", [
         {
           id: "screenshot.toggle",
@@ -420,43 +417,53 @@ customElements.define(
     }
 
     #syncComparison() {
-      const enabled = this.#controlsEnabled && this.#box.parentNode === this;
+      const enabled =
+        this.#controlsEnabled &&
+        this.#box.parentNode === this &&
+        customElements.get("wa-comparison");
       if (enabled && !this.#comparison) {
-        const before = 100 - (this.#endpointChosen ? this.#position() : 50);
-        const comparison = document.createElement("div");
+        const comparison = document.createElement("wa-comparison");
         comparison.className = "lf-shotcomparison";
         comparison.dataset.lfGen = "1";
-        this.#comparisonDrawing = createView(
-          comparison,
-          (read) =>
-            html` ${this.#frames}
-              <div class="lf-shot-divider" aria-hidden="true"></div>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                step="1"
-                class="lf-shot-divider-input"
-                ref=${[
-                  offered("lf-shot-divider-input"),
-                  (input) => {
-                    this.#dividerInput = input;
-                  },
-                ]}
-                value=${() => read().before}
-                aria-label=${() => `Before and after — ${read().alt}`}
-                aria-valuetext=${() => `Before ${read().before}%, after ${100 - read().before}%`}
-                onInput=${() => {
-                  this.#endpointChosen = true;
-                  this.#leavePixels();
-                  this.#paint();
-                }}
-              />`,
-          { before, alt: this.#alt },
-        );
+        comparison.position = 100 - (this.#endpointChosen ? this.#position() : 50);
+        const handle = document.createElement("span");
+        handle.className = "lf-shot-handle";
+        handle.slot = "handle";
+        handle.ariaHidden = "true";
+        comparison.append(handle);
+        // Web Awesome draws its `after` slot on the inline-start side of the divider,
+        // which is the side the rail labels before, so each frame takes the other's
+        // slot and the component's position is the before frame's share.
+        for (const frame of this.#frames) {
+          frame.slot = frame.dataset.lfState === "before" ? "after" : "before";
+          comparison.append(frame);
+        }
+        let dragged = false;
+        const handleOf = (event) =>
+          event
+            .composedPath()
+            .find(
+              (node) =>
+                node instanceof Element &&
+                node.getAttribute("part")?.split(/\s+/).includes("handle"),
+            );
+        comparison.addEventListener("change", () => {
+          dragged = true;
+          this.#endpointChosen = true;
+          this.#leavePixels();
+          this.#paint();
+        });
+        comparison.addEventListener("pointerdown", (event) => {
+          if (!event.isPrimary || event.button !== 0) return;
+          dragged = false;
+          // The vendor cancels native focus when it starts dragging. The handle
+          // remains the input destination, so arrows can continue the adjustment.
+          const target = handleOf(event);
+          if (target) focusDestination(target, "press");
+        });
         comparison.addEventListener("click", (event) => {
-          if (event.target !== this.#dividerInput && plainPress(event))
-            this.#show(this.#nextState());
+          const onHandle = handleOf(event);
+          if (!dragged && !onHandle && plainPress(event)) this.#show(this.#nextState());
         });
         commands(comparison, "On a screenshot divider", [
           {
@@ -473,12 +480,12 @@ customElements.define(
         ]);
         move(this, comparison, this.#box);
         this.#comparison = comparison;
-        this.#paint();
+        void comparison.updateComplete?.then(() => this.#paint());
       } else if (!enabled && this.#comparison) {
-        for (const frame of this.#frames) move(this, frame, this.#comparison);
-        this.#comparisonDrawing.dispose();
-        this.#comparisonDrawing = null;
-        this.#dividerInput = null;
+        for (const frame of this.#frames) {
+          frame.removeAttribute("slot");
+          move(this, frame, this.#comparison);
+        }
         this.#comparison.remove();
         this.#comparison = null;
         this.#chromeState = null;
@@ -486,11 +493,18 @@ customElements.define(
       }
     }
 
+    async #upgradeComparison() {
+      if (!this.isConnected || this.#box.parentNode !== this || !this.#controlsEnabled)
+        return;
+      await loadComparison();
+      if (this.isConnected) this.#syncComparison();
+    }
+
     #requestComparison() {
       if (!this.#controlsEnabled) return;
-      void afterPresentation(() => {
-        if (this.isConnected) this.#syncComparison();
-      }).catch((reason) => failSoft(this, reason));
+      void afterPresentation(() => this.#upgradeComparison()).catch((reason) =>
+        failSoft(this, reason),
+      );
     }
 
     // Each region is placed in shares of the pair's frame, the natural width by the
@@ -672,9 +686,9 @@ customElements.define(
       this.#leavePixels();
       if (this.#comparison) {
         const position = state === "after" ? 0 : 100;
-        if (Number(this.#dividerInput.value) !== position)
-          this.#dividerInput.value = String(position);
-        this.#paint();
+        if (this.#comparison.position !== position)
+          this.#comparison.position = position;
+        else this.#paint();
         return;
       }
       const checked = state === "after";
@@ -692,24 +706,17 @@ customElements.define(
 
     // The after frame's share of the pair: 0 shows before whole, 100 after.
     #position() {
-      if (this.#comparison)
-        return Number((100 - Number(this.#dividerInput.value)).toFixed(2));
+      if (this.#comparison) return Number((100 - this.#comparison.position).toFixed(2));
       return this.#box.checked ? 100 : 0;
     }
 
     #paint() {
       const position = this.#position();
-      if (this.#comparisonDrawing) {
+      const handle = this.#comparison?.shadowRoot?.querySelector('[role="scrollbar"]');
+      if (handle) {
         const before = Number((100 - position).toFixed(2));
-        this.#comparisonDrawing.update({ before, alt: this.#alt });
-        const share = `${before}%`;
-        if (this.#comparison.style.getPropertyValue("--lf-shot-before") !== share)
-          this.#comparison.style.setProperty("--lf-shot-before", share);
-        keeps(
-          this.#comparison,
-          "data-lf-endpoint",
-          before === 0 || before === 100 ? "" : null,
-        );
+        keeps(handle, "aria-label", `Before and after — ${this.#alt}`);
+        keeps(handle, "aria-valuetext", `Before ${before}%, after ${position}%`);
       }
       const pixelsShown = this.#view === "pixels";
       const chromeState = pixelsShown
@@ -731,7 +738,7 @@ customElements.define(
       rove(this.#viewOptions.values(), this.#viewOptions.get(this.#view));
       if (chromeState === this.#chromeState) return;
       this.#chromeState = chromeState;
-      if (this.#box.checked !== position > 50) this.#box.checked = position > 50;
+      this.#box.checked = position > 50;
       for (const [state, caption] of this.#captions)
         keeps(
           caption,

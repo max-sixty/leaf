@@ -102,10 +102,9 @@
 
     /* A presets pane with no controls beside it heads the stage. */
     .lf-playground-split:has(> .lf-playground-controls-region) {
-      grid-template-rows: minmax(min-content, auto) minmax(
-          max(12rem, 50dvh),
-          1fr
-        ) max-content;
+      grid-template-rows:
+        minmax(min-content, auto) minmax(max(12rem, 50dvh), 1fr)
+        max-content;
     }
 
     @container (min-width: 43.5rem) {

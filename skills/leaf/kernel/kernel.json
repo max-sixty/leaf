@@ -279,7 +279,7 @@
     "vendor/syntax/toml.js": "bdbbaf842db523f40867805302f06990ee16b9fcdb75c8ae6e01efabaffbb369",
     "vendor/syntax/typescript.js": "9f95bae3ff593a851ae931005e733292edc8a54d62cf4b351511f79230d643e5",
     "vendor/syntax/yaml.js": "d26d797bdd23183ea23fc5bd145ac49288f4513af32700f080139d1e484e1fcb",
-    "widgets/lf-suggestion.js": "94e02c56c8ee40cd3e3bd0cf66879ea202eebab2c77d7204d22dedb9b2cbe67d"
+    "widgets/lf-suggestion.js": "6d9e45874db36c617fa4e47e63cd13fdcfe307e80f1d296e055b3858fe2149cf"
   },
   "replaces": [
     "leaf.js",

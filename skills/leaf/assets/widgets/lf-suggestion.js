@@ -25,6 +25,7 @@ import {
   keeps,
   LeafElement,
   contributionEntry,
+  failSoft,
   paintKeys,
   quietWord,
   quoted,
@@ -388,13 +389,20 @@ customElements.define(
       // It is present for focus continuity but unavailable until the log gives the
       // gesture the durable id Undo must name.
       this.#staging = true;
-      const sent = (
-        this.controller.dispatch({
-          kind: "action",
-          verb: "decide",
-          detail: { outcome },
-        })?.delivery ?? Promise.resolve(null)
-      ).then((accepted) => {
+      const dispatched = this.controller.dispatch({
+        kind: "action",
+        verb: "decide",
+        detail: { outcome },
+      });
+      // The gesture has decided the slot's visible state. Fold it before the
+      // document-wide settlement paint can hide the old words without motion.
+      if (dispatched)
+        try {
+          this.#settle(outcome);
+        } catch (error) {
+          failSoft(this, error);
+        }
+      const sent = (dispatched?.delivery ?? Promise.resolve(null)).then((accepted) => {
         this.#deciding = null;
         this.removeAttribute("aria-busy");
         if (!accepted) {

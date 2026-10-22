@@ -4,7 +4,6 @@ sticky and fixed boxes, hidden tabs and authored anchor scopes."""
 import re
 
 import pytest
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, answered_comment
 from render_harness import (
@@ -25,6 +24,7 @@ from browser.margin import (
     PANE_PIN_PAGE,
     _comment_on,
 )
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

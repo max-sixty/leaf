@@ -53,6 +53,8 @@ from interact_support import (
     working,
     write_record,
 )
+from websockets.exceptions import WebSocketException
+
 from leaf import cli as cli_model
 from leaf import codex as codex_model
 from leaf import codex_adapter as codex_adapter_model
@@ -72,7 +74,6 @@ from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
 from leaf.refusals import Refused
-from websockets.exceptions import WebSocketException
 
 
 def codex_start_announcement(process) -> str:
@@ -141,12 +142,13 @@ def test_selecting_a_checkout_replaces_the_sessions_delivery_runtime(
     the fake external Codex endpoint records the delivery instead of opening a turn.
     """
     foreign = tmp_path / "installed"
-    shutil.copytree(PLUGIN_ROOT / "skills/leaf", foreign / "skills/leaf")
+    for name in ("src", "browser", "packages", "dist", "skills"):
+        shutil.copytree(PLUGIN_ROOT / name, foreign / name)
     launcher = foreign / "bin/leaf"
     launcher.parent.mkdir()
     launcher.write_text(
         "#!/bin/sh\n"
-        f"export PYTHONPATH={shlex.quote(str(foreign / 'skills/leaf/scripts'))}\n"
+        f"export PYTHONPATH={shlex.quote(str(foreign / 'src'))}\n"
         f'exec {shlex.quote(sys.executable)} -m leaf "$@"\n'
     )
     launcher.chmod(0o755)

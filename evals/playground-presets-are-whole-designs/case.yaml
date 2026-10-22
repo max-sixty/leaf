@@ -38,7 +38,7 @@ vars:
 
     The page was initialized with the `playground` package, whose author instructions
     `page init` copied into the page; the same file is
-    `packages/playground/instructions/author.md` inside the leaf skill's base directory,
+    `../../packages/playground/instructions/author.md` relative to the leaf skill's base directory,
     the directory that holds its `references/`.
     Write its playground: the `lf-ask` with its `lf-playground`, and a `<style>`
     element with the candidates' CSS. The preview can be a short static diff of about

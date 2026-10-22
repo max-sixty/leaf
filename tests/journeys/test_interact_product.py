@@ -1,6 +1,5 @@
 """Version corpus, registry, message, and export tests."""
 
-import leaf.validation.command as checking_command
 import pytest
 from interact_support import (
     PAGE,
@@ -10,9 +9,11 @@ from interact_support import (
     fragment_errors,
     publish,
 )
-from leaf.registry import storage as registry_storage
 from leaf_dev.page_fixtures import prepare_page, read_fixture
 from model.test_interact_product import PAGE_FIXTURES, run_leaf
+
+import leaf.validation.command as checking_command
+from leaf.registry import storage as registry_storage
 
 
 def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(page_dir):

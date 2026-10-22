@@ -25,8 +25,8 @@ vars:
     - The proposal's reasoning: eight bullet points on the sizes, the status line,
       the menu and the motion.
 
-    Read references/page-authoring.md and packages/playground/instructions/author.md
-    inside the leaf skill's base directory. The page directory is not reachable from
+    Read references/page-authoring.md and ../../packages/playground/instructions/author.md
+    relative to the leaf skill's base directory. The page directory is not reachable from
     here, so reply with the complete `index.html`, with a placeholder element for the
     sketch inside the playground's preview, rather than writing a file.
 assert:

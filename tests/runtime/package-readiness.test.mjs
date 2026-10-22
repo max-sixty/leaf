@@ -1,9 +1,9 @@
 /* Reading a package's own document does not depend on the private event log. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applicationState } from "../../skills/leaf/assets/runtime/semantic-state.js";
-import { dispatchKey } from "../../skills/leaf/assets/runtime/keyboard/dispatch.js";
-import "../../skills/leaf/packages/default/widgets/lf-tabs.js";
+import { applicationState } from "../../browser/runtime/semantic-state.js";
+import { dispatchKey } from "../../browser/runtime/keyboard/dispatch.js";
+import "../../packages/default/widgets/lf-tabs.js";
 
 for (const phase of ["waiting", "offline"])
   test(`package tabs remain keyboard-operable while saved state is ${phase}`, () => {

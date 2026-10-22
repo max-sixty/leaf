@@ -7,8 +7,8 @@ threads with unread words), which neighbors and Leaf's Claude Code band show. Th
 incarnation cannot inherit it; the server lease decides whether any row exists.
 Deleting every row only hides neighbors until their next maintenance look. No
 server removes its own row, since a server can die without a last word; the reader
-that finds the row's server lease unheld deletes it, whatever its format
-(`presence.other_leaves`, `presence._row_reading`).
+that finds a readable row's server lease unheld deletes it
+(`presence.other_leaves`).
 
 A per-page producer subscribes to this page's application writes and checks live harness,
 process and waiter facts every presence-cache interval. Changed inputs or the fold's next

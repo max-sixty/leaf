@@ -23,13 +23,8 @@
  */
 import { isSampleFrame, sampleFrameImage } from "../sample.js";
 
-const asDataUrl = (blob) =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(blob);
-  });
+const asDataUrl = async (blob) =>
+  `data:${blob.type};base64,${(await blob.bytes()).toBase64()}`;
 
 // A caller that reads the crop's geometry at the moment of capture awaits the renderer
 // first, so no download separates that reading from the reconstruction.

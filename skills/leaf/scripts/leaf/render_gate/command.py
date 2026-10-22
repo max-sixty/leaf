@@ -4,6 +4,7 @@ The checks return findings (`findings.py`); this module and `validation/command.
 are where they become the JSON document `page check` and `package check` print."""
 
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -11,13 +12,7 @@ from leaf.findings import Finding
 from leaf.revision_artifact import RevisionArtifact
 from leaf.structure import SourceDocument
 
-from .browser import (
-    DriverNotStarted,
-    browser_hint,
-    driver_hint,
-    launch_browser,
-    playwright_driver,
-)
+from .browser import browser_hint, launch_browser
 from .page_code import run_page_code
 from .preview import preview_server
 from .screens import save_screens
@@ -47,20 +42,22 @@ def run_in_browser(read):
 def _launch(read):
     """What `read` finds, with the browser's name, or why no browser ran it."""
     from playwright.sync_api import Error as PlaywrightError
+    from playwright.sync_api import sync_playwright
 
-    try:
-        with playwright_driver() as p:
-            try:
-                browser, browser_name = launch_browser(p)
-            except PlaywrightError as error:
-                return (
-                    f"no browser launched: {str(error).strip().splitlines()[0]}. "
-                    f"{browser_hint()}"
-                )
-            with browser:
-                return read(browser), browser_name
-    except DriverNotStarted as error:
-        return f"Playwright's driver did not start: {error}. {driver_hint()}"
+    with ExitStack() as stack:
+        try:
+            p = stack.enter_context(sync_playwright())
+        except Exception as error:  # noqa: BLE001 - Playwright raises bare Exception on driver EOF
+            return f"Playwright's driver did not start: {error}"
+        try:
+            browser, browser_name = launch_browser(p)
+        except PlaywrightError as error:
+            return (
+                f"no browser launched: {str(error).strip().splitlines()[0]}. "
+                f"{browser_hint()}"
+            )
+        with browser:
+            return read(browser), browser_name
 
 
 @dataclass(frozen=True, slots=True)

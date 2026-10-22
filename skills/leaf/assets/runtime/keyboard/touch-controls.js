@@ -17,7 +17,7 @@ import {
   registerPageControl,
 } from "../page-controls.js";
 import { returnPlace } from "../history.js";
-import { bindings, live, spell, titleOf, word } from "./bindings.js";
+import { bindings, descriptionOf, live, spell, titleOf, word } from "./bindings.js";
 import { innermostStance, invokePress } from "./dispatch.js";
 import { touchPresses } from "./register.js";
 
@@ -34,6 +34,10 @@ function place(press) {
     key: `command:${press.id}`,
     rank: PAGE_CONTROL_RANK.commands,
     label: () => face()?.label ?? "",
+    value: () => face()?.value ?? "",
+    // The command's description, as the reference's tooltip says it, whole where the
+    // menu's row cuts its words, such as what Undo would take back.
+    title: () => face()?.title ?? "",
     shortcut: () => face()?.shortcut ?? [],
     // A page command says which of a menu's groups it belongs with (`menu`).
     group: press.row.menu ?? "page",
@@ -74,6 +78,8 @@ const sameStance = (a, b) => a?.label === b?.label && a?.disabled === b?.disable
 
 const same = (a, b) =>
   a?.label === b?.label &&
+  a?.title === b?.title &&
+  a?.value === b?.value &&
   a?.disabled === b?.disabled &&
   a?.shortcut.join(" ") === b?.shortcut.join(" ");
 
@@ -97,6 +103,8 @@ export function paintTouchControls() {
     const next = shown.has(id)
       ? {
           label: word(press.words),
+          value: word(press.row.touchValue) ?? "",
+          title: descriptionOf(press.row),
           shortcut: binding ? [spell(binding)] : [],
           disabled: !live(press.row),
         }

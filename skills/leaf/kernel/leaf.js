@@ -7559,7 +7559,8 @@ function createFloatingPanel({
         disabled: entry.disabled,
         role: menuOpen.value ? "menuitem" : null,
         row: entry.key,
-        opens: view === "versions"
+        opens: view === "versions",
+        title: entry.title || null
       }
     );
   }
@@ -11131,6 +11132,10 @@ function place2(press) {
     key: `command:${press.id}`,
     rank: PAGE_CONTROL_RANK.commands,
     label: () => face()?.label ?? "",
+    value: () => face()?.value ?? "",
+    // The command's description, as the reference's tooltip says it, whole where the
+    // menu's row cuts its words, such as what Undo would take back.
+    title: () => face()?.title ?? "",
     shortcut: () => face()?.shortcut ?? [],
     // A page command says which of a menu's groups it belongs with (`menu`).
     group: press.row.menu ?? "page",
@@ -11164,7 +11169,7 @@ function placeStanceExit() {
   });
 }
 var sameStance = (a, b) => a?.label === b?.label && a?.disabled === b?.disabled;
-var same4 = (a, b) => a?.label === b?.label && a?.disabled === b?.disabled && a?.shortcut.join(" ") === b?.shortcut.join(" ");
+var same4 = (a, b) => a?.label === b?.label && a?.title === b?.title && a?.value === b?.value && a?.disabled === b?.disabled && a?.shortcut.join(" ") === b?.shortcut.join(" ");
 function paintTouchControls() {
   const shown = new Set(touchPresses().map(place2));
   let changed = false;
@@ -11182,6 +11187,8 @@ function paintTouchControls() {
     const [binding] = bindings(press.row);
     const next = shown.has(id) ? {
       label: word(press.words),
+      value: word(press.row.touchValue) ?? "",
+      title: descriptionOf(press.row),
       shortcut: binding ? [spell(binding)] : [],
       disabled: !live(press.row)
     } : void 0;

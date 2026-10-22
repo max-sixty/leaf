@@ -33,7 +33,7 @@ Record a gesture with `dispatch({kind: "action", verb, detail, attempt?, says?})
 undo one with `dispatch({kind: "undo", target})`, naming an `id` or `attempt` from the
 action's Undo candidates. `says` names the gesture in the widget's words, such as
 `Chose “Fast”`: Leaf shows "Chose “Fast” — sent" once the server admits it, and
-"Undid: Chose “Fast” — sent" when the user undoes it, so post no notice of your own for it. `dispatch` returns `null` when the action isn't available, throws for a
+"Undid: Chose “Fast” · just now — sent" when the user undoes it, so post no notice of your own for it. `dispatch` returns `null` when the action isn't available, throws for a
 verb the widget doesn't declare, and otherwise returns `{reading, delivery}`. The reading
 already shows the result; `delivery` resolves to the event the server admitted, or
 `null`, and a refusal restores the server's state.

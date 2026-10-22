@@ -3,6 +3,7 @@
 import json
 import math
 import re
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from interact_support import (
@@ -268,6 +269,66 @@ def test_z_stops_at_a_newer_gesture_it_cannot_take_back(browser, serve):
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "undo"
     ] == []
+
+
+def test_z_names_what_it_takes_and_how_long_ago_in_a_fresh_tab(browser, serve):
+    """A page opened weeks after the user's last gesture still says what `z` would
+    take back, read from the log rather than from the tab that made it: the leaf's
+    menu names the thread they resolved and how long ago, and so does the undo's
+    notice. An action is named in its own document's words, under the name the page
+    gives its widget."""
+    url = serve(UNDO_PAGE, comments=1)
+    [comment] = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "thread_title",
+            "author": "agent",
+            "thread": comment,
+            "title": "Rollout safety",
+        },
+    )
+    weeks_ago = datetime.now(UTC) - timedelta(days=21)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "resolve",
+            "author": "user",
+            "parent": comment,
+            "ts": weeks_ago.isoformat(),
+        },
+    )
+    page = open_page(browser, url)
+    # The row's words may be cut, so it says the age at its end and is whole on hover.
+    row = panel_control(page, "command:history.undo")
+    expect(row.locator(".lf-fp-label")).to_have_text("Undo: resolved “Rollout safety”")
+    expect(row.locator(".lf-fp-value")).to_have_text("21d ago")
+    resolved = "resolved “Rollout safety” · 21d ago"
+    expect(row).to_have_attribute("title", f"Undo: {resolved}")
+    with sending(page, "the withdrawal"):
+        row.click()
+    expect(page.locator(".lf-live")).to_have_text(f"Undid: {resolved} — sent")
+
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "picks",
+            "action": "choose",
+            "detail": {"value": ["opt-a"]},
+        },
+    )
+    told(page)
+    expect(panel_control(page, "command:history.undo")).to_have_attribute(
+        "title",
+        "Undo: chose “Keep the mounts” in “Should we keep the mounts?” · just now",
+    )
 
 
 def test_z_puts_a_card_back_where_the_version_had_it(browser, serve):

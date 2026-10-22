@@ -81,6 +81,7 @@ from leaf import document_reading as document_reading_model
 from leaf import event_log as event_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
+from leaf import gesture_words as gesture_words_model
 from leaf import harness as harness_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
@@ -2216,7 +2217,9 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
 
 
 def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
-    """The DOM need not re-fold the log to know a prior action will reappear."""
+    """The DOM need not re-fold the log to know a prior action will reappear, and
+    the head `z` takes says what it did in its document's words, which no other
+    entry pays for."""
     version = page_dir / "index.html"
     version.write_text(
         version.read_text().replace(
@@ -2249,9 +2252,12 @@ def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
         )
         assert status == 200, body
 
-    latest = json.loads(body)["state"]["browser"]["views"]["1"]["undo"][0]
+    latest, prior = json.loads(body)["state"]["browser"]["views"]["1"]["undo"][:2]
     assert latest["event"]["id"] == json.loads(body)["state"]["events"][-1]["id"]
     assert latest["event"]["detail"] == {"value": ["delivery-later"]}
+    assert latest["gesture"] == {"form": "choice", "chosen": ["Later"]}
+    assert prior["event"]["detail"] == {"value": ["delivery-now"]}
+    assert "gesture" not in prior
 
 
 def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
@@ -2386,7 +2392,12 @@ def test_undo_candidates_keep_only_user_gestures_in_force():
     )
 
     candidates = served_document.browser_undo_candidates(
-        events, document, empty, undo_reading=undo_reading, stamp=None
+        events,
+        document,
+        empty,
+        undo_reading=undo_reading,
+        stamp=None,
+        words=gesture_words_model.GestureWords(events, {}, {}.__getitem__),
     )
 
     assert [candidate["event"]["id"] for candidate in candidates] == ["rx1", "r2"]
@@ -2420,6 +2431,7 @@ def test_undo_walk_ends_at_the_users_newest_gesture():
                 log, within={}, absorbed=frozenset()
             ),
             stamp=None,
+            words=gesture_words_model.GestureWords(log, {}, {}.__getitem__),
         )
         return [(item["event"]["id"], item.get("newest", False)) for item in candidates]
 

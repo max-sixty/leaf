@@ -6,7 +6,8 @@
  * presentation puts after "Copy" and capitalizes to head a line), a terse `value` such as
  * a count, the `shortcut` that reaches it from the keyboard as its steps, each spelled as
  * a key chip spells it (keyboard/control-keys.js, `commandSteps`), the `group` of
- * controls it belongs with, the text it copies where it copies one (`copies`), whether
+ * controls it belongs with, the whole words a pointer resting on it reads where its
+ * label may be cut (`title`), the text it copies where it copies one (`copies`), whether
  * it is `offered` now, whether its news is `urgent` (the words that say so, or null),
  * whether it is `disabled`, and the `press` that runs it, given the place the
  * presentation held when the user opened it (history.js, `readPlace`). A row that is a
@@ -66,6 +67,7 @@ const read = (value) => (typeof value === "function" ? value() : value);
  *   label: string | (() => string),
  *   group: string | (() => string),
  *   value?: string | (() => string),
+ *   title?: string | (() => string),
  *   shortcut?: readonly string[] | (() => readonly string[]),
  *   copies?: string | (() => string),
  *   offered?: boolean | (() => boolean),
@@ -100,6 +102,7 @@ export function pageControls() {
         key: row.key,
         label: read(row.label),
         value: read(row.value) ?? "",
+        title: read(row.title) ?? "",
         shortcut: read(row.shortcut) ?? EMPTY,
         group,
         copies: read(row.copies) ?? "",

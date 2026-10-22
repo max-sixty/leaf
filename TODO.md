@@ -154,10 +154,11 @@ has tried; settle that before building it.
   user's suggestion, 2026-10-06).
 - **Show what `z` takes before it takes it.** `z` takes back the user's newest
   gesture however old, so on a page left for weeks it can reopen a thread resolved
-  then, below the fold, and the notice names only the gesture's kind. The user chose
-  (2026-10-21) to keep the reach unlimited, name the gesture and its age, and spend
-  the first press revealing a target that is out of view or already picked up by
-  the agent. [The undo-reach note](notes/undo-reach/README.md) has the build.
+  then, below the fold. The user chose (2026-10-21) to keep the reach unlimited,
+  name the gesture and its age, and spend the first press revealing a target that is
+  out of view or already picked up by the agent. Undo now names the gesture and its
+  age in every tab; the reveal on the first press remains.
+  [The undo-reach note](notes/undo-reach/README.md) has the build.
 - **Decide when a page merits a separate phone composition.** Many pages are
   ephemeral and authored for a user reading on a large screen, so a bespoke phone
   animation may not repay its cost. Decide how the agent weighs the user's viewing

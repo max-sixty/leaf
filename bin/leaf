@@ -46,7 +46,7 @@
 # uv runs without the cache; a sync a changed lock needs then downloads afresh.
 # The flag is not inherited, so `package run`'s own uv keeps the cache.
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
-state="$root/skills/leaf/scripts/leaf/state.py"
+state="$root/src/leaf/state.py"
 if [ "$#" -eq 1 ] && [ "$1" = session-end ]; then
     exec python3 -S "$state"
 fi

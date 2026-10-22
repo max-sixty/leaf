@@ -8,10 +8,10 @@ from contextlib import contextmanager
 from functools import cache
 from pathlib import Path
 
-from leaf.render_checks import wait_for_probe, wait_until_ready
 from playwright.sync_api import Browser, Page, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
+from leaf.render_checks import wait_for_probe, wait_until_ready
 from leaf_dev import ROOT
 
 DESKTOP = (1440, 900)

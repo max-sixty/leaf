@@ -10,7 +10,7 @@ from leaf_dev.commands import distribution
 def test_compiled_cache_follows_payload_and_compiler_bytes(tmp_path, monkeypatch):
     """Identical saves and authored revisions reuse a kernel; its inputs do not."""
     monkeypatch.setattr(distribution, "ROOT", tmp_path)
-    module = tmp_path / "skills/leaf/assets/runtime/example.js"
+    module = tmp_path / "browser/runtime/example.js"
     compiler = tmp_path / "build/runtime-bundle.mjs"
     authored = tmp_path / "examples/page.html"
     for path, content in (
@@ -54,7 +54,7 @@ def test_compiled_cache_refreshes_payload_and_git_provenance(tmp_path, monkeypat
             text=True,
         )
 
-    module = tmp_path / "skills/leaf/assets/runtime/example.js"
+    module = tmp_path / "browser/runtime/example.js"
     authored = tmp_path / "examples/page.html"
     for path, content in (
         (module, "export const example = 1;"),
@@ -106,7 +106,7 @@ def test_identical_extracted_arms_share_the_compiled_content_identity(tmp_path):
     """A comparison's temporary checkout address is not a compiler input."""
     arms = [tmp_path / name for name in ("first", "second")]
     for arm in arms:
-        module = arm / "skills/leaf/assets/runtime/example.js"
+        module = arm / "browser/runtime/example.js"
         module.parent.mkdir(parents=True)
         module.write_text("export const example = 1;")
     assert distribution.installation_identity(
@@ -240,7 +240,7 @@ def test_cached_installation_rechecks_provenance_before_publication(
 def prepared_cache(tmp_path, monkeypatch):
     """Exercise cache selection with real files and locks, without the compiler."""
     monkeypatch.setattr(distribution, "ROOT", tmp_path)
-    module = tmp_path / "skills/leaf/assets/runtime/example.js"
+    module = tmp_path / "browser/runtime/example.js"
     module.parent.mkdir(parents=True)
     module.write_bytes(b"export const example = 1;")
     built = []

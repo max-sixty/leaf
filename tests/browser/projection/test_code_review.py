@@ -8,11 +8,6 @@ from datetime import datetime, timedelta
 import pytest
 from click.testing import CliRunner
 from interact_support import ROOT, append_carried_log_record
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import state as cleanup_model
-from leaf.render_checks import rendered, wait_until_ready
 from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
@@ -36,6 +31,11 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import cli as cli_model
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf import state as cleanup_model
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

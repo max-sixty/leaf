@@ -109,6 +109,8 @@ from leaf import thread_titles as thread_titles_model
 from leaf import vendoring as vendoring_model
 from leaf.refusals import Refused
 from leaf.registry import storage as registry_storage
+from leaf.runtime_selection import serving_runtime
+from leaf.schema import USER_VIEWS_FILE
 from leaf.served_state import browser as served_browser
 from leaf.served_state import context as served_context
 from leaf.served_state import document as served_document
@@ -869,6 +871,43 @@ def test_an_event_from_another_layer_is_not_interpreted_or_appended(server, page
     assert event_model.read_events(page_dir) == before
 
 
+def test_a_write_from_another_runtime_is_not_interpreted_or_appended(server, page_dir):
+    """A tab from before a restart under another runtime names that runtime, and the
+    server admits nothing from it: it answers in its own runtime's name, which the
+    tab refuses and reloads on (`layer-client.js`), so code from one Leaf never
+    writes against another's server (`runtime_selection`)."""
+    publish(page_dir)
+    identity = serving_runtime().identity
+    with urllib.request.urlopen(f"{server}/api/state?t={TOKEN}") as response:
+        assert response.headers["Leaf-Runtime"] == identity
+        current = json.loads(response.read())["layer"]["generation"]
+    before = event_model.read_events(page_dir)
+    comment = json.dumps({"kind": "comment", "revision": 1, "text": "Hi"}).encode()
+
+    status, body = fetch(
+        f"{server}/api/event",
+        data=comment,
+        headers={"Leaf-Runtime": "0123456789abcdef"},
+    )
+    assert (status, json.loads(body)) == (200, {"layer": current})
+    assert event_model.read_events(page_dir) == before
+    # The agent reads a tab's view as the user's, so a view from another runtime is
+    # not stored either.
+    status, body = fetch(
+        f"{server}/api/user-view",
+        data=json.dumps({"revision": 1}).encode(),
+        headers={"Leaf-Runtime": "0123456789abcdef"},
+    )
+    assert (status, json.loads(body)) == (200, {"layer": current})
+    assert not (page_dir / USER_VIEWS_FILE).exists()
+
+    status, body = fetch(
+        f"{server}/api/event", data=comment, headers={"Leaf-Runtime": identity}
+    )
+    assert status == 200, body
+    assert event_model.read_events(page_dir)[-1]["text"] == "Hi"
+
+
 def test_a_browser_image_becomes_content_addressed_page_media(server, page_dir):
     """A paste sends bytes once, while drafts and events carry only the stable path.
 
@@ -905,7 +944,10 @@ def test_document_startup_and_media_ranges_do_not_read_whole_recordings(
         )
     )
     publish(page_dir)
-    captured = "/revisions/" + files_model.revision_path(page_dir, 1).stem
+    captured = (
+        f"/revisions/{files_model.revision_path(page_dir, 1).stem}"
+        f"/{serving_runtime().identity}"
+    )
     reads = []
     original_open = builtins.open
 
@@ -1706,7 +1748,10 @@ def test_a_page_serves_one_document_at_each_of_its_three_addresses(server, page_
     assert stamped.exit_code == 0, stamped.output
     revision = files_model.latest_revision(page_dir)
     marker = f'<meta name="lf-revision" data-lf-runtime content="{revision}">'
-    artifact_root = f"/revisions/{files_model.revision_path(page_dir, revision).stem}"
+    artifact_root = (
+        f"/revisions/{files_model.revision_path(page_dir, revision).stem}"
+        f"/{serving_runtime().identity}"
+    )
     for address in (
         "/",
         "/versions/v1.html",
@@ -1718,6 +1763,46 @@ def test_a_page_serves_one_document_at_each_of_its_three_addresses(server, page_
         assert marker.encode() in body, address
         assert f'data-lf-entry="{artifact_root}/leaf.js"'.encode() in body, address
         assert fetch(server + artifact_root + "/leaf.js")[0] == 200, address
+
+
+def test_a_page_runs_the_runtime_of_the_leaf_serving_it(server, page_dir):
+    """A page vendored by another Leaf at this protocol runs the serving Leaf's
+    runtime, addressed under its identity, while what the page vendored stays its own,
+    a package's replacement of one of the runtime's vendor modules included."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["$layer"]["producer"] = {"commit": "a74b08365870", "dirty": False}
+    files_model.replace_files(
+        [
+            (page_dir / "registry.json", json.dumps(registry).encode(), False),
+            (page_dir / "vendor" / "lit.js", b"// the package's own Lit", False),
+        ]
+    )
+    publish(page_dir)
+    runtime = serving_runtime().resources({})
+    root = (
+        f"/revisions/{files_model.revision_path(page_dir, 1).stem}"
+        f"/{serving_runtime().identity}"
+    )
+
+    status, document = fetch(server + "/")
+    assert status == 200
+    assert f'data-lf-entry="{root}/leaf.js"'.encode() in document
+    assert (
+        f'data-lf-runtime-identity="{serving_runtime().identity}"'.encode() in document
+    )
+    assert fetch(server + root + "/leaf.js") == (200, runtime["/leaf.js"].data)
+    assert fetch(server + root + "/runtime/widget-api.js") == (
+        200,
+        runtime["/runtime/widget-api.js"].data,
+    )
+    assert fetch(server + root + "/vendor/lit.js") == (
+        200,
+        b"// the package's own Lit",
+    )
+    assert fetch(server + root + "/vendor/plot.esm.js") == (
+        200,
+        (page_dir / "vendor" / "plot.esm.js").read_bytes(),
+    )
 
 
 def test_state_and_delivery_agree_on_a_revisions_executable_identity(server, page_dir):
@@ -1791,6 +1876,7 @@ def test_a_revision_serves_reaction_tokens_in_their_declared_order(page_dir):
 
     artifact_root = (
         f"/revisions/{files_model.revision_path(page_dir, activated.revision).stem}"
+        f"/{serving_runtime().identity}"
     )
     with hosting_model.TemporaryPageServer(page_dir, token=TOKEN) as temporary:
         status, served = fetch(temporary.origin + artifact_root + "/registry.json")
@@ -1800,13 +1886,15 @@ def test_a_revision_serves_reaction_tokens_in_their_declared_order(page_dir):
 def test_a_revision_s_resources_are_cached_and_its_document_is_asked_again(
     server, page_dir
 ):
-    """A revision's resources are named by its digest, so the browser keeps them for
-    every document that imports them, a gallery's live samples included. The document
-    and the page's state may be stored, which lets the back/forward cache keep the
-    page, but each reuse asks what the page is now, and so does a path under the
-    namespace that names nothing."""
+    """A revision's resources are named by its digest and the runtime's identity, so
+    the browser keeps them for every document that imports them, a gallery's live
+    samples included. The document and the page's state may be stored, which lets the
+    back/forward cache keep the page, but each reuse asks what the page is now, and so
+    does a path under the namespace that names nothing, or names a runtime this server
+    does not run."""
     publish(page_dir)
-    root = "/revisions/" + files_model.revision_path(page_dir, 1).stem
+    revision = "/revisions/" + files_model.revision_path(page_dir, 1).stem
+    root = f"{revision}/{serving_runtime().identity}"
 
     def cache_control(path):
         try:
@@ -1821,6 +1909,8 @@ def test_a_revision_s_resources_are_cached_and_its_document_is_asked_again(
     assert cache_control("/") == (200, "no-cache")
     assert cache_control("/api/state") == (200, "no-cache")
     assert cache_control(f"{root}/no-such-module.js") == (404, "no-cache")
+    assert cache_control(f"{revision}/0123456789abcdef/leaf.js") == (404, "no-cache")
+    assert cache_control(f"{revision}/leaf.js") == (404, "no-cache")
 
 
 def test_server_takes_an_approval_only_where_the_version_asked_for_one(
@@ -4457,7 +4547,11 @@ def test_a_preview_uses_the_validated_module_graph_after_a_later_edit(page_dir):
     with hosting_model.TemporaryPageServer(
         page_dir, token=TOKEN, page_options={"page_snapshot": snapshot}
     ) as preview:
-        root = "/revisions/" + snapshot.revision_names[revision].removesuffix(".html")
+        root = (
+            "/revisions/"
+            + snapshot.revision_names[revision].removesuffix(".html")
+            + f"/{serving_runtime().identity}"
+        )
         status, document = fetch(preview.origin + "/")
         assert status == 200
         assert f'src="{root}/page/app.js"'.encode() in document

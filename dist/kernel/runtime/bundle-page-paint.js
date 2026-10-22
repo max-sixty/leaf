@@ -3174,16 +3174,7 @@ function dismissErrors() {
 }
 
 // runtime/layer-client.js
-import { layerGeneration } from "/runtime/layer-generation.js";
-var { layer: documentLayer, release, probe } = DELIVERY;
-if (documentLayer && documentLayer !== layerGeneration) {
-  window.dispatchEvent(
-    new CustomEvent("lf-startup-failed", {
-      detail: { reason: "document and runtime belong to different layers" }
-    })
-  );
-  throw new Error("Leaf's document and runtime belong to different layers");
-}
+var { layer: layerGeneration, release, probe, runtime: runtimeIdentity } = DELIVERY;
 async function sourceMovedOn() {
   if (!probe) return true;
   let response;
@@ -3196,6 +3187,7 @@ async function sourceMovedOn() {
   if (!response.ok) return void 0;
   const servedRelease = response.headers.get("Leaf-Release");
   if (release && servedRelease) return servedRelease !== release;
+  if (!sameRuntime(response)) return true;
   const generation = response.headers.get("Leaf-Layer");
   return generation ? generation !== layerGeneration : void 0;
 }
@@ -3225,9 +3217,14 @@ function reloadDelivery(message) {
     }
   })();
 }
+var sameRuntime = (response) => {
+  const served = response.headers.get("Leaf-Runtime");
+  return !runtimeIdentity || !served || served === runtimeIdentity;
+};
 function layerHeaders(headers = {}) {
   return {
     "Leaf-Layer": layerGeneration,
+    ...runtimeIdentity && { "Leaf-Runtime": runtimeIdentity },
     ...runtime.currentRevision && {
       "Leaf-View-Revision": String(runtime.currentRevision)
     },
@@ -3269,14 +3266,20 @@ function sameLayer(generation) {
   reloadDelivery("Leaf has been updated \u2014 reloading this page.");
   return false;
 }
-function admitResponse(response) {
+var admitResponse = (response) => admitted(response, true);
+var admitReading = (response) => admitted(response, false);
+function admitted(response, ofThisLayer) {
   observeSession(response);
   observeKey(response);
   if (!response.ok) return true;
   if (layerReloading) return false;
   const generation = response.headers.get("Leaf-Layer");
   const responseRelease = response.headers.get("Leaf-Release");
-  if (generation && !sameLayer(generation)) return false;
+  if (ofThisLayer && generation && !sameLayer(generation)) return false;
+  if (!sameRuntime(response)) {
+    reloadDelivery("Leaf has been updated \u2014 reloading this page.");
+    return false;
+  }
   if (release && responseRelease && responseRelease !== release) {
     reloadDelivery("Leaf has been updated \u2014 reloading this page.");
     return false;
@@ -3650,6 +3653,7 @@ export {
   requestJson,
   sameLayer,
   admitResponse,
+  admitReading,
   sessionIsActive,
   revealLayer,
   postEvent,

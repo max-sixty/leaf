@@ -1,11 +1,13 @@
-/* The vendored-generation gate, the event and media doors, the page's JSON requests,
-   and the page's error channel to the agent.
+/* The delivery gate, the event and media doors, the page's JSON requests, and the
+   page's error channel to the agent.
 
-   A vendored runtime and registry are one generation. This module carries the
-   epoch from `layer-generation.js` and the registry carries the same epoch
-   after `page init`. `admitResponse` observes every response's session metadata and
-   checks every successful payload against the document's layer and website release,
-   including a freshness token whose body has not changed. A foreign answer is always refused;
+   A document speaks the generation of the vendored layer it was served from, and runs
+   the runtime of the Leaf that served it (`runtime_selection.py`), both of which its
+   server names in the document (`DELIVERY`). `admitResponse` observes every response's
+   session metadata and checks every successful payload against the document's layer,
+   runtime and website release, including a freshness token whose body has not
+   changed: a server restarted under another runtime serves state this code may not
+   read, and refuses what it sends. A foreign answer is always refused;
    whether the page also reloads is the document source's to answer, through the same
    probe startup recovery uses, because only a source that has moved on has a different
    document to give and a page that reloads without one never stops. A page's record
@@ -39,18 +41,8 @@ import { recordInteraction } from "./interaction-log.js";
 import { DELIVERY, offlineInteractive, pageUrl, runtime } from "./context.js";
 import { notice } from "./notifications.js";
 import { holdingError } from "./errors.js";
-import { layerGeneration } from "./layer-generation.js";
 
-const { layer: documentLayer, release, probe } = DELIVERY;
-
-if (documentLayer && documentLayer !== layerGeneration) {
-  window.dispatchEvent(
-    new CustomEvent("lf-startup-failed", {
-      detail: { reason: "document and runtime belong to different layers" },
-    }),
-  );
-  throw new Error("Leaf's document and runtime belong to different layers");
-}
+const { layer: layerGeneration, release, probe, runtime: runtimeIdentity } = DELIVERY;
 
 // Which delivery this page belongs to is settled by whatever serves its documents, not
 // by whoever answered last. An answer naming another generation may come from a party a
@@ -75,6 +67,7 @@ async function sourceMovedOn() {
   if (!response.ok) return undefined;
   const servedRelease = response.headers.get("Leaf-Release");
   if (release && servedRelease) return servedRelease !== release;
+  if (!sameRuntime(response)) return true;
   const generation = response.headers.get("Leaf-Layer");
   return generation ? generation !== layerGeneration : undefined;
 }
@@ -116,9 +109,17 @@ function reloadDelivery(message) {
   })();
 }
 
+// Whether an answer comes from a server running this document's runtime. A website
+// release names its runtime, so neither side names one there.
+const sameRuntime = (response) => {
+  const served = response.headers.get("Leaf-Runtime");
+  return !runtimeIdentity || !served || served === runtimeIdentity;
+};
+
 export function layerHeaders(headers = {}) {
   return {
     "Leaf-Layer": layerGeneration,
+    ...(runtimeIdentity && { "Leaf-Runtime": runtimeIdentity }),
     ...(runtime.currentRevision && {
       "Leaf-View-Revision": String(runtime.currentRevision),
     }),
@@ -188,7 +189,14 @@ export function sameLayer(generation) {
   return false;
 }
 
-export function admitResponse(response) {
+export const admitResponse = (response) => admitted(response, true);
+
+// An answer about another revision than the document's, such as the reading of an
+// older version a comparison asks `/api/view` for, speaks that revision's layer. Only
+// the runtime and release of the server answering are held to the document's.
+export const admitReading = (response) => admitted(response, false);
+
+function admitted(response, ofThisLayer) {
   observeSession(response);
   observeKey(response);
   // Failure responses still name session activation and its public reference. Their
@@ -197,7 +205,11 @@ export function admitResponse(response) {
   if (layerReloading) return false;
   const generation = response.headers.get("Leaf-Layer");
   const responseRelease = response.headers.get("Leaf-Release");
-  if (generation && !sameLayer(generation)) return false;
+  if (ofThisLayer && generation && !sameLayer(generation)) return false;
+  if (!sameRuntime(response)) {
+    reloadDelivery("Leaf has been updated — reloading this page.");
+    return false;
+  }
   if (release && responseRelease && responseRelease !== release) {
     reloadDelivery("Leaf has been updated — reloading this page.");
     return false;

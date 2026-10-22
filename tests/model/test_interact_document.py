@@ -205,18 +205,22 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     assert {
         "/page/app.js",
         "/page/nested/value.js",
-        "/runtime/widget-api.js",
         "/page/value.js",
         "/page/style.css",
         "/page/nested/theme.css",
         "/page/image.svg",
     } <= artifact.resources.keys()
+    # The public module app.js imports is the runtime's, which the delivering Leaf
+    # supplies, so the revision holds none of it.
+    assert "/runtime/widget-api.js" not in artifact.resources
     assert artifact.resources["/page/image.svg"].mime == "image/svg+xml"
     assert artifact.resources["/page/inline.svg"].mime == "image/svg+xml"
     assert artifact.resources["/page/app.js"].mime == "application/javascript"
     assert artifact.registry == read_page_registry(page_dir).registry
     assert artifact.implementations["lf-options"]["path"] == "/widgets/lf-options.js"
-    assert "/vendor/browser-runtime.LICENSES.txt" in artifact.resources
+    # The vendored layer is captured whole; the runtime is the delivering Leaf's.
+    assert "/vendor/plot.LICENSES.txt" in artifact.resources
+    assert "/leaf.js" not in artifact.resources
     assert artifact_model.read_artifact(page_dir, first.revision) is artifact
     unchanged = revisioning_model.activate_source(page_dir)
     assert not unchanged.created and unchanged.revision == first.revision
@@ -229,17 +233,20 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     assert changed.digest != artifact.digest
     assert changed.resources["/page/value.js"].data == b"export const value = 2;"
     files_model.replace_files(
-        [(page_dir / "leaf.js", b"// replacement runtime", False)]
+        [(page_dir / "vendor" / "plot.esm.js", b"// replacement module", False)]
     )
     third = revisioning_model.activate_source(page_dir)
     assert third.error is None, third.error
     assert third.created and third.revision == second.revision + 1
     replaced = artifact_model.read_artifact(page_dir, third.revision)
-    assert replaced.resources["/leaf.js"].data == b"// replacement runtime"
+    assert replaced.resources["/vendor/plot.esm.js"].data == b"// replacement module"
     assert replaced.digest != changed.digest
     historical = artifact_model.read_artifact(page_dir, first.revision)
     assert historical.resources["/page/value.js"].data == b"export const value = 1;"
-    assert historical.resources["/leaf.js"].data == artifact.resources["/leaf.js"].data
+    assert (
+        historical.resources["/vendor/plot.esm.js"].data
+        == artifact.resources["/vendor/plot.esm.js"].data
+    )
 
 
 def test_a_revision_keeps_its_bytes_when_a_layer_file_is_edited_in_place(page_dir):
@@ -251,7 +258,7 @@ def test_a_revision_keeps_its_bytes_when_a_layer_file_is_edited_in_place(page_di
         files_model.revision_path(page_dir, first.revision).with_suffix("")
         / "resources"
     )
-    for layer_file in ("leaf.js", "theme.css", "runtime/layer-generation.js"):
+    for layer_file in ("theme.css", "vendor/plot.esm.js", "widgets/lf-options.js"):
         assert (captured / layer_file).stat().st_ino != (
             page_dir / layer_file
         ).stat().st_ino, layer_file

@@ -649,17 +649,12 @@ def await_reply_shown(end: BrowserEnd, answer: dict) -> dict:
     return shown
 
 
-def run_journey(
-    end: HttpEnd | BrowserEnd,
-    version: str,
-    records: Callable[[], list[dict]] | None = None,
-    commands: Callable[[], list[dict]] | None = None,
-) -> dict:
+def run_journey(end: HttpEnd | BrowserEnd, version: str) -> dict:
     """Tell the agent that release `version` passed its checks and ask it to record
     that, at the user's `end`, then require a published revision naming the release
     and an answer, and in a browser a reload presenting it. Return the journey's
-    reading of the ask, its reply broken down (`reply_breakdown`) where `records`
-    reads the session and `commands` the page's `leaf_command` records.
+    reading of the ask; a harness's user breaks its reply down once the session
+    ends (`User.sample`).
 
     The page check finds the release's short hash in the authored board markup:
     where on the board the agent records it is the agent's call.
@@ -676,14 +671,6 @@ def run_journey(
     comment = end.reading(
         profile, recorded_steps(events, answered_comment, published), answer
     )
-    if records is not None:
-        comment["reply"] = reply_breakdown(
-            records(),
-            commands(),
-            answered_comment["ts"],
-            pickup_at(events, answered_comment["id"], "opened"),
-            answer["ts"],
-        )
     print(json.dumps(comment, indent=2), file=sys.stderr)
     print(
         f"✓ the agent published revision {published['revision']} and replied: "
@@ -1162,9 +1149,7 @@ class User:
         `case`: in the working one, while the user's turn runs its command."""
         if self.case == "working":
             self.terminal.work()
-        self.release_reading = run_journey(
-            self.end, self.version, self.records, self.commands
-        )
+        self.release_reading = run_journey(self.end, self.version)
         self.ids["release"] = self.release_reading["comment"]["eventIds"][-1]
 
     def release_alone(self) -> None:
@@ -1238,8 +1223,9 @@ class User:
         """The journey's reading: the user's end, the release ask's, and each step's
         duration and the timings of the comments it sent (`end.reading`), each marked
         with the permission prompts answered during its step. Each reply is broken
-        down from the session's whole record, since the call that replied ends after
-        the reply does."""
+        down here, from the session's whole record: the call that replied ends after
+        the reply does, and a record read while the session writes it can end in a
+        partial line."""
         events = self.events() if self.profiles or self.records else []
         comments = {}
         for name, profile in self.profiles.items():

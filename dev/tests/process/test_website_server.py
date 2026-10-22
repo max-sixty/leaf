@@ -497,7 +497,7 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
     monkeypatch.setattr(
         journey,
         "run_journey",
-        lambda end, version, records=None, commands=None: {
+        lambda end, version: {
             "version": version,
             "comment": {"eventIds": ["comment"]},
         },

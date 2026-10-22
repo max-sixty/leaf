@@ -280,7 +280,7 @@
     "vendor/syntax/yaml.js": "d26d797bdd23183ea23fc5bd145ac49288f4513af32700f080139d1e484e1fcb",
     "vendor/webawesome-chrome.js": "94401eb755da92d8965e8bdea4e831184272cbbc526da4e768dff98d517693ba",
     "vendor/webawesome/chunk-RYNWZ6VA.js": "2d9087146189f1515f7985fc1cb0405344d5382291483bf9f848072577bff67d",
-    "widgets/lf-suggestion.js": "70fd726fa68ff191a7e58489232ea1e55cd60ed38e8a5c122cfbb5ac1895a4f3"
+    "widgets/lf-suggestion.js": "fcd9fb1d5408852a0f83d5c4c880e7b7b22625c9a93c639e78da27d6c38dfab4"
   },
   "replaces": [
     "leaf.js",

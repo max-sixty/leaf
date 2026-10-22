@@ -45,8 +45,8 @@
  * figure they turn on or each as tall as its own picture. A figure is an image, drawing or
  * table, or a widget whose entry says it draws a picture (`x-visual`, painted
  * `data-lf-visual`), so any package's chart counts without this rule naming it. It asks its option list to lay them across instead (`--lf-options-across`,
- * said on the lf-ask and read by its own children; options.css), so as many cards as the
- * lf-ask's width holds stand side by side, and they stack where only one fits. Options
+ * said on the lf-ask and read by its own children; options.css), so the cards stand side
+ * by side where the lf-ask's width holds them all, and stack where it doesn't. Options
  * that each hold what choosing them gives then read as one comparison, each picture
  * above its own pick; a group given `data-width` lays them across its own width.
  * The content decides, so there is no attribute for it: an lf-ask of words alone keeps its

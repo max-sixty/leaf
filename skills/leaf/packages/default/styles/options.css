@@ -519,14 +519,17 @@
       outline: none;
     }
   }
-  /* A group laid across (`--lf-options-across` on its holder) sets titled options in
-   * columns at least 14rem wide and stacks them where only one fits; a card left on the
-   * last row stands beside empty cells. It takes the holder's width rather than the
-   * reading column's. Bare-label rows stay a list.
+  /* A group laid across (`--lf-options-across` on its holder) sets its titled options in
+   * one row where each gets at least 14rem, and stacks them all where they don't, so no
+   * card is left alone on a second row; seven or more always stack. It takes the
+   * holder's width rather than the reading column's. Bare-label rows stay a list.
    *
-   * `auto-fit` keeps a column the spanning Add and Done cells stand in, so the option
-   * count sets each column's floor to its share of the width (`--lf-option-count`);
-   * past six, 14rem is the floor at any width a page grants. */
+   * Each column's floor chooses between the two. While the width holds every option at
+   * 14rem, the floor is one option's share of the width (`--lf-option-count`), so all
+   * fit one row; otherwise it is the whole width, so each takes a row. The clamp's
+   * middle term multiplies the width's shortfall from that row by 999, which pushes it
+   * past one bound or the other. `auto-fit` keeps a column the spanning Add and Done
+   * cells stand in, so the count, not the cells, sets the floor. */
   @container style(--lf-options-across: 1) {
     :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *):has(
         > lf-option > strong
@@ -552,7 +555,14 @@
       }
       grid-template-columns: repeat(
         auto-fit,
-        minmax(min(100%, max(14rem, 100% / var(--lf-option-count))), 1fr)
+        minmax(
+          clamp(
+            100% / var(--lf-option-count),
+            (var(--lf-option-count) * 14rem - 100%) * 999,
+            100%
+          ),
+          1fr
+        )
       );
       max-inline-size: none;
     }

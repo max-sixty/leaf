@@ -1062,7 +1062,7 @@
       &:has(> lf-option:nth-of-type(6):last-of-type) {
         --lf-option-count: 6;
       }
-      grid-template-columns: repeat(auto-fit, minmax(min(100%, max(14rem, 100% / var(--lf-option-count))), 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(clamp(100% / var(--lf-option-count), (var(--lf-option-count) * 14rem - 100%) * 999, 100%), 1fr));
       max-inline-size: none;
     }
   }

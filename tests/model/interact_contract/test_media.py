@@ -7,6 +7,7 @@ import re
 import pytest
 from click.testing import CliRunner
 from interact_support import PAGE, check_findings, comment, fetch, found, publish
+
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import media as media_model

@@ -15,12 +15,6 @@ from interact_support import (
     record_claim,
     working,
 )
-from leaf import cli as cli_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import render_checks as render_checks_model
-from leaf import service as service_model
-from leaf import state as cleanup_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_layout import token_colour
@@ -36,6 +30,12 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import cli as cli_model
+from leaf import delivery as delivery_model
+from leaf import event_log as events_model
+from leaf import render_checks as render_checks_model
+from leaf import service as service_model
+from leaf import state as cleanup_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

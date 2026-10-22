@@ -15,11 +15,6 @@ from journeys.test_render_read_state import (
     _seat_comment,
     _to_upper_third,
 )
-from leaf import event_endpoint as endpoint_model
-from leaf import http as http_model
-from leaf import thread as thread_model
-from leaf.findings import Finding
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_harness import (
@@ -39,6 +34,11 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import event_endpoint as endpoint_model
+from leaf import http as http_model
+from leaf import thread as thread_model
+from leaf.findings import Finding
+from leaf.render_checks import rendered
 
 
 def test_opening_threads_acknowledges_the_first_visible_answer(

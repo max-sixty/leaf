@@ -5,7 +5,6 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, live_url
 from render_harness import (
@@ -24,6 +23,7 @@ from browser.margin import (
     MARGIN_ENTRY_KEYBOARD_PAGE,
     _comment_on,
 )
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

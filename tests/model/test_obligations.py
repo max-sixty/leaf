@@ -10,6 +10,7 @@ from interact_support import (
     refused_on,
     served_obligations,
 )
+
 from leaf import obligations as obligations_model
 from leaf.gesture_words import element_name
 from leaf.passages import SourceReading
@@ -899,6 +900,7 @@ def test_settled_request_repicks_keep_the_new_user_gesture_as_provenance():
 
 def test_todo_validation_does_not_rewrite_obligation_identity_and_refuses_bare_source():
     from interact_support import ModelPage
+
     from leaf.event_contracts import EventRefused, admitted_event
 
     document = page()

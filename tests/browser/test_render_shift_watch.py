@@ -6,7 +6,6 @@ from html import escape
 from urllib.parse import quote
 
 import pytest
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_harness import (
     INPUT_WORK_WATCH_SOURCE,
@@ -19,6 +18,8 @@ from render_harness import (
     open_page,
     take_browser_errors,
 )
+
+from leaf.render_checks import rendered
 
 # A field below a box. A key landing in the field grows the box above it, carrying the
 # field, or grows the field itself, as the page's `data-key` says.

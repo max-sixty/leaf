@@ -4,13 +4,14 @@ import hashlib
 import json
 from zipfile import ZipFile
 
-from leaf.data_contracts import payload_error
 from model.test_playwright_trace_import import (  # noqa: F401 (fixtures)
     PACKAGE,
     imported,
     media_page_fixture,
     native_trace_fixture,
 )
+
+from leaf.data_contracts import payload_error
 
 
 def test_native_trace_import_keeps_pixels_pages_action_errors_and_saved_tree_identity(

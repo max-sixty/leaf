@@ -20,11 +20,11 @@ from pathlib import Path
 
 import click
 import turbohtml
+
 from leaf.registry.contract import is_element_name
 from leaf.registry.layer import merge_layer_declarations
 from leaf.structure import SourceDocument, rel_tokens
 from leaf.thread_context import sample_events, thread_ids
-
 from leaf_dev import ROOT
 from leaf_dev.example_data import (
     catalog_sources,
@@ -46,6 +46,7 @@ DEVELOPER_SOURCES = [
     EXAMPLES_DIR / "developer" / "file-tree.html",
     EXAMPLES_DIR / "developer" / "file-tree-input.html",
     EXAMPLES_DIR / "developer" / "diff-thread-gallery.html",
+    EXAMPLES_DIR / "developer" / "worktree-diffs.html",
     EXAMPLES_DIR / "developer" / "feature-gallery.html",
     EXAMPLES_DIR / "developer" / "visual-review-gallery.html",
     EXAMPLES_DIR / "developer" / "playwright-trace-gallery.html",

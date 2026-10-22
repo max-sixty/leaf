@@ -4,9 +4,6 @@ passes its height on, and where a bounded log keeps its reader."""
 import re
 
 import pytest
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
@@ -29,6 +26,9 @@ from render_harness import (
 from browser.widgets import (
     PLAYGROUND_PAGE,
 )
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

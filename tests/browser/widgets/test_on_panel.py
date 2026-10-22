@@ -3,7 +3,6 @@ identity and order, and what an answered one says."""
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf.render_checks import wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ALL_OBLIGATIONS_IN_ORDER,
@@ -26,6 +25,7 @@ from render_harness import (
 )
 
 from browser.navigation import expect_walk_position
+from leaf.render_checks import wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

@@ -10,7 +10,6 @@ from interact_support import (
     end_work_on,
     working,
 )
-from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
     EXHIBIT_EXTENT,
@@ -34,6 +33,8 @@ from render_harness import (
     wait_for_revision,
     write,
 )
+
+from leaf import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

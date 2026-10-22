@@ -73,13 +73,13 @@ from pathlib import Path
 
 import click
 import psutil
+
 from leaf.codex import private_app_server
 from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
 from leaf.leases import adapter_is_live, hooks_ran, lock_is_held
 from leaf.server import running_server
 from leaf.service import page_claim
-
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     PageClient,
@@ -149,6 +149,7 @@ class Codex(Terminal):
                 "turn/started": "turn_start",
                 "turn/completed": "turn_end",
                 "thread/tokenUsage/updated": "model_response",
+                "thread/closed": "thread_closed",
             }.get(message.get("method"))
             if marker is not None:
                 normalized.append({"type": marker})
@@ -458,11 +459,21 @@ def steps(
 
     started = time.monotonic()
     if transport == "queue":
+        previous_records = len(codex.trace)
         task.request("thread/unsubscribe", {"threadId": task.thread})
+        # SessionEnd runs before shutdown completes; only thread/closed makes
+        # the unloaded thread ready to resume.
+        codex.until(
+            lambda: any(
+                record["type"] == "thread_closed"
+                for record in codex.trace[previous_records:]
+            ),
+            "the task left by its last client did not close",
+        )
         # The instance's SessionEnd retires the evidence that Leaf's hooks run in
         # it (`state.end_harness_instance`).
-        codex.until(
-            lambda: not hooks_ran(task.thread),
+        require(
+            not hooks_ran(task.thread),
             "the task left by its last client did not end its instance",
         )
         task.request("thread/resume", {"threadId": task.thread, **codex.settings})
@@ -609,7 +620,9 @@ def answering(
         nonlocal executable
         # Keep the journey's isolated executable on PATH; a login shell would
         # replace it with the user's Codex and bypass the queue wrapper.
-        config = "allow_login_shell = false\n"
+        # Expire idle, unsubscribed instances immediately so the unload step
+        # observes native SessionEnd without the host's inactivity wait.
+        config = "allow_login_shell = false\nthread_unload_delay_secs = 0\n"
         if sandbox:
             # The journey's state home is under TMPDIR, which the sandbox otherwise
             # lets a command write, where a user's is not. And the journey cannot

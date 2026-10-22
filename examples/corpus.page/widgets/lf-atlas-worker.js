@@ -81,15 +81,15 @@ customElements.define(
           (read) =>
             html`${() => read().text}
             ${Show({
-          get when() {
-            return read().heard;
-          },
-          children: (_visible) =>
-            html` Last heard
-              <time datetime=${() => read().heard} title=${() => read().heard}
-                >${() => read().observed}</time
-              >`,
-        })}`,
+              get when() {
+                return read().heard;
+              },
+              children: (_visible) =>
+                html` Last heard
+                  <time datetime=${() => read().heard} title=${() => read().heard}
+                    >${() => read().observed}</time
+                  >`,
+            })}`,
           props,
         );
     }

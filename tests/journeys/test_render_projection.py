@@ -529,14 +529,14 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(widget).to_have_attribute("data-inspection-scale", "fit")
     expect(widget).to_have_attribute("data-inspection-scope", "focus")
     widget.get_by_text("Inspect comparison", exact=True).click()
-    scope = widget.get_by_role("radiogroup", name="Scope")
+    scope = widget.get_by_role("group", name="Scope", exact=True)
     expect(scope).to_be_visible()
     expect(widget.get_by_role("radio", name="Focus change")).to_be_checked()
     expect(widget.get_by_role("radio", name="Compare")).to_be_checked()
     expect(widget.get_by_role("radio", name="Compare")).to_have_css(
         "box-shadow", "none"
     )
-    opacity = first.locator(".lf-vr-opacity").get_by_role("slider", include_hidden=True)
+    opacity = first.locator("input.lf-vr-opacity")
     expect(opacity).to_be_disabled()
     expect(opacity).to_be_hidden()
 
@@ -747,9 +747,8 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(second).to_be_visible()
     expect(first).to_have_attribute("data-disposition", "looks-right")
     expect(widget).to_have_attribute("data-inspection-mode", "overlay")
-    expect(widget.locator(".lf-vr-opacity")).to_have_js_property("value", 35)
-    case_select.click()
-    widget.get_by_role("option", name="Run list", exact=False).click()
+    expect(widget.locator(".lf-vr-opacity")).to_have_value("35")
+    case_select.select_option("run-list")
     next_button.click()
     expect(case_select).to_have_js_property("value", "run-middle")
     expect(next_button).to_be_focused()
@@ -782,8 +781,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     }
     data_model.cmd_data_set(serve.page_dir, "docs-run", invalid_focus)
     told(page)
-    case_select.click()
-    widget.get_by_role("option", name="Run list", exact=False).click()
+    case_select.select_option("run-list")
     expect(widget.locator(".lf-error")).to_contain_text(
         "focus 120,300 640×220 CSS px falls outside its captured images"
     )

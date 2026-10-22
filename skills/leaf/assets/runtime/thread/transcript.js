@@ -61,12 +61,12 @@ function workingView(read) {
         () =>
           html`<span class="lf-msg-meta">
             ${optional(
-            () => working().timestamp,
-            () =>
-              html`<time datetime=${() => working().timestamp}
-                >${() => working().age}</time
-              >`,
-          )}
+              () => working().timestamp,
+              () =>
+                html`<time datetime=${() => working().timestamp}
+                  >${() => working().age}</time
+                >`,
+            )}
             ${() => working().condition}</span
           >`,
       )}

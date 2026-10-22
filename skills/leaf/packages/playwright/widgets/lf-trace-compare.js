@@ -65,12 +65,12 @@ customElements.define(
                     value=${String(option.index)}
                     checked=${() => read().selected === option.index}
                     onChange=${(event) => {
-                    if (!event.currentTarget.checked) return;
-                    const view = this.#recordings[this.#selected].inspectionView;
-                    this.#selected = option.index;
-                    this.#draw();
-                    this.#recordings[this.#selected].inspectionView = view;
-                  }}
+                      if (!event.currentTarget.checked) return;
+                      const view = this.#recordings[this.#selected].inspectionView;
+                      this.#selected = option.index;
+                      this.#draw();
+                      this.#recordings[this.#selected].inspectionView = view;
+                    }}
                   />
                   <span>${option.label}</span>
                 </label>`,

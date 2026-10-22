@@ -59,16 +59,16 @@ def test_visual_review_controls_keep_keyboard_navigation_local(browser, serve):
     widget.get_by_role("radio", name="Compare").focus()
     page.keyboard.press("Enter")
     expect(widget).to_have_attribute("data-inspection-mode", "compare")
-    selector.click()
-    page.keyboard.press("2")
-    expect(widget.get_by_role("option", name="2 of 3", exact=False)).to_be_focused()
-    page.keyboard.press("ArrowUp")
-    page.keyboard.press("g")
+    selector.focus()
+    next_case = selector.locator("option").nth(1).get_attribute("value")
+    selector.press("ArrowDown")
+    expect(selector).to_have_value(next_case)
+    expect(selector).to_be_focused()
+    selector.press("ArrowUp")
+    expect(selector).to_have_value(initial)
+    selector.press("g")
     expect(page.locator(".lf-go-to-hint")).to_have_count(0)
-    expect(selector).to_have_js_property("value", initial)
-    page.keyboard.press("Escape")
-    expect(selector).to_have_js_property("open", False)
-    expect(widget.get_by_role("combobox", name="Selected visual case")).to_be_focused()
+    expect(selector).to_be_focused()
 
 
 def test_visual_review_empty_navigation_is_unavailable(browser, serve):
@@ -250,7 +250,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     )
     resized(page, 1366, 600)
     widget.get_by_text("Inspect comparison", exact=True).click()
-    gallery_scope = widget.get_by_role("radiogroup", name="Scope")
+    gallery_scope = widget.get_by_role("group", name="Scope", exact=True)
     expect(gallery_scope).to_be_visible()
     expect(widget).to_have_attribute("data-inspection-scope", "focus")
     geometry = widget.evaluate(
@@ -456,13 +456,9 @@ def test_visual_review_discloses_focus_without_distorting_unsupported_browsers(
     case = widget.locator(".lf-vr-case[data-selected]")
     host = case.locator(".lf-vr-shot-host")
     expect(widget).to_have_attribute("data-inspection-scope", "full")
-    expect(widget.get_by_role("radiogroup", name="Scope")).to_be_hidden()
+    expect(widget.get_by_role("group", name="Scope", exact=True)).to_be_hidden()
     scope = widget.locator(".lf-vr-scope-group")
-    scope.evaluate("""group => {
-      group.value = 'focus';
-      group.dispatchEvent(new Event('change', {bubbles: true}));
-    }""")
-    expect(scope).to_have_js_property("value", "full")
+    expect(scope.locator('input[value="full"]')).to_be_checked()
     expect(host.locator("lf-shot")).to_have_attribute("data-lf-shot-focus", "true")
     expect(host.locator("lf-shot")).to_have_attribute("data-lf-shot-crop", "false")
     image = case.locator(".lf-shotframe img").first.evaluate(

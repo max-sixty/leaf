@@ -276,7 +276,7 @@ CONTROL_ARCHETYPES = (
         "name": "visual-review-inspection",
         "source": VISUAL_REVIEW_GALLERY,
         "open": ".lf-vr-inspection-summary",
-        "target": '.lf-vr-mode-group > [value="flip"]',
+        "target": '.lf-vr-mode-group > label:has(input[value="flip"])',
     },
     {
         # A disposition changes both its selected paint and the case's durable review
@@ -2054,8 +2054,8 @@ def test_each_control_archetype_holds_its_neighbours_still(browser, serve, arche
     assert before["names"], f"{archetype['name']} has no neighbouring control to hold"
 
     if option := archetype.get("option"):
-        control.click()
-        page.get_by_role("option", name=option, exact=False).click()
+        value = control.locator("option").filter(has_text=option).get_attribute("value")
+        control.select_option(value)
     else:
         control.click()
     round_trip(page)
@@ -2440,7 +2440,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     # The command reference, which is a dialog and owes the most of any of them.
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_be_visible()
-    search = page.locator(".lf-command-reference-search input")
+    search = page.get_by_role("combobox", name="Search commands")
     assert search.evaluate(
         "input => input.ariaControlsElements?.[0] === document.querySelector('.lf-command-reference-results')"
     )

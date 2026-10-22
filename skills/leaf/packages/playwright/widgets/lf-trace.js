@@ -2028,7 +2028,7 @@ customElements.define(
               <div
                 class="lf-trace-image-viewport"
                 ref=${(node) => (this.#viewport = node)}
-                style=${() => ({ aspectRatio: read().extent ? `${read().extent.width} / ${read().extent.height}` : undefined, maxWidth: read().extent ? `${read().extent.width}px` : undefined })}
+                style=${() => ({ "aspect-ratio": read().extent ? `${read().extent.width} / ${read().extent.height}` : undefined, "max-width": read().extent ? `${read().extent.width}px` : undefined })}
                 data-sized=${() => (read().extent ? "" : undefined)}
               ></div>
             </div>

@@ -47,6 +47,8 @@
 }
 :scope:is(lf-shot) .lf-shotcomparison {
   position: relative;
+  /* Contain image and divider layers beneath the sticky caption rail. */
+  isolation: isolate;
   grid-area: 2 / 1;
   aspect-ratio: var(--lf-shot-ratio);
   overflow: clip;

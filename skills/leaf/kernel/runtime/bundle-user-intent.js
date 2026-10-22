@@ -1697,22 +1697,22 @@ function watchCodeBlocks() {
           tabFromBlock(copy, pre, events.signal);
           pre.addEventListener(
             "pointerenter",
-            () => copy.classList.add("lf-code-copy-hover"),
+            () => copy.classList.toggle("lf-code-copy-hover", true),
             options
           );
           pre.addEventListener(
             "pointerleave",
-            () => copy.classList.remove("lf-code-copy-hover"),
+            () => copy.classList.toggle("lf-code-copy-hover", false),
             options
           );
           pre.addEventListener(
             "focus",
-            () => copy.classList.add("lf-code-copy-focused"),
+            () => copy.classList.toggle("lf-code-copy-focused", true),
             options
           );
           pre.addEventListener(
             "blur",
-            () => copy.classList.remove("lf-code-copy-focused"),
+            () => copy.classList.toggle("lf-code-copy-focused", false),
             options
           );
         }
@@ -6303,8 +6303,8 @@ function workingView(read) {
             ${optional(
       () => working().timestamp,
       () => default2`<time datetime=${() => working().timestamp}
-                >${() => working().age}</time
-              >`
+                  >${() => working().age}</time
+                >`
     )}
             ${() => working().condition}</span
           >`

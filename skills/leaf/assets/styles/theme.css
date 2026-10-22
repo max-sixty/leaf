@@ -1,4 +1,3 @@
-
 /* Leaf default theme, vendored into each page directory by `page init` and served
  * at /theme.css. Four tiers, cheapest first: tokens, element styles for plain
  * semantic HTML, class idioms (one rule + one catalog line each), and

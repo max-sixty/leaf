@@ -3090,8 +3090,11 @@ export function createFloatingPanel({
           get when() {
             return tab().count !== null;
           },
-          children: (_visible) => [" ", nativeHtml`<span class="lf-fp-count"
-          data-zero=${() => (!tab().count ? "" : undefined)}>${() => tab().count}</span>`],
+          children: (_visible) => [
+            " ",
+            nativeHtml`<span class="lf-fp-count"
+          data-zero=${() => (!tab().count ? "" : undefined)}>${() => tab().count}</span>`,
+          ],
         })}
       </button>`,
     })}</div>`;

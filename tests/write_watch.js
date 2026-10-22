@@ -121,6 +121,9 @@
         node.nodeName,
         text,
         [...attributes].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+        // Visual response controls can share their words while naming different
+        // captured targets. That action identity lives in the native ref's property.
+        node.lfAnchor ?? null,
       ]);
       const inner = children.map((child) => valueAt(child, boundary)).join(",");
       const shadow = shadows.has(node) ? valueAt(shadows.get(node), boundary) : null;

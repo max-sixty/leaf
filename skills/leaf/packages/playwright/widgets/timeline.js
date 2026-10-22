@@ -573,65 +573,65 @@ export class RecordingTimeline {
             >
               <div class="lf-trace-ruler"></div>
               ${Show({
-              get when() {
-                return read().moments.length;
-              },
-              children: (_visible) =>
-                html` <div class="lf-trace-lane lf-trace-lane-moments">
-                  ${labels("moments")}
-                </div>`,
-            })}
+                get when() {
+                  return read().moments.length;
+                },
+                children: (_visible) =>
+                  html` <div class="lf-trace-lane lf-trace-lane-moments">
+                    ${labels("moments")}
+                  </div>`,
+              })}
               ${Show({
-              get when() {
-                return read().inputBars.length;
-              },
-              children: (_visible) =>
-                html` <div class="lf-trace-lane lf-trace-lane-input">
-                  ${labels("inputs")}
-                  ${For({
-                  get each() {
-                    return read().sends;
-                  },
-                  keyed: (item) => item.id,
-                  children: (item) =>
-                    html` <span
-                      class="lf-trace-input-send"
-                      data-pick="input"
-                      data-id=${() => item().id}
-                      data-tip=${() => item().title}
-                      data-current=${() => (item().current ? "" : undefined)}
-                      style=${() => ({ "--t": String(item().t) })}
-                    ></span>`,
-                })}
-                  ${bars("inputBars")}
-                </div>`,
-            })}
+                get when() {
+                  return read().inputBars.length;
+                },
+                children: (_visible) =>
+                  html` <div class="lf-trace-lane lf-trace-lane-input">
+                    ${labels("inputs")}
+                    ${For({
+                    get each() {
+                      return read().sends;
+                    },
+                    keyed: (item) => item.id,
+                    children: (item) =>
+                      html` <span
+                        class="lf-trace-input-send"
+                        data-pick="input"
+                        data-id=${() => item().id}
+                        data-tip=${() => item().title}
+                        data-current=${() => (item().current ? "" : undefined)}
+                        style=${() => ({ "--t": String(item().t) })}
+                      ></span>`,
+                  })}
+                    ${bars("inputBars")}
+                  </div>`,
+              })}
               ${Show({
-              get when() {
-                return read().calls.length;
-              },
-              children: (_visible) =>
-                html` <div
-                  class="lf-trace-lane lf-trace-lane-calls"
-                  style=${() => ({ "--lf-trace-rows": String(read().rows) })}
-                >
-                  ${bars("calls")}
-                </div>`,
-            })}
+                get when() {
+                  return read().calls.length;
+                },
+                children: (_visible) =>
+                  html` <div
+                    class="lf-trace-lane lf-trace-lane-calls"
+                    style=${() => ({ "--lf-trace-rows": String(read().rows) })}
+                  >
+                    ${bars("calls")}
+                  </div>`,
+              })}
               <div class="lf-trace-lane lf-trace-lane-captures">
                 ${For({
-                get each() {
-                  return read().captures;
-                },
-                keyed: (capture) => capture.id,
-                children: (capture) =>
-                  html` <span
-                    class="lf-trace-capture"
-                    data-image=${() => (capture().image ? "" : undefined)}
-                    data-current=${() => (capture().current ? "" : undefined)}
-                    style=${() => ({ "--t": String(capture().t) })}
-                  ></span>`,
-              })}
+                  get each() {
+                    return read().captures;
+                  },
+                  keyed: (capture) => capture.id,
+                  children: (capture) =>
+                    html` <span
+                      class="lf-trace-capture"
+                      data-image=${() => (capture().image ? "" : undefined)}
+                      data-current=${() => (capture().current ? "" : undefined)}
+                      style=${() => ({ "--t": String(capture().t) })}
+                    ></span>`,
+                })}
               </div>
               <div class="lf-trace-playhead" aria-hidden="true">
                 <span

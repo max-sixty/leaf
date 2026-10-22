@@ -37,13 +37,7 @@ import {
   openLayer,
   openerOf,
 } from "./focus.js";
-import {
-  html,
-  createView,
-  createEffect,
-  For,
-  Show,
-} from "/vendor/browser-runtime.js";
+import { html, createView, createEffect, For, Show } from "/vendor/browser-runtime.js";
 import { iconElement } from "./icons.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import { coarsePointer, pressIsKeyboardActivation } from "./pointer.js";

@@ -24,36 +24,36 @@ customElements.define(
             html`<details class="atlas-tree">
               <summary>Worktree evidence</summary>
               ${Show({
-          get when() {
-            return read().record;
-          },
-          fallback: html`<p>No worktree snapshot.</p>`,
-          children: (record) =>
-            html` <dl class="facts">
-                <dt>Branch</dt>
-                <dd>${() => record().branch}</dd>
-                <dt>Revision</dt>
-                <dd>${() => record().base}…${() => record().head}</dd>
-                <dt>Against base</dt>
-                <dd>
-                  ↑${() => record().ahead} ↓${() => record().behind} ·
-                  +${() => record().additions} −${() => record().deletions} ·
-                  ${() => record().commits} commits
-                </dd>
-                <dt>Tests</dt>
-                <dd>${() => record().tests}</dd>
-                <dt>Observed</dt>
-                <dd>
-                  <time datetime=${() => record().observedAt}
-                    >${() => record().observedAt}</time
-                  >
-                </dd>
-              </dl>
-              <h4>Files</h4>
-              <pre>${() => record().files ?? "No files recorded."}</pre>
-              <h4>Diff</h4>
-              <pre>${() => record().diff ?? "No diff recorded."}</pre>`,
-        })}
+                get when() {
+                  return read().record;
+                },
+                fallback: html`<p>No worktree snapshot.</p>`,
+                children: (record) =>
+                  html` <dl class="facts">
+                      <dt>Branch</dt>
+                      <dd>${() => record().branch}</dd>
+                      <dt>Revision</dt>
+                      <dd>${() => record().base}…${() => record().head}</dd>
+                      <dt>Against base</dt>
+                      <dd>
+                        ↑${() => record().ahead} ↓${() => record().behind} ·
+                        +${() => record().additions} −${() => record().deletions} ·
+                        ${() => record().commits} commits
+                      </dd>
+                      <dt>Tests</dt>
+                      <dd>${() => record().tests}</dd>
+                      <dt>Observed</dt>
+                      <dd>
+                        <time datetime=${() => record().observedAt}
+                          >${() => record().observedAt}</time
+                        >
+                      </dd>
+                    </dl>
+                    <h4>Files</h4>
+                    <pre>${() => record().files ?? "No files recorded."}</pre>
+                    <h4>Diff</h4>
+                    <pre>${() => record().diff ?? "No diff recorded."}</pre>`,
+              })}
             </details>`,
           props,
         );

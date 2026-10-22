@@ -4,7 +4,6 @@ import {
   createMemo as createMemo2,
   createRoot as createRoot2,
   createEffect as createEffect2,
-  createTrackedEffect as createTrackedEffect2,
   flush as flush5,
   untrack as untrack2
 } from "/vendor/solid.js";

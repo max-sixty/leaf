@@ -46,18 +46,18 @@ customElements.define(
           (read) =>
             html` <span class="lf-state">${() => read().state}</span>
               ${Show({
-          get when() {
-            return read().doing;
-          },
-          children: (_visible) =>
-            html`<span class="lf-doing">${() => read().doing}</span>`,
-        })}
+                get when() {
+                  return read().doing;
+                },
+                children: (_visible) =>
+                  html`<span class="lf-doing">${() => read().doing}</span>`,
+              })}
               ${Show({
-          get when() {
-            return read().quiet;
-          },
-          children: (_visible) => html`<span class="lf-cold">quiet</span>`,
-        })}
+                get when() {
+                  return read().quiet;
+                },
+                children: (_visible) => html`<span class="lf-cold">quiet</span>`,
+              })}
               <span class="lf-heard">last heard ${() => read().heard}</span>`,
           props,
         );

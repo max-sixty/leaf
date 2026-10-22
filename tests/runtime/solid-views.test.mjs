@@ -9,12 +9,14 @@ test("updating one field leaves an independent binding and native editor alone",
   let labelReads = 0;
   const view = createView(
     host,
-    (props) => html`
-    <label>${() => {
+    (props) =>
+      html` <label
+          >${() => {
       labelReads++;
       return props().label;
-    }}<input /></label>
-    <output>${() => props().count}</output>`,
+    }}<input
+        /></label>
+        <output>${() => props().count}</output>`,
     { label: "Notes", count: 0 },
   );
   const input = host.querySelector("input");

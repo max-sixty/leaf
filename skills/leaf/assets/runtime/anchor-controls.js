@@ -168,8 +168,8 @@ export function createAnchorControls({
   }
 
   /** @param {() => {anchor: object, label: string, key?: string}} read */
-  const visualActionTemplate = (read) => html`
-    <button
+  const visualActionTemplate = (read) =>
+    html`<button
       type="button"
       class="lf-visual-action lf-quiet lf-ui"
       data-lf-gen="1"
@@ -179,8 +179,7 @@ export function createAnchorControls({
       prop:textContent=${() => `Respond to ${read().label}`}
       onFocus=${focusVisualAction}
       onClick=${activateVisualAction}
-    ></button>
-  `;
+    ></button>`;
 
   function reconcileVisualActions(groups) {
     const kept = new Set();

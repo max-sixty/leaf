@@ -9,7 +9,16 @@ import { adapt, seam } from "./vendor.mjs";
 export const solidPath = "vendor/solid.js";
 
 /** Keep native focus, editing and iframe state when Solid reorders retained nodes. */
-export function preserveSolidMoves(source) {
+function preserveSolidMoves(source) {
+  // This branch already knows the displaced node remains in the next list. Keep
+  // it attached while inserting its predecessor; replacing it detaches a retained
+  // row and can rebuild equivalent intermediate lists before putting it back.
+  source = seam(
+    source,
+    "parentNode.replaceChild(newNode, a[aStart++]);",
+    "parentNode.insertBefore(newNode, a[aStart]);",
+    "Solid retained list insertion",
+  );
   const edits = [];
   const visit = (node) => {
     if (!node || typeof node !== "object") return;
@@ -59,7 +68,7 @@ function leafReplace(parent, next, previous) {
  * types, but must not keep a detached container (and its entire graph) alive.
  * Weak state and weak enumeration preserve synchronous event registration.
  */
-export function weakSolidContainers(source) {
+function weakSolidContainers(source) {
   source = seam(
     source,
     "const delegatedContainers = new Map();",
@@ -118,7 +127,7 @@ function* liveDelegatedContainers() {
  * and one spread may rerun for another prop on the same control. Avoid rewriting a
  * value/checked state that the user or an earlier binding has already installed.
  */
-export function quietSolidForms(source) {
+function quietSolidForms(source) {
   source = seam(
     source,
     'else node[prop] = value ?? "";',
@@ -145,7 +154,7 @@ export function quietSolidForms(source) {
  * lets a template mounted by a ref overwrite its enclosing traversal's cursor.
  * Refs may also mount children, which must not enter the enclosing static walk.
  */
-export function solidTemplates(source) {
+function solidTemplates(source) {
   source = seam(
     source,
     "node.template.content.firstChild.cloneNode(true)",
@@ -209,7 +218,7 @@ export const solidMoves = () =>
     },
   ]);
 
-export const solidNamespace = () =>
+const solidNamespace = () =>
   [
     'export { createSignal, createMemo, createRoot, createEffect, createTrackedEffect, createProjection, flush, untrack, For, Show, onCleanup } from "solid-js";',
     'export { render, insert, spread } from "@solidjs/web";',

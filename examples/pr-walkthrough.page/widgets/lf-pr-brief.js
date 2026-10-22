@@ -108,25 +108,25 @@ customElements.define(
                         </caption>
                         <tbody>
                           ${For({
-                get each() {
-                  return read().checks;
-                },
-                keyed: (check) => check[0],
-                children: (check) =>
-                  html` <tr>
-                    <th scope="row">${() => check()[0]}</th>
-                    <td>${() => check()[1]}</td>
-                  </tr>`,
-              })}
+                            get each() {
+                              return read().checks;
+                            },
+                            keyed: (check) => check[0],
+                            children: (check) =>
+                              html` <tr>
+                                <th scope="row">${() => check()[0]}</th>
+                                <td>${() => check()[1]}</td>
+                              </tr>`,
+                          })}
                           ${Show({
-                get when() {
-                  return !read().checks.length;
-                },
-                children: (_visible) =>
-                  html`<tr>
-                    <td>No checks reported</td>
-                  </tr>`,
-              })}
+                            get when() {
+                              return !read().checks.length;
+                            },
+                            children: (_visible) =>
+                              html`<tr>
+                                <td>No checks reported</td>
+                              </tr>`,
+                          })}
                         </tbody>
                       </table>
                       <p class="pr-observed" title=${() => read().record.observedAt}>

@@ -5232,8 +5232,7 @@ function createAnchorControls({
     const control = event.currentTarget;
     commentOnTarget({ anchor: control.lfAnchor });
   }
-  const visualActionTemplate = (read) => default2`
-    <button
+  const visualActionTemplate = (read) => default2`<button
       type="button"
       class="lf-visual-action lf-quiet lf-ui"
       data-lf-gen="1"
@@ -5243,8 +5242,7 @@ function createAnchorControls({
       prop:textContent=${() => `Respond to ${read().label}`}
       onFocus=${focusVisualAction}
       onClick=${activateVisualAction}
-    ></button>
-  `;
+    ></button>`;
   function reconcileVisualActions(groups) {
     const kept = /* @__PURE__ */ new Set();
     for (const [seat, targets2] of groups) {
@@ -8429,8 +8427,11 @@ function createFloatingPanel({
       get when() {
         return tab().count !== null;
       },
-      children: (_visible) => [" ", default2`<span class="lf-fp-count"
-          data-zero=${() => !tab().count ? "" : void 0}>${() => tab().count}</span>`]
+      children: (_visible) => [
+        " ",
+        default2`<span class="lf-fp-count"
+          data-zero=${() => !tab().count ? "" : void 0}>${() => tab().count}</span>`
+      ]
     })}
       </button>`
   })}</div>`;

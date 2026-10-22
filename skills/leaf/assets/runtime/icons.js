@@ -2,7 +2,6 @@
    module: composing/selection.js builds its response button with an icon as it
    evaluates. */
 
-
 // Built-in margin entry faces use one stroked, currentColor icon vocabulary. Reaction tokens
 // are authored content and may supply emoji; structural Leaf faces keep their line
 // weight and baseline stable across systems.

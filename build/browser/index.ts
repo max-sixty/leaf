@@ -4,7 +4,6 @@ export {
   createMemo,
   createRoot,
   createEffect,
-  createTrackedEffect,
   flush,
   untrack,
 } from "@solidjs/signals";

@@ -1849,13 +1849,13 @@ _LAYER_SHEET_ORDER = [
 ]
 
 
-def test_the_injected_control_face_is_a_default_only_the_document_reads():
+def test_the_injected_control_face_is_a_default_in_document_and_shadow_roots():
     """`.lf-ui-face` is a native default. `offer()` writes it on native controls, and a
     component that states the same property overrides it, so the face stands first in
     the layer's page-side order and loses on position. It keeps a class's specificity,
     so the page's own element rules lose to it. And a declared tree copies shadow.css,
-    where lf-diff marks its line numbers `lf-ui`, so the selector reaches only elements
-    under the document's root.
+    where native controls get their UI face while the diff's line numbers, marked
+    only `lf-ui`, keep the reader's typography.
 
     Each of the three has broken once: stated in theme.css after shadow.css, Send drew
     near-black instead of the accent; at the head of shadow.css as a plain `.lf-ui`, the
@@ -1872,9 +1872,9 @@ def test_the_injected_control_face_is_a_default_only_the_document_reads():
         if any(name in _FACE for name, _value in declarations)
     ]
     assert faces, "no face was read from the layer's sheets — the reading is broken"
-    # Public controls and injected controls share this one default; its root boundary
-    # and class weight still protect shadow content and win over page element rules.
-    control_face = ":where(:root) :is(.lf-ui-face, .button, .field)"
+    # Public and injected controls share one default. Explicit control classes protect
+    # non-control shadow content and keep precedence over page element rules.
+    control_face = ":where(:root, :host) :is(.lf-ui-face, .button, .field)"
     assert faces[0] == ("assets/shadow.css", control_face), faces[0]
     defaults = [
         face

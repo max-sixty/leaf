@@ -526,7 +526,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     # out of a press's way, until a tap stands the user on the block: the touch form of
     # hover.
     touch_control = touch.locator(".lf-chrome .lf-code-copy")
-    touch_button = touch_control.get_by_role("button")
+    touch_button = touch_control
     expect(touch_control).to_have_count(1)
     expect(touch_control).to_have_css("opacity", "0")
     expect(touch_control).to_have_css("pointer-events", "none")
@@ -665,7 +665,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     expect(numbered_pre).to_be_focused()
     expect(numbered_control).to_have_css("opacity", "1")
     touch.evaluate("navigator.clipboard.writeText('cleared')")
-    numbered_control.get_by_role("button").tap()
+    numbered_control.tap()
     copied(widget)
     touch.locator("#title").tap()
     expect(numbered_pre).to_have_attribute("tabindex", "0")

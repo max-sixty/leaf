@@ -1,52 +1,37 @@
 # Packages
 
-A package is a directory Leaf adds to a page. It can hold a theme, widgets, helper
-modules, libraries and external-data contracts. `page init` combines Leaf's kernel with
-the page's packages, checks the result, and copies it into the page as the page's
-layer. Packages need no browser build or npm command: write widgets and helpers as
-JavaScript the browser loads directly, importing the shipped `/runtime/widget-api.js`.
+A package is a directory Leaf adds to a page: a theme, widgets, helper modules,
+libraries and external-data contracts. `page init` combines Leaf's kernel with the
+page's packages, checks the result and copies it into the page as the page's layer.
+Packages need no browser build or npm: write widgets and helpers as JavaScript the
+browser loads directly, importing Leaf only through `/runtime/widget-api.js`.
 
 This file covers what every package follows and how to declare a widget.
-[package-themes.md](package-themes.md) covers packages that change the theme, and
+[package-themes.md](package-themes.md) covers theme rules, and
 [package-data.md](package-data.md) the state a widget records, references between
 widgets, and external data.
 
 ## Package reach
 
 Leaf's bundled `default` package is on every page; any other package is on only the
-pages that select it. Presentation or behavior used by one page stays in that page's
+pages that select it. Presentation or behavior one page uses stays in that page's
 `<style>`, inline modules or `page/`. Anything reused belongs in a package:
-
-```bash
-leaf package init PACKAGE
-leaf package init PACKAGE --widget lf-callout
-leaf package check PACKAGE
-leaf package install PACKAGE
-leaf package run NAME SCRIPT [ARGS]...
-```
-
-`package init` creates the package's directories, keeping anything already there.
-`--widget TAG` also writes a registry example and a `widgets/TAG.js` module that
-registers and upgrades the element; Leaf refuses a tag or module that already exists.
-Check the package before adding it to a page:
 
 ```bash
 leaf package init packages/callout --widget lf-callout
 leaf package check packages/callout
 leaf page init --package packages/callout PAGE
+leaf package install packages/callout
+leaf package run NAME SCRIPT [ARGS]...
 ```
 
-`--package` takes a bare name, which selects an installed or bundled package, or a
-path relative to the project or starting with `~`, such as `./.leaf` or
-`'~/.config/leaf'`. Absolute paths are refused, since the vendored registry is public.
-
-`leaf package install SOURCE` checks the directory and copies it into
-`~/.local/state/leaf/packages/`, so `--package NAME` selects it from any project on this
-machine. The copy holds only the files in the package layout below, so a README and
-tests stay behind. Installing again replaces the copy only if the new one passes its
-check. An installed package overrides a bundled one of the same name. A page records
-the bare name, so re-vendoring it on another machine needs the package installed there
-too.
+`--package` takes a bare name, which selects an installed or bundled package, or a path
+relative to the project or starting with `~`, such as `./.leaf` or `'~/.config/leaf'`;
+absolute paths are refused, since the vendored registry is public. `package install`
+copies the package's layout, without a README or tests, into
+`~/.local/state/leaf/packages/`, where it overrides a bundled package of the same name.
+A page records the bare name, so re-vendoring it on another machine needs the package
+installed there too.
 
 The optional bundled packages are:
 
@@ -83,6 +68,30 @@ package/
 ├── icon.svg            optional replacement by path
 ```
 
+A package's `icon.svg`, `widgets/` and `vendor/` files replace files at the same path,
+and `runtime/` modules can add paths but not replace the kernel's. A replacement
+`icon.svg` must contain an element with `class="lf-tone"`, which Leaf colours with the
+page's status.
+
+Registries merge in order: kernel, `default`, then the selected packages in command
+order. A later package replaces an element or idiom entry whole and can't delete one.
+Shared `$` entries merge by member, and a map member merges one level further by key;
+`null` deletes at either level if the merged registry still validates. `page init`
+records the selected packages in `$layer.packages`, so a plain re-init selects them
+again, and `page init --no-packages PAGE` clears the list.
+
+Name each file directly under `instructions/` `<audience>.md`, such as `author.md` or
+`worker.md`, and start it with its first rule, since Leaf adds a heading naming the
+package. Files for the same audience join in package order. A data contract's
+`instructions` map holds text per audience beside its schema, and a registry entry's
+`x-instructions` is one string for the page author. `leaf page instructions` composes
+them as a JSON map from audience to text (`page-authoring.md`, "Read the registry"),
+and `--contract` selects a contract's instructions directly:
+
+```bash
+leaf page instructions PAGE --contract unified-diff | jq -er '.producer'
+```
+
 ### Widget interface
 
 Keep a widget simple: show the evidence and actions the reader needs, since every extra
@@ -94,28 +103,21 @@ writing widget CSS, and reuse Leaf's thread symbol, comment box and keyboard hin
 
 ### Styles and composition
 
-A widget package's rules rank below the Layouts, a theme package's (one that declares
-no widgets) above them, and the page's own `<style>` above both. In layer terms: Leaf
-orders its cascade layers `lf-reset`, `lf-base`, `lf-layouts`, `lf-shadow`, `lf-theme`,
-`lf-controls`, `lf-state`. In the document, a widget package's `theme.css` and `shadow.css` go in
-`lf-base` and a theme package's in `lf-theme`. In a shadow root, each package's
-`shadow.css` goes in `lf-shadow`, or `lf-theme` for a theme package, and Layout rules
-don't reach inside. The page's own CSS is unlayered. An optional `controls.css` grants a theme package
-explicit access to generated controls from `lf-controls`, above ordinary theme rules
-and below semantic state. Its selectors retain native CSS meaning. A widget package already styles its own controls in `theme.css`; `controls.css` belongs
-to theme packages.
-Page authors grant access per stylesheet (`page-layout.md`, "Page CSS and Leaf's controls"). `!important` and inline styles are not ways to customise a
+Leaf orders its cascade layers `lf-reset`, `lf-base`, `lf-layouts`, `lf-shadow`,
+`lf-theme`, `lf-controls`, `lf-state`, and the page's own CSS is unlayered. A widget
+package's `theme.css` and `shadow.css` go in `lf-base`, below the Layouts; a theme
+package, one that declares no widgets, goes in `lf-theme`, above them. In a shadow root,
+each package's `shadow.css` goes in `lf-shadow`, or `lf-theme` for a theme package, and
+Layout rules don't reach inside. Put a dependency's default styles in `lf-base` with
+`inBaseLayer(text)` (`module-authoring.md`, "Shadow stages and styles").
+
+Leaf's own controls and comment marks are unlayered, so a theme package's rule for
+`button` styles the page's buttons, not the controls widgets build. A theme package
+reaches those controls only through `controls.css`, which goes in `lf-controls`, above
+ordinary theme rules and below semantic state; a widget package styles its own controls
+in `theme.css`. Page authors grant access per stylesheet (`page-layout.md`, "Page CSS
+and Leaf's controls"). `!important` and inline styles are not ways to customise a
 widget.
-
-An element with `hidden` is always `display: none`, in the document and in shadow
-trees, except `hidden="until-found"`. Give a box that must stay laid out while unseen a
-state of its own.
-
-Leaf's own controls and comment marks are unlayered, and a theme package's rule for
-`button` styles the page's buttons, not the controls widgets build (`page-layout.md`,
-"Page CSS and Leaf's controls"). Change Leaf's colours and type through the theme
-inputs below. Put a dependency's default styles in `lf-base` with `inBaseLayer(text)`
-(`module-authoring.md`, "Shadow stages and styles").
 
 Leaf wraps each widget package's sheets in `@scope`, rooted at the package's widget
 tags, or at `:host` in a shadow root. A rule for `p` therefore styles paragraphs inside
@@ -132,66 +134,34 @@ Document selectors don't reach into a shadow root. A declared `x-shadow` root bu
 for changes to both, `shadow.css` for a widget's internals, and `::part` to expose a
 public control.
 
+An element with `hidden` is always `display: none`, in the document and in shadow
+trees, except `hidden="until-found"`. Give a box that must stay laid out while unseen a
+state of its own.
+
 Custom properties come in four kinds:
 
-| Kind                | Owner and supported use                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Theme inputs        | Page authors and themes set them on the root, or on a subtree: colours (`--paper`, `--ink`, `--muted`, `--accent`, `--ok`, `--danger`), faces (`--serif`, `--sans`, `--mono`), type scales, radius (`--r`), the code palette (`--code-*`), focus (`--focus-ring` and `--focus-shadow`, set together), and page geometry (`--col`, `--wide`, `--sidebar`, `--page-pad-start`, `--page-pad-end`). A value derived from an input is computed where it is declared, so setting the input on a subtree doesn't change a derived value it inherits. |
-| Layout declarations | The box that allocates space sets `--lf-full-height`, `--lf-density`, `--lf-block-frame` and `--lf-holds-edge`, as `package-themes.md`, "A theme change", describes.                                                                                                                                                                                                                                                                                                                                                                          |
-| Runtime outputs     | Leaf writes values such as `--lf-root-headers` and anchor geometry. Read them; don't set them.                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| Vendor bridges      | An adapter maps Leaf inputs to a dependency's properties, such as `--diffs-*` and `--plot-background`. Change the Leaf input, not each use.                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Kind                | Owner and supported use                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Theme inputs        | Page authors and themes set them on the root or a subtree: colours (`--paper`, `--ink`, `--muted`, `--accent`, `--ok`, `--danger`), faces (`--serif`, `--sans`, `--mono`), type scales, radius (`--r`), the code palette (`--code-*`), focus (`--focus-ring` and `--focus-shadow`, set together), and page geometry (`--col`, `--wide`, `--sidebar`, `--page-pad-start`, `--page-pad-end`). A derived value is computed where it is declared, so setting an input on a subtree doesn't change a value derived from it above. |
+| Layout declarations | The box that allocates space sets `--lf-full-height`, `--lf-density`, `--lf-block-frame` and `--lf-holds-edge` (`package-themes.md`, "A theme change").                                                                                                                                                                                                                                                                                                                                                                      |
+| Runtime outputs     | Leaf writes values such as `--lf-root-headers` and anchor geometry. Read them; don't set them.                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Vendor bridges      | An adapter maps Leaf inputs to a dependency's properties, such as `--diffs-*` and `--plot-background`. Change the Leaf input, not each use.                                                                                                                                                                                                                                                                                                                                                                                  |
 
 A `--lf-` prefix doesn't make a property an input; most are outputs. A package
 documents any further inputs it supports. No type or colour override may shrink a
 control below its touch target or focus clearance.
 
-A package's `icon.svg`, `widgets/` and `vendor/` files replace files at the same path.
-Import Leaf only through `/runtime/widget-api.js`; `package check` refuses an import of
-any other kernel module, and `runtime/` modules can add paths but not replace the
-kernel's.
-
-Registries merge in order: kernel, `default`, then the selected packages in command
-order, and a later package wins a collision. A later package replaces an element or
-idiom entry whole and can't delete one. Shared `$` entries merge by member, and a map
-member merges one level further by key; `null` deletes at either level if the merged
-registry still validates. `page init` records the selected packages in
-`$layer.packages`, and a plain re-init selects them again;
-`page init --no-packages PAGE` clears the list.
-
-Name each file directly under `instructions/` `<audience>.md`, matching
-`[a-z][a-z0-9-]*\.md`, and start it with its first rule: Leaf adds a heading naming the
-package. Packages define their own audiences, such as `author` or `worker`, and files
-for the same audience join in package order. A data contract's `instructions` map holds
-text per audience beside its schema, and a registry entry's `x-instructions` is one
-string for the page author.
-
-```bash
-leaf page instructions PAGE | jq 'keys'
-leaf page instructions PAGE --use lf-options --use .eyebrow | jq -r '.author // empty'
-leaf page instructions PAGE --contract unified-diff | jq -er '.producer'
-```
-
-`leaf page instructions` returns a JSON map from audience to text. With no selection it
-returns the packages' shared instructions. Each `--use ENTRY` adds that entry's
-`x-instructions` to `author`, along with the entries its `x-example` uses and its
-`x-data` contracts, whose instructions join their own audiences. It reads the layer
-just vendored and any `page/registry.json`, so it works before the page has markup.
-`page-authoring.md`, "Read the registry", says when an author reads each part.
-
-A replacement `icon.svg` must contain an element with `class="lf-tone"`, which Leaf
-colours with the page's status.
-
 ## A widget
 
 An element declaration is a JSON Schema over the element's attributes, plus `x-` keys
 that say how Leaf treats the tag, such as whether a module upgrades it, its action verbs
-and whether it puts an obligation on On me. The merged registry's `$keys` entry defines each
-key; `$state` defines the members of `x-state`, and `$awaits` an obligation's answer. Every
-declaration has a `description` saying what the widget is for and when to use it, and a
-valid `x-example`. The optional `x-instructions` gives the choices and obligations of
-using it. Guidance a workflow shares across elements, such as how to word
-alternatives, goes in the instructions that own that workflow, and the entry points to
-them: an author revising a page re-reads those instructions, not the entry.
+and whether it puts an obligation on On me. The merged registry's `$keys` entry defines
+each key; `$state` defines the members of `x-state`, and `$awaits` an obligation's
+answer. Every declaration has a `description` saying what the widget is for and when to
+use it, and a valid `x-example`. The optional `x-instructions` gives the markup choices
+and obligations of using it. Guidance a workflow shares across elements, such as how to
+word alternatives, goes in the instructions that own that workflow, because an author
+revising a page re-reads those instructions, not the entry.
 
 A `boolean` attribute works as in HTML. Name it for what its presence means and make
 absence the default, as in `lf-diff collapsed` or `lf-shot outlines`.
@@ -219,33 +189,29 @@ state is in [package-data.md, "User state"](package-data.md#user-state).
 ## Seeing it
 
 `leaf package check PACKAGE --render` draws the worked examples of the package's
-widgets, once in a reading column and once in a workspace pane, and prints findings in
-`page check`'s format. Widget findings are advice for the widget's author and don't
-change the exit status; the command fails only when the package check fails or the
-examples can't be drawn. The checks:
+widgets, once in a reading column and once in a workspace pane. Its findings are advice
+for the widget's author and leave the exit status alone:
 
 - `example`: no worked example shows the tag, so no other check can read it.
-- `keeps-first-box`: the widget's box changed size after first paint. Size the widget
-  for first paint as [module-authoring.md, "First
-  paint"](module-authoring.md#first-paint) describes. A widget containing others is
-  named only for the change left once its changed children are back at their first
-  sizes.
-- `grows-with-content`: a box in the widget keeps a fixed height and scrolls inside
-  it, where a widget in normal flow should grow with its content (`page-layout.md`,
-  "Bounds and widths"). The check also finds a fixed height while the widget is empty,
-  by adding a tall block. A box that needs its own scroll, such as an inspector beside a
-  playing recording, or a part that scrolls inside the height a workspace gives it,
-  declares `--lf-holds-height: 1`.
+- `keeps-first-box`: the widget's box changed size after first paint. Size it for first
+  paint as [module-authoring.md, "First paint"](module-authoring.md#first-paint)
+  describes. A widget containing others is named only for the change left once its
+  changed children are back at their first sizes.
+- `grows-with-content`: a box in the widget keeps a fixed height and scrolls inside it,
+  or keeps one while the widget is empty, where a widget in normal flow should grow with
+  its content (`page-layout.md`, "Bounds and widths"). A box that needs its own scroll,
+  such as an inspector beside a playing recording, or a part that scrolls inside the
+  height a workspace gives it, declares `--lf-holds-height: 1`.
 - `shows-context-keys`: a command declares `contextKeys` but no `bindingBadge`, so its
   key works with nothing on the page showing it. Give the command a visible control, or
   set `bindingBadge: null` for a corner badge (`module-input.md`, "Commands and
   keyboard routes"). The check reads only the commands in the example's state, so a
-  command such as a multiple-choice decision's Done needs an example in that state.
+  command that appears in another state, such as a multiple-choice decision's Done,
+  needs an example in that state.
 
 After `leaf page init` re-vendors a page with the package (`serving-pages.md`,
 "Re-vendoring"), run `leaf page check <page> --render`, which reports a module's
 mistakes on the page, such as an upgrade that defines no element or a widget with no
-size, and note the re-vendor in the next stamped version's changelog.
-
-Then put the widget on the page. A widget is reviewed in place: the version that
-answers the user's comment uses it where they asked, and they comment on it there.
+size, and note the re-vendor in the next stamped version's changelog. Then put the
+widget where the user asked for it, in the version that answers their comment, so they
+review it in place.

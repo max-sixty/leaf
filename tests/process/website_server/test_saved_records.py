@@ -13,6 +13,7 @@ import sys
 import tarfile
 import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -235,7 +236,10 @@ def test_saved_website_record_keeps_an_unstamped_revisions_publication_date(
             with PageTransaction(private):
                 pass
 
-        asyncio.run(commit_with_running_loop())
+        # Playwright's session fixture may already own this thread's event loop.
+        # Give the active-loop publication case its own loop regardless of order.
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            executor.submit(asyncio.run, commit_with_running_loop()).result()
         replacement = tmp_path / "replacement"
         shutil.copytree(site, replacement)
         restore(replacement)

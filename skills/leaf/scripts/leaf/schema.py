@@ -686,7 +686,7 @@ MODULE_EXTENSION = (
 )
 # Helper modules have package-owned names; only widget entry names follow tag syntax.
 # Share safe path segments with vendor files, excluding traversal segments.
-BROWSER_FILE = r"(?:(?!\.{1,2}/)[^/\\\x00-\x20?#]+/)*(?!\.{1,2}$)[^/\\\x00-\x20?#]+"
+BROWSER_FILE = r"(?:(?!\.{1,2}/)[^/\\\x00-\x1f]+/)*(?!\.{1,2}$)[^/\\\x00-\x1f]+"
 # What the server exposes from a page: the browser layer, media, immutable revisions,
 # and event-backed version addresses. Agent-side instructions stay vendored but are read
 # only through the CLI.

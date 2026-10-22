@@ -961,13 +961,16 @@ class LocalWorker:
 def local_worker() -> Iterator[LocalWorker]:
     """Serve the built site through `wrangler dev`: the Worker and its page container.
 
-    The patience covers building the container image. Wrangler leaves each container's
+    Build the image before timing HTTP readiness: a cold dependency download is not
+    a Worker startup failure. Wrangler leaves each container's
     `proxy-everything` sidecar running when it exits, so the run serves under a Worker
     name of its own and removes the containers carrying it on the way out.
     """
     out = run_directory(ROOT / ".tmp" / "verify-site")
     name = f"lv-{out.name}"
+    image_tag = f"{name}:latest"
     log = out / "wrangler-dev.log"
+    image = None
     try:
         with (
             tempfile.TemporaryDirectory(prefix="leaf-worker-") as temporary,
@@ -1002,6 +1005,33 @@ def local_worker() -> Iterator[LocalWorker]:
             release = json.loads(
                 (context / ".tmp" / "site" / "_leaf" / "site.json").read_text()
             )["release"]
+            # Warm the same Docker build Wrangler runs for production's amd64
+            # architecture before the bounded server-readiness check starts.
+            # Keep the Dockerfile in Wrangler's config: local image references
+            # are pulled from a registry even when Docker already has them.
+            # Wrangler sends the Dockerfile on stdin, so use the same ignores
+            # for that build and Docker's file-based warm build.
+            shutil.copyfile(
+                context / "Dockerfile.website.dockerignore", context / ".dockerignore"
+            )
+            subprocess.run(
+                [
+                    "docker",
+                    "build",
+                    "--platform",
+                    "linux/amd64",
+                    "--file",
+                    str(context / "Dockerfile.website"),
+                    "--tag",
+                    image_tag,
+                    str(context),
+                ],
+                cwd=ROOT,
+                stdout=output,
+                stderr=subprocess.STDOUT,
+                check=True,
+            )
+            image = image_tag
             config = tomllib.loads((ROOT / "worker" / "wrangler.toml").read_text())
             config.pop("env")
             config["name"] = name
@@ -1056,6 +1086,12 @@ def local_worker() -> Iterator[LocalWorker]:
         if started := listed.stdout.split():
             subprocess.run(
                 ["docker", "rm", "--force", *started],
+                stdout=subprocess.DEVNULL,
+                check=True,
+            )
+        if image is not None:
+            subprocess.run(
+                ["docker", "image", "rm", image],
                 stdout=subprocess.DEVNULL,
                 check=True,
             )

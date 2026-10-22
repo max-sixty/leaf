@@ -1497,7 +1497,9 @@ _TEXT = {
             " fragment), or an http(s) URL"
         )
     ),
-    "dependency-encoded": _captured(lambda v: "encoded dependency path is not allowed"),
+    "dependency-encoded": _captured(
+        lambda v: "decoded dependency path contains a backslash or control character"
+    ),
     "dependency-escapes": _captured(lambda v: "dependency escapes the page"),
     "dependency-outside-page": _captured(
         lambda v: "dependency escapes /page/ and /media/"

@@ -421,7 +421,7 @@ the serve path's validating reader, because it fails open by saying nothing.
 
 ### Reconnect notices
 
-Resume and prompt hooks tell the agent how to restore a page the session still means
+Session-start and prompt hooks tell the agent how to restore a page the session still means
 to serve. They inspect the session's retained claims, including those whose ownership
 has expired. An enabled session service with inactive ownership or no exact live
 server lease emits a reconnect notice with `leaf server start <page>`, which restores
@@ -429,7 +429,7 @@ serving and the delivery of updates. The notice also covers the orphan grace per
 while the old listener may still be running. Stopped services, persistent services,
 developer previews, and pages another session claimed are excluded.
 
-`reconnect.py` reads current health on every resume and prompt and repeats the
+`reconnect.py` reads current health on every session start and prompt and repeats the
 advice until the agent restores serving or explicitly stops or releases the page.
 There is no notification record or reservation. A concurrent stop, transfer or
 recovery may make advice obsolete before it is read. A hook whose lifecycle changed

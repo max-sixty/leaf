@@ -37,12 +37,11 @@ The steps, in order:
   the Stop hook leaves input to the adapter's own turn, and is answered in a turn of
   its own. On `codex-queue` it enters the resumed turn, starting no turn of its own,
   since a queued turn would open on a message in the user's name;
-- `unload`: a comment is sent as the user's next turn starts, before its first tool
-  call, and must enter that turn at its first tool step, starting no turn of its
-  own. On `codex-queue` the user first leaves the task, which unloads it and ends
-  its instance, as the desktop app unloads an idle chat, so nothing the instance
-  ran before the turn proves Leaf's hooks run; over App Server the adapter's own
-  subscription keeps the task loaded;
+- `rejoin`: the user's next turn holds its first shell command at a checkpoint.
+  A comment sent there must enter that turn, starting no turn of its own. On
+  `codex-queue` the user first leaves and rejoins the task. Unsubscribing does not
+  end its instance: Codex keeps idle unsubscribed threads loaded for 30 minutes.
+  The lifecycle suite separately covers a native instance ending;
 - `restart`: with the adapter killed, the user's next turn ends with the agent having
   started it again, and a comment sent afterwards is answered.
 
@@ -76,7 +75,7 @@ import psutil
 from leaf.codex import private_app_server
 from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
-from leaf.leases import adapter_is_live, hooks_ran, lock_is_held
+from leaf.leases import adapter_is_live, lock_is_held
 from leaf.server import running_server
 from leaf.service import page_claim
 
@@ -119,11 +118,13 @@ RESUME_TURN = (
     "call run `printf 'verified\\n'`, then say done. If interrupted and resumed, "
     "skip the remaining shell command and report the interruption."
 )
-# A turn whose first tool call comes after a few sentences, long enough for a comment
-# sent as it starts to arrive before that call.
-UNLOAD_TURN = (
-    "Before any tool call, tell me in three sentences what a release triage board "
-    "is for. Then run `printf 'verified\\n'` in the shell, then say done."
+# The driver releases this command only after admitting the comment. Model prose
+# and host scheduling therefore cannot make the first command finish too early.
+REJOIN_READY = ".leaf-rejoin-ready"
+REJOIN_TURN = (
+    f"Run `while [ ! -e {REJOIN_READY} ]; do sleep 0.1; done; printf 'verified\\n'` "
+    "in the shell in the foreground, with yield_time_ms 30000. "
+    "Then reply with the single word done."
 )
 
 
@@ -459,29 +460,21 @@ def steps(
     started = time.monotonic()
     if transport == "queue":
         task.request("thread/unsubscribe", {"threadId": task.thread})
-        # The instance's SessionEnd retires the evidence that Leaf's hooks run in
-        # it (`state.end_harness_instance`).
-        codex.until(
-            lambda: not hooks_ran(task.thread),
-            "the task left by its last client did not end its instance",
-        )
         task.request("thread/resume", {"threadId": task.thread, **codex.settings})
-    previous_turns, previous_commands = len(task.started), len(task.commands)
-    early = task.say(UNLOAD_TURN)
+    previous_turns = len(task.started)
+    early = task.say(REJOIN_TURN)
+    codex.await_command(REJOIN_READY, "the rejoined turn did not reach its checkpoint")
     codex.until(
         lambda: page_claim(page)["turn"] == early,
         f"the claim never named the user's turn {early}",
     )
-    require(
-        not task.running_commands and len(task.commands) == previous_commands,
-        "the turn ran a command before the comment could be sent",
-    )
-    during = user.comment("unload")
+    during = user.comment("rejoin")
+    (Path(codex.settings["cwd"]) / REJOIN_READY).touch()
     codex.settle(
-        lambda: user.answered("unload"),
-        "the comment sent before the turn's first tool call was not answered",
+        lambda: user.answered("rejoin"),
+        "the comment sent at the rejoined turn's checkpoint was not answered",
     )
-    sent.append("unload")
+    sent.append("rejoin")
     details = check_step()
     require(
         any(
@@ -490,13 +483,13 @@ def steps(
                 read_events(page), phase="opened", input_id=during
             )
         ),
-        f"the comment sent before the first tool call did not enter turn {early}",
+        f"the comment sent at the checkpoint did not enter turn {early}",
     )
     require(
         task.started[previous_turns:] == [early],
-        "the comment sent before the first tool call started a turn of its own",
+        "the comment sent at the checkpoint started a turn of its own",
     )
-    step("unload", started, details)
+    step("rejoin", started, details)
 
     started = time.monotonic()
     for process in adapter_processes(executable):

@@ -119,7 +119,7 @@ describe("website page routing", () => {
     const release = manifest.release;
     expect(
       activeFromCookie(
-        `${ACTIVE_COOKIE_PREFIX}-page-examples_triage-board=${release}`,
+        `${ACTIVE_COOKIE_PREFIX}-page-examples%2Ftriage-board=${release}`,
         true,
         root,
         release,
@@ -127,7 +127,7 @@ describe("website page routing", () => {
     ).toBe(true);
     expect(
       activeFromCookie(
-        `${HTTP_ACTIVE_COOKIE_PREFIX}-page-examples_triage-board=${release}`,
+        `${HTTP_ACTIVE_COOKIE_PREFIX}-page-examples%2Ftriage-board=${release}`,
         false,
         root,
         release,
@@ -135,7 +135,7 @@ describe("website page routing", () => {
     ).toBe(true);
     expect(
       activeFromCookie(
-        `${HTTP_ACTIVE_COOKIE_PREFIX}-page-examples_triage-board=${release}`,
+        `${HTTP_ACTIVE_COOKIE_PREFIX}-page-examples%2Ftriage-board=${release}`,
         true,
         root,
         release,
@@ -143,7 +143,7 @@ describe("website page routing", () => {
     ).toBe(false);
     expect(
       activeFromCookie(
-        `${ACTIVE_COOKIE_PREFIX}-page-examples_triage-board=${"b".repeat(64)}`,
+        `${ACTIVE_COOKIE_PREFIX}-page-examples%2Ftriage-board=${"b".repeat(64)}`,
         true,
         root,
         release,
@@ -156,8 +156,20 @@ describe("website page routing", () => {
       activeFromCookie(`${ACTIVE_COOKIE_PREFIX}=${release}`, true, root, release),
     ).toBe(false);
     expect(activeFromCookie(null, true, root, release)).toBe(false);
+    // A page's activation must not alias another path, including the root sentinel.
+    const roots = ["/", "/root", "/examples/a_b", "/examples/a/b", "/examples/a%2Fb"];
+    expect(activeCookie(true, "/review(draft)", release)).toBe(
+      `${ACTIVE_COOKIE_PREFIX}-page-review%28draft%29=${release}; Path=/; Secure; HttpOnly; SameSite=Lax`,
+    );
+    for (const selected of roots) {
+      const cookie = activeCookie(true, selected, release).split(";", 1)[0];
+      for (const candidate of roots)
+        expect(activeFromCookie(cookie, true, candidate, release)).toBe(
+          candidate === selected,
+        );
+    }
     expect(activeCookie(true, root, release)).toBe(
-      `${ACTIVE_COOKIE_PREFIX}-page-examples_triage-board=${release}; Path=/; Secure; HttpOnly; SameSite=Lax`,
+      `${ACTIVE_COOKIE_PREFIX}-page-examples%2Ftriage-board=${release}; Path=/; Secure; HttpOnly; SameSite=Lax`,
     );
     expect(activeCookie(false, "/", release)).toBe(
       `${HTTP_ACTIVE_COOKIE_PREFIX}-root=${release}; Path=/; HttpOnly; SameSite=Lax`,

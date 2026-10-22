@@ -46,6 +46,7 @@ DEVELOPER_SOURCES = [
     EXAMPLES_DIR / "developer" / "file-tree.html",
     EXAMPLES_DIR / "developer" / "file-tree-input.html",
     EXAMPLES_DIR / "developer" / "diff-thread-gallery.html",
+    EXAMPLES_DIR / "developer" / "worktree-diffs.html",
     EXAMPLES_DIR / "developer" / "feature-gallery.html",
     EXAMPLES_DIR / "developer" / "visual-review-gallery.html",
     EXAMPLES_DIR / "developer" / "playwright-trace-gallery.html",

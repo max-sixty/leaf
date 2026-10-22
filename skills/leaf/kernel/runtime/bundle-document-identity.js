@@ -375,7 +375,7 @@ import {
 import {
   LIVE_ROOT,
   PENDING,
-  PRESENTATION_ORDER,
+  PRESENTATION_PHASE,
   actionForWidget,
   agentLabel,
   anchorKey,
@@ -385,6 +385,7 @@ import {
   applicationState,
   bindQueuedWork,
   createMemo,
+  createPresentationFlow,
   createSignal,
   discussed,
   documentChanged,
@@ -408,6 +409,7 @@ import {
   reactionsAt,
   readApplication,
   readPart,
+  renderCommit,
   revisionLabel,
   runWithOwner,
   runtime,
@@ -2146,6 +2148,7 @@ function createSelectionComposer({
 }
 
 // runtime/projection-watch.js
+var projections = createPresentationFlow(bindQueuedWork);
 var [presentations, setPresentations] = createSignal(0, { ownedWrite: true });
 document.addEventListener(
   PRESENTATION,
@@ -2153,46 +2156,56 @@ document.addEventListener(
 );
 function watchProjection(owner, paint, ready = null) {
   let key = 0;
-  let queued = false;
-  let following = null;
+  let following = [];
   let connected = false;
+  let task = null;
   const update = () => {
-    if (queued) return;
-    queued = true;
-    queueMicrotask(() => {
-      queued = false;
-      if (connected && owner.isConnected) draw(key);
+    if (!task) return;
+    void task.enqueue(() => {
+      if (connected && owner.isConnected) return draw(key);
     });
   };
   const draw = readingPaint(owner, () => {
     if (ready !== null && !untrack(ready)) return draw.forget();
-    following?.();
-    let outcome;
-    following = watchReaction(
-      () => {
-        try {
-          presentations();
-          outcome = { value: paint() };
-        } catch (error) {
-          outcome = { error };
+    for (const stop2 of following) stop2();
+    const generation = following = [];
+    const run = (callback) => {
+      let outcome;
+      const stop2 = watchReaction(
+        () => {
+          try {
+            outcome = { value: callback() };
+          } catch (error) {
+            outcome = { error };
+          }
+        },
+        () => {
+          key += 1;
+          update();
         }
-      },
+      );
+      if (connected && following === generation) generation.push(stop2);
+      else stop2();
+      if ("error" in outcome) throw outcome.error;
+      return outcome.value;
+    };
+    return renderCommit(
       () => {
-        key += 1;
-        update();
+        presentations();
+        return paint();
+      },
+      {
+        run,
+        bind: bindQueuedWork,
+        current: () => connected && owner.isConnected && following === generation
       }
-    );
-    if (!connected) {
-      following();
-      following = null;
-    }
-    if ("error" in outcome) throw outcome.error;
-    return outcome.value;
+    ).ready;
   });
   let stopProof = null;
   const stopLifetime = watchOwner(owner, {
     connect() {
       connected = true;
+      task = projections.task();
       if (ready)
         stopProof = watchPresentation(() => draw.owes(key) && ready() && update());
       draw.forget();
@@ -2202,8 +2215,10 @@ function watchProjection(owner, paint, ready = null) {
       connected = false;
       stopProof?.();
       stopProof = null;
-      following?.();
-      following = null;
+      for (const stop2 of following) stop2();
+      following = [];
+      task?.disconnect();
+      task = null;
     }
   });
   const stop = () => {
@@ -5836,7 +5851,7 @@ function createThreadPresentation({
   let primary = null;
   const presenter = applicationPresenter({
     region: "thread",
-    order: PRESENTATION_ORDER.thread,
+    phase: PRESENTATION_PHASE.thread,
     reading: () => !available ? null : runtime.statePhase === "waiting" && !threadState().all.length ? "waiting" : true,
     // A pass reads the latest root. The time it shows is followed with the rest of what
     // it reads, so a clock change claims another pass through the same presenter, whose
@@ -5917,7 +5932,8 @@ function createThreadPresentation({
           })
         );
       };
-      await (primaryPreparation?.then ? primaryPreparation.then(resume(paintPrepared)) : paintPrepared(primaryPreparation));
+      const prepared = await primaryPreparation;
+      await resume(paintPrepared)(prepared);
     } catch (error) {
       surfaces?.cancel();
       if (!current()) throw error;

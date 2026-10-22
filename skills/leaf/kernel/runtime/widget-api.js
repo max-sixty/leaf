@@ -257,25 +257,28 @@ import {
 import {
   For,
   Show,
+  afterRender,
   agentName,
   applicationRegionsPresented,
   applicationState,
   attachApplicationPresentation,
   attachWidgetPresentation,
+  bindQueuedWork,
   createEffect,
   createMemo,
   createRoot,
   createSignal,
   createView,
   default as default2,
+  elementRenderTask,
   flush,
   offlineInteractive,
   onCleanup,
   pageUrl,
   projectionRegionsPresented,
-  queueElementUpdate,
   rankAt,
   readPart,
+  renderCommit,
   revisionLabel,
   turns,
   untrack,
@@ -444,7 +447,7 @@ function widgetController(owner) {
 // runtime/leaf-element.js
 var regions = 0;
 var LeafElement = class extends HTMLElement {
-  #following = null;
+  #following = [];
   #stopReadiness = null;
   #rendering = false;
   /** Complete a waiting render without claiming the proof it waits for again. */
@@ -473,10 +476,10 @@ var LeafElement = class extends HTMLElement {
   // leaves the element broken, drawing nothing.
   #box = null;
   #broken = false;
-  // The claim the update under way draws, settled once `updated` has run too.
-  #drawing = null;
-  // The drawing that follows the update under way, which its claim waits for.
-  #work = null;
+  // Each synchronous stretch restores its drawing context, including post-render
+  // work. Nested draws retain their own claim and asynchronous preparation.
+  #draw = null;
+  #task = null;
   #data = /* @__PURE__ */ new Map();
   #leaveData = null;
   #pending = null;
@@ -495,8 +498,8 @@ var LeafElement = class extends HTMLElement {
     if (this.#pending) return;
     const pending = this.#pending = Promise.withResolvers();
     this.updateComplete = pending.promise;
-    void queueElementUpdate(this.#descriptor?.id, () => {
-      if (this.#pending === pending) this.performUpdate();
+    void this.#task?.enqueue(() => {
+      if (this.#pending === pending) return this.performUpdate();
     });
   }
   createRenderRoot() {
@@ -534,6 +537,7 @@ var LeafElement = class extends HTMLElement {
       this.#broken = true;
       failSoft(this, error);
     }
+    this.renderRoot ??= this.createRenderRoot();
     watchOwner(this, {
       connect: () => untrack(() => this.#connect()),
       disconnect: () => this.#disconnect()
@@ -584,7 +588,7 @@ var LeafElement = class extends HTMLElement {
       return false;
     }
     if (this.#held) return false;
-    this.#drawing = this.#ticket;
+    this.#draw.ticket = this.#ticket;
     this.#ticket = null;
     if (this.#broken) return false;
     return this.#complete();
@@ -600,56 +604,77 @@ var LeafElement = class extends HTMLElement {
   // once, as a module's own paint may, settles its own claim inside this one; with no
   // claim of its own, its failure is the enclosing claimed update's.
   performUpdate() {
-    const outer = this.#drawing;
-    let outerWork = this.#work;
-    this.#drawing = null;
-    this.#work = null;
-    try {
-      if (!this.#pending) return;
-      const { resolve: resolve2 } = this.#pending;
-      this.#pending = null;
+    if (!this.#pending) return;
+    const pending = this.#pending;
+    this.#pending = null;
+    const outer = this.#draw;
+    const draw = { ticket: null, work: null };
+    for (const stop of this.#following) stop();
+    const following = this.#following = [];
+    const run = (callback) => {
+      const previous = this.#draw;
+      this.#draw = draw;
+      let outcome;
       try {
-        this.#following?.();
-        let outcome;
+        const stop = watchReaction(
+          () => {
+            try {
+              outcome = { value: callback() };
+            } catch (error) {
+              outcome = { error };
+            }
+          },
+          () => {
+            if (this.#connected) this.#present();
+          }
+        );
+        if (following === this.#following && this.#connected) following.push(stop);
+        else stop();
+        if ("error" in outcome) throw outcome.error;
+        return outcome.value;
+      } finally {
+        this.#draw = previous;
+      }
+    };
+    const commit = renderCommit(
+      () => {
         this.#rendering = true;
         try {
-          this.#following = watchReaction(
-            () => {
-              try {
-                if (this.shouldUpdate()) {
-                  this.update();
-                  this.hasUpdated = true;
-                  outcome = { drawn: true };
-                } else outcome = { drawn: false };
-              } catch (error) {
-                outcome = { error };
-              }
-            },
-            () => {
-              if (this.#connected) this.#present();
-            }
-          );
+          if (this.shouldUpdate()) {
+            this.update();
+            this.hasUpdated = true;
+            afterRender(() => this.updated());
+          }
         } finally {
           this.#rendering = false;
         }
-        if ("error" in outcome) throw outcome.error;
-        if (outcome.drawn) this.updated();
-      } finally {
-        resolve2?.(!this.#pending);
+      },
+      {
+        run,
+        bind: bindQueuedWork,
+        current: () => this.#connected && this.isConnected && following === this.#following
       }
-      const work = this.#work;
-      if (work && !this.#drawing) {
-        if (outer) outerWork = outerWork ? Promise.all([outerWork, work]) : work;
-        else if (this.#region) this.#drawing = this.#claim();
+    );
+    const finished = commit.ready.then(
+      () => {
+        if (draw.work && !draw.ticket) {
+          if (outer)
+            outer.work = outer.work ? Promise.all([outer.work, draw.work]) : draw.work;
+          else if (this.#region) draw.ticket = this.#claim();
+        }
+        draw.ticket?.resolve(draw.work ?? void 0);
+      },
+      (error) => {
+        if (outer && !draw.ticket) throw error;
+        this.#failed(error, draw.ticket);
       }
-      this.#drawing?.resolve(work ?? void 0);
-    } catch (error) {
-      if (outer && !this.#drawing) throw error;
-      this.#failed(error, this.#drawing);
-    } finally {
-      this.#drawing = outer;
-      this.#work = outerWork;
-    }
+    );
+    void finished.catch(() => void 0);
+    void commit.committed.then(
+      () => pending.resolve(!this.#pending),
+      () => pending.resolve(!this.#pending)
+    );
+    return finished;
   }
   /** Hold the update under way's claim until `work`, drawing that follows the render
    *  asynchronously, lands: highlighting a document, say. An update no move claimed
@@ -660,7 +685,7 @@ var LeafElement = class extends HTMLElement {
       reportFailure(this, error);
       throw error;
     });
-    this.#work = this.#work ? Promise.all([this.#work, named]) : named;
+    this.#draw.work = this.#draw.work ? Promise.all([this.#draw.work, named]) : named;
   }
   /** The render drawn again at once, outside any claim and the update schedule, with a
    *  failure thrown rather than shown: the render check's replay
@@ -708,6 +733,13 @@ var LeafElement = class extends HTMLElement {
   }
   #connect() {
     this.#connected = true;
+    this.#task = elementRenderTask(this.#descriptor?.id);
+    if (this.#pending) {
+      const pending = this.#pending;
+      void this.#task.enqueue(() => {
+        if (this.#pending === pending) return this.performUpdate();
+      });
+    }
     this.#region = this.#descriptor ? attachWidgetPresentation(this.#descriptor.id, "render", this) : attachApplicationPresentation(this.#regionName, this);
     const parentChanged = this.#connectedParent !== this.parentElement;
     this.#connectedParent = this.parentElement;
@@ -720,8 +752,10 @@ var LeafElement = class extends HTMLElement {
   }
   #disconnect() {
     this.#connected = false;
-    this.#following?.();
-    this.#following = null;
+    for (const stop of this.#following) stop();
+    this.#following = [];
+    this.#task?.disconnect();
+    this.#task = null;
     this.#stopReadiness?.();
     this.#stopReadiness = null;
     this.#leaveData?.();
@@ -1630,6 +1664,7 @@ export {
   addressableLabel,
   addressableWord,
   afterPresentation,
+  afterRender,
   afterScript,
   agentName,
   ago,
@@ -1787,6 +1822,7 @@ export {
   relabel,
   releaseOutlets,
   removeRuntimeRootStyle,
+  renderCommit,
   renderMarkdown,
   renderRetired,
   replaceEntry,

@@ -23,10 +23,12 @@
    claim waits on, such as a mechanical redraw, reports and shows its failure the same
    way, and so does a failed preparation (`present()`) or a module's own
    `failSoft(this, …)`. A `setup()` that throws shows its failure, and the element draws
-   nothing after it. A move draws in the presentation pass the publication starts,
-   parents first and every widget before the document-wide renderers
-   (`queueElementUpdate`, semantic-state.js): a suggestion measures the slot it folds
-   before the layer marks it retired.
+   nothing after it. Native Solid effects follow the DOM dependencies the publication
+   moves, parents first and every widget before document projection
+   (`elementRenderTask`, semantic-state.js). `renderCommit` separates their writes
+   from `updated()` and other `afterRender` callbacks. A suggestion measures the slot
+   it folds before projection marks it retired. A disconnected or superseded draw
+   releases its reactions and runs no remaining owner callbacks.
 
    Its readers are followed while it stands (`watchOwner`, arrivals.js), and it draws
    nothing while away. A return requests an update to reconnect its dependencies
@@ -40,11 +42,16 @@
    version while it stands, until it has drawn what was delivered, and any drawing that
    draw held it for (`drawing()`), such as highlighting or a loading frame, has landed.
    `setup()` runs once, on the first connection, before the first render. */
-import { watchReaction, untracked } from "/vendor/browser-runtime.js";
+import {
+  watchReaction,
+  untracked,
+  renderCommit,
+  afterRender,
+} from "/vendor/browser-runtime.js";
 import {
   attachApplicationPresentation,
   attachWidgetPresentation,
-  queueElementUpdate,
+  elementRenderTask,
   watchPresentation,
 } from "./semantic-state.js";
 import { widgetDescriptor } from "./widget-descriptors.js";
@@ -60,11 +67,12 @@ import { watchOwner } from "./arrivals.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
 import { dataReader, joinDataDelivery } from "./data.js";
 import { registry } from "./registry.js";
+import { bindQueuedWork } from "./queued-work.js";
 
 let regions = 0;
 
 export class LeafElement extends HTMLElement {
-  #following = null;
+  #following = [];
   #stopReadiness = null;
   #rendering = false;
 
@@ -95,10 +103,10 @@ export class LeafElement extends HTMLElement {
   // leaves the element broken, drawing nothing.
   #box = null;
   #broken = false;
-  // The claim the update under way draws, settled once `updated` has run too.
-  #drawing = null;
-  // The drawing that follows the update under way, which its claim waits for.
-  #work = null;
+  // Each synchronous stretch restores its drawing context, including post-render
+  // work. Nested draws retain their own claim and asynchronous preparation.
+  #draw = null;
+  #task = null;
   #data = new Map();
   #leaveData = null;
   #pending = null;
@@ -122,10 +130,10 @@ export class LeafElement extends HTMLElement {
     if (this.#pending) return;
     const pending = (this.#pending = Promise.withResolvers());
     this.updateComplete = pending.promise;
-    // One queue owns coalescing and order for every element. A synchronous draw
-    // consumes this request; its queued callback cannot consume a later request.
-    void queueElementUpdate(this.#descriptor?.id, () => {
-      if (this.#pending === pending) this.performUpdate();
+    // The native task coalesces requests and follows this element's DOM dependencies.
+    // Starting a draw consumes its token; an obsolete request cannot consume a later one.
+    void this.#task?.enqueue(() => {
+      if (this.#pending === pending) return this.performUpdate();
     });
   }
 
@@ -172,6 +180,9 @@ export class LeafElement extends HTMLElement {
       this.#broken = true;
       failSoft(this, error);
     }
+    // Setup may have built the generated root. Establish it before registering a
+    // connection: native effects may render during that registration's flush.
+    this.renderRoot ??= this.createRenderRoot();
     // The element is an owner of its own: a paint that mounts it connects it inside that
     // paint, and what it reads to connect is its own to follow, never that paint's.
     watchOwner(this, {
@@ -235,7 +246,7 @@ export class LeafElement extends HTMLElement {
     if (this.#held) return false;
     // The claim this update draws, from its gate on; one its own reads claim while it
     // runs is the next's. An update that draws nothing settles it all the same.
-    this.#drawing = this.#ticket;
+    this.#draw.ticket = this.#ticket;
     this.#ticket = null;
     if (this.#broken) return false;
     return this.#complete();
@@ -253,58 +264,78 @@ export class LeafElement extends HTMLElement {
   // once, as a module's own paint may, settles its own claim inside this one; with no
   // claim of its own, its failure is the enclosing claimed update's.
   performUpdate() {
-    const outer = this.#drawing;
-    let outerWork = this.#work;
-    this.#drawing = null;
-    this.#work = null;
-    try {
-      if (!this.#pending) return;
-      const { resolve } = this.#pending;
-      this.#pending = null;
+    if (!this.#pending) return;
+    const pending = this.#pending;
+    this.#pending = null;
+    const outer = this.#draw;
+    const draw = { ticket: null, work: null };
+    for (const stop of this.#following) stop();
+    const following = (this.#following = []);
+    const run = (callback) => {
+      const previous = this.#draw;
+      this.#draw = draw;
+      let outcome;
       try {
-        this.#following?.();
-        let outcome;
+        const stop = watchReaction(
+          () => {
+            try {
+              outcome = { value: callback() };
+            } catch (error) {
+              outcome = { error };
+            }
+          },
+          () => {
+            if (this.#connected) this.#present();
+          },
+        );
+        if (following === this.#following && this.#connected) following.push(stop);
+        else stop();
+        if ("error" in outcome) throw outcome.error;
+        return outcome.value;
+      } finally {
+        this.#draw = previous;
+      }
+    };
+    const commit = renderCommit(
+      () => {
         this.#rendering = true;
         try {
-          this.#following = watchReaction(
-            () => {
-              try {
-                if (this.shouldUpdate()) {
-                  this.update();
-                  this.hasUpdated = true;
-                  outcome = { drawn: true };
-                } else outcome = { drawn: false };
-              } catch (error) {
-                outcome = { error };
-              }
-            },
-            () => {
-              if (this.#connected) this.#present();
-            },
-          );
+          if (this.shouldUpdate()) {
+            this.update();
+            this.hasUpdated = true;
+            afterRender(() => this.updated());
+          }
         } finally {
           this.#rendering = false;
         }
-        if ("error" in outcome) throw outcome.error;
-        if (outcome.drawn) this.updated();
-      } finally {
-        resolve?.(!this.#pending);
-      }
-      const work = this.#work;
-      // Drawing an update with no claim of its own holds goes to the claim enclosing
-      // it, or else claims the region, as a retry's or a follow-up draw's does.
-      if (work && !this.#drawing) {
-        if (outer) outerWork = outerWork ? Promise.all([outerWork, work]) : work;
-        else if (this.#region) this.#drawing = this.#claim();
-      }
-      this.#drawing?.resolve(work ?? undefined);
-    } catch (error) {
-      if (outer && !this.#drawing) throw error;
-      this.#failed(error, this.#drawing);
-    } finally {
-      this.#drawing = outer;
-      this.#work = outerWork;
-    }
+      },
+      {
+        run,
+        bind: bindQueuedWork,
+        current: () =>
+          this.#connected && this.isConnected && following === this.#following,
+      },
+    );
+    const finished = commit.ready.then(
+      () => {
+        if (draw.work && !draw.ticket) {
+          if (outer)
+            outer.work = outer.work ? Promise.all([outer.work, draw.work]) : draw.work;
+          else if (this.#region) draw.ticket = this.#claim();
+        }
+        draw.ticket?.resolve(draw.work ?? undefined);
+      },
+      (error) => {
+        if (outer && !draw.ticket) throw error;
+        this.#failed(error, draw.ticket);
+      },
+    );
+    void finished.catch(() => undefined);
+    void commit.committed.then(
+      () => pending.resolve(!this.#pending),
+      () => pending.resolve(!this.#pending),
+    );
+    return finished;
   }
 
   /** Hold the update under way's claim until `work`, drawing that follows the render
@@ -317,7 +348,7 @@ export class LeafElement extends HTMLElement {
       reportFailure(this, error);
       throw error;
     });
-    this.#work = this.#work ? Promise.all([this.#work, named]) : named;
+    this.#draw.work = this.#draw.work ? Promise.all([this.#draw.work, named]) : named;
   }
 
   /** The render drawn again at once, outside any claim and the update schedule, with a
@@ -374,6 +405,13 @@ export class LeafElement extends HTMLElement {
 
   #connect() {
     this.#connected = true;
+    this.#task = elementRenderTask(this.#descriptor?.id);
+    if (this.#pending) {
+      const pending = this.#pending;
+      void this.#task.enqueue(() => {
+        if (this.#pending === pending) return this.performUpdate();
+      });
+    }
     this.#region = this.#descriptor
       ? attachWidgetPresentation(this.#descriptor.id, "render", this)
       : attachApplicationPresentation(this.#regionName, this);
@@ -389,8 +427,10 @@ export class LeafElement extends HTMLElement {
 
   #disconnect() {
     this.#connected = false;
-    this.#following?.();
-    this.#following = null;
+    for (const stop of this.#following) stop();
+    this.#following = [];
+    this.#task?.disconnect();
+    this.#task = null;
     this.#stopReadiness?.();
     this.#stopReadiness = null;
     this.#leaveData?.();

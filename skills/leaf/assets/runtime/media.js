@@ -24,7 +24,7 @@
    viewer (layer-stack.js, `showNativeLayer`). A queued close from an earlier opening leaves a reopened viewer's
    image and focus intact. */
 
-import { html, createView, Show } from "/vendor/browser-runtime.js";
+import { afterRender, html, createView, Show } from "/vendor/browser-runtime.js";
 import { offlineInteractive, pageUrl, runtimeResource } from "./context.js";
 import {
   handBack,
@@ -288,93 +288,99 @@ const open = async (source, alt, from) => {
     presentViewer({ url, alt });
   }
   presentStage({ kind: "probe", url });
-  /** @type {HTMLImageElement} */
-  const probe = stage.querySelector(".lf-media-viewer-probe > img");
-  Promise.all([imageTools(), probe.decode()]).then(
-    ([PhotoSwipe]) => {
-      // A delayed load belongs only to the image the reader still has open.
-      if (attempt !== opening || !mediaViewer.open) return;
-      // In a 1px column an image keeps a width its file states; one that states none
-      // (an SVG with only a viewBox, or Mermaid's percentage width) narrows to the
-      // column, and its natural size is a stand-in of its shape at 300px. Such an
-      // image takes the size that covers the screen in either orientation, so it fits
-      // below 100% in any window and zooms past its fit.
-      const { naturalWidth: width, naturalHeight: height } = probe;
-      const cover =
-        Math.max(window.screen.width, window.screen.height) / Math.min(width, height);
-      const size =
-        probe.getBoundingClientRect().width > 1
-          ? { width, height }
-          : { width: width * cover, height: height * cover };
-      presentStage(null);
-      const current = new PhotoSwipe({
-        dataSource: [{ src: url, alt, ...size }],
-        appendToEl: mediaViewer,
-        paddingFn: (viewport) => {
-          const box = stage.getBoundingClientRect();
-          const inset = getComputedStyle(stage);
-          return {
-            top: box.top + parseFloat(inset.paddingTop),
-            right: viewport.x - box.right + parseFloat(inset.paddingRight),
-            bottom: viewport.y - box.bottom + parseFloat(inset.paddingBottom),
-            left: box.left + parseFloat(inset.paddingLeft),
-          };
-        },
-        secondaryZoomLevel: 1,
-        close: false,
-        zoom: false,
-        counter: false,
-        arrowPrev: false,
-        arrowNext: false,
-        trapFocus: false,
-        returnFocus: false,
-        escKey: false,
-        // The native dialog owns its opening and closing. Zoom alone animates.
-        showHideAnimationType: "none",
-        zoomAnimationDuration: reducedMotion() ? 0 : foldDuration(),
-        clickToCloseNonZoomable: false,
-        bgClickAction: "close",
-        tapAction: "zoom",
-      });
-      inspector = current;
-      current.on("keydown", (event) => {
-        // PhotoSwipe owns only native panning in the active viewer. Leaf owns zoom,
-        // cancellation and scopes, and Tab stays the browser's. Its document
-        // listener must never act behind a newer layer or reinterpret text typed there.
-        const key = event.originalEvent;
-        if (
-          key.defaultPrevented ||
-          !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(key.key) ||
-          nativeLayers().at(-1)?.root !== mediaViewer ||
-          !mediaViewer.contains(key.target)
-        )
-          event.preventDefault();
-      });
-      current.on("close", () => {
-        if (mediaViewer.open) closeLayer(() => closeNativeLayer(mediaViewer));
-      });
-      current.on("zoomPanUpdate", () => {
-        const slide = current.currSlide;
-        const enlarged = slide.currZoomLevel > slide.zoomLevels.initial + 0.01;
-        keepsText(viewerZoom, enlarged ? "Fit" : "100%");
-        keeps(viewerZoom, "aria-label", enlarged ? "Fit image" : "Zoom to actual size");
+  afterRender(() => {
+    /** @type {HTMLImageElement} */
+    const probe = stage.querySelector(".lf-media-viewer-probe > img");
+    Promise.all([imageTools(), probe.decode()]).then(
+      ([PhotoSwipe]) => {
+        // A delayed load belongs only to the image the reader still has open.
+        if (attempt !== opening || !mediaViewer.open) return;
+        // In a 1px column an image keeps a width its file states; one that states none
+        // (an SVG with only a viewBox, or Mermaid's percentage width) narrows to the
+        // column, and its natural size is a stand-in of its shape at 300px. Such an
+        // image takes the size that covers the screen in either orientation, so it fits
+        // below 100% in any window and zooms past its fit.
+        const { naturalWidth: width, naturalHeight: height } = probe;
+        const cover =
+          Math.max(window.screen.width, window.screen.height) / Math.min(width, height);
+        const size =
+          probe.getBoundingClientRect().width > 1
+            ? { width, height }
+            : { width: width * cover, height: height * cover };
+        presentStage(null);
+        const current = new PhotoSwipe({
+          dataSource: [{ src: url, alt, ...size }],
+          appendToEl: mediaViewer,
+          paddingFn: (viewport) => {
+            const box = stage.getBoundingClientRect();
+            const inset = getComputedStyle(stage);
+            return {
+              top: box.top + parseFloat(inset.paddingTop),
+              right: viewport.x - box.right + parseFloat(inset.paddingRight),
+              bottom: viewport.y - box.bottom + parseFloat(inset.paddingBottom),
+              left: box.left + parseFloat(inset.paddingLeft),
+            };
+          },
+          secondaryZoomLevel: 1,
+          close: false,
+          zoom: false,
+          counter: false,
+          arrowPrev: false,
+          arrowNext: false,
+          trapFocus: false,
+          returnFocus: false,
+          escKey: false,
+          // The native dialog owns its opening and closing. Zoom alone animates.
+          showHideAnimationType: "none",
+          zoomAnimationDuration: reducedMotion() ? 0 : foldDuration(),
+          clickToCloseNonZoomable: false,
+          bgClickAction: "close",
+          tapAction: "zoom",
+        });
+        inspector = current;
+        current.on("keydown", (event) => {
+          // PhotoSwipe owns only native panning in the active viewer. Leaf owns zoom,
+          // cancellation and scopes, and Tab stays the browser's. Its document
+          // listener must never act behind a newer layer or reinterpret text typed there.
+          const key = event.originalEvent;
+          if (
+            key.defaultPrevented ||
+            !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(key.key) ||
+            nativeLayers().at(-1)?.root !== mediaViewer ||
+            !mediaViewer.contains(key.target)
+          )
+            event.preventDefault();
+        });
+        current.on("close", () => {
+          if (mediaViewer.open) closeLayer(() => closeNativeLayer(mediaViewer));
+        });
+        current.on("zoomPanUpdate", () => {
+          const slide = current.currSlide;
+          const enlarged = slide.currZoomLevel > slide.zoomLevels.initial + 0.01;
+          keepsText(viewerZoom, enlarged ? "Fit" : "100%");
+          keeps(
+            viewerZoom,
+            "aria-label",
+            enlarged ? "Fit image" : "Zoom to actual size",
+          );
+          paintKeys();
+        });
+        current.init();
+        // Modality belongs to the containing native dialog, not a second ARIA dialog.
+        current.element.removeAttribute("role");
+        current.element.removeAttribute("aria-modal");
         paintKeys();
-      });
-      current.init();
-      // Modality belongs to the containing native dialog, not a second ARIA dialog.
-      current.element.removeAttribute("role");
-      current.element.removeAttribute("aria-modal");
-      paintKeys();
-    },
-    (error) => {
-      if (attempt !== opening || !mediaViewer.open) return;
-      keepsText(
-        caption,
-        `Image preview unavailable: ${error.message}. Open Original to see the file.`,
-      );
-      keepsHidden(caption, false);
-    },
-  );
+      },
+      (error) => {
+        if (attempt !== opening || !mediaViewer.open) return;
+        keepsText(
+          caption,
+          `Image preview unavailable: ${error.message}. Open Original to see the file.`,
+        );
+        keepsHidden(caption, false);
+      },
+    );
+  });
 };
 mediaViewer.addEventListener("close", () => {
   if (mediaViewer.open) return;

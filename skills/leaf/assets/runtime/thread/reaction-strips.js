@@ -1,6 +1,6 @@
 /* Thread reaction projection and its Solid view owner. The controller
    registers template-owned controls and owns only disclosure, keyboard and focus. */
-import { html, createView, For } from "/vendor/browser-runtime.js";
+import { afterRender, html, createView, For } from "/vendor/browser-runtime.js";
 import { iconElement } from "../icons.js";
 import { HOLDS_WORD } from "../held-word.js";
 
@@ -74,9 +74,13 @@ export class ReactionStripView {
         model,
       );
     } else this.#view.update(model);
-    this.#registration ??= this.#commands.registerSurface(this.node, {
-      trigger: this.node.querySelector(".lf-react-trigger"),
-      palette: this.node.querySelector(".lf-react-palette"),
+    const view = this.#view;
+    afterRender(() => {
+      if (this.#model !== model || this.#view !== view) return;
+      this.#registration ??= this.#commands.registerSurface(this.node, {
+        trigger: this.node.querySelector(".lf-react-trigger"),
+        palette: this.node.querySelector(".lf-react-palette"),
+      });
     });
     return this.node;
   }

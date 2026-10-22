@@ -19,6 +19,7 @@
 import {
   html,
   createView,
+  afterRender,
   For,
   Show,
   frameFor,
@@ -161,9 +162,11 @@ export class RecordingTimeline {
     }
     // Labels carry each mark's selection state, so they follow every update.
     if (!this.#host.querySelector(".lf-trace-track")) this.#draw();
-    this.#layoutLabels();
-    if (changed) this.#observeScroller();
-    this.setTime(model.time);
+    afterRender(() => {
+      this.#layoutLabels();
+      if (changed) this.#observeScroller();
+      this.setTime(model.time);
+    });
   }
 
   setTime(time) {
@@ -488,11 +491,13 @@ export class RecordingTimeline {
     };
     if (this.#drawing) this.#drawing.update(props);
     else this.#drawing = createView(this.#host, (read) => this.#template(read), props);
-    const track = this.#host.querySelector(".lf-trace-track");
-    keepVar(track, "--lf-trace-zoom", String(this.#zoom));
-    keepVar(track, "--lf-trace-edge", `${EDGE}px`);
-    keepVar(track, "--lf-trace-time", String(this.#fraction(this.#time)));
-    this.#drawRuler();
+    afterRender(() => {
+      const track = this.#host.querySelector(".lf-trace-track");
+      keepVar(track, "--lf-trace-zoom", String(this.#zoom));
+      keepVar(track, "--lf-trace-edge", `${EDGE}px`);
+      keepVar(track, "--lf-trace-time", String(this.#fraction(this.#time)));
+      this.#drawRuler();
+    });
   }
 
   #template(read) {

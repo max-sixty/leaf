@@ -25,10 +25,10 @@ otherwise have to maintain.
 | Maturity                           | Stable and already integrated                            | Release candidate, with pinned local upstream adaptations                              |
 
 Solid offers a more coherent reactive graph and selective updates within retained
-views. Leaf still needs its presentation scheduler, imperative render boundaries,
-immutable snapshots and DOM movement integration. Bindings receive snapshots from
-those boundaries; they do not read semantic state directly. The migration removes
-the Preact-to-Lit integration, not most of Leaf's lifecycle machinery.
+views. Solid now schedules a graph of explicit DOM dependencies and settles bindings
+before focus and geometry work. Leaf retains its semantic presentation ledger,
+immutable state and DOM movement integration. Bindings receive snapshots from their
+owners; semantic readers and native DOM callbacks belong to those owners' lifetimes.
 
 **Review recommendation: keep this as a draft experiment; the net benefit does not
 yet justify replacing Lit on main.** The implementation demonstrates a viable
@@ -57,42 +57,63 @@ of these adaptations, or when a measured interaction or maintenance improvement
 outweighs it. Ordinary native controls and retaining WebAwesome can be chosen
 independently of the rendering framework; neither is evidence for Solid itself.
 
-## Rendering ownership after review
+## Native rendering phases
 
-Elements now use the shared presentation queue directly. The extra element
-microtask, separate scheduled handle and unused reentrancy flag are removed.
-An immediate draw consumes its request without letting its old queued callback
-consume a newer request. The queue preserves each job's input attribution, so
-passive work cannot acquire permission to discard a draft from a nearby gesture.
+The ranked microtask presentation pass is removed. `createPresentationFlow` owns
+Solid effects connected by explicit DOM dependencies: a widget follows its current
+parent, projection follows committed widget DOM, threads follow projection, and
+obligations follow threads. A dependency advances after synchronous rendering and
+post-render work, including failure; an unrelated owner's asynchronous preparation
+cannot hold the graph behind it. Independent effects have no FIFO contract.
 
-The deprecated `createTrackedEffect` adapter is also removed. Continuous
-subscriptions use Solid's separate compute/effect phases; command reflections
-use its one-shot reactions and re-arm when the reflection runs. A failed region
-reading is an explicit memo outcome that claims presentation and reaches the
-existing failure path. It can no longer silently carry old content as proof of
-a new revision. Equal successful readings still suppress redundant painting.
+`renderCommit(write)` separates publishing retained view props from native Solid
+settlement. `afterRender` runs focus, DOM queries, layout measurements and third-party
+setup after those bindings settle. Nested writes settle before outer measurements.
+`committed` covers that DOM work; `ready` also adopts asynchronous preparation. The
+presentation ledger uses its ticket's final verdict, including explicit fallback
+proof, rather than confusing DOM completion with semantic completion.
 
-The remaining boundary has a tested reason. In a native Solid effect, calling
-`view.update({label: "after"})` and then reading its DOM still returns the
-previous label; the DOM changes after that effect finishes. Moving Leaf's paints
-into such effects would make their immediate focus and geometry reads stale.
-Removing this boundary requires splitting those renderers into derivation,
-DOM commit, and post-commit measurement, including third-party widget callbacks.
-It is not accomplished by replacing the queue with an effect.
+The conversion covers `LeafElement.updated()`, projection watchers, document
+presenters and their asynchronous continuations, thread messages/cards/reactions,
+the floating panel, command reference, Page Map, media inspection, visual review,
+file editor, recording timelines, diff summaries and draft controls. Native inputs,
+editor instances, keyed nodes and browser selection remain retained. A custom widget
+that formerly queried its freshly created template inside `render()` now uses a
+binding or `afterRender`; the page-owned fixture exercises that authoring contract.
 
-Presentation proof also includes work outside Solid's graph: gesture holds,
-external-data delivery, asynchronous widget preparation and superseded renderers.
-The coordinator owns which semantic revision is actually visible; Solid owns
-reactive dependency tracking and retained bindings. The ordered pass ensures
-parent widget movement precedes dependent widget and document projection work.
-These are product contracts to preserve in any further rendering redesign.
+Supersession belongs to the owning render generation. A departed owner skips its
+remaining callbacks while retiring their input-attribution jobs. A newer publication
+of the same view owns any deferred binding error; an obsolete check cannot consume
+that error and let the latest failed reading appear successful. Root construction
+precedes connection registration because native effects may run during registration.
 
-Regression coverage lives in `tests/runtime/leaf-element.test.mjs`,
-`tests/runtime/region-presenter.test.mjs`, and
-`test_coalesced_rendering_jobs_keep_their_own_input_source` in
-`tests/browser/test_render_words_watch.py`. The last exercises element jobs in
-both passive-first and input-first order. Browser checks also cover parent/child
-ordering, connection lifetimes, readiness and initial/live node adoption.
+Leaf still records which semantic revision is actually visible across gesture holds,
+external-data delivery, asynchronous preparation, renderer replacement and failure.
+That ledger schedules no renderer. Small native reaction roots track imperative
+owner callbacks and their explicit lifetimes, including post-render reads; they are
+not another reactive dependency engine. The former perpetual tracked-effect adapter,
+element microtask queue, ranked pass and projection-watcher microtask are gone.
+
+The public primitives are Solid's `createEffect`, `createMemo`, `createReaction` and
+`onSettled`. No additional upstream scheduling adaptation was introduced. A direct
+read immediately after writing props inside an effect remains stale; consumers now
+use the post-render phase instead of asking for a nested flush.
+
+Regression coverage lives in `build/browser/rendering.test.mjs`,
+`build/browser/presentation.test.mjs`, `tests/runtime/solid-views.test.mjs`,
+`tests/runtime/leaf-element.test.mjs`, and the application-boundary, input-attribution
+and parent-widget ordering browser tests. These protect asynchronous holds, failed
+measurements, retained focus/editing, native/shadow owners, disconnection and
+supersession rather than the old queue's incidental order.
+
+The redesigned candidate passes 145 framework/build, 534 runtime and 85 Worker
+tests, plus 24 focused Chromium cases. Independent browser review covers delayed
+image loads and acknowledgements during editing, disconnects, command-hub
+save/discard/undo, keyboard navigation and narrow dark layouts. The matched corpus
+load has no console errors or startup layout shifts in either arm. HTML plus
+external code is 7,183,889 bytes on Lit and 7,165,849 bytes on this candidate
+(0.25% smaller); external JavaScript requests fall from 115 to 113. These single
+loads do not establish a timing improvement.
 
 ## UI library evaluation
 

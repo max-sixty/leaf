@@ -44,7 +44,14 @@ import {
   dismissPopoversOutside,
 } from "./layer-stack.js";
 import { scrollIntoView } from "../landing-scroll.js";
-import { html, createView, For, Show } from "/vendor/browser-runtime.js";
+import {
+  afterRender,
+  renderCommit,
+  html,
+  createView,
+  For,
+  Show,
+} from "/vendor/browser-runtime.js";
 
 import {
   bindings,
@@ -857,27 +864,31 @@ function presentCommandReference() {
       commandReferenceTemplate,
       props,
     );
-  // The native editor and its results share the dialog's document tree.
-  const search = commandReferenceSearch;
-  keeps(search, "role", "combobox");
-  keeps(search, "aria-autocomplete", "list");
-  keeps(search, "aria-expanded", "true");
-  keeps(search, "aria-haspopup", "grid");
-  const results = commandReferenceDialog.querySelector(".lf-command-reference-results");
-  keeps(search, "aria-controls", results.id);
-  const selected = commandReferenceView.visibleCommands.find(
-    ({ entry }) => entry.id === commandReferenceView.selectedCommandId,
-  );
-  const row = selected
-    ? commandReferenceDialog.querySelector(`#${selected.entry.rowId}`)
-    : null;
-  keeps(search, "aria-activedescendant", row?.id ?? null);
-  // The results are one roving group: Tab reaches the selected command, or the first,
-  // and the arrows walk the rest (focus.js, `rove`).
-  rove(
-    commandReferenceDialog.querySelectorAll(".lf-command-reference-command"),
-    commandButton(commandReferenceView.tabStopCommandId),
-  );
+  afterRender(() => {
+    // The native editor and its results share the dialog's document tree.
+    const search = commandReferenceSearch;
+    keeps(search, "role", "combobox");
+    keeps(search, "aria-autocomplete", "list");
+    keeps(search, "aria-expanded", "true");
+    keeps(search, "aria-haspopup", "grid");
+    const results = commandReferenceDialog.querySelector(
+      ".lf-command-reference-results",
+    );
+    keeps(search, "aria-controls", results.id);
+    const selected = commandReferenceView.visibleCommands.find(
+      ({ entry }) => entry.id === commandReferenceView.selectedCommandId,
+    );
+    const row = selected
+      ? commandReferenceDialog.querySelector(`#${selected.entry.rowId}`)
+      : null;
+    keeps(search, "aria-activedescendant", row?.id ?? null);
+    // The results are one roving group: Tab reaches the selected command, or the first,
+    // and the arrows walk the rest (focus.js, `rove`).
+    rove(
+      commandReferenceDialog.querySelectorAll(".lf-command-reference-command"),
+      commandButton(commandReferenceView.tabStopCommandId),
+    );
+  });
 }
 
 function readCommandReferenceSearch(event) {
@@ -898,89 +909,97 @@ commandReferenceDialog.addEventListener("cancel", (event) => {
 let commandReferenceReturn = null;
 
 function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
-  const fresh = open && !commandReferenceIsOpen;
-  // Focusing a text input replaces the document selection. Keep a passage the user has
-  // in hand and focus Close instead; an ordinary opening lands directly in search.
-  const preserveSelection = fresh && Boolean(pageSelection());
-  const handingBack = !open && restoreFocus && standingIn(commandReferenceDialog);
-  const restore = handingBack ? commandReferenceReturn : null;
-  if (fresh) {
-    commandReferenceInvoke = invokeCommand;
-    dismissPopoversOutside(commandReferenceDialog);
-    // The origin is read off the scene the reference leaves behind: hiding a popover
-    // hands focus back to where the user stood when it opened, and that is the place
-    // the reference owes them. A control, or nothing: a user working from the page
-    // stands on `body`, which is not a place to be given back — focusing it resets the
-    // browser's sequential focus navigation starting point to the top of the document,
-    // and the user who opened the reference four screens down would Tab from there.
-    // A popover opened while nothing held focus lets go as it closes (layer-stack.js),
-    // so that user reads as standing on `body` here too.
-    openLayer(commandReferenceDialog);
-    commandReferenceReturn = returnTo ?? openerOf(commandReferenceDialog);
-    commandRoutesAtOpen = {
-      on: availableCommandRoutes({ commands: true, quick: true }),
-      off: availableCommandRoutes({ commands: true, quick: false }),
-    };
-  }
-  commandReferenceIsOpen = open;
-  if (fresh) {
-    commandReferenceCatalog = captureCommandReferenceCatalog();
-    commandReferenceState = {
-      query: "",
-      selectedCommandId: null,
-      metaOverride: null,
-    };
-    presentCommandReference();
-    /** @type {HTMLInputElement} */
-    const search = commandReferenceDialog.querySelector(".lf-command-reference-search");
-    const results = commandReferenceDialog.querySelector(
-      ".lf-command-reference-results",
-    );
-    // Native editing and scrolling values begin fresh and remain untouched by local Solid
-    // renders.
-    if (search.value) search.value = "";
-    results.scrollTo({ top: 0, behavior: "instant" });
-    stopReferenceReading = registerReadingRegion({
-      id: "lf-region:command-reference",
-      host: commandReferenceDialog,
-      body: results,
+  return renderCommit(() => {
+    const fresh = open && !commandReferenceIsOpen;
+    // Focusing a text input replaces the document selection. Keep a passage the user has
+    // in hand and focus Close instead; an ordinary opening lands directly in search.
+    const preserveSelection = fresh && Boolean(pageSelection());
+    const handingBack = !open && restoreFocus && standingIn(commandReferenceDialog);
+    const restore = handingBack ? commandReferenceReturn : null;
+    if (fresh) {
+      commandReferenceInvoke = invokeCommand;
+      dismissPopoversOutside(commandReferenceDialog);
+      // The origin is read off the scene the reference leaves behind: hiding a popover
+      // hands focus back to where the user stood when it opened, and that is the place
+      // the reference owes them. A control, or nothing: a user working from the page
+      // stands on `body`, which is not a place to be given back — focusing it resets the
+      // browser's sequential focus navigation starting point to the top of the document,
+      // and the user who opened the reference four screens down would Tab from there.
+      // A popover opened while nothing held focus lets go as it closes (layer-stack.js),
+      // so that user reads as standing on `body` here too.
+      openLayer(commandReferenceDialog);
+      commandReferenceReturn = returnTo ?? openerOf(commandReferenceDialog);
+      commandRoutesAtOpen = {
+        on: availableCommandRoutes({ commands: true, quick: true }),
+        off: availableCommandRoutes({ commands: true, quick: false }),
+      };
+    }
+    commandReferenceIsOpen = open;
+    if (fresh) {
+      commandReferenceCatalog = captureCommandReferenceCatalog();
+      commandReferenceState = {
+        query: "",
+        selectedCommandId: null,
+        metaOverride: null,
+      };
+      presentCommandReference();
+      afterRender(() => {
+        /** @type {HTMLInputElement} */
+        const search = commandReferenceDialog.querySelector(
+          ".lf-command-reference-search",
+        );
+        const results = commandReferenceDialog.querySelector(
+          ".lf-command-reference-results",
+        );
+        // Native editing and scrolling values begin fresh and remain untouched by local Solid
+        // renders.
+        if (search.value) search.value = "";
+        results.scrollTo({ top: 0, behavior: "instant" });
+        stopReferenceReading = registerReadingRegion({
+          id: "lf-region:command-reference",
+          host: commandReferenceDialog,
+          body: results,
+        });
+      });
+    }
+    commandReferenceDialog.classList.toggle("open", open);
+    if (open && !commandReferenceDialog.open) showNativeLayer(commandReferenceDialog);
+    // The reference is a bounded interaction rather than a level of the page: it claims the
+    // whole keyboard while it stands and hands the user back itself, to the control the
+    // press displaced, or to the page where that control has gone — the layer it stood in
+    // may have closed under the user while the reference was up — which is where a user
+    // who pressed `?` from the page was all along. A closed dialog's search box keeps focus
+    // until the browser's next focus fixup, so the repaint below would read the user as
+    // still typing there: the close releases it with the dialog, and hands the user back
+    // once its repaint has run.
+    if (!open) {
+      stopReferenceReading?.();
+      stopReferenceReading = null;
+      closeLayer(
+        () => {
+          if (commandReferenceDialog.open) closeNativeLayer(commandReferenceDialog);
+          if (standingIn(commandReferenceDialog))
+            /** @type {HTMLElement | null} */ (deepFocus())?.blur();
+          repaint();
+        },
+        handingBack && (() => handBack(restore)),
+      );
+      return;
+    }
+    afterRender(() => {
+      // The results are a real overflow region, so they take a Tab stop of their own.
+      reachScrollers(commandReferenceDialog);
+      focusDestination(
+        commandReferenceDialog.querySelector(
+          preserveSelection
+            ? ".lf-command-reference-close"
+            : ".lf-command-reference-search",
+        ),
+        "move",
+      );
+      repaint();
     });
-  }
-  commandReferenceDialog.classList.toggle("open", open);
-  if (open && !commandReferenceDialog.open) showNativeLayer(commandReferenceDialog);
-  // The reference is a bounded interaction rather than a level of the page: it claims the
-  // whole keyboard while it stands and hands the user back itself, to the control the
-  // press displaced, or to the page where that control has gone — the layer it stood in
-  // may have closed under the user while the reference was up — which is where a user
-  // who pressed `?` from the page was all along. A closed dialog's search box keeps focus
-  // until the browser's next focus fixup, so the repaint below would read the user as
-  // still typing there: the close releases it with the dialog, and hands the user back
-  // once its repaint has run.
-  if (!open) {
-    stopReferenceReading?.();
-    stopReferenceReading = null;
-    closeLayer(
-      () => {
-        if (commandReferenceDialog.open) closeNativeLayer(commandReferenceDialog);
-        if (standingIn(commandReferenceDialog))
-          /** @type {HTMLElement | null} */ (deepFocus())?.blur();
-        repaint();
-      },
-      handingBack && (() => handBack(restore)),
-    );
-    return;
-  }
-  // The results are a real overflow region, so they take a Tab stop of their own.
-  reachScrollers(commandReferenceDialog);
-  focusDestination(
-    commandReferenceDialog.querySelector(
-      preserveSelection
-        ? ".lf-command-reference-close"
-        : ".lf-command-reference-search",
-    ),
-    "move",
-  );
-  repaint();
+  }).ready;
 }
 
 const commandButton = (id) =>
@@ -1000,33 +1019,37 @@ const commandReferenceCommandActive = () =>
   (focused() === commandReferenceSearch || focusedCommandId() !== null);
 
 function moveCommandReferenceSelection(dir) {
-  const ids = commandReferenceView.visibleCommands.map(({ entry }) => entry.id);
-  if (!ids.length) return;
-  const focusedId = focusedCommandId();
-  const nextId = clampedRow(
-    ids,
-    focusedId ?? commandReferenceState.selectedCommandId,
-    dir,
-  );
-  const nextRecord = commandReferenceView.visibleCommands.find(
-    ({ entry }) => entry.id === nextId,
-  );
-  commandReferenceState = {
-    ...commandReferenceState,
-    selectedCommandId: nextId,
-    metaOverride: selectionMeta(nextRecord.entry),
-  };
-  presentCommandReference();
-  const next = commandButton(nextId);
-  if (focusedId) focusDestination(next, "move");
-  scrollIntoView(next.closest("tr"), { block: "nearest" });
-  beginWalk("shortcut-command", "Command", () => {
-    const current = focusedCommandId() ?? commandReferenceState.selectedCommandId;
-    return listWalkPosition(
-      commandReferenceView.visibleCommands.map(({ entry }) => entry.id),
-      current,
+  return renderCommit(() => {
+    const ids = commandReferenceView.visibleCommands.map(({ entry }) => entry.id);
+    if (!ids.length) return;
+    const focusedId = focusedCommandId();
+    const nextId = clampedRow(
+      ids,
+      focusedId ?? commandReferenceState.selectedCommandId,
+      dir,
     );
-  });
+    const nextRecord = commandReferenceView.visibleCommands.find(
+      ({ entry }) => entry.id === nextId,
+    );
+    commandReferenceState = {
+      ...commandReferenceState,
+      selectedCommandId: nextId,
+      metaOverride: selectionMeta(nextRecord.entry),
+    };
+    presentCommandReference();
+    afterRender(() => {
+      const next = commandButton(nextId);
+      if (focusedId) focusDestination(next, "move");
+      scrollIntoView(next.closest("tr"), { block: "nearest" });
+      beginWalk("shortcut-command", "Command", () => {
+        const current = focusedCommandId() ?? commandReferenceState.selectedCommandId;
+        return listWalkPosition(
+          commandReferenceView.visibleCommands.map(({ entry }) => entry.id),
+          current,
+        );
+      });
+    });
+  }).ready;
 }
 
 function activateSelectedCommand() {

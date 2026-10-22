@@ -548,16 +548,39 @@ test("bound data draws only as it is delivered", async () => {
 
 test("a move published just before the element leaves is drawn on its return", async () => {
   applicationState.setPhase("waiting");
-  const { element, draws } = probe(() => phase());
+  const { element, draws } = probe(function () {
+    assert.ok(this.isConnected, "nothing draws into a detached element");
+    return phase();
+  });
   document.body.append(element);
   await settled(element);
   applicationState.setPhase("offline");
   element.remove();
+  const beforeLeaving = [...draws];
   await settled(element);
-  assert.deepEqual(draws, ["waiting"], "nothing draws into a detached element");
+  assert.deepEqual(draws, beforeLeaving);
   document.body.append(element);
   await settled(element);
-  assert.deepEqual(draws, ["waiting", "offline"]);
+  assert.equal(draws.at(-1), "offline");
+  element.remove();
+});
+
+test("disconnect retires post-render work before it can focus or prepare the old owner", async () => {
+  const { element } = probe(() => "shown");
+  document.body.append(element);
+  await settled(element);
+  let updated = false;
+  element.updated = () => {
+    updated = true;
+  };
+  element.requestUpdate();
+  element.performUpdate();
+  element.remove();
+  await element.updateComplete;
+  assert.equal(updated, false);
+  document.body.append(element);
+  await settled(element);
+  assert.equal(updated, true, "the new connection owns its own post-render work");
   element.remove();
 });
 
@@ -636,7 +659,7 @@ test("a check's redraw leaves the update a move queued, and its claim", async ()
   element.remove();
 });
 
-test("a synchronous draw leaves later queued draws in their own order", async () => {
+test("a synchronous draw does not consume or lose later owner requests", async () => {
   const order = [];
   const first = probe(function () {
     order.push(`first:${this.label}`);
@@ -661,7 +684,8 @@ test("a synchronous draw leaves later queued draws in their own order", async ()
     first.label = "later";
     first.requestUpdate();
     await Promise.all([first.updateComplete, second.updateComplete]);
-    assert.deepEqual(order, ["first:immediate", "second:queued", "first:later"]);
+    assert.equal(order[0], "first:immediate");
+    assert.deepEqual(order.slice(1).sort(), ["first:later", "second:queued"]);
     assert.equal(first.textContent, "later");
     assert.equal(second.textContent, "queued");
   } finally {

@@ -7,10 +7,140 @@ import {
   For,
   createSignal,
   createMemo,
+  createEffect,
+  createRoot,
   flush,
+  afterRender,
+  renderCommit,
   watchReaction,
   onCleanup,
 } from "/vendor/browser-runtime.js";
+
+test("native effects commit retained view bindings before post-render work", async () => {
+  const host = document.createElement("section");
+  document.body.append(host);
+  const view = createView(
+    host,
+    (read) => html`<label>${() => read().label}<input /></label>`,
+    { label: "Before" },
+  );
+  const editor = host.querySelector("input");
+  editor.value = "retained draft";
+  editor.focus();
+  editor.setSelectionRange(3, 8);
+  const [label, setLabel] = createSignal("Before");
+  const readings = [];
+  let commit;
+  const stop = createRoot((dispose) => {
+    createEffect(label, (label) => {
+      commit = renderCommit(() => {
+        view.update({ label });
+        afterRender(() => {
+          readings.push(host.textContent);
+        });
+      });
+    });
+    return dispose;
+  });
+  try {
+    flush();
+    await commit.ready;
+    flush(() => setLabel("After"));
+    assert.deepEqual(readings, ["Before", "After"]);
+    await commit.ready;
+    assert.equal(host.querySelector("input"), editor);
+    assert.equal(editor.value, "retained draft");
+    assert.equal(document.activeElement, editor);
+    assert.deepEqual([editor.selectionStart, editor.selectionEnd], [3, 8]);
+  } finally {
+    stop();
+    view.dispose();
+    host.remove();
+  }
+});
+
+test("a deferred binding failure rejects its commit and leaves unrelated views live", async () => {
+  const host = document.createElement("section");
+  const other = document.createElement("section");
+  const view = createView(
+    host,
+    (read) =>
+      html`<output
+        >${() => {
+          if (read().label === "broken") throw new Error("Cannot draw this commit");
+          return read().label;
+        }}</output
+      >`,
+    { label: "Ready" },
+  );
+  const independent = createView(
+    other,
+    (read) => html`<output>${() => read().label}</output>`,
+    { label: "Ready" },
+  );
+  try {
+    const broken = renderCommit(() => {
+      view.update({ label: "broken" });
+    });
+    const healthy = renderCommit(() => {
+      independent.update({ label: "Still live" });
+    });
+    await assert.rejects(broken.committed, /Cannot draw this commit/);
+    await assert.rejects(broken.ready, /Cannot draw this commit/);
+    await healthy.ready;
+    assert.equal(other.textContent, "Still live");
+    await renderCommit(() => {
+      view.update({ label: "Recovered" });
+    }).ready;
+    assert.equal(host.textContent, "Recovered");
+  } finally {
+    view.dispose();
+    independent.dispose();
+  }
+});
+
+test("overlapping view publications leave binding failure with the latest commit", async () => {
+  const host = document.createElement("section");
+  const component = (read) =>
+    html`<output
+      >${() => {
+        if (read().label === "broken") throw new Error("Latest view failed");
+        return read().label;
+      }}</output
+    >`;
+  const view = createView(host, component, { label: "Ready" });
+  try {
+    const earlier = renderCommit(() => {
+      view.update({ label: "Earlier" });
+    });
+    const latest = renderCommit(() => {
+      view.update({ label: "broken" });
+    });
+    await earlier.ready;
+    await assert.rejects(latest.committed, /Latest view failed/);
+    await assert.rejects(latest.ready, /Latest view failed/);
+    await renderCommit(() => {
+      view.update({ label: "Recovered" });
+    }).ready;
+    assert.equal(host.textContent, "Recovered");
+  } finally {
+    view.dispose();
+  }
+
+  let recovering;
+  const failedMount = renderCommit(() => {
+    recovering = createView(host, component, { label: "broken" });
+  });
+  const recoveredMount = renderCommit(() => {
+    recovering.update({ label: "Newer" });
+  });
+  try {
+    await Promise.all([failedMount.ready, recoveredMount.ready]);
+    assert.equal(host.textContent, "Newer");
+  } finally {
+    recovering.dispose();
+  }
+});
 
 test("a failed view releases its work, leaves other views live and can recover", () => {
   const host = document.createElement("section");

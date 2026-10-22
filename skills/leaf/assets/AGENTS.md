@@ -308,7 +308,7 @@ covers the page without clipping it.
 
 A rendering callback does its layout reads before its writes, because a read after a
 write forces a synchronous layout. A document-wide renderer that reads DOM another
-renderer creates takes an entry in `PRESENTATION_ORDER` (`runtime/semantic-state.js`),
+renderer creates declares its predecessor in `PRESENTATION_PHASE` (`runtime/semantic-state.js`),
 which says why CSS can't supply that reading.
 
 ### One writer for each fact
@@ -327,7 +327,7 @@ the ordered list of this tab's unresolved work into the one state every componen
 | threads, workflow, attention, obligations, to-dos, activity, unread                                           | the server's state; the browser adds only its own unresolved sends and the versions it is marking read                                                   |
 | what waits on the user and on the agent                                                                       | the server's `served_state.queues`, which `page state` prints; the publisher adds this tab's sends (`localQueues`)                                       |
 | what the DOM shows                                                                                            | the presentation coordinator's renderer tickets and preparation regions                                                                                  |
-| when a document-wide renderer paints                                                                          | the order `PRESENTATION_ORDER` in `runtime/semantic-state.js` declares                                                                                   |
+| when a document-wide renderer paints                                                                          | the DOM dependencies `PRESENTATION_PHASE` in `runtime/semantic-state.js` declares                                                                        |
 | where each thread's passage is                                                                                | `anchor-placement.js`, resolving its anchor in this version                                                                                              |
 | the line inside a target that a comment sits by                                                               | `pointed-place.js` (`placePoints`); presentation only                                                                                                    |
 | the side and line a comment box and its thread card sit by                                                    | `annotation-overlay/comment-placement.js` (`commentSide`)                                                                                                |
@@ -506,13 +506,13 @@ before/after screenshots of each state it touches, from `uv run leaf-dev stills`
 
 ## Working on the runtime
 
-A Solid view mounts once with `createView`; publishing its complete props flushes
-its changed bindings in the current turn. `LeafElement` queues semantic draws in
-Leaf's presentation order and can draw immediately through `performUpdate()`. Do
-not await an update before a focus handoff, measurement, held-news placement or
-presentation commit: that would let unrelated work run before the document says
-what the gesture decided. Tracking reads and publishing native Solid signals need
-no deferred paint; the immutable application selection stays the authority.
+A Solid view mounts once with `createView`. `renderCommit` lets Solid commit its
+bindings before `afterRender` callbacks measure, focus or configure a third-party
+widget. `LeafElement.updated()` runs in that post-render phase. DOM dependencies
+between owners are reactive edges; asynchronous preparation stays separate from
+DOM completion. Keep a gesture's writes and dependent reads in the same commit,
+rather than awaiting unrelated work before its focus handoff. The immutable
+application selection stays the authority.
 
 A watcher's paint subscribes to every selection it reads (`projection-watch.js`), so a
 reader called from a paint selects exactly what it returns (`readPart`) rather than

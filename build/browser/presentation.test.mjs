@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createSignal, flush } from "@solidjs/signals";
 import { watchReaction } from "./observe.ts";
+import { afterRender, renderCommit } from "./rendering.ts";
 import {
   createPresentationCoordinator,
-  createPresentationSchedule,
+  createPresentationFlow,
   describeFailure,
 } from "./presentation.ts";
 
@@ -81,7 +83,7 @@ test("a handle releases the holds it supersedes and leaves running paints to rep
 test("a paint that claims its own region again still reports its own failure", async () => {
   const { coordinator, failures } = setup();
   const publication = coordinator.begin({}, 0);
-  const schedule = createPresentationSchedule((callback) => callback);
+  const schedule = createPresentationFlow((callback) => callback);
   const error = new Error("first paint failed");
   let first = true;
   const presenter = schedule.presenter({
@@ -545,36 +547,43 @@ test("a domain-scoped wait retires when its value is superseded in the same epoc
 
 const flushed = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-test("passes read current presenter order and coalesce repeated claims", async () => {
+test("render dependencies follow current parentage and coalesce repeated claims", async () => {
   const { coordinator } = setup();
   const document = {};
   const publication = coordinator.begin(document, 0);
-  const schedule = createPresentationSchedule((callback) => callback);
+  const schedule = createPresentationFlow((callback) => callback);
   const painted = [];
-  const presenter = (region, order) =>
+  const projection = schedule.group();
+  const thread = schedule.group();
+  const [parent, setParent] = createSignal("projection");
+  const presenter = (region, group, after) =>
     schedule.presenter({
       attach: () => coordinator.attach(region, {}),
-      order,
+      group,
+      after,
       paint: (value) => {
         painted.push(`${region}:${value}`);
         return `${region} proof`;
       },
     });
-  // Registered out of order, claimed out of order: the pass still runs them by rank.
-  let projectionOrder = -1;
-  const late = presenter("thread", -0.5);
-  const early = presenter("projection", () => projectionOrder);
+  // The child is registered and claimed first; only the current dependency decides
+  // which DOM must be committed before its consumer can render.
+  const late = presenter("thread", thread, () =>
+    parent() === "projection" ? [projection] : [],
+  );
+  const early = presenter("projection", projection, () =>
+    parent() === "thread" ? [thread] : [],
+  );
   void late.sync("first");
   void early.sync("only");
   const ready = late.sync("second");
   coordinator.seal(publication);
 
-  assert.deepEqual(painted, []);
   await ready;
   assert.deepEqual(painted, ["projection:only", "thread:second"]);
   assert.equal(coordinator.read().presentedEpoch, 0);
 
-  projectionOrder = -1 / 3;
+  flush(() => setParent("thread"));
   const next = coordinator.begin(document, 1);
   void early.sync("next");
   const reordered = late.sync("next");
@@ -588,7 +597,7 @@ test("a reading held open does not keep the next one off the page", async () => 
   const document = {};
   const renderer = {};
   const publication = coordinator.begin(document, 0);
-  const schedule = createPresentationSchedule((callback) => callback);
+  const schedule = createPresentationFlow((callback) => callback);
   const painted = [];
   const { promise: held, resolve: release } = Promise.withResolvers();
   const presenter = schedule.presenter({
@@ -616,11 +625,112 @@ test("a reading held open does not keep the next one off the page", async () => 
   assert.equal(coordinator.read().presentedEpoch, 0);
 });
 
+test("dependent DOM waits for post-commit work but not asynchronous preparation", async () => {
+  const flow = createPresentationFlow((callback) => callback);
+  const widgets = flow.group();
+  const projection = flow.group([widgets]);
+  const child = flow.task({ group: projection });
+  const parent = flow.task({ group: widgets });
+  const held = Promise.withResolvers();
+  const painted = [];
+  let projected;
+  try {
+    flush(() => {
+      projected = child.enqueue(() => {
+        painted.push("projection");
+      });
+      void parent.enqueue(() => {
+        painted.push("widget");
+        afterRender(() => {
+          painted.push("widget measured");
+        });
+        return held.promise;
+      });
+    });
+    await projected;
+    assert.deepEqual(painted, ["widget", "widget measured", "projection"]);
+    held.resolve();
+    await flow.passed();
+  } finally {
+    held.resolve();
+    parent.disconnect();
+    child.disconnect();
+  }
+});
+
+test("a native flow paint cannot inherit a stale caller's cancellation or tracking", async () => {
+  const { coordinator, failures } = setup();
+  const publication = coordinator.begin({}, 0);
+  const renderer = {};
+  const events = [];
+  const schedule = createPresentationFlow((callback) => {
+    events.push("enqueue");
+    return () => {
+      events.push("run");
+      try {
+        return callback();
+      } finally {
+        events.push("finish");
+      }
+    };
+  });
+  const presenter = schedule.presenter({
+    attach: () => coordinator.attach("independent", renderer),
+    paint(value) {
+      events.push(`paint:${value}`);
+      afterRender(() => {
+        events.push("measured");
+      });
+      return `${value} proof`;
+    },
+  });
+  let current = true;
+  let stretches = 0;
+  try {
+    const caller = renderCommit(
+      () => {
+        current = false;
+        // An eager publication can run independent native effects while this
+        // obsolete caller's render frame remains on the JavaScript stack.
+        flush(() => presenter.sync("latest"));
+      },
+      {
+        current: () => current,
+        run(callback) {
+          stretches++;
+          return callback();
+        },
+      },
+    );
+    coordinator.seal(publication);
+    await Promise.all([caller.ready, schedule.passed()]);
+    assert.equal(stretches, 1, "the independent paint owns its reactive reads");
+    assert.deepEqual(events, [
+      "enqueue",
+      "run",
+      "paint:latest",
+      "enqueue",
+      "finish",
+      "run",
+      "measured",
+      "finish",
+    ]);
+    assert.equal(
+      coordinator.committed("independent", renderer, "latest").proof,
+      "latest proof",
+    );
+    assert.equal(coordinator.read().presentedEpoch, 0);
+    assert.deepEqual(failures, []);
+  } finally {
+    presenter.disconnect();
+  }
+});
+
 test("a superseded claim releases its hold without painting", async () => {
   const { coordinator } = setup();
   const document = {};
   const publication = coordinator.begin(document, 0);
-  const schedule = createPresentationSchedule((callback) => callback);
+  const schedule = createPresentationFlow((callback) => callback);
   const painted = [];
   const presenter = schedule.presenter({
     attach: () => coordinator.attach("obligations", {}),
@@ -638,11 +748,37 @@ test("a superseded claim releases its hold without painting", async () => {
   assert.equal(coordinator.read().presentedEpoch, 0);
 });
 
+test("a later failure remains in the pass while an earlier owner is held", async () => {
+  const flow = createPresentationFlow((callback) => callback);
+  const held = Promise.withResolvers();
+  const slow = flow.task();
+  const failed = flow.task();
+  try {
+    const first = slow.enqueue(() => held.promise);
+    flush();
+    const passed = flow.passed();
+    const second = failed.enqueue(() => {
+      throw new Error("later owner failed");
+    });
+    flush();
+    await assert.rejects(second, /later owner failed/);
+    held.resolve();
+    await first;
+    await assert.rejects(passed, /later owner failed/);
+    await failed.enqueue(() => "a new pass can succeed");
+    await flow.passed();
+  } finally {
+    held.resolve();
+    slow.disconnect();
+    failed.disconnect();
+  }
+});
+
 test("a failing paint reports through the region and fails the pass it was in", async () => {
   const { coordinator, failures } = setup();
   const document = {};
   const publication = coordinator.begin(document, 0);
-  const schedule = createPresentationSchedule((callback) => callback);
+  const schedule = createPresentationFlow((callback) => callback);
   const presenter = schedule.presenter({
     attach: () => coordinator.attach("thread", {}),
     paint: () => {
@@ -662,18 +798,19 @@ test("a failure reported for one region does not withhold the others' readings",
   const { coordinator, failures } = setup();
   const document = {};
   const publication = coordinator.begin(document, 0);
-  const schedule = createPresentationSchedule((callback) => callback);
+  const schedule = createPresentationFlow((callback) => callback);
   const painted = [];
+  const projection = schedule.group();
   const failing = schedule.presenter({
     attach: () => coordinator.attach("projection:chrome", {}),
-    order: 0,
+    group: projection,
     paint: () => {
       throw new Error("projection failed");
     },
   });
   const following = schedule.presenter({
     attach: () => coordinator.attach("thread", {}),
-    order: 1,
+    after: () => [projection],
     paint: (value) => {
       painted.push(value);
       return value;
@@ -689,37 +826,45 @@ test("a failure reported for one region does not withhold the others' readings",
   assert.deepEqual(coordinator.read().pending, ["projection:chrome"]);
 });
 
-test("a fail-soft paint commits an explicit failure state", async () => {
-  const { coordinator, failures } = setup();
-  const document = {};
-  const renderer = {};
-  const publication = coordinator.begin(document, 0);
-  const schedule = createPresentationSchedule((callback) => callback);
-  const presenter = schedule.presenter({
-    attach: () => coordinator.attach("thread", renderer),
-    failSoft: () => "retained",
-    paint: () => Promise.reject(new Error("list failed")),
-  });
-  // Fail-soft proof is a committed reading, so the pass carrying it succeeds; the
-  // failure reaches the user through the coordinator's report instead.
-  const ready = presenter.sync("value");
-  coordinator.seal(publication);
-  await ready;
+for (const failureAt of ["preparation", "measurement"])
+  test(`a fail-soft paint commits an explicit failure state: ${failureAt}`, async () => {
+    const { coordinator, failures } = setup();
+    const document = {};
+    const renderer = {};
+    const publication = coordinator.begin(document, 0);
+    const schedule = createPresentationFlow((callback) => callback);
+    const presenter = schedule.presenter({
+      attach: () => coordinator.attach("thread", renderer),
+      failSoft: () => "retained",
+      paint: () => {
+        const error = new Error("list failed");
+        if (failureAt === "preparation") return Promise.reject(error);
+        afterRender(() => {
+          throw error;
+        });
+      },
+    });
+    // Fail-soft proof is a committed reading, so the pass carrying it succeeds; the
+    // failure reaches the user through the coordinator's report instead.
+    const ready = presenter.sync("value");
+    coordinator.seal(publication);
+    await ready;
 
-  assert.equal(failures.length, 1);
-  assert.equal(coordinator.read().presentedEpoch, 0);
-  assert.equal(coordinator.committed("thread", renderer, "value").status, "failed");
-});
+    assert.equal(failures.length, 1);
+    assert.equal(coordinator.read().presentedEpoch, 0);
+    assert.equal(coordinator.committed("thread", renderer, "value").status, "failed");
+  });
 
 test("a paint that claims another region joins the same pass", async () => {
   const { coordinator } = setup();
   const document = {};
   const publication = coordinator.begin(document, 0);
   const painted = [];
-  const schedule = createPresentationSchedule((callback) => callback);
+  const schedule = createPresentationFlow((callback) => callback);
+  const projection = schedule.group();
   const following = schedule.presenter({
     attach: () => coordinator.attach("thread", {}),
-    order: 1,
+    after: () => [projection],
     paint: (value) => {
       painted.push(`thread:${value}`);
       return value;
@@ -728,12 +873,14 @@ test("a paint that claims another region joins the same pass", async () => {
   let again = true;
   const leading = schedule.presenter({
     attach: () => coordinator.attach("projection:chrome", {}),
-    order: 0,
+    group: projection,
     paint: (value) => {
       painted.push(`projection:${value}`);
       if (again) {
         again = false;
-        void following.sync("mounted");
+        afterRender(() => {
+          void following.sync("mounted");
+        });
       }
       return value;
     },
@@ -753,7 +900,7 @@ test("a reading claimed mid-paint is installed before the finished one settles",
   const document = {};
   const renderer = {};
   const publication = coordinator.begin(document, 0);
-  const schedule = createPresentationSchedule((callback) => callback);
+  const schedule = createPresentationFlow((callback) => callback);
   let claimDuringPaint = null;
   const readings = [];
   const presenter = schedule.presenter({
@@ -781,7 +928,7 @@ test("a paint that fails after a newer claim supersedes it still reports", async
   const { coordinator, failures } = setup();
   const document = {};
   const publication = coordinator.begin(document, 0);
-  const schedule = createPresentationSchedule((callback) => callback);
+  const schedule = createPresentationFlow((callback) => callback);
   const slow = Promise.withResolvers();
   const renderer = {};
   let first = true;
@@ -821,7 +968,10 @@ test("a paint that fails after a newer claim supersedes it still reports", async
 for (const order of ["passive-first", "input-first"]) {
   test(`coalesced presenters retain each claim's context: ${order}`, async () => {
     let context = null;
-    const schedule = createPresentationSchedule((callback) => {
+    let bound = 0;
+    let retired = 0;
+    const schedule = createPresentationFlow((callback) => {
+      bound++;
       const captured = context;
       return () => {
         const prior = context;
@@ -830,6 +980,7 @@ for (const order of ["passive-first", "input-first"]) {
           return callback();
         } finally {
           context = prior;
+          retired++;
         }
       };
     });
@@ -839,7 +990,12 @@ for (const order of ["passive-first", "input-first"]) {
     const presenter = (name) =>
       schedule.presenter({
         attach: () => coordinator.attach(name, {}),
-        paint: () => painted.push([name, context]),
+        paint: () => {
+          painted.push([name, context]);
+          afterRender(() => {
+            assert.equal(context, name === "input" ? "press" : null);
+          });
+        },
       });
     const passive = presenter("passive");
     const input = presenter("input");
@@ -861,18 +1017,14 @@ for (const order of ["passive-first", "input-first"]) {
     context = "unrelated";
     await schedule.passed();
     assert.deepEqual(
-      painted,
-      order === "passive-first"
-        ? [
-            ["passive", null],
-            ["input", "press"],
-          ]
-        : [
-            ["input", "press"],
-            ["passive", null],
-          ],
+      new Map(painted),
+      new Map([
+        ["passive", null],
+        ["input", "press"],
+      ]),
     );
     assert.equal(context, "unrelated");
+    assert.equal(bound, retired, "every captured job retired in its own context");
   });
 }
 
@@ -899,6 +1051,7 @@ test("region readiness observes completion and same-epoch replacement without ot
 
   const replacement = coordinator.attach("widget", {});
   assert.equal(coordinator.currentRegionsPresented(current, ["widget"]), false);
+  flush();
   assert.equal(seen.at(-1), false);
   const replacementPaint = replacement.present("replacement");
   first.disconnect();
@@ -914,6 +1067,7 @@ test("region readiness observes completion and same-epoch replacement without ot
   assert.equal(coordinator.currentRegionsPresented(current, ["widget"]), false);
   await Promise.resolve();
   assert.equal(coordinator.currentRegionsPresented(current, ["widget"]), true);
+  flush();
   assert.equal(seen.at(-1), true);
   const observations = seen.length;
   stop();

@@ -12,7 +12,7 @@ export const initialSolidPath = "vendor/solid-initial.js";
 const sharedSolidPath = "vendor/solid-shared.js";
 const solidGlobal = "document.documentElement.lfInitial.solid";
 const signalExports =
-  "createSignal, createMemo, createRoot, createReaction, getObserver, runWithOwner, createEffect, createProjection, flush, untrack, For, Show, Errored, onCleanup";
+  "createSignal, createMemo, createRoot, createReaction, getObserver, runWithOwner, createEffect, createProjection, flush, untrack, onSettled, For, Show, Errored, onCleanup";
 const webExports = "render, insert, spread";
 const solidExports = `${signalExports}, ${webExports}, html`;
 

@@ -1235,8 +1235,8 @@ def test_coalesced_rendering_jobs_keep_their_own_input_source(
           let schedule=module[scheduler];
           if(scheduler==='presenter') {
             const {bindQueuedWork}=await window.__lfCheckApi();
-            const {createPresentationSchedule}=await window.__lfCheckApi();
-            const presentations=createPresentationSchedule(bindQueuedWork);
+            const {createPresentationFlow}=await window.__lfCheckApi();
+            const presentations=createPresentationFlow(bindQueuedWork);
             // This test observes scheduling, so a ticket that accepts the paint is enough.
             const attach=()=>({present:()=>({resolve:()=>{},ready:Promise.resolve()})});
             schedule=callback=>presentations.presenter({attach,paint:callback}).sync(null);
@@ -1294,8 +1294,8 @@ def test_a_rendering_jobs_returned_async_tail_stays_passive(browser, serve, sche
       let schedule=nextRender;
       if(scheduler==='presenter') {
         const {bindQueuedWork}=await window.__lfCheckApi();
-        const {createPresentationSchedule}=await window.__lfCheckApi();
-        const presentations=createPresentationSchedule(bindQueuedWork);
+        const {createPresentationFlow}=await window.__lfCheckApi();
+        const presentations=createPresentationFlow(bindQueuedWork);
         // This test observes scheduling, so a ticket that accepts the paint is enough.
         const attach=()=>({present:()=>({resolve:()=>{},ready:Promise.resolve()})});
         schedule=callback=>presentations.presenter({attach,paint:callback}).sync(null);

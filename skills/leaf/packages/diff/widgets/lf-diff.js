@@ -40,6 +40,7 @@ import {
   holdFocus,
   html,
   createView,
+  afterRender,
   Show,
   inChrome,
   iconElement,
@@ -370,9 +371,11 @@ function paintSummary(details, record, verified = true) {
     );
     summaryDrawings.set(summary, drawing);
   }
-  const current = pathParts(details);
-  for (const part of previous) if (!current.includes(part)) pathSizes.unobserve(part);
-  for (const part of current) if (!previous.includes(part)) pathSizes.observe(part);
+  afterRender(() => {
+    const current = pathParts(details);
+    for (const part of previous) if (!current.includes(part)) pathSizes.unobserve(part);
+    for (const part of current) if (!previous.includes(part)) pathSizes.observe(part);
+  });
 }
 
 function summaryNode(record, open, verified = true) {

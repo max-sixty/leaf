@@ -8,6 +8,8 @@ import {
   LeafElement,
   html,
   createView,
+  afterRender,
+  renderCommit,
   For,
   Show,
   offered,
@@ -263,18 +265,23 @@ customElements.define(
         if (isNativeLayer(popup)) closeNativeLayer(popup);
       }
       return preserveReadingRegions(this, () => {
-        this.#selected = id;
-        this.requestUpdate();
-        this.performUpdate();
-        const queueButton = this.#queue?.querySelector('[aria-current="true"]');
-        if (queueButton)
-          scrollIntoView(queueButton, { block: "nearest", behavior: "instant" });
-        if (land || leaveHiddenControl) {
-          const heading = this.#entries.get(id).article.querySelector(".lf-vr-title");
-          focusDestination(heading, "move");
-          scrollIntoView(heading, { block: "nearest", behavior: "instant" });
-        }
-        return this.updateComplete;
+        return renderCommit(() => {
+          this.#selected = id;
+          this.requestUpdate();
+          this.performUpdate();
+          afterRender(() => {
+            const queueButton = this.#queue?.querySelector('[aria-current="true"]');
+            if (queueButton)
+              scrollIntoView(queueButton, { block: "nearest", behavior: "instant" });
+            if (land || leaveHiddenControl) {
+              const heading = this.#entries
+                .get(id)
+                .article.querySelector(".lf-vr-title");
+              focusDestination(heading, "move");
+              scrollIntoView(heading, { block: "nearest", behavior: "instant" });
+            }
+          });
+        }).ready;
       });
     }
     #nextUnchecked() {
@@ -472,10 +479,12 @@ customElements.define(
     }
 
     #change(entry, key, value) {
-      entry[key] = value;
-      this.requestUpdate();
-      this.performUpdate();
-      this.#inspect(entry);
+      return renderCommit(() => {
+        entry[key] = value;
+        this.requestUpdate();
+        this.performUpdate();
+        afterRender(() => this.#inspect(entry));
+      }).ready;
     }
 
     #review(record, approved) {

@@ -19,7 +19,7 @@ import {
   keeps
 } from "./bundle-page-paint.js";
 import {
-  PRESENTATION_ORDER,
+  PRESENTATION_PHASE,
   applicationPresenter,
   applicationState,
   projectionOrigins,
@@ -77,7 +77,7 @@ var widgetStates = readPart((root) => root.effective.widgets);
 function createProjectionPresentation() {
   applicationPresenter({
     region: "projection:chrome",
-    order: PRESENTATION_ORDER.projection,
+    phase: PRESENTATION_PHASE.projection,
     reading: () => answered() ? true : null,
     paint: paintReading
   });

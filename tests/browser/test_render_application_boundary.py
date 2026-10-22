@@ -454,7 +454,7 @@ def activation_page(source):
 
 PAGE_WIDGET = """\
 import {
-  html, createView, keeps, keepsText, layerFact, LeafElement,
+  html, createView, afterRender, keeps, keepsText, layerFact, LeafElement,
 } from "/runtime/widget-api.js";
 
 customElements.define("lf-local", class extends LeafElement {
@@ -496,11 +496,11 @@ customElements.define("lf-local", class extends LeafElement {
     const {state, actions} = this.reading;
     keeps(this, "data-rendered-choice", state.choose.value);
     this.dataset.readings = String(Number(this.dataset.readings || 0) + 1);
-    const props = {available: actions.choose.available, value: state.choose.value};
+    const props = {available: actions.choose.available};
     if (this.#drawing) this.#drawing.update(props);
     else this.#drawing = createView(this.renderRoot, read => html`<button disabled=${() => !read().available} onClick=${() => this.choose()}>Choose</button>
       <output></output>`, props);
-    keepsText(this.renderRoot.querySelector("output"), state.choose.value);
+    afterRender(() => keepsText(this.renderRoot.querySelector("output"), state.choose.value));
   }
 });
 """

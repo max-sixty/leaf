@@ -1,6 +1,6 @@
 (() => {
   // leaf-initial-solid:solid
-  var { createSignal, createMemo, createRoot, createReaction, getObserver, runWithOwner, createEffect, createProjection, flush, untrack, For, Show, Errored, onCleanup, render, insert, spread, html } = document.documentElement.lfInitial.solid;
+  var { createSignal, createMemo, createRoot, createReaction, getObserver, runWithOwner, createEffect, createProjection, flush, untrack, onSettled, For, Show, Errored, onCleanup, render, insert, spread, html } = document.documentElement.lfInitial.solid;
 
   // skills/leaf/packages/default/widgets/toc-view.js
   var HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";

@@ -1,12 +1,12 @@
 // vendor/browser-runtime.js
 import {
   getObserver,
-  runWithOwner as runWithOwner4,
+  runWithOwner as runWithOwner6,
   createSignal as createSignal4,
-  createMemo as createMemo2,
-  createRoot as createRoot2,
-  createEffect as createEffect2,
-  flush as flush5,
+  createMemo as createMemo3,
+  createRoot as createRoot3,
+  createEffect as createEffect3,
+  flush as flush4,
   untrack as untrack2
 } from "/vendor/solid.js";
 
@@ -48,9 +48,127 @@ function watchReaction(read, moved2) {
 }
 
 // vendor/browser-runtime/views.js
-import { createSignal, createProjection, flush as flush2, runWithOwner as runWithOwner2 } from "/vendor/solid.js";
+import { createSignal, createProjection, runWithOwner as runWithOwner3 } from "/vendor/solid.js";
 import { Errored } from "/vendor/solid.js";
 import { render } from "/vendor/solid.js";
+
+// vendor/browser-runtime/rendering.js
+import { flush as flush2, onSettled, runWithOwner as runWithOwner2 } from "/vendor/solid.js";
+var active = null;
+var inline = (callback) => callback();
+var unchanged = (callback) => callback;
+var current = () => true;
+function inside(frame, callback) {
+  const previous = active;
+  active = frame;
+  try {
+    return frame.run(callback);
+  } finally {
+    active = previous;
+  }
+}
+function afterRender(callback) {
+  if (!active) {
+    callback();
+    return;
+  }
+  const frame = active;
+  frame.callbacks.push(
+    frame.bind(() => {
+      if (!frame.failed && frame.current()) return callback();
+    })
+  );
+}
+function writeView(write, check) {
+  if (active) {
+    active.checks.add(check);
+    write();
+  } else {
+    flush2(write);
+    check();
+  }
+}
+function renderCommit(write, options = {}) {
+  const committed = Promise.withResolvers();
+  const ready = Promise.withResolvers();
+  void committed.promise.catch(() => void 0);
+  void ready.promise.catch(() => void 0);
+  const parent = options.root ? null : active;
+  const frame = {
+    failed: false,
+    callbacks: [],
+    checks: /* @__PURE__ */ new Set(),
+    children: [],
+    tails: [],
+    run: options.run ?? parent?.run ?? inline,
+    bind: options.bind ?? parent?.bind ?? unchanged,
+    current: options.current ?? parent?.current ?? current
+  };
+  if (parent) {
+    parent.children.push(committed.promise);
+    parent.tails.push(ready.promise);
+  }
+  let result;
+  let ended = false;
+  const fail = (error) => {
+    if (ended) return;
+    ended = true;
+    frame.failed = true;
+    for (const callback of frame.callbacks.splice(0)) callback();
+    frame.checks.clear();
+    committed.reject(error);
+    ready.reject(error);
+  };
+  const tail = (result2) => {
+    const pending = Promise.resolve(result2);
+    void pending.catch(() => void 0);
+    frame.tails.push(pending);
+  };
+  const schedule2 = () => {
+    runWithOwner2(null, () => onSettled(advance2));
+  };
+  const advance2 = () => {
+    if (ended) return;
+    try {
+      if (frame.current()) for (const check of frame.checks) check();
+      frame.checks.clear();
+      if (frame.children.length) {
+        const children = frame.children.splice(0);
+        void Promise.all(children).then(schedule2, fail);
+        return;
+      }
+      const callback = frame.callbacks.shift();
+      if (callback) {
+        const siblings = frame.callbacks.splice(0);
+        try {
+          tail(inside(frame, callback));
+        } finally {
+          frame.callbacks.push(...siblings);
+        }
+        schedule2();
+        return;
+      }
+      ended = true;
+      committed.resolve();
+      void Promise.all([result, ...frame.tails]).then(
+        ([result2]) => ready.resolve(result2),
+        ready.reject
+      );
+    } catch (error) {
+      fail(error);
+    }
+  };
+  try {
+    result = Promise.resolve(frame.current() ? inside(frame, write) : void 0);
+    void result.catch(() => void 0);
+    schedule2();
+  } catch (error) {
+    fail(error);
+  }
+  return Object.freeze({ committed: committed.promise, ready: ready.promise });
+}
+
+// vendor/browser-runtime/views.js
 var roots = /* @__PURE__ */ new WeakMap();
 function resetViewsWithin(container) {
   const nodes = [container];
@@ -65,9 +183,10 @@ function resetViewsWithin(container) {
   for (const reset of resets.reverse()) reset();
 }
 function createView(container, component, initial) {
-  let current = initial;
+  let current2 = initial;
   let stop = null;
   let disposed = false;
+  let publication = 0;
   let failure = null;
   let publish;
   const reset = () => {
@@ -81,12 +200,15 @@ function createView(container, component, initial) {
     reset();
     throw error;
   };
+  const check = (version) => () => {
+    if (!disposed && version === publication) checkFailure();
+  };
   const mount = () => {
     if (container.firstChild) container.replaceChildren();
-    stop = runWithOwner2(
+    stop = runWithOwner3(
       null,
       () => render(() => {
-        const [snapshot, setSnapshot] = createSignal({ current }, { ownedWrite: true });
+        const [snapshot, setSnapshot] = createSignal({ current: current2 }, { ownedWrite: true });
         publish = setSnapshot;
         const props = createProjection(
           () => ({ ...snapshot().current }),
@@ -104,18 +226,26 @@ function createView(container, component, initial) {
         });
       }, container)
     );
-    checkFailure();
   };
-  mount();
-  roots.set(container, reset);
+  writeView(mount, check(publication));
+  roots.set(container, () => {
+    publication++;
+    failure = null;
+    reset();
+  });
   return Object.freeze({
     update(next) {
       if (disposed) throw new Error("Cannot update a disposed Solid view");
-      current = next;
-      if (stop) {
-        flush2(() => publish({ current }));
-        checkFailure();
-      } else mount();
+      current2 = next;
+      const version = ++publication;
+      if (failure) {
+        failure = null;
+        reset();
+      }
+      writeView(() => {
+        if (stop) publish({ current: current2 });
+        else mount();
+      }, check(version));
     },
     dispose() {
       if (disposed) return;
@@ -135,7 +265,7 @@ import {
   createMemo,
   createSignal as createSignal2,
   flush as flush3,
-  runWithOwner as runWithOwner3,
+  runWithOwner as runWithOwner4,
   untrack
 } from "/vendor/solid.js";
 var secured = /* @__PURE__ */ new WeakSet();
@@ -235,7 +365,7 @@ function createApplicationPublisher(initial) {
     },
     select(derive) {
       let prior;
-      const selected = runWithOwner3(
+      const selected = runWithOwner4(
         null,
         () => createMemo(() => {
           const snapshot = root();
@@ -453,16 +583,16 @@ function foldWidgetStates(authoredSnapshots, projection) {
     const { spec, e, unit } = entry;
     const record = spec.record;
     const value = record ? structuredClone(e.detail.value) : e.action;
-    const current = { action: e.action, value, detail: structuredClone(e.detail) };
+    const current2 = { action: e.action, value, detail: structuredClone(e.detail) };
     owner.entries.push(entry);
     const target = owner.state[e.action];
     if (target && "units" in target) {
-      target.units[unit] = current;
+      target.units[unit] = current2;
       if ("ranks" in target && !entry.absorbed) place(target, unit, e.detail);
     } else {
       if (spec.unit !== "widget")
         throw new Error(`Missing authored units for ${e.widget}/${e.action}`);
-      owner.state[e.action] = current;
+      owner.state[e.action] = current2;
     }
   }
   for (const { state } of states.values())
@@ -504,13 +634,13 @@ function stampedState(registry, tag, event) {
   const state = registry.$states[tag]?.[event.action];
   return state?.writer === VERB_WRITERS[event.kind] ? state : null;
 }
-function sameStateDefinition(recorded, current) {
-  if (recorded === current) return true;
-  if (!recorded || !current || typeof recorded !== "object" || typeof current !== "object" || Array.isArray(recorded) !== Array.isArray(current))
+function sameStateDefinition(recorded, current2) {
+  if (recorded === current2) return true;
+  if (!recorded || !current2 || typeof recorded !== "object" || typeof current2 !== "object" || Array.isArray(recorded) !== Array.isArray(current2))
     return false;
   const keys = Object.keys(recorded);
-  return keys.length === Object.keys(current).length && keys.every(
-    (key) => Object.hasOwn(current, key) && (typeof recorded[key] === "object" ? sameStateDefinition(recorded[key], current[key]) : recorded[key] === current[key])
+  return keys.length === Object.keys(current2).length && keys.every(
+    (key) => Object.hasOwn(current2, key) && (typeof recorded[key] === "object" ? sameStateDefinition(recorded[key], current2[key]) : recorded[key] === current2[key])
   );
 }
 var isElementName = (name) => WIDGET_NAME.test(name);
@@ -1056,14 +1186,14 @@ function localQueues(served2, workflows, todos, items, local) {
     )
   );
   const obligationOf = (item) => {
-    const current2 = record.get(item.id);
-    if (!current2) throw new Error(`Queue item ${item.id} names no obligation`);
-    return current2;
+    const current3 = record.get(item.id);
+    if (!current3) throw new Error(`Queue item ${item.id} names no obligation`);
+    return current3;
   };
   const standsOpen = (item) => {
     if (item.kind === "todo") return open.has(item.id);
-    const current2 = obligationOf(item);
-    return current2.next_actor === item.owner && !(current2.source.kind === "update" && current2.thread !== null && sentIn.has(current2.thread));
+    const current3 = obligationOf(item);
+    return current3.next_actor === item.owner && !(current3.source.kind === "update" && current3.thread !== null && sentIn.has(current3.thread));
   };
   const reopened = (item) => namesRecord(item) ? obligationOf(item).status === "open" && obligationOf(item).next_actor === item.owner : open.has(item.id);
   const endedHere = (item) => namesRecord(item) ? obligationOf(item).status !== "open" : ended.has(item.id);
@@ -1072,15 +1202,15 @@ function localQueues(served2, workflows, todos, items, local) {
     if (!local2) throw new Error(`Queue item ${item.id} names no to-do`);
     return local2;
   };
-  const current = (item) => namesRecord(item) ? { ...item, obligation: obligationOf(item) } : { ...item, todo: todoOf(item) };
+  const current2 = (item) => namesRecord(item) ? { ...item, obligation: obligationOf(item) } : { ...item, todo: todoOf(item) };
   const asOpen = ({
     state: _state,
     ended: _ended,
     detail: _detail,
     ...item
-  }) => current(item);
+  }) => current2(item);
   const asDone = (item) => ({
-    ...current(item),
+    ...current2(item),
     live: false,
     state: namesRecord(item) && obligationOf(item).status === "withdrawn" ? "dropped" : "done",
     ended: null,
@@ -1089,7 +1219,7 @@ function localQueues(served2, workflows, todos, items, local) {
   const reopenedFor = (owner) => served2.done.filter((item) => item.owner === owner && reopened(item));
   const localRow = (item) => {
     const source = item.source;
-    return current({
+    return current2({
       kind: "update",
       id: item.id,
       owner: item.next_actor,
@@ -1100,22 +1230,22 @@ function localQueues(served2, workflows, todos, items, local) {
   };
   return {
     on_user: [
-      ...served2.on_user.filter(standsOpen).map(current),
+      ...served2.on_user.filter(standsOpen).map(current2),
       ...reopenedFor("user").map(asOpen),
       ...local.filter((item) => item.next_actor === "user").map(localRow)
     ].toSorted(
       (a, b) => onUserRank(a) - onUserRank(b) || (namesRecord(a) && namesRecord(b) ? inventoryAt.get(a.id) - inventoryAt.get(b.id) : 0)
     ),
     on_agent: [
-      ...served2.on_agent.filter((item) => item.kind !== "todo" && standsOpen(item)).map(current),
+      ...served2.on_agent.filter((item) => item.kind !== "todo" && standsOpen(item)).map(current2),
       ...local.filter((item) => item.next_actor === "agent").map(localRow),
-      ...served2.on_agent.filter((item) => item.kind === "todo" && standsOpen(item)).map(current),
+      ...served2.on_agent.filter((item) => item.kind === "todo" && standsOpen(item)).map(current2),
       ...reopenedFor("agent").map(asOpen)
     ],
     // Newest first, as the server serves it: what ended in this tab has just ended.
     done: [
       ...[...served2.on_user, ...served2.on_agent].filter(endedHere).map(asDone),
-      ...served2.done.filter((item) => !reopened(item)).map(current)
+      ...served2.done.filter((item) => !reopened(item)).map(current2)
     ]
   };
 }
@@ -1190,7 +1320,7 @@ function widgetInputs(root, index, { id, tag }) {
 }
 function widgetReading(inputs, descriptor) {
   const currentDescriptor = JSON.stringify(inputs.registered) === JSON.stringify(descriptor);
-  const current = currentDescriptor ? inputs.current : void 0;
+  const current2 = currentDescriptor ? inputs.current : void 0;
   const authored = currentDescriptor ? inputs.authored?.state : void 0;
   const classified = inputs.entries.classified.toSorted(
     (left, right) => (left.e.seq ?? 0) - (right.e.seq ?? 0)
@@ -1212,7 +1342,7 @@ function widgetReading(inputs, descriptor) {
       }
     ])
   );
-  const provenanceEntries = current?.entries ?? [];
+  const provenanceEntries = current2?.entries ?? [];
   const provenance = Object.fromEntries(
     provenanceEntries.map(({ e, unit, value }) => [
       `${e.action}:${unit}`,
@@ -1221,7 +1351,7 @@ function widgetReading(inputs, descriptor) {
   );
   return {
     authored: authored ?? {},
-    state: current?.state ?? {},
+    state: current2?.state ?? {},
     memberships: currentDescriptor ? inputs.memberships ?? {} : {},
     thread: { heldBy: inputs.heldBy },
     provenance,
@@ -1528,9 +1658,9 @@ function createSemanticApplication({
     } finally {
       publicationDepth -= 1;
       if (presentation2 && publicationDepth === 0 && activePresentation) {
-        const current = activePresentation;
+        const current2 = activePresentation;
         activePresentation = null;
-        presentation2.seal(current);
+        presentation2.seal(current2);
       }
     }
   }
@@ -1860,7 +1990,13 @@ function createSemanticApplication({
 }
 
 // vendor/browser-runtime/presentation.js
-import { createSignal as createSignal3, flush as flush4 } from "/vendor/solid.js";
+import {
+  createSignal as createSignal3,
+  createEffect as createEffect2,
+  createMemo as createMemo2,
+  createRoot as createRoot2,
+  runWithOwner as runWithOwner5
+} from "/vendor/solid.js";
 function describeFailure(reason) {
   const message = reason instanceof Error ? reason.message : String(reason);
   if (!(reason instanceof AggregateError) || reason.errors.length === 0) return message;
@@ -1869,7 +2005,7 @@ function describeFailure(reason) {
 function createPresentationCoordinator({ reportFailure }) {
   const [changes, setChanges] = createSignal3(0, { ownedWrite: true });
   const changed = () => {
-    flush4(() => setChanges((value) => value + 1));
+    setChanges((value) => value + 1);
   };
   let document2 = null;
   let documentGeneration = 0;
@@ -2128,20 +2264,20 @@ function createPresentationCoordinator({ reportFailure }) {
       });
     });
   }
-  async function whenCurrentPresented(current) {
+  async function whenCurrentPresented(current2) {
     for (; ; ) {
-      const target = current();
+      const target = current2();
       await whenPresented(target.document, target.semanticEpoch);
-      if (currentPresented(current)) return "presented";
+      if (currentPresented(current2)) return "presented";
     }
   }
-  function currentPresented(current) {
-    const latest = current();
+  function currentPresented(current2) {
+    const latest = current2();
     const reading = read();
     return Object.is(reading.document, latest.document) && reading.semanticEpoch === latest.semanticEpoch && reading.presentedEpoch >= latest.semanticEpoch && reading.sealed && reading.pending.length === 0;
   }
-  function currentRegionsPresented(current, wanted) {
-    const target = current();
+  function currentRegionsPresented(current2, wanted) {
+    const target = current2();
     return target !== null && regionOutcome({
       ...target,
       regions: new Set(wanted),
@@ -2149,23 +2285,23 @@ function createPresentationCoordinator({ reportFailure }) {
       }
     }) === "presented";
   }
-  async function whenCurrentRegionsPresented(current, regions2) {
+  async function whenCurrentRegionsPresented(current2, regions2) {
     const wanted = [...new Set(regions2)];
     for (; ; ) {
-      const target = current();
+      const target = current2();
       if (target === null) return "superseded";
       await new Promise((resolve) => {
         const waiter = {
           ...target,
           regions: new Set(wanted),
-          cancelled: () => current() === null,
+          cancelled: () => current2() === null,
           resolve
         };
         const outcome2 = regionOutcome(waiter);
         if (outcome2) resolve(outcome2);
         else regionWaiters.push(waiter);
       });
-      const latest = current();
+      const latest = current2();
       if (latest === null) return "superseded";
       const outcome = regionOutcome({
         ...latest,
@@ -2210,48 +2346,31 @@ function createPresentationCoordinator({ reportFailure }) {
     read
   });
 }
-function createPresentationSchedule(bindJob) {
-  let queued = [];
-  let running = [];
-  let scheduled = false;
-  let settling = false;
+function createPresentationFlow(bindJob) {
+  const running = /* @__PURE__ */ new Set();
   let pass = null;
-  function open() {
-    if (pass) return;
-    pass = Promise.withResolvers();
-    void pass.promise.catch(() => void 0);
-  }
-  function collect(order, run) {
-    open();
-    queued.push({ order, run: bindJob(run) });
-    if (scheduled) return;
-    scheduled = true;
-    queueMicrotask(() => {
-      scheduled = false;
-      const round = queued;
-      queued = [];
-      round.sort((left, right) => left.order - right.order);
-      for (const { run: run2 } of round) {
-        const started = run2();
-        void started.catch(() => void 0);
-        running.push(started);
-      }
-      void drain();
-    });
+  let settling = false;
+  function join(work) {
+    if (!pass) {
+      pass = Promise.withResolvers();
+      void pass.promise.catch(() => void 0);
+    }
+    running.add(work);
+    void work.catch(() => void 0);
+    if (!settling) void drain();
   }
   async function drain() {
-    if (settling) return;
     settling = true;
-    let failure = null;
+    let failure;
     let failed = false;
-    while (running.length || queued.length || scheduled) {
-      const started = running;
-      running = [];
-      for (const outcome of await Promise.allSettled(started))
+    while (running.size) {
+      const batch = [...running];
+      for (const outcome of await Promise.allSettled(batch))
         if (outcome.status === "rejected" && !failed) {
           failed = true;
           failure = outcome.reason;
         }
+      for (const work of batch) running.delete(work);
     }
     settling = false;
     const finished = pass;
@@ -2260,56 +2379,141 @@ function createPresentationSchedule(bindJob) {
     else finished.resolve();
   }
   const passed = () => pass?.promise ?? Promise.resolve();
-  function enqueue(order, run) {
-    const completion = Promise.withResolvers();
-    collect(order, async () => {
-      try {
-        await run();
-        completion.resolve();
-      } catch (error) {
-        completion.reject(error);
-        throw error;
+  function group(predecessors = []) {
+    const [members, setMembers] = createSignal3(
+      /* @__PURE__ */ new Set(),
+      { ownedWrite: true }
+    );
+    const pending = runWithOwner5(
+      null,
+      () => createMemo2(() => [...members()].some((task2) => task2.pending()))
+    );
+    return Object.freeze({
+      predecessors,
+      pending,
+      add(task2) {
+        setMembers((previous) => /* @__PURE__ */ new Set([...previous, task2]));
+      },
+      remove(task2) {
+        setMembers(
+          (previous) => new Set([...previous].filter((member) => member !== task2))
+        );
       }
     });
-    return completion.promise;
+  }
+  function task({
+    group: owner,
+    after = () => []
+  } = {}) {
+    const [requested, setRequested] = createSignal3(null, {
+      ownedWrite: true
+    });
+    const [completed, setCompleted] = createSignal3(0, { ownedWrite: true });
+    let generation = 0;
+    let latest = null;
+    let disconnected = false;
+    const pending = () => (requested()?.generation ?? 0) > completed();
+    const stop = runWithOwner5(
+      null,
+      () => createRoot2((dispose) => {
+        createEffect2(
+          () => {
+            const request = requested();
+            if (!request || request.generation <= completed()) return null;
+            if ([...owner?.predecessors ?? [], ...after()].some(
+              (predecessor) => predecessor.pending()
+            ))
+              return null;
+            return request;
+          },
+          (request) => {
+            if (!request || disconnected || request.started) return;
+            request.started = true;
+            const commit = renderCommit(request.run, { root: true, bind: bindJob });
+            const advance2 = () => setCompleted((value) => Math.max(value, request.generation));
+            void commit.committed.then(advance2, advance2);
+            void Promise.resolve(
+              request.verdict ? request.verdict(commit.ready) : commit.ready
+            ).then(() => request.completion.resolve(), request.completion.reject);
+          }
+        );
+        return dispose;
+      })
+    );
+    const result = Object.freeze({
+      pending,
+      enqueue(run, verdict) {
+        if (disconnected) throw new Error("Cannot render a disconnected task");
+        if (latest && !latest.started) {
+          latest.cancelled = true;
+          latest.run();
+          latest.completion.resolve();
+        }
+        const request = {
+          generation: ++generation,
+          run: bindJob(() => request.cancelled ? void 0 : run()),
+          completion: Promise.withResolvers(),
+          started: false,
+          cancelled: false,
+          verdict
+        };
+        latest = request;
+        join(request.completion.promise);
+        setRequested(request);
+        return request.completion.promise;
+      },
+      disconnect() {
+        if (disconnected) return;
+        disconnected = true;
+        if (latest && !latest.started) {
+          latest.cancelled = true;
+          latest.run();
+          latest.completion.resolve();
+        }
+        setCompleted(generation);
+        owner?.remove(result);
+        stop();
+      }
+    });
+    owner?.add(result);
+    return result;
   }
   function presenter({
     attach,
     paint,
     failSoft,
-    order = 0
+    group: owner,
+    after
   }) {
     let handle = null;
     let generation = 0;
-    function claim(value) {
+    let draw = task({ group: owner, after });
+    function sync(value) {
       const claimed = ++generation;
       handle ??= attach();
-      return { claimed, value, presentation: handle.present(value, failSoft) };
-    }
-    async function run({ claimed, value, presentation: presentation2 }) {
-      if (claimed !== generation) return;
-      let painted;
-      try {
-        painted = paint(value, () => claimed === generation);
-      } catch (error) {
-        painted = Promise.reject(error);
-      }
-      presentation2.resolve(painted);
-      await presentation2.ready;
-    }
-    function sync(value) {
-      const ticket = claim(value);
-      collect(typeof order === "function" ? order() : order, () => run(ticket));
+      const ticket = handle.present(value, failSoft);
+      void draw.enqueue(
+        () => {
+          if (claimed !== generation) return;
+          return paint(value, () => claimed === generation);
+        },
+        (ready) => {
+          ticket.resolve(ready);
+          return ticket.ready;
+        }
+      );
       return passed();
     }
     function disconnect() {
-      generation += 1;
+      generation++;
       handle?.disconnect();
       handle = null;
+      draw.disconnect();
+      draw = task({ group: owner, after });
     }
     return Object.freeze({ sync, disconnect });
   }
-  return Object.freeze({ presenter, enqueue, passed });
+  return Object.freeze({ group, task, presenter, passed });
 }
 
 // runtime/queued-work.js
@@ -2349,7 +2553,16 @@ var reportPresentationFailure = (reason) => console.error("leaf: presentation fa
 var presentation = createPresentationCoordinator({
   reportFailure: (reason) => reportPresentationFailure(reason)
 });
-var schedule = createPresentationSchedule(bindQueuedWork);
+var schedule = createPresentationFlow(bindQueuedWork);
+var widgetDOM = schedule.group();
+var projectionDOM = schedule.group([widgetDOM]);
+var threadDOM = schedule.group([projectionDOM]);
+var obligationsDOM = schedule.group([threadDOM]);
+var PRESENTATION_PHASE = Object.freeze({
+  projection: projectionDOM,
+  thread: threadDOM,
+  obligations: obligationsDOM
+});
 var applicationState = createSemanticApplication({
   presentation: {
     begin: (semanticEpoch) => presentation.begin(documentToken, semanticEpoch),
@@ -2375,34 +2588,42 @@ var widgetRegion = (widget, kind) => `widget:${widget}:${kind}`;
 var widgetRegions = (widget) => ["render", "preparation"].map((kind) => widgetRegion(widget, kind));
 var attachWidgetPresentation = (widget, kind, renderer) => presentation.attach(widgetRegion(widget, kind), renderer);
 var currentWidgetParents = readPart((root) => root.effective.widgetParents);
-var widgetOrder = (widget) => {
-  const parents = currentWidgetParents();
-  const seen = /* @__PURE__ */ new Set();
-  let depth = 0;
-  for (let parent = parents.get(widget); parent; parent = parents.get(parent)) {
-    if (seen.has(parent)) break;
-    seen.add(parent);
-    depth++;
-  }
-  return -1 / (depth + 1);
-};
-var queueElementUpdate = (widget, update) => schedule.enqueue(widget ? untrack(() => widgetOrder(widget)) : 0, update);
-var PRESENTATION_ORDER = Object.freeze({
-  projection: 0,
-  thread: 1,
-  obligations: 2
-});
+var [elementTasks, setElementTasks] = createSignal4(/* @__PURE__ */ new Map(), { ownedWrite: true });
+function elementRenderTask(widget) {
+  const task = schedule.task({
+    group: widgetDOM,
+    after: () => {
+      const parent = widget && currentWidgetParents().get(widget);
+      const task2 = parent && elementTasks().get(parent);
+      return task2 ? [task2] : [];
+    }
+  });
+  if (widget) setElementTasks((previous) => new Map(previous).set(widget, task));
+  return {
+    enqueue: task.enqueue,
+    disconnect() {
+      task.disconnect();
+      if (widget)
+        setElementTasks((previous) => {
+          if (previous.get(widget) !== task) return previous;
+          const next = new Map(previous);
+          next.delete(widget);
+          return next;
+        });
+    }
+  };
+}
 var documentPresenters = [];
 var applicationPresenter = ({
   region,
   renderer = document,
-  order,
+  phase,
   reading,
   paint,
   failSoft
 }) => {
   const [revision, setRevision] = createSignal4(0, { ownedWrite: true });
-  const selected = createMemo2(
+  const selected = createMemo3(
     () => {
       revision();
       try {
@@ -2431,8 +2652,8 @@ var applicationPresenter = ({
   };
   const presenter = schedule.presenter({
     attach: () => presentation.attach(region, renderer),
-    order,
-    paint: (outcome, current) => {
+    group: phase,
+    paint: (outcome, current2) => {
       owed = false;
       forget();
       if ("error" in outcome) throw outcome.error;
@@ -2449,20 +2670,28 @@ var applicationPresenter = ({
             }
           },
           () => {
-            if (!owed && current())
+            if (!owed && current2())
               untrack(() => {
                 const next = selected();
                 void claim(next);
               });
           }
         );
-        if (current() && following === generation) generation.push(stop);
+        if (current2() && following === generation) generation.push(stop);
         else stop();
         if ("error" in outcome2) throw outcome2.error;
         return outcome2.value;
       };
-      const resume = (run) => (...args) => stretch(() => run(...args));
-      return stretch(() => paint(value, current, resume));
+      const resume = (run) => (...args) => renderCommit(() => run(...args), {
+        run: stretch,
+        bind: bindQueuedWork,
+        current: () => current2() && following === generation
+      }).ready;
+      return renderCommit(() => paint(value, current2, resume), {
+        run: stretch,
+        bind: bindQueuedWork,
+        current: () => current2() && following === generation
+      }).ready;
     },
     failSoft
   });
@@ -2473,7 +2702,7 @@ var applicationPresenter = ({
     return presenter.sync(outcome);
   };
   const present = () => untrack(
-    () => flush5(() => {
+    () => flush4(() => {
       setRevision((value) => value + 1);
       return claim(selected());
     })
@@ -2494,7 +2723,7 @@ var applicationPresenter = ({
 };
 var [documentChanges, setDocumentChanges] = createSignal4(0, { ownedWrite: true });
 var documentChanged = documentChanges;
-var presentDocument = () => flush5(() => {
+var presentDocument = () => flush4(() => {
   setDocumentChanges((value) => value + 1);
   for (const present of documentPresenters) void present();
   return schedule.passed();
@@ -2514,8 +2743,8 @@ var whenWidgetsPresented = (widgets) => presentation.whenCurrentRegionsPresented
   }),
   widgets.flatMap(widgetRegions)
 );
-var whenApplicationRegionsPresented = (regions, current) => presentation.whenCurrentRegionsPresented(
-  () => current() ? {
+var whenApplicationRegionsPresented = (regions, current2) => presentation.whenCurrentRegionsPresented(
+  () => current2() ? {
     document: documentToken,
     semanticEpoch: currentEpoch()
   } : null,
@@ -2678,6 +2907,8 @@ export {
   bindQueuedWork,
   cancelWork,
   watchReaction,
+  afterRender,
+  renderCommit,
   resetViewsWithin,
   createView,
   untrack,
@@ -2715,19 +2946,20 @@ export {
   itemNoun,
   itemOutcome,
   describeFailure,
-  createPresentationSchedule,
+  createPresentationFlow,
   getObserver,
-  runWithOwner4 as runWithOwner,
+  runWithOwner6 as runWithOwner,
   createSignal4 as createSignal,
-  createMemo2 as createMemo,
-  createRoot2 as createRoot,
-  createEffect2 as createEffect,
-  flush5 as flush,
+  createMemo3 as createMemo,
+  createRoot3 as createRoot,
+  createEffect3 as createEffect,
+  flush4 as flush,
   untrack2,
   For,
   Show,
   onCleanup,
   default2 as default,
+  PRESENTATION_PHASE,
   applicationState,
   readApplication,
   readPart,
@@ -2738,8 +2970,7 @@ export {
   selectWidgets,
   attachApplicationPresentation,
   attachWidgetPresentation,
-  queueElementUpdate,
-  PRESENTATION_ORDER,
+  elementRenderTask,
   applicationPresenter,
   documentChanged,
   presentDocument,

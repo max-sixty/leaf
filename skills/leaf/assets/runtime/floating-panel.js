@@ -134,6 +134,8 @@
  * behind the box widening around it; it replaced revealing everything a change moved
  * by the surface's clip, which hid each part that moved until the clip reached it. */
 import {
+  afterRender,
+  renderCommit,
   html as nativeHtml,
   createView,
   createEffect,
@@ -1015,8 +1017,8 @@ export function createFloatingPanel({
   }
   function close() {
     const before = trail().at(-1);
-    flush(() => setTrail(() => []));
     searching = false;
+    flush(() => setTrail(() => []));
     transition(before);
   }
   // A press that puts away the menu or view it stands in hands the user back to the leaf,
@@ -1033,10 +1035,12 @@ export function createFloatingPanel({
   }
   function setMenu(on) {
     if (menuOpen() === on) return;
-    flush(() => setMenuOpen(() => on));
-    flush(() => setMenuAt(() => null));
     menuRoom = null;
     held = null;
+    flush(() => {
+      setMenuAt(() => null);
+      setMenuOpen(() => on);
+    });
     paint();
   }
   // A list the menu leads to takes the menu's place, and going back puts the menu back,
@@ -1045,38 +1049,44 @@ export function createFloatingPanel({
   // came by key, or from outside the panel, as `g V` does, stands on the first row the
   // list offers, and going back, on the row that opened it.
   function showMenuAt(level) {
-    const before = menuOpen() ? menuAt() : undefined;
-    if (before && level && routeKey(before) === routeKey(level)) return;
-    if (renderedUnder(focused(), menu)) focusDestination(leaf, "return");
-    flush(() => setMenuOpen(() => true));
-    flush(() => setMenuAt(() => level));
-    menuRoom = null;
-    held = null;
-    paint();
-    if (level) {
-      menuRoom = menu.offsetHeight;
+    return renderCommit(() => {
+      const before = menuOpen() ? menuAt() : undefined;
+      if (before && level && routeKey(before) === routeKey(level)) return;
+      if (renderedUnder(focused(), menu)) focusDestination(leaf, "return");
+      menuRoom = null;
+      held = null;
+      flush(() => {
+        setMenuAt(() => level);
+        setMenuOpen(() => true);
+      });
       paint();
-    }
-    const page = menu.firstElementChild;
-    if (before !== undefined && page && !reducedMotion()) {
-      const side =
-        (level ? 1 : -1) * (getComputedStyle(menu).direction === "rtl" ? -1 : 1);
-      page.animate(
-        [
-          { translate: `${side * 16}px 0`, opacity: 0 },
-          { translate: "0 0", opacity: 1 },
-        ],
-        { duration: VIEW_RESIZE_MS, easing: EASE },
-      );
-    }
-    // A press on a menu row leaves focus on that row. A command-reference press
-    // originates outside the panel even when closing the reference hands focus back
-    // to the leaf before this door runs, so enter the menu in that case.
-    if (pointedInPanel) return;
-    const target = level
-      ? page?.querySelector(".lf-fp-item:not(.lf-fp-menu-back, :disabled)")
-      : before && menu.querySelector(`[data-row="${levelRow(before)}"]`);
-    if (target) focusDestination(target, "move");
+      afterRender(() => {
+        if (level) {
+          menuRoom = menu.offsetHeight;
+          paint();
+        }
+        const page = menu.firstElementChild;
+        if (before !== undefined && page && !reducedMotion()) {
+          const side =
+            (level ? 1 : -1) * (getComputedStyle(menu).direction === "rtl" ? -1 : 1);
+          page.animate(
+            [
+              { translate: `${side * 16}px 0`, opacity: 0 },
+              { translate: "0 0", opacity: 1 },
+            ],
+            { duration: VIEW_RESIZE_MS, easing: EASE },
+          );
+        }
+        // A press on a menu row leaves focus on that row. A command-reference press
+        // originates outside the panel even when closing the reference hands focus back
+        // to the leaf before this door runs, so enter the menu in that case.
+        if (pointedInPanel) return;
+        const target = level
+          ? page?.querySelector(".lf-fp-item:not(.lf-fp-menu-back, :disabled)")
+          : before && menu.querySelector(`[data-row="${levelRow(before)}"]`);
+        if (target) focusDestination(target, "move");
+      });
+    }).ready;
   }
 
   // ---------- motion: everything follows the box ----------
@@ -1521,76 +1531,80 @@ export function createFloatingPanel({
     return true;
   }
   function transition(before, { focus = true } = {}) {
-    const after = trail().at(-1);
-    postureMoved = true;
-    // The thread the user stands in as the change begins, on the page or in the panel,
-    // read before the paint that may take its view away.
-    const stoodIn = drawnThreadId(closestAcross(focused(), THREAD));
-    const reading = [before, after].some((route) => route?.view === "thread");
-    if (after?.view !== "queue") {
-      seated = null;
-      seatHeights.clear();
-    }
-    const changed =
-      (before ? routeKey(before) : null) !== (after ? routeKey(after) : null);
-    if (changed) {
-      room = null;
-      rewriting = false;
-      pressed = null;
-      quoteExpanded = false;
-      waiting = null;
-      placed = null;
-      drawnThread = null;
-      onPageSeat = false;
-      unreadSeat = null;
-    }
-    // Taking the panel away from a thread ends the editing session of its reply, as a
-    // press elsewhere does (thread/replies.js), keeping the draft: the field no longer
-    // draws that reply, and a session left standing would carry the user back to it.
-    if (changed && before?.view === "thread")
-      dismissReply(threadByKey(before.thread)?.key ?? before.thread);
-    // The view going away fades where it stood, closing included, so the box shrinking
-    // under it never shows an empty ground.
-    leaving = changed && before && after ? before : null;
-    if (changed) viewMovingUntil = performance.now() + OUT_MS + VIEW_RESIZE_MS;
-    paint();
-    // The reader draws what the view arriving holds, and lets go of what the one
-    // leaving held: a thread's messages, or the obligations On shows as messages.
-    const drawn =
-      reading || before?.view === "queue" ? present({ release: reading }) : null;
-    if (!changed || reducedMotion() || !pagePresented()) {
-      leaving = null;
+    return renderCommit(() => {
+      const after = trail().at(-1);
+      postureMoved = true;
+      // The thread the user stands in as the change begins, on the page or in the panel,
+      // read before the paint that may take its view away.
+      const stoodIn = drawnThreadId(closestAcross(focused(), THREAD));
+      const reading = [before, after].some((route) => route?.view === "thread");
+      if (after?.view !== "queue") {
+        seated = null;
+        seatHeights.clear();
+      }
+      const changed =
+        (before ? routeKey(before) : null) !== (after ? routeKey(after) : null);
+      if (changed) {
+        room = null;
+        rewriting = false;
+        pressed = null;
+        quoteExpanded = false;
+        waiting = null;
+        placed = null;
+        drawnThread = null;
+        onPageSeat = false;
+        unreadSeat = null;
+      }
+      // Taking the panel away from a thread ends the editing session of its reply, as a
+      // press elsewhere does (thread/replies.js), keeping the draft: the field no longer
+      // draws that reply, and a session left standing would carry the user back to it.
+      if (changed && before?.view === "thread")
+        dismissReply(threadByKey(before.thread)?.key ?? before.thread);
+      // The view going away fades where it stood, closing included, so the box shrinking
+      // under it never shows an empty ground.
+      leaving = changed && before && after ? before : null;
+      if (changed) viewMovingUntil = performance.now() + OUT_MS + VIEW_RESIZE_MS;
       paint();
-      if (focus) focusView(after, drawn, stoodIn);
-      return;
-    }
-    const arriving = stage.querySelector(".lf-fp-view:not([data-leaving])");
-    arriving?.animate([{ opacity: 0 }, { opacity: 1 }], {
-      duration: FADE_MS,
-      delay: leaving ? OUT_MS : 0,
-      easing: "linear",
-      fill: "backwards",
-    });
-    const gone = stage.querySelector(".lf-fp-view[data-leaving]");
-    const fade = gone?.animate([{ opacity: 1 }, { opacity: 0 }], {
-      duration: OUT_MS,
-      easing: "linear",
-      fill: "forwards",
-    });
-    // The view leaving goes once its fade ends, which is still the gesture's rendering,
-    // so the box moving then moves as the user's change (`followBox`).
-    const release = fade ? holdRendering() : null;
-    const settle = () => {
-      leaving = null;
-      paint();
-      release();
-    };
-    if (fade)
-      fade.finished.then(settle, () => {
-        release();
+      afterRender(() => {
+        // The reader draws what the view arriving holds, and lets go of what the one
+        // leaving held: a thread's messages, or the obligations On shows as messages.
+        const drawn =
+          reading || before?.view === "queue" ? present({ release: reading }) : null;
+        if (!changed || reducedMotion() || !pagePresented()) {
+          leaving = null;
+          paint();
+          if (focus) focusView(after, drawn, stoodIn);
+          return;
+        }
+        const arriving = stage.querySelector(".lf-fp-view:not([data-leaving])");
+        arriving?.animate([{ opacity: 0 }, { opacity: 1 }], {
+          duration: FADE_MS,
+          delay: leaving ? OUT_MS : 0,
+          easing: "linear",
+          fill: "backwards",
+        });
+        const gone = stage.querySelector(".lf-fp-view[data-leaving]");
+        const fade = gone?.animate([{ opacity: 1 }, { opacity: 0 }], {
+          duration: OUT_MS,
+          easing: "linear",
+          fill: "forwards",
+        });
+        // The view leaving goes once its fade ends, which is still the gesture's rendering,
+        // so the box moving then moves as the user's change (`followBox`).
+        const release = fade ? holdRendering() : null;
+        const settle = () => {
+          leaving = null;
+          paint();
+          release();
+        };
+        if (fade)
+          fade.finished.then(settle, () => {
+            release();
+          });
+        else leaving = null;
+        if (focus) focusView(after, drawn, stoodIn);
       });
-    else leaving = null;
-    if (focus) focusView(after, drawn, stoodIn);
+    }).ready;
   }
   function focusView(route, drawn, stoodIn = null) {
     if (!route) return;
@@ -3161,26 +3175,27 @@ export function createFloatingPanel({
   }
   function paintPanel() {
     painting = true;
-    try {
-      // A thread's view draws a thread of the reading. One the reading no longer holds,
-      // as a refused send's or an undone comment's, leaves it nothing to draw, so it goes
-      // with its thread, as a card does (margin-projection.js), whoever opened it.
+    const commit = renderCommit(() => {
       const top = trail().at(-1);
       if (top?.view === "thread" && !threadByKey(top.thread)) close();
       holdRoom();
       paintNow();
-      if (holdMenu()) paintNow();
-    } finally {
+      afterRender(() => {
+        if (holdMenu()) paintNow();
+        afterRender(() => {
+          landReader();
+          seatOnItems();
+          landWalked();
+        });
+      });
+    });
+    return commit.ready.finally(() => {
       painting = false;
-    }
-    if (again) {
-      again = false;
-      paintPanel();
-      return;
-    }
-    landReader();
-    seatOnItems();
-    landWalked();
+      if (again) {
+        again = false;
+        paint();
+      }
+    });
   }
   // A card's seat is the height it first stands at once its message is drawn; a card
   // whose message Leaf's reader has not drawn yet asks it to (`nominate`), once, and
@@ -3246,19 +3261,20 @@ export function createFloatingPanel({
     keeps(errorDot, "data-shown", unseen ? "" : null);
 
     paintView(menu, menuTemplate, menuReading());
-    // A copy control the menu keeps for its next showing leaves the list the render just
-    // took down, which it would otherwise hold whole, rows and all, as its parent.
-    for (const copy of [...copyItems.values(), ...copies.values()])
-      if (!copy.isConnected) copy.remove();
-    keeps(menu, "data-level", menuOpen() && menuAt() ? menuAt().view : null);
-    keeps(menu, "style", menuOpen() && menuRoom ? `height: ${menuRoom}px` : null);
-    // A text to select, which About holds where no clipboard copies it, is no menu's row.
-    keeps(menu, "role", menu.querySelector("textarea") ? "dialog" : "menu");
-    if (menuOpen()) {
-      const rows = menuRows();
-      rove(rows, rows.includes(focused()) ? focused() : rows[0]);
-    }
-
+    afterRender(() => {
+      // A copy control the menu keeps for its next showing leaves the list the render just
+      // took down, which it would otherwise hold whole, rows and all, as its parent.
+      for (const copy of [...copyItems.values(), ...copies.values()])
+        if (!copy.isConnected) copy.remove();
+      keeps(menu, "data-level", menuOpen() && menuAt() ? menuAt().view : null);
+      keeps(menu, "style", menuOpen() && menuRoom ? `height: ${menuRoom}px` : null);
+      // A text to select, which About holds where no clipboard copies it, is no menu's row.
+      keeps(menu, "role", menu.querySelector("textarea") ? "dialog" : "menu");
+      if (menuOpen()) {
+        const rows = menuRows();
+        rove(rows, rows.includes(focused()) ? focused() : rows[0]);
+      }
+    });
     const views = [leaving, top].filter(Boolean);
     // A row leaving the list the user stands on, as a page that goes idle leaves All
     // pages, hands them to the row after it, else before it, else the view that stays
@@ -3300,170 +3316,175 @@ export function createFloatingPanel({
         })),
       },
     );
-    if (restoreFocus && heldView === shownView()) restoreFocus(heldView);
-    drawnTop = top ? routeKey(top) : null;
-    regionViews();
-    // The open thread's messages are read where they land, and its view's height
-    // whatever changes it (`fitAnswer`).
-    const outlet = outletOf();
-    if (outlet !== fitted) {
-      fit.disconnect();
-      if (outlet) for (const box of [outlet, openView()]) fit.observe(box);
-      fitted = outlet;
-    }
-    const listed = listRows();
-    rove(
-      listed,
-      listed.includes(focused())
-        ? focused()
-        : (listed.find((row) => row.getAttribute("tabindex") === "0") ?? listed[0]),
-    );
-    paintView(head, headTemplate, headReading(top));
-    paintView(controls, controlsTemplate, controlsReading(top));
-    // The more-room mark stands among the view's controls while one is open, else over
-    // the leaf.
-    if (!top) move(row, expand, leaf);
-    const heading = top ? shows(top) : null;
-    for (const drawing of [controls, replyOutlet]) {
-      keeps(drawing, "data-thread", heading);
-      keeps(drawing, "data-lf-thread-view", heading === null ? null : "");
-    }
+    afterRender(() => {
+      if (restoreFocus && heldView === shownView()) restoreFocus(heldView);
+      drawnTop = top ? routeKey(top) : null;
+      regionViews();
+      // The open thread's messages are read where they land, and its view's height
+      // whatever changes it (`fitAnswer`).
+      const outlet = outletOf();
+      if (outlet !== fitted) {
+        fit.disconnect();
+        if (outlet) for (const box of [outlet, openView()]) fit.observe(box);
+        fitted = outlet;
+      }
+      const listed = listRows();
+      rove(
+        listed,
+        listed.includes(focused())
+          ? focused()
+          : (listed.find((row) => row.getAttribute("tabindex") === "0") ?? listed[0]),
+      );
+      paintView(head, headTemplate, headReading(top));
+      paintView(controls, controlsTemplate, controlsReading(top));
+      // The more-room mark stands among the view's controls while one is open, else over
+      // the leaf.
+      if (!top) move(row, expand, leaf);
+      const heading = top ? shows(top) : null;
+      for (const drawing of [controls, replyOutlet]) {
+        keeps(drawing, "data-thread", heading);
+        keeps(drawing, "data-lf-thread-view", heading === null ? null : "");
+      }
 
-    // The field: the destination's own editor stands in its place, the page's or, in a
-    // thread, the outlet Leaf's reader draws the thread's reply box in (`nominate`). The
-    // caret never passes from one editor to the next, since words typed after the
-    // change would go somewhere the user did not choose. A thread opening while the
-    // caret is in the field is the user's own send opening the thread it started, whose
-    // reply takes the caret once it is drawn, as the thread's opening does
-    // (`focusView`); an editor leaving with the caret otherwise leaves it on the leaf.
-    const thread = top?.view === "thread" ? threadByKey(top.thread) : null;
-    const replying = top?.view === "thread";
-    const shown = replying ? [replyOutlet, resolvedLine] : [pageEditor().box];
-    if (field.firstElementChild !== shown[0]) {
-      const had = standingIn(field);
-      field.replaceChildren(...shown);
-      if (had && !replying) focusDestination(leaf, "return");
-    }
-    // A move to the page's field waits for the paint that stands it there, and lands
-    // before the paint reads where the caret is, so the field is drawn once for it
-    // (`writeOnPage`).
-    if (caretToField && !replying) {
-      caretToField = false;
-      focusDestination(pageEditor().input, "move");
-    }
-    // A resolved thread takes no reply: the field says how to reopen it instead.
-    const resting = Boolean(thread) && !replyAvailable(thread);
-    keepsHidden(resolvedLine, !resting);
-    keepsHidden(replyOutlet, resting);
-    const input = fieldInput();
-    if (input) syncInput(input);
-    keeps(host, "data-writing", writing ? "" : null);
-    // While the field holds a draft, Send stands in its corner and the counts step
-    // aside for it (`drafted`).
-    const words = Boolean(draftOf(input));
-    if (postureMoved || !words) drafted = words;
-    postureMoved = false;
-    keeps(host, "data-drafted", drafted ? "" : null);
-    keeps(host, "data-words", words ? "" : null);
-    if (!words) expanded = false;
-    fieldRests = resting;
-    markRoom();
-    keeps(host, "data-expanded", expanded ? "" : null);
-    keeps(expand, "aria-pressed", String(expanded));
-    keeps(expand, "aria-label", expanded ? "Less room to write" : "More room to write");
-    keeps(expand, "title", expanded ? "Less room to write" : "More room to write");
-    paintView(
-      expand,
-      (read) => [
-        Show({
-          get when() {
-            return read().icon;
-          },
-          keyed: true,
-          children: (icon) => iconElement(icon, "lf-action-icon"),
-        }),
-      ],
-      { icon: expanded ? "fit" : "expand" },
-    );
-    // Whose reading the empty field says, which its face follows (`saying`): a status
-    // dims, and carries the sheen while the agent works, unless it asks the user to act,
-    // such as to nudge the agent in its terminal, which it says in its tone's ink
-    // (`pageStatus`, `asks`). The menu holds the full status and the Errors list.
-    const reading = fieldReading(replying ? top.thread : null, input);
-    // The field quoting selected words stands in an open comment box's place
-    // (floating-panel.css, `data-offers`).
-    keeps(host, "data-offers", reading.says === "selection" ? "" : null);
-    keeps(host, "data-tone", status().tone || null);
-    keeps(host, "data-asks", status().asks ? "" : null);
-    // The line over the field says what the field cannot while words hide its
-    // placeholder with the caret elsewhere and no view is open: the selected words a
-    // press there comments on, else the passing notice. While the caret is in the
-    // field nothing passing is said there: an error, the one thing the user must not
-    // miss while writing, stands in the field itself.
-    const notice = passing();
-    const hidden =
-      !top &&
-      reading.says !== "destination" &&
-      reading.says !== "error" &&
-      draftOf(input) !== "";
-    keepsText(
-      contextWords,
-      !hidden
-        ? ""
-        : reading.says === "selection"
-          ? reading.words
-          : notice.visible
-            ? notice.message
-            : "",
-    );
-    keepsHidden(context, !contextWords.textContent);
-    paintPeek();
+      // The field: the destination's own editor stands in its place, the page's or, in a
+      // thread, the outlet Leaf's reader draws the thread's reply box in (`nominate`). The
+      // caret never passes from one editor to the next, since words typed after the
+      // change would go somewhere the user did not choose. A thread opening while the
+      // caret is in the field is the user's own send opening the thread it started, whose
+      // reply takes the caret once it is drawn, as the thread's opening does
+      // (`focusView`); an editor leaving with the caret otherwise leaves it on the leaf.
+      const thread = top?.view === "thread" ? threadByKey(top.thread) : null;
+      const replying = top?.view === "thread";
+      const shown = replying ? [replyOutlet, resolvedLine] : [pageEditor().box];
+      if (field.firstElementChild !== shown[0]) {
+        const had = standingIn(field);
+        field.replaceChildren(...shown);
+        if (had && !replying) focusDestination(leaf, "return");
+      }
+      // A move to the page's field waits for the paint that stands it there, and lands
+      // before the paint reads where the caret is, so the field is drawn once for it
+      // (`writeOnPage`).
+      if (caretToField && !replying) {
+        caretToField = false;
+        focusDestination(pageEditor().input, "move");
+      }
+      // A resolved thread takes no reply: the field says how to reopen it instead.
+      const resting = Boolean(thread) && !replyAvailable(thread);
+      keepsHidden(resolvedLine, !resting);
+      keepsHidden(replyOutlet, resting);
+      const input = fieldInput();
+      if (input) syncInput(input);
+      keeps(host, "data-writing", writing ? "" : null);
+      // While the field holds a draft, Send stands in its corner and the counts step
+      // aside for it (`drafted`).
+      const words = Boolean(draftOf(input));
+      if (postureMoved || !words) drafted = words;
+      postureMoved = false;
+      keeps(host, "data-drafted", drafted ? "" : null);
+      keeps(host, "data-words", words ? "" : null);
+      if (!words) expanded = false;
+      fieldRests = resting;
+      markRoom();
+      keeps(host, "data-expanded", expanded ? "" : null);
+      keeps(expand, "aria-pressed", String(expanded));
+      keeps(
+        expand,
+        "aria-label",
+        expanded ? "Less room to write" : "More room to write",
+      );
+      keeps(expand, "title", expanded ? "Less room to write" : "More room to write");
+      paintView(
+        expand,
+        (read) => [
+          Show({
+            get when() {
+              return read().icon;
+            },
+            keyed: true,
+            children: (icon) => iconElement(icon, "lf-action-icon"),
+          }),
+        ],
+        { icon: expanded ? "fit" : "expand" },
+      );
+      // Whose reading the empty field says, which its face follows (`saying`): a status
+      // dims, and carries the sheen while the agent works, unless it asks the user to act,
+      // such as to nudge the agent in its terminal, which it says in its tone's ink
+      // (`pageStatus`, `asks`). The menu holds the full status and the Errors list.
+      const reading = fieldReading(replying ? top.thread : null, input);
+      // The field quoting selected words stands in an open comment box's place
+      // (floating-panel.css, `data-offers`).
+      keeps(host, "data-offers", reading.says === "selection" ? "" : null);
+      keeps(host, "data-tone", status().tone || null);
+      keeps(host, "data-asks", status().asks ? "" : null);
+      // The line over the field says what the field cannot while words hide its
+      // placeholder with the caret elsewhere and no view is open: the selected words a
+      // press there comments on, else the passing notice. While the caret is in the
+      // field nothing passing is said there: an error, the one thing the user must not
+      // miss while writing, stands in the field itself.
+      const notice = passing();
+      const hidden =
+        !top &&
+        reading.says !== "destination" &&
+        reading.says !== "error" &&
+        draftOf(input) !== "";
+      keepsText(
+        contextWords,
+        !hidden
+          ? ""
+          : reading.says === "selection"
+            ? reading.words
+            : notice.visible
+              ? notice.message
+              : "",
+      );
+      keepsHidden(context, !contextWords.textContent);
+      paintPeek();
 
-    const standing = rowNotice();
-    keepsHidden(rowNoticeSeat, !standing);
-    paintView(
-      rowNoticeSeat,
-      (read) => [
-        Show({
-          get when() {
-            return read().standing;
-          },
-          children: (notice) => rowNoticeView(notice),
-        }),
-      ],
-      { standing },
-    );
+      const standing = rowNotice();
+      keepsHidden(rowNoticeSeat, !standing);
+      paintView(
+        rowNoticeSeat,
+        (read) => [
+          Show({
+            get when() {
+              return read().standing;
+            },
+            children: (notice) => rowNoticeView(notice),
+          }),
+        ],
+        { standing },
+      );
 
-    // The way out of the stance the user stands in, beside the counts.
-    const exit = rows().find((entry) => entry.exit);
-    paintView(
-      exitSeat,
-      (read) => [
-        Show({
-          get when() {
-            return read().exit;
-          },
-          children: (exit) => nativeHtml`
+      // The way out of the stance the user stands in, beside the counts.
+      const exit = rows().find((entry) => entry.exit);
+      paintView(
+        exitSeat,
+        (read) => [
+          Show({
+            get when() {
+              return read().exit;
+            },
+            children: (exit) => nativeHtml`
       <button type="button" class="lf-fp-chip lf-fp-exit" aria-label=${() => exit().label} title=${() => exit().label}
         disabled=${() => exit().disabled} onMouseDown=${(event) => event.preventDefault()} onClick=${() => exit().press()}>
         ${iconElement("cross", "lf-action-icon")}
       </button>`,
-        }),
-      ],
-      { exit },
-    );
-    keepsHidden(exitSeat, !exit);
-    // Each mark keeps its room whether or not it has a number, so a count arriving or
-    // leaving moves nothing beside it.
-    // A mark's name is its tooltip too, as an icon control's title is elsewhere in Leaf.
-    const threadsOpen = top?.view === "threads" || top?.view === "thread";
-    const onUserName = onUser ? `On me: ${onUser}` : "On me";
-    const threadsName = inventoried()
-      ? `Threads, ${openCount()} open${news ? `, ${news} with news` : ""}`
-      : "Threads";
-    paintView(
-      quick,
-      (read) => nativeHtml`<button type="button" class="lf-fp-chip lf-fp-on-user"
+          }),
+        ],
+        { exit },
+      );
+      keepsHidden(exitSeat, !exit);
+      // Each mark keeps its room whether or not it has a number, so a count arriving or
+      // leaving moves nothing beside it.
+      // A mark's name is its tooltip too, as an icon control's title is elsewhere in Leaf.
+      const threadsOpen = top?.view === "threads" || top?.view === "thread";
+      const onUserName = onUser ? `On me: ${onUser}` : "On me";
+      const threadsName = inventoried()
+        ? `Threads, ${openCount()} open${news ? `, ${news} with news` : ""}`
+        : "Threads";
+      paintView(
+        quick,
+        (read) => nativeHtml`<button type="button" class="lf-fp-chip lf-fp-on-user"
       aria-pressed=${() => String(read().queue)} data-due=${() => (read().onUser > 0 ? "" : undefined)}
       aria-label=${() => read().onUserName} title=${() => read().onUserName} onClick=${openOnMe}>
       ${iconElement("inbox", "lf-action-icon")}<span class="lf-fp-num">${() => read().onUser || ""}</span>
@@ -3476,16 +3497,17 @@ export function createFloatingPanel({
       }}>${iconElement("comment", "lf-action-icon")}<span class="lf-fp-num">${() => read().openCount || ""}</span>
       <span class="lf-fp-news" hidden=${() => !read().news}></span>
     </button>`,
-      {
-        queue: top?.view === "queue",
-        threadsOpen,
-        onUser,
-        news,
-        onUserName,
-        threadsName,
-        openCount: openCount(),
-      },
-    );
+        {
+          queue: top?.view === "queue",
+          threadsOpen,
+          onUser,
+          news,
+          onUserName,
+          threadsName,
+          openCount: openCount(),
+        },
+      );
+    });
   }
 
   // ---------- the row's notice ----------

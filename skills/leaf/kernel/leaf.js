@@ -483,10 +483,11 @@ import {
 } from "./runtime/bundle-dom-move.js";
 import {
   For,
-  PRESENTATION_ORDER,
+  PRESENTATION_PHASE,
   SHARE_ROOT,
   Show,
   WEBSITE_DELIVERY,
+  afterRender,
   agentName,
   annotationMode,
   applicationPresenter,
@@ -507,6 +508,7 @@ import {
   offlineInteractive,
   onCleanup,
   readPart,
+  renderCommit,
   runtime,
   runtimeResource,
   sameAnchor,
@@ -1965,22 +1967,26 @@ function presentCommandReference() {
       commandReferenceTemplate,
       props
     );
-  const search = commandReferenceSearch;
-  keeps(search, "role", "combobox");
-  keeps(search, "aria-autocomplete", "list");
-  keeps(search, "aria-expanded", "true");
-  keeps(search, "aria-haspopup", "grid");
-  const results = commandReferenceDialog.querySelector(".lf-command-reference-results");
-  keeps(search, "aria-controls", results.id);
-  const selected = commandReferenceView.visibleCommands.find(
-    ({ entry }) => entry.id === commandReferenceView.selectedCommandId
-  );
-  const row = selected ? commandReferenceDialog.querySelector(`#${selected.entry.rowId}`) : null;
-  keeps(search, "aria-activedescendant", row?.id ?? null);
-  rove(
-    commandReferenceDialog.querySelectorAll(".lf-command-reference-command"),
-    commandButton(commandReferenceView.tabStopCommandId)
-  );
+  afterRender(() => {
+    const search = commandReferenceSearch;
+    keeps(search, "role", "combobox");
+    keeps(search, "aria-autocomplete", "list");
+    keeps(search, "aria-expanded", "true");
+    keeps(search, "aria-haspopup", "grid");
+    const results = commandReferenceDialog.querySelector(
+      ".lf-command-reference-results"
+    );
+    keeps(search, "aria-controls", results.id);
+    const selected = commandReferenceView.visibleCommands.find(
+      ({ entry }) => entry.id === commandReferenceView.selectedCommandId
+    );
+    const row = selected ? commandReferenceDialog.querySelector(`#${selected.entry.rowId}`) : null;
+    keeps(search, "aria-activedescendant", row?.id ?? null);
+    rove(
+      commandReferenceDialog.querySelectorAll(".lf-command-reference-command"),
+      commandButton(commandReferenceView.tabStopCommandId)
+    );
+  });
 }
 function readCommandReferenceSearch(event) {
   commandReferenceState = {
@@ -1996,65 +2002,73 @@ commandReferenceDialog.addEventListener("cancel", (event) => {
 });
 var commandReferenceReturn = null;
 function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
-  const fresh = open && !commandReferenceIsOpen;
-  const preserveSelection = fresh && Boolean(pageSelection());
-  const handingBack = !open && restoreFocus && standingIn(commandReferenceDialog);
-  const restore = handingBack ? commandReferenceReturn : null;
-  if (fresh) {
-    commandReferenceInvoke = invokeCommand;
-    dismissPopoversOutside(commandReferenceDialog);
-    openLayer(commandReferenceDialog);
-    commandReferenceReturn = returnTo ?? openerOf(commandReferenceDialog);
-    commandRoutesAtOpen = {
-      on: availableCommandRoutes({ commands: true, quick: true }),
-      off: availableCommandRoutes({ commands: true, quick: false })
-    };
-  }
-  commandReferenceIsOpen = open;
-  if (fresh) {
-    commandReferenceCatalog = captureCommandReferenceCatalog();
-    commandReferenceState = {
-      query: "",
-      selectedCommandId: null,
-      metaOverride: null
-    };
-    presentCommandReference();
-    const search = commandReferenceDialog.querySelector(".lf-command-reference-search");
-    const results = commandReferenceDialog.querySelector(
-      ".lf-command-reference-results"
-    );
-    if (search.value) search.value = "";
-    results.scrollTo({ top: 0, behavior: "instant" });
-    stopReferenceReading = registerReadingRegion({
-      id: "lf-region:command-reference",
-      host: commandReferenceDialog,
-      body: results
+  return renderCommit(() => {
+    const fresh = open && !commandReferenceIsOpen;
+    const preserveSelection = fresh && Boolean(pageSelection());
+    const handingBack = !open && restoreFocus && standingIn(commandReferenceDialog);
+    const restore = handingBack ? commandReferenceReturn : null;
+    if (fresh) {
+      commandReferenceInvoke = invokeCommand;
+      dismissPopoversOutside(commandReferenceDialog);
+      openLayer(commandReferenceDialog);
+      commandReferenceReturn = returnTo ?? openerOf(commandReferenceDialog);
+      commandRoutesAtOpen = {
+        on: availableCommandRoutes({ commands: true, quick: true }),
+        off: availableCommandRoutes({ commands: true, quick: false })
+      };
+    }
+    commandReferenceIsOpen = open;
+    if (fresh) {
+      commandReferenceCatalog = captureCommandReferenceCatalog();
+      commandReferenceState = {
+        query: "",
+        selectedCommandId: null,
+        metaOverride: null
+      };
+      presentCommandReference();
+      afterRender(() => {
+        const search = commandReferenceDialog.querySelector(
+          ".lf-command-reference-search"
+        );
+        const results = commandReferenceDialog.querySelector(
+          ".lf-command-reference-results"
+        );
+        if (search.value) search.value = "";
+        results.scrollTo({ top: 0, behavior: "instant" });
+        stopReferenceReading = registerReadingRegion({
+          id: "lf-region:command-reference",
+          host: commandReferenceDialog,
+          body: results
+        });
+      });
+    }
+    commandReferenceDialog.classList.toggle("open", open);
+    if (open && !commandReferenceDialog.open) showNativeLayer(commandReferenceDialog);
+    if (!open) {
+      stopReferenceReading?.();
+      stopReferenceReading = null;
+      closeLayer(
+        () => {
+          if (commandReferenceDialog.open) closeNativeLayer(commandReferenceDialog);
+          if (standingIn(commandReferenceDialog))
+            deepFocus()?.blur();
+          repaint();
+        },
+        handingBack && (() => handBack(restore))
+      );
+      return;
+    }
+    afterRender(() => {
+      reachScrollers(commandReferenceDialog);
+      focusDestination(
+        commandReferenceDialog.querySelector(
+          preserveSelection ? ".lf-command-reference-close" : ".lf-command-reference-search"
+        ),
+        "move"
+      );
+      repaint();
     });
-  }
-  commandReferenceDialog.classList.toggle("open", open);
-  if (open && !commandReferenceDialog.open) showNativeLayer(commandReferenceDialog);
-  if (!open) {
-    stopReferenceReading?.();
-    stopReferenceReading = null;
-    closeLayer(
-      () => {
-        if (commandReferenceDialog.open) closeNativeLayer(commandReferenceDialog);
-        if (standingIn(commandReferenceDialog))
-          deepFocus()?.blur();
-        repaint();
-      },
-      handingBack && (() => handBack(restore))
-    );
-    return;
-  }
-  reachScrollers(commandReferenceDialog);
-  focusDestination(
-    commandReferenceDialog.querySelector(
-      preserveSelection ? ".lf-command-reference-close" : ".lf-command-reference-search"
-    ),
-    "move"
-  );
-  repaint();
+  }).ready;
 }
 var commandButton = (id) => [
   .../** @type {NodeListOf<HTMLElement>} */
@@ -2063,33 +2077,37 @@ var commandButton = (id) => [
 var focusedCommandId = () => focused()?.matches?.(".lf-command-reference-command") ? focused().dataset.lfCommand : null;
 var commandReferenceCommandActive = () => commandReferenceView.visibleCommands.length > 0 && (focused() === commandReferenceSearch || focusedCommandId() !== null);
 function moveCommandReferenceSelection(dir) {
-  const ids = commandReferenceView.visibleCommands.map(({ entry }) => entry.id);
-  if (!ids.length) return;
-  const focusedId = focusedCommandId();
-  const nextId = clampedRow(
-    ids,
-    focusedId ?? commandReferenceState.selectedCommandId,
-    dir
-  );
-  const nextRecord = commandReferenceView.visibleCommands.find(
-    ({ entry }) => entry.id === nextId
-  );
-  commandReferenceState = {
-    ...commandReferenceState,
-    selectedCommandId: nextId,
-    metaOverride: selectionMeta(nextRecord.entry)
-  };
-  presentCommandReference();
-  const next = commandButton(nextId);
-  if (focusedId) focusDestination(next, "move");
-  scrollIntoView(next.closest("tr"), { block: "nearest" });
-  beginWalk("shortcut-command", "Command", () => {
-    const current = focusedCommandId() ?? commandReferenceState.selectedCommandId;
-    return listWalkPosition(
-      commandReferenceView.visibleCommands.map(({ entry }) => entry.id),
-      current
+  return renderCommit(() => {
+    const ids = commandReferenceView.visibleCommands.map(({ entry }) => entry.id);
+    if (!ids.length) return;
+    const focusedId = focusedCommandId();
+    const nextId = clampedRow(
+      ids,
+      focusedId ?? commandReferenceState.selectedCommandId,
+      dir
     );
-  });
+    const nextRecord = commandReferenceView.visibleCommands.find(
+      ({ entry }) => entry.id === nextId
+    );
+    commandReferenceState = {
+      ...commandReferenceState,
+      selectedCommandId: nextId,
+      metaOverride: selectionMeta(nextRecord.entry)
+    };
+    presentCommandReference();
+    afterRender(() => {
+      const next = commandButton(nextId);
+      if (focusedId) focusDestination(next, "move");
+      scrollIntoView(next.closest("tr"), { block: "nearest" });
+      beginWalk("shortcut-command", "Command", () => {
+        const current = focusedCommandId() ?? commandReferenceState.selectedCommandId;
+        return listWalkPosition(
+          commandReferenceView.visibleCommands.map(({ entry }) => entry.id),
+          current
+        );
+      });
+    });
+  }).ready;
 }
 function activateSelectedCommand() {
   if (!commandReferenceCommandActive()) return false;
@@ -5285,7 +5303,7 @@ function createAnchorControls({
         visualActionDrawings.set(holder, drawing2);
       }
       shelve(seat, holder);
-      restoreFocus?.();
+      afterRender(() => restoreFocus?.());
     }
     for (const [seat, holder] of visualActionHolders)
       if (!kept.has(seat)) {
@@ -7201,8 +7219,8 @@ function createFloatingPanel({
   }
   function close() {
     const before = trail().at(-1);
-    flush(() => setTrail(() => []));
     searching = false;
+    flush(() => setTrail(() => []));
     transition(before);
   }
   function putAwayThen(run) {
@@ -7214,39 +7232,47 @@ function createFloatingPanel({
   }
   function setMenu(on) {
     if (menuOpen() === on) return;
-    flush(() => setMenuOpen(() => on));
-    flush(() => setMenuAt(() => null));
     menuRoom = null;
     held = null;
+    flush(() => {
+      setMenuAt(() => null);
+      setMenuOpen(() => on);
+    });
     paint();
   }
   function showMenuAt(level) {
-    const before = menuOpen() ? menuAt() : void 0;
-    if (before && level && routeKey(before) === routeKey(level)) return;
-    if (renderedUnder(focused(), menu)) focusDestination(leaf, "return");
-    flush(() => setMenuOpen(() => true));
-    flush(() => setMenuAt(() => level));
-    menuRoom = null;
-    held = null;
-    paint();
-    if (level) {
-      menuRoom = menu.offsetHeight;
+    return renderCommit(() => {
+      const before = menuOpen() ? menuAt() : void 0;
+      if (before && level && routeKey(before) === routeKey(level)) return;
+      if (renderedUnder(focused(), menu)) focusDestination(leaf, "return");
+      menuRoom = null;
+      held = null;
+      flush(() => {
+        setMenuAt(() => level);
+        setMenuOpen(() => true);
+      });
       paint();
-    }
-    const page = menu.firstElementChild;
-    if (before !== void 0 && page && !reducedMotion()) {
-      const side = (level ? 1 : -1) * (getComputedStyle(menu).direction === "rtl" ? -1 : 1);
-      page.animate(
-        [
-          { translate: `${side * 16}px 0`, opacity: 0 },
-          { translate: "0 0", opacity: 1 }
-        ],
-        { duration: VIEW_RESIZE_MS, easing: EASE }
-      );
-    }
-    if (pointedInPanel) return;
-    const target = level ? page?.querySelector(".lf-fp-item:not(.lf-fp-menu-back, :disabled)") : before && menu.querySelector(`[data-row="${levelRow(before)}"]`);
-    if (target) focusDestination(target, "move");
+      afterRender(() => {
+        if (level) {
+          menuRoom = menu.offsetHeight;
+          paint();
+        }
+        const page = menu.firstElementChild;
+        if (before !== void 0 && page && !reducedMotion()) {
+          const side = (level ? 1 : -1) * (getComputedStyle(menu).direction === "rtl" ? -1 : 1);
+          page.animate(
+            [
+              { translate: `${side * 16}px 0`, opacity: 0 },
+              { translate: "0 0", opacity: 1 }
+            ],
+            { duration: VIEW_RESIZE_MS, easing: EASE }
+          );
+        }
+        if (pointedInPanel) return;
+        const target = level ? page?.querySelector(".lf-fp-item:not(.lf-fp-menu-back, :disabled)") : before && menu.querySelector(`[data-row="${levelRow(before)}"]`);
+        if (target) focusDestination(target, "move");
+      });
+    }).ready;
   }
   let viewMovingUntil = 0;
   const fit = sizeObserver(() => {
@@ -7506,63 +7532,67 @@ function createFloatingPanel({
     return true;
   }
   function transition(before, { focus = true } = {}) {
-    const after2 = trail().at(-1);
-    postureMoved = true;
-    const stoodIn = drawnThreadId(closestAcross(focused(), THREAD));
-    const reading = [before, after2].some((route) => route?.view === "thread");
-    if (after2?.view !== "queue") {
-      seated = null;
-      seatHeights.clear();
-    }
-    const changed = (before ? routeKey(before) : null) !== (after2 ? routeKey(after2) : null);
-    if (changed) {
-      room = null;
-      rewriting = false;
-      pressed = null;
-      quoteExpanded = false;
-      waiting = null;
-      placed = null;
-      drawnThread = null;
-      onPageSeat = false;
-      unreadSeat = null;
-    }
-    if (changed && before?.view === "thread")
-      dismissReply(threadByKey(before.thread)?.key ?? before.thread);
-    leaving = changed && before && after2 ? before : null;
-    if (changed) viewMovingUntil = performance.now() + OUT_MS + VIEW_RESIZE_MS;
-    paint();
-    const drawn2 = reading || before?.view === "queue" ? present({ release: reading }) : null;
-    if (!changed || reducedMotion() || !pagePresented()) {
-      leaving = null;
+    return renderCommit(() => {
+      const after2 = trail().at(-1);
+      postureMoved = true;
+      const stoodIn = drawnThreadId(closestAcross(focused(), THREAD));
+      const reading = [before, after2].some((route) => route?.view === "thread");
+      if (after2?.view !== "queue") {
+        seated = null;
+        seatHeights.clear();
+      }
+      const changed = (before ? routeKey(before) : null) !== (after2 ? routeKey(after2) : null);
+      if (changed) {
+        room = null;
+        rewriting = false;
+        pressed = null;
+        quoteExpanded = false;
+        waiting = null;
+        placed = null;
+        drawnThread = null;
+        onPageSeat = false;
+        unreadSeat = null;
+      }
+      if (changed && before?.view === "thread")
+        dismissReply(threadByKey(before.thread)?.key ?? before.thread);
+      leaving = changed && before && after2 ? before : null;
+      if (changed) viewMovingUntil = performance.now() + OUT_MS + VIEW_RESIZE_MS;
       paint();
-      if (focus) focusView(after2, drawn2, stoodIn);
-      return;
-    }
-    const arriving = stage.querySelector(".lf-fp-view:not([data-leaving])");
-    arriving?.animate([{ opacity: 0 }, { opacity: 1 }], {
-      duration: FADE_MS,
-      delay: leaving ? OUT_MS : 0,
-      easing: "linear",
-      fill: "backwards"
-    });
-    const gone = stage.querySelector(".lf-fp-view[data-leaving]");
-    const fade = gone?.animate([{ opacity: 1 }, { opacity: 0 }], {
-      duration: OUT_MS,
-      easing: "linear",
-      fill: "forwards"
-    });
-    const release2 = fade ? holdRendering() : null;
-    const settle = () => {
-      leaving = null;
-      paint();
-      release2();
-    };
-    if (fade)
-      fade.finished.then(settle, () => {
-        release2();
+      afterRender(() => {
+        const drawn2 = reading || before?.view === "queue" ? present({ release: reading }) : null;
+        if (!changed || reducedMotion() || !pagePresented()) {
+          leaving = null;
+          paint();
+          if (focus) focusView(after2, drawn2, stoodIn);
+          return;
+        }
+        const arriving = stage.querySelector(".lf-fp-view:not([data-leaving])");
+        arriving?.animate([{ opacity: 0 }, { opacity: 1 }], {
+          duration: FADE_MS,
+          delay: leaving ? OUT_MS : 0,
+          easing: "linear",
+          fill: "backwards"
+        });
+        const gone = stage.querySelector(".lf-fp-view[data-leaving]");
+        const fade = gone?.animate([{ opacity: 1 }, { opacity: 0 }], {
+          duration: OUT_MS,
+          easing: "linear",
+          fill: "forwards"
+        });
+        const release2 = fade ? holdRendering() : null;
+        const settle = () => {
+          leaving = null;
+          paint();
+          release2();
+        };
+        if (fade)
+          fade.finished.then(settle, () => {
+            release2();
+          });
+        else leaving = null;
+        if (focus) focusView(after2, drawn2, stoodIn);
       });
-    else leaving = null;
-    if (focus) focusView(after2, drawn2, stoodIn);
+    }).ready;
   }
   function focusView(route, drawn2, stoodIn = null) {
     if (!route) return;
@@ -8843,23 +8873,27 @@ function createFloatingPanel({
   }
   function paintPanel() {
     painting = true;
-    try {
+    const commit = renderCommit(() => {
       const top = trail().at(-1);
       if (top?.view === "thread" && !threadByKey(top.thread)) close();
       holdRoom();
       paintNow();
-      if (holdMenu()) paintNow();
-    } finally {
+      afterRender(() => {
+        if (holdMenu()) paintNow();
+        afterRender(() => {
+          landReader();
+          seatOnItems();
+          landWalked();
+        });
+      });
+    });
+    return commit.ready.finally(() => {
       painting = false;
-    }
-    if (again) {
-      again = false;
-      paintPanel();
-      return;
-    }
-    landReader();
-    seatOnItems();
-    landWalked();
+      if (again) {
+        again = false;
+        paint();
+      }
+    });
   }
   const asked = /* @__PURE__ */ new WeakSet();
   function seatOnItems() {
@@ -8912,15 +8946,17 @@ function createFloatingPanel({
     );
     keeps(errorDot, "data-shown", unseen ? "" : null);
     paintView(menu, menuTemplate, menuReading());
-    for (const copy of [...copyItems.values(), ...copies.values()])
-      if (!copy.isConnected) copy.remove();
-    keeps(menu, "data-level", menuOpen() && menuAt() ? menuAt().view : null);
-    keeps(menu, "style", menuOpen() && menuRoom ? `height: ${menuRoom}px` : null);
-    keeps(menu, "role", menu.querySelector("textarea") ? "dialog" : "menu");
-    if (menuOpen()) {
-      const rows2 = menuRows();
-      rove(rows2, rows2.includes(focused()) ? focused() : rows2[0]);
-    }
+    afterRender(() => {
+      for (const copy of [...copyItems.values(), ...copies.values()])
+        if (!copy.isConnected) copy.remove();
+      keeps(menu, "data-level", menuOpen() && menuAt() ? menuAt().view : null);
+      keeps(menu, "style", menuOpen() && menuRoom ? `height: ${menuRoom}px` : null);
+      keeps(menu, "role", menu.querySelector("textarea") ? "dialog" : "menu");
+      if (menuOpen()) {
+        const rows2 = menuRows();
+        rove(rows2, rows2.includes(focused()) ? focused() : rows2[0]);
+      }
+    });
     const views = [leaving, top].filter(Boolean);
     const heldView = shownView();
     const restoreFocus = heldView && holdFocus(heldView, { key: "data-key" });
@@ -8952,143 +8988,149 @@ function createFloatingPanel({
         }))
       }
     );
-    if (restoreFocus && heldView === shownView()) restoreFocus(heldView);
-    drawnTop = top ? routeKey(top) : null;
-    regionViews();
-    const outlet = outletOf();
-    if (outlet !== fitted) {
-      fit.disconnect();
-      if (outlet) for (const box of [outlet, openView()]) fit.observe(box);
-      fitted = outlet;
-    }
-    const listed2 = listRows();
-    rove(
-      listed2,
-      listed2.includes(focused()) ? focused() : listed2.find((row2) => row2.getAttribute("tabindex") === "0") ?? listed2[0]
-    );
-    paintView(head, headTemplate, headReading(top));
-    paintView(controls, controlsTemplate, controlsReading(top));
-    if (!top) move(row, expand, leaf);
-    const heading = top ? shows(top) : null;
-    for (const drawing2 of [controls, replyOutlet]) {
-      keeps(drawing2, "data-thread", heading);
-      keeps(drawing2, "data-lf-thread-view", heading === null ? null : "");
-    }
-    const thread = top?.view === "thread" ? threadByKey(top.thread) : null;
-    const replying = top?.view === "thread";
-    const shown = replying ? [replyOutlet, resolvedLine] : [pageEditor().box];
-    if (field.firstElementChild !== shown[0]) {
-      const had = standingIn(field);
-      field.replaceChildren(...shown);
-      if (had && !replying) focusDestination(leaf, "return");
-    }
-    if (caretToField && !replying) {
-      caretToField = false;
-      focusDestination(pageEditor().input, "move");
-    }
-    const resting = Boolean(thread) && !replyAvailable(thread);
-    keepsHidden(resolvedLine, !resting);
-    keepsHidden(replyOutlet, resting);
-    const input = fieldInput();
-    if (input) syncInput(input);
-    keeps(host, "data-writing", writing ? "" : null);
-    const words = Boolean(draftOf(input));
-    if (postureMoved || !words) drafted = words;
-    postureMoved = false;
-    keeps(host, "data-drafted", drafted ? "" : null);
-    keeps(host, "data-words", words ? "" : null);
-    if (!words) expanded = false;
-    fieldRests = resting;
-    markRoom();
-    keeps(host, "data-expanded", expanded ? "" : null);
-    keeps(expand, "aria-pressed", String(expanded));
-    keeps(expand, "aria-label", expanded ? "Less room to write" : "More room to write");
-    keeps(expand, "title", expanded ? "Less room to write" : "More room to write");
-    paintView(
-      expand,
-      (read) => [
-        Show({
-          get when() {
-            return read().icon;
-          },
-          keyed: true,
-          children: (icon) => iconElement(icon, "lf-action-icon")
-        })
-      ],
-      { icon: expanded ? "fit" : "expand" }
-    );
-    const reading = fieldReading(replying ? top.thread : null, input);
-    keeps(host, "data-offers", reading.says === "selection" ? "" : null);
-    keeps(host, "data-tone", status().tone || null);
-    keeps(host, "data-asks", status().asks ? "" : null);
-    const notice2 = passing();
-    const hidden = !top && reading.says !== "destination" && reading.says !== "error" && draftOf(input) !== "";
-    keepsText(
-      contextWords,
-      !hidden ? "" : reading.says === "selection" ? reading.words : notice2.visible ? notice2.message : ""
-    );
-    keepsHidden(context2, !contextWords.textContent);
-    paintPeek();
-    const standing = rowNotice();
-    keepsHidden(rowNoticeSeat, !standing);
-    paintView(
-      rowNoticeSeat,
-      (read) => [
-        Show({
-          get when() {
-            return read().standing;
-          },
-          children: (notice3) => rowNoticeView(notice3)
-        })
-      ],
-      { standing }
-    );
-    const exit = rows().find((entry) => entry.exit);
-    paintView(
-      exitSeat,
-      (read) => [
-        Show({
-          get when() {
-            return read().exit;
-          },
-          children: (exit2) => default2`
+    afterRender(() => {
+      if (restoreFocus && heldView === shownView()) restoreFocus(heldView);
+      drawnTop = top ? routeKey(top) : null;
+      regionViews();
+      const outlet = outletOf();
+      if (outlet !== fitted) {
+        fit.disconnect();
+        if (outlet) for (const box of [outlet, openView()]) fit.observe(box);
+        fitted = outlet;
+      }
+      const listed2 = listRows();
+      rove(
+        listed2,
+        listed2.includes(focused()) ? focused() : listed2.find((row2) => row2.getAttribute("tabindex") === "0") ?? listed2[0]
+      );
+      paintView(head, headTemplate, headReading(top));
+      paintView(controls, controlsTemplate, controlsReading(top));
+      if (!top) move(row, expand, leaf);
+      const heading = top ? shows(top) : null;
+      for (const drawing2 of [controls, replyOutlet]) {
+        keeps(drawing2, "data-thread", heading);
+        keeps(drawing2, "data-lf-thread-view", heading === null ? null : "");
+      }
+      const thread = top?.view === "thread" ? threadByKey(top.thread) : null;
+      const replying = top?.view === "thread";
+      const shown = replying ? [replyOutlet, resolvedLine] : [pageEditor().box];
+      if (field.firstElementChild !== shown[0]) {
+        const had = standingIn(field);
+        field.replaceChildren(...shown);
+        if (had && !replying) focusDestination(leaf, "return");
+      }
+      if (caretToField && !replying) {
+        caretToField = false;
+        focusDestination(pageEditor().input, "move");
+      }
+      const resting = Boolean(thread) && !replyAvailable(thread);
+      keepsHidden(resolvedLine, !resting);
+      keepsHidden(replyOutlet, resting);
+      const input = fieldInput();
+      if (input) syncInput(input);
+      keeps(host, "data-writing", writing ? "" : null);
+      const words = Boolean(draftOf(input));
+      if (postureMoved || !words) drafted = words;
+      postureMoved = false;
+      keeps(host, "data-drafted", drafted ? "" : null);
+      keeps(host, "data-words", words ? "" : null);
+      if (!words) expanded = false;
+      fieldRests = resting;
+      markRoom();
+      keeps(host, "data-expanded", expanded ? "" : null);
+      keeps(expand, "aria-pressed", String(expanded));
+      keeps(
+        expand,
+        "aria-label",
+        expanded ? "Less room to write" : "More room to write"
+      );
+      keeps(expand, "title", expanded ? "Less room to write" : "More room to write");
+      paintView(
+        expand,
+        (read) => [
+          Show({
+            get when() {
+              return read().icon;
+            },
+            keyed: true,
+            children: (icon) => iconElement(icon, "lf-action-icon")
+          })
+        ],
+        { icon: expanded ? "fit" : "expand" }
+      );
+      const reading = fieldReading(replying ? top.thread : null, input);
+      keeps(host, "data-offers", reading.says === "selection" ? "" : null);
+      keeps(host, "data-tone", status().tone || null);
+      keeps(host, "data-asks", status().asks ? "" : null);
+      const notice2 = passing();
+      const hidden = !top && reading.says !== "destination" && reading.says !== "error" && draftOf(input) !== "";
+      keepsText(
+        contextWords,
+        !hidden ? "" : reading.says === "selection" ? reading.words : notice2.visible ? notice2.message : ""
+      );
+      keepsHidden(context2, !contextWords.textContent);
+      paintPeek();
+      const standing = rowNotice();
+      keepsHidden(rowNoticeSeat, !standing);
+      paintView(
+        rowNoticeSeat,
+        (read) => [
+          Show({
+            get when() {
+              return read().standing;
+            },
+            children: (notice3) => rowNoticeView(notice3)
+          })
+        ],
+        { standing }
+      );
+      const exit = rows().find((entry) => entry.exit);
+      paintView(
+        exitSeat,
+        (read) => [
+          Show({
+            get when() {
+              return read().exit;
+            },
+            children: (exit2) => default2`
       <button type="button" class="lf-fp-chip lf-fp-exit" aria-label=${() => exit2().label} title=${() => exit2().label}
         disabled=${() => exit2().disabled} onMouseDown=${(event) => event.preventDefault()} onClick=${() => exit2().press()}>
         ${iconElement("cross", "lf-action-icon")}
       </button>`
-        })
-      ],
-      { exit }
-    );
-    keepsHidden(exitSeat, !exit);
-    const threadsOpen = top?.view === "threads" || top?.view === "thread";
-    const onUserName = onUser ? `On me: ${onUser}` : "On me";
-    const threadsName = inventoried() ? `Threads, ${openCount()} open${news ? `, ${news} with news` : ""}` : "Threads";
-    paintView(
-      quick,
-      (read) => default2`<button type="button" class="lf-fp-chip lf-fp-on-user"
+          })
+        ],
+        { exit }
+      );
+      keepsHidden(exitSeat, !exit);
+      const threadsOpen = top?.view === "threads" || top?.view === "thread";
+      const onUserName = onUser ? `On me: ${onUser}` : "On me";
+      const threadsName = inventoried() ? `Threads, ${openCount()} open${news ? `, ${news} with news` : ""}` : "Threads";
+      paintView(
+        quick,
+        (read) => default2`<button type="button" class="lf-fp-chip lf-fp-on-user"
       aria-pressed=${() => String(read().queue)} data-due=${() => read().onUser > 0 ? "" : void 0}
       aria-label=${() => read().onUserName} title=${() => read().onUserName} onClick=${openOnMe}>
       ${iconElement("inbox", "lf-action-icon")}<span class="lf-fp-num">${() => read().onUser || ""}</span>
     </button><button type="button" class="lf-fp-chip lf-fp-threads" aria-pressed=${() => String(read().threadsOpen)}
       aria-label=${() => read().threadsName} title=${() => read().threadsName} onClick=${() => {
-        filter = read().news && !read().threadsOpen ? "unread" : "open";
-        query = "";
-        refit();
-        open({ view: "threads" });
-      }}>${iconElement("comment", "lf-action-icon")}<span class="lf-fp-num">${() => read().openCount || ""}</span>
+          filter = read().news && !read().threadsOpen ? "unread" : "open";
+          query = "";
+          refit();
+          open({ view: "threads" });
+        }}>${iconElement("comment", "lf-action-icon")}<span class="lf-fp-num">${() => read().openCount || ""}</span>
       <span class="lf-fp-news" hidden=${() => !read().news}></span>
     </button>`,
-      {
-        queue: top?.view === "queue",
-        threadsOpen,
-        onUser,
-        news,
-        onUserName,
-        threadsName,
-        openCount: openCount()
-      }
-    );
+        {
+          queue: top?.view === "queue",
+          threadsOpen,
+          onUser,
+          news,
+          onUserName,
+          threadsName,
+          openCount: openCount()
+        }
+      );
+    });
   }
   function olderVersion() {
     const { latest } = versionsReading();
@@ -9802,8 +9844,12 @@ function createPageMapDialog({
     </section>`;
   function renderSheet() {
     const restoreFocus = holdFocus(dialog);
-    place.around(() => presentSheet());
-    restoreFocus?.(dialogSearch);
+    const held = place.take();
+    presentSheet();
+    afterRender(() => {
+      place.finish(held);
+      restoreFocus?.(dialogSearch);
+    });
   }
   function presentSheet() {
     const query = dialogSearch.value.trim().toLocaleLowerCase();
@@ -9869,29 +9915,33 @@ function createPageMapDialog({
     if (dialog.open) renderSheet();
   }
   function openPageMap(entry = null, { invoker = null, focusSpill = false } = {}) {
-    const openedFrom = invoker ?? focused();
-    target = entry ? targetFor(entry) : null;
-    if (!dialog.open) {
-      openLayer(dialog, openedFrom);
-      if (dialogSearch.value) dialogSearch.value = "";
-    }
-    renderSheet();
-    if (!dialog.open) showNativeLayer(dialog);
-    const index = entry ? entries.findIndex((candidate) => candidate.key === entry.key) : -1;
-    const group = index < 0 ? null : dialogList.children[index];
-    if (group) scrollIntoView(group, { block: "nearest", within: dialogList });
-    const spilled = focusSpill ? openedFrom?.lfFirstSpilledOption : null;
-    const spilledAction = focusSpill ? groups[index]?.actions.find(
-      (action) => action.kind === "control" && action.record.key === spilled?.record?.key && action.record.owner === spilled?.record?.owner || action.kind === "item" && spilled?.choice?.items.some(
-        (item) => contributionItemKey(action.item) === contributionItemKey(item)
-      )
-    ) : null;
-    const destination = focusSpill ? spilledAction && group?.querySelector(`[data-lf-map-key="${CSS.escape(spilledAction.key)}"]`) : group?.querySelector(".lf-page-map-action");
-    focusDestination(
-      destination ?? (coarsePointer.matches ? mapRows()[0] ?? dialogClose : dialogSearch),
-      "move"
-    );
-    paintKeys();
+    return renderCommit(() => {
+      const openedFrom = invoker ?? focused();
+      target = entry ? targetFor(entry) : null;
+      if (!dialog.open) {
+        openLayer(dialog, openedFrom);
+        if (dialogSearch.value) dialogSearch.value = "";
+      }
+      renderSheet();
+      afterRender(() => {
+        if (!dialog.open) showNativeLayer(dialog);
+        const index = entry ? entries.findIndex((candidate) => candidate.key === entry.key) : -1;
+        const group = index < 0 ? null : dialogList.children[index];
+        if (group) scrollIntoView(group, { block: "nearest", within: dialogList });
+        const spilled = focusSpill ? openedFrom?.lfFirstSpilledOption : null;
+        const spilledAction = focusSpill ? groups[index]?.actions.find(
+          (action) => action.kind === "control" && action.record.key === spilled?.record?.key && action.record.owner === spilled?.record?.owner || action.kind === "item" && spilled?.choice?.items.some(
+            (item) => contributionItemKey(action.item) === contributionItemKey(item)
+          )
+        ) : null;
+        const destination = focusSpill ? spilledAction && group?.querySelector(`[data-lf-map-key="${CSS.escape(spilledAction.key)}"]`) : group?.querySelector(".lf-page-map-action");
+        focusDestination(
+          destination ?? (coarsePointer.matches ? mapRows()[0] ?? dialogClose : dialogSearch),
+          "move"
+        );
+        paintKeys();
+      });
+    }).ready;
   }
   function leavePageMap() {
     if (!dialog.open) return;
@@ -10024,7 +10074,7 @@ function createObligationView({
   let mounted = false;
   const presenter = applicationPresenter({
     region: "obligations",
-    order: PRESENTATION_ORDER.obligations,
+    phase: PRESENTATION_PHASE.obligations,
     reading: () => mounted ? true : null,
     paint: () => {
       readObligations();

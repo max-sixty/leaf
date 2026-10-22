@@ -50,6 +50,8 @@ import {
   handBack,
   html,
   createView,
+  afterRender,
+  renderCommit,
   iconElement,
   isNativeLayer,
   LeafElement,
@@ -123,8 +125,7 @@ customElements.define(
         editor.value = base.text;
         remember();
         finishSaving();
-        paint();
-        returnToEditor();
+        paint(returnToEditor);
         if (owed) void refresh();
       };
       // The status control naming the conflict, and the menu of its choices. A choice
@@ -234,12 +235,15 @@ customElements.define(
         slow = false;
         if (!failure && !latest && !dirty()) announce("Changes saved.");
       }
-      // A paint draws now, since what follows it reads the controls it drew.
-      function paint() {
+      // Return focus only after the controls and CodeMirror configuration commit.
+      function paint(following) {
         // The comparison belongs to the conflict it opened on.
         if (!latest) comparing = false;
-        element.requestUpdate();
-        element.performUpdate();
+        return renderCommit(() => {
+          element.requestUpdate();
+          element.performUpdate();
+          if (following) afterRender(following);
+        }).ready;
       }
       // What follows each draw: the editor's own state, the host's, the menu, the news
       // and the comparison's editor, all of which read the controls the draw made.
@@ -437,8 +441,9 @@ customElements.define(
             slowTimer = null;
           }
           const returning = connected && returnFrom && focused() === returnFrom;
-          paint();
-          if (returning && returnFrom.hidden) returnToEditor();
+          paint(() => {
+            if (returning && returnFrom.hidden) returnToEditor();
+          });
           schedule(0);
           if (owed) void refresh();
         }
@@ -471,8 +476,9 @@ customElements.define(
           if (connected) remember();
           if (failure || latest || !dirty()) finishSaving();
           const returning = connected && returnFrom && focused() === returnFrom;
-          paint();
-          if (returning && returnFrom.hidden) returnToEditor();
+          paint(() => {
+            if (returning && returnFrom.hidden) returnToEditor();
+          });
           schedule(0);
           if (owed) void refresh();
         }

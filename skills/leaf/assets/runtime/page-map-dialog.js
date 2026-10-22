@@ -37,7 +37,15 @@ import {
   openLayer,
   openerOf,
 } from "./focus.js";
-import { html, createView, createEffect, For, Show } from "/vendor/browser-runtime.js";
+import {
+  afterRender,
+  renderCommit,
+  html,
+  createView,
+  createEffect,
+  For,
+  Show,
+} from "/vendor/browser-runtime.js";
 import { iconElement } from "./icons.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import { coarsePointer, pressIsKeyboardActivation } from "./pointer.js";
@@ -318,9 +326,13 @@ export function createPageMapDialog({
 
   function renderSheet() {
     const restoreFocus = holdFocus(dialog);
-    place.around(() => presentSheet());
+    const held = place.take();
+    presentSheet();
     // A control the filter hid or the render removed hands the user to the search.
-    restoreFocus?.(dialogSearch);
+    afterRender(() => {
+      place.finish(held);
+      restoreFocus?.(dialogSearch);
+    });
   }
 
   function presentSheet() {
@@ -394,43 +406,47 @@ export function createPageMapDialog({
   }
 
   function openPageMap(entry = null, { invoker = null, focusSpill = false } = {}) {
-    const openedFrom = invoker ?? focused();
-    target = entry ? targetFor(entry) : null;
-    if (!dialog.open) {
-      openLayer(dialog, openedFrom);
-      if (dialogSearch.value) dialogSearch.value = "";
-    }
-    renderSheet();
-    if (!dialog.open) showNativeLayer(dialog);
-    const index = entry
-      ? entries.findIndex((candidate) => candidate.key === entry.key)
-      : -1;
-    const group = index < 0 ? null : dialogList.children[index];
-    if (group) scrollIntoView(group, { block: "nearest", within: dialogList });
-    const spilled = focusSpill ? openedFrom?.lfFirstSpilledOption : null;
-    const spilledAction = focusSpill
-      ? groups[index]?.actions.find(
-          (action) =>
-            (action.kind === "control" &&
-              action.record.key === spilled?.record?.key &&
-              action.record.owner === spilled?.record?.owner) ||
-            (action.kind === "item" &&
-              spilled?.choice?.items.some(
-                (item) =>
-                  contributionItemKey(action.item) === contributionItemKey(item),
-              )),
-        )
-      : null;
-    const destination = focusSpill
-      ? spilledAction &&
-        group?.querySelector(`[data-lf-map-key="${CSS.escape(spilledAction.key)}"]`)
-      : group?.querySelector(".lf-page-map-action");
-    focusDestination(
-      destination ??
-        (coarsePointer.matches ? (mapRows()[0] ?? dialogClose) : dialogSearch),
-      "move",
-    );
-    paintKeys();
+    return renderCommit(() => {
+      const openedFrom = invoker ?? focused();
+      target = entry ? targetFor(entry) : null;
+      if (!dialog.open) {
+        openLayer(dialog, openedFrom);
+        if (dialogSearch.value) dialogSearch.value = "";
+      }
+      renderSheet();
+      afterRender(() => {
+        if (!dialog.open) showNativeLayer(dialog);
+        const index = entry
+          ? entries.findIndex((candidate) => candidate.key === entry.key)
+          : -1;
+        const group = index < 0 ? null : dialogList.children[index];
+        if (group) scrollIntoView(group, { block: "nearest", within: dialogList });
+        const spilled = focusSpill ? openedFrom?.lfFirstSpilledOption : null;
+        const spilledAction = focusSpill
+          ? groups[index]?.actions.find(
+              (action) =>
+                (action.kind === "control" &&
+                  action.record.key === spilled?.record?.key &&
+                  action.record.owner === spilled?.record?.owner) ||
+                (action.kind === "item" &&
+                  spilled?.choice?.items.some(
+                    (item) =>
+                      contributionItemKey(action.item) === contributionItemKey(item),
+                  )),
+            )
+          : null;
+        const destination = focusSpill
+          ? spilledAction &&
+            group?.querySelector(`[data-lf-map-key="${CSS.escape(spilledAction.key)}"]`)
+          : group?.querySelector(".lf-page-map-action");
+        focusDestination(
+          destination ??
+            (coarsePointer.matches ? (mapRows()[0] ?? dialogClose) : dialogSearch),
+          "move",
+        );
+        paintKeys();
+      });
+    }).ready;
   }
 
   // Focus belongs to the visible control in this native layer. A contributor closing

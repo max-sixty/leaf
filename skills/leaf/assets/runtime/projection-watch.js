@@ -1,6 +1,6 @@
 /* The watcher of the page's readings, for chrome and packages alike.
 
-   `watchProjection(owner, paint, ready)` draws on the next microtask and follows the
+   `watchProjection(owner, paint, ready)` follows the native render graph and the
    values that paint reads through native Solid reactions: selected application parts,
    widget controllers and outside readings such as the shared clock, document changes
    and PRESENTATION. Several changes in one task owe one paint. Reads after an await
@@ -14,10 +14,14 @@
    wakes only an owed paint, avoiding a presentation feedback loop.
 
    The returned function permanently ends the watcher, including queued paints.
-   `refresh()` draws synchronously for mechanical changes, such as revealing held news,
-   while retaining the owner's lifetime and proof. A refresh while away owes the return
-   a paint; before the first paint it draws that one at once. */
+   `refresh()` starts a commit immediately for mechanical changes, such as revealing
+   held news, and returns its completion. Focus and measurement use `afterRender` in
+   that same commit. A refresh while away owes the return a paint; before the first
+   paint it starts that one. Post-render reads are tracked too; superseded or departed
+   owners run no remaining callbacks. */
 import {
+  renderCommit,
+  createPresentationFlow,
   watchReaction,
   createSignal,
   flush,
@@ -27,6 +31,8 @@ import { watchPresentation } from "./semantic-state.js";
 import { PRESENTATION } from "./presentation.js";
 import { watchOwner } from "./arrivals.js";
 import { readingPaint } from "./presence.js";
+import { bindQueuedWork } from "./queued-work.js";
+const projections = createPresentationFlow(bindQueuedWork);
 
 // PRESENTATION replaces a provisional startup reading, so an owner away when the page
 // announced it owes its paint again.
@@ -36,50 +42,59 @@ document.addEventListener(PRESENTATION, () =>
 );
 
 export function watchProjection(owner, paint, ready = null) {
-  // An effect follows the last paint. Its next run marks that paint stale; only the
-  // queued draw reads again, preserving the owner's microtask and readiness boundary.
+  // Reactions follow each synchronous render stretch. Native effects coalesce the
+  // invalidations; the commit tracks post-render reads under this same lifetime.
   let key = 0;
-  let queued = false;
-  let following = null;
+  let following = [];
   let connected = false;
+  let task = null;
   const update = () => {
-    if (queued) return;
-    queued = true;
-    queueMicrotask(() => {
-      queued = false;
-      if (connected && owner.isConnected) draw(key);
+    if (!task) return;
+    void task.enqueue(() => {
+      if (connected && owner.isConnected) return draw(key);
     });
   };
   const draw = readingPaint(owner, () => {
     if (ready !== null && !untracked(ready)) return draw.forget();
-    following?.();
-    let outcome;
-    following = watchReaction(
+    for (const stop of following) stop();
+    const generation = (following = []);
+    const run = (callback) => {
+      let outcome;
+      const stop = watchReaction(
+        () => {
+          try {
+            outcome = { value: callback() };
+          } catch (error) {
+            outcome = { error };
+          }
+        },
+        () => {
+          key += 1;
+          update();
+        },
+      );
+      if (connected && following === generation) generation.push(stop);
+      else stop();
+      if ("error" in outcome) throw outcome.error;
+      return outcome.value;
+    };
+    return renderCommit(
       () => {
-        // Retain dependencies after a failure so changed input can recover the draw.
-        try {
-          presentations();
-          outcome = { value: paint() };
-        } catch (error) {
-          outcome = { error };
-        }
+        presentations();
+        return paint();
       },
-      () => {
-        key += 1;
-        update();
+      {
+        run,
+        bind: bindQueuedWork,
+        current: () => connected && owner.isConnected && following === generation,
       },
-    );
-    if (!connected) {
-      following();
-      following = null;
-    }
-    if ("error" in outcome) throw outcome.error;
-    return outcome.value;
+    ).ready;
   });
   let stopProof = null;
   const stopLifetime = watchOwner(owner, {
     connect() {
       connected = true;
+      task = projections.task();
       // Ready reads may invalidate their own presentation. Only an owed paint retries,
       // so finishing a paint cannot feed another paint.
       if (ready)
@@ -91,8 +106,10 @@ export function watchProjection(owner, paint, ready = null) {
       connected = false;
       stopProof?.();
       stopProof = null;
-      following?.();
-      following = null;
+      for (const stop of following) stop();
+      following = [];
+      task?.disconnect();
+      task = null;
     },
   });
   const stop = () => {

@@ -2,14 +2,16 @@
  *
  * The owner publishes complete props. Top-level projection fields track bindings
  * independently; immutable lists keep the identities their For component chooses.
- * Updates flush synchronously so gesture, focus and measurement share one reading.
+ * Imperative updates flush synchronously. Inside a render commit, native Solid
+ * settlement separates prop publication from the owner's focus and measurements.
  * Failure replacement releases affected roots. A retained owner can publish again
  * into the same container; terminal dispose ends that owner's lifetime.
  */
-import { createSignal, createProjection, flush, runWithOwner } from "@solidjs/signals";
+import { createSignal, createProjection, runWithOwner } from "@solidjs/signals";
 import { Errored } from "solid-js";
 import { render } from "@solidjs/web";
 import type { JSX } from "@solidjs/web";
+import { writeView } from "./rendering.ts";
 
 type ViewContainer = HTMLElement | ShadowRoot;
 const roots = new WeakMap<ViewContainer, () => void>();
@@ -37,13 +39,14 @@ export function createView<T extends object>(
   let current = initial;
   let stop: (() => void) | null = null;
   let disposed = false;
+  let publication = 0;
   let failure: { error: unknown } | null = null;
   let publish: (next: { current: T }) => unknown;
   const reset = () => {
     stop?.();
     stop = null;
   };
-  // Catch inside Solid, then rethrow at Leaf's imperative boundary. An uncaught
+  // Catch inside Solid, then rethrow at Leaf's commit boundary. An uncaught
   // binding error otherwise halts the shared scheduler, including unrelated views.
   const checkFailure = () => {
     if (!failure) return;
@@ -51,6 +54,12 @@ export function createView<T extends object>(
     failure = null;
     reset();
     throw error;
+  };
+  // Several owners can publish before Solid commits the final bindings. Only the
+  // latest publication can consume that result; an older commit must not acknowledge
+  // the latest failed view by taking its error first.
+  const check = (version: number) => () => {
+    if (!disposed && version === publication) checkFailure();
   };
   const mount = () => {
     if (container.firstChild) container.replaceChildren();
@@ -74,18 +83,28 @@ export function createView<T extends object>(
         });
       }, container),
     );
-    checkFailure();
   };
-  mount();
-  roots.set(container, reset);
+  writeView(mount, check(publication));
+  roots.set(container, () => {
+    publication++;
+    failure = null;
+    reset();
+  });
   return Object.freeze({
     update(next: T) {
       if (disposed) throw new Error("Cannot update a disposed Solid view");
       current = next;
-      if (stop) {
-        flush(() => publish({ current }));
-        checkFailure();
-      } else mount();
+      const version = ++publication;
+      // A mount can fail before its deferred check runs. A newer publication owns
+      // recovery even when the failed publication is superseded before that check.
+      if (failure) {
+        failure = null;
+        reset();
+      }
+      writeView(() => {
+        if (stop) publish({ current });
+        else mount();
+      }, check(version));
     },
     dispose() {
       if (disposed) return;

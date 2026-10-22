@@ -52,6 +52,7 @@ import {
   iconElement,
   html,
   createView,
+  afterRender,
   Show,
   offered,
   LeafElement,
@@ -343,7 +344,7 @@ customElements.define(
           props,
         );
       } else this.#toolsDrawing.update(props);
-      paintKeys();
+      afterRender(paintKeys);
     }
 
     #available() {

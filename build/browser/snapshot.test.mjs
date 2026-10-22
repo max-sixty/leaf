@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createSignal } from "@solidjs/signals";
+import { createSignal, flush } from "@solidjs/signals";
 import { watchReaction } from "./observe.ts";
 import { createApplicationPublisher } from "./snapshot.ts";
 import { createPresentationCoordinator } from "./presentation.ts";
@@ -50,6 +50,7 @@ for (const kind of ["semantic", "presentation"]) {
       app.publish({ ...initial, effective: { count: 1 }, semanticEpoch: 1 });
     } else {
       coordinator.attach("unrelated", {});
+      flush();
     }
     assert.equal(
       subscriptions,

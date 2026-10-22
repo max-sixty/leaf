@@ -45,8 +45,9 @@ component's external work when its owner retires.
 `createView(container, component, initial)` mounts a Solid component once in a
 generated container, owning its children. Keep authored children outside it. The
 component receives a props accessor. Its returned
-`update(next)` publishes complete props and flushes the changed bindings before
-returning; `dispose()` releases the view and clears the container. Build-free
+`update(next)` publishes complete props. In a rendering phase Solid commits its
+changed bindings before post-render work; ordinary imperative calls flush before
+returning. `dispose()` releases the view and clears the container. Build-free
 components use `html`, wrapping changing expressions in functions:
 
 ```js
@@ -233,14 +234,34 @@ the box it keeps. `leaf package check --render` reports a widget that moves as
 
 ### Native components
 
-A retained `createView` is the synchronous rendering boundary. Build a complete
-props object in the owner's `render()` or presentation pass, then call `update(next)`;
-component bindings read this raw snapshot. Domain state stays in the authored page
-and its log. Do not read Leaf's semantic readers inside retained bindings.
+A retained `createView` publishes bindings into Solid's native rendering phase.
+Build a complete props object in the owner's `render()` or presentation, then call
+`update(next)`; component bindings read this snapshot. Domain state stays in the
+authored page and its log. Semantic readers belong in the owner whose presentation
+tracks them.
+
+`renderCommit(write)` groups an owner's writes and post-render work. It returns
+`{committed, ready}`: `committed` resolves after the DOM and synchronous post-render
+callbacks have settled; `ready` additionally waits for asynchronous values returned
+by those callbacks or `write`. Use `afterRender(callback)` inside the commit for
+focus, DOM queries, measurement or third-party setup that needs the written DOM.
+Callbacks can write again; their descendants settle before the next outer callback.
+Errors reject the owning commit, including errors in retained template bindings.
+Outside a commit `afterRender` runs immediately, so wrap a gesture that draws and
+then focuses in one `renderCommit`, rather than scheduling focus after its call.
+`LeafElement` and projection owners already supply that commit to their hooks.
+A standalone owner can pass `{current: () => stillCurrent}` to suppress work after
+replacement or teardown; a commit cancelled before writing resolves with `undefined`.
+Work already started still reports its asynchronous failure. An independent native
+effect uses `{root: true}` so it cannot inherit an incidental caller's cancellation,
+tracking or asynchronous work; direct nested commits retain their owner's context.
 
 Bind changing text and native properties with accessors, as `value=${() => props().value}`.
 The renderer skips unchanged native form values, preserving editing and selection.
 Leave initial defaults to the browser unless the owner controls that property.
+If a gesture writes a native property while the controller defers semantic rendering,
+restore that property in the owning render's `afterRender` callback: unchanged props
+do not rerun a binding merely because a gesture changed its DOM.
 Use `onClick`, `onInput` and other native event props; a capture listener belongs in
 a ref's `addEventListener`. Use `prop:innerHTML` only with trusted generated markup,
 such as `renderMarkdown()` output. `For` owns keyed list identity; its record accessor
@@ -256,13 +277,15 @@ a `setup()` that throws shows its failure and the widget draws nothing after it.
 `render()` reads through Leaf's readers: `this.reading` and `this.state`,
 `this.data(input)` for a bound source, and page readings such as `readObligations`,
 `reportSequence` or `ago`. The element redraws whenever anything it read changes, in one
-ordered pass after the publication that moved it, parents before children. The return
+native render dependency graph, parents before children. The return
 value of `render()` is unused; mount generated views with `createView` and update their
 props from this one paint route. Work
 that reads what the render drew goes in `updated()`, and drawing that finishes later in
 `this.drawing(promise)` from there. `this.controller` is the widget controller. Call
 `requestUpdate()` after a change Leaf can't see, such as revealing held news, and
-`performUpdate()` to draw at once.
+`performUpdate()` to start the draw now. Its bindings and `updated()` finish in
+that render's commit; put dependent focus or measurement in `afterRender` within
+the same `renderCommit`, or await `updateComplete` outside a gesture.
 
 ### Retained nodes
 

@@ -214,6 +214,7 @@ import {
   For,
   PENDING,
   Show,
+  afterRender,
   applicationState,
   attachApplicationPresentation,
   bindQueuedWork,
@@ -3774,9 +3775,13 @@ var ReactionStripView = class {
         model
       );
     } else this.#view.update(model);
-    this.#registration ??= this.#commands.registerSurface(this.node, {
-      trigger: this.node.querySelector(".lf-react-trigger"),
-      palette: this.node.querySelector(".lf-react-palette")
+    const view = this.#view;
+    afterRender(() => {
+      if (this.#model !== model || this.#view !== view) return;
+      this.#registration ??= this.#commands.registerSurface(this.node, {
+        trigger: this.node.querySelector(".lf-react-trigger"),
+        palette: this.node.querySelector(".lf-react-palette")
+      });
     });
     return this.node;
   }
@@ -4120,25 +4125,29 @@ var MessageView = class {
         (read) => this.#messageTemplate(read),
         props
       );
-    if (this.#authored && !this.#dressed) {
-      markDeclared(this.node);
-      renderSaid(this.node);
-      renderQuiet(this.node);
-      this.#dressed = true;
-    }
-    highlightBlocks(this.node);
-    this.#stopRead = this.#commands.read.observeMessage(
-      this.node.querySelector(":scope > .lf-msg-body"),
-      model
-    );
-    displaced2?.present(displaced2.model);
-    if (!prior && (model.pending || arrived)) {
-      this.#arrivalMotion = motion(
-        this.node,
-        [{ "--lf-msg-arrival": 1, offset: 0 }],
-        flashDuration()
+    const drawing = this.#drawing;
+    afterRender(() => {
+      if (this.#model !== model || this.#drawing !== drawing) return;
+      if (this.#authored && !this.#dressed) {
+        markDeclared(this.node);
+        renderSaid(this.node);
+        renderQuiet(this.node);
+        this.#dressed = true;
+      }
+      highlightBlocks(this.node);
+      this.#stopRead = this.#commands.read.observeMessage(
+        this.node.querySelector(":scope > .lf-msg-body"),
+        model
       );
-    }
+      displaced2?.present(displaced2.model);
+      if (!prior && (model.pending || arrived)) {
+        this.#arrivalMotion = motion(
+          this.node,
+          [{ "--lf-msg-arrival": 1, offset: 0 }],
+          flashDuration()
+        );
+      }
+    });
     return this.node;
   }
   // Open the user's own words for rewriting here, with the caret after them. False where
@@ -4150,7 +4159,7 @@ var MessageView = class {
       this.#commands.edit.opening(model.id, this);
       this.#commands.edit.paint(this.node);
     }
-    this.#editor?.enter();
+    afterRender(() => this.#editor?.enter());
     return true;
   }
   // Draw the message as it stands, its rewrite having opened in another view.
@@ -7067,13 +7076,19 @@ var ThreadView = class {
         },
         props
       );
-    if (!marginControls && model.news)
-      measure(this.node, () => this.#retainHeaderSlot());
-    else this.#releaseHeaderSlot();
-    this.#continuity?.after(bodyPlace);
-    restoreFocus?.(
-      handedOn ? () => (focusDestination(handedOn, "return"), true) : () => this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node)
-    );
+    const drawing = this.#drawing;
+    afterRender(() => {
+      if (this.#model !== model || this.#drawing !== drawing) return;
+      if (!marginControls && model.news)
+        measure(this.node, () => this.#retainHeaderSlot());
+      else this.#releaseHeaderSlot();
+      this.#continuity?.after(bodyPlace);
+      restoreFocus?.(
+        handedOn ? () => (focusDestination(handedOn, "return"), true) : () => this.#commands.landInThread(
+          this.node.querySelector(SAY_BOX) ?? this.node
+        )
+      );
+    });
     return this.node;
   }
   #releaseHeaderSlot() {

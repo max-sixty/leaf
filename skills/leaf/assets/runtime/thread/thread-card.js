@@ -37,6 +37,7 @@ import {
   standingIn,
 } from "../focus.js";
 import {
+  afterRender,
   html,
   createView,
   Show,
@@ -609,21 +610,27 @@ export class ThreadView {
         },
         props,
       );
-    if (!marginControls && model.news)
-      measure(this.node, () => this.#retainHeaderSlot());
-    else this.#releaseHeaderSlot();
-    this.#continuity?.after(bodyPlace);
-    // A summary gathering the message the user stands on moves it; a page thread whose
-    // render took their place puts them in its reply, or on the thread itself.
-    // Handing it on is the card's own act, which the list holding the card defers to.
-    // A progress disclosure the user stood on that this render replaced hands them to
-    // its successor (transcript.js).
-    restoreFocus?.(
-      handedOn
-        ? () => (focusDestination(handedOn, "return"), true)
-        : () =>
-            this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node),
-    );
+    const drawing = this.#drawing;
+    afterRender(() => {
+      if (this.#model !== model || this.#drawing !== drawing) return;
+      if (!marginControls && model.news)
+        measure(this.node, () => this.#retainHeaderSlot());
+      else this.#releaseHeaderSlot();
+      this.#continuity?.after(bodyPlace);
+      // A summary gathering the message the user stands on moves it; a page thread whose
+      // render took their place puts them in its reply, or on the thread itself.
+      // Handing it on is the card's own act, which the list holding the card defers to.
+      // A progress disclosure the user stood on that this render replaced hands them to
+      // its successor (transcript.js).
+      restoreFocus?.(
+        handedOn
+          ? () => (focusDestination(handedOn, "return"), true)
+          : () =>
+              this.#commands.landInThread(
+                this.node.querySelector(SAY_BOX) ?? this.node,
+              ),
+      );
+    });
     return this.node;
   }
 

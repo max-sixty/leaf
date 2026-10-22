@@ -16,6 +16,8 @@ export {
   createRoot,
   onCleanup,
   createView,
+  afterRender,
+  renderCommit,
   html,
   For,
   Show,

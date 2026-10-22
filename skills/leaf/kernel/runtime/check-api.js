@@ -132,7 +132,7 @@ import "./bundle-dom-move.js";
 import {
   applicationPresented,
   bindQueuedWork,
-  createPresentationSchedule,
+  createPresentationFlow,
   observeQueuedWork,
   readApplication,
   readApplicationPresentation,
@@ -187,7 +187,7 @@ export {
   commandPresentations,
   commandRoutes,
   completeReadingReturn,
-  createPresentationSchedule,
+  createPresentationFlow,
   draftStore,
   dragHeld,
   effectiveScroller,

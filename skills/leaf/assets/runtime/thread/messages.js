@@ -13,7 +13,7 @@
    admission and later descriptor paints never replay the cue.
    The fragment is captured inertly before its first upgrade; presentation waits for
    preparation before capturing typed authored state. */
-import { html, createView, Show } from "/vendor/browser-runtime.js";
+import { afterRender, html, createView, Show } from "/vendor/browser-runtime.js";
 import {
   loadMarkdown,
   markdownReady,
@@ -472,32 +472,36 @@ export class MessageView {
         (read) => this.#messageTemplate(read),
         props,
       );
-    if (this.#authored && !this.#dressed) {
-      markDeclared(this.node);
-      renderSaid(this.node);
-      renderQuiet(this.node);
-      this.#dressed = true;
-    }
-    // Markdown is an opaque property part: tokenization never rewrites Solid markers.
-    highlightBlocks(this.node);
-    this.#stopRead = this.#commands.read.observeMessage(
-      this.node.querySelector(":scope > .lf-msg-body"),
-      model,
-    );
-    // The drawing these widgets left draws the way here instead.
-    displaced?.present(displaced.model);
-    if (!prior && (model.pending || arrived)) {
-      // One phase drives the message's ground and its sticky header. CSS resolves
-      // the tint and resting colour at this message after insertion; Firefox's
-      // Web Animations interpolates a var() colour keyframe discretely.
-      // The shared motion gate answers for restoration and reduced motion; the
-      // delivery receipt and busy cursor remain independent of the arrival tint.
-      this.#arrivalMotion = motion(
-        this.node,
-        [{ "--lf-msg-arrival": 1, offset: 0 }],
-        flashDuration(),
+    const drawing = this.#drawing;
+    afterRender(() => {
+      if (this.#model !== model || this.#drawing !== drawing) return;
+      if (this.#authored && !this.#dressed) {
+        markDeclared(this.node);
+        renderSaid(this.node);
+        renderQuiet(this.node);
+        this.#dressed = true;
+      }
+      // Markdown is an opaque property part: tokenization never rewrites Solid markers.
+      highlightBlocks(this.node);
+      this.#stopRead = this.#commands.read.observeMessage(
+        this.node.querySelector(":scope > .lf-msg-body"),
+        model,
       );
-    }
+      // The drawing these widgets left draws the way here instead.
+      displaced?.present(displaced.model);
+      if (!prior && (model.pending || arrived)) {
+        // One phase drives the message's ground and its sticky header. CSS resolves
+        // the tint and resting colour at this message after insertion; Firefox's
+        // Web Animations interpolates a var() colour keyframe discretely.
+        // The shared motion gate answers for restoration and reduced motion; the
+        // delivery receipt and busy cursor remain independent of the arrival tint.
+        this.#arrivalMotion = motion(
+          this.node,
+          [{ "--lf-msg-arrival": 1, offset: 0 }],
+          flashDuration(),
+        );
+      }
+    });
     return this.node;
   }
 
@@ -510,7 +514,7 @@ export class MessageView {
       this.#commands.edit.opening(model.id, this);
       this.#commands.edit.paint(this.node);
     }
-    this.#editor?.enter();
+    afterRender(() => this.#editor?.enter());
     return true;
   }
 

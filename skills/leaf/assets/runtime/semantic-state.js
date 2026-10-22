@@ -3,6 +3,7 @@
    network promises stay out of the root, in the modules that own them. Importing this
    module mounts no view and starts no delivery. */
 import {
+  renderCommit,
   createMemo,
   createSignal,
   flush,
@@ -10,7 +11,7 @@ import {
   subscribe,
   untracked,
   createPresentationCoordinator,
-  createPresentationSchedule,
+  createPresentationFlow,
   createSemanticApplication,
 } from "/vendor/browser-runtime.js";
 
@@ -22,9 +23,18 @@ let reportPresentationFailure = (reason) =>
 const presentation = createPresentationCoordinator({
   reportFailure: (reason) => reportPresentationFailure(reason),
 });
-// A publication paints on the pass after it, so every subscriber has claimed its region
-// before any renderer touches the document.
-const schedule = createPresentationSchedule(bindQueuedWork);
+// Solid owns renderer scheduling. Groups state which committed DOM a consumer
+// requires; asynchronous completion remains the presentation ledger's responsibility.
+const schedule = createPresentationFlow(bindQueuedWork);
+const widgetDOM = schedule.group();
+const projectionDOM = schedule.group([widgetDOM]);
+const threadDOM = schedule.group([projectionDOM]);
+const obligationsDOM = schedule.group([threadDOM]);
+export const PRESENTATION_PHASE = Object.freeze({
+  projection: projectionDOM,
+  thread: threadDOM,
+  obligations: obligationsDOM,
+});
 
 /** The compiled factory is generated from this checked source contract. */
 /** @type {ReturnType<typeof import("../../../../build/browser/application.ts").createSemanticApplication>} */
@@ -71,34 +81,35 @@ const widgetRegions = (widget) =>
 export const attachWidgetPresentation = (widget, kind, renderer) =>
   presentation.attach(widgetRegion(widget, kind), renderer);
 
-// A parent renders moved members before their attribute-set owner reads the DOM.
-// Authored parentage and projected moves supply the current depth; module arrival
-// order supplies none. Widgets paint ahead of document projection at zero.
+// Native render dependencies name the DOM they consume. Widget tasks depend on
+// their current parent, and projection depends on every widget's committed DOM.
+// Async preparation is presentation proof, not a DOM dependency.
 const currentWidgetParents = readPart((root) => root.effective.widgetParents);
-const widgetOrder = (widget) => {
-  const parents = currentWidgetParents();
-  const seen = new Set();
-  let depth = 0;
-  for (let parent = parents.get(widget); parent; parent = parents.get(parent)) {
-    if (seen.has(parent)) break;
-    seen.add(parent);
-    depth++;
-  }
-  return -1 / (depth + 1);
-};
-export const queueElementUpdate = (widget, update) =>
-  schedule.enqueue(widget ? untracked(() => widgetOrder(widget)) : 0, update);
-
-// Where a document-wide renderer stands in one presentation pass. The projection
-// materializes provenance words and coordinate chrome inside authored elements, the
-// thread resolves its passages over the nodes that leaves, and the obligation view resolves
-// the widget nodes those passages placed. Declaring the order here is what lets every
-// publisher simply publish.
-export const PRESENTATION_ORDER = Object.freeze({
-  projection: 0,
-  thread: 1,
-  obligations: 2,
-});
+const [elementTasks, setElementTasks] = createSignal(new Map(), { ownedWrite: true });
+export function elementRenderTask(widget) {
+  const task = schedule.task({
+    group: widgetDOM,
+    after: () => {
+      const parent = widget && currentWidgetParents().get(widget);
+      const task = parent && elementTasks().get(parent);
+      return task ? [task] : [];
+    },
+  });
+  if (widget) setElementTasks((previous) => new Map(previous).set(widget, task));
+  return {
+    enqueue: task.enqueue,
+    disconnect() {
+      task.disconnect();
+      if (widget)
+        setElementTasks((previous) => {
+          if (previous.get(widget) !== task) return previous;
+          const next = new Map(previous);
+          next.delete(widget);
+          return next;
+        });
+    },
+  };
+}
 
 // The document-wide presenters, in registration order. `presentDocument` is what a
 // caller reaches for when it has changed something every region may be showing and has
@@ -111,8 +122,8 @@ const documentPresenters = [];
 // `reading()` runs when its selected inputs move and returns the value to paint, or
 // null when the region has nothing to paint (before the page has read the log, or while
 // its renderer is not mounted). `paint(value, current, resume)` runs on the next
-// presentation pass, after every region with a lower `order` has painted, and reads the
-// state as it is then.
+// native render phase, after its `phase` predecessors have committed DOM, and reads
+// the state as it is then. Focus, measurement and third-party setup use afterRender.
 //
 // No one lists a region's dependencies. Both functions read through `readPart`
 // selectors; native Solid computed values and effects follow those reads. A publication
@@ -123,8 +134,9 @@ const documentPresenters = [];
 // so renderers select the parts they draw.
 //
 // Recording sees only synchronous code. A paint that awaits wraps each continuation in
-// `resume`, as a `.then` callback or a function it calls after an `await`; reads in a
-// continuation it does not wrap are not followed. A paint's reads of values outside the
+// `resume`, as a `.then` callback or a function it calls after an `await`; it returns
+// that stretch's render completion. Reads in a continuation it does not wrap are not
+// followed. Post-render callbacks are tracked as synchronous stretches too. A paint's reads of values outside the
 // state, such as the time it shows (`clockValue`), are followed too,
 // and a change to one repaints the region. Anything else the paint takes from outside
 // the state, such as a draft or the page's own nodes, is not followed: whoever changes
@@ -133,15 +145,15 @@ const documentPresenters = [];
 /** @param {{
  *   region: string,
  *   renderer?: object,
- *   order?: number,
+ *   phase?: ReturnType<ReturnType<typeof createPresentationFlow>["group"]>,
  *   reading: () => unknown,
- *   paint: (value: any, current: () => boolean, resume: <A extends unknown[], R>(run: (...args: A) => R) => (...args: A) => R) => unknown,
+ *   paint: (value: any, current: () => boolean, resume: <A extends unknown[], R>(run: (...args: A) => R) => (...args: A) => Promise<Awaited<R> | undefined>) => unknown,
  *   failSoft?: (reason: unknown) => unknown,
  * }} presenter */
 export const applicationPresenter = ({
   region,
   renderer = document,
-  order,
+  phase,
   reading,
   paint,
   failSoft,
@@ -187,7 +199,7 @@ export const applicationPresenter = ({
   };
   const presenter = schedule.presenter({
     attach: () => presentation.attach(region, renderer),
-    order,
+    group: phase,
     paint: (outcome, current) => {
       owed = false;
       forget();
@@ -205,7 +217,7 @@ export const applicationPresenter = ({
             }
           },
           () => {
-            // Claim before the publication seals; painting belongs to the ordered pass.
+            // Claim before the publication seals; painting belongs to its native render phase.
             if (!owed && current())
               untracked(() => {
                 const next = selected();
@@ -218,12 +230,20 @@ export const applicationPresenter = ({
         if ("error" in outcome) throw outcome.error;
         return outcome.value;
       };
-      /** @type {<A extends unknown[], R>(run: (...args: A) => R) => (...args: A) => R} */
+      /** @type {<A extends unknown[], R>(run: (...args: A) => R) => (...args: A) => Promise<Awaited<R> | undefined>} */
       const resume =
         (run) =>
         (...args) =>
-          stretch(() => run(...args));
-      return stretch(() => paint(value, current, resume));
+          renderCommit(() => run(...args), {
+            run: stretch,
+            bind: bindQueuedWork,
+            current: () => current() && following === generation,
+          }).ready;
+      return renderCommit(() => paint(value, current, resume), {
+        run: stretch,
+        bind: bindQueuedWork,
+        current: () => current() && following === generation,
+      }).ready;
     },
     failSoft,
   });

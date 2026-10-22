@@ -127,10 +127,6 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(
             for root in (assets, compiled_installation / "skills/leaf/kernel")
             for path in root.rglob("*.js")
         },
-        "/vendor/initial-dependencies.json": Resource(
-            (assets / "vendor/initial-dependencies.json").read_bytes(),
-            "application/json",
-        ),
         "/leaf.js": Resource(
             b"""
                 import {initialRender} from '/runtime/widget-api.js';

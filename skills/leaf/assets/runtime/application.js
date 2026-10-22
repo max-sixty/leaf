@@ -135,7 +135,7 @@ export function mountApplication(dependencies) {
     return presentDocument();
   };
 
-  const projection = createProjectionPresentation();
+  createProjectionPresentation();
   const dataProjection = createDataProjection({ invalidateDom });
 
   let delivery;
@@ -608,7 +608,6 @@ export function mountApplication(dependencies) {
     watchThreadSurfaces,
     placePageThreads,
     consumeAnnotations,
-    retireProjectionCoverage: projection.retireProjectionCoverage,
     threadActions,
     queueActions,
     settlement: settlementView,

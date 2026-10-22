@@ -1807,7 +1807,7 @@ export function createFloatingPanel({
                   "Errors",
                   html`<span class="lf-fp-value">${errors.length}</span>`,
                   () => {
-                    showMenuAt({ view: "errors" });
+                    showMenuAt({ view: "errors", errors });
                     seeErrors();
                   },
                   {
@@ -1990,17 +1990,39 @@ export function createFloatingPanel({
 
   // The errors the user has met, newest first, each saying what failed and when, with
   // a press that dismisses it, whose name carries both, since a menu's keys reach only
-  // its presses; an error whose cause ends leaves by itself (errors.js). A dismissal
-  // leaves the user on the next error's press, or on the way back once none is left.
+  // its presses. Like the root menu, the list keeps the reading it opened with: new
+  // errors wait behind the leaf's dot until reopening. An error whose cause ends
+  // clears its words but keeps its space, so the next control stays under the reader.
+  // A dismissal removes that space by the user's gesture and leaves them on the next
+  // error's press, or on the way back once none is left.
   function errorsList() {
-    const errors = errorsReading();
+    const errors = menuAt.value.errors;
+    const live = new Set(errorsReading().map((error) => error.id));
     if (!errors.length) return html`<p class="lf-fp-empty" role="none">No errors</p>`;
-    // The user moves on before the list repaints, so its roving stop lands once.
-    const dismiss = (dismissed) => {
+    const movePast = (dismissed) => {
       const presses = [...menu.querySelectorAll(".lf-fp-error button")];
       const at = errors.findIndex((error) => error.id === dismissed);
-      const next = dismissed === null ? null : (presses[at + 1] ?? presses[at - 1]);
+      const after = errors.findIndex(
+        (error, index) => index > at && live.has(error.id),
+      );
+      const before = errors.findLastIndex(
+        (error, index) => index < at && live.has(error.id),
+      );
+      const next = dismissed === null ? null : presses[after >= 0 ? after : before];
       focusDestination(next ?? menu.querySelector(".lf-fp-menu-back"), "move");
+    };
+    // An error clearing itself also hands focus off before its control disappears.
+    const standing = focused()?.closest(".lf-fp-error");
+    const standingId = Number(standing?.dataset.key);
+    if (standing && !live.has(standingId)) movePast(standingId);
+    // The user moves on before the list repaints, so its roving stop lands once.
+    const dismiss = (dismissed) => {
+      movePast(dismissed);
+      menuAt.value = {
+        ...menuAt.value,
+        errors:
+          dismissed === null ? [] : errors.filter((error) => error.id !== dismissed),
+      };
       if (dismissed === null) dismissErrors();
       else dismissError(dismissed);
     };
@@ -2008,7 +2030,12 @@ export function createFloatingPanel({
       errors,
       (error) => error.id,
       (error) =>
-        html`<div class="lf-fp-error" role="none">
+        html`<div
+          class="lf-fp-error"
+          data-key=${error.id}
+          role="none"
+          style=${live.has(error.id) ? nothing : "visibility: hidden"}
+        >
           <p class="lf-fp-error-words" aria-hidden="true">
             <b>${error.message}</b><span class="lf-fp-note">${clock(error.at)}</span>
           </p>
@@ -2016,6 +2043,7 @@ export function createFloatingPanel({
             type="button"
             role="menuitem"
             class="lf-fp-quiet"
+            ?disabled=${!live.has(error.id)}
             aria-label=${`Dismiss: ${error.message}, ${clock(error.at)}`}
             @click=${() => dismiss(error.id)}
           >
@@ -3880,10 +3908,7 @@ export function createFloatingPanel({
     });
     effect(() => {
       errorsReading();
-      untracked(() => {
-        if (menuOpen.value && menuAt.value?.view === "errors") seeErrors();
-        paint();
-      });
+      untracked(paint);
     });
     effect(() => {
       statusContextReading();

@@ -7624,7 +7624,7 @@ function createFloatingPanel({
             "Errors",
             html`<span class="lf-fp-value">${errors.length}</span>`,
             () => {
-              showMenuAt({ view: "errors" });
+              showMenuAt({ view: "errors", errors });
               seeErrors();
             },
             {
@@ -7753,20 +7753,42 @@ function createFloatingPanel({
     `;
   }
   function errorsList() {
-    const errors = errorsReading();
+    const errors = menuAt.value.errors;
+    const live2 = new Set(errorsReading().map((error) => error.id));
     if (!errors.length) return html`<p class="lf-fp-empty" role="none">No errors</p>`;
-    const dismiss = (dismissed) => {
+    const movePast = (dismissed) => {
       const presses2 = [...menu.querySelectorAll(".lf-fp-error button")];
       const at = errors.findIndex((error) => error.id === dismissed);
-      const next = dismissed === null ? null : presses2[at + 1] ?? presses2[at - 1];
+      const after2 = errors.findIndex(
+        (error, index) => index > at && live2.has(error.id)
+      );
+      const before = errors.findLastIndex(
+        (error, index) => index < at && live2.has(error.id)
+      );
+      const next = dismissed === null ? null : presses2[after2 >= 0 ? after2 : before];
       focusDestination(next ?? menu.querySelector(".lf-fp-menu-back"), "move");
+    };
+    const standing = focused()?.closest(".lf-fp-error");
+    const standingId = Number(standing?.dataset.key);
+    if (standing && !live2.has(standingId)) movePast(standingId);
+    const dismiss = (dismissed) => {
+      movePast(dismissed);
+      menuAt.value = {
+        ...menuAt.value,
+        errors: dismissed === null ? [] : errors.filter((error) => error.id !== dismissed)
+      };
       if (dismissed === null) dismissErrors();
       else dismissError(dismissed);
     };
     return html`${repeat(
       errors,
       (error) => error.id,
-      (error) => html`<div class="lf-fp-error" role="none">
+      (error) => html`<div
+          class="lf-fp-error"
+          data-key=${error.id}
+          role="none"
+          style=${live2.has(error.id) ? nothing : "visibility: hidden"}
+        >
           <p class="lf-fp-error-words" aria-hidden="true">
             <b>${error.message}</b><span class="lf-fp-note">${clock(error.at)}</span>
           </p>
@@ -7774,6 +7796,7 @@ function createFloatingPanel({
             type="button"
             role="menuitem"
             class="lf-fp-quiet"
+            ?disabled=${!live2.has(error.id)}
             aria-label=${`Dismiss: ${error.message}, ${clock(error.at)}`}
             @click=${() => dismiss(error.id)}
           >
@@ -9113,10 +9136,7 @@ function createFloatingPanel({
     });
     x(() => {
       errorsReading();
-      d(() => {
-        if (menuOpen.value && menuAt.value?.view === "errors") seeErrors();
-        paint();
-      });
+      d(paint);
     });
     x(() => {
       statusContextReading();
@@ -11607,7 +11627,6 @@ var version = createVersionController({
   midComposition: (...args) => app.midComposition(...args),
   hasPending: () => app.hasPending(),
   readAndApply: (...args) => app.readAndApply(...args),
-  retireProjectionCoverage: () => app.retireProjectionCoverage(),
   syncLayout: () => layout.syncLayout(),
   // The chrome the reader stands in: a margin card or entry, and the panel's thread.
   captureRetainedStanding: () => ({

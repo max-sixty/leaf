@@ -1043,7 +1043,6 @@ function revisionDocument(revision) {
  *   midComposition: any,
  *   hasPending: any,
  *   readAndApply: any,
- *   retireProjectionCoverage: any,
  *   syncLayout: any,
  *   captureRetainedStanding?: () => unknown,
  *   restoreRetainedStanding?: (standing: unknown) => boolean,
@@ -1058,7 +1057,6 @@ export function createVersionController({
   midComposition,
   hasPending,
   readAndApply,
-  retireProjectionCoverage,
   syncLayout,
   captureRetainedStanding = () => null,
   restoreRetainedStanding = () => false,
@@ -1364,7 +1362,6 @@ export function createVersionController({
     const arrivingWidgets = documentWidgetDigests(doc);
     const arrivingRoot = layerRoot(doc);
     const rules = patchRules(doc);
-    retireProjectionCoverage();
     revisionDocuments.delete(target.revision);
 
     // A node with nothing over it is inside a template's content fragment, where a page

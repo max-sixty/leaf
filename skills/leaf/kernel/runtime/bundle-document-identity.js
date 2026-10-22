@@ -3227,7 +3227,6 @@ function createVersionController({
   midComposition,
   hasPending,
   readAndApply,
-  retireProjectionCoverage,
   syncLayout,
   captureRetainedStanding = () => null,
   restoreRetainedStanding = () => false,
@@ -3447,7 +3446,6 @@ function createVersionController({
     const arrivingWidgets = documentWidgetDigests(doc);
     const arrivingRoot = layerRoot(doc);
     const rules = patchRules(doc);
-    retireProjectionCoverage();
     revisionDocuments.delete(target.revision);
     const isAuthored = authored(live2);
     const generated = (node) => (node.nodeType === Node.ELEMENT_NODE || node.parentElement !== null) && !isAuthored(node);
@@ -7602,7 +7600,7 @@ function mountApplication(dependencies) {
     }
     return presentDocument();
   };
-  const projection = createProjectionPresentation();
+  createProjectionPresentation();
   const dataProjection = createDataProjection({ invalidateDom: invalidateDom2 });
   let delivery;
   const presentThread = () => threadPresenter.present();
@@ -7993,7 +7991,6 @@ function mountApplication(dependencies) {
     watchThreadSurfaces: watchThreadSurfaces2,
     placePageThreads: placePageThreads3,
     consumeAnnotations: consumeAnnotations2,
-    retireProjectionCoverage: projection.retireProjectionCoverage,
     threadActions: threadActions2,
     queueActions: queueActions2,
     settlement: settlementView,

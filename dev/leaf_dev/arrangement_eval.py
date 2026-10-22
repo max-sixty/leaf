@@ -27,7 +27,6 @@ from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
 from leaf.service import requires_agent_attention
 from leaf.thread import successful_replies
-
 from leaf_dev import ROOT, arrangement_plain
 from leaf_dev.arms import (
     MODELS,

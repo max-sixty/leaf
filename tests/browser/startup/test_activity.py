@@ -15,12 +15,6 @@ from interact_support import (
     record_claim,
     working,
 )
-from leaf import cli as cli_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import render_checks as render_checks_model
-from leaf import service as service_model
-from leaf import state as cleanup_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_layout import token_colour
@@ -36,6 +30,12 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import cli as cli_model
+from leaf import delivery as delivery_model
+from leaf import event_log as events_model
+from leaf import render_checks as render_checks_model
+from leaf import service as service_model
+from leaf import state as cleanup_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -152,7 +152,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     with service_model.PageTransaction(d) as transaction:
         delivery_model.record_pickup(transaction, [comments[0]])
     told(page)
-    expect(held_workflow).to_have_text("Picked up")
+    expect(held_workflow).to_have_text("Delivered")
     expect(held_workflow).to_have_attribute("data-identity-probe", "kept")
 
     # The agent finishes the earlier task and waits on the user.
@@ -162,7 +162,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     )
     assert latent_waiting.exit_code == 0, latent_waiting.output
     told(page)
-    expect(held_workflow).to_have_text("Picked up")
+    expect(held_workflow).to_have_text("Delivered")
 
     cleanup_model.close_session_turn("s")
     told(page)
@@ -330,8 +330,8 @@ def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serv
     )
     page = open_page(browser, url)
     workflow = workflow_of(open_panel_thread(page, comment["id"]), comment["id"])
-    expect(workflow).to_have_text("Waiting for pickup")
-    expect(workflow).to_have_attribute("title", "Waiting for pickup")
+    expect(workflow).to_have_text("Waiting for delivery")
+    expect(workflow).to_have_attribute("title", "Waiting for delivery")
 
 
 def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
@@ -378,7 +378,7 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
     with service_model.PageTransaction(d) as transaction:
         delivery_model.record_pickup(transaction, [comment])
     told(page)
-    expect(workflow).to_have_text("Picked up")
+    expect(workflow).to_have_text("Delivered")
     active = CliRunner().invoke(
         cli_model.cli,
         [

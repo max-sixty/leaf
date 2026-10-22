@@ -163,6 +163,10 @@ supplies the pixel ratio, or bitmap pixels otherwise. The scale menu offers Fit,
 100%, the original images and, for a pair with focus metadata, Full frame to inspect
 beyond that region. Outline changes stays beside the scale control.
 
+In Slider, click or tap the image to alternate between the complete Before and After
+frames. Drag the divider for an intermediate comparison, or focus it and use the
+arrow keys; Home and End show the complete frames.
+
 **Outline changes** independently marks changed regions and uses the accent color for
 content that only moved. **Pixels** paints removed pixels red, added pixels
 blue and recoloured pixels amber over the greyed after image, so build no difference

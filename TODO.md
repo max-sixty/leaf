@@ -66,7 +66,7 @@ has tried; settle that before building it.
   public home page's prompt.
 - **#28 — Finish the floating panel.** The floating panel, rebuilt on 12 October to
   the sketch the user configured (the header of
-  `skills/leaf/assets/runtime/floating-panel.js` holds its contract), is Leaf's only
+  `browser/runtime/floating-panel.js` holds its contract), is Leaf's only
   chrome since 16 October, when the banner, the bottom bar and the switch between them
   went. Every follow-up the user named has landed, so the item waits on the user's
   review of the desktop design. The phone waits until the desktop design is firm, and
@@ -82,6 +82,21 @@ has tried; settle that before building it.
   wider than its words under the pointer is acceptable; a "+1" for dropped facts is
   the other route. In a margin card the notice takes its width from the heads'
   track, and a wide one moved the head's time sideways in CI (PR #3250's first run).
+- **Stop moving live content between parents.** A thread summary hides the messages
+  it covers in place, so a frame keeps its document and a selection stays.
+  Four places still move live nodes, which reloads a frame in WebKit (no
+  `moveBefore`) and drops a selection everywhere: resolving a thread moves its card
+  into the "Resolved · N" disclosure and reopening moves it back (`thread/inline.js`);
+  re-rendering a file in `lf-diff` moves its comment threads beside the new rows
+  (`lf-diff.js`); a modal dialog moves into its opener's popover for top-layer order
+  (`keyboard/layer-stack.js`); and a reply's widgets move to whichever view shows
+  them (see "A reply's widgets in every view of it"). Hiding resolved cards in place
+  would show them among open ones unless CSS reorders them, so it needs the user's
+  say; the `lf-diff` fix is keeping rows stable or the containers outside them.
+- **A summary's fold button ignores a press while words are selected.** With text
+  selected in a thread message, pressing "Show/Hide N earlier messages" does nothing,
+  even twice; Enter works. Reproduced in Chromium with a selection set by script,
+  before the flat transcript too.
 
 ### Agent and author experience
 
@@ -147,10 +162,11 @@ has tried; settle that before building it.
   user's suggestion, 2026-10-06).
 - **Show what `z` takes before it takes it.** `z` takes back the user's newest
   gesture however old, so on a page left for weeks it can reopen a thread resolved
-  then, below the fold, and the notice names only the gesture's kind. The user chose
-  (2026-10-21) to keep the reach unlimited, name the gesture and its age, and spend
-  the first press revealing a target that is out of view or already picked up by
-  the agent. [The undo-reach note](notes/undo-reach/README.md) has the build.
+  then, below the fold. The user chose (2026-10-21) to keep the reach unlimited,
+  name the gesture and its age, and spend the first press revealing a target that is
+  out of view or already picked up by the agent. Undo now names the gesture and its
+  age in every tab; the reveal on the first press remains.
+  [The undo-reach note](notes/undo-reach/README.md) has the build.
 - **Decide when a page merits a separate phone composition.** Many pages are
   ephemeral and authored for a user reading on a large screen, so a bespoke phone
   animation may not repay its cost. Decide how the agent weighs the user's viewing
@@ -189,7 +205,7 @@ has tried; settle that before building it.
   gesture closes nothing (the Escape ladder could answer it), Draw mode blocks scrolling
   and zoom, and an `lf-draft` has no close that keeps the edit.
 - **Reconsider thread navigation.** Decide how Threads should change before
-  refining it (`skills/leaf/assets/AGENTS.md`, "Space and scrolling"). The
+  refining it (`browser/AGENTS.md`, "Space and scrolling"). The
   redesign also settles how focus stays off page content a panel covers (Max,
   2026-10-10). His rule (2026-10-06): the panels dominate focus, so moving focus never
   closes or changes an open panel, and focus never lands on content a panel covers.
@@ -210,7 +226,7 @@ has tried; settle that before building it.
 ### Layout
 
 The page arranges itself in CSS, starting from the Layout classes
-(`skills/leaf/assets/layouts.css`), and Leaf keeps the contracts where pages, widgets
+(`browser/layouts.css`), and Leaf keeps the contracts where pages, widgets
 and its chrome coordinate.
 
 - **Show returning threads without moving the current reading.** A thread returning
@@ -291,7 +307,7 @@ and its chrome coordinate.
 ### Layout stability
 
 Boxes that still move without input, which the "Stability" rule in
-`skills/leaf/assets/AGENTS.md` forbids. `tests/known_widget_findings.py` lists each widget
+`browser/AGENTS.md` forbids. `tests/known_widget_findings.py` lists each widget
 that changes size after first paint, with its cause.
 
 - **Draw a text document's listing once its text has arrived.** Every
@@ -312,16 +328,6 @@ that changes size after first paint, with its cause.
   then move them, since each row's share is the module's measurement of the document
   (`#measure` in `lf-toc.js`); taking that measurement once the document has parsed
   would put them in place.
-- **Fold a thread summary without moving the messages it covers.** Folding moves
-  the covered messages into `.lf-summary-originals` (`thread-card.js`), so a text
-  selection inside them is lost in Chromium, Firefox and WebKit, and WebKit, which
-  lacks `moveBefore`, reloads any frame among them: once when the summary arrives
-  and twice when it is retracted. A prototype of a flat transcript, which folds by
-  hiding the covered messages where they stand, kept both in every engine and drew
-  the same picture. It changes how screen readers group the folded messages and how
-  a checkpoint's frame is drawn, so it needs the user's go-ahead. Build it on current
-  `main`, move the tests off `.lf-summary-originals`, and check margin and page
-  captures and a screen reader.
 - **Let the shift watch see the runtime's own scrolls.** `tests/shift_watch.js`
   measures in layout coordinates, which remove scrolling, so a scroll the runtime
   makes during a gesture can move the control under the user's aim and fail
@@ -376,36 +382,21 @@ on 2026-10-07.
 
 ### The agent's text interface
 
-- **Decide whether an owed answer may continue a turn whose answer is written.**
-  Where a watch or Codex's App Server adapter follows the turn, Stop no longer hands
-  new input into it (`hook_transport`), but it still continues the turn once for an update
-  picked up and unanswered, and for a page it could not re-vendor. The agent then writes one
-  more message, which Claude Code's focus view shows in place of the turn's answer:
-  9 of the 65 Leaf continuations in Max's sessions of 2026-10-10 to 10-19 were these,
-  as when a report on "check leaf, do #18" gave way to "I've answered the last item
-  the hook flagged", and one page vendored by a newer Leaf than the session's
-  repeated its finding at every turn. Waking a turn of its own for the reminder
-  keeps the answer, but needs a record that it reminded, or an agent that won't act
-  is woken without end; dropping the reminder leaves the next prompt's one. Waits on
-  how Leaf's Claude Code hooks module rolls out (#3512 made its watch opt-in), since
-  a module watching the turn can wake one of its own.
-- **Decide how a Claude Code hook delivery is confirmed.** `hook_transport` records a
-  pickup when the prompt hook returns, but Escape while any UserPromptSubmit hook is
-  still running drops the whole prompt, Leaf's output included. Measured on Claude
-  Code 2.1.304 with a second hook sleeping 6 s: the comment never reached the
-  transcript, nothing woke for it because it read as received, and it waited until
-  the user typed; an update that owes no reply (a resolve) never surfaced again.
-  #3272's re-offer covers only updates the owner holds no ref for. With Leaf's hook
-  alone the window is about 25–35 ms; another plugin's slow prompt hook widens it to
-  that hook's run. PostToolBatch likely shares the window (read from Claude Code's
-  source, not run); Pi commits the output itself and is safe. No hook event confirms
-  Claude Code accepted the output, so the options are: the agent confirms with
-  `leaf delivery ack`, as on Codex (a tool call, and Picked up waits for the model);
-  confirm at the turn's next hook and re-offer if the turn dies first (a "handed, not
-  confirmed" record); or keep it and document Escape beside the session-end case in
-  `hook_transport.py`'s header. Waits on how Leaf's Claude Code hooks module rolls
-  out (#3512 made its watch opt-in).
-
+- **Stop delivering a comment twice after an interrupted tool boundary.** #3591
+  offers a Claude Code handover again once its turn ends with no later hook. That
+  is right for the prompt hook: Escape during it drops the prompt and Leaf's
+  context with it. At a tool boundary it isn't. On Claude Code 2.1.308, Escape
+  during PostToolBatch's hooks keeps Leaf's context in the conversation, so the
+  re-offer delivers the comment a second time. In one `leaf-dev journey
+claude-code` run (its `boundary` step), the transcript held the comment in both
+  the PostToolBatch context and the nudged turn's prompt context. The agent
+  answered it once and wrote that "the timezone question came in twice". A turn
+  interrupted after the model read a prompt's delivery but before any confirming
+  hook ran also gets that delivery twice, since PreToolUse runs only before `leaf`
+  commands. The finer fix is to offer an update again only when its handover came
+  from a prompt hook, and after an interrupted tool boundary to remind the agent
+  of what it owes instead, as `session.left_owed` does after Stop. That needs the
+  pickup to say which hook handed it over.
 - **Decide the Leaf-owned defects the bad-pages eval left open.**
   [Bad pages and the checks](notes/agent-usability-evals.md#bad-pages-and-the-checks-2026-10-20)
   lists three that follow from recorded choices: an open thread card covers the text

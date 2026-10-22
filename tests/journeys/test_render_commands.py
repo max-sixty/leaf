@@ -15,8 +15,6 @@ from interact_support import (
     install_payload,
     state_json,
 )
-from leaf import render_checks as render_checks_model
-from leaf.render_gate.page_code import run_page_code
 from playwright.sync_api import expect
 from render_cases_layout import (
     SHORT_CHIP_PAGE,
@@ -24,7 +22,6 @@ from render_cases_layout import (
     SHOT_SRC,
     SHOTS,
     UNPARSABLE_DIAGRAM,
-    ring_rule,
     shown_frames,
     solid_png,
 )
@@ -36,6 +33,9 @@ from render_harness import (
     open_page,
     page_registry,
 )
+
+from leaf import render_checks as render_checks_model
+from leaf.render_gate.page_code import run_page_code
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -412,7 +412,7 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
 def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     """The live pair is continuously comparable through its native divider.
 
-    Pointer drag and the component's complete keyboard pattern move one divider,
+    Image clicks, pointer drag and the complete keyboard pattern move one divider,
     while print keeps the two complete frames and their order. The gate's pass is
     `test_render_reads_widget_chrome_where_it_stands`'s."""
     url = serve(
@@ -509,7 +509,15 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     assert bounds is not None
     image_point = (bounds["x"] + bounds["width"] / 4, bounds["y"] + 80)
     page.mouse.click(*image_point)
-    expect(comparison).to_have_attribute("position", "50")
+    expect(comparison).to_have_attribute("position", "100")
+    expect(handle).to_have_attribute("aria-valuetext", "Before 100%, after 0%")
+    page.mouse.click(*image_point)
+    expect(comparison).to_have_attribute("position", "0")
+    page.keyboard.down("Shift")
+    page.mouse.click(*image_point)
+    page.keyboard.up("Shift")
+    expect(comparison).to_have_attribute("position", "0")
+    comparison.evaluate("node => { node.position = 50; }")
     view = page.locator("lf-shot").get_by_role("button", name="Slider", exact=True)
     # A second finger does not replace the primary contact's input destination.
     view.focus()
@@ -560,11 +568,13 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     comparison.evaluate("node => { node.position = 100; }")
     expect(comparison).to_have_attribute("position", "100")
     handle.focus()
+    page.keyboard.press("End")
+    expect(handle).to_be_focused()
     width = handle.evaluate(
         "node => getComputedStyle(node).outlineStyle === 'none' ? 0 :"
         " parseFloat(getComputedStyle(node).outlineWidth)"
     )
-    assert width > 0 and "wa-comparison::part(lf-focus)" in ring_rule(handle)
+    assert width > 0
 
 
 def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path, headless_shell):

@@ -8,8 +8,8 @@ import { pathToFileURL } from "node:url";
 
 function generated(path) {
   return (
-    (path === "skills/leaf/kernel/kernel.json" ||
-      /^(?:skills\/leaf\/assets\/vendor|skills\/leaf\/packages\/[^/.]+\/vendor|skills\/leaf\/kernel)\/(?:[^/.][^/]*\/)*[^/.][^/]*\.(?:js|css|LICENSES\.txt)$/.test(
+    (path === "dist/kernel/kernel.json" ||
+      /^(?:browser\/vendor|packages\/[^/.]+\/vendor|dist\/kernel)\/(?:[^/.][^/]*\/)*[^/.][^/]*\.(?:js|css|LICENSES\.txt)$/.test(
         path,
       )) &&
     !path.split("/").some((part) => part === ".." || part === ".")

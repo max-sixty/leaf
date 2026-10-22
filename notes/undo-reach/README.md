@@ -2,9 +2,10 @@
 
 This note hands over the build of the page's undo key's reach, which the user
 chose on 21 October 2026 on the TODO decisions page: **Show, then take** with
-**Say what `z` takes** (both described below). Redo and a Changes panel stay
-candidates for later. Delete the note once the chosen design lands and
-`events.md`'s Undo section states it.
+**Say what `z` takes** (both described below). **Say what `z` takes** has
+landed; **Show, then take** remains. Redo and a Changes panel stay candidates for
+later. Delete the note once Show, then take lands and `events.md`'s Undo section
+states it.
 
 ## The question
 
@@ -25,33 +26,40 @@ something the user didn't realize it would.
 
 `z` takes back the user's newest gesture, however old, or nothing (#1410). The
 server's `browser_undo_candidates`
-(`skills/leaf/scripts/leaf/served_state/document.py`) lists the user's
+(`src/leaf/served_state/document.py`) lists the user's
 undoable gestures newest first and marks the head `newest` only when it is the
 user's newest event that isn't bookkeeping, an undo, or already withdrawn. So a
 reply sent since then ends the walk. `undoable()` in
-`skills/leaf/assets/runtime/undo.js` takes the head only when it
+`browser/runtime/undo.js` takes the head only when it
 carries `newest`. A widget's own Undo control can still withdraw an older gesture
 it names. #1407 puts the view back where a thread settlement moved it when that
 settlement is undone, in the same tab only.
 
-The remaining problem: on a page the user left three weeks ago, the first `z`
-reopens a thread they resolved then, possibly below the fold, and the command
-reference and notice name only the gesture's kind (`undoSentence` and the per-kind words
-in `undo.js`), not which thread or how old. Since #3271 a widget's gesture is announced
-by the words its acknowledgement used ("Undid: Chose “Fast” — sent"), but only in the
-tab that made it; after a reload the undo is announced by its kind again, and no undo
-says its age.
+`z` says what it takes and its age in the command reference, the leaf's menu
+and the notice, in every tab and after a reload ("Undo: resolved “Rollout safety” ·
+21d ago"). The menu's row is 248px wide, so it cuts the words, shows the age at its
+end, and is whole on hover. The browser names a thread, to-do, approval or reaction
+from what it already holds; for an action the served undo list's head carries
+`gesture`, what the action did in its own document's words (`GestureWords.gesture`,
+the reading history rows carry too). Only the head pays for that reading: on a
+1,010-event page with 1,000 undoable actions over ten revisions, a state read took
+23.8 ms with it and 23.4 ms without, against about 2 ms more to word every candidate.
+A widget's own Undo of an older entry names only the widget after a reload.
+
+The remaining problem: on a page the user left three weeks ago, the first `z` still
+reopens a thread they resolved then, possibly below the fold; the menu now says so
+before the press, but the press itself still acts where the user may not be looking.
 
 Undo is one-way. Nothing puts back what an undo took:
 
 - An `undo` event names one gesture in `undoes`; nothing leaves the log
-  (`skills/leaf/scripts/leaf/events.md`, "Undo").
-- `taken_back` (`skills/leaf/scripts/leaf/events.py`) returns the flat set of
+  (`src/leaf/events.md`, "Undo").
+- `taken_back` (`src/leaf/events.py`) returns the flat set of
   every id any undo names, and every Python fold reads it.
 - The append door's `UndoReading.error` (`events.py`) refuses an undo whose
   target isn't an unwithdrawn gesture of the user's own, so an undo can't name an
   undo. The kinds `$events.kinds` marks `undoable`
-  (`skills/leaf/assets/registry.json`) are resolve, unresolve, action, done, and
+  (`browser/registry.json`) are resolve, unresolve, action, done, and
   todo_end; an unanswered reaction is also undoable.
 - `events.md` states "An undo cannot itself be undone."
 
@@ -89,20 +97,15 @@ its age after a reload too ("Undo: resolved ‘Rollout safety’ · 3 weeks ago"
   the arbitrary limit the user wants to avoid.
 - **This visit only.** `undo.js` records the undo candidates present at the
   first reading, and `undoable()` refuses a head among them. Browser only.
-- **Say what `z` takes.** #3271 covers a widget's gesture in the tab that made it.
-  The rest: `document.py` adds each candidate's words from
-  `GestureWords.says` (`skills/leaf/scripts/leaf/gesture_words.py`). Today
-  `served_state/browser.py` builds those words only for a page
-  that shows history, so every state read would pay for them. `undoSentence` and
-  the notice read them in place of the per-kind words.
+- **Say what `z` takes.** Landed, as "What main does today" describes.
 - **Show, then take.** `document.py` marks each candidate the agent has picked up,
   from the delivery evidence the workflows already read. `undo.js` holds an
   armed state that the next gesture or key clears, and so does a scroll that takes
   the target out of view. The first press reveals the target the way an
   `lf-activity` row's link does: a thread opens, a widget scrolls into view and is
-  outlined. It needs the words above too. A target needs the reveal when it is out
-  of view or the agent has already picked it up; that second condition is what
-  covers a tab left open for weeks, where "This visit" fails.
+  outlined. It names the target in the words `z` already says. A target needs the
+  reveal when it is out of view or the agent has already picked it up; that second
+  condition is what covers a tab left open for weeks, where "This visit" fails.
 - **Only what's in view.** Every press reads each candidate's geometry, and a
   thread open in the panel counts as in view. `z` then means something different
   after every scroll.
@@ -111,7 +114,7 @@ its age after a reload too ("Undo: resolved ‘Rollout safety’ · 3 weeks ago"
   (`.claude/skills/developing-leaf/references/glossary.md`) and keyboard and touch
   routes. It is served the `history` reading on demand, which today reaches only a
   page placing `lf-activity`, filtered to the user's own gestures. That reading
-  stops at 50 rows (`LIMIT` in `skills/leaf/scripts/leaf/history.py`), another
+  stops at 50 rows (`LIMIT` in `src/leaf/history.py`), another
   arbitrary limit the panel would need to page past. Its Undo and Redo go through
   the one `withdraw` door.
 
@@ -142,7 +145,7 @@ It has three costs:
 3. **A redo restores an answer obligation.** An undo owes the agent no answer, but
    a redo brings back the restored gesture's obligation, which the stop hook
    enforces. The delivery must carry it, and the undo handling text in
-   `skills/leaf/assets/registry.json` (the Undo handling clause, "Treat the two as
+   `browser/registry.json` (the Undo handling clause, "Treat the two as
    cancelling out") needs a clause for a redo.
 
 The rest of the redo change: `UndoReading.error` admits an undo naming the user's
@@ -150,7 +153,7 @@ own undo in force when folding without it changes the page; `document.py` serves
 redo list; `projection/model.js` lets a local redo override the server's reading
 that the target is withdrawn, as a pending forward action does; `undo.js`
 binds `Z`; `lf-activity.js`'s "undone" label
-(`skills/leaf/packages/default/widgets/lf-activity.js`), `events.md`, and
+(`packages/default/widgets/lf-activity.js`), `events.md`, and
 `skills/leaf/references/event-batches.md` learn the redo.
 
 Vim's undo tree is a different thing: `g-` and `g+` restore any past state,
@@ -162,10 +165,9 @@ order.
 
 1. Build in the task's current checkout, and read the current undo owners before
    editing them.
-2. Build **Say what `z` takes**, then **Show, then take**, in the runtime and
-   Python owners named above, with the door's rule in `events.md`'s Undo section
-   and the shortcut words in `undo.js`. The reveal needs a keyboard and a touch
-   route (root `AGENTS.md`).
+2. Build **Show, then take** in the runtime and Python owners named above, with
+   the door's rule in `events.md`'s Undo section and the shortcut words in
+   `undo.js`. The reveal needs a keyboard and a touch route (root `AGENTS.md`).
 3. Hand the user a live `--user` preview of `review-a-plan` showing the new
    behavior, then move what the redo section still holds into a TODO item and
    delete this note.

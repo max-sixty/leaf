@@ -1,7 +1,6 @@
 """Added-option presentation and replay tests."""
 
 import pytest
-from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
     OBLIGATION_PAGE,
@@ -15,6 +14,8 @@ from render_harness import (
     undo,
     write,
 )
+
+from leaf import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

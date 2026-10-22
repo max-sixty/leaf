@@ -4,8 +4,6 @@ import json
 import re
 
 import pytest
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_layout import DRAFT_MARK
 from render_cases_navigation import (
@@ -29,6 +27,9 @@ from render_harness import (
     sending,
     write,
 )
+
+from leaf import event_log as events_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -282,9 +283,7 @@ def test_a_keyboard_comment_gesture_carries_the_current_unsent_draft(browser, se
 
 def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser, serve):
     """Without reactions, the focused composer still takes Escape."""
-    registry = json.loads(
-        (ROOT / "skills/leaf/packages/default/registry.json").read_text()
-    )
+    registry = json.loads((ROOT / "packages/default/registry.json").read_text())
     tokens = {name: None for name in registry["$reactions"]["tokens"]}
     page = open_page(
         browser,
@@ -370,9 +369,7 @@ def test_the_panel_field_offers_selected_words_to_a_press_alone(browser, serve):
 def test_a_passage_still_offers_suggest_when_the_layer_has_no_reactions(browser, serve):
     """Tab means other responses rather than reactions specifically: removing the
     reaction vocabulary must not strand Suggest for a selected passage."""
-    registry = json.loads(
-        (ROOT / "skills/leaf/packages/default/registry.json").read_text()
-    )
+    registry = json.loads((ROOT / "packages/default/registry.json").read_text())
     tokens = {name: None for name in registry["$reactions"]["tokens"]}
     page = open_page(
         browser,

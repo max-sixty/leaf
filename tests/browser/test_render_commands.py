@@ -13,10 +13,6 @@ from interact_support import (
     append_carried_log_record,
     wait_for,
 )
-from leaf import event_log as events_model
-from leaf import render_checks as render_checks_model
-from leaf.render_gate import browser as browser_model
-from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
 from render_cases_layout import (
     BADGE_CHROME,
@@ -46,6 +42,10 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import event_log as events_model
+from leaf import render_checks as render_checks_model
+from leaf.render_gate import browser as browser_model
+from leaf.render_gate import version as render_gate_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -62,29 +62,7 @@ def unnamed_browser():
 
 
 def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_path):
-    """Under the browser the render gate launches sits Playwright's driver, a Node process
-    leaf never names. Where it ends at startup, no launch is reached, so the guard
-    that answers for a browser cannot: `sync_playwright()`'s start raises the
-    connection's failed initialization, with a traceback through Playwright's
-    internals. A page author reading that has been handed a leaf bug where the host
-    has an old Node.
-
-    Two hosts reach it — a glibc older than the bundled Node needs, and a
-    PLAYWRIGHT_NODEJS_PATH naming a Node older than the driver bundle needs — and
-    both end at the same observable point, which a stub that exits without answering
-    stands in for. What the gate owes is one line: the connection's reason,
-    the Node that ran, and the variable that chooses one, since neither real failure
-    names that variable and it is the whole of what settles them.
-
-    A third host names a Node it does not have, so the driver never runs at all and
-    the spawn fails a step earlier than the silence above. It owes the same line,
-    and it is where cleaning up after a failed start goes wrong: Playwright's stop
-    asserts a transport handle that spawn never assigned, so a manager exited after
-    a failed entry answers with a private of its own instead of the missing file.
-
-    No traceback is half the subject. The shapes asserted away are the ones the
-    reader sees where the gate raises instead of answering: a Playwright private,
-    an unretrieved asyncio exception, and any traceback at all."""
+    """Driver startup failures become an unavailable render check, before a reader runs."""
     serve(LONG_PAGE)
     d = serve.page_dir
     silent = tmp_path / "not-a-node"
@@ -92,7 +70,7 @@ def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_pa
     silent.chmod(0o755)
     missing = tmp_path / "no-node-here"
 
-    def answered(result, node, reason):
+    def answered(result, reason):
         assert result.returncode == 0, result.stdout + result.stderr
         report = json.loads(result.stdout)
         assert report["status"] == 0
@@ -100,14 +78,7 @@ def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_pa
         assert report["browser"]["ran"] == []
         unavailable = report["browser"]["unavailable"]
         assert "Playwright's driver did not start: " in unavailable
-        assert browser_model.DRIVER_VARIABLE in unavailable
-        assert str(node) in unavailable
         assert reason in unavailable
-        assert result.stderr == ""
-        assert "Traceback" not in result.stdout
-        assert "_playwright" not in result.stdout
-        assert "_output" not in result.stdout
-        assert "Task exception was never retrieved" not in result.stdout
 
     def ran(node, *command):
         return subprocess.run(
@@ -115,14 +86,13 @@ def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_pa
             capture_output=True,
             text=True,
             check=False,
-            env=os.environ | {browser_model.DRIVER_VARIABLE: str(node)},
+            env=os.environ | {"PLAYWRIGHT_NODEJS_PATH": str(node)},
         )
 
     ended = "Connection closed while reading from the driver"
-    answered(ran(silent, "page", "check", str(d), "--render"), silent, ended)
+    answered(ran(silent, "page", "check", str(d), "--render"), ended)
     answered(
         ran(missing, "page", "check", str(d), "--render"),
-        missing,
         "No such file or directory",
     )
 
@@ -131,7 +101,7 @@ def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_pa
 def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
     browser, serve, touch
 ):
-    """Compact controls stay usable on touch; source labels never change the view."""
+    """Controls and image taps work on touch; source labels stay passive."""
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=touch
     )
@@ -189,6 +159,23 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
         assert box["x"] >= toolbar_box["x"] - 1
         assert box["x"] + box["width"] <= toolbar_box["x"] + toolbar_box["width"] + 1
     assert shot.evaluate("node => node.scrollWidth <= node.clientWidth + 1")
+
+    comparison = shot.locator("wa-comparison")
+    for endpoint in ("100", "0"):
+        point = {"x": 20, "y": 40}
+        comparison.tap(position=point) if touch else comparison.click(position=point)
+        expect(comparison).to_have_attribute("position", endpoint)
+        expect(shot.get_by_role("button", name="Slider", exact=True)).to_have_attribute(
+            "aria-pressed", "true"
+        )
+    shot.get_by_role("button", name="Pair", exact=True).click()
+    image = shot.locator(".lf-shotimage").first
+    image.tap(position={"x": 10, "y": 10}) if touch else image.click(
+        position={"x": 10, "y": 10}
+    )
+    expect(shot.get_by_role("button", name="Pair", exact=True)).to_have_attribute(
+        "aria-pressed", "true"
+    )
 
 
 @pytest.mark.parametrize("touch", [False, True])

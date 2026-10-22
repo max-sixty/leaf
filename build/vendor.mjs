@@ -2,7 +2,7 @@
  * The third-party bundles Leaf ships outside the browser framework.
  *
  * Nothing builds them at install time, so they are tracked. The files under
- * `skills/leaf/assets/vendor/` and each package's own `vendor/` are page payload:
+ * `browser/vendor/` and each package's own `vendor/` are page payload:
  * `page init` copies them into a page directory and a user's browser runs them. A
  * vendored library is payload of the package whose widget draws with it, not of the
  * layer: Pele and Pierre reach a page only when it selects `diagram` or `diff`.
@@ -34,8 +34,8 @@ import { patchTransitions } from "./webawesome/transition-patch.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./browser/shipped.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-const assets = "skills/leaf/assets";
-const packageVendor = (name) => `skills/leaf/packages/${name}/vendor`;
+const assets = "browser";
+const packageVendor = (name) => `packages/${name}/vendor`;
 const input = (file) => path.join(root, "build", file);
 
 /** The installed version of a package, which is the one the lock resolved. */
@@ -618,47 +618,6 @@ const bundles = {
             'this.#searchMode !== "hide-non-matches"',
             "Trees empty search-result visibility",
           ),
-      },
-      {
-        file: /@pierre\/trees\/dist\/render\/FileTreeView\.js$/,
-        // Retain is a persistent filter, not a transient search mode: rows keep
-        // ordinary pointer focus and tree navigation while the field owns match
-        // navigation. Blur and activation keep the query; Escape dismisses it.
-        edit: (source) => {
-          source = seam(
-            source,
-            'if (searchBlurBehavior === "retain" && !searchInputUserInteractedRef.current) return;',
-            'if (searchBlurBehavior === "retain") return;',
-            "Trees retained search on blur",
-          );
-          source = seam(
-            source,
-            "if (plan.closeSearch) controller.closeSearch();",
-            'if (plan.closeSearch && searchBlurBehavior !== "retain") controller.closeSearch();',
-            "Trees retained search on pointer activation",
-          );
-          source = seam(
-            source,
-            "if (controller.isSearchOpen()) event.preventDefault();",
-            'if (controller.isSearchOpen() && frame.searchBlurBehavior !== "retain") event.preventDefault();',
-            "Trees retained-filter row focus",
-          );
-          source = seam(
-            source,
-            "const flowRowFrame = {\n\t\tcontextHoverPath:",
-            "const flowRowFrame = {\n\t\tsearchBlurBehavior,\n\t\tcontextHoverPath:",
-            "Trees retained-filter row policy",
-          );
-          // A retained filter is hosted navigation: yield Enter to the exact
-          // control's declared command instead of swallowing it in the model.
-          // Search arrows and Escape keep their ordinary upstream behavior.
-          return seam(
-            source,
-            'if (isSearchOpen) {\n\t\t\tif (event.key === "Escape")',
-            'if (isSearchOpen && (event.key === "Escape" || searchBlurBehavior !== "retain" || getActiveTreeElement(rootRef.current) === searchInputRef.current)) {\n\t\t\tif (event.key === "Enter" && searchBlurBehavior === "retain") return;\n\t\t\tif (event.key === "Escape")',
-            "Trees retained-search Enter delegation",
-          );
-        },
       },
       {
         file: /@pierre\/trees\/dist\/utils\/cssWrappers\.js$/,

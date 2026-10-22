@@ -15,7 +15,7 @@
 
 import fs from "node:fs";
 
-const assets = "skills/leaf/assets/";
+const assets = "browser/";
 const runtime = `${assets}runtime/`;
 const overlay = `${runtime}annotation-overlay/`;
 const owners = `^${runtime}`;

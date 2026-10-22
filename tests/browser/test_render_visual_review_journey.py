@@ -3,9 +3,6 @@
 import json
 
 import pytest
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_layout import (
     ring_faults,
@@ -24,6 +21,10 @@ from render_harness import (
     stamp_page,
     told,
 )
+
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

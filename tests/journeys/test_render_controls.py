@@ -12,11 +12,6 @@ from interact_support import (
     record_claim,
     wait_for,
 )
-from leaf import event_log as events_model
-from leaf import hosting as hosting_model
-from leaf import presence as presence_model
-from leaf.render_checks import rendered, wait_until_ready
-from leaf.schema import SERVICE_FILE
 from playwright.sync_api import expect
 from render_cases_interaction import (
     live_url,
@@ -72,6 +67,11 @@ from render_harness import (
 )
 
 from journeys import expect_panel_says, panel_says
+from leaf import event_log as events_model
+from leaf import hosting as hosting_model
+from leaf import presence as presence_model
+from leaf.render_checks import rendered, wait_until_ready
+from leaf.schema import SERVICE_FILE
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

@@ -283,7 +283,8 @@ class PageEndpoint:
         # Path and query apart, because `_select_page` rewrites the path: a multiplexed
         # transport strips its own prefix there and every route below reads the page's
         # own address, while the query it arrived with is untouched either way.
-        self.path = request.url.path
+        # ASGI already decoded the path; rebuilding a URL encodes literal ?/# again.
+        self.path = request.scope["path"]
         self.query = parse_qs(request.url.query)
         # The page this request is against. A one-page server binds it here for the
         # life of the server, through `page_endpoint`; a multiplexed transport binds

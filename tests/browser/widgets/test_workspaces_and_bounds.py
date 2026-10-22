@@ -134,7 +134,7 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     browser, serve
 ):
     """The workspace Layout takes the whole window, wider than a sidebar page's capped
-    frame, and the window's height above the panel's band: each pane's body scrolls on its own. Its
+    frame, and the window's height: each pane's body scrolls on its own. Its
     header is one row, the title with the status beside it, so the panes keep the
     window. A window too short to hold it hands the scroll to the page."""
     frame = """() => {
@@ -237,6 +237,66 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     resized(page, 1280, 720)
     pane_posture(page, queue_pane, "bounded")
     fills_the_window(page, workspace, True)
+
+
+def test_a_workspace_reaches_the_window_foot_and_its_readers_clear_the_panel(
+    browser, serve
+):
+    page = open_page(browser, serve(WORKSPACE_PAGE))
+    resized(page, 1200, 900)
+    geometry = page.evaluate(
+        """() => {
+          const main = document.querySelector('main');
+          const reader = document.querySelector('#queue > :not(header, footer)');
+          reader.scrollTop = reader.scrollHeight;
+          return {
+            mainBottom: main.getBoundingClientRect().bottom,
+            windowBottom: innerHeight,
+            endBottom: [...reader.querySelectorAll('p')].at(-1).getBoundingClientRect().bottom,
+            panelTop: document.querySelector('.lf-fp-row').getBoundingClientRect().top,
+            paneBottom: document.querySelector('#queue').getBoundingClientRect().bottom,
+            footerTop: document.querySelector('main > footer').getBoundingClientRect().top,
+          };
+        }"""
+    )
+    assert abs(geometry["mainBottom"] - geometry["windowBottom"]) <= 1, geometry
+    assert geometry["endBottom"] <= geometry["panelTop"], geometry
+    assert geometry["footerTop"] - geometry["paneBottom"] <= 1, geometry
+    assert page.evaluate("document.scrollingElement.scrollHeight <= innerHeight + 1")
+    page.locator("body").focus()
+    page.keyboard.press(".")
+    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-rest", "mark")
+    assert page.locator("main").evaluate(
+        "node => Math.abs(node.getBoundingClientRect().bottom - innerHeight) <= 1"
+    )
+
+
+def test_a_workspace_body_scroller_clears_the_panel(browser, serve):
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Single-body workspace",
+                '<header><h1>Work</h1></header><div id="reader">'
+                '<div style="height:1100px"></div><p>End of work</p></div>',
+                layout="workspace",
+            )
+        ),
+    )
+    resized(page, 1200, 900)
+    geometry = page.evaluate(
+        """() => {
+          const reader = document.querySelector('#reader');
+          reader.scrollTop = reader.scrollHeight;
+          return {
+            scrolls: reader.scrollHeight > reader.clientHeight,
+            endBottom: reader.querySelector('p').getBoundingClientRect().bottom,
+            panelTop: document.querySelector('.lf-fp-row').getBoundingClientRect().top,
+          };
+        }"""
+    )
+    assert geometry["scrolls"], geometry
+    assert geometry["endBottom"] <= geometry["panelTop"], geometry
 
 
 def test_a_flowing_workspace_keeps_its_header_over_what_a_next_lands_on(browser, serve):

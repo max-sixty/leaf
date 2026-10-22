@@ -32,7 +32,6 @@ keeps that page (`page_memory`).
 import hashlib
 import json
 import os
-import posixpath
 import re
 import sys
 import tempfile
@@ -43,11 +42,11 @@ from datetime import UTC, datetime
 from functools import cached_property, lru_cache, partial
 from pathlib import Path
 from types import MappingProxyType
-from urllib.parse import unquote, urlsplit
 
 import tinycss2
 import tree_sitter_javascript
 import turbohtml
+from pywhatwgurl import URL
 from tinycss2.serializer import serialize_string_value
 from tree_sitter import Language, Parser, Query, QueryCursor
 
@@ -57,10 +56,10 @@ from leaf.page_memory import Slot, memo
 from leaf.passages import SourceReading, enclosing_ids
 from leaf.registry.contract import is_element_name
 from leaf.render_checks import PROBE_SOURCES
+from leaf.resource_urls import ReferenceError, resource_reference
 from leaf.schema import (
     BROWSER_DIRS,
     CONTENT_TYPES,
-    JAVASCRIPT_SUFFIXES,
     SERVED_PATH,
     VENDORED_FILES,
 )
@@ -69,7 +68,6 @@ from leaf.structure import (
     SourceDocument,
     annotation_mode,
     links_with_rel,
-    remote_reference,
     script_kind,
 )
 
@@ -195,50 +193,22 @@ class RevisionArtifact:
         return json.loads(self.manifest)["widgets"]
 
 
-def dependency_path(specifier: str, importer: str, *, module=False) -> str | None:
-    """Resolve a browser dependency URL without assigning it to an application owner.
-
-    None is a reference the revision does not hold, which stays as written: one on
-    another server, a fragment of this document, or a data: URL.
-    """
-    if remote_reference(specifier) or specifier.startswith(("#", "data:")):
-        return None
+def dependency_reference(
+    specifier: str, importer: str, *, module=False
+) -> tuple[str, str] | None:
+    """Read a resource URL, reporting refusal in its capture source."""
     try:
-        parsed = urlsplit(specifier)
-    except ValueError as error:
-        raise artifact_error(
-            "dependency-url", importer, specifier, error=str(error)
-        ) from error
-    if (
-        not specifier
-        or parsed.scheme
-        or parsed.netloc
-        or (module and (parsed.query or parsed.fragment))
-        or "\\" in specifier
-        or any(ord(char) < 33 for char in specifier)
-    ):
-        raise artifact_error("dependency-not-local", importer, specifier)
-    path = unquote(parsed.path)
-    if unquote(path) != path or "\\" in path or any(ord(char) < 33 for char in path):
-        raise artifact_error("dependency-encoded", importer, specifier)
-    if module and not path.startswith(("/", "./", "../")):
-        raise artifact_error("module-not-local", importer, specifier)
-    if path.startswith("/"):
-        resolved = posixpath.normpath(path)
-    else:
-        resolved = posixpath.normpath(posixpath.join(posixpath.dirname(importer), path))
-    if resolved.startswith("//") or not resolved.startswith("/"):
-        raise artifact_error("dependency-escapes", importer, specifier)
-    if module and Path(resolved).suffix not in JAVASCRIPT_SUFFIXES:
-        raise artifact_error("module-type", importer, specifier)
-    return resolved
+        return resource_reference(specifier, importer, module=module)
+    except ReferenceError as error:
+        raise artifact_error(error.code, importer, specifier, **error.values) from error
 
 
 def resolve_dependency(specifier: str, importer: str, *, module=False) -> str | None:
     """Admit an authored resource to the files or public entry points a revision holds."""
-    resolved = dependency_path(specifier, importer, module=module)
-    if resolved is None:
+    reference = dependency_reference(specifier, importer, module=module)
+    if reference is None:
         return None
+    resolved, _suffix = reference
     if module:
         if not resolved.startswith("/page/") and resolved not in PUBLIC_MODULES:
             raise artifact_error("module-outside-page", importer, specifier)
@@ -287,13 +257,19 @@ def javascript_imports(data: bytes, path: str) -> tuple[tuple[int, int, str], ..
                     None,
                 )
         if literal is not None and literal.type == "string":
-            imports.append(
-                (
-                    literal.start_byte,
-                    literal.end_byte,
-                    data[literal.start_byte + 1 : literal.end_byte - 1].decode("utf-8"),
-                )
+            specifier = data[literal.start_byte + 1 : literal.end_byte - 1].decode(
+                "utf-8"
             )
+            # These are JavaScript literals, not HTML resource URLs. The reader
+            # does not decode JS string escapes, and bare imports require a map.
+            if "\\" in specifier:
+                raise artifact_error("dependency-not-local", path, specifier)
+            absolute = URL.parse(specifier)
+            if absolute is not None:
+                specifier = absolute.href
+            elif not specifier.startswith(("/", "./", "../")):
+                raise artifact_error("module-not-local", path, specifier)
+            imports.append((literal.start_byte, literal.end_byte, specifier))
     return tuple(imports)
 
 
@@ -302,7 +278,8 @@ def _css_meaningful(tokens) -> list:
 
 
 def _is_stylesheet_url(url: str) -> bool:
-    return remote_reference(url) or Path(urlsplit(url).path).suffix == ".css"
+    reference = dependency_reference(url, "/index.css")
+    return reference is None or Path(reference[0]).suffix == ".css"
 
 
 def _css_references(tokens):
@@ -723,11 +700,11 @@ def _capture_artifact(
                 inline["style"], "/index.html", declarations=True
             ):
                 entries.append(resolve_dependency(specifier, "/index.html"))
-        entries.extend(authored.authoring.media_refs)
-        entries.extend(
-            resolve_dependency(specifier, "/index.html")
-            for specifier in authored.authoring.page_resource_refs
-        )
+        for specifier in authored.authoring.resource_refs:
+            reference = dependency_reference(specifier, "/index.html")
+            if reference is None or reference[0] in resources:
+                continue
+            entries.append(resolve_dependency(specifier, "/index.html"))
     entries = [entry for entry in entries if entry is not None]
     for entry in entries:
         capture.add(entry)
@@ -1284,9 +1261,10 @@ def captured_imports(data: bytes, logical_path: str, resources: Mapping[str, Res
         yield from authored_imports(data, logical_path)
         return
     for start, end, specifier in javascript_imports(data, logical_path):
-        target = dependency_path(specifier, logical_path, module=True)
-        if target is None:
+        reference = dependency_reference(specifier, logical_path, module=True)
+        if reference is None:
             raise artifact_error("layer-import-remote", logical_path, specifier)
+        target, _suffix = reference
         if target not in resources:
             raise artifact_error("layer-import-missing", logical_path, specifier)
         yield start, end, target

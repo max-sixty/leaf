@@ -4,6 +4,10 @@
 # Claude Code: base 0/2 (every control in the rail), candidate 2/2.
 # playground-presets-are-whole-designs holds the other side: controls that change the
 # whole preview stay in the rail.
+# workspace-premise-is-short came with the short-premise guidance in the playground's
+# author.md, after a 900x700 study page spent three lines of premise above the stage.
+# Claude Code: base 0/2 (three sentences), the rule in page-layout.md 0/2 (read, not
+# followed), the rule in author.md 2/2.
 description: playground-controls-stand-by-their-item
 metadata:
   purpose: "Playground: a control that changes one item of several stands beside that item in the preview, and a setting shared by every item stays in the rail."
@@ -45,3 +49,11 @@ assert:
       `lf-playground` (so all of them stand together in the rail), if the per-alert
       settings are hand-built inputs rather than playground controls, or if the budget
       is repeated beside each alert.
+  - type: llm-rubric
+    metric: workspace-premise-is-short
+    value: |
+      Count the visible prose sentences between the `lf-ask`'s question heading and
+      its `lf-playground`, and any in the workspace's `header`. Text inside an
+      `lf-gloss` tip or a closed `<details>` is not visible and doesn't count. Pass
+      if the page is a workspace and that visible prose is at most two sentences.
+      Fail if it is three or more, or if the page is not a workspace.

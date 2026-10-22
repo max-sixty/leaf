@@ -351,8 +351,10 @@ describe("durable website page records", () => {
         ),
       ).toBe(true);
       await cancelled.body!.cancel();
+      await new Promise((resolve) => setImmediate(resolve));
       expect(store.blob(chunks[2])).not.toBeNull();
       await cancelledRestore.body!.cancel();
+      await new Promise((resolve) => setImmediate(resolve));
       expect(store.blob(chunks[2])).toBeNull();
     } finally {
       close();

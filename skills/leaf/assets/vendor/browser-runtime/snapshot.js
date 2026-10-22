@@ -41,37 +41,6 @@ import { computed, signal, untracked as signalUntracked } from "./signals-core.j
 
 
 
-/** Bridge an event source into native signal tracking. The source is followed only
- * while a consumer observes the value. An unobserved read still samples the source
- * now; a notification updates observers only when its answer actually changed. */
-export function outsideReading   (
-  read         ,
-  heard                                                   ,
-)                     {
-  let stop                          ;
-  const value = signal(signalUntracked(read), {
-    watched() {
-      value.value = signalUntracked(read);
-      stop = heard(() => {
-        value.value = signalUntracked(read);
-      });
-    },
-    unwatched() {
-      stop?.();
-      stop = undefined;
-    },
-  });
-  const reading = Object.freeze({
-    read: ()    => {
-      value.value = signalUntracked(read);
-      return value.value;
-    },
-    subscribe: (listener                       ) =>
-      value.subscribe((value) => signalUntracked(() => listener(value))),
-  });
-  return reading;
-}
-
 export { signalUntracked as untracked };
 
 // Publications take ownership of mutable producer values; previously secured

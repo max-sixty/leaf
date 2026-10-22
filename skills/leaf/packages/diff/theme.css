@@ -5,6 +5,30 @@
   --lf-code-del-fill: color-mix(in srgb, var(--danger) 16%, var(--pre-bg));
 }
 
+/* skills/leaf/packages/diff/styles/disclosure.css */
+@media screen and (prefers-reduced-motion: no-preference) {
+  @supports (block-size: calc-size(auto, size)) and (interactivity: inert) {
+    :is(.lf-diff-fold, .lf-call-group) {
+      interpolate-size: allow-keywords;
+    }
+    :is(.lf-diff-fold, .lf-call-group)::details-content {
+      block-size: auto;
+      overflow: clip;
+      transition: block-size var(--lf-motion-fold) ease, content-visibility var(--lf-motion-fold) allow-discrete;
+    }
+    :is(.lf-diff-fold, .lf-call-group):not([open])::details-content {
+      block-size: 0;
+    }
+    :is(.lf-diff-fold, .lf-call-group):not([open]) > :not(summary) {
+      interactivity: inert;
+    }
+    :is(.lf-diff-fold, .lf-call-group)[open]::details-content,
+    :is(.lf-diff-fold, .lf-call-group):has(> summary:focus-visible)::details-content {
+      transition-duration: 0s;
+    }
+  }
+}
+
 /* skills/leaf/packages/diff/styles/theme.css */
 :scope:is(lf-diff) {
   contain: inline-size;

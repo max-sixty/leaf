@@ -440,8 +440,10 @@ test("message capture preserves a deferred document's identity and immutable fie
     assert.equal(admitted.registry, shown.registry);
     assert.equal(admitted.authored, shown.authored);
     assert.equal(admitted.descriptors, shown.descriptors);
-    body.text = "Changed outside the application";
-    messageBodies.clear();
+    assert.throws(() => {
+      body.text = "Changed after transfer";
+    }, TypeError);
+    assert.throws(() => messageBodies.clear(), /read-only/);
     assert.equal(admitted.messageBodies.get("message").text, "A newly read message");
     assert.throws(() => admitted.authored.clear(), /read-only/);
   }

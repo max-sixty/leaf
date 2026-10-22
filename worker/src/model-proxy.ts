@@ -14,6 +14,7 @@ import { type OutboundHandlerContext } from "@cloudflare/containers";
 import * as z from "zod/mini";
 
 import { errorName, leafAgentLog } from "./agent";
+import { createParser } from "eventsource-parser";
 import type { Env } from "./index";
 
 interface ModelRequestFields {
@@ -83,22 +84,13 @@ function observeModelBody(
   upstreamRequestId: string | null,
 ): ReadableStream<Uint8Array> {
   const decoder = new TextDecoder();
-  let buffer = "";
   let bytes = 0;
   let firstByte = true;
   let firstOutput = true;
 
-  const observeFrames = (text: string): void => {
-    buffer += text;
-    const frames = buffer.replaceAll("\r\n", "\n").split("\n\n");
-    buffer = frames.pop() ?? "";
-    for (const frame of frames) {
-      const data = frame
-        .split("\n")
-        .filter((line) => line.startsWith("data:"))
-        .map((line) => line.slice(5).trimStart())
-        .join("\n");
-      if (!data || data === "[DONE]") continue;
+  const parser = createParser({
+    onEvent({ data }) {
+      if (!data || data === "[DONE]") return;
       const event = responseEvent.parse(jsonValue(data));
       if (
         firstOutput &&
@@ -115,8 +107,8 @@ function observeModelBody(
         });
         firstOutput = false;
       }
-    }
-  };
+    },
+  });
 
   return body.pipeThrough(
     new TransformStream<Uint8Array, Uint8Array>({
@@ -131,13 +123,13 @@ function observeModelBody(
           firstByte = false;
         }
         if (firstOutput) {
-          observeFrames(decoder.decode(chunk, { stream: true }));
+          parser.feed(decoder.decode(chunk, { stream: true }));
         }
         controller.enqueue(chunk);
       },
       flush() {
         if (firstOutput) {
-          observeFrames(decoder.decode() + "\n\n");
+          parser.feed(decoder.decode() + "\n\n");
         }
         modelLog("model_response_completed", request, {
           durationMs: Date.now() - started,

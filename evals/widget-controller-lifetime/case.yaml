@@ -45,7 +45,7 @@ assert:
       Pass only if render(), or a method it calls synchronously, reads this.data("builds")
       and readHistory(), so LeafElement follows both and draws them again on return with
       whatever changed while the widget was away. Fail if the widget watches either
-      through a separate subscription, such as watchProjection or a data watcher, or stops
+      through a separate subscription, such as a data watcher, or stops
       and recreates anything for them in the native connection callbacks. Rendering
       methods may be assumed to exist as the prompt allows.
   - type: llm-rubric

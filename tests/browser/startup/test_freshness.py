@@ -387,14 +387,20 @@ def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate(
         """async () => {
-          const {watchProjection, clockValue} = await window.__lfWidgetApi();
+          const {LeafElement, noChange, clockValue} = await window.__lfWidgetApi();
           window.probeVersion = 0;
           window.probePaints = 0;
-          watchProjection(document.body, () => {
-            clockValue(() => window.probeVersion);
-            window.probePaints += 1;
-            return new Promise(() => {});
-          }).refresh();
+          customElements.define('lf-pending-paint', class extends LeafElement {
+            render() {
+              clockValue(() => window.probeVersion);
+              window.probePaints += 1;
+              this.drawing(new Promise(() => {}));
+              return noChange;
+            }
+          });
+          const probe = document.createElement('lf-pending-paint');
+          document.body.append(probe);
+          await probe.updateComplete;
           window.probeVersion = 1;
         }"""
     )

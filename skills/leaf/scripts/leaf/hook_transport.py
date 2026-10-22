@@ -38,14 +38,27 @@ before the page changed hands, is deliverable again (`delivery.deliverable`), so
 it is input rather than a reminder: the hook hands it over with the owner's other
 input, or leaves it to the later turn that takes them.
 
-The hook confirms an inline delivery itself (`receive_held`), so the updates read
-Picked up without waiting for the model, and the envelope's `acknowledge` is null.
-It hands a delivery over inline only after confirming every batch: an inline
-delivery left unconfirmed would stay pending, and every later hook would offer it
-again as new. A batch can still be refused, as when the page changed hands after
-`read_plans` read it, so whatever the hook could not confirm goes as a pointer; the
-agent's `leaf delivery ack` then confirms it or shows the refusal. A delivery over
-Claude Code's context limit (`HOOK_CONTEXT_LIMIT`) goes as a pointer too.
+The hook records an inline delivery as opened in the turn itself (`receive_held`),
+so the updates read Delivered without waiting for the model, and the envelope's
+`acknowledge` is null. It hands a delivery over inline only after recording every
+batch: an inline delivery left unrecorded would stay pending, and every later hook
+would offer it again as new. A batch can still be refused, as when the page changed
+hands after `read_plans` read it, so whatever the hook could not record goes as a
+pointer; the agent's `leaf delivery ack` then confirms it or shows the refusal. A
+delivery over Claude Code's context limit (`HOOK_CONTEXT_LIMIT`) goes as a pointer
+too.
+
+Pi has the context once the hook returns, so its hook records the receipt with the
+pickup. Claude Code reads it only once every hook of the event has exited, and
+Escape before then drops it with the prompt or the tool boundary. So a Claude Code
+hook leaves the receipt to the turn's next hook, PreToolUse before a `leaf` command,
+PostToolBatch or Stop, which runs only once the model has read the context
+(`delivery.confirm_turn`). Until then the handed input is not offered again. Once
+the turn reads ended without that hook, or a prompt opens it again, it is input
+again (`delivery.deliverable`): Claude Code submits a wake Escape interrupted again
+at once, whose prompt hook hands it over anew; a watch from before the turn wakes for
+it; and where none runs, as after a turn a wake opened, the page's server nudges the
+session (`presence.nudge_interrupted`).
 
 A page vendored at an older protocol is re-vendored before it is read
 (`vendoring.renew_layer`), and the turn is told why that failed or which checks
@@ -54,16 +67,10 @@ or a newer Leaf vendored it, offers no input (`delivery.deliverable`), so the ho
 names the refusal and records no pickup there.
 
 A harness reads a hook's output only after the hook exits, and discards it if the
-hook times out. So the hook confirms only before `CONFIRM_WITHIN`, well inside its
-timeout, and prints afterwards. It never waits for a lock past that deadline, and a
-page whose lock is still held goes unconfirmed. If an interrupt ends a turn just
-after it starts, its updates still read Picked up; App Server turns behave the same.
-
-Confirmed input can still miss the context, as when the session ends after the hook
-confirms and before the harness reads its output. The input is not offered again as
-new. An update that owes an answer stays owed, and the owner's next prompt or first
-Stop hook names its original pointer, or hands it over again where that pointer is
-unreadable; an update that owes none is lost.
+hook times out. So the hook records its handover only before `CONFIRM_WITHIN`, well
+inside its timeout, and prints afterwards. It never waits for a lock past that
+deadline, and a page whose lock is still held goes as a pointer. App Server turns
+interrupted just after they start leave their updates Delivered.
 """
 
 import json
@@ -357,7 +364,7 @@ HOOK_CONTEXT_LIMIT = 10_000
 
 
 # How long after it starts a hook may still hand a delivery over inline and wait
-# for the locks that confirm it. Every registration of the prompt and Stop hooks
+# for the locks that record it. Every registration of the prompt and Stop hooks
 # allows 20 s (`hooks/hooks.json`, `hooks/pi.ts`), and the hook takes about 0.4 s.
 # The other half covers what this clock does not see: uv's start and the
 # interpreter's imports before it, and the receipt's writes and exit after it.
@@ -381,9 +388,9 @@ def render(
 ) -> dict | None:
     """The hook's output, or None where it puts nothing in the turn. It hands
     `delivery` over inline only where the whole message fits under
-    `HOOK_CONTEXT_LIMIT` and `confirm` then confirms every batch; otherwise it hands
-    over the pointer its reader's `leaf delivery ack` confirms after complete
-    reading."""
+    `HOOK_CONTEXT_LIMIT` and `confirm` then records every batch as opened in the
+    turn; otherwise it hands over the pointer its reader's `leaf delivery ack`
+    confirms after complete reading."""
     if delivery is None:
         return harness.hook_context(event, "\n".join(attention)) if attention else None
     message = "\n".join(
@@ -414,7 +421,7 @@ def carry_turn(
     reconnect_harness: str | None = None,
 ) -> bool | None:
     """Compose this lifecycle's page input, obligations, and reconnect context
-    into the one hook output its harness reads, confirming a delivery it hands
+    into the one hook output its harness reads, recording a delivery it hands
     over inline by `CONFIRM_WITHIN` after `started`, the hook's
     `time.monotonic()` as it began."""
     expected = session_record(sid) if expected is ... else expected
@@ -491,7 +498,13 @@ def carry_turn(
         [*context, *attention],
         confirm=lambda: (
             time.monotonic() < deadline
-            and receive_held(delivery, sid, expected, deadline=deadline)
+            and receive_held(
+                delivery,
+                sid,
+                expected,
+                deadline=deadline,
+                confirm=harness.commits_hook_context,
+            )
         ),
     )
     if output:

@@ -331,15 +331,25 @@ summary {
 }
 .lf-thread-checkpoint {
   margin-block: 16px;
+  anchor-name: var(--lf-fold-head);
 }
 .lf-thread-checkpoint[data-expanded=true] {
+  margin-block-end: 8px;
+}
+.lf-thread-transcript > .lf-msg[data-lf-summary] {
+  margin-block: 8px;
+  anchor-name: var(--lf-fold-foot);
+}
+.lf-thread-transcript {
   position: relative;
 }
 .lf-thread-checkpoint[data-expanded=true]::before {
   content: "";
   position: absolute;
-  inset-block: -7px;
-  inset-inline: -12px calc(-1 * var(--lf-group-ring-end));
+  inset-block-start: calc(anchor(var(--lf-fold-head) start) - 7px);
+  inset-block-end: calc(anchor(var(--lf-fold-foot) end) - 7px);
+  inset-inline-start: calc(anchor(var(--lf-fold-head) start) - 12px);
+  inset-inline-end: calc(anchor(var(--lf-fold-head) end) - var(--lf-group-ring-end));
   border: 1px solid var(--rule);
   border-radius: 5px;
   pointer-events: none;
@@ -406,12 +416,6 @@ summary {
   margin-top: 6px;
   color: var(--turn-ink);
   font: 600 11px/1.4 var(--sans);
-}
-.lf-summary-originals {
-  min-width: 0;
-}
-.lf-summary-originals > .lf-msg {
-  margin-block: 8px;
 }
 .lf-thread-working {
   margin-top: 16px;

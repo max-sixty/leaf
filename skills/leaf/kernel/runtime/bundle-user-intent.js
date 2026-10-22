@@ -3,7 +3,6 @@ import {
   commitWidgetDescriptors,
   dataBody,
   rememberAuthoredParents,
-  setChildLists,
   setChildren,
   stageAuthoredStates,
   stageWidgetDescriptors
@@ -3120,9 +3119,9 @@ var landingTarget = (held, control) => {
   return { node: control };
 };
 var onScreen = (node) => seenRect(node, /* @__PURE__ */ new Map()) !== null;
-var latestTurn = (transcript) => [...transcript.querySelectorAll(":scope > :is(.lf-msg, .lf-thread-checkpoint)")].at(
-  -1
-) ?? null;
+var latestTurn = (transcript) => [
+  ...transcript.querySelectorAll(":scope > :is(.lf-msg, .lf-thread-checkpoint)")
+].findLast((node) => node.checkVisibility()) ?? null;
 function showLatestTurn(transcript) {
   scrollToEnd(transcript);
   const latest = latestTurn(transcript);
@@ -3619,7 +3618,7 @@ var STAGE_LABELS = Object.freeze({
   sending: "Sending",
   sent: "Sent",
   queued: "Queued",
-  picked_up: "Picked up",
+  picked_up: "Delivered",
   working: "Working",
   replying: "Replying",
   answered: "Answered"
@@ -3630,12 +3629,12 @@ var CONDITION_LABELS = Object.freeze({
   stale: "Update stale",
   failed: "Failed"
 });
-var WAITING_FOR_PICKUP = "Waiting for pickup";
+var WAITING_FOR_DELIVERY = "Waiting for delivery";
 var NOT_ANSWERED = "Not answered";
 var workflowLabel = (workflow, { answered = false } = {}) => {
   if (!workflow) return "";
   if (workflow.condition)
-    return workflow.condition.kind === "stale" && workflow.condition.operation === "delivery" ? WAITING_FOR_PICKUP : workflow.condition.kind === "failed" && workflow.condition.operation === "response" ? NOT_ANSWERED : CONDITION_LABELS[workflow.condition.kind] ?? "Failed";
+    return workflow.condition.kind === "stale" && workflow.condition.operation === "delivery" ? WAITING_FOR_DELIVERY : workflow.condition.kind === "failed" && workflow.condition.operation === "response" ? NOT_ANSWERED : CONDITION_LABELS[workflow.condition.kind] ?? "Failed";
   if (workflow.stage === "answered" && !answered) return "";
   return STAGE_LABELS[workflow.stage] ?? "";
 };
@@ -6161,6 +6160,8 @@ var Transcript = class _Transcript {
   #checkpoints = /* @__PURE__ */ new Map();
   #expandedSummaries = /* @__PURE__ */ new Set();
   #id = ++nextTranscriptId;
+  // Counts the names this transcript gives: a covered message's id, a fold's anchors.
+  #named = 0;
   /**
    * @param {object} options
    * @param {any} options.commands The reader's commands; `read` observes the working
@@ -6200,9 +6201,9 @@ var Transcript = class _Transcript {
   summaryNode(id) {
     return this.#checkpoints.get(id)?.node ?? null;
   }
-  // The last node the transcript shows. Progress behind its run's face and originals
-  // behind a closed checkpoint stand in the transcript unrendered, so the last message
-  // alone may have no box.
+  // The last node the transcript shows. The messages a closed fold covers, progress
+  // behind its run's face among them, stand in the transcript hidden, so the last
+  // message alone may have no box.
   get foot() {
     return [...this.node.children].findLast((node) => node.checkVisibility()) ?? null;
   }
@@ -6322,15 +6323,16 @@ var Transcript = class _Transcript {
         message.provisional && message === model.messages.at(-1) ? "" : null
       );
     }
-    const placed2 = (key, summary) => {
+    const placed2 = (key, summary = null, folded = false) => {
       const node = this.#messages.get(key).node;
       keeps(node, "data-lf-summary", summary);
-      return [node];
+      keepsHidden(node, folded);
+      return node;
     };
+    const feet = /* @__PURE__ */ new Map();
     const checkpoints = /* @__PURE__ */ new Map();
     const faces = /* @__PURE__ */ new Map();
     const transcript = [];
-    const transcriptLists = [[this.node, transcript]];
     const workingAt = model.working ? workingPlace(rangeState, model.working.after) : -1;
     let working = null;
     const facing = /* @__PURE__ */ new Map();
@@ -6341,17 +6343,18 @@ var Transcript = class _Transcript {
       return node;
     };
     for (const [at, range] of rangeState.entries()) {
-      if (range.kind === "message") transcript.push(...placed2(range.message.key, null));
+      if (range.kind === "message") transcript.push(placed2(range.message.key));
       else {
         const id = range.summary.id;
         const checkpoint = this.#checkpoints.get(id) ?? this.#checkpoint(id);
         checkpoints.set(id, checkpoint);
-        this.#paintCheckpoint(checkpoint, range);
-        transcript.push(checkpoint.node);
-        transcriptLists.push([
-          checkpoint.originals,
-          range.messages.flatMap((message) => placed2(message.key, id))
-        ]);
+        const covered2 = range.messages.map(
+          (message) => placed2(message.key, id, !range.expanded)
+        );
+        for (const node of covered2) node.id ||= `lf-msg-${this.#id}-${++this.#named}`;
+        this.#paintCheckpoint(checkpoint, range, covered2);
+        transcript.push(checkpoint.node, ...covered2);
+        feet.set(covered2.at(-1), checkpoint.foot);
       }
       const hosts = at === workingAt;
       if (range.summary?.pending) {
@@ -6382,8 +6385,13 @@ var Transcript = class _Transcript {
       }
     ) : null;
     this.#checkpoints = checkpoints;
+    for (const { node } of this.#messages.values()) {
+      const foot = feet.get(node);
+      if (foot) node.style.setProperty("--lf-fold-foot", foot);
+      else node.style.removeProperty("--lf-fold-foot");
+    }
     keeps(this.node, "data-lf-reflow", appends ? "append" : null);
-    setChildLists(transcriptLists);
+    setChildren(this.node, transcript);
     if (!standingToggle || standingToggle.isConnected) return null;
     const toggleFor = (id) => this.node.querySelector(
       `.lf-summary-expand[data-summary-toggle="${CSS.escape(id)}"]`
@@ -6400,23 +6408,24 @@ var Transcript = class _Transcript {
     node.setAttribute("aria-live", "polite");
     return node;
   }
-  // A summary's checkpoint: a retained section whose head the template draws, and
-  // whose originals hold the retained messages the summary covers.
+  // A summary's checkpoint: a retained section whose head the template draws, standing
+  // before the messages the summary covers. It names the anchors its frame spans: its
+  // own head, and the foot of its last message, which carries `foot`.
   #checkpoint(id) {
     const node = document.createElement("section");
     node.className = "lf-thread-checkpoint";
     node.dataset.summaryId = id;
-    const originals = document.createElement("div");
-    originals.id = `lf-summary-originals-${this.#id}-${id}`;
-    originals.className = "lf-summary-originals";
-    node.append(originals);
-    return { node, originals };
+    const name = `--lf-fold-${this.#id}-${++this.#named}`;
+    const foot = `${name}-foot`;
+    node.style.setProperty("--lf-fold-head", name);
+    node.style.setProperty("--lf-fold-foot", foot);
+    return { node, foot };
   }
-  #paintCheckpoint({ node, originals }, range) {
+  #paintCheckpoint({ node }, range, covered2) {
     const progress = Boolean(range.summary.pending);
     keeps(node, "data-expanded", range.expanded);
     keepsHidden(node, progress && !range.expanded);
-    keepsHidden(originals, !range.expanded);
+    keeps(node, "aria-owns", covered2.map(({ id }) => id).join(" "));
     render(
       html`${progress ? nothing : html`<div class="lf-summary-checkpoint">
               <div class="lf-summary-header">
@@ -6430,8 +6439,7 @@ var Transcript = class _Transcript {
               ${range.forced ? html`<div class="lf-summary-required">${range.requiredText}</div>` : nothing}
             </div>`}
       ${progress && range.forced ? html`<div class="lf-summary-required">${range.requiredText}</div>` : nothing}`,
-      node,
-      { renderBefore: originals }
+      node
     );
   }
   #summaryToggle(ranges, progress = false) {
@@ -6445,7 +6453,7 @@ var Transcript = class _Transcript {
       class="lf-thread-disclosure lf-summary-expand ${progress ? "lf-progress-expand" : ""}"
       data-summary-toggle=${ids[0]}
       aria-expanded=${String(expanded)}
-      aria-controls=${ids.map((id) => `lf-summary-originals-${this.#id}-${id}`).join(" ")}
+      aria-controls=${ranges.flatMap((range) => range.messages.map(({ key }) => this.messageNode(key)?.id)).filter(Boolean).join(" ")}
       @click=${() => this.#setSummaryExpanded(ids, !expanded)}
     >
       ${iconTemplate("down", "lf-disclosure-icon")}

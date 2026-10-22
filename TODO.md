@@ -389,8 +389,9 @@ on 2026-10-07.
   the hook flagged", and one page vendored by a newer Leaf than the session's
   repeated its finding at every turn. Waking a turn of its own for the reminder
   keeps the answer, but needs a record that it reminded, or an agent that won't act
-  is woken without end; dropping the reminder leaves the next prompt's one. Max to
-  choose.
+  is woken without end; dropping the reminder leaves the next prompt's one. Waits on
+  how Leaf's Claude Code hooks module rolls out (#3512 made its watch opt-in), since
+  a module watching the turn can wake one of its own.
 - **Decide how a Claude Code hook delivery is confirmed.** `hook_transport` records a
   pickup when the prompt hook returns, but Escape while any UserPromptSubmit hook is
   still running drops the whole prompt, Leaf's output included. Measured on Claude
@@ -405,7 +406,8 @@ on 2026-10-07.
   `leaf delivery ack`, as on Codex (a tool call, and Picked up waits for the model);
   confirm at the turn's next hook and re-offer if the turn dies first (a "handed, not
   confirmed" record); or keep it and document Escape beside the session-end case in
-  `hook_transport.py`'s header.
+  `hook_transport.py`'s header. Waits on how Leaf's Claude Code hooks module rolls
+  out (#3512 made its watch opt-in).
 
 - **Decide the Leaf-owned defects the bad-pages eval left open.**
   [Bad pages and the checks](notes/agent-usability-evals.md#bad-pages-and-the-checks-2026-10-20)

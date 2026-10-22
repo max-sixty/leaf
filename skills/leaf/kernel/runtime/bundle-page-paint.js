@@ -1970,6 +1970,37 @@ var claimsEsc = (node) => scopesFor(node).some(
   (scope) => scope.rows.some((row) => live(row) && bindings(row).includes("Escape"))
 );
 
+// runtime/stylesheets.js
+var sheets = JSON.parse(
+  document.querySelector(
+    'script[type="application/json"][data-lf-runtime][data-lf-sheets]'
+  ).textContent
+);
+var inBaseLayer = (text) => `@layer lf-base {
+${text}
+}`;
+function constructSheet(text) {
+  const sheet = new CSSStyleSheet();
+  sheet.replaceSync(text);
+  return sheet;
+}
+var chromeSheet = constructSheet(sheets.chrome);
+var chromeSharedClasses = Object.freeze([
+  "lf-aiming",
+  "lf-btn",
+  "lf-ins-block",
+  "lf-over-item",
+  "lf-react-mark",
+  "lf-mark-note",
+  "lf-ui",
+  "lf-version-inline",
+  "lf-version-inline-deletion",
+  "lf-visual-action"
+]);
+var marksSheet = constructSheet(sheets.marks);
+var annotationMarkSheets = sheets.annotations ? [constructSheet(sheets.annotations.marks)] : [];
+var annotationSheets = sheets.annotations ? [constructSheet(sheets.annotations.chrome), ...annotationMarkSheets] : [];
+
 // runtime/keyboard/layer-stack.js
 var entries = [];
 var watchedRoots = /* @__PURE__ */ new WeakSet();
@@ -2052,15 +2083,36 @@ function showNativeLayer(layer, { source, modal = true } = {}) {
 }
 var modalHomes = /* @__PURE__ */ new WeakMap();
 function seatModal(dialog, source) {
-  let home = modalHomes.get(dialog);
-  if (!home) {
-    modalHomes.set(dialog, home = dialog.parentNode);
+  let place = modalHomes.get(dialog);
+  if (!place) {
+    place = {
+      home: dialog.parentNode,
+      chrome: Boolean(dialog.closest(".lf-chrome")),
+      scope: null
+    };
+    modalHomes.set(dialog, place);
     dialog.addEventListener("close", () => {
-      if (!dialog.open && dialog.parentNode !== home) move(home, dialog);
+      if (dialog.open) return;
+      if (dialog.parentNode !== place.home) move(place.home, dialog);
+      place.scope?.remove();
     });
   }
   const holder = nativeLayerHolding(source);
-  const seat = nativeLayerKind(holder) === "popover" && renderedUnder(holder, home) ? holder : home;
+  let seat = place.home;
+  if (nativeLayerKind(holder) === "popover") {
+    if (renderedUnder(holder, place.home)) seat = holder;
+    else if (place.chrome) {
+      if (!place.scope) {
+        place.scope = document.createElement("div");
+        place.scope.className = "lf-chrome";
+      }
+      const root2 = holder.getRootNode();
+      if (root2 instanceof ShadowRoot && !root2.adoptedStyleSheets.includes(chromeSheet))
+        root2.adoptedStyleSheets = [...root2.adoptedStyleSheets, chromeSheet];
+      if (place.scope.parentNode !== holder) move(holder, place.scope);
+      seat = place.scope;
+    }
+  }
   if (dialog.parentNode !== seat) move(seat, dialog);
 }
 function closeNativeLayer(layer) {
@@ -3491,6 +3543,12 @@ export {
   saying,
   scopesFor,
   claimsEsc,
+  inBaseLayer,
+  chromeSheet,
+  chromeSharedClasses,
+  marksSheet,
+  annotationMarkSheets,
+  annotationSheets,
   showNativeLayer,
   closeNativeLayer,
   watchLayers,

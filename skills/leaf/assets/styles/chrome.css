@@ -3,9 +3,11 @@
    the document, the floating panel first (floating-panel.css). The boot module (leaf.js) adopts it as a
    constructed sheet, so it stands in no head node and a version activation's head
    reconciliation never meets it. */
-/* `.lf-chrome` is one runtime root: the floating panel, composer, floating comment
-   control, live region, help, inspection paint, legend and Go-to hints. It stands after
-   the document and takes no room there; the theme reserves the chrome's room
+/* `.lf-chrome` scopes runtime surfaces: the floating panel, composer, floating comment
+   control, live region, help, inspection paint, legend and Go-to hints. Its permanent
+   home stands after the document and takes no room there; a modal opened from an
+   authored popover carries this scope with it (keyboard/layer-stack.js).
+   The theme reserves the chrome's room
    (html[data-lf-live]). The page and panel scroll separately.
 
    The private rules are one `@scope (.lf-chrome)`, so their class names cannot meet a

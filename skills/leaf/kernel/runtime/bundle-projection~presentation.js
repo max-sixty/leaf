@@ -5,7 +5,7 @@ import {
 import {
   authoredStates,
   widgetElement
-} from "./bundle-stylesheets.js";
+} from "./bundle-keyboard~disclosure.js";
 import {
   authored,
   elementById,

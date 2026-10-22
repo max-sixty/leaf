@@ -101,7 +101,6 @@ import {
   descriptorStillMatches,
   failSoft,
   failSoftUnreported,
-  inBaseLayer,
   once,
   placesFailure,
   quoted,
@@ -111,7 +110,7 @@ import {
   setRenderedChildren,
   shadowStage,
   widgetDescriptor
-} from "./bundle-stylesheets.js";
+} from "./bundle-keyboard~disclosure.js";
 import {
   isCanonicalMediaUrl,
   scopedMediaUrl
@@ -190,6 +189,7 @@ import {
   growthIsSeen,
   iconElement,
   iconTemplate,
+  inBaseLayer,
   keys,
   labelOf,
   landingInsets,

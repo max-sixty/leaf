@@ -846,7 +846,7 @@ def test_a_screenshot_margin_trace_paints_one_complete_quiet_contour(browser, se
         f"the screenshot frame covered the trace's {missing} edge: {changed} ink pixels"
     )
     assert shot.evaluate("element => getComputedStyle(element).outlineStyle") == "none"
-    shot.locator('.lf-shotcap[data-lf-state="after"]').click()
+    shot.get_by_role("button", name="Pair", exact=True).click()
     expect(shot.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
 
 

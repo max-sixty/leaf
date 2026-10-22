@@ -36,7 +36,6 @@ from render_harness import (
     consume_browser_errors,
     holding,
     leaf_page,
-    margins_laid_out,
     open_page,
     opened_tab,
     page_registry,
@@ -129,7 +128,10 @@ def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_pa
 
 
 @pytest.mark.parametrize("touch", [False, True])
-def test_shot_captions_have_disjoint_targets_inside_their_rail(browser, serve, touch):
+def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
+    browser, serve, touch
+):
+    """Compact controls stay usable on touch; source labels never change the view."""
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=touch
     )
@@ -138,37 +140,55 @@ def test_shot_captions_have_disjoint_targets_inside_their_rail(browser, serve, t
         serve(SHOT_PAGE, media={SHOT_SRC[n]: d for n, d in SHOTS.items()}),
         context=context,
     )
-    page.locator("lf-shot").get_by_role(
-        "combobox", name="Comparison view"
-    ).select_option("flip")
-    rail = page.locator("lf-shot .lf-shotrail")
-    caps = rail.locator(".lf-shotcap")
-    rail.scroll_into_view_if_needed()
+    shot = page.locator("lf-shot")
+    shot.get_by_role("button", name="Slider", exact=True).click()
+    toolbar = shot.locator(".lf-shot-toolbar")
+    toolbar.scroll_into_view_if_needed()
+    controls = toolbar.get_by_role("button").all()
+    boxes = [control.bounding_box() for control in controls if control.is_visible()]
+    assert len(boxes) == 5
     floor = 44 if touch else 24
-    boxes = [cap.bounding_box() for cap in caps.all()]
-    bounds = rail.bounding_box()
-    assert len(boxes) == 2
-    for box in boxes:
+    for index, box in enumerate(boxes):
         assert min(box["width"], box["height"]) >= floor - 0.5, box
-        assert box["y"] >= bounds["y"]
-        assert box["y"] + box["height"] <= bounds["y"] + bounds["height"]
-    assert boxes[0]["x"] + boxes[0]["width"] <= boxes[1]["x"]
-    for index, position in [(0, "100"), (1, "0")]:
-        cap = caps.nth(index)
-        cap.click()
-        expect(page.locator("lf-shot wa-comparison")).to_have_attribute(
-            "position", position
+        for other in boxes[index + 1 :]:
+            assert (
+                box["x"] + box["width"] <= other["x"] + 0.5
+                or other["x"] + other["width"] <= box["x"] + 0.5
+                or box["y"] + box["height"] <= other["y"] + 0.5
+                or other["y"] + other["height"] <= box["y"] + 0.5
+            ), (box, other)
+    captions = toolbar.locator(".lf-shotcap")
+    expect(captions).to_have_text(["Before", "After"])
+    for caption in captions.all():
+        caption.tap() if touch else caption.click()
+        expect(shot.locator("wa-comparison")).to_have_attribute("position", "50")
+        expect(shot.get_by_role("button", name="Slider", exact=True)).to_have_attribute(
+            "aria-pressed", "true"
         )
-        assert cap.bounding_box() == boxes[index]
-    # The captions remain selectable words, rather than native buttons that swallow a drag.
-    box = boxes[0]
+    # Source labels remain selectable words.
+    box = captions.first.bounding_box()
     select(
         page,
-        (box["x"] + 5, box["y"] + box["height"] / 2),
-        (box["x"] + box["width"] - 5, box["y"] + box["height"] / 2),
+        (box["x"] + 1, box["y"] + box["height"] / 2),
+        (box["x"] + box["width"] - 1, box["y"] + box["height"] / 2),
     )
     assert "before" in page.evaluate("getSelection().toString()").lower()
-    expect(page.locator("lf-shot wa-comparison")).to_have_attribute("position", "0")
+
+    # Custom source names cannot borrow space from the controls at phone width.
+    shot.evaluate("""node => node.inspect({labels: {
+        before: 'Previous deployment with an unusually long source name',
+        after: 'Current candidate with another unusually long source name'
+    }})""")
+    assert [
+        control.bounding_box() for control in controls if control.is_visible()
+    ] == boxes
+    toolbar_box = toolbar.bounding_box()
+    for caption in captions.all():
+        box = caption.bounding_box()
+        assert box["width"] > 0
+        assert box["x"] >= toolbar_box["x"] - 1
+        assert box["x"] + box["width"] <= toolbar_box["x"] + toolbar_box["width"] + 1
+    assert shot.evaluate("node => node.scrollWidth <= node.clientWidth + 1")
 
 
 @pytest.mark.parametrize("touch", [False, True])
@@ -202,14 +222,16 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
     )
     shot = page.locator("lf-shot")
     shot.scroll_into_view_if_needed()
-    shot.get_by_role("combobox", name="Comparison view").select_option("flip")
+    shot.get_by_role("button", name="Slider", exact=True).click()
     comparison = shot.locator("wa-comparison")
     expect(comparison).to_have_attribute("position", "50")
     before = shot.bounding_box()
     links = shot.get_by_role("link")
+    scale = shot.get_by_role("button", name="Image scale and originals")
+    scale.click()
     link_bounds = [link.bounding_box() for link in links.all()]
     assert len(link_bounds) == 2
-    assert link_bounds[0]["x"] + link_bounds[0]["width"] <= link_bounds[1]["x"]
+    assert link_bounds[0]["y"] + link_bounds[0]["height"] <= link_bounds[1]["y"]
     assert not page.evaluate(
         "performance.getEntriesByType('resource').some(e => e.name.includes('photoswipe'))"
     )
@@ -261,12 +283,14 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
     expect(viewer).not_to_be_visible()
     expect(comparison).to_have_attribute("position", "50")
 
-    shot.locator('.lf-shotcap[data-lf-state="before"]').click()
+    page.keyboard.press("Escape")
+    comparison.get_by_role("scrollbar").press("End")
     expect(comparison).to_have_attribute("position", "100")
-    comparison.click(position={"x": 20, "y": 40})
+    comparison.get_by_role("scrollbar").press("Home")
     expect(comparison).to_have_attribute("position", "0")
     assert shot.bounding_box() == before
     shot.evaluate("node => node.setAttribute('alt', 'the updated rail')")
+    scale.click()
     expect(after).to_have_accessible_name("Open after image — the updated rail")
     after.click()
     expect(viewer.locator("img.pswp__img")).to_have_attribute(
@@ -280,7 +304,9 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
     expect(after).to_be_focused()
 
     # Inspection links remain usable when the paired view owns the pictures.
-    shot.get_by_role("combobox", name="Comparison view").select_option("compare")
+    page.keyboard.press("Escape")
+    shot.get_by_role("button", name="Pair", exact=True).click()
+    scale.click()
     expect(links.first).to_be_visible()
     links.first.click()
     expect(viewer).to_be_visible()
@@ -289,60 +315,6 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
     page.emulate_media(media="print")
     expect(links.first).not_to_be_visible()
     assert shown_frames(page) == ["before", "after"]
-
-
-@pytest.mark.parametrize("touch", [False, True])
-def test_a_wide_shot_owns_comparison_actions_in_its_native_rail(browser, serve, touch):
-    """One native rail owns endpoint actions, including in a narrow touch scroller."""
-    shot = (
-        f'<lf-shot id="wide-shot" alt="a captured inspector" '
-        f'before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>'
-    )
-    source = leaf_page(
-        "Inspect captured controls",
-        '<h1>Inspect captured controls</h1><div style="overflow-x:auto;inline-size:100%">'
-        f'<div style="inline-size:1280px;max-inline-size:none">{shot}</div></div>',
-    )
-    page = open_page(
-        browser,
-        serve(source, media={SHOT_SRC[n]: data for n, data in SHOTS.items()}),
-        context=browser.new_context(
-            viewport={"width": 360 if touch else 1440, "height": 900},
-            has_touch=touch,
-            is_mobile=touch,
-        ),
-    )
-    widget = page.locator("#wide-shot")
-    rail = widget.locator(".lf-shotrail")
-    widget.get_by_role("combobox", name="Comparison view").select_option("flip")
-    comparison = widget.locator("wa-comparison")
-    expect(comparison).to_be_visible()
-    rail.scroll_into_view_if_needed()
-    # Comparison chrome belongs to the rail and native divider. An extra floating
-    # endpoint action could cover a Close control baked into this captured image.
-    for state, position in (("before", "100"), ("after", "0")):
-        caption = rail.locator(f'.lf-shotcap[data-lf-state="{state}"]')
-        caption.tap() if touch else caption.press("Enter")
-        expect(comparison).to_have_attribute("position", position)
-        control = caption.bounding_box()
-        capture = comparison.bounding_box()
-        assert control["y"] + control["height"] <= capture["y"] + 0.5
-        margins_laid_out(page)
-        # With no annotations or external contributions, comparison actions belong
-        # only to the native rail/divider, not to a second margin projection.
-        expect(page.locator('[data-lf-margin-for="wide-shot"] button')).to_have_count(0)
-        if touch:
-            opener = rail.get_by_role(
-                "link", name=f"Open {state} image — a captured inspector"
-            )
-            opener.tap()
-            viewer = page.get_by_role("dialog", name="Image preview")
-            expect(viewer).to_be_visible()
-            page.keyboard.press("Escape")
-            expect(viewer).not_to_be_visible()
-            expect(opener).to_be_focused()
-            expect(comparison).to_have_attribute("position", position)
-    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
 
 
 def test_a_shot_compares_pixels_inside_an_opaque_live_sample(browser, serve):
@@ -370,9 +342,7 @@ def test_a_shot_compares_pixels_inside_an_opaque_live_sample(browser, serve):
     shot = child.locator("#sample-shot")
     reading = shot.evaluate("async shot => await shot.difference")
     assert reading["regions"]
-    shot.get_by_role("button", name="Image options").click()
-    shot.get_by_role("checkbox", name="Outline changes", exact=True).check()
-    page.keyboard.press("Escape")
+    shot.get_by_role("button", name="Outline changes", exact=True).click()
     expect(shot.locator(".lf-shotdiff > span").first).to_be_visible()
 
 
@@ -385,9 +355,7 @@ def test_a_tall_shot_drags_where_it_was_grabbed_without_moving_the_page(browser,
         media={SHOT_SRC["before"]: before, SHOT_SRC["after"]: after},
     )
     page = open_page(browser, url)
-    page.locator("lf-shot").get_by_role(
-        "combobox", name="Comparison view"
-    ).select_option("flip")
+    page.locator("lf-shot").get_by_role("button", name="Slider", exact=True).click()
     comparison = page.locator("lf-shot wa-comparison")
     handle = comparison.get_by_role("scrollbar")
     expect(handle).to_have_accessible_name("Before and after — the navigation rail")
@@ -461,7 +429,8 @@ def test_a_tall_shot_scrolls_its_images_then_chains_to_its_container(
         assert (
             frame["y"] + frame["height"] <= allocation["y"] + allocation["height"] + 1
         )
-    shot.get_by_role("combobox", name="Image scale").select_option("actual")
+    shot.get_by_role("button", name="Image scale and originals").click()
+    shot.get_by_role("button", name="100%", exact=True).click()
     stage = shot.locator(".lf-shotviewport").first
     stage.scroll_into_view_if_needed()
     assert stage.evaluate("node => node.scrollHeight > node.clientHeight")
@@ -540,31 +509,51 @@ def test_a_shot_keeps_paired_images_usable_while_the_slider_loads(browser, serve
     url = serve(source, media={SHOT_SRC[n]: data for n, data in SHOTS.items()})
     page = open_page(browser, url)
     shot = page.locator("lf-shot")
-    views = shot.get_by_role("combobox", name="Comparison view")
-    expect(views).to_have_value("compare")
+    views = shot.get_by_role("group", name="Comparison view")
+    expect(views.get_by_role("button", name="Pair", exact=True)).to_have_attribute(
+        "aria-pressed", "true"
+    )
     assert not page.evaluate(
         "performance.getEntriesByType('resource').some(e => e.name.endsWith('/vendor/webawesome.esm.js'))"
     )
+    paired_width = shot.locator(".lf-shotframe img").first.bounding_box()["width"]
     held = []
     page.route("**/vendor/webawesome.esm.js", lambda route: held.append(route))
-    views.select_option("flip")
+    views.get_by_role("button", name="Slider", exact=True).click()
     holding(page, held, 1, "the requested comparison divider")
     expect(shot.locator("wa-comparison")).to_have_count(0)
     for image in shot.locator(".lf-shotframe img").all():
         expect(image).to_be_visible()
-    views.select_option("compare")
+    stage = shot.locator(".lf-shotstage").bounding_box()
+    for frame in shot.locator(".lf-shotframe").all():
+        box = frame.bounding_box()
+        assert box["x"] >= stage["x"] - 1
+        assert box["y"] >= stage["y"] - 1
+        assert box["x"] + box["width"] <= stage["x"] + stage["width"] + 1
+        assert box["y"] + box["height"] <= stage["y"] + stage["height"] + 1
+    views.get_by_role("button", name="Pair", exact=True).click()
     for route in held:
         route.continue_()
     page.unroute("**/vendor/webawesome.esm.js")
-    views.select_option("flip")
+    views.get_by_role("button", name="Slider", exact=True).click()
     comparison = shot.locator("wa-comparison")
     expect(comparison).to_have_attribute("position", "50")
+    # The delivered divider gets the single-image fit immediately, without needing
+    # a later resize to release the smaller paired-view geometry.
+    image = shot.locator(".lf-shotframe img").first
+    assert image.bounding_box()["width"] > paired_width + 1
+    assert image.bounding_box()["width"] == pytest.approx(
+        min(
+            600, shot.locator(".lf-shotstage").evaluate("node => node.clientWidth") - 2
+        ),
+        abs=1,
+    )
     handle = comparison.get_by_role("scrollbar")
     handle.press("Home")
     handle.press("ArrowRight")
     position = comparison.get_attribute("position")
-    views.select_option("pixels")
-    views.select_option("flip")
+    views.get_by_role("button", name="Pixels", exact=True).click()
+    views.get_by_role("button", name="Slider", exact=True).click()
     expect(comparison).to_have_attribute("position", position)
 
 
@@ -591,12 +580,15 @@ def test_a_shot_owns_cropped_inspection_and_preserves_choices_when_metadata_chan
     shot.evaluate(
         "node => node.inspect({pixelRatio: 2, captureWidth: 300, focus: {x: 5, y: 25, width: 100, height: 50}, labels: {before: 'Base', after: 'Candidate'}})"
     )
-    shot.get_by_role("button", name="Image options").click()
+    shot.get_by_role("button", name="Image scale and originals").click()
     full = shot.get_by_role("checkbox", name="Full frame", exact=True)
     expect(full).not_to_be_checked()
     page.keyboard.press("Escape")
-    shot.get_by_role("combobox", name="Image scale").select_option("actual")
-    expect(shot.get_by_role("combobox", name="Image scale")).to_have_value("actual")
+    shot.get_by_role("button", name="Image scale and originals").click()
+    shot.get_by_role("button", name="100%", exact=True).click()
+    expect(
+        shot.get_by_role("button", name="Image scale and originals")
+    ).to_contain_text("100%")
     image = shot.locator(".lf-shotframe .lf-shotimage").first
     assert image.bounding_box()["width"] == pytest.approx(100, abs=1)
     assert image.bounding_box()["height"] == pytest.approx(50, abs=1)
@@ -608,17 +600,15 @@ def test_a_shot_owns_cropped_inspection_and_preserves_choices_when_metadata_chan
     assert img.bounding_box()["y"] == pytest.approx(
         image.bounding_box()["y"] - 25, abs=1
     )
-    views = shot.get_by_role("combobox", name="Comparison view")
+    views = shot.get_by_role("group", name="Comparison view")
     for direction in ("ltr", "rtl"):
         shot.evaluate("(node, direction) => node.dir = direction", direction)
-        for view in ("Slider", "Pixel difference", "Before & after"):
-            views.select_option(label=view)
-            expect(shot.get_by_role("combobox", name="Image scale")).to_have_value(
-                "actual"
-            )
-            viewport = (
-                shot.locator(".lf-shotpixels") if view == "Pixel difference" else image
-            )
+        for view in ("Slider", "Pixels", "Pair"):
+            views.get_by_role("button", name=view, exact=True).click()
+            expect(
+                shot.get_by_role("button", name="Image scale and originals")
+            ).to_contain_text("100%")
+            viewport = shot.locator(".lf-shotpixels") if view == "Pixels" else image
             assert viewport.bounding_box()["width"] == pytest.approx(100, abs=1)
             assert viewport.bounding_box()["height"] == pytest.approx(50, abs=1)
             source_box = viewport.locator(".lf-shotplane").bounding_box()
@@ -628,7 +618,7 @@ def test_a_shot_owns_cropped_inspection_and_preserves_choices_when_metadata_chan
             assert source_box["y"] == pytest.approx(
                 viewport.bounding_box()["y"] - 25, abs=1
             ), (direction, view)
-    shot.get_by_role("button", name="Image options").click()
+    shot.get_by_role("button", name="Image scale and originals").click()
     full.check()
     assert image.bounding_box()["width"] == pytest.approx(300, abs=1)
     assert image.bounding_box()["height"] == pytest.approx(150, abs=1)
@@ -639,10 +629,12 @@ def test_a_shot_owns_cropped_inspection_and_preserves_choices_when_metadata_chan
     )
     expect(full).to_be_focused()
     expect(full).not_to_be_checked()
-    expect(shot.get_by_role("combobox", name="Image scale")).to_have_value("actual")
-    expect(shot.locator('.lf-shotcap[data-lf-state="before"]')).to_contain_text(
-        "Previous"
-    )
+    expect(
+        shot.get_by_role("button", name="Image scale and originals")
+    ).to_contain_text("100%")
+    expect(
+        shot.locator('.lf-shot-toolbar .lf-shotcap[data-lf-state="before"]')
+    ).to_contain_text("Previous")
 
 
 def test_a_shot_fits_both_wide_captures_and_retains_actual_scale_across_views(
@@ -668,15 +660,19 @@ def test_a_shot_fits_both_wide_captures_and_retains_actual_scale_across_views(
     resized(page, 695, 900)
     shot = page.locator("#wide-pair")
     controls = [
-        shot.get_by_role("combobox", name="Comparison view"),
-        shot.get_by_role("combobox", name="Image scale"),
-        shot.get_by_role("button", name="Image options"),
+        shot.get_by_role("button", name=name, exact=True)
+        for name in (
+            "Pair",
+            "Slider",
+            "Pixels",
+            "Image scale and originals",
+            "Outline changes",
+        )
     ]
     control_boxes = [control.bounding_box() for control in controls]
     assert max(box["y"] for box in control_boxes) < min(
         box["y"] + box["height"] for box in control_boxes
     ), control_boxes
-    expect(shot.get_by_role("checkbox", name="Outline changes")).to_have_count(0)
     stage = shot.locator(".lf-shotstage")
     assert stage.evaluate(
         "node => node.scrollHeight <= node.clientHeight + 1 && node.scrollWidth <= node.clientWidth + 1"
@@ -690,8 +686,12 @@ def test_a_shot_fits_both_wide_captures_and_retains_actual_scale_across_views(
     assert after["y"] + after["height"] <= stage_box["y"] + stage_box["height"] + 1
     assert after["y"] + after["height"] <= 900
     assert frames.first.locator("img").bounding_box()["width"] <= 650
-    shot.get_by_role("combobox", name="Image scale").select_option("actual")
-    expect(shot.get_by_role("combobox", name="Image scale")).to_have_value("actual")
+    shot.get_by_role("button", name="Image scale and originals").click()
+    shot.get_by_role("button", name="100%", exact=True).click()
+    expect(
+        shot.get_by_role("button", name="Image scale and originals")
+    ).to_contain_text("100%")
+    assert [control.bounding_box() for control in controls] == control_boxes
     headers = shot.locator(".lf-shot-frame-label").all()
     header_boxes = [header.bounding_box() for header in headers]
     panes = shot.locator(".lf-shotviewport")
@@ -709,23 +709,35 @@ def test_a_shot_fits_both_wide_captures_and_retains_actual_scale_across_views(
     )
     assert [header.bounding_box() for header in headers] == header_boxes
     assert stage.evaluate("node => node.scrollTop === 0 && node.scrollLeft === 0")
-    for view in ("Slider", "Pixel difference", "Before & after"):
-        shot.get_by_role("combobox", name="Comparison view").select_option(label=view)
-        expect(shot.get_by_role("combobox", name="Image scale")).to_have_value("actual")
+    for view in ("Slider", "Pixels", "Pair"):
+        shot.get_by_role("button", name=view, exact=True).click()
+        expect(shot).to_have_attribute(
+            "data-lf-shot-mode",
+            {"Slider": "flip", "Pixels": "pixels", "Pair": "compare"}[view],
+        )
+        expect(
+            shot.get_by_role("button", name="Image scale and originals")
+        ).to_contain_text("100%")
+        assert [control.bounding_box() for control in controls] == control_boxes
         image = (
             shot.locator(".lf-shotpixels img")
-            if view == "Pixel difference"
+            if view == "Pixels"
             else frames.first.locator("img")
         )
         assert image.bounding_box()["width"] == pytest.approx(1200, abs=1)
         scroller = shot.locator(
-            ".lf-shotviewport" if view == "Before & after" else ".lf-shotstage"
+            ".lf-shotviewport" if view == "Pair" else ".lf-shotstage"
         ).first
         assert scroller.evaluate("node => node.scrollWidth > node.clientWidth")
-    shot.get_by_role("combobox", name="Image scale").select_option("fit")
-    for mode in ("flip", "pixels"):
-        shot.get_by_role("combobox", name="Comparison view").select_option(mode)
-        shot.get_by_role("combobox", name="Comparison view").select_option("compare")
+    shot.get_by_role("button", name="Image scale and originals").click()
+    shot.get_by_role("button", name="Fit", exact=True).click()
+    for mode in ("Slider", "Pixels"):
+        shot.get_by_role("button", name=mode, exact=True).click()
+        expect(shot).to_have_attribute(
+            "data-lf-shot-mode", {"Slider": "flip", "Pixels": "pixels"}[mode]
+        )
+        assert [control.bounding_box() for control in controls] == control_boxes
+        shot.get_by_role("button", name="Pair", exact=True).click()
         rendered = [frame.bounding_box() for frame in frames.all()]
         stage_box = stage.bounding_box()
         for frame in rendered:
@@ -739,7 +751,7 @@ def test_a_shot_fits_both_wide_captures_and_retains_actual_scale_across_views(
 
 
 def test_a_shot_outlines_and_explains_its_pixel_difference(browser, serve):
-    """Views have one keyboard stop; outlines remain an independent remembered choice."""
+    """Visible view controls work by keyboard; outlines remain an independent choice."""
     plain = solid_png(600, 300, (210, 220, 235))
     patched = solid_png(
         600, 300, (210, 220, 235), patch=(420, 200, 60, 40, (30, 30, 30))
@@ -764,15 +776,14 @@ def test_a_shot_outlines_and_explains_its_pixel_difference(browser, serve):
     )
     patch = page.locator("#shot-patch")
     patch.evaluate("async node => await node.difference")
-    views = patch.get_by_role("combobox", name="Comparison view")
-    expect(views.locator("option")).to_have_text(
-        ["Before & after", "Slider", "Pixel difference"]
-    )
-    expect(views).to_have_value("compare")
-    options = patch.get_by_role("button", name="Image options")
-    options.click()
-    outlines = patch.get_by_role("checkbox", name="Outline changes", exact=True)
-    outlines.check()
+    views = patch.get_by_role("group", name="Comparison view")
+    expect(views.get_by_role("button")).to_have_text(["Pair", "Slider", "Pixels"])
+    pair = views.get_by_role("button", name="Pair", exact=True)
+    slider = views.get_by_role("button", name="Slider", exact=True)
+    pixels = views.get_by_role("button", name="Pixels", exact=True)
+    expect(pair).to_have_attribute("aria-pressed", "true")
+    outlines = patch.get_by_role("button", name="Outline changes", exact=True)
+    outlines.click()
     expect(patch.locator(".lf-shotdiff > span").first).to_be_visible()
     readings = patch.locator(".lf-shotframe").evaluate_all("""frames => frames.map(frame => {
       const image = frame.querySelector('img').getBoundingClientRect();
@@ -792,39 +803,33 @@ def test_a_shot_outlines_and_explains_its_pixel_difference(browser, serve):
     expect(page.locator("#shot-tint .lf-shotdelta")).to_have_text("only slight changes")
     expect(page.locator("#shot-same .lf-shotdiff > span")).to_have_count(0)
     expect(page.locator("#shot-tint .lf-shotdiff > span")).to_have_count(0)
-    page.keyboard.press("Escape")
-    expect(options).to_be_focused()
-    page.keyboard.press("Shift+Tab")
-    expect(patch.get_by_role("combobox", name="Image scale")).to_be_focused()
-    page.keyboard.press("Shift+Tab")
-    expect(views).to_be_focused()
-    views.press("s")
+    pair.click()
     page.keyboard.press("Tab")
-    assert views.input_value() == "flip"
-    page.keyboard.press("Shift+Tab")
-    expect(views).to_be_focused()
-    views.press("p")
-    assert views.input_value() == "pixels"
-    options.click()
+    expect(slider).to_be_focused()
+    page.keyboard.press("Space")
+    expect(slider).to_have_attribute("aria-pressed", "true")
+    page.keyboard.press("Tab")
+    expect(pixels).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(pixels).to_have_attribute("aria-pressed", "true")
     expect(outlines).to_be_disabled()
-    expect(outlines).to_be_checked()
+    expect(outlines).to_have_attribute("aria-pressed", "true")
     expect(patch.locator(".lf-shotpixels")).to_be_visible()
     expect(patch.locator(".lf-shotlegend")).to_be_visible()
     expect(patch.locator(".lf-shotlegend-item")).to_have_text(
         ["Before only", "After only", "Recolored"]
     )
     expect(patch.locator(".lf-shotdiff").last).to_be_hidden()
-    page.keyboard.press("Escape")
-    page.keyboard.press("Shift+Tab")
-    page.keyboard.press("Shift+Tab")
-    expect(views).to_be_focused()
-    views.press("b")
-    expect(views).to_have_value("compare")
-    options.click()
+    # Reading or pointing at evidence cannot silently switch comparison modes.
+    patch.locator(".lf-shotpixels").click(position={"x": 10, "y": 10})
+    expect(pixels).to_have_attribute("aria-pressed", "true")
+    expect(patch.locator(".lf-shotpixels")).to_be_visible()
+    pair.click()
+    expect(pair).to_have_attribute("aria-pressed", "true")
     expect(outlines).to_be_enabled()
-    expect(outlines).to_be_checked()
+    expect(outlines).to_have_attribute("aria-pressed", "true")
     expect(patch.locator(".lf-shotdiff > span").first).to_be_visible()
-    outlines.uncheck()
+    outlines.click()
     expect(patch.locator(".lf-shotdiff").last).to_be_hidden()
 
 

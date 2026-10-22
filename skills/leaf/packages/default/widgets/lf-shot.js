@@ -3,7 +3,12 @@
  * metadata through inspect({pixelRatio, captureWidth, focus, labels}) and allocates
  * its box. Fit keeps both frames in the allocated box. Actual size pans their
  * images together inside those same windows, keeping both labels and views visible.
- * Both frames always share one source scale.
+ * Both frames always share one source scale. The retained header belongs to the
+ * allocated viewport, outside the image canvas. Labels and controls never move
+ * when views or scale change; only allocation width chooses its one- or two-row
+ * layout. Source labels are passive, and images never change comparison modes.
+ * A stacked pair also labels each frame, since the header's left/right bookends
+ * cannot identify vertically arranged images.
  *
  * A bounded pair chooses the orientation that gives the images the larger scale;
  * in ordinary flow, wide frames stack instead of shrinking below half scale.
@@ -15,13 +20,12 @@
  * that plane, including pixel masks, rather than having each renderer reinterpret
  * the focus rectangle. Pixel comparison runs after presentation, one pair per
  * frame. The expensive pixel masks and Web Awesome slider load only on selection.
- * Native paired images remain usable while either prepares. The divider's exact
+ * The native image planes remain visible while either prepares. The divider's exact
  * position survives switching views. Original-image links use the shared viewer.
  * Print shows both complete original images. */
 // A containing widget can create a pair absent from the authored document.
 import "/vendor/initial/lf-shot.js";
 import {
-  PRESS,
   afterPresentation,
   announce,
   compareImagePixels,
@@ -43,7 +47,6 @@ import {
   commands,
   keeps,
   paintKeys,
-  plainPress,
   relabel,
   scopedMediaUrl,
   widgetController,
@@ -76,26 +79,25 @@ customElements.define(
     #stage;
     #canvas;
     #toolbar;
-    #rail;
     #delta;
     #legend;
     #scaleReading;
-    #outlinesInput;
+    #scaleTrigger;
+    #options;
+    #outlinesButton;
     #fullInput;
     #fullLabel;
-    #viewInput;
-    #scaleInput;
-    #viewOptions = new Map();
-    #scaleOptions = new Map();
+    #viewButtons = new Map();
+    #scaleButtons = new Map();
     #frames = [];
     #viewports = [];
     #shots = [];
     #captions = new Map();
+    #frameCaptions = new Map();
     #openers = new Map();
     #comparison;
     #position = 50;
     #view = "compare";
-    #returnView = "compare";
     #outlines = false;
     #actual = false;
     #full = false;
@@ -117,51 +119,53 @@ customElements.define(
       if (!once(this)) return;
       const drawing = initialRender(this);
       this.#toolbar = drawing.toolbar;
-      this.#viewInput = drawing.views.input;
-      this.#scaleInput = drawing.scale.input;
-      this.#viewOptions = drawing.views.options;
-      this.#scaleOptions = drawing.scale.options;
-      this.#outlinesInput = drawing.outlines.input;
+      this.#viewButtons = drawing.views.choices;
+      this.#scaleButtons = drawing.scale.choices;
+      this.#outlinesButton = drawing.outlines;
+      this.#scaleTrigger = drawing.scaleTrigger;
+      this.#options = drawing.options;
       this.#fullInput = drawing.full.input;
       this.#fullLabel = drawing.full.label;
       this.#scaleReading = drawing.scaleReading;
       this.#stage = drawing.stage;
       this.#canvas = drawing.canvas;
-      this.#rail = drawing.rail;
       this.#frames = drawing.frames;
       this.#viewports = drawing.viewports;
       this.#shots = drawing.shots;
       this.#captions = drawing.captions;
+      this.#frameCaptions = drawing.frameCaptions;
       this.#openers = drawing.openers;
       this.#delta = drawing.delta;
       this.#legend = drawing.legend;
-      this.#viewInput.addEventListener("change", () =>
-        this.#chooseView(this.#viewInput.value),
-      );
-      this.#scaleInput.addEventListener("change", () => {
-        this.#actual = this.#scaleInput.value === "actual";
-        this.#fit();
-        this.#paint();
-      });
-      drawing.more.append(iconElement("more", "lf-action-icon"));
-      drawing.more.addEventListener("click", (event) => {
+      for (const [view, button] of this.#viewButtons)
+        button.addEventListener("click", () => this.#chooseView(view));
+      for (const [scale, button] of this.#scaleButtons)
+        button.addEventListener("click", () => {
+          this.#actual = scale === "actual";
+          this.#fit();
+          this.#paint();
+          closeNativeLayer(this.#options);
+          focusDestination(this.#scaleTrigger, "move");
+        });
+      drawing.scaleIcon.append(iconElement("down", "lf-action-icon"));
+      this.#scaleTrigger.addEventListener("click", (event) => {
         event.preventDefault();
-        if (isNativeLayer(drawing.options)) closeNativeLayer(drawing.options);
+        if (isNativeLayer(this.#options)) closeNativeLayer(this.#options);
         else {
-          focusDestination(drawing.more, "press");
-          showNativeLayer(drawing.options, { source: drawing.more });
-          const first = drawing.options.querySelector(
-            "label:not([hidden]) input:not(:disabled)",
+          focusDestination(this.#scaleTrigger, "press");
+          showNativeLayer(this.#options, { source: this.#scaleTrigger });
+          focusDestination(
+            this.#scaleButtons.get(this.#actual ? "actual" : "fit"),
+            "move",
           );
-          if (first) focusDestination(first, "move");
         }
       });
-      drawing.options.addEventListener("toggle", () => {
-        keeps(drawing.more, "aria-expanded", isNativeLayer(drawing.options));
+      this.#options.addEventListener("toggle", () => {
+        keeps(this.#scaleTrigger, "aria-expanded", isNativeLayer(this.#options));
         paintKeys();
       });
-      this.#outlinesInput.addEventListener("change", () => {
-        this.#outlines = this.#outlinesInput.checked;
+      this.#outlinesButton.addEventListener("click", () => {
+        this.#outlines = !this.#outlines;
         this.#paint();
       });
       this.#fullInput.addEventListener("change", () => {
@@ -188,23 +192,13 @@ customElements.define(
           },
           { passive: true },
         );
-        const caption = this.#captions.get(state);
-        caption.addEventListener("click", () => this.#show(state));
-        commands(caption, "On a screenshot", [
-          {
-            id: `screenshot.${state}`,
-            keys: PRESS,
-            title: `show ${state}`,
-            run: () => caption.click(),
-          },
-        ]);
         const image = this.#shots[index];
         const source = this.getAttribute(state);
         image.src = isCanonicalMediaUrl(source) ? scopedMediaUrl(source) : source;
         const open = this.#openers.get(state);
         open.href = image.src;
         open.dataset.lfMediaUrl = image.src;
-        open.append(iconElement("expand", "lf-action-icon"));
+        open.prepend(iconElement("expand", "lf-action-icon"));
       }
       this.#paintAlt();
       this.#fit();
@@ -257,7 +251,10 @@ customElements.define(
       const labels = this.#metadata.labels ?? { before: "Before", after: "After" };
       for (const [index, state] of ["before", "after"].entries()) {
         relabel(this.#captions.get(state), labels[state], { says: true });
+        relabel(this.#frameCaptions.get(state), labels[state], { says: false });
         keeps(this.#captions.get(state), "aria-label", `${labels[state]} — ${alt}`);
+        keeps(this.#captions.get(state), "title", labels[state]);
+        keeps(this.#frameCaptions.get(state), "title", labels[state]);
         keeps(this.#shots[index], "alt", `${state}: ${alt}`);
         keeps(this.#viewports[index], "aria-label", `${labels[state]} — ${alt}`);
         const open = this.#openers.get(state);
@@ -321,28 +318,25 @@ customElements.define(
             ? this.#stage.clientHeight
             : undefined,
         labelHeight: parseFloat(
-          getComputedStyle(
-            this.#frames[0].querySelector(".lf-shot-frame-label") ??
-              this.#rail.firstElementChild,
-          ).blockSize,
+          getComputedStyle(this.#frameCaptions.get("before").parentElement).blockSize,
         ),
         sourceWidth,
         sourceHeight,
         focus,
         full: this.#full,
         actual: this.#actual,
-        view: this.#view,
+        view: this.#shownView,
         gap: parseFloat(getComputedStyle(this).getPropertyValue("--lf-shot-gap")),
       });
       if (!geometry) return;
       applyShotGeometry(this, geometry, keeps);
       this.#fullLabel.toggleAttribute("hidden", !focus);
       this.#fullInput.checked = this.#full;
-      relabel(this.#scaleReading, `Fit · ${Math.round(geometry.fitScale * 100)}%`, {
-        says: false,
-      });
+      const fitDescription = `Fit · ${Math.round(geometry.fitScale * 100)}%`;
+      keeps(this.#scaleButtons.get("fit"), "title", fitDescription);
+      keeps(this.#scaleTrigger, "title", this.#actual ? "100%" : fitDescription);
       keeps(
-        this.#scaleOptions.get("actual"),
+        this.#scaleButtons.get("actual"),
         "title",
         this.#metadata.pixelRatio
           ? "Captured CSS size"
@@ -356,24 +350,12 @@ customElements.define(
       if (view === "pixels") void this.#showPixels();
       else {
         this.#view = view;
-        this.#returnView = view;
         this.#syncComparison();
         this.#fit();
         this.#paint();
         if (view === "flip") this.#requestComparison();
       }
       announce(`Showing ${VIEWS[view].toLowerCase()}`);
-    }
-
-    #show(state) {
-      this.#view = "flip";
-      this.#returnView = "flip";
-      this.#position = state === "before" ? 100 : 0;
-      this.#syncComparison();
-      if (this.#comparison) this.#comparison.position = this.#position;
-      this.#fit();
-      this.#paint();
-      this.#requestComparison();
     }
 
     #syncComparison() {
@@ -401,7 +383,6 @@ customElements.define(
           frame.slot = frame.dataset.lfState === "before" ? "after" : "before";
           comparison.append(frame);
         }
-        let dragged = false;
         const handleOf = (event) =>
           event
             .composedPath()
@@ -411,19 +392,13 @@ customElements.define(
                 node.getAttribute("part")?.split(/\s+/).includes("handle"),
             );
         comparison.addEventListener("change", () => {
-          dragged = true;
           this.#position = comparison.position;
           this.#paint();
         });
         comparison.addEventListener("pointerdown", (event) => {
           if (!event.isPrimary || event.button !== 0) return;
-          dragged = false;
           const handle = handleOf(event);
           if (handle) focusDestination(handle, "press");
-        });
-        comparison.addEventListener("click", (event) => {
-          if (!dragged && !handleOf(event) && plainPress(event))
-            this.#show(this.#position > 50 ? "after" : "before");
         });
         commands(comparison, "On a screenshot divider", [
           {
@@ -442,17 +417,6 @@ customElements.define(
         this.#comparison = comparison;
         void comparison.updateComplete.then(() => this.#paintHandle());
       }
-      // Captions and original-image links stay outside the draggable/cropped image.
-      for (const frame of this.#frames) {
-        const label =
-          frame.querySelector(".lf-shot-frame-label") ??
-          this.#rail.querySelector(`[data-lf-shot-label="${frame.dataset.lfState}"]`);
-        if (!label) continue;
-        keeps(label, "data-lf-shot-label", frame.dataset.lfState);
-        if (this.#view === "compare" || (this.#view === "flip" && !this.#comparison)) {
-          if (label.parentNode !== frame) move(frame, label, frame.firstChild);
-        } else if (label.parentNode !== this.#rail) move(this.#rail, label);
-      }
     }
 
     #requestComparison() {
@@ -460,6 +424,7 @@ customElements.define(
         await loadComparison();
         if (this.isConnected && this.#view === "flip") {
           this.#syncComparison();
+          this.#fit();
           this.#paint();
         }
       }).catch((reason) => failSoft(this, reason));
@@ -476,29 +441,28 @@ customElements.define(
       );
     }
 
+    get #shownView() {
+      // Until the optional divider is mounted, keep the usable pair and its
+      // matching geometry. Requested view buttons still reflect the user's choice.
+      return this.#view === "flip" && !this.#comparison ? "compare" : this.#view;
+    }
+
     #paint() {
       if (!this.#toolbar) return;
-      keeps(
-        this,
-        "data-lf-shot-mode",
-        this.#view === "flip" && !this.#comparison ? "compare" : this.#view,
-      );
+      keeps(this, "data-lf-shot-mode", this.#shownView);
       keeps(this, "data-lf-shot-outlines", this.#outlines);
-      this.#viewOptions.get("pixels").toggleAttribute("disabled", !this.#reading);
-      this.#viewInput.value = this.#view;
-      this.#scaleInput.value = this.#actual ? "actual" : "fit";
-      this.#outlinesInput.checked = this.#outlines;
-      this.#outlinesInput.toggleAttribute(
+      this.#viewButtons.get("pixels").toggleAttribute("disabled", !this.#reading);
+      for (const [view, button] of this.#viewButtons)
+        keeps(button, "aria-pressed", view === this.#view);
+      for (const [scale, button] of this.#scaleButtons)
+        keeps(button, "aria-pressed", (scale === "actual") === this.#actual);
+      relabel(this.#scaleReading, this.#actual ? "100%" : "Fit", { says: false });
+      keeps(this.#outlinesButton, "aria-pressed", this.#outlines);
+      this.#outlinesButton.toggleAttribute(
         "disabled",
         this.#view === "pixels" || !this.#reading?.regions.length,
       );
       this.#legend.toggleAttribute("hidden", this.#view !== "pixels");
-      for (const [state, caption] of this.#captions)
-        keeps(
-          caption,
-          "aria-pressed",
-          this.#view === "flip" && this.#position === (state === "before" ? 100 : 0),
-        );
       this.#syncComparison();
       this.#paintHandle();
       paintKeys();
@@ -529,13 +493,12 @@ customElements.define(
       const description = describeDifference(reading);
       this.#delta.dataset.lfShotDelta = differenceKind(reading);
       relabel(this.#delta, description, { says: false });
-      this.#outlinesInput.setAttribute("aria-description", description);
+      this.#outlinesButton.setAttribute("aria-description", description);
       this.#paint();
       return reading;
     }
 
     #showPixels() {
-      if (this.#view !== "pixels") this.#returnView = this.#view;
       this.#view = "pixels";
       if (!this.#pixelsView) {
         const view = offer("div", "lf-shotpixels lf-shotimage");
@@ -552,9 +515,6 @@ customElements.define(
         });
         plane.append(ground, ...paints);
         view.append(plane);
-        view.addEventListener("click", (event) => {
-          if (plainPress(event)) this.#chooseView(this.#returnView);
-        });
         this.#canvas.append(view);
         this.#pixelsView = view;
         this.#pixelsPainted = inTurn(async () => {

@@ -185,13 +185,10 @@ import {
 import {
   DISCLOSE,
   DISCLOSURE_SELECTOR,
-  annotationSheets,
-  chromeSheet,
   disclosed,
-  marksSheet,
   setChildren,
   watchDisclosures
-} from "./runtime/bundle-stylesheets.js";
+} from "./runtime/bundle-keyboard~disclosure.js";
 import {
   mediaViewer,
   readAttachedMedia,
@@ -321,10 +318,12 @@ import {
   PRESSABLE,
   advertisesKeys,
   allBindings,
+  annotationSheets,
   announce,
   bindingEnabled,
   bindings,
   buttonCommand,
+  chromeSheet,
   claimsEsc,
   clamp,
   clampedRow,
@@ -364,6 +363,7 @@ import {
   layoutWindow,
   live,
   liveEl,
+  marksSheet,
   merge,
   mountRepaint,
   nativeLayers,

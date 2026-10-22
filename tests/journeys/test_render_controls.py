@@ -253,18 +253,14 @@ CONTROL_ARCHETYPES = (
         "target": "#stable-playground .lf-playground-submit",
     },
     {
-        # The comparison rail: Before and After stand beside each other above the frames,
-        # and each caption chooses its own frame. Pressing After is the transition with
-        # something to prove — the caption the user leaves and the one they arrive at
-        # both change their active paint, and a rule that spent width on the active word
-        # would move the other caption under the user's pointer.
-        "name": "shot-caption",
-        "target": '#stable-shot .lf-shotcap[data-lf-state="after"]',
+        # Switching views must not move the buttons under the pointer.
+        "name": "shot-view",
+        "target": "#stable-shot .lf-shot-views button:nth-child(2)",
     },
     {
         "name": "visual-review-inspection",
         "source": VISUAL_REVIEW_GALLERY,
-        "target": '.lf-vr-case[aria-hidden="false"] .lf-vr-mode-button:nth-child(2)',
+        "target": '.lf-vr-case[aria-hidden="false"] .lf-shot-views button:nth-child(2)',
     },
     {
         "name": "visual-review-approval",
@@ -334,7 +330,7 @@ RING_CASES = (
                     'lf-shot .lf-shotcomparison [part~="handle"]',
                     "wa-comparison::part(lf-focus)",
                 ),
-                (".lf-shotcap", "[data-lf-offer]"),
+                (".lf-shot-views button", "button"),
             ),
             "wt-merge": (
                 (
@@ -2619,6 +2615,9 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
             )
             expect(page.locator('#merge-steps-pane > [tabindex="0"]')).to_have_count(1)
         if name == "release-notes":
+            page.locator("lf-shot").get_by_role(
+                "button", name="Slider", exact=True
+            ).click()
             # Ordinary element marks need a focusable sample for their conditional ring.
             page.locator("main p").first.evaluate(
                 "node => { node.classList.add('lf-mark-el'); node.tabIndex = 0; }"

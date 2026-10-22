@@ -13,31 +13,57 @@
   --lf-shot-label-height: max(30px, var(--aim-floor));
 }
 .lf-shot-toolbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-areas: "before actions after";
   align-items: center;
-  gap: var(--sp-2);
-  padding-block: var(--sp-2);
+  gap: var(--sp-1);
+  padding-block: var(--sp-1);
   flex: none;
+  min-inline-size: 0;
   anchor-scope: --lf-shot-options;
   font: var(--t-working-label)/1.4 var(--sans);
 }
-.lf-shotselect {
+.lf-shot-actions,
+.lf-shot-views,
+.lf-shot-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
   min-inline-size: 0;
-  font: inherit;
+}
+.lf-shot-actions {
+  grid-area: actions;
+}
+.lf-shot-toolbar .lf-btn,
+.lf-shotoptions .lf-btn {
+  /* Selection changes the face, never the width of its words. */
+  font-weight: 500;
+  white-space: nowrap;
+}
+.lf-shot-toolbar > .lf-shotcap[data-lf-state="before"] {
+  grid-area: before;
+  justify-self: start;
+}
+.lf-shot-toolbar > .lf-shotcap[data-lf-state="after"] {
+  grid-area: after;
+  justify-self: end;
 }
 .lf-shot-scale {
-  /* A changing fit percentage never moves the neighbouring controls. */
-  inline-size: calc(
-    9ch + 2 * (var(--lf-field-pad-inline) + var(--lf-select-arrow-wing))
-  );
+  /* The arrow and both readings occupy one retained slot. */
+  inline-size: calc(4ch + 2 * var(--sp-2) + 16px);
   flex: none;
-}
-.lf-shotmore {
-  inline-size: max(var(--aim-floor), var(--lf-control-compact));
-  padding: 0;
-  margin-inline-start: auto;
-  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-1);
   anchor-name: --lf-shot-options;
+}
+.lf-shot-scale-icon {
+  display: inline-flex;
+  inline-size: 16px;
+  block-size: 16px;
+  flex: none;
 }
 .lf-shotoptions {
   box-sizing: border-box;
@@ -66,12 +92,50 @@
 .lf-shotoptions::backdrop {
   background: transparent;
 }
+.lf-shot-scale-options {
+  display: flex;
+  gap: var(--sp-1);
+  padding-block-end: var(--sp-1);
+  margin-block-end: var(--sp-1);
+  border-block-end: 1px solid var(--rule);
+}
+.lf-shot-scale-options > button {
+  flex: 1;
+}
 .lf-shotchoice {
   display: flex;
   font: inherit;
 }
 .lf-shotchoice[hidden] {
   display: none;
+}
+.lf-shot-open {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-block-size: var(--aim-floor);
+  padding: var(--sp-1) var(--sp-2);
+  color: var(--ink-2);
+  font: inherit;
+}
+.lf-shot-open:hover {
+  background: var(--chip);
+  color: var(--ink);
+}
+@container lf-shot (max-width: 540px) {
+  .lf-shot-toolbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas: "actions actions" "before after";
+  }
+  .lf-shot-actions {
+    justify-content: space-between;
+  }
+  .lf-shot-views {
+    gap: 0;
+  }
+  .lf-shot-tools {
+    gap: 0;
+  }
 }
 .lf-shotstage {
   /* Grow into a bounded host's allocation; in flow the auto basis keeps the
@@ -96,6 +160,7 @@
   align-content: start;
   inline-size: max-content;
   min-inline-size: min(100%, var(--lf-shot-frame-width));
+  margin-inline: auto;
   gap: var(--lf-shot-gap);
 }
 .lf-shotframe {
@@ -120,56 +185,38 @@
 }
 .lf-shot-frame-label {
   box-sizing: border-box;
-  display: flex;
+  display: none;
   align-items: center;
-  justify-content: space-between;
   block-size: var(--lf-shot-label-height);
   border-block-end: 1px solid var(--rule);
-  background: var(--card);
-  color: var(--ink-2);
   font: 600 var(--t-working-label)/1.4 var(--sans);
+}
+:scope:is(lf-shot)[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
+  .lf-shot-frame-label {
+  display: flex;
 }
 .lf-shotcap {
   box-sizing: border-box;
-  min-block-size: var(--aim-floor);
-  min-inline-size: var(--aim-floor);
-  display: inline-flex;
-  align-items: center;
-  padding-inline: var(--sp-2);
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
+  display: block;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--r);
+  font: 600 var(--t-working-label)/1.4 var(--sans);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   user-select: text;
-  cursor: pointer;
 }
-.lf-shot-open {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-inline-size: var(--aim-floor);
-  min-block-size: var(--aim-floor);
-  color: var(--muted);
+.lf-shotcap[data-lf-state="before"],
+.lf-shot-frame-label[data-lf-state="before"] {
+  background: var(--del-tint);
+  color: var(--danger-ink);
 }
-.lf-shotcap:hover,
-.lf-shot-open:hover {
-  background: var(--chip);
-  color: var(--ink);
-}
-.lf-shotrail {
-  display: none;
-  grid-column: 1;
-  grid-row: 1;
-  justify-content: space-between;
-  gap: var(--sp-3);
-  background: var(--card);
-}
-.lf-shotrail .lf-shot-frame-label {
-  flex: 1;
-  border: 0;
-}
-.lf-shotrail .lf-shot-frame-label:last-child {
-  justify-content: end;
+.lf-shotcap[data-lf-state="after"],
+.lf-shot-frame-label[data-lf-state="after"] {
+  background: var(--add-tint);
+  color: var(--ok-ink);
 }
 .lf-shotimage {
   position: relative;
@@ -208,11 +255,8 @@
   grid-template-columns: calc(var(--lf-shot-frame-width) + 2px);
   gap: 0;
 }
-:scope:is(lf-shot):not([data-lf-shot-mode="compare"]) .lf-shotrail {
-  display: flex;
-}
 :scope:is(lf-shot):not([data-lf-shot-mode="compare"]) .lf-shotcanvas > .lf-shotframe {
-  grid-area: 2 / 1;
+  grid-area: 1 / 1;
 }
 :scope:is(lf-shot)[data-lf-shot-mode="flip"]
   .lf-shotcanvas
@@ -224,7 +268,7 @@
 }
 .lf-shotcomparison {
   display: block;
-  grid-area: 2 / 1;
+  grid-area: 1 / 1;
   inline-size: calc(var(--lf-shot-frame-width) + 2px);
   block-size: calc(var(--lf-shot-frame-height) + 2px);
   --divider-width: 2px;
@@ -249,10 +293,6 @@
   border: 1.5px solid currentColor;
   border-radius: 50%;
   pointer-events: none;
-}
-.lf-shotcomparison::part(before),
-.lf-shotcomparison::part(after) {
-  cursor: pointer;
 }
 .lf-shotdiff {
   position: absolute;
@@ -290,9 +330,8 @@
 }
 .lf-shotpixels {
   display: none;
-  grid-area: 2 / 1;
+  grid-area: 1 / 1;
   border: 1px solid var(--rule);
-  cursor: pointer;
 }
 :scope:is(lf-shot)[data-lf-shot-mode="pixels"] .lf-shotpixels {
   display: block;
@@ -365,20 +404,23 @@
     overflow: visible;
   }
   .lf-shot-toolbar,
-  .lf-shotrail,
   .lf-shot-footer,
   .lf-shotpixels,
-  .lf-shot-frame-label,
   .lf-shotdiff {
     display: none !important;
   }
   .lf-shotstage {
     overflow: visible;
   }
+  .lf-shotstage,
   .lf-shotcanvas,
   .lf-shotcomparison,
   .lf-shotframe,
-  .lf-shotviewport {
+  .lf-shot-frame-label,
+  .lf-shotcap,
+  .lf-shotviewport,
+  .lf-shotimage,
+  .lf-shotplane {
     display: block !important;
     inline-size: 100% !important;
     block-size: auto !important;
@@ -390,6 +432,18 @@
     position: static;
     display: block;
     clip-path: none !important;
+  }
+  .lf-shotcomparison::part(base) {
+    display: flex;
+    flex-direction: column;
+  }
+  /* Slider slots are reversed so Before occupies its left-hand reveal. Paper
+     restores source order rather than printing that implementation order. */
+  .lf-shotcomparison::part(before) {
+    order: 2;
+  }
+  .lf-shotcomparison::part(after) {
+    order: 1;
   }
   .lf-shotcomparison::part(divider) {
     display: none;

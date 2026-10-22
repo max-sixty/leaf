@@ -633,7 +633,7 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     page = open_page(browser, url)
     page.evaluate(
         """async () => {
-          const { commands } = await window.__lfWidgetApi();
+          const { commands, showNativeLayer } = await window.__lfWidgetApi();
           const { shadowStage } = await window.__lfWidgetApi();
           const host = document.createElement('section');
           host.id = 'around-native-layer';
@@ -646,6 +646,14 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
           popover.id = 'shadow-popover';
           popover.popover = 'auto';
           popover.textContent = 'Nested popover';
+          const shared = document.createElement('dialog');
+          shared.id = 'shared-modal';
+          shared.textContent = 'A shared inspection surface';
+          document.body.append(shared);
+          const inspect = document.createElement('button');
+          inspect.textContent = 'Inspect from popover';
+          inspect.onclick = () => showNativeLayer(shared, {source: inspect});
+          popover.append(inspect);
           trigger.popoverTargetElement = popover;
           shadowStage(shadowHost, [trigger, popover]);
           dialog.append(shadowHost);
@@ -673,6 +681,22 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     expect(modal).to_be_visible()
     expect(popover).to_be_visible()
 
+    # A shared modal joins its source popover across the shadow boundary for one
+    # opening, so closing it leaves the source controls and outer modal in hand.
+    inspect = popover.get_by_role("button", name="Inspect from popover")
+    inspect.click()
+    shared = page.locator("#shared-modal")
+    expect(shared).to_be_visible()
+    expect(popover).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(shared).to_be_hidden()
+    expect(popover).to_be_visible()
+    expect(modal).to_be_visible()
+    expect(inspect).to_be_focused()
+    page.wait_for_function(
+        "node => node.parentElement === document.body", arg=shared.element_handle()
+    )
+
     # The global reference applies the same native modal rule across a shadow boundary:
     # the contextual auto popover closes and is not reconstructed afterwards.
     page.keyboard.press("?")
@@ -685,7 +709,9 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
 
     # Reopened over the same modal, so the stack order below is read on the scene that
     # rule describes rather than on what the reference left behind.
-    page.locator("#nested-modal button").click()
+    page.locator("#nested-modal").get_by_role(
+        "button", name="Open nested popover"
+    ).click()
     expect(popover).to_be_visible()
 
     # The popover is nonmodal, but the modal below it remains a hard floor. A page

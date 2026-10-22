@@ -296,7 +296,6 @@ export function mountApplication(dependencies) {
       },
     });
     void presentation.present();
-    document.addEventListener("lf-comparison", renderAnnotations);
     // A paint on paper read no ages, so the return to screen paints through the
     // presenter, which follows them again.
     onPaper.addEventListener("change", () => {

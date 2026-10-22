@@ -25,7 +25,6 @@ import {
   threadActions,
   threadBox,
   threadInput,
-  watchComparison,
   widgetController,
   wireInput
 } from "./bundle-document-identity.js";
@@ -1388,7 +1387,6 @@ export {
   tokenLines,
   under,
   unsafeHTML,
-  watchComparison,
   watchDraft,
   watchReadingRegionTransitions,
   wear,

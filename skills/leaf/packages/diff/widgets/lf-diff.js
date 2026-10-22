@@ -703,10 +703,28 @@ function metadataNode(record) {
   return row;
 }
 
-function fileRecord(file, section) {
-  const operation = /^copy from /m.test(section)
+function fileRecord(file, section, parsePatchFiles) {
+  const copyFrom = /^copy from /m.test(section);
+  const copyTo = /^copy to /m.test(section);
+  const renameFrom = /^rename from /m.test(section);
+  const renameTo = /^rename to /m.test(section);
+  if (copyFrom !== copyTo || renameFrom !== renameTo)
+    throw new Error("diff has incomplete copy or rename headers");
+  if (/^old mode /m.test(section) !== /^new mode /m.test(section))
+    throw new Error("diff has incomplete mode headers");
+  if (copyFrom || renameFrom) {
+    // Pierre resolves a path from the source headers too. Read its metadata alone
+    // to catch a conflicting copy or rename source without decoding Git paths here.
+    const header = section.split(/^--- /m, 1)[0];
+    const metadata = parsePatchFiles(header, undefined, true).flatMap(
+      (patch) => patch.files,
+    )[0];
+    if (metadata?.prevName !== file.prevName || metadata?.name !== file.name)
+      throw new Error("diff has conflicting copy or rename paths");
+  }
+  const operation = copyFrom
     ? "copy"
-    : /^rename from /m.test(section)
+    : renameFrom
       ? "rename"
       : file.type === "new"
         ? "add"
@@ -849,7 +867,7 @@ async function parsedFiles(source) {
     );
   const owners = new Map();
   for (const [index, file] of files.entries()) {
-    file.record = fileRecord(file, sections[index]);
+    file.record = fileRecord(file, sections[index], parsePatchFiles);
     const owned = owners.get(file.name) ?? [];
     owned.push(file);
     owners.set(file.name, owned);

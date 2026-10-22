@@ -1,7 +1,8 @@
 """Semantic work with the live claim/turn evidence used by every transport.
 
 The durable reading remains separate from activity's liveness and reply reservations.
-Delivery and status never need browser serialization, external data, or history.
+Delivery and status never need browser serialization or history. Record obligations
+read their current bound data through the same canonical work reading.
 A serving context holds this result once; its browser selects the same objects.
 """
 

@@ -198,7 +198,9 @@ def page_action_unsettled(
     """
     widget, unit, _verb = coordinate
     byid = page.document.by_id
-    if widget not in byid or (spec.get("record") and unit not in byid):
+    if widget not in byid or (
+        (spec.get("record") or spec.get("creates")) and unit not in byid
+    ):
         return False
     document = (byid, page.spoken)
     reading = recorded_state(

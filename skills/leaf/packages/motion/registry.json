@@ -1,6 +1,6 @@
 {
   "lf-motion": {
-    "description": "A shared, scrubbable clock for authored animation studies, with play, pause, reset and playback speed. Its body holds the drawings being compared.",
+    "description": "A shared, scrubbable clock for authored animation studies, with play, pause, replay and playback speed. Its body holds the drawings being compared.",
     "type": "object",
     "properties": {
       "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },

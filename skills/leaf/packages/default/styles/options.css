@@ -766,7 +766,7 @@
         :has(> lf-option > strong)
       )
       > lf-option[chosen]:hover {
-      background: var(--ok-tint);
+      background: color-mix(in srgb, var(--ok-tint) 92%, var(--ink));
     }
   }
 }

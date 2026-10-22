@@ -798,18 +798,9 @@
   font-size: var(--lf-trace-small-type);
 }
 .lf-trace-pace select {
-  --lf-field-pad-inline: var(--sp-2);
   min-block-size: var(--lf-trace-control-size);
   max-inline-size: 100%;
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background-color: var(--paper);
-  color: var(--ink);
   font: inherit;
-}
-.lf-trace-pace select[data-lf-focus] {
-  outline: var(--focus-ring);
-  outline-offset: calc(-1 * var(--focus-ring-w));
 }
 .lf-trace-transport-button {
   display: inline-flex;

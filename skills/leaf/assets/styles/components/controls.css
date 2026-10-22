@@ -136,7 +136,7 @@
   border-color: var(--border-2);
   background: var(--chip);
 }
-.lf-react.lf-response-action:not([aria-pressed="true"]) {
+.lf-react.lf-response-action:where(:not([aria-pressed="true"])) {
   background: var(--card);
 }
 .lf-react[aria-busy="true"] {
@@ -509,6 +509,35 @@ svg[data-lf-icon] {
   color: var(--ink);
   display: inline-block;
 }
+/* A native radio or checkbox and its label form one compact target. The native
+ * mark carries selection; the label supplies the aim floor and focus ring without
+ * a second frame or selected fill. Used by authored controls and packages alike. */
+.choice {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: var(--sp-1);
+  padding-block: var(--sp-1);
+  min-block-size: var(--aim-floor);
+  min-inline-size: var(--aim-floor);
+  box-sizing: border-box;
+  cursor: pointer;
+  font: var(--t-5)/var(--lf-ui-lh) var(--sans);
+}
+.choice > input {
+  flex: none;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.choice > input:is(:focus-visible, [data-lf-focus]) {
+  outline: none;
+}
+.choice:has(> input:is(:focus-visible, [data-lf-focus])) {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-gap);
+  --lf-wears-ring: 1;
+}
+
 /* A label whose words change holds one room for all of them, so a count or a result
  * changing moves nothing beside it. `data-lf-room` lists the words the label shows,
  * one per line, on an element whose one child holds the words. Its ::before lays the

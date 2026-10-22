@@ -28,6 +28,7 @@ from types import SimpleNamespace
 from typing import BinaryIO
 from urllib.parse import urlencode, urlsplit
 
+import anyio
 from leaf.data import deferred_records
 from leaf.files import latest_revision, revision_path
 from leaf.layer import running_leaf
@@ -42,6 +43,7 @@ from leaf.schema import (
 from leaf.served_state.reading import record_reading
 from leaf.service import PageTransaction
 from leaf.state import STRING, Record, described, object_schema, page_key, state_home
+from starlette.datastructures import Headers
 from starlette.requests import Request
 
 CHUNK_BYTES = 1024 * 1024
@@ -276,15 +278,21 @@ def _responses(
         )
         endpoint.page_snapshot = snapshot
         endpoint.housekeeping = True
-        response = endpoint.respond()
-        if response.status_code != 200:
+        messages = []
+
+        async def capture(message, messages=messages):
+            messages.append(message)
+
+        anyio.run(endpoint, request.scope, request.receive, capture)
+        response, *body = messages
+        if response["status"] != 200:
             raise RuntimeError(
-                f"cannot publish saved page response {path}: {response.status_code}"
+                f"cannot publish saved page response {path}: {response['status']}"
             )
         result[path] = {
-            "status": response.status_code,
-            "headers": dict(response.headers),
-            **blobs.chunks(response.body),
+            "status": response["status"],
+            "headers": dict(Headers(raw=response["headers"])),
+            **blobs.chunks(b"".join(chunk["body"] for chunk in body)),
         }
     return result
 

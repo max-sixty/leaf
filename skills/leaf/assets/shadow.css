@@ -963,7 +963,7 @@ leaf-text.lf-fab-input,
   border-color: var(--border-2);
   background: var(--chip);
 }
-.lf-react.lf-response-action:not([aria-pressed=true]) {
+.lf-react.lf-response-action:where(:not([aria-pressed=true])) {
   background: var(--card);
 }
 .lf-react[aria-busy=true] {
@@ -1216,6 +1216,31 @@ svg[data-lf-icon] {
   cursor: pointer;
   color: var(--ink);
   display: inline-block;
+}
+.choice {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: var(--sp-1);
+  padding-block: var(--sp-1);
+  min-block-size: var(--aim-floor);
+  min-inline-size: var(--aim-floor);
+  box-sizing: border-box;
+  cursor: pointer;
+  font: var(--t-5)/var(--lf-ui-lh) var(--sans);
+}
+.choice > input {
+  flex: none;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.choice > input:is(:focus-visible, [data-lf-focus]) {
+  outline: none;
+}
+.choice:has(> input:is(:focus-visible, [data-lf-focus])) {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-gap);
+  --lf-wears-ring: 1;
 }
 :where([data-lf-room]) {
   display: inline-block;
@@ -1840,7 +1865,7 @@ leaf-text.lf-fab-input {
   max-height: min(60vh, 480px);
   border-radius: var(--r);
 }
-:is(.lf-btn, .button):is(.on, [aria-pressed=true]) {
+:is(.lf-btn, .button)[aria-pressed=true] {
   border-color: var(--accent);
   color: var(--accent);
   background: var(--chip);
@@ -1907,9 +1932,6 @@ html[data-lf-draw-mode] main {
 }
 .lf-code-copy::part(button):hover {
   color: var(--ink);
-}
-.lf-code-copy::part(lf-focus) {
-  outline: var(--focus-ring);
 }
 :root {
   --lf-video-bar-h: max(32px, var(--aim-floor));

@@ -11,10 +11,8 @@ from leaf import server as server_model
 from leaf import service as service_model
 
 
-def test_normal_server_restart_rearms_reconnect_notice_before_the_next_hook(
-    claimed, capsys
-):
-    """A quick second outage earns a new notice without an intervening healthy hook."""
+def test_normal_server_restart_leaves_later_recovery_advice_available(claimed, capsys):
+    """A quick second outage still produces advice without an intervening healthy hook."""
     first = start_server_command(claimed, session_id="s1")
     assert first.returncode == 0, first.stderr
     hooks_model.cmd_hook(

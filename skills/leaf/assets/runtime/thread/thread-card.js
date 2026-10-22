@@ -273,11 +273,11 @@ export class ThreadView {
   #commands;
   #messageCommands;
   #rewrites;
-  // The model this card shows. A signal, because its commands' liveness reads it, and
-  // key and button reflection follow what they read (keyboard/scopes.js).
+  // The model this card shows. Commands follow it explicitly; mechanical reads of
+  // this paint's output must not subscribe the presenter that writes it.
   #shown = signal(null);
   get #model() {
-    return this.#shown.value;
+    return this.#shown.peek();
   }
   set #model(model) {
     this.#shown.value = model;
@@ -743,7 +743,7 @@ export class ThreadView {
           keys: PRESS,
           title: word.toLowerCase(),
           control: button,
-          when: () => !this.#model.settlement?.pending,
+          when: () => !this.#shown.value.settlement?.pending,
           run: this.#settle,
         },
       ]);

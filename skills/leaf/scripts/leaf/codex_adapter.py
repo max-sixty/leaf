@@ -1084,7 +1084,7 @@ def cmd_codex_launch(codex_path: str | None = None) -> int:
     executable = codex_path or shutil.which("codex")
     if executable is None:
         raise Refused("cannot find the `codex` executable on PATH")
-    with private_app_server(executable) as endpoint:
+    with private_app_server(executable) as (endpoint, _process):
         return subprocess.call(
             [executable, "--remote", endpoint],
             env=os.environ | {APP_SERVER_ENV: endpoint},

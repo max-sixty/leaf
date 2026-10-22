@@ -1,13 +1,15 @@
 """The `claude-code` journey: a real interactive Claude Code session with Leaf's
 plugin, and the steps a user takes at its terminal.
 
-    uv run leaf-dev journey claude-code
+    uv run leaf-dev journey claude-code [--hooks-module]
 
 The suite stands in for Claude Code around Leaf's hooks (`hooks.json`, and
 `tests/claude_code_driver.mjs` for the hooks module); this runs Claude Code itself,
 in its terminal interface, with this working tree's payload as its plugin
 (`--plugin-dir`) under a throwaway home (`arms.claude_home`) whose only content is
-the host's login. `--sandbox` runs the session's shell commands in Claude Code's sandbox, configured
+the host's login. `--hooks-module` turns the plugin's `hooks_module` option on, so
+Leaf's hooks module keeps the watch in place of `hooks.json`'s background Stop hook.
+`--sandbox` runs the session's shell commands in Claude Code's sandbox, configured
 as the README asks a sandboxed user to configure it.
 The journey is then the user: it types into the session through a tmux pane,
 presses Escape, answers its permission prompts, and sends its comments at the
@@ -38,21 +40,24 @@ The steps, in order:
   opens a turn that answers it;
 - `woken`: a comment sent during a shell command wakes the watch, and Escape ends
   that turn while the command still runs, before the turn reads the comment at its
-  next tool boundary. The watch after Escape wakes for that comment and a turn of
-  its own answers it; a comment sent afterwards is answered too;
+  next tool boundary. With the hooks module, the watch after Escape wakes for that
+  comment and a turn of its own answers it; a comment sent afterwards is answered
+  too;
 - `quit`: `/exit` ends the session, so its claim on the page is inactive and its
   watch has ended.
 
 Between steps every comment sent so far has exactly one reply and a pickup, the
 page's claim names the session with its turn closed, no Stop hook has continued a
 turn with input, so each turn ends on its own answer, and no delivery shows in the
-terminal. Escape closes the turn and a watch runs after each turn, an interrupted
-one included; Claude Code drops the prompt that watch wakes the stopped session
-with, so the page nudges it.
+terminal. With the hooks module, Escape closes the turn and a watch runs after each
+turn, an interrupted one included; Claude Code drops the prompt that watch wakes the
+stopped session with, so the page nudges it. Without it, what follows an Escape is
+reported rather than required: the watch from before goes on only if it has not
+woken, and otherwise admission's nudge carries the next comment.
 
 A step with comments also prints whether the page nudged the session, and a step
 with an Escape whether it left the turn open, a watch running, and what the page's
-status read. The session's
+status read. That is the reading that compares the two watchers. The session's
 screen at the end of each step and Claude Code's debug log join the run's evidence.
 It needs tmux, and spends a few model turns on the host's Claude Code login, so CI
 does not run it.
@@ -252,7 +257,7 @@ def runs(pid: int, command: str) -> bool:
     return False
 
 
-def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
+def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:
     """The steps after setup, as the module docstring lists them."""
     page, sent = place.page, []
 
@@ -316,14 +321,20 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         cc.escape(lambda: cc.idle() or closed(turn))
 
     def after_escape(name: str, turn: str) -> str:
-        """What an Escape that ended `turn` left. The watch after Escape may already
-        have woken a turn of its own, which opens only once `turn` has closed."""
-        cc.until(lambda: closed(turn), f"{name}: Escape left the turn open", 30)
+        """What an Escape that ended `turn` left: required with the hooks module,
+        reported without. The watch after Escape may already have woken a turn of
+        its own, which opens only once `turn` has closed."""
         cc.until(
-            lambda: watched() or page_claim(page)["turn"] != turn,
-            f"{name}: no watch after Escape",
+            lambda: closed(turn) or not module,
+            f"{name}: Escape left the turn open",
             30,
         )
+        if module:
+            cc.until(
+                lambda: watched() or page_claim(page)["turn"] != turn,
+                f"{name}: no watch after Escape",
+                30,
+            )
         return (
             f"after Escape: turn {'closed' if closed(turn) else 'open'}, "
             f"{'a' if watched() else 'no'} watch running, the page reads "
@@ -416,9 +427,10 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
     before = nudged()
     escape(turn)
     escaped = after_escape("woken", turn)
-    # The stopped turn never read the comment, so the watch after Escape wakes for
-    # it, and a turn of its own answers it.
-    cc.until(answered("woken"), "woken: the watch after Escape did not answer it")
+    if module:
+        # The stopped turn never read the comment, so the watch after Escape wakes
+        # for it, and a turn of its own answers it.
+        cc.until(answered("woken"), "woken: the watch after Escape did not answer it")
     user.comment("after-wake")
     cc.until(answered("woken", "after-wake"), "woken: the comments were not answered")
     step("woken", started, "woken", "after-wake", before=before, escaped=escaped)
@@ -445,7 +457,9 @@ def native_records(home: Path, session: str) -> list[dict]:
 
 
 @contextmanager
-def answering(browser, *, sandbox: bool) -> Iterator[tuple[User, Callable]]:
+def answering(
+    browser, *, hooks_module: bool, sandbox: bool
+) -> Iterator[tuple[User, Callable]]:
     """The user at the page an interactive Claude Code session serves, once it has,
     and the steps that follow."""
     require(shutil.which("tmux") is not None, "the claude-code journey drives tmux")
@@ -467,7 +481,11 @@ def answering(browser, *, sandbox: bool) -> Iterator[tuple[User, Callable]]:
 
     with isolated("claude-code", environment) as place:
         prepare(ROOT, place.state, place.page)
-        settings = {}
+        settings = {
+            "pluginConfigs": {
+                "leaf@inline": {"options": {"hooks_module": hooks_module}}
+            }
+        }
         if sandbox:
             # The README's settings ("Agent sandboxes"), which let Leaf's sandboxed
             # commands reach the bridge its hooks keep outside the sandbox.
@@ -516,7 +534,7 @@ def answering(browser, *, sandbox: bool) -> Iterator[tuple[User, Callable]]:
             )
             cc.keep("setup")
             with user_at(browser, place, cc, started) as user:
-                yield user, lambda: steps(cc, user, place)
+                yield user, lambda: steps(cc, user, place, hooks_module)
         finally:
             # A failed step's screen; once Claude Code exits there is none.
             cc.keep("end")

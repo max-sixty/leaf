@@ -130,8 +130,10 @@ adjusts it. `references/page-authoring.md`, "Composing a page", owns the choice
 of shape, `references/page-layout.md` each shape's geometry, and
 `references/authoring-decisions.md` where each decision goes.
 
-Include only controls and gestures that advance the user's task. Widget actions,
-resolutions and sign-offs can be undone; sent words stay in the log.
+Choose controls, gestures and options whose benefit to the user's task outweighs
+the attention and effort they require. Remove redundant actions before making
+them visually quieter. Widget actions, resolutions and sign-offs can be undone;
+sent words stay in the log.
 
 ## Keep the user current
 

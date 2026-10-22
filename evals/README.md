@@ -289,7 +289,7 @@ instruction diagnostic do not establish that rendered behavior.
 ## Isolation and models
 
 Every provider runs in a fresh workspace outside the repository, under a home of its
-own seeded only with a copy of the host's login, so runs spend the signed-in accounts'
+own using only the host's login, so runs spend the signed-in accounts'
 usage and never an API key. Authoring agents write scratch files in `/tmp` under
 names their task suggests, so on macOS a Claude Code child runs under a sandbox
 profile that refuses those writes outside its own directories (`private_tmp` in `dev/leaf_dev/arms.py`); its own

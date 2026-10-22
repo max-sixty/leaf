@@ -645,9 +645,10 @@ def ready_origin(log: Path, event: str, path: str) -> str | None:
 
 @contextmanager
 def local_adapter() -> Iterator[tuple[str, str]]:
-    """Build the site and serve it with the website adapter under a temporary copy of
-    the host's Codex login and a normal Leaf plugin installation, removed with the
-    adapter's pages and task history."""
+    """Build the site and serve it with the website adapter sharing the host's login.
+
+    Its isolated Codex home and normal Leaf plugin installation are removed with
+    the adapter's pages and task history."""
     out = run_directory(ROOT / ".tmp" / "verify-site")
     log = out / "website-adapter.log"
     with (

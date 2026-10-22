@@ -376,15 +376,14 @@ def install_codex_plugin(
 
 
 def codex_home(path: Path, config: str = "") -> Path:
-    """Make `path` a Codex home holding a copy of the host's login and `config` as its
+    """Make `path` a Codex home sharing the host's login and holding `config` as its
     `config.toml`, so a Codex child run with `CODEX_HOME=path` reads none of the
     host's settings, plugins, hooks or task history. Codex still reads the user's
-    `~/.agents/skills`, which `CODEX_HOME` does not move."""
+    `~/.agents/skills`, which `CODEX_HOME` does not move. Keep one credential file:
+    a child refreshing a copied login would leave the host's refresh token stale."""
     path.mkdir(mode=0o700)
     host = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
-    auth = path / "auth.json"
-    shutil.copyfile(host / "auth.json", auth)
-    auth.chmod(0o600)
+    (path / "auth.json").symlink_to((host / "auth.json").resolve())
     (path / "config.toml").write_text(config)
     return path
 

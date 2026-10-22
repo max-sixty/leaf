@@ -668,3 +668,69 @@ print(json.dumps(imported))
     )
     for loaded in json.loads(done.stdout):
         assert [module for module in heavy if module in loaded] == []
+
+
+@pytest.mark.parametrize(
+    ("native_session", "started"),
+    [("dispatched-chat", True), ("dispatched-chat", False), ("another-chat", True)],
+)
+def test_codex_startup_can_claim_its_first_page_without_a_prompt(
+    page_dir, tmp_path, monkeypatch, native_session, started
+):
+    """A dispatched desktop chat begins with tool input, not a user prompt.
+
+    Run its registered startup hooks with no prior lifecycle or claim. Only a
+    native transcript naming this chat can establish the first page's owner.
+    """
+    from leaf.hooks import cmd_hook
+    from leaf.refusals import Refused
+
+    sid = "dispatched-chat"
+    source = tmp_path / "native.jsonl"
+    opened = cleanup_model.now_iso()
+    source.write_text(
+        json.dumps({"type": "session_meta", "payload": {"id": native_session}})
+        + "\n"
+        + (
+            json.dumps(
+                {
+                    "type": "event_msg",
+                    "timestamp": opened,
+                    "payload": {"type": "task_started", "turn_id": "first-turn"},
+                }
+            )
+            + "\n"
+            if started
+            else ""
+        )
+    )
+    assert cleanup_model.session_record(sid) is None
+    for registration in _registrations("codex")["SessionStart"]:
+        if re.search(registration.get("matcher", ""), "startup"):
+            cmd_hook(
+                "codex",
+                {
+                    "hook_event_name": "SessionStart",
+                    "source": "startup",
+                    "session_id": sid,
+                    "transcript_path": str(source),
+                },
+            )
+    harness = harness_model.CodexHarness(sid, "Codex")
+    monkeypatch.setattr(harness_model.CodexHarness, "process_pid", lambda _: 123)
+    monkeypatch.setattr(
+        harness_model, "process_argv", lambda _: ["codex", "app-server"]
+    )
+    if native_session != sid:
+        assert cleanup_model.session_record(sid) is None
+        with pytest.raises(Refused, match="validated native transcript"):
+            harness.lifetime()
+        return
+    with service_model.PageTransaction(page_dir) as page:
+        page.take_claim(harness)
+    claim = service_model.page_claim(page_dir)
+    assert service_model.claim_is_active(claim)
+    assert claim["turn"] == ("first-turn" if started else None)
+    assert claim["turn_opened"] == (opened if started else None)
+    assert claim["turn_closed"] is None
+    assert cleanup_model.session_record(sid)["transcript_path"] == str(source)

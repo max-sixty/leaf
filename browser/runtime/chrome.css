@@ -166,6 +166,82 @@
     align-self: stretch;
     align-items: flex-end;
   }
+  .lf-fp-search-surface {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    min-width: 0;
+    min-height: var(--lf-fp-line);
+  }
+  .lf-fp-field:has(> .lf-fp-search-surface:not([hidden])) {
+    border-radius: var(--r);
+    background: color-mix(in srgb, var(--accent) 6%, transparent);
+  }
+  .lf-fp-field:has(> .lf-fp-search-surface:not([hidden])):focus-within {
+    outline: var(--focus-ring);
+    outline-offset: 0;
+    --lf-wears-ring: 1;
+  }
+  .lf-fp-search-surface > :is(wa-input, input) {
+    flex: 1;
+    min-width: 0;
+  }
+  .lf-fp-search-surface wa-input::part(base) {
+    padding: 0;
+    border: 0;
+    outline: none;
+    box-shadow: none;
+    background: none;
+    min-height: var(--lf-fp-line);
+  }
+  .lf-fp-search-surface wa-input::part(input),
+  .lf-fp-search {
+    border: 0;
+    background: none;
+    padding: 5px 6px;
+    font: 14px / 22px var(--sans);
+    color: var(--ink);
+  }
+  .lf-fp-search::placeholder {
+    color: var(--lf-fp-muted);
+  }
+  .lf-fp-search:focus-visible {
+    outline: none;
+  }
+  .lf-fp-mode {
+    display: inline-flex;
+    flex: none;
+    align-self: center;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 4px;
+    margin-inline-end: 2px;
+    border-radius: var(--r);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    color: var(--ink);
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  .lf-fp-mode-icon {
+    display: none;
+    width: 12px;
+    height: 12px;
+  }
+  @media (max-width: 420px) {
+    .lf-fp-mode-word {
+      display: none;
+    }
+    .lf-fp-mode-icon {
+      display: block;
+    }
+  }
+  .lf-fp-actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    min-height: var(--lf-fp-line);
+    gap: 0;
+  }
   .lf-fp-expand {
     flex: none;
     display: none;
@@ -189,6 +265,7 @@
   .lf-floating-panel[data-expanded] .lf-fp-field .lf-compose-field > leaf-text {
     max-height: 75dvh;
   }
+  .lf-fp-editors,
   .lf-fp-box,
   .lf-fp-reply,
   .lf-fp-reply > .lf-primary-part,
@@ -228,14 +305,18 @@
     min-width: 0;
     align-self: center;
   }
-  .lf-floating-panel:not([data-open], [data-offers]) .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open]) > .lf-fp-field {
+  .lf-floating-panel:not([data-open], [data-offers], [data-search]) .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open]) > .lf-fp-field {
     display: none;
   }
-  .lf-floating-panel:not([data-open], [data-offers]) .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open]) > .lf-fp-response {
+  .lf-floating-panel:not([data-open], [data-offers], [data-search]) .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open]) > .lf-fp-response {
     display: block;
   }
   .lf-fp-resolved {
     flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
     margin: 0;
     padding: calc((var(--lf-fp-line) - 22px) / 2) 6px;
     color: var(--lf-fp-quiet);
@@ -347,7 +428,7 @@
   .lf-floating-panel:is([data-writing], [data-drafted]) .lf-fp-field .lf-compose-submit {
     display: grid;
   }
-  .lf-floating-panel[data-drafted] .lf-fp-quick {
+  .lf-floating-panel:is([data-drafted], [data-search]) .lf-fp-quick {
     display: none;
   }
   .lf-fp-field .lf-compose-dictate {
@@ -455,22 +536,6 @@
   .lf-fp-exit-seat[hidden] {
     display: none;
   }
-  .lf-fp-context {
-    box-sizing: content-box;
-    display: flex;
-    gap: 8px;
-    height: 1lh;
-    padding: 8px 10px 0 14px;
-    color: var(--ink);
-    font-size: 12px;
-  }
-  .lf-fp-context-words {
-    flex: 1;
-    min-width: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
   .lf-floating-panel[data-rest=mark] {
     width: var(--lf-fp-folded);
     left: auto;
@@ -480,7 +545,6 @@
     .lf-fp-row-notice,
     .lf-fp-quick,
     .lf-fp-exit-seat,
-    .lf-fp-context,
     .lf-fp-opened {
       display: none;
     }
@@ -703,20 +767,6 @@
   .lf-fp-next-unread .lf-action-icon {
     width: 14px;
     height: 14px;
-  }
-  .lf-fp-search {
-    flex: 1;
-    min-width: 0;
-    border: 0;
-    background: none;
-    padding: 0;
-    font: 13px / 26px var(--sans);
-  }
-  .lf-fp-search::placeholder {
-    color: var(--lf-fp-muted);
-  }
-  .lf-fp-search:focus-visible {
-    outline: none;
   }
   .lf-fp-stage {
     position: relative;
@@ -2233,22 +2283,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     background: color-mix(in srgb, var(--accent) 17%, transparent);
     box-shadow: inset 0 -2px color-mix(in srgb, var(--accent) 72%, transparent);
   }
-  .lf-page-search {
-    position: fixed;
-    z-index: var(--lf-z-page-search);
-    pointer-events: auto;
-    position-anchor: --lf-fp-panel;
-    bottom: calc(anchor(top) + 12px);
-    left: 50%;
-    transform: translateX(-50%);
-    width: min(390px, calc(100vw - 28px));
-    box-sizing: border-box;
-    border-radius: var(--r);
-    box-shadow: var(--raise-2);
-  }
   .lf-page-search-status {
-    min-width: min-content;
-    margin-inline-start: 6px;
+    inline-size: 5ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
     min-height: 1lh;
     color: var(--muted);
     font-size: var(--t-6);
@@ -2256,22 +2294,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     text-align: right;
     white-space: nowrap;
   }
-  .lf-page-search-box::part(input) {
-    flex: 1 1 4em;
-  }
-  .lf-page-search-status > span {
-    min-inline-size: max(100%, max-content);
-  }
-  .lf-page-search-box::part(end) {
-    flex-shrink: 1;
-    min-inline-size: 0;
-  }
   .lf-page-search-step {
     flex: none;
-    margin-inline-start: 0;
-  }
-  .lf-page-search-status + .lf-page-search-step {
-    margin-inline-start: 4px;
   }
   .lf-legend-box {
     position: absolute;

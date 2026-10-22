@@ -5,7 +5,7 @@ import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATIONS_PAGE, panel_comment
-from render_cases_layout import ring_faults, ring_rule, rings_drawn
+from render_cases_layout import SHOT_SRC, SHOTS, ring_faults, ring_rule, rings_drawn
 from render_cases_navigation import (
     ADDRESSED_PAGE,
     BINDING_BADGE_PAGE,
@@ -629,6 +629,69 @@ def test_radio_and_slider_keys_stay_with_the_control_inside_a_modal(browser, ser
     expect(host).not_to_have_attribute("data-fired")
 
 
+@pytest.mark.parametrize("shadow", [False, True])
+def test_shared_image_viewer_survives_its_source_popover_removal(
+    browser, serve, shadow
+):
+    """A shared chrome dialog keeps its style and returns home when its seat leaves."""
+    page = open_page(
+        browser,
+        serve(NOTED_PAGE, media={SHOT_SRC[key]: data for key, data in SHOTS.items()}),
+    )
+    # Native layer lifetime must not depend on the optional image renderer's cleanup.
+    held = []
+    page.route("**/vendor/photoswipe.esm.js", lambda route: held.append(route))
+    page.evaluate(
+        """async ({shadow, image}) => {
+          const {shadowStage} = await window.__lfWidgetApi();
+          const host = document.createElement('section');
+          host.id = 'image-options-owner';
+          const opener = document.createElement('button');
+          opener.textContent = 'Image options';
+          const popover = document.createElement('div');
+          popover.id = 'image-options';
+          popover.popover = 'auto';
+          const original = document.createElement('a');
+          original.className = 'lf-media-open';
+          original.href = image;
+          original.dataset.lfMediaUrl = image;
+          original.textContent = 'Open original';
+          const another = original.cloneNode(true);
+          another.textContent = 'Open another image';
+          popover.append(original);
+          opener.popoverTargetElement = popover;
+          document.querySelector('main').append(host, another);
+          if (shadow) shadowStage(host, [opener, popover]);
+          else host.append(opener, popover);
+        }""",
+        {"shadow": shadow, "image": SHOT_SRC["before"]},
+    )
+    page.get_by_role("button", name="Image options", exact=True).click()
+    original = page.get_by_role("link", name="Open original", exact=True)
+    original.click()
+    viewer = page.get_by_role("dialog", name="Image preview", exact=True)
+    expect(viewer).to_be_visible()
+    expect(page.locator("#image-options")).to_be_visible()
+    assert viewer.evaluate("node => getComputedStyle(node).display") == "grid"
+    assert viewer.bounding_box()["width"] == page.viewport_size["width"]
+    page.keyboard.press("Escape")
+    expect(viewer).to_be_hidden()
+    expect(original).to_be_focused()
+    original.click()
+    expect(viewer).to_be_visible()
+    retained = viewer.element_handle()
+    page.locator("#image-options-owner").evaluate("node => node.remove()")
+    page.wait_for_function("node => node.isConnected && !node.open", arg=retained)
+    page.get_by_role("link", name="Open another image", exact=True).click()
+    expect(viewer).to_be_visible()
+    assert viewer.evaluate("(node, previous) => node === previous", retained)
+    page.keyboard.press("Escape")
+    expect(page.get_by_role("link", name="Open another image")).to_be_focused()
+    for route in held:
+        route.continue_()
+    page.unroute("**/vendor/photoswipe.esm.js")
+
+
 def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     """Native layer ownership blocks ancestors and survives nesting and light dismiss."""
     url = serve(NOTED_PAGE)
@@ -636,7 +699,7 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     page = open_page(browser, url)
     page.evaluate(
         """async () => {
-          const { commands } = await window.__lfWidgetApi();
+          const { commands, showNativeLayer } = await window.__lfWidgetApi();
           const { shadowStage } = await window.__lfWidgetApi();
           const host = document.createElement('section');
           host.id = 'around-native-layer';
@@ -649,6 +712,14 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
           popover.id = 'shadow-popover';
           popover.popover = 'auto';
           popover.textContent = 'Nested popover';
+          const shared = document.createElement('dialog');
+          shared.id = 'shared-modal';
+          shared.textContent = 'A shared inspection surface';
+          document.body.append(shared);
+          const inspect = document.createElement('button');
+          inspect.textContent = 'Inspect from popover';
+          inspect.onclick = () => showNativeLayer(shared, {source: inspect});
+          popover.append(inspect);
           trigger.popoverTargetElement = popover;
           shadowStage(shadowHost, [trigger, popover]);
           dialog.append(shadowHost);
@@ -676,6 +747,22 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     expect(modal).to_be_visible()
     expect(popover).to_be_visible()
 
+    # A shared modal joins its source popover across the shadow boundary for one
+    # opening, so closing it leaves the source controls and outer modal in hand.
+    inspect = popover.get_by_role("button", name="Inspect from popover")
+    inspect.click()
+    shared = page.locator("#shared-modal")
+    expect(shared).to_be_visible()
+    expect(popover).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(shared).to_be_hidden()
+    expect(popover).to_be_visible()
+    expect(modal).to_be_visible()
+    expect(inspect).to_be_focused()
+    page.wait_for_function(
+        "node => node.parentElement === document.body", arg=shared.element_handle()
+    )
+
     # The global reference applies the same native modal rule across a shadow boundary:
     # the contextual auto popover closes and is not reconstructed afterwards.
     page.keyboard.press("?")
@@ -688,7 +775,9 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
 
     # Reopened over the same modal, so the stack order below is read on the scene that
     # rule describes rather than on what the reference left behind.
-    page.locator("#nested-modal button").click()
+    page.locator("#nested-modal").get_by_role(
+        "button", name="Open nested popover"
+    ).click()
     expect(popover).to_be_visible()
 
     # The popover is nonmodal, but the modal below it remains a hard floor. A page

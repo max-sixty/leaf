@@ -74,7 +74,10 @@ When an upgrade fails, or one part of it, `failSoft(element, error, source)` rep
 the widget or part with an error box naming it, shows `source` beneath when given, and
 reports a page error, which fails `page check`. The next `render` into the same
 container, or the next `shadowStage` call, replaces the box; a `LeafElement` shows the
-box beside what it drew, and its next draw takes it away. Where the widget shows a
+box beside what it drew, and its next draw takes it away. A native renderer that
+retains its nodes can register `placesFailure(element, place)` to place the box
+beside them: `place(box)` returns true when it handles the box, and the renderer
+removes it when the failed content recovers. Where the widget shows a
 failed part its own way and the rest keeps working, as `lf-diff` does for a file whose
 patch it cannot draw, call `reportFailure(element, error)`, which only reports.
 

@@ -77,6 +77,8 @@ const exactClosures = {
     "keeps.js",
     "keyboard/bindings.js",
     "keyboard/layer-stack.js",
+    // Modal seating carries the existing chrome sheet into a source shadow root.
+    "stylesheets.js",
     "keyboard/register.js",
     "keyboard/scopes.js",
     "keyboard/text-entry.js",

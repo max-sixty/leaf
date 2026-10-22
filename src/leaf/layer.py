@@ -759,7 +759,7 @@ def provenance_label(provenance: dict) -> str:
 def compose_layer(roots: list[Path]) -> LayerComposition:
     """Read and validate the complete layer produced by checked inputs."""
     from .revision_artifact import (
-        dependency_path,
+        dependency_reference,
         javascript_imports,
     )
     from .validation.composition import incoming_registry
@@ -790,8 +790,8 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
                     continue
                 path = "/" + module.relative_to(root).as_posix()
                 for _, _, specifier in javascript_imports(module.read_bytes(), path):
-                    dependency = dependency_path(specifier, path, module=True)
-                    if dependency in private_modules:
+                    dependency = dependency_reference(specifier, path, module=True)
+                    if dependency is not None and dependency[0] in private_modules:
                         raise Refused(
                             f"{module} imports private kernel module {specifier!r}; "
                             "use /runtime/widget-api.js"

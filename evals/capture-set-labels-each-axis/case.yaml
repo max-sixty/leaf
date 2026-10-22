@@ -29,7 +29,7 @@ vars:
     - .tmp/news-shift/nd-before.png: no draft, just before
     - .tmp/news-shift/nd-after.png: no draft, just after
 
-    You first showed the drafting pair in an `lf-shot` with `outlines`. A reviewer
+    You first showed the drafting pair in an `lf-shot` in Slider view. A reviewer
     reported that at the default divider the before card's right edge sat behind the
     divider, so before-left and after-right read as one card and the move was hidden.
     ffmpeg is available if you want to prepare images.

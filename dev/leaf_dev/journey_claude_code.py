@@ -49,6 +49,10 @@ The steps, in order:
   boundary whose other hook sleeps, and Escape then ends that turn. No watch runs
   after a turn a wake opened, so the page's server nudges the session, and a turn
   answers both comments;
+- `deferred`: the user's own turn, told to leave Leaf's comments for later, is
+  handed a comment at a tool boundary and ends on its answer, with no Stop hook
+  continuing it over the comment. The watch wakes a turn of its own that names
+  the owed answer, and that turn answers it;
 - `quit`: `/exit` ends the session, so its claim on the page is inactive and its
   watch has ended.
 
@@ -84,7 +88,7 @@ import psutil
 from leaf.delivery import DELIVERY, pickup_receipts
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
-from leaf.hook_transport import INLINE_OPENING, POINTED_OPENING
+from leaf.hook_transport import ATTENTION_OPENING, INLINE_OPENING, POINTED_OPENING
 from leaf.leases import wait_is_live
 from leaf.server import running_server
 from leaf.service import claim_is_active, page_claim
@@ -109,6 +113,13 @@ from leaf_dev.review_scenario import (
     prepare,
     require,
     settled,
+)
+
+# The user's own turn, which leaves a comment handed to it unanswered.
+DEFERRING_TURN = USER_TURN.replace(
+    "Then reply with the single word done.",
+    "Leave any Leaf comment unanswered in this turn, then reply with the single "
+    "word done.",
 )
 
 
@@ -201,12 +212,12 @@ class ClaudeCode(Terminal):
         """Whether Claude Code's own record says no turn runs."""
         return self.state() == "idle"
 
-    def work(self) -> None:
-        """Type the user's own turn and wait for its shell command. Escape ends a
+    def work(self, turn: str = USER_TURN) -> None:
+        """Type the user's own `turn` and wait for its shell command. Escape ends a
         turn but not the command it ran, so an earlier one must be gone first or it
         would read as this one's."""
         self.until(lambda: not self.sleeping(), "an earlier turn's command still runs")
-        self.say(USER_TURN)
+        self.say(turn)
         self.until(self.sleeping, "the user's turn did not start its command")
 
     def sleeping(self) -> bool:
@@ -531,6 +542,25 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
     step("boundary", started, "first-wake", "boundary")
 
     started = time.monotonic()
+    cc.work(DEFERRING_TURN)
+    user.comment("deferred")
+    cc.until(
+        answered("deferred"), "deferred: the comment the turn left was not answered"
+    )
+    require(
+        not any(
+            (attachment := record.get("attachment", {})).get("hookEvent") == "Stop"
+            and any(
+                "with no answer" in content
+                for content in attachment.get("content") or []
+            )
+            for record in native_records(cc.home, cc.session)
+        ),
+        "deferred: a Stop hook continued the user's turn over the owed comment",
+    )
+    step("deferred", started, "deferred")
+
+    started = time.monotonic()
     cc.say("/exit")
     cc.until(cc.exited.exists, "quit: Claude Code did not exit", 60)
     require(
@@ -550,9 +580,9 @@ def leaf_rows(records: list[dict]) -> dict[str, int]:
     native `records`: a wake (`hooks.json`'s background Stop hook, a task
     notification whose summary the registration names), a nudge through session
     messaging, a notice the hooks module logged, and a hook's error. A wake or
-    nudge no hook delivery follows before the next one, or the user's next prompt,
-    also counts as `empty`: a turn opened for input another turn had already
-    taken. A row counts whether or not the hooks module draws it."""
+    nudge no hook delivery or reminder follows before the next one, or the user's
+    next prompt, also counts as `empty`: a turn opened for input another turn had
+    already taken. A row counts whether or not the hooks module draws it."""
     rows: dict[str, int] = {}
     opened = False
 
@@ -602,6 +632,7 @@ def leaf_rows(records: list[dict]) -> dict[str, int]:
             count("hook error")
         elif attachment.get("type") == "hook_additional_context" and any(
             str(part).startswith((INLINE_OPENING, POINTED_OPENING))
+            or ATTENTION_OPENING in str(part)
             for part in attachment.get("content") or []
         ):
             opened = False

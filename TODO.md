@@ -381,20 +381,6 @@ on 2026-10-07.
 
 ### The agent's text interface
 
-- **Decide whether an owed answer may continue a turn whose answer is written.**
-  Where a watch or Codex's App Server adapter follows the turn, Stop no longer hands
-  new input into it (`hook_transport`), but it still continues the turn once for an update
-  picked up and unanswered, and for a page it could not re-vendor. The agent then writes one
-  more message, which Claude Code's focus view shows in place of the turn's answer:
-  9 of the 65 Leaf continuations in Max's sessions of 2026-10-10 to 10-19 were these,
-  as when a report on "check leaf, do #18" gave way to "I've answered the last item
-  the hook flagged", and one page vendored by a newer Leaf than the session's
-  repeated its finding at every turn. Waking a turn of its own for the reminder
-  keeps the answer, but needs a record that it reminded, or an agent that won't act
-  is woken without end; dropping the reminder leaves the next prompt's one. Waits on
-  how Leaf's Claude Code hooks module rolls out (#3512 made its watch opt-in), since
-  a module watching the turn can wake one of its own.
-
 - **Decide the Leaf-owned defects the bad-pages eval left open.**
   [Bad pages and the checks](notes/agent-usability-evals.md#bad-pages-and-the-checks-2026-10-20)
   lists three that follow from recorded choices: an open thread card covers the text

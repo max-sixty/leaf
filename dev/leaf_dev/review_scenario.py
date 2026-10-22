@@ -38,6 +38,7 @@ COMMENTS = {
     "woken": ("triage-lede", "Which item would you cut if we had to ship today?"),
     "after-wake": ("triage-why", "And which one would you keep at any cost?"),
     "dropped": ("triage-why", "Does the export bug block the release too?"),
+    "deferred": ("triage-lede", "Could the export fix ship in a patch release?"),
     "first-wake": ("triage-lede", "Which card should I read first?"),
     "boundary": ("triage-why", "Is the timezone bug a regression?"),
     "first": ("triage-lede", "Who owns the migration fix?"),

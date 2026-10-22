@@ -5,6 +5,7 @@ from ..events import (
     awaits_agent,
     bare_reaction,
     is_answer,
+    progress_completions,
     seat_root,
     turn_message,
     unanswered_agent_turn,
@@ -166,6 +167,13 @@ def browser_thread(
                     "pending": live_reply["state"] == "active",
                 },
             ]
+    # Presentation keeps the raw messages so a surface can retain progress while its
+    # answer is held. The same relation includes an answer already streaming here.
+    for thread in rendered_threads:
+        completed = progress_completions(thread)
+        for message in thread["msgs"]:
+            if reply := completed.get(message["id"]):
+                message["completed_by"] = reply["id"]
     return (
         {
             "projection": browser_projection(

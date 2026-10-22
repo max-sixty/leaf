@@ -257,6 +257,7 @@ import {
 import {
   For,
   Show,
+  agentName,
   applicationRegionsPresented,
   applicationState,
   attachApplicationPresentation,
@@ -1655,6 +1656,7 @@ export {
   addressableWord,
   afterPresentation,
   afterScript,
+  agentName,
   ago,
   alignText,
   allButCommandReference,

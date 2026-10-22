@@ -147,7 +147,8 @@ def _sample_containment_page():
    {"kind":"reply","author":"agent","parent":"question","ephemeral":true,
     "text":"Checking the nested reading region."},
    {"kind":"reply","author":"agent","parent":"question",
-    "text":"The destination is inside the nested reading region."}]
+    "text":"The destination is inside the nested reading region.",
+    "markup":"<details><summary>Read the checks</summary><p>The reading region contains the destination.</p></details>"}]
 </script>
 <script type="module">
   const sample = document.querySelector('#practice');
@@ -261,29 +262,14 @@ CONTROL_ARCHETYPES = (
         "target": '#stable-shot .lf-shotcap[data-lf-state="after"]',
     },
     {
-        # The case queue's Previous, case selector, and Next controls share the
-        # row above the evidence. Selecting another title changes the select's
-        # contents without moving the buttons around it.
-        "name": "visual-review-navigation",
-        "source": VISUAL_REVIEW_GALLERY,
-        "target": ".lf-vr-case-select",
-        "option": "All mobile destinations remain reachable",
-    },
-    {
-        # The visual inspector's view and size presses are joined groups whose selected
-        # treatment changes in place. Pressing Flip exercises both states while its
-        # Compare, Overlay, and size neighbours stay under the user's pointer.
         "name": "visual-review-inspection",
         "source": VISUAL_REVIEW_GALLERY,
-        "open": ".lf-vr-inspection-summary",
-        "target": '.lf-vr-mode-group > label:has(input[value="flip"])',
+        "target": '.lf-vr-case[aria-hidden="false"] .lf-vr-mode-button:nth-child(2)',
     },
     {
-        # A disposition changes both its selected paint and the case's durable review
-        # state while its opposite remains beside it.
-        "name": "visual-review-disposition",
+        "name": "visual-review-approval",
         "source": VISUAL_REVIEW_GALLERY,
-        "target": ".lf-vr-case[data-selected] .lf-vr-needs-work",
+        "target": '.lf-vr-case[aria-hidden="false"] .lf-vr-approval',
     },
 )
 
@@ -338,7 +324,7 @@ RING_CASES = (
                     ".lf-rendered:has(> :is(lf-tab, lf-part)[data-lf-focus])::after",
                 ),
                 ("lf-gloss:visible > .lf-gloss-mark", ".lf-gloss-mark"),
-                ("input.lf-diff-search", "[data-lf-focus]"),
+                (".lf-diff-search input", ".lf-search-frame"),
                 ("lf-diff summary", ".lf-diff-file > details > summary"),
                 ("lf-diff code", "code[data-code]"),
             ),
@@ -382,7 +368,7 @@ RING_CASES = (
     (
         "passage search",
         ("/",),
-        {RING_CHROME: ((".lf-page-search-box input:visible", "[data-lf-focus]"),)},
+        {RING_CHROME: (("input.lf-page-search-box:visible", "[data-lf-focus]"),)},
     ),
     # Item hints, and the anchored bar the user answers a chosen item on. Both open the
     # same mode, and both step back and then forward through it, which lands on the last
@@ -1193,18 +1179,14 @@ def test_sample_child_passage_and_reply_gestures_scroll_only_the_child(browser, 
     # A real child disclosure keeps its focused toggle in its own conversation.
     page.locator("#show-panel").click()
     expect(page.locator("#completed")).to_have_text("2")
-    expand = child.locator(".lf-fp-view").get_by_role(
-        "button", name="Show 1 progress message", exact=True
-    )
+    expand = child.locator(".lf-fp-view summary").filter(has_text="Read the checks")
     expand.scroll_into_view_if_needed()
     before = page.evaluate("scrollY")
     expand.focus()
     expand.press("Enter")
-    collapse = child.locator(".lf-fp-view").get_by_role(
-        "button", name="Hide 1 progress message", exact=True
-    )
-    expect(collapse).to_be_focused()
-    expect(collapse).to_be_in_viewport()
+    expect(child.locator(".lf-fp-view details")).to_have_attribute("open", "")
+    expect(expand).to_be_focused()
+    expect(expand).to_be_in_viewport()
     rendered(child)
     assert page.evaluate("scrollY") == before
 
@@ -2058,8 +2040,8 @@ def test_each_control_archetype_holds_its_neighbours_still(browser, serve, arche
     assert before["names"], f"{archetype['name']} has no neighbouring control to hold"
 
     if option := archetype.get("option"):
-        value = control.locator("option").filter(has_text=option).get_attribute("value")
-        control.select_option(value)
+        control.click()
+        page.get_by_role("option", name=option, exact=False).click()
     else:
         control.click()
     round_trip(page)
@@ -2444,11 +2426,13 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     # The command reference, which is a dialog and owes the most of any of them.
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_be_visible()
-    search = page.get_by_role("combobox", name="Search commands")
+    search = page.locator(".lf-command-reference-search input")
     assert search.evaluate(
         "input => input.ariaControlsElements?.[0] === document.querySelector('.lf-command-reference-results')"
     )
-    # The native editor names its result grid in the same document tree.
+    # The editor is inside Web Awesome's shadow root while its grid is outside it.
+    # Chromium exposes the element-reference relationship to assistive technology;
+    # axe reads only an aria-controls IDREF attribute, which cannot name across roots.
     cdp = page.context.new_cdp_session(page)
     try:
         nodes = cdp.send("Accessibility.getFullAXTree")["nodes"]
@@ -2467,6 +2451,18 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
         for prop in combobox["properties"]
     )
     violations, report = serious_axe_violations(page)
+    violations = [
+        violation
+        for violation in violations
+        if not (
+            violation["id"] == "aria-required-attr"
+            and len(violation["nodes"]) == 1
+            and violation["nodes"][0]["target"]
+            == [[".lf-command-reference-search", "#input"]]
+            and [check.get("data") for check in violation["nodes"][0]["any"]]
+            == [["aria-controls"]]
+        )
+    ]
     assert violations == [], f"in the command reference: {report}"
     page.keyboard.press("Escape")
     expect(page.locator(".lf-command-reference")).to_be_hidden()

@@ -1,5 +1,7 @@
 // vendor/browser-runtime.js
 import {
+  getObserver,
+  runWithOwner as runWithOwner4,
   createSignal as createSignal4,
   createMemo as createMemo2,
   createRoot as createRoot2,
@@ -125,41 +127,9 @@ import {
   createMemo,
   createSignal as createSignal2,
   flush as flush3,
-  getObserver,
   runWithOwner as runWithOwner3,
   untrack
 } from "/vendor/solid.js";
-function outsideReading(read, heard) {
-  let stop;
-  let seen;
-  const [revision, setRevision] = createSignal2(0, {
-    ownedWrite: true,
-    unobserved() {
-      stop?.();
-      stop = void 0;
-    }
-  });
-  const sample = () => untrack(read);
-  const current = () => {
-    revision();
-    if (getObserver() && !stop) {
-      seen = sample();
-      stop = untrack(
-        () => heard(() => {
-          const next = sample();
-          if (Object.is(seen, next)) return;
-          seen = next;
-          flush3(() => setRevision((value) => value + 1));
-        })
-      );
-    }
-    return sample();
-  };
-  return Object.freeze({
-    read: current,
-    subscribe: (listener) => subscribe(current, (value) => untrack(() => listener(value)))
-  });
-}
 var secured = /* @__PURE__ */ new WeakSet();
 function immutable(value) {
   if (value !== null && typeof value === "object" && !secured.has(value)) {
@@ -494,8 +464,10 @@ function foldWidgetStates(authoredSnapshots, projection) {
           ids.sort(byRank(position.ranks));
   return states;
 }
-function obligationValue(widget, verb, answered) {
-  const state = widget.state[verb];
+function obligationValue(widget, verb, answered, unit) {
+  const complete = widget.state[verb];
+  const state = unit !== void 0 && complete && "units" in complete ? complete.units[unit] : complete;
+  if (unit !== void 0 && !state) return { value: null, present: false };
   const spec = widget.specs.get(verb);
   if (!state || !spec)
     throw new Error(`Missing obligation value definition for ${verb}`);
@@ -969,16 +941,17 @@ function normalizedObligations(view, widgets, document2, projection, local) {
     }
     if (item.source.kind !== "widget") return item;
     const sourceId = item.source.id;
+    const sourceUnit = item.source.unit;
     const widget = widgets.get(sourceId);
     const declaration = document2.descriptors.get(item.source.id)?.declaration["x-awaits"];
     const verb = declaration?.value;
     if (!verb || !widget) return item;
     const completed = item.status === "answered" && !(item.answer?.event && projection.pendingWithdrawals.has(item.answer.event.id));
-    const { value, present } = obligationValue(widget, verb, completed);
+    const { value, present } = obligationValue(widget, verb, completed, sourceUnit);
     const pendingValue = widget.entries.some(
-      ({ e }) => e.action === verb && !Number.isInteger(e.seq)
+      ({ e, unit }) => e.action === verb && (sourceUnit === void 0 || unit === sourceUnit) && !Number.isInteger(e.seq)
     ) || [...projection.pendingWithdrawals.values()].some(
-      ({ e }) => e.widget === sourceId && (e.action === verb || e.id === item.answer?.event?.id)
+      ({ e, unit }) => e.widget === sourceId && (sourceUnit === void 0 || unit === sourceUnit) && (e.action === verb || e.id === item.answer?.event?.id)
     );
     const answer = present ? { value, event: pendingValue ? null : item.answer?.event ?? null } : null;
     return { ...item, answer };
@@ -1654,7 +1627,7 @@ function createSemanticApplication({
     },
     markRead(items) {
       return publish({
-        markingRead: [...publisher.peek().markingRead, ...structuredClone(items)]
+        markingRead: [...publisher.peek().markingRead, ...items]
       });
     },
     settleMarkRead(items) {
@@ -1668,13 +1641,7 @@ function createSemanticApplication({
     captureDocument(document2) {
       if (publisher.peek().authoritative)
         throw new Error("an admitted document changes only through adopt");
-      return publish({
-        document: {
-          ...structuredClone(document2),
-          authored: new Map(structuredClone(document2.authored)),
-          descriptors: new Map(structuredClone(document2.descriptors))
-        }
-      });
+      return publish({ document: document2 });
     },
     setPhase(phase) {
       return publish({ phase });
@@ -1688,7 +1655,7 @@ function createSemanticApplication({
       const prior = publisher.peek();
       const values = { ...prior.outputs[widget] };
       if (reading === null) delete values[output];
-      else values[output] = structuredClone(reading);
+      else values[output] = reading;
       const outputs = { ...prior.outputs };
       if (Object.keys(values).length) outputs[widget] = values;
       else delete outputs[widget];
@@ -1702,7 +1669,7 @@ function createSemanticApplication({
       if (taken < dataTaken) return false;
       dataTaken = taken;
       if (data.version === publisher.peek().data.version) return false;
-      publish({ data: structuredClone(data) });
+      publish({ data });
       return true;
     },
     // Whether this answer could be adopted with `revision` showing, asked without
@@ -1727,7 +1694,7 @@ function createSemanticApplication({
     adopt(state, document2 = null) {
       const prior = publisher.peek();
       if (!adoptable(state, document2)) return false;
-      const authoritative = structuredClone(state);
+      const authoritative = state;
       const { unresolved, left } = transition(
         "log",
         byAttempt(authoritative.browser.receipts)
@@ -1739,20 +1706,8 @@ function createSemanticApplication({
       for (const attempt of drawn)
         if (!unresolved.some((item) => item.event.attempt === attempt))
           drawn.delete(attempt);
-      const capture = (value, previous) => value === previous ? value : structuredClone(value);
       publish({
-        document: document2 ? {
-          ...document2,
-          registry: capture(document2.registry, prior.document.registry),
-          authored: capture(document2.authored, prior.document.authored),
-          descriptors: capture(document2.descriptors, prior.document.descriptors),
-          ...document2.messageBodies ? {
-            messageBodies: capture(
-              document2.messageBodies,
-              prior.document.messageBodies
-            )
-          } : {}
-        } : prior.document,
+        document: document2 ?? prior.document,
         authoritative,
         unresolved,
         settled,
@@ -1789,9 +1744,7 @@ function createSemanticApplication({
           ...event,
           id: localId,
           meaning: {
-            state: structuredClone(
-              before.document.registry.$states[widget.tag]?.[event.action]?.definition
-            )
+            state: before.document.registry.$states[widget.tag]?.[event.action]?.definition
           }
         },
         value: spec.record ? foldedValue(event, spec.record) : event.action
@@ -2525,23 +2478,13 @@ var applicationPresenter = ({
   };
   return Object.freeze({ present, disconnect });
 };
-var documentChanges = 0;
-var documentListeners = /* @__PURE__ */ new Set();
-var documentReading = outsideReading(
-  () => documentChanges,
-  (moved2) => {
-    documentListeners.add(moved2);
-    return () => documentListeners.delete(moved2);
-  }
-);
-var documentChanged = () => documentReading.read();
-var presentDocument = () => {
-  documentChanges += 1;
+var [documentChanges, setDocumentChanges] = createSignal4(0, { ownedWrite: true });
+var documentChanged = documentChanges;
+var presentDocument = () => flush5(() => {
+  setDocumentChanges((value) => value + 1);
   for (const present of documentPresenters) void present();
-  const round = {};
-  for (const moved2 of [...documentListeners]) moved2(round);
   return schedule.passed();
-};
+});
 var whenDocumentPresented = () => schedule.passed();
 var currentEpoch = () => untrack(() => readApplication().semanticEpoch);
 var currentApplicationPresentation = () => ({
@@ -2725,7 +2668,6 @@ export {
   resetViewsWithin,
   createView,
   untrack,
-  outsideReading,
   share,
   stateCoordinate,
   projectionOrigins,
@@ -2761,6 +2703,8 @@ export {
   itemOutcome,
   describeFailure,
   createPresentationSchedule,
+  getObserver,
+  runWithOwner4 as runWithOwner,
   createSignal4 as createSignal,
   createMemo2 as createMemo,
   createRoot2 as createRoot,

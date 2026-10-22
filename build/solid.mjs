@@ -4,9 +4,17 @@
  * reactive reading participate in the same ownership and scheduling system.
  */
 import { parse } from "acorn";
+import { build } from "./esbuild.mjs";
 import { adapt, seam } from "./vendor.mjs";
 
 export const solidPath = "vendor/solid.js";
+export const initialSolidPath = "vendor/solid-initial.js";
+export const sharedSolidPath = "vendor/solid-shared.js";
+const solidGlobal = "document.documentElement.lfInitial.solid";
+const signalExports =
+  "createSignal, createMemo, createRoot, createReaction, getObserver, runWithOwner, createEffect, createTrackedEffect, createProjection, flush, untrack, For, Show, onCleanup";
+const webExports = "render, insert, spread";
+const solidExports = `${signalExports}, ${webExports}, html`;
 
 /** Keep native focus, editing and iframe state when Solid reorders retained nodes. */
 function preserveSolidMoves(source) {
@@ -264,6 +272,10 @@ const solidNamespace = () =>
     'export { createSignal, createMemo, createRoot, createReaction, getObserver, runWithOwner, createEffect, createTrackedEffect, createProjection, flush, untrack, For, Show, onCleanup } from "solid-js";',
     'export { render, insert, spread } from "@solidjs/web";',
     'export { default, default as html } from "@solidjs/html";',
+    `import { ${signalExports} } from "solid-js";`,
+    `import { ${webExports} } from "@solidjs/web";`,
+    'import html from "@solidjs/html";',
+    `${solidGlobal} = { ${solidExports}, default: html };`,
   ].join("\n");
 
 export function solidModule(root) {
@@ -280,4 +292,65 @@ export function solidModule(root) {
       }));
     },
   };
+}
+
+/** Parser-time producers and modules share the same graph, renderer and template runtime. */
+export function bindToInitialSolid() {
+  return {
+    name: "leaf-initial-solid",
+    setup(builder) {
+      builder.onResolve({ filter: /^\/vendor\/solid\.js$/ }, () => ({
+        path: "solid",
+        namespace: "leaf-initial-solid",
+      }));
+      builder.onLoad({ filter: /.*/, namespace: "leaf-initial-solid" }, () => ({
+        contents: `const { ${solidExports} } = ${solidGlobal}; export { ${solidExports}, html as default };`,
+        loader: "js",
+      }));
+    },
+  };
+}
+
+export async function solidInitialOutputs(root) {
+  const result = await build({
+    absWorkingDir: root,
+    stdin: { contents: 'import * as solid from "leaf:solid";', resolveDir: root },
+    bundle: true,
+    format: "iife",
+    platform: "browser",
+    target: "es2022",
+    minify: true,
+    write: false,
+    legalComments: "eof",
+    plugins: [
+      solidModule(root),
+      {
+        name: "leaf-initial-move",
+        setup(builder) {
+          builder.onResolve({ filter: /^\/runtime\/dom-move\.js$/ }, () => ({
+            path: "move",
+            namespace: "leaf-initial-move",
+          }));
+          builder.onLoad({ filter: /.*/, namespace: "leaf-initial-move" }, () => ({
+            contents:
+              "export const move = (parent, node, before) => document.documentElement.lfInitial.move(parent, node, before);",
+            loader: "js",
+          }));
+        },
+      },
+      solidMoves(),
+    ],
+  });
+  return new Map([
+    [
+      `skills/leaf/assets/${initialSolidPath}`,
+      Buffer.from(result.outputFiles[0].contents),
+    ],
+    [
+      `skills/leaf/assets/${sharedSolidPath}`,
+      Buffer.from(
+        `import "/runtime/dom-move.js"; const { ${solidExports} } = ${solidGlobal}; export { ${solidExports}, html as default };\n`,
+      ),
+    ],
+  ]);
 }

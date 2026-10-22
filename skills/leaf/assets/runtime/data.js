@@ -13,7 +13,14 @@
    the result into the authored seat; they do not fetch it, mutate the accepted copy, or
    keep a hidden current-value map of their own.*/
 
-import { outsideReading, untracked } from "/vendor/browser-runtime.js";
+import {
+  createMemo,
+  createSignal,
+  flush,
+  getObserver,
+  runWithOwner,
+  untracked,
+} from "/vendor/browser-runtime.js";
 import { offlineData, offlineInteractive, pageUrl, runtime } from "./context.js";
 import { applicationState, whenApplicationRegionsPresented } from "./semantic-state.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
@@ -32,9 +39,7 @@ const joined = new Set();
 
 export async function notifyDataSubscribers() {
   const version = runtime.data.version;
-  deliveries += 1;
-  const round = {};
-  for (const delivered of [...deliveryListeners]) delivered(round);
+  flush(() => setDeliveries((value) => value + 1));
   await whenApplicationRegionsPresented(
     [...joined],
     () => runtime.data.version === version,
@@ -148,39 +153,40 @@ export function dataReader(element, input, accepted) {
   // What the element shows moves only as state application delivers, so a reading
   // accepted for a revision still being activated never draws into the document it
   // replaces. The first read takes the accepted reading.
-  let shown;
-  let taken = -1;
-  const delivered = outsideReading(
-    () => {
-      if (taken !== deliveries) {
-        taken = deliveries;
-        shown = untracked(selected.read);
-      }
-      return shown;
-    },
-    (moved) => {
-      // Acceptance belongs to the same observed input as delivery. If a render stops
-      // reading the input, it must not claim a region no delivery will redraw.
+  let stopAccepted;
+  const delivered = runWithOwner(null, () =>
+    createMemo(
+      () => {
+        deliveries();
+        return untracked(selected.read);
+      },
+      {
+        lazy: true,
+        unobserved() {
+          stopAccepted?.();
+          stopAccepted = null;
+        },
+      },
+    ),
+  );
+  const readDelivered = () => {
+    if (getObserver() && !stopAccepted) {
       let seen = untracked(selected.read);
-      const stop = selected.subscribe((now) => {
+      stopAccepted = selected.subscribe((now) => {
         if (now === seen) return;
         seen = now;
         accepted();
       });
-      deliveryListeners.add(moved);
-      return () => {
-        stop();
-        deliveryListeners.delete(moved);
-      };
-    },
-  );
+    }
+    return delivered();
+  };
   let reported = null;
   let copied = { store: null, value: null };
   return () => {
     // The accepted reading claims the element's region inside the publication that
     // accepts it; the delivered one draws.
     const sourceStore = /** @type {{contract: string, revision?: string} | null} */ (
-      widget ? selected.read() : delivered.read()
+      widget ? selected.read() : readDelivered()
     );
     const incompatible = sourceStore && sourceStore.contract !== declaration.contract;
     if (incompatible && reported !== sourceStore) {
@@ -205,8 +211,7 @@ export function dataReader(element, input, accepted) {
 
 // A renderer that draws data as it reads it holds the data version until its region
 // presents; its readers hear the delivery itself.
-let deliveries = 0;
-const deliveryListeners = new Set();
+const [deliveries, setDeliveries] = createSignal(0, { ownedWrite: true });
 export function joinDataDelivery(region) {
   joined.add(region);
   return () => joined.delete(region);

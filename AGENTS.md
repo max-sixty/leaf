@@ -128,9 +128,9 @@ install the tracked tree whole. Read an area's `AGENTS.md` before changing it.
 - `skills/leaf/references/`: contracts for page authors, package authors and harnesses.
 - `.claude/skills/developing-leaf/`: the maintainer workflow and vocabulary.
 - `hooks/`: each harness's registration of `leaf hook` (`hooks.json` for Claude
-  Code, `codex.json` for Codex) and the scripts they run, plus the modules that
-  watch a page between turns, `claude-code.ts` (opt-in, Claude Code) and `pi.ts`
-  (the Pi extension), which share `watch.ts`.
+  Code, `codex.json` for Codex) and the scripts they run, plus `claude-code.ts`,
+  Claude Code's hooks module, which draws the session's pages above the prompt,
+  and `pi.ts`, the Pi extension, whose watch between turns `watch.ts` owns.
 - `evals/`: cases a headless agent answers, scoring the shipped instructions.
 - `examples/`: the pages the site publishes, also the render corpus
   (`examples/AGENTS.md`).

@@ -21,7 +21,6 @@ import {
   createMemo,
   createSignal,
   flush,
-  getObserver,
   runWithOwner,
   untrack,
 } from "../solid.js";
@@ -48,45 +47,6 @@ import { subscribe } from "./observe.js";
 
 
 
-
-/** Bridge an event source into native signal tracking. The source is followed only
- * while a consumer observes the value. An unobserved read still samples the source
- * now; a notification updates observers only when its answer actually changed. */
-export function outsideReading   (
-  read         ,
-  heard                                                   ,
-)                     {
-  let stop                          ;
-  let seen   ;
-  const [revision, setRevision] = createSignal(0, {
-    ownedWrite: true,
-    unobserved() {
-      stop?.();
-      stop = undefined;
-    },
-  });
-  const sample = () => untrack(read);
-  const current = () => {
-    revision();
-    if (getObserver() && !stop) {
-      seen = sample();
-      stop = untrack(() =>
-        heard(() => {
-          const next = sample();
-          if (Object.is(seen, next)) return;
-          seen = next;
-          flush(() => setRevision((value) => value + 1));
-        }),
-      );
-    }
-    return sample();
-  };
-  return Object.freeze({
-    read: current,
-    subscribe: (listener                       ) =>
-      subscribe(current, (value) => untrack(() => listener(value))),
-  });
-}
 
 export { untrack as untracked };
 

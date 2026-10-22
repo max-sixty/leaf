@@ -8,7 +8,6 @@ import {
   flush,
   watchReaction,
   watchEffect,
-  outsideReading,
   untracked,
   createPresentationCoordinator,
   createPresentationSchedule,
@@ -129,7 +128,7 @@ const documentPresenters = [];
 // Recording sees only synchronous code. A paint that awaits wraps each continuation in
 // `resume`, as a `.then` callback or a function it calls after an `await`; reads in a
 // continuation it does not wrap are not followed. A paint's reads of values outside the
-// state, such as the time it shows (`clockValue`), are followed too (`outsideReading`),
+// state, such as the time it shows (`clockValue`), are followed too,
 // and a change to one repaints the region. Anything else the paint takes from outside
 // the state, such as a draft or the page's own nodes, is not followed: whoever changes
 // it calls the returned `present()`, which paints what `reading` returns even if that
@@ -257,25 +256,16 @@ export const applicationPresenter = ({
 // (`watchProjection`), which `presentDocument` does not call, repaints when the nodes it
 // drew from change, as the floating panel's quote does when a datum's label does. The
 // regions it calls hear it after they have claimed, which owes them nothing more.
-let documentChanges = 0;
-const documentListeners = new Set();
-const documentReading = outsideReading(
-  () => documentChanges,
-  (moved) => {
-    documentListeners.add(moved);
-    return () => documentListeners.delete(moved);
-  },
-);
-export const documentChanged = () => documentReading.read();
+const [documentChanges, setDocumentChanges] = createSignal(0, { ownedWrite: true });
+export const documentChanged = documentChanges;
 
-/** Claim every document-wide region for the root as it stands now. */
-export const presentDocument = () => {
-  documentChanges += 1;
-  for (const present of documentPresenters) void present();
-  const round = {};
-  for (const moved of [...documentListeners]) moved(round);
-  return schedule.passed();
-};
+/** Claim every document-wide region before native signal notifications run. */
+export const presentDocument = () =>
+  flush(() => {
+    setDocumentChanges((value) => value + 1);
+    for (const present of documentPresenters) void present();
+    return schedule.passed();
+  });
 
 // The page has caught up with the root it is reading: every presenter the current
 // publications collected has painted, including the ones their painting collected. This

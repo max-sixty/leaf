@@ -267,10 +267,9 @@ def _validate_prepaint(tag: str, entry: dict, prepaint: str, path) -> None:
 
 
 def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -> dict:
-    # A predicate names attributes and values the page can actually carry, or its
-    # widget silently disappears from every consumer. The value's kind follows the
-    # attribute's own schema — a flag is there or it isn't, an enum admits what it
-    # lists — and a subschema that states neither contradicts nothing.
+    # A predicate names declared attributes. Booleans test presence or absence;
+    # strings must be values the attribute's schema admits, or the widget silently
+    # disappears from every consumer.
     awaits = entry.get("x-awaits", {})
     if awaits.get("encloses"):
         if "id" not in entry.get("required", []):
@@ -292,24 +291,11 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
                     "predicate-attribute", path, tag, key=declaration, attr=attr
                 )
             schema = properties[attr]
-            declared = schema if isinstance(schema, dict) else {}
             for value in values:
                 tested = {"key": declaration, "attr": attr, "value": value}
+                # Booleans test presence, just as `obligations.asking` reads them.
                 if isinstance(value, bool):
-                    # A subschema saying neither a type nor an enum contradicts
-                    # nothing; one that says either has told us this attribute
-                    # carries a value.
-                    if declared.get("type") not in (
-                        None,
-                        "boolean",
-                    ) or declared.get("enum"):
-                        raise registry_error("predicate-not-flag", path, tag, **tested)
-                elif declared.get("type") == "boolean":
-                    raise registry_error("predicate-flag", path, tag, **tested)
-                if (
-                    allowed := declared.get("enum")
-                ) is not None and value not in allowed:
-                    raise registry_error("predicate-enum", path, tag, **tested)
+                    continue
                 if errors := sorted(json_validator(schema).iter_errors(value), key=str):
                     raise registry_error(
                         "predicate-schema",

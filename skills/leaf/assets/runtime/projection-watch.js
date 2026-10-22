@@ -17,7 +17,12 @@
    `refresh()` draws synchronously for mechanical changes, such as revealing held news,
    while retaining the owner's lifetime and proof. A refresh while away owes the return
    a paint; before the first paint it draws that one at once. */
-import { watchReaction, outsideReading, untracked } from "/vendor/browser-runtime.js";
+import {
+  watchReaction,
+  createSignal,
+  flush,
+  untracked,
+} from "/vendor/browser-runtime.js";
 import { watchPresentation } from "./semantic-state.js";
 import { PRESENTATION } from "./presentation.js";
 import { watchOwner } from "./arrivals.js";
@@ -25,19 +30,9 @@ import { readingPaint } from "./presence.js";
 
 // PRESENTATION replaces a provisional startup reading, so an owner away when the page
 // announced it owes its paint again.
-let presentations = 0;
-const heard = new Set();
-document.addEventListener(PRESENTATION, () => {
-  presentations += 1;
-  const round = {};
-  for (const moved of [...heard]) moved(round);
-});
-const presented = outsideReading(
-  () => presentations,
-  (moved) => {
-    heard.add(moved);
-    return () => heard.delete(moved);
-  },
+const [presentations, setPresentations] = createSignal(0, { ownedWrite: true });
+document.addEventListener(PRESENTATION, () =>
+  flush(() => setPresentations((value) => value + 1)),
 );
 
 export function watchProjection(owner, paint, ready = null) {
@@ -63,7 +58,7 @@ export function watchProjection(owner, paint, ready = null) {
       () => {
         // Retain dependencies after a failure so changed input can recover the draw.
         try {
-          presented.read();
+          presentations();
           outcome = { value: paint() };
         } catch (error) {
           outcome = { error };

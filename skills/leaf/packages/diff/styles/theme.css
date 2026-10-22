@@ -1,4 +1,5 @@
 @import "./palette.css";
+@import "./disclosure.css";
 
 /* The diff package's presentation. Everything here was in the default package's theme
  * until Pierre's 1.7MB left every page carrying a diff renderer most of them never

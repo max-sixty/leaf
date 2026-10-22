@@ -35,19 +35,20 @@ import {
 } from "./bundle-page-paint.js";
 import {
   applicationPresented,
-  outsideReading
+  createMemo,
+  createSignal,
+  flush
 } from "./bundle-vendor~browser-runtime.js";
 
 // runtime/presence.js
 var clockSkew = 0;
-var ticks = /* @__PURE__ */ new Set();
-var onTick = (moved) => {
-  ticks.add(moved);
-  return () => ticks.delete(moved);
-};
+var [pulse, setPulse] = createSignal(0, { ownedWrite: true });
 var serverNow = () => Date.now() + clockSkew;
 var saidNow = () => new Date(serverNow()).toISOString();
-var clockValue = (read) => outsideReading(() => read(serverNow()), onTick).read();
+var clockValue = (read) => createMemo(() => {
+  pulse();
+  return read(serverNow());
+})();
 function readingPaint(owner, draw) {
   let painted = false;
   let key;
@@ -121,12 +122,11 @@ function readingPaint(owner, draw) {
   return paint;
 }
 async function tickClock(reportError) {
-  const round = {};
-  const settled = await Promise.allSettled(
-    [...ticks].map(async (moved) => moved(round))
-  );
-  for (const result of settled)
-    if (result.status === "rejected") reportError(result.reason, "clock paint failed");
+  try {
+    flush(() => setPulse((value) => value + 1));
+  } catch (error) {
+    reportError(error, "clock paint failed");
+  }
 }
 var observeServerNow = (now) => {
   if (now) clockSkew = Date.parse(now) - Date.now();

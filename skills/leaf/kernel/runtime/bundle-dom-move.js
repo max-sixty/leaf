@@ -16,6 +16,7 @@ function move(parent, node, before) {
   }
   return node;
 }
+document.documentElement.lfInitial.move = move;
 
 export {
   preserveMoveFocus,

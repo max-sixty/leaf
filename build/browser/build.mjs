@@ -46,7 +46,7 @@ import { build } from "../esbuild.mjs";
 import { contractTypes, protocolSchemas } from "./contract-types.mjs";
 import { protocolBreaks } from "./protocol.mjs";
 import { initialOutputs } from "../initial.mjs";
-import { solidModule, solidMoves, solidPath } from "../solid.mjs";
+import { solidModule, solidMoves, solidPath, solidInitialOutputs } from "../solid.mjs";
 import { registryOutputs } from "../registry.mjs";
 import { styleOutputs } from "../styles.mjs";
 import { kernelOutputs } from "../runtime-bundle.mjs";
@@ -315,6 +315,7 @@ export async function buildOutputs({ acceptServed = false } = {}) {
     `${assets}/vendor/browser-runtime.LICENSES.txt`,
     Buffer.from(licenseNotices("browser-runtime", packageRoots)),
   );
+  for (const [name, bytes] of await solidInitialOutputs(root)) outputs.set(name, bytes);
   for (const producer of [initialOutputs, styleOutputs, registryOutputs, vendorOutputs])
     for (const [name, bytes] of await producer()) outputs.set(name, bytes);
   for (const [name, bytes] of await kernelOf(outputs))

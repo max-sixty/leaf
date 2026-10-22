@@ -53,5 +53,9 @@ the draw completed, so a draw that publishes its own input receives a follow-up 
 
 WebAwesome supplies selected controls and keeps its own private Lit graph in split
 bundles (`webawesome/`). Leaf application views use Solid. Chrome loads copy feedback;
-case selection and screenshot comparison load with their consuming widgets. The
-WebAwesome build retains the pinned comment and popup-transition adaptations.
+screenshot comparison loads with its consuming widget. The WebAwesome build retains
+a pinned guard that prevents duplicate documentation comments when a control reconnects.
+
+Initial producers share Solid through `solid-initial.js` and the later module facade,
+`solid-shared.js`. The build records producer dependencies so delivery inlines that
+one graph before parser-time drawings and maps live imports to it.

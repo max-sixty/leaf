@@ -44,8 +44,8 @@ scopes intact.
 Leaf checks each row as it is registered and throws for a malformed one.
 
 A row's `id` is a stable, lowercase dotted name such as `draft.save`; keep it when keys
-or words change. `title` names the command, `description` adds detail for the command
-reference, and `label` replaces the keycap. `title` may be a function where state changes it.
+or words change. `title` names the command, `description` is the command
+reference's tooltip for it, and `label` replaces the keycap. `title` may be a function where state changes it.
 
 `keys` lists bindings in canonical spelling, such as `"a"`, `"Shift+a"` or
 `"Mod+Enter"`, or is a function returning them. `repeat: true` also runs on a held key's

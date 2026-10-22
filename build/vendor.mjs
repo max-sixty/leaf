@@ -29,7 +29,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { applyPatch, parsePatch } from "diff";
 import { build } from "./esbuild.mjs";
-import { patchTransitions } from "./webawesome/transition-patch.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./browser/shipped.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -709,10 +708,6 @@ const bundles = {
             "Web Awesome docs comment",
             2,
           ),
-      },
-      {
-        file: /webawesome\/dist\/chunks\/chunk\.ZAVDMBWV\.js$/,
-        edit: patchTransitions,
       },
     ],
     platform: "browser",

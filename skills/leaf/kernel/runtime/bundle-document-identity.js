@@ -384,12 +384,14 @@ import {
   applicationRegionsPresented,
   applicationState,
   bindQueuedWork,
+  createMemo,
   createSignal,
   discussed,
   documentChanged,
   editable,
   flush,
   foldWidgetStates,
+  getObserver,
   isMessageEvent,
   isThreadEvent,
   layerRoot,
@@ -398,7 +400,6 @@ import {
   offlineData,
   offlineInteractive,
   offlineState,
-  outsideReading,
   pageUrl,
   presentDocument,
   projectView,
@@ -408,6 +409,7 @@ import {
   readApplication,
   readPart,
   revisionLabel,
+  runWithOwner,
   runtime,
   setPresentationFailureReporter,
   stateCoordinate,
@@ -2066,7 +2068,7 @@ function createSelectionComposer({
       const count = Math.min(reactionTokens2().length, 9);
       return count > 1 ? `1\u2013${count}` : "1";
     },
-    description: () => `Put a reaction on the response target: ${reactionTokens2().slice(0, 9).map(([name, entry], index) => `${index + 1} ${entry.glyph} ${name}`).join(", ")}`,
+    description: () => reactionTokens2().slice(0, 9).map(([name, entry], index) => `${index + 1} ${entry.glyph} ${name}`).join(", "),
     title: "react",
     when: () => reactionAvailable2() && !takesLetters(focused()) && responseReactionButtons().length > 0,
     run: (binding) => responseReactionButtons()[+binding - 1]?.click()
@@ -2144,19 +2146,10 @@ function createSelectionComposer({
 }
 
 // runtime/projection-watch.js
-var presentations = 0;
-var heard = /* @__PURE__ */ new Set();
-document.addEventListener(PRESENTATION, () => {
-  presentations += 1;
-  const round = {};
-  for (const moved2 of [...heard]) moved2(round);
-});
-var presented2 = outsideReading(
-  () => presentations,
-  (moved2) => {
-    heard.add(moved2);
-    return () => heard.delete(moved2);
-  }
+var [presentations, setPresentations] = createSignal(0, { ownedWrite: true });
+document.addEventListener(
+  PRESENTATION,
+  () => flush(() => setPresentations((value) => value + 1))
 );
 function watchProjection(owner, paint, ready = null) {
   let key = 0;
@@ -2178,7 +2171,7 @@ function watchProjection(owner, paint, ready = null) {
     following = watchReaction(
       () => {
         try {
-          presented2.read();
+          presentations();
           outcome = { value: paint() };
         } catch (error) {
           outcome = { error };
@@ -2598,7 +2591,7 @@ function createAnchorTravel({
     const where = segment ? rangeOf([segment]) : targetElement(placement) ?? targetPlace(placement);
     return livePoint(targetElement(placement) ?? targetPlace(placement), placement?.point) ?? where;
   };
-  async function scrollToThread(id, { part = null, focus = true, presented: presented3 = null, intent } = {}) {
+  async function scrollToThread(id, { part = null, focus = true, presented: presented2 = null, intent } = {}) {
     const mayArrive = retainTravel(intent);
     const thread = threadNamed(id);
     const anchor = thread?.anchor;
@@ -2634,7 +2627,7 @@ function createAnchorTravel({
         intent: mayArrive,
         departure,
         present: async () => {
-          if (presented3) await presented3;
+          if (presented2) await presented2;
           if (mayArrive()) await refreshThread();
         }
       }
@@ -4691,8 +4684,8 @@ function createReactionController({
   let marginAnchor = null;
   let pageCommands = null;
   const marginReactionKey = (name, ordinal) => `reaction:${String(ordinal).padStart(4, "0")}:${name}`;
-  function registerReactSurface(surface, { palette, target, trigger }) {
-    surfaces.set(surface, { palette, target, trigger });
+  function registerReactSurface(surface, { palette, trigger }) {
+    surfaces.set(surface, { palette, trigger });
     return {
       toggle: () => setReact(!(reactArmed && reactSurface === surface), { surface }),
       close: () => {
@@ -4936,7 +4929,6 @@ function createReactionController({
       () => listWalkPosition(responseChoices(reactSurface), focused())
     );
   }
-  const reactTargetWord = () => reactSurface === marginSurface ? anchorWord(marginAnchor) : typeof pickerFor(reactSurface)?.target === "function" ? pickerFor(reactSurface).target() : pickerFor(reactSurface)?.target ?? "the target";
   const REACT = {
     title: "With reactions open",
     ready: savedReadingSettled,
@@ -4959,7 +4951,7 @@ function createReactionController({
           const n = Math.min(reactionTokens().length, 9);
           return n > 1 ? `1\u2013${n}` : "1";
         },
-        description: () => `Put a reaction on ${reactTargetWord()}: ${reactionTokens().slice(0, 9).map(([name, entry], i) => `${i + 1} ${entry.glyph} ${name}`).join(", ")}`,
+        description: () => reactionTokens().slice(0, 9).map(([name, entry], i) => `${i + 1} ${entry.glyph} ${name}`).join(", "),
         title: "react",
         when: reactionAvailable,
         run: (binding) => {
@@ -5027,7 +5019,7 @@ function createReactionController({
     ready: savedReadingSettled,
     touch: false,
     keys: ["e"],
-    description: "For the selection, the focused item, or the open reply",
+    description: "On the selection, the focused item or the open reply",
     title: "reactions",
     when: () => reactionAvailable() && reactionTokens().length > 0 && hasReactionTarget() && (anchoringIsReady() || !pageSelection()),
     run: () => {
@@ -8296,9 +8288,7 @@ function acceptData(candidate, taken) {
 var joined = /* @__PURE__ */ new Set();
 async function notifyDataSubscribers() {
   const version = runtime.data.version;
-  deliveries += 1;
-  const round = {};
-  for (const delivered of [...deliveryListeners]) delivered(round);
+  flush(() => setDeliveries((value) => value + 1));
   await whenApplicationRegionsPresented(
     [...joined],
     () => runtime.data.version === version
@@ -8383,36 +8373,40 @@ function inputBinding(element, declaration) {
 function dataReader(element, input, accepted) {
   const declaration = declaredInput(element, input);
   const { source, widget, selected, snapshot } = inputBinding(element, declaration);
-  let shown;
-  let taken = -1;
-  const delivered = outsideReading(
-    () => {
-      if (taken !== deliveries) {
-        taken = deliveries;
-        shown = untrack(selected.read);
+  let stopAccepted;
+  const delivered = runWithOwner(
+    null,
+    () => createMemo(
+      () => {
+        deliveries();
+        return untrack(selected.read);
+      },
+      {
+        lazy: true,
+        unobserved() {
+          stopAccepted?.();
+          stopAccepted = null;
+        }
       }
-      return shown;
-    },
-    (moved2) => {
+    )
+  );
+  const readDelivered = () => {
+    if (getObserver() && !stopAccepted) {
       let seen = untrack(selected.read);
-      const stop = selected.subscribe((now) => {
+      stopAccepted = selected.subscribe((now) => {
         if (now === seen) return;
         seen = now;
         accepted();
       });
-      deliveryListeners.add(moved2);
-      return () => {
-        stop();
-        deliveryListeners.delete(moved2);
-      };
     }
-  );
+    return delivered();
+  };
   let reported = null;
   let copied = { store: null, value: null };
   return () => {
     const sourceStore = (
       /** @type {{contract: string, revision?: string} | null} */
-      widget ? selected.read() : delivered.read()
+      widget ? selected.read() : readDelivered()
     );
     const incompatible = sourceStore && sourceStore.contract !== declaration.contract;
     if (incompatible && reported !== sourceStore) {
@@ -8431,8 +8425,7 @@ function dataReader(element, input, accepted) {
     return copied.value;
   };
 }
-var deliveries = 0;
-var deliveryListeners = /* @__PURE__ */ new Set();
+var [deliveries, setDeliveries] = createSignal(0, { ownedWrite: true });
 function joinDataDelivery(region) {
   joined.add(region);
   return () => joined.delete(region);

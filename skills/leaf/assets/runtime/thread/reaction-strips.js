@@ -77,7 +77,6 @@ export class ReactionStripView {
     this.#registration ??= this.#commands.registerSurface(this.node, {
       trigger: this.node.querySelector(".lf-react-trigger"),
       palette: this.node.querySelector(".lf-react-palette"),
-      target: "the reply",
     });
     return this.node;
   }

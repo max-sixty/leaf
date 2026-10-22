@@ -58,10 +58,12 @@
  * Every tab's accessible name is its label; what else the tab shows describes it. A
  * side list stands each run of neighbouring panels that share a `group` under a label
  * of that group, which each of their tabs' descriptions names. A side list's row adds
- * the panel's `summary` under the name, then its obligations' state on a reserved line: an open mark
- * and "To answer" while any obligation the panel holds is unanswered, the words a tally counts
- * by, and once every one is answered a check, with the answer's own words where the panel holds
- * one obligation. So a queue shows each obligation's state
+ * the panel's `summary` under the name, then its obligations' state on a reserved line. While any
+ * obligation the panel holds is unanswered, it shows an open mark and whose turn it is, by the
+ * server's next actor, the reading an `lf-tally` and its Next on me use: "To answer" while one
+ * waits on the user, else "On Claude" (`agentName`) while one is the agent's, as after the user
+ * comments on it, else "Open", as in a resolved thread. Once every one is answered it shows a
+ * check, with the answer's own words where the panel holds one obligation. So a queue shows each obligation's state
  * and how far the user has worked through it, and an undo that reopens an obligation puts the
  * open mark back. Which obligations a panel holds is `obligationsIn` (obligations/place.js), read from the
  * admitted obligation inventory, so a tally of the queue counts the same obligations. A row whose panel
@@ -72,6 +74,7 @@
  * there is no failSoft. */
 import {
   afterScript,
+  agentName,
   PRESS,
   obligationsIn,
   answerWords,
@@ -427,12 +430,20 @@ export class TabSet extends HTMLElement {
       const only = items.length === 1 ? items[0] : null;
       // The open mark says what it means in words beside it, as the check beside an
       // answer does, so no reader needs a legend, a hover or a screen reader for it.
+      // Whose turn the open ones are is the server's next actor, the reading a tally
+      // and Next on me also use.
+      const open = items.filter((item) => item.status === "open");
+      const turn = open.some((item) => item.next_actor === "user")
+        ? "To answer"
+        : open.some((item) => item.next_actor === "agent")
+          ? `On ${agentName()}`
+          : "Open";
       const answer = answered
         ? only
           ? answerWords(only)
           : ""
         : items.length
-          ? "To answer"
+          ? turn
           : "";
       if (slot) {
         keeps(
@@ -451,8 +462,8 @@ export class TabSet extends HTMLElement {
           ? ""
           : !answered
             ? only
-              ? "To answer"
-              : `${done.length} of ${items.length} answered`
+              ? turn
+              : `${turn}, ${done.length} of ${items.length} answered`
             : only
               ? answer
                 ? `Answered: ${answer}`

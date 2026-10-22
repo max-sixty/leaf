@@ -999,6 +999,11 @@
   };
 
   root.lfInitial = {
+    // Parser-time producers create their first nodes before runtime modules exist.
+    // dom-move.js installs the live mover before any module uses the shared Lit.
+    move(parent, node, before) {
+      return parent.insertBefore(node, before);
+    },
     fragmentId,
     keepsAttribute,
     setRuntimeRootAttribute,

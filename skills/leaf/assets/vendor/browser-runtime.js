@@ -1,5 +1,7 @@
 /** Internal framework facade. Content modules import runtime/widget-api.js. */
 export {
+  getObserver,
+  runWithOwner,
   createSignal,
   createMemo,
   createRoot,
@@ -12,7 +14,7 @@ export { createView, resetViewsWithin } from "./browser-runtime/views.js";
 export { For, Show, onCleanup } from "./solid.js";
 export { default as html } from "./solid.js";
 export { createSemanticApplication } from "./browser-runtime/application.js";
-export { outsideReading, share, untracked } from "./browser-runtime/snapshot.js";
+export { share, untracked } from "./browser-runtime/snapshot.js";
 export {
   createPresentationCoordinator,
   createPresentationSchedule,

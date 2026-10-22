@@ -83,7 +83,6 @@ import {
   findDiffLine,
   readDiffCoordinate,
 } from "./diff-coordinates.js";
-import { disclose, disclosure } from "./disclosure.js";
 import { pierre, markSyntax } from "/widgets/pierre.js";
 // Only a diff that is actually rendering has any use for Pierre's renderer —
 // an authored <lf-diff> bound to data
@@ -383,7 +382,6 @@ function summaryNode(record, open, verified = true) {
   const summary = document.createElement("summary");
   summary.className = `lf-diff-head ${HOLDS_WORD}`;
   details.append(summary);
-  disclosure(details);
   paintSummary(details, record, verified);
   commands(summary, "On a diff", [
     {
@@ -930,6 +928,14 @@ customElements.define(
     #shown;
     #showing = false;
     threadSizeManagers = new Map();
+
+    shouldUpdate(changed) {
+      const ready = super.shouldUpdate(changed);
+      // An inline patch is authored once. Its async reader owns the only repaint
+      // (including a retry cut short by departure); a reconnect's Lit update would
+      // clear its visible refusal without changing that reading.
+      return ready && (this.hasAttribute("source") || !this.hasUpdated);
+    }
 
     setup() {
       this.singleFile = this.getAttribute("view") === "file";
@@ -1556,7 +1562,7 @@ customElements.define(
       if (error) {
         entry.failed = true;
         paintSummary(entry.details, entry.record, false);
-        disclose(entry.details, true);
+        entry.details.open = true;
         entry.disclosureOpen = true;
         // Reopening retries a load; nothing loads a patch this widget refused again.
         entry.refused = !retry;
@@ -1625,7 +1631,7 @@ customElements.define(
       if (this.singleFile) this.selectFile(entry);
       else if (entry.filtered) this.clearFilter();
       if (!entry.details) return null;
-      disclose(entry.details, true);
+      entry.details.open = true;
       if (entry.loaded || entry.failed) return null;
       return this.loadEntry(entry);
     }
@@ -1770,10 +1776,10 @@ customElements.define(
 
     // The files the filter shows: all opened while any is closed, and all closed once
     // every one is open, so the press does what its face says.
-    foldAll(event) {
+    foldAll() {
       const folds = this.shownFolds();
       const open = folds.some((details) => !details.open);
-      for (const details of folds) disclose(details, open, event);
+      for (const details of folds) details.open = open;
       this.paintFoldAll();
       announce(`${open ? "Expanded" : "Collapsed"} all files`);
     }
@@ -1858,7 +1864,7 @@ customElements.define(
 
     async openEntry(entry) {
       if (!entry.details) return;
-      disclose(entry.details, true);
+      entry.details.open = true;
       await this.loadEntry(entry);
     }
 

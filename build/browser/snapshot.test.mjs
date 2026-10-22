@@ -1,45 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createSignal } from "@solidjs/signals";
 import { watchEffect } from "./observe.ts";
-import { createApplicationPublisher, outsideReading } from "./snapshot.ts";
+import { createApplicationPublisher } from "./snapshot.ts";
 import { createPresentationCoordinator } from "./presentation.ts";
 
-test("outside readings subscribe only while observed and release their source", () => {
-  let value = 0;
-  let starts = 0;
-  let stops = 0;
-  let notify;
-  const outside = outsideReading(
-    () => value,
-    (moved) => {
-      starts++;
-      notify = moved;
-      return () => {
-        stops++;
-      };
-    },
-  );
-  assert.equal(outside.read(), 0);
-  value = 1;
-  assert.equal(outside.read(), 1);
-  assert.equal(starts, 0);
-  const seen = [];
-  const stop = outside.subscribe((value) => {
-    seen.push(value);
-  });
-  assert.equal(starts, 1);
-  value = 2;
-  outside.read();
-  notify({});
-  assert.deepEqual(seen, [1, 2], "a plain read cannot swallow a later notification");
-  stop();
-  assert.equal(stops, 1);
-  value = 3;
-  assert.equal(outside.read(), 3);
-  assert.equal(starts, 1);
-});
-
-for (const kind of ["semantic", "outside", "presentation"]) {
+for (const kind of ["semantic", "presentation"]) {
   test(`${kind} observers own their reads during registration and notification`, () => {
     const initial = {
       document: {},
@@ -50,15 +16,7 @@ for (const kind of ["semantic", "outside", "presentation"]) {
     };
     const app = createApplicationPublisher(initial);
     const part = app.select((root) => root.authoritative);
-    let notify;
-    let now = 7;
-    const clock = outsideReading(
-      () => now,
-      (moved) => {
-        notify = moved;
-        return () => {};
-      },
-    );
+    const [clock] = createSignal(7);
     const coordinator = createPresentationCoordinator({
       reportFailure: (reason) => {
         throw reason;
@@ -67,18 +25,17 @@ for (const kind of ["semantic", "outside", "presentation"]) {
     coordinator.begin({}, 0);
     const selected = app.select((root) => {
       part.read();
-      clock.read();
+      clock();
       return root.effective.count;
     });
-    const source =
-      kind === "semantic" ? selected : kind === "outside" ? clock : coordinator;
+    const source = kind === "semantic" ? selected : coordinator;
     const ownReads = [];
     const observe = () => {
       // The observer can read the whole root outside its own paint collection.
       assert.equal(app.read().document, initial.document);
       part.read();
-      clock.read();
-      ownReads.push([part.read(), clock.read()]);
+      clock();
+      ownReads.push([part.read(), clock()]);
     };
     let subscriptions = 0;
     let stopSource;
@@ -88,9 +45,6 @@ for (const kind of ["semantic", "outside", "presentation"]) {
     });
     if (kind === "semantic") {
       app.publish({ ...initial, effective: { count: 1 }, semanticEpoch: 1 });
-    } else if (kind === "outside") {
-      now = 8;
-      notify({});
     } else {
       coordinator.attach("unrelated", {});
     }
@@ -102,7 +56,7 @@ for (const kind of ["semantic", "outside", "presentation"]) {
     assert.ok(ownReads.length >= 2);
     assert.deepEqual(ownReads, [
       [null, 7],
-      [null, kind === "outside" ? 8 : 7],
+      [null, 7],
     ]);
     stopSource();
     stop();

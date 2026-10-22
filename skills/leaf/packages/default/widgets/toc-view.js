@@ -7,11 +7,13 @@
  * passes its own: `label` reads a heading's words and `chrome` whether it stands in
  * Leaf's chrome. The module reads them as the rest of the runtime does (`wrote`,
  * `inChrome`), and its first redraw rewrites any label the early reading said
- * differently. `place` puts the rows in order: the module's keeps the user standing in a
- * row that moves. Only the module lends ids (`lends`): the page's markup as it parsed is
+ * differently. Solid retains the keyed rows, and the module restores focus through moves.
+ * Only the module lends ids (`lends`): the page's markup as it parsed is
  * the source a revision compares against (version.js), so the early drawing writes
  * nothing outside its host, and a destination without an id has no link until upgrade.
  */
+import { html, render, createSignal, flush, For, runWithOwner } from "/vendor/solid.js";
+
 const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
 
 // The outline belongs to the nearest declared view holding it, or the page's main.
@@ -19,48 +21,77 @@ const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
 // headings that a native fragment link can reveal.
 export const outlineDocument = (host) => host.closest("[data-lf-views] > *, main");
 
-const said = (made, className) => {
-  made.className = className;
-  made.dataset.lfGen = "1";
-  made.setAttribute("data-lf-said", "");
-  made.textContent = "On this page";
-  return made;
-};
-
-// The frame: a nav whose native disclosure holds the rows, the lens over their spine
-// and the start row, which repeats the page title. Its labels are link apparatus
-// rather than a second copy of the page's words, so the nav wears .lf-ui.
+// The initial drawing keeps the template call sites and root part for its lifetime.
+// Upgrading calls this same closure: importing another compiled copy of a template
+// would make Solid replace the early nodes instead of updating their parts.
 export function drawToc(host) {
-  const doc = host.ownerDocument;
-  const make = (tag, className) => {
-    const made = doc.createElement(tag);
-    if (className) made.className = className;
-    return made;
-  };
-  const nav = make("nav", "lf-toc-nav lf-ui");
-  nav.dataset.lfGen = "1";
-  nav.setAttribute("aria-label", "On this page");
-  const disclosure = make("details", "lf-toc-disclosure");
-  disclosure.open = host.hasAttribute("open");
-  const track = make("div", "lf-toc-rows");
-  const lens = make("span", "lf-toc-window");
-  lens.setAttribute("aria-hidden", "true");
-  const start = make("div", "lf-toc-start");
-  start.dataset.lfDepth = "0";
-  const startLink = make("a");
-  start.append(startLink);
-  const list = make("ol");
-  track.append(lens, start, list);
-  disclosure.append(said(make("summary"), "lf-toc-toggle lf-label"), track);
-  nav.append(said(make("p"), "lf-toc-heading lf-label"), disclosure);
-  host.replaceChildren(nav);
+  const open = host.hasAttribute("open");
+  const [state, setState] = createSignal(
+    { start: { label: "Top" }, items: [] },
+    { ownedWrite: true },
+  );
+  const href = (destination) => (destination?.id ? `#${destination.id}` : null);
+  host.replaceChildren();
+  runWithOwner(null, () =>
+    render(
+      () =>
+        html` <nav class="lf-toc-nav lf-ui" data-lf-gen="1" aria-label="On this page">
+          <p class="lf-toc-heading lf-label" data-lf-gen="1" data-lf-said>
+            On this page
+          </p>
+          <details class="lf-toc-disclosure" open=${open}>
+            <summary class="lf-toc-toggle lf-label" data-lf-gen="1" data-lf-said>
+              On this page
+            </summary>
+            <div class="lf-toc-rows">
+              <span class="lf-toc-window" aria-hidden="true"></span>
+              <div class="lf-toc-start" data-lf-depth="0">
+                <a href=${() => href(state().start.destination)}
+                  >${() => state().start.label}</a
+                >
+              </div>
+              <ol>
+                ${For({
+            get each() {
+              return state().items;
+            },
+            keyed: (item) => item.key,
+            children: (item) =>
+              html`<li data-lf-depth=${() => item().depth}>
+                <a href=${() => href(item().destination)}>${() => item().label}</a>
+              </li>`,
+          })}
+              </ol>
+            </div>
+          </details>
+        </nav>`,
+      host,
+    ),
+  );
+  const nav = host.querySelector("nav");
+  const track = nav.querySelector(".lf-toc-rows");
+  const startRow = track.querySelector(".lf-toc-start");
+  const list = track.querySelector("ol");
   return {
+    scope: () => outlineDocument(host),
     nav,
     track,
-    lens,
-    start: { row: start, link: startLink },
-    list,
-    rows: new Map(),
+    lens: track.querySelector(".lf-toc-window"),
+    update(reading) {
+      const { start, items } = readOutline(host, reading);
+      flush(() => setState({ start, items }));
+      const rows = [...list.children];
+      return items.length
+        ? [
+            { ...start, row: startRow, link: startRow.firstElementChild },
+            ...items.map((item, index) => ({
+              ...item,
+              row: rows[index],
+              link: rows[index].firstElementChild,
+            })),
+          ]
+        : [];
+    },
   };
 }
 
@@ -92,13 +123,10 @@ function lend(host, destination, position, lends) {
 
 const level = (heading) => Number(heading.localName.slice(1));
 
-/** Draw the outline into `drawing`, retaining each row by its heading's authored id or
- * node, and return its sections, the start first, or none where no heading qualifies.
- * max-level bounds the outline before any row is drawn or id lent.
- * @returns {{heading?: Element, label?: string, destination: Element, depth?: number, row: Element, link: Element}[]} */
-export function drawOutline(host, drawing, { label, chrome, place, keeps, lends }) {
+// Read the complete outline before rendering; max-level bounds it before any id is lent.
+function readOutline(host, { label, chrome, lends }) {
   const main = outlineDocument(host);
-  if (!main) return [];
+  if (!main) return { start: { label: "Top" }, items: [] };
   const maxLevel = Number(host.getAttribute("max-level") ?? 6);
   const headings = [...main.querySelectorAll(HEADING_SELECTOR)]
     .filter(
@@ -114,38 +142,18 @@ export function drawOutline(host, drawing, { label, chrome, place, keeps, lends 
     (candidate) => !chrome(candidate),
   );
   const start = {
-    ...drawing.start,
+    label: (pageTitle ? label(pageTitle) : "") || "Top",
     destination: pageTitle
       ? destinationFor(host, pageTitle, 0, lends)
       : lend(host, main, 0, lends),
   };
-  const href = ({ id }) => (id ? `#${id}` : null);
-  keeps(start.link, "href", href(start.destination));
-  const title = (pageTitle ? label(pageTitle) : "") || "Top";
-  if (start.link.textContent !== title) start.link.textContent = title;
-
   const floor = Math.min(...headings.map(({ heading }) => level(heading)));
-  const rows = new Map();
   const items = headings.map(({ heading, label }, index) => {
     const destination = destinationFor(host, heading, index + 1, lends);
     // A lent id is no key: the early drawing lent none, and the module adopts its rows.
     const key = heading.id && !heading.id.startsWith("lf-") ? heading.id : heading;
-    let drawn = rows.has(key) ? null : drawing.rows.get(key);
-    if (!drawn) {
-      const row = host.ownerDocument.createElement("li");
-      drawn = { row, link: row.appendChild(host.ownerDocument.createElement("a")) };
-    }
-    rows.set(key, drawn);
     const depth = Math.min(level(heading) - floor, 4);
-    keeps(drawn.row, "data-lf-depth", depth);
-    keeps(drawn.link, "href", href(destination));
-    if (drawn.link.textContent !== label) drawn.link.textContent = label;
-    return { heading, label, destination, depth, ...drawn };
+    return { key, heading, label, destination, depth };
   });
-  drawing.rows = rows;
-  place(
-    drawing.list,
-    items.map(({ row }) => row),
-  );
-  return items.length ? [start, ...items] : [];
+  return { start, items };
 }

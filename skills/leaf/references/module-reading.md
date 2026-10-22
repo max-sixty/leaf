@@ -184,6 +184,11 @@ answer, and `answer.event` is `null` for authored state. An `lf-ask` or another 
 declaring `x-awaits.encloses` around it supplies the prompt and where the user lands;
 `prompt.text` is `null` for a widget with no heading.
 
+For a bound-data record obligation, `source.id` names the owning widget and
+`source.unit` names the record key. Its prompt names that record, and its answer comes
+from that unit of the declared verb. The widget's `projectData` projection supplies its
+current place on the page, including records hidden behind another selection.
+
 A widget whose entry declares `x-awaits.reply`, such as an `lf-ask` holding no
 widget, is a question the user answers in words: their next message in its thread, or
 a comment on it on the page, is its `answer.value` (`{text}`, or `{token}` for a

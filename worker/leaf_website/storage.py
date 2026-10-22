@@ -10,6 +10,7 @@ exact bytes: the separately bundled public assets are a different module graph.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import os
@@ -19,6 +20,7 @@ import tarfile
 import time
 import urllib.request
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from http.client import HTTPResponse
@@ -203,6 +205,17 @@ def _responses(
     source_error: str | None,
     blobs: _BlobSet,
 ) -> dict:
+    # A transaction can finish inside the website's event loop. Capture its ASGI
+    # responses in one other thread then, where anyio can own a fresh loop.
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        pass
+    else:
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            return executor.submit(
+                _responses, page, site_root, manifest, root, source_error, blobs
+            ).result()
     from leaf_website import WebsitePageEndpoint, page_routes
 
     revision = latest_revision(page.page_dir)

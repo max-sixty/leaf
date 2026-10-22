@@ -16,17 +16,17 @@ Leaf's canonical vocabulary and the voice its visible copy speaks in.
 ## Read the owning contract
 
 A contract shared across modules or runtimes lives in a reference beside the Python
-code that owns it; `<root>/skills/leaf/scripts/AGENTS.md` lists them under "Protocol
+code that owns it; `<root>/src/AGENTS.md` lists them under "Protocol
 references". To check what the code does, call it: `leaf` and `leaf_dev` are installed
 editable, so `uv run python -c 'from leaf... import ...'` works as is. A tag's schema
 is in the registry of the package that ships it:
 
 ```bash
 jq 'select(has("lf-shot"))."lf-shot"' \
-  skills/leaf/assets/registry.json skills/leaf/packages/*/registry.json
+  browser/registry.json packages/*/registry.json
 ```
 
-A fact both runtimes use has one home (`skills/leaf/assets/AGENTS.md`, "Facts both
+A fact both runtimes use has one home (`browser/AGENTS.md`, "Facts both
 runtimes know"). When a change adds a parity fixture, or a test that scans one
 language's source for the other's names, ask why the fact isn't generated.
 
@@ -124,7 +124,7 @@ when it covers the same decision.
 
 The exploration is one HTML file under `.tmp/`, served with
 `uv run leaf-dev preview --source <file> --user` ("Preview a page"); its CSS reads the
-live theme's tokens. Follow `<root>/skills/leaf/packages/playground/instructions/author.md`
+live theme's tokens. Follow `<root>/packages/playground/instructions/author.md`
 to choose the elements, present the candidates, and say what to build.
 
 To compare against an existing interface, cover the controls and states the named
@@ -132,8 +132,8 @@ property affects, with this checkout's rendered interface as the baseline and
 candidates that differ from it only in the requested change. Build runtime candidates
 in the runtime and theme that own the surface; a separate sketch follows "Decision
 fidelity" in the playground author instructions, copying Leaf's mark from
-`skills/leaf/assets/icon.svg` as inline SVG and each icon's path from
-`skills/leaf/assets/runtime/icons.js`. Drive the baseline and every candidate
+`browser/icon.svg` as inline SVG and each icon's path from
+`browser/runtime/icons.js`. Drive the baseline and every candidate
 through the same journey before handoff. For a live Leaf interface, embed each as an
 `lf-sample window` child (`skills/leaf/references/live-samples.md`) and start their
 histories with `data-sample-events`.

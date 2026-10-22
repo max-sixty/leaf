@@ -13,10 +13,6 @@ from interact_support import (
     append_carried_log_record,
     wait_for,
 )
-from leaf import event_log as events_model
-from leaf import render_checks as render_checks_model
-from leaf.render_gate import browser as browser_model
-from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
 from render_cases_layout import (
     BADGE_CHROME,
@@ -47,6 +43,10 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import event_log as events_model
+from leaf import render_checks as render_checks_model
+from leaf.render_gate import browser as browser_model
+from leaf.render_gate import version as render_gate_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

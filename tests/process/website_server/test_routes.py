@@ -12,6 +12,8 @@ import leaf_website as website_server
 import pytest
 from interact_support import comment as open_thread
 from interact_support import owed_answers, running_http_server
+from leaf_dev.commands import journey, verify_site
+
 from leaf.event_log import read_events
 from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
@@ -20,8 +22,6 @@ from leaf.revision_artifact import capture_artifact
 from leaf.revision_delivery import compose_document
 from leaf.served_state import page as served_page
 from leaf.structure import SourceDocument
-from leaf_dev.commands import journey, verify_site
-
 from process.website_server import (
     FakeCodexHarness,
     get,

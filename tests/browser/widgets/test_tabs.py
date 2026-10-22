@@ -4,8 +4,6 @@ history, the stuck strip and the headers stacked under it, and queue rows and gr
 import re
 
 import pytest
-from leaf import render_checks as render_checks_model
-from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import HOLD_MOTION, live_url
 from render_harness import (
@@ -24,6 +22,9 @@ from render_harness import (
     undo,
     wait_for_revision,
 )
+
+from leaf import render_checks as render_checks_model
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

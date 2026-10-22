@@ -6,7 +6,7 @@ with its summary, and each command's `--help` and module header say the rest.
 
 Only the root dev dependency group installs this package, so the checkout's
 environment has it and `bin/leaf`, which runs `--no-dev`, never does. Nothing in
-`skills/` may import it.
+`src/` may import it.
 
 A command writes under `.tmp/` unless its reader expects the output at a committed path,
 as `leaf-dev corpus` writes `examples/corpus.html`.

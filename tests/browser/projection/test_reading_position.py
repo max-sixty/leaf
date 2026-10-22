@@ -6,7 +6,6 @@ import re
 
 import pytest
 from interact_support import add_test_widget, append_carried_log_record, declare_work
-from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
     BOXLESS_SECTION_PAGE,
@@ -35,6 +34,8 @@ from render_harness import (
     wait_for_revision,
     write,
 )
+
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

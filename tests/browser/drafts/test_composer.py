@@ -4,8 +4,6 @@ and uploads, Return on a phone, and Resume writing."""
 import base64
 
 import pytest
-from leaf import event_log as events_model
-from leaf.render_checks import one_frame
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, live_url
 from render_cases_layout import glyph_action_face, token_colour
@@ -36,6 +34,8 @@ from render_harness import (
 
 from browser.drafts import expect_panel_says
 from browser.threads import clear_of_the_panel
+from leaf import event_log as events_model
+from leaf.render_checks import one_frame
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

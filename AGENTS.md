@@ -115,17 +115,23 @@ underlying fix only when the change leaves it as easy to make as before.
 
 The repository is the plugin: `.claude-plugin/marketplace.json`,
 `.agents/plugins/marketplace.json` and `package.json`'s `pi` key name `./` as
-the payload, so Claude Code, Codex and Pi install the tracked tree whole. Read
-an area's `AGENTS.md` before changing it.
+the payload, so the payload is the whole repository, whether a harness copies it
+into a cache or loads it in place. Read an area's `AGENTS.md` before changing it.
+
+The plugin root is the installation and execution boundary: manifests register
+harness components there, and `bin/leaf` runs its uv project. The skill root,
+`skills/leaf/`, is the agent's instruction entry point, with `SKILL.md` and its
+references; copied alone, it is not an installation. `pyproject.toml` owns
+Python's module location, `leaf.state` locates the plugin root, and
+`leaf.schema` derives the resource paths. Page initialization composes the core
+browser assets and the packages into a page's layer.
 
 - `bin/leaf`, `pyproject.toml`, `uv.lock`: the launcher and its uv project.
-- `skills/leaf/scripts/leaf/`: the CLI, server and event model
-  (`skills/leaf/scripts/AGENTS.md`).
-- `skills/leaf/assets/`: the browser runtime, registry and theme
-  (`skills/leaf/assets/AGENTS.md`;
-  `skills/leaf/assets/runtime/keyboard/AGENTS.md` for commands, bindings and
-  scopes).
-- `skills/leaf/packages/`: the bundled packages (`skills/leaf/packages/AGENTS.md`).
+- `src/leaf/`: the CLI, server and event model (`src/AGENTS.md`).
+- `browser/`: the browser runtime, registry and theme, with the framework's
+  TypeScript under `browser/framework/` (`browser/AGENTS.md`;
+  `browser/runtime/keyboard/AGENTS.md` for commands, bindings and scopes).
+- `packages/`: the bundled packages (`packages/AGENTS.md`).
 - `skills/leaf/references/`: contracts for page authors, package authors and harnesses.
 - `.claude/skills/developing-leaf/`: the maintainer workflow and vocabulary.
 - `hooks/`: each harness's registration of `leaf hook` (`hooks.json` for Claude
@@ -136,7 +142,12 @@ an area's `AGENTS.md` before changing it.
   (`examples/AGENTS.md`).
 - `tests/`: the suite, with the runtime's Node tests under `tests/runtime/`
   (`tests/AGENTS.md`).
-- `build/`: the build of every committed browser bundle (`build/AGENTS.md`).
+- `build/`: the build of every generated browser file (`build/AGENTS.md`). A
+  `vendor/` directory, such as `browser/vendor/`, holds generated browser
+  modules, the framework's compiled ones included, not only third-party code.
+- `dist/kernel/`: the compiled core runtime that pages vendor, generated and
+  committed; it is a delivery form of the runtime, not a skill or an
+  installation root.
 - `dev/`: the `leaf-dev` developer commands (`dev/AGENTS.md`).
 - `worker/`: the Cloudflare Worker and containers behind <https://leaf.page/>
   (`worker/README.md`).
@@ -171,20 +182,22 @@ Use maintained dependencies, including the platform and standard library, for
 established capabilities, in prototypes too. Leaf code owns product-specific
 behavior and integration, and writes a mechanism itself only when existing ones
 can't meet a concrete requirement. In the browser, use the platform's layout,
-cascade and focus model first (`skills/leaf/assets/AGENTS.md`, "The browser
-answers first"). Build browser dependencies in Leaf's pipeline and ship ready
+cascade and focus model first (`browser/AGENTS.md`, "The browser answers
+first"). Build browser dependencies in Leaf's pipeline and ship ready
 assets.
 
 ### The install runs this tree
 
-An install is the tracked tree copied into a harness's plugin cache, and
-consumer installs follow `main`. Nothing is built at install time: installing,
-authoring pages, writing custom packages and exporting need no browser build or
-npm, since pages vendor the committed kernel and bundles (`build/AGENTS.md`).
-`bin/leaf` is `uv run --no-dev` on the tree, so the install must be writable,
-and Leaf writes nothing else there. A plugin update may replace the directory,
-so anything that must survive one belongs in the page directory or the state
-home.
+Git-sourced consumer installs copy the tracked tree into a harness's plugin
+cache and follow `main`. Claude Code's `--plugin-dir` and local-path marketplace
+plugins can load in place instead; point Codex at the git source, since its
+local-directory marketplace also copies a checkout's `.venv`. Nothing is built
+at install time: installing, authoring pages, writing custom packages and
+exporting need no browser build or npm, since pages vendor the committed kernel
+and bundles (`build/AGENTS.md`). `bin/leaf` is `uv run --no-dev` on the tree, so
+the install must be writable, and Leaf writes nothing else there. A plugin
+update may replace the directory, so anything that must survive one belongs in
+the page directory or the state home.
 
 Runtime dependencies, including a bundled package script's, state a minimum
 version and no maximum. The host supplies Chrome and `jq`; Leaf never downloads
@@ -261,7 +274,7 @@ but never ages or reclassifies a workflow. Other pages read a page's activity
 only from the row `server_rows.py` writes and whether its server is alive.
 
 The page directory is the durable record and the unit of deployment
-(`skills/leaf/scripts/leaf/page-storage.md`).
+(`src/leaf/page-storage.md`).
 
 ### Validate once and share readings
 
@@ -315,7 +328,7 @@ an hour and slows every session on the host. Before widening your selection or
 its parallelism, check CPU, memory pressure and other running suites.
 
 `pnpm run check` runs the gates the suite and pre-commit don't reach: the
-TypeScript in `worker/src/` and `build/browser/`, and the lock every committed
+TypeScript in `worker/src/` and `browser/framework/`, and the lock every committed
 bundle is built from. Both landing paths run it too.
 
 For a change that can alter browser startup, compare base and candidate: served

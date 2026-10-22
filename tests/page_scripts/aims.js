@@ -64,7 +64,7 @@
     for (const el of document.querySelectorAll(
       '[data-lf-offer], .lf-chrome button, .lf-chrome [role="button"],' +
         ' .lf-chrome [role="checkbox"], .lf-chrome [role="tab"], .lf-chrome .lf-btn,' +
-        " .lf-chrome .lf-outline-chip, .lf-chrome .lf-quote",
+        " .lf-chrome .lf-quote",
     )) {
       if (seen.has(el)) continue;
       seen.add(el);

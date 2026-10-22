@@ -2210,12 +2210,19 @@ describe("website page agent", () => {
       "",
       "data: [DONE]",
       "",
-    ].join("\n");
+    ].join("\r\n");
     const upstream = vi.fn(
       async () =>
-        new Response(responseBody, {
-          headers: { "x-request-id": "upstream-request" },
-        }),
+        new Response(
+          ReadableStream.from(
+            Array.from(new TextEncoder().encode(responseBody), (byte) =>
+              Uint8Array.of(byte),
+            ),
+          ),
+          {
+            headers: { "x-request-id": "upstream-request" },
+          },
+        ),
     );
     vi.stubGlobal("fetch", upstream);
     const logged = vi.spyOn(console, "log").mockImplementation(() => undefined);

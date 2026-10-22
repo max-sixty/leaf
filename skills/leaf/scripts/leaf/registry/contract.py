@@ -5,6 +5,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from jsonschema._utils import equal as same_state_definition
+
 from leaf.files import read_json
 from leaf.schema import WIDGET_NAME
 
@@ -403,26 +405,6 @@ def state_definition(origin: str, entry: dict, spec: dict) -> dict:
             "detail": _semantic_schema(detail_schema(entry, spec)),
         }
     )
-
-
-def same_state_definition(recorded, current) -> bool:
-    """Compare JSON definitions with the same boolean/number distinction as JS."""
-    if type(recorded) is not type(current):
-        return (
-            type(recorded) in (int, float)
-            and type(current) in (int, float)
-            and recorded == current
-        )
-    if isinstance(recorded, dict):
-        return recorded.keys() == current.keys() and all(
-            same_state_definition(value, current[key])
-            for key, value in recorded.items()
-        )
-    if isinstance(recorded, list):
-        return len(recorded) == len(current) and all(
-            same_state_definition(left, right) for left, right in zip(recorded, current)
-        )
-    return recorded == current
 
 
 def same_state_operation(recorded, current) -> bool:

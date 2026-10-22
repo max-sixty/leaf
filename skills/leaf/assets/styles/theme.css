@@ -361,9 +361,7 @@
   /* Compact toolbar controls share a height across native and vendor elements.
      Larger transport controls keep their own size; a finger raises this floor. */
   --lf-control-compact: max(30px, var(--aim-floor));
-  --details-padding-block: 8px;
   --details-margin-block: 18px;
-  --details-border: 1px;
   /* The flow's larger gaps, as tokens so a density restates each once and every rule
      that keeps one (an eyebrow standing in for its heading's gap) follows it. */
   --h2-start: 48px;
@@ -953,7 +951,7 @@ html[data-lf-interactive] [data-lf-arriving] {
 :is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input)) {
   padding: var(--lf-compose-pad-block, 8px) var(--lf-compose-pad-inline-start, 10px);
   border: 1px solid var(--border-2);
-  border-radius: 6px;
+  border-radius: var(--r);
   background: var(--card);
   color: inherit;
   resize: none;
@@ -980,17 +978,48 @@ html[data-lf-interactive] [data-lf-arriving] {
     [type="image"]
   )
 ):is(.lf-ui, .field) {
+  --lf-field-pad-inline: 8px;
   box-sizing: border-box;
   min-height: max(var(--aim-floor), calc(1em * var(--lf-ui-lh) + 10px));
-  padding: 4px 8px;
+  padding: 4px var(--lf-field-pad-inline);
   border: 1px solid var(--border-2);
-  border-radius: 6px;
+  border-radius: var(--r);
   background: var(--card);
   color: var(--ink);
   &[data-lf-focus] {
     outline: var(--focus-ring);
     outline-offset: 0;
     border-color: transparent;
+  }
+}
+/* Native picker arrows ignore padding. Draw only the closed control's chevron;
+   the browser still owns opening, selection and keyboard input. Listboxes keep
+   their native face. The two strokes use the text color in either scheme. */
+:where(select:not([multiple]):is(:not([size]), [size="0"], [size="1"])):is(
+  .lf-ui,
+  .field
+) {
+  --lf-select-arrow-wing: 4px;
+  appearance: none;
+  padding-inline-end: calc(
+    2 * (var(--lf-field-pad-inline) + var(--lf-select-arrow-wing))
+  );
+  background-image:
+    linear-gradient(45deg, transparent 25%, currentColor 25% 75%, transparent 75%),
+    linear-gradient(135deg, transparent 25%, currentColor 25% 75%, transparent 75%);
+  background-size: var(--lf-select-arrow-wing) var(--lf-select-arrow-wing);
+  background-repeat: no-repeat;
+  background-position:
+    right calc(var(--lf-field-pad-inline) + var(--lf-select-arrow-wing)) center,
+    right var(--lf-field-pad-inline) center;
+  &:dir(rtl) {
+    background-position:
+      left var(--lf-field-pad-inline) center,
+      left calc(var(--lf-field-pad-inline) + var(--lf-select-arrow-wing)) center;
+  }
+  @media (forced-colors: active) {
+    appearance: auto;
+    background-image: none;
   }
 }
 .lf-ui :is(input, textarea)::placeholder,
@@ -1338,19 +1367,6 @@ video {
 img {
   aspect-ratio: attr(width type(<number>)) / attr(height type(<number>));
 }
-/* A page's images are mostly captures of interfaces, often of this same paper and
- * type, so nothing but a drawn edge says where a capture ends and the page resumes.
- * A hairline and a resting shadow lay it on the page as an object, as documentation
- * sites frame screenshots and the site's catalog frames its stills. Both are a
- * box-shadow outside the image, so no width or ratio changes and no corner of the
- * capture is cut, and a container that clips to its own frame, such as lf-shot's,
- * hides them. A page drops them for art with no edge of its own, such as a
- * transparent logo, with `box-shadow: none`. */
-img {
-  box-shadow:
-    0 0 0 1px var(--border-2),
-    var(--raise-1);
-}
 /* Media sits in a line box, and on the baseline it leaves the line's descender room
  * under itself, about 7px between a capture or a drawing and its caption or the next
  * figure. Centring it on the line ends its box at its own bottom edge. */
@@ -1360,14 +1376,12 @@ video,
 canvas {
   vertical-align: middle;
 }
-/* Supporting detail stays unfilled whether closed or open. Its chevron and hairline
-   offer inspection; the stronger fill belongs to the callout's emphasis. */
+/* Supporting detail needs only its native disclosure marker. Padding keeps the
+   summary clear of adjacent prose; it does not turn the content into another card. */
 details {
-  border: var(--details-border) solid var(--rule);
-  border-radius: var(--r);
-  padding: var(--details-padding-block) 14px;
+  padding-block: 8px;
   margin: var(--details-margin-block) 0;
-  --lf-block-frame: 1;
+  --lf-block-frame: trim;
 }
 summary {
   cursor: pointer;
@@ -1514,31 +1528,18 @@ th:not([scope="row"]),
   vertical-align: middle;
   align-self: center;
 }
-/* A tinted field with a hairline border — never a left-accent bar. What sits in it is the
-   page's own prose at the page's own size, so the tint is the whole of the marking and
-   this says nothing about size at all. It held 16px once, a pixel under the body around it
-   for a difference no user could see; stating --t-4 instead was the same number in a
-   token, true and inert, and a second place the body's size had to be kept. */
+/* A callout's tint carries its emphasis. Its prose keeps the page's own size. */
 .callout {
   background: var(--field);
-  border: 1px solid var(--rule);
-  border-radius: var(--r);
   padding: 12px 16px;
   margin: var(--callout-margin-block) 0;
   --lf-block-frame: 1;
 }
-/* A panel is one titled region of a sidebar page: the checks, the log, the steps. Every region
-   on a dashboard is drawn the same way, so the eye reads the page as a set of like things
-   laid on a grid, where a mix of raised tiles, tinted fields, bare tables and bordered logs
-   read as a pile. The title is the tile label's voice (a headline value), small and set in
-   capitals, so a panel's name ranks below the page's headings and beside its numbers. */
+/* A panel groups one working region by its heading and spacing. The content owns
+   any frame it needs; a table or log does not need a second card around it. */
 section.panel {
-  background: var(--card);
-  border: 1px solid var(--rule);
-  border-radius: var(--r);
-  padding: 14px 18px 16px;
   margin: 18px 0;
-  --lf-block-frame: 1;
+  --lf-block-frame: trim;
 }
 section.panel > :is(h2, h3):first-child {
   margin: 0 0 10px;
@@ -1581,7 +1582,6 @@ section.panel > :is(h2, h3):first-child,
 /* A callout's prose stays in the body's ink; its title takes the tone. */
 .callout:is(.ok, .warn, .danger) {
   background: var(--lf-tone-tint);
-  border-color: color-mix(in srgb, var(--lf-tone-ink) 22%, transparent);
 }
 .callout:is(.ok, .warn, .danger) > strong:first-child {
   color: var(--lf-tone-ink);

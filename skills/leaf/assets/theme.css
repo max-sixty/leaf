@@ -1322,9 +1322,7 @@
   --wide-page-max: 1600px;
   --lf-ui-lh: 1.45;
   --lf-control-compact: max(30px, var(--aim-floor));
-  --details-padding-block: 8px;
   --details-margin-block: 18px;
-  --details-border: 1px;
   --h2-start: 48px;
   --h3-start: 32px;
   --figure-margin-block: 22px;
@@ -1580,7 +1578,7 @@ html[data-lf-interactive] [data-lf-arriving] {
 :is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input)) {
   padding: var(--lf-compose-pad-block, 8px) var(--lf-compose-pad-inline-start, 10px);
   border: 1px solid var(--border-2);
-  border-radius: 6px;
+  border-radius: var(--r);
   background: var(--card);
   color: inherit;
   resize: none;
@@ -1589,17 +1587,44 @@ html[data-lf-interactive] [data-lf-arriving] {
   overflow-y: auto;
 }
 :where(select, input:not([type=checkbox], [type=radio], [type=range], [type=color], [type=file], [type=button], [type=submit], [type=reset], [type=image])):is(.lf-ui, .field) {
+  --lf-field-pad-inline: 8px;
   box-sizing: border-box;
   min-height: max(var(--aim-floor), calc(1em * var(--lf-ui-lh) + 10px));
-  padding: 4px 8px;
+  padding: 4px var(--lf-field-pad-inline);
   border: 1px solid var(--border-2);
-  border-radius: 6px;
+  border-radius: var(--r);
   background: var(--card);
   color: var(--ink);
   &[data-lf-focus] {
     outline: var(--focus-ring);
     outline-offset: 0;
     border-color: transparent;
+  }
+}
+:where(select:not([multiple]):is(:not([size]), [size="0"], [size="1"])):is(.lf-ui, .field) {
+  --lf-select-arrow-wing: 4px;
+  appearance: none;
+  padding-inline-end: calc(2 * (var(--lf-field-pad-inline) + var(--lf-select-arrow-wing)));
+  background-image:
+    linear-gradient(
+      45deg,
+      transparent 25%,
+      currentColor 25% 75%,
+      transparent 75%),
+    linear-gradient(
+      135deg,
+      transparent 25%,
+      currentColor 25% 75%,
+      transparent 75%);
+  background-size: var(--lf-select-arrow-wing) var(--lf-select-arrow-wing);
+  background-repeat: no-repeat;
+  background-position: right calc(var(--lf-field-pad-inline) + var(--lf-select-arrow-wing)) center, right var(--lf-field-pad-inline) center;
+  &:dir(rtl) {
+    background-position: left var(--lf-field-pad-inline) center, left calc(var(--lf-field-pad-inline) + var(--lf-select-arrow-wing)) center;
+  }
+  @media (forced-colors: active) {
+    appearance: auto;
+    background-image: none;
   }
 }
 .lf-ui :is(input, textarea)::placeholder,
@@ -1761,9 +1786,6 @@ video {
 img {
   aspect-ratio: attr(width type(<number>)) / attr(height type(<number>));
 }
-img {
-  box-shadow: 0 0 0 1px var(--border-2), var(--raise-1);
-}
 img,
 svg,
 video,
@@ -1771,11 +1793,9 @@ canvas {
   vertical-align: middle;
 }
 details {
-  border: var(--details-border) solid var(--rule);
-  border-radius: var(--r);
-  padding: var(--details-padding-block) 14px;
+  padding-block: 8px;
   margin: var(--details-margin-block) 0;
-  --lf-block-frame: 1;
+  --lf-block-frame: trim;
 }
 summary {
   cursor: pointer;
@@ -1854,19 +1874,13 @@ th:not([scope=row]),
 }
 .callout {
   background: var(--field);
-  border: 1px solid var(--rule);
-  border-radius: var(--r);
   padding: 12px 16px;
   margin: var(--callout-margin-block) 0;
   --lf-block-frame: 1;
 }
 section.panel {
-  background: var(--card);
-  border: 1px solid var(--rule);
-  border-radius: var(--r);
-  padding: 14px 18px 16px;
   margin: 18px 0;
-  --lf-block-frame: 1;
+  --lf-block-frame: trim;
 }
 section.panel > :is(h2, h3):first-child {
   margin: 0 0 10px;
@@ -1900,7 +1914,6 @@ section.panel > :is(h2, h3):first-child,
 }
 .callout:is(.ok, .warn, .danger) {
   background: var(--lf-tone-tint);
-  border-color: color-mix(in srgb, var(--lf-tone-ink) 22%, transparent);
 }
 .callout:is(.ok, .warn, .danger) > strong:first-child {
   color: var(--lf-tone-ink);

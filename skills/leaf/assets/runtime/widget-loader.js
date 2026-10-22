@@ -186,7 +186,7 @@ async function installDocument(scope) {
     const prior = readApplication().document;
     applicationState.captureDocument({
       ...prior,
-      registry,
+      registry: { ...registry },
       authored: new Map([...prior.authored, ...authored]),
       descriptors: new Map([...prior.descriptors, ...descriptors.descriptors]),
     });

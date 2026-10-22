@@ -413,26 +413,17 @@ test("a projection watcher repaints for a part its own paint published after rea
   assert.deepEqual(drawn, [drawn[0], !drawn[0]]);
 });
 
-test("a projection watcher repaints for an outside reading its own paint moved", async () => {
+test("a projection watcher repaints for a signal its own paint moved", async () => {
   const { watchProjection } = await import("/runtime/projection-watch.js");
-  const { outsideReading } = await import("/vendor/browser-runtime.js");
-  let value = false;
-  const heard = new Set();
-  const flag = outsideReading(
-    () => value,
-    (moved) => {
-      heard.add(moved);
-      return () => heard.delete(moved);
-    },
-  );
+  const { signal } = await import("/vendor/browser-runtime.js");
+  const flag = signal(false);
   const owner = document.createElement("div");
   document.body.append(owner);
   const drawn = [];
   const stop = watchProjection(owner, () => {
-    drawn.push(flag.read());
+    drawn.push(flag.value);
     if (drawn.length === 1) {
-      value = true;
-      for (const moved of [...heard]) moved({});
+      flag.value = true;
     }
   });
   await new Promise((resolve) => setTimeout(resolve));

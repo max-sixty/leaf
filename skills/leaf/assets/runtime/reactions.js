@@ -154,8 +154,8 @@ export function createReactionController({
   let pageCommands = null;
   const marginReactionKey = (name, ordinal) =>
     `reaction:${String(ordinal).padStart(4, "0")}:${name}`;
-  function registerReactSurface(surface, { palette, target, trigger }) {
-    surfaces.set(surface, { palette, target, trigger });
+  function registerReactSurface(surface, { palette, trigger }) {
+    surfaces.set(surface, { palette, trigger });
     return {
       toggle: () => setReact(!(reactArmed && reactSurface === surface), { surface }),
       close: () => {
@@ -475,13 +475,6 @@ export function createReactionController({
     );
   }
 
-  const reactTargetWord = () =>
-    reactSurface === marginSurface
-      ? anchorWord(marginAnchor)
-      : typeof pickerFor(reactSurface)?.target === "function"
-        ? pickerFor(reactSurface).target()
-        : (pickerFor(reactSurface)?.target ?? "the target");
-
   const REACT = {
     title: "With reactions open",
     ready: savedReadingSettled,
@@ -508,10 +501,10 @@ export function createReactionController({
           return n > 1 ? `1–${n}` : "1";
         },
         description: () =>
-          `Put a reaction on ${reactTargetWord()}: ${reactionTokens()
+          reactionTokens()
             .slice(0, 9)
             .map(([name, entry], i) => `${i + 1} ${entry.glyph} ${name}`)
-            .join(", ")}`,
+            .join(", "),
         title: "react",
         when: reactionAvailable,
         run: (binding) => {
@@ -599,7 +592,7 @@ export function createReactionController({
     ready: savedReadingSettled,
     touch: false,
     keys: ["e"],
-    description: "For the selection, the focused item, or the open reply",
+    description: "On the selection, the focused item or the open reply",
     title: "reactions",
     when: () =>
       reactionAvailable() &&

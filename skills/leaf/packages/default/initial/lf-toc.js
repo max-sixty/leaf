@@ -3,26 +3,20 @@
  * it. A closed disclosure already has its final height. An authored open outline
  * depends on later headings, so its reading scope first paints once those inputs have
  * parsed, without waiting for behavior modules or the server's state. */
-import { drawOutline, drawToc, outlineDocument } from "../widgets/toc-view.js";
+import { drawToc, outlineDocument } from "../widgets/toc-view.js";
 
 // Before modules run, a heading holds only the words its author wrote, and the only
 // chrome is the light document's.
 const reading = {
   label: (heading) => heading.textContent.replace(/\s+/g, " ").trim(),
   chrome: (heading) => heading.closest(".lf-chrome") !== null,
-  // The rows are drawn once, into an empty list.
-  place: (list, rows) => list.append(...rows),
   lends: false,
 };
 
 document.documentElement.lfInitial.register("lf-toc", (host, { keeps }) => {
   const drawing = drawToc(host);
   const outline = () =>
-    keeps(
-      host,
-      "data-lf-toc-empty",
-      drawOutline(host, drawing, { ...reading, keeps }).length ? null : "",
-    );
+    keeps(host, "data-lf-toc-empty", drawing.update(reading).length ? null : "");
   const doc = host.ownerDocument;
   if (doc.readyState === "loading") {
     const pending = host.hasAttribute("open") && outlineDocument(host);

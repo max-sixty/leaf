@@ -119,6 +119,7 @@ def test_authored_module_entry_exports_through_its_one_import_map_url(tmp_path, 
         "runtime/widget-api.js": "export {};",
         "runtime/offline-delivery.js": "",
         "runtime/prepaint.js": "",
+        "vendor/lit-initial.js": "",
         "runtime/annotation-overlay/annotation-theme.css": "",
         "runtime/annotation-overlay/annotation-chrome.css": "",
         "runtime/annotation-overlay/annotation-marks.css": "",
@@ -163,3 +164,57 @@ def test_authored_module_entry_exports_through_its_one_import_map_url(tmp_path, 
         if "data-lf-runtime" not in script["attrs"]
     )
     assert entry["attrs"]["src"] == import_map[f"leaf:{logical}"] == modules[logical]
+
+
+@pytest.mark.parametrize("early_lit", [False, True])
+def test_export_selects_one_lit_implementation_from_the_initial_document(
+    tmp_path, early_lit
+):
+    """A later message producer uses normal module Lit; an early one uses the facade."""
+    import base64
+
+    from leaf.exporting import _module_urls
+    from leaf.revision_artifact import capture_artifact
+    from leaf.structure import SourceDocument
+
+    files = {
+        "leaf.js": 'import { render } from "/vendor/lit.js";',
+        "vendor/lit.js": 'export const render = "module implementation";',
+        "vendor/lit-shared.js": 'export const render = "shared facade";',
+        "vendor/lit-initial.js": "window.classicLit = true;",
+        "vendor/producer.js": "window.producer = true;",
+        "vendor/initial-dependencies.json": json.dumps(
+            {
+                "/vendor/producer.js": ["/vendor/lit-initial.js"],
+            }
+        ),
+        "widgets/lf-early.js": 'import { render } from "/vendor/lit.js";',
+    }
+    for filename, source in files.items():
+        target = tmp_path / filename
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(source)
+    document = SourceDocument(
+        "<main><lf-early></lf-early></main>" if early_lit else "<main>Plain</main>"
+    )
+    artifact = capture_artifact(
+        tmp_path,
+        document,
+        {
+            "lf-early": {"x-initial": "/vendor/producer.js", "x-upgrade": True},
+        },
+    )
+    modules = _module_urls(
+        artifact, [document, SourceDocument("<lf-early></lf-early>")]
+    )
+    implementation = base64.b64decode(
+        modules["/vendor/lit.js"].split(",", 1)[1]
+    ).decode()
+    assert (
+        implementation
+        == files["vendor/lit-shared.js" if early_lit else "vendor/lit.js"]
+    )
+    assert "/vendor/lit-shared.js" not in modules
+    assert "/vendor/lit-initial.js" not in modules
+    widget = base64.b64decode(modules["/widgets/lf-early.js"].split(",", 1)[1]).decode()
+    assert '"leaf:/vendor/lit.js"' in widget

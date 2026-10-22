@@ -225,7 +225,7 @@
     "runtime/thread/transcript.js": "15d3324eadb53d22404a45583d1bdba78112f42b4e3611b5cc4954f8cd37b88a",
     "runtime/thread/workflow.js": "803ecb78ff7119335f82fad2e95c3768e86aa3b94c626607d9e21963fa4362a9",
     "runtime/traffic.js": "5e229a6473f4a8fa5152d3b197f30ede4df279bb65312ab8ead7d5b99ced4265",
-    "runtime/undo.js": "9e235b16723575ae0fbbc615b5a8792cb4cab212d1db1a8041f6bd330347a27a",
+    "runtime/undo.js": "7b660d716a1b035ab23244c7a3c2c6a978e4692452a3c4fe438db52a0d7588ca",
     "runtime/user-intent.js": "29238438a04c749d2db046472516dfc2e15570a8060397d0228f85feb8a58b44",
     "runtime/user-place.js": "7c3cc5c10aeeb84fa52511fa79d6450f695cc32b9b2302b7e6b6cc51609fffe6",
     "runtime/user-view.js": "bfbb8c68b48bd8da794309949f890d788b7859ff1c1c285a5be04eae55c32bd4",

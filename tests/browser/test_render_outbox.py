@@ -581,6 +581,45 @@ def test_another_key_or_a_scroll_away_puts_the_shown_gesture_back_to_showing(
     assert _undos(serve.page_dir) == [choice["id"]]
 
 
+def test_a_quick_second_z_waits_for_a_fragments_trip(browser, serve):
+    """A widget is shown by travelling to it as a fragment, which scrolls after the
+    press returns: a second `z` before the choice is in view shows it again rather
+    than taking back what the user has not seen."""
+    url = serve(FAR_CHOICE_PAGE)
+    choice = append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "picks",
+            "action": "choose",
+            "detail": {"value": ["opt-a"]},
+        },
+    )
+    page = open_page(browser, url)
+    undo_offered(page)
+    expect(page.locator("#picks")).not_to_be_in_viewport()
+    page.evaluate(
+        """async () => {
+          const z = () =>
+            document.activeElement.dispatchEvent(
+              new KeyboardEvent("keydown", { key: "z", code: "KeyZ", bubbles: true }),
+            );
+          z();
+          await Promise.resolve();
+          await Promise.resolve();
+          z();
+        }"""
+    )
+    told(page)
+    assert _undos(serve.page_dir) == []
+    expect(page.locator("#picks")).to_be_in_viewport()
+    with sending(page, "the withdrawal"):
+        page.keyboard.press("z")
+    assert _undos(serve.page_dir) == [choice["id"]]
+
+
 def test_the_menus_undo_shows_then_takes_too(browser, serve):
     """A finger's way to Undo is the leaf's menu row, and it goes the same two steps:
     the first press opens the thread, and pressing the row again takes it back, the

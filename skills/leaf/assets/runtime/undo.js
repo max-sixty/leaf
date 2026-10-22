@@ -299,10 +299,13 @@ export function createUndo({
       return [opened, ...place.nodes].filter(Boolean);
     }
     // A fragment link's own trip (anchor-travel.js, `followFragment`), so Back returns
-    // to where the user was reading.
+    // to where the user was reading. The trip lands after this press returns, so the
+    // show waits for it to finish where the Navigation API says when that is.
     const url = new URL(window.location.href);
     url.hash = place.fragment;
-    window.location.assign(url);
+    if (window.navigation)
+      await window.navigation.navigate(url.href).finished.catch(() => {});
+    else window.location.assign(url);
     return place.nodes.filter(Boolean);
   }
 

@@ -5713,7 +5713,10 @@ function createUndo({
     }
     const url = new URL(window.location.href);
     url.hash = place.fragment;
-    window.location.assign(url);
+    if (window.navigation)
+      await window.navigation.navigate(url.href).finished.catch(() => {
+      });
+    else window.location.assign(url);
     return place.nodes.filter(Boolean);
   }
   function arm(event) {

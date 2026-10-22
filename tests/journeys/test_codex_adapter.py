@@ -312,8 +312,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
                 for key, expected in delivery_model.current_responses(
                     page, events_model.read_events(page)
                 ).items()
-                if expected["kind"] == "reply"
-                and expected["parent"] == comment["id"]
+                if expected["kind"] == "reply" and expected["parent"] == comment["id"]
             )
             thread_model.post_reply(page, {"responds": response}, text)
 

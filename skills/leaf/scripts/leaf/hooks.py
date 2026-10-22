@@ -41,6 +41,10 @@ entry routes `leaf hook` here before loading the CLI.
 Claude Code's PostToolBatch carries pending input before the next model call,
 after successful or failed tools, using the same envelope and receipt as its
 prompt hook. A boundary with nothing pending adds no response-debt reminders.
+Claude Code may still drop what a hook hands over, so its PreToolUse, PostToolBatch
+and Stop hooks first confirm what the turn's earlier hooks handed into it
+(`delivery.confirm_turn`): the model reads the context before it calls a tool or
+ends its turn.
 
 Resume and prompt hooks also inspect retained claims for disconnected pages
 (`reconnect`), including inactive ownership. That notice does not reclaim a
@@ -103,6 +107,10 @@ def cmd_hook(harness: str, payload: dict) -> None:
             # The launcher skipped this turn's prompt hook (`bin/leaf`),
             # so the turn a claim joins opens here, before the command.
             prompt_turn(sid)
+        elif not hooked.commits_hook_context:
+            from .delivery import confirm_turn
+
+            confirm_turn(sid)
         return
     turn_id = payload.get("turn_id")
     if event in {"UserPromptSubmit", "TurnStart"}:
@@ -148,6 +156,10 @@ def cmd_hook(harness: str, payload: dict) -> None:
             sid, turn_id, expected=expected, ended_at=payload.get("ended_at")
         )
         return
+    if event in {"PostToolBatch", "Stop"} and not hooked.commits_hook_context:
+        from .delivery import confirm_turn
+
+        confirm_turn(sid)
     prompt, expected = hooked.offer_at_step(event, payload, expected)
     if prompt:
         print(json.dumps(hooked.hook_context(event, prompt)))

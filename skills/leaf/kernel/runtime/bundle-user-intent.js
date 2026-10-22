@@ -3618,7 +3618,7 @@ var STAGE_LABELS = Object.freeze({
   sending: "Sending",
   sent: "Sent",
   queued: "Queued",
-  picked_up: "Picked up",
+  picked_up: "Delivered",
   working: "Working",
   replying: "Replying",
   answered: "Answered"
@@ -3629,12 +3629,12 @@ var CONDITION_LABELS = Object.freeze({
   stale: "Update stale",
   failed: "Failed"
 });
-var WAITING_FOR_PICKUP = "Waiting for pickup";
+var WAITING_FOR_DELIVERY = "Waiting for delivery";
 var NOT_ANSWERED = "Not answered";
 var workflowLabel = (workflow, { answered = false } = {}) => {
   if (!workflow) return "";
   if (workflow.condition)
-    return workflow.condition.kind === "stale" && workflow.condition.operation === "delivery" ? WAITING_FOR_PICKUP : workflow.condition.kind === "failed" && workflow.condition.operation === "response" ? NOT_ANSWERED : CONDITION_LABELS[workflow.condition.kind] ?? "Failed";
+    return workflow.condition.kind === "stale" && workflow.condition.operation === "delivery" ? WAITING_FOR_DELIVERY : workflow.condition.kind === "failed" && workflow.condition.operation === "response" ? NOT_ANSWERED : CONDITION_LABELS[workflow.condition.kind] ?? "Failed";
   if (workflow.stage === "answered" && !answered) return "";
   return STAGE_LABELS[workflow.stage] ?? "";
 };

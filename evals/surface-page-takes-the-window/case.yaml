@@ -33,11 +33,14 @@ assert:
   - type: llm-rubric
     metric: judgment
     value: |
-      Read the HTML. Pass only if the playground leads the page as its main surface:
-      `main` is a `layout-workspace`; the `lf-ask` holding the `lf-playground` is either
-      the workspace's body or the only block in the first tab of an `lf-tabs` set placed
-      directly in `main`, whose later tabs hold the review of today's panel, the
-      comparisons and the reasoning; and the `lf-playground` carries
-      `data-width="available"`. Fail if `main` is a `layout-column` or `layout-sidebar` page with the
+      Read the HTML. Pass only if the playground leads the page as its main surface,
+      in one of these forms, and the `lf-playground` carries `data-width="available"`:
+      - `main` is a `layout-workspace`, and the `lf-ask` holding the `lf-playground` is
+        either the workspace's body or the only block in the first tab of an `lf-tabs`
+        set placed directly in `main`, whose later tabs hold the review of today's
+        panel, the comparisons and the reasoning;
+      - a page of parts: `main` has no Layout class and holds one `lf-parts` whose first
+        `lf-part` is a `layout-workspace` holding that `lf-ask`, and whose later parts
+        hold the review, the comparisons and the reasoning. Fail if `main` is a `layout-column` or `layout-sidebar` page with the
       playground set among the review's sections, or if the review, comparisons or
       reasoning stand before the playground in the same view.

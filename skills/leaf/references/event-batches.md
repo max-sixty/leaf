@@ -2,55 +2,30 @@
 
 ## Handle the input
 
-Process every event in every batch. If you got a pointer, read it with
-`leaf delivery read <id>`, following each `next` command until you have every part,
-then confirm it ("Delivery and acknowledgement"). For each event, follow the
-`handling` clauses it names, in order; they say what response it needs.
-
-Before working, post your progress line
-([conversation loop, "When to write"](conversation-loop.md#when-to-write)). Read
-[threads](threads.md) for messages and replies, or
+Process every event in every batch. For each event, follow the `handling` clauses it
+names, in order; they say what response it needs. Before working, post your progress
+line ([conversation loop, "When to write"](conversation-loop.md#when-to-write)), then
+read [threads](threads.md) for messages and replies, or
 [authoring revisions](authoring-revisions.md) for an answer recorded in markup.
 Reread current state when later input could change the work. Input you already
 handled is a retry: do not repeat its repository edits or external actions.
 
 ## One envelope on every transport
 
-Every transport delivers the same immutable object:
-
-```json
-{
-  "format": "leaf-delivery/…",
-  "id": "a1b2c3d4",
-  "created_at": 0,
-  "acknowledge": "Whoever ran the `leaf wait` that printed this delivery acknowledges it; …",
-  "batches": [
-    {
-      "page": "/absolute/page",
-      "claim": "page-session",
-      "through_seq": 12,
-      "threads": [],
-      "handling": {},
-      "events": []
-    }
-  ]
-}
-```
-
-`DELIVERY` in `scripts/leaf/delivery.py` declares every field, with the thread
-digests. Some harnesses put it in your context; others give a pointer, which
-`leaf delivery read <id>` resolves. A large envelope reads in numbered parts
-instead: each reading names its `part` of `parts` and holds a slice of the
-envelope's JSON in `text`, which you join in order, and its `next` is the command
-that reads the following part, or null on the last. Only the last part carries
-`acknowledge`.
+Every transport delivers the same immutable envelope: an `id`, an `acknowledge`
+instruction, and `batches`, one per page, each with its page's events, the threads
+they belong to, and the `handling` clauses they name. `DELIVERY` in
+`scripts/leaf/delivery.py` declares every field. Some harnesses put the envelope in
+your context; others give a pointer, which `leaf delivery read <id>` resolves. A
+large envelope reads in numbered parts: each holds a slice of its JSON in `text`,
+which you join in order, and its `next` is the command that reads the following
+part, or null on the last.
 
 An envelope with `correction` retries one answer Leaf refused to post: its
 `diagnostic` says why, and its `instruction` asks you to fix that failure and answer
 the same input again, keeping the work you already did.
 
-Events keep their stored fields and log order, without the browser's retry key
-`attempt`, and add:
+Events keep their stored fields and log order, and add:
 
 - `subject`: the page, thread, or widget the event changes.
 - `says`: the words of what the user pressed, such as each picked option, as the
@@ -61,26 +36,21 @@ Events keep their stored fields and log order, without the browser's retry key
   `suggestion: true` beside it means the message is a suggestion, so its new `text`
   is the exact replacement it proposes.
 - `answer`: the response the event owes. A `kind: "reply"` answer is a thread reply,
-  written with `leaf response reply <answer.ref>` ([threads](threads.md)), or by your
-  turn's final message where its `writer` is `"turn"`; `parent` names the message it
-  threads under and `responds` the exact input it answers. A `kind: "markup"` answer is the
-  page revision its `handling` names, and a reply does not replace it. Until the
-  answer is written, `leaf status idle` refuses, and the Stop hook holds the turn
-  open unless the turn started the update (`references/conversation-loop.md`,
-  "Long-running work"). Events with no `answer` owe nothing: a page action outside
-  any obligation, a pick still waiting for the user's Done, or a message followed by a
-  newer one in its thread (your reply to the newer one covers both).
+  written with `leaf response reply <answer.ref>`, or by your turn's final message
+  where its `writer` is `"turn"`. A `kind: "markup"` answer is the page revision its
+  `handling` names, and a reply does not replace it. Until the answer is written,
+  `leaf status idle` refuses, and the Stop hook holds the turn open unless the turn
+  started the update. An event with no `answer` owes nothing, as with a pick still
+  waiting for the user's Done, or a message followed by a newer one in its thread,
+  whose reply covers both.
 - `handling`: ids of clauses in the batch's `handling` object, in reading order. The
-  object holds each clause's text once, and the ids mean nothing outside the batch.
-  Follow every clause the event names.
+  ids mean nothing outside the batch.
 
 The batch's `threads` give each thread's title (null until named), anchor, whether
 it is resolved, earlier messages, and the gestures in force on widgets sent in it. A
-thread's history leaves out messages that are events in the batch, and a long thread
-shows only its opening and latest messages, with `elided` counting the rest; read
-the whole thread with `leaf page state <page> <thread-id>`, paginated with
-`--after`. `leaf page events <page>` prints the raw log, for diagnostics only. A long
-thread may also carry `summary_hint`
+long thread shows only its opening and latest messages, with `elided` counting the
+rest; read the whole thread with `leaf page state <page> <thread-id>`, paginated
+with `--after`. A long thread may also carry `summary_hint`
 ([threads, "Summarize a long discussion"](threads.md#summarize-a-long-discussion)).
 
 ## Delivery and acknowledgement
@@ -88,13 +58,12 @@ thread may also carry `summary_hint`
 Confirm a delivery only once every part is in context, by following its
 `acknowledge` instruction, which a pointer shows on its last part. Reading it again
 does not confirm it. Input your harness already confirmed arrives with
-`acknowledge: null`; Codex hook input still requires your explicit confirmation.
-
-Confirming marks the user's updates **Delivered**; it does not answer them.
+`acknowledge: null`. Confirming marks the user's updates **Delivered**; it does not
+answer them.
 
 `leaf wait` waits only on pages this session holds; to take over a page, run
 `leaf page claim <page>` first. A wait exits 0 with input, or 2 with a diagnostic
-to follow. Receipt commands refuse input that no longer belongs to this session.
+to follow.
 
 ## After the batch
 

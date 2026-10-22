@@ -3,40 +3,23 @@
 Keep the user informed on the page, and answer their updates there, following each
 event's `handling`. A chat response does not change the page.
 
-## What the user sees
-
-The user follows your work on the page:
-
-| Surface                   | What it shows                                                                                                                                                           | Written by                                                                |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| Leaf's panel              | one sentence for the whole page, in the empty comment field: the line of the item you started last, or what you want back; the leaf beside it takes the status's colour | `leaf task start`, `leaf status <page> waiting "<detail>"`                |
-| Beside a thread or widget | **Working** and your line: the thread's working message, where you posted it, or on the control the work answers                                                        | `leaf response reply --ephemeral`, `leaf task start <page> <id> "<line>"` |
-| Thread                    | your answer to the user's message, replacing the progress before it                                                                                                     | the response operation named by delivered `handling`                      |
-| Page                      | the revised content in place, and a stamp's changelog                                                                                                                   | saving `index.html`, `leaf page stamp`                                    |
-
-Leaf's panel floats at the foot of the window. Leaf marks each update **Sent**,
-**Queued**, and **Delivered** by itself. Your harness may add its current step to the
-status, which the user reads in full in the leaf's menu, or by pointing at the leaf
-when the panel is folded.
-
-In `leaf page state <page>`, `viewed` is when a browser tab last showed the page, in
-epoch seconds, renewed about every 10 seconds while visible and `null` if nobody has
-opened it. Each thread's `unread` lists your messages the user has not read
-([threads](threads.md#what-the-user-has-read)). Nothing records whether they saw a
-status.
-
 ## The user's view
 
-`user_views` in `leaf page state <page>` has one entry per browser page load over the
-last day: its viewport, the area left after Leaf's chrome, color scheme, pointer,
-reduced motion, scroll position, and which regions are on screen. Use it to check
-that a revision fits the window the user has. `visible` says whether the load showed
-the page at its last report, `freshness` turns `stale` after 45 seconds without one,
-and `matches_active_revision` says whether it shows your latest revision. Each
+`leaf page state <page>` says what the user has seen. `viewed` is when a browser tab
+last showed the page, in epoch seconds, renewed about every 10 seconds while visible
+and `null` if nobody has opened it. Each thread's `unread` lists your messages the
+user has not read ([threads](threads.md#what-the-user-has-read)). Nothing records
+whether they saw a status.
+
+`user_views` has one entry per browser page load over the last day, with its
+viewport, the area left after Leaf's chrome, color scheme, pointer, scroll position
+and the regions on screen. Use it to fit a revision to the window the user has.
+Before taking an entry as the user's current view, read `visible`, `freshness`
+(`stale` after 45 seconds without a report) and `matches_active_revision`. Each
 entry's `checks` lists layout problems that browser measured, such as sideways
-overflow, with their own `freshness` and `matches_view`. They are context, not a
-substitute for `leaf page check --render`. An empty list means no browser has
-reported, and a region on screen does not mean the user read it.
+overflow. They are context for your judgment, not a substitute for
+`leaf page check --render`. An empty list means no browser has reported, and a region
+on screen does not mean the user read it.
 
 ## When to write
 
@@ -49,41 +32,40 @@ first:
 leaf response reply <answer.ref> --ephemeral --text "<what you will do, in a line>"
 ```
 
-The line shows at once as the thread's working message and the panel's **Working**
-status, and it starts the update. Your answer later folds it away
-([progress messages](threads.md#progress-messages)). Start any other item, such as a
-to-do or an action on a page widget, with `leaf task start`:
+The line shows at once in the thread and as **Working** in Leaf's panel, at the foot
+of the window, and it starts the update. Start any other item, such as a to-do or an
+action on a page widget, with `leaf task start`. Chained before the step's command, a
+start costs no extra tool call:
 
 ```bash
 leaf task start <page> <id> "reading the reconnect traces" && <command>
 ```
 
 Post or start again whenever the user would describe your work differently, such as
-moving from reading to editing or testing. Chained before the step's command, a start
-costs no extra tool call. Name the operation and its subject; "Working on it" says
-nothing.
+moving from reading to editing or testing, and after input interrupts other work.
+Name the operation and its subject; "Working on it" says nothing. The panel shows
+the item you started last, so start the one that best describes what is running.
 
-Work asked for in chat, or begun on your own, gets a to-do. Open it on the widget or
-element it concerns, or on `page`; on a new page, open and start it before
-authoring:
+Work asked for in chat, or begun on your own, gets a to-do, opened on the widget or
+element it concerns or on `page`. On a new page, open and start it before authoring:
 
 ```bash
-leaf task open <page> page "Add a glossary"
+leaf task open <page> page "Add a glossary"   # prints the to-do's id
 leaf task start <page> <todo> "drafting the glossary entries"
 # After authoring the glossary and passing leaf page check:
 leaf task end <page> <todo> done "<where the result is>"
 ```
 
-`leaf task open` prints the to-do's `id`. Until you end it, `leaf status … idle`
-refuses. Housekeeping such as re-vendoring, restarting the server, or merging needs
-no to-do.
+A stamped version can end a widget's to-dos instead, with
+`leaf page stamp <page> --text "…" --completes <widget-id>`. Housekeeping such as
+re-vendoring, restarting the server, or merging needs no to-do.
 
-When the work runs to several steps, some of which may wait on the user, write your plan
-before you start the first step, so the user can follow it in the panel's Plan tab: the
-goal, its steps in order, the one under way, and those waiting on them.
-`leaf task plan <page>` reads the whole outline from stdin as a JSON list of steps: the
-goal at depth 0, each step one deeper than the step it belongs to, and each either a
-`title` with a `state` (`open`, `working`, `done` or `dropped`) or the `item` it names:
+When the work runs to several steps, some of which may wait on the user, write your
+plan before you start the first step, so the user can follow it in the panel's Plan
+tab. `leaf task plan <page>` reads the whole outline from stdin as a JSON list of
+steps: the goal at depth 0, each step one deeper than the step it belongs to, and
+each either a `title` with a `state` (`open`, `working`, `done` or `dropped`) or the
+`item` it names:
 
 ```bash
 leaf task plan <page> <<'EOF'
@@ -95,77 +77,46 @@ EOF
 ```
 
 Make each step that stays owed past your turn a to-do or obligation the plan names by
-id, so it follows that one's state; a plain step's state is yours to keep current. Write
-the plan again when a step finishes or the breakdown changes.
-
-When input arrives:
-
-1. If the delivery's `acknowledge` names a receipt command, run it first. If it is
-   `null`, your harness has confirmed receipt.
-2. Post the progress line for each update that asks for work. Answer a question you
-   can already settle at once; make any related page revision after replying.
-3. If it interrupted other work, start that item again, so the panel's status
-   describes the work that continues.
-
-Reply about a page revision as soon as it is saved; the reply checks it (the main
-skill's "Check the page").
+id, so it follows that item's state. Keep a plain step's state current yourself, and
+write the plan again when a step finishes or the breakdown changes.
 
 ## Status and handoff
 
-Before handing over, reconcile both lists ("The On lists"), then say what you want
-back:
+Before handing over, reconcile both lists ("The On lists"), then say in the panel
+what you want back, naming the answer or decision rather than the fact that you are
+waiting:
 
 ```bash
 leaf status <page> waiting "<what you want back>"
 ```
 
-Name the answer or decision, not the fact that you are waiting. On an informational
-page with nothing on On me, leave it empty; the panel's status then invites the user to
-comment. Tell the user what they can do on the page, and hand over as your harness
-contract says.
-From the first handoff on, every turn's final response includes the exact page URL;
-progress messages don't repeat it.
-An export hands over its file URL, and a harness that already shows the page uses
-its own handoff surface.
-
-`waiting` ends all your earlier starts; your to-dos stay open. Your reply ends an
-update's start, or, for an answer owed in markup, the stamped version that records
-the user's press. A to-do's start ends with the to-do, through `leaf task end` or a
-stamped version that completes its widget:
-
-```bash
-leaf page stamp <page> --text "…" --completes <widget-id>
-```
-
-`--completes` ends every open to-do on that widget `done`, citing the version; repeat
-it for each widget. A to-do on a widget stays open through versions that do not
-complete it, even one that removes the widget.
+On an informational page with nothing on On me, leave the detail empty; the panel
+then invites the user to comment. `waiting` ends your starts and leaves your to-dos
+open. Tell the user what they can do on the page, and hand over as your harness
+contract says. From the first handoff on, every turn's final response includes the
+exact page URL; progress messages don't repeat it. An export hands over its file
+URL, and a harness that already shows the page uses its own handoff surface.
 
 ## Long-running work
 
-Follow the parent and worker roles in the main skill's "Stay responsive" section.
 New input reaches you between your own operations, so leave workers running while
-you follow the harness's delivery loop. When a worker reports, review and integrate
-its result, put it on the page, move finished work out of the open work
-(`authoring-revisions.md`, "Keep the current page current"), and reply in the thread
-that asked, linking to the result.
+you follow the harness's delivery loop (the main skill's "Stay responsive"). When a
+worker reports, review and integrate its result, put it on the page, move finished
+work out of the open work (`authoring-revisions.md`, "Keep the current page
+current"), and reply in the thread that asked, linking to the result.
 
-Workers return results to you and leave the page alone. The server, the watcher,
-acknowledgements, replies, starts, status, `index.html`, and stamps stay yours. The
-exceptions are a command hub worker (the `worker` value from
-`leaf page instructions <page>`) and a Codex watcher task
-(`references/codex-watcher.md`). Say so in each brief, since a worker that inherits
-your conversation inherits the page too. Work that needs its own conversation with
-the user belongs in its own session, with its own page.
+Workers return results to you and leave the page alone: the server, the watcher,
+acknowledgements, replies, starts, status, `index.html` and stamps stay yours. Say so
+in each brief, since a worker that inherits your conversation inherits the page too.
+The exceptions are a command hub worker (the `worker` value from
+`leaf page instructions <page>`) and a Codex watcher task (`codex-watcher.md`). Work
+that needs its own conversation with the user belongs in its own session, with its
+own page.
 
-A start lasts only for the turn that wrote it. About two minutes after the turn ends,
-the panel's status says your turn ended and quotes the line, or in Claude Code, while
-background subagents run, that you are working in the background. Within a long turn
-a start goes stale after about 15 minutes. The status shows the item you started last, so
-start the one that best describes what is running. While a worker produces an
-update's answer, start that update before you end your turn; the Stop hook lets a
-turn end over an update it started. In the next turn, start the item again or answer
-it.
+A start lasts only for the turn that wrote it, and within a long turn it goes stale
+after about 15 minutes. While a worker produces an update's answer, start that update
+before you end your turn, since the Stop hook lets a turn end over an update it
+started. In the next turn, start the item again or answer it.
 
 For work that outlasts the turn, such as a worker's build, a wait on CI, or a change
 you promise for the next version, answer the thread with a to-do:
@@ -175,19 +126,18 @@ leaf response reply <answer.ref> --todo "<what you owe>" --text "<what is under 
 ```
 
 The reply answers the message and opens a to-do on the thread, under the reply's id.
-The to-do keeps the thread on your list and in the panel's status until you end it,
-even after the user resolves the thread or your session ends. A turn's own message cannot
-open one. Handing the work to another session, a background job, or a later turn is
-such a promise too; a `--done` reply would tell the user nothing more is coming. So is
-holding a decision the user put off until other work lands: while the to-do stays open,
-the decision their thread is about stays off On me, and ending the to-do puts it back.
+The to-do keeps the thread on your list until you end it, even after the user
+resolves the thread or your session ends. A turn's own final message cannot open
+one. Handing the work to another session, a background job, or a later turn is such
+a promise too; a `--done` reply would tell the user nothing more is coming. So is
+holding a decision the user put off until other work lands: while the to-do stays
+open, the decision their thread is about stays off On me, and ending the to-do puts
+it back.
 
 Whoever finishes the work ends the to-do: `leaf task end <page> <todo> done "<where>"`,
-or `failed`/`dropped` with the reason. If another session will finish it, put the page
-and the to-do id in its brief; that session runs `leaf task start` on the to-do,
-which lets it end the to-do now or on a later turn.
-
-Work on an update that finishes inside the turn needs no to-do.
+or `failed` or `dropped` with the reason. If another session
+will finish it, put the page and the to-do id in its brief; that session runs
+`leaf task start` on the to-do, which lets it end the to-do now or on a later turn.
 
 ## The On lists
 
@@ -195,15 +145,15 @@ The user's **On me** list holds everything waiting on them: each decision your w
 leaves to them, whether or not your next step depends on it, and each answer,
 permission, review, or outside action you need. That includes every option you
 present for their judgment, not only the one you recommend. Ask each as a direct
-question by a route in the table below, grouped as `authoring-decisions.md` says, and keep
-it until the user decides or you withdraw it. A question written in prose, a heading,
-a status line or chat isn't on On me; only the routes in the table put it there.
-Information they may comment on but need not decide is not an obligation.
+question by a route in the table below, grouped as `authoring-decisions.md` says, and
+keep it until the user decides or you withdraw it. A question written in prose, a
+heading, a status line or chat isn't on On me. Information they may comment on but
+need not decide is not an obligation.
 
-On me also lists any update of the user's that failed to send. Your own list shows as
-**On <your name>**. The user presses `m` to step through On me in page order. Each
-press lands where the obligation is answered; on a widget's obligation, its numbered actions
-(`1`–`9`) answer it there.
+On me also lists any update of the user's that failed to send, and your own list
+shows as **On <your name>**. The user presses `m` to step through On me in page
+order; each press lands where the obligation is answered, and on a widget's
+obligation its numbered actions (`1`–`9`) answer it there.
 
 | Request                                                                         | Register it                                                                                                     | What answers it                                                                       |
 | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
@@ -214,10 +164,11 @@ press lands where the obligation is answered; on a widget's obligation, its numb
 
 Obligation ids are `widget:<widget-id>` for a widget, `lf-ask` included,
 `approval:v<version>` for a version's sign-off, and `update:<event-id>` for an update
-the user handed over. A to-do on the user keeps the id `task open` printed. It cannot sit on a thread, so in a thread ask with an `lf-ask`.
-The user's next message in a thread answers every question asked before it there.
-Ask a dependent question only once its prerequisite is answered. The user's Done on a
-to-do says they did it; it grants nothing its question did not ask.
+the user handed over. A to-do on the user keeps the id `task open` printed. It cannot
+sit on a thread, so in a thread ask with an `lf-ask`. The user's next message in a
+thread answers every question asked before it there. Ask a dependent question only
+once its prerequisite is answered. The user's Done on a to-do says they did it; it
+grants nothing its question did not ask.
 
 Read the lists before a handoff, before waiting for the user, and after taking in an
 answer:
@@ -226,32 +177,26 @@ answer:
 leaf page state <page> | jq '{source, obligations, todos, queues}'
 ```
 
-`queues.on_user` is On me: the open obligations on the user, updates to resend among
-them, and to-dos on the user. `queues.on_agent` is your list: the updates you owe a
-reply or a version, and your to-dos. Read them as given rather than rebuilding them
-from events. A row names its obligation or to-do by `id`. An obligation's record in
+`queues.on_user` is On me and `queues.on_agent` is your list, the updates you owe a
+reply or a version and your to-dos. Read them as given rather than rebuilding them
+from events. A row names its obligation or to-do by `id`; the obligation's record in
 `obligations` holds its `prompt`, its `answer` once given, its `status` and its
-`next_actor`, and a widget's obligation takes its answer from the widget's state; a
-to-do's record in `todos` holds its `title` and the start `running` on it.
-`activity.obligations` lists each answer you owe as its record's `id` beside the
-`answer` that settles it: the reply to write, with the `ref` its delivery gave where
-you can still use it, or the action a stamped version must record. Recover what you
-owe there when no delivery is at hand. Read a thread or a widget with
-`leaf page state <page> <id>`, using a message id or a widget id; the widget's markup
-is in the HTML file named by `active.file`. Unsent drafts and tabs on older versions
-are not in this reading.
-Check `source` for an invalid or missing draft before taking an empty list as a
-clean handoff.
+`next_actor`, and the to-do's record in `todos` holds its `title` and the start
+`running` on it. When no delivery is at hand, `activity.obligations` lists each
+answer you owe beside what settles it: the reply to write, with its `ref` where you
+can still use it, or the action a stamped version must record. Unsent drafts and
+tabs on older versions are not in this reading, and an invalid or missing draft
+shows in `source`, so check it before taking an empty list as a clean handoff.
 
 An empty On me means you need nothing from the user now. Finish authorized work
 without asking again. Ask about a paused project only when resuming or dropping it
 needs the user's decision. Put a blocked action on the user only when they can
 unblock it, and leave questions about another session's work to that session.
 
-When the user answers in chat or elsewhere, use the answer and retire the page's obligation
-in a revision (`authoring-revisions.md`), or end their to-do with `leaf task end`. End
-a question in a thread answered elsewhere `done`, or `dropped` when it no longer
-applies:
+When the user answers in chat or elsewhere, use the answer and retire the page's
+obligation in a revision (`authoring-revisions.md`), or end their to-do with
+`leaf task end`. End a question in a thread answered elsewhere `done`, or `dropped`
+when it no longer applies:
 
 ```bash
 leaf task end <page> widget:<lf-ask-id> done "<where the answer is>"

@@ -1,19 +1,19 @@
 # Terminal Codex setup
 
-Leaf's terminal App Server route connects a background adapter to the task as a
-second client. This route is experimental. `harness-codex.md` owns handoff,
-delivery and replies.
+Leaf's terminal App Server route, which is experimental, connects a background
+adapter to the task as a second client. `harness-codex.md` owns handoff, delivery and
+replies.
 
-To run a terminal task on Leaf's App Server route, start a private App Server on a Unix
-socket together with its terminal client:
+To run a terminal task on this route, start a private App Server on a Unix socket
+together with its terminal client:
 
 ```sh
 leaf codex launch
 ```
 
-The launcher passes the endpoint to the task as `LEAF_CODEX_APP_SERVER` and runs both
-processes. Exiting the terminal stops its App Server, so each terminal is independent
-and needs no fixed port or extra server tab.
+The launcher runs both processes and passes the endpoint to the task as
+`LEAF_CODEX_APP_SERVER`. Exiting the terminal stops its App Server, so each terminal
+is independent and needs no fixed port or extra server tab.
 
 To run the two processes separately, create a private socket directory and print its
 endpoint before starting App Server:
@@ -32,25 +32,18 @@ export LEAF_CODEX_APP_SERVER="<printed endpoint>"
 codex --remote "$LEAF_CODEX_APP_SERVER"
 ```
 
-The task inherits the endpoint, so `leaf codex start` connects to that App Server. Each
-pair has its own socket, so parallel pairs need no port assignment.
+The task inherits the endpoint, so `leaf codex start` connects to that App Server,
+and parallel pairs need no port assignment. To bind an endpoint the user supplied
+before serving the page, run `leaf codex start <page> --app-server <endpoint>`; if
+an adapter already holds a different endpoint, follow the conflict message.
+`leaf codex start` prints `{"task", "app_server", "started"}`, where a null
+`app_server` means the queue route. A task or watcher already running `leaf wait`
+keeps that delivery loop and answers with explicit reply commands.
 
-To bind an endpoint the user supplied before serving the page, run:
-
-```sh
-leaf codex start <page> --app-server <supplied-endpoint>
-```
-
-If an adapter already holds a different endpoint, follow the conflict message.
-To connect a claimed page without serving it, run `leaf codex start <page>`. It
-prints `{"task", "app_server", "started"}`; a null `app_server` means the queue
-route. A task or watcher already running `leaf wait` keeps that delivery loop and
-answers with explicit reply commands, as `harness-codex.md` describes.
-
-Leaf accepts only `unix://<absolute path>` sockets and unauthenticated loopback `ws://`
-endpoints. Keep a socket in a directory only you can reach, as `leaf codex launch`
-does. The loopback WebSocket listener is experimental; don't expose it on a network.
-Keep the terminal client open: it is where you answer approvals and input requests.
-Codex still saves the task in its history, so you can resume it later from the CLI or
-the desktop app once the separate server has exited; the desktop app can't connect to
-that server while it runs.
+Leaf accepts only `unix://<absolute path>` sockets and unauthenticated loopback
+`ws://` endpoints. Keep a socket in a directory only you can reach, as
+`leaf codex launch` does, and don't expose the experimental loopback WebSocket
+listener on a network. Keep the terminal client open: it is where you answer
+approvals and input requests. Codex still saves the task in its history, so you can
+resume it later from the CLI or the desktop app once the separate server has exited;
+the desktop app can't connect to that server while it runs.

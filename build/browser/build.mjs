@@ -29,9 +29,10 @@
  * in, so its file count costs requests only where a page serves source modules.
  *
  * The framework's third-party packages are minified builds from the lock and the
- * adaptations below. Delivery inlines the one Lit implementation before first paint;
- * `vendor/lit.js` exports that instance (`build/lit.mjs`) to the framework and
- * Web Awesome, so module upgrade preserves the initial producers' templates. Signals are the
+ * adaptations below. Delivery inlines Lit only when an initial producer needs it,
+ * mapping `vendor/lit.js` to that instance's facade; otherwise it loads as a normal
+ * module (`build/lit.mjs`). Both outputs share the same namespace source, and a page
+ * loads one implementation. Signals are the
  * framework's own and sit inside its directory. `shipped.mjs` decides whether each
  * output's imports resolve on every page and writes the notices for the packages
  * that reached them, as it does for every vendored bundle.
@@ -50,6 +51,7 @@ import { protocolBreaks } from "./protocol.mjs";
 import { initialOutputs } from "../initial.mjs";
 import {
   initialLitPath,
+  sharedLitPath,
   litFacade,
   litGlobal,
   litNamespace,
@@ -432,7 +434,29 @@ export async function buildOutputs({ acceptServed = false } = {}) {
   const [initialLitFile] = initialLit.outputFiles;
   checkModule(initialLitFile.text, initialLitPath);
   outputs.set(`${assets}/${initialLitPath}`, Buffer.from(initialLitFile.contents));
-  outputs.set(`${assets}/${litPath}`, Buffer.from(await litFacade()));
+  const moduleLit = await build({
+    absWorkingDir: root,
+    stdin: {
+      contents: `import "/runtime/dom-move.js"; import * as lit from "leaf:lit"; ${litGlobal} = lit; export * from "leaf:lit";`,
+      resolveDir: root,
+      sourcefile: "leaf-module-lit.js",
+    },
+    outfile: `${assets}/${litPath}`,
+    plugins: await litModule(),
+    external: ["/runtime/dom-move.js"],
+    platform: "browser",
+    format: "esm",
+    target: "es2022",
+    bundle: true,
+    minify: true,
+    legalComments: "eof",
+    write: false,
+    logLevel: "silent",
+  });
+  const [moduleLitFile] = moduleLit.outputFiles;
+  checkModule(moduleLitFile.text, litPath);
+  outputs.set(`${assets}/${litPath}`, Buffer.from(moduleLitFile.contents));
+  outputs.set(`${assets}/${sharedLitPath}`, Buffer.from(await litFacade()));
   const packageRoots = [
     ...new Set([
       ...bundledPackages(result.metafile, root),

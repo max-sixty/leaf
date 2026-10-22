@@ -175,8 +175,9 @@ the box it keeps. `leaf package check --render` reports a widget that moves as
   read nothing from the log; it may move authored nodes within the host, and returns the
   node references the module needs. The module calls `initialRender(host)` to get that
   result, drawn on demand for a host that arrived later, and adds behavior to those
-  nodes. Lit is available in that script as `document.documentElement.lfInitial.lit`;
-  bundled initial sources can import it from `/vendor/lit.js`. Return an update
+  nodes. Bundled initial sources import Lit from `/vendor/lit.js`; the build records
+  that dependency so delivery initializes the shared instance before those producers.
+  Pages whose initial producers do not use Lit load it as a normal module. Return an update
   function along with the node references, and call that same function after upgrade.
   It retains the template identities and Lit parts of the early drawing; compiling
   the template again in the live module would replace its nodes.

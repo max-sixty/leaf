@@ -477,15 +477,14 @@ def mark_declared(
     return _spliced(source, [(offset, offset, text) for offset, text in edits])
 
 
-def initial_scripts(
+def initial_script_paths(
     source: str, registry: Mapping, resources: Mapping[str, Resource]
-) -> str:
-    """Inline only the captured producers this document uses, before its body parses.
+) -> list[str]:
+    """The used producers and their build-declared prerequisites, in execution order.
 
-    Bundles register synchronous package renderers with the prepaint coordinator. The
-    widget loader imports its same bundle only for unregistered later arrivals;
-    serving and export need neither a compiler nor a second implementation of the
-    widget's structure.
+    The build records imports that it binds to shared classic globals. Delivery reads
+    that graph instead of making every document pay for every producer's libraries.
+    A producer inside a template does not run during parsing.
     """
     tree = turbohtml.parse(source, scripting=True)
     used = dict.fromkeys(
@@ -494,6 +493,25 @@ def initial_scripts(
         if element.closest("template") is None
         and (path := registry.get(element.tag, {}).get("x-initial"))
     )
+    if not used:
+        return []
+    dependencies = json.loads(resources["/vendor/initial-dependencies.json"].data)
+    return list(
+        dict.fromkeys(
+            [
+                *(
+                    dependency
+                    for path in used
+                    for dependency in dependencies.get(path, [])
+                ),
+                *used,
+            ]
+        )
+    )
+
+
+def initial_scripts(paths: list[str], resources: Mapping[str, Resource]) -> str:
+    """Inline captured producers and their prerequisites before the body parses."""
     return "".join(
         "<script data-lf-runtime>"
         + re.sub(
@@ -503,7 +521,7 @@ def initial_scripts(
             flags=re.IGNORECASE,
         )
         + "</script>"
-        for path in used
+        for path in paths
     )
 
 
@@ -749,8 +767,9 @@ def compose_document(
     runtime will draw and whether it could not start. It reads the canonical address,
     so that comes first; it names a startup fault before the host's runtime script
     hears of it, so it comes before that. The shared Lit implementation follows the
-    prepaint, then used `x-initial` bundles register the package producers that the
-    body's parser invocations run. Later modules export this same Lit instance.
+    prepaint only when a used `x-initial` producer imports Lit. Used bundles then
+    register the package producers that the body's parser invocations run. Later
+    modules export this same Lit instance; other pages load Lit as a normal module.
     These scripts stand before the theme, since a
     script after a stylesheet still loading waits for it. The root carries the host's attributes and the
     page's Layout (`data-lf-layout`), whose body rules must hold before `main` is parsed. The
@@ -758,10 +777,27 @@ def compose_document(
     begun to load.
     """
     initial = (
-        initial_scripts(source, registry, resources)
+        initial_script_paths(source, registry, resources)
         if delivery.runtime is not None
-        else ""
+        else []
     )
+    import_map = delivery.import_map
+    if "/vendor/lit-initial.js" in initial and import_map is not None:
+        imports = import_map["imports"]
+        # Hosted documents map directories. Export's exact leaf: graph already
+        # embeds the selected facade under Lit's canonical module identity. Both
+        # rooted layer imports and rebased page imports must select that instance.
+        if "/vendor/" in imports:
+            import_map = {
+                **import_map,
+                "imports": {
+                    **imports,
+                    "/vendor/lit.js": delivery.address("/vendor/lit-shared.js"),
+                    delivery.address("/vendor/lit.js"): delivery.address(
+                        "/vendor/lit-shared.js"
+                    ),
+                },
+            }
     source = rebase_document(
         mark_declared(
             source, registry, resources, initial=delivery.runtime is not None
@@ -795,8 +831,8 @@ def compose_document(
         delivery_prelude(document, revision, version, executable, widgets)
         + (
             '<script type="importmap" data-lf-runtime>'
-            f"{json_script(delivery.import_map)}</script>"
-            if delivery.import_map is not None
+            f"{json_script(import_map)}</script>"
+            if import_map is not None
             else ""
         )
         + (
@@ -807,15 +843,7 @@ def compose_document(
         + (
             "<script data-lf-runtime>"
             f"{resources['/runtime/prepaint.js'].data.decode()}</script>"
-            "<script data-lf-runtime>"
-            + re.sub(
-                r"</script",
-                r"<\\/script",
-                resources["/vendor/lit-initial.js"].data.decode(),
-                flags=re.IGNORECASE,
-            )
-            + "</script>"
-            + initial
+            + initial_scripts(initial, resources)
             if delivery.runtime is not None
             else ""
         )

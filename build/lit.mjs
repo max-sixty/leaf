@@ -1,6 +1,7 @@
 /**
- * The page's one Lit, initialized synchronously before first paint. Delivery inlines
- * `vendor/lit-initial.js`; `/vendor/lit.js` exports that same namespace for modules.
+ * The page's one Lit. Pages with an initial producer that imports Lit inline
+ * `vendor/lit-initial.js` and map `/vendor/lit.js` to the shared namespace facade.
+ * Other pages load the ordinary module implementation at `/vendor/lit.js`.
  * `build/browser/build.mjs` builds both from Lit's public exports, shaped like Lit's
  * own `lit-all` bundle. Static-html's
  * template tags would collide there with the ordinary `html`, `svg` and `mathml`, so
@@ -13,8 +14,10 @@ import { readFileSync } from "node:fs";
 
 /** The layer path of the page's one Lit. */
 export const litPath = "vendor/lit.js";
-/** The classic implementation delivery inlines immediately after prepaint. */
+/** The classic implementation delivery inlines when an early producer needs it. */
 export const initialLitPath = "vendor/lit-initial.js";
+/** Module bindings for a page that already initialized Lit before parsing its body. */
+export const sharedLitPath = "vendor/lit-shared.js";
 /** Shared by the classic implementation, early producers and the module facade. */
 export const litGlobal = "document.documentElement.lfInitial.lit";
 
@@ -49,7 +52,7 @@ function litModules() {
 }
 
 /** All names the shared namespace exposes, including static-html's renamed tags. */
-export async function litExportNames() {
+async function litExportNames() {
   const modules = await Promise.all(litModules().map((name) => import(name)));
   const names = new Set(modules.flatMap((module) => Object.keys(module)));
   for (const [, name] of await staticExports()) names.add(name);
@@ -57,7 +60,7 @@ export async function litExportNames() {
 }
 
 /** Named bindings to the initialized instance; importing these creates no second Lit. */
-export async function litBindings() {
+async function litBindings() {
   const names = (await litExportNames()).join(", ");
   return `const { ${names} } = ${litGlobal};\nexport { ${names} };\n`;
 }

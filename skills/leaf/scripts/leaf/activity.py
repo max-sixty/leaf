@@ -200,7 +200,7 @@ def reply_command(answer: dict, page_dir: Path) -> str:
     still use it (`_receipt_bindings`). An update the owner holds no ref for, as one
     the page has not received or one another session received before the page
     changed hands, is deliverable (`delivery.deliverable`). Minting a ref here would
-    deliver the page's whole pending batch and mark its other input Picked up
+    deliver the page's whole pending batch and mark its other input Delivered
     unseen, so the command names the `leaf wait` that delivers it, after the claim
     its receipt needs where this command's session does not hold the page
     (`service.may_receive`)."""

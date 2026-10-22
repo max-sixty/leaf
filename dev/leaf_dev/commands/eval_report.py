@@ -43,8 +43,19 @@ def leaf(*args: str) -> str:
     ).stdout
 
 
-def condition(column: str) -> str:
-    return f"{'HTML' if '/html/' in column else 'Leaf'} · {column}"
+def condition_labels(columns: dict) -> dict[str, str]:
+    """Use the recorded condition where it distinguishes columns; keep identities
+    for comparisons within one condition, such as base against candidate."""
+    names = {
+        column: {"leaf": "Leaf", "html": "Plain HTML"}[
+            members[0]["diagnostics"]["condition"]
+        ]
+        for column, members in columns.items()
+    }
+    return {
+        column: name if list(names.values()).count(name) == 1 else f"{name} · {column}"
+        for column, name in names.items()
+    }
 
 
 def measures(sample: dict) -> dict:
@@ -155,7 +166,7 @@ def column_figure(
     )
 
 
-def verdict_line(pair: dict) -> str:
+def verdict_line(pair: dict, labels: dict[str, str]) -> str:
     if pair["status"] == "insufficient_evidence":
         return "Insufficient evidence for comparison"
     if pair["status"] == "unscored":
@@ -163,9 +174,9 @@ def verdict_line(pair: dict) -> str:
     if pair["status"] == "tie":
         return "Both orders judged the pages equal"
     orders = [o["overall"] for o in pair["orders"]]
-    named = [condition(o) if "/" in o else o for o in orders]
+    named = [({**labels, "tie": "tie"})[o] for o in orders]
     if pair["winner"]:
-        return f"{condition(pair['winner'])} preferred in both orders"
+        return f"{labels[pair['winner']]} preferred in both orders"
     return f"Split: {named[0]} in one order, {named[1]} in the other"
 
 
@@ -192,9 +203,11 @@ def reasons(pair: dict) -> str:
     return f"<details><summary>Judge's reasons</summary><ul>{rows}</ul></details>"
 
 
-def pair_section(page: Path, subject: str, n: int, pair: dict | None, x, y) -> str:
+def pair_section(
+    page: Path, subject: str, n: int, pair: dict | None, x, y, labels: dict[str, str]
+) -> str:
     sid = f"{subject}-pair-{n}"
-    columns = [(condition(c), c, s) for c, s in (x, y)]
+    columns = [(labels[c], c, s) for c, s in (x, y)]
     comparison = columns[0][2]["diagnostics"]["comparison"]
     versions = comparison["phases"]
     widths = {
@@ -218,7 +231,7 @@ def pair_section(page: Path, subject: str, n: int, pair: dict | None, x, y) -> s
         + "</div></lf-tab>"
         for width in widths
     )
-    heading = verdict_line(pair) if pair else "Not judged"
+    heading = verdict_line(pair, labels) if pair else "Not judged"
     earlier = ""
     phase_description = (
         f"The tabs show the final saved revision (phase {versions['']}), "
@@ -269,9 +282,9 @@ def pair_section(page: Path, subject: str, n: int, pair: dict | None, x, y) -> s
     )
 
 
-def outcome(subject: str, pairs: list[dict]) -> str:
+def outcome(subject: str, pairs: list[dict], labels: dict[str, str]) -> str:
     judged = [p for p in pairs if p["subject"] == subject]
-    wins = [condition(p["winner"]) for p in judged if p["winner"]]
+    wins = [p["winner"] for p in judged if p["winner"]]
     if not judged:
         return "not judged"
     counts = {
@@ -280,7 +293,7 @@ def outcome(subject: str, pairs: list[dict]) -> str:
     }
     providers = sorted({column for pair in judged for column in pair["samples"]})
     return ", ".join(
-        [f"{condition(column)} {wins.count(condition(column))}" for column in providers]
+        [f"{labels[column]} {wins.count(column)}" for column in providers]
         + [f"{status.replace('_', ' ')} {count}" for status, count in counts.items()]
     )
 
@@ -305,9 +318,10 @@ def overview(found: dict, pairs: list[dict]) -> str:
     """One row per task's pairwise outcome; accounting follows with its samples."""
     rows = []
     for subject in sorted(found):
+        labels = condition_labels(found[subject])
         rows.append(
             f"<tr><td><a href='#task-{subject}'>{subject}</a></td>"
-            f"<td>{escape(outcome(subject, pairs))}</td></tr>"
+            f"<td>{escape(outcome(subject, pairs, labels))}</td></tr>"
         )
     return (
         '<table id="overview"><thead><tr><th scope="col">Task</th>'
@@ -328,8 +342,9 @@ def task_section(page: Path, subject: str, columns: dict, pairs: list[dict]) -> 
             f"<p>Unscored: {escape(str(error))}</p></section>"
         )
     judged = {p["pair"]: p for p in pairs if p["subject"] == subject}
+    labels = condition_labels(columns)
     measured = [
-        (condition(column), {**means(members), "samples": len(members)})
+        (labels[column], {**means(members), "samples": len(members)})
         for column, members in sorted(columns.items())
     ]
     metrics = [
@@ -351,10 +366,7 @@ def task_section(page: Path, subject: str, columns: dict, pairs: list[dict]) -> 
     ]
     table = (
         f'<table id="{subject}-measures"><thead><tr><th scope="col">Measure</th>'
-        + "".join(
-            f'<th scope="col"><code>{escape(label)}</code></th>'
-            for label, _ in measured
-        )
+        + "".join(f'<th scope="col">{escape(label)}</th>' for label, _ in measured)
         + "</tr></thead><tbody>"
         + "".join(rows)
         + "</tbody></table>"
@@ -365,12 +377,18 @@ def task_section(page: Path, subject: str, columns: dict, pairs: list[dict]) -> 
     )
     first, second = sorted(columns)
     sections = "".join(
-        pair_section(page, subject, n, judged.get(n), (first, x), (second, y))
+        pair_section(page, subject, n, judged.get(n), (first, x), (second, y), labels)
         for n, (x, y) in enumerate(zip(columns[first], columns[second]), 1)
     )
     return (
         f'<section id="task-{subject}"><h2>{subject.capitalize()}: pair outcomes, '
-        f"{escape(outcome(subject, pairs))}</h2>{table}"
+        f"{escape(outcome(subject, pairs, labels))}</h2>{table}"
+        "<details><summary>Comparison column identifiers</summary><dl>"
+        + "".join(
+            f"<dt>{escape(labels[column])}</dt><dd><code>{escape(column)}</code></dd>"
+            for column in sorted(columns)
+        )
+        + "</dl></details>"
         "<details><summary>The request and the user's later messages</summary>"
         f'<pre id="{subject}-request">{escape(comparison["brief"])}</pre>'
         f"</details>{sections}</section>"

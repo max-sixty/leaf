@@ -331,7 +331,10 @@ by many people, in the reference that owns that kind of page.
 
 When pages keep failing the same way, improve the guidance the author reads while
 writing, and measure it in `evals/`, where a judge reading the page cold can stand in
-for the user.
+for the user. That guidance is usually the workflow's reference rather than a registry
+entry (`skills/leaf/references/packages.md`, "A widget"), and a passage that has grown
+into a list is rewritten around its goals (`/improving-instructions`, "Authoring the
+change").
 
 ## Score an instruction change
 
@@ -361,6 +364,10 @@ pnpm run eval:view
 `evals/README.md` owns selection, arms, the case format, where results go and how far
 a pass can be trusted. Read the outputs as well as the pass counts.
 
+Score every case whose `metadata.tags` covers the passage, such as `asks` for
+decisions, counting only runs that opened the changed file (`/improving-instructions`,
+"Confirming each arm loaded what you edited").
+
 Use an existing case wherever one fits, extending its assertions or prompt if it nearly
 does, since every case costs time and money on each later run. Add a case only when no
 existing one can carry the behavior, and keep it small: one prompt with only the
@@ -368,7 +375,8 @@ context the behavior needs, and a few assertions. Explore freely, but keep only 
 that cover distinct failures or necessary controls. The case's leading comment records
 where it came from and whether it told the two versions apart.
 
-The prompt never states the behavior under test. Grade what the agent wrote with an
+The prompt never states the behavior under test, or sends the agent to the file that
+holds its rule; a replay may still say what the failing session had read. Grade what the agent wrote with an
 `llm-rubric` assertion whose `value` describes the passing behavior without requiring
 particular wording; use `regex` only for a literal such as a command or URL
 (`evals/README.md`, "Case format").

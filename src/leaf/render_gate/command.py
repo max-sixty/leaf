@@ -107,7 +107,7 @@ class BrowserCheck:
                 "directory": str(into),
                 "files": [{"file": shot.name, "shows": label} for shot, label in saved],
                 "next": (
-                    "have a reader without your notes review these screens"
+                    "have a subagent without your notes review these screens"
                     ' (page-checkpoints.md, "Pre-handover review")'
                 ),
             }

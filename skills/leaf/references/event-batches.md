@@ -23,7 +23,7 @@ Every transport delivers the same immutable object:
   "format": "leaf-delivery/…",
   "id": "a1b2c3d4",
   "created_at": 0,
-  "acknowledge": "Acknowledge this delivery before any other work: …",
+  "acknowledge": "If the output was cut off, reread it with `leaf delivery read a1b2c3d4` … Then, before any other work, …",
   "batches": [
     {
       "page": "/absolute/page",

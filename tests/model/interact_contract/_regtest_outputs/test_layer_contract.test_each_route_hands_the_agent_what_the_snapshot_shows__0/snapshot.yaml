@@ -81,11 +81,11 @@ leaf wait:
     id: '11111111'
     created_at: 1790046750.29
     acknowledge: >-
-      Acknowledge this delivery before any other work: start `leaf wait --ack 11111111`
-      as the next background task, which confirms it and waits for the next. If
-      the output was cut off, first reread it with `leaf delivery read 11111111`
-      and follow any `next` commands. If you forward the delivery instead of handling
-      it, acknowledge once it arrives where you sent it.
+      If the output was cut off, reread it with `leaf delivery read 11111111` and
+      follow any `next` commands. Then, before any other work, start `leaf wait
+      --ack 11111111` as the next background task, which confirms this delivery
+      and waits for the next. If you forward the delivery instead of handling it,
+      acknowledge once it arrives where you sent it.
     batches:
       - page: /path/to/page
         claim: null

@@ -431,11 +431,11 @@ def wait_acknowledgement(harness: Harness | None) -> Callable[[str], str]:
 
     def acknowledge(delivery_id: str) -> str:
         return (
-            f"Acknowledge this delivery before any other work: {run_ack(delivery_id)}, "
-            "which confirms it and waits for the next. If the output was cut off, "
-            f"first reread it with `leaf delivery read {delivery_id}` and follow any "
-            "`next` commands. If you forward the delivery instead of handling it, "
-            "acknowledge once it arrives where you sent it."
+            "If the output was cut off, reread it with "
+            f"`leaf delivery read {delivery_id}` and follow any `next` commands. "
+            f"Then, before any other work, {run_ack(delivery_id)}, which confirms "
+            "this delivery and waits for the next. If you forward the delivery "
+            "instead of handling it, acknowledge once it arrives where you sent it."
         )
 
     return acknowledge

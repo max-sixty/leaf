@@ -786,7 +786,7 @@ def delivery_read(delivery_id: str, part: int) -> dict:
 @click.argument("delivery_id", metavar="DELIVERY_ID")
 def delivery_ack(delivery_id: str) -> None:
     """Confirm that every part of DELIVERY_ID is in your context, so its updates
-    read Delivered. Reread any part whose output is missing first."""
+    read Delivered."""
     from leaf.delivery import cmd_delivery_ack
 
     cmd_delivery_ack(delivery_id)
@@ -1198,11 +1198,10 @@ def response_reply(
     The reply publishes your saved page edits with it, checking them as `page
     check` does without a browser: an error refuses the reply, and the first reply
     on a revision notes the advice `page check` gives on its source. It runs none
-    of the page's scripts; one that fails for the user arrives as an `error` event.
-    After an answer posts,
+    of the page's scripts or data widgets, which `page check` runs in a browser;
+    one that fails for the user arrives as an `error` event. After an answer posts,
     your turn's final message is not posted as a second reply; an --ephemeral line
-    does not change that. Rerunning a reply that already posted prints the earlier
-    one; give a retried --ephemeral line an --attempt so it posts once.
+    does not change that.
     """
     from leaf.thread import post_response
 

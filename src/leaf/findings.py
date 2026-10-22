@@ -574,8 +574,9 @@ _TEXT = {
     ),
     "retired-slot": lambda at, v: (
         f"{at} is settled `{v['outcome']}`, but its <{v['slot']}> still shows"
-        f" {_json(v['words'])}. Leaf hides a retired slot, so this widget's styles"
-        " or module show it, and no comment can anchor to its words"
+        f" {_json(v['words'])}. Leaf hides a retired slot by default, so this"
+        " widget's own styles or module must be showing it, and no comment can"
+        " anchor to its words"
     ),
     "render-threw": lambda at, v: (
         f"{at} render() threw when the complete state was rendered a second time:"

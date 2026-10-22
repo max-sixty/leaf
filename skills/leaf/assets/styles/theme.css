@@ -986,7 +986,7 @@ html[data-lf-interactive] [data-lf-arriving] {
   border-radius: var(--r);
   background: var(--card);
   color: var(--ink);
-  &[data-lf-focus] {
+  &[data-lf-focus-visible] {
     outline: var(--focus-ring);
     outline-offset: 0;
     border-color: transparent;
@@ -1027,8 +1027,8 @@ html[data-lf-interactive] [data-lf-arriving] {
   color: var(--muted);
   opacity: 1;
 }
-.lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input))[data-lf-focus],
-:is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input))[data-lf-focus] {
+.lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input))[data-lf-focus-visible],
+:is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input))[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 0;
   border-color: transparent;
@@ -2078,7 +2078,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 .lf-margin-entry[data-lf-target-selected] {
   border-color: var(--accent);
 }
-.lf-margin-entry[data-lf-focus] {
+.lf-margin-entry[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 1px;
 }
@@ -2311,10 +2311,12 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
  * The body's ring is drawn inset instead, on a later box sharing its grid cell, as the
  * Threads list draws its own (chrome.css, .lf-threads-frame): an outline on the body
  * itself paints under whatever positioned content scrolls across its edges. */
-[data-lf-reading-role="pane"] > :not(header, footer)[data-lf-focus] {
+[data-lf-reading-role="pane"] > :not(header, footer)[data-lf-focus-visible] {
   outline: none;
 }
-[data-lf-reading-role="pane"]:has(> :not(header, footer)[data-lf-focus])::after {
+[data-lf-reading-role="pane"]:has(
+    > :not(header, footer)[data-lf-focus-visible]
+  )::after {
   content: "";
   grid-row: 2;
   grid-column: 1;

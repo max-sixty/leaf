@@ -111,6 +111,7 @@ ANSWERED_SCHEMA = {
         "type": "object",
         "properties": {
             "when": AWAITING_CONDITION,
+            "detail": {"type": "object", "minProperties": 1},
             "empty": {
                 "type": "object",
                 "properties": {
@@ -243,6 +244,15 @@ AWAITS_SCHEMA = {
         "when": AWAITING_CONDITION,
         "value": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "answered": ANSWERED_SCHEMA,
+        "records": {
+            "type": "object",
+            "properties": {
+                "input": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+                "label": {"type": "string", "minLength": 1},
+            },
+            "required": ["input", "label"],
+            "additionalProperties": False,
+        },
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "retired": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "reply": {"const": True},
@@ -250,7 +260,12 @@ AWAITS_SCHEMA = {
     },
     "if": {"required": ["reply"]},
     "then": {
-        "properties": {"value": False, "answered": False, "all": False},
+        "properties": {
+            "value": False,
+            "answered": False,
+            "all": False,
+            "records": False,
+        },
     },
     "else": {"required": ["value", "answered"]},
     "additionalProperties": False,

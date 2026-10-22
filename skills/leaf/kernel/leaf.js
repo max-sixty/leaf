@@ -236,6 +236,7 @@ import {
   lightSeat,
   resolveAnchor,
   resolvedInMessage,
+  revealAddressed,
   sectionLabel,
   sectionOf,
   setAnchoringReady,
@@ -2522,7 +2523,10 @@ function createResponseSurface({
       if (handoff !== fabFocusHandoff) return;
       const taken = pageSelection();
       const words = taken ? selectionAnchor(taken) : null;
-      const landed = positioned && (!hasQuote(words) || sameAnchor(words, anchor)) && handoff.intent.handoff(() => focusDestination(fabInput, "move"));
+      const landed = positioned && (!hasQuote(words) || sameAnchor(words, anchor)) && handoff.intent.handoff(() => {
+        focusDestination(fabInput, "move");
+        if (fabInlineOutlet) scrollIntoView(fabInput, { block: "nearest" });
+      });
       if (!landed) endFabFocus();
     });
   }
@@ -9538,6 +9542,7 @@ function createObligationView({
 }) {
   const obligationNode = (item) => obligationPlace(item).node;
   const sourceNode = (item) => obligationPlace(item).source;
+  const sourceOwner = (item) => item && elementById(item.source.id);
   const hasObligation = (items2, candidate) => Boolean(candidate && items2.some((item) => item.id === candidate.id));
   const unansweredIds = () => new Set(readObligations().unanswered.map(({ id }) => id));
   const obligationNodes = (item) => ({
@@ -9631,21 +9636,21 @@ function createObligationView({
     return held === item || inChrome(held) && placeOf(held) === item || hasReviewedFocus() ? answered : null;
   }
   const standingIn2 = () => obligationNode(standingObligation());
-  const actionsFor = (source) => decisionControls(commandsWithin(source), `Obligation ${source.id}`).filter(
-    ({ source: commandSource, control }) => ownedObligationControl(source, commandSource) && control.getAttribute("aria-busy") !== "true"
+  const actionsFor = (source, owner = source) => decisionControls(commandsWithin(owner), `Obligation ${owner.id}`).filter(
+    ({ source: commandSource, control }) => ownedObligationControl(owner, commandSource) && (source === owner || under(control, source)) && control.getAttribute("aria-busy") !== "true"
   );
   const actionsOf = (item) => {
     const source = item && sourceNode(item);
-    return source ? actionsFor(source) : [];
+    return source ? actionsFor(source, sourceOwner(item)) : [];
   };
   function choicesOf(item) {
     const source = sourceNode(item);
     if (!source) return null;
-    return actionsFor(source).map(
+    return actionsFor(source, sourceOwner(item)).map(
       ({ id, label: label2, control }) => Object.freeze({
         id,
         label: label2,
-        chosen: control.getAttribute("aria-pressed") === "true" || control.getAttribute("aria-checked") === "true",
+        chosen: control.getAttribute("aria-pressed") === "true" || control.getAttribute("aria-checked") === "true" || control.localName === "input" && control.checked,
         press: () => presentedActionControl(control).click()
       })
     );
@@ -9662,9 +9667,9 @@ function createObligationView({
     return {
       root,
       declarations: () => {
-        const source = sourceNode(record);
-        return source ? commandDeclarationsWithin(source).filter(
-          ({ source: commandSource }) => ownedObligationControl(source, commandSource)
+        const owner = sourceOwner(record);
+        return owner ? commandDeclarationsWithin(owner).filter(
+          ({ source: commandSource }) => ownedObligationControl(owner, commandSource)
         ) : [];
       }
     };
@@ -9683,7 +9688,9 @@ function createObligationView({
     const item = obligationNode(record);
     const source = sourceNode(record);
     if (!item || !source) return null;
-    const target = [...item.getClientRects()].some((rect2) => rect2.width && rect2.height) ? item : source.querySelector(OBLIGATION_CONTROL) ?? actionsFor(source).map(({ control }) => presentedActionControl(control))[0] ?? source;
+    const target = [...item.getClientRects()].some((rect2) => rect2.width && rect2.height) ? item : source.querySelector(OBLIGATION_CONTROL) ?? actionsFor(source, sourceOwner(record)).map(
+      ({ control }) => presentedActionControl(control)
+    )[0] ?? source;
     reviewedThrough = review ? target : null;
     return target;
   }
@@ -9730,7 +9737,16 @@ function createObligationView({
       available: () => hasObligation(readObligations().all, next)
     });
     const arriveAtRecord2 = bindQueuedWork(arrive);
-    const { target } = next.thread ? await materializeObligation(next, mayArrive) : reachObligation(next);
+    if (next.thread) await materializeObligation(next, mayArrive);
+    if (next.source.unit) {
+      const owner = sourceOwner(next);
+      if (owner) {
+        const hydration = revealAddressed(owner, next.source.unit);
+        if (hydration?.then) await hydration;
+        if (!mayArrive()) return false;
+      }
+    }
+    const { target } = reachObligation(next);
     if (!mayArrive() || !target) return false;
     const destination = () => {
       const { node: target2, source, context: context2 } = obligationPlace(next);

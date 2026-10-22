@@ -48,6 +48,7 @@ class AdmissionReadings:
             self.page(revisions[-1]) if revisions else None,
             thread=self.thread,
             log=self.log,
+            data=self.view.data(self.registry),
         )
 
     @cached_property
@@ -147,9 +148,14 @@ def answer_meaning(
             byid,
             reading.spoken,
             registry,
+            unit=event["meaning"]["unit"],
             registered=any(
                 item["source"]["kind"] == "widget"
                 and item["source"]["id"] == event["widget"]
+                and (
+                    "unit" not in item["source"]
+                    or item["source"]["unit"] == event["meaning"]["unit"]
+                )
                 for item in readings.work.all_obligations["all"]
             ),
         ),

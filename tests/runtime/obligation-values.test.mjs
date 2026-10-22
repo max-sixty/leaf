@@ -25,7 +25,7 @@ for (const fixture of cases) {
     };
     const widgets = foldWidgetStates(authored, projection);
     assert.deepEqual(
-      obligationValue(widgets.get("owner"), "set", fixture.answered),
+      obligationValue(widgets.get("owner"), "set", fixture.answered, fixture.unit),
       fixture.expected,
     );
   });

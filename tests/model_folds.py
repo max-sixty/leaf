@@ -95,6 +95,7 @@ def served_reading(
     registry: dict | None = None,
     view_revision: int | None = None,
     presence: dict | None = None,
+    data: dict | None = None,
 ) -> dict:
     """The `/api/state` reading of one page, folded in this process.
 
@@ -135,7 +136,8 @@ def served_reading(
             "packages": [],
         },
     }
-    door = ModelPage(documents=parsed, registry=registry)
+    data = data or {"version": "0" * 16, "sources": {}}
+    door = ModelPage(documents=parsed, registry=registry, data=data)
     kinds = registry["$events"]["kinds"]
     log = []
     for seq, command in enumerate(events, 1):
@@ -166,7 +168,7 @@ def served_reading(
             revision=readings.__getitem__,
             registry=registry,
             stored_layer=lambda: registry["$layer"],
-            stored_data=lambda: {"version": "0" * 16, "sources": {}},
+            stored_data=lambda: data,
             bound_files=dict,
             versions=tuple(version_descriptors(log, parsed)),
             presence=presence or UNCLAIMED,
@@ -186,6 +188,7 @@ def reading(
     *,
     registry: dict | None = None,
     view_revision: int | None = None,
+    data: dict | None = None,
 ) -> dict:
     """The semantic browser projection beside its page-wide work readings.
 
@@ -193,7 +196,7 @@ def reading(
     for the complete `/api/state` answer, including its envelope.
     """
     state = served_reading(
-        documents, events, registry=registry, view_revision=view_revision
+        documents, events, registry=registry, view_revision=view_revision, data=data
     )
     return {
         **state["browser"],

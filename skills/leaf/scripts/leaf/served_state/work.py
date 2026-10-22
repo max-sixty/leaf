@@ -1,7 +1,8 @@
 """Semantic work with the live claim/turn evidence used by every transport.
 
 The durable reading remains separate from activity's liveness and reply reservations.
-Delivery and status never need browser serialization, external data, or history.
+Delivery and status never need browser serialization or history. Record obligations
+read their current bound data through the same canonical work reading.
 A serving context holds this result once; its browser selects the same objects.
 """
 
@@ -99,6 +100,7 @@ def work_state(
     *,
     revisions=(),
     revision_reader=None,
+    data=None,
 ) -> WorkState:
     """Fold exact admitted inputs, then enrich once with claim and stream evidence."""
     log = TodoReading(events)
@@ -114,7 +116,9 @@ def work_state(
         if source
         else None
     )
-    durable = WorkReading(events, source.registry if source else {}, page, log=log)
+    durable = WorkReading(
+        events, source.registry if source else {}, page, log=log, data=data
+    )
     stream = live_stream or no_stream()
     reply = canonical_stream_reply(present, now, stream["reply"])
     activity = canonical_activity(

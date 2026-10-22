@@ -526,6 +526,10 @@
 :scope:host(.lf-rendered) pre[data-overflow="wrap"] code[data-code] {
   --lf-diff-row-fill: 0;
 }
+/* Leaf replaces Pierre's file header, which normally removes this top padding. */
+:scope:host(.lf-rendered) .lf-diff-fold > pre code[data-code] {
+  padding-top: 0;
+}
 :scope:host(.lf-rendered) .lf-diff-fold > pre {
   margin: 0;
   border: none;

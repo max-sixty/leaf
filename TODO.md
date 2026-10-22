@@ -162,10 +162,11 @@ has tried; settle that before building it.
   user's suggestion, 2026-10-06).
 - **Show what `z` takes before it takes it.** `z` takes back the user's newest
   gesture however old, so on a page left for weeks it can reopen a thread resolved
-  then, below the fold, and the notice names only the gesture's kind. The user chose
-  (2026-10-21) to keep the reach unlimited, name the gesture and its age, and spend
-  the first press revealing a target that is out of view or already picked up by
-  the agent. [The undo-reach note](notes/undo-reach/README.md) has the build.
+  then, below the fold. The user chose (2026-10-21) to keep the reach unlimited,
+  name the gesture and its age, and spend the first press revealing a target that is
+  out of view or already picked up by the agent. Undo now names the gesture and its
+  age in every tab; the reveal on the first press remains.
+  [The undo-reach note](notes/undo-reach/README.md) has the build.
 - **Decide when a page merits a separate phone composition.** Many pages are
   ephemeral and authored for a user reading on a large screen, so a bespoke phone
   animation may not repay its cost. Decide how the agent weighs the user's viewing
@@ -380,36 +381,6 @@ on 2026-10-07.
   source, console and network inspection available through the full viewer.
 
 ### The agent's text interface
-
-- **Decide whether an owed answer may continue a turn whose answer is written.**
-  Where a watch or Codex's App Server adapter follows the turn, Stop no longer hands
-  new input into it (`hook_transport`), but it still continues the turn once for an update
-  picked up and unanswered, and for a page it could not re-vendor. The agent then writes one
-  more message, which Claude Code's focus view shows in place of the turn's answer:
-  9 of the 65 Leaf continuations in Max's sessions of 2026-10-10 to 10-19 were these,
-  as when a report on "check leaf, do #18" gave way to "I've answered the last item
-  the hook flagged", and one page vendored by a newer Leaf than the session's
-  repeated its finding at every turn. Waking a turn of its own for the reminder
-  keeps the answer, but needs a record that it reminded, or an agent that won't act
-  is woken without end; dropping the reminder leaves the next prompt's one. Waits on
-  how Leaf's Claude Code hooks module rolls out (#3512 made its watch opt-in), since
-  a module watching the turn can wake one of its own.
-- **Decide how a Claude Code hook delivery is confirmed.** `hook_transport` records a
-  pickup when the prompt hook returns, but Escape while any UserPromptSubmit hook is
-  still running drops the whole prompt, Leaf's output included. Measured on Claude
-  Code 2.1.304 with a second hook sleeping 6 s: the comment never reached the
-  transcript, nothing woke for it because it read as received, and it waited until
-  the user typed; an update that owes no reply (a resolve) never surfaced again.
-  #3272's re-offer covers only updates the owner holds no ref for. With Leaf's hook
-  alone the window is about 25–35 ms; another plugin's slow prompt hook widens it to
-  that hook's run. PostToolBatch likely shares the window (read from Claude Code's
-  source, not run); Pi commits the output itself and is safe. No hook event confirms
-  Claude Code accepted the output, so the options are: the agent confirms with
-  `leaf delivery ack`, as on Codex (a tool call, and Picked up waits for the model);
-  confirm at the turn's next hook and re-offer if the turn dies first (a "handed, not
-  confirmed" record); or keep it and document Escape beside the session-end case in
-  `hook_transport.py`'s header. Waits on how Leaf's Claude Code hooks module rolls
-  out (#3512 made its watch opt-in).
 
 - **Decide the Leaf-owned defects the bad-pages eval left open.**
   [Bad pages and the checks](notes/agent-usability-evals.md#bad-pages-and-the-checks-2026-10-20)

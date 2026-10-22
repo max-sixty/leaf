@@ -274,7 +274,7 @@
 button.lf-media-open {
   cursor: zoom-in;
 }
-.lf-media-open[data-lf-focus] {
+.lf-media-open[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 2px;
 }
@@ -329,7 +329,7 @@ button.lf-media-open {
 /* A forced palette drops the ring, so a picture takes a system edge, which leaves the
    focus ring to a focused picture. */
 @media (forced-colors: active) {
-  .lf-composer-media-item > .lf-composer-media-open:not([data-lf-focus]) {
+  .lf-composer-media-item > .lf-composer-media-open:not([data-lf-focus-visible]) {
     outline: 1px solid CanvasText;
   }
 }
@@ -374,8 +374,8 @@ button.lf-media-open {
   border-radius: var(--r);
   background: var(--card);
 }
-.lf-comment-box > .lf-compose-field:has(> leaf-text[data-lf-focus]),
-.lf-response-control[data-lf-focus] {
+.lf-comment-box > .lf-compose-field:has(> leaf-text[data-lf-focus-visible]),
+.lf-response-control[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 0;
   border-color: transparent;
@@ -396,7 +396,7 @@ button.lf-media-open {
   max-height: 50vh;
   overflow-y: auto;
 }
-.lf-comment-box > .lf-compose-field > leaf-text[data-lf-focus] {
+.lf-comment-box > .lf-compose-field > leaf-text[data-lf-focus-visible] {
   outline: none;
 }
 .lf-thread-reply {
@@ -645,7 +645,7 @@ leaf-text.lf-fab-input {
 /* Forced-colour palettes suppress elevation shadows. The same control keeps a
  * visible platform ring when seated outside the private chrome scope as well. */
 @media (forced-colors: active) {
-  .lf-response-control[data-lf-focus] {
+  .lf-response-control[data-lf-focus-visible] {
     outline: var(--focus-ring-w) solid Highlight;
     outline-offset: 2px;
     filter: none;

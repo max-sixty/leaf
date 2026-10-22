@@ -110,7 +110,6 @@ function createProjectionPresentation() {
     });
   };
   watchPresentation(updateCoverage);
-  const retireProjectionCoverage = () => document.body.removeAttribute(PAGE_PAINT_ATTRIBUTE.applied);
   function presentCurrent() {
     const projection = currentProjection();
     if (phase() === "waiting" || !answered()) {
@@ -127,9 +126,6 @@ function createProjectionPresentation() {
   function paintReading() {
     return presentCurrent();
   }
-  return {
-    retireProjectionCoverage
-  };
 }
 function shallowSigs(root) {
   const sigs = /* @__PURE__ */ new Map();

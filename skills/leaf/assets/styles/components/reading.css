@@ -255,7 +255,7 @@
  * have to come from a negative margin, which overflows any scroller holding the table
  * flush, as an x-bound box does. Inset, the ring stands where the card's target trace
  * outlined the cell. */
-:where(:root, .lf-thread-transcript) :where(th, td)[data-lf-focus] {
+:where(:root, .lf-thread-transcript) :where(th, td)[data-lf-focus-visible] {
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 /* Which kind of header a th is, asked of the author's own word for it rather

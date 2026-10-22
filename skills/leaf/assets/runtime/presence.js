@@ -40,8 +40,7 @@ export const clockValue = (read) =>
  * whether a call or `refresh()` started it. `owes(key)` says whether `paint(key)` would
  * draw, `forget()` owes the next call a draw, `refresh()` redraws the last reading, at
  * once or on the return, and `stop()` retires the paint. Following what a draw reads,
- * the time included, is the caller's: `watchProjection` draws through this and follows
- * everything its paint read. */
+ * the time included, is the caller's. Lit hosts instead use their update lifecycle. */
 export function readingPaint(owner, draw) {
   let painted = false;
   let key;

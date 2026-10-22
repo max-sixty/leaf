@@ -6,7 +6,8 @@
  * presentation puts after "Copy" and capitalizes to head a line), a terse `value` such as
  * a count, the `shortcut` that reaches it from the keyboard as its steps, each spelled as
  * a key chip spells it (keyboard/control-keys.js, `commandSteps`), the `group` of
- * controls it belongs with, the text it copies where it copies one (`copies`), whether
+ * controls it belongs with, the whole words a pointer resting on it reads where its
+ * label may be cut (`title`), the text it copies where it copies one (`copies`), whether
  * it is `offered` now, whether its news is `urgent` (the words that say so, or null),
  * whether it is `disabled`, and the `press` that runs it, given the place the
  * presentation held when the user opened it (history.js, `readPlace`). A row that is a
@@ -18,9 +19,10 @@
  * does on what the gesture acts on (keyboard/AGENTS.md, "Touch routes").
  *
  * Each field may be a value or a function read when the rows are read, so a paint that
- * reads them through `watchProjection` (projection-watch.js) follows what they read.
+ * reads them follows their native signals.
  * A row whose answer moves outside the page's readings, such as a stance's way out, says
- * so with `pageControlsChanged`, and `watchPageControls` hears it. */
+ * so with `pageControlsChanged`, which publishes that invalidation as a signal. */
+import { signal } from "/vendor/browser-runtime.js";
 import { afterScript } from "./rendering.js";
 
 const EMPTY = Object.freeze([]);
@@ -53,7 +55,7 @@ const GROUPS = Object.freeze(["page", "navigate", "annotate", "about", "keys"]);
 
 const rows = new Map();
 let sequence = 0;
-const listeners = new Set();
+const revision = signal(0);
 
 const read = (value) => (typeof value === "function" ? value() : value);
 
@@ -66,6 +68,7 @@ const read = (value) => (typeof value === "function" ? value() : value);
  *   label: string | (() => string),
  *   group: string | (() => string),
  *   value?: string | (() => string),
+ *   title?: string | (() => string),
  *   shortcut?: readonly string[] | (() => readonly string[]),
  *   copies?: string | (() => string),
  *   offered?: boolean | (() => boolean),
@@ -87,6 +90,7 @@ export function registerPageControl(row) {
 
 /** The rows offered now, in rank order, each read as it reads now. */
 export function pageControls() {
+  revision.value;
   return [...rows.values()]
     .sort((a, b) => a.rank - b.rank || a.sequence - b.sequence)
     .filter((row) => read(row.offered) ?? true)
@@ -100,6 +104,7 @@ export function pageControls() {
         key: row.key,
         label: read(row.label),
         value: read(row.value) ?? "",
+        title: read(row.title) ?? "",
         shortcut: read(row.shortcut) ?? EMPTY,
         group,
         copies: read(row.copies) ?? "",
@@ -115,12 +120,5 @@ export function pageControls() {
  * heard once, when it ends. */
 export const pageControlsChanged = () => afterScript(tell);
 function tell() {
-  for (const listener of listeners) listener();
-}
-
-/** Call `listener` after each change `pageControlsChanged` reports; returns the way to
- * stop. */
-export function watchPageControls(listener) {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
+  revision.value = revision.peek() + 1;
 }

@@ -64,7 +64,7 @@
 import { afterScript, nextRender } from "./rendering.js";
 import { signal } from "/vendor/browser-runtime.js";
 import { keeps } from "./keeps.js";
-import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
+import { MODIFIER_KEYS, PRESSES, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
 import {
   isNativeLayer,
   renderedParent,
@@ -462,6 +462,8 @@ let readings = 0;
 let paintDestination = null;
 let paintedFocus = null;
 let paintedWithin = new Set();
+let paintedVisible = null;
+let paintedVisibleWithin = new Set();
 function markFocus(node, name, present) {
   keeps(node, `data-lf-${name}`, present ? "" : null);
   // Removing an absent token still rewrites the attribute.
@@ -498,6 +500,32 @@ function paintFocus(node) {
     if (!paintedWithin.has(owner)) markFocus(owner, "focus-within", true);
   }
   paintedWithin = within;
+  // Standing and its visibility are separate: a click keeps a control as the
+  // keyboard destination without advertising a keyboard cue. The browser owns
+  // focus-visible (including text entry and modality changes on the same node).
+  // Closed text-field roots expose their host, not the focused editor; text
+  // entry always needs a cue, as it does for native editors.
+  // Non-press destinations are reading locations: keep their location band
+  // whenever they hold focus, including after a pointer click or route.
+  const visible =
+    next &&
+    (next.matches(":focus-visible") || next.matches(TEXT_BOX) || !next.matches(PRESSES))
+      ? next
+      : null;
+  if (visible !== paintedVisible) {
+    if (paintedVisible) markFocus(paintedVisible, "focus-visible", false);
+    if (visible) markFocus(visible, "focus-visible", true);
+    paintedVisible = visible;
+  }
+  const visibleWithin = visible ? within : new Set();
+  for (const owner of paintedVisibleWithin) {
+    if (!visibleWithin.has(owner)) markFocus(owner, "focus-visible-within", false);
+  }
+  for (const owner of visibleWithin) {
+    if (!paintedVisibleWithin.has(owner))
+      markFocus(owner, "focus-visible-within", true);
+  }
+  paintedVisibleWithin = visibleWithin;
 }
 // Retained moves preserve native focus without emitting a focus event. Recompute
 // only its derived ancestry when the rendered tree changes, including slot moves.
@@ -712,7 +740,10 @@ addEventListener(
   "click",
   () => {
     const pressed = pressedPath;
-    setTimeout(() => reconcile(null, pressed));
+    setTimeout(() => {
+      reconcile(null, pressed);
+      queueFocusPaint();
+    });
   },
   { capture: true, passive: true },
 );
@@ -867,6 +898,7 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
         setTimeout(() => {
           if (step && stepping === step) stepping = null;
           reconcile(step, pressed);
+          queueFocusPaint();
         });
       }
       const at = deepFocus();

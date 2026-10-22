@@ -9,7 +9,7 @@
  * A command's words and liveness are read in the repaint frame (`paintTouchControls`),
  * where the register is read, rather than in a presentation's paint: a liveness
  * predicate may read the whole log, which a paint that follows what it reads must not
- * (projection-watch.js). A change in what stands is said with `pageControlsChanged`.
+ * (leaf-element.js). A change in what stands is said with `pageControlsChanged`.
  */
 import {
   PAGE_CONTROL_RANK,
@@ -17,7 +17,7 @@ import {
   registerPageControl,
 } from "../page-controls.js";
 import { returnPlace } from "../history.js";
-import { bindings, live, spell, titleOf, word } from "./bindings.js";
+import { bindings, descriptionOf, live, spell, titleOf, word } from "./bindings.js";
 import { innermostStance, invokePress } from "./dispatch.js";
 import { touchPresses } from "./register.js";
 
@@ -34,6 +34,12 @@ function place(press) {
     key: `command:${press.id}`,
     rank: PAGE_CONTROL_RANK.commands,
     label: () => face()?.label ?? "",
+    // The row's value and its description, as the reference's tooltip says it, whole
+    // where the menu's row cuts its words, are read where the menu paints, so one that
+    // says how long ago, as Undo's does, follows the page's clock (presence.js,
+    // `clockValue`) rather than standing as the repaint frame last read it.
+    value: () => (face() ? (word(presses.get(press.id).row.touchValue) ?? "") : ""),
+    title: () => (face() ? descriptionOf(presses.get(press.id).row) : ""),
     shortcut: () => face()?.shortcut ?? [],
     // A page command says which of a menu's groups it belongs with (`menu`).
     group: press.row.menu ?? "page",

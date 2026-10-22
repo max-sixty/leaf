@@ -39,7 +39,10 @@
 .lf-page-thread .lf-btn {
   font: inherit;
 }
-:is(.lf-page-thread :is(.lf-btn, summary), .lf-resolved-summary)[data-lf-focus] {
+:is(
+  .lf-page-thread :is(.lf-btn, summary),
+  .lf-resolved-summary
+)[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 1px;
 }
@@ -70,7 +73,7 @@
   font-size: var(--t-6);
   line-height: var(--chip-lh);
 }
-.lf-react-strip .lf-react[data-lf-focus] {
+.lf-react-strip .lf-react[data-lf-focus-visible] {
   outline-offset: 1px;
 }
 /* Reaction controls own their resting, selected and interactive appearance together.
@@ -484,13 +487,15 @@ svg[data-lf-icon] {
 }
 /* A native radio or checkbox and its label form one compact target. The native
  * mark carries selection; the label supplies the aim floor and focus ring without
- * a second frame or selected fill. Used by authored controls and packages alike. */
+ * a second frame or selected fill. The target owns its ring room inside its box,
+ * so a choice at a clipped toolbar edge keeps all four sides. Used by authored
+ * controls and packages alike. */
 .choice {
   display: inline-flex;
   align-items: center;
   justify-self: start;
   gap: var(--sp-1);
-  padding-block: var(--sp-1);
+  padding: max(var(--sp-1), var(--focus-ring-room));
   min-block-size: var(--aim-floor);
   min-inline-size: var(--aim-floor);
   box-sizing: border-box;
@@ -502,12 +507,12 @@ svg[data-lf-icon] {
   margin: 0;
   accent-color: var(--accent);
 }
-.choice > input:is(:focus-visible, [data-lf-focus]) {
+.choice > input:is(:focus-visible, [data-lf-focus-visible]) {
   outline: none;
 }
-.choice:has(> input:is(:focus-visible, [data-lf-focus])) {
+.choice:has(> input:is(:focus-visible, [data-lf-focus-visible])) {
   outline: var(--focus-ring);
-  outline-offset: var(--focus-ring-gap);
+  outline-offset: calc(-1 * var(--focus-ring-w));
   --lf-wears-ring: 1;
 }
 
@@ -610,7 +615,7 @@ svg[data-lf-icon] {
    Beside the face above it, so a button inside a declared widget tree wears this ring
    too. In chrome.css, where it was, it reached neither that button nor a
    package wanting to answer it. */
-:is(.lf-btn, .button)[data-lf-focus] {
+:is(.lf-btn, .button)[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 2px;
 }
@@ -652,7 +657,7 @@ svg[data-lf-icon] {
 .lf-corner-mark:hover {
   color: var(--ink);
 }
-.lf-corner-mark[data-lf-focus] {
+.lf-corner-mark[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 2px;
 }

@@ -460,7 +460,7 @@
   display: block;
 }
 
-:scope:is(lf-shot):has(> input.lf-shotflip[data-lf-focus]) {
+:scope:is(lf-shot):has(> input.lf-shotflip[data-lf-focus-visible]) {
   outline: var(--focus-ring);
   outline-offset: 1px;
   border-radius: var(--r);

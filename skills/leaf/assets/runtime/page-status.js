@@ -22,7 +22,7 @@ import { WEBSITE_DELIVERY, runtime, runtimeResource } from "./context.js";
 import { chromeRoot } from "./chrome.js";
 import { pagePresented } from "./page-paint.js";
 import { announce } from "./notifications.js";
-import { watchProjection } from "./projection-watch.js";
+import { effect, signal, untracked } from "/vendor/browser-runtime.js";
 import { agentName, readPart } from "./semantic-state.js";
 import { UPGRADE } from "./presentation.js";
 import { readQueues } from "./queue-api.js";
@@ -48,13 +48,13 @@ const LOADING = Object.freeze({
 // that saved state is loading.
 const reach = readPart((root) => root.reach);
 const fault = readPart((root) => root.fault);
-let upgraded = false;
+const upgraded = signal(false);
 // The status with its words (`statusModel`), or null before there is one to say. It is
 // derived where it is read, so a presentation of it says the same words in the same tone
 // and follows the same inputs; only upgrade, which is mechanical, asks each to paint.
 function currentStatus() {
   const answer = reach();
-  if (answer === "waiting" && !upgraded) return null;
+  if (answer === "waiting" && !upgraded.value) return null;
   const status =
     answer === "waiting"
       ? LOADING
@@ -144,8 +144,7 @@ let saidActionableWork;
 // reports it in its own face, and a change the user sends meanwhile holds its own error
 // (delivery.js). The status announces a change of kind in its own words already.
 const holdBlocked = holdingError({ announce: false });
-function paintStatus() {
-  const current = currentStatus();
+function paintStatus(current) {
   holdBlocked(
     ["refused", "broken"].includes(current?.status.kind)
       ? current.status.summary
@@ -265,12 +264,14 @@ export function mountPageStatus({ approveVersion: post }) {
   approveVersion = post;
   signoff = isSignoffDeclared();
   chromeRoot.append(toneProbe);
-  const statusWatch = watchProjection(document.body, paintStatus);
+  effect(() => {
+    const current = currentStatus();
+    untracked(() => paintStatus(current));
+  });
   document.addEventListener(
     UPGRADE,
     () => {
-      upgraded = true;
-      statusWatch.refresh();
+      upgraded.value = true;
     },
     { once: true },
   );

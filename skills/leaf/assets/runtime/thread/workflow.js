@@ -17,7 +17,7 @@ const STAGE_LABELS = Object.freeze({
   sending: "Sending",
   sent: "Sent",
   queued: "Queued",
-  picked_up: "Picked up",
+  picked_up: "Delivered",
   working: "Working",
   replying: "Replying",
   answered: "Answered",
@@ -30,7 +30,7 @@ const CONDITION_LABELS = Object.freeze({
   failed: "Failed",
 });
 
-const WAITING_FOR_PICKUP = "Waiting for pickup";
+const WAITING_FOR_DELIVERY = "Waiting for delivery";
 const NOT_ANSWERED = "Not answered";
 
 export const workflowLabel = (workflow, { answered = false } = {}) => {
@@ -38,7 +38,7 @@ export const workflowLabel = (workflow, { answered = false } = {}) => {
   if (workflow.condition)
     return workflow.condition.kind === "stale" &&
       workflow.condition.operation === "delivery"
-      ? WAITING_FOR_PICKUP
+      ? WAITING_FOR_DELIVERY
       : workflow.condition.kind === "failed" &&
           workflow.condition.operation === "response"
         ? NOT_ANSWERED
@@ -53,7 +53,7 @@ export const workflowTitle = (workflow) => {
   return [label, workflow.detail].filter(Boolean).join(" · ");
 };
 
-// The face a control paints for the agent's progress on a workflow: picked up, or at
+// The face a control paints for the agent's progress on a workflow: delivered, or at
 // work, which a reply still streaming is too. Its word stays the workflow's own
 // (`workflowLabel`), so a reply streaming reads Replying under the working face.
 export const progressFace = (workflow) =>

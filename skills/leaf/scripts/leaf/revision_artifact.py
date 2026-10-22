@@ -29,7 +29,6 @@ Each is kept in the memory of the page it was read from, for as long as the proc
 keeps that page (`page_memory`).
 """
 
-import errno
 import hashlib
 import json
 import os
@@ -882,8 +881,10 @@ def stage_artifact(page_dir: Path, revision: int, artifact: RevisionArtifact) ->
                 target = staged / ("resources" + path)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 earlier = captured.get(resource.digest)
-                if earlier is None or not _linked(earlier, target):
+                if earlier is None:
                     _write(target, resource.data, durable)
+                else:
+                    os.link(earlier, target)
                 written.append(target)
             if durable:
                 fsync_parents(written + list(staged.rglob("*")))
@@ -903,19 +904,6 @@ def _write(target: Path, data: bytes, durable: bool) -> Path:
             stream.flush()
             os.fsync(stream.fileno())
     return target
-
-
-def _linked(earlier: Path, target: Path) -> bool:
-    """Link `target` to a file an earlier bundle captured, unless that file has as
-    many links as its filesystem allows (ext4 stops at 65,000, which a page that
-    never re-vendors reaches after as many revisions)."""
-    try:
-        os.link(earlier, target)
-    except OSError as error:
-        if error.errno != errno.EMLINK:
-            raise
-        return False
-    return True
 
 
 def _captured_files(page_dir: Path) -> dict[str, Path]:

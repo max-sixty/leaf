@@ -1500,6 +1500,9 @@ html {
       height: var(--lf-head-room);
     }
   }
+  html[data-lf-live][data-lf-layout~=workspace] {
+    overflow-y: auto;
+  }
   html[data-lf-live][data-lf-sample-block] {
     overflow-y: hidden;
     --page-pad-start: 24px;

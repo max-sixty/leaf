@@ -13,8 +13,7 @@ import {
   shadowRootsIn,
   shownRect,
   skipped,
-  userScrollport,
-  watchOwner
+  userScrollport
 } from "./bundle-page-paint.js";
 import {
   LENT_REACH_STOP,
@@ -52,78 +51,6 @@ var clockValue = (read) => J(() => {
   pulse.value;
   return read(serverNow());
 }).value;
-function readingPaint(owner, draw) {
-  let painted = false;
-  let key;
-  let pending = null;
-  const running = /* @__PURE__ */ new Set();
-  let stopped = false;
-  const stopLifetime = watchOwner(owner, {
-    disconnect() {
-      for (const mark of running) mark.cut = true;
-      if (pending) painted = false;
-      pending = null;
-    }
-  });
-  const failed = (reason) => reportPageError(
-    reason,
-    `paint failed for ${owner.localName}${owner.id ? `#${owner.id}` : ""}`
-  );
-  let last = null;
-  const render = (...args) => {
-    last = args;
-    pending = null;
-    let result;
-    try {
-      result = draw(...args);
-    } catch (error) {
-      failed(error);
-      const refused = Promise.reject(error);
-      refused.catch(() => {
-      });
-      return refused;
-    }
-    if (typeof result?.then === "function") {
-      const mark = pending = {};
-      running.add(mark);
-      const settled = (reason, rejected) => {
-        running.delete(mark);
-        mark.cut ||= !owner.isConnected;
-        if (pending === mark) {
-          pending = null;
-          if (mark.cut) painted = false;
-        }
-        if (rejected && !mark.cut) failed(reason);
-      };
-      result.then(
-        () => settled(),
-        (reason) => settled(reason, true)
-      );
-    }
-    return result;
-  };
-  const owes = (next) => !painted || key !== next;
-  const paint = (next, ...args) => {
-    if (stopped || !owes(next)) return void 0;
-    painted = true;
-    key = next;
-    return render(...args);
-  };
-  paint.owes = owes;
-  paint.forget = () => {
-    painted = false;
-  };
-  paint.refresh = () => {
-    if (stopped) return void 0;
-    if (owner.isConnected) return last ? render(...last) : void 0;
-    painted = false;
-  };
-  paint.stop = () => {
-    stopped = true;
-    stopLifetime();
-  };
-  return paint;
-}
 async function tickClock(reportError) {
   try {
     pulse.value += 1;
@@ -928,7 +855,6 @@ addEventListener("resize", () => nextRender(measureRegions), { passive: true });
 export {
   saidNow,
   clockValue,
-  readingPaint,
   tickClock,
   observeServerNow,
   JUST_NOW,

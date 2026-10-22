@@ -1172,7 +1172,9 @@ class PageEndpoint:
         writes. Every served document's runtime names its own (`layer-client.js`,
         `layerHeaders`); a client that runs none, such as a harness posting as the
         user, names none. A website release names its runtime, so its tabs name none.
-        Every write route passes this first, whatever vocabulary it speaks."""
+        Every write route passes this first, whatever vocabulary it speaks, and so does
+        a tab's view, which the agent reads as the user's (`user_views`); only the
+        interaction log, diagnostics no reader acts on, does not."""
         runtime = self.headers.get("Leaf-Runtime")
         if (
             self.release is None
@@ -1333,7 +1335,7 @@ class PageEndpoint:
             _save_file,
             (_runtime_gate, _live_files_gate, _same_origin_gate, _body_gate),
         ),
-        "/api/user-view": PostRoute(_observe_user_view, (_body_gate,)),
+        "/api/user-view": PostRoute(_observe_user_view, (_runtime_gate, _body_gate)),
         "/api/interaction": PostRoute(_record_interactions, (_body_gate,)),
         "/api/samples": PostRoute(
             _create_sample, (_runtime_gate, _layer_gate, _body_gate)

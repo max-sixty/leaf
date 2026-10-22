@@ -110,6 +110,7 @@ from leaf import vendoring as vendoring_model
 from leaf.refusals import Refused
 from leaf.registry import storage as registry_storage
 from leaf.runtime_selection import serving_runtime
+from leaf.schema import USER_VIEWS_FILE
 from leaf.served_state import browser as served_browser
 from leaf.served_state import context as served_context
 from leaf.served_state import document as served_document
@@ -890,6 +891,15 @@ def test_a_write_from_another_runtime_is_not_interpreted_or_appended(server, pag
     )
     assert (status, json.loads(body)) == (200, {"layer": current})
     assert event_model.read_events(page_dir) == before
+    # The agent reads a tab's view as the user's, so a view from another runtime is
+    # not stored either.
+    status, body = fetch(
+        f"{server}/api/user-view",
+        data=json.dumps({"revision": 1}).encode(),
+        headers={"Leaf-Runtime": "0123456789abcdef"},
+    )
+    assert (status, json.loads(body)) == (200, {"layer": current})
+    assert not (page_dir / USER_VIEWS_FILE).exists()
 
     status, body = fetch(
         f"{server}/api/event", data=comment, headers={"Leaf-Runtime": identity}

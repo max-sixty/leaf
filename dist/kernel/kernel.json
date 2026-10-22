@@ -227,7 +227,7 @@
     "runtime/undo.js": "7b660d716a1b035ab23244c7a3c2c6a978e4692452a3c4fe438db52a0d7588ca",
     "runtime/user-intent.js": "29238438a04c749d2db046472516dfc2e15570a8060397d0228f85feb8a58b44",
     "runtime/user-place.js": "7c3cc5c10aeeb84fa52511fa79d6450f695cc32b9b2302b7e6b6cc51609fffe6",
-    "runtime/user-view.js": "bfbb8c68b48bd8da794309949f890d788b7859ff1c1c285a5be04eae55c32bd4",
+    "runtime/user-view.js": "4d0b6567c1b3c3ad6e430c4a87e7ceb9a07dd1023e64d1430d6e2f2e8e90b21f",
     "runtime/validation.js": "0b0baf462a06521c479756cbe0a151ae0e43d5b12546e791e117fdfb6438a52f",
     "runtime/version-picker.js": "0d3b2afd2c0433a60c76c9cede301945c3de4bb287357239cf6fdaf9994284d6",
     "runtime/version.js": "518ca34517bdec01e719e52fa27fa38ebf303ee5e608b3b4c1a80f7ad1087071",

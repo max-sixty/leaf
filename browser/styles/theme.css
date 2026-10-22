@@ -924,6 +924,18 @@ html[data-lf-interactive] [data-lf-arriving] {
   inherits: true;
   initial-value: 0px;
 }
+/* A floating box's translation and clips paint together rather than advancing
+   independently on the compositor (runtime/box-motion.js). */
+@property --lf-box-carry {
+  syntax: "<length>+ | none";
+  inherits: false;
+  initial-value: none;
+}
+@property --lf-box-cut {
+  syntax: "<length>+";
+  inherits: false;
+  initial-value: 0px 0px 0px 0px;
+}
 /* How far across and down from their places a text field draws its words, and how much
    of its box it cuts them to from each side, while an owner's tween carries them with
    the field's edges (composing/text-field.js, runtime/box-motion.js). At rest both are

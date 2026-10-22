@@ -592,8 +592,6 @@ class CodexHarness(EnvironmentHarness):
     def reconcile_turn(self, payload: dict, expected: dict | None) -> dict | None:
         """Codex's native transcript also records turns resumed without input,
         which run no prompt hook (`codex_state.sync_transcript_turn`)."""
-        if expected is None:
-            return None
         from .codex_state import sync_transcript_turn
 
         return sync_transcript_turn(self.session, payload.get("transcript_path"))

@@ -184,6 +184,8 @@ export function mountApplication(dependencies) {
     post,
     stateApplying,
     unaccountedGesture: engagement.unaccountedGesture,
+    openThread: openPageThread,
+    threadPlace: (id) => dependencies.anchorTravel.threadDestination(id),
   });
 
   // The one bookkeeping door (delivery.js): the page draws the versions read as it
@@ -294,7 +296,6 @@ export function mountApplication(dependencies) {
       },
     });
     void presentation.present();
-    document.addEventListener("lf-comparison", renderAnnotations);
     // A paint on paper read no ages, so the return to screen paints through the
     // presenter, which follows them again.
     onPaper.addEventListener("change", () => {

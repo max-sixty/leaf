@@ -109,20 +109,10 @@ may hold, such as `registerReadingRegion`, passes to the replacement.
 
 A `LeafElement` draws nothing while it is away. On return, Lit updates it once to
 reconnect its dependencies and draw the current reading, keeping unchanged template
-nodes. `LeafElement` pauses its dependencies while away and paints once
-on return. Data and comparison callbacks instead run again only if their reading
-changed, or if their returned promise had not settled when the element left. A callback
-that throws or rejects is reported once and stays subscribed. So return the promise of
-any paint that finishes later, drop unfinished work when the element leaves but keep
-finished nodes, and have `start` restore what its cleanup removed.
-
-For a reading the module computes itself, build `const paint = readingPaint(element,
-draw)` once, before `whileConnected`, and call `paint(key, ...args)` from `start`. It
-calls `draw(...args)` only when `key` differs from the last key it drew or the last draw
-was cut short; key authored content that never changes by its text. A failing `draw` is
-reported as above and never makes `start` throw. `paint.refresh()` redraws the last
-reading, `paint.forget()` makes the next call draw, `paint.owes(key)` says whether it
-would, and `paint.stop()` retires it.
+nodes. Put asynchronous rendering in `updated()` and pass its promise to
+`this.drawing(work)` so presentation waits for it and reports a rejection. Drop
+unfinished work when the element leaves but keep finished nodes, and have `start`
+restore what its cleanup removed.
 
 `Promise.race([work, aborted(signal)])` ends work when its signal aborts.
 

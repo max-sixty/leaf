@@ -217,7 +217,6 @@ import {
   pageScroller,
   placeKept,
   reachScrollers,
-  readingPaint,
   readingPosture,
   readingRegionFor,
   readingRegions,
@@ -356,6 +355,7 @@ import {
   holdFocus,
   holdRendering,
   inputCount,
+  isNativeLayer,
   keeps,
   keepsHidden,
   move,
@@ -412,6 +412,7 @@ import {
   J,
   LitElement,
   PENDING,
+  W,
   Z,
   actionForWidget,
   anchorKey,
@@ -786,6 +787,7 @@ var LeafEditorView = class extends EditorView {
       ...config,
       state: withNavigation(config.state ?? EditorState.create(config))
     });
+    this.contentDOM.addEventListener("focus", () => this.placeSelection());
   }
   setState(state) {
     super.setState(withNavigation(state));
@@ -1076,7 +1078,9 @@ function decorate(state, placed) {
         items.set(each.from, { depth, continued: true });
       });
       const kind = list.next === null ? BULLETS[Math.min(depth, BULLETS.length) - 1] : "lf-md-number";
-      const shown = touches(state, start, end);
+      const shown = state.selection.ranges.some(
+        (range) => range.from < end && range.to >= start
+      );
       items.set(head.from, { depth, kind: shown ? null : kind, number: list.next });
       if (list.next !== null) list.next++;
       add(start, end, shown ? shownMarker : marker);
@@ -1610,6 +1614,7 @@ fab.id = "lf-comment-button";
 fab.title = "Comment";
 var fabOptions = el("span", "lf-response-options");
 fabOptions.id = "lf-response-options";
+fabOptions.popover = "auto";
 fabOptions.setAttribute("role", "group");
 fabOptions.setAttribute("aria-label", "Other responses");
 var fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
@@ -1618,7 +1623,19 @@ var fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
   collapse: true
 });
 fabOptions.append(fabSuggest);
-fabBar.append(fab, fabOptions);
+var fabOptionsTrigger = responseAction(
+  el("button", "lf-ui lf-response-trigger"),
+  {
+    icon: "more",
+    label: "Other responses",
+    collapse: true,
+    behavior: "disclosure"
+  }
+);
+fabOptionsTrigger.setAttribute("aria-controls", fabOptions.id);
+fabOptionsTrigger.setAttribute("aria-expanded", "false");
+fabOptionsTrigger.popoverTargetElement = fabOptions;
+fabBar.append(fab, fabOptionsTrigger, fabOptions);
 var composer = el("div", "lf-ui lf-composer");
 composer.id = "lf-composer";
 var composerQuote = el("blockquote", "lf-ui lf-quote detached");
@@ -1798,7 +1815,7 @@ function createSelectionComposer({
       paintKeys();
     });
   };
-  function setResponseOptions(open, { focus = null, place = true } = {}) {
+  function setResponseOptions(open, { focus = null } = {}) {
     const next = Boolean(open && fabAnchorAt() && responseOptionsAvailable());
     if (next === responseOptionsOpen) {
       if (next && focus) focusResponseOption(focus);
@@ -1806,8 +1823,9 @@ function createSelectionComposer({
     }
     if (next) setReact(false);
     responseOptionsOpen = next;
-    fabBar.classList.toggle("lf-response-open", next);
-    if (place && fabAnchorAt()) showFab(fabAnchorAt());
+    keeps(fabOptionsTrigger, "aria-expanded", String(next));
+    if (next) showNativeLayer(fabOptions, { source: fabOptionsTrigger });
+    else closeNativeLayer(fabOptions);
     if (next && focus) focusResponseOption(focus);
     paintKeys();
     return next;
@@ -1817,11 +1835,11 @@ function createSelectionComposer({
       fabSuggest,
       !(anchor?.quote && !designModeActive() && (!composerOpen || !pendingAbout && !pendingDrawing))
     );
-    if (responseOptionsOpen && !responseOptionsAvailable())
-      setResponseOptions(false, { place: false });
+    keepsHidden(fabOptionsTrigger, !responseOptionsAvailable());
+    if (responseOptionsOpen && !responseOptionsAvailable()) setResponseOptions(false);
   }
   function resetResponseOptions() {
-    setResponseOptions(false, { place: false });
+    setResponseOptions(false);
   }
   function showComposer(open) {
     if (open && composerField.hasChildNodes()) composer.append(composerField);
@@ -2059,7 +2077,13 @@ function createSelectionComposer({
         }
       }
     });
-    fabSuggest.onclick = () => setSuggestionMode(!suggestionMode);
+    fabSuggest.onclick = () => {
+      setResponseOptions(false);
+      setSuggestionMode(!suggestionMode);
+    };
+    fabOptions.addEventListener("toggle", () => {
+      if (!isNativeLayer(fabOptions)) setResponseOptions(false);
+    });
     onStanding((node) => {
       if (node && responseOptionsOpen && !fabBar.contains(node))
         setResponseOptions(false);
@@ -2509,17 +2533,17 @@ function createAnchorTravel({
     const holder = placeHolder(where);
     if (!holder) return null;
     const destination = placeBox(where);
-    const seen = clippedPlace(where, /* @__PURE__ */ new Map(), destination);
-    return seen && { holder, destination, seen };
+    const seen2 = clippedPlace(where, /* @__PURE__ */ new Map(), destination);
+    return seen2 && { holder, destination, seen: seen2 };
   }
   function readableDestination(where) {
     const shown = seenOf(where);
     if (!shown) return false;
-    const { holder, destination, seen } = shown;
+    const { holder, destination, seen: seen2 } = shown;
     const box = scrollingBoxFor(holder);
     const band = box ? landingBand(box) : shownBox(pageScroller);
     const close = (a, b) => Math.abs(a - b) <= 0.5;
-    return destination.top >= band.top - 0.5 && destination.bottom <= band.bottom + 0.5 && close(seen.top, destination.top) && close(seen.right, destination.right) && close(seen.bottom, destination.bottom) && close(seen.left, destination.left);
+    return destination.top >= band.top - 0.5 && destination.bottom <= band.bottom + 0.5 && close(seen2.top, destination.top) && close(seen2.right, destination.right) && close(seen2.bottom, destination.bottom) && close(seen2.left, destination.left);
   }
   function scrollToRange(where, behavior = scrollBehavior()) {
     const holder = placeHolder(where);
@@ -2785,10 +2809,10 @@ function pickerModel(state) {
     picker: Object.freeze({
       offered,
       token: currentVersionToken(),
-      compared: diffOn || diffPendingBase !== null,
+      compared: diffOn.value || diffPendingBase.value !== null,
       news: behind,
-      keyTitle: offered ? diffPendingBase !== null ? `${currentLabel}: loading a comparison with v${diffPendingBase}${newer}` : diffOn ? `${currentLabel}: showing what changed since v${diffBase} \u2014 pick a version, or press Compare again to stop${newer}` : `${currentLabel}: versions; read one, or mark what changed since it${newer}` : currentLabel,
-      ariaLabel: offered ? diffPendingBase !== null ? `${currentLabel}: loading comparison with v${diffPendingBase}; open versions${newer}` : diffOn ? `${currentLabel}: comparing with v${diffBase}; open versions${newer}` : `${currentLabel}: open versions${newer}` : currentLabel
+      keyTitle: offered ? diffPendingBase.value !== null ? `${currentLabel}: loading a comparison with v${diffPendingBase.value}${newer}` : diffOn.value ? `${currentLabel}: showing what changed since v${diffBase.value} \u2014 pick a version, or press Compare again to stop${newer}` : `${currentLabel}: versions; read one, or mark what changed since it${newer}` : currentLabel,
+      ariaLabel: offered ? diffPendingBase.value !== null ? `${currentLabel}: loading comparison with v${diffPendingBase.value}; open versions${newer}` : diffOn.value ? `${currentLabel}: comparing with v${diffBase.value}; open versions${newer}` : `${currentLabel}: open versions${newer}` : currentLabel
     }),
     latest: Object.freeze({
       // The agent's latest save failed its check, so the page shows the last one that
@@ -2806,11 +2830,11 @@ function pickerModel(state) {
     }),
     rows: state === null || runtime.active === null ? Object.freeze([]) : menuRows(state, runtime.browser?.version_notes ?? {}),
     selection: Object.freeze({
-      base: diffPendingBase ?? (diffOn ? diffBase : null),
+      base: diffPendingBase.value ?? (diffOn.value ? diffBase.value : null),
       currentRevision: runtime.currentRevision,
-      on: diffOn,
-      pendingBase: diffPendingBase,
-      baseRevision: stamped(diffBase)?.revision ?? null
+      on: diffOn.value,
+      pendingBase: diffPendingBase.value,
+      baseRevision: stamped(diffBase.value)?.revision ?? null
     })
   });
 }
@@ -2822,14 +2846,7 @@ function paintPicker() {
   );
   repaint();
 }
-var pickerRevision = Z(0);
-var presentPicker = () => {
-  pickerRevision.value += 1;
-};
-var versionsReading = () => {
-  pickerRevision.value;
-  return pickerModel(runtime.state);
-};
+var versionsReading = () => pickerModel(runtime.state);
 registerPageControl({
   key: "versions",
   rank: PAGE_CONTROL_RANK.versions,
@@ -2868,10 +2885,10 @@ var diffOpaqueSel = () => [
   ...Object.entries(registry.$decisions).filter(([, { retires }]) => Object.keys(retires).length).map(([owner]) => owner),
   "svg"
 ].join(",");
-var diffOn = false;
-var diffBase = null;
+var diffOn = Z(false);
+var diffBase = Z(null);
 var comparisonGeneration = Z(0);
-var diffPendingBase = null;
+var diffPendingBase = Z(null);
 var diffMarked = /* @__PURE__ */ new Set();
 var diffBefore = /* @__PURE__ */ new Map();
 var inlineOpen = /* @__PURE__ */ new Map();
@@ -3060,12 +3077,12 @@ function openInlineComparison(target) {
   const label = el(
     "span",
     "lf-ui lf-quiet lf-version-inline-label",
-    before === null ? `New since v${diffBase}` : `v${diffBase} \u2192 ${current}`
+    before === null ? `New since v${diffBase.value}` : `v${diffBase.value} \u2192 ${current}`
   );
   label.id = inlineId(target);
   label.setAttribute(
     "aria-label",
-    before === null ? `New since version ${diffBase}` : `Inline comparison from version ${diffBase} to ${current}`
+    before === null ? `New since version ${diffBase.value}` : `Inline comparison from version ${diffBase.value} to ${current}`
   );
   const nodes = [label];
   const additions = [];
@@ -3095,7 +3112,7 @@ function openInlineComparison(target) {
   inlineOpen.set(target, { nodes, ranges });
   paintInlineInsertions();
   layoutChanged(target);
-  return before === null ? `v${diffBase} had nothing here` : `showing an inline diff from v${diffBase}`;
+  return before === null ? `v${diffBase.value} had nothing here` : `showing an inline diff from v${diffBase.value}`;
 }
 function closeInlineComparison(target) {
   const entry = inlineOpen.get(target);
@@ -3104,17 +3121,17 @@ function closeInlineComparison(target) {
   for (const node of entry?.nodes ?? []) node.remove();
   paintInlineInsertions();
   layoutChanged(target);
-  return `inline diff from v${diffBase} hidden`;
+  return `inline diff from v${diffBase.value} hidden`;
 }
-var inlineComparison = (target) => diffOn && diffBefore.has(target) && (diffBefore.get(target) === null || diffBefore.get(target) !== wrote(target)) ? {
+var inlineComparison = (target) => diffOn.value && diffBefore.has(target) && (diffBefore.get(target) === null || diffBefore.get(target) !== wrote(target)) ? {
   id: inlineId(target),
   open: inlineOpen.has(target),
-  offer: `v${diffBase} \u2192 ${currentVersionToken()}`
+  offer: `v${diffBase.value} \u2192 ${currentVersionToken()}`
 } : null;
 function toggleInlineComparison(target) {
   if (!inlineComparison(target)) return null;
   const said = inlineOpen.has(target) ? closeInlineComparison(target) : openInlineComparison(target);
-  announceComparison();
+  comparisonGeneration.value += 1;
   return said;
 }
 var comparable = (version) => {
@@ -3122,22 +3139,19 @@ var comparable = (version) => {
   return runtime.currentRevision !== null && base !== void 0 && base.revision < runtime.currentRevision;
 };
 function setDiff(on, base, pendingBase = null) {
-  diffOn = on;
-  diffPendingBase = pendingBase;
-  if (on) diffBase = base;
-  if (!on) {
-    diffRequest++;
-    for (const target of [...inlineOpen.keys()]) closeInlineComparison(target);
-    diffBefore.clear();
-    for (const b of diffMarked) b.classList.remove("lf-ins-block");
-    diffMarked.clear();
-  }
-  presentPicker();
-  announceComparison();
-}
-function announceComparison() {
-  comparisonGeneration.value += 1;
-  document.dispatchEvent(new CustomEvent("lf-comparison"));
+  W(() => {
+    diffOn.value = on;
+    diffPendingBase.value = pendingBase;
+    if (on) diffBase.value = base;
+    if (!on) {
+      diffRequest++;
+      for (const target of [...inlineOpen.keys()]) closeInlineComparison(target);
+      diffBefore.clear();
+      for (const b of diffMarked) b.classList.remove("lf-ins-block");
+      diffMarked.clear();
+    }
+    comparisonGeneration.value += 1;
+  });
 }
 async function showComparison(base) {
   setDiff(false, null, base);
@@ -3145,8 +3159,7 @@ async function showComparison(base) {
   const baseVersion = stamped(base);
   const baseRevision = baseVersion?.revision;
   if (baseRevision == null) {
-    diffPendingBase = null;
-    presentPicker();
+    diffPendingBase.value = null;
     raiseError(`Couldn't load v${base}`);
     return;
   }
@@ -3169,8 +3182,7 @@ async function showComparison(base) {
     await prepareDeclaredMarkdown(doc);
   } catch {
     if (mine === diffRequest) {
-      diffPendingBase = null;
-      presentPicker();
+      diffPendingBase.value = null;
       raiseError(`Couldn't load v${base}`);
     }
     return;
@@ -3182,25 +3194,13 @@ async function showComparison(base) {
     n ? `${n} changed passage${n === 1 ? "" : "s"} since v${base}` : `No text changes since v${base}`
   );
 }
-var pressComparison = (base) => diffOn && base === diffBase || diffPendingBase === base ? setDiff(false) : showComparison(base);
-var comparisonBase = () => diffOn ? diffBase : null;
-var selectedBase = () => diffPendingBase ?? comparisonBase();
+var pressComparison = (base) => diffOn.value && base === diffBase.value || diffPendingBase.value === base ? setDiff(false) : showComparison(base);
+var comparisonBase = () => diffOn.value ? diffBase.value : null;
+var selectedBase = () => diffPendingBase.value ?? comparisonBase();
 function comparisonChanges(owner = null) {
   comparisonGeneration.value;
-  const changes = diffOn ? [...diffMarked] : [];
+  const changes = diffOn.value ? [...diffMarked] : [];
   return owner ? changes.filter((block) => block !== owner && under(block, owner)) : changes;
-}
-function watchComparison(owner, callback) {
-  const paint = readingPaint(owner, () => callback());
-  const read2 = () => paint(comparisonGeneration.peek());
-  const stop = whileConnected(owner, (signal) => {
-    document.addEventListener("lf-comparison", read2, { signal });
-    read2();
-  });
-  return () => {
-    stop();
-    paint.stop();
-  };
 }
 async function authoredDocument(url) {
   const response = await fetch(url);
@@ -3338,9 +3338,9 @@ function createVersionController({
       if (!upgraded(element)) continue;
       if (element.id) keys2.set(element, element.id);
       else {
-        const seen = counts.get(element.localName) ?? 0;
-        counts.set(element.localName, seen + 1);
-        keys2.set(element, `${element.localName}#${seen}`);
+        const seen2 = counts.get(element.localName) ?? 0;
+        counts.set(element.localName, seen2 + 1);
+        keys2.set(element, `${element.localName}#${seen2}`);
       }
     }
     return keys2;
@@ -3972,8 +3972,8 @@ function createVersionController({
     const moving = /* @__PURE__ */ new Set();
     let scrolls = 0;
     let resting = false;
-    const rest = (seen) => nextRender(() => {
-      if (seen !== scrolls) return rest(scrolls);
+    const rest = (seen2) => nextRender(() => {
+      if (seen2 !== scrolls) return rest(scrolls);
       resting = false;
       const boxes = [...moving];
       moving.clear();
@@ -4096,11 +4096,7 @@ function createVersionController({
       compare: pressComparison,
       latest: goActive
     });
-    x(() => {
-      pickerRevision.value;
-      paintPicker();
-    });
-    presentPicker();
+    x(paintPicker);
   }
   return {
     PICKER,
@@ -4814,8 +4810,8 @@ function createReactionController({
         scrollIntoReadingBand(picker.trigger, picker.trigger, "nearest", "instant");
         showNativeLayer(picker.palette, { source: picker.trigger });
         const opened = reactSurface;
-        const seen = (trigger) => seenRect(trigger, clipsPastSurfaces());
-        reactDeparture = whenNone([picker.trigger], seen, () => {
+        const seen2 = (trigger) => seenRect(trigger, clipsPastSurfaces());
+        reactDeparture = whenNone([picker.trigger], seen2, () => {
           if (reactSurface === opened) setReact(false);
         });
         picker.trigger.setAttribute("aria-expanded", "true");
@@ -5592,7 +5588,25 @@ function gestureWords(event, gesture) {
       return actionWords(event, gesture);
   }
 }
-function createUndo({ post: post2, stateApplying, unaccountedGesture }) {
+function placeOf2(event) {
+  if (["resolve", "unresolve", "reply"].includes(event.kind))
+    return { thread: threadIdNamed(event.parent), nodes: [] };
+  const id = event.kind === "action" ? event.widget : event.anchor?.section;
+  if (!id) return null;
+  const held = messageHolding(id);
+  if (held)
+    return { thread: held.thread, message: held.message, nodes: [held.element] };
+  return { fragment: id, nodes: [elementById(id)] };
+}
+var seen = (where) => Boolean(where && seenRect(placeHolder(where), /* @__PURE__ */ new Map(), placeBox(where)));
+var KEYS_HELD = /* @__PURE__ */ new Set(["Shift", "Control", "Alt", "Meta", "CapsLock", "Fn"]);
+function createUndo({
+  post: post2,
+  stateApplying,
+  unaccountedGesture,
+  openThread,
+  threadPlace: threadPlace2
+}) {
   const gestures = /* @__PURE__ */ new Map();
   function retainGesture(attempt, facts) {
     const { effective, unresolved } = readApplication();
@@ -5648,13 +5662,97 @@ function createUndo({ post: post2, stateApplying, unaccountedGesture }) {
       });
     return answer;
   }
+  let armed = null;
+  function disarm() {
+    armed?.stop();
+    armed = null;
+  }
+  onUserInput((event) => {
+    if (!armed || event.type === "wheel" || event.type === "blur") return;
+    if (event.type === "keydown" && (event.repeat || KEYS_HELD.has(event.key))) return;
+    if ((event.type === "pointerdown" || event.type === "touchstart") && inChrome(
+      /** @type {Node} */
+      event.composedPath()[0]
+    ))
+      return;
+    armed.inputs.push(inputCount());
+    if (armed.inputs.length > 1) disarm();
+  });
+  const armedFor = (event) => armed?.id === event.id && armed.shown && armed.inputs.every((input) => input === inputCount());
+  const drawingsOf = (id) => [
+    ...[...document.querySelectorAll(THREAD)].filter(
+      (node) => drawnThreadId(
+        /** @type {HTMLElement} */
+        node
+      ) === id
+    ),
+    surfaceFocusTarget(id, { part: "thread" })
+  ];
+  const inView = (place) => [
+    ...place.thread ? [threadPlace2(place.thread), ...drawingsOf(place.thread)] : [],
+    ...place.nodes
+  ].some(seen);
+  function needsShowing(entry) {
+    if (entry.picked_up) return true;
+    if (gestures.get(entry.event.attempt)?.reverse) return false;
+    const place = placeOf2(entry.event);
+    return Boolean(place) && !inView(place);
+  }
+  async function show(event) {
+    const place = placeOf2(event);
+    if (!place) return [];
+    if (place.thread) {
+      const opened = await openThread(place.message ?? place.thread, {
+        part: place.message ? "message" : "thread"
+      });
+      return [opened, ...place.nodes].filter(Boolean);
+    }
+    const url = new URL(window.location.href);
+    url.hash = place.fragment;
+    if (window.navigation)
+      await window.navigation.navigate(url.href).finished.catch(() => {
+      });
+    else window.location.assign(url);
+    return place.nodes.filter(Boolean);
+  }
+  function arm(event) {
+    disarm();
+    let stop = () => {
+    };
+    const current = { id: event.id, stop: () => stop(), inputs: [], shown: false };
+    armed = current;
+    notice(`Press again to undo: ${takes(event)}`);
+    void show(event).then((nodes) => {
+      if (armed !== current) return;
+      current.shown = true;
+      if (!nodes.length) return;
+      let landed = false;
+      stop = whenNone(
+        nodes,
+        (node, clips) => {
+          const shown = seenRect(node, clips);
+          landed ||= Boolean(shown);
+          return shown;
+        },
+        () => {
+          if (landed && armed === current) disarm();
+        }
+      );
+    });
+  }
   function undoLast() {
     if (stateApplying() || unaccountedGesture()) {
       raiseError(WAIT);
       return null;
     }
     const event = undoable();
-    return event ? withdraw(event) : null;
+    if (!event) return null;
+    if (!armedFor(event) && needsShowing(runtime.undo[0])) {
+      arm(event);
+      return null;
+    }
+    disarm();
+    return withdraw(event);
   }
   pageCommand({
     id: "history.undo",
@@ -5662,7 +5760,9 @@ function createUndo({ post: post2, stateApplying, unaccountedGesture }) {
     keys: ["z"],
     // Said from the list the page holds rather than `undoable`, so a reading being
     // applied leaves the words standing while it holds the press back. The menu's row
-    // cuts long words, so it says the age at its end rather than after them.
+    // cuts long words, so it says the age at its end rather than after them. The words
+    // stand whether the press will show or take: which it does turns on where the user
+    // is reading when they press, which a scroll changes without a repaint.
     description: () => head() ? `Undo: ${takes(head())}` : "Undo the latest update",
     title: "undo",
     touch: () => head() ? `Undo: ${said(head())}` : "Undo",
@@ -7672,7 +7772,9 @@ function mountApplication(dependencies) {
   const undo = createUndo({
     post: post2,
     stateApplying,
-    unaccountedGesture: engagement.unaccountedGesture
+    unaccountedGesture: engagement.unaccountedGesture,
+    openThread: openPageThread,
+    threadPlace: (id) => dependencies.anchorTravel.threadDestination(id)
   });
   const markRead = async (messages) => {
     applicationState.markRead(messages);
@@ -7768,7 +7870,6 @@ function mountApplication(dependencies) {
       }
     });
     void presentation.present();
-    document.addEventListener("lf-comparison", renderAnnotations);
     onPaper.addEventListener("change", () => {
       if (!onPaper.matches) void presentation.present();
     });
@@ -8472,10 +8573,10 @@ function dataReader(element, input, accepted) {
     },
     {
       watched() {
-        let seen = d(selected.read);
+        let seen2 = d(selected.read);
         stopAccepted = selected.subscribe((now) => {
-          if (now === seen) return;
-          seen = now;
+          if (now === seen2) return;
+          seen2 = now;
           accepted();
         });
       },
@@ -8903,6 +9004,7 @@ export {
   textField,
   fabBar,
   fabInput,
+  fabOptionsTrigger,
   composerQuote,
   pendingAnchor,
   pendingAbout,
@@ -8919,7 +9021,6 @@ export {
   versionPicker,
   versionsReading,
   comparisonChanges,
-  watchComparison,
   createVersionController,
   reactionTokens,
   reactionAvailable,

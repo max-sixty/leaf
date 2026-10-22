@@ -3,7 +3,7 @@
    that seats them. Every projection uses this directory for control, focus and
    containment, so a producer updates one registration whichever surface shows it. */
 import { html, render } from "/vendor/browser-runtime.js";
-import { iconElement } from "./icons.js";
+import { iconTemplate } from "./icons.js";
 import { HOLDS_WORD } from "./held-word.js";
 import { progressFace, workflowLabel } from "./thread/workflow.js";
 import { elementDirective, offer } from "./widget-elements.js";
@@ -118,7 +118,6 @@ let relationOrdinal = 0;
 const presented = new WeakMap();
 const records = new WeakMap();
 const controlContributions = new WeakMap();
-const iconNodes = new WeakMap();
 const contributorClasses = new WeakMap();
 
 /** Create the native host for one generated margin entry reading. */
@@ -284,16 +283,6 @@ export function syncContributionUnread(control, count) {
   control.toggleAttribute("data-lf-unread", Boolean(count));
 }
 
-function iconFor(control, icon) {
-  if (!icon) return null;
-  let node = iconNodes.get(control);
-  if (!node || node.dataset.lfIcon !== icon) {
-    node = iconElement(icon);
-    iconNodes.set(control, node);
-  }
-  return node;
-}
-
 export function presentContributionHost(
   control,
   offered,
@@ -413,7 +402,7 @@ export function presentContributionEntry(control, offered, options = {}) {
   contributorClasses.set(control, nextClasses);
   const visibleLabel = visibleContributionEntryLabel(record);
   const glyph = record.icon
-    ? iconFor(control, record.icon)
+    ? iconTemplate(record.icon)
     : html`<span class="lf-margin-entry-glyph" aria-hidden="true"
         >${record.glyph}</span
       >`;

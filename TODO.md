@@ -100,6 +100,11 @@ has tried; settle that before building it.
 
 ### Agent and author experience
 
+- **Wake idle Codex desktop chats without user messages.** Page actions currently
+  arrive as queued `<leaf-delivery>` user messages, which clutter the chat. Expose
+  a route to the desktop-owned App Server or non-user queued input, then use
+  Leaf's existing tool-output delivery
+  ([interface gap](notes/codex-integration.md#delivery-without-user-messages)).
 - **Consider a reminder when revising decided content.** An optional `--force`
   acknowledgment could make an agent pause over an existing decision. Revisions
   currently remain unrestricted; decide whether such a reminder helps before
@@ -124,10 +129,6 @@ has tried; settle that before building it.
   the coordinator's turn ends (#3370); Codex and Pi publish no such record, so their
   status stops reading Working while workers still run
   ([the note](notes/user-feedback-responsiveness.md#proposed-improvements)).
-- **Decide what the reply budget counts.** A small page change takes 21–42 s to
-  reply on every harness against a 7 s target, and Leaf's delivery and tool time is
-  0.3–2.6 s of it ([readings](notes/user-feedback-responsiveness.md#latency-targets-and-readings)).
-  Decide whether the target counts Leaf's share or the whole reply.
 - **#24 — Measure time to an initial reviewable page and the value of review.**
   Retrospective replay now proves one usable Leaf candidate and one usable HTML
   candidate before their authors finished. Their observation triggers differ;
@@ -160,13 +161,6 @@ has tried; settle that before building it.
   in Slack, Discord and Telegram, so an accidental press loses a long rewrite. Offer a
   way back, such as `g D` restoring the last discarded rewrite into its editor (the
   user's suggestion, 2026-10-06).
-- **Show what `z` takes before it takes it.** `z` takes back the user's newest
-  gesture however old, so on a page left for weeks it can reopen a thread resolved
-  then, below the fold. The user chose (2026-10-21) to keep the reach unlimited,
-  name the gesture and its age, and spend the first press revealing a target that is
-  out of view or already picked up by the agent. Undo now names the gesture and its
-  age in every tab; the reveal on the first press remains.
-  [The undo-reach note](notes/undo-reach/README.md) has the build.
 - **Decide when a page merits a separate phone composition.** Many pages are
   ephemeral and authored for a user reading on a large screen, so a bespoke phone
   animation may not repay its cost. Decide how the agent weighs the user's viewing
@@ -479,6 +473,19 @@ claude-code` run (its `boundary` step), the transcript held the comment in both
 Revisit these when their stated trigger becomes real; they are not an active queue.
 
 ### Product and harness ideas
+
+- **Consider Redo and a Changes panel.** `z` reaches any gesture, names it and its
+  age, and shows one out of view or already picked up before taking it. Nothing puts
+  back what an undo took, and only the newest gesture is in `z`'s reach. Redo on `Z`
+  would be an `undo` naming the user's own undo in force: `taken_back` becomes a
+  parity fold over the chain, a restored gesture still reads at its log position (so
+  the door must refuse a redo that would paint nothing), readers following `undoes`
+  one level follow the chain, and a redo brings back its gesture's answer obligation.
+  A Changes panel would list the user's gestures with Undo each, served the `history`
+  reading past its 50-row `LIMIT`. The undo-reach note
+  (`git show fa3aad5e0:notes/undo-reach/README.md`) has the costs and the readers
+  each touches. Trigger: a user wants back what an undo took, or an older gesture
+  than the newest.
 
 - **Link filenames to their repository context.** When a page or thread knows the
   repository and revision, offer a GitHub source link for a filename such as

@@ -1102,15 +1102,11 @@ def page_end(page: Page) -> None:
     page.evaluate("() => scrollTo(0, document.scrollingElement.scrollHeight)")
 
 
-def visual_review_menu(page: Page) -> None:
-    """The review case picker open on its selected option."""
-    control = page.locator(".lf-vr-case-select")
-    control.evaluate("""node => {
-      node.reviewShown = new Promise(resolve => node.addEventListener(
-        'wa-after-show', () => resolve(), {once: true}));
-    }""")
-    control.get_by_role("combobox").click()
-    control.evaluate("node => node.reviewShown")
+def visual_review_inspection(page: Page) -> None:
+    """Capture the artifact inspection popover beside the selected comparison."""
+    page.locator('.lf-vr-case[aria-hidden="false"]').get_by_role(
+        "button", name="More inspection"
+    ).click()
     page.mouse.move(0, 0)
 
 
@@ -1448,7 +1444,11 @@ STATES = (
         viewport=(390, 844),
         touch=True,
     ),
-    State("visual-review-menu", "developer/visual-review-gallery", visual_review_menu),
+    State(
+        "visual-review-inspection",
+        "developer/visual-review-gallery",
+        visual_review_inspection,
+    ),
     State("diff-file-threads", "developer/diff-thread-gallery", at_rest),
     State("diff-file-reply", "developer/diff-thread-gallery", diff_file_reply),
     State(
@@ -1467,9 +1467,9 @@ STATES = (
     ),
     State("code-reader-feedback", "code-comparison", code_reader_feedback),
     State(
-        "visual-review-menu-dark",
+        "visual-review-inspection-dark",
         "developer/visual-review-gallery",
-        visual_review_menu,
+        visual_review_inspection,
         scheme="dark",
     ),
     State("activity-feed", "triage-board", activity_feed, region="#triage-moves"),

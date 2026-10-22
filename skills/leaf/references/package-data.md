@@ -77,7 +77,7 @@ agent's report. A widget with such a verb also declares a boolean `overruled` at
 which a version sets to keep its authored state over the report. A worker that reacts to
 the user follows their actions with `leaf page events PAGE --follow`.
 
-`x-awaits` makes each matching widget put an obligation on the user's list, On me. Its
+`x-awaits` puts a widget's obligations on the user's list, On me. Its
 `value` names the verb whose
 state is the answer: the recorded value, or a recordless verb's latest `detail`. An
 options group uses `"value": "choose"` for the selected ids; a playground's unrecorded
@@ -100,6 +100,17 @@ draft declares `"value": "edit", "answered": {"edit": {}}`, and an options group
 on `choose` for single choice and on Done's `answer` for multiple choice. A partial
 choice can be open and an empty selection complete. If the widget's `when` stops
 holding, a complete obligation stays answered and an incomplete one is withdrawn.
+
+A widget whose bound data contains independently answered records declares
+`records: {"input": "run", "label": "title"}` in `x-awaits`. The input binds to a stored
+source, which the server can read; widget outputs remain browser-local. The input's contract
+supplies `records.items` and `records.key`; each record's key identifies its obligation
+and its answering action's unit. The named label field supplies the prompt. For example,
+`value: "review"` with `answered: {"review": {"detail": {"approved": true}}}` completes
+each record's obligation while that unit's latest review approves it. Clearing or undoing
+approval reopens it. Source reordering preserves these identities; removing a record
+removes its obligation. The widget projects those same keys with `projectData` so Leaf's
+On me navigation can reveal each record.
 
 `x-awaits.retired` names the attribute an author sets to close an obligation but keep its
 widget on the page, such as a decided question collapsed with its options; `when` must

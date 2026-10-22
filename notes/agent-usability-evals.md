@@ -218,16 +218,19 @@ answer. Reproduced on a three-item queue, the tally now splits the open ones by 
 actor ("1 of 3 on Claude"), and
 `test_a_tally_counts_its_regions_obligations_and_walks_them` holds it.
 
+At 900×700 the judge found a workspace playground's stage too short on 4 of 9
+configuration pages: it kept 12rem (192px) so the instruction and Send stayed in
+view. The stage now keeps at least half the window and the workspace scrolls to
+Send; on the study's alert page at 900×700 it grew from 192 to 350px, with 2 of
+12 controls in view rather than none.
+`test_inline_playground_keeps_half_a_short_workspace_for_its_stage` holds it.
+
 The other recurring Leaf-owned defects follow from recorded choices, and are open
 decisions rather than fixes:
 
 - A thread card opens over the text near its passage, which Escape uncovers (root
   `AGENTS.md`, "Working on the repository"); the judge counted it on 14 pages.
 - On a phone a thread's pin stands over the end of the line it marks (5 pages).
-- A playground in a workspace keeps its stage bounded down to 500px tall, which
-  `test_inline_playground_keeps_evidence_and_long_instruction_reachable_in_a_short_workspace`
-  pins; at 900×700 the judge found the stage too short on 4 of 9 configuration
-  pages.
 
 ## Current configuration anchor, 2026-10-21
 

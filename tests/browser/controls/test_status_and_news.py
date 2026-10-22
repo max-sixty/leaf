@@ -14,8 +14,6 @@ from interact_support import (
     record_claim,
     working,
 )
-from leaf import leases as leases_model
-from leaf import service as service_model
 from playwright.sync_api import expect
 from render_cases_interaction import SUGGESTION_PAGE
 from render_cases_layout import (
@@ -38,6 +36,9 @@ from render_harness import (
     stamp_page,
     told,
 )
+
+from leaf import leases as leases_model
+from leaf import service as service_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

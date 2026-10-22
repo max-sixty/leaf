@@ -7,16 +7,6 @@ import pytest
 from interact_support import (
     append_carried_log_record,
 )
-from leaf import event_log as events_model
-from leaf import events as thread_model
-from leaf import render_checks as render_checks_model
-from leaf import structure as structure_model
-from leaf.hosting import TemporaryPageServer
-from leaf.passages import enclosing_ids, page_passages
-from leaf.registry import storage as registry_storage
-from leaf.render_checks import wait_until_ready
-from leaf.render_gate import version as render_gate_model
-from leaf.render_gate.scheme import console_finding
 from playwright.sync_api import expect
 from render_cases_interaction import (
     live_url,
@@ -52,6 +42,17 @@ from render_harness import (
     wait_for_revision,
     write,
 )
+
+from leaf import event_log as events_model
+from leaf import events as thread_model
+from leaf import render_checks as render_checks_model
+from leaf import structure as structure_model
+from leaf.hosting import TemporaryPageServer
+from leaf.passages import enclosing_ids, page_passages
+from leaf.registry import storage as registry_storage
+from leaf.render_checks import wait_until_ready
+from leaf.render_gate import version as render_gate_model
+from leaf.render_gate.scheme import console_finding
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

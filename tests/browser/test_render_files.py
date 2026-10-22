@@ -2,7 +2,6 @@
 
 import io
 
-from leaf.file_bindings import bind_file
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
@@ -11,6 +10,8 @@ from render_harness import (
     open_page,
     rendered,
 )
+
+from leaf.file_bindings import bind_file
 
 
 def test_file_editor_page_navigation_preserves_the_caret_position(

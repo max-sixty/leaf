@@ -29,7 +29,7 @@ moving a card again replaces that card's position while other cards keep theirs.
 `record` says how the state shows in markup, here as the card's place in a column. A
 new version may change the authored markup freely; the user's decisions still apply
 over it until a `restated` event takes one back. The `$keys` entries in
-`assets/registry.json` define each key exactly.
+`browser/registry.json` define each key exactly.
 
 The record kind fixes the event's payload, a closed object with every field required:
 

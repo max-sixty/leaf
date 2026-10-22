@@ -32,7 +32,8 @@ from referencing.jsonschema import DRAFT202012
 
 FORMAT_CHECKER = FormatChecker()
 RFC3339_DATE_TIME = re.compile(
-    r"^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$"
+    r"\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d+)?"
+    r"(?:[Zz]|[+-](?:[01]\d|2[0-3]):[0-5]\d)"
 )
 
 
@@ -60,6 +61,8 @@ def is_browser_url(value) -> bool:
 
 def aware_instant(value: str):
     """The one parse of Leaf's date-time format, or None where the spelling fails."""
+    # fromisoformat validates the calendar and time, but normalizes overflowing
+    # offset minutes (+00:60 becomes +01:00). The spelling must rule those out.
     if not RFC3339_DATE_TIME.fullmatch(value):
         return None
     normalized = value[:-1] + "+00:00" if value[-1] in "Zz" else value

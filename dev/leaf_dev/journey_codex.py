@@ -152,6 +152,7 @@ class Codex(Terminal):
             marker = {
                 "turn/started": "turn_start",
                 "turn/completed": "turn_end",
+                "thread/closed": "thread_closed",
             }.get(method)
             if marker is not None:
                 normalized.append({"type": marker})
@@ -470,11 +471,21 @@ def steps(
 
     started = time.monotonic()
     if transport == "queue":
+        previous_records = len(codex.trace)
         task.request("thread/unsubscribe", {"threadId": task.thread})
+        # SessionEnd runs before shutdown completes; only thread/closed makes
+        # the unloaded thread ready to resume.
+        codex.until(
+            lambda: any(
+                record["type"] == "thread_closed"
+                for record in codex.trace[previous_records:]
+            ),
+            "the task left by its last client did not close",
+        )
         # The instance's SessionEnd retires the evidence that Leaf's hooks run in
         # it (`state.end_harness_instance`).
-        codex.until(
-            lambda: not hooks_ran(task.thread),
+        require(
+            not hooks_ran(task.thread),
             "the task left by its last client did not end its instance",
         )
         task.request("thread/resume", {"threadId": task.thread, **codex.settings})
@@ -621,7 +632,9 @@ def answering(
         nonlocal executable
         # Keep the journey's isolated executable on PATH; a login shell would
         # replace it with the user's Codex and bypass the queue wrapper.
-        config = "allow_login_shell = false\n"
+        # Expire idle, unsubscribed instances immediately so the unload step
+        # observes native SessionEnd without the host's inactivity wait.
+        config = "allow_login_shell = false\nthread_unload_delay_secs = 0\n"
         if sandbox:
             # The journey's state home is under TMPDIR, which the sandbox otherwise
             # lets a command write, where a user's is not. And the journey cannot

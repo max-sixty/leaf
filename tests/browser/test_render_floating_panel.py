@@ -2641,7 +2641,7 @@ def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
     browser, serve, scheme
 ):
     """The mark rides the box into its corner and back, while the row's words come out
-    from behind it; its button and focus arrive at once. Reversing starts from where it
+    from behind it; its button receives focus at once. Reversing starts from where it
     is drawn, and reduced motion takes the endpoint."""
     from io import BytesIO
 
@@ -2784,6 +2784,99 @@ def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
         "() => ['.lf-floating-panel', '.lf-fp-ground'].some(s =>"
         " document.querySelector(s).getAnimations({subtree: true}).length)"
     )
+
+
+def test_the_leaf_paints_inside_its_moving_focus_ring(browser, serve):
+    """The mark stays visible through pointer motion and inside its keyboard ring.
+
+    Held animations and computed geometry conceal compositor translation advancing
+    ahead of the painted clip, so read the pixels without seeking the animations.
+    Firefox screencasts can omit the entire panel, also before this repair; see
+    browser-support.md. This strict all-frame regression runs in Chromium.
+    """
+    from io import BytesIO
+
+    from PIL import Image, ImageChops, ImageColor
+
+    page = floating(browser, serve(leaf_page("fold", '<h1 id="title">Fold</h1>')))
+    page.emulate_media(reduced_motion="no-preference")
+    leaf = page.locator(".lf-fp-leaf")
+    colours = leaf.evaluate("""node => ({
+      ring: getComputedStyle(node).outlineColor,
+      mark: getComputedStyle(node.querySelector('.lf-dot')).backgroundColor
+    })""")
+    colours = {name: ImageColor.getrgb(value) for name, value in colours.items()}
+    viewport = page.viewport_size
+
+    def ink_box(image, colour):
+        difference = ImageChops.difference(image, Image.new("RGB", image.size, colour))
+        channels = [
+            channel.point(lambda value: 255 if value < 30 else 0)
+            for channel in difference.split()
+        ]
+        return ImageChops.darker(
+            ImageChops.darker(*channels[:2]), channels[2]
+        ).getbbox()
+
+    for route, action in (
+        ("pointer", ".lf-fp-minimize"),
+        ("pointer", ".lf-fp-leaf"),
+        ("keyboard", "."),
+        ("keyboard", "Enter"),
+    ):
+        if action == ".lf-fp-minimize":
+            card = page.locator(".lf-fp-card").bounding_box()
+            page.mouse.move(card["x"] + card["width"] - 20, card["y"] + 6)
+        if route == "keyboard" and action == ".":
+            field(page).click()
+            page.keyboard.press("Shift+Tab")
+            expect(leaf).to_be_focused()
+            colours["ring"] = ImageColor.getrgb(
+                leaf.evaluate("node => getComputedStyle(node).outlineColor")
+            )
+        before = leaf.bounding_box()
+        frames = []
+        with page.screencast.start(
+            on_frame=lambda frame, frames=frames: frames.append(frame),
+            quality=100,
+            size=viewport,
+        ):
+            if route == "keyboard":
+                page.keyboard.press(action)
+            else:
+                page.locator(action).hover()
+                page.mouse.down()
+                # A press may settle before its click activates the control.
+                one_frame(page)
+                page.mouse.up()
+            one_frame(page)
+            settled(page)
+        expect(leaf).to_be_focused()
+        after = leaf.bounding_box()
+        ends = sorted(box["x"] + box["width"] / 2 for box in (before, after))
+        centers = []
+        for frame in frames:
+            pixels = Image.open(BytesIO(frame["data"])).convert("RGB")
+            pixels = pixels.crop(
+                (0, viewport["height"] - 70, viewport["width"], viewport["height"])
+            )
+            mark = ink_box(pixels, colours["mark"])
+            assert mark is not None, (route, action)
+            mark_center = ((mark[0] + mark[2]) / 2, (mark[1] + mark[3]) / 2)
+            if route == "keyboard":
+                ring = ink_box(pixels, colours["ring"])
+                assert ring is not None, action
+                ring_center = ((ring[0] + ring[2]) / 2, (ring[1] + ring[3]) / 2)
+                assert mark_center == pytest.approx(ring_center, abs=2), (
+                    action,
+                    mark,
+                    ring,
+                )
+            centers.append(mark_center[0])
+        intermediate = {
+            center for center in centers if ends[0] + 2 < center < ends[1] - 2
+        }
+        assert intermediate, (route, action, ends, centers)
 
 
 def test_a_new_line_past_the_field_s_height_scrolls_into_view(browser, serve):

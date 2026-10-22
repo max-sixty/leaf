@@ -30,6 +30,20 @@ from leaf.registry import schema as registry_schema
 from leaf.registry import validation as registry_validation
 
 
+@pytest.mark.parametrize("content", ["markup", "data"])
+def test_patchable_children_can_be_native_markup_but_not_data(page_dir, content):
+    """Revision patching owns authored child trees, not a renderer's parsed input."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-tabs"]["x-content"] = content
+    if content == "markup":
+        registry_validation.validate_registry(registry, "test registry")
+    else:
+        finding = registry_refusal(
+            lambda: registry_validation.validate_registry(registry, "test registry")
+        )
+        assert found([finding], "invalid-extensions", "<lf-tabs>", keyword="enum")
+
+
 def test_a_custom_units_identity_rule_keeps_the_details_reference_base():
     """A custom verb's unit is held nonempty inside its own declaration, so a
     `#/properties/...` reference in the declared detail still resolves there."""

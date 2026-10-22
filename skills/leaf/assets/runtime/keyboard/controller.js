@@ -16,7 +16,13 @@ export function mountKeyboard({
   reactArmed,
   setReact,
 }) {
-  const run = (event) => dispatchKey(event);
+  const run = (event) => {
+    const handled = dispatchKey(event);
+    // A declared Leaf command wins before a nested widget can interpret the
+    // same key. Native activation is left to the focused control.
+    if (handled && event.defaultPrevented) event.stopPropagation();
+    return handled;
+  };
   const press = (ev) => {
     if (ev.isComposing) return;
     if (run(ev)) return;
@@ -33,7 +39,15 @@ export function mountKeyboard({
       run(ev);
     }
   };
-  document.addEventListener("keydown", press);
+  // Page shortcut characters need Leaf's scope resolution before a nested
+  // library can use them for typeahead. Other keys keep the control's own
+  // handling first, including search's Enter and Escape steps.
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key.length === 1) press(ev);
+  }, { capture: true });
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key.length !== 1) press(ev);
+  });
   document.addEventListener("lf-keyboard-preference", () => {
     paintKeys();
     if (quickShortcuts()) return;

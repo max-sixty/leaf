@@ -100,7 +100,7 @@
     "runtime/keyboard/command-hints.js": "08e5be7b623db199a1044ceddce12a3702361f4d488f3f0ecd0b50ff4d708752",
     "runtime/keyboard/command-reference.js": "8fd5afc4b336fe4bbecac17768de3c006b3bd584631fdec220c3c198fed0e6c7",
     "runtime/keyboard/control-keys.js": "cc48f03f521d36a36feae8f5cadd61f69794ccc9574c4b138d1b18e1447d24cf",
-    "runtime/keyboard/controller.js": "1ab9853fc7344d82754c306790987078fe084e89a2fbdabd6430d836432ad64f",
+    "runtime/keyboard/controller.js": "36b454b08a16224d20e899c19ef4258beb7e984d87f23764f0e2ed281b14016a",
     "runtime/keyboard/disclosure.js": "5fae040dd92bbc604209cf27384f743488afd090b9f680473cbde94e1925906e",
     "runtime/keyboard/dispatch.js": "7d2d9a9d35b3ffbd5a3974da28fb38e38105155e526d65dfe4ea16839787961b",
     "runtime/keyboard/go-to-sequence.js": "201b7a9623b0fd18f1834f07ebd2cd15318d530613b0d7cec9ecd0bec0b28a2c",

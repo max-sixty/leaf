@@ -11059,7 +11059,11 @@ function mountKeyboard({
   reactArmed,
   setReact
 }) {
-  const run = (event) => dispatchKey(event);
+  const run = (event) => {
+    const handled = dispatchKey(event);
+    if (handled && event.defaultPrevented) event.stopPropagation();
+    return handled;
+  };
   const press = (ev) => {
     if (ev.isComposing) return;
     if (run(ev)) return;
@@ -11069,7 +11073,12 @@ function mountKeyboard({
       run(ev);
     }
   };
-  document.addEventListener("keydown", press);
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key.length === 1) press(ev);
+  }, { capture: true });
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key.length !== 1) press(ev);
+  });
   document.addEventListener("lf-keyboard-preference", () => {
     paintKeys();
     if (quickShortcuts()) return;

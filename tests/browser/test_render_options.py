@@ -1228,6 +1228,8 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
         ("#q-lax", "#l-lax", "chosen"),
     ):
         page.locator(live).scroll_into_view_if_needed()
+        # Scrolling can put this card beneath the previous hover's pointer.
+        page.mouse.move(0, 0)
         live_box = page.locator(live).bounding_box()
         live_rest = page.locator(live).evaluate(css)
         page.locator(live).hover()

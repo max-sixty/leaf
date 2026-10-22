@@ -543,7 +543,9 @@ async function staticState(
   route: PageRoute,
   reference: string,
 ): Promise<Response> {
-  const viewRevision = request.headers.get("Leaf-View-Revision");
+  const viewRevision =
+    new URL(request.url).searchParams.get("revision") ||
+    request.headers.get("Leaf-View-Revision");
   const statePath = viewRevision === null ? route.state : route.states[viewRevision];
   if (statePath === undefined) {
     return new Response("unknown page revision", { status: 400 });

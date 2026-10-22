@@ -1747,22 +1747,28 @@ describe("product-site delivery", () => {
     }
   });
 
-  it("serves the requested historical revision from the release manifest", async () => {
-    const env = environment();
+  it.each([
+    ["", { "Leaf-View-Revision": "1" }],
+    ["?revision=1", { "Leaf-View-Revision": "2" }],
+  ])(
+    "serves the requested historical revision from the release manifest: %s",
+    async (query, headers) => {
+      const env = environment();
 
-    const response = await worker.fetch(
-      new Request("https://leaf.page/examples/triage-board/api/state", {
-        headers: { "Leaf-View-Revision": "1" },
-      }),
-      env,
-    );
+      const response = await worker.fetch(
+        new Request(`https://leaf.page/examples/triage-board/api/state${query}`, {
+          headers,
+        }),
+        env,
+      );
 
-    expect(response.status).toBe(200);
-    expect(vi.mocked(env.ASSETS.fetch).mock.calls[1][0].url).toBe(
-      "https://leaf.page/_leaf/state/examples--triage-board--r1.json",
-    );
-    expect(getContainer).not.toHaveBeenCalled();
-  });
+      expect(response.status).toBe(200);
+      expect(vi.mocked(env.ASSETS.fetch).mock.calls[1][0].url).toBe(
+        "https://leaf.page/_leaf/state/examples--triage-board--r1.json",
+      );
+      expect(getContainer).not.toHaveBeenCalled();
+    },
+  );
 
   it("rejects a historical revision absent from the release manifest", async () => {
     const response = await worker.fetch(
@@ -1953,7 +1959,7 @@ describe("website page agent", () => {
       const session = new LeafWebsiteSession(ctx as never, environment());
       const responses: Record<
         string,
-        { status: number; headers: Record<string, string>; chunks: string[] }
+        { headers: Record<string, string>; chunks: string[] }
       > = {};
       const blobs = new Map<string, Uint8Array>();
       for (const [path, body] of [
@@ -1974,7 +1980,7 @@ describe("website page agent", () => {
           await crypto.subtle.digest("SHA-256", bytes),
         ).toString("hex");
         blobs.set(digest, bytes);
-        responses[path] = { status: 200, headers: {}, chunks: [digest] };
+        responses[path] = { headers: {}, chunks: [digest] };
       }
       const publication = {
         root: "/examples/triage-board",

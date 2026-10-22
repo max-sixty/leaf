@@ -303,7 +303,6 @@ def _responses(
                 f"cannot publish saved page response {path}: {response['status']}"
             )
         result[path] = {
-            "status": response["status"],
             "headers": dict(Headers(raw=response["headers"])),
             **blobs.chunks(b"".join(chunk["body"] for chunk in body)),
         }

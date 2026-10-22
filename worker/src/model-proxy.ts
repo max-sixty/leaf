@@ -151,18 +151,6 @@ export async function proxyModelRequest(
   ctx: OutboundHandlerContext,
 ): Promise<Response> {
   const url = new URL(request.url);
-  if (
-    request.method === "GET" &&
-    url.pathname === "/v1/responses" &&
-    request.headers.get("upgrade")?.toLowerCase() === "websocket"
-  ) {
-    // Codex treats 426 as an immediate instruction to use its canonical HTTP
-    // transport. A generic denial is retried with exponential backoff before the
-    // same fallback, delaying every first turn while also bypassing the per-request
-    // model timing records below.
-    modelLog("model_transport_http_fallback", modelRequestFields(request, ctx));
-    return new Response("use the Responses HTTP transport", { status: 426 });
-  }
   if (request.method !== "POST" || url.pathname !== "/v1/responses") {
     return new Response("blocked website agent request", { status: 403 });
   }

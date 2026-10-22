@@ -1513,7 +1513,7 @@ svg[data-lf-icon] {
 }
 .lf-composer-media {
   --lf-media-mark-overhang: 6px;
-  --lf-media-room: max( calc(var(--raise-1-drop) + var(--raise-1-blur)), calc( var(--lf-media-mark-overhang) + (var(--aim-floor) - var(--corner-mark)) / 2 ) );
+  --lf-media-room: max( calc(var(--raise-1-drop) + var(--raise-1-blur)), calc(var(--lf-media-mark-overhang) + (var(--aim-floor) - var(--corner-mark)) / 2) );
   --lf-media-h: 120px;
   display: flex;
   flex: 1 0 calc(100% + 2 * var(--lf-media-room));

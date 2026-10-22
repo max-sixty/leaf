@@ -7009,7 +7009,7 @@ function createFloatingPanel({
   function clearRow() {
     const before = trail.value.at(-1);
     if (prefs().rest === "mark") prefs().setRest("row");
-    trail.value = [];
+    if (trail.value.length) trail.value = [];
     setMenu(false);
     transition(before, { focus: false });
   }

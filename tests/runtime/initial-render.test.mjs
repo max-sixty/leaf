@@ -199,3 +199,57 @@ test("member state owns each physical slot independently across a hierarchy", ()
   assert.deepEqual(states.get("one").state.choose.value, ["card"]);
   assert.deepEqual(states.get("inner-zone").state.choose.value, ["inner-card"]);
 });
+
+test("the contents drawing keeps its early parts through upgrade and keyed revisions", async () => {
+  await import("../../skills/leaf/packages/default/initial/lf-toc.js");
+  document.body.innerHTML =
+    '<main><h1>Field guide</h1><lf-toc id="contents"></lf-toc>' +
+    '<h2 id="first">Take inventory</h2><h3>Save a snapshot</h3></main>';
+  const host = document.querySelector("lf-toc");
+  const early = document.documentElement.lfInitial.paint(host);
+  const disclosure = host.querySelector("details");
+  const summary = host.querySelector("summary");
+  const links = [...host.querySelectorAll("a")];
+  assert.deepEqual(
+    links.map((link) => link.getAttribute("href")),
+    [null, "#first", null],
+  );
+  assert.equal(document.querySelector("h3").id, "");
+  disclosure.open = true;
+  links[1].focus();
+
+  const live = initialRender(host);
+  const reading = {
+    label: (heading) => heading.textContent,
+    chrome: () => false,
+    lends: true,
+  };
+  const sections = live.update(reading);
+  assert.equal(live, early);
+  assert.equal(host.querySelector("details"), disclosure);
+  assert.equal(host.querySelector("summary"), summary);
+  assert.equal(disclosure.open, true);
+  assert.deepEqual(
+    sections.map(({ link }) => link),
+    links,
+  );
+  assert.equal(document.activeElement, links[1]);
+  assert.equal(links[2].getAttribute("href"), "#lf-contents-section-2");
+
+  const first = document.querySelector("h2");
+  const next = document.querySelector("h3");
+  first.before(next);
+  first.textContent = "Read the inventory";
+  const reordered = live.update(reading);
+  assert.deepEqual(
+    reordered.map(({ link }) => link),
+    [links[0], links[2], links[1]],
+  );
+  assert.equal(links[1].textContent, "Read the inventory");
+  assert.equal(disclosure.open, true);
+  host.remove();
+  assert.equal(live.scope(), null);
+  document.querySelector("main").append(host);
+  assert.equal(live.scope(), document.querySelector("main"));
+  assert.equal(live.update(reading)[1].link, links[2]);
+});

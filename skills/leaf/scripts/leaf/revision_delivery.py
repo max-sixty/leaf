@@ -748,9 +748,10 @@ def compose_document(
     prepaint (`runtime/prepaint.js`), which says before the first paint what the
     runtime will draw and whether it could not start. It reads the canonical address,
     so that comes first; it names a startup fault before the host's runtime script
-    hears of it, so it comes before that. Used `x-initial` bundles follow it and
-    register the package producers that the body's parser invocations run; and it
-    stands before the theme, since a
+    hears of it, so it comes before that. The shared Lit implementation follows the
+    prepaint, then used `x-initial` bundles register the package producers that the
+    body's parser invocations run. Later modules export this same Lit instance.
+    These scripts stand before the theme, since a
     script after a stylesheet still loading waits for it. The root carries the host's attributes and the
     page's Layout (`data-lf-layout`), whose body rules must hold before `main` is parsed. The
     import map precedes every script, since a browser reads no map once a module has
@@ -805,7 +806,16 @@ def compose_document(
         )
         + (
             "<script data-lf-runtime>"
-            f"{resources['/runtime/prepaint.js'].data.decode()}</script>" + initial
+            f"{resources['/runtime/prepaint.js'].data.decode()}</script>"
+            "<script data-lf-runtime>"
+            + re.sub(
+                r"</script",
+                r"<\\/script",
+                resources["/vendor/lit-initial.js"].data.decode(),
+                flags=re.IGNORECASE,
+            )
+            + "</script>"
+            + initial
             if delivery.runtime is not None
             else ""
         )

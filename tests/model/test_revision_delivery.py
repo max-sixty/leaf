@@ -139,6 +139,9 @@ def test_initial_producers_are_captured_once_and_called_after_each_complete_host
         "/runtime/prepaint.js": Resource(
             b"window.prepaint = true;", "application/javascript"
         ),
+        "/vendor/lit-initial.js": Resource(
+            b"window.lit = true;", "application/javascript"
+        ),
         "/vendor/early.js": Resource(
             b'window.initial = "</script>";', "application/javascript"
         ),
@@ -170,6 +173,7 @@ def test_initial_producers_are_captured_once_and_called_after_each_complete_host
     assert delivered.count('window.initial = "<\\/script>";') == 1
     assert (
         delivered.index("window.prepaint")
+        < delivered.index("window.lit")
         < delivered.index("window.initial")
         < delivered.index("window.boot")
     )

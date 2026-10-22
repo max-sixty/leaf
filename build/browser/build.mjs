@@ -29,8 +29,9 @@
  * in, so its file count costs requests only where a page serves source modules.
  *
  * The framework's third-party packages are minified builds from the lock and the
- * adaptations below. `vendor/lit.js` is the page's one copy of Lit (`build/lit.mjs`);
- * the framework imports Lit from it, as Web Awesome's bundle does. Signals are the
+ * adaptations below. Delivery inlines the one Lit implementation before first paint;
+ * `vendor/lit.js` exports that instance (`build/lit.mjs`) to the framework and
+ * Web Awesome, so module upgrade preserves the initial producers' templates. Signals are the
  * framework's own and sit inside its directory. `shipped.mjs` decides whether each
  * output's imports resolve on every page and writes the notices for the packages
  * that reached them, as it does for every vendored bundle.
@@ -47,7 +48,13 @@ import { build } from "../esbuild.mjs";
 import { contractTypes, protocolSchemas } from "./contract-types.mjs";
 import { protocolBreaks } from "./protocol.mjs";
 import { initialOutputs } from "../initial.mjs";
-import { litNamespace, litPath } from "../lit.mjs";
+import {
+  initialLitPath,
+  litFacade,
+  litGlobal,
+  litNamespace,
+  litPath,
+} from "../lit.mjs";
 import { registryOutputs } from "../registry.mjs";
 import { styleOutputs } from "../styles.mjs";
 import { kernelOutputs } from "../runtime-bundle.mjs";
@@ -163,7 +170,7 @@ function compileModule(text, source) {
 }
 
 /**
- * Build `lit.js` (`build/lit.mjs`), adapting the locked published modules in memory.
+ * Build the classic Lit implementation, adapting the locked published modules in memory.
  *
  * Backport lit/lit#5218 while 3.3.0 avoids the repeat marker leak (#5298). Route
  * keyed and child-part insertions through `runtime/dom-move.js`, which keeps the
@@ -171,7 +178,8 @@ function compileModule(text, source) {
  */
 async function litModule() {
   const contents = await litNamespace();
-  const move = 'import {move as leafMove} from "/runtime/dom-move.js";\n';
+  const move =
+    "const leafMove = (parent, node, before) => document.documentElement.lfInitial.move(parent, node, before);\n";
   return [
     {
       name: "leaf-lit",
@@ -344,14 +352,15 @@ export async function buildOutputs({ acceptServed = false } = {}) {
   const result = await build({
     absWorkingDir: root,
     entryPoints: Object.fromEntries(
-      Object.entries(packages).map(([name, layerPath]) => [
-        layerPath.slice("vendor/".length, -".js".length),
-        name === "lit" ? "leaf:lit" : "leaf:signals",
-      ]),
+      Object.entries(packages)
+        .filter(([name]) => name !== "lit")
+        .map(([, layerPath]) => [
+          layerPath.slice("vendor/".length, -".js".length),
+          "leaf:signals",
+        ]),
     ),
     outdir: `${assets}/vendor`,
     plugins: [
-      ...(await litModule()),
       {
         name: "shared-signals",
         setup(build) {
@@ -401,7 +410,35 @@ export async function buildOutputs({ acceptServed = false } = {}) {
     checkModule(file.text, name);
     outputs.set(name, Buffer.from(file.contents));
   }
-  const packageRoots = bundledPackages(result.metafile, root);
+  const initialLit = await build({
+    absWorkingDir: root,
+    stdin: {
+      contents: `import * as lit from "leaf:lit"; ${litGlobal} = lit;`,
+      resolveDir: root,
+      sourcefile: "leaf-initial-lit.js",
+    },
+    outfile: `${assets}/${initialLitPath}`,
+    plugins: await litModule(),
+    platform: "browser",
+    format: "iife",
+    target: "es2022",
+    bundle: true,
+    minify: true,
+    legalComments: "eof",
+    metafile: true,
+    write: false,
+    logLevel: "silent",
+  });
+  const [initialLitFile] = initialLit.outputFiles;
+  checkModule(initialLitFile.text, initialLitPath);
+  outputs.set(`${assets}/${initialLitPath}`, Buffer.from(initialLitFile.contents));
+  outputs.set(`${assets}/${litPath}`, Buffer.from(await litFacade()));
+  const packageRoots = [
+    ...new Set([
+      ...bundledPackages(result.metafile, root),
+      ...bundledPackages(initialLit.metafile, root),
+    ]),
+  ];
   outputs.set(
     `${assets}/vendor/browser-runtime.LICENSES.txt`,
     Buffer.from(licenseNotices("browser-runtime", packageRoots)),

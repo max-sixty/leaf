@@ -75,6 +75,7 @@ window.getComputedStyle = (element, pseudo) => {
 // (`runtime/prepaint.js`): the page's storage scope, "" for a page at the origin's root.
 document.documentElement.dataset.lfPageScope = "";
 await import("../../skills/leaf/assets/runtime/prepaint.js");
+await import("../../skills/leaf/assets/vendor/lit-initial.js");
 // And the runtime sheets every delivery carries (`delivery_sheets` in
 // revision_delivery.py), which `runtime/stylesheets.js` constructs as it evaluates.
 // Nothing here is laid out, so their rules are empty.

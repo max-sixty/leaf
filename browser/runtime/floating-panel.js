@@ -302,9 +302,12 @@ const coarse = () => matchMedia("(pointer: coarse)").matches;
 function passing() {
   const notice = noticeReading();
   if (notice.visible) return { message: notice.message, visible: true };
-  const { goTo, walk } = statusContextReading();
-  const message = goTo ?? (walk?.shown ? walk.text : "");
+  const message = navigationWords();
   return { message, visible: Boolean(message) };
+}
+function navigationWords() {
+  const { goTo, walk } = statusContextReading();
+  return goTo ?? (walk?.shown ? walk.text : "");
 }
 // A progress run's face in a thread's view (transcript.js), the working message among
 // them, standing for the work under way where the view reads the answer to the user's
@@ -642,13 +645,17 @@ export function createFloatingPanel({
     const thread = key ? threadByKey(key) : null;
     if (input === focused() && !thread?.resolved)
       return { says: "destination", words: whereTo(key) };
-    // The words alone, in quotation marks: a 320px phone's row leaves the field room
-    // for about a dozen characters, so "Comment on" before them would leave none, and
-    // the field's own name says what a press does (`pageEditor`). The field's ellipsis
-    // cuts them to its room, which the excerpt's cap only bounds.
-    if (!key && selectedWords)
-      return { says: "selection", words: `“${excerptWords(selectedWords.quote, 60)}”` };
     const stance = key ? null : statusContextReading().stance;
+    // Keep the current navigation context alongside the selection's comment offer.
+    // The field's own name says what a press does (`pageEditor`); on a narrow phone
+    // its ellipsis shortens the quote after the mode and position, not instead of them.
+    if (!key && selectedWords)
+      return {
+        says: "selection",
+        words: [stance, navigationWords(), `“${excerptWords(selectedWords.quote, 60)}”`]
+          .filter(Boolean)
+          .join(" · "),
+      };
     const notice = passing();
     if (notice.visible)
       return {

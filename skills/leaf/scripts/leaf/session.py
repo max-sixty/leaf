@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from .detached import StartRefused
-from .file_changes import FileChanges, existing_root, target_paths
+from .file_changes import FileChanges, target_paths
 from .files import file_stamp
 from .findings import Finding, note
 from .harness import Harness, claim_harness, session_harness
@@ -239,11 +239,11 @@ class Watch:
         if self.session_id:
             targets.add(session_file(self.session_id, SESSION_SUFFIX).resolve())
         targets.update(path.resolve() for path in self.lease_paths)
-        roots = {existing_root(self.claims): False}
-        roots.update({existing_root(target.parent): False for target in targets})
+        roots = {self.claims: False}
+        roots.update({target.parent: False for target in targets})
         for page in pages:
-            roots[existing_root(page.parent)] = False
-            roots[existing_root(page)] = True
+            roots[page.parent] = False
+            roots[page] = True
         key = (pages, frozenset(targets))
         if (
             self.changes is None

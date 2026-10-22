@@ -223,14 +223,14 @@ def cmd_pages(payload: dict) -> None:
         print("[]", flush=True)
         return
 
-    from .file_changes import FileChanges, existing_root
+    from .file_changes import FileChanges
     from .presence import PRESENCE_CACHE_S, live_leaves
     from .state import session_claims, state_home
 
     rows, claims = state_home().resolve() / "rows", session_claims(sid)
     # A root above rows/ would hear its creation, not the rows written into it.
     rows.mkdir(exist_ok=True)
-    roots = {rows: False, existing_root(claims): False}
+    roots = {rows: False, claims: False}
     changes = FileChanges(
         roots,
         lambda changed: changed.parent in (rows, claims) or changed in (rows, claims),

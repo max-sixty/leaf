@@ -96,9 +96,9 @@ walks and Go-to by scrolling and tapping, or through a control of the row's own 
 what it changes.
 
 The comment field has one primary action, Dictate while empty and Send once it has
-words; Suggest and reactions open by Tab from the field. The field deliberately has no
-ellipsis menu, on phones too; change that only with the user, through a rendered design
-comparison.
+words. Suggest and reactions share an anchored Other responses picker, reached by its
+button, Tab from the field, or the contextual reaction command. Opening the picker
+keeps the field in place on desktop and touch surfaces alike.
 
 A command that should leave the user where they are declares `retainStanding`: the
 floating panel saves focus, caret and selection as the user steps into it, and the

@@ -20,10 +20,8 @@ The payload names the session and turn: hook subprocesses need not have the tool
 process's environment. Stop or Interrupt closes that observed turn, including a
 turn not yet claimed by any page; a newer prompt protects its own epoch. A payload
 that names no turn can state when the turn ended (`ended_at`, in POSIX seconds),
-as the Interrupt from Pi's extension or Leaf's Claude Code hooks module does, and
-then leaves a turn opened or renewed since open. The hooks module also sends
-WakeRefused, an event no harness has, when Claude Code refuses the prompt a
-watch's wake submitted; it nudges the session for the input instead.
+as the Interrupt from Pi's extension does, and then leaves a turn opened or
+renewed since open.
 
 Most sessions with the plugin installed never claim a page, so in a session
 holding no claim the launcher answers each hook registered `--if-claimed`
@@ -35,10 +33,10 @@ so a claim that command makes joins it. Hooks
 that do run with no retained claim avoid page reading, and import the harness
 declarations only once the payload names a session. Page-owning prompt and Stop
 hooks reach `hook_transport`; Codex's tool and Stop hooks reach its delivery
-records in `codex`. Leaf's Claude Code hooks module and Pi's extension watch between
-turns (`cmd_watch`), and the hooks module follows the session's pages (`cmd_pages`) to
-draw them beside the prompt. The application entry routes `leaf hook` here before
-loading the CLI.
+records in `codex`. Claude Code's background Stop hook and Pi's extension watch
+between turns (`cmd_watch`), and Leaf's Claude Code hooks module follows the
+session's pages (`cmd_pages`) to draw them beside the prompt. The application
+entry routes `leaf hook` here before loading the CLI.
 
 Claude Code's PostToolBatch carries pending input before the next model call,
 after successful or failed tools, using the same envelope and receipt as its
@@ -93,14 +91,6 @@ def cmd_hook(harness: str, payload: dict) -> None:
         return
     if not sid:
         return
-    if event == "WakeRefused":
-        # Leaf's Claude Code hooks module sends this when Claude Code refuses the
-        # prompt a watch's wake submitted, leaving the input to the nudge
-        # (`hooks/claude-code.ts`).
-        from .session import nudge_pending
-
-        nudge_pending(sid)
-        return
     from .harness import hook_harness
 
     hooked = hook_harness(harness, sid)
@@ -124,14 +114,14 @@ def cmd_hook(harness: str, payload: dict) -> None:
     expected = hooked.reconcile_turn(payload, expected)
     if event == "SessionStart":
         if payload.get("source") == "resume":
-            from .reconnect import publishing_notices
+            from .reconnect import notices
 
-            with publishing_notices(harness, sid, expected) as context:
-                if context:
-                    print(
-                        json.dumps(hooked.hook_context(event, "\n\n".join(context))),
-                        flush=True,
-                    )
+            context = notices(harness, sid, expected)
+            if context:
+                print(
+                    json.dumps(hooked.hook_context(event, "\n\n".join(context))),
+                    flush=True,
+                )
         return
     if turn_id and event != "UserPromptSubmit":
         # A first trusted step can identify an unknown session-scoped turn.
@@ -189,17 +179,16 @@ def cmd_hook(harness: str, payload: dict) -> None:
 
 
 def cmd_watch(harness: str, payload: dict) -> str | None:
-    """The watch `harness`'s extension or hooks module starts as a turn ends,
+    """The watch `harness`'s Stop hook or extension starts as a turn ends,
     watching the session's pages until input, and what it wakes the session with, or
     None where it ends without waking it (`session.watch_between_turns`).
 
     It watches only while the session holds a page, and only where its harness
-    watches between turns. Pi's extension and Leaf's Claude Code hooks module start
-    one with an Interrupt payload when the user stops a run: it answers the
-    Interrupt hook first, closing the turn, and then watches from an interrupted
-    ending. So that ending is one call, and the turn closes only once
-    the watch from before has exited, which would read the closed turn as the
-    Stop hook's ending."""
+    watches between turns. Pi's extension starts one with an Interrupt payload
+    when the user stops a run: it answers the Interrupt hook first, closing the
+    turn, and then watches from an interrupted ending. So that ending is one call,
+    and the turn closes only once the watch from before has exited, which would
+    read the closed turn as the Stop hook's ending."""
     interrupted = payload.get("hook_event_name") == "Interrupt"
     if interrupted:
         cmd_hook(harness, payload)
@@ -229,15 +218,19 @@ def cmd_pages(payload: dict) -> None:
     Rows and the session's claim locators wake the reading. A server that dies
     leaves its row until a reader finds its lease unheld, so the list is read
     again every presence interval too."""
-    from .file_changes import FileChanges, existing_root
+    sid = payload.get("session_id") or ""
+    if not owned_pages(sid):
+        print("[]", flush=True)
+        return
+
+    from .file_changes import FileChanges
     from .presence import PRESENCE_CACHE_S, live_leaves
     from .state import session_claims, state_home
 
-    sid = payload.get("session_id") or ""
     rows, claims = state_home().resolve() / "rows", session_claims(sid)
     # A root above rows/ would hear its creation, not the rows written into it.
     rows.mkdir(exist_ok=True)
-    roots = {rows: False, existing_root(claims): False}
+    roots = {rows: False, claims: False}
     changes = FileChanges(
         roots,
         lambda changed: changed.parent in (rows, claims) or changed in (rows, claims),

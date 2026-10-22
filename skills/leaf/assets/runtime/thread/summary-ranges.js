@@ -4,8 +4,8 @@
    This module only places those ranges into message order and keeps disclosure
    mechanical. Original message nodes remain connected inside their range, so frozen
    authored widgets, direct arrivals, and focus identities keep their native lifetime.
-   Progress no answer has folded yet is gathered the same way (`withPendingProgress`),
-   so when the answer's fold arrives its messages move from one range to the next. The
+   Pending progress is gathered the same way (`withPendingProgress`); completed
+   progress is omitted from the presentation before ranges are built. The
    working message stands among the ranges where its words were said (`workingPlace`). */
 
 export function summaryRanges(messages, summaries = []) {
@@ -52,9 +52,8 @@ export function summaryRanges(messages, summaries = []) {
 }
 
 // The ranges with each run of pending progress gathered into a range of its own. A
-// progress message no summary covers is one no answer has folded (the server folds
-// completed progress the user did not speak after, `events._ephemeral_ranges`): a step
-// of work still in hand, or one the user's message followed. The thread draws each run
+// progress message no summary covers is one no answer has completed
+// (`events.progress_completions`). The thread draws each run
 // as its face, its latest step, where it was said (transcript.js), and keeps its messages
 // behind it. The range is named for its first message, so it keeps its identity, and
 // its disclosure state, as the run grows.

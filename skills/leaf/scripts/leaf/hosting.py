@@ -237,7 +237,7 @@ class LeafHTTPServer:
     def server_close(self) -> None:
         """Release the listening socket after the serving loop has ended."""
         self.socket.close()
-        self.samples.close()
+        self.samples.clear()
 
 
 @functools.cache
@@ -598,10 +598,6 @@ def cmd_serve(
                             claim = page.claim if claimed else None
                             if httpd is not None:
                                 write_service(page_dir, service)
-                        if claim is not None:
-                            from .reconnect import recovered
-
-                            recovered(page_dir, claim)
                 except BaseException:
                     # A freshly bound resource is ours to withdraw. Reused servers
                     # have no mutation to undo. Once acquisition published, owner

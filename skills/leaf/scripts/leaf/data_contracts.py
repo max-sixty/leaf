@@ -18,7 +18,6 @@ from .refusals import Refused
 from .registry.schema import (
     json_validator,
     json_value,
-    schema_error_message,
 )
 from .revision_artifact import read_revision
 from .schema import DATA_SOURCE_NAME, DIR_FILES, MEDIA_DIR
@@ -433,5 +432,5 @@ def payload_error(source: str, contract: str, value, registry: dict) -> str | No
         return None
     return (
         f"source {source!r} value is invalid for contract {contract!r} at "
-        f"{error.json_path}: {schema_error_message(error)}"
+        f"{error.json_path}: {error.message}"
     )

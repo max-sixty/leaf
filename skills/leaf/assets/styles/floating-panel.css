@@ -12,15 +12,7 @@
    panel's ground in the light scheme, whose paper is the brighter: 62% reads 4.7:1
    there, where the 48% the status first wore read 3.1:1. The user chose a dim
    status, so it stays the dimmest words in the panel. Every row is one line. */
-@property --lf-fp-fold-progress {
-  syntax: "<number>";
-  inherits: true;
-  initial-value: 1;
-}
 @scope (.lf-chrome) {
-  .lf-fp-scene {
-    display: contents;
-  }
   :is(.lf-floating-panel, .lf-fp-ground) {
     --lf-fp-surface: light-dark(
       var(--paper),
@@ -63,9 +55,9 @@
   /* The surface: a layer over the whole window, cut to the box's outline by the
      panel's script, with a ring a pixel outside it and one soft shadow around both,
      cast at the height of what opens over the page. The layer itself is cut to that
-     outline grown by its shadow's reach. While the field grows or shrinks a line, the
-     field's focus ring stands on it too, a ring and a fill like the box's own, in the
-     colour of the ring it stands in for (floating-panel.js, `followBox`). */
+     outline grown by its shadow's reach. While the box moves, a ring a part of it
+     wears, the field's focus ring, stands on it too, a ring and a fill like the box's
+     own, in the colour of the ring it stands in for (runtime/box-motion.js). */
   .lf-fp-ground {
     position: fixed;
     inset: 0;
@@ -146,7 +138,7 @@
       button {
         background: none;
         border: 0;
-        border-radius: 6px;
+        border-radius: var(--r);
         cursor: pointer;
         white-space: nowrap;
         padding: 0 8px;
@@ -228,21 +220,7 @@
     min-height: var(--lf-fp-line);
     padding: 0;
   }
-  .lf-fp-leaf-paint {
-    position: fixed;
-    position-anchor: --lf-fp-leaf;
-    /* The button's destination may still be behind the card's reveal clip while
-       this paint travels with the surface. Its anchor's visibility is not its own. */
-    position-visibility: always;
-    left: anchor(left);
-    top: anchor(top);
-    width: anchor-size(width);
-    height: anchor-size(height);
-    display: grid;
-    place-items: center;
-    pointer-events: none;
-  }
-  .lf-fp-leaf-paint .lf-dot {
+  .lf-fp-leaf .lf-dot {
     --lf-mark-w: 19px;
   }
   /* An error waiting unseen in the leaf's menu marks the leaf's corner. */
@@ -382,12 +360,13 @@
     border: 0;
     background: none;
     box-shadow: none;
-    padding: calc((var(--lf-fp-line) - 22px) / 2) 6px;
+    padding: calc((var(--lf-fp-line) - 1lh) / 2) 6px;
     min-height: var(--lf-fp-line);
     /* Half the window: a long comment reads whole before the field scrolls. */
     max-height: 50dvh;
     box-sizing: border-box;
-    font: 14px / 22px var(--sans);
+    /* The message's face, so each line of a draft stands where the message's will. */
+    font: var(--msg-font);
     /* At rest no press stands in the field, so the status takes its whole width. */
     --lf-field-end-room: 0px;
   }
@@ -709,8 +688,18 @@
       min-height: 0;
       border-radius: var(--lf-fp-radius);
     }
-    .lf-fp-leaf-paint .lf-dot {
+    .lf-fp-leaf .lf-dot {
       --lf-mark-w: 20px;
+    }
+    /* The leaf rides the box into the corner (runtime/box-motion.js); what it carries
+       there shows once the box has nearly arrived. */
+    :is(.lf-fp-badge, .lf-fp-news-dot) {
+      animation: lf-fp-arrive 160ms linear 140ms backwards;
+    }
+  }
+  @keyframes lf-fp-arrive {
+    from {
+      opacity: 0;
     }
   }
   /* The pointer's fold: a small round button riding the box's top-right corner, shown
@@ -933,25 +922,14 @@
   .lf-fp-icon-btn[aria-pressed="true"] {
     color: var(--ink);
   }
-  /* Resolve and Reopen stand in one cell, the one shown over the other's room, so
-     the seat is as wide as the wider whichever the thread's state. */
-  .lf-fp-settle {
-    display: inline-grid;
-    color: var(--lf-fp-muted);
-  }
-  .lf-fp-face {
-    grid-area: 1 / 1;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-  }
-  .lf-fp-face:not([data-shown]),
   :is(.lf-fp-quiet, .lf-fp-next-unread)[data-unoffered] {
     visibility: hidden;
   }
-  .lf-fp-settle:hover {
-    color: var(--ink);
+  /* Resolve is the check, turning the ok ink on hover; Reopen in its place is the
+     check drawn done, as on a thread card's head (response.css). */
+  .lf-fp-settle.lf-resolve:not([aria-disabled="true"]):hover,
+  .lf-fp-settle.lf-reopen {
+    color: var(--ok-ink);
   }
   .lf-fp-settle .lf-action-icon {
     width: 14px;
@@ -1069,7 +1047,7 @@
     width: 100%;
     min-height: 30px;
     padding: 5px 8px;
-    border-radius: 6px;
+    border-radius: var(--r);
     text-align: start;
   }
   .lf-fp-thread {
@@ -1139,7 +1117,7 @@
     margin: 0;
     padding: 4px 8px;
     border: 1px solid var(--lf-fp-ring);
-    border-radius: 6px;
+    border-radius: var(--r);
     background: none;
     color: var(--ink);
     font: 12px / 18px var(--mono);
@@ -1167,7 +1145,7 @@
     height: 28px;
     padding: 0;
     border: 0;
-    border-radius: 6px;
+    border-radius: var(--r);
     background: none;
     color: inherit;
     font-size: 16px;
@@ -1255,7 +1233,7 @@
     gap: 8px;
     min-height: 34px;
     padding: 5px 8px;
-    border-radius: 6px;
+    border-radius: var(--r);
     color: inherit;
     text-decoration: none;
   }
@@ -1549,7 +1527,7 @@
     font-size: 12px;
     color: var(--accent);
     box-shadow: inset 0 0 0 1px var(--lf-fp-ring);
-    border-radius: 6px;
+    border-radius: var(--r);
   }
   /* What an On me card's item is, and where the plan has it, over its question. */
   .lf-fp-on-kind {
@@ -1731,6 +1709,9 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
+    .lf-floating-panel[data-rest="mark"] :is(.lf-fp-badge, .lf-fp-news-dot) {
+      animation: none;
+    }
     .lf-fp-peek,
     .lf-floating-panel[data-menu] .lf-fp-menu {
       transition: none;

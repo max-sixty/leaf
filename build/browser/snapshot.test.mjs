@@ -1,13 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  collectReads,
-  createApplicationPublisher,
-  outsideReading,
-} from "./snapshot.ts";
+import { effect, signal } from "@preact/signals-core";
+import { createApplicationPublisher } from "./snapshot.ts";
 import { createPresentationCoordinator } from "./presentation.ts";
 
-for (const kind of ["semantic", "outside", "presentation"]) {
+for (const kind of ["semantic", "presentation"]) {
   test(`${kind} observers own their reads during registration and notification`, () => {
     const initial = {
       document: {},
@@ -18,14 +15,7 @@ for (const kind of ["semantic", "outside", "presentation"]) {
     };
     const app = createApplicationPublisher(initial);
     const part = app.select((root) => root.authoritative);
-    let notify;
-    const clock = outsideReading(
-      () => 7,
-      (moved) => {
-        notify = moved;
-        return () => {};
-      },
-    );
+    const clock = signal(7);
     const coordinator = createPresentationCoordinator({
       reportFailure: (reason) => {
         throw reason;
@@ -34,38 +24,40 @@ for (const kind of ["semantic", "outside", "presentation"]) {
     coordinator.begin({}, 0);
     const selected = app.select((root) => {
       part.read();
-      clock.read();
+      clock.value;
       return root.effective.count;
     });
-    const source =
-      kind === "semantic" ? selected : kind === "outside" ? clock : coordinator;
+    const source = kind === "semantic" ? selected : coordinator;
     const ownReads = [];
     const observe = () => {
       // The observer can read the whole root outside its own paint collection.
       assert.equal(app.read().document, initial.document);
       part.read();
-      clock.read();
-      ownReads.push(collectReads(() => [part.read(), clock.read()]));
+      clock.value;
+      ownReads.push([part.read(), clock.value]);
     };
-    const registration = collectReads(() => source.subscribe(observe));
-    assert.ok("value" in registration, String(registration.error));
-    assert.equal(registration.reads.size, 0);
-    const delivered = collectReads(() => {
-      if (kind === "semantic") {
-        app.publish({ ...initial, effective: { count: 1 }, semanticEpoch: 1 });
-      } else if (kind === "outside") {
-        notify({});
-      } else {
-        coordinator.attach("unrelated", {});
-      }
+    let subscriptions = 0;
+    let stopSource;
+    const stop = effect(() => {
+      subscriptions++;
+      stopSource = source.subscribe(observe);
     });
-    assert.ok("value" in delivered, String(delivered.error));
-    assert.equal(delivered.reads.size, 0);
-    assert.ok(ownReads.length >= 2);
-    for (const reading of ownReads) {
-      assert.deepEqual([...reading.reads.values()], [null, 7]);
-      assert.deepEqual(reading.value, [null, 7]);
+    if (kind === "semantic") {
+      app.publish({ ...initial, effective: { count: 1 }, semanticEpoch: 1 });
+    } else {
+      coordinator.attach("unrelated", {});
     }
-    registration.value();
+    assert.equal(
+      subscriptions,
+      1,
+      "observer reads do not subscribe the registering effect",
+    );
+    assert.ok(ownReads.length >= 2);
+    assert.deepEqual(ownReads, [
+      [null, 7],
+      [null, 7],
+    ]);
+    stopSource();
+    stop();
   });
 }

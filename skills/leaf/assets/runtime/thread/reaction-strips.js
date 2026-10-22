@@ -52,7 +52,7 @@ export class ReactionStripView {
             (choice) =>
               html` <button
                 type="button"
-                class="lf-outline-chip lf-react ${HOLDS_WORD} lf-ui"
+                class="lf-react ${HOLDS_WORD} lf-ui"
                 data-lf-gen="1"
                 data-lf-offer="button"
                 data-token=${choice.name}
@@ -71,7 +71,6 @@ export class ReactionStripView {
     this.#registration ??= this.#commands.registerSurface(this.node, {
       trigger: this.node.querySelector(".lf-react-trigger"),
       palette: this.node.querySelector(".lf-react-palette"),
-      target: "the reply",
     });
     return this.node;
   }

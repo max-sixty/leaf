@@ -7,7 +7,7 @@
   max-height: min(60vh, 480px);
   border-radius: var(--r);
 }
-:is(.lf-btn, .button):is(.on, [aria-pressed="true"]) {
+:is(.lf-btn, .button)[aria-pressed="true"] {
   border-color: var(--accent);
   color: var(--accent);
   background: var(--chip);
@@ -99,9 +99,6 @@ html[data-lf-draw-mode] main {
 }
 .lf-code-copy::part(button):hover {
   color: var(--ink);
-}
-.lf-code-copy::part(lf-focus) {
-  outline: var(--focus-ring);
 }
 /* A recording's bar lies over its foot, inset as Copy is from a code block's corner, in
    a control's face: paper, a hairline and the theme's radius (video-controls.js). It

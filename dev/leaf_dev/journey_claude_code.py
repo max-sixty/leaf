@@ -31,31 +31,31 @@ The steps, in order:
 - `mid-turn`: a comment sent during a shell command is picked up in that turn;
   its PostToolBatch context carries the exact input before another model call,
   rather than waiting for Stop;
-- `ending`: a comment sent during a shell command wakes the watch, and one sent
-  after that pickup enters the same turn at its next tool boundary while no watch
-  runs;
+- `ending`: two comments sent during a shell command, the second after the turn
+  picked up the first, both enter that turn at its tool boundaries;
 - `escape`: Escape during a shell command ends the turn; a comment sent afterwards
   opens a turn that answers it;
-- `woken`: a comment sent during a shell command wakes the watch, and Escape ends
-  that turn while the command still runs, before the turn reads the comment at its
-  next tool boundary. The watch after Escape wakes for that comment and a turn of
-  its own answers it; a comment sent afterwards is answered too;
+- `woken`: a comment sent during a shell command waits for the running turn, and
+  Escape ends that turn while the command still runs, before the turn reads the
+  comment at its next tool boundary. The watch after Escape wakes for that comment
+  and a turn of its own answers it; a comment sent afterwards is answered too;
 - `quit`: `/exit` ends the session, so its claim on the page is inactive and its
   watch has ended.
 
 Between steps every comment sent so far has exactly one reply and a pickup, the
 page's claim names the session with its turn closed, no Stop hook has continued a
-turn with input, so each turn ends on its own answer, and no delivery shows in the
-terminal. Escape closes the turn and a watch runs after each turn, an interrupted
-one included; Claude Code drops the prompt that watch wakes the stopped session
-with, so the page nudges it.
+turn with input, so each turn ends on its own answer, no delivery shows in the
+terminal, and Leaf put no empty wake or notice in the conversation (`leaf_rows`).
+Escape runs no Stop hook, so it leaves the turn open, and the background Stop
+hook's watch from before the user's turn, which waits while a later turn runs,
+still running.
 
-A step with comments also prints whether the page nudged the session, and a step
-with an Escape whether it left the turn open, a watch running, and what the page's
-status read. The session's
-screen at the end of each step and Claude Code's debug log join the run's evidence.
-It needs tmux, and spends a few model turns on the host's Claude Code login, so CI
-does not run it.
+Each step also prints whether the page nudged the session, the rows Leaf put in the
+conversation the user reads, and, with an Escape, whether it left the turn open, a
+watch running, and what the page's status read; the sample keeps the rows as each
+step's `shown`. The session's screen at the end of each step and Claude Code's
+debug log join the run's evidence. It needs tmux, and spends a few model turns on
+the host's Claude Code login, so CI does not run it.
 """
 
 import json
@@ -255,6 +255,8 @@ def runs(pid: int, command: str) -> bool:
 def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
     """The steps after setup, as the module docstring lists them."""
     page, sent = place.page, []
+    # The native records the steps so far have counted (`leaf_rows`).
+    read: list[dict] = []
 
     def activity() -> str:
         """What the page's status reads: its canonical activity's kind."""
@@ -302,7 +304,19 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         details = [escaped] if escaped else []
         if names:
             details.append("nudged" if nudged() != before else "not nudged")
+        records = native_records(cc.home, cc.session)
+        rows = leaf_rows(records[len(read) :])
+        read[:] = records
+        require(
+            not {"empty", "notice"} & rows.keys(),
+            f"{name}: Leaf put an empty wake or a notice in the conversation: {rows}",
+        )
+        details.append(
+            "shown: "
+            + (", ".join(f"{count} {kind}" for kind, count in rows.items()) or "none")
+        )
         user.passed(name, started, *details)
+        user.steps[-1]["shown"] = rows
         cc.keep(name)
 
     def closed(turn: str) -> bool:
@@ -316,9 +330,9 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         cc.escape(lambda: cc.idle() or closed(turn))
 
     def after_escape(name: str, turn: str) -> str:
-        """What an Escape that ended `turn` left. The watch after Escape may already
-        have woken a turn of its own, which opens only once `turn` has closed."""
-        cc.until(lambda: closed(turn), f"{name}: Escape left the turn open", 30)
+        """What an Escape that ended `turn` left: the turn open, since Escape runs no
+        Stop hook, and a watch running, which may already have woken a turn of its
+        own."""
         cc.until(
             lambda: watched() or page_claim(page)["turn"] != turn,
             f"{name}: no watch after Escape",
@@ -405,13 +419,15 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
     cc.work()
     turn = page_claim(page)["turn"]
     woken = user.comment("woken")
-    # The watch wakes on the comment, which the turn reads only at its next tool
-    # boundary, once its command ends.
-    cc.until(lambda: not watched(), "woken: the watch did not wake on the comment", 60)
+    # The turn reads the comment only at its next tool boundary, once its command
+    # ends, so a watch that held the session's lease as the comment arrived leaves
+    # it to the turn.
+    time.sleep(2)
     require(
         cc.sleeping()
+        and watched()
         and not pickup_receipts(read_events(page), phase="opened", input_id=woken),
-        "woken: the turn read the comment before Escape",
+        "woken: the comment did not wait for the running turn",
     )
     before = nudged()
     escape(turn)
@@ -436,6 +452,70 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
     )
     require(not watched(), "quit: the ended session's watch still runs")
     user.passed("quit", started)
+
+
+def leaf_rows(records: list[dict]) -> dict[str, int]:
+    """How many rows of each kind Leaf put in the conversation the user reads, among
+    native `records`: a wake (`hooks.json`'s background Stop hook, a task
+    notification whose summary the registration names), a nudge through session
+    messaging, a notice the hooks module logged, and a hook's error. A wake or
+    nudge no hook delivery follows before the next one, or the user's next prompt,
+    also counts as `empty`: a turn opened for input another turn had already
+    taken. A row counts whether or not the hooks module draws it."""
+    rows: dict[str, int] = {}
+    opened = False
+
+    def count(kind: str) -> None:
+        rows[kind] = rows.get(kind, 0) + 1
+
+    def close() -> None:
+        nonlocal opened
+        if opened:
+            count("empty")
+        opened = False
+
+    for record in records:
+        origin = record.get("origin") or {}
+        attachment = record.get("attachment") or {}
+        # A wake or nudge arriving while a turn runs joins it as a queued command.
+        content = (
+            attachment["prompt"]
+            if attachment.get("type") == "queued_command"
+            else record.get("message", {}).get("content", record.get("content"))
+        )
+        text = json.dumps(content) if not isinstance(content, str) else content
+        kind = (
+            "Stop hook wake"
+            if "<summary>Leaf: new input</summary>" in text
+            else "nudge"
+            # The words of `ClaudeCodeHarness.nudge`.
+            if "has new input, which arrives with this message." in text
+            else None
+        )
+        if kind is not None and (
+            record.get("type") == "user" or attachment.get("type") == "queued_command"
+        ):
+            close()
+            count(kind)
+            opened = True
+        elif record.get("type") == "user" and origin.get("kind") == "composer":
+            close()
+        elif record.get("type") == "system" and str(record.get("content")).startswith(
+            "leaf:"
+        ):
+            count("notice")
+        elif attachment.get("type") in (
+            "hook_non_blocking_error",
+            "hook_blocking_error",
+        ):
+            count("hook error")
+        elif attachment.get("type") == "hook_additional_context" and any(
+            str(part).startswith((INLINE_OPENING, POINTED_OPENING))
+            for part in attachment.get("content") or []
+        ):
+            opened = False
+    close()
+    return rows
 
 
 def native_records(home: Path, session: str) -> list[dict]:
@@ -467,7 +547,7 @@ def answering(browser, *, sandbox: bool) -> Iterator[tuple[User, Callable]]:
 
     with isolated("claude-code", environment) as place:
         prepare(ROOT, place.state, place.page)
-        settings = {}
+        settings: dict[str, object] = {}
         if sandbox:
             # The README's settings ("Agent sandboxes"), which let Leaf's sandboxed
             # commands reach the bridge its hooks keep outside the sandbox.

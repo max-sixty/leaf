@@ -459,7 +459,7 @@ export function relabel(node, label, { says } = {}) {
 export function closeControl({ name, title = name, className = "" }) {
   const control = el(
     "button",
-    `lf-btn lf-icon-action lf-close-action ${className}`.trim(),
+    `lf-btn lf-icon-action lf-quiet-action ${className}`.trim(),
   );
   control.type = "button";
   control.append(iconElement("cross", "lf-action-icon"));

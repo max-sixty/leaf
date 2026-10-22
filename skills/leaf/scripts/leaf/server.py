@@ -211,11 +211,8 @@ def stop_when_service_ends(page_dir: Path) -> None:
     """Apply desired state and session ownership from inside the server, exiting
     as the shutdown operation (`exit_serving`).
 
-    Each pass also holds the next title's App Server for the page's claimant
-    (`thread_titles.prepare_for_claimant`), whatever the server's lifetime. A pass
-    runs on each write to the page's inputs and at least every two seconds, since a
-    claimant that dies without ending its session writes nothing."""
-    from .thread_titles import prepare_for_claimant
+    A pass runs on each write to the page's inputs and at least every two seconds,
+    since a claimant that dies without ending its session writes nothing."""
 
     # Keep the shared native owner through neighboring gallery reads and LRU
     # eviction for this independent supervisor's entire service lifetime.
@@ -227,7 +224,6 @@ def stop_when_service_ends(page_dir: Path) -> None:
         service = read_service(page_dir)
         if not service or not service["enabled"]:
             exit_serving(0)
-        prepare_for_claimant(page_dir)
         if service["lifetime"] == "persistent":
             changes.wait(mark, 2.0)
             continue
@@ -323,10 +319,10 @@ def host_key() -> str:
     One key for the machine rather than one per page, because every page here
     goes to the same user — the one person the agent is working with. A page
     has nothing to keep from another page's user, which is what lets the
-    `others` menu link them with that key. Each listener's handover sets its own
-    cookie name (`PageEndpoint.key_cookie`), because temporary previews can use
-    different keys on the same host. Bare URLs then remain authorized without
-    another listener's arrival overwriting their cookie.
+    `others` menu link them with that key. The cookie name derives from the key
+    (`PageEndpoint.key_cookie`), so a keyed arrival authorizes bare links to
+    other same-key listeners on the host. Temporary previews with different keys
+    get different cookie names and cannot overwrite one another's authorization.
 
     The cost is that handing out any page's URL hands out every page on the
     machine, present and future. Leaf has one user; giving it a second

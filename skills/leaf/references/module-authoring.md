@@ -107,11 +107,11 @@ after reading the whole batch of DOM changes. When a revision replaces a widget,
 element's cleanup runs before the new one's `start`, so a registration only one element
 may hold, such as `registerReadingRegion`, passes to the replacement.
 
-A `LeafElement` draws nothing while it is away, and on its return draws again only if
-something it read changed meanwhile or drawing it held with `drawing()` had not landed
-when it left. `watchComparison` and the page readings pause the
-same way: on the return, Leaf calls a callback again only if its reading changed, or if
-the promise the callback returned had not settled when the element left. A callback
+A `LeafElement` draws nothing while it is away. On return, Lit updates it once to
+reconnect its dependencies and draw the current reading, keeping unchanged template
+nodes. `watchProjection` likewise pauses its dependencies while away and paints once
+on return. Data and comparison callbacks instead run again only if their reading
+changed, or if their returned promise had not settled when the element left. A callback
 that throws or rejects is reported once and stays subscribed. So return the promise of
 any paint that finishes later, drop unfinished work when the element leaves but keep
 finished nodes, and have `start` restore what its cleanup removed.
@@ -175,7 +175,13 @@ the box it keeps. `leaf package check --render` reports a widget that moves as
   read nothing from the log; it may move authored nodes within the host, and returns the
   node references the module needs. The module calls `initialRender(host)` to get that
   result, drawn on demand for a host that arrived later, and adds behavior to those
-  nodes. A drawing that reads markup after its host, as `lf-toc` reads the headings
+  nodes. Bundled initial sources import Lit from `/vendor/lit.js`; the build records
+  that dependency so delivery initializes the shared instance before those producers.
+  Pages whose initial producers do not use Lit load it as a normal module. Return an update
+  function along with the node references, and call that same function after upgrade.
+  It retains the template identities and Lit parts of the early drawing; compiling
+  the template again in the live module would replace its nodes.
+  A drawing that reads markup after its host, as `lf-toc` reads the headings
   below it, finishes inside the host when the document has parsed
   (`readystatechange`), before any module runs. If those later inputs change its
   height, mark the affected reading scope `data-lf-initial-pending` while parsing and
@@ -289,6 +295,9 @@ accessibility. `inputType` is for an `input`. Pass `pressable: true` for a custo
 whose host implements `focus()` and `click()`. In a template, `<button
 ${offered("lf-btn")}>` does the same, with an input's `type` binding placed before
 `offered`.
+
+Shared control styles are listed in `page-layout.md`, "Page CSS and Leaf's controls";
+they apply to generated controls too.
 
 A control whose label is the page's own words, such as a tab's name, must stay
 selectable, so build it with `selectableOffer(role, className, label)`, a focusable span

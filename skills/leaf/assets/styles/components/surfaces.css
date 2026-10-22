@@ -304,14 +304,13 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * In this file, because a widget declaring x-shadow builds its controls in a tree the
  * document's stylesheet does not reach, and a floor that stopped at the light DOM would
  * be a floor the newest kind of widget is the one to fall through. */
-/* Focus identifies the current input destination, regardless of pointer, touch or
-   keyboard arrival. Every focus target no rule rings, the page's own among them — a link, a summary, a
-   block the runtime lands the user on — wears the layer's band. At no weight, so each
-   rule that rings its own control still wins. Left to the browser these drew its 1px
-   auto ring flush against the words, beside the 2px band on every Leaf control.
-   focus.js assigns lf-focus from the same logical standing that routes input;
-   retargeting shadow hosts and a label press's intermediate nodes get no band. */
-:where([data-lf-focus]) {
+/* A visible focus destination wears the layer's band unless its own rule supplies
+   a carrier. Ordinary controls follow the browser's focus-visible reading; an
+   explicit reading destination also shows where a route landed. Logical standing
+   remains separate, so pointer focus can reveal controls without drawing a ring.
+   At no weight, each control's own band wins. Retargeting shadow hosts and a
+   label press's intermediate nodes get no band. */
+:where([data-lf-focus-visible]) {
   outline: var(--focus-ring);
   outline-offset: var(--focus-ring-gap);
 }
@@ -376,7 +375,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   cursor: default;
   opacity: 0.55;
 }
-[data-lf-offer]:where(:not([data-lf-offer=""]))[data-lf-focus] {
+[data-lf-offer]:where(:not([data-lf-offer=""]))[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: var(--focus-ring-gap);
 }
@@ -507,10 +506,10 @@ summary {
    row inside the thread paints after that, over the ring's bottom run. The
    pseudo-element is positioned too and comes after every row in tree order, so it
    paints over them without a z-index that would also lift it over the page. */
-.lf-page-thread[data-lf-focus] {
+.lf-page-thread[data-lf-focus-visible] {
   outline: none;
 }
-.lf-page-thread[data-lf-focus]::after {
+.lf-page-thread[data-lf-focus-visible]::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -865,7 +864,7 @@ summary {
     }
   }
 }
-.lf-thread-disclosure[data-lf-focus] {
+.lf-thread-disclosure[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
@@ -1003,7 +1002,7 @@ button.lf-thread-notice {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-button.lf-thread-notice[data-lf-focus] {
+button.lf-thread-notice[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 1px;
 }

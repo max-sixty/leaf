@@ -11,6 +11,20 @@ metadata:
   executor: leaf_dev.arrangement_eval
   scenario: document
 variants:
+  clarification:
+    metadata:
+      executor: leaf_dev.usability_eval
+      scenario: clarification
+      purpose: Register a conversational request for missing information and retire it when answered in chat.
+      conditions:
+        - leaf
+  clarification-reply:
+    metadata:
+      executor: leaf_dev.usability_eval
+      scenario: clarification-reply
+      purpose: Ask back in a live thread and clear the obligation when the user replies there.
+      conditions:
+        - leaf
   resume:
     metadata:
       executor: leaf_dev.usability_eval

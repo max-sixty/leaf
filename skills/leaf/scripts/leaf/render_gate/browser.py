@@ -30,27 +30,15 @@ where its programs are before it guesses. Three readings, in order:
 
 The variables carry a path and nothing else: the launch takes no other argument
 from the host.
-
-Under every one of those readings sits Playwright's driver, a Node process that
-leaf neither names nor sees. Where that process ends at startup, or never runs
-at all, no launch is reached, so `playwright_driver()` reports it beside the
-failures above rather than through them.
 """
 
 import os
 import shutil
-from contextlib import contextmanager
-from pathlib import Path
 
 from leaf.machine import sandbox_remedy
 
 VARIABLE = "LEAF_BROWSER_EXECUTABLE"
 VARIABLES = (VARIABLE, "CHROME_PATH", "CHROME_BIN")
-
-# Playwright runs its driver under Node, and reads this for the executable. It is
-# not leaf's namespace, but it is the only knob over the process whose failure
-# `playwright_driver()` reports, so the message that reports one names it.
-DRIVER_VARIABLE = "PLAYWRIGHT_NODEJS_PATH"
 
 # Chrome first, so discovery reaching a host that also has a Chrome would land
 # where the channel already does.
@@ -81,93 +69,6 @@ def discovered_executable() -> str | None:
         if found := shutil.which(command):
             return found
     return None
-
-
-class DriverNotStarted(Exception):
-    """Playwright's driver ended before it answered the connection, so no browser
-    was ever asked for. Carries that connection's own first line, which the gate
-    reports in its own words as it does a failed launch."""
-
-
-def driver_node() -> str:
-    """The Node that Playwright runs its driver under: whichever DRIVER_VARIABLE
-    names, else the one bundled in the installed wheel.
-
-    Both readings are Playwright's, made here from the package's own location
-    rather than through `playwright._impl._driver`: this runs only on the path
-    where the driver already failed, and a private that moved would put the
-    traceback back."""
-    if named := os.environ.get(DRIVER_VARIABLE):
-        return named
-    import playwright
-
-    return str(Path(playwright.__file__).parent / "driver" / "node")
-
-
-def driver_hint() -> str:
-    """The line the gate appends when the driver never started.
-
-    The two hosts this reaches are a glibc older than the bundled Node needs and a
-    DRIVER_VARIABLE naming a Node older than the driver bundle needs. The first
-    fails in the loader naming the binary, the second inside the bundle naming
-    nothing, and neither says which Node ran or what chooses it — so the hint says
-    both."""
-    node = driver_node()
-    if os.environ.get(DRIVER_VARIABLE):
-        return f"{DRIVER_VARIABLE} named {node}."
-    return f"Playwright ran its bundled {node}; {DRIVER_VARIABLE} names another."
-
-
-@contextmanager
-def playwright_driver():
-    """Playwright, with a driver that never started raised as DriverNotStarted
-    rather than as a Playwright private.
-
-    A driver that exits at startup fails the connection's initialization, and
-    Playwright raises that failure directly.
-
-    A driver the host named but does not have fails one step earlier, in the spawn,
-    and that OSError names the file. It reads as the same DriverNotStarted, so both
-    hosts get one line — but its manager is left unentered and unexited, which is
-    what `with` did too: Playwright's stop asserts a transport handle the failed
-    spawn never assigned, so exiting a failed entry replaces the reason with a
-    private of its own."""
-    from playwright.sync_api import sync_playwright
-
-    manager = sync_playwright()
-    try:
-        playwright = manager.start()
-    except OSError as error:
-        raise DriverNotStarted(_spawn_failure(manager, error)) from error
-    except Exception as error:
-        # Playwright raises the failed initialization future itself and has already
-        # closed the manager. Check that future so unrelated errors surface.
-        # A start refused before any connection exists (the sync API called under a
-        # running event loop) has no future to check, and is not the driver's.
-        connection = getattr(manager, "_connection", None)
-        if connection is None:
-            raise
-        future = connection.playwright_future
-        if not future.done() or future.cancelled() or future.exception() is not error:
-            raise
-        raise DriverNotStarted(str(error).strip().splitlines()[0]) from error
-    try:
-        yield playwright
-    finally:
-        manager.__exit__()
-
-
-def _spawn_failure(manager, error: OSError) -> str:
-    """Why the driver never ran, in one line.
-
-    The spawn's own error says it. Reading the transport's error future as well is
-    what keeps asyncio from printing that same error a second time as an
-    unretrieved future."""
-    transport = getattr(getattr(manager, "_connection", None), "_transport", None)
-    future = getattr(transport, "on_error_future", None)
-    if future is not None and future.done() and not future.cancelled():
-        future.exception()
-    return str(error).strip().splitlines()[0]
 
 
 def launch_browser(p, **options):

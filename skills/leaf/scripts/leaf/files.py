@@ -20,7 +20,7 @@ from .state import replace_bytes
 # rename (`replace_files` below). A reader of the directory looks past it: it is not yet
 # any file the page has, and a look that counted it would see the page move twice for
 # a write that moved it once.
-STAGED = re.compile(r"\.[0-9a-f]{16}\.tmp")
+STAGED = re.compile(r"\.leaf-[a-z0-9_]+\.tmp")
 
 
 # The clock a filesystem stamps a write's modification time from. Linux reads the

@@ -62,7 +62,7 @@
   display: none;
 }
 :scope:host(lf-file-editor)
-  :is(.lf-file-editor-retry, .lf-file-editor-conflict)[data-lf-focus] {
+  :is(.lf-file-editor-retry, .lf-file-editor-conflict)[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 0;
 }
@@ -131,7 +131,7 @@
   color: var(--accent);
 }
 /* A row is packed against the menu's edge, so its ring is drawn inset. */
-:scope:host(lf-file-editor) .lf-file-editor-choices .lf-btn[data-lf-focus] {
+:scope:host(lf-file-editor) .lf-file-editor-choices .lf-btn[data-lf-focus-visible] {
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 :scope:host(lf-file-editor) .lf-file-editor-edit {
@@ -169,10 +169,10 @@
  * focus cue inside the editor frame, above the scroller's own stacking context
  * (its positioned gutters otherwise cover the left edge). Editing focus stays
  * on the content and the cue never receives pointer input. */
-:scope:host(lf-file-editor) .cm-content[data-lf-focus] {
+:scope:host(lf-file-editor) .cm-content[data-lf-focus-visible] {
   outline: none;
 }
-:scope:host(lf-file-editor) .cm-editor:has(.cm-content[data-lf-focus])::after {
+:scope:host(lf-file-editor) .cm-editor:has(.cm-content[data-lf-focus-visible])::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -181,7 +181,7 @@
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
-:scope:host(lf-file-editor) .cm-editor:has(.cm-content[data-lf-focus]) {
+:scope:host(lf-file-editor) .cm-editor:has(.cm-content[data-lf-focus-visible]) {
   --lf-wears-ring: 1;
 }
 /* The editing region keeps the height the host states while typing grows the file. */

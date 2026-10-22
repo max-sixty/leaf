@@ -203,7 +203,7 @@
     margin: 0;
     box-shadow: none;
   }
-  .lf-fp-field .lf-compose-field:has(> leaf-text[data-lf-focus]) {
+  .lf-fp-field .lf-compose-field:has(> leaf-text[data-lf-focus-visible]) {
     outline: var(--focus-ring);
     outline-offset: 0;
     border-radius: var(--r);
@@ -272,7 +272,7 @@
   .lf-fp-field .lf-compose-field > leaf-text:state(more-below) {
     --lf-fp-fade-bottom: 16px;
   }
-  .lf-fp-field .lf-compose-field > leaf-text[data-lf-focus] {
+  .lf-fp-field .lf-compose-field > leaf-text[data-lf-focus-visible] {
     outline: none;
   }
   .lf-fp-field leaf-text::part(placeholder) {
@@ -753,7 +753,7 @@
     box-sizing: border-box;
     scrollbar-width: thin;
   }
-  .lf-fp-view:is(:focus, [data-lf-focus]) {
+  .lf-fp-view:is(:focus, [data-lf-focus-visible]) {
     outline: none;
     box-shadow: none;
   }
@@ -1470,13 +1470,15 @@
   clip-path: none;
   pointer-events: auto;
   white-space: normal;
-  outline: var(--focus-ring);
-  outline-offset: calc(-1 * var(--focus-ring-w));
   border: 1px solid var(--accent);
   border-radius: var(--r);
   background: var(--card);
   color: var(--ink);
   box-shadow: var(--raise-2);
+}
+:is(.lf-mark-note, .lf-visual-action)[data-lf-focus-visible] {
+  outline: var(--focus-ring);
+  outline-offset: calc(-1 * var(--focus-ring-w));
 }
 .lf-mark-note[data-lf-focus] {
   opacity: 1;
@@ -1695,7 +1697,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-quote:is(:hover, [data-lf-focus]) {
     color: var(--ink-2);
   }
-  .lf-quote[data-lf-focus] {
+  .lf-quote[data-lf-focus-visible] {
     outline: var(--focus-ring);
     outline-offset: 2px;
   }
@@ -1729,7 +1731,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-thread-action:hover {
     color: var(--ok);
   }
-  .lf-thread-action[data-lf-focus] {
+  .lf-thread-action[data-lf-focus-visible] {
     outline: var(--focus-ring);
     outline-offset: 2px;
   }
@@ -2066,7 +2068,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-command-reference-command[data-lf-selected=true] {
     background: var(--chip);
   }
-  .lf-command-reference-command[data-lf-focus] {
+  .lf-command-reference-command[data-lf-focus-visible] {
     outline: var(--focus-ring);
     outline-offset: 1px;
   }
@@ -2126,7 +2128,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     font-size: var(--t-6);
     line-height: 1.25;
   }
-  .lf-page-map-action[data-lf-focus] {
+  .lf-page-map-action[data-lf-focus-visible] {
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
@@ -2186,7 +2188,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
       border: 1px solid CanvasText;
       box-shadow: none;
     }
-    .lf-page-map-action[data-lf-focus] {
+    .lf-page-map-action[data-lf-focus-visible] {
       outline: 2px solid Highlight;
     }
   }
@@ -2352,7 +2354,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
       background: Highlight;
       color: HighlightText;
     }
-    :scope [data-lf-focus] {
+    :scope [data-lf-focus-visible] {
       outline: var(--focus-ring-w) solid Highlight !important;
       outline-offset: 2px !important;
       box-shadow: none !important;

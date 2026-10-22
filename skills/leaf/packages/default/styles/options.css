@@ -364,7 +364,7 @@
     font-weight: 700;
   }
 }
-:scope:is(lf-option) .lf-pick[data-lf-focus] {
+:scope:is(lf-option) .lf-pick[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: var(--focus-ring-gap);
   border-radius: 4px;
@@ -483,7 +483,7 @@
     }
     /* The group clips to its frame, so a control's ring is drawn inset (theme.css,
      * --focus-ring) or the clip cuts it. */
-    & .lf-btn[data-lf-focus] {
+    & .lf-btn[data-lf-focus-visible] {
       outline-offset: calc(-1 * var(--focus-ring-w));
     }
     /* The hairline: every child rings itself with a 1px shadow that takes no room and
@@ -515,7 +515,7 @@
      * paints the shared `--fill`, so it follows both when they change. The joined control
      * owns focus at row scale: the mark's ring stays off and the row draws an inset
      * ring (below). */
-    & > lf-option > .lf-pick[data-lf-focus] {
+    & > lf-option > .lf-pick[data-lf-focus-visible] {
       outline: none;
     }
   }
@@ -562,14 +562,14 @@
    * as a widget root as well as a descendant, so an obligation at the page's top level is
    * reached too. */
   :is(:scope, :scope *)[data-lf-obligation]:has(
-      lf-options[choose]:not(:where([data-lf-exhibit]) *) [data-lf-focus]
+      lf-options[choose]:not(:where([data-lf-exhibit]) *) [data-lf-focus-visible]
     ) {
     --lf-obligation-ring: none;
   }
   /* A ringed row stands above its neighbours, so the next cell's line does not cut its
    * ring. */
   :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *)
-    > lf-option:has(> .lf-pick[data-lf-focus]) {
+    > lf-option:has(> .lf-pick[data-lf-focus-visible]) {
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w));
     z-index: 1;
@@ -578,7 +578,7 @@
   /* The add field's own outline is off, so its row answers the keyboard for it, in a
    * settled group opened by its disclosure as well. */
   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *)
-    > .lf-another:has(leaf-text[data-lf-focus]) {
+    > .lf-another:has(leaf-text[data-lf-focus-visible]) {
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w));
     z-index: 1;
@@ -800,7 +800,7 @@
 :scope:is(lf-options)[settled] > .lf-settled:hover {
   border-color: var(--border-2);
 }
-:scope:is(lf-options)[settled] > .lf-settled[data-lf-focus] {
+:scope:is(lf-options)[settled] > .lf-settled[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 1px;
 }

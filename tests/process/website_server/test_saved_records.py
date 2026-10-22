@@ -230,6 +230,7 @@ def test_saved_website_record_keeps_an_unstamped_revisions_publication_date(
     with durable_page_store() as (store_url, _stored):
         monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
         restore(site)
+
         async def commit_with_running_loop():
             with PageTransaction(private):
                 pass

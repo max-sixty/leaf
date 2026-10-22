@@ -6,7 +6,8 @@
  * a horizontal board cannot expose a distant drop target while the pointer is held.
  * The grip is a press (`offer`), so the keyboard path needs no pointer: Enter grabs,
  * arrows restate the card's placement (announced through the live region), Enter drops,
- * and Escape or focus loss restores the origin. For the whole gesture the board holds
+ * and Escape or focus loss restores the origin. Escape and native cancellation also
+ * restore a pointer drag. For the whole gesture the board holds
  * the page's drag (`dragging`), so no new revision or undo replaces the cards under it,
  * and defers its own drawing (`defer`), so no foreign move replays mid-gesture; a
  * completed move
@@ -291,8 +292,11 @@ customElements.define(
           id: "board.cancel",
           keys: ["Escape"],
           title: "cancel the move",
-          when: held,
-          run: () => this.#cancel(true),
+          when: () => Boolean(this.#resumeProjection),
+          run: () => {
+            if (this.#grabbed) this.#cancel(true);
+            else for (const sortable of this.#sortables) sortable.cancel();
+          },
         },
       ]);
     }
@@ -421,9 +425,10 @@ customElements.define(
     }
 
     #finishGesture() {
-      dragging(this, false);
-      this.#resumeProjection?.();
+      const resume = this.#resumeProjection;
       this.#resumeProjection = null;
+      dragging(this, false);
+      resume?.();
     }
 
     // The one writer of "no card is held", so the grip's rows change back here and nowhere
@@ -543,6 +548,14 @@ customElements.define(
           const { item: card, to, newDraggableIndex: newIndex } = evt;
           const from = sup ? sup.from : evt.from;
           const oldIndex = sup ? sup.index : evt.oldDraggableIndex;
+          if (evt.cancelled) {
+            // Sortable restored its pointer origin. A superseded keyboard grab
+            // began earlier, so its existing origin still owns the whole move.
+            this.#place(card, from, oldIndex, card.querySelector(":scope > .lf-grip"));
+            this.#finishGesture();
+            announce(`${this.#title(card)} — move cancelled`);
+            return;
+          }
           if (from === to && oldIndex === newIndex) {
             this.#finishGesture();
             return;

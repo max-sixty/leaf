@@ -4,6 +4,7 @@ grips, narrow and phone layouts, and releasing a detached board."""
 import re
 
 import pytest
+from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_cases_widgets import SQUEEZED_BOARD_PAGE
 from render_harness import (
@@ -35,6 +36,84 @@ TALL_BOARD_PAGE = leaf_page(
 </lf-board>
 """,
 )
+
+
+@pytest.mark.parametrize("cancel", ["escape", "touchcancel", "superseded"])
+def test_cancelling_a_pointer_move_restores_the_unsent_origin(browser, serve, cancel):
+    """Cancelling releases the drag without recording its temporary placement."""
+    context = browser.new_context(
+        viewport={"width": 1000, "height": 800},
+        has_touch=True,
+        reduced_motion="reduce",
+    )
+    page = open_page(browser, serve(BOARD_PAGE), context=context)
+    card = page.locator("#card-heater")
+    grip = card.locator(".lf-grip")
+    if cancel == "superseded":
+        grip.focus()
+        page.keyboard.press("Enter")
+        page.keyboard.press("ArrowDown")
+        expect(page.locator("#col-todo > lf-card").nth(1)).to_have_id("card-heater")
+
+    def drag_to_done(touch=False):
+        source = grip.bounding_box()
+        target = page.locator("#col-done").bounding_box()
+        x, y = source["x"] + source["width"] / 2, source["y"] + source["height"] / 2
+        tx, ty = target["x"] + target["width"] / 2, target["y"] + target["height"] / 2
+        if touch:
+            cdp.send(
+                "Input.dispatchTouchEvent",
+                {
+                    "type": "touchStart",
+                    "touchPoints": [{"x": x, "y": y}],
+                },
+            )
+            expect(card).to_have_class(re.compile(r"\blf-lift\b"))
+            cdp.send(
+                "Input.dispatchTouchEvent",
+                {"type": "touchMove", "touchPoints": [{"x": x + 10, "y": y}]},
+            )
+            expect(page.locator(".lf-inhand")).to_have_count(1)
+            cdp.send(
+                "Input.dispatchTouchEvent",
+                {
+                    "type": "touchMove",
+                    "touchPoints": [{"x": tx, "y": ty}],
+                },
+            )
+        else:
+            page.mouse.move(x, y)
+            page.mouse.down()
+            page.mouse.move(tx, ty, steps=12)
+        expect(page.locator("#col-done > #card-heater")).to_have_count(1)
+
+    cdp = context.new_cdp_session(page)
+    try:
+        drag_to_done(touch=cancel == "touchcancel")
+        if cancel == "touchcancel":
+            cdp.send(
+                "Input.dispatchTouchEvent", {"type": "touchCancel", "touchPoints": []}
+            )
+        else:
+            page.keyboard.press("Escape")
+            page.mouse.up()
+        expect(page.locator("#col-todo > lf-card").first).to_have_id("card-heater")
+        expect(page.locator(".lf-inhand, .lf-lift, .lf-ghost")).to_have_count(0)
+        assert page.evaluate("""async () =>
+            !(await window.__lfVendorImport('sortable.esm.js')).default.active
+        """)
+        expect(grip).to_be_focused()
+
+        # A subsequent completed drag must work and be the only move in the log.
+        with sending(page, "the move after cancellation"):
+            drag_to_done()
+            page.mouse.up()
+        actions = [
+            e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
+        ]
+        assert len(actions) == 1
+    finally:
+        cdp.detach()
 
 
 def test_a_detached_board_releases_and_restores_its_lifecycle(browser, serve):

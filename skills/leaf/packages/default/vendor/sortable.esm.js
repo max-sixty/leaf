@@ -173,7 +173,7 @@ var R_SPACE = /\s+/g;
 function toggleClass(el, name, state) {
   if (el && name) {
     if (el.classList) {
-      el.classList[state ? 'add' : 'remove'](name);
+      el.classList.toggle(name, Boolean(state));
     } else {
       var className = (' ' + el.className + ' ').replace(R_SPACE, ' ').replace(' ' + name + ' ', ' ');
       el.className = (className + (state ? ' ' + name : '')).replace(R_SPACE, ' ');
@@ -1678,7 +1678,8 @@ Sortable.prototype = /** @lends Sortable.prototype */{
         }
         if (_this !== fromSortable) {
           // Set ghost class to new sortable's ghost class
-          toggleClass(dragEl, putSortable ? putSortable.options.ghostClass : activeSortable.options.ghostClass, false);
+          var previousGhostClass = putSortable ? putSortable.options.ghostClass : activeSortable.options.ghostClass;
+          if (previousGhostClass !== options.ghostClass) toggleClass(dragEl, previousGhostClass, false);
           toggleClass(dragEl, options.ghostClass, true);
         }
         if (putSortable !== _this && _this !== Sortable.active) {
@@ -1890,22 +1891,31 @@ Sortable.prototype = /** @lends Sortable.prototype */{
     off(ownerDocument, 'touchcancel', this._onDrop);
     off(document, 'selectstart', this);
   },
-  _onDrop: function _onDrop( /**Event*/evt) {
+  cancel: function cancel() {
+    if (Sortable.active === this) this._onDrop(null, true);
+  },
+  _onDrop: function _onDrop( /**Event*/evt, cancelled) {
+    cancelled = Boolean(cancelled || evt && (evt.type === 'pointercancel' || evt.type === 'touchcancel'));
     var el = this.el,
       options = this.options;
 
     // Get the index of the dragged element within its parent
     newIndex = index(dragEl);
     newDraggableIndex = index(dragEl, options.draggable);
+    if (cancelled && dragEl) {
+      leafMove(rootEl, dragEl, nextEl && nextEl.parentNode === rootEl ? nextEl : null);
+      parentEl = dragEl.parentNode;
+    }
     pluginEvent('drop', this, {
-      evt: evt
+      evt: cancelled ? null : evt,
+      cancelled: cancelled
     });
     parentEl = dragEl && dragEl.parentNode;
 
     // Get again after plugin event
     newIndex = index(dragEl);
     newDraggableIndex = index(dragEl, options.draggable);
-    if (Sortable.eventCanceled) {
+    if (Sortable.eventCanceled && !cancelled) {
       this._nulling();
       return;
     }
@@ -1928,8 +1938,8 @@ Sortable.prototype = /** @lends Sortable.prototype */{
       css(document.body, 'user-select', '');
     }
     css(dragEl, 'transform', '');
-    if (evt) {
-      if (moved) {
+    if (evt || cancelled) {
+      if (evt && moved) {
         evt.cancelable && evt.preventDefault();
         !options.dropBubble && evt.stopPropagation();
       }
@@ -1997,7 +2007,7 @@ Sortable.prototype = /** @lends Sortable.prototype */{
           }
           putSortable && putSortable.save();
         } else {
-          if (newIndex !== oldIndex) {
+          if (!cancelled && newIndex !== oldIndex) {
             if (newIndex >= 0) {
               // drag & drop within the same list
               _dispatchEvent({
@@ -2025,11 +2035,12 @@ Sortable.prototype = /** @lends Sortable.prototype */{
             sortable: this,
             name: 'end',
             toEl: parentEl,
-            originalEvent: evt
+            originalEvent: evt,
+            extraEventProperties: {cancelled: cancelled}
           });
 
           // Save sorting
-          this.save();
+          if (!cancelled) this.save();
         }
       }
     }
@@ -2238,7 +2249,7 @@ function _onMove(fromEl, toEl, dragEl, dragRect, targetEl, targetRect, originalE
   return retVal;
 }
 function _disableDraggable(el) {
-  el.draggable = false;
+  if (el.draggable) el.draggable = false;
 }
 function _unsilent() {
   _silent = false;
@@ -2730,7 +2741,7 @@ function SwapPlugin() {
       var toSortable = putSortable || this.sortable;
       var options = this.options;
       lastSwapEl && toggleClass(lastSwapEl, options.swapClass, false);
-      if (lastSwapEl && (options.swap || putSortable && putSortable.options.swap)) {
+      if (!_ref3.cancelled && lastSwapEl && (options.swap || putSortable && putSortable.options.swap)) {
         if (dragEl !== lastSwapEl) {
           toSortable.captureAnimationState();
           if (toSortable !== activeSortable) activeSortable.captureAnimationState();
@@ -2967,7 +2978,7 @@ function MultiDragPlugin() {
           fromSortable.removeAnimationState(multiDragElement);
         });
         folding = false;
-        insertMultiDragElements(!this.options.removeCloneOnHide, rootEl);
+        insertMultiDragElements(rootEl);
       }
     },
     dragOverCompleted: function dragOverCompleted(_ref10) {
@@ -3055,12 +3066,19 @@ function MultiDragPlugin() {
         oldIndex = _ref12.oldIndex,
         putSortable = _ref12.putSortable;
       var toSortable = putSortable || this.sortable;
-      if (!evt) return;
+      if (!evt && !_ref12.cancelled) return;
       var options = this.options,
         children = parentEl.children;
 
+      if (_ref12.cancelled && dragStarted && this.isMultiDrag) {
+        this.revert({fromSortable: toSortable, rootEl: rootEl, sortable: sortable, dragRect: getRect(dragEl$1)});
+        initialFolding = false;
+        multiDragSortable = sortable;
+        sortable.animateAll();
+      }
+
       // Multi-drag selection
-      if (!dragStarted) {
+      if (!dragStarted && !_ref12.cancelled) {
         if (options.multiDragKey && !this.multiDragKeyDown) {
           this._deselectMultiDrag();
         }
@@ -3131,7 +3149,7 @@ function MultiDragPlugin() {
       }
 
       // Multi-drag drop
-      if (dragStarted && this.isMultiDrag) {
+      if (dragStarted && this.isMultiDrag && !_ref12.cancelled) {
         folding = false;
         // Do not "unfold" after around dragEl if reverted
         if ((parentEl[expando].options.sort || parentEl !== rootEl) && multiDragElements.length > 1) {
@@ -3161,11 +3179,7 @@ function MultiDragPlugin() {
             // properly they must all be removed
             removeMultiDragElements();
             multiDragElements.forEach(function (multiDragElement) {
-              if (children[multiDragIndex]) {
-                parentEl.insertBefore(multiDragElement, children[multiDragIndex]);
-              } else {
-                parentEl.appendChild(multiDragElement);
-              }
+              leafMove(parentEl, multiDragElement, children[multiDragIndex] || null);
               multiDragIndex++;
             });
 
@@ -3324,14 +3338,13 @@ function MultiDragPlugin() {
     }
   });
 }
-function insertMultiDragElements(clonesInserted, rootEl) {
+function insertMultiDragElements(rootEl) {
+  var siblings = [].filter.call(rootEl.children, function (child) {
+    return multiDragElements.indexOf(child) === -1 && multiDragClones.indexOf(child) === -1;
+  });
   multiDragElements.forEach(function (multiDragElement, i) {
-    var target = rootEl.children[multiDragElement.sortableIndex + (clonesInserted ? Number(i) : 0)];
-    if (target) {
-      rootEl.insertBefore(multiDragElement, target);
-    } else {
-      rootEl.appendChild(multiDragElement);
-    }
+    var target = siblings[multiDragElement.sortableIndex - i];
+    leafMove(rootEl, multiDragElement, target || null);
   });
 }
 

@@ -278,6 +278,125 @@ const bundles = {
     finish: (source) =>
       'import {move as leafMove} from "/runtime/widget-api.js";\n' +
       [
+        // Sortable 1.15.7 treats pointer/touch cancellation as a committed drop
+        // and exposes no abort method. Keep its origin and teardown as the owners:
+        // cancel restores that origin, runs plugin/listener/preview cleanup, and
+        // ends the gesture without sort events or a store write. The board only
+        // calls this public adapter; it neither invents an event nor copies a
+        // pointer origin. These checked seams must be revisited on upgrade.
+        [
+          "  _onDrop: function _onDrop( /**Event*/evt) {",
+          `  cancel: function cancel() {
+    if (Sortable.active === this) this._onDrop(null, true);
+  },
+  _onDrop: function _onDrop( /**Event*/evt, cancelled) {
+    cancelled = Boolean(cancelled || evt && (evt.type === 'pointercancel' || evt.type === 'touchcancel'));`,
+        ],
+        [
+          "pluginEvent('drop', this, {\n      evt: evt\n    });\n    parentEl = dragEl && dragEl.parentNode;",
+          `if (cancelled && dragEl) {
+      leafMove(rootEl, dragEl, nextEl && nextEl.parentNode === rootEl ? nextEl : null);
+      parentEl = dragEl.parentNode;
+    }
+    pluginEvent('drop', this, {
+      evt: cancelled ? null : evt,
+      cancelled: cancelled
+    });
+    parentEl = dragEl && dragEl.parentNode;`,
+        ],
+        [
+          "if (Sortable.eventCanceled) {\n      this._nulling();",
+          "if (Sortable.eventCanceled && !cancelled) {\n      this._nulling();",
+        ],
+        [
+          "    if (evt) {\n      if (moved) {",
+          "    if (evt || cancelled) {\n      if (evt && moved) {",
+        ],
+        [
+          "          if (newIndex !== oldIndex) {",
+          "          if (!cancelled && newIndex !== oldIndex) {",
+        ],
+        [
+          "name: 'end',\n            toEl: parentEl,\n            originalEvent: evt",
+          "name: 'end',\n            toEl: parentEl,\n            originalEvent: evt,\n            extraEventProperties: {cancelled: cancelled}",
+        ],
+        [
+          "          // Save sorting\n          this.save();",
+          "          // Save sorting\n          if (!cancelled) this.save();",
+        ],
+        // Plugins own their extra nodes and original positions. Cancellation
+        // skips Swap's commit and lets MultiDrag's existing revert restore its
+        // selected nodes, then follows its normal clone cleanup. animateAll
+        // replaces any pending folding callback that could detach them again.
+        [
+          "if (lastSwapEl && (options.swap || putSortable && putSortable.options.swap)) {",
+          "if (!_ref3.cancelled && lastSwapEl && (options.swap || putSortable && putSortable.options.swap)) {",
+        ],
+        ["if (!evt) return;", "if (!evt && !_ref12.cancelled) return;"],
+        [
+          "      // Multi-drag selection\n      if (!dragStarted) {",
+          `      if (_ref12.cancelled && dragStarted && this.isMultiDrag) {
+        this.revert({fromSortable: toSortable, rootEl: rootEl, sortable: sortable, dragRect: getRect(dragEl$1)});
+        initialFolding = false;
+        multiDragSortable = sortable;
+        sortable.animateAll();
+      }
+
+      // Multi-drag selection
+      if (!dragStarted && !_ref12.cancelled) {`,
+        ],
+        [
+          "if (dragStarted && this.isMultiDrag) {",
+          "if (dragStarted && this.isMultiDrag && !_ref12.cancelled) {",
+        ],
+        // Original indexes count real siblings. Retained clones and selected
+        // nodes already reinserted by core must not change those positions.
+        [
+          "insertMultiDragElements(!this.options.removeCloneOnHide, rootEl);",
+          "insertMultiDragElements(rootEl);",
+        ],
+        [
+          `function insertMultiDragElements(clonesInserted, rootEl) {
+  multiDragElements.forEach(function (multiDragElement, i) {
+    var target = rootEl.children[multiDragElement.sortableIndex + (clonesInserted ? Number(i) : 0)];`,
+          `function insertMultiDragElements(rootEl) {
+  var siblings = [].filter.call(rootEl.children, function (child) {
+    return multiDragElements.indexOf(child) === -1 && multiDragClones.indexOf(child) === -1;
+  });
+  multiDragElements.forEach(function (multiDragElement, i) {
+    var target = siblings[multiDragElement.sortableIndex - i];`,
+        ],
+        [
+          `    if (target) {
+      rootEl.insertBefore(multiDragElement, target);
+    } else {
+      rootEl.appendChild(multiDragElement);
+    }`,
+          "    leafMove(rootEl, multiDragElement, target || null);",
+        ],
+        // Both pointer takeover and plugin cleanup can restate an existing class.
+        [
+          "el.classList[state ? 'add' : 'remove'](name);",
+          "el.classList.toggle(name, Boolean(state));",
+        ],
+        [
+          "          toggleClass(dragEl, putSortable ? putSortable.options.ghostClass : activeSortable.options.ghostClass, false);\n          toggleClass(dragEl, options.ghostClass, true);",
+          `          var previousGhostClass = putSortable ? putSortable.options.ghostClass : activeSortable.options.ghostClass;
+          if (previousGhostClass !== options.ghostClass) toggleClass(dragEl, previousGhostClass, false);
+          toggleClass(dragEl, options.ghostClass, true);`,
+        ],
+        [
+          "function _disableDraggable(el) {\n  el.draggable = false;",
+          "function _disableDraggable(el) {\n  if (el.draggable) el.draggable = false;",
+        ],
+        [
+          `              if (children[multiDragIndex]) {
+                parentEl.insertBefore(multiDragElement, children[multiDragIndex]);
+              } else {
+                parentEl.appendChild(multiDragElement);
+              }`,
+          "              leafMove(parentEl, multiDragElement, children[multiDragIndex] || null);",
+        ],
         [
           "ghostEl = dragEl.cloneNode(true);",
           "ghostEl = options.cloneElement ? options.cloneElement(dragEl) : dragEl.cloneNode(true);",
@@ -309,7 +428,7 @@ const bundles = {
         ["el.appendChild(dragEl);", "leafMove(el, dragEl, null);", 2],
       ].reduce(
         (text, [original, replacement, count]) =>
-          seam(text, original, replacement, "Sortable clone", count),
+          seam(text, original, replacement, "Sortable adapter", count),
         source,
       ),
   }),

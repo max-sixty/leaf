@@ -5,7 +5,8 @@ picked. They are words only to whoever still holds the document. The reading is
 the gesture's own document, the revision it names or the frozen message that sent
 the widget, under the vocabulary that document was written in, so a later version
 that reworded or removed an option does not change what the user chose. Deliveries,
-the transcript, and the served history state a gesture through this one reading.
+the transcript, the served history and the undo offer state a gesture through this
+one reading.
 
 A child a user wrote through a `creates` verb is in no document; the action that
 created it carries its words, and both readings take them from the latest such
@@ -216,6 +217,29 @@ class GestureWords:
             },
             **written,
         }
+
+    def gesture(self, event: dict) -> dict:
+        """What an action did, in its record form's terms and its own document's
+        words: the reading a history row and an undo offer both carry."""
+        spec = self.declaration(event).get("x-state", {}).get(event["action"], {})
+        record = spec.get("record") or {}
+        detail = event["detail"]
+        if record.get("kind") == "attribute":
+            return {
+                "form": "choice",
+                "chosen": [self.name(event, i) for i in detail["value"]],
+            }
+        if record.get("kind") == "position":
+            return {
+                "form": "move",
+                "unit": self.name(event, detail[spec["unit"]]),
+                "to": self.name(event, detail["value"]),
+            }
+        if record.get("kind") == "body":
+            return {"form": "edit"}
+        if spec.get("creates"):
+            return {"form": "add", "words": self.name(event, detail[spec["unit"]])}
+        return {"form": "verb", "verb": event["action"]}
 
     def declaration(self, event: dict) -> dict:
         """The registry entry the gesture's widget had in its own document."""

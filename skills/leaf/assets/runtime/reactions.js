@@ -629,14 +629,9 @@ export async function sendReaction(event, where, postReaction) {
   if (sent) announce(`${event.token} on ${where}`);
   return sent;
 }
-function reactionPlace(event) {
+// Where a reaction stands, as Threads names its anchor.
+export function reactionPlace(event) {
   if (event.kind === "reply") return "the reply";
   if (!event.anchor) return "the page";
   return anchorLabel(event.anchor, event.about);
 }
-export const undoSentence = (undoable) => {
-  const event = undoable();
-  return event?.token
-    ? `Undo: ${event.token} reaction on ${reactionPlace(event)}`
-    : "Undo the latest update";
-};

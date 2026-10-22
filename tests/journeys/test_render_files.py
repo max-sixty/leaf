@@ -2,7 +2,6 @@
 
 import os
 
-from leaf.file_bindings import bind_file
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
@@ -15,6 +14,8 @@ from render_harness import (
     rendered,
     scroll_settled,
 )
+
+from leaf.file_bindings import bind_file
 
 
 def test_file_editor_saves_quietly_and_preserves_inflight_edits(

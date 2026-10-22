@@ -2,7 +2,7 @@
 
 Leaf's current companion workflow is documented in
 [harness-codex.md](../skills/leaf/references/harness-codex.md).
-[Session lifetime, “Watchers”](../skills/leaf/scripts/leaf/session-lifetime.md#watchers)
+[Session lifetime, “Watchers”](../src/leaf/session-lifetime.md#watchers)
 owns the delivery and connection lifecycle. This note holds open design work.
 
 ## Typed operations

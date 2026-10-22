@@ -17,6 +17,7 @@ from interact_support import (
     take_stream_activity,
 )
 from interact_support import append_carried_log_record as append_event
+
 from leaf import codex as leaf_codex
 from leaf.codex import AppServerRequestRejected
 from leaf.delivery import response_addresses
@@ -24,7 +25,6 @@ from leaf.event_log import read_events
 from leaf.interaction_log import read_interactions
 from leaf.state import session_record
 from leaf.thread import post_reply
-
 from process.website_server import (
     accept_in_turn,
     hosted_follower,

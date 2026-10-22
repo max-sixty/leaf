@@ -256,6 +256,7 @@ import {
   whenLeft
 } from "./bundle-frame-visibility.js";
 import {
+  agentName,
   applicationRegionsPresented,
   applicationState,
   attachApplicationPresentation,
@@ -1630,6 +1631,7 @@ export {
   addressableWord,
   afterPresentation,
   afterScript,
+  agentName,
   ago,
   alignText,
   allButCommandReference,

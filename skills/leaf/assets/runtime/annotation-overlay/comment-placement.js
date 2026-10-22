@@ -107,15 +107,23 @@
    can drift from the other. A surface whose content grows by turns holds the edge the
    user is working at (`holding`): its top while they read or type, its foot, with the
    reply row on it, once a turn joins the transcript as they draft or send, keyed to
-   that turn so the next one releases it, and its foot where it stands over what it is
-   about and is read. A change the user makes by pressing in the surface instead keeps
-   the spot they pressed still, as scroll anchoring keeps a seat on the page: the foot
-   where what changed stands above that spot, else the top; a surface above what it is
-   about keeps its foot. The caller reports the transcript's extent, whether the user
-   is drafting, the latest turn, the draft's words and the press; a surface with no
+   that turn so the next one releases it, or while they draft beside what it is about
+   against the boundary's foot, and its foot where it stands over what it is about and
+   is read. A change the user makes by pressing in the surface instead keeps the spot
+   they pressed still, as scroll anchoring keeps a seat on the page: the foot where
+   what changed stands above that spot, else the top; a surface above what it is about
+   keeps its foot. The caller reports the transcript's extent, whether the user is
+   drafting, the latest turn, the draft's words and the press; a surface with no
    turns, the comment box, never asks, and its free edges grow as floating.js holds
    them. The held edge is also the one floating.js stands the surface by, so the
    browser grows it from there.
+
+   A draft beside its subject with no room below grows the surface up from its foot, as
+   a chat's composer grows, so the line being typed stays put and the turn it answers
+   stays in view (the user's decision, 2026-10-21). Rejected: holding the top there,
+   which scrolled that turn out of the transcript while the window had room above.
+   Under its subject the surface still holds its top, since growing up would cover the
+   words it is about.
 
    A press keeps the spot pressed still (the user's decision, 2026-10-14): before, the
    card held its edge from what the user was doing, so pressing its held-news notice
@@ -492,12 +500,15 @@ export function commentPlacement() {
       };
       // Adoption keeps the editor's attachment edge. Above its subject, a taller card
       // grows upward rather than crossing the block the editor stood clear of.
-      // Later placements use the surface's own top/foot reading and reply-line holds.
+      // Later placements use the surface's own top/foot reading and reply-line holds;
+      // a draft beside its subject against the boundary's foot grows the surface up
+      // from it, where under its subject it would grow over the words it is about.
       unpressed = hold
         ? side === "top"
           ? "foot"
           : "top"
-        : keepReplyLine || (!drafting && side === "top")
+        : keepReplyLine ||
+            (drafting ? held?.floored && !vertical(side) : side === "top")
           ? "foot"
           : "top";
       edge = hold ? unpressed : (pressHeld ?? unpressed);
@@ -649,6 +660,7 @@ export function commentPlacement() {
                       ? rects.reference.y
                       : rects.reference.y + (row - box.top) / scale.y,
               last: rects.reference.y + (lastRow - box.top) / scale.y,
+              foot: rects.reference.y + (boundary.bottom - box.top) / scale.y,
             },
           };
         },
@@ -827,7 +839,7 @@ export function commentPlacement() {
     },
     landed({ x, y, middlewareData }) {
       initialHold = null;
-      const { scale, column, attachmentInline, line } = middlewareData.scaled;
+      const { scale, column, attachmentInline, line, foot } = middlewareData.scaled;
       // A left-side surface grows toward the boundary, keeping its right edge beside
       // the target. Holding its compact left edge would widen it over the target.
       if (vertical(side)) inline ??= x - column;
@@ -843,8 +855,13 @@ export function commentPlacement() {
         line,
       };
       // The reading this placement answered, so a turn that joined while it was worked
-      // out is one the next placement still sees join.
-      held = { ...spot, ...reading };
+      // out is one the next placement still sees join, and whether the surface stands
+      // against the boundary's foot, with no room below to grow into.
+      held = {
+        ...spot,
+        ...reading,
+        floored: y + middlewareData.held.height >= foot - 0.5,
+      };
       return { scale };
     },
   };

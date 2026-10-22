@@ -139,6 +139,29 @@ test("Markdown body readings share file dialect, safe destinations and native st
   }
 });
 
+test("bare file names in Markdown stay text while explicit links remain links", async () => {
+  const { loadMarkdown, renderMarkdown, renderInlineMarkdown } =
+    await import("/runtime/markdown.js");
+  await loadMarkdown();
+  const source =
+    "Edit setup.py and notes.md, then run install.sh. Visit https://example.com, <https://example.org>, or [docs](https://docs.example.com).";
+  for (const html of [renderMarkdown(source), renderInlineMarkdown(source)]) {
+    const body = document.createElement("div");
+    body.innerHTML = html;
+    assert.deepEqual(
+      [...body.querySelectorAll("a")].map((link) => [
+        link.textContent,
+        link.getAttribute("href"),
+      ]),
+      [
+        ["https://example.com", "https://example.com"],
+        ["https://example.org", "https://example.org"],
+        ["docs", "https://docs.example.com"],
+      ],
+    );
+  }
+});
+
 test("editor tokens retain native constructs and exact source syntax after parser joining", async () => {
   const { loadMarkdown, placedMarkdownTokens } = await import("/runtime/markdown.js");
   await loadMarkdown();
@@ -163,10 +186,8 @@ test("editor tokens retain native constructs and exact source syntax after parse
   );
   for (const automatic of [
     "reader@example.com",
-    "www.example.com",
     "before reader@example.com",
     "**one** and reader@example.com",
-    "**one** and www.example.com",
     "***one*** and reader@example.com",
     "*one* and reader@example.com",
     "~~one~~ and reader@example.com",
@@ -180,36 +201,24 @@ test("editor tokens retain native constructs and exact source syntax after parse
     );
     assert.equal(link.to, automatic.length);
   }
-  for (const automatic of [
-    "**one** and reader@example.com foo@example.com",
-    "**one** www.example.com **two**",
-  ]) {
+  for (const automatic of ["**one** and reader@example.com foo@example.com"]) {
     const links = placedMarkdownTokens(automatic).filter(
       ({ token }) => token.type === "link_open",
     );
     for (const link of links) {
       const words = automatic.slice(link.contentFrom, link.contentTo);
-      assert.match(
-        words,
-        /^(?:reader@example\.com|foo@example\.com|www\.example\.com)$/,
-      );
+      assert.match(words, /^(?:reader@example\.com|foo@example\.com)$/);
       assert.equal(link.contentFrom, automatic.indexOf(words));
       assert.equal(link.contentTo, link.contentFrom + words.length);
     }
     assert.equal(links.length, automatic.includes("foo@example.com") ? 2 : 1);
   }
   for (const [automatic, expected] of [
-    ["**one** and www.xn--9ca.com", "www.xn--9ca.com"],
     ["**one** and reader@xn--9ca.com", "reader@xn--9ca.com"],
     ["**one** and http://example.com/%E2%9C%93", "http://example.com/%E2%9C%93"],
     ["- [x] reader@example.com", "reader@example.com"],
     ["- [ ] reader@example.com", "reader@example.com"],
-    ["- [ ] www.example.com", "www.example.com"],
     ["https://example.com/a%20b", "https://example.com/a%20b"],
-    ["&amp; www.example.com tail", "www.example.com"],
-    ["\\* www.example.com tail", "www.example.com"],
-    ["**one** &amp; www.xn--9ca.com tail", "www.xn--9ca.com"],
-    ["- [x] **one** www.example.com", "www.example.com"],
   ]) {
     const link = placedMarkdownTokens(automatic).find(
       ({ token }) => token.type === "link_open",

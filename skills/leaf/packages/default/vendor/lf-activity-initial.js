@@ -35,10 +35,6 @@
     return link;
   }
   function fillActivityRow(item, row, offer) {
-    const avatar = document.createElement("span");
-    avatar.className = "lf-activity-avatar";
-    avatar.setAttribute("aria-hidden", "true");
-    avatar.textContent = row.actor.slice(0, 1).toUpperCase();
     const line = document.createElement("p");
     line.className = "lf-activity-line";
     const actor = document.createElement("strong");
@@ -61,7 +57,7 @@
       undone.textContent = "undone";
       line.append(" ", undone);
     }
-    item.replaceChildren(avatar, line);
+    item.replaceChildren(line);
     const excerpt = row.excerpt;
     if (excerpt) {
       const said = document.createElement("p");
@@ -91,7 +87,6 @@
     for (const row of drawn) {
       const item = document.createElement("li");
       item.className = "lf-activity-row";
-      item.setAttribute("data-lf-activity-author", row.author);
       fillActivityRow(item, row, offer);
       list.append(item);
       rows.set(row.id, { item, key: JSON.stringify(row) });

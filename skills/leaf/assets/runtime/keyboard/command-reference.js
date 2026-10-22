@@ -113,10 +113,6 @@ const commandReferenceSearch = searchField("lf-command-reference-search", {
   placeholder: "Find a key or action",
 });
 commandReferenceSearch.addEventListener("input", readCommandReferenceSearch);
-// Like Page Map's search, this retained control connects with its closed dialog at
-// boot. Its native editor is ready before the first opening and survives local renders.
-commandReferenceDialog.append(commandReferenceSearch);
-
 // Page-key presentation owns this retained native control's changing name and shortcut
 // metadata. The reference template only seats it.
 const commandReferenceClose = closeControl({
@@ -126,6 +122,9 @@ const commandReferenceClose = closeControl({
 
 commandReferenceClose.dataset.lfKeyTitle = "Close the command reference";
 commandReferenceClose.setAttribute("aria-label", "Close the command reference");
+// Retained controls connect with their closed dialog at boot, so their native editor
+// and command wiring are ready before the first opening. Local renders only seat them.
+commandReferenceDialog.append(commandReferenceSearch, commandReferenceClose);
 
 // Every scope the page has, gathered by title, for the reference. This is not the current
 // stack: the catalog answers what the user could do here, so it includes a card grip's

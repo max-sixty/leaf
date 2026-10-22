@@ -147,7 +147,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 [data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer=checkbox], [data-lf-offer=radio], .lf-mark-note)),
 .lf-btn,
 .button,
-.lf-outline-chip:is(button, [role=button]),
 .lf-thread-notice:is(button),
 .lf-react,
 .lf-msg-control,
@@ -158,7 +157,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   min-width: var(--aim-floor);
 }
 [data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer=checkbox], [data-lf-offer=radio], .lf-mark-note, .lf-btn)),
-.lf-outline-chip:is(button, [role=button]),
 .lf-thread-notice:is(button),
 .lf-react,
 .lf-msg-control,
@@ -906,34 +904,19 @@ leaf-text.lf-fab-input,
     display: none !important;
   }
 }
-.lf-outline-chip {
+:where(.lf-react-strip) .lf-react {
   appearance: none;
   margin: 0;
   padding: var(--chip-pad);
   white-space: nowrap;
-  border: 1px solid var(--border-2);
+  border: 1px solid transparent;
   border-radius: var(--chip-r);
-  background: var(--card);
-  color: var(--ink-2);
   font: inherit;
   font-family: var(--sans);
   font-size: var(--t-6);
   line-height: var(--chip-lh);
 }
-.lf-outline-chip:is(button, [role=button]) {
-  cursor: pointer;
-}
-.lf-outline-chip:is(button, [role=button]):hover {
-  background: var(--chip);
-}
-@media (pointer: coarse) {
-  .lf-outline-chip:is(button, [role=button]) {
-    display: inline-flex;
-    align-items: center;
-  }
-}
-.lf-outline-chip[data-lf-focus] {
-  outline: var(--focus-ring);
+.lf-react-strip .lf-react[data-lf-focus] {
   outline-offset: 1px;
 }
 .lf-msg-control {
@@ -1211,7 +1194,7 @@ svg[data-lf-icon] {
 :is(.lf-btn, .button) {
   padding: max(4px, (var(--aim-floor) - 1lh) / 2 - 1px) 10px;
   border: 1px solid var(--border-2);
-  border-radius: 6px;
+  border-radius: var(--r);
   background: var(--card);
   cursor: pointer;
   color: var(--ink);
@@ -1262,7 +1245,7 @@ svg[data-lf-icon] {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-:is(.lf-btn, .button):not(:disabled, [aria-disabled=true]):hover {
+:is(.lf-btn, .button):where(:not(:disabled, [aria-disabled=true]):hover) {
   background: var(--chip);
 }
 :is(button, .lf-btn, .button).lf-quiet-action,
@@ -1273,7 +1256,7 @@ svg[data-lf-icon] {
   color: var(--muted);
   box-shadow: none;
 }
-:is(button, .lf-btn, .button).lf-quiet-action:not(:disabled, [aria-disabled=true]):is(:hover, [data-lf-focus]),
+:is(button, .lf-btn, .button).lf-quiet-action:where(:not(:disabled, [aria-disabled=true]):is(:hover, [data-lf-focus])),
 .lf-quiet-action.lf-ui:not(:disabled, [aria-disabled=true])::part(button):hover,
 .lf-quiet-action.lf-ui::part(lf-focus) {
   background: var(--chip);
@@ -1307,14 +1290,18 @@ svg[data-lf-icon] {
 }
 
 /* skills/leaf/assets/styles/components/response.css */
+:root {
+  --lf-icon-action-face: 28px;
+  --lf-compose-action-inset: 6px;
+}
 :root,
 .lf-compose-field,
 .lf-icon-action {
-  --lf-icon-action-hit: max(28px, var(--aim-floor));
+  --lf-icon-action-hit: max(var(--lf-icon-action-face), var(--aim-floor));
 }
 :root,
 .lf-compose-field {
-  --lf-compose-h: calc(var(--lf-icon-action-hit) + 12px);
+  --lf-compose-h: calc(var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset));
 }
 .lf-compose-field {
   --lf-compose-pad-block: 8px;
@@ -1378,7 +1365,7 @@ svg[data-lf-icon] {
   padding-inline-end: var(--lf-compose-pad-inline-start);
 }
 .lf-compose-field:where(:has(> .lf-compose-submit)) > leaf-text:not(.lf-fab-input) {
-  --lf-field-end-room: calc( var(--lf-icon-action-hit) + 12px - var(--lf-compose-pad-inline-start) );
+  --lf-field-end-room: calc( var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset) - var(--lf-compose-pad-inline-start) );
 }
 .lf-icon-action {
   box-sizing: border-box;
@@ -1398,15 +1385,6 @@ svg[data-lf-icon] {
   block-size: 16px;
   pointer-events: none;
 }
-.lf-close-action {
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-}
-.lf-close-action:hover {
-  background: var(--chip);
-  color: var(--ink);
-}
 :is(.lf-compose-submit, .lf-compose-dictate),
 :is(.lf-resolve, .lf-reopen).lf-icon-action {
   border: 0;
@@ -1417,8 +1395,8 @@ svg[data-lf-icon] {
   content: "";
   position: absolute;
   box-sizing: border-box;
-  inline-size: 28px;
-  block-size: 28px;
+  inline-size: var(--lf-icon-action-face);
+  block-size: var(--lf-icon-action-face);
   border-radius: var(--r);
   background: transparent;
 }
@@ -1429,8 +1407,8 @@ svg[data-lf-icon] {
 :is(.lf-compose-submit, .lf-compose-dictate) {
   position: absolute;
   z-index: 1;
-  inset-inline-end: 6px;
-  inset-block-end: 6px;
+  inset-inline-end: var(--lf-compose-action-inset);
+  inset-block-end: var(--lf-compose-action-inset);
   color: var(--accent);
 }
 :is(.lf-compose-submit, .lf-compose-dictate):not(:disabled, [aria-disabled=true]):hover::before {
@@ -1491,7 +1469,9 @@ svg[data-lf-icon] {
   flex-wrap: wrap;
 }
 .lf-composer-media {
-  --lf-media-room: max( calc(var(--raise-1-drop) + var(--raise-1-blur)), calc(var(--aim-floor) / 2 - 3px) );
+  --lf-media-mark-size: 18px;
+  --lf-media-mark-overhang: 6px;
+  --lf-media-room: max( calc(var(--raise-1-drop) + var(--raise-1-blur)), calc( var(--lf-media-mark-overhang) + (var(--aim-floor) - var(--lf-media-mark-size)) / 2 ) );
   --lf-media-h: 120px;
   display: flex;
   flex: 1 0 calc(100% + 2 * var(--lf-media-room));
@@ -1499,7 +1479,7 @@ svg[data-lf-icon] {
   min-width: 0;
   overflow-x: auto;
   padding: var(--lf-media-room);
-  margin: calc(6px - var(--lf-media-room)) calc(-1 * var(--lf-media-room)) calc(4px - var(--lf-media-room));
+  margin: calc(var(--lf-media-mark-overhang) - var(--lf-media-room)) calc(-1 * var(--lf-media-room)) calc(4px - var(--lf-media-room));
   box-sizing: border-box;
 }
 .lf-composer-media-item {
@@ -1548,13 +1528,13 @@ button.lf-media-open {
 .lf-composer-media-item > button:not(.lf-media-open) {
   position: absolute;
   z-index: 1;
-  inset-block-start: -6px;
-  inset-inline-end: -6px;
+  inset-block-start: calc(-1 * var(--lf-media-mark-overhang));
+  inset-inline-end: calc(-1 * var(--lf-media-mark-overhang));
   display: grid;
   place-items: center;
-  inline-size: 18px;
+  inline-size: var(--lf-media-mark-size);
   min-inline-size: 0;
-  block-size: 18px;
+  block-size: var(--lf-media-mark-size);
   min-block-size: 0;
   padding: 0;
   border: 0;
@@ -1566,12 +1546,12 @@ button.lf-media-open {
   cursor: pointer;
 }
 .lf-composer-media-item > .lf-composer-drawing-undo {
-  inset-inline: -6px auto;
+  inset-inline: calc(-1 * var(--lf-media-mark-overhang)) auto;
 }
 .lf-composer-media-item > button:not(.lf-media-open)::before {
   content: "";
   position: absolute;
-  inset: calc((18px - var(--aim-floor)) / 2);
+  inset: calc((var(--lf-media-mark-size) - var(--aim-floor)) / 2);
 }
 .lf-composer-media-item > button:not(.lf-media-open):hover {
   background: var(--ink);

@@ -2094,7 +2094,7 @@ function makeMarkdown(module, breaks) {
     module.taskLists,
     { enabled: false }
   );
-  markdown.linkify.set({ fuzzyLink: true });
+  markdown.linkify.set({ fuzzyLink: false });
   markdown.core.ruler.after("block", "blank_lines", (state) => {
     const lines = state.src.split("\n");
     for (const token of state.tokens) {
@@ -3750,7 +3750,7 @@ var ReactionStripView = class {
         (choice) => choice.name,
         (choice) => html` <button
                 type="button"
-                class="lf-outline-chip lf-react ${HOLDS_WORD} lf-ui"
+                class="lf-react ${HOLDS_WORD} lf-ui"
                 data-lf-gen="1"
                 data-lf-offer="button"
                 data-token=${choice.name}

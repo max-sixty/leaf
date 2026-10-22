@@ -348,6 +348,7 @@ import {
   handBack,
   holdFocus,
   inputCount,
+  isNativeLayer,
   keeps,
   keepsHidden,
   move,
@@ -1598,6 +1599,7 @@ fab.id = "lf-comment-button";
 fab.title = "Comment";
 var fabOptions = el("span", "lf-response-options");
 fabOptions.id = "lf-response-options";
+fabOptions.popover = "auto";
 fabOptions.setAttribute("role", "group");
 fabOptions.setAttribute("aria-label", "Other responses");
 var fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
@@ -1606,7 +1608,19 @@ var fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
   collapse: true
 });
 fabOptions.append(fabSuggest);
-fabBar.append(fab, fabOptions);
+var fabOptionsTrigger = responseAction(
+  el("button", "lf-ui lf-response-trigger"),
+  {
+    icon: "more",
+    label: "Other responses",
+    collapse: true,
+    behavior: "disclosure"
+  }
+);
+fabOptionsTrigger.setAttribute("aria-controls", fabOptions.id);
+fabOptionsTrigger.setAttribute("aria-expanded", "false");
+fabOptionsTrigger.popoverTargetElement = fabOptions;
+fabBar.append(fab, fabOptionsTrigger, fabOptions);
 var composer = el("div", "lf-ui lf-composer");
 composer.id = "lf-composer";
 var composerQuote = el("blockquote", "lf-ui lf-quote detached");
@@ -1786,7 +1800,7 @@ function createSelectionComposer({
       paintKeys();
     });
   };
-  function setResponseOptions(open, { focus = null, place = true } = {}) {
+  function setResponseOptions(open, { focus = null } = {}) {
     const next = Boolean(open && fabAnchorAt() && responseOptionsAvailable());
     if (next === responseOptionsOpen) {
       if (next && focus) focusResponseOption(focus);
@@ -1794,8 +1808,9 @@ function createSelectionComposer({
     }
     if (next) setReact(false);
     responseOptionsOpen = next;
-    fabBar.classList.toggle("lf-response-open", next);
-    if (place && fabAnchorAt()) showFab(fabAnchorAt());
+    keeps(fabOptionsTrigger, "aria-expanded", String(next));
+    if (next) showNativeLayer(fabOptions, { source: fabOptionsTrigger });
+    else closeNativeLayer(fabOptions);
     if (next && focus) focusResponseOption(focus);
     paintKeys();
     return next;
@@ -1805,11 +1820,11 @@ function createSelectionComposer({
       fabSuggest,
       !(anchor?.quote && !designModeActive() && (!composerOpen || !pendingAbout && !pendingDrawing))
     );
-    if (responseOptionsOpen && !responseOptionsAvailable())
-      setResponseOptions(false, { place: false });
+    keepsHidden(fabOptionsTrigger, !responseOptionsAvailable());
+    if (responseOptionsOpen && !responseOptionsAvailable()) setResponseOptions(false);
   }
   function resetResponseOptions() {
-    setResponseOptions(false, { place: false });
+    setResponseOptions(false);
   }
   function showComposer(open) {
     if (open && composerField.hasChildNodes()) composer.append(composerField);
@@ -2047,7 +2062,13 @@ function createSelectionComposer({
         }
       }
     });
-    fabSuggest.onclick = () => setSuggestionMode(!suggestionMode);
+    fabSuggest.onclick = () => {
+      setResponseOptions(false);
+      setSuggestionMode(!suggestionMode);
+    };
+    fabOptions.addEventListener("toggle", () => {
+      if (!isNativeLayer(fabOptions)) setResponseOptions(false);
+    });
     onStanding((node) => {
       if (node && responseOptionsOpen && !fabBar.contains(node))
         setResponseOptions(false);
@@ -8475,6 +8496,7 @@ export {
   textField,
   fabBar,
   fabInput,
+  fabOptionsTrigger,
   composerQuote,
   pendingAnchor,
   pendingAbout,

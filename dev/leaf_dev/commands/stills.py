@@ -471,6 +471,18 @@ def page_search(page: Page) -> None:
     page.get_by_role("searchbox", name="Search page text").fill("review")
 
 
+def selected_passage_responses(page: Page) -> None:
+    """Other responses beside a comment on a selected search match."""
+    page_search(page)
+    expect(page.get_by_role("button", name="Next match", exact=True)).to_be_enabled()
+    page.keyboard.press("Enter")
+    expect(page.get_by_role("searchbox", name="Search page text")).not_to_be_visible()
+    page.keyboard.press("c")
+    page.keyboard.press("Tab")
+    page.keyboard.press("e")
+    expect(page.get_by_role("button", name="Suggest", exact=True)).to_be_visible()
+
+
 def command_reference_search(page: Page) -> None:
     """Help's focused query above its filtered command results."""
     page.keyboard.press("Tab")
@@ -1645,6 +1657,14 @@ STATES = (
     State("plan", "review-a-plan", at_rest),
     State("page-search", "review-a-plan", page_search),
     State("page-search-phone", "review-a-plan", page_search, viewport=(390, 844)),
+    State("selected-passage-responses", "review-a-plan", selected_passage_responses),
+    State(
+        "selected-passage-responses-phone",
+        "review-a-plan",
+        selected_passage_responses,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("command-reference-search", "review-a-plan", command_reference_search),
     State(
         "command-reference-search-dark",

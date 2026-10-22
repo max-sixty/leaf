@@ -175,7 +175,7 @@ def test_a_diff_outlet_keeps_the_shared_attachment_controls(browser, serve):
     expect(bar.locator(".lf-composer-media")).to_be_hidden()
     expect(field).to_be_focused()
     field.press("Tab")
-    expect(bar).to_have_class(re.compile(r"\blf-response-open\b"))
+    expect(bar.locator(".lf-response-options")).to_be_visible()
     page.keyboard.press("Escape")
     expect(field).to_be_focused()
     action = bar.locator(".lf-compose-field > button:visible")

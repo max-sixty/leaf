@@ -248,18 +248,20 @@
     align-items: flex-end;
   }
   /* Search borrows the field's place, not its editor. The scope remains visible
-     after typing; a tint reinforces those words. Navigation stands above the row,
-     keeping the query at the same bottom edge as every comment field. */
+     after typing; a tint reinforces those words. Its mode and actions share the
+     same field row; nothing reserves an extra strip. */
   .lf-fp-search-surface {
     display: flex;
     flex: 1;
     align-items: center;
     min-width: 0;
     min-height: var(--lf-fp-line);
+  }
+  .lf-fp-field:has(> .lf-fp-search-surface:not([hidden])) {
     border-radius: var(--r);
     background: color-mix(in srgb, var(--accent) 6%, transparent);
   }
-  .lf-fp-search-surface:focus-within {
+  .lf-fp-field:has(> .lf-fp-search-surface:not([hidden])):focus-within {
     outline: var(--focus-ring);
     outline-offset: 0;
     --lf-wears-ring: 1;
@@ -271,6 +273,7 @@
   /* The unified query and scope wear the ring (`--lf-wears-ring`), so the
      native control's base gives its own focus outline to that surface. */
   .lf-fp-search-surface wa-input::part(base) {
+    padding: 0;
     border: 0;
     outline: none;
     box-shadow: none;
@@ -291,9 +294,10 @@
   .lf-fp-search:focus-visible {
     outline: none;
   }
-  .lf-fp-search-mode {
+  .lf-fp-mode {
     display: inline-flex;
     flex: none;
+    align-self: center;
     align-items: center;
     gap: 4px;
     padding: 3px 6px;
@@ -304,14 +308,21 @@
     font-size: 11px;
     white-space: nowrap;
   }
-  .lf-fp-search-mode .lf-action-icon {
+  .lf-fp-mode-icon {
+    display: none;
     width: 12px;
     height: 12px;
   }
-  .lf-fp-search-tools {
+  @media (max-width: 420px) {
+    .lf-fp-mode-word {
+      display: none;
+    }
+    .lf-fp-mode-icon {
+      display: block;
+    }
+  }
+  .lf-fp-actions {
     display: flex;
-    justify-content: flex-end;
-    padding: 0 var(--lf-fp-row-pad);
     flex: none;
     align-items: center;
     min-height: var(--lf-fp-line);
@@ -713,27 +724,6 @@
     display: none;
   }
 
-  /* One quiet line over the field, there only while it has something to say and no
-     view is open (floating-panel.js): a refused gesture while the caret is in the
-     field, or a notice the placeholder has given up to words. It is one line tall
-     whatever it says, and stands above the row, with nothing above it to move. */
-  .lf-fp-context {
-    box-sizing: content-box;
-    display: flex;
-    gap: 8px;
-    height: 1lh;
-    padding: 8px 10px 0 14px;
-    color: var(--ink);
-    font-size: 12px;
-  }
-  .lf-fp-context-words {
-    flex: 1;
-    min-width: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
   /* ---------- folded to the leaf, in the window's corner ---------- */
   .lf-floating-panel[data-rest="mark"] {
     width: var(--lf-fp-folded);
@@ -744,7 +734,6 @@
     .lf-fp-row-notice,
     .lf-fp-quick,
     .lf-fp-exit-seat,
-    .lf-fp-context,
     .lf-fp-opened {
       display: none;
     }

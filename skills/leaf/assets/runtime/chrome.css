@@ -170,10 +170,12 @@
     align-items: center;
     min-width: 0;
     min-height: var(--lf-fp-line);
+  }
+  .lf-fp-field:has(> .lf-fp-search-surface:not([hidden])) {
     border-radius: var(--r);
     background: color-mix(in srgb, var(--accent) 6%, transparent);
   }
-  .lf-fp-search-surface:focus-within {
+  .lf-fp-field:has(> .lf-fp-search-surface:not([hidden])):focus-within {
     outline: var(--focus-ring);
     outline-offset: 0;
     --lf-wears-ring: 1;
@@ -183,6 +185,7 @@
     min-width: 0;
   }
   .lf-fp-search-surface wa-input::part(base) {
+    padding: 0;
     border: 0;
     outline: none;
     box-shadow: none;
@@ -203,9 +206,10 @@
   .lf-fp-search:focus-visible {
     outline: none;
   }
-  .lf-fp-search-mode {
+  .lf-fp-mode {
     display: inline-flex;
     flex: none;
+    align-self: center;
     align-items: center;
     gap: 4px;
     padding: 3px 6px;
@@ -216,14 +220,21 @@
     font-size: 11px;
     white-space: nowrap;
   }
-  .lf-fp-search-mode .lf-action-icon {
+  .lf-fp-mode-icon {
+    display: none;
     width: 12px;
     height: 12px;
   }
-  .lf-fp-search-tools {
+  @media (max-width: 420px) {
+    .lf-fp-mode-word {
+      display: none;
+    }
+    .lf-fp-mode-icon {
+      display: block;
+    }
+  }
+  .lf-fp-actions {
     display: flex;
-    justify-content: flex-end;
-    padding: 0 var(--lf-fp-row-pad);
     flex: none;
     align-items: center;
     min-height: var(--lf-fp-line);
@@ -521,22 +532,6 @@
   .lf-fp-exit-seat[hidden] {
     display: none;
   }
-  .lf-fp-context {
-    box-sizing: content-box;
-    display: flex;
-    gap: 8px;
-    height: 1lh;
-    padding: 8px 10px 0 14px;
-    color: var(--ink);
-    font-size: 12px;
-  }
-  .lf-fp-context-words {
-    flex: 1;
-    min-width: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
   .lf-floating-panel[data-rest=mark] {
     width: var(--lf-fp-folded);
     left: auto;
@@ -546,7 +541,6 @@
     .lf-fp-row-notice,
     .lf-fp-quick,
     .lf-fp-exit-seat,
-    .lf-fp-context,
     .lf-fp-opened {
       display: none;
     }
@@ -2292,7 +2286,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     box-shadow: inset 0 -2px color-mix(in srgb, var(--accent) 72%, transparent);
   }
   .lf-page-search-status {
-    min-width: min-content;
+    inline-size: 5ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
     min-height: 1lh;
     color: var(--muted);
     font-size: var(--t-6);
@@ -2300,15 +2296,14 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     text-align: right;
     white-space: nowrap;
   }
-  .lf-page-search-status > span {
-    min-inline-size: max(100%, max-content);
-  }
   .lf-page-search-step {
     flex: none;
-    margin-inline-start: 0;
-  }
-  .lf-page-search-status + .lf-page-search-step {
-    margin-inline-start: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    width: auto;
+    padding: 0 4px;
   }
   .lf-legend-box {
     position: absolute;

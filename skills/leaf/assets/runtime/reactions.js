@@ -584,9 +584,8 @@ export function createReactionController({
   // `e` opens the list on the target the user has already named: the current selection,
   // item, or agent reply. Digits are optional accelerators in the registry's declared
   // order, and the mode's own scope above owns them once the list is open.
-  // A finger reacts to a reply with its own reaction control. Reactions on a selection
-  // or an item open only by key since the response bar dropped its ellipsis, a gap
-  // accepted for now (composing/selection.js, TODO.md).
+  // A finger opens the same choices through Other responses on a selection or item,
+  // or through an agent reply’s reaction control.
   pageCommand({
     id: "reaction.open",
     ready: savedReadingSettled,

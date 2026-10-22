@@ -531,9 +531,8 @@ button.lf-media-open {
 .lf-response-control {
   --lf-compose-pad-block: calc(var(--lf-thread-text-pad-block) - 1px);
 }
-/* The field and its choices are one anchored response control. This primitive owns
-     their height, vertical padding and type. Tab extends
-     the control at its trailing edge without replacing or moving the field.
+/* The field and its choices share height, vertical padding and type. Tab opens
+     the anchored picker without replacing or moving the field.
      The field can grow with its words without changing its corner. The shared UI
      supplies the thread’s 14px face and line height; vertical padding keeps
      that face in the 32px resting box. */
@@ -589,22 +588,39 @@ leaf-text.lf-fab-input {
   > :is(.lf-response-action-space, .lf-response-action-label) {
   display: none;
 }
-.lf-fab-bar:not([data-lf-target-only]) > .lf-fab,
-.lf-fab-bar:not(.lf-response-open) > .lf-response-options {
+.lf-fab-bar:not([data-lf-target-only]) > .lf-fab {
   display: none !important;
 }
-.lf-fab-bar.lf-response-open {
-  flex-wrap: wrap;
+.lf-response-trigger {
+  anchor-name: --lf-response-trigger;
+  flex: none;
+  min-height: var(--lf-response-height);
 }
-/* A side is chosen for the field, which can be narrower than Suggest and six
-     reactions at their resting 38px. The reactions give up spare inline padding
-     before the choices wrap; each response action keeps its minimum width. */
-.lf-fab-bar.lf-response-open > .lf-response-options {
-  display: inline-flex;
+/* The native top layer keeps this picker out of each composer's layout and clipping.
+   CSS anchors follow its trigger across floating, panel and widget seats. */
+.lf-response-options {
+  position: fixed;
+  position-anchor: --lf-response-trigger;
+  position-visibility: anchors-visible;
+  position-area: block-start span-all;
+  position-try-fallbacks: flip-block;
+  justify-self: anchor-center;
+  inset: auto;
+  width: max-content;
+  max-width: calc(100vw - 16px);
+  margin: 4px 8px;
+  padding: 4px;
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: var(--raise-2);
+}
+.lf-response-options:popover-open {
+  display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 4px;
-  max-width: 100%;
 }
 .lf-response-options .lf-response-action {
   min-height: var(--lf-response-height);
@@ -666,12 +682,6 @@ leaf-text.lf-fab-input {
   max-width: none;
   max-height: 50vh;
   margin: 0;
-}
-.lf-fab-bar[data-lf-presentation="inline"].lf-response-open > .lf-response-options {
-  flex-basis: 100%;
-  /* Additional actions grow above the field, keeping its last line at the foot of
-     the panel when the same composer occupies its inline seat there. */
-  order: -1;
 }
 /* Only a floating box is carried (surface-grip.js), so a seated one shows no grip. */
 .lf-fab-bar[data-lf-presentation="inline"] > .lf-surface-grip {

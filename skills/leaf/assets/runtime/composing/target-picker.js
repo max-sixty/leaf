@@ -67,6 +67,7 @@ const pageSearchInput = searchField("lf-page-search-box", {
   placeholder: "Find text",
 });
 pageSearchInput.maxlength = 160;
+pageSearchInput.withClear = false;
 const pageSearchStatus = el("span", "lf-page-search-status");
 pageSearchStatus.setAttribute("role", "status");
 const pageSearchWords = el("span");
@@ -90,9 +91,10 @@ const matchStep = (icon, name) => {
 };
 const previousMatchControl = matchStep("up", "Previous match");
 const nextMatchControl = matchStep("down", "Next match");
-const pageSearchControls = [pageSearchStatus, previousMatchControl, nextMatchControl];
+nextMatchControl.prepend(pageSearchStatus);
+const pageSearchControls = [previousMatchControl, nextMatchControl];
 const noMatches = "No matches";
-const searchCount = (position, total) => `${position} of ${total}`;
+const searchCount = (position, total) => `${position}/${total}`;
 
 // Target choosing and whole-page text search. `s` opens a viewport-local map of
 // the same stable addressables and visual parts Alt-click reaches, then opens Comment on the
@@ -275,15 +277,6 @@ export function createTargetPicker({
     pageSearchOpen = on;
     presentSearchField();
     if (on) {
-      // A nonempty query cannot match more often than there are characters. Hold the
-      // room of the whole reading's count before editing, so narrowing never resizes
-      // the field.
-      const maximum = pageText().raw.length;
-      keeps(
-        pageSearchStatus,
-        "data-lf-room",
-        `${noMatches}\n${searchCount(maximum, maximum)}`,
-      );
       focusDestination(pageSearchInput, "move");
       presentSearchStatus();
       announce("Search the page.");
@@ -333,7 +326,14 @@ export function createTargetPicker({
       ? nothing
       : matches.value.length
         ? searchCount(active + 1, matches.value.length)
+        : "0/0";
+    const label = !query
+      ? null
+      : matches.value.length
+        ? `Match ${active + 1} of ${matches.value.length}`
         : noMatches;
+    keeps(pageSearchStatus, "aria-label", label);
+    keeps(pageSearchStatus, "title", label);
     render(html`${status}`, pageSearchWords);
   }
 

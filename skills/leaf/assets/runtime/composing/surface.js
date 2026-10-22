@@ -77,6 +77,7 @@ import {
   createSelectionComposer,
   fabBar,
   fabInput,
+  fabOptionsTrigger,
   pendingAbout,
 } from "./selection.js";
 
@@ -1339,10 +1340,14 @@ export function createResponseSurface({
   const composerOptions = commandScope("In the comment box", [
     {
       id: "comment.options",
-      keys: ["Tab"],
+      keys: () => (composer.responseOptionsAreOpen() ? [] : ["Tab"]),
       title: "other responses",
-      when: () => fabOptionsAvailable() && !composer.responseOptionsAreOpen(),
-      run: () => showFabOptions(),
+      control: fabOptionsTrigger,
+      when: fabOptionsAvailable,
+      run: () =>
+        composer.setResponseOptions(!composer.responseOptionsAreOpen(), {
+          focus: "first",
+        }),
     },
   ]);
   projectCommandScope(fabInput, composerOptions, composerOptions);

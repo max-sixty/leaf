@@ -46,23 +46,15 @@
  *   waits in the leaf's menu, under Errors, with a dot on the leaf until the user
  *   opens the list (`errorsList`). The user chose this on 17
  *   October over errors riding the passing notice, which faded after four seconds and
- *   went unsaid while the user wrote. With no view open the line over the field says a
- *   passing notice the placeholder cannot, while words hide the placeholder and the
- *   caret is elsewhere. Nothing names where the words go once they hide the
- *   placeholder, nor who reads them: with no view open they go to the page, whose one
- *   agent reads them, and an open thread's head names its own. The user chose that
- *   quiet while writing on 17 October, comparing captures of three others: the line saying every passing word
- *   while the caret is in, which kept a walk's position over the words as long as they
- *   wrote; the line saying only answers to the user, with "Comment on the page" rising
- *   over typed words; and no line, with answers in the peek, which floats over the
- *   page's text. The line shows only with no view open, standing above the row, where
- *   nothing above it moves. The user chose that (2026-10-14), reversing the line lying
- *   over the view's foot in 12px of room every open view kept for it whether or not it
- *   showed (#2902). The keys that send are Send's hover name, where Return sends with
+ *   went unsaid while the user wrote. A draft takes precedence over passing notices,
+ *   which still reach the live region. A selected passage is named by the field's
+ *   mode chip when a draft hides its placeholder. No transient message adds a row.
+ *   The keys that send are Send's hover name, where Return sends with
  *   Shift+Return's new line beside it (composing/input.js).
  * - **Opened**: a view above the same row (On, Threads, a thread or All pages), what
  *   the user reads there, with its name over it and its controls at its foot, on the
- *   row: the way back, its tabs or a thread's own presses, and Close. The panel stands
+ *   row: the way back, its tabs or a thread's own presses. Close occupies the
+ *   bottom row's shared exit slot; a view with no actions needs no footer. The panel stands
  *   on the window's foot, so a view grows and shrinks from its top edge, and only its
  *   name and what it holds move as it does, while every control at its foot stays
  *   where the user aims at it. So a list fits what each tab, filter or search the user
@@ -119,7 +111,8 @@
  * with their own native inputs: a right-hand scope chip and a faint tint name the
  * mode after its placeholder is gone. Search never borrows an editor or its send,
  * attachments or dictation. Every mode keeps its field on the bottom row, with
- * its extra controls above it, including search navigation and response choices.
+ * mode-specific controls beside it. Content opens in a view; response choices
+ * use a picker. Features contribute to those surfaces rather than adding strips.
  *
  * Nothing moves under the pointer: a view's controls stand at its foot, the leaf's
  * menu holds what it showed while it stands, and a control the user pressed in a
@@ -361,8 +354,6 @@ export function createFloatingPanel({
   const stage = el("div", "lf-fp-stage");
   const controls = el("div", "lf-fp-controls");
   opened.append(head, stage, controls);
-  const context = el("div", "lf-fp-context");
-  const contextWords = el("span", "lf-fp-context-words");
   const row = el("div", "lf-fp-row");
   const menu = el("div", "lf-fp-menu");
   menu.id = "lf-fp-menu";
@@ -376,8 +367,7 @@ export function createFloatingPanel({
   peek.setAttribute("role", "tooltip");
   let peekAsked = false; // pointer or focus on the folded leaf
   let peekReading = null;
-  context.append(contextWords);
-  inner.append(opened, context, row);
+  inner.append(opened, row);
   card.append(inner);
   // The menu and the peek stand over the leaf by anchoring to it, which they can only
   // do from after it in the tree.
@@ -490,12 +480,9 @@ export function createFloatingPanel({
   lengthWatch.observe(field);
   const searchSurface = el("div", "lf-fp-search-surface");
   searchSurface.setAttribute("role", "search");
-  field.append(editorSeat, searchSurface);
-  const searchMode = el("span", "lf-fp-search-mode");
-  searchSurface.append(searchMode);
-  const searchTools = el("div", "lf-fp-search-tools");
-  row.before(searchTools);
-  declareOccluder(searchTools);
+  const fieldMode = el("span", "lf-fp-mode");
+  const fieldActions = el("div", "lf-fp-actions");
+  field.append(editorSeat, searchSurface, fieldMode, fieldActions);
   const rowNoticeSeat = el("div", "lf-fp-row-notice");
   const quick = el("div", "lf-fp-quick");
   // The way out of the stance the user stands in, at the row's end beside the counts,
@@ -2677,7 +2664,9 @@ export function createFloatingPanel({
       ?data-walked=${queueTab === "you" && walkedStop() === stop.key}
       style=${seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
     >
-      ${about.length ? html`<p class="lf-fp-on-kind">${about.join(" · ")}</p>` : nothing}${
+      ${
+        about.length ? html`<p class="lf-fp-on-kind">${about.join(" · ")}</p>` : nothing
+      }${
         message
           ? html`${title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : nothing}
               <div
@@ -3026,17 +3015,9 @@ export function createFloatingPanel({
           >`
         : nothing
     }`;
+    if (!parent && named === nothing && aux === nothing && !thread) return nothing;
     return html`<div class="lf-fp-crumb">${crumb}</div>
-      <div class="lf-fp-aux">${aux}</div>
-      ${expand}
-      <button
-        type="button"
-        class="lf-fp-icon-btn lf-fp-close"
-        aria-label="Close"
-        @click=${close}
-      >
-        ${iconTemplate("down", "lf-action-icon")}
-      </button>`;
+      <div class="lf-fp-aux">${aux}</div>`;
   }
 
   // ---------- paint ----------
@@ -3227,9 +3208,8 @@ export function createFloatingPanel({
     );
     render(top ? headTemplate(top) : nothing, head);
     render(top ? controlsTemplate(top) : nothing, controls);
-    // The more-room mark stands among the view's controls while one is open, else over
-    // the leaf.
-    if (!top) move(row, expand, leaf);
+    // Editor controls keep their place whichever content view is open.
+    move(row, expand, leaf);
     const heading = top ? shows(top) : null;
     for (const drawing of [controls, replyOutlet]) {
       keeps(drawing, "data-thread", heading);
@@ -3256,10 +3236,9 @@ export function createFloatingPanel({
         "class",
         `lf-fp-search-surface${pageSearch?.open ? " lf-page-search" : ""}`,
       );
-      render(html`${iconTemplate("search", "lf-action-icon")}${label}`, searchMode);
     }
-    render(search?.controls ?? nothing, searchTools);
-    keepsHidden(searchTools, !search?.controls.length);
+    render(search?.controls ?? nothing, fieldActions);
+    keepsHidden(fieldActions, !search?.controls.length);
     // The editor stays connected while search stands in its place: a thread's reader
     // keeps that outlet, and the native editor keeps its caret and undo history.
     if (searchSurface.hidden !== !search) postureMoved = true;
@@ -3310,28 +3289,24 @@ export function createFloatingPanel({
     keeps(host, "data-offers", !search && reading.says === "selection" ? "" : null);
     keeps(host, "data-tone", status().tone || null);
     keeps(host, "data-asks", status().asks ? "" : null);
-    // The line over the field says what the field cannot while words hide its
-    // placeholder with the caret elsewhere and no view is open: the selected words a
-    // press there comments on, else the passing notice. While the caret is in the
-    // field nothing passing is said there: an error, the one thing the user must not
-    // miss while writing, stands in the field itself.
-    const notice = passing();
-    const hidden =
-      !top &&
-      reading.says !== "destination" &&
-      reading.says !== "error" &&
-      draftOf(input) !== "";
-    keepsText(
-      contextWords,
-      !hidden
-        ? ""
-        : reading.says === "selection"
-          ? reading.words
-          : notice.visible
-            ? notice.message
-            : "",
+    // A mode names the destination while a draft hides the placeholder. Passing
+    // notices use the empty field and live region; they never allocate another row.
+    const selection = !search && reading.says === "selection" && words;
+    const searchLabel = pageSearch?.open ? "Search page" : "Search threads";
+    render(
+      search
+        ? html`<span class="lf-fp-mode-word">Search </span>${iconTemplate(
+              "search",
+              "lf-fp-mode-icon",
+            )}<span>${pageSearch?.open ? "page" : "threads"}</span>`
+        : selection
+          ? "Selection"
+          : nothing,
+      fieldMode,
     );
-    keepsHidden(context, Boolean(search) || !contextWords.textContent);
+    keeps(fieldMode, "aria-label", search ? searchLabel : null);
+    keeps(fieldMode, "title", search ? searchLabel : selection ? reading.words : null);
+    keepsHidden(fieldMode, !search && !selection);
     paintPeek();
 
     const standing = search ? null : rowNotice();
@@ -3342,12 +3317,13 @@ export function createFloatingPanel({
     const exit =
       search === threadSearch
         ? { label: "Close search", press: closeThreadSearch, disabled: false }
-        : rows().find((entry) => entry.exit);
+        : (rows().find((entry) => entry.exit) ??
+          (top ? { label: "Close", press: close, disabled: false } : null));
     render(
       exit
         ? html`<button
             type="button"
-            class="lf-fp-chip lf-fp-exit"
+            class=${`lf-fp-chip lf-fp-exit${exit.press === close ? " lf-fp-close" : ""}`}
             aria-label=${exit.label}
             title=${exit.label}
             ?disabled=${exit.disabled}

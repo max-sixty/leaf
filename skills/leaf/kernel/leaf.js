@@ -32,6 +32,7 @@ import {
   declareThreadKeys,
   fabBar,
   fabInput,
+  fabOptionsTrigger,
   inPageOrder,
   initializeServedDocument,
   keepPageRulesOffLayer,
@@ -2869,10 +2870,13 @@ function createResponseSurface({
   const composerOptions = commandScope("In the comment box", [
     {
       id: "comment.options",
-      keys: ["Tab"],
+      keys: () => composer.responseOptionsAreOpen() ? [] : ["Tab"],
       title: "other responses",
-      when: () => fabOptionsAvailable() && !composer.responseOptionsAreOpen(),
-      run: () => showFabOptions()
+      control: fabOptionsTrigger,
+      when: fabOptionsAvailable,
+      run: () => composer.setResponseOptions(!composer.responseOptionsAreOpen(), {
+        focus: "first"
+      })
     }
   ]);
   projectCommandScope(fabInput, composerOptions, composerOptions);
@@ -4352,6 +4356,7 @@ var pageSearchInput = searchField("lf-page-search-box", {
   placeholder: "Find text"
 });
 pageSearchInput.maxlength = 160;
+pageSearchInput.withClear = false;
 var pageSearchStatus = el("span", "lf-page-search-status");
 pageSearchStatus.setAttribute("role", "status");
 var pageSearchWords = el("span");
@@ -4371,9 +4376,10 @@ var matchStep = (icon, name2) => {
 };
 var previousMatchControl = matchStep("up", "Previous match");
 var nextMatchControl = matchStep("down", "Next match");
-var pageSearchControls = [pageSearchStatus, previousMatchControl, nextMatchControl];
+nextMatchControl.prepend(pageSearchStatus);
+var pageSearchControls = [previousMatchControl, nextMatchControl];
 var noMatches = "No matches";
-var searchCount = (position, total) => `${position} of ${total}`;
+var searchCount = (position, total) => `${position}/${total}`;
 function createTargetPicker({
   scrollToRange,
   hintChrome: hintChrome2,
@@ -4471,13 +4477,6 @@ function createTargetPicker({
     pageSearchOpen = on;
     presentSearchField();
     if (on) {
-      const maximum = pageText().raw.length;
-      keeps(
-        pageSearchStatus,
-        "data-lf-room",
-        `${noMatches}
-${searchCount(maximum, maximum)}`
-      );
       focusDestination(pageSearchInput, "move");
       presentSearchStatus();
       announce("Search the page.");
@@ -4516,7 +4515,10 @@ ${searchCount(maximum, maximum)}`
   }
   function presentSearchStatus() {
     const query = pageSearchInput.value.trim();
-    const status = !query ? nothing : matches.value.length ? searchCount(active + 1, matches.value.length) : noMatches;
+    const status = !query ? nothing : matches.value.length ? searchCount(active + 1, matches.value.length) : "0/0";
+    const label2 = !query ? null : matches.value.length ? `Match ${active + 1} of ${matches.value.length}` : noMatches;
+    keeps(pageSearchStatus, "aria-label", label2);
+    keeps(pageSearchStatus, "title", label2);
     render(html`${status}`, pageSearchWords);
   }
   function sameMatch(left, right) {
@@ -6686,8 +6688,6 @@ function createFloatingPanel({
   const stage = el("div", "lf-fp-stage");
   const controls = el("div", "lf-fp-controls");
   opened.append(head, stage, controls);
-  const context2 = el("div", "lf-fp-context");
-  const contextWords = el("span", "lf-fp-context-words");
   const row = el("div", "lf-fp-row");
   const menu = el("div", "lf-fp-menu");
   menu.id = "lf-fp-menu";
@@ -6701,8 +6701,7 @@ function createFloatingPanel({
   peek.setAttribute("role", "tooltip");
   let peekAsked = false;
   let peekReading = null;
-  context2.append(contextWords);
-  inner.append(opened, context2, row);
+  inner.append(opened, row);
   card.append(inner);
   host.append(card, menu, badge, newsDot, peek);
   const minimize = el("button", "lf-fp-minimize");
@@ -6768,12 +6767,9 @@ function createFloatingPanel({
   lengthWatch.observe(field);
   const searchSurface = el("div", "lf-fp-search-surface");
   searchSurface.setAttribute("role", "search");
-  field.append(editorSeat, searchSurface);
-  const searchMode = el("span", "lf-fp-search-mode");
-  searchSurface.append(searchMode);
-  const searchTools = el("div", "lf-fp-search-tools");
-  row.before(searchTools);
-  declareOccluder(searchTools);
+  const fieldMode = el("span", "lf-fp-mode");
+  const fieldActions = el("div", "lf-fp-actions");
+  field.append(editorSeat, searchSurface, fieldMode, fieldActions);
   const rowNoticeSeat = el("div", "lf-fp-row-notice");
   const quick = el("div", "lf-fp-quick");
   const exitSeat = el("div", "lf-fp-exit-seat");
@@ -8465,17 +8461,9 @@ function createFloatingPanel({
     ${named}${thread ? html`<span class="lf-fp-facts"
             >${keyed(thread.key, html`<span class="lf-fp-news-outlet"></span>`)}</span
           >` : nothing}`;
+    if (!parent && named === nothing && aux === nothing && !thread) return nothing;
     return html`<div class="lf-fp-crumb">${crumb}</div>
-      <div class="lf-fp-aux">${aux}</div>
-      ${expand}
-      <button
-        type="button"
-        class="lf-fp-icon-btn lf-fp-close"
-        aria-label="Close"
-        @click=${close}
-      >
-        ${iconTemplate("down", "lf-action-icon")}
-      </button>`;
+      <div class="lf-fp-aux">${aux}</div>`;
   }
   function setRest(rest) {
     const before = trail.value.at(-1);
@@ -8624,7 +8612,7 @@ function createFloatingPanel({
     );
     render(top ? headTemplate(top) : nothing, head);
     render(top ? controlsTemplate(top) : nothing, controls);
-    if (!top) move(row, expand, leaf);
+    move(row, expand, leaf);
     const heading = top ? shows(top) : null;
     for (const drawing2 of [controls, replyOutlet]) {
       keeps(drawing2, "data-thread", heading);
@@ -8643,10 +8631,9 @@ function createFloatingPanel({
         "class",
         `lf-fp-search-surface${pageSearch?.open ? " lf-page-search" : ""}`
       );
-      render(html`${iconTemplate("search", "lf-action-icon")}${label2}`, searchMode);
     }
-    render(search?.controls ?? nothing, searchTools);
-    keepsHidden(searchTools, !search?.controls.length);
+    render(search?.controls ?? nothing, fieldActions);
+    keepsHidden(fieldActions, !search?.controls.length);
     if (searchSurface.hidden !== !search) postureMoved = true;
     keepsHidden(editorSeat, Boolean(search));
     keepsHidden(searchSurface, !search);
@@ -8683,22 +8670,27 @@ function createFloatingPanel({
     keeps(host, "data-offers", !search && reading.says === "selection" ? "" : null);
     keeps(host, "data-tone", status().tone || null);
     keeps(host, "data-asks", status().asks ? "" : null);
-    const notice2 = passing();
-    const hidden = !top && reading.says !== "destination" && reading.says !== "error" && draftOf(input) !== "";
-    keepsText(
-      contextWords,
-      !hidden ? "" : reading.says === "selection" ? reading.words : notice2.visible ? notice2.message : ""
+    const selection = !search && reading.says === "selection" && words;
+    const searchLabel = pageSearch?.open ? "Search page" : "Search threads";
+    render(
+      search ? html`<span class="lf-fp-mode-word">Search </span>${iconTemplate(
+        "search",
+        "lf-fp-mode-icon"
+      )}<span>${pageSearch?.open ? "page" : "threads"}</span>` : selection ? "Selection" : nothing,
+      fieldMode
     );
-    keepsHidden(context2, Boolean(search) || !contextWords.textContent);
+    keeps(fieldMode, "aria-label", search ? searchLabel : null);
+    keeps(fieldMode, "title", search ? searchLabel : selection ? reading.words : null);
+    keepsHidden(fieldMode, !search && !selection);
     paintPeek();
     const standing = search ? null : rowNotice();
     keepsHidden(rowNoticeSeat, !standing);
     render(standing ? rowNoticeTemplate(standing) : nothing, rowNoticeSeat);
-    const exit = search === threadSearch ? { label: "Close search", press: closeThreadSearch, disabled: false } : rows().find((entry) => entry.exit);
+    const exit = search === threadSearch ? { label: "Close search", press: closeThreadSearch, disabled: false } : rows().find((entry) => entry.exit) ?? (top ? { label: "Close", press: close, disabled: false } : null);
     render(
       exit ? html`<button
             type="button"
-            class="lf-fp-chip lf-fp-exit"
+            class=${`lf-fp-chip lf-fp-exit${exit.press === close ? " lf-fp-close" : ""}`}
             aria-label=${exit.label}
             title=${exit.label}
             ?disabled=${exit.disabled}

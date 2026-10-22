@@ -1069,7 +1069,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     box-shadow: inset 0 -2px color-mix(in srgb, var(--accent) 72%, transparent);
   }
   .lf-page-search-status {
-    min-width: min-content;
+    inline-size: 5ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
     min-height: 1lh;
     color: var(--muted);
     font-size: var(--t-6);
@@ -1077,19 +1079,16 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     text-align: right;
     white-space: nowrap;
   }
-  .lf-page-search-status > span {
-    min-inline-size: max(100%, max-content);
-  }
-  /* The arrows beside the count wear the field's quiet face, as its clear button does:
-     bare glyphs that take the chip's wash under the pointer, so the box reads as one
-     control rather than a field with buttons bolted on. They stand as a pair, close to
-     the count they move. */
+  /* The next-match button carries the position it advances, so the count takes
+     no separate seat alongside the field. Both arrows retain the shared hit size. */
   .lf-page-search-step {
     flex: none;
-    margin-inline-start: 0;
-  }
-  .lf-page-search-status + .lf-page-search-step {
-    margin-inline-start: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    width: auto;
+    padding: 0 4px;
   }
   .lf-legend-box {
     position: absolute;

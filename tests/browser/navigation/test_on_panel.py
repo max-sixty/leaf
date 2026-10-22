@@ -325,10 +325,12 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     expect(words).to_have_text("1 of 2 to answer")
     expect(button).to_be_enabled()
     expect(page.locator("#left")).not_to_have_attribute("data-lf-done", "")
-    # A comment on the open obligation hands it to the agent until a reply: the tally
-    # says so rather than calling it the user's to answer, beside a disabled Next on me.
+    # A comment on the open obligation hands it to the agent until a reply: the tally and
+    # the item's row say so rather than calling it the user's to answer, beside a
+    # disabled Next on me.
     panel_comment(serve.page_dir, "Why Alpha?", {"section": "first-decision"})
     expect(words).to_have_text("1 of 2 on Claude")
+    expect(page.locator("#queue .lf-tab-answer").first).to_have_text("On Claude")
     expect(button).to_be_disabled()
     expect(page.locator("#left")).not_to_have_attribute("data-lf-done", "")
     assert page.locator("#left").bounding_box() == box

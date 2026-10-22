@@ -130,7 +130,7 @@
     "runtime/notifications.js": "513af64bf1665485e1db69cbe1832d9858155724ef09988943cc1271b5fbcd5e",
     "runtime/obligations/answer.js": "73de04c9e0c42d62a4066b2674e70ec65c9ccbf4cf07c60bc0a3e69734d2d2ab",
     "runtime/obligations/model.js": "15a7111d572ea54425a234c96e26dc76cf3b8beaed14b8f54be350f11e5f6bda",
-    "runtime/obligations/place.js": "7f8ef645b3042cd26e28261ef0f49cba8660b43336017abc660341a3d5db137f",
+    "runtime/obligations/place.js": "127bc9df669cb67c31fbcd6187e2ede6cfb9323f0a141645ec434917803be4ba",
     "runtime/obligations/view-elements.js": "6c1304cad3eaba1da7d556d3a369a07ad4914912b1e628ea528a69c4dacd9cd8",
     "runtime/obligations/view.js": "7cecdbd3f7bad42ab03ef20322251c405d6eefb750b6bf5c3e81485d1c468200",
     "runtime/off-flow.js": "a6ba268db07cb5fe52d651914a2d11edf30b03000512ae13bd901e9b75a4c6d1",

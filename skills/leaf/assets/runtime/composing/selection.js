@@ -799,10 +799,10 @@ export function createSelectionComposer({
       return count > 1 ? `1–${count}` : "1";
     },
     description: () =>
-      `Put a reaction on the response target: ${reactionTokens()
+      reactionTokens()
         .slice(0, 9)
         .map(([name, entry], index) => `${index + 1} ${entry.glyph} ${name}`)
-        .join(", ")}`,
+        .join(", "),
     title: "react",
     when: () =>
       reactionAvailable() &&

@@ -78,7 +78,7 @@ export { setChildLists, setChildren, setRenderedChildren } from "./dom-children.
 export { answeredInWords, readObligations } from "./obligations/model.js";
 // The obligations a region of the page holds, by the rule every count and walk of them reads.
 export { obligationsIn } from "./obligations/place.js";
-export { comparisonChanges, watchComparison } from "./version.js";
+export { comparisonChanges } from "./version.js";
 export { answerWords } from "./obligations/answer.js";
 export {
   readWork,

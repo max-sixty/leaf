@@ -1848,7 +1848,12 @@ def test_every_token_a_sheet_reads_is_set_somewhere():
     # Anything that names a property as a declaration, an `@property` or a string sets
     # it, a vendored component's sheet included; what is read is Leaf's own sheets.
     written, prefixes, reads = set(), set(), []
-    for source in sorted(schema_model.ASSETS.parent.rglob("*")):
+    sources = (
+        schema_model.ASSETS,
+        schema_model.BUNDLED_PACKAGES,
+        Path(schema_model.__file__).parent,
+    )
+    for source in sorted(path for root in sources for path in root.rglob("*")):
         if source.suffix not in (".css", ".js", ".py"):
             continue
         text = source.read_text()
@@ -1943,7 +1948,7 @@ def test_the_injected_control_face_is_a_default_only_the_document_reads():
     `test_a_pages_own_element_rules_leave_the_layers_controls_alone`; this one names the
     single rule all three depend on."""
     faces = [
-        (f"{sheet.parent.name}/{sheet.name}", selector)
+        (sheet, selector)
         for sheet in _LAYER_SHEET_ORDER
         for _conditions, _enclosing, selector, declarations in _style_rules(sheet)
         if any(name in _FACE for name, _value in declarations)
@@ -1952,7 +1957,7 @@ def test_the_injected_control_face_is_a_default_only_the_document_reads():
     # Public controls and injected controls share this one default; its root boundary
     # and class weight still protect shadow content and win over page element rules.
     control_face = ":where(:root) :is(.lf-ui-face, .button, .field)"
-    assert faces[0] == ("assets/shadow.css", control_face), faces[0]
+    assert faces[0] == (schema_model.ASSETS / "shadow.css", control_face), faces[0]
     defaults = [
         face
         for face in faces

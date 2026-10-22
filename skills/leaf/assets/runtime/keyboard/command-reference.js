@@ -24,7 +24,10 @@
 
    A row's description is its button's tooltip, and the meta line under the search
    repeats it for the row ↑↓ selects, so the keyboard reaches it too. As a grey line
-   under the title it made the catalog harder to scan for the few rows that have one.
+   under the title it made the catalog harder to scan for the few rows that have one,
+   so that line shows only where there is no hover to raise the tooltip. The meta line
+   keeps to one line, cutting a long description short, so the results never move
+   under the walk.
 
    The catalog is deliberately frozen while open. A command that becomes live waits until
    the next opening; one that becomes unavailable is rejected by fresh dispatch and causes
@@ -641,7 +644,7 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
     : nothing;
   // Whitespace in this cell is observable to accessibility and command consumers.
   // prettier-ignore
-  const actionBody = html`<div class="lf-command-reference-action"><div class="lf-command-reference-action-main">${action}${scope}</div>${entry.description ? html`<span id=${entry.descriptionId} class="lf-command-reference-description" hidden>${entry.description}</span>` : nothing}</div>`;
+  const actionBody = html`<div class="lf-command-reference-action"><div class="lf-command-reference-action-main">${action}${scope}</div>${entry.description ? html`<span id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</span>` : nothing}</div>`;
   const actionCell = html`<td role="gridcell">${actionBody}</td>`;
   return html`
     <tr

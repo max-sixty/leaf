@@ -1753,7 +1753,7 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
         .textContent=${entry.title}
       ></button>` : entry.title;
   const scope = promoted ? html`<span class="lf-command-reference-scope">${entry.sectionTitle}</span>` : nothing;
-  const actionBody = html`<div class="lf-command-reference-action"><div class="lf-command-reference-action-main">${action}${scope}</div>${entry.description ? html`<span id=${entry.descriptionId} class="lf-command-reference-description" hidden>${entry.description}</span>` : nothing}</div>`;
+  const actionBody = html`<div class="lf-command-reference-action"><div class="lf-command-reference-action-main">${action}${scope}</div>${entry.description ? html`<span id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</span>` : nothing}</div>`;
   const actionCell = html`<td role="gridcell">${actionBody}</td>`;
   return html`
     <tr

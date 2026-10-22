@@ -24,8 +24,8 @@
      row's, so a row's description repeats under every route.
    - `title` is the command's required concise name, or a function when state changes
      it. The obligation, menu rows, reference, and announcements read these same words.
-   - `description` is the row's tooltip in the reference, and its meta line when the
-     row is selected. Most rows need none. Write one only for something the title and
+   - `description` is the row's tooltip in the reference, its meta line when the row
+     is selected, and a line under its title where there is no hover. Most rows need none. Write one only for something the title and
      section heading leave out and a short title can't hold, such as "Keeps what is
      typed" or the action Undo would take back. If the missing words fit in the title,
      put them there ("discard" rather than "stop editing").

@@ -98,7 +98,6 @@ export interface Thread {
     label: string;
     covers: readonly string[];
     protected: readonly string[];
-    trigger?: string;
   })[];
   unread: readonly ContentVersion[];
   attention: Attention;

@@ -399,6 +399,7 @@ import {
   whenWidgetsPresented
 } from "./bundle-semantic-state.js";
 import {
+  J,
   PENDING,
   Z,
   actionForWidget,
@@ -412,7 +413,6 @@ import {
   isThreadEvent,
   moved,
   obligationValue,
-  outsideReading,
   projectionOrigins,
   reactionsAt,
   stateCoordinate,
@@ -2144,20 +2144,10 @@ function createSelectionComposer({
 }
 
 // runtime/projection-watch.js
-var presentations = 0;
-var heard = /* @__PURE__ */ new Set();
+var presentations = Z(0);
 document.addEventListener(PRESENTATION, () => {
-  presentations += 1;
-  const round = {};
-  for (const moved2 of [...heard]) moved2(round);
+  presentations.value += 1;
 });
-var presented2 = outsideReading(
-  () => presentations,
-  (moved2) => {
-    heard.add(moved2);
-    return () => heard.delete(moved2);
-  }
-);
 function watchProjection(owner, paint, ready = null) {
   let key = 0;
   let queued = false;
@@ -2184,7 +2174,7 @@ function watchProjection(owner, paint, ready = null) {
       }
       first = false;
       try {
-        presented2.read();
+        presentations.value;
         outcome = { value: paint() };
       } catch (error) {
         outcome = { error };
@@ -2599,7 +2589,7 @@ function createAnchorTravel({
     const where = segment ? rangeOf([segment]) : targetElement(placement) ?? targetPlace(placement);
     return livePoint(targetElement(placement) ?? targetPlace(placement), placement?.point) ?? where;
   };
-  async function scrollToThread(id, { part = null, focus = true, presented: presented3 = null, intent } = {}) {
+  async function scrollToThread(id, { part = null, focus = true, presented: presented2 = null, intent } = {}) {
     const mayArrive = retainTravel(intent);
     const thread = threadNamed(id);
     const anchor = thread?.anchor;
@@ -2635,7 +2625,7 @@ function createAnchorTravel({
         intent: mayArrive,
         departure,
         present: async () => {
-          if (presented3) await presented3;
+          if (presented2) await presented2;
           if (mayArrive()) await refreshThread();
         }
       }
@@ -8292,9 +8282,7 @@ function acceptData(candidate, taken) {
 var joined = /* @__PURE__ */ new Set();
 async function notifyDataSubscribers() {
   const version = runtime.data.version;
-  deliveries += 1;
-  const round = {};
-  for (const delivered of [...deliveryListeners]) delivered(round);
+  deliveries.value += 1;
   await whenApplicationRegionsPresented(
     [...joined],
     () => runtime.data.version === version
@@ -8379,28 +8367,25 @@ function inputBinding(element, declaration) {
 function dataReader(element, input, accepted) {
   const declaration = declaredInput(element, input);
   const { source, widget, selected, snapshot } = inputBinding(element, declaration);
-  let shown;
-  let taken = -1;
-  const delivered = outsideReading(
+  let stopAccepted;
+  const delivered = J(
     () => {
-      if (taken !== deliveries) {
-        taken = deliveries;
-        shown = d(selected.read);
-      }
-      return shown;
+      deliveries.value;
+      return d(selected.read);
     },
-    (moved2) => {
-      let seen = d(selected.read);
-      const stop = selected.subscribe((now) => {
-        if (now === seen) return;
-        seen = now;
-        accepted();
-      });
-      deliveryListeners.add(moved2);
-      return () => {
-        stop();
-        deliveryListeners.delete(moved2);
-      };
+    {
+      watched() {
+        let seen = d(selected.read);
+        stopAccepted = selected.subscribe((now) => {
+          if (now === seen) return;
+          seen = now;
+          accepted();
+        });
+      },
+      unwatched() {
+        stopAccepted?.();
+        stopAccepted = null;
+      }
     }
   );
   let reported = null;
@@ -8408,7 +8393,7 @@ function dataReader(element, input, accepted) {
   return () => {
     const sourceStore = (
       /** @type {{contract: string, revision?: string} | null} */
-      widget ? selected.read() : delivered.read()
+      widget ? selected.read() : delivered.value
     );
     const incompatible = sourceStore && sourceStore.contract !== declaration.contract;
     if (incompatible && reported !== sourceStore) {
@@ -8427,8 +8412,7 @@ function dataReader(element, input, accepted) {
     return copied.value;
   };
 }
-var deliveries = 0;
-var deliveryListeners = /* @__PURE__ */ new Set();
+var deliveries = Z(0);
 function joinDataDelivery(region) {
   joined.add(region);
   return () => joined.delete(region);

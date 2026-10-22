@@ -475,7 +475,7 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
         runs = []
         run = []
         for message in threads[t]["msgs"]:
-            if message["id"] in covered:
+            if message["id"] in covered or message.get("ephemeral"):
                 if run:
                     runs.append(run)
                     run = []

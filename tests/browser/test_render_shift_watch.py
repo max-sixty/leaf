@@ -841,6 +841,11 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
         in {"tail_growth", "region_growth", "tail_and_region_growth", "tail_replaced"}
         else ""
     )
+    hidden = (
+        '<div id="hidden" hidden>Earlier progress.</div>'
+        if fault.endswith("tail_replaced")
+        else ""
+    )
     page = browser.new_page()
     page.goto(
         "data:text/html,"
@@ -850,7 +855,7 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
             'padding:5px;box-sizing:border-box;overflow:auto;overflow-anchor:none">'
             '<section style="overflow:clip">'
             '<div id="source" data-lf-reflow="append">'
-            f'<p id="old"{tail} style="margin:0;height:40px">Already reading.</p></div>'
+            f'{hidden}<p id="old"{tail} style="margin:0;height:40px">Already reading.</p></div>'
             '<button id="reply" style="display:block;position:sticky;bottom:0">Reply</button></section>'
             '<article><p style="margin:0">Another conversation.</p>'
             '<button id="later">Later thread</button></article></div>'
@@ -880,6 +885,8 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
           next.style.cssText = `margin:0;height:${fault.startsWith('sticky_') ? 400 : 40}px`;
           if (fault === 'prepend') source.prepend(next);
           else if (fault.endsWith('tail_replaced')) {
+            // Completing the tail removes its boxless progress checkpoint too.
+            document.getElementById('hidden').remove();
             next.style.height = '80px';
             document.getElementById('old').replaceWith(next);
             next.id = 'old';

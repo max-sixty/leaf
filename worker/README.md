@@ -551,8 +551,7 @@ ask, which leaves the answer in force and lets the user answer again
 | `startup_failed` | Worker, or the container for a message it took up after a turn ended | The turn could not be started                    |
 | `turn_failed`    | Container                                                            | A turn it followed ended without an answer       |
 
-`leaf-dev journey`, the deploy's last check, retries once on `startup_failed` and fails
-at once on any other failure receipt.
+`leaf-dev journey`, the deploy's last check, fails on the first failure receipt.
 
 The Worker starts each turn inside the request's `waitUntil`, which Cloudflare allows
 30 seconds. The accepted event is durable; the running turn is not, and nothing

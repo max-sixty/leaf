@@ -18,8 +18,9 @@ widget keys its rules for that case on `@container style(--lf-full-height: 1)`, 
 reads its parent, and fits what it shows to the height. It declares
 `--lf-holds-height: 1` on each part that scrolls within it, and sets
 `--lf-full-height: inherit` on each box that passes the height down, as a playground
-does to its panes. The property doesn't inherit, so a widget nested in a section is not
-told and grows with its content.
+does to its panes. An `lf-ask` passes it to its answering widget, and page tabs to a
+tab that is one block. The property doesn't inherit, so a widget nested in a section, or
+in a tab of several blocks, is not told and grows with its content.
 
 A module that builds its own panes, such as a playground's controls beside its preview,
 marks each generated box `data-lf-reading-role="pane"` and `data-lf-generated`, with a
@@ -140,10 +141,10 @@ an `overflow: hidden` box scrolls away with the page.
 ### Sideways scrollers and container queries
 
 Give a box a package scrolls sideways the class `lf-text-scroller`, and Leaf leaves room
-below its last line for an overlay scrollbar. Write its overflow as `auto hidden`. Down,
-`visible` would compute to `auto` beside the scrolling axis, and a box that scrolls
-down restarts the landing band, so a landing inside it no longer clears the sticky
-headers above it.
+below its last line for an overlay scrollbar. Write its overflow as `auto hidden`. A
+`visible` vertical axis would compute to `auto` beside the scrolling one, and a box that
+scrolls vertically restarts the landing band, so a landing inside it would no longer
+clear the sticky headers above it.
 
 The page decides how big a Leaf element's box is, and the package how its contents use
 that space, from the element's own width; prefer intrinsic grid or flex layout. For a

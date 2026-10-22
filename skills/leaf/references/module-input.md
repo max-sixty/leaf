@@ -6,7 +6,8 @@ module owes.
 ## Commands and keyboard routes
 
 A widget declares each command once, at upgrade, with
-`commands(element, title, rows, options)`; `options` is the scope's `when`, alone or as `{when}`.
+`commands(element, title, rows, options)`; `options` is the scope's `when`, alone or as
+`{when}`.
 
 For controls Leaf draws, such as margin entries, build the scope as a value with
 `commandScope(title, rows, options)` and put it on the entry's `scope`
@@ -54,9 +55,7 @@ browser or an outer handler makes. `control` is the visible element that activat
 `when` says whether it is available, and a route may have its own. `reach` is the short
 phrase the command reference shows while it isn't, such as `in an open draft editor`.
 Set `runFromCommandReference: false` for a step the reference can't run without a choice
-it lacks. `ready` is described in `module-authoring.md`, "Startup and presentation";
-`decision` and `contextKeys` in "Decisions and forwarded keys" below; and `bindingBadge`
-in "Inline shortcut hints".
+it lacks. `ready` is described in `module-authoring.md`, "Startup and presentation".
 
 Leaf re-evaluates a `when` or a computed field when the readings it uses change, such as
 a widget's state or the threads. For any other state it reads, hold the value in a
@@ -167,9 +166,10 @@ it inside `whileConnected` and call that function in the cleanup. The causes are
 
 Where focus stands is marked by `data-lf-focus`, and its composed ancestry by
 `data-lf-focus-within`. Draw focus rings from `data-lf-focus-visible` and
-`data-lf-focus-visible-within` instead, which follow the browser's `:focus-visible`, so
-a pointer-focused control can reveal its actions without a keyboard ring. The same
-names without `data-` are public shadow parts.
+`data-lf-focus-visible-within` instead. On a control they follow the browser's
+`:focus-visible`, so a pointer-focused control can reveal its actions without a keyboard
+ring; text fields and reading destinations carry them whenever they hold focus. The
+same names without `data-` are public shadow parts.
 
 ### Layers
 
@@ -231,13 +231,14 @@ element drawn on; a moving visual listens for it and freezes what it shows.
 ## Text entry and drafts
 
 A widget's own text box is `offer(TEXT_FIELD)`, Leaf's Markdown editor, which behaves
-like a textarea and fires `input` only for the user's edits. `TEXT_FIELD` is its tag, and `TEXT_BOX` matches it or a native
-textarea. The field matches `:state(ready)` once it draws its words; where it replaces
-text the user was reading, leave that text in place until then, so the scroller doesn't
-shrink.
+like a textarea and fires `input` only for the user's edits. `TEXT_FIELD` is its tag,
+and `TEXT_BOX` matches it or a native textarea. The field matches `:state(ready)` once
+it draws its words; where it replaces text the user was reading, leave that text in
+place until then, so the scroller doesn't shrink.
 
-Wire the box with `wireInput(box, options)`, which gives it Leaf's send keys. The
-options are `sendBtn`, the send control; `sends`, its action
+Wire the box with `wireInput(box, options)`. Enter sends on a physical keyboard,
+Shift+Enter writes a newline, and Mod+Enter sends anywhere; on a touch screen the
+visible control sends. The options are `sendBtn`, the send control; `sends`, its action
 in words; `hint`, the placeholder; `save(value)`, called with the whole draft on each
 edit; `send(text, raw, owns)`, called on send with the trimmed and raw draft; `busy()`
 and `hasContent(raw)`, which hold sending back; and `paint()`, the widget's own drawing

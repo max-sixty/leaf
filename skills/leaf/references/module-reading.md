@@ -46,15 +46,15 @@ declaration, such as `$reactions`.
 
 Reach another widget through an attribute declared in `x-refers`
 ([package-data.md, "References between widgets"](package-data.md#references-between-widgets)),
-not by looking up the id yourself. Both helpers below throw for an undeclared
-attribute.
+not by looking up the id yourself.
 
 `navigateToDatum(this, attribute, key, {success, missing, focus})` takes the user to
 the first element `key` names in the referenced widget: a visual part's id, a projected
 datum's key, or whatever the target's `lfElementsFor(key)` maps it to (`lf-code` takes
 line ranges such as `"3-5,8"`). Leaf loads the datum, opens what holds it, reveals and
-focuses it, and announces `success` or `missing`. Pass `focus: false` when the source stays the user's input surface, as a
-file navigator does beside the evidence it selects. A lazy target can implement
+focuses it, updates the fragment, and announces `success` or `missing`. Pass
+`focus: false` when the source stays the user's input surface, as a file navigator does
+beside the evidence it selects. A lazy target can implement
 `lfRevealDatum(key)`, returning a promise that resolves once the datum is loaded,
 `lfDataDatum(key)` to map a key to its projected element, and `lfDatumLabel(key)` to
 name a datum not yet drawn. Where your key is a source location rather than the datum's
@@ -64,7 +64,8 @@ element or `null`.
 #### Indicating (experimental)
 
 `indicate(this, attribute, key)` marks the elements `key` names in the referenced
-widget with `data-lf-indicated`, replacing this widget's previous mark, and returns
+widget with `data-lf-indicated`, replacing this widget's previous mark through that
+attribute, and returns
 whether it marked anything; pass `null` to clear it, including in your cleanup. It
 doesn't scroll, focus, load, announce or record anything, so a widget may move the mark
 every frame and says in its own words what the mark means. A target whose parts have
@@ -186,10 +187,10 @@ arrives. Each `source.kind` adds its own facts:
   newest has one. `obligationsIn` never counts an update.
 
 `answerWords(obligation)` words an answer for display, using a widget's `answerWords`
-(`module-state.md`, "Declared widget state"). `obligationsIn(region, obligations)` returns
-the widgets' obligations, not withdrawn, inside `region`; `lf-tabs` and `lf-tally` count
-with it, so a module marking obligations per card or section should too, passing
-`readObligations().user` for those waiting on the user.
+(`module-state.md`, "Declared widget state"). `obligationsIn(region, obligations)`
+returns the widgets' obligations, not withdrawn, inside `region`; `lf-tabs` and
+`lf-tally` count with it, so a module marking obligations per card or section should
+too, passing `readObligations().user` for those waiting on the user.
 
 `obligationActions.open(id)` takes the user to an obligation, resolving to `false` if
 it is gone. `obligationActions.next({within, dir})` steps to the next obligation

@@ -107,7 +107,8 @@ A widget output reads through the same `this.data(input)`, as
 `{contract, value, origin: {derived: [{widget: producerId}]}}`. Its producer publishes
 it with `publishOutput(element, name, value)` (package-data.md, "Widget outputs") in the
 turn that commits the matching rendering, and publishes `null` rather than keep stale
-records after a failed replacement.
+records after a failed replacement. Leaf doesn't check a published value against its
+contract, so publish only values that fit it.
 
 Rows whose contract declares a `deferred` field arrive without it. Fetch one row's field
 with `loadDeferred(snapshot, key)`, which throws if the source changed in the meantime.

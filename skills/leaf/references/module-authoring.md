@@ -25,8 +25,10 @@ long it lives across revisions. A widget's declarations are in
 ## The helper surface
 
 Import Leaf's helpers only from `/runtime/widget-api.js`. Don't import the runtime's
-other modules, query Leaf's own chrome, or copy a runtime helper. A DOM helper takes the
-element it acts for as its first argument.
+other modules, query Leaf's own chrome, or copy a runtime helper. Each helper is
+described in the section for the task it serves, and its full contract is in the header
+of the module `widget-api.js` re-exports it from. A DOM helper takes the element it acts
+for as its first argument.
 
 From Lit, `widget-api.js` exports `render`, `html`, `nothing`, `repeat`, `keyed`,
 `live`, `ref`, `createRef`, `classMap`, `styleMap`, `guard` and `unsafeHTML`. From
@@ -65,10 +67,12 @@ callback calls the `super` method.
 
 `quoted(element)` is true for a widget inside one the registry marks `x-exhibit`, such
 as `lf-sample`. A quoted widget never takes the user's edits, so check `quoted` before
-wiring a choice, a drag grip or anything else that sends input back.
+wiring a choice, a drag grip or anything else that sends input back. Its presentation
+and view state still work.
 
 When an upgrade or one part of it fails, `failSoft(element, error, source)` replaces
-the widget or part with an error box naming it and reports a page error, which fails `page check`. The widget's next draw removes the box.
+the widget or part with an error box naming it, with `source` beneath when given, and
+reports a page error, which fails `page check`. The widget's next draw removes the box.
 Where the widget shows a failed part its own way, as `lf-diff` does for a patch it
 cannot draw, `reportFailure(element, error)` only reports.
 
@@ -92,8 +96,8 @@ setup() {
 ```
 
 Leaf calls `start(signal)` now and on each return. When the element leaves, Leaf aborts
-the signal and runs the cleanup `start` returned. `whileConnected` returns a function
-that ends the registration for good.
+the signal and runs the cleanup `start` returned. If `start` throws, Leaf never calls
+it again. `whileConnected` returns a function that ends the registration for good.
 
 Moving an element within the page doesn't count as leaving. When a revision replaces a
 widget, the old element's cleanup runs before the new one's `start`, so a registration

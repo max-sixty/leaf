@@ -83,8 +83,9 @@ their positions change.
 
 `readThreads()` returns the `{phase, threads}` Leaf's Threads list reads, and a render
 that calls it redraws when it changes. A thread the user just started is there at once;
-only `phase === "ready"` means every saved thread is. `threadTurns(thread)` returns a Thread's turns, and
-`threadSummary(thread)` its `topic`, its name in words, and its `latest` activity.
+only `phase === "ready"` means every saved thread is. `threadTurns(thread)` returns a
+Thread's turns, and `threadSummary(thread)` its `topic`, its name in words, and its
+`latest` activity.
 
 Address a Thread by its `key`, which stays the same after the server admits it; its `id`
 is the name obligations and workflows use. `root` is its opening message, `anchor` names
@@ -163,8 +164,8 @@ and Reopen through `threadActions`.
 
 Await the handle's `update()` after a local layout change, or `update({release: true})`
 to show held news for a deliberate change of view. If `render` throws or names an outlet
-outside the widget, that update rejects, the threads go back to Leaf's floating panel and `primary` reads
-false until the next `update()` takes them back.
+outside the widget, that update rejects, the threads go back to Leaf's floating panel,
+and `primary` reads false until the next `update()` takes them back.
 
 `reveal(key, request)` shows the requested part in the package's layout, or returns
 `false` to leave the part to the thread's place on the page, such as its margin card.

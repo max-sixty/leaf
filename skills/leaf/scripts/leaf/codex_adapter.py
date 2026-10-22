@@ -16,7 +16,10 @@ One of two transports carries the adapter's offer. The `codex queue` command is 
 default for a task whose App Server Leaf cannot reach, such as the Codex desktop
 app's. It leaves a pointer for the task's next turn; the task reads that
 immutable input through `leaf delivery read` and answers with explicit commands, the
-reply included. Over App Server, one `TaskConnection` owns the subscribed socket,
+reply included. On the macOS desktop, the adapter then wakes the queued chat through
+the app's background deep link: an external queue write alone waits for Codex's
+ten-second check. Queue acceptance precedes the wake, so a failed wake cannot resend
+accepted input. Over App Server, one `TaskConnection` owns the subscribed socket,
 serializes starts, and routes every notification into one `TurnFold` per provider
 turn. It observes the user's turns and Leaf delivery turns alike. Losing the
 connection disconnects the folds; reconnecting reconciles them with the provider's
@@ -175,6 +178,34 @@ def queue_delivery(
     arguments = ["queue"]
     arguments.extend(["--thread", thread_id, "--message", prompt])
     _run_codex(codex_path, *arguments)
+
+
+def _wake_desktop_queue(thread_id: str) -> None:
+    """Resume an already queued desktop chat without opening or focusing it.
+
+    The app handles `threads/wake` by reading the queue and resuming its thread;
+    Codex still owns dispatch and starts only when idle. If the wake fails, the
+    accepted message remains in the queue for Codex's external-write watcher.
+    """
+    if (
+        sys.platform != "darwin"
+        or os.environ.get("CODEX_INTERNAL_ORIGINATOR_OVERRIDE") != "Codex Desktop"
+    ):
+        return
+    try:
+        subprocess.run(
+            ["open", "-g", f"codex://threads/wake/{thread_id}"],
+            capture_output=True,
+            text=True,
+            timeout=QUEUE_TIMEOUT,
+            check=True,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        print(
+            f"Codex queue wake failed; input remains queued: {error}",
+            file=sys.stderr,
+            flush=True,
+        )
 
 
 class TaskConnection:
@@ -850,6 +881,7 @@ def _offer_queued_delivery(
     # for each, and the second one's `delivery ack` says it repeats the first
     # (`delivery.earlier_pickup`).
     accept_codex_delivery(session_id, prepared.payload["id"], None)
+    _wake_desktop_queue(session_id)
     return True
 
 

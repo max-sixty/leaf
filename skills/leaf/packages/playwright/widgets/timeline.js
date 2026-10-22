@@ -589,20 +589,20 @@ export class RecordingTimeline {
                   html` <div class="lf-trace-lane lf-trace-lane-input">
                     ${labels("inputs")}
                     ${For({
-                    get each() {
-                      return read().sends;
-                    },
-                    keyed: (item) => item.id,
-                    children: (item) =>
-                      html` <span
-                        class="lf-trace-input-send"
-                        data-pick="input"
-                        data-id=${() => item().id}
-                        data-tip=${() => item().title}
-                        data-current=${() => (item().current ? "" : undefined)}
-                        style=${() => ({ "--t": String(item().t) })}
-                      ></span>`,
-                  })}
+                      get each() {
+                        return read().sends;
+                      },
+                      keyed: (item) => item.id,
+                      children: (item) =>
+                        html` <span
+                          class="lf-trace-input-send"
+                          data-pick="input"
+                          data-id=${() => item().id}
+                          data-tip=${() => item().title}
+                          data-current=${() => (item().current ? "" : undefined)}
+                          style=${() => ({ "--t": String(item().t) })}
+                        ></span>`,
+                    })}
                     ${bars("inputBars")}
                   </div>`,
               })}

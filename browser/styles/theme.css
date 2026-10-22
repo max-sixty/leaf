@@ -763,9 +763,11 @@ html {
  * part of the document's final layout. The render-blocking theme reserves that room so
  * the useful initial HTML paints where it will remain. The root stays the document
  * scrollport. Its definite height lets a page Layout's body minimum (layouts.css) fill a
- * short viewport while a longer body still overflows it. A permanent scrollbar prevents a
- * later height change from recentering the page. A served page's bootstrap marks it
- * live before its graph has loaded (runtime/bootstrap.js); an export draws no chrome,
+ * short viewport while a longer body still overflows it. Document layouts keep a
+ * scrollbar to prevent a later height change from recentering the page; a workspace
+ * scrolls its own regions and needs a root scrollbar only when it flows. A served
+ * page's bootstrap marks it live before its graph has loaded (runtime/bootstrap.js);
+ * an export draws no chrome,
  * and paper has no fixed chrome. */
 @media screen {
   html[data-lf-live] {
@@ -794,6 +796,9 @@ html {
       display: block;
       height: var(--lf-head-room);
     }
+  }
+  html[data-lf-live][data-lf-layout~="workspace"] {
+    overflow-y: auto;
   }
   /* A block sample stands in its containing page, and its frame takes the body's
    * height (lf-sample.js). So the body keeps to its content rather than filling the

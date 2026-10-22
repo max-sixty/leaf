@@ -844,11 +844,10 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
 def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, serve):
     """The sidebar is a page-level margin resident rather than a narrower prose column.
 
-    On a roomy page a contents map stands in the left margin, fixed at the window's top, and
-    rests as its spine: it claims nothing, so the column keeps the page's axis, and its
-    labels reveal over the page without moving anything. The spine states the room it
-    takes, so the release-notes shot, the wide exhibit in the control, grows left only
-    to stop short of it.
+    On a roomy page a sidebar with prose claims the full left margin while its contents
+    map rests as a spine, fixed at the window's top. The column keeps the page's axis,
+    and the map's labels reveal without moving anything. The release-notes shot, the
+    wide exhibit in the control, grows left only to the claimed margin's edge.
 
     The On panel stands over the page from the right and moves nothing in the left
     margin. A narrow viewport returns the aside to the flow, and print proves paper
@@ -919,7 +918,8 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     roomy = page.evaluate(reading)
     # The sidebar also holds prose, so it keeps its full margin claim while the map
     # rests on its spine. Its labels may reveal inside that reserved space.
-    assert 0 < roomy["toc"]["width"] < roomy["taken"] < roomy["pageWidth"] / 2, roomy
+    assert 0 < roomy["toc"]["width"] < roomy["taken"], roomy
+    assert abs(roomy["taken"] - roomy["column"]["left"]) <= 1, roomy
     assert roomy["float"] == "left" and roomy["position"] == "sticky"
     assert roomy["sidebar"]["right"] <= roomy["column"]["left"] - 23, (
         f"the sidebar's box reached into the reading column: {roomy}"

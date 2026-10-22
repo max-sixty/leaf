@@ -313,7 +313,9 @@ RING_CASES = (
             "notification-playground": (
                 ("lf-playground input[type=radio]", ".choice:has"),
             ),
-            "review-a-plan": (("main details > summary", ":where([data-lf-focus])"),),
+            "review-a-plan": (
+                ("main details > summary", ":where([data-lf-focus-visible])"),
+            ),
             "pr-walkthrough": (
                 (
                     "#pr-flow-tab",

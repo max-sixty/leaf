@@ -1,12 +1,20 @@
 /**
  * Leaf's Claude Code hooks module: the band above the prompt that shows the
- * session's pages. Claude Code loads it from the installed plugin (measured at
- * 2.1.305). It neither watches nor wakes the session: `hooks.json`'s background
- * Stop registration keeps the watch between turns, whose wake Claude Code draws as
- * one "Stop hook feedback" row. A watch here would wake with a prompt, which Claude
- * Code draws as the user's own message and drops from an Escape until the user
- * next types, so every wake after an Escape became a cross-session nudge
- * (measured at 2.1.307 with the claude-code journey).
+ * session's pages, and the drawing of Leaf's own rows in the conversation. Claude
+ * Code loads it from the installed plugin (measured at 2.1.305). It neither
+ * watches nor wakes the session: `hooks.json`'s background Stop registration
+ * keeps the watch between turns. A watch here would wake with a prompt, which
+ * Claude Code drops from an Escape until the user next types, so every wake after
+ * an Escape became a cross-session nudge (measured at 2.1.307 with the
+ * claude-code journey).
+ *
+ * Starting an idle turn always draws a row, and no hook or exit code wakes the
+ * session without one (read in 2.1.307's source). The watch's wake is a task
+ * notification whose summary `hooks.json` names (`rewakeSummary`, an internal
+ * field of Claude Code's hook schema), and the module draws that row as nothing,
+ * leaving the band to show the agent at work; a nudge, which comes as another
+ * session's message, it draws as one dim line. The model reads both whole, and
+ * ctrl+o shows them as Claude Code draws them.
  *
  * A module's processes inherit Claude Code's own environment, which names no
  * session of its own, so every call states the session and Claude Code's process
@@ -35,6 +43,12 @@ import type { EngineInterface, Register, RenderElement } from "claude-code";
 
 // Claude Code's process, read once by `sessionOf`.
 let claudePid = "";
+
+// The summary `hooks.json` gives the background watch's wake, which Claude Code
+// draws as a task notification's row, and the words of the nudge Leaf sends
+// through session messaging (`ClaudeCodeHarness.nudge`).
+const WAKE_SUMMARY = "Leaf: new input";
+const NUDGE_WORDS = "has new input, which arrives with this message.";
 
 // A live page the session holds, as the follower prints it (`hooks.cmd_pages`).
 type Leaf = {
@@ -198,6 +212,19 @@ export const register: Register = (on) => {
   });
 
   // The band is shared: Leaf's lines go above whatever the plugins beneath draw.
+  // Leaf's own rows in the conversation stay quiet, unless ctrl+o expands them; the
+  // model reads them whole either way.
+  on("ui.render", { component: "UserMessage" }, async ($, e, next) => {
+    if (e.props.isExpanded) return next(e);
+    const { origin, text } = e.props;
+    const { Box, Text } = $.ui.resolve(e);
+    if (origin.kind === "task-notification" && text === WAKE_SUMMARY)
+      return h(Box, {}) as RenderElement;
+    if (origin.kind === "peer" && text.includes(NUDGE_WORDS))
+      return h(Text, { dimColor: true }, "Leaf: new input") as RenderElement;
+    return next(e);
+  });
+
   on("ui.render", { component: "AbovePrompt" }, async ($, e, next) => {
     const beneath = await next(e);
     if (leaves.length === 0 || e.props.hasSurvey) return beneath;

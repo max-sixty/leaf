@@ -129,6 +129,44 @@ def band_lines(band) -> list[tuple[str, str]]:
     ]
 
 
+def test_leaves_own_rows_in_the_conversation_stay_quiet(spawn, sessionless):
+    """The watch's wake, a task notification under the summary `hooks.json` names,
+    draws as nothing, and Leaf's nudge, another session's message, as one dim line.
+    Other rows, and Leaf's own once ctrl+o expands them, draw as Claude Code
+    draws them."""
+    [summary] = [
+        hook["rewakeSummary"]
+        for entry in json.loads((DRIVER.parents[1] / "hooks/hooks.json").read_text())[
+            "hooks"
+        ]["Stop"]
+        for hook in entry["hooks"]
+        if hook.get("asyncRewake")
+    ]
+    driven = ClaudeCode(spawn, "cc-rows", {})
+
+    def drawn(origin: dict, text: str, expanded: bool = False):
+        row = {
+            "component": "UserMessage",
+            "props": {"text": text, "origin": origin, "isExpanded": expanded},
+        }
+        result = driven.emit("ui.render:UserMessage", row)["result"]
+        # The driver's bottom answers with the row it reached: Claude Code's drawing.
+        return "engine" if result == row else result
+
+    wake = {"kind": "task-notification"}
+    nudge = "leaf: /p has new input, which arrives with this message."
+    assert drawn(wake, summary) == {"tag": "Box", "props": {}, "children": []}
+    assert drawn({"kind": "peer"}, nudge) == {
+        "tag": "Text",
+        "props": {"dimColor": True},
+        "children": ["Leaf: new input"],
+    }
+    assert drawn(wake, summary, expanded=True) == "engine"
+    assert drawn(wake, "Stop hook feedback") == "engine"
+    assert drawn({"kind": "composer"}, "hello") == "engine"
+    driven.quit()
+
+
 def test_the_band_follows_the_pages_the_session_holds(
     page_dir, claude_code, monkeypatch
 ):

@@ -10,7 +10,8 @@
 // line `{"flush": true}` prints `{"flushed": true}` once the module has done what
 // it does without waiting on anything outside. Each redraw the module asks for
 // prints `{"band": <tree>}`, the band above the prompt as its render hook draws
-// it, each element `{tag, props, children}`. The first line printed is `{"pid"}`,
+// it, each element `{tag, props, children}`; a render hook of another component is
+// raised as the event `ui.render:<component>`. The first line printed is `{"pid"}`,
 // the process the module's processes see as their parent.
 import { spawn } from "node:child_process";
 import * as path from "node:path";
@@ -132,17 +133,19 @@ globalThis.h = (tag, props, ...children) => ({ tag, props, children });
 /** The band above the prompt, as the module's render hooks draw it over nothing. */
 async function drawBand() {
   const band = { component: "AbovePrompt", props: { hasSurvey: false } };
-  const chain = (hooks.get("ui.render") ?? []).reduceRight(
+  const chain = (hooks.get("ui.render:AbovePrompt") ?? []).reduceRight(
     (next, hook) => (input) => hook($, input, next),
     async () => null,
   );
   print({ band: await chain(band) });
 }
 
-// The driver raises each event it is given, so a matcher selects nothing here.
-await register((event, ...rest) =>
-  hooks.set(event, [...(hooks.get(event) ?? []), rest.at(-1)]),
-);
+// The driver raises each event it is given, so a matcher selects nothing here but
+// a render hook's component, under which it files the hook: `ui.render:<component>`.
+await register((event, ...rest) => {
+  const key = event === "ui.render" ? `${event}:${rest[0].component}` : event;
+  hooks.set(key, [...(hooks.get(key) ?? []), rest.at(-1)]);
+});
 print({ pid: process.pid });
 
 for await (const line of readline.createInterface({ input: process.stdin })) {

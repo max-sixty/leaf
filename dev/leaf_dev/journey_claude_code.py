@@ -456,11 +456,12 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
 
 def leaf_rows(records: list[dict]) -> dict[str, int]:
     """How many rows of each kind Leaf put in the conversation the user reads, among
-    native `records`: a wake (`hooks.json`'s background Stop hook, whose task
-    notification Claude Code draws as "Stop hook feedback"), a nudge through
-    session messaging, a notice the hooks module logged, and a hook's error. A wake or nudge no hook delivery follows before the next
-    one, or the user's next prompt, also counts as `empty`: a turn opened for
-    input another turn had already taken."""
+    native `records`: a wake (`hooks.json`'s background Stop hook, a task
+    notification whose summary the registration names), a nudge through session
+    messaging, a notice the hooks module logged, and a hook's error. A wake or
+    nudge no hook delivery follows before the next one, or the user's next prompt,
+    also counts as `empty`: a turn opened for input another turn had already
+    taken. A row counts whether or not the hooks module draws it."""
     rows: dict[str, int] = {}
     opened = False
 
@@ -485,7 +486,7 @@ def leaf_rows(records: list[dict]) -> dict[str, int]:
         text = json.dumps(content) if not isinstance(content, str) else content
         kind = (
             "Stop hook wake"
-            if "Stop hook feedback" in text and "Leaf:" in text
+            if "<summary>Leaf: new input</summary>" in text
             else "nudge"
             # The words of `ClaudeCodeHarness.nudge`.
             if "has new input, which arrives with this message." in text

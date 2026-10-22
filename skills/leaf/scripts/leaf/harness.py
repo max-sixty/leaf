@@ -75,12 +75,12 @@ class Harness:
       session's pages in the background and wakes the session when input arrives
       (`watches_between_turns`), and the prompt hook, which runs as the turn the
       wake opens begins, and the tool-batch hook within a turn put the input in
-      the turn's context and confirm it (`hook_delivers`); the other Stop hook
-      does only under plain `--print`, where no watch follows the turn
-      (`hook_transport`). A turn that ends without its Stop hooks, as an
-      interrupt does, starts no watch, so where no watch from before it runs,
-      nothing watches while the session lives on, which is why this is the
-      harness with a `nudge`.
+      the turn's context (`hook_delivers`), which the turn's next hook confirms
+      (`commits_hook_context`); the other Stop hook does only under plain
+      `--print`, where no watch follows the turn (`hook_transport`). A turn that
+      ends without its Stop hooks, as an interrupt does, starts no watch, so
+      where no watch from before it runs, nothing watches while the session lives
+      on, which is why this is the harness with a `nudge`.
     - Pi runs Leaf's extension in its own process, which calls the same hooks at
       the same points of a run and starts the same watch as each run settles, and
       starts the turn the watch wakes itself.
@@ -101,6 +101,11 @@ class Harness:
     # hand over the whole delivery. Explicit waits carry their own envelope.
     # `hooks_carry` says whether they do for this session.
     hook_delivers: ClassVar[bool] = False
+    # Whether the context a hook hands over is in the session once the hook
+    # returns, so the hook confirms what it hands over. Where it is not, the hand-
+    # over waits for a later hook of the same turn to confirm it, and is offered
+    # again if the turn ends first (`delivery.confirm_turn`).
+    commits_hook_context: ClassVar[bool] = True
 
     @classmethod
     def from_claim(cls, claim: dict) -> Harness:
@@ -326,6 +331,12 @@ class ClaudeCodeHarness(EnvironmentHarness):
     # Claude Code runs the prompt hook on every turn a background task's end
     # opens, idle or mid-turn, and adds what it returns to that turn's context.
     hook_delivers = True
+    # It reads a hook's output only once every hook of that event has exited, and
+    # Escape before then drops the whole prompt, Leaf's context with it (measured
+    # at 2.1.304 with a second prompt hook sleeping 6 s). No hook says the output
+    # was taken, so the turn's next hook confirms it: a tool call or the turn's
+    # end means the model read the context.
+    commits_hook_context = False
 
     def lifetime(self) -> dict:
         """A session the user sits at is a process, and Claude Code states it

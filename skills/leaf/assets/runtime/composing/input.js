@@ -61,19 +61,20 @@ import { readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "../media.
 import { announce } from "../notifications.js";
 import { iconElement, iconTemplate } from "../icons.js";
 import { drawingThumbnail } from "./drawing-context.js";
-import { LitElement, html, render as renderHint } from "/vendor/browser-runtime.js";
+import {
+  LitElement,
+  html,
+  render as renderHint,
+  effect,
+  untracked,
+} from "/vendor/browser-runtime.js";
 import "./text-field.js";
 import { followBoxGrowth, readBoxPlace } from "../thread/reply-landing.js";
 import { focusDestination, focused } from "../focus.js";
 import { whileConnected } from "../arrivals.js";
 import { move } from "../dom-move.js";
 import { applicationState } from "../semantic-state.js";
-import {
-  errorsReading,
-  passErrorsAt,
-  raiseError,
-  registerErrorPresentation,
-} from "../errors.js";
+import { errorsReading, passErrorsAt, raiseError } from "../errors.js";
 import { repaint } from "../repaint.js";
 import { sizeObserver } from "../rendering.js";
 
@@ -277,12 +278,14 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       if (!target.isConnected || !target.checkVisibility()) passErrorsAt(target);
   });
   // A box an error is about, or was about, paints its cover again when the errors change.
-  let errorsPainted = errorsReading();
-  registerErrorPresentation(() => {
-    for (const { subject } of [...errorsPainted, ...errorsReading()])
+  /** @type {ReturnType<typeof errorsReading>} */
+  let errorsPainted = [];
+  effect(() => {
+    const errors = errorsReading();
+    for (const { subject } of [...errorsPainted, ...errors])
       if (inputPaints.has(subject)) stale.add(subject);
-    errorsPainted = errorsReading();
-    repaint();
+    errorsPainted = errors;
+    untracked(repaint);
   });
   // `sends` states the box's own submit action. Composers send by default; a caller whose
   // action differs, such as adding an option, supplies the matching icon.

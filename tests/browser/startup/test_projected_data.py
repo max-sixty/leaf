@@ -958,9 +958,13 @@ def test_a_returning_projection_subscriber_repaints_to_restore_subscriptions(
         """async () => {
           const api = await window.__lfWidgetApi();
           const settle = () => new Promise((resolve) => setTimeout(resolve));
-          const owned = (id) => {
-            const owner = document.createElement('div');
+          customElements.define('lf-projection-probe', class extends api.LeafElement {
+            render() { return this.paint?.() ?? api.noChange; }
+          });
+          const owned = (id, paint) => {
+            const owner = document.createElement('lf-projection-probe');
             owner.id = id;
+            owner.paint = paint;
             document.body.append(owner);
             return owner;
           };
@@ -971,30 +975,32 @@ def test_a_returning_projection_subscriber_repaints_to_restore_subscriptions(
             await settle();
           };
           const failed = {};
-          const stops = [];
+          const owners = [];
           for (const name of ['throwing', 'rejecting']) {
-            const owner = owned(`failing-${name}`);
             failed[name] = 0;
-            stops.push(api.watchProjection(owner, () => {
+            const owner = owned(`failing-${name}`, () => {
               failed[name] += 1;
               api.readObligations();
-              // A paint that fails later is told the same way as one that throws.
-              if (name === 'rejecting')
-                return Promise.reject(new Error(`${name} paint failed`));
+              if (name === 'rejecting') {
+                owner.drawing(Promise.reject(new Error(`${name} paint failed`)));
+                return api.noChange;
+              }
               throw new Error(`${name} paint failed`);
-            }));
+            });
+            owners.push(owner);
             await settle();
             await leaveAndReturn(owner);
           }
-          const owner = owned('pending-paint');
           let paints = 0;
           let finish;
           const finished = new Promise((resolve) => { finish = resolve; });
-          stops.push(api.watchProjection(owner, () => {
+          const owner = owned('pending-paint', () => {
             paints += 1;
             api.readObligations();
-            return finished;
-          }));
+            owner.drawing(finished);
+            return api.noChange;
+          });
+          owners.push(owner);
           await settle();
           await leaveAndReturn(owner);
           const interrupted = paints;
@@ -1002,7 +1008,7 @@ def test_a_returning_projection_subscriber_repaints_to_restore_subscriptions(
           await finished;
           await leaveAndReturn(owner);
           const kept = paints;
-          for (const stop of stops) stop();
+          for (const owner of owners) owner.remove();
           return {failed, interrupted, kept};
         }"""
     )
@@ -1014,7 +1020,7 @@ def test_a_returning_projection_subscriber_repaints_to_restore_subscriptions(
     errors = consume_browser_errors(page, "paint failed")
     reported = sorted(said(error) for error in errors)
     assert reported == sorted(
-        f"leaf: paint failed for div#failing-{name}: {name} paint failed"
+        f'leaf: <lf-projection-probe id="failing-{name}"> failed: {name} paint failed'
         for name in ["throwing", "throwing", "rejecting", "rejecting"]
     )
 
@@ -1027,19 +1033,24 @@ def test_a_held_reading_shows_once_unseen_after_its_owner_returns(browser, serve
         """async () => {
           const api = await window.__lfWidgetApi();
           const settle = () => new Promise((resolve) => setTimeout(resolve));
-          const owner = document.createElement('div');
+          customElements.define('lf-held-probe', class extends api.LeafElement {
+            render() {
+              shown = held.hold(current);
+              return api.noChange;
+            }
+          });
+          const owner = document.createElement('lf-held-probe');
           const region = document.createElement('p');
           region.textContent = 'Rows';
           owner.append(region);
-          document.body.prepend(owner);
           let current = 'first';
           let shown = null;
-          let watching;
-          const held = new api.HeldReading(owner, () => [region], () => watching.refresh());
-          watching = api.watchProjection(owner, () => { shown = held.hold(current); });
+          const refresh = () => { owner.requestUpdate(); owner.performUpdate(); };
+          const held = new api.HeldReading(owner, () => [region], refresh);
+          document.body.prepend(owner);
           await settle();
           current = 'second';
-          watching.refresh();
+          refresh();
           const waiting = shown;
           owner.remove();
           await settle();
@@ -1048,7 +1059,6 @@ def test_a_held_reading_shows_once_unseen_after_its_owner_returns(browser, serve
           region.hidden = true;
           for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
           await settle();
-          watching();
           owner.remove();
           return {waiting, shown};
         }"""

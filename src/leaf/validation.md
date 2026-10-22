@@ -32,13 +32,12 @@ them:
   and later. No id takes the shape of a logged event id (`schema.EVENT_ID`), since a
   command's ID names a widget or a message in one address space.
 - Historical references never veto a revision: wording, placement, subjects and
-  vocabulary may all change. An open thread whose passage or visual part disappears
-  falls back to its surviving section, and one whose section disappears detaches
-  (`validation/source_history.py`). The check reports these moves, and activation
-  records them in the same page transaction as the revision.
+  vocabulary may all change. The check reports the threads that move (events.md,
+  "Anchors"), and activation records them in the same page transaction as the
+  revision.
 
 The effective registry is validated only where it differs from the active revision's
-captured copy, and vendored sheets when `page init` composes them.
+captured copy. Vendored sheets are validated when `page init` composes them.
 
 A reference to a thread, such as a widget's `resolves`, is checked against the thread
 ids the log holds (`thread_context.thread_ids`), including a thread whose opening
@@ -88,14 +87,11 @@ only JSON and admitted image types, so neither can become a script module.
 before a page's URL is first handed over (`render_gate/browser.py` says which browser
 and why). It refuses a version only for a fault its author can fix by editing the
 page; a fault in Leaf's own chrome or theme belongs in the suite
-(`render_gate/readings.py`, header). `render_gate/version._render_version_attempt` is
-the one implementation, called by the command and by the `tests/*/test_render_*.py`
-modules over the shipped examples, and its docstring lists what it reads: the
-invariants in both color schemes at a desktop and a phone viewport, each thread whose
-messages carry markup opened in turn, and once per version a sweep through the widths
-from 360px to 1920px that reports each geometry fault over the run of widths it
-spans. The suite uses Chromium's headless shell; the end-to-end render-check tests
-cover the launches the command uses.
+(`render_gate/readings.py`, header). `render_gate/version.render_version` is the one
+implementation the command and the `tests/*/test_render_*.py` modules call over the
+shipped examples, and `_render_version_attempt`'s docstring lists what it reads.
+The suite uses Chromium's headless shell; the end-to-end render-check tests cover the
+launches the command uses.
 
 A decision in force may paint over a changed authored baseline. That is the state
 fold's behavior, not a reason to refuse the revision; `restated` retracts a decision

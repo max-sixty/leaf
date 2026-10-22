@@ -7,7 +7,8 @@ the merge. The page directory is self-contained, so an approved version can't ch
 under its user. Re-running `page init` is the explicit re-vendor
 (`../../skills/leaf/references/serving-pages.md`, "Re-vendoring"). `vendoring.cmd_init`
 decides whether it changes anything, and `page init --dry-run` reports that decision as
-`changed` without writing or stopping the server.
+`changed` without writing or stopping the server. The page lock serializes it with
+service changes and contract-bearing writes (`page-storage.md`).
 
 A candidate layer must validate its current vocabulary and every markup it renders,
 frozen thread markup included, after page-owned declarations are composed over it.

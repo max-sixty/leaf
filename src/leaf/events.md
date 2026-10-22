@@ -11,10 +11,10 @@ so an id is not a global identifier. Each kind's record schema is `$events.kinds
 | Kind                                         | Author          | Door                                                                                            | Fields                                                                                                                                                                 | Meaning                                                                                                                                                                                       |
 | -------------------------------------------- | --------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | <a id="kind-comment"></a>`comment`           | user or agent   | `POST /api/event`, `leaf thread open`                                                           | `text`, `drawing` or `token`; optional `anchor`, `suggestion`, `about: "design"`, `title`, `markup` (CLI only)                                                         | opens a thread; with `token`, puts a reaction mark on the anchor                                                                                                                              |
-| <a id="kind-reply"></a>`reply`               | user or agent   | `POST /api/event`, `leaf response reply`, `leaf thread reply`                                   | `parent`; `text` or `token`; `responds` on an agent's answer; `todo`, `markup` and a replacement or null `anchor` (CLI only)                                           | answers the message `parent` names without closing its thread; an agent reply may also move or detach the thread                                                                              |
+| <a id="kind-reply"></a>`reply`               | user or agent   | `POST /api/event`, `leaf response reply`, `leaf thread reply`                                   | `parent`; `text` or `token`; `responds` on an agent's answer; `todo`, `markup` and a replacement or null `anchor` (CLI only)                                           | a message in the thread of `parent`; an agent's answer settles the update `responds` names, without closing the thread; an agent reply may also move or detach the thread                     |
 | <a id="kind-edit"></a>`edit`                 | user or agent   | `POST /api/event`, `leaf thread edit`                                                           | `message`, `text`; `base` (browser)                                                                                                                                    | replaces the text of a message its own author wrote; the original stays in the log ("Messages")                                                                                               |
 | <a id="kind-read"></a>`read`                 | user            | `POST /api/event`                                                                               | `messages: [{message, version}]`                                                                                                                                       | records the agent-content versions the user has read; bookkeeping ("Read state")                                                                                                              |
-| <a id="kind-thread_title"></a>`thread_title` | agent           | `leaf thread edit --title`, or the page server's title request (`thread_titles.py`)             | `thread`, `title`                                                                                                                                                      | names a thread; the latest title wins                                                                                                                                                         |
+| <a id="kind-thread_title"></a>`thread_title` | agent           | `leaf thread edit --title`, or Leaf's own title request (`thread_titles.py`)                    | `thread`, `title`                                                                                                                                                      | names a thread; the latest title wins                                                                                                                                                         |
 | <a id="kind-reanchor"></a>`reanchor`         | page            | revision activation                                                                             | `thread`, `revision`, `anchor: {section} or null`                                                                                                                      | moves an open thread whose passage or visual part no longer resolves to its surviving section, or detaches it, adding no message ("Anchors")                                                  |
 | <a id="kind-summary"></a>`summary`           | agent           | `leaf thread summarize`                                                                         | `thread`, `from`, `through`, `text`; optional `label`                                                                                                                  | folds a contiguous range of a thread under optional Markdown; the originals stay revealable                                                                                                   |
 | <a id="kind-resolve"></a>`resolve`           | user or agent   | `POST /api/event`, `leaf thread resolve`                                                        | `parent`                                                                                                                                                               | closes a thread                                                                                                                                                                               |
@@ -42,13 +42,15 @@ write it from a quote read out of the authored HTML through `leaf.passages`, so 
 write only anchors the file confirms (`validation.md`, "Passages").
 
 Projected data has no authored text to quote, so a selection on it names `datum`, the
-rendering key within its section, and, where the projection names an external
-`x-data` input, `source` and `source_revision`, the value's revision when selected.
-The door checks that the section binds that source, and admits an older revision as a
-comment on a value since replaced. `identity` names a subject the emitter knows
-persists across source replacements. `visual` names a declared part of a picture, and
-`part` the control or region a design comment landed on; `part` is an accessible name,
-not an element identity. A selection whose context can't tell which of several
+rendering key within its section, and, where the projection names an external `x-data`
+input, `source` and `source_revision`, the value's revision when selected. The door
+checks that the section binds that source, and admits an older revision as a comment on
+a value since replaced. `identity` names a subject the emitter knows persists across
+source replacements. `visual` names a declared part of a picture, and `part` the control
+or region a design comment landed on. `part` is an accessible name, not an element
+identity: an authored id or a quote the file confirms locates the comment exactly, and
+otherwise its section is only a description. A native editing value never becomes a
+`part` or a file-readable quote. A selection whose context can't tell which of several
 identical passages was meant carries `detached: true`, keeping its words without
 claiming a location.
 
@@ -59,23 +61,23 @@ reply can choose a new passage. `events.build_threads` reads the latest reply
 transition or `reanchor` as the thread's location and keeps the old anchor as
 `rewritten_from` or `detached_from`; the opening message keeps its quote.
 
-A `drawing` is up to 32 freehand strokes on a comment, and may be its only content.
-The browser anchors it on the element its first stroke starts on or nearest, and
-records with it `box`, the frame's size, `says`, the page's words under the ink, and
-the `viewport` and `scheme` of the window it was drawn in. `drawing.frame`, when
-present, names the native visual under that point by a structural path inside its
-element, so inserting or removing a sibling detaches it rather than retargeting it.
-Points are in the frame's local coordinates. The browser reads all of this off the
-rendered page, which no file reading can reproduce, so the door bounds its shape, the
-stroke count and 500 characters of `says`, refuses a drawing without an anchor or
-`box`, and does not re-read it. `$events.handling.comment` tells the agent how to read
-a drawing, and `leaf page picture` redraws one as the user saw it
-(`render_gate/picture.py`).
+A `drawing` is up to 32 freehand strokes on a comment, and may be its only content. The
+browser anchors it on the element its first stroke starts on or nearest, and records
+with it `box`, the frame's size, `says`, the page's words under the ink, and the
+`viewport` and `scheme` of the window it was drawn in. `drawing.frame`, when present,
+names the native visual under that point by a structural path inside its element, so
+inserting or removing a sibling detaches it rather than retargeting it. Points are in
+the frame's local coordinates (`browser/runtime/composing/drawing-record.js`). The
+browser reads all of this off the rendered page, which no file reading can reproduce, so
+the door bounds its shape, the stroke count and 500 characters of `says`, refuses a
+drawing without an anchor or `box`, and does not re-read it. `$events.handling.comment`
+tells the agent how to read a drawing, and `leaf page picture` redraws one as the user
+saw it (`render_gate/picture.py`).
 
-A note, a reply that moves its thread, or the first automatic `reanchor` may carry
-`publication`, the exact immutable bundle name (`r<revision>-<digest>`). Only the
-checked source publisher supplies it; `revisioning.py`'s header says how a
-publication and the anchor moves that depend on it land together.
+A note, a reply that publishes the saved source, or the first automatic `reanchor` may
+carry `publication`, the exact immutable bundle name (`r<revision>-<digest>`). Only the
+checked source publisher supplies it; `revisioning.py`'s header says how a publication
+and the anchor moves that depend on it land together.
 
 ## Undo
 
@@ -91,15 +93,16 @@ plus what is still in force, as a reload would and as `restated` does from the
 author's side. A widget's `render()` paints a withdrawal like any other change,
 keeping the widget and its independent children.
 
-The page's undo key takes back the user's newest gesture or nothing: a newer gesture
-it cannot take back, such as a sent reply, ends the walk, while bookkeeping and
-gestures already withdrawn do not. It says what it would take back and how long ago,
-in every tab and after a reload, so a gesture made weeks ago is not taken back unseen
-(`runtime/undo.js`; the served list words an action head with `GestureWords.gesture`).
-An exact control, such as a widget's Undo, may withdraw an older gesture it names, and
-may withdraw an action whose POST has not returned: the browser keeps both gestures in
-its ordered ledger and sends the undo once the action's id is accepted. Refusing the
-action drops its undo, and refusing the undo restores the action.
+The page's undo key takes back the user's newest gesture or nothing: a newer gesture it
+cannot take back, such as a sent reply, ends the walk, while bookkeeping and gestures
+already withdrawn do not. It says what it would take back and how long ago, in every tab
+and after a reload, so a gesture made weeks ago is not taken back unseen.
+`runtime/undo.js` names each gesture, and the served list words an action at its head
+(`GestureWords.gesture`). An exact control, such as a widget's Undo, may withdraw an
+older gesture it names, and may withdraw an action whose POST has not returned: the
+browser keeps both gestures in its ordered ledger and sends the undo once the action's
+id is accepted. Refusing the action drops its undo, and refusing the undo restores the
+action.
 
 ## Authorship and voice
 
@@ -155,9 +158,9 @@ no layer changes it.
 `meaning` holds what a reader without the sending registry cannot recover from the
 event. Every `action` and `report` records:
 
-- `scope`, `page` or `thread`. With the revision it names the document the widget was
-  in (`events.event_document`): the revision for a page event, the frozen markup that
-  sent it for a thread event.
+- `scope`, `page` or `thread`. Together with the event's revision, `scope` names the
+  document the widget was in (`events.event_document`): the revision for a page event,
+  the frozen markup that sent it for a thread event.
 - `unit`, the fold unit. Leaf keys each widget event by `[widget, unit, action]`: the
   widget, the unit of its state the event changes, and the verb. Every action at a key
   competes, so a later action of the same verb on the same unit supersedes an earlier
@@ -167,8 +170,8 @@ event. Every `action` and `report` records:
   attribute-set and position fields. A detail string never becomes a dependency by
   matching an HTML id. The log stores no ancestry; retraction reads the current
   document's containment of these identities (`event_meaning.py`).
-- `state`, the operation and detail domain the gesture was admitted under, so a later
-  layer whose domain excludes the value keeps it in history only
+- `state`, the operation and detail domain the gesture was admitted under, so under a
+  later layer whose domain excludes the value, the event stays in history only
   (`layer-registry.md`).
 - `answer`, on an action whose admission makes its widget's `x-awaits.answered` hold:
   the thread the answer closes, from the widget's authored `resolves` in the sending
@@ -250,35 +253,35 @@ A harness that gives up on an update writes the failure its answer takes
 to a page obligation, each carrying `failure`, a harness-owned code. Only the harness
 writes `failure`, and the panel draws such a reply as a receipt that answers nothing.
 
-A widget with a local `x-awaits` obligation in a reply's markup declares that
-obligation itself. Frozen in the reply, it stays open until `x-awaits.answered` holds,
-or for a question asked in words (`x-awaits.reply`) until the user's next message in
-the thread or a reaction there whose token settles it. Actions on it before then are
-not handed over: they carry no receipt and need no reply. The action that answers
-carries the receipt and hands the turn to the agent, and undoing it returns the
-obligation to the user. An action on a frozen widget that answers no obligation, such
-as a card moved on a board sent in a reply, keeps a delivery receipt and owes no reply,
-as a page action does (`workflows.py`).
+A widget with a local `x-awaits` obligation in a reply's markup declares that obligation
+itself. Frozen in the reply, it stays open until `x-awaits.answered` holds, or for a
+question asked in words (`x-awaits.reply`) until the user's next message in the thread
+or a reaction there whose token settles it. Actions on it before then are not handed
+over: they carry no receipt and need no reply. The action that answers carries the
+receipt and hands the turn to the agent, and undoing it returns the obligation to the
+user and removes the reply obligation. An action on a frozen widget that answers no
+obligation, such as a card moved on a board sent in a reply, keeps a delivery receipt
+and owes no reply, as a page action does (`workflows.py`).
 
-While a thread is open, the user's message after a state-answered obligation hands
-it to the agent, still open, until the agent answers that turn or ends the to-do a
-reply promised. A thread anchored on a page obligation does the same, so an obligation
-the user has commented on leaves their On me list while the reply owed to the comment
-stands on the agent's (`obligations.thread_obligation_readings`,
-`obligations.anchors_with_agent`). A question asked in words is answered by that
-message instead, along with every open question before it, or by a reaction whose
-token declares `settles` on the message holding it. Neither answer resolves the thread,
-and the agent's `todo_end` can retire a question unanswered
-(`obligations.settle_by_words`).
+While a thread is open, the user's message after a state-answered obligation in it hands
+that obligation to the agent, still open, until the agent answers that turn or ends the
+to-do a reply promised (`obligations.thread_obligation_readings`). A thread anchored on
+a page obligation does the same, so an obligation the user has commented on leaves their
+On me list while the reply owed to the comment stands on the agent's, and a promised
+to-do keeps that obligation the agent's even after the thread is resolved
+(`obligations.anchors_with_agent`). A question asked in words is answered by that
+message instead, along with every open question before it, or by a reaction whose token
+declares `settles` on the message holding it. Neither answer resolves the thread, and
+the agent's `todo_end` can retire a question unanswered (`obligations.settle_by_words`).
 
 `work_reading.WorkReading.all_obligations` is the one inventory of obligations: page
 widgets', frozen widgets' and sign-off's, with a record beside them for each update the
 user handed over (`workflows.handed_over`). `obligations.py` owns a record's statuses
-and its next actor, `$keys["x-awaits"]` in the kernel registry when a widget's
-obligation exists and what its id is, and `served_state/state.schema.json`'s
-`Obligation` the served fields. `obligations.collection` selects `all`, `user` and
-`unanswered` from it. To-dos are separate records, and no to-do is made from an
-obligation.
+and its next actor. `$keys["x-awaits"]` in the kernel registry says when a widget's
+obligation exists and what its id is, and `Obligation` in
+`served_state/state.schema.json` lists the served fields. `obligations.collection`
+selects `all`, `user` and `unanswered` from it. To-dos are separate records, and no
+to-do is made from an obligation.
 
 ### Messages
 

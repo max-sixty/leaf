@@ -27,6 +27,13 @@ from interact_support import (
     spawn_probe,
     wait_for,
 )
+from model.test_codex_adapter import (
+    adapter_log,
+    codex_start_announcement,
+    current_codex_record,
+    fake_codex_cli,
+)
+
 from leaf import codex as codex_model
 from leaf import codex_adapter as codex_adapter_model
 from leaf import codex_state as codex_state_model
@@ -38,12 +45,6 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
-from model.test_codex_adapter import (
-    adapter_log,
-    codex_start_announcement,
-    current_codex_record,
-    fake_codex_cli,
-)
 
 
 @pytest.mark.parametrize("reclaimed", ["delivered", "another"])

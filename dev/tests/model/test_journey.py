@@ -14,12 +14,13 @@ from types import SimpleNamespace
 
 import pytest
 from interact_support import STATED_TIMEOUT
-from leaf.interaction_log import read_interactions
 from leaf_dev import ROOT, journey_claude_code, journey_pi
 from leaf_dev.commands import journey, journey_chart
 from leaf_dev.page_fixtures import record_run_context
 from leaf_dev.reply_phases import claude_code_records, reply_breakdown, turn_phases
 from leaf_dev.review_scenario import SLEEP
+
+from leaf.interaction_log import read_interactions
 
 
 def at(seconds: float) -> str:
@@ -558,10 +559,11 @@ def test_the_release_ask_over_http_is_the_shared_check(tmp_path):
     check as in a browser waits on its turn, title and answer, requiring a published
     revision naming the release; it reads nothing a browser would. A step's comment
     is posted on its section."""
-    from leaf.event_log import append_event, read_events
-    from leaf.thread import post_reply, title_event
     from leaf_dev.arms import run_leaf, serving
     from leaf_dev.review_scenario import post, prepare
+
+    from leaf.event_log import append_event, read_events
+    from leaf.thread import post_reply, title_event
 
     state, page = tmp_path / "state", tmp_path / "page"
     prepare(ROOT, state, page)

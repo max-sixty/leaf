@@ -3,12 +3,12 @@
 import json
 
 import pytest
-from leaf import data as data_model
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE
 from render_harness import ROOT, leaf_page, open_page, rendered, selection_field, write
 
 from browser.test_render_reactions import select_paragraph
+from leaf import data as data_model
 
 
 @pytest.mark.parametrize("touch,width", [(False, 1280), (True, 390)])
@@ -27,9 +27,7 @@ def test_comment_has_one_action_and_keys_preserve_its_other_responses(
         if touch:
             selection_field(page).tap()
     else:
-        registry = json.loads(
-            (ROOT / "skills/leaf/packages/default/registry.json").read_text()
-        )
+        registry = json.loads((ROOT / "packages/default/registry.json").read_text())
         layer = (
             None
             if reactions

@@ -6,10 +6,6 @@ import re
 from itertools import pairwise
 
 import pytest
-from leaf import event_log as events_model
-from leaf import exporting as exporting_model
-from leaf import media as media_model
-from leaf.render_checks import rendered
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import live_url, panel_comment
@@ -34,6 +30,10 @@ from browser.threads import (
     open_capture_area,
     paste_image,
 )
+from leaf import event_log as events_model
+from leaf import exporting as exporting_model
+from leaf import media as media_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

@@ -2,8 +2,9 @@
 
 import json
 
-from leaf.structure import SourceDocument
 from leaf_dev import ROOT
+
+from leaf.structure import SourceDocument
 
 
 def test_corpus_is_generated_from_the_examples():

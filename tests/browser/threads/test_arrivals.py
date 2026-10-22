@@ -3,8 +3,6 @@ waits behind a notice or lands without moving what the user is reading or typing
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_harness import (
@@ -29,6 +27,8 @@ from browser.threads import (
     reply_by_keyboard,
     seed_panel_threads,
 )
+from leaf import event_log as events_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

@@ -9,14 +9,6 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, response_reference, wait_for
-from leaf import anchor_capture as anchor_capture_model
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import structure as structure_model
-from leaf.registry import storage as registry_storage
-from leaf.render_checks import rendered
-from leaf.schema import ELEMENT_ID
 from leaf_dev.example_data import patch_manifest
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -91,6 +83,14 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import anchor_capture as anchor_capture_model
+from leaf import cli as cli_model
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf import structure as structure_model
+from leaf.registry import storage as registry_storage
+from leaf.render_checks import rendered
+from leaf.schema import ELEMENT_ID
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

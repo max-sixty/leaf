@@ -10,12 +10,6 @@ from interact_support import (
     _start,
     wait_for,
 )
-from leaf import data as data_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import service as service_model
-from leaf import thread as thread_model
-from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
     NESTED_PROPOSAL_PAGE,
@@ -55,10 +49,16 @@ from render_harness import (
     write,
 )
 
+from leaf import data as data_model
+from leaf import delivery as delivery_model
+from leaf import event_log as events_model
+from leaf import service as service_model
+from leaf import thread as thread_model
+from leaf.render_checks import rendered, wait_until_ready
+
 pytestmark = pytest.mark.shifts_unsurveyed
 
 from browser.widgets import PLAYGROUND_PAGE
-
 from journeys import first_thread_quote
 
 

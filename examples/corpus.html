@@ -1114,7 +1114,7 @@
         font: 14px / 21px var(--mono);
         cursor: pointer;
       }
-      lf-merge-film .film-terminal-line[data-lf-focus] {
+      lf-merge-film .film-terminal-line[data-lf-focus-visible] {
         outline-offset: -2px;
       }
       lf-merge-film .film-phone-line {
@@ -1680,7 +1680,7 @@
               const wrapping = chosen.wrap
                 ? "wrap long lines"
                 : "keep horizontal scrolling";
-              return `Update the built Leaf code reader in skills/leaf/packages/default/widgets/lf-code.js to use the ${chosen.density} reading density and ${wrapping} at a ${values.width}px comparison viewport. Preserve syntax and line anchors, then show the focused browser measurement test.`;
+              return `Update the built Leaf code reader in packages/default/widgets/lf-code.js to use the ${chosen.density} reading density and ${wrapping} at a ${values.width}px comparison viewport. Preserve syntax and line anchors, then show the focused browser measurement test.`;
             });
           }
 
@@ -9378,6 +9378,11 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 >
               </div>
             </div>
+            <p id="bg-focus-cues">
+              Click a Sample width choice, then use Tab and the arrow keys: the keyboard
+              cue encloses the label, while pointer selection keeps the native radio
+              mark. Text-entry fields retain their focus cue.
+            </p>
             <lf-sample id="bg-panel-sample" label="workshop threads">
               <template
                 id="bg-panel-sample-page"

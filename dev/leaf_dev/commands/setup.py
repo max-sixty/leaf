@@ -13,8 +13,8 @@ import subprocess
 import sys
 
 import click
-from leaf.state import flocked, state_home
 
+from leaf.state import flocked, state_home
 from leaf_dev import ROOT
 
 

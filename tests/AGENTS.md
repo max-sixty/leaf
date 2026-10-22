@@ -166,7 +166,7 @@ start a module where none does.
 File-side fixtures live in `interact_support.py`, browser fixtures in
 `render_harness.py`, and reusable browser cases in `render_cases_*.py`.
 `tests/runtime/*.test.mjs` tests what one runtime module decides on its own, in the
-document `tests/runtime/dom.mjs` sets up; `build/browser/application.test.mjs` tests
+document `tests/runtime/dom.mjs` sets up; `browser/framework/application.test.mjs` tests
 how the publisher combines those results. Both build server state with `served.mjs`,
 which calls the server's own `served_records.py`, so there is no generated copy to keep
 in sync. A fixture carries every field the server sends and changes only the fields the
@@ -200,8 +200,10 @@ A test over prose compares it with something the machine states: a shown command
 against the click tree, an `x-` key against the guide, a table against its registry.
 Leave wording with no machine side to review.
 
-Focus rings show actual focus whatever the input route. Test the shared ring with real
-clicks and keyboard arrivals, require `:focus`, and compare the paint. A keyboard
+Logical standing and visible focus are separate (`focus.js` owns their contract).
+Test with real clicks and keyboard arrivals: ordinary controls follow the browser's
+focus visibility, while text entry and reading destinations retain their cues. Require
+`:focus` and compare the paint, including when the focused control has no ring. A keyboard
 navigation test reaches its stop with `Tab` or its declared command; `element.focus()`
 doesn't prove that route. `RELEASE_FOCUS` (`render_harness.py`) resets where Tab
 starts, which `blur()` doesn't. Read a ring's paint through `rings_drawn` and
@@ -304,7 +306,7 @@ allowance list.
   `EXPECTED` in `write_watch.js` with its reason; a test that reads the page by changing
   it and putting it back does so inside `lfUnwatched`.
 - `shift_watch.js` reports a box that moves on screen without input, and typing that
-  moves its field (`skills/leaf/assets/AGENTS.md`, "Stability"). It runs on every test
+  moves its field (`browser/AGENTS.md`, "Stability"). It runs on every test
   except those in modules marked `shifts_unsurveyed`, which opt in per test with
   `watch_shifts`. Playwright's clicks, keys and viewport resizes are input; a script's
   `click()`, a value set by script and server news are not. It ignores first

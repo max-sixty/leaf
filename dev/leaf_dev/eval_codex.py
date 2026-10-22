@@ -17,9 +17,9 @@ from collections import deque
 from contextlib import ExitStack
 from pathlib import Path
 
-from leaf.codex import private_app_server
 from websockets.exceptions import ConnectionClosed
 
+from leaf.codex import private_app_server
 from leaf_dev.codex_task import Task, trust_plugin_hooks
 
 

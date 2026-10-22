@@ -33,6 +33,8 @@ from interact_support import (
     stamp,
     state_json,
 )
+from leaf_dev.page_fixtures import package_selection_args
+
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_contracts as contracts_model
@@ -49,7 +51,6 @@ from leaf.event_contracts import append_admitted
 from leaf.findings import Rejected
 from leaf.served_state.page import full_state
 from leaf.state import EVENTS_FILE
-from leaf_dev.page_fixtures import package_selection_args
 
 
 def leaf(*args):

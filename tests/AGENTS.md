@@ -200,8 +200,10 @@ A test over prose compares it with something the machine states: a shown command
 against the click tree, an `x-` key against the guide, a table against its registry.
 Leave wording with no machine side to review.
 
-Focus rings show actual focus whatever the input route. Test the shared ring with real
-clicks and keyboard arrivals, require `:focus`, and compare the paint. A keyboard
+Logical standing and visible focus are separate (`focus.js` owns their contract).
+Test with real clicks and keyboard arrivals: ordinary controls follow the browser's
+focus visibility, while text entry and reading destinations retain their cues. Require
+`:focus` and compare the paint, including when the focused control has no ring. A keyboard
 navigation test reaches its stop with `Tab` or its declared command; `element.focus()`
 doesn't prove that route. `RELEASE_FOCUS` (`render_harness.py`) resets where Tab
 starts, which `blur()` doesn't. Read a ring's paint through `rings_drawn` and

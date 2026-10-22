@@ -52,7 +52,7 @@
   max-height: none;
   overflow: hidden;
 }
-.lf-draft-edit.lf-ui[data-lf-focus] {
+.lf-draft-edit.lf-ui[data-lf-focus-visible] {
   outline: none;
   box-shadow: none;
 }
@@ -66,7 +66,7 @@
   :scope:is(lf-draft):has(.lf-draft-edit) {
     border-color: var(--muted);
   }
-  :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus]) {
+  :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus-visible]) {
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-room));
     --lf-wears-ring: 1;
@@ -145,8 +145,8 @@
     inset: min(0px, (var(--lf-draft-mark) - var(--aim-floor)) / 2) 0;
   }
   /* The ring stays inside its mark, off the words beside the toolbar. */
-  .lf-draft-action[data-lf-focus],
-  .lf-draft-tools > .lf-code-copy::part(lf-focus) {
+  .lf-draft-action[data-lf-focus-visible],
+  .lf-draft-tools > .lf-code-copy::part(lf-focus-visible) {
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
   /* Copy keeps the control code blocks share; in the toolbar it is one of its marks. */
@@ -163,7 +163,7 @@
   }
 }
 @media (forced-colors: active) {
-  :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus]) {
+  :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus-visible]) {
     outline-color: Highlight;
   }
 }

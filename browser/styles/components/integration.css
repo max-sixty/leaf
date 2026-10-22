@@ -161,7 +161,7 @@ html[data-lf-draw-mode] main {
   &:hover {
     background: var(--chip);
   }
-  &[data-lf-focus] {
+  &[data-lf-focus-visible] {
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w));
   }

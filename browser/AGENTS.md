@@ -305,7 +305,9 @@ it. Call an API every engine ships directly, with no fallback, and record the ch
 
 Two script answers already exist. `focus.js` sets `data-lf-focus` and
 `data-lf-focus-within`, because native `:focus` also matches retargeted shadow hosts
-and a held label press; style focus with those attributes. `geometry.js` decides
+and a held label press. Those attributes express logical standing; style rings with
+`data-lf-focus-visible` and `data-lf-focus-visible-within`, which also account for
+the browser's focus visibility. `geometry.js` decides
 whether the user can see a box (`seenRect`, `declareOccluder`), because Leaf's chrome
 covers the page without clipping it.
 

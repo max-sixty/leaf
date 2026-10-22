@@ -1,7 +1,9 @@
 /** One semantic root for accepted state, authored values, and ordered local attempts.
  *
- * DOM capture supplies typed initial values; transport supplies complete admitted
+ * DOM capture transfers typed initial values; transport transfers complete admitted
  * readings. The existing pure folds derive every published projection synchronously.
+ * Internal producers transfer ownership on publication and retain no mutable borrow.
+ * Public widget values are copied at their package boundary.
  * Promises, rendering instances, and proof of presentation stay outside this owner.
  */
 import { createApplicationPublisher, share,                } from "./snapshot.js";
@@ -1352,7 +1354,7 @@ export function createSemanticApplication({
     },
     markRead(items                  ) {
       return publish({
-        markingRead: [...publisher.peek().markingRead, ...structuredClone(items)],
+        markingRead: [...publisher.peek().markingRead, ...items],
       });
     },
     settleMarkRead(items                  ) {
@@ -1369,13 +1371,7 @@ export function createSemanticApplication({
     captureDocument(document                  ) {
       if (publisher.peek().authoritative)
         throw new Error("an admitted document changes only through adopt");
-      return publish({
-        document: {
-          ...structuredClone(document),
-          authored: new Map(structuredClone(document.authored)),
-          descriptors: new Map(structuredClone(document.descriptors)),
-        },
-      });
+      return publish({ document });
     },
     setPhase(phase        ) {
       return publish({ phase });
@@ -1393,7 +1389,7 @@ export function createSemanticApplication({
       const prior = publisher.peek();
       const values = { ...prior.outputs[widget] };
       if (reading === null) delete values[output];
-      else values[output] = structuredClone(reading);
+      else values[output] = reading;
       const outputs = { ...prior.outputs };
       if (Object.keys(values).length) outputs[widget] = values;
       else delete outputs[widget];
@@ -1407,7 +1403,7 @@ export function createSemanticApplication({
       if (taken < dataTaken) return false;
       dataTaken = taken;
       if (data.version === publisher.peek().data.version) return false;
-      publish({ data: structuredClone(data) });
+      publish({ data });
       return true;
     },
     // Whether this answer could be adopted with `revision` showing, asked without
@@ -1435,7 +1431,7 @@ export function createSemanticApplication({
     adopt(state                    , document                          = null) {
       const prior = publisher.peek();
       if (!adoptable(state, document)) return false;
-      const authoritative = structuredClone(state);
+      const authoritative = state;
       // The reading and what it logs are one publication: the entries whose receipts
       // it holds stop drawing from the gesture as the log starts drawing them, and an
       // accepted one other than an action leaves with it.
@@ -1450,27 +1446,8 @@ export function createSemanticApplication({
       for (const attempt of drawn)
         if (!unresolved.some((item) => item.event.attempt === attempt))
           drawn.delete(attempt);
-      // A capture can add message bodies without changing the shown document.
-      // Retain its explicit identity and share fields the publisher already owns.
-      const capture =    (value   , previous         )    =>
-        value === previous ? value : structuredClone(value);
       publish({
-        document: document
-          ? {
-              ...document,
-              registry: capture(document.registry, prior.document.registry),
-              authored: capture(document.authored, prior.document.authored),
-              descriptors: capture(document.descriptors, prior.document.descriptors),
-              ...(document.messageBodies
-                ? {
-                    messageBodies: capture(
-                      document.messageBodies,
-                      prior.document.messageBodies,
-                    ),
-                  }
-                : {}),
-            }
-          : prior.document,
+        document: document ?? prior.document,
         authoritative,
         unresolved,
         settled,
@@ -1543,10 +1520,9 @@ export function createSemanticApplication({
                   ...event,
                   id: localId,
                   meaning: {
-                    state: structuredClone(
+                    state:
                       before.document.registry.$states[widget.tag]?.[event.action]
                         ?.definition,
-                    ),
                   },
                 },
                 value: spec.record ? foldedValue(event, spec.record) : event.action,

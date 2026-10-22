@@ -2,7 +2,7 @@
 the page's own record and checked.
 
     uv run leaf-dev journey TARGET [--browser | --http] [--release RELEASE]
-                                   [--sandbox] [--preview]
+                                   [--hooks-module] [--sandbox] [--preview]
 
 The user tells the agent that a release passed its deployment checks, asking it to
 record that on the board. How the page records it is the agent's call, as with a
@@ -31,8 +31,9 @@ reply and entered the session's context, and that the page's claim names the ses
 with its turn closed. A website target runs `release` alone, since only a terminal
 can start a turn or interrupt one. What the harnesses share lives here: their
 isolation and its evidence (`isolated`), the session the journey hears through every
-wait (`Terminal`), and the user (`User`). `--sandbox` runs the session's shell
-commands in its harness's sandbox;
+wait (`Terminal`), and the user (`User`). `--hooks-module` turns on Claude Code's
+opt-in hooks module watch; `--sandbox` runs the session's shell commands in its
+harness's sandbox;
 `--preview` has Codex serve the page with the canonical
 `leaf-dev preview --user`. The journey stops at the first check that fails and keeps
 no sample.
@@ -76,8 +77,8 @@ of it: the user's end (`userEnd`), the `case`, `comment` for the release ask,
 the journey ran. A comment whose step held a permission prompt the user answered
 says so (`approved`), since the prompt held the session for as long as it stood.
 
-A `startup_failed` receipt gets one more ask; any other failure receipt fails on
-the first (`worker/README.md` owns that contract).
+A failure receipt ends the journey on the first ask
+(`worker/README.md` owns that contract).
 
 Each sample is also kept on the machine that ran it (`samples_path`), and
 `leaf-dev journey-chart` draws when each milestone came, from the kept samples of
@@ -143,7 +144,6 @@ from leaf_dev.startup import startup_reading
 # raising it means raising `publish-site.yaml`'s `timeout-minutes` too.
 TURN_PATIENCE = 300
 TURN_LIMIT = 600
-TURN_ASKS = 2
 # The reload after the turn gets this long to present, then as long again to follow
 # the published revision: its container may take seconds to answer the first read.
 TURN_PRESENTATION = 120_000
@@ -343,11 +343,6 @@ def agent_profile(profile: AgentProfile, steps: dict) -> dict:
             for at, kind, detail in profile.activities
         ],
     }
-
-
-def startup_failed(replies: list[dict]) -> bool:
-    """Whether the container settled this ask by reporting a turn that never ran."""
-    return any(reply.get("failure") == "startup_failed" for reply in replies)
 
 
 def turn_failed(replies: list[dict]) -> bool:
@@ -594,42 +589,15 @@ def await_title(end: HttpEnd | BrowserEnd, thread: str, state: dict) -> dict:
 
 
 def ask_until_answered(end: HttpEnd | BrowserEnd, marker: str) -> AgentAsks:
-    """Ask the agent to record `marker` until it answers or stops answering.
-
-    A `startup_failed` receipt is retried once while a healthy turn's budget remains;
-    any other receipt, or a turn that stops without answering, ends the pass.
-    """
+    """Ask the agent once, ending on its answer or first failure receipt."""
     state = end.state()
-    published = None
-    asks = 0
+    revision = state["active"]["revision"]
     profile = AgentProfile()
+    profile.ask_count = 1
     deadline = time.monotonic() + TURN_LIMIT
-    while True:
-        asks += 1
-        profile.ask_count = asks
-        # A second ask continues the revision the first left, and keeps what it
-        # published.
-        revision = state["active"]["revision"]
-        comment = end.ask(marker, profile, asks)
-        state, published, replies, answer = await_turn(
-            end, comment, revision, marker, published, deadline, profile
-        )
-        if answer is not None or not (
-            asks < TURN_ASKS
-            and startup_failed(replies)
-            and deadline - time.monotonic() >= TURN_PATIENCE
-        ):
-            return AgentAsks(
-                TurnReading(state, published, replies, answer),
-                asks,
-                revision,
-                profile,
-            )
-        print(
-            f"↻ {end.url} settled its ask with a startup failure; sending one "
-            "new message",
-            file=sys.stderr,
-        )
+    comment = end.ask(marker, profile, 1)
+    turn = await_turn(end, comment, revision, marker, None, deadline, profile)
+    return AgentAsks(turn, 1, revision, profile)
 
 
 def open_news(page: Page, thread: str) -> None:
@@ -1350,6 +1318,7 @@ def target_session(
     target: str,
     release: str | None,
     *,
+    hooks_module: bool,
     sandbox: bool,
     preview: bool,
 ) -> Iterator[tuple[User, dict, Callable[[], None]]]:
@@ -1361,7 +1330,8 @@ def target_session(
         if target == "claude-code":
             from leaf_dev.journey_claude_code import answering
 
-            harness = answering(browser, sandbox=sandbox)
+            harness = answering(browser, hooks_module=hooks_module, sandbox=sandbox)
+            named |= {"hooksModule": True} if hooks_module else {}
             named |= {"sandbox": True} if sandbox else {}
         elif target == "pi":
             from leaf_dev.journey_pi import answering
@@ -1419,6 +1389,11 @@ def target_session(
     help="At an origin, require this release (default: whichever it serves).",
 )
 @click.option(
+    "--hooks-module",
+    is_flag=True,
+    help="On claude-code, have the plugin's hooks module keep the watch.",
+)
+@click.option(
     "--sandbox",
     is_flag=True,
     help="On claude-code or a codex target, run the session's shell commands in its "
@@ -1446,6 +1421,7 @@ def target_session(
 def journey(
     target: str,
     release: str | None,
+    hooks_module: bool,
     sandbox: bool,
     preview: bool,
     case: str,
@@ -1460,6 +1436,8 @@ def journey(
     or a website origin. A harness's user posts its comments over HTTP unless
     `--browser` puts them in Chrome.
     """
+    if hooks_module and target != "claude-code":
+        raise click.UsageError("--hooks-module is an option of claude-code")
     if sandbox and HARNESS_TARGETS.get(target, {}).get("harness") not in (
         "claude-code",
         "codex",
@@ -1483,6 +1461,7 @@ def journey(
                 chromium,
                 target,
                 release,
+                hooks_module=hooks_module,
                 sandbox=sandbox,
                 preview=preview,
             )

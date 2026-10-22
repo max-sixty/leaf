@@ -1270,6 +1270,10 @@
             "agent": { "type": "string" },
             "key": { "type": "string" },
             "content_version": { "type": "string" },
+            "completed_by": {
+              "description": "The ordinary or provisional reply that supersedes this progress message. Hide it only while that reply is presented.",
+              "type": "string"
+            },
             "edited": {
               "description": "The user's latest rewrite, and the words it replaced.",
               "type": "object",
@@ -1429,7 +1433,6 @@
               "covers": { "type": "array", "items": { "type": "string" } },
               "text": { "type": "string" },
               "label": { "type": "string" },
-              "trigger": { "type": "string" },
               "protected": { "type": "array", "items": { "type": "string" } }
             },
             "required": [

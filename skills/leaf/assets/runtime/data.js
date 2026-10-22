@@ -13,7 +13,7 @@
    the result into the authored seat; they do not fetch it, mutate the accepted copy, or
    keep a hidden current-value map of their own.*/
 
-import { outsideReading, untracked } from "/vendor/browser-runtime.js";
+import { computed, signal, untracked } from "/vendor/browser-runtime.js";
 import { offlineData, offlineInteractive, pageUrl, runtime } from "./context.js";
 import { applicationState, whenApplicationRegionsPresented } from "./semantic-state.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
@@ -32,9 +32,7 @@ const joined = new Set();
 
 export async function notifyDataSubscribers() {
   const version = runtime.data.version;
-  deliveries += 1;
-  const round = {};
-  for (const delivered of [...deliveryListeners]) delivered(round);
+  deliveries.value += 1;
   await whenApplicationRegionsPresented(
     [...joined],
     () => runtime.data.version === version,
@@ -142,36 +140,40 @@ function inputBinding(element, declaration) {
 // again when the source moves. Markup owns the binding, captured at the first read, so
 // module code cannot turn a live attribute mutation into an unvalidated rebind; a
 // revision that rebinds mounts a new element.
-export function dataReader(element, input) {
+export function dataReader(element, input, accepted) {
   const declaration = declaredInput(element, input);
   const { source, widget, selected, snapshot } = inputBinding(element, declaration);
   // What the element shows moves only as state application delivers, so a reading
   // accepted for a revision still being activated never draws into the document it
   // replaces. The first read takes the accepted reading.
-  let shown;
-  let taken = -1;
-  const delivered = outsideReading(
+  let stopAccepted;
+  const delivered = computed(
     () => {
-      if (taken !== deliveries) {
-        taken = deliveries;
-        shown = untracked(selected.read);
-      }
-      return shown;
+      deliveries.value;
+      return untracked(selected.read);
     },
-    (moved) => {
-      deliveryListeners.add(moved);
-      return () => deliveryListeners.delete(moved);
+    {
+      watched() {
+        let seen = untracked(selected.read);
+        stopAccepted = selected.subscribe((now) => {
+          if (now === seen) return;
+          seen = now;
+          accepted();
+        });
+      },
+      unwatched() {
+        stopAccepted?.();
+        stopAccepted = null;
+      },
     },
   );
-  if (!widget) stagedReadings.add(selected);
   let reported = null;
   let copied = { store: null, value: null };
   return () => {
     // The accepted reading claims the element's region inside the publication that
     // accepts it; the delivered one draws.
-    selected.read();
     const sourceStore = /** @type {{contract: string, revision?: string} | null} */ (
-      widget ? selected.read() : delivered.read()
+      widget ? selected.read() : delivered.value
     );
     const incompatible = sourceStore && sourceStore.contract !== declaration.contract;
     if (incompatible && reported !== sourceStore) {
@@ -196,11 +198,7 @@ export function dataReader(element, input) {
 
 // A renderer that draws data as it reads it holds the data version until its region
 // presents; its readers hear the delivery itself.
-let deliveries = 0;
-const deliveryListeners = new Set();
-// The accepted readings a `LeafElement` follows to claim its region, not to draw.
-const stagedReadings = new WeakSet();
-export const stagesOnly = (reading) => stagedReadings.has(reading);
+const deliveries = signal(0);
 export function joinDataDelivery(region) {
   joined.add(region);
   return () => joined.delete(region);

@@ -83,9 +83,9 @@ _RECORD_VALUE = {
     "additionalProperties": False,
 }
 
-# A `when` predicate selects instances by attribute values (or by a flag's being
-# present or absent). One condition shape serves obligations and threads because they
-# ask the same question of the same authored attributes.
+# A `when` predicate selects instances by string attribute values or, with a
+# boolean, by an attribute's presence or absence. One condition shape serves
+# obligations and threads because they ask the same question of authored attributes.
 AWAITING_CONDITION = {
     "type": "object",
     "minProperties": 1,

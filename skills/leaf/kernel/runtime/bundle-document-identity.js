@@ -399,12 +399,13 @@ import {
   whenWidgetsPresented
 } from "./bundle-semantic-state.js";
 import {
-  M,
+  J,
   PENDING,
+  Z,
   actionForWidget,
   anchorKey,
   bindQueuedWork,
-  collectReads,
+  d,
   discussed,
   editable,
   foldWidgetStates,
@@ -412,14 +413,13 @@ import {
   isThreadEvent,
   moved,
   obligationValue,
-  outsideReading,
   projectionOrigins,
   reactionsAt,
   stateCoordinate,
   threadKey,
   tokenChoices,
   turns,
-  untracked
+  x
 } from "./bundle-queued-work.js";
 
 // runtime/document-identity.js
@@ -707,10 +707,10 @@ function caretAt(view, at) {
     return { destination: caret, rectangle: caret.getBoundingClientRect() };
   const destination = position.node instanceof Element ? position.node : position.node.parentElement;
   const box = destination.getBoundingClientRect();
-  const x = view.textDirection === Direction.LTR ? box.left : box.right;
+  const x2 = view.textDirection === Direction.LTR ? box.left : box.right;
   return {
     destination,
-    rectangle: { left: x, right: x, top: box.top, bottom: box.bottom }
+    rectangle: { left: x2, right: x2, top: box.top, bottom: box.bottom }
   };
 }
 function placeWithinEditor(view, selection, options, head) {
@@ -735,7 +735,7 @@ function placeWithinEditor(view, selection, options, head) {
   const horizontal = view.textDirection === Direction.RTL ? options.x === "start" ? "end" : options.x === "end" ? "start" : options.x : options.x;
   const xMargin = clamp(options.xMargin, -port.offsetWidth, port.offsetWidth);
   const yMargin = clamp(options.yMargin, -port.offsetHeight, port.offsetHeight);
-  const x = horizontal === "center" ? (rectangle.left - margins.left + rectangle.right + margins.right - left - right) / 2 : travel(
+  const x2 = horizontal === "center" ? (rectangle.left - margins.left + rectangle.right + margins.right - left - right) / 2 : travel(
     rectangle.left - margins.left,
     rectangle.right + margins.right,
     left,
@@ -754,7 +754,7 @@ function placeWithinEditor(view, selection, options, head) {
     side
   );
   port.scrollBy({
-    left: port.scrollWidth > port.clientWidth ? x / scaleX : 0,
+    left: port.scrollWidth > port.clientWidth ? x2 / scaleX : 0,
     top: port.scrollHeight > port.clientHeight ? y / scaleY : 0,
     behavior: "instant"
   });
@@ -1433,12 +1433,12 @@ var LeafText = class extends HTMLElement {
       return;
     }
     const area = this.#view.scrollDOM.getBoundingClientRect();
-    const { clientX: x, clientY: y } = event;
-    if (x >= area.left && x < area.right && y >= area.top && y < area.bottom) return;
+    const { clientX: x2, clientY: y } = event;
+    if (x2 >= area.left && x2 < area.right && y >= area.top && y < area.bottom) return;
     event.preventDefault();
     const clamp2 = (value, low, high) => Math.min(Math.max(value, low), high - 1);
     const at = this.#view.posAtCoords(
-      { x: clamp2(x, area.left, area.right), y: clamp2(y, area.top, area.bottom) },
+      { x: clamp2(x2, area.left, area.right), y: clamp2(y, area.top, area.bottom) },
       false
     );
     this.#view.focus();
@@ -2066,7 +2066,7 @@ function createSelectionComposer({
       const count = Math.min(reactionTokens2().length, 9);
       return count > 1 ? `1\u2013${count}` : "1";
     },
-    description: () => `Put a reaction on the response target: ${reactionTokens2().slice(0, 9).map(([name, entry], index) => `${index + 1} ${entry.glyph} ${name}`).join(", ")}`,
+    description: () => reactionTokens2().slice(0, 9).map(([name, entry], index) => `${index + 1} ${entry.glyph} ${name}`).join(", "),
     title: "react",
     when: () => reactionAvailable2() && !takesLetters(focused()) && responseReactionButtons().length > 0,
     run: (binding) => responseReactionButtons()[+binding - 1]?.click()
@@ -2144,71 +2144,64 @@ function createSelectionComposer({
 }
 
 // runtime/projection-watch.js
-var presentations = 0;
-var heard = /* @__PURE__ */ new Set();
+var presentations = Z(0);
 document.addEventListener(PRESENTATION, () => {
-  presentations += 1;
-  const round = {};
-  for (const moved2 of [...heard]) moved2(round);
+  presentations.value += 1;
 });
-var presented2 = outsideReading(
-  () => presentations,
-  (moved2) => {
-    heard.add(moved2);
-    return () => heard.delete(moved2);
-  }
-);
 function watchProjection(owner, paint, ready = null) {
-  let read2 = null;
-  const moved2 = () => read2 === null || [...read2].some(([reading, value]) => reading.read() !== value);
   let key = 0;
   let queued = false;
-  let subscribed = [];
-  let unsubscribe = null;
+  let following = null;
+  let connected = false;
   const update = () => {
     if (queued) return;
     queued = true;
     queueMicrotask(() => {
       queued = false;
-      if (!unsubscribe || !owner.isConnected) return;
-      if (moved2()) key += 1;
-      draw(key);
+      if (connected && owner.isConnected) draw(key);
     });
-  };
-  const follow = () => {
-    for (const stop2 of subscribed) stop2();
-    subscribed = unsubscribe && read2 ? [...read2].map(
-      ([reading, value]) => reading.subscribe((now) => now !== value && update())
-    ) : [];
   };
   const draw = readingPaint(owner, () => {
-    if (ready !== null && !ready()) return draw.forget();
-    const outcome = collectReads(() => {
-      presented2.read();
-      return paint();
+    if (ready !== null && !d(ready)) return draw.forget();
+    following?.();
+    let first = true;
+    let outcome;
+    following = x(() => {
+      if (!first) {
+        key += 1;
+        update();
+        return;
+      }
+      first = false;
+      try {
+        presentations.value;
+        outcome = { value: paint() };
+      } catch (error) {
+        outcome = { error };
+      }
     });
-    read2 = outcome.reads;
-    follow();
+    if (!connected) {
+      following();
+      following = null;
+    }
     if ("error" in outcome) throw outcome.error;
     return outcome.value;
   });
+  let stopProof = null;
   const stopLifetime = watchOwner(owner, {
     connect() {
-      const stops = [];
+      connected = true;
       if (ready)
-        stops.push(
-          watchPresentation(() => (moved2() || draw.owes(key)) && ready() && update())
-        );
-      unsubscribe = () => {
-        for (const stop2 of stops) stop2();
-      };
-      follow();
+        stopProof = watchPresentation(() => draw.owes(key) && ready() && update());
+      draw.forget();
       update();
     },
     disconnect() {
-      unsubscribe();
-      unsubscribe = null;
-      follow();
+      connected = false;
+      stopProof?.();
+      stopProof = null;
+      following?.();
+      following = null;
     }
   });
   const stop = () => {
@@ -2596,7 +2589,7 @@ function createAnchorTravel({
     const where = segment ? rangeOf([segment]) : targetElement(placement) ?? targetPlace(placement);
     return livePoint(targetElement(placement) ?? targetPlace(placement), placement?.point) ?? where;
   };
-  async function scrollToThread(id, { part = null, focus = true, presented: presented3 = null, intent } = {}) {
+  async function scrollToThread(id, { part = null, focus = true, presented: presented2 = null, intent } = {}) {
     const mayArrive = retainTravel(intent);
     const thread = threadNamed(id);
     const anchor = thread?.anchor;
@@ -2632,7 +2625,7 @@ function createAnchorTravel({
         intent: mayArrive,
         departure,
         present: async () => {
-          if (presented3) await presented3;
+          if (presented2) await presented2;
           if (mayArrive()) await refreshThread();
         }
       }
@@ -4689,8 +4682,8 @@ function createReactionController({
   let marginAnchor = null;
   let pageCommands = null;
   const marginReactionKey = (name, ordinal) => `reaction:${String(ordinal).padStart(4, "0")}:${name}`;
-  function registerReactSurface(surface, { palette, target, trigger }) {
-    surfaces.set(surface, { palette, target, trigger });
+  function registerReactSurface(surface, { palette, trigger }) {
+    surfaces.set(surface, { palette, trigger });
     return {
       toggle: () => setReact(!(reactArmed && reactSurface === surface), { surface }),
       close: () => {
@@ -4934,7 +4927,6 @@ function createReactionController({
       () => listWalkPosition(responseChoices(reactSurface), focused())
     );
   }
-  const reactTargetWord = () => reactSurface === marginSurface ? anchorWord(marginAnchor) : typeof pickerFor(reactSurface)?.target === "function" ? pickerFor(reactSurface).target() : pickerFor(reactSurface)?.target ?? "the target";
   const REACT = {
     title: "With reactions open",
     ready: savedReadingSettled,
@@ -4957,7 +4949,7 @@ function createReactionController({
           const n = Math.min(reactionTokens().length, 9);
           return n > 1 ? `1\u2013${n}` : "1";
         },
-        description: () => `Put a reaction on ${reactTargetWord()}: ${reactionTokens().slice(0, 9).map(([name, entry], i) => `${i + 1} ${entry.glyph} ${name}`).join(", ")}`,
+        description: () => reactionTokens().slice(0, 9).map(([name, entry], i) => `${i + 1} ${entry.glyph} ${name}`).join(", "),
         title: "react",
         when: reactionAvailable,
         run: (binding) => {
@@ -5025,7 +5017,7 @@ function createReactionController({
     ready: savedReadingSettled,
     touch: false,
     keys: ["e"],
-    description: "For the selection, the focused item, or the open reply",
+    description: "On the selection, the focused item or the open reply",
     title: "reactions",
     when: () => reactionAvailable() && reactionTokens().length > 0 && hasReactionTarget() && (anchoringIsReady() || !pageSelection()),
     run: () => {
@@ -5914,7 +5906,7 @@ function createThreadPresentation({
             surfaces.commit();
             commitThreadSeats(batch);
             surfaceView.composition.finishPlacement();
-            untracked(renderAnnotations);
+            d(renderAnnotations);
             pageGeometry.pageShifted();
             read2.present();
             void continueReplies(restorePlace2).catch(
@@ -6990,7 +6982,7 @@ function createReadTracking({ markRead, openThread }) {
   const refusedThisVisit = /* @__PURE__ */ new Set();
   const sizes = sizeObserver(() => scheduleScan());
   const frameWatches = [];
-  const committedThreads = M(
+  const committedThreads = Z(
     /** @type {ReturnType<typeof readThreads>["threads"]} */
     []
   );
@@ -8290,9 +8282,7 @@ function acceptData(candidate, taken) {
 var joined = /* @__PURE__ */ new Set();
 async function notifyDataSubscribers() {
   const version = runtime.data.version;
-  deliveries += 1;
-  const round = {};
-  for (const delivered of [...deliveryListeners]) delivered(round);
+  deliveries.value += 1;
   await whenApplicationRegionsPresented(
     [...joined],
     () => runtime.data.version === version
@@ -8374,32 +8364,36 @@ function inputBinding(element, declaration) {
   } : { ...reading, origin: { derived: [{ widget }] } };
   return { source, widget, selected, snapshot };
 }
-function dataReader(element, input) {
+function dataReader(element, input, accepted) {
   const declaration = declaredInput(element, input);
   const { source, widget, selected, snapshot } = inputBinding(element, declaration);
-  let shown;
-  let taken = -1;
-  const delivered = outsideReading(
+  let stopAccepted;
+  const delivered = J(
     () => {
-      if (taken !== deliveries) {
-        taken = deliveries;
-        shown = untracked(selected.read);
-      }
-      return shown;
+      deliveries.value;
+      return d(selected.read);
     },
-    (moved2) => {
-      deliveryListeners.add(moved2);
-      return () => deliveryListeners.delete(moved2);
+    {
+      watched() {
+        let seen = d(selected.read);
+        stopAccepted = selected.subscribe((now) => {
+          if (now === seen) return;
+          seen = now;
+          accepted();
+        });
+      },
+      unwatched() {
+        stopAccepted?.();
+        stopAccepted = null;
+      }
     }
   );
-  if (!widget) stagedReadings.add(selected);
   let reported = null;
   let copied = { store: null, value: null };
   return () => {
-    selected.read();
     const sourceStore = (
       /** @type {{contract: string, revision?: string} | null} */
-      widget ? selected.read() : delivered.read()
+      widget ? selected.read() : delivered.value
     );
     const incompatible = sourceStore && sourceStore.contract !== declaration.contract;
     if (incompatible && reported !== sourceStore) {
@@ -8418,10 +8412,7 @@ function dataReader(element, input) {
     return copied.value;
   };
 }
-var deliveries = 0;
-var deliveryListeners = /* @__PURE__ */ new Set();
-var stagedReadings = /* @__PURE__ */ new WeakSet();
-var stagesOnly = (reading) => stagedReadings.has(reading);
+var deliveries = Z(0);
 function joinDataDelivery(region) {
   joined.add(region);
   return () => joined.delete(region);
@@ -8539,7 +8530,6 @@ export {
   notifyDataSubscribers,
   publishOutput,
   dataReader,
-  stagesOnly,
   joinDataDelivery,
   loadDeferred
 };

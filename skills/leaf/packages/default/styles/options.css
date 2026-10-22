@@ -74,13 +74,10 @@
   white-space: normal;
 }
 /* Card dressing belongs to the titled form: a padded box framing the author's blocks
- * everywhere, bordered on its own ground only when not joined. The shadow carries only
- * the hover lift; chosen uses the border and the check. */
+ * everywhere, bordered on its own ground only when not joined. */
 :scope:is(lf-options):has(> lf-option > strong) > lf-option {
   padding: var(--lf-option-pad-block) var(--sp-3);
   --lf-block-frame: 1;
-  --lf-lift: 0 0 #0000;
-  box-shadow: var(--lf-lift);
 }
 @container style(--lf-joined: 0) {
   :scope:is(lf-options):has(> lf-option > strong) > lf-option {
@@ -176,9 +173,7 @@
   }
 }
 /* The pick is the group's gesture (a click lands anywhere in the option), so its
- * affordances are screen-only, where a handler answers. Every option lifts on hover,
- * the pick included, since clicking it clears it; a joined cell does not lift, as it
- * would pull away from its hairlines.
+ * affordances are screen-only, where a handler answers.
  *
  * A quoted group is exhibited, not offered, so every rule granting an input affordance
  * excludes it where it is written (`:not(:where([data-lf-exhibit]) *)`), so each new
@@ -188,22 +183,6 @@
 @media screen {
   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > lf-option {
     cursor: pointer;
-  }
-  /* Only the standing-alone lift eases: a joined cell's shadow is its hairline, and a
-  * transition there would fade every line when the palette flips. */
-  @container style(--lf-joined: 0) {
-    :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > lf-option {
-      transition:
-        box-shadow 0.12s ease,
-        transform 0.12s ease;
-    }
-    :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *):has(
-        > lf-option > strong
-      )
-      > lf-option:hover {
-      transform: translateY(-1px);
-      --lf-lift: var(--raise-1);
-    }
   }
 }
 /* The mark the upgrade injects is both the keyboard path and the state. On a live card it
@@ -747,26 +726,21 @@
  * cell and takes neither. */
 @container style(--lf-joined: 0) {
   :scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option {
-    border-radius: 6px;
+    border-radius: var(--r);
   }
   :scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option[chosen] {
     background: var(--ok-tint);
   }
 }
-/* The hover wash is the row form's answer to the pointer, as the lift is a card's. */
+/* A standalone option answers the pointer with a wash, without moving its words. */
 @media screen {
   @container style(--lf-joined: 0) {
-    :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *):not(
-        :has(> lf-option > strong)
-      )
-      > lf-option:hover {
+    :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > lf-option:hover {
       background: var(--chip);
     }
-    :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *):not(
-        :has(> lf-option > strong)
-      )
+    :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *)
       > lf-option[chosen]:hover {
-      background: var(--ok-tint);
+      background: color-mix(in srgb, var(--ok-tint) 92%, var(--ink));
     }
   }
 }

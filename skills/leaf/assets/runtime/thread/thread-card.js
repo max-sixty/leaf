@@ -123,8 +123,7 @@ export function quoteReading(thread, anchors) {
 // `withPendingProgress`. It stands where those words were said, after `after`, the
 // last message logged before them (`workingPlace`): as the face of the progress run
 // it follows, or as a face of its own (transcript.js). An answer already
-// streaming at the thread's end is the agent's next word, so the working message gives way to it
-// and the answer's head holds the disclosure, as it will once its fold arrives.
+// streaming at the thread's end replaces the working message and pending progress.
 const STOPPED = new Set(["ended", "stale", "interrupted"]);
 function workingMessage(thread, attention, messages) {
   if (thread.resolved || messages.at(-1)?.provisional) return null;
@@ -222,16 +221,21 @@ export function threadReading(thread, surface, commands) {
       : message.todo && openTodos.has(message.id)
         ? "To-do open"
         : null;
-  const messages = turns(thread).map((message) =>
-    messageReading(message, {
-      // Where a message's widgets stand when several drawings show it (messages.js,
-      // `authoredHolders`): the primary reader's, then a margin card, then a seat.
-      authoredRank: commands.authoredRank ?? (surface === "margin" ? 2 : 1),
-      reactions: surface === "outlet" ? message.reactions : null,
-      workflows: message.workflows,
-      leaves: leaves(message),
-    }),
-  );
+  // Completion comes from the server, including the provisional answer. A held
+  // reading keeps progress until its completing reply is among the messages shown.
+  const presented = new Set(thread.msgs.map(({ id }) => id));
+  const messages = turns(thread)
+    .filter((message) => !presented.has(message.completed_by))
+    .map((message) =>
+      messageReading(message, {
+        // Where a message's widgets stand when several drawings show it (messages.js,
+        // `authoredHolders`): the primary reader's, then a margin card, then a seat.
+        authoredRank: commands.authoredRank ?? (surface === "margin" ? 2 : 1),
+        reactions: surface === "outlet" ? message.reactions : null,
+        workflows: message.workflows,
+        leaves: leaves(message),
+      }),
+    );
   const summary = threadSummary(thread);
   return Object.freeze({
     key: threadKey(thread),
@@ -273,11 +277,11 @@ export class ThreadView {
   #commands;
   #messageCommands;
   #rewrites;
-  // The model this card shows. A signal, because its commands' liveness reads it, and
-  // key and button reflection follow what they read (keyboard/scopes.js).
+  // The model this card shows. Commands follow it explicitly; mechanical reads of
+  // this paint's output must not subscribe the presenter that writes it.
   #shown = signal(null);
   get #model() {
-    return this.#shown.value;
+    return this.#shown.peek();
   }
   set #model(model) {
     this.#shown.value = model;
@@ -743,7 +747,7 @@ export class ThreadView {
           keys: PRESS,
           title: word.toLowerCase(),
           control: button,
-          when: () => !this.#model.settlement?.pending,
+          when: () => !this.#shown.value.settlement?.pending,
           run: this.#settle,
         },
       ]);

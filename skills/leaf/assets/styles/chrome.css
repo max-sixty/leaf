@@ -30,7 +30,7 @@
 /* Shared vocabulary. This sheet is adopted after the theme and every package, so a
    shared face stated here would outrank each component's own rule. The vocabulary's
    faces are therefore stated page-side (the margin entries in theme.css; .lf-key-badge,
-   .lf-ui, .lf-btn, .lf-outline-chip and the aim floor in shadow.css, which also reaches
+   .lf-ui, .lf-btn and the aim floor in shadow.css, which also reaches
    widget trees). What stays here is paint the runtime lays over the page, which has to
    beat page and widget alike, and the `box-sizing` reset. test_interact_layer.py holds
    that no selector is dressed for one property both here and page-side. */
@@ -725,14 +725,21 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
      floor, empty or not, and the results start a step below it. */
   .lf-command-reference-head,
   .lf-command-reference-search,
-  .lf-command-reference-meta {
+  .lf-command-reference-meta-box {
     flex: none;
   }
-  .lf-command-reference-meta {
+  .lf-command-reference-meta-box {
+    display: grid;
     min-height: 1lh;
     margin: 6px 0;
     color: var(--muted);
     font-size: var(--t-6);
+  }
+  .lf-command-reference-meta-box > * {
+    grid-area: 1 / 1;
+  }
+  .lf-command-reference-meta-box > [aria-hidden] {
+    visibility: hidden;
   }
   .lf-command-reference-results {
     --lf-command-key-column: 104px;
@@ -801,10 +808,15 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     font-size: var(--t-6);
   }
   .lf-command-reference-description {
-    display: block;
+    display: none;
     margin-top: 2px;
     color: var(--muted);
     font-size: var(--t-6);
+  }
+  @media (hover: none) {
+    .lf-command-reference-description {
+      display: block;
+    }
   }
   @media (max-width: 640px) {
     .lf-command-reference-binding-matches .lf-command-reference-action-main {
@@ -870,7 +882,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-page-map-action:is(button, [role="button"]):is(:hover, [data-lf-focus]):not(
       [aria-disabled="true"]
     ) {
-    background: var(--lf-entry-tint, var(--chip));
+    background: color-mix(in srgb, var(--lf-entry-tint, var(--chip)) 92%, var(--ink));
   }
   .lf-page-map-action .lf-margin-kind {
     width: 16px;
@@ -1103,16 +1115,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-page-search-step {
     flex: none;
     margin-inline-start: 0;
-    border: 0;
-    background: transparent;
-    color: var(--muted);
   }
   .lf-page-search-status + .lf-page-search-step {
     margin-inline-start: 4px;
-  }
-  .lf-page-search-step:not([aria-disabled="true"]):hover {
-    background: var(--chip);
-    color: var(--ink);
   }
   .lf-legend-box {
     position: absolute;

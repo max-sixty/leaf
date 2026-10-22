@@ -1715,8 +1715,16 @@
         const head = boxAt(port, first).top;
         lift = (at) => boxAt(port, at).top - head;
       }
-      const before = readings[0].appendChildren,
-        after = readings[2].appendChildren;
+      // Hidden checkpoints may disappear when their visible tail becomes an answer.
+      // Only children with a box contribute to the prefix whose geometry we protect.
+      const children = readings.map((paint, index) =>
+        paint.appendChildren.filter((child) => {
+          const box = read(child, around[index].at);
+          return box && box.bottom - box.top >= 0.5;
+        }),
+      );
+      const before = children[0],
+        after = children[2];
       const prior = read(source, first),
         next = read(source, last);
       if (!prior || !next || next.bottom - prior.bottom < 1) return [];
@@ -1727,14 +1735,9 @@
       // message does, taking a longer step, and a streaming reply, taking more words.
       // A tail may also give way to what it stood for, as the working message does to
       // the answer: it leaves, the others keep their boxes, and what joins stands
-      // from where it stood. A child with no box, such as a thread's folded
-      // checkpoint, has nothing to keep, so another may take its place.
+      // from where it stood.
       const tail = before.at(-1);
       const tailBox = tail && read(tail, first);
-      const boxless = (node, at) => {
-        const box = read(node, at);
-        return box && box.bottom - box.top < 0.5;
-      };
       const replaced =
         Boolean(tailBox) &&
         paintAt(tail, first)?.appendTail &&
@@ -1744,9 +1747,7 @@
           .slice(0, -1)
           .every(
             (child, i) =>
-              (readings.every((paint) => paint.appendChildren[i] === child) &&
-                stable(child)) ||
-              (boxless(child, first) && boxless(after[i], last)),
+              children.every((nodes) => nodes[i] === child) && stable(child),
           ) &&
         after.slice(before.length - 1).every((child) => {
           const box = read(child, last);
@@ -1758,7 +1759,7 @@
           (after.length < before.length ||
             !before.every(
               (child, i) =>
-                readings.every((paint) => paint.appendChildren[i] === child) &&
+                children.every((nodes) => nodes[i] === child) &&
                 (stable(child) ||
                   (after.length === before.length &&
                     i === before.length - 1 &&

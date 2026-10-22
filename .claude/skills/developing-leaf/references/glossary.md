@@ -187,7 +187,7 @@ In flow it lists every included heading; where the margin has room it may show t
 | **On *agent*** | The agent's list of everything waiting on it (`queues.on_agent`), named for the agent, such as **On Claude**: the obligations the user's updates publish whose next actor is the agent, the replies and versions it owes, and its own to-dos. Prose about no particular agent writes `On <agent>` |
 | **To-do** | Explicit work owed until it ends (`todo` in the protocol), by the agent or by the user |
 | **Plan** | The agent's outline of the page's work (`plan` in the protocol): goals and steps by depth, each step plain or naming a to-do or obligation, which it arranges without owning |
-| **Tally** | `lf-tally`: how many of a region's obligations (`obligationsIn`) are still open, “7 of 8 to answer”, with an optional Next on me that walks the region's obligations waiting on the user |
+| **Tally** | `lf-tally`: how many of a region's obligations (`obligationsIn`) are still open and whose turn each is, “2 of 8 to answer · 1 on Claude”, with an optional Next on me that walks the region's obligations waiting on the user |
 | **Resend** | An update a harness handed back to the user to send again: its obligation stays in On me, next actor the user, until they do |
 | **Done** | The control with which the user ends a to-do the agent gave them; it writes `todo_end`. A widget may also call its own submit control Done |
 | **Done items** | The items that left either list, under a Done heading at the foot of the On view |

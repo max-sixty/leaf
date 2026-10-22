@@ -39,19 +39,19 @@ import {
   applicationPresented
 } from "./bundle-semantic-state.js";
 import {
-  outsideReading
+  J,
+  Z
 } from "./bundle-queued-work.js";
 
 // runtime/presence.js
 var clockSkew = 0;
-var ticks = /* @__PURE__ */ new Set();
-var onTick = (moved) => {
-  ticks.add(moved);
-  return () => ticks.delete(moved);
-};
+var pulse = Z(0);
 var serverNow = () => Date.now() + clockSkew;
 var saidNow = () => new Date(serverNow()).toISOString();
-var clockValue = (read) => outsideReading(() => read(serverNow()), onTick).read();
+var clockValue = (read) => J(() => {
+  pulse.value;
+  return read(serverNow());
+}).value;
 function readingPaint(owner, draw) {
   let painted = false;
   let key;
@@ -125,12 +125,11 @@ function readingPaint(owner, draw) {
   return paint;
 }
 async function tickClock(reportError) {
-  const round = {};
-  const settled = await Promise.allSettled(
-    [...ticks].map(async (moved) => moved(round))
-  );
-  for (const result of settled)
-    if (result.status === "rejected") reportError(result.reason, "clock paint failed");
+  try {
+    pulse.value += 1;
+  } catch (error) {
+    reportError(error, "clock paint failed");
+  }
 }
 var observeServerNow = (now) => {
   if (now) clockSkew = Date.parse(now) - Date.now();

@@ -407,16 +407,12 @@ them:
   semantic turn, work settlement or reopening. Posted to an update the agent owes, it
   carries `start: {item, turn?}` naming that exact delivered update, with its text
   as the line. `todos.start_reading` reads this and explicit starts alike, so
-  progress history and work in hand are one durable fact. The next ordinary agent reply in
-  its thread derives an empty-prose “Previous progress messages” fold over each
-  preceding uncovered contiguous run of ephemeral messages, including a single message,
-  that no user message follows before it. User messages break those runs and remain
-  outside them, and a run a user message follows stays unfolded where it was said, so
-  the thread keeps reading in its order and nothing moves above the user's message.
-  Explicit summaries own
-  overlapping ranges. Each derived fold names its completing reply as `trigger`,
-  so a surface holding that reply also holds the fold; nothing is appended for
-  this presentation change.
+  progress history and work in hand are one durable fact. The next ordinary agent
+  reply in its thread supersedes the preceding progress. The browser projection names
+  that reply as each progress message's `completed_by`, including a provisional reply
+  while it streams. The transcript hides progress once its completing reply is shown,
+  including inside an explicit summary. A surface holding the reply retains the progress
+  until it shows the reply. This changes only presentation; the log retains the messages.
 - An agent `reply` may carry an `anchor` captured against its `revision`, or a null
   anchor when its subject has left that revision. The fold takes the latest such value
   as the thread's current location and exposes the prior one as `detached_from` while

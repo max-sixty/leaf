@@ -281,8 +281,8 @@ def response_address(record: dict) -> dict:
 
 
 def asking(attrs: dict, when: dict) -> bool:
-    """Every attribute `when` names holds one of the values that ask, a flag's
-    two values being its presence and its absence."""
+    """Every attribute `when` names matches a string value or, for a boolean,
+    its presence or absence."""
     return all(
         any(
             (attr in attrs) == value

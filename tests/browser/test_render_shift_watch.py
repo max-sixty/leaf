@@ -3366,6 +3366,35 @@ grow.addEventListener('click',()=>room.style.height='40px')</script>""")
         consume_browser_errors(page, moved_within("div#menu"))
 
 
+def test_registered_property_translation_credits_the_box_it_carries(browser):
+    """A native animation can move translate through a registered property."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><style>
+@property --slide { syntax: '<length>'; inherits: false; initial-value: 0px; }
+</style><body style="margin:0">
+<button id="start">Start</button>
+<div id="panel" style="translate:var(--slide) 0px"><p>Reading</p></div>
+<div id="room"></div><p id="below">Below</p>
+<script>start.onclick=()=>{
+  window.motion=panel.animate([{'--slide':'200px'},{'--slide':'0px'}], {duration:3000});
+}</script></body>""")
+    )
+    paint(page)
+    page.locator("#start").click()
+    page.wait_for_function("panel.getBoundingClientRect().left < 180")
+    assert page.evaluate("motion.playState") == "running"
+    before = page.locator("#panel").bounding_box()["x"]
+    page.evaluate("() => { room.style.height = '40px'; }")
+    paint(page)
+    assert before - page.locator("#panel").bounding_box()["x"] > 1
+    judge_watches()
+    errors = take_browser_errors(page)
+    assert not names_move(errors, "div#panel"), errors
+    assert names_move(errors, "p#below"), errors
+
+
 @pytest.mark.parametrize("mode", ["static", "fallback"])
 def test_unused_anchor_cannot_bank_an_earlier_scroll(browser, mode):
     page = browser.new_page()

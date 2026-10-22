@@ -31,7 +31,7 @@ vars:
     sees the month's page count against the budget as they go, and submits the
     settings for me to apply.
 
-    Read packages/playground/instructions/author.md inside the leaf skill's base
+    Read ../../packages/playground/instructions/author.md relative to the leaf skill's base
     directory. The page directory is not reachable here, so reply with the page's
     HTML and any page module it needs.
 assert:

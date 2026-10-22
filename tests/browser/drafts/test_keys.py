@@ -4,7 +4,6 @@ alone, the reading keys' steps, and the comparison's one door."""
 import re
 
 import pytest
-from leaf import event_log as events_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_navigation import KEYS_PAGE, SMOOTH_LONG_PAGE, _publish
@@ -17,6 +16,8 @@ from render_harness import (
     open_page,
     round_trip,
 )
+
+from leaf import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

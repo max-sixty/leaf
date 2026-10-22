@@ -1,7 +1,7 @@
 # Feedback responsiveness evaluation
 
 The delivery and activity lifecycle is implemented. Its owners are
-[session lifetime](../skills/leaf/scripts/leaf/session-lifetime.md),
+[session lifetime](../src/leaf/session-lifetime.md),
 [conversation loop](../skills/leaf/references/conversation-loop.md), and the
 application publication described in [AGENTS.md](../AGENTS.md). This note holds
 remaining evaluation work and proposed improvements; it does not define a second

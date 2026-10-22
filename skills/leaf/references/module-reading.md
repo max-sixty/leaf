@@ -271,8 +271,8 @@ when the reports become ready.
 
 `comparisonChanges(owner)` returns the changed elements inside `owner` in the current
 version comparison, or every changed element with no owner, and an empty array with no
-comparison active. `watchComparison(owner, callback)` calls back at once and on each
-change to the comparison; its returned function ends the watch.
+comparison active. Reading it during a `LeafElement` render subscribes that render
+to comparison changes.
 
 `revisionLabel(event.revision)` is the page's name for the version an event was
 recorded in.

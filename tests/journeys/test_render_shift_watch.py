@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 
 import pytest
 from browser.test_render_shift_watch import held_stretch, paint, shift_evidence
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE
 from render_harness import (
@@ -18,6 +17,8 @@ from render_harness import (
     take_browser_errors,
     ticked,
 )
+
+from leaf.render_checks import rendered
 
 
 @pytest.mark.parametrize("surface", ["card", "inline"])

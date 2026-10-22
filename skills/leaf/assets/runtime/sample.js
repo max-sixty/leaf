@@ -38,8 +38,12 @@
  * script makes keep their browser behavior; Leaf's own placements are skipped unless
  * the child holds focus (focus.js, `canPlaceFocus`), and its reveals stay within its
  * document. Child-capability responses carry `Referrer-Policy: no-referrer` (http.py,
- * `_sample_headers`). A failed allocation or admission retires the allocation before
- * `ready` rejects. */
+ * `_sample_headers`). The frame delegates no permission policy, so the browser refuses
+ * the child's clipboard writes and its copy controls fall back as on any page whose
+ * clipboard refuses. The user chose this on 21 October 2026 over delegating
+ * `clipboard-write`, which would let any script an author puts in a sample write the
+ * user's clipboard on a press. A failed allocation or admission retires the
+ * allocation before `ready` rejects. */
 import { requestJson } from "./layer-client.js";
 import { pageUrl, runtime } from "./context.js";
 import { dressFor, registerSampleDress } from "./dress.js";

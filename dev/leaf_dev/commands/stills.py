@@ -1655,8 +1655,14 @@ STATES = (
     ),
     State("gallery-multiline-passage", "developer/feature-gallery", multiline_passage),
     State("plan", "review-a-plan", at_rest),
-    State("page-search", "review-a-plan", page_search),
-    State("page-search-phone", "review-a-plan", page_search, viewport=(390, 844)),
+    State("page-search", "review-a-plan", page_search, region=".lf-floating-panel"),
+    State(
+        "page-search-phone",
+        "review-a-plan",
+        page_search,
+        viewport=(390, 844),
+        region=".lf-floating-panel",
+    ),
     State("selected-passage-responses", "review-a-plan", selected_passage_responses),
     State(
         "selected-passage-responses-phone",

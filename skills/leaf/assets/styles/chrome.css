@@ -1079,16 +1079,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     text-align: right;
     white-space: nowrap;
   }
-  /* The next-match button carries the position it advances, so the count takes
-     no separate seat alongside the field. Both arrows retain the shared hit size. */
+  /* Count, then a matched pair of arrows using the shared icon-button geometry. */
   .lf-page-search-step {
     flex: none;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    width: auto;
-    padding: 0 4px;
   }
   .lf-legend-box {
     position: absolute;

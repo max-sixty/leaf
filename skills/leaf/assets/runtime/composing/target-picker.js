@@ -91,8 +91,7 @@ const matchStep = (icon, name) => {
 };
 const previousMatchControl = matchStep("up", "Previous match");
 const nextMatchControl = matchStep("down", "Next match");
-nextMatchControl.prepend(pageSearchStatus);
-const pageSearchControls = [previousMatchControl, nextMatchControl];
+const pageSearchControls = [pageSearchStatus, previousMatchControl, nextMatchControl];
 const noMatches = "No matches";
 const searchCount = (position, total) => `${position}/${total}`;
 

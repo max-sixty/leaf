@@ -4376,8 +4376,7 @@ var matchStep = (icon, name2) => {
 };
 var previousMatchControl = matchStep("up", "Previous match");
 var nextMatchControl = matchStep("down", "Next match");
-nextMatchControl.prepend(pageSearchStatus);
-var pageSearchControls = [previousMatchControl, nextMatchControl];
+var pageSearchControls = [pageSearchStatus, previousMatchControl, nextMatchControl];
 var noMatches = "No matches";
 var searchCount = (position, total) => `${position}/${total}`;
 function createTargetPicker({

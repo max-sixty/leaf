@@ -300,8 +300,8 @@
     align-self: center;
     align-items: center;
     gap: 4px;
-    padding: 3px 6px;
-    margin-inline-end: 4px;
+    padding: 3px 4px;
+    margin-inline-end: 2px;
     border-radius: var(--r);
     background: color-mix(in srgb, var(--accent) 10%, transparent);
     color: var(--ink);
@@ -326,7 +326,7 @@
     flex: none;
     align-items: center;
     min-height: var(--lf-fp-line);
-    gap: 2px;
+    gap: 0;
   }
   /* More room for a long draft (floating-panel.js, `expand`): past three lines the
      mark stands over the leaf, beside the field's first line, or at the end of an open

@@ -212,8 +212,8 @@
     align-self: center;
     align-items: center;
     gap: 4px;
-    padding: 3px 6px;
-    margin-inline-end: 4px;
+    padding: 3px 4px;
+    margin-inline-end: 2px;
     border-radius: var(--r);
     background: color-mix(in srgb, var(--accent) 10%, transparent);
     color: var(--ink);
@@ -238,7 +238,7 @@
     flex: none;
     align-items: center;
     min-height: var(--lf-fp-line);
-    gap: 2px;
+    gap: 0;
   }
   .lf-fp-expand {
     flex: none;
@@ -2298,12 +2298,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-page-search-step {
     flex: none;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    width: auto;
-    padding: 0 4px;
   }
   .lf-legend-box {
     position: absolute;

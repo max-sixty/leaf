@@ -5423,13 +5423,7 @@ function newsNotice(header = false) {
     node,
     set(news) {
       if (words.textContent !== news.label) {
-        words.replaceChildren(
-          ...news.parts.map((part) => {
-            const fact = document.createElement("span");
-            fact.textContent = part;
-            return fact;
-          })
-        );
+        render(html`${news.parts.map((part) => html`<span>${part}</span>`)}`, words);
         dropped.disconnect();
         for (const box of [words, ...words.children]) dropped.observe(box);
       }

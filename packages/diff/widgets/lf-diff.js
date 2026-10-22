@@ -43,6 +43,7 @@ import {
   render,
   inChrome,
   iconElement,
+  iconTemplate,
   inBaseLayer,
   isPagePaint,
   commands,
@@ -61,7 +62,6 @@ import {
   publishOutput,
   projectedDatum,
   threadSurface,
-  readingPaint,
   releaseOutlets,
   reportFailure,
   retainUserIntent,
@@ -919,7 +919,7 @@ customElements.define(
       }
     };
 
-    // The bound delivery the last render read, and the one whose rendering last
+    // The source reading the last render read, and the one whose rendering last
     // started; a departure that cuts a rendering short forgets it, so the return draws
     // it again.
     #delivered;
@@ -929,10 +929,9 @@ customElements.define(
 
     shouldUpdate(changed) {
       const ready = super.shouldUpdate(changed);
-      // An inline patch is authored once. Its async reader owns the only repaint
-      // (including a retry cut short by departure); a reconnect's Lit update would
-      // clear its visible refusal without changing that reading.
-      return ready && (this.hasAttribute("source") || !this.hasUpdated);
+      // An inline patch is authored once. Only interrupted preparation needs another
+      // draw; an unchanged return must keep its finished rows or visible refusal.
+      return ready && (this.hasAttribute("source") || this.#shown === undefined);
     }
 
     setup() {
@@ -1020,16 +1019,11 @@ customElements.define(
         ],
         () => Boolean(this.fileEntries?.length),
       );
-      const bound = this.hasAttribute("source");
-      // An inline patch never changes, so it is one reading, drawn again on a return
-      // only when the departure cut its rendering short: a refusal stands.
-      const paintInline = bound
-        ? null
-        : readingPaint(this, () => {
-            const rendering = (this.sourceRendering = this.show(this.inlineSource));
-            this.present(rendering);
-            return rendering;
-          });
+      if (!this.hasAttribute("source")) {
+        // Not bodyText: a diff's trailing whitespace is content — a hunk's last line
+        // can be a lone space — so only the closing newline is the <pre>'s layout.
+        this.inlineSource = dataBody(this).replace(/^\n+/, "").replace(/\n$/, "");
+      }
       whileConnected(this, (signal) => {
         this.addEventListener("lf-reveal", this.revealPassage, { signal });
         // A page diff's file header pins at `--lf-top`, the top of the page's box that
@@ -1037,16 +1031,6 @@ customElements.define(
         // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
         // the module answers it once with the layer's own predicate and paints the answer.
         this.toggleAttribute("data-lf-diff-pinned", !inChrome(this));
-        if (bound && this.#shown === undefined && this.hasUpdated) this.requestUpdate();
-        if (paintInline) {
-          // Not bodyText: a diff's trailing whitespace is content — a hunk's last line
-          // can be a lone space, the context line for a blank source line — so only the
-          // closing newline is the <pre>'s layout.
-          /** @type {string} */
-          this.inlineSource =
-            this.inlineSource ?? dataBody(this).replace(/^\n+/, "").replace(/\n$/, "");
-          paintInline(this.inlineSource);
-        }
         return () => {
           this.rendering = (this.rendering ?? 0) + 1;
           if (this.#showing) this.#shown = undefined;
@@ -1063,22 +1047,33 @@ customElements.define(
     }
 
     render() {
-      if (this.hasAttribute("source")) this.#delivered = this.data("document");
+      this.#delivered = this.hasAttribute("source")
+        ? this.data("document")
+        : this.inlineSource;
       return nothing;
     }
 
-    // A bound patch renders each delivery once, after the draw that read it, whose
+    // A patch renders each reading once, after the draw that read it, whose
     // claim waits for the rendering.
     updated(changed) {
       super.updated(changed);
-      if (!this.hasAttribute("source") || this.#delivered === this.#shown) return;
-      const snapshot = (this.#shown = this.#delivered);
+      if (this.#delivered === this.#shown) return;
+      this.#shown = this.#delivered;
+      const bound = this.hasAttribute("source");
+      const snapshot = bound ? this.#delivered : undefined;
       this.#showing = true;
-      const rendering = this.show(snapshot?.value ?? null, snapshot);
+      const rendering = this.show(
+        bound ? (snapshot?.value ?? null) : this.#delivered,
+        snapshot,
+      );
       this.sourceRendering = rendering;
       this.drawing(
         rendering.finally(() => {
-          if (this.sourceRendering === rendering) this.#showing = false;
+          if (this.sourceRendering === rendering) {
+            this.#showing = false;
+            // Preparation may finish before the arrival batch reports departure.
+            if (!this.isConnected) this.#shown = undefined;
+          }
         }),
       );
     }
@@ -1790,8 +1785,7 @@ customElements.define(
       button.toggleAttribute("inert", !folds.length);
       const open = folds.some((details) => !details.open);
       const icon = open ? "unfold" : "fold";
-      if (button.firstElementChild?.dataset.lfIcon !== icon)
-        button.replaceChildren(iconElement(icon, "lf-action-icon"));
+      render(iconTemplate(icon, "lf-action-icon"), button);
       // No number: the count beside it also counts files that have nothing to open.
       const label = `${open ? "Expand" : "Collapse"} all files`;
       keeps(button, "aria-label", label);

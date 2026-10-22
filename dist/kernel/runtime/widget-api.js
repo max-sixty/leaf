@@ -25,7 +25,6 @@ import {
   threadActions,
   threadBox,
   threadInput,
-  watchComparison,
   widgetController,
   wireInput
 } from "./bundle-document-identity.js";
@@ -144,7 +143,6 @@ import {
   pageScroller,
   preserveReadingRegions,
   quietSince,
-  readingPaint,
   readingPosture,
   registerReadingRegion,
   scrollLimit,
@@ -1322,7 +1320,6 @@ export {
   readQueues,
   readThreads,
   readWork,
-  readingPaint,
   readingPosture,
   reducedMotion,
   ref,
@@ -1390,7 +1387,6 @@ export {
   tokenLines,
   under,
   unsafeHTML,
-  watchComparison,
   watchDraft,
   watchReadingRegionTransitions,
   wear,

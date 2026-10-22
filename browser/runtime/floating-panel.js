@@ -1124,14 +1124,20 @@ export function createFloatingPanel({
   // theirs. Typing is told apart, since the field it types in must not move under it.
   let gesture = null;
   let gestures = 0;
-  onUserInput((event) => {
-    if (!["keydown", "pointerdown", "input", "touchstart"].includes(event.type)) return;
+  // Activation is a new gesture too: a held press can settle before its click.
+  const beginGesture = (event) => {
+    if (
+      !["keydown", "pointerdown", "input", "touchstart", "click"].includes(event.type)
+    )
+      return;
     gesture = event.type === "input" ? "typing" : "press";
     const own = ++gestures;
     afterSettling(() => {
       if (gestures === own) gesture = null;
     });
-  });
+  };
+  onUserInput(beginGesture);
+  window.addEventListener("click", beginGesture, { capture: true, passive: true });
   function followBox() {
     // How far the box reaches up from the window's foot, which the root's
     // `scroll-padding-bottom` keeps every landing clear of (theme.css), so `m`, `t`, a

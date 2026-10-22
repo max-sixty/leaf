@@ -259,6 +259,7 @@ summary {
 }
 .lf-thread-content {
   display: flow-root;
+  position: relative;
   min-width: 0;
   anchor-scope: --lf-thread-headline;
   --lf-thread-action-room: var(--lf-msg-head-height);
@@ -339,9 +340,6 @@ summary {
 .lf-thread-transcript > .lf-msg[data-lf-summary] {
   margin-block: 8px;
   anchor-name: var(--lf-fold-foot);
-}
-.lf-thread-transcript {
-  position: relative;
 }
 .lf-thread-checkpoint[data-expanded=true]::before {
   content: "";

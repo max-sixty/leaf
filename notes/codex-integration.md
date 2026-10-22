@@ -5,6 +5,26 @@ Leaf's current companion workflow is documented in
 [Session lifetime, “Watchers”](../src/leaf/session-lifetime.md#watchers)
 owns the delivery and connection lifecycle. This note holds open design work.
 
+## Delivery without user messages
+
+An idle desktop chat receives Leaf input through `codex queue` as a
+`<leaf-delivery>` user message. The background `threads/wake/<id>` deep link
+removes the external queue's polling delay, but checks for queued input before
+resuming and supplies no input itself.
+
+Leaf already starts message-free turns through an accessible App Server:
+`codex.start_app_server_delivery` sends `turn/start` with a `leaf_delivery` tool
+output. The desktop implements this capability internally, but the 22 October
+2026 inspection found no supported external desktop or MCP interface exposing
+it. Leaf's MCP `run` tool carries commands from the agent to Leaf; registering
+that server supplies no reverse delivery channel.
+
+The missing capability is access to the desktop-owned App Server, or an API for
+queuing non-user input. When one is available, reuse the existing delivery
+envelope and acceptance path. Prove that an action on a page starts work in its
+idle owning chat without adding a user message, while Codex retains turn
+serialization and interruption policy.
+
 ## Typed operations
 
 Provide model tools for reading page state, replying, declaring work, and

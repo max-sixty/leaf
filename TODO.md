@@ -100,6 +100,11 @@ has tried; settle that before building it.
 
 ### Agent and author experience
 
+- **Wake idle Codex desktop chats without user messages.** Page actions currently
+  arrive as queued `<leaf-delivery>` user messages, which clutter the chat. Expose
+  a route to the desktop-owned App Server or non-user queued input, then use
+  Leaf's existing tool-output delivery
+  ([interface gap](notes/codex-integration.md#delivery-without-user-messages)).
 - **Consider a reminder when revising decided content.** An optional `--force`
   acknowledgment could make an agent pause over an existing decision. Revisions
   currently remain unrestricted; decide whether such a reminder helps before

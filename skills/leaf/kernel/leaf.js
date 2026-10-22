@@ -1451,7 +1451,8 @@ var commandReferenceInvoke = null;
 var EMPTY_CATALOG = Object.freeze({
   total: 0,
   entries: Object.freeze([]),
-  sections: Object.freeze([])
+  sections: Object.freeze([]),
+  describedMeta: Object.freeze([])
 });
 var commandReferenceCatalog = EMPTY_CATALOG;
 var commandReferenceState = {
@@ -1619,9 +1620,13 @@ function captureCommandReferenceCatalog() {
   return Object.freeze({
     total: entries.length,
     entries: Object.freeze(entries),
-    sections: Object.freeze(sections)
+    sections: Object.freeze(sections),
+    describedMeta: Object.freeze(
+      entries.filter((entry) => entry.actionable && entry.description).map(selectionMeta)
+    )
   });
 }
+var selectionMeta = (entry) => [entry.description || entry.title, entry.steps[0], "\u23CE activate"].filter(Boolean).join(" \xB7 ");
 function projectCommandReference(catalog, state) {
   const query = commandReferenceWords(state.query);
   const bindingQuery = commandReferenceBinding(state.query);
@@ -1871,11 +1876,16 @@ function commandReferenceTemplate() {
       >
     </label>
     ${commandReferenceSearch}
-    <div
-      class="lf-command-reference-meta"
-      aria-live="polite"
-      .textContent=${commandReferenceView.metadata}
-    ></div>
+    <div class="lf-command-reference-meta-box">
+      ${commandReferenceCatalog.describedMeta.map(
+    (text) => html`<span aria-hidden="true">${text}</span>`
+  )}
+      <div
+        class="lf-command-reference-meta"
+        aria-live="polite"
+        .textContent=${commandReferenceView.metadata}
+      ></div>
+    </div>
     <div
       id="lf-command-reference-results"
       class="lf-command-reference-results"
@@ -2014,11 +2024,7 @@ function moveCommandReferenceSelection(dir) {
   commandReferenceState = {
     ...commandReferenceState,
     selectedCommandId: nextId,
-    metaOverride: [
-      nextRecord.entry.description || nextRecord.entry.title,
-      nextRecord.entry.steps[0],
-      "\u23CE activate"
-    ].filter(Boolean).join(" \xB7 ")
+    metaOverride: selectionMeta(nextRecord.entry)
   };
   presentCommandReference();
   const next = commandButton(nextId);

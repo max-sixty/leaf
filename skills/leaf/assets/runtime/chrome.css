@@ -1940,17 +1940,21 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-command-reference-head,
   .lf-command-reference-search,
-  .lf-command-reference-meta {
+  .lf-command-reference-meta-box {
     flex: none;
   }
-  .lf-command-reference-meta {
+  .lf-command-reference-meta-box {
+    display: grid;
     min-height: 1lh;
     margin: 6px 0;
-    overflow: hidden;
     color: var(--muted);
     font-size: var(--t-6);
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  }
+  .lf-command-reference-meta-box > * {
+    grid-area: 1 / 1;
+  }
+  .lf-command-reference-meta-box > [aria-hidden] {
+    visibility: hidden;
   }
   .lf-command-reference-results {
     --lf-command-key-column: 104px;
@@ -2022,7 +2026,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     color: var(--muted);
     font-size: var(--t-6);
   }
-  @media (hover: none), (max-width: 640px) {
+  @media (hover: none) {
     .lf-command-reference-description {
       display: block;
     }

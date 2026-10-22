@@ -1729,6 +1729,7 @@ export function createFloatingPanel({
         role: menuOpen.value ? "menuitem" : null,
         row: entry.key,
         opens: view === "versions",
+        title: entry.title || null,
       },
     );
   }

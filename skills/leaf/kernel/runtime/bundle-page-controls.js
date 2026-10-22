@@ -73,6 +73,7 @@ function pageControls() {
       key: row.key,
       label: read(row.label),
       value: read(row.value) ?? "",
+      title: read(row.title) ?? "",
       shortcut: read(row.shortcut) ?? EMPTY,
       group,
       copies: read(row.copies) ?? "",

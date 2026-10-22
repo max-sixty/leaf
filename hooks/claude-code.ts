@@ -45,6 +45,16 @@
  * prompt (measured at 2.1.306); a negative margin to close it hides the band.
  * `leaf-dev claude-code-session` runs a session that draws it from this tree.
  *
+ * In the terminal a click on the link opens the page wherever the terminal runs,
+ * SSH included. No escape sequence makes a terminal open a URL without a click,
+ * and no `$` call reaches the user's browser, so each line ends with a button for
+ * the keyboard, the first focused once ctrl+x tab takes the band, for Enter to
+ * press. Where the user sits at this machine, which Leaf's server judges by
+ * SSH_CONNECTION (`page_access`), it opens the page in the browser; over SSH a
+ * browser started here would open on the wrong machine, so it copies the link to
+ * the user's own clipboard, which OSC 52 reaches. Other surfaces draw the link as
+ * an anchor their keyboard reaches.
+ *
  * A follower (`bin/leaf hook --harness claude-code
  * --if-claimed --pages`) prints that list whenever it changes and exits once the
  * session holds no page; the launcher answers it without starting uv in a session
@@ -54,7 +64,13 @@
  * running; a request while one runs starts another once it exits.
  */
 
-import type { EngineInterface, Register, RenderElement } from "claude-code";
+import type {
+  EngineInterface,
+  Register,
+  RenderElement,
+  RenderSurface,
+  UiPressArgument,
+} from "claude-code";
 import { WatchOwner } from "./watch.ts";
 
 // `hooks.json`'s timeout for Leaf's hooks.
@@ -64,6 +80,8 @@ type Payload = { hook_event_name: string; session_id: string; ended_at?: number 
 
 // Claude Code's process, read once by `sessionOf`.
 let claudePid = "";
+// Whether the user reached this machine over SSH, read once by the band.
+let remote: boolean | undefined;
 let watch = new WatchOwner();
 // Whether a main-loop turn is going, from its start until turn.complete.
 let running = false;
@@ -238,6 +256,33 @@ async function wake(
   }
 }
 
+// The command that opens its first argument in this machine's browser.
+const OPENER = '[ "$(uname)" = Darwin ] && exec open "$1"; exec xdg-open "$1"';
+
+/** What a line's button does: open the page here, or over SSH copy its link to
+ * the clipboard of the surface pressed on. */
+async function openPage(
+  $: EngineInterface,
+  { url, title }: Leaf,
+  surface: RenderSurface,
+) {
+  try {
+    if (remote) {
+      const copied = await $.ui.copy({ text: url, surface });
+      if (copied.isCopied) $.ui.toast(`Copied the link to ${title}`);
+      else $.ui.log(`Leaf: the link to ${title} was not copied (${copied.reason})`);
+      return;
+    }
+    const ran = await $.process.run(["/bin/sh", "-c", OPENER, "sh", url]);
+    if (ran.exitCode !== 0)
+      $.ui.log(
+        `Leaf: opening ${title} exited with code ${ran.exitCode}${ran.stderr.trim() ? `: ${ran.stderr.trim()}` : ""}`,
+      );
+  } catch (error) {
+    $.ui.log(`Leaf: opening ${title} failed: ${error}`);
+  }
+}
+
 function show($: EngineInterface, listed: Leaf[]) {
   leaves = listed;
   $.ui.invalidate("ui.render");
@@ -347,14 +392,16 @@ export const register: Register = (on, options) => {
   on("ui.render", { component: "AbovePrompt" }, async ($, e, next) => {
     const beneath = await next(e);
     if (leaves.length === 0 || e.props.hasSurvey) return beneath;
-    const { Box, Text, Link } = $.ui.resolve(e);
+    const { Box, Text, Link, Button } = $.ui.resolve(e);
+    if (e.surface === "terminal") remote ??= Boolean(await $.env.get("SSH_CONNECTION"));
     // What JSX would type; the module stays `.ts` for Node, which runs it in tests.
     const dim = (text: string) => h(Text, { dimColor: true }, text);
     // A line keeps one row, its status cut first; only the counts that aren't zero
     // show, and what waits on the user takes a color.
-    const line = ({ url, title, on_user, threads, activity }: Leaf) => {
+    const line = (leaf: Leaf, index: number) => {
+      const { url, title, on_user, threads, activity } = leaf;
       const status = statusOf(activity);
-      return h(
+      const text = h(
         Text,
         { wrap: "truncate-end" },
         // One link from the word Leaf through the title, so either opens the page.
@@ -378,6 +425,25 @@ export const register: Register = (on, options) => {
           ? [dim(", "), h(Text, { color: "suggestion" }, `${threads.unread} new`)]
           : []),
         ...(status ? [dim(` · ${status}`)] : []),
+      );
+      if (e.surface !== "terminal") return text;
+      // The button stays whole at the line's end while the text before it is cut.
+      return h(
+        Box,
+        { gap: 1 },
+        text,
+        h(
+          Box,
+          { flexShrink: 0 },
+          h(Button, {
+            key: leaf.page_key,
+            label: remote ? "copy link" : "open",
+            plain: true,
+            dimColor: true,
+            ...(index === 0 ? { autoFocus: true } : {}),
+            onPress: (press: UiPressArgument) => void openPage($, leaf, press.surface),
+          }),
+        ),
       );
     };
     return h(

@@ -17,7 +17,11 @@
 // going in the module has run as far as it can without waiting on anything
 // outside, `{"watched": <its payload>}` prints. Each redraw the module asks for
 // prints `{"band": <tree>}`, the band above the prompt as its render hook draws
-// it, each element `{tag, props, children}`. The first line printed is
+// it on the terminal, each element `{tag, props, children}`. A line `{"press":
+// <key>}` presses the Button of that key in the band last drawn. What a press copies
+// prints as `{"copied": <text>}`, and a toast as `{"toast": <text>}`. The options'
+// `env` is Claude Code's environment: all that `$.env` reads, and what the
+// module's processes inherit over the driver's own. The first line printed is
 // `{"pid", "events"}`: the process the module's processes see as their parent,
 // and the events it hooks.
 import { spawn } from "node:child_process";
@@ -32,10 +36,11 @@ const print = (line) => process.stdout.write(`${JSON.stringify(line)}\n`);
 const watches = new Set();
 let submissions = 0;
 let stopped = false;
+let band = null;
 
 function start(argv, env, input) {
   const child = spawn(argv[0], argv.slice(1), {
-    env: { ...process.env, ...env },
+    env: { ...process.env, ...options.env, ...env },
     stdio: ["pipe", "pipe", "pipe"],
   });
   child.stdin.on("error", () => {});
@@ -131,6 +136,9 @@ const $ = {
   session: {
     id: async () => session,
   },
+  env: {
+    get: async (name) => options.env?.[name],
+  },
   prompt: {
     // Claude Code refuses a plugin's prompt that would run a slash command.
     submit: async ({ text }) => {
@@ -148,7 +156,12 @@ const $ = {
   ui: {
     log: (text) => print({ diagnostic: text }),
     // Each element is its name, which `h` records with its props and children.
-    resolve: () => ({ Box: "Box", Text: "Text", Link: "Link" }),
+    resolve: () => ({ Box: "Box", Text: "Text", Link: "Link", Button: "Button" }),
+    copy: async ({ text }) => {
+      print({ copied: text });
+      return { isCopied: true };
+    },
+    toast: (text) => print({ toast: text }),
     // A redraw of the band, printed as `{"band": <its tree, or null>}`.
     invalidate: () => setImmediate(drawBand),
   },
@@ -174,12 +187,27 @@ globalThis.h = (tag, props, ...children) => ({ tag, props, children });
 
 /** The band above the prompt, as the module's render hooks draw it over nothing. */
 async function drawBand() {
-  const band = { component: "AbovePrompt", props: { hasSurvey: false } };
+  const input = {
+    component: "AbovePrompt",
+    surface: "terminal",
+    props: { hasSurvey: false },
+  };
   const chain = (hooks.get("ui.render") ?? []).reduceRight(
     (next, hook) => (input) => hook($, input, next),
     async () => null,
   );
-  print({ band: await chain(band) });
+  band = await chain(input);
+  print({ band });
+}
+
+/** The element of the band last drawn whose key is `key`. */
+function drawn(key, node = band) {
+  if (node === null || typeof node !== "object") return undefined;
+  if (node.props?.key === key) return node;
+  for (const child of node.children) {
+    const found = drawn(key, child);
+    if (found) return found;
+  }
 }
 
 // The driver raises each event it is given, so a matcher selects nothing here.
@@ -191,7 +219,11 @@ print({ pid: process.pid, events: [...hooks.keys()] });
 
 let release;
 for await (const line of readline.createInterface({ input: process.stdin })) {
-  const { emit, e, answer, hold, release: releasing, flush } = JSON.parse(line);
+  const { emit, e, answer, hold, release: releasing, flush, press } = JSON.parse(line);
+  if (press !== undefined) {
+    drawn(press).props.onPress({ element: press, surface: "terminal" });
+    continue;
+  }
   if (flush) {
     await new Promise(setImmediate);
     print({ submissions });

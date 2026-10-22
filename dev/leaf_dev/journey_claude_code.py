@@ -103,7 +103,11 @@ from leaf_dev.arms import (
     run_leaf,
 )
 from leaf_dev.commands.journey import Isolation, Terminal, User, isolated, user_at
-from leaf_dev.reply_phases import claude_code_records
+from leaf_dev.reply_phases import (
+    claude_code_debug_records,
+    claude_code_records,
+    instant,
+)
 from leaf_dev.review_scenario import (
     REQUEST,
     SLEEP,
@@ -131,6 +135,7 @@ class ClaudeCode(Terminal):
         self.pane = f"leaf-journey-claude-code-{os.getpid()}"
         self.home = place.root / "home"
         self.exited, self.kept = place.root / "exited", place.evidence / "screen.txt"
+        self.debug = place.evidence / "debug.log"
         self.session: str | None = None
         # The environment's values reach the pane through tmux, so no file holds
         # them; the script names them, and drops whatever else the tmux server's
@@ -232,9 +237,16 @@ class ClaudeCode(Terminal):
         time.sleep(seconds)
 
     def records(self) -> list[dict]:
+        """The transcript's records, with the requests, first outputs and Leaf's
+        hooks of the debug log Claude Code writes (`--debug-file`)."""
         if self.session is None:
             return []
-        return claude_code_records(native_records(self.home, self.session))
+        logged = self.debug.read_text() if self.debug.exists() else ""
+        return sorted(
+            claude_code_records(native_records(self.home, self.session))
+            + claude_code_debug_records(logged),
+            key=lambda record: instant(record["received_at"]),
+        )
 
     def failure(self, what: str, limit: float) -> click.ClickException:
         return click.ClickException(f"{what} within {limit:.0f} s\n{self.screen()}")

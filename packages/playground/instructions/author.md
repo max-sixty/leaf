@@ -28,6 +28,14 @@ part is that workspace, `<div class="layout-workspace density-working">` holding
 a document, it breaks out of the document's column. Draw the candidates directly in the
 preview, without a card around each.
 
+In a workspace, every line between the question and the playground pushes the
+instruction and its Send button further below the window. Keep that premise to one or
+two sentences: what the user is setting and the goal it serves. Where the preview
+already shows a fact, such as each alert's replay or where values start, leave it
+there. Put a qualification the user may want, such as where a figure comes from, in an
+`lf-gloss` on the phrase it qualifies, which opens on hover, focus or a tap without
+moving the page.
+
 An A/B comparison mounts both candidates in the preview with the same configuration and
 starting content, applies each drag, scroll or edit once to the shared state, and draws
 both candidates from it. When candidates stand side by side, align their names, notes

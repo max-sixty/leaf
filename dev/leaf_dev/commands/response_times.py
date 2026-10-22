@@ -37,7 +37,8 @@ session is Claude Code's, with its transcript still in this machine's Claude Cod
 projects, also carries its reply's breakdown (`reply`,
 `reply_phases.reply_breakdown`): the whole reply, Leaf's share of it (delivery and
 those commands), the harness's other work before it took the input, idle time
-between its turns, and the model calls the reply took. Its case is `working` where
+between its turns, and the model's time and calls, unsplit, since the transcript
+alone times no request or first output. Its case is `working` where
 a turn was running at the admission, so the harness took the input at that turn's
 next tool boundary or its end, else `waiting`. Other harnesses' inputs carry no
 breakdown, and the summary's reply rows count them missing.

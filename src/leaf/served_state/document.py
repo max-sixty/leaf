@@ -1,5 +1,6 @@
 """Document-scoped browser projection and undo readings."""
 
+from ..delivery import opened_input_ids
 from ..document_reading import DocumentReading
 from ..events import UndoReading, action_retracted
 from ..gesture_words import GestureWords
@@ -52,8 +53,14 @@ def browser_undo_candidates(
     (`GestureWords.gesture`), so `z` names what it takes in every tab and after a
     reload. Only the head pays for that reading: an exact control names the
     gesture it shows, and the browser words the other kinds from what it already
-    holds (undo.js)."""
+    holds (undo.js).
+
+    An entry the agent has picked up carries `picked_up`: a delivery handed it into
+    an agent's turn (`delivery.opened_input_ids`, the Delivered stage `workflows`
+    reads). `z` shows such a gesture before it takes it back, wherever it stands,
+    since the agent may have acted on it (undo.js)."""
     candidates = []
+    picked_up = opened_input_ids(events)
     withdrawn = undo_reading.withdrawn
     bookkeeping = kinds_declaring("bookkeeping")
     newest = next(
@@ -79,6 +86,8 @@ def browser_undo_candidates(
         if event["kind"] == "done" and event["version"] != stamp:
             continue
         item = {"event": event}
+        if event["id"] in picked_up:
+            item["picked_up"] = True
         if event["kind"] == "action":
             if event["id"] in document.projection.classified:
                 if action_retracted(event, document.floors, document.within):

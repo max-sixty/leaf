@@ -6,10 +6,11 @@ the same Codex task instead of waiting for the agent to ask again. It owns the s
 task's delivery record, offers one delivery at a time, and reconciles the receipt its
 page is owed however that delivery was taken.
 
-While a proven tool hook has a running turn, it can offer the shared record
-between steps (`codex.offer_hook_delivery`). The adapter reserves its own transport
-only when that turn is idle or no such hook has run, and an unread hook pointer
-then falls back to the same durable delivery.
+While a turn runs, its tool hook can offer the shared record between steps
+(`codex.offer_hook_delivery`), and on the queue route its Stop hook as it would end.
+The adapter reserves its own transport only once that turn ends, or at once where
+nothing would show it the turn's end (`_offer_queued_delivery`), and an unread hook
+pointer then falls back to the same durable delivery.
 
 One of two transports carries the adapter's offer. The `codex queue` command is the
 default for a task whose App Server Leaf cannot reach, such as the Codex desktop
@@ -92,9 +93,9 @@ from .harness import CodexHarness, Harness, session_harness
 from .leases import (
     adapter_is_live,
     adapter_lease_path,
+    hooks_ran,
     release_lease,
     session_state_path,
-    step_hook_ran,
     take_lease,
 )
 from .refusals import Refused
@@ -789,10 +790,21 @@ def _offer_queued_delivery(
         # the resumed turn is still executing its first tool.
         sync_transcript_turn(session_id)
     observed_hook_turn = hook_turn(session_id)
-    active_hook_turn = delivery_turn(session_id) if connection is None else None
-    if active_hook_turn is not None and step_hook_ran(session_id):
-        # A trusted tool hook can offer this input before the running turn ends.
-        # Stop/Interrupt closes that turn; unread pointers then take this queue.
+    if (
+        connection is None
+        and observed_hook_turn is not None
+        and (hooks_ran(session_id) or observed_hook_turn.get("transcript_path"))
+        and delivery_turn(session_id) is not None
+    ):
+        # Codex runs a queued pointer only once the running turn ends, as a turn
+        # of its own on a message in the user's name. So the input waits for the
+        # turn's tool hook, or its Stop, to hand it in quietly, from the turn's
+        # start, wherever Leaf will see that turn end: through the hooks, where
+        # one has run in this instance, or through Codex's transcript, read
+        # above, which shows a turn before the instance's first hook has run.
+        # Once the turn ends, the queue takes the input, or a pointer the turn
+        # left unread. With neither, nothing shows the end before the claim's
+        # turn ages out, so the input goes to the queue at once.
         return False
     lock = delivery_lock_path(session_id)
     with flocked(lock):
@@ -812,10 +824,6 @@ def _offer_queued_delivery(
         prepared = None
         if unoffered is not None:
             path, record = unoffered
-            if isinstance(record, codex.HookOffer) and record.turn == active_hook_turn:
-                # A reserved Stop offer proves this specific delivery can enter
-                # the running turn even without earlier between-step capability.
-                return False
             prepared = offer_delivery(
                 path,
                 record,
@@ -835,6 +843,12 @@ def _offer_queued_delivery(
             "the observed App Server delivery is awaiting reconciliation"
         )
     queue_delivery(codex_path, session_id, prepared.prompt)
+    # `codex queue` takes no message id and lists nothing queued, so a failure
+    # before this acceptance is recorded leaves the offer to be queued again rather
+    # than risk losing it. A turn that acknowledges the first pointer before then
+    # accepts it (`codex_state.confirm_codex_pointer`); otherwise Codex runs a turn
+    # for each, and the second one's `delivery ack` says it repeats the first
+    # (`delivery.earlier_pickup`).
     accept_codex_delivery(session_id, prepared.payload["id"], None)
     return True
 
@@ -1070,7 +1084,7 @@ def cmd_codex_launch(codex_path: str | None = None) -> int:
     executable = codex_path or shutil.which("codex")
     if executable is None:
         raise Refused("cannot find the `codex` executable on PATH")
-    with private_app_server(executable) as endpoint:
+    with private_app_server(executable) as (endpoint, _process):
         return subprocess.call(
             [executable, "--remote", endpoint],
             env=os.environ | {APP_SERVER_ENV: endpoint},

@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  collectReads,
-  createApplicationPublisher,
-  outsideReading,
-} from "./snapshot.ts";
+import { effect } from "@preact/signals-core";
+import { createApplicationPublisher, outsideReading } from "./snapshot.ts";
 import { createPresentationCoordinator } from "./presentation.ts";
 
 for (const kind of ["semantic", "outside", "presentation"]) {
@@ -19,8 +16,9 @@ for (const kind of ["semantic", "outside", "presentation"]) {
     const app = createApplicationPublisher(initial);
     const part = app.select((root) => root.authoritative);
     let notify;
+    let now = 7;
     const clock = outsideReading(
-      () => 7,
+      () => now,
       (moved) => {
         notify = moved;
         return () => {};
@@ -45,27 +43,33 @@ for (const kind of ["semantic", "outside", "presentation"]) {
       assert.equal(app.read().document, initial.document);
       part.read();
       clock.read();
-      ownReads.push(collectReads(() => [part.read(), clock.read()]));
+      ownReads.push([part.read(), clock.read()]);
     };
-    const registration = collectReads(() => source.subscribe(observe));
-    assert.ok("value" in registration, String(registration.error));
-    assert.equal(registration.reads.size, 0);
-    const delivered = collectReads(() => {
-      if (kind === "semantic") {
-        app.publish({ ...initial, effective: { count: 1 }, semanticEpoch: 1 });
-      } else if (kind === "outside") {
-        notify({});
-      } else {
-        coordinator.attach("unrelated", {});
-      }
+    let subscriptions = 0;
+    let stopSource;
+    const stop = effect(() => {
+      subscriptions++;
+      stopSource = source.subscribe(observe);
     });
-    assert.ok("value" in delivered, String(delivered.error));
-    assert.equal(delivered.reads.size, 0);
-    assert.ok(ownReads.length >= 2);
-    for (const reading of ownReads) {
-      assert.deepEqual([...reading.reads.values()], [null, 7]);
-      assert.deepEqual(reading.value, [null, 7]);
+    if (kind === "semantic") {
+      app.publish({ ...initial, effective: { count: 1 }, semanticEpoch: 1 });
+    } else if (kind === "outside") {
+      now = 8;
+      notify({});
+    } else {
+      coordinator.attach("unrelated", {});
     }
-    registration.value();
+    assert.equal(
+      subscriptions,
+      1,
+      "observer reads do not subscribe the registering effect",
+    );
+    assert.ok(ownReads.length >= 2);
+    assert.deepEqual(ownReads, [
+      [null, 7],
+      [null, kind === "outside" ? 8 : 7],
+    ]);
+    stopSource();
+    stop();
   });
 }

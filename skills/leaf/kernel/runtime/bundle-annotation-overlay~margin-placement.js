@@ -39,6 +39,7 @@ import {
   clamp,
   clippingAxes,
   coarsePointer,
+  hoveringPointer,
   overlaps,
   overlapsAcross,
   renderedChildren,
@@ -415,9 +416,9 @@ function placeMarginEntryLabel(control) {
   );
   keeps(control, "data-lf-label-side", choice.name);
 }
-var REVEALS_LABEL = ':is(:hover, [data-lf-focus]):not([aria-expanded="true"]), [data-lf-held-word]';
+var revealsLabel = () => hoveringPointer.matches ? ':is(:hover, [data-lf-focus]):not([aria-expanded="true"]), [data-lf-held-word]' : '[data-lf-focus]:focus-visible:not([aria-expanded="true"]), [data-lf-held-word]';
 function heldLabelBoxes(row) {
-  return [...row.querySelectorAll(".lf-margin-entry[data-lf-label-side]")].filter((control) => control.matches(REVEALS_LABEL)).map(
+  return [...row.querySelectorAll(".lf-margin-entry[data-lf-label-side]")].filter((control) => control.matches(revealsLabel())).map(
     (control) => control.querySelector(":scope > .lf-margin-entry-label").getBoundingClientRect()
   );
 }
@@ -427,9 +428,9 @@ function scheduleMarginEntryLabels() {
   labelPlacementFrame = nextRender(() => {
     labelPlacementFrame = 0;
     for (const control of document.querySelectorAll(
-      `.lf-margin-projection .lf-margin-entry:is(${REVEALS_LABEL}, [data-lf-label-side])`
+      `.lf-margin-projection .lf-margin-entry:is(${revealsLabel()}, [data-lf-label-side])`
     )) {
-      if (control.matches(REVEALS_LABEL)) placeMarginEntryLabel(control);
+      if (control.matches(revealsLabel())) placeMarginEntryLabel(control);
       else keeps(control, "data-lf-label-side", null);
     }
   });
@@ -1734,7 +1735,7 @@ function commentPlacement() {
         replyTurn: keepReplyLine ? latest.key : null,
         draftText
       };
-      unpressed = hold ? side === "top" ? "foot" : "top" : keepReplyLine || !drafting && side === "top" ? "foot" : "top";
+      unpressed = hold ? side === "top" ? "foot" : "top" : keepReplyLine || (drafting ? held2?.floored && !vertical(side) : side === "top") ? "foot" : "top";
       edge = hold ? unpressed : pressHeld ?? unpressed;
       return edge;
     },
@@ -1840,7 +1841,8 @@ function commentPlacement() {
               column: rects.reference.x + (inlineStart - box.left) / scale.x,
               attachmentInline: rects.reference.x + ((column ?? clear.left) - box.left) / scale.x,
               line: column !== null ? rects.reference.y + (row - box.top) / scale.y : side === "bottom" ? rects.reference.y + rects.reference.height : side === "top" ? rects.reference.y : rects.reference.y + (row - box.top) / scale.y,
-              last: rects.reference.y + (lastRow - box.top) / scale.y
+              last: rects.reference.y + (lastRow - box.top) / scale.y,
+              foot: rects.reference.y + (boundary.bottom - box.top) / scale.y
             }
           };
         }
@@ -1961,7 +1963,7 @@ function commentPlacement() {
     },
     landed({ x, y, middlewareData }) {
       initialHold = null;
-      const { scale, column, attachmentInline, line: line2 } = middlewareData.scaled;
+      const { scale, column, attachmentInline, line: line2, foot } = middlewareData.scaled;
       if (vertical(side)) inline ??= x - column;
       else if (side !== "left") carriedInline ??= (x - attachmentInline) * scale.x;
       const top = (y - (middlewareData.shift?.y ?? 0) - line2) * scale.y;
@@ -1971,7 +1973,11 @@ function commentPlacement() {
         height: tallest && Math.abs(tallest.line - line2) < 0.5 ? Math.max(tallest.height, height) : height,
         line: line2
       };
-      held2 = { ...spot, ...reading };
+      held2 = {
+        ...spot,
+        ...reading,
+        floored: y + middlewareData.held.height >= foot - 0.5
+      };
       return { scale };
     }
   };

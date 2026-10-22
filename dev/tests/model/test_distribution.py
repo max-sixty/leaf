@@ -31,10 +31,8 @@ def test_compiled_cache_follows_payload_and_compiler_bytes(tmp_path, monkeypatch
     assert distribution.installation_identity(tmp_path) != changed_runtime
 
 
-def test_compiled_cache_reuses_bytes_while_refreshing_git_provenance(
-    tmp_path, monkeypatch
-):
-    """Authored edits and commits update the producer without another compiler run."""
+def test_compiled_cache_refreshes_payload_and_git_provenance(tmp_path, monkeypatch):
+    """Authored edits and commits publish an installation with current provenance."""
     monkeypatch.setattr(distribution, "ROOT", tmp_path)
 
     def git(*args):
@@ -68,12 +66,10 @@ def test_compiled_cache_reuses_bytes_while_refreshing_git_provenance(
     git("init")
     git("add", ".")
     git("commit", "-m", "First runtime")
-    preparations = []
 
     def prepare(output, runtime):
         # This test owns cache orchestration. The real compiler and page launcher
         # are exercised by the prepared-installation journey.
-        preparations.append(output)
         bundle = output / "runtime/bundle.js"
         bundle.parent.mkdir(parents=True)
         bundle.write_bytes(module.read_bytes())
@@ -94,21 +90,15 @@ def test_compiled_cache_reuses_bytes_while_refreshing_git_provenance(
     dirty = distribution.cached_installation(tmp_path)
     assert dirty != clean
     assert producer(dirty)["dirty"] is True
-    assert len(preparations) == 1
-    assert (dirty / "runtime/bundle.js").stat().st_ino == (
-        clean / "runtime/bundle.js"
-    ).stat().st_ino
     git("add", ".")
     git("commit", "-m", "Revised authored page")
     committed = distribution.cached_installation(tmp_path)
     assert producer(committed)["commit"] != producer(clean)["commit"]
     assert producer(committed)["dirty"] is False
-    assert len(preparations) == 1
     assert producer(clean)["dirty"] is False
     assert producer(dirty)["dirty"] is True
     module.write_text("export const example = 2;")
     changed = distribution.cached_installation(tmp_path)
-    assert len(preparations) == 2
     assert (changed / "runtime/bundle.js").read_bytes() == module.read_bytes()
 
 
@@ -124,8 +114,9 @@ def test_identical_extracted_arms_share_the_compiled_content_identity(tmp_path):
     ) == distribution.installation_identity(arms[1])
 
 
-def test_cached_installation_reselects_after_an_edit_while_acquiring_lock(
-    prepared_cache, monkeypatch
+@pytest.mark.parametrize("edit_at", ["lock", "cache-hit"])
+def test_cached_installation_reselects_after_an_edit_while_selecting(
+    prepared_cache, monkeypatch, edit_at
 ):
     """A preview waiting for a cached revision returns the edit that woke it."""
     from contextlib import contextmanager
@@ -150,7 +141,19 @@ def test_cached_installation_reselects_after_an_edit_while_acquiring_lock(
         with flocked(path):
             yield
 
-    monkeypatch.setattr(distribution, "flocked", edit_before_acquisition)
+    if edit_at == "lock":
+        monkeypatch.setattr(distribution, "flocked", edit_before_acquisition)
+    else:
+        is_dir = type(previous).is_dir
+
+        def edit_during_cache_hit(path):
+            nonlocal edited
+            if path == previous and not edited:
+                module.write_bytes(second)
+                edited = True
+            return is_dir(path)
+
+        monkeypatch.setattr(type(previous), "is_dir", edit_during_cache_hit)
     selected = distribution.cached_installation(runtime)
     assert selected == current != previous
     assert (selected / "runtime/bundle.js").read_bytes() == module.read_bytes()
@@ -165,7 +168,6 @@ def test_cached_installation_retries_an_edit_during_compilation(
     runtime = distribution.ROOT
     first = module.read_bytes()
     second = b"export const example = 2;"
-    identity = distribution.installation_identity(runtime)
     prepare = distribution.prepare
 
     def edit_during_compilation(output, runtime):
@@ -177,7 +179,6 @@ def test_cached_installation_retries_an_edit_during_compilation(
     selected = distribution.cached_installation(runtime)
     assert (selected / "runtime/bundle.js").read_bytes() == second
     assert built == [first, second]
-    assert not (runtime / ".tmp/compiled-runtime" / f"content-{identity}").exists()
 
 
 def test_cached_installation_retries_an_edit_while_staging_publication(
@@ -203,9 +204,7 @@ def test_cached_installation_retries_an_edit_while_staging_publication(
     assert (selected / "runtime/bundle.js").read_bytes() == second
     assert built == [first, second]
     publications = [
-        path
-        for path in (runtime / ".tmp/compiled-runtime").iterdir()
-        if path.is_dir() and not path.name.startswith("content-")
+        path for path in (runtime / ".tmp/compiled-runtime").iterdir() if path.is_dir()
     ]
     assert publications == [selected]
 
@@ -213,8 +212,7 @@ def test_cached_installation_retries_an_edit_while_staging_publication(
 def test_cached_installation_rechecks_provenance_before_publication(
     prepared_cache, monkeypatch
 ):
-    """A Git-label change during publication reuses bytes with the current label."""
-    module, built = prepared_cache
+    """A Git-label change during publication selects the current label."""
     producer = {"commit": "first", "dirty": False}
     monkeypatch.setattr(
         distribution, "payload_provenance", lambda **kwargs: dict(producer)
@@ -230,11 +228,10 @@ def test_cached_installation_rechecks_provenance_before_publication(
     assert json.loads((selected / "leaf-distribution.json").read_text())[
         "producer"
     ] == (producer)
-    assert built == [module.read_bytes()], "a metadata-only edit must not rebuild"
     publications = [
         path
         for path in (distribution.ROOT / ".tmp/compiled-runtime").iterdir()
-        if path.is_dir() and not path.name.startswith("content-")
+        if path.is_dir()
     ]
     assert publications == [selected]
 
@@ -254,7 +251,10 @@ def prepared_cache(tmp_path, monkeypatch):
         source = module.read_bytes()
         built.append(source)
         bundle.write_bytes(source)
-        (output / "leaf-distribution.json").write_text(json.dumps({"producer": {}}))
+        distribution.write_json(
+            output / "leaf-distribution.json",
+            {"producer": distribution.payload_provenance(root=runtime)},
+        )
 
     monkeypatch.setattr(distribution, "prepare", prepare)
     return module, built

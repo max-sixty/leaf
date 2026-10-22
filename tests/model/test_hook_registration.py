@@ -5,6 +5,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -18,11 +19,15 @@ from interact_support import (
     acknowledged_through,
     append_carried_log_record,
     record_claim,
+    serving,
+    wait_for,
 )
 from leaf import files as files_model
 from leaf import harness as harness_model
 from leaf import hook_transport as hook_transport_model
+from leaf import leases as leases_model
 from leaf import service as service_model
+from leaf import session as session_model
 from leaf import state as cleanup_model
 
 # Each harness's own registrations of Leaf's hooks (`harness.hook_harness`); Pi's
@@ -105,6 +110,7 @@ def _registered_hook_command(harness, event):
         hook
         for registration in _registrations(harness)[event]
         for hook in registration["hooks"]
+        if not hook.get("asyncRewake")
     ]
     return hook["command"]
 
@@ -115,11 +121,24 @@ def _registered_hook_arguments(harness, event):
     return words[words.index("hook") : words.index("||")]
 
 
+def _registered_watch():
+    """Claude Code's background Stop registration."""
+    [hook] = [
+        hook
+        for registration in _registrations("claude-code")["Stop"]
+        for hook in registration["hooks"]
+        if hook.get("asyncRewake")
+    ]
+    return hook
+
+
 def test_each_harness_registration_names_its_harness():
     """A hook learns which harness ran it from its registration, never from an
     environment that a harness launched from another's shell inherits. So every
     `leaf hook` a harness's file registers passes that harness's name, the
-    manifest of each harness names only its own file."""
+    manifest of each harness names only its own file, and only Claude Code's
+    holds the background watch: Codex ignores `asyncRewake` and would wait on
+    it."""
     assert set(REGISTRATIONS) | {"pi"} == set(harness_model.HOOK_HARNESSES)
     codex_manifest = json.loads((PLUGIN_ROOT / ".codex-plugin/plugin.json").read_text())
     assert codex_manifest["hooks"] == "./hooks/codex.json"
@@ -136,6 +155,9 @@ def test_each_harness_registration_names_its_harness():
             if "hook" in words
         ]
         assert named and set(named) == {harness}
+        assert any(hook.get("asyncRewake") for hook in hooks) == (
+            harness == "claude-code"
+        )
 
 
 def test_every_carrying_hook_has_time_to_confirm_what_it_hands_over():
@@ -154,6 +176,7 @@ def test_every_carrying_hook_has_time_to_confirm_what_it_hands_over():
                 hook
                 for registration in _registrations(harness)[event]
                 for hook in registration["hooks"]
+                if not hook.get("asyncRewake")
             ]
             assert hook["timeout"] >= floor, (harness, event)
     # The modules that run the hook themselves bound it with their own copy.
@@ -164,6 +187,99 @@ def test_every_carrying_hook_has_time_to_confirm_what_it_hands_over():
             re.MULTILINE,
         )
         assert int(timeout.replace("_", "")) >= floor * 1000, module
+
+
+def test_the_registered_watch_hook_wakes_the_session(claimed, tmp_path):
+    """Claude Code's background Stop registration runs the watch, and its exit 2
+    with stderr is the whole wake. It stands down, starting no watch, where the
+    plugin's `hooks_module` option has the hooks module keep the watch. Driven the
+    way Claude Code drives it, through a shell with the payload on stdin and the
+    plugin's options in the environment, because the wiring (the watch
+    supervisor, uv, the exit status it passes through) is the subject."""
+    command = _registered_watch()["command"]
+    env = os.environ | {"CLAUDE_PLUGIN_ROOT": str(PLUGIN_ROOT)}
+    leases_model.mark_hooks("s1")  # its harness runs Leaf's hooks
+    serving(claimed, 1)
+    session_model.cmd_waiting(claimed, "")
+    cleanup_model.close_session_turn("s1")
+    append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "hi"}
+    )
+
+    def run(env):
+        return subprocess.run(
+            ["sh", "-c", command],
+            input=json.dumps({"hook_event_name": "Stop", "session_id": "s1"}),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=STATED_TIMEOUT,
+            check=False,
+        )
+
+    module = run(env | {"CLAUDE_PLUGIN_OPTION_HOOKS_MODULE": "true"})
+    assert (module.returncode, module.stdout, module.stderr) == (0, "", "")
+
+    woke = run(env | {"CLAUDE_PLUGIN_OPTION_HOOKS_MODULE": "false"})
+    assert (woke.returncode, woke.stdout) == (2, ""), woke.stderr
+    assert woke.stderr.startswith(f"{claimed} has new input")
+
+    # uv and Python spend exit 2 on startup failures too. Report the error as a
+    # nonblocking failure, distinct from the successful delivery wake.
+    broken = tmp_path / "plugin"
+    (broken / "hooks" / "scripts").mkdir(parents=True)
+    (broken / "pyproject.toml").write_text("not a project")
+    shutil.copy(
+        PLUGIN_ROOT / "hooks" / "scripts" / "background-watch.py",
+        broken / "hooks" / "scripts",
+    )
+    (broken / "bin").mkdir()
+    shutil.copy(PLUGIN_ROOT / "bin/leaf", broken / "bin/leaf")
+    failed = run(env | {"CLAUDE_PLUGIN_ROOT": str(broken)})
+    assert (failed.returncode, failed.stdout) == (1, "")
+    assert "pyproject.toml" in failed.stderr
+
+
+def test_cancelling_the_background_registration_never_wakes_the_session(
+    tmp_path, spawn
+):
+    """Cancellation stays quiet even if the child catches SIGTERM and exits zero."""
+    project = tmp_path / "plugin"
+    supervisor = project / "hooks/scripts/background-watch.py"
+    supervisor.parent.mkdir(parents=True)
+    supervisor.write_bytes(
+        (PLUGIN_ROOT / "hooks/scripts/background-watch.py").read_bytes()
+    )
+    launcher = project / "bin/leaf"
+    launcher.parent.mkdir()
+    launcher.write_text(
+        f"#!{sys.executable}\n"
+        "import signal, sys\n"
+        "from pathlib import Path\n"
+        "def cancelled(*args):\n"
+        "    print('not a delivery')\n"
+        "    print('cancelled', file=sys.stderr)\n"
+        "    sys.exit(0)\n"
+        "signal.signal(signal.SIGTERM, cancelled)\n"
+        "Path(sys.argv[-1]).touch()\n"
+        "signal.pause()\n"
+    )
+    launcher.chmod(0o755)
+    ready = tmp_path / "ready"
+    watching = spawn(
+        [sys.executable, str(supervisor), str(ready)],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    watching.stdin.write("{}")
+    watching.stdin.close()
+    watching.stdin = None
+    wait_for(ready.exists, bool, failure="the child watch never started")
+    watching.terminate()
+    out, err = watching.communicate(timeout=STATED_TIMEOUT)
+    assert (watching.returncode, out, err) == (0, "", "")
 
 
 @pytest.mark.parametrize("event", ["PostToolBatch", "UserPromptSubmit"])
@@ -419,8 +535,7 @@ def test_the_registered_session_end_releases_shared_claims_without_an_environmen
 
     record_claim(page_dir, id="ended-session")
     marker_files = [
-        cleanup_model.session_file("ended-session", suffix)
-        for suffix in (cleanup_model.HOOKS_SUFFIX, cleanup_model.STEP_HOOK_SUFFIX)
+        cleanup_model.session_file("ended-session", cleanup_model.HOOKS_SUFFIX)
     ]
     for marker in marker_files:
         marker.parent.mkdir(parents=True, exist_ok=True)

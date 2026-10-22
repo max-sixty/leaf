@@ -1184,10 +1184,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
         f"{quoted_card['stateRoom']} vs {live_card['stateRoom']}"
     )
 
-    # And under the pointer. A live choose group is a joined control, and a cell that rose
-    # would pull away from the hairlines holding the group together, so what both forms
-    # answer a pointer with here is the joined group's wash — the card's lift belongs to a
-    # group that has come apart again, which is the settled pair at the end of this test.
+    # And under the pointer: both forms answer with a wash without moving their words.
     # Both forms anyway, and the second is not the first repeated: a row has a wash rule of
     # its own with its own exclusion, outranked by the joined group's wherever that one
     # applies, so it is the quoted read that answers for it. Withdraw its exclusion and the
@@ -1223,38 +1220,27 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     # inert check below the prose. It needs the strip a live header state no longer does.
     assert page.locator("#q-lax").evaluate(pad) != page.locator("#l-shim").evaluate(pad)
 
-    # And the lift, which needs both groups open to reach: a settled group comes apart
-    # again when the user opens it, and loose cards answer the pointer by rising where
-    # joined cells answer with a wash. Read here rather than with the other two because
-    # opening the quoted group is what the lines above are about.
-    #
-    # Both card states, because the lift has one rule for an ordinary card and another
-    # for the one the document records as chosen. Both carry the sample exclusion.
+    # Standalone cards also answer with a wash, while quoted cards remain inert.
+    # Both chosen and unchosen states keep their geometry under the pointer.
     page.locator("#live-settled .lf-settled").click()
-    # Both folds have to be over before a card's box-shadow means anything. Opening a
-    # group brings its rings in on the same transition the lift uses, so a rest value
-    # sampled while that runs is the accent part-way to itself — and the later wait for
-    # the pointer to have left then waits on a frame that existed once. Asked of the two
-    # groups rather than the document, whose own chrome is never quiet for long.
-    page.wait_for_function(
-        """() => ['#live-settled', '#quoted-settled'].every(
-            sel => document.querySelector(sel)
-                .getAnimations({subtree: true}).length === 0)"""
-    )
-    shadow = "el => getComputedStyle(el).boxShadow"
     for quiet, live, card in (
         ("#q-bearer", "#l-bearer", "plain"),
         ("#q-lax", "#l-lax", "chosen"),
     ):
-        live_rest = page.locator(live).evaluate(shadow)
+        page.locator(live).scroll_into_view_if_needed()
+        # Scrolling can put this card beneath the previous hover's pointer.
+        page.mouse.move(0, 0)
+        live_box = page.locator(live).bounding_box()
+        live_rest = page.locator(live).evaluate(css)
         page.locator(live).hover()
-        expect(page.locator(live)).not_to_have_css("box-shadow", live_rest)
-        quiet_rest = page.locator(quiet).evaluate(shadow)
+        expect(page.locator(live)).not_to_have_css(prop, live_rest)
+        assert page.locator(live).bounding_box() == live_box
+        quiet_rest = page.locator(quiet).evaluate(css)
         page.locator(quiet).hover()
-        expect(page.locator(live)).to_have_css("box-shadow", live_rest)
-        assert page.locator(quiet).evaluate(shadow) == quiet_rest, (
-            f"a quoted {card} card lifts under the pointer: "
-            f"{page.locator(quiet).evaluate(shadow)} against {quiet_rest} at rest"
+        expect(page.locator(live)).to_have_css(prop, live_rest)
+        assert page.locator(quiet).evaluate(css) == quiet_rest, (
+            f"a quoted {card} card answers the pointer: "
+            f"{page.locator(quiet).evaluate(css)} against {quiet_rest} at rest"
         )
 
 

@@ -91,7 +91,7 @@ import { passageBoxes, targetRange, targetSegments } from "../resolved-target.js
 import { railStands } from "../content-layout.js";
 import { keeps, layoutPx } from "../keeps.js";
 import { move } from "../dom-move.js";
-import { coarsePointer } from "../pointer.js";
+import { coarsePointer, hoveringPointer } from "../pointer.js";
 import { LAYOUT } from "../widget-elements.js";
 import { inChrome } from "../passages.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
@@ -442,14 +442,19 @@ function placeMarginEntryLabel(control) {
   keeps(control, "data-lf-label-side", choice.name);
 }
 
-const REVEALS_LABEL =
-  ':is(:hover, [data-lf-focus]):not([aria-expanded="true"]), [data-lf-held-word]';
+// What reveals a margin entry's label, as the theme's rules for it say: a press held on
+// it (held-word.js), and focus or hover where the pointer really hovers. Elsewhere a
+// tap leaves the entry hovered and focused, so only the keyboard's focus reveals it.
+const revealsLabel = () =>
+  hoveringPointer.matches
+    ? ':is(:hover, [data-lf-focus]):not([aria-expanded="true"]), [data-lf-held-word]'
+    : '[data-lf-focus]:focus-visible:not([aria-expanded="true"]), [data-lf-held-word]';
 // Only a label this owner has placed and its control currently reveals paints a
 // footprint. Placement consumers read that same native geometry when the user holds
 // the control, so an arriving row does not make its existing label change sides.
 function heldLabelBoxes(row) {
   return [...row.querySelectorAll(".lf-margin-entry[data-lf-label-side]")]
-    .filter((control) => control.matches(REVEALS_LABEL))
+    .filter((control) => control.matches(revealsLabel()))
     .map((control) =>
       control.querySelector(":scope > .lf-margin-entry-label").getBoundingClientRect(),
     );
@@ -460,9 +465,9 @@ export function scheduleMarginEntryLabels() {
   labelPlacementFrame = nextRender(() => {
     labelPlacementFrame = 0;
     for (const control of document.querySelectorAll(
-      `.lf-margin-projection .lf-margin-entry:is(${REVEALS_LABEL}, [data-lf-label-side])`,
+      `.lf-margin-projection .lf-margin-entry:is(${revealsLabel()}, [data-lf-label-side])`,
     )) {
-      if (control.matches(REVEALS_LABEL)) placeMarginEntryLabel(control);
+      if (control.matches(revealsLabel())) placeMarginEntryLabel(control);
       else keeps(control, "data-lf-label-side", null);
     }
   });

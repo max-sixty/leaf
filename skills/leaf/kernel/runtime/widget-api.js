@@ -25,7 +25,6 @@ import {
   registerThreadPresentation,
   replaceEntry,
   requireReference,
-  stagesOnly,
   threadActions,
   threadBox,
   threadInput,
@@ -124,6 +123,7 @@ import {
   motion,
   onMotionPreferenceChange,
   reducedMotion,
+  returnDuration,
   scrollBehavior
 } from "./bundle-motion.js";
 import "./bundle-page-controls.js";
@@ -256,6 +256,7 @@ import {
   whenLeft
 } from "./bundle-frame-visibility.js";
 import {
+  agentName,
   applicationRegionsPresented,
   applicationState,
   attachApplicationPresentation,
@@ -263,32 +264,31 @@ import {
   offlineInteractive,
   pageUrl,
   projectionRegionsPresented,
-  proofReading,
   queueWidgetUpdate,
   readPart,
-  readsProof,
-  revisionLabel
+  revisionLabel,
+  watchPresentation
 } from "./bundle-semantic-state.js";
 import {
   LitElement,
-  M,
+  Z,
   classMap,
-  collectReads,
   createRef,
+  d,
   guard,
   html,
   keyed,
   live,
   noChange,
   nothing,
+  q,
   rankAt,
   ref,
   render,
   repeat,
   styleMap,
   turns,
-  unsafeHTML,
-  untracked
+  unsafeHTML
 } from "./bundle-queued-work.js";
 import "./bundle-__export.js";
 
@@ -365,7 +365,7 @@ function createWidgetController(owner) {
     Promise.resolve(promise).then(settled, settled);
   };
   const presentPreparation = (handle, { value, completion }) => handle.present(value, (reason) => failSoftUnreported(owner, reason)).resolve(completion);
-  const connect = () => untracked(() => {
+  const connect = () => d(() => {
     if (!owner.isConnected) return;
     for (const promise of pendingPreparations.keys()) holdPreparation(promise);
     if (preparation && !preparationHandle) {
@@ -450,7 +450,48 @@ function widgetController(owner) {
 
 // runtime/leaf-element.js
 var regions = 0;
-var LeafElement = class extends LitElement {
+var UpdateBoundary = class extends LitElement {
+  signalUpdateFailed(error) {
+    throw error;
+  }
+  performUpdate() {
+    try {
+      super.performUpdate();
+    } catch (error) {
+      this.signalUpdateFailed(error);
+    }
+  }
+};
+var LeafElement = class extends q(UpdateBoundary) {
+  #signalError = null;
+  #stopReadiness = null;
+  signalUpdateFailed(error) {
+    this.#signalError = { error };
+  }
+  requestUpdate(...args) {
+    const wasPending = this.isUpdatePending;
+    const result = super.requestUpdate(...args);
+    if (this.hasUpdated && this.isUpdatePending && (!wasPending || !this.#updating))
+      d(() => {
+        if (this.#connected && this.#region && !this.#ticket)
+          this.#ticket = this.#claim();
+      });
+    return result;
+  }
+  /** Finish this render when its presentation prerequisites are ready. Readiness
+   * does not claim another presentation, which would invalidate its own proof. */
+  whenReady(read) {
+    if (d(read)) return true;
+    if (!this.#stopReadiness) {
+      this.#stopReadiness = watchPresentation(() => {
+        if (!d(read)) return;
+        this.#stopReadiness?.();
+        this.#stopReadiness = null;
+        super.requestUpdate();
+      });
+    }
+    return false;
+  }
   #descriptor = null;
   #controller = null;
   #verbs = [];
@@ -458,12 +499,6 @@ var LeafElement = class extends LitElement {
   #regionName = null;
   #connected = false;
   #connectedParent = null;
-  // What the last gate and the last render read, each with the value it read.
-  #gateReads = /* @__PURE__ */ new Map();
-  #renderReads = /* @__PURE__ */ new Map();
-  #following = [];
-  // A draw owed to the next connection: queued as it left, or a reading moved meanwhile.
-  #owed = false;
   // The open claim the next update that draws settles.
   #ticket = null;
   #held = false;
@@ -473,11 +508,9 @@ var LeafElement = class extends LitElement {
   #broken = false;
   // The claim the update under way draws, settled once `updated` has run too.
   #drawing = null;
+  #updating = false;
   // The drawing that follows the update under way, which its claim waits for.
   #work = null;
-  // The last update's drawing until it lands, which a later update replaces; a departure
-  // before then owes a draw.
-  #unfinished = null;
   #data = /* @__PURE__ */ new Map();
   #leaveData = null;
   #scheduled = null;
@@ -529,7 +562,7 @@ var LeafElement = class extends LitElement {
       failSoft(this, error);
     }
     watchOwner(this, {
-      connect: () => untracked(() => this.#connect()),
+      connect: () => d(() => this.#connect()),
       disconnect: () => this.#disconnect()
     });
   }
@@ -552,7 +585,8 @@ var LeafElement = class extends LitElement {
   /** The bound reading of a declared `x-data` input, one copy a delivery (data.js). */
   data(input) {
     let read = this.#data.get(input);
-    if (!read) this.#data.set(input, read = dataReader(this, input));
+    if (!read)
+      this.#data.set(input, read = dataReader(this, input, () => this.#stage()));
     return read();
   }
   // The controller's `defer` for this widget, which refuses a second hold and releases
@@ -572,30 +606,17 @@ var LeafElement = class extends LitElement {
   }
   shouldUpdate(changed) {
     if (!this.#connected || !this.isConnected) {
-      this.#owed = true;
       return false;
     }
     if (this.#held) return false;
     this.#drawing = this.#ticket;
     this.#ticket = null;
     if (this.#broken) return false;
-    const gate = collectReads(() => this.#complete());
-    this.#gateReads = gate.reads;
-    if ("error" in gate) {
-      this.#follow();
-      throw gate.error;
-    }
-    if (!gate.value) {
-      this.#follow();
-      return false;
-    }
+    if (!this.#complete()) return false;
     return super.shouldUpdate(changed);
   }
   update(changed) {
-    const outcome = collectReads(() => super.update(changed));
-    this.#renderReads = outcome.reads;
-    this.#follow();
-    if ("error" in outcome) throw outcome.error;
+    super.update(changed);
     this.#box?.remove();
     this.#box = null;
   }
@@ -606,22 +627,19 @@ var LeafElement = class extends LitElement {
   // claim of its own, its failure is the enclosing claimed update's.
   performUpdate() {
     const outer = this.#drawing;
+    const updating = this.#updating;
     let outerWork = this.#work;
     this.#drawing = null;
     this.#work = null;
+    this.#updating = true;
     try {
+      this.#signalError = null;
       super.performUpdate();
+      if (this.#signalError) throw this.#signalError.error;
       const work = this.#work;
       if (work && !this.#drawing) {
         if (outer) outerWork = outerWork ? Promise.all([outerWork, work]) : work;
         else if (this.#region) this.#drawing = this.#claim();
-      }
-      this.#unfinished = work;
-      if (work) {
-        const landed = () => {
-          if (this.#unfinished === work) this.#unfinished = null;
-        };
-        work.then(landed, landed);
       }
       this.#drawing?.resolve(work ?? void 0);
     } catch (error) {
@@ -630,6 +648,7 @@ var LeafElement = class extends LitElement {
     } finally {
       this.#drawing = outer;
       this.#work = outerWork;
+      this.#updating = updating;
     }
   }
   /** Hold the update under way's claim until `work`, drawing that follows the render
@@ -654,7 +673,7 @@ var LeafElement = class extends LitElement {
   }
   updated(changed) {
     super.updated(changed);
-    paintKeysWithin(this);
+    d(() => paintKeysWithin(this));
   }
   // Every failure is reported here, naming the widget; a claim's rejection then shows
   // the box through the coordinator's fallback, which reports nothing again.
@@ -663,31 +682,11 @@ var LeafElement = class extends LitElement {
     reportFailure(this, error);
     ticket.reject(error);
   }
-  #follow() {
-    for (const stop of this.#following) stop();
-    const reads = [...this.#gateReads, ...this.#renderReads];
-    this.#following = this.#connected ? reads.map(
-      ([reading, seen]) => reading.subscribe((now) => {
-        if (now === seen) return;
-        if (readsProof(reading)) {
-          if (now) this.requestUpdate();
-        } else if (stagesOnly(reading)) this.#stage();
-        else this.#moved();
-      })
-    ) : [];
-  }
-  #moved() {
-    if (!this.#connected) {
-      this.#owed = true;
-      return;
-    }
-    this.#present();
-  }
   // A claim on the region for the reading as it stands, which a failure settles with
   // the fail-soft box.
   #claim() {
     return this.#region.present(
-      untracked(() => this.#controller?.read() ?? {}),
+      d(() => this.#controller?.read() ?? {}),
       (reason) => failSoftUnreported(this, reason)
     );
   }
@@ -710,7 +709,6 @@ var LeafElement = class extends LitElement {
   }
   #refresh() {
     if (this.#connected) this.#present({ now: true });
-    else this.#owed = true;
   }
   #connect() {
     this.#connected = true;
@@ -721,23 +719,13 @@ var LeafElement = class extends LitElement {
       this.#leaveData = joinDataDelivery(
         this.#descriptor ? `widget:${this.#descriptor.id}:render` : this.#regionName
       );
-    const moved = untracked(
-      () => [...this.#gateReads, ...this.#renderReads].some(
-        ([reading, seen]) => reading.read() !== seen
-      )
-    );
-    if (!this.hasUpdated || this.#owed || moved) {
-      this.#owed = false;
-      this.#present();
-    } else
-      this.#region.present(untracked(() => this.#controller?.read() ?? {})).resolve();
-    this.#follow();
+    this.#present();
     if (this.#descriptor) widgetMounted(this, this.#descriptor, parentChanged);
   }
   #disconnect() {
     this.#connected = false;
-    if (this.#unfinished) this.#owed = true;
-    this.#follow();
+    this.#stopReadiness?.();
+    this.#stopReadiness = null;
     this.#leaveData?.();
     this.#leaveData = null;
     this.#ticket = null;
@@ -829,7 +817,7 @@ var reportWidgets = (target) => {
   }
   return widgets2;
 };
-var reportsReady = (target) => proofReading(
+var reportsReady = (target) => target.whenReady(
   () => applicationRegionsPresented([
     "projection:chrome",
     `widget:${target.id}:preparation`,
@@ -838,7 +826,7 @@ var reportsReady = (target) => proofReading(
       `widget:${widget}:preparation`
     ])
   ])
-).read();
+);
 
 // runtime/work.js
 var widgets = () => layerFact("$work")?.widgets ?? {};
@@ -1042,8 +1030,8 @@ async function differingRegions(a, b) {
       for (let x = box2.x; x < box2.x + box2.width; x += 1) {
         const p = pixels2[y * image.width + x];
         if (block.ground !== null && distance(p, block.ground) <= STEP) continue;
-        const q = x < otherImage.width && y < otherImage.height ? otherPixels[y * otherImage.width + x] : void 0;
-        if (q === void 0 || distance(p, q) >= SLIGHT) return true;
+        const q2 = x < otherImage.width && y < otherImage.height ? otherPixels[y * otherImage.width + x] : void 0;
+        if (q2 === void 0 || distance(p, q2) >= SLIGHT) return true;
       }
     return false;
   });
@@ -1087,7 +1075,7 @@ async function differingRegions(a, b) {
         height: Math.min(CELL, height - y)
       });
     }
-  const unowned = merged(bare, (p, q) => near(p, q, 2 * CELL)).flatMap(
+  const unowned = merged(bare, (p, q2) => near(p, q2, 2 * CELL)).flatMap(
     (box2) => [
       ["before", a],
       ["after", b]
@@ -1109,7 +1097,7 @@ async function differingRegions(a, b) {
   const regions2 = [
     ...outlines(before, readBefore, struck, "before", unowned, DBSCAN),
     ...outlines(after, readAfter, struck, "after", unowned, DBSCAN)
-  ].sort((p, q) => p.y - q.y || p.x - q.x).map(({ x, y, width: width2, height: height2, side, kind }) => ({
+  ].sort((p, q2) => p.y - q2.y || p.x - q2.x).map(({ x, y, width: width2, height: height2, side, kind }) => ({
     x,
     y,
     width: width2,
@@ -1122,10 +1110,10 @@ async function differingRegions(a, b) {
 function outlines(blocks, states, struck, side, bare, DBSCAN) {
   const marks = [];
   for (const [i, block] of blocks.entries()) {
-    const { state, d } = states[i];
+    const { state, d: d2 } = states[i];
     if (state === "same") continue;
     if (state === "moved" && block.frame) continue;
-    marks.push({ ...box(block), side, kind: state, d, block });
+    marks.push({ ...box(block), side, kind: state, d: d2, block });
   }
   const whole = marks.filter(
     (mark) => mark.kind === "changed" && marks.some((inner) => contains(mark, inner)) && blocks.every(
@@ -1140,7 +1128,7 @@ function outlines(blocks, states, struck, side, bare, DBSCAN) {
   for (const mark of marks) {
     if (!holds(mark) || inWhole(mark) || mark.kind !== "changed") continue;
     const loose = mark.block.cells.filter((cell) => struck[cell]).map((cell) => mark.block.boxes.get(cell)).filter((cellBox) => !shown.some((other) => contains(other, cellBox)));
-    for (const group of merged(loose, (p, q) => near(p, q, 2 * CELL))) {
+    for (const group of merged(loose, (p, q2) => near(p, q2, 2 * CELL))) {
       const host = shown.find(
         (other) => other.kind === "changed" && near(other, group, ABSORB)
       );
@@ -1265,17 +1253,17 @@ function blocksOf(image, pixels2, columns) {
       piece.lined ||= !!lined[cell];
     }
   }
-  const marks = [...pieces.values()].filter((piece) => piece.marked && !piece.lined).sort((p, q) => p.top - q.top);
+  const marks = [...pieces.values()].filter((piece) => piece.marked && !piece.lined).sort((p, q2) => p.top - q2.top);
   for (const [i, p] of marks.entries()) {
     const height2 = p.bottom - p.top + 1;
     for (let j = i + 1; j < marks.length; j += 1) {
-      const q = marks[j];
-      if (q.top > p.bottom + SPACING * height2) break;
-      const reach = SPACING * Math.min(height2, q.bottom - q.top + 1);
-      const across = Math.max(q.left - p.right, p.left - q.right) - 1;
-      const down = Math.max(q.top - p.bottom, p.top - q.bottom) - 1;
+      const q2 = marks[j];
+      if (q2.top > p.bottom + SPACING * height2) break;
+      const reach = SPACING * Math.min(height2, q2.bottom - q2.top + 1);
+      const across = Math.max(q2.left - p.right, p.left - q2.right) - 1;
+      const down = Math.max(q2.top - p.bottom, p.top - q2.bottom) - 1;
       if (down < 0 && across >= 0 && across <= reach || across < 0 && down >= 0 && down <= reach)
-        join2(p.id, q.id);
+        join2(p.id, q2.id);
     }
   }
   const groups = /* @__PURE__ */ new Map();
@@ -1324,10 +1312,10 @@ function blocksOf(image, pixels2, columns) {
 function alike(image, pixels2, block, otherImage, otherPixels, candidate) {
   for (let j = 0; j < block.height; j += 1) {
     const p = (block.y + j) * image.width + block.x;
-    const q = (candidate.y + j) * otherImage.width + candidate.x;
+    const q2 = (candidate.y + j) * otherImage.width + candidate.x;
     for (let i = 0; i < block.width; i += 1) {
       const u = pixels2[p + i];
-      const v = otherPixels[q + i];
+      const v = otherPixels[q2 + i];
       if (u !== v && distance(u, v) >= SLIGHT) return false;
     }
   }
@@ -1335,15 +1323,15 @@ function alike(image, pixels2, block, otherImage, otherPixels, candidate) {
 }
 var box = ({ x, y, width, height }) => ({ x, y, width, height });
 var contains = (outer, inner) => outer !== inner && outer.x <= inner.x && outer.y <= inner.y && outer.x + outer.width >= inner.x + inner.width && outer.y + outer.height >= inner.y + inner.height;
-var near = (p, q, reach) => p.x - reach < q.x + q.width && q.x - reach < p.x + p.width && p.y - reach < q.y + q.height && q.y - reach < p.y + p.height;
-var union = (p, q) => {
-  const x = Math.min(p.x, q.x);
-  const y = Math.min(p.y, q.y);
+var near = (p, q2, reach) => p.x - reach < q2.x + q2.width && q2.x - reach < p.x + p.width && p.y - reach < q2.y + q2.height && q2.y - reach < p.y + p.height;
+var union = (p, q2) => {
+  const x = Math.min(p.x, q2.x);
+  const y = Math.min(p.y, q2.y);
   return {
     x,
     y,
-    width: Math.max(p.x + p.width, q.x + q.width) - x,
-    height: Math.max(p.y + p.height, q.y + q.height) - y
+    width: Math.max(p.x + p.width, q2.x + q2.width) - x,
+    height: Math.max(p.y + p.height, q2.y + q2.height) - y
   };
 };
 function merged(items, joins) {
@@ -1361,19 +1349,19 @@ function merged(items, joins) {
 function join(marks, DBSCAN) {
   const moves = merged(
     marks.filter((mark) => mark.kind === "moved"),
-    (p, q) => p.d.join() === q.d.join() && near(p, q, MOVED_REACH)
+    (p, q2) => p.d.join() === q2.d.join() && near(p, q2, MOVED_REACH)
   );
   const changed = marks.filter((mark) => mark.kind === "changed");
   if (changed.length < 2) return [...moves, ...changed];
   const sizes = changed.map((mark) => Math.max(1, Math.min(mark.width, mark.height) - 2)).sort((a, b) => a - b);
   const scale = sizes[Math.floor(sizes.length / 2)];
   const radius = scale * Math.min(2, Math.sqrt(changed.length) / 2);
-  const gap = (p, q) => near(p, q, 8) ? 0 : Math.max(
+  const gap = (p, q2) => near(p, q2, 8) ? 0 : Math.max(
     0,
-    p.x - q.x - q.width + 2,
-    q.x - p.x - p.width + 2,
-    p.y - q.y - q.height + 2,
-    q.y - p.y - p.height + 2
+    p.x - q2.x - q2.width + 2,
+    q2.x - p.x - p.width + 2,
+    p.y - q2.y - q2.height + 2,
+    q2.y - p.y - p.height + 2
   );
   const groups = new DBSCAN().run(changed, radius, 1, gap);
   return [
@@ -1411,21 +1399,21 @@ function words(image) {
     image.width * image.height
   );
 }
-function distance(p, q) {
+function distance(p, q2) {
   return Math.max(
-    Math.abs((p & 255) - (q & 255)),
-    Math.abs((p >>> 8 & 255) - (q >>> 8 & 255)),
-    Math.abs((p >>> 16 & 255) - (q >>> 16 & 255)),
-    Math.abs((p >>> 24) - (q >>> 24))
+    Math.abs((p & 255) - (q2 & 255)),
+    Math.abs((p >>> 8 & 255) - (q2 >>> 8 & 255)),
+    Math.abs((p >>> 16 & 255) - (q2 >>> 16 & 255)),
+    Math.abs((p >>> 24) - (q2 >>> 24))
   );
 }
 var SLIGHT_CHANGE = 1;
 var STRONG = 2;
 function pixelChange(a, one, b, other, x, y) {
   const p = x < a.width && y < a.height ? one[y * a.width + x] : void 0;
-  const q = x < b.width && y < b.height ? other[y * b.width + x] : void 0;
-  if (p === q && p !== void 0) return 0;
-  return p === void 0 || q === void 0 || distance(p, q) >= SLIGHT ? STRONG : SLIGHT_CHANGE;
+  const q2 = x < b.width && y < b.height ? other[y * b.width + x] : void 0;
+  if (p === q2 && p !== void 0) return 0;
+  return p === void 0 || q2 === void 0 || distance(p, q2) >= SLIGHT ? STRONG : SLIGHT_CHANGE;
 }
 var FAINT = 40;
 var FAR = 2 * SLIGHT;
@@ -1495,21 +1483,21 @@ function changedPixels(a, b) {
           continue;
         }
         if (!around2[j]) continue;
-        const q = other[ny * b.width + nx];
-        const count = (counts.get(q) ?? 0) + 1;
-        counts.set(q, count);
-        if (ground === void 0 || count > counts.get(ground)) ground = q;
+        const q2 = other[ny * b.width + nx];
+        const count = (counts.get(q2) ?? 0) + 1;
+        counts.set(q2, count);
+        if (ground === void 0 || count > counts.get(ground)) ground = q2;
       }
     }
     for (const i of run) {
       const x = i % width;
       const y = (i - x) / width;
       const p = x < a.width && y < a.height ? one[y * a.width + x] : void 0;
-      const q = x < b.width && y < b.height ? other[y * b.width + x] : void 0;
-      const drawsA = q === void 0 || p !== void 0 && (ground === void 0 || distance(p, ground) >= SLIGHT);
-      const drawsB = p === void 0 || q !== void 0 && (ground === void 0 || distance(q, ground) >= SLIGHT);
+      const q2 = x < b.width && y < b.height ? other[y * b.width + x] : void 0;
+      const drawsA = q2 === void 0 || p !== void 0 && (ground === void 0 || distance(p, ground) >= SLIGHT);
+      const drawsB = p === void 0 || q2 !== void 0 && (ground === void 0 || distance(q2, ground) >= SLIGHT);
       const mask = drawsA === drawsB ? masks.both : drawsA ? masks.before : masks.after;
-      const far = p === void 0 || q === void 0 ? FAR : Math.min(distance(p, q), FAR);
+      const far = p === void 0 || q2 === void 0 ? FAR : Math.min(distance(p, q2), FAR);
       mask[i * 4 + 3] = FAINT + (255 - FAINT) * far / FAR;
     }
   }
@@ -1537,7 +1525,7 @@ function countAreas(regions2) {
   const changes = regions2.filter((region) => region.kind === "changed");
   const before = changes.filter((region) => region.side === "before");
   const after = changes.filter((region) => region.side === "after");
-  const shared = before.filter((p) => after.some((q) => near(p, q, 0))).length;
+  const shared = before.filter((p) => after.some((q2) => near(p, q2, 0))).length;
   return {
     changed: before.length + after.length - shared,
     moved: Math.max(
@@ -1643,6 +1631,7 @@ export {
   addressableWord,
   afterPresentation,
   afterScript,
+  agentName,
   ago,
   alignText,
   allButCommandReference,
@@ -1811,6 +1800,7 @@ export {
   reportsReady,
   restorePlace,
   retainUserIntent,
+  returnDuration,
   revisionLabel,
   rove,
   rowArrows,
@@ -1838,7 +1828,7 @@ export {
   showReadingSubject,
   shownParts,
   shownWindow,
-  M as signal,
+  Z as signal,
   sizeObserver,
   standingIn,
   styleMap,

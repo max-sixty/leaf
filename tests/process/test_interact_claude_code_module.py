@@ -1,5 +1,6 @@
-"""Leaf's Claude Code hooks module (`hooks/claude-code.ts`) keeping a session's
-watch between turns, and drawing the session's pages above the prompt.
+"""Leaf's Claude Code hooks module (`hooks/claude-code.ts`) drawing the session's
+pages above the prompt, and, with the plugin's `hooks_module` option on, keeping the
+session's watch between turns in place of the background Stop registration.
 
 `claude_code_driver.mjs` stands in for Claude Code around the module, which calls
 the real launcher, so these hold the module and the hooks it calls together."""
@@ -15,6 +16,7 @@ import pytest
 from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
+    declare,
     read_record,
     serving,
     wait_for,
@@ -141,7 +143,9 @@ def claude_code(page_dir, monkeypatch, spawn, sessionless, request):
     module's. The session then starts, as one does when the module loads while it
     holds a page, and the module's watch holds the session's lease, so input posted afterwards
     arrived after the watch's first look rather than pending as it started."""
-    driven = ClaudeCode(spawn, "cc-s1", getattr(request, "param", {}))
+    driven = ClaudeCode(
+        spawn, "cc-s1", {"hooks_module": True, **getattr(request, "param", {})}
+    )
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", driven.session)
     monkeypatch.setenv("CLAUDE_PID", str(driven.pid))
     service_model.claim_page(page_dir)
@@ -184,9 +188,10 @@ def test_the_band_follows_the_pages_the_session_holds(
     page_dir, claude_code, monkeypatch
 ):
     """Above the prompt, each page the session holds is a link with the counts its
-    Leaf panel marks: On me, open threads, and those holding words the user hasn't
-    read. The band redraws as the page's row changes, and empties once the session
-    holds no page."""
+    Leaf panel marks that aren't zero: On me, open threads, and those holding words
+    the user hasn't read; then what the agent last said it waits for. The band
+    redraws as the page's row changes, and empties once the session holds no
+    page."""
 
     def band(expected):
         server_rows_model.RowPublisher(page_dir, server_id).refresh()
@@ -200,22 +205,22 @@ def test_the_band_follows_the_pages_the_session_holds(
     server_rows_model.RowPublisher(page_dir, server_id).refresh()
     published = server_rows_model.ROW.read(server_rows_model.row_path(page_dir))["row"]
     url, title = server_model.running_server(page_dir)["url"], published["title"]
-    band([(f"Leaf {title} · On me 0 · Threads 0", url)])
+    band([(f"Leaf {title}", url)])
     # A /clear ends the session and starts none; the next turn follows again.
     claude_code.emit(
         "session.end", {"reason": "clear", "sessionId": claude_code.session}
     )
     band([])
     claude_code.start_turn()
-    band([(f"Leaf {title} · On me 0 · Threads 0", url)])
+    band([(f"Leaf {title}", url)])
     comment = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "why?"}
     )
-    band([(f"Leaf {title} · On me 0 · Threads 1", url)])
+    band([(f"Leaf {title} · Threads 1", url)])
     thread_model.post_reply(
         page_dir, {"parent": comment["id"], "responds": comment["id"]}, "Because."
     )
-    band([(f"Leaf {title} · On me 0 · Threads 1, 1 new", url)])
+    band([(f"Leaf {title} · Threads 1, 1 new", url)])
     append_carried_log_record(
         page_dir,
         {
@@ -227,10 +232,41 @@ def test_the_band_follows_the_pages_the_session_holds(
         },
     )
     band([(f"Leaf {title} · On me 1 · Threads 1, 1 new", url)])
+    declare(page_dir, detail="Pick a layout")
+    band([(f"Leaf {title} · On me 1 · Threads 1, 1 new · Pick a layout", url)])
     # Another session takes the page, so this one holds none.
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "cc-s2")
     service_model.claim_page(page_dir)
     band([])
+
+
+def test_the_module_keeps_no_watch_until_its_option_is_on(
+    page_dir, monkeypatch, spawn, sessionless
+):
+    """With the plugin's `hooks_module` option off, the background Stop
+    registration keeps the watch, so the module draws the band and starts no watch
+    of its own, as the session starts or a turn ends."""
+    driven = ClaudeCode(spawn, "cc-off", {})
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", driven.session)
+    monkeypatch.setenv("CLAUDE_PID", str(driven.pid))
+    service_model.claim_page(page_dir)
+    serving(page_dir, 1)
+    session_model.cmd_waiting(page_dir, "")
+    driven.emit("session.start", {"cwd": str(page_dir), "isInteractive": True})
+    driven.start_turn()
+    driven.end_turn()
+    server_id = read_record(page_dir / "service.json")["server_id"]
+    server_rows_model.RowPublisher(page_dir, server_id).refresh()
+    wait_for(
+        lambda: band_lines(driven.bands.get(timeout=STATED_TIMEOUT)),
+        bool,
+        failure="the module drew no band",
+    )
+    driven.send({"flush": True})
+    assert driven.read() == {"submissions": 0}
+    assert driven.watches.empty()
+    assert not leases_model.wait_is_live(None, driven.session)
+    driven.quit()
 
 
 @pytest.mark.parametrize("failure", ["watch", "startup", "spawn"])
@@ -248,6 +284,7 @@ def test_failed_module_processes_report_their_diagnostics(
         spawn,
         "cc-failure",
         {
+            "hooks_module": True,
             "pluginRoot": str(tmp_path),
             "throwWatchSpawn": failure == "spawn",
         },
@@ -432,7 +469,7 @@ def test_a_module_loaded_mid_session_watches_after_its_first_turn(
     """A module loaded or reloaded mid-session sees no session.start, so the first
     turn it sees reads Claude Code's process and the watch it starts holds the
     session's lease."""
-    driven = ClaudeCode(spawn, "cc-late", {})
+    driven = ClaudeCode(spawn, "cc-late", {"hooks_module": True})
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", driven.session)
     monkeypatch.setenv("CLAUDE_PID", str(driven.pid))
     service_model.claim_page(page_dir)
@@ -513,21 +550,21 @@ def test_input_pending_as_a_turn_ends_wakes_a_turn_of_its_own(
     assert pending["id"] not in sent["submitted"]
 
 
-def test_a_wake_during_the_stop_hooks_waits_for_them(page_dir, claude_code):
-    """A turn's Stop hooks decide whether it goes on. A watch that wakes while they
-    run waits for them rather than starting a turn beside one they continue: here
-    they let the turn end, and only then does the module submit its prompt."""
+def test_subagent_turn_after_main_turn_does_not_block_wake(page_dir, claude_code):
+    """A subagent can start after the main loop ends; its turn does not make the
+    idle main loop busy when the page's next input wakes the watch."""
+    assert "classic.Stop" not in claude_code.events
     claude_code.start_turn()
-    payload = {"hook_event_name": "Stop", "session_id": claude_code.session}
-    claude_code.send({"emit": "classic.Stop", "e": payload, "hold": True})
-    assert claude_code.read() == {"holding": "classic.Stop"}
+    claude_code.end_turn()
+    wait_for(
+        lambda: leases_model.wait_is_live(None, claude_code.session),
+        bool,
+        failure="the module started no watch after the main turn",
+    )
+    claude_code.emit("turn.start", {"text": "", "turnId": "sub", "agentId": "sub-1"})
     append_carried_log_record(
-        page_dir, {"kind": "comment", "author": "user", "text": "during Stop"}
+        page_dir, {"kind": "comment", "author": "user", "text": "after main turn"}
     )
     claude_code.exits.get(timeout=STATED_TIMEOUT)
-    assert claude_code.sent.empty()
-    claude_code.send({"release": True})
-    assert claude_code.read()["event"] == "classic.Stop"
-    assert claude_code.message()["submitted"].startswith(
-        f"Leaf: {page_dir} has new input"
-    )
+    claude_code.send({"flush": True})
+    assert claude_code.read() == {"submissions": 1}

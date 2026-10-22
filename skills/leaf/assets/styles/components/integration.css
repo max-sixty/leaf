@@ -7,7 +7,7 @@
   max-height: min(60vh, 480px);
   border-radius: var(--r);
 }
-:is(.lf-btn, .button):is(.on, [aria-pressed="true"]) {
+:is(.lf-btn, .button)[aria-pressed="true"] {
   border-color: var(--accent);
   color: var(--accent);
   background: var(--chip);
@@ -100,9 +100,6 @@ html[data-lf-draw-mode] main {
 .lf-code-copy::part(button):hover {
   color: var(--ink);
 }
-.lf-code-copy::part(lf-focus) {
-  outline: var(--focus-ring);
-}
 /* A recording's bar lies over its foot, inset as Copy is from a code block's corner, in
    a control's face: paper, a hairline and the theme's radius (video-controls.js). It
    shows while the recording is paused, under the pointer or under the keyboard, and
@@ -134,6 +131,10 @@ html[data-lf-draw-mode] main {
   z-index: 1;
   opacity: 0;
   pointer-events: none;
+  /* A button at either end sits flush with the bar's edge, as the play button does. */
+  &:has(> .lf-video-full-screen) {
+    padding-inline: 0;
+  }
 }
 .lf-video-controls:is(
   :not(.lf-video-playing),
@@ -145,7 +146,8 @@ html[data-lf-draw-mode] main {
   opacity: 1;
   pointer-events: auto;
 }
-.lf-video-play {
+.lf-video-play,
+.lf-video-full-screen {
   flex: none;
   display: grid;
   place-items: center;

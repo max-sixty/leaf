@@ -29,7 +29,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { applyPatch, parsePatch } from "diff";
 import { build } from "./esbuild.mjs";
-import { parse } from "acorn";
 import { bindToVendoredLit } from "./lit.mjs";
 import { patchTransitions } from "./webawesome/transition-patch.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./browser/shipped.mjs";
@@ -38,34 +37,6 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 const assets = "skills/leaf/assets";
 const packageVendor = (name) => `skills/leaf/packages/${name}/vendor`;
 const input = (file) => path.join(root, "build", file);
-
-/** Expose selected installed exports without sharing a broad barrel's unused imports. */
-function selectedExports(source, entries, specifier) {
-  const options = { ecmaVersion: "latest", sourceType: "module" };
-  const names = entries.flatMap((entry) =>
-    parse(readFileSync(entry, "utf8"), options)
-      .body.filter((node) => node.source?.value === specifier)
-      .flatMap((node) => node.specifiers.map((item) => item.local.name)),
-  );
-  const body = parse(source, options).body;
-  const published = body
-    .filter((node) => node.type === "ExportNamedDeclaration")
-    .flatMap((node) => node.specifiers.map((item) => item.exported.name));
-  if (!names.every((name) => published.includes(name)))
-    throw new Error("Pierre public export seam changed");
-  const imports = body
-    .filter((node) => node.type === "ImportDeclaration")
-    .flatMap((node) =>
-      node.specifiers
-        .filter((item) => names.includes(item.local.name))
-        .map(
-          (item) =>
-            `export { ${item.imported.name} } from ${JSON.stringify(node.source.value)};`,
-        ),
-    );
-  if (imports.length !== names.length) throw new Error("Pierre export seam changed");
-  return imports.join("\n");
-}
 
 /** The installed version of a package, which is the one the lock resolved. */
 const version = (name) =>
@@ -134,11 +105,15 @@ export function adapt(adaptations) {
   };
 }
 
-/** Resolve the specifiers `filter` matches to one module a page serves at `target`. */
+/** Bind side-effect-free libraries to the shared module a page serves at `target`. */
 const bindTo = (filter, target) => ({
   name: `leaf-bind ${target}`,
   setup(builder) {
-    builder.onResolve({ filter }, () => ({ path: target, external: true }));
+    builder.onResolve({ filter }, () => ({
+      path: target,
+      external: true,
+      sideEffects: false,
+    }));
   },
 });
 
@@ -152,19 +127,6 @@ const bindTo = (filter, target) => ({
 const bundles = {
   // Browser-native DOM rasterization, loaded only when capturing a page region.
   //
-  // After a capture, SnapDOM counts each later mutation against the target's
-  // ancestors, climbing out of a shadow tree through `getRootNode().host`. A target
-  // removed with its subtree has that subtree's top element as its root, and an `<a>`
-  // there answers `host` with its URL's host string. SnapDOM 3.3.0 to 3.3.3 then use
-  // that string as a WeakMap key, so a removed link throws from the observer, an
-  // uncaught page error. Climb only from an element whose parent is a shadow root.
-  //
-  // A fixed or sticky box keeps its place in the capture because SnapDOM rewrites its
-  // clone to an absolute box at the place it is painted. SnapDOM 3.3.0 to 3.3.4 rewrite
-  // only HTML elements, so an outer `<svg>`, which is a CSS box like any other, keeps
-  // `position: fixed` and lands at its viewport offset from the top of the document,
-  // outside a crop of the scrolled page. Rewrite an outer `<svg>` too.
-  //
   // Leaf captures without `reconcile` (`runtime/composing/page-image.js` says why), and
   // SnapDOM then warns on the console that text may wrap differently. The capture's own
   // `warnings` keep that notice; the console copy would read as a page problem.
@@ -174,7 +136,7 @@ const bundles = {
   // document's origin is opaque, so every request is cross-origin and Leaf's server
   // answers it `Access-Control-Allow-Origin: *`, which a credentialed request may not
   // read: the child's own icon.svg mask failed with a CORS error in every capture.
-  // Compare with the document's origin, `self.origin`, instead (SnapDOM 3.3.4).
+  // Compare with the document's origin, `self.origin`, instead (SnapDOM 3.3.6).
   snapdom: () => ({
     out: `${assets}/vendor/snapdom.esm.js`,
     entry: 'export { snapdom } from "@zumer/snapdom";\n',
@@ -184,23 +146,13 @@ const bundles = {
         edit: (source) =>
           seam(
             seam(
-              seam(
-                seam(
-                  source,
-                  'y.origin===location.origin?"include":"omit"',
-                  'y.origin===self.origin?"include":"omit"',
-                  "SnapDOM credentials origin",
-                ),
-                "for(;r;r=r.parentElement||r.getRootNode?.()?.host)",
-                "for(;r;r=r.parentElement||(r.parentNode?.nodeType===11?r.parentNode.host:null))",
-                "SnapDOM mutation-ancestor",
-              ),
-              "for(let[a,c]of n){if(!Rt(a)||c?.nodeType!==1",
-              'for(let[a,c]of n){if(!(Rt(a)||It(a)&&a.localName==="svg"&&!It(c?.parentNode))||c?.nodeType!==1',
-              "SnapDOM fixed-box rewrite",
+              source,
+              'y.origin===location.origin?"include":"omit"',
+              'y.origin===self.origin?"include":"omit"',
+              "SnapDOM credentials origin",
             ),
-            'I.warnedReconcile||(I.warnedReconcile=!0,console.warn("[SnapDOM] Some text may wrap differently in the capture. Pass { reconcile: true } to fix it (about 2x slower)."))',
-            "I.warnedReconcile=!0",
+            'D.warnedReconcile||(D.warnedReconcile=!0,console.warn("[SnapDOM] Some text may wrap differently in the capture. Pass { reconcile: true } to fix it (about 2x slower)."))',
+            "D.warnedReconcile=!0",
             "SnapDOM reconcile console warning",
           ),
       },
@@ -552,7 +504,8 @@ const bundles = {
   }),
 
   // Parsing is needed before a metadata row appears; static rendering waits for
-  // textual evidence to open. One graph shares their common implementation.
+  // textual evidence to open. Independent builds keep the shared public barrel
+  // from hoisting the renderer into the parser's eager dependency graph.
   // Pierre's static renderer uses the shared Leaf syntax engine: Shiki binds to
   // `syntax.esm.js`, and Pierre's theme registry binds to Leaf's theme shim.
   // The unused WASM import carries no binary or separate module.
@@ -566,8 +519,6 @@ const bundles = {
     place: {
       [`${packageVendor("default")}/pierre-parser.esm.js`]: `${packageVendor("diff")}/pierre-parser.esm.js`,
     },
-    splitting: true,
-    chunkNames: "pierre/[name]-[hash]",
     adapt: [
       {
         file: /@pierre\/diffs\/dist\/managers\/ResizeManager\.js$/,
@@ -608,20 +559,6 @@ const bundles = {
             )
           );
         },
-      },
-      {
-        file: /@pierre\/diffs\/dist\/index\.js$/,
-        edit: (source) =>
-          selectedExports(
-            source,
-            [input("pierre/parser.mjs"), input("pierre/entry.mjs")],
-            "@pierre/diffs",
-          ),
-      },
-      {
-        file: /@pierre\/diffs\/dist\/ssr\/index\.js$/,
-        edit: (source) =>
-          selectedExports(source, [input("pierre/entry.mjs")], "@pierre/diffs/ssr"),
       },
       {
         file: /@pierre\/diffs\/dist\/highlighter\/shared_highlighter\.js$/,

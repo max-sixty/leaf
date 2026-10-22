@@ -32,8 +32,6 @@ from leaf.files import read_json
 from leaf.leases import (
     adapter_is_live,
     hooks_ran,
-    mark_step_hook,
-    step_hook_ran,
     wait_is_live,
 )
 from leaf.machine import ancestry, pid_alive, process_argv
@@ -73,16 +71,19 @@ class Harness:
     envelope states what the transport decides (`../../references/event-batches.md`).
     The methods below answer for each harness's watcher and transports:
 
-    - Claude Code runs Leaf's hooks module (`hooks/claude-code.ts`), which
-      watches the session's pages as each turn ends, an interrupted one included,
-      and wakes the session with a prompt when input arrives
-      (`watches_between_turns`), as Pi's extension does. The prompt hook, which
-      runs as the turn the wake opens begins, and the tool-batch hook within a
-      turn put the input in the turn's context and confirm it (`hook_delivers`);
-      the Stop hook does only under plain `--print`, where no watch follows the
-      turn (`hook_transport`). Claude Code drops a plugin's prompt after an
-      Escape, and a Claude Code that loads no hooks module keeps no watch, which
-      is why this is the harness with a `nudge`.
+    - Claude Code runs Leaf's Stop hooks as each turn ends: one watches the
+      session's pages in the background and wakes the session when input arrives
+      (`watches_between_turns`), and the prompt hook, which runs as the turn the
+      wake opens begins, and the tool-batch hook within a turn put the input in
+      the turn's context and confirm it (`hook_delivers`); the other Stop hook
+      does only under plain `--print`, where no watch follows the turn
+      (`hook_transport`). A turn that ends without its Stop hooks, as an
+      interrupt does, leaves nothing watching while the session lives on, which
+      is why this is the harness with a `nudge`. With its `hooks_module` option
+      on, Leaf's hooks module (`hooks/claude-code.ts`) keeps the watch in place
+      of that Stop hook, as Pi's extension does: it watches after an interrupted
+      turn too and wakes the session with a prompt, which Claude Code drops
+      after an Escape.
     - Pi runs Leaf's extension in its own process, which calls the same hooks at
       the same points of a run and starts the same watch as each run settles, and
       starts the turn the watch wakes itself.
@@ -196,7 +197,7 @@ class Harness:
 
     def watches_between_turns(self) -> bool:
         """Whether this session's harness starts Leaf's watch as each turn ends, from
-        Leaf's extension or hooks module, which wakes the session when input arrives
+        a hook, extension or hooks module, which wakes the session when input arrives
         (`session.watch_between_turns`); the model then starts no `leaf wait`."""
         return False
 
@@ -312,7 +313,7 @@ class EnvironmentHarness(Harness):
 
 @dataclass(frozen=True)
 class ClaudeCodeHarness(EnvironmentHarness):
-    """Claude Code: a hooks module that watches between turns and wakes the session,
+    """Claude Code: a Stop hook that watches between turns and wakes the session,
     hooks that carry input into the turn, and a socket to reach it with.
 
     `job` is the background job directory a claim rests on (`lifetime`), which
@@ -374,12 +375,15 @@ class ClaudeCodeHarness(EnvironmentHarness):
         return cls(session=claim["id"], agent=claim["agent"], job=claim.get("job"))
 
     def watches_between_turns(self) -> bool:
-        """Leaf's hooks module watches between turns and wakes the session with a
-        prompt, except under plain `--print`, which ends with its one turn. A
-        print session fed `--input-format stream-json` takes further prompts like
-        an interactive one; `--output-format stream-json` alone does not. Only
-        the process's own argv tells the two apart, which the module states as
-        CLAUDE_PID."""
+        """Claude Code keeps an `asyncRewake` hook in the background and wakes the
+        session when it exits 2, except under plain `--print`, where it waits on
+        the hook as on any other and the turn would hold until input came
+        (measured at 2.1.286). A print session fed `--input-format stream-json`
+        backgrounds it like an interactive one; `--output-format stream-json`
+        alone does not. Only the process's own argv tells the two apart: the
+        hook's input and environment are the same. Leaf's hooks module, where its
+        option keeps the watch, states CLAUDE_PID to the watch it starts, so the
+        same reading holds there."""
         argv = process_argv(int(os.environ["CLAUDE_PID"])) or []
         printing = "-p" in argv or "--print" in argv
         streaming = "--input-format=stream-json" in argv or (
@@ -525,10 +529,12 @@ class CodexHarness(EnvironmentHarness):
         )
 
     def turn_takes_input(self) -> bool:
-        """Codex's tool hook offers input between steps once one has proven that
-        Codex runs Leaf's hooks for this task (`codex.offer_hook_delivery`), and
-        its Stop hook keeps the turn going over input nothing else will carry."""
-        return step_hook_ran(self.session)
+        """Codex's tool hook offers input between steps (`codex.offer_hook_delivery`),
+        and its Stop hook keeps the turn going over input nothing else will carry.
+        Any Leaf hook run in this task instance, such as the turn's prompt hook,
+        proves Codex runs them, so a turn takes input from its start; the queue
+        adapter leaves such a turn's input to it (`codex_adapter`)."""
+        return hooks_ran(self.session)
 
     def later_turn_takes_input(self) -> bool:
         """An adapter that starts turns over App Server opens one on a
@@ -591,18 +597,15 @@ class CodexHarness(EnvironmentHarness):
     ) -> tuple[str | None, dict | None]:
         """Both the tool hook and Stop offer an envelope through Codex's one transport
         reservation (`codex.offer_hook_delivery`), since empty-input resume can
-        reach Stop without running another tool. A tool hook also proves that
-        Codex runs Leaf's hooks for this task (`turn_takes_input`). Stop offers
-        only where no adapter will start a turn of its own for the input over App
-        Server (`later_turn_takes_input`), and the turn would continue for it
+        reach Stop without running another tool. Stop offers only where no adapter
+        will start a turn of its own for the input over App Server
+        (`later_turn_takes_input`), and the turn would continue for it
         (`hook_transport.stop_continues`). The tool hook offers only input the
         cursor has not passed, and Stop also an update the session holds no usable
         reference for (`delivery.deliverable`).
         """
         if event not in {"PostToolUse", "Stop"} or not payload.get("turn_id"):
             return None, expected
-        if event == "PostToolUse":
-            mark_step_hook(self.session)
         from .service import owned_pages
 
         if not owned_pages(self.session):

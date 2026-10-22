@@ -1297,6 +1297,8 @@ def judge_watches():
         if not page.is_closed() and page.lf_java_script_enabled:
             for frame in page.frames:
                 try:
+                    if not _reachable(frame):
+                        continue
                     _judge_frame_watches(frame)
                 except PlaywrightError:
                     # Enumeration owns no frame lifetime: a sample or its page can
@@ -1304,6 +1306,25 @@ def judge_watches():
                     # lifetime facts release it; every live-frame failure propagates.
                     if not frame.is_detached() and not page.is_closed():
                         raise
+
+
+def _reachable(frame):
+    """Whether Playwright holds a document in `frame` that can answer it.
+
+    Playwright's Firefox loses some sample frames: it reports one at `about:blank`
+    or at an earlier URL of its document, runs none of the suite's init scripts in
+    it, and an evaluate there never returns. Such a frame has no watch to judge.
+    Every frame in another engine, and every top-level document, is asked."""
+    if (
+        frame.parent_frame is None
+        or frame.page.context.browser.browser_type.name != "firefox"
+    ):
+        return True
+    try:
+        frame.wait_for_function("() => true", polling=100, timeout=2_000)
+    except PlaywrightTimeout:
+        return False
+    return True
 
 
 def _judge_frame_watches(frame):

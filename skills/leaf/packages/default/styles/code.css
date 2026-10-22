@@ -5,6 +5,9 @@
    face's `ch`. The rendered lines own the block's containment. */
 :scope:is(lf-code) {
   contain: inline-size;
+  --lf-code-gap: 8px;
+  --lf-code-inset-inline: 14px;
+  --lf-code-inset-block: 12px;
 }
 @property --lf-code-gutter {
   syntax: "<length>";
@@ -12,7 +15,7 @@
   initial-value: 38px;
 }
 :scope:is(lf-code).lf-rendered pre {
-  padding: 12px 0;
+  padding: var(--lf-code-inset-block) 0;
   --lf-block-frame: 1;
   --lf-code-gutter: max(38px, calc(var(--lf-code-digits, 2) * 1ch + 16px));
 }
@@ -30,7 +33,8 @@
   display: block;
   position: relative;
   --lf-code-hang: calc(min(var(--lf-code-indent, 0), 22) * 1ch + 2ch);
-  padding: 0 14px 0 calc(var(--lf-code-gutter) + 8px + var(--lf-code-hang));
+  padding: 0 var(--lf-code-inset-inline) 0
+    calc(var(--lf-code-gutter) + var(--lf-code-gap) + var(--lf-code-hang));
   text-indent: calc(-1 * var(--lf-code-hang));
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -39,7 +43,7 @@
   content: attr(data-line);
   display: inline-block;
   width: var(--lf-code-gutter);
-  margin-right: 8px;
+  margin-right: var(--lf-code-gap);
   padding-right: 10px;
   box-sizing: border-box;
   border-right: 1px solid var(--code-border);
@@ -62,7 +66,7 @@
 :scope:is(lf-code) .lf-code-elided {
   display: flex;
   align-items: baseline;
-  padding: 0 14px 0 0;
+  padding: 0 var(--lf-code-inset-inline) 0 0;
   color: var(--code-muted);
   user-select: none;
 }
@@ -125,7 +129,8 @@
 :scope:is(lf-code) > lf-note,
 :scope:is(lf-code) > pre > lf-note {
   margin: 5px 0 6px;
-  padding: 7px 14px 8px calc(var(--lf-code-gutter) + 8px);
+  padding: 7px var(--lf-code-inset-inline) 8px
+    calc(var(--lf-code-gutter) + var(--lf-code-gap));
   background: var(--pre-bg);
   border-block: 1px solid var(--code-border);
   color: var(--code-ink);
@@ -146,7 +151,8 @@
       background: var(--pre-bg);
       border: 1px solid var(--code-border);
       border-radius: var(--r);
-      padding: 12px 14px 12px calc(var(--lf-code-gutter) + 8px);
+      padding: var(--lf-code-inset-block) var(--lf-code-inset-inline)
+        var(--lf-code-inset-block) calc(var(--lf-code-gutter) + var(--lf-code-gap));
       white-space: pre-wrap;
       overflow-wrap: anywhere;
     }

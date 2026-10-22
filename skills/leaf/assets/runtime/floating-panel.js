@@ -119,14 +119,20 @@
  *
  * Nothing moves under the pointer: a view's controls stand at its foot, the leaf's
  * menu holds what it showed while it stands, and a control the user pressed in a
- * thread stays where it was. Every change of the box's size takes effect in
- * one step, and the surface behind it, a separate layer, follows by a clip from where it
- * stood to where it stands, the way the Codex app's floating panel moves: nothing's
- * layout tweens, so nothing a user aims at travels after the gesture that moved it.
- * What a line the field gains moved, the words, the field's ring and the attachments
- * over the box, rides that edge by a transform rather than being revealed by it
- * (`followBox`), after the user found the attachment vanishing and the ring outrunning
- * the box on 20 October. */
+ * thread stays where it was. Every change of the box's layout takes effect in one step,
+ * and what the user sees then travels from where it was drawn to where it stands, by
+ * one model (box-motion.js): the surface behind the box, a separate layer, follows by a
+ * clip, the way the Codex app's floating panel moves, and so does the field's ring; a
+ * part that kept its size is carried by a transform; one that changed size grows from
+ * where it stood, carrying its words by their start corner; one that is new is revealed
+ * by the edges of what holds it. That carrying is for the user's own change, a key,
+ * press or typing: news, such as an answer growing a thread's view, shows what it moved
+ * where it now stands, revealed by the surface's clip, so news moves nothing the reader
+ * reads. Nothing's layout tweens, so the box's room on the page is its new room at
+ * once. The user asked for this on 20 October, after a line the field gained left its
+ * attachment vanishing and its ring outrunning the box, and more room left the field
+ * behind the box widening around it; it replaced revealing everything a change moved
+ * by the surface's clip, which hid each part that moved until the clip reached it. */
 import {
   html,
   keyed as keyedBy,
@@ -220,7 +226,8 @@ import {
 } from "./focus.js";
 import { rowWalk } from "./walk-position.js";
 import { excerptWords } from "./words.js";
-import { nextRender, sizeObserver } from "./rendering.js";
+import { afterSettling, holdRendering, nextRender, sizeObserver } from "./rendering.js";
+import { boxMotion } from "./box-motion.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { moveScrollerBy, SCROLL_SLACK, scrollLimit, scrollToEnd } from "./scrolling.js";
 import { declareOccluder, declareWindowChrome } from "./geometry.js";
@@ -336,8 +343,8 @@ export function createFloatingPanel({
   ground.setAttribute("aria-hidden", "true");
   const ring = el("div", "lf-fp-ring");
   const fill = el("div", "lf-fp-fill");
-  // The field's focus ring, drawn here only while the field grows or shrinks a line
-  // (`followBox`), so its top edge can ride the box's.
+  // The field's focus ring, drawn here only while the box moves (box-motion.js), since
+  // no transform draws a ring changing size.
   const fieldRing = el("div", "lf-fp-field-ring");
   const fieldFill = el("div", "lf-fp-fill");
   ground.append(ring, fill, fieldRing, fieldFill);
@@ -466,8 +473,8 @@ export function createFloatingPanel({
       : 0;
     if (lines > 3.5 === long) return;
     long = lines > 3.5;
-    // In the frame the field grows, so the mark rides in with the line that brought it
-    // (`followBox`); standing it resizes nothing the observer watches.
+    // In the frame the field grows, ahead of the box's reading (`followBox`), so the
+    // box's motion reveals the mark with the line that brought it.
     markRoom();
   });
   // The mark stands while the draft runs long, and while the field is wide, where the
@@ -809,15 +816,12 @@ export function createFloatingPanel({
     const queues = readQueues();
     return queues.phase === "ready" ? queues.on_user.length : 0;
   };
-  // A thread row's state in words, less the one the filter the list is shown by already
-  // says: under Open no row says "Open", under Unread none "New".
+  // Ordinary open state is implicit. Rows name attention, resolution, news and drafts,
+  // less the state the selected filter already says, such as "New" under Unread.
   const threadStatus = (thread, shownBy) => {
-    const state = thread.resolved
-      ? "Resolved"
-      : (threadAttention(thread)?.label ?? "Open");
+    const state = thread.resolved ? "Resolved" : threadAttention(thread)?.label;
     const said = {
       unread: "New",
-      open: "Open",
       resolved: "Resolved",
       drafts: "Draft",
     }[shownBy];
@@ -899,7 +903,10 @@ export function createFloatingPanel({
   function clearRow() {
     const before = trail.value.at(-1);
     if (prefs().rest === "mark") prefs().setRest("row");
-    trail.value = [];
+    // Thread presentation may nominate this seat again after its own commit. An
+    // already empty route must keep its signal identity or that commit reads the
+    // new route as an input and starts the same presentation again.
+    if (trail.value.length) trail.value = [];
     setMenu(false);
     transition(before, { focus: false });
   }
@@ -1046,212 +1053,91 @@ export function createFloatingPanel({
     if (target) focusDestination(target, "move");
   }
 
-  // ---------- motion: the surface follows the box ----------
-  // The box's layout changes in one step, whatever changed it: a view opening, the line
-  // naming where the words go, a field growing a line, folding to the leaf. The surface
-  // then follows from the outline it stood at to the box's new one by a clip, which
-  // moves nothing's layout. The first outline, and any under reduced motion, is taken
-  // as it is.
+  // ---------- motion: everything follows the box ----------
+  // The box's layout changes in one step, whatever changed it: a view opening, a field
+  // growing a line, more room, folding to the leaf. Everything the user sees then moves
+  // from where it was drawn to where it stands, by one model (box-motion.js): the
+  // surface draws the box's outline, and the field's ring while it moves; a part that
+  // kept its size is carried; one that changed size grows from where it stood; one that
+  // is new is revealed by the edges of what holds it. The first reading, and any under
+  // reduced motion, is taken as it is.
   //
-  // A view arriving, or anything else new in the box, is revealed: while the box grows,
-  // its own contents are clipped to the surface's outline, so they appear as the surface
-  // reaches them. The field growing or shrinking a line brings nothing new but its line,
-  // so everything it moved rides the surface's top edge instead (`ride`): the words
-  // already written, the field's focus ring, what stands above the field and the
-  // attachments hanging over the box are drawn where they stood and travel with the edge,
-  // by a transform, while the new line rises into the field from its foot. The field's
-  // ring is a box whose top moves while its foot stays, which no transform draws, so
-  // meanwhile the surface draws it as it draws its own ring, a fill inside a fill, and
-  // the card stands transparent over it, unclipped.
-  let outline = null;
-  // Until when a change of outline is a view arriving or leaving (`transition`), which
-  // takes the shorter tween: the view's own change, and the one when the view it
-  // replaced is gone after its fade.
+  // Until when a change is a view arriving or leaving (`transition`), which takes the
+  // shorter tween: the view's own change, and the one when the view it replaced is gone
+  // after its fade.
   let viewMovingUntil = 0;
-  let riding = [];
-  // The editor in the panel's field, the page's or a thread's reply, and its height,
-  // as of the last time the box was read, whether or not its outline moved then. The
-  // comment box seated in the field's place is drawn as a card of its own, whose face
-  // the surface doesn't draw, so it keeps the reveal.
-  let lastEditor = null;
-  const outlineClip = (box, grow = 0) =>
-    `inset(${box.top - grow}px ${box.right - grow}px ${box.bottom - grow}px ${
-      box.left - grow
-    }px round ${box.radius + grow}px)`;
-  const clipTop = (clip) => Number.parseFloat(/inset\(([-\d.]+)px/.exec(clip)?.[1]);
-  const within = (room, element) => {
-    const rect = element.getBoundingClientRect();
-    return {
-      top: rect.top - room.top,
-      right: room.right - rect.right,
-      bottom: room.bottom - rect.bottom,
-      left: rect.left - room.left,
-      width: rect.width,
-      height: rect.height,
-      radius: Number.parseFloat(getComputedStyle(element).borderTopLeftRadius) || 0,
-    };
-  };
-  const near = (a, b) => Math.abs(a - b) < 0.5;
-  function followBox() {
-    const room = ground.getBoundingClientRect();
-    const next = within(room, card);
-    const editor = [...row.querySelectorAll(":scope > .lf-fp-field leaf-text")].find(
-      (text) => text.checkVisibility(),
-    );
-    const grew = lastEditor;
-    lastEditor = editor
-      ? { editor, height: editor.getBoundingClientRect().height }
-      : null;
-    const was = outline;
-    if (
-      was &&
-      ["top", "right", "bottom", "left", "radius"].every((side) =>
-        near(was[side], next[side]),
-      )
-    )
-      return;
-    outline = next;
-    // How far the box reaches up from the window's foot, which the root's
-    // `scroll-padding-bottom` keeps every landing clear of (theme.css), so `m`, `t`, a
-    // Go-to or an On me row's Show lands what it reaches above an open view rather than
-    // under it. The browser's own reveals read the same padding. CSS can't size the
-    // root's padding from a fixed box in the chrome's shadow tree, so the box states it.
-    setRuntimeRootStyle(
-      document.documentElement,
-      "--lf-panel-reach",
-      layoutPx(next.height > 0 ? next.bottom + next.height : 0),
-    );
-    const duration = performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
-    const moving = Boolean(was) && !reducedMotion() && pagePresented();
-    // Where the surface's top edge stands now, mid-tween or at rest.
-    const standing =
-      moving && fill.getAnimations().length
-        ? clipTop(getComputedStyle(fill).clipPath)
-        : was?.top;
-    // A reveal still under way leaves the box's contents where they will rest, cut to
-    // the surface, so a line arriving meanwhile is revealed with them.
-    const revealing = card.getAnimations().some((running) => !riding.includes(running));
-    for (const running of [...riding, ...card.getAnimations()]) running.cancel();
-    riding = [];
-    // The field grew or shrank a line, and nothing else in the box moved.
-    const ride =
-      moving &&
-      !revealing &&
-      lastEditor !== null &&
-      grew?.editor === lastEditor.editor &&
-      near(was.width, next.width) &&
-      near(was.bottom, next.bottom) &&
-      near(lastEditor.height - grew.height, next.height - was.height);
-    // The ground is cut too, to the outline grown by its shadow's reach (`--raise-2`'s
-    // blur dropped by its drop, theme.css), so it stands over nothing else in the window:
-    // a layer over the whole window that paints nothing left every word under it
-    // unmeasured by a contrast checker. Its cut moves with the ring's, so it holds the
-    // ring every frame.
-    const lift = getComputedStyle(ground);
-    const shadowReach = ["--raise-2-drop", "--raise-2-blur"]
-      .map((token) => Number.parseFloat(lift.getPropertyValue(token)))
-      .reduce((reach, part) => reach + part);
-    const timing = { duration, easing: EASE };
-    for (const [layer, grow] of [
-      [ground, shadowReach],
-      [ring, 1],
-      [fill, 0],
-    ]) {
-      const from = was ? getComputedStyle(layer).clipPath : null;
-      for (const running of layer.getAnimations()) running.cancel();
-      keeps(layer, "style", `clip-path: ${outlineClip(next, grow)}`);
-      if (moving)
-        layer.animate(
-          [{ clipPath: from }, { clipPath: outlineClip(next, grow) }],
-          timing,
-        );
-    }
-    if (!moving) return;
-    if (ride) {
-      // How far below their places what the field moved still stands: where the
-      // surface's edge stands, from the box's new top.
-      const lag = standing - next.top;
-      const shifted = { translate: `0 ${lag}px` };
-      const rest = { translate: "0 0" };
-      const riders = [
-        opened,
-        context,
-        ...row.querySelectorAll(":scope > .lf-fp-expand"),
-        ...row.querySelectorAll(".lf-composer-media:not([hidden])"),
-      ];
-      for (const rider of riders) riding.push(rider.animate([shifted, rest], timing));
-      // The words already written travel with the edge inside the field, whose box
-      // grows at its top as typing may (text-field.js, `--lf-field-ride`), and the new
-      // line rises into it from its foot. A line taken away leaves the words where the
-      // field now holds them, and the edge closes down onto them.
-      if (lag > 0)
-        riding.push(
-          editor.animate(
-            [{ "--lf-field-ride": `${lag}px` }, { "--lf-field-ride": "0px" }],
-            timing,
-          ),
-        );
-      const hold = (property, value) => [{ [property]: value }, { [property]: value }];
-      riding.push(
-        card.animate(hold("backgroundColor", "transparent"), timing),
-        card.animate(hold("overflow", "visible"), timing),
-      );
-      // The box wearing the field's focus ring, where the caret has painted one.
-      let wearer = null;
-      for (let box = editor; box && box !== row; box = box.parentElement)
-        if (getComputedStyle(box).outlineStyle !== "none") wearer = box;
-      if (wearer) {
-        const { outlineColor, outlineWidth } = getComputedStyle(wearer);
-        const to = within(room, wearer);
-        const from = { ...to, top: to.top + lag };
-        riding.push(wearer.animate(hold("outlineColor", "transparent"), timing));
-        keeps(fieldRing, "style", `background: ${outlineColor}`);
-        for (const [layer, grow] of [
-          [fieldRing, Number.parseFloat(outlineWidth)],
-          [fieldFill, 0],
-        ])
-          riding.push(
-            layer.animate(
-              [
-                { clipPath: outlineClip(from, grow) },
-                { clipPath: outlineClip(to, grow) },
-              ],
-              timing,
-            ),
-          );
-      }
-      return;
-    }
-    if (next.width <= was.width + 0.5 && next.height <= was.height + 0.5) return;
-    // Within its own box, the outline the surface still stands at.
-    const inside = {
-      top: Math.max(0, standing - next.top),
-      right: Math.max(0, was.right - next.right),
-      bottom: Math.max(0, was.bottom - next.bottom),
-      left: Math.max(0, was.left - next.left),
-      radius: was.radius,
-    };
-    card.animate(
-      [
-        { clipPath: outlineClip(inside) },
-        { clipPath: `inset(0 round ${next.radius}px)` },
-      ],
-      timing,
-    );
-  }
   // Leaf's reader draws into the open thread's view on its own schedule, a sent turn
   // among them, so the view lands where that drawing shows, not at the panel's next paint.
+  // The view's landing may change the box's size, and the browser delivers no observer a
+  // box shallower than the view later in the frame it resized, so the box is read
+  // again here, before that frame paints what moved.
   const fit = sizeObserver(() => {
     landReader();
     fitAnswer();
     stood = openView()?.offsetHeight ?? null;
+    followBox();
   });
   const follow = sizeObserver(() => {
     readCorner();
     followBox();
   });
+  const motion = boxMotion({
+    root: host,
+    box: card,
+    room: ground,
+    // The ground is cut too, to the outline grown by its shadow's reach (`--raise-2`'s
+    // blur dropped by its drop, theme.css), so it stands over nothing else in the
+    // window: a layer over the whole window that paints nothing left every word under
+    // it unmeasured by a contrast checker. Its cut moves with the ring's, so it holds
+    // the ring every frame.
+    surface: () => {
+      const lift = getComputedStyle(ground);
+      const shadowReach = ["--raise-2-drop", "--raise-2-blur"]
+        .map((token) => Number.parseFloat(lift.getPropertyValue(token)))
+        .reduce((reach, part) => reach + part);
+      return [
+        [ground, shadowReach],
+        [ring, 1],
+        [fill, 0],
+      ];
+    },
+    ring: [fieldRing, fieldFill],
+    observer: follow,
+    theirs: () => gesture,
+  });
+  // The user's key, press or typing owns what it sets going until that rendering
+  // settles (rendering.js, `afterSettling`): changes to the box meanwhile are theirs,
+  // and what changes it after, such as an answer arriving, is news. News landing before
+  // the gesture's rendering settles, a reading back within a frame or two, is taken as
+  // theirs. Typing is told apart, since the field it types in must not move under it.
+  let gesture = null;
+  let gestures = 0;
+  onUserInput((event) => {
+    if (!["keydown", "pointerdown", "input", "touchstart"].includes(event.type)) return;
+    gesture = event.type === "input" ? "typing" : "press";
+    const own = ++gestures;
+    afterSettling(() => {
+      if (gestures === own) gesture = null;
+    });
+  });
+  function followBox() {
+    // How far the box reaches up from the window's foot, which the root's
+    // `scroll-padding-bottom` keeps every landing clear of (theme.css), so `m`, `t`, a
+    // Go-to or an On me row's Show lands what it reaches above an open view rather than
+    // under it. The browser's own reveals read the same padding. CSS can't size the
+    // root's padding from a fixed box in the chrome's shadow tree, so the box states it.
+    const box = card.getBoundingClientRect();
+    setRuntimeRootStyle(
+      document.documentElement,
+      "--lf-panel-reach",
+      layoutPx(box.height > 0 ? ground.getBoundingClientRect().bottom - box.top : 0),
+    );
+    const moving = !reducedMotion() && pagePresented();
+    const duration = performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
+    motion.follow(moving ? { duration, easing: EASE } : null);
+  }
   addEventListener("resize", () => {
-    outline = null;
+    motion.forget();
     followBox();
   });
 
@@ -1665,11 +1551,18 @@ export function createFloatingPanel({
       easing: "linear",
       fill: "forwards",
     });
+    // The view leaving goes once its fade ends, which is still the gesture's rendering,
+    // so the box moving then moves as the user's change (`followBox`).
+    const release = fade ? holdRendering() : null;
     const settle = () => {
       leaving = null;
       paint();
+      release();
     };
-    if (fade) fade.finished.then(settle, () => {});
+    if (fade)
+      fade.finished.then(settle, () => {
+        release();
+      });
     else leaving = null;
     if (focus) focusView(after, drawn, stoodIn);
   }
@@ -2988,8 +2881,8 @@ export function createFloatingPanel({
         (tab) => (tab === "plan" ? null : lists[tab].length),
       );
     } else if (thread) {
-      // Resolve and Reopen share one seat as wide as the wider of them, both drawn and
-      // one shown, so the agent settling the thread moves nothing beside it.
+      // Resolve is the check a thread card's head draws, and Reopen in its place is the
+      // same check drawn done, so the agent settling the thread moves nothing beside it.
       // Resolve says it is unavailable while a settling is pending rather than leaving
       // the tab order, so the user who pressed it, or `r` on it, stays standing on it;
       // the action itself refuses a press meanwhile (thread/actions.js, `settle`).
@@ -3048,7 +2941,11 @@ export function createFloatingPanel({
             : nothing
         }<button
           type="button"
-          class="lf-fp-settle ${thread.resolved ? "lf-reopen" : "lf-resolve"}"
+          class="lf-fp-icon-btn lf-fp-settle ${
+            thread.resolved ? "lf-reopen" : "lf-resolve"
+          }"
+          aria-label=${thread.resolved ? "Reopen" : "Resolve thread"}
+          title=${thread.resolved ? "Reopen" : "Resolve thread"}
           aria-disabled=${String(
             !(thread.resolved ? thread.offers.reopen : thread.offers.resolve),
           )}
@@ -3064,9 +2961,7 @@ export function createFloatingPanel({
             }).catch(() => {});
           }}
         >
-          <span class="lf-fp-face" ?data-shown=${!thread.resolved}
-            >${iconTemplate("check", "lf-action-icon")}Resolve</span
-          ><span class="lf-fp-face" ?data-shown=${thread.resolved}>Reopen</span>
+          ${iconTemplate("check", "lf-action-icon")}
         </button>`;
     }
     const crumb =
@@ -3571,7 +3466,6 @@ export function createFloatingPanel({
         ? {
             root: host,
             title: "clear search",
-            description: "Clear the search",
             out: () => {
               query = "";
               refit();
@@ -3581,7 +3475,6 @@ export function createFloatingPanel({
         : {
             root: host,
             title: "close search",
-            description: "Close the search and return to Threads",
             out: () => {
               focusDestination(shownView(), "return");
               searching = false;
@@ -3592,14 +3485,12 @@ export function createFloatingPanel({
       return {
         root: host,
         title: "back to menu",
-        description: "Go back from the list to the page menu",
         out: () => showMenuAt(null),
       };
     if (menuOpen.value)
       return {
         root: host,
         title: "close menu",
-        description: "Close the page menu",
         out: () => {
           setMenu(false);
           focusDestination(leaf, "return");
@@ -3609,7 +3500,6 @@ export function createFloatingPanel({
     return {
       root: host,
       title: `close ${titleOf(trail.value.at(-1)).toLowerCase()}`,
-      description: `Close ${titleOf(trail.value.at(-1))}`,
       // Putting a view away returns the user to the page, where the view's thread or
       // list took them from.
       out: () => {
@@ -3656,8 +3546,6 @@ export function createFloatingPanel({
       {
         id: "panel.floating.menu.level",
         keys: ["ArrowLeft", "ArrowRight"],
-        description:
-          "Open the list a row of the page menu leads to, or go back to the menu",
         title: "open or leave a list",
         when: () => menuOpen.value && renderedUnder(focused(), menu),
         run: (binding) => {
@@ -3672,7 +3560,6 @@ export function createFloatingPanel({
       ["Tab", "Shift+Tab"].map((key) => ({
         id: `panel.floating.menu.leave-${key === "Tab" ? "forward" : "backward"}`,
         keys: [key],
-        description: `Leave the page menu ${key === "Tab" ? "forward" : "backward"}`,
         title: key === "Tab" ? "leave forward" : "leave backward",
         native: true,
         when: () => menuOpen.value && renderedUnder(focused(), menu),
@@ -3694,7 +3581,6 @@ export function createFloatingPanel({
       {
         id: "panel.floating.threads.find",
         keys: ["/"],
-        description: "Find a thread or message in Threads",
         title: "find a thread",
         run: findThreads,
       },
@@ -3721,7 +3607,6 @@ export function createFloatingPanel({
           const top = numbered().at(-1)?.version;
           return top > 1 ? `1–${top}` : "1";
         },
-        description: "Show the version with that number",
         title: "show version",
         when: () => numbered().length > 0,
         run: (binding) =>
@@ -3751,7 +3636,7 @@ export function createFloatingPanel({
     {
       id: "panel.floating.leave",
       keys: ["Escape"],
-      description: "Leave the comment field, keeping the view open above it",
+      description: "The view above stays open",
       title: "leave field",
       when: () => !menuOpen.value && trail.value.length > 0,
       run: () => focusDestination(leaf, "return"),
@@ -3761,7 +3646,6 @@ export function createFloatingPanel({
   pageCommand({
     id: FOLD,
     keys: ["."],
-    description: "Fold the Leaf panel to the leaf in the window's corner, or unfold it",
     title: () => (prefs().rest === "mark" ? "unfold" : "fold"),
     touch: () => (prefs().rest === "mark" ? "Unfold the panel" : "Fold to the leaf"),
     menu: "page",

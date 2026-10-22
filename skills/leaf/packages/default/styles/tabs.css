@@ -95,22 +95,29 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
  * the open one paints its square face instead; that fill alone barely parts from the
  * strip's ground, in the dark scheme least, so its contour carries the state. Either
  * mark stays within the box every name reserves, so neither changes any control's
- * measure. The rule is the name's, or a tab's foot (`::after`) where the tab has lines
- * under its name (below); these rules colour either. */
+ * measure. One mark belongs to the name, or the tab's foot where it has lines under
+ * its name (below). It can travel without moving the name or its focus ring. */
 .lf-tabstrip .lf-tab-btn > .lf-tab-name {
+  position: relative;
   display: inline-block;
   padding: 2px 5px;
   border-bottom: 2px solid transparent;
 }
-.lf-tabstrip .lf-tab-btn::after {
-  border-bottom-color: transparent;
+.lf-tab-mark {
+  position: absolute;
+  inset-inline: 0;
+  bottom: -2px;
+  block-size: 2px;
+  background: currentColor;
+  visibility: hidden;
+  pointer-events: none;
+  transform-origin: left center;
 }
 .lf-tabstrip .lf-tab-btn[aria-selected="true"] {
   color: var(--ink);
 }
-.lf-tabstrip .lf-tab-btn[aria-selected="true"] > .lf-tab-name,
-.lf-tabstrip .lf-tab-btn[aria-selected="true"]::after {
-  border-bottom-color: currentColor;
+.lf-tabstrip .lf-tab-btn[aria-selected="true"] .lf-tab-mark {
+  visibility: visible;
 }
 @container style(--lf-tabstrip-flow: column) {
   .lf-tabstrip .lf-tab-btn {
@@ -120,7 +127,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
   .lf-tabstrip .lf-tab-btn > .lf-tab-name {
     border-bottom: 0;
   }
-  .lf-tabstrip .lf-tab-btn::after {
+  .lf-tab-mark {
     display: none;
   }
   .lf-tabstrip .lf-tab-btn[aria-selected="true"] > .lf-tab-name {
@@ -133,9 +140,12 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
  * rule takes the system background, and they remove a column's fill, so its open name
  * is underlined instead. */
 @media (forced-colors: active) {
-  .lf-tabstrip .lf-tab-btn:not([aria-selected="true"]) > .lf-tab-name,
-  .lf-tabstrip .lf-tab-btn:not([aria-selected="true"])::after {
+  .lf-tabstrip .lf-tab-btn > .lf-tab-name {
     border-bottom-color: Canvas;
+  }
+  .lf-tab-mark {
+    forced-color-adjust: none;
+    background: CanvasText;
   }
   @container style(--lf-tabstrip-flow: column) {
     .lf-tabstrip .lf-tab-btn[aria-selected="true"] > .lf-tab-name {
@@ -328,12 +338,10 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
     align-items: baseline;
     justify-items: start;
     text-align: start;
-    &::after {
-      content: "";
+    & > .lf-tab-mark {
+      position: static;
       grid-column: 1 / -1;
       justify-self: stretch;
-      border-bottom-width: 2px;
-      border-bottom-style: solid;
     }
     & > .lf-tab-name {
       border-bottom: 0;

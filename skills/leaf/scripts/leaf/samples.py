@@ -4,13 +4,16 @@ A sample owns an ordinary source, revision, data store, and event log. Its paren
 supplies immutable resources and optional selected thread history, never a live
 state projection. Each unguessable child path is a capability for that child's
 ordinary document, captured dependencies, and APIs. It grants no parent routes.
-Browser gestures enter the ordinary page event door. The HTTP server owns these
-directories until explicit release or server shutdown, and nothing reads one after a
-crash, so a child's revisions are staged without fsync (`revision_artifact.Disposable`).
+Browser gestures enter the ordinary page event door. Each page owns its child
+capabilities; releasing one drops its whole subtree. Admitted requests retain their
+samples until delivery ends, and the last reference cleans each temporary directory.
+Nothing reads one after a crash, so revisions are staged without fsync
+(`revision_artifact.Disposable`).
 """
 
 import secrets
 import shutil
+import weakref
 from dataclasses import dataclass, field
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -29,7 +32,6 @@ from .thread_context import thread_structure
 @dataclass
 class Sample:
     temporary: TemporaryDirectory
-    parent: Path
     layer: dict
     asset_root: str | None
     # Held for the sample's life, so the sample keeps its readings however many
@@ -39,21 +41,18 @@ class Sample:
     # its own samples are what would otherwise push it out, so every state answer it
     # gave would check and capture its whole source again.
     parent_memory: PageMemory
-    lock: Lock = field(default_factory=Lock)
-    closed: bool = False
+    children: "Samples" = field(default_factory=lambda: Samples())
+
+    def __post_init__(self) -> None:
+        weakref.finalize(self, self.temporary.cleanup)
 
     @property
     def directory(self) -> Path:
         return Path(self.temporary.name)
 
-    def close(self) -> None:
-        with self.lock:
-            self.closed = True
-            self.temporary.cleanup()
-
 
 class Samples:
-    """The child pages of one HTTP server, scoped to their creating parent."""
+    """The child capabilities of one page; a sample owns its own children."""
 
     def __init__(self) -> None:
         self.pages: dict[str, Sample] = {}
@@ -140,7 +139,6 @@ class Samples:
         with self.lock:
             self.pages[identity] = Sample(
                 temporary,
-                parent,
                 artifact.registry["$layer"],
                 asset_root,
                 memory,
@@ -148,29 +146,10 @@ class Samples:
             )
         return identity
 
-    def get(self, parent: Path, identity: str) -> Sample | None:
+    def get(self, identity: str) -> Sample | None:
         with self.lock:
-            sample = self.pages.get(identity)
-            return sample if sample is not None and sample.parent == parent else None
+            return self.pages.get(identity)
 
-    def release(self, parent: Path, identity: str) -> None:
+    def release(self, identity: str) -> None:
         with self.lock:
-            sample = self.pages.get(identity)
-            if sample is None or sample.parent != parent:
-                return
-            del self.pages[identity]
-        sample.close()
-        with self.lock:
-            children = [
-                key
-                for key, child in self.pages.items()
-                if child.parent == sample.directory
-            ]
-        for child in children:
-            self.release(sample.directory, child)
-
-    def close(self) -> None:
-        with self.lock:
-            pages, self.pages = self.pages, {}
-        for sample in pages.values():
-            sample.close()
+            self.pages.pop(identity, None)

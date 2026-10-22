@@ -41,7 +41,6 @@ import shutil
 import signal
 import subprocess
 import sys
-import tempfile
 import threading
 import time
 from collections.abc import Mapping
@@ -54,7 +53,6 @@ from typing import TYPE_CHECKING
 
 import click
 from leaf.codex import (
-    APP_SERVER_ENV,
     CarriedTurn,
     abandon_codex_delivery,
     app_server_connect,
@@ -63,8 +61,8 @@ from leaf.codex import (
     delivery_owed_updates,
     open_app_server_delivery,
     prepare_codex_delivery,
+    private_app_server,
     start_app_server_delivery,
-    stop_app_server,
 )
 from leaf.delivery import read_delivery, stream_reply_target
 from leaf.event_contracts import write_refusal
@@ -692,17 +690,12 @@ class WebsiteCodexHarness:
     def __init__(
         self,
         codex_path: str | None = None,
-        socket_path: Path | None = None,
         log_path: Path | None = None,
     ):
         self.codex_path = codex_path or shutil.which("codex")
-        # App Server's Unix socket is short and private to this harness, even when
-        # multiple website versions run in the same machine's temporary directory.
-        self.runtime = tempfile.TemporaryDirectory(prefix="lwh.", dir="/tmp")
-        runtime = Path(self.runtime.name)
-        self.socket_path = socket_path or runtime / "codex.sock"
-        self.log_path = log_path or runtime / "codex.log"
-        self.endpoint = f"unix://{self.socket_path}"
+        self.log_path = log_path
+        self.server_resources = ExitStack()
+        self.endpoint = ""
         self.process: subprocess.Popen | None = None
         self.lock = threading.Lock()
         self.next_request_id = 0
@@ -732,7 +725,7 @@ class WebsiteCodexHarness:
         try:
             with self.lock:
                 self._ensure_server()
-        except (OSError, RuntimeError) as error:
+        except (OSError, RuntimeError, Refused) as error:
             log_agent(
                 "app_server_prewarm_failed",
                 durationMs=elapsed_ms(started),
@@ -785,71 +778,36 @@ class WebsiteCodexHarness:
             for lease in self.waiter_leases.values():
                 release_lease(lease)
             self.waiter_leases.clear()
-            process = self.process
             self.process = None
-        if process is not None:
-            self._stop_server(process)
-        self.runtime.cleanup()
-
-    def _stop_server(self, process: subprocess.Popen) -> None:
-        stop_app_server(process)
-        self.socket_path.unlink(missing_ok=True)
+        self.server_resources.close()
 
     def _ensure_server(self) -> subprocess.Popen:
         if self.stop_event.is_set():
             raise RuntimeError("the website harness is closed")
         if self.codex_path is None:
             raise RuntimeError("cannot find the `codex` executable on PATH")
-        if self.process is not None:
-            if self.process.poll() is None and self.socket_path.exists():
-                return self.process
-            stale = self.process
+        if self.process is None or self.process.poll() is not None:
+            self.server_resources.close()
             self.process = None
-            self._stop_server(stale)
-        started = time.monotonic()
-        log_agent("app_server_spawn_started")
-        self.socket_path.unlink(missing_ok=True)
-        self.log_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.log_path, "ab", buffering=0) as log:
-            self.process = subprocess.Popen(
-                [self.codex_path, "app-server", "--listen", self.endpoint],
-                env={
-                    **os.environ,
-                    APP_SERVER_ENV: self.endpoint,
-                    "LEAF": LEAF_COMMAND,
-                    "LEAF_HOST_LAUNCHER": LEAF_COMMAND,
-                    # The contract says `leaf`, so that name has to be this
-                    # install's launcher ahead of any other on the PATH. A login
-                    # shell rebuilds PATH from the system's profile, which is why
-                    # the website image also links it into /usr/local/bin.
-                    "PATH": os.pathsep.join(
-                        (str(Path(LEAF_COMMAND).parent), os.environ.get("PATH", ""))
-                    ),
-                },
-                cwd=os.environ.get("LEAF_SITE_ROOT", "/app/site"),
-                stdin=subprocess.DEVNULL,
-                stdout=log,
-                stderr=log,
-                start_new_session=True,
-            )
-        deadline = time.monotonic() + 20
-        while time.monotonic() < deadline:
-            if self.socket_path.exists():
-                log_agent(
-                    "app_server_spawn_completed",
-                    durationMs=elapsed_ms(started),
+            started = time.monotonic()
+            log_agent("app_server_spawn_started")
+            self.endpoint, self.process = self.server_resources.enter_context(
+                private_app_server(
+                    self.codex_path,
+                    env=os.environ
+                    | {
+                        "LEAF": LEAF_COMMAND,
+                        "LEAF_HOST_LAUNCHER": LEAF_COMMAND,
+                        "PATH": os.pathsep.join(
+                            (str(Path(LEAF_COMMAND).parent), os.environ.get("PATH", ""))
+                        ),
+                    },
+                    cwd=os.environ.get("LEAF_SITE_ROOT", "/app/site"),
+                    log_path=self.log_path,
                 )
-                return self.process
-            if self.process.poll() is not None:
-                detail = self.log_path.read_text(encoding="utf-8", errors="replace")
-                self.process = None
-                self.socket_path.unlink(missing_ok=True)
-                raise RuntimeError(detail.strip() or "Codex App Server exited")
-            time.sleep(0.05)
-        process = self.process
-        self.process = None
-        self._stop_server(process)
-        raise RuntimeError("Codex App Server did not become ready")
+            )
+            log_agent("app_server_spawn_completed", durationMs=elapsed_ms(started))
+        return self.process
 
     def _request(
         self, resources: ExitStack, method: str, params: dict
@@ -1409,6 +1367,11 @@ def published_page(
 
 class WebsitePageEndpoint(PageEndpoint):
     """Bind every clean website route to one initialized page directory."""
+
+    # A visitor's private comments and replies would otherwise stay in the browser's
+    # disk cache after their session ends, for anyone who later uses that browser
+    # profile to read. The price is the back/forward cache, which keeps no such page.
+    cache_control = "no-store"
 
     def __init__(
         self,

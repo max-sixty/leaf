@@ -78,7 +78,7 @@
       button {
         background: none;
         border: 0;
-        border-radius: 6px;
+        border-radius: var(--r);
         cursor: pointer;
         white-space: nowrap;
         padding: 0 8px;
@@ -247,11 +247,11 @@
     border: 0;
     background: none;
     box-shadow: none;
-    padding: calc((var(--lf-fp-line) - 22px) / 2) 6px;
+    padding: calc((var(--lf-fp-line) - 1lh) / 2) 6px;
     min-height: var(--lf-fp-line);
     max-height: 50dvh;
     box-sizing: border-box;
-    font: 14px / 22px var(--sans);
+    font: var(--msg-font);
     --lf-field-end-room: 0px;
   }
   .lf-fp-field .lf-compose-field > leaf-text[data-scrolls] {
@@ -497,7 +497,7 @@
     .lf-fp-leaf .lf-dot {
       --lf-mark-w: 20px;
     }
-    :is(.lf-fp-leaf, .lf-fp-badge, .lf-fp-news-dot) {
+    :is(.lf-fp-badge, .lf-fp-news-dot) {
       animation: lf-fp-arrive 160ms linear 140ms backwards;
     }
   }
@@ -698,23 +698,12 @@
   .lf-fp-icon-btn[aria-pressed=true] {
     color: var(--ink);
   }
-  .lf-fp-settle {
-    display: inline-grid;
-    color: var(--lf-fp-muted);
-  }
-  .lf-fp-face {
-    grid-area: 1 / 1;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-  }
-  .lf-fp-face:not([data-shown]),
   :is(.lf-fp-quiet, .lf-fp-next-unread)[data-unoffered] {
     visibility: hidden;
   }
-  .lf-fp-settle:hover {
-    color: var(--ink);
+  .lf-fp-settle.lf-resolve:not([aria-disabled=true]):hover,
+  .lf-fp-settle.lf-reopen {
+    color: var(--ok-ink);
   }
   .lf-fp-settle .lf-action-icon {
     width: 14px;
@@ -816,7 +805,7 @@
     width: 100%;
     min-height: 30px;
     padding: 5px 8px;
-    border-radius: 6px;
+    border-radius: var(--r);
     text-align: start;
   }
   .lf-fp-thread {
@@ -878,7 +867,7 @@
     margin: 0;
     padding: 4px 8px;
     border: 1px solid var(--lf-fp-ring);
-    border-radius: 6px;
+    border-radius: var(--r);
     background: none;
     color: var(--ink);
     font: 12px / 18px var(--mono);
@@ -902,7 +891,7 @@
     height: 28px;
     padding: 0;
     border: 0;
-    border-radius: 6px;
+    border-radius: var(--r);
     background: none;
     color: inherit;
     font-size: 16px;
@@ -974,7 +963,7 @@
     gap: 8px;
     min-height: 34px;
     padding: 5px 8px;
-    border-radius: 6px;
+    border-radius: var(--r);
     color: inherit;
     text-decoration: none;
   }
@@ -1244,7 +1233,7 @@
     font-size: 12px;
     color: var(--accent);
     box-shadow: inset 0 0 0 1px var(--lf-fp-ring);
-    border-radius: 6px;
+    border-radius: var(--r);
   }
   .lf-fp-on-kind {
     margin: 0 0 2px;
@@ -1398,7 +1387,7 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .lf-floating-panel[data-rest=mark] :is(.lf-fp-leaf, .lf-fp-badge, .lf-fp-news-dot) {
+    .lf-floating-panel[data-rest=mark] :is(.lf-fp-badge, .lf-fp-news-dot) {
       animation: none;
     }
     .lf-fp-peek,
@@ -2090,7 +2079,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     cursor: pointer;
   }
   .lf-page-map-action:is(button, [role=button]):is(:hover, [data-lf-focus]):not([aria-disabled=true]) {
-    background: var(--lf-entry-tint, var(--chip));
+    background: color-mix(in srgb, var(--lf-entry-tint, var(--chip)) 92%, var(--ink));
   }
   .lf-page-map-action .lf-margin-kind {
     width: 16px;
@@ -2274,16 +2263,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-page-search-step {
     flex: none;
     margin-inline-start: 0;
-    border: 0;
-    background: transparent;
-    color: var(--muted);
   }
   .lf-page-search-status + .lf-page-search-step {
     margin-inline-start: 4px;
-  }
-  .lf-page-search-step:not([aria-disabled=true]):hover {
-    background: var(--chip);
-    color: var(--ink);
   }
   .lf-legend-box {
     position: absolute;

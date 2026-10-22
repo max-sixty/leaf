@@ -204,13 +204,11 @@
   padding: var(--sp-1) var(--sp-2);
   min-block-size: var(--aim-floor);
 }
-:scope:is(lf-playground-control) > input[type="checkbox"] {
+:scope:is(lf-playground-control) > .choice {
   grid-column: 2;
   grid-row: 1;
-  inline-size: max(1.2rem, var(--aim-floor));
-  block-size: max(1.2rem, var(--aim-floor));
   justify-self: end;
-  cursor: pointer;
+  justify-content: center;
 }
 :scope:is(lf-playground-control) > input[type="range"] {
   margin: 0;
@@ -233,35 +231,6 @@
 :scope:is(lf-playground-choice) {
   display: contents;
 }
-/* A choice is its radio and its words, as the rail's checkbox is its box: the radio's
- * dot is the one mark of the pick, so the face draws no frame or fill of its own. The
- * whole face stays the press, at the aim floor, and carries the keyboard ring around
- * the radio and its words alone. */
-.lf-playground-choice-face {
-  justify-self: start;
-  display: flex;
-  align-items: center;
-  gap: var(--sp-1);
-  border-radius: var(--r);
-  padding-block: var(--sp-1);
-  min-block-size: var(--aim-floor);
-  box-sizing: border-box;
-  cursor: pointer;
-  font: var(--t-5)/1.55 var(--sans);
-}
-.lf-playground-radio {
-  margin: 0;
-  accent-color: var(--accent);
-}
-.lf-playground-radio[data-lf-focus] {
-  outline: none;
-}
-.lf-playground-choice-face:has(> input[data-lf-focus]) {
-  outline: var(--focus-ring);
-  outline-offset: var(--focus-ring-gap);
-  --lf-wears-ring: 1;
-}
-
 .lf-playground-presets {
   display: flex;
   flex-wrap: wrap;

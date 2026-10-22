@@ -43,8 +43,8 @@ def test_a_terminated_page_server_stops_its_title_server(
 ):
     """A page server serving a Codex session's page holds an App Server for its
     next title before any comment arrives. SIGTERM, as a logout or a user's kill
-    sends, ends the page server through its exit handlers, so that App Server
-    stops with it."""
+    sends, ends the page server as `server stop` does (`server.exit_serving`), so
+    that App Server stops with it."""
     page = codex_claimed_page
     title_server = int(
         wait_for(

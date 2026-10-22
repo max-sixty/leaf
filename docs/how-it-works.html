@@ -1601,11 +1601,11 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
           <section id="delivery">
             <h2>Harness connections and receipt</h2>
             <p id="wait-trick">
-              Claude Code’s hooks module watches between turns and wakes the agent; its
-              prompt hook puts the update into the new turn. Codex’s adapter queues the
-              update as the next message, or starts a turn when Leaf is an App Server
-              client. Pi’s experimental extension runs inside Pi. Each route supplies
-              the same delivery format and says who confirms receipt.
+              Claude Code’s background Stop hook watches between turns and wakes the
+              agent; its prompt hook puts the update into the new turn. Codex’s adapter
+              queues the update as the next message, or starts a turn when Leaf is an
+              App Server client. Pi’s experimental extension runs inside Pi. Each route
+              supplies the same delivery format and says who confirms receipt.
             </p>
             <ol id="wait-ack" class="steps">
               <li>
@@ -1698,9 +1698,9 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               <summary>Claude Code integration</summary>
               <p id="claude-hooks">
                 <code>leaf hook</code> handles Claude Code's prompt and Stop hooks, and
-                <code>leaf session-end</code> releases the session's pages. Leaf's hooks
-                module runs <code>leaf hook --watch</code> as each turn ends and wakes
-                the session when an update arrives.
+                <code>leaf session-end</code> releases the session's pages. A background
+                Stop hook runs <code>leaf hook --watch</code> and wakes the session when
+                an update arrives.
               </p>
               <p id="claude-activity">
                 Leaf reads Claude Code's session registry to tell whether a session is
@@ -2798,8 +2798,8 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
             <p id="sidebar-page-panels">
               A side column made by <code>layout-sidebar</code> is part of that layout's
               content area. An <code>aside.sidebar</code> instead places a note in the
-              margin of a column page. A <code>section.panel</code> draws a bordered
-              card with a short heading to distinguish one region from another.
+              margin of a column page. A <code>section.panel</code> groups a region by
+              its compact heading and spacing, without a surrounding card.
             </p>
             <pre id="sidebar-page-markup"><code>&lt;main class="layout-sidebar"&gt;
   &lt;header&gt;&lt;h1&gt;Release 4.2 rollout&lt;/h1&gt;&lt;/header&gt;

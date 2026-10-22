@@ -51,13 +51,19 @@
  * Travel into a hidden panel briefly highlights its selected name, without moving
  * focus from the destination or delaying it. Reduced motion keeps the selected state
  * without the highlight; switching again or disconnecting cancels an unfinished cue.
+ * Adjacent pointer choices along a horizontal strip move only the selection underline
+ * for 160ms. Content and accessible selection change at once; keyboard and vertical
+ * navigation stay immediate. A reversed choice continues from the line's painted place,
+ * and scrolling or resizing the strip ends the cue at its selected tab.
  * Every tab's accessible name is its label; what else the tab shows describes it. A
  * side list stands each run of neighbouring panels that share a `group` under a label
  * of that group, which each of their tabs' descriptions names. A side list's row adds
- * the panel's `summary` under the name, then its obligations' state on a reserved line: an open mark
- * and "To answer" while any obligation the panel holds is unanswered, the words a tally counts
- * by, and once every one is answered a check, with the answer's own words where the panel holds
- * one obligation. So a queue shows each obligation's state
+ * the panel's `summary` under the name, then its obligations' state on a reserved line. While any
+ * obligation the panel holds is unanswered, it shows an open mark and whose turn it is, by the
+ * server's next actor, the reading an `lf-tally` and its Next on me use: "To answer" while one
+ * waits on the user, else "On Claude" (`agentName`) while one is the agent's, as after the user
+ * comments on it, else "Open", as in a resolved thread. Once every one is answered it shows a
+ * check, with the answer's own words where the panel holds one obligation. So a queue shows each obligation's state
  * and how far the user has worked through it, and an undo that reopens an obligation puts the
  * open mark back. Which obligations a panel holds is `obligationsIn` (obligations/place.js), read from the
  * admitted obligation inventory, so a tally of the queue counts the same obligations. A row whose panel
@@ -68,6 +74,7 @@
  * there is no failSoft. */
 import {
   afterScript,
+  agentName,
   PRESS,
   obligationsIn,
   answerWords,
@@ -113,6 +120,9 @@ import {
   scrollIntoView,
   focused,
   fitsWhole,
+  motion,
+  pressIsKeyboardActivation,
+  signal,
 } from "/runtime/widget-api.js";
 
 // The sets whose strip stands over the whole document as its sticky header
@@ -147,7 +157,8 @@ export class TabSet extends HTMLElement {
   #parts = /** @type {typeof TabSet} */ (this.constructor).parts;
   #buttons = new Map(); // panel → its strip button
   #stopObligations = null;
-  #active = null;
+  // The open panel, a signal because the strip's Enter row reads which tab is open.
+  #active = signal(null);
   #root = false;
   #contextObserver = null;
   #strip = null;
@@ -156,6 +167,7 @@ export class TabSet extends HTMLElement {
   #pageFlow = false;
   #revealMotion = null;
   #stopList = null;
+  #selectionMotion = null;
 
   connectedCallback() {
     if (!once(this)) {
@@ -222,6 +234,10 @@ export class TabSet extends HTMLElement {
       name.className = "lf-tab-name";
       relabel(name, panel.getAttribute("label"), { says: true });
       btn.append(name);
+      const mark = document.createElement("span");
+      mark.className = "lf-tab-mark";
+      mark.setAttribute("aria-hidden", "true");
+      if (!down) name.append(mark);
       btn.setAttribute("aria-label", panel.getAttribute("label"));
       // A row in a list down the side says more than its name: the panel's `summary`
       // stands under it, the page's words like the name.
@@ -245,7 +261,9 @@ export class TabSet extends HTMLElement {
       chip.className = "lf-tabdiff";
       chip.setAttribute("aria-hidden", "true");
       btn.append(chip);
-      btn.onclick = () => this.#activate(panel, "ordinary");
+      if (down) btn.append(mark);
+      btn.onclick = (event) =>
+        this.#activate(panel, "ordinary", !pressIsKeyboardActivation(event));
       run.append(btn);
       this.#buttons.set(panel, btn);
       panel.setAttribute("role", "tabpanel");
@@ -254,7 +272,8 @@ export class TabSet extends HTMLElement {
       // the runtime is about to scroll a comment anchor into view: open up.
       panel.addEventListener("beforematch", () => this.#activate(panel, "reveal"));
       panel.addEventListener("lf-reveal", (event) => {
-        if (this.#active && this.#active !== panel) event.detail.replacedView();
+        if (this.#active.value && this.#active.value !== panel)
+          event.detail.replacedView();
         const ready = this.#activate(panel, "reveal");
         event.detail?.present?.(ready);
       });
@@ -285,7 +304,7 @@ export class TabSet extends HTMLElement {
 
         // The tab already open has nothing for this press to do, so the line does not
         // name it there; the walk beside it is what moves.
-        when: () => focused()?.getAttribute("aria-selected") !== "true",
+        when: () => focused() !== this.#buttons.get(this.#active.value),
         run: () => focused().click(),
       },
       {
@@ -332,7 +351,7 @@ export class TabSet extends HTMLElement {
     // measures final geometry.
     this.#activate(openingView(this, panels), "arrival");
     if (this.#root) {
-      this.#replaceLocation(this.#active);
+      this.#replaceLocation(this.#active.value);
     }
     // The Δ count follows the version diff; the runtime announces each toggle.
     this.#listenForObligations();
@@ -342,6 +361,7 @@ export class TabSet extends HTMLElement {
       this.#syncRootContext();
       this.#listenForHistory(signal);
       const stripSize = this.#watchStrip();
+      strip.addEventListener("scroll", this.#stopSelectionMotion, { signal });
       const stopPanels = this.#side
         ? [...this.#buttons.keys()].map((panel) =>
             registerReadingRegion({
@@ -358,6 +378,7 @@ export class TabSet extends HTMLElement {
         this.#stopList = null;
         this.#revealMotion?.cancel();
         this.#revealMotion = null;
+        this.#stopSelectionMotion();
         stripSize.disconnect();
         this.#contextObserver?.disconnect();
         this.#contextObserver = null;
@@ -408,12 +429,20 @@ export class TabSet extends HTMLElement {
       const only = items.length === 1 ? items[0] : null;
       // The open mark says what it means in words beside it, as the check beside an
       // answer does, so no reader needs a legend, a hover or a screen reader for it.
+      // Whose turn the open ones are is the server's next actor, the reading a tally
+      // and Next on me also use.
+      const open = items.filter((item) => item.status === "open");
+      const turn = open.some((item) => item.next_actor === "user")
+        ? "To answer"
+        : open.some((item) => item.next_actor === "agent")
+          ? `On ${agentName()}`
+          : "Open";
       const answer = answered
         ? only
           ? answerWords(only)
           : ""
         : items.length
-          ? "To answer"
+          ? turn
           : "";
       if (slot) {
         keeps(
@@ -432,8 +461,8 @@ export class TabSet extends HTMLElement {
           ? ""
           : !answered
             ? only
-              ? "To answer"
-              : `${done.length} of ${items.length} answered`
+              ? turn
+              : `${turn}, ${done.length} of ${items.length} answered`
             : only
               ? answer
                 ? `Answered: ${answer}`
@@ -452,15 +481,30 @@ export class TabSet extends HTMLElement {
     this.#stopObligations = watchProjection(this, () => this.#marks());
   }
 
-  #activate(active, reason) {
+  #activate(active, reason, pointer = false) {
     if (!this.#buttons.has(active)) return;
     // The open tab pressed again, or walked to, is the user's way back to it after
     // scrolling the row away.
-    if (active === this.#active) {
+    if (active === this.#active.value) {
       this.#showTab(this.#buttons.get(active));
       return Promise.resolve();
     }
-    const previous = this.#active;
+    const previous = this.#active.value;
+    const order = [...this.#buttons.keys()];
+    const travels =
+      pointer &&
+      previous &&
+      Math.abs(order.indexOf(active) - order.indexOf(previous)) === 1 &&
+      getComputedStyle(this.#strip).flexDirection === "row";
+    // Read before cancelling: a second press starts at the line the eye sees,
+    // which can still be between the two names.
+    const first = travels
+      ? this.#buttons
+          .get(previous)
+          .querySelector(".lf-tab-mark")
+          .getBoundingClientRect()
+      : null;
+    this.#stopSelectionMotion();
     // A press or a traversal between views switches them; a reveal is travel to
     // something inside the view, which the traveller lands.
     const switched = this.#pageFlow && ["ordinary", "history"].includes(reason);
@@ -493,7 +537,7 @@ export class TabSet extends HTMLElement {
         keeps(btn, "aria-selected", panel === active);
       }
       rove(this.#buttons.values(), this.#buttons.get(active));
-      this.#active = active;
+      this.#active.value = active;
       const button = this.#buttons.get(active);
       this.#showTab(button);
       this.#revealMotion?.cancel();
@@ -508,6 +552,20 @@ export class TabSet extends HTMLElement {
       if (switched) this.#open(active, from);
       else if (pinnedBox) scrollIntoReadingBand(this, this, "start", "instant");
       else if (reason === "history") this.#land();
+      if (first) {
+        const mark = button.querySelector(".lf-tab-mark");
+        const last = mark.getBoundingClientRect();
+        this.#selectionMotion = motion(
+          mark,
+          [
+            {
+              transform: `translate(${first.left - last.left}px, ${first.top - last.top}px) scaleX(${first.width / last.width})`,
+            },
+            { transform: "none" },
+          ],
+          160,
+        );
+      }
       keepView(this, active);
       const presentation = [];
       for (const panel of [previous, active].filter(Boolean)) {
@@ -552,8 +610,8 @@ export class TabSet extends HTMLElement {
       : this.getAttribute("data-lf-views-flow") === "page";
     this.#declareHeader();
     // A set that changed flow drew its open panel at another width.
-    if (wasFlow !== this.#pageFlow && this.#active) {
-      const child = soleSubstantiveElement(this.#active);
+    if (wasFlow !== this.#pageFlow && this.#active.value) {
+      const child = soleSubstantiveElement(this.#active.value);
       if (child) layoutChanged(child);
       layoutChanged(this);
     }
@@ -580,7 +638,7 @@ export class TabSet extends HTMLElement {
   // none of it. Which the list is follows the window, so the strip's size observer asks
   // again.
   #declareHeader() {
-    const over = !this.#parts || Boolean(this.#active && this.#listOver());
+    const over = !this.#parts || Boolean(this.#active.value && this.#listOver());
     const header = this.#pageFlow && over && Boolean(this.#strip?.isConnected);
     if (header === this.#covering) return;
     this.#covering = header;
@@ -592,7 +650,7 @@ export class TabSet extends HTMLElement {
   // Whether a page's list of parts stands over the open part rather than beside it.
   #listOver() {
     const list = this.#strip.getBoundingClientRect();
-    return list.right > this.#active.getBoundingClientRect().left + 1;
+    return list.right > this.#active.value.getBoundingClientRect().left + 1;
   }
 
   // A press at one edge of the strip, which pages the names that run past it (the
@@ -652,10 +710,16 @@ export class TabSet extends HTMLElement {
   }
 
   #positionStrip = frameFor(this, () => {
+    this.#stopSelectionMotion();
     this.#syncRegions();
     this.#declareHeader();
-    this.#showTab(this.#buttons.get(this.#active));
+    this.#showTab(this.#buttons.get(this.#active.value));
   });
+
+  #stopSelectionMotion = () => {
+    this.#selectionMotion?.cancel();
+    this.#selectionMotion = null;
+  };
 
   #listenForHistory(signal) {
     // Back or Forward to an entry in another view switches to it, as a press does.
@@ -664,7 +728,7 @@ export class TabSet extends HTMLElement {
       (url) => {
         if (!this.#root) return null;
         const view = this.#panelForLocation([...this.#buttons.keys()], url.hash);
-        return view && view !== this.#active
+        return view && view !== this.#active.value
           ? () => this.#activate(view, "history")
           : null;
       },
@@ -693,7 +757,8 @@ export class TabSet extends HTMLElement {
   // list where that sticks over it as a row.
   #start() {
     if (this.#parts) {
-      const top = this.#active.getBoundingClientRect().top + pageScroller.scrollTop;
+      const top =
+        this.#active.value.getBoundingClientRect().top + pageScroller.scrollTop;
       if (!this.#listOver()) return top;
       return (
         top - parseFloat(getComputedStyle(this.#strip).top) - this.#strip.offsetHeight

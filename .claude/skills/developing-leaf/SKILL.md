@@ -174,7 +174,7 @@ To ask a page a question, such as where an element sits, what style it computes,
 what holds focus after a key, run `uv run leaf-dev probe` rather than writing a
 Playwright script. It builds the page from this working tree, runs your input steps,
 and prints what a JavaScript expression returns, with `--base` for the merge base
-beside it (`dev/AGENTS.md`).
+beside it (`leaf-dev probe --help`).
 
 When an interaction depends on a sequence of inputs or changes over time, record it
 with `leaf-dev probe --record .tmp/recordings/NAME` (its `--help` covers journeys and

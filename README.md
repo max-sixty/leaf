@@ -76,13 +76,10 @@ holds: a link to the page, what is On you, its open threads with how many have
 replies you haven't read, and what the agent is doing or waiting for. Hooks modules
 are an early-access Claude Code feature.
 
-A page messages its session when input arrives while nothing watches it, as after a
-turn you interrupted. A session that bypasses permissions holds that message for your
-approval unless Claude Code's `crossSessionInbound` setting is `"accept"`.
-
-Leaf's "Wake the session from Leaf's hooks module" option, in `/config`, moves the
-watch into the hooks module, which goes on watching after a turn you interrupt but
-shows each wake in the conversation as a prompt from the plugin.
+A page messages its session when input arrives while nothing watches it, as can
+happen after you interrupt a turn. A session that bypasses permissions holds that
+message for your approval unless Claude Code's `crossSessionInbound` setting is
+`"accept"`.
 
 </details>
 

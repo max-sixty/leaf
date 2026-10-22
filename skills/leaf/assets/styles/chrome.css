@@ -725,14 +725,21 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
      floor, empty or not, and the results start a step below it. */
   .lf-command-reference-head,
   .lf-command-reference-search,
-  .lf-command-reference-meta {
+  .lf-command-reference-meta-box {
     flex: none;
   }
-  .lf-command-reference-meta {
+  .lf-command-reference-meta-box {
+    display: grid;
     min-height: 1lh;
     margin: 6px 0;
     color: var(--muted);
     font-size: var(--t-6);
+  }
+  .lf-command-reference-meta-box > * {
+    grid-area: 1 / 1;
+  }
+  .lf-command-reference-meta-box > [aria-hidden] {
+    visibility: hidden;
   }
   .lf-command-reference-results {
     --lf-command-key-column: 104px;
@@ -801,10 +808,15 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     font-size: var(--t-6);
   }
   .lf-command-reference-description {
-    display: block;
+    display: none;
     margin-top: 2px;
     color: var(--muted);
     font-size: var(--t-6);
+  }
+  @media (hover: none) {
+    .lf-command-reference-description {
+      display: block;
+    }
   }
   @media (max-width: 640px) {
     .lf-command-reference-binding-matches .lf-command-reference-action-main {

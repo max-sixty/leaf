@@ -1,6 +1,7 @@
 """`WorkReading`: the to-dos, obligations, plan and workflows one document and its log hold.
 
-Its readings come from the event log and one revision's document and registry.
+Its readings come from the event log, one revision's document and registry, and
+the current validated data publications for record obligations.
 Admission builds it against the newest revision, under the registry of the page that
 sent the event (`event_meaning.AdmissionReadings`), serving against
 the active revision (`served_state.work`), and a view pinned to an older revision
@@ -30,10 +31,12 @@ class WorkReading:
         within=None,
         thread=None,
         log=None,
+        data=None,
     ):
         self.events = events
         self.registry = registry
         self.page = page
+        self.data = data or {"sources": {}}
         # The published page's containment, which every fold of the threads takes,
         # whichever revision's document this reading reads them beside.
         self.within = (
@@ -52,7 +55,12 @@ class WorkReading:
         if page is self.page:
             return self
         return WorkReading(
-            self.events, page.registry, page, within=self.within, log=self.log
+            self.events,
+            page.registry,
+            page,
+            within=self.within,
+            log=self.log,
+            data=self.data,
         )
 
     @cached_property
@@ -77,6 +85,7 @@ class WorkReading:
             self.threads,
             self.log,
             reading=self.thread,
+            data=self.data,
         )
 
     @property
@@ -99,7 +108,7 @@ class WorkReading:
     @cached_property
     def document(self):
         return (
-            read_document(self.page, self.threads, self.log)
+            read_document(self.page, self.threads, self.log, data=self.data)
             if self.page is not None
             else None
         )

@@ -527,8 +527,10 @@ function foldWidgetStates(authoredSnapshots, projection) {
           ids.sort(byRank(position.ranks));
   return states;
 }
-function obligationValue(widget, verb, answered) {
-  const state = widget.state[verb];
+function obligationValue(widget, verb, answered, unit) {
+  const complete = widget.state[verb];
+  const state = unit !== void 0 && complete && "units" in complete ? complete.units[unit] : complete;
+  if (unit !== void 0 && !state) return { value: null, present: false };
   const spec = widget.specs.get(verb);
   if (!state || !spec)
     throw new Error(`Missing obligation value definition for ${verb}`);
@@ -806,29 +808,6 @@ function readThreadRecords(threads, document, widgets, workflows, todos = [], ob
 }
 
 // vendor/browser-runtime/snapshot.js
-function outsideReading(read, heard) {
-  let stop;
-  const value = Z(d(read), {
-    watched() {
-      value.value = d(read);
-      stop = heard(() => {
-        value.value = d(read);
-      });
-    },
-    unwatched() {
-      stop?.();
-      stop = void 0;
-    }
-  });
-  const reading = Object.freeze({
-    read: () => {
-      value.value = d(read);
-      return value.value;
-    },
-    subscribe: (listener) => value.subscribe((value2) => d(() => listener(value2)))
-  });
-  return reading;
-}
 var secured = /* @__PURE__ */ new WeakSet();
 function immutable(value) {
   if (value !== null && typeof value === "object" && !secured.has(value)) {
@@ -1600,16 +1579,17 @@ function normalizedObligations(view, widgets, document, projection, local) {
     }
     if (item.source.kind !== "widget") return item;
     const sourceId = item.source.id;
+    const sourceUnit = item.source.unit;
     const widget = widgets.get(sourceId);
     const declaration = document.descriptors.get(item.source.id)?.declaration["x-awaits"];
     const verb = declaration?.value;
     if (!verb || !widget) return item;
     const completed = item.status === "answered" && !(item.answer?.event && projection.pendingWithdrawals.has(item.answer.event.id));
-    const { value, present } = obligationValue(widget, verb, completed);
+    const { value, present } = obligationValue(widget, verb, completed, sourceUnit);
     const pendingValue = widget.entries.some(
-      ({ e }) => e.action === verb && !Number.isInteger(e.seq)
+      ({ e, unit }) => e.action === verb && (sourceUnit === void 0 || unit === sourceUnit) && !Number.isInteger(e.seq)
     ) || [...projection.pendingWithdrawals.values()].some(
-      ({ e }) => e.widget === sourceId && (e.action === verb || e.id === item.answer?.event?.id)
+      ({ e, unit }) => e.widget === sourceId && (sourceUnit === void 0 || unit === sourceUnit) && (e.action === verb || e.id === item.answer?.event?.id)
     );
     const answer = present ? { value, event: pendingValue ? null : item.answer?.event ?? null } : null;
     return { ...item, answer };
@@ -2285,7 +2265,7 @@ function createSemanticApplication({
     },
     markRead(items) {
       return publish({
-        markingRead: [...publisher.peek().markingRead, ...structuredClone(items)]
+        markingRead: [...publisher.peek().markingRead, ...items]
       });
     },
     settleMarkRead(items) {
@@ -2299,13 +2279,7 @@ function createSemanticApplication({
     captureDocument(document) {
       if (publisher.peek().authoritative)
         throw new Error("an admitted document changes only through adopt");
-      return publish({
-        document: {
-          ...structuredClone(document),
-          authored: new Map(structuredClone(document.authored)),
-          descriptors: new Map(structuredClone(document.descriptors))
-        }
-      });
+      return publish({ document });
     },
     setPhase(phase) {
       return publish({ phase });
@@ -2319,7 +2293,7 @@ function createSemanticApplication({
       const prior = publisher.peek();
       const values = { ...prior.outputs[widget] };
       if (reading === null) delete values[output];
-      else values[output] = structuredClone(reading);
+      else values[output] = reading;
       const outputs = { ...prior.outputs };
       if (Object.keys(values).length) outputs[widget] = values;
       else delete outputs[widget];
@@ -2333,7 +2307,7 @@ function createSemanticApplication({
       if (taken < dataTaken) return false;
       dataTaken = taken;
       if (data.version === publisher.peek().data.version) return false;
-      publish({ data: structuredClone(data) });
+      publish({ data });
       return true;
     },
     // Whether this answer could be adopted with `revision` showing, asked without
@@ -2358,7 +2332,7 @@ function createSemanticApplication({
     adopt(state, document = null) {
       const prior = publisher.peek();
       if (!adoptable(state, document)) return false;
-      const authoritative = structuredClone(state);
+      const authoritative = state;
       const { unresolved, left } = transition(
         "log",
         byAttempt(authoritative.browser.receipts)
@@ -2370,20 +2344,8 @@ function createSemanticApplication({
       for (const attempt of drawn)
         if (!unresolved.some((item) => item.event.attempt === attempt))
           drawn.delete(attempt);
-      const capture = (value, previous) => value === previous ? value : structuredClone(value);
       publish({
-        document: document ? {
-          ...document,
-          registry: capture(document.registry, prior.document.registry),
-          authored: capture(document.authored, prior.document.authored),
-          descriptors: capture(document.descriptors, prior.document.descriptors),
-          ...document.messageBodies ? {
-            messageBodies: capture(
-              document.messageBodies,
-              prior.document.messageBodies
-            )
-          } : {}
-        } : prior.document,
+        document: document ?? prior.document,
         authoritative,
         unresolved,
         settled,
@@ -2420,9 +2382,7 @@ function createSemanticApplication({
           ...event,
           id: localId,
           meaning: {
-            state: structuredClone(
-              before.document.registry.$states[widget.tag]?.[event.action]?.definition
-            )
+            state: before.document.registry.$states[widget.tag]?.[event.action]?.definition
           }
         },
         value: spec.record ? foldedValue(event, spec.record) : event.action
@@ -2541,7 +2501,6 @@ export {
   J,
   x,
   q,
-  outsideReading,
   share,
   stateCoordinate,
   projectionOrigins,

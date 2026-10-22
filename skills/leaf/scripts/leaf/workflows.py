@@ -198,7 +198,9 @@ def page_action_unsettled(
     """
     widget, unit, _verb = coordinate
     byid = page.document.by_id
-    if unit not in byid:
+    if widget not in byid or (
+        (spec.get("record") or spec.get("creates")) and unit not in byid
+    ):
         return False
     document = (byid, page.spoken)
     reading = recorded_state(
@@ -550,7 +552,7 @@ def handed_over(
         widget_messages(thread_reading.structure) if thread_reading is not None else {}
     )
     obligation_by_source = {
-        item["source"]["id"]: item
+        (item["source"]["id"], item["source"].get("unit")): item
         for item in items["all"]
         if item["source"]["kind"] == "widget"
     }
@@ -569,7 +571,9 @@ def handed_over(
         for coordinate, (source, spec) in projection.actions.items():
             if source["author"] != "user":
                 continue
-            item = obligation_by_source.get(source["widget"])
+            item = obligation_by_source.get(
+                (source["widget"], coordinate[1])
+            ) or obligation_by_source.get((source["widget"], None))
             if item is not None and item["status"] == "open":
                 continue
             owed = item is not None and item["status"] == "answered"

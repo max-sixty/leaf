@@ -182,6 +182,22 @@ what fails and what still works.
   intrinsic-size interpolation jump halfway through a fade. Content, Undo and
   Reopen remain available through their ordinary paths.
 
+### Evidence disclosure motion
+
+- **Owners:** diff package `styles/disclosure.css`, shared by file and call-tree
+  disclosures. Native `details.open` governs state; supported CSS folds a closing
+  body's room while `interactivity: inert` immediately retires its controls.
+- **Observed 2026-10-21:** installed Playwright Chromium 153.0.8010.12 supports
+  intrinsic-size interpolation and `interactivity`; Firefox 155 supports neither.
+  Chromium folds a pointer close; Firefox closes immediately. Both preserve Tab
+  access outside a closed body and reopen at full size, including during a fold.
+  Summary keyboard activation and reduced motion close immediately; print
+  retains native full evidence.
+- **Disposition:** accepted visual difference. The CSS enhancement requires both
+  capabilities; other engines retain native disclosure semantics. Closing from a
+  toolbar or programmatically can fold when focus is outside the summary; every
+  opening is instant. These are installed-engine checks, not a stable-browser survey.
+
 ### Browser dictation in comment boxes
 
 - **Owner:** `runtime/composing/input.js` and `runtime/composing/dictation.js`.

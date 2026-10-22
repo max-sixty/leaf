@@ -369,7 +369,46 @@
   const announce = () => {
     unread = fresh = true;
   };
-  const writes = new MutationObserver(announce);
+  // Chrome animates native details' ::details-content without exposing that
+  // transition through getAnimations(). Keep its closing interval as a motion
+  // source so following boxes are read and credited by their actual size change.
+  const nativeClosures = new Map();
+  const durationMs = (value) =>
+    Math.max(
+      0,
+      ...value.split(",").map((part) => {
+        const time = part.trim();
+        return (parseFloat(time) || 0) * (time.endsWith("ms") ? 1 : 1000);
+      }),
+    );
+  const observeWrites = (records) => {
+    if (!records.length) return;
+    const at = nativePerformance.now();
+    for (const record of records) {
+      const node = record.target;
+      if (
+        record.type !== "attributes" ||
+        record.attributeName !== "open" ||
+        !(node instanceof HTMLDetailsElement)
+      )
+        continue;
+      if (node.open) {
+        nativeClosures.delete(node);
+        continue;
+      }
+      const style = getComputedStyle(node, "::details-content");
+      if (
+        !style.transitionProperty
+          .split(",")
+          .some((name) => name.trim() === "block-size")
+      )
+        continue;
+      const duration = durationMs(style.transitionDuration);
+      if (duration) nativeClosures.set(node, at + duration);
+    }
+    announce();
+  };
+  const writes = new MutationObserver(observeWrites);
   // Input, scrolling, loads and native element state, heard in each tree they are
   // dispatched in: scroll, load and toggle do not cross a shadow boundary or reach
   // the window, so the document and every shadow root listen in capture.
@@ -772,10 +811,7 @@
   const observedStates = new WeakMap();
   const readMotion = (at, ending = null) => {
     const effects = [
-      ...new Set([
-        ...allAnimations(),
-        ...(ending?.playState === "finished" ? [ending] : []),
-      ]),
+      ...new Set([...allAnimations(), ...(ending?.effect?.target ? [ending] : [])]),
     ].filter((animation) => animation.effect?.target && moves(animation));
     const uses = new Map();
     for (const animation of effects) {
@@ -849,6 +885,23 @@
       animated.set(animation, readings);
     }
   };
+  // A cancelled no-fill effect returns to its underlying style before the next
+  // frame. Keep both sides of that native change while the effect still names its
+  // target; getAnimations() no longer includes it after cancel().
+  const cancel = Animation.prototype.cancel;
+  Animation.prototype.cancel = function (...args) {
+    const applied =
+      this.effect?.target &&
+      moves(this) &&
+      this.effect.getComputedTiming().progress !== null;
+    if (applied) readMotion(nativePerformance.now());
+    const result = cancel.apply(this, args);
+    if (applied) {
+      readMotion(nativePerformance.now(), this);
+      announce();
+    }
+    return result;
+  };
   // Unchanged frames: the last complete reading's population, the ledger entries
   // appended so far, the unannounced frames in a row, and what the last read saw.
   const VERIFY = 30;
@@ -901,15 +954,18 @@
     // its scroller scrolls or its layout changes, which announce themselves, so it
     // reads completely only on those frames, as the contents' window does in lf-toc.
     const animations = allAnimations();
-    const running = animations.some(
-      ({ playState, timeline }) =>
-        playState === "running" &&
-        !(
-          typeof window.ScrollTimeline === "function" &&
-          timeline instanceof ScrollTimeline
-        ),
-    );
-    if (writes.takeRecords().length) unread = fresh = true;
+    for (const [node, until] of nativeClosures)
+      if (!node.isConnected || at > until + 100) nativeClosures.delete(node);
+    const running =
+      animations.some(
+        ({ playState, timeline }) =>
+          playState === "running" &&
+          !(
+            typeof window.ScrollTimeline === "function" &&
+            timeline instanceof ScrollTimeline
+          ),
+      ) || [...nativeClosures.values()].some((until) => at <= until);
+    observeWrites(writes.takeRecords());
     // A child frame reads completely on every frame, since its embedding page can
     // hide or move it without telling it; only a hidden tab announces itself here.
     const drawn = !document.hidden;
@@ -1187,7 +1243,8 @@
     if (entry) entry.written = written;
     // A page that wrote while it was read, as a reading that patches the DOM API
     // does, announced its own change.
-    if (writes.takeRecords().length) unread = fresh = true;
+    const pending = writes.takeRecords();
+    if (pending.length) observeWrites(pending);
     else if (misses.length) missed(misses);
     return at;
   };
@@ -1715,8 +1772,16 @@
         const head = boxAt(port, first).top;
         lift = (at) => boxAt(port, at).top - head;
       }
-      const before = readings[0].appendChildren,
-        after = readings[2].appendChildren;
+      // Hidden checkpoints may disappear when their visible tail becomes an answer.
+      // Only children with a box contribute to the prefix whose geometry we protect.
+      const children = readings.map((paint, index) =>
+        paint.appendChildren.filter((child) => {
+          const box = read(child, around[index].at);
+          return box && box.bottom - box.top >= 0.5;
+        }),
+      );
+      const before = children[0],
+        after = children[2];
       const prior = read(source, first),
         next = read(source, last);
       if (!prior || !next || next.bottom - prior.bottom < 1) return [];
@@ -1727,14 +1792,9 @@
       // message does, taking a longer step, and a streaming reply, taking more words.
       // A tail may also give way to what it stood for, as the working message does to
       // the answer: it leaves, the others keep their boxes, and what joins stands
-      // from where it stood. A child with no box, such as a thread's folded
-      // checkpoint, has nothing to keep, so another may take its place.
+      // from where it stood.
       const tail = before.at(-1);
       const tailBox = tail && read(tail, first);
-      const boxless = (node, at) => {
-        const box = read(node, at);
-        return box && box.bottom - box.top < 0.5;
-      };
       const replaced =
         Boolean(tailBox) &&
         paintAt(tail, first)?.appendTail &&
@@ -1744,9 +1804,7 @@
           .slice(0, -1)
           .every(
             (child, i) =>
-              (readings.every((paint) => paint.appendChildren[i] === child) &&
-                stable(child)) ||
-              (boxless(child, first) && boxless(after[i], last)),
+              children.every((nodes) => nodes[i] === child) && stable(child),
           ) &&
         after.slice(before.length - 1).every((child) => {
           const box = read(child, last);
@@ -1758,7 +1816,7 @@
           (after.length < before.length ||
             !before.every(
               (child, i) =>
-                readings.every((paint) => paint.appendChildren[i] === child) &&
+                children.every((nodes) => nodes[i] === child) &&
                 (stable(child) ||
                   (after.length === before.length &&
                     i === before.length - 1 &&
@@ -2282,6 +2340,26 @@
     const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
     const motion = { left: 0, top: 0, terms: [] };
     if (!element) return motion;
+    for (const [details, until] of nativeClosures) {
+      if (to > until + 100 || details.getRootNode() !== element.getRootNode()) continue;
+      const before = boxAt(details, from),
+        after = boxAt(details, to),
+        first = layoutAt(element, from),
+        last = layoutAt(element, to);
+      if (!before || !after || !first || !last) continue;
+      const change = after.height - before.height;
+      if (
+        change <= -1 &&
+        Math.abs(last.top - first.top - change) < 1 &&
+        sizeReaches(details, element, from, to, "top", change)
+      )
+        credit(motion, "native_details_reflow", details, "top", change, {
+          before,
+          after,
+          first,
+          last,
+        });
+    }
     const seen = new Map();
     for (const animation of new Set(animations)) {
       const target = animation.effect.target;

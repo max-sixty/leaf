@@ -507,8 +507,10 @@ def test_touch_capture_attaches_on_lift_and_a_tap_or_cancel_attaches_nothing(
     image = Image.open(serve.page_dir / attachment.get_attribute("src").lstrip("/"))
     assert image.size == (360, 260)
     page.get_by_role("button", name="Remove attached image 1", exact=True).tap()
-    expect(attachment).to_have_count(0)
+    # The next press began while drag timers were held; let its native activation
+    # finish before reading the result.
     page.clock.resume()
+    expect(attachment).to_have_count(0)
     assert events_model.read_events(serve.page_dir) == before
     assert page.evaluate("!captureTouchStarts.at(-1).defaultPrevented")
     touch.detach()

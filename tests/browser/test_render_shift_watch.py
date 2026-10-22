@@ -841,6 +841,11 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
         in {"tail_growth", "region_growth", "tail_and_region_growth", "tail_replaced"}
         else ""
     )
+    hidden = (
+        '<div id="hidden" hidden>Earlier progress.</div>'
+        if fault.endswith("tail_replaced")
+        else ""
+    )
     page = browser.new_page()
     page.goto(
         "data:text/html,"
@@ -850,7 +855,7 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
             'padding:5px;box-sizing:border-box;overflow:auto;overflow-anchor:none">'
             '<section style="overflow:clip">'
             '<div id="source" data-lf-reflow="append">'
-            f'<p id="old"{tail} style="margin:0;height:40px">Already reading.</p></div>'
+            f'{hidden}<p id="old"{tail} style="margin:0;height:40px">Already reading.</p></div>'
             '<button id="reply" style="display:block;position:sticky;bottom:0">Reply</button></section>'
             '<article><p style="margin:0">Another conversation.</p>'
             '<button id="later">Later thread</button></article></div>'
@@ -880,6 +885,8 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
           next.style.cssText = `margin:0;height:${fault.startsWith('sticky_') ? 400 : 40}px`;
           if (fault === 'prepend') source.prepend(next);
           else if (fault.endsWith('tail_replaced')) {
+            // Completing the tail removes its boxless progress checkpoint too.
+            document.getElementById('hidden').remove();
             next.style.height = '80px';
             document.getElementById('old').replaceWith(next);
             next.id = 'old';
@@ -4023,6 +4030,55 @@ def test_owned_native_finish_records_the_applied_endpoint(browser, fault, fill):
                 for comparison in evidence["comparisons"]
             ), evidence
         assert {error.code for error in errors} == {"moved-without-input"}, errors
+    else:
+        assert not errors, errors
+
+
+@pytest.mark.parametrize(
+    "property,fault",
+    [("marginLeft", False), ("marginLeft", True), ("translate", False)],
+    ids=["layout-native", "layout-authored", "translate-native"],
+)
+def test_cancelled_native_translation_credits_its_return_to_layout(
+    browser, property, fault
+):
+    """Cancelling a no-fill effect returns its subject to the underlying layout."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><body style="margin:0">
+<button id="start">Start</button>
+<div id="panel" style="margin-left:350px"><p>Retained words</p></div>
+<script>start.onclick=()=>{
+  const keyframes = window.effectProperty === 'translate'
+    ? [{translate:'200px 0px'},{translate:'0px 0px'}]
+    : [{marginLeft:'550px'},{marginLeft:'350px'}];
+  window.motion=panel.animate(keyframes, {duration:1000});
+  motion.playbackRate=0;
+  motion.currentTime=500;
+}</script></body>""")
+    )
+    paint(page)
+    page.evaluate("property => window.effectProperty = property", property)
+    page.locator("#start").click()
+    paint(page)
+    before = page.locator("#panel p").bounding_box()
+    assert before["x"] > 400
+    page.evaluate(
+        """fault => {
+          if (fault) panel.style[window.effectProperty] =
+            window.effectProperty === 'translate' ? '80px 0px' : '430px';
+          motion.cancel();
+        }""",
+        fault,
+    )
+    paint(page)
+    after = page.locator("#panel p").bounding_box()
+    assert after["x"] == (430 if fault else 350)
+    judge_watches()
+    errors = take_browser_errors(page)
+    if fault:
+        assert names_move(errors, "div#panel"), errors
     else:
         assert not errors, errors
 

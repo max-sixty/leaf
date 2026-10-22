@@ -313,33 +313,9 @@ export class PageStore {
     const finish = () => {
       if (this.deliveries.delete(names)) this.collect();
     };
-    const reader = stream.getReader();
-    return new ReadableStream(
-      {
-        pull: async (controller) => {
-          try {
-            const { done, value } = await reader.read();
-            if (done) {
-              controller.close();
-              finish();
-            } else {
-              controller.enqueue(value);
-            }
-          } catch (error) {
-            controller.error(error);
-            finish();
-          }
-        },
-        cancel: async (reason) => {
-          try {
-            await reader.cancel(reason);
-          } finally {
-            finish();
-          }
-        },
-      },
-      { highWaterMark: 0 },
-    );
+    const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
+    void stream.pipeTo(writable).then(finish, finish);
+    return readable;
   }
 
   private body(names: string[]): ReadableStream<Uint8Array> {

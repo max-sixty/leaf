@@ -7,7 +7,6 @@ import {
   createPresentationSchedule,
   createSemanticApplication,
   d,
-  outsideReading,
   x
 } from "./bundle-queued-work.js";
 
@@ -152,23 +151,13 @@ var applicationPresenter = ({
   };
   return Object.freeze({ present, disconnect });
 };
-var documentChanges = 0;
-var documentListeners = /* @__PURE__ */ new Set();
-var documentReading = outsideReading(
-  () => documentChanges,
-  (moved) => {
-    documentListeners.add(moved);
-    return () => documentListeners.delete(moved);
-  }
-);
-var documentChanged = () => documentReading.read();
-var presentDocument = () => {
-  documentChanges += 1;
+var documentChanges = Z(0);
+var documentChanged = () => documentChanges.value;
+var presentDocument = () => W(() => {
+  documentChanges.value += 1;
   for (const present of documentPresenters) void present();
-  const round = {};
-  for (const moved of [...documentListeners]) moved(round);
   return schedule.passed();
-};
+});
 var whenDocumentPresented = () => schedule.passed();
 var currentEpoch = () => d(() => readApplication().semanticEpoch);
 var currentApplicationPresentation = () => ({

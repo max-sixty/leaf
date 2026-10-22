@@ -1321,7 +1321,9 @@ def _reachable(frame):
     ):
         return True
     try:
-        frame.wait_for_function("() => true", polling=100, timeout=2_000)
+        frame.wait_for_function(
+            "() => true", polling=100, timeout=render_checks_model.SERVED_TIMEOUT_MS
+        )
     except PlaywrightTimeout:
         return False
     return True

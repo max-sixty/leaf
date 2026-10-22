@@ -2779,6 +2779,11 @@ def test_the_leaf_paints_inside_its_moving_focus_ring(request, engine, serve):
 
     card = page.locator(".lf-fp-card").bounding_box()
     page.mouse.move(card["x"] + card["width"] - 20, card["y"] + 6)
+    corner = page.locator(".lf-fp-minimize").bounding_box()
+    corner_center = (
+        corner["x"] + corner["width"] / 2,
+        corner["y"] + corner["height"] / 2 - (viewport["height"] - 70),
+    )
     for selector in (".lf-fp-minimize", ".lf-fp-leaf"):
         before = leaf.bounding_box()
         frames = []
@@ -2787,7 +2792,11 @@ def test_the_leaf_paints_inside_its_moving_focus_ring(request, engine, serve):
             quality=100,
             size=viewport,
         ):
-            page.locator(selector).click()
+            page.locator(selector).hover()
+            page.mouse.down()
+            # A real press may span a frame before its click activates the control.
+            one_frame(page)
+            page.mouse.up()
             one_frame(page)
             settled(page)
         after = leaf.bounding_box()
@@ -2801,9 +2810,13 @@ def test_the_leaf_paints_inside_its_moving_focus_ring(request, engine, serve):
             ring = ink_box(pixels, colours["ring"])
             if ring is None:
                 continue
+            ring_center = ((ring[0] + ring[2]) / 2, (ring[1] + ring[3]) / 2)
+            # Pointer-down focuses the corner before pointer-up folds the panel.
+            # Its ring is above the leaf's path, and says nothing about leaf motion.
+            if ring_center == pytest.approx(corner_center, abs=2):
+                continue
             mark = ink_box(pixels, colours["mark"])
             assert mark is not None, selector
-            ring_center = ((ring[0] + ring[2]) / 2, (ring[1] + ring[3]) / 2)
             mark_center = ((mark[0] + mark[2]) / 2, (mark[1] + mark[3]) / 2)
             assert mark_center == pytest.approx(ring_center, abs=2), (
                 selector,

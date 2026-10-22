@@ -7211,14 +7211,17 @@ function createFloatingPanel({
   });
   let gesture = null;
   let gestures = 0;
-  onUserInput((event) => {
-    if (!["keydown", "pointerdown", "input", "touchstart"].includes(event.type)) return;
+  const beginGesture = (event) => {
+    if (!["keydown", "pointerdown", "input", "touchstart", "click"].includes(event.type))
+      return;
     gesture = event.type === "input" ? "typing" : "press";
     const own = ++gestures;
     afterSettling(() => {
       if (gestures === own) gesture = null;
     });
-  });
+  };
+  onUserInput(beginGesture);
+  window.addEventListener("click", beginGesture, { capture: true, passive: true });
   function followBox() {
     const box = card.getBoundingClientRect();
     setRuntimeRootStyle(

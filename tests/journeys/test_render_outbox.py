@@ -3,7 +3,6 @@
 import re
 
 import pytest
-from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_cases_navigation import (
     composer_quote,
@@ -31,6 +30,8 @@ from render_harness import (
     wait_for_revision,
     write,
 )
+
+from leaf import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

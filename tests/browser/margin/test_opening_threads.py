@@ -6,9 +6,6 @@ from time import monotonic
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import event_log as events_model
-from leaf import render_checks as render_checks_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     OBLIGATION_PAGE,
@@ -49,6 +46,9 @@ from browser.margin import (
     leave_card_by_its_target,
     seeded_thread,
 )
+from leaf import event_log as events_model
+from leaf import render_checks as render_checks_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

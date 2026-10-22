@@ -8,11 +8,6 @@ from urllib.parse import urljoin
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import thread as thread_model
-from leaf.render_checks import wait_until_ready
-from leaf.schema import ELEMENT_ID
 from playwright.sync_api import expect
 from render_cases_interaction import SUGGESTION_PAGE, executable_revision, live_url
 from render_cases_navigation import (
@@ -40,6 +35,11 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread, open_threads
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf import thread as thread_model
+from leaf.render_checks import wait_until_ready
+from leaf.schema import ELEMENT_ID
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

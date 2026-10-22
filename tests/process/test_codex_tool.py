@@ -12,7 +12,7 @@ import time
 import pytest
 from interact_support import ROOT, STATED_TIMEOUT
 
-SERVER = ROOT / "skills" / "leaf" / "scripts" / "leaf" / "codex_tool.py"
+SERVER = ROOT / "src" / "leaf" / "codex_tool.py"
 
 # Stands in for Leaf behind the plugin's launcher, which runs a host's launcher in
 # its place: it says where it ran, for which thread, with which words and stdin.

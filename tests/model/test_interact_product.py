@@ -39,6 +39,9 @@ from interact_support import (
     state_json,
     words,
 )
+from leaf_dev.example_data import regression_sources
+from leaf_dev.page_fixtures import prepare_page, read_fixture
+
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import events as event_folds_model
@@ -60,8 +63,6 @@ from leaf.validation.admission import (
     revision_publication,
 )
 from leaf.validation.instances import reference_errors
-from leaf_dev.example_data import regression_sources
-from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 PUBLIC_EXAMPLES = tuple(
     path for path in sorted((ROOT / "examples").glob("*.html")) if path.stem != "corpus"

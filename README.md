@@ -32,6 +32,10 @@ configuration is required.
 Users and package authors never need to build Leaf or run a package manager;
 custom widgets are ordinary browser JavaScript.
 
+Install the Leaf plugin, which includes the application, harness integration and
+the Leaf skill. The skill supplies the agent's instructions; copying its directory
+alone does not install the application.
+
 Claude Code:
 
 ```

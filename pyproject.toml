@@ -1,14 +1,15 @@
 # The one project: the repository is the plugin, and the plugin is this uv
-# project. A harness copies the tracked tree into its plugin cache; `bin/leaf`
-# there runs `uv run --project <that copy>`, and the environment appears on the
+# project. A harness installs the tree or loads it in place; `bin/leaf`
+# runs `uv run --project <that root>`, and the environment appears on the
 # first run, synced into `.venv` beside this file: one environment per
 # installed version.
 #
-# The module lives at `skills/leaf/scripts/leaf` because the skill directory is
-# what a harness reads, and `module-root` points the build backend at it rather
-# than moving the tree to suit packaging. `uv sync` installs the project
-# editable, so `schema.py`'s `SKILL_ROOT` still resolves through `__file__`
-# into the tree and finds `assets/` and `packages/` beside it.
+# The Python application lives at `src/leaf`;
+# `module-root` points the build backend there. This is Leaf's layout, not a
+# harness requirement: the plugin root is the installation boundary, while
+# `skills/leaf/SKILL.md` is the agent's instruction entry point. `uv sync`
+# installs the project editable, so `schema.py` resolves application resources
+# through `__file__` into this same tree.
 #
 # Dependencies state the lowest version the suite passes on, with no upper cap.
 # `uv.lock` ships in the install, so a harness runs the versions the suite last
@@ -74,7 +75,7 @@ requires = ["uv_build>=0.9"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
-module-root = "skills/leaf/scripts"
+module-root = "src"
 module-name = "leaf"
 
 [dependency-groups]
@@ -116,14 +117,14 @@ leaf-website = { workspace = true }
 # Apply the same scope to directory scans and filenames passed by pre-commit.
 force-exclude = true
 extend-exclude = [
-  "skills/leaf/assets/vendor",
-  "skills/leaf/packages/**/vendor",
+  "browser/vendor",
+  "packages/**/vendor",
   "evals/ui-review-detection/fixtures",
 ]
 
 # SessionEnd runs before a managed environment exists (bin/leaf), on system Python.
 [tool.ruff.per-file-target-version]
-"skills/leaf/scripts/leaf/state.py" = "py39"
+"src/leaf/state.py" = "py39"
 
 # The suite is round trips through a real browser rather than computation, so tests
 # shard independently: every test gets its own tmp_path, XDG homes, and server.
@@ -161,7 +162,7 @@ faulthandler_exit_on_timeout = true
 # protocol fixes. A new framework gets its pattern here; a definition only a
 # removed caller used gets deleted.
 [tool.vulture]
-paths = ["build", "dev", "evals", "hooks", "skills", "tests", "worker"]
+paths = ["build", "dev", "evals", "hooks", "src", "packages", "skills", "tests", "worker"]
 exclude = ["vendor/", "node_modules/"]
 min_confidence = 60
 ignore_decorators = [

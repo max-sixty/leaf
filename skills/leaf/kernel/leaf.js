@@ -5950,12 +5950,13 @@ async function approve() {
     return;
   }
   approving = true;
-  afterScript(paintApproval);
+  const busyPaint = nextRender(paintApproval);
   try {
     await approveVersion();
   } finally {
     approving = false;
-    afterScript(paintApproval);
+    cancelRender(busyPaint);
+    paintApproval();
   }
 }
 function stateSignoff(next) {

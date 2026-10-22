@@ -604,7 +604,7 @@
     display: none;
   }
   .lf-fp-crumb {
-    flex: 1;
+    flex: 1 1 auto;
     min-width: 0;
     display: flex;
     align-items: baseline;
@@ -656,19 +656,23 @@
     font-size: 12px;
   }
   .lf-fp-aux {
-    flex: none;
+    flex: 0 1 auto;
+    min-width: 0;
     display: flex;
     align-items: center;
     gap: 2px;
   }
   .lf-fp-filters {
     display: flex;
+    min-width: 0;
+    overflow-x: auto;
     gap: 2px;
   }
   .lf-fp-filters button {
+    flex-shrink: 0;
     color: var(--lf-fp-muted);
     font-size: 12px;
-    min-height: 26px;
+    min-height: max(26px, var(--aim-floor));
   }
   .lf-fp-filters button:hover,
   .lf-fp-filters [aria-pressed=true] {

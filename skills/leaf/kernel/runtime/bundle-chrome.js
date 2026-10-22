@@ -221,11 +221,13 @@ function leadingTitle(container) {
   }
   return "";
 }
+function declaredName(element) {
+  const attribute = registry[element.localName]?.["x-name"];
+  return attribute && element.getAttribute(attribute)?.trim() || "";
+}
 function addressableName(element) {
   if (!element) return "";
-  const attribute = registry[element.localName]?.["x-name"];
-  const declared2 = attribute && element.getAttribute(attribute)?.trim();
-  return declared2 || leadingTitle(element);
+  return declaredName(element) || leadingTitle(element);
 }
 var LABEL_WORDS = 60;
 var captionOf = (element) => {
@@ -1464,6 +1466,7 @@ export {
   addressableWord,
   widgetWord,
   addressableSays,
+  declaredName,
   addressableName,
   addressableLabel,
   sectionLabel,

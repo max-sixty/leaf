@@ -1,11 +1,15 @@
 /* Placement for threads: the page's order, which every reading of the threads
    shares. */
-import { addressableLabel, addressableWord } from "../addressable-names.js";
+import {
+  addressableLabel,
+  addressableWord,
+  declaredName,
+} from "../addressable-names.js";
 import { sectionOf } from "../anchor-resolution.js";
-import { leafSurface, pageParts, pageReadingVersion, showsWords } from "../passages.js";
+import { leafSurface, pageParts, pageReadingVersion } from "../passages.js";
 import { documentChanged } from "../semantic-state.js";
 import { readingRegionFor } from "../reading-regions.js";
-import { byRenderedOrder, renderedOrder, renderedUnder, upFrom } from "../shadow.js";
+import { byRenderedOrder, renderedOrder, upFrom } from "../shadow.js";
 // ---------- where the panel puts a thread ----------
 // The list reads in the page's order, not the log's. A page is a document with a
 // beginning and an end, and the user walks the thread the way they walk the
@@ -71,22 +75,40 @@ export function pageOutline() {
   return outline;
 }
 
-// The heading of the part of the page a node stands in: the last of the outline's
-// headings the reader reaches before it whose container also holds it, and whose words
-// show, or null where none does. The container is what "the heading over this" means:
-// a question's own heading stands inside the question, so it heads neither the
-// question, which it follows in the rendered order (`renderedOrder`), nor the next
-// question, which its container does not hold; without that bound the nearest heading
-// before an obligation is often the previous obligation's own. A heading behind a shut
-// disclosure keeps its boxes but heads nothing the user can read. On me's place for an
-// item and an obligation's arrival (obligations/view.js, `arrivalRegion`) both ask it.
-export const headingOver = (node, outline = pageOutline()) =>
-  outline.findLast(
-    (heading) =>
-      renderedOrder(heading, node) < 0 &&
-      renderedUnder(node, upFrom(heading)) &&
-      showsWords(heading),
-  ) ?? null;
+// What names the part of the page a node stands in: the heading over it, else the
+// nearest region holding it whose declaration titles it (`declaredName`), such as a tab
+// by its label, or null where neither does. A run-in title, a paragraph's leading
+// <strong>, names its paragraph and no part. On me's place for an item and an obligation's arrival
+// (obligations/view.js, `arrivalRegion`) both ask it.
+//
+// A heading heads its container from where it stands on: the outline's last heading
+// before the node, in the rendered order (`renderedOrder`), whose container holds the
+// node, asked from the node's innermost container out, so the nearest part wins. A
+// heading in a `header` or `hgroup` heads what holds that, as HTML's outline reads it,
+// so a page's title in its header heads the page's sections. The container is what
+// "the heading over this" means: a question's own heading stands inside the question,
+// so it heads neither the question, which it follows, nor the next question, which its
+// container does not hold. A heading the reader cannot see, as in a tab not selected,
+// still heads its part, so a part's name does not change as the page shows or hides
+// it; an arrival measures what it lands on and passes one that shows nothing. On the
+// corpus page, whose pages stand in tabs with their titles in headers and their last
+// sections untitled, the container alone sent every item to the corpus's own title.
+const HEADERS = "header, hgroup";
+const headed = (heading) => {
+  const at = upFrom(heading);
+  return at?.matches(HEADERS) ? upFrom(at) : at;
+};
+export function partOver(node, outline = pageOutline()) {
+  const heads = new Map();
+  for (const heading of outline)
+    if (renderedOrder(heading, node) < 0) heads.set(headed(heading), heading);
+  for (let at = upFrom(node); at; at = upFrom(at)) {
+    const heading = heads.get(at);
+    if (heading) return heading;
+    if (declaredName(at)) return at;
+  }
+  return null;
+}
 
 const subjectLabel = (target) => addressableLabel(target) || addressableWord(target);
 

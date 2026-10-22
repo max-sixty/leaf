@@ -180,6 +180,7 @@ import {
   addressedElements,
   anchorForRange,
   anchoringIsReady,
+  declaredName,
   fragmentTarget,
   resolveAnchor,
   revealAddressed,
@@ -250,7 +251,6 @@ import {
   readingFrom,
   selectEnds,
   selectionBackward,
-  showsWords,
   textNodesUnder,
   wrote
 } from "./bundle-passage-facts.js";
@@ -4201,9 +4201,22 @@ function pageOutline() {
   outlined = { key, outline };
   return outline;
 }
-var headingOver = (node, outline = pageOutline()) => outline.findLast(
-  (heading) => renderedOrder(heading, node) < 0 && renderedUnder(node, upFrom(heading)) && showsWords(heading)
-) ?? null;
+var HEADERS = "header, hgroup";
+var headed = (heading) => {
+  const at = upFrom(heading);
+  return at?.matches(HEADERS) ? upFrom(at) : at;
+};
+function partOver(node, outline = pageOutline()) {
+  const heads = /* @__PURE__ */ new Map();
+  for (const heading of outline)
+    if (renderedOrder(heading, node) < 0) heads.set(headed(heading), heading);
+  for (let at = upFrom(node); at; at = upFrom(at)) {
+    const heading = heads.get(at);
+    if (heading) return heading;
+    if (declaredName(at)) return at;
+  }
+  return null;
+}
 var subjectLabel = (target) => addressableLabel(target) || addressableWord(target);
 function outlineSubjectFor(target, peers = [target], outline = pageOutline()) {
   const label = subjectLabel(target);
@@ -8504,7 +8517,7 @@ export {
   watchProjection,
   currentProjection,
   inPageOrder,
-  headingOver,
+  partOver,
   commandSteps,
   paintCoreControls,
   requireReference,

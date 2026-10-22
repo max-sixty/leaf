@@ -32,7 +32,6 @@ import {
   declareThreadKeys,
   fabBar,
   fabInput,
-  headingOver,
   inPageOrder,
   initializeServedDocument,
   keepPageRulesOffLayer,
@@ -45,6 +44,7 @@ import {
   ownedObligationControl,
   paintBarReactions,
   paintCoreControls,
+  partOver,
   pendingAbout,
   pendingAnchor,
   pendingDrawing,
@@ -6062,7 +6062,7 @@ function createQueueWalk({
   const grouping = () => chosenGrouping.read() ?? ((readPlan()?.steps ?? []).some(givesUser) ? "plan" : "place");
   const itemHeading = (item) => {
     const at = pagePlace(queueStop(item));
-    return at ? headingOver(at) : null;
+    return at ? partOver(at) : null;
   };
   const itemPlace = (item) => {
     const heading = itemHeading(item);
@@ -9987,7 +9987,7 @@ function createObligationView({
     });
     return [
       declared ? context2 : null,
-      headingOver(item),
+      partOver(item),
       closestAcross(item, TEXT_BLOCK) ?? before.at(-1)
     ].find(fits) ?? item;
   }

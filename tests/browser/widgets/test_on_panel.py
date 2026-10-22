@@ -608,6 +608,40 @@ def test_the_chosen_grouping_orders_on_me_and_the_m_walk_alike(browser, serve):
         expect(cards.nth((first + step) % 3)).to_have_attribute("data-walked", "")
 
 
+TABBED_PAGE = leaf_page(
+    "tabbed asks",
+    '<h1 id="title">Every plan</h1><lf-tabs id="plans">'
+    '<lf-tab id="tab-first" label="First plan">'
+    '<header><h1 id="first-title">Move the runs into one sandbox</h1></header>'
+    '<section><h2 id="first-context">What needs to change</h2>'
+    "<p>The checkout stays fixed.</p></section>"
+    '<section><lf-ask id="first-ask"><h3>Include self-hosted runners?</h3>'
+    '<lf-options id="first-q" choose><lf-option id="first-yes">Yes</lf-option>'
+    '<lf-option id="first-no">No</lf-option></lf-options></lf-ask></section></lf-tab>'
+    '<lf-tab id="tab-second" label="Second plan">'
+    '<lf-ask id="second-ask"><h3>Ship on Tuesday?</h3>'
+    '<lf-options id="second-q" choose><lf-option id="second-yes">Yes</lf-option>'
+    '<lf-option id="second-no">No</lf-option></lf-options></lf-ask></lf-tab>'
+    "</lf-tabs>",
+)
+
+
+def test_on_me_places_an_item_by_its_tab_s_title_or_label(browser, serve):
+    """By place names the part of the page an item stands in from where it stands on:
+    in a tab whose page keeps its title in a header, that title heads its untitled
+    last section too, rather than the title of the page holding the tabs; and in a tab
+    with no heading over the item, selected or not, the tab's own label names it."""
+    page = open_page(browser, serve(TABBED_PAGE))
+    resized(page, 1440, 900)
+    view = open_on_me(page)
+    expect(view.locator(".lf-fp-on-group")).to_have_text(
+        [
+            re.compile(r"^\s*Move the runs into one sandbox\s*1\s*$"),
+            re.compile(r"^\s*Second plan\s*1\s*$"),
+        ]
+    )
+
+
 def test_an_answer_in_on_me_keeps_its_groups_and_the_m_walk_in_one_order(
     browser, serve
 ):

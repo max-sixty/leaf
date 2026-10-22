@@ -92,11 +92,15 @@ function leadingTitle(container) {
   }
   return "";
 }
+// The title an element's attribute holds, as its declaration names (`x-name`), such
+// as a tab's label.
+export function declaredName(element) {
+  const attribute = registry[element.localName]?.["x-name"];
+  return (attribute && element.getAttribute(attribute)?.trim()) || "";
+}
 export function addressableName(element) {
   if (!element) return "";
-  const attribute = registry[element.localName]?.["x-name"];
-  const declared = attribute && element.getAttribute(attribute)?.trim();
-  return declared || leadingTitle(element);
+  return declaredName(element) || leadingTitle(element);
 }
 
 // What the chrome calls an element away from it: an On me row, a Page Map heading,

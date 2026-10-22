@@ -1153,7 +1153,7 @@
   }
   .lf-fp-on-where,
   .lf-fp-on-says > .lf-fp-said {
-    flex: 0 1 auto;
+    flex: none;
     max-width: 45%;
     margin: 0;
   }

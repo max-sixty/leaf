@@ -58,7 +58,7 @@ import { applicationPresenter, PRESENTATION_ORDER } from "../semantic-state.js";
 import { hostIn, under, upFrom } from "../shadow.js";
 import { showHeld } from "../thread/held-news.js";
 import { obligationPlace } from "./place.js";
-import { headingOver } from "../thread/placement.js";
+import { partOver } from "../thread/placement.js";
 
 // The obligation view owns contextual action routes and navigation; the keyboard presenter owns their hints.
 export function createObligationView({
@@ -433,8 +433,8 @@ export function createObligationView({
         target.bottom - start.top <= landingRoom(region, item).height
       );
     };
-    // The heading is the one over the obligation (thread/placement.js, `headingOver`),
-    // which bounds it by the container both stand under, as below.
+    // The heading is what names the obligation's part of the page (thread/placement.js,
+    // `partOver`), bounded by the container both stand under, as below.
     //
     // The blocks before this one that are about the same part of the document: the two
     // stand under one container, as a heading and what it heads do. Without that bound
@@ -449,7 +449,7 @@ export function createObligationView({
     // declared shadow tree as well, and it concatenates each root's answer rather than
     // composing one order, so the last heading it reported could be from another tree
     // entirely — a worse answer than the one this misses. The heading is read off the
-    // page's outline, which composes that order (`headingOver`). The crossing worth having is
+    // page's outline, which composes that order (`partOver`). The crossing worth having is
     // on the two questions asked of each block: `under` for the container, and
     // the host climb below for the order, which together let an obligation staged inside a
     // shadow tree take the heading standing over its host.
@@ -481,7 +481,7 @@ export function createObligationView({
     return (
       [
         declared ? context : null,
-        headingOver(item),
+        partOver(item),
         closestAcross(item, TEXT_BLOCK) ?? before.at(-1),
       ].find(fits) ?? item
     );

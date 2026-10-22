@@ -1439,9 +1439,11 @@
   .lf-fp-on-title {
     flex: 1 1 auto;
   }
+  /* The end keeps its words, up to its share of the line, and the title gives way to
+     it: a stage and its age cut short say nothing. */
   .lf-fp-on-where,
   .lf-fp-on-says > .lf-fp-said {
-    flex: 0 1 auto;
+    flex: none;
     max-width: 45%;
     margin: 0;
   }

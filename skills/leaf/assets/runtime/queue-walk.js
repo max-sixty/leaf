@@ -4,7 +4,8 @@
 
    On me groups its items one of three ways, which the user picks at the view's foot
    and the browser keeps for every page (storage.js, `userChoice`): By place, under the
-   heading of the part of the page each stands in (thread/placement.js, `headingOver`);
+   heading or named region of the part of the page each stands in (thread/placement.js,
+   `partOver`);
    By kind, under the walk's word for each (`queueStop`); and By <agent>, under the
    goals of the agent's plan whose steps name them, with those no goal names last.
    Until the user picks, a plan that gives the user a step groups By <agent>, else By
@@ -96,7 +97,7 @@ import { obligationsIn, obligationPlace } from "./obligations/place.js";
 import { readPlan, readQueues, queueItemKey } from "./queue-api.js";
 import { carriesObligation, itemNoun } from "./queues.js";
 import { drawnThreadId } from "./thread/selectors.js";
-import { headingOver } from "./thread/placement.js";
+import { partOver } from "./thread/placement.js";
 import { addressableLabel } from "./addressable-names.js";
 import { userChoice } from "./storage.js";
 import { agentName } from "./semantic-state.js";
@@ -221,7 +222,7 @@ export function createQueueWalk({
   // The heading of the part of the page an item stands in, and what it says.
   const itemHeading = (item) => {
     const at = pagePlace(queueStop(item));
-    return at ? headingOver(at) : null;
+    return at ? partOver(at) : null;
   };
   const itemPlace = (item) => {
     const heading = itemHeading(item);

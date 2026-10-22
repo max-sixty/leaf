@@ -14,11 +14,15 @@ background task's end, and adds its output to the turn's context; the Stop hook'
 output continues the turn (`Harness.hook_context`). Leaf's Pi extension
 (`hooks/pi.ts`) calls both hooks and commits their output to the session.
 
-The Stop hook continues the turn for each owed answer the turn has not started
-(`activity.turn_obligations`), and for a page with no running watcher that has
-input pending or a status other than idle (`stop_continues`). A repeated Stop
-(`stop_hook_active`) continues only for a newly delivered update that owes an
-answer.
+The Stop hook continues the turn for a page with no running watcher that has
+input pending or a status other than idle, and for each owed answer the turn has
+not started (`activity.turn_obligations`) where no watch follows the turn
+(`stop_continues`). A repeated Stop (`stop_hook_active`) continues only for a
+newly delivered update that owes an answer. Where a watch follows the turn, the
+turn ends on the answer it wrote rather than on one more message about the owed
+update, which Claude Code's focus view would show in its place; the watch wakes a
+turn of its own whose prompt hook names the update, once per delivery of it
+(`session.left_owed`).
 
 Where something that outlives the turn opens a turn of its own for the input
 (`Harness.later_turn_takes_input`), Stop hands no input over: a watch wakes once
@@ -235,20 +239,22 @@ def read_plans(session_id: str) -> list[PagePlan]:
 
 
 def stop_continues(
-    plans: list[PagePlan], handing: list[dict], *, repeated: bool
+    plans: list[PagePlan], handing: list[dict], *, repeated: bool, reminds: bool
 ) -> bool:
     """Continue for newly owed input, or first-report debt/watcher housekeeping.
 
     Repeated Stop ignores already reported housekeeping and response debt, but
     genuinely new input still enters the current turn and owes an answer.
     `handing` contains the complete pending batches this transport proposes to
-    offer.
+    offer. Where a watch follows the turn (`reminds`), response debt ends the turn
+    on its answer, and the watch wakes a turn of its own for the reminder
+    (`session.left_owed`).
     """
     newly_owed = any(
         "answer" in event for batch in handing for event in batch["events"]
     )
     needs_attention = any(
-        plan.owed
+        (plan.owed and not reminds)
         or plan.unready
         or (
             not plan.watched
@@ -376,6 +382,8 @@ INLINE_OPENING = (
     "Leaf has new input for your turn. Read this complete delivery before answering."
 )
 POINTED_OPENING = "Leaf has new input for this turn. Read it with"
+# The words that open what a turn owes, as a reminder of its own or after a delivery.
+ATTENTION_OPENING = "Leaf needs attention:"
 
 
 def render(
@@ -447,7 +455,10 @@ def carry_turn(
     if event == "UserPromptSubmit":
         pick_up_acknowledged(sid, plans)
     elif event == "Stop" and not stop_continues(
-        plans, batches, repeated=bool(payload.get("stop_hook_active"))
+        plans,
+        batches,
+        repeated=bool(payload.get("stop_hook_active")),
+        reminds=harness.watches_between_turns(),
     ):
         return True
     # A tool boundary carries only new input; response-debt and housekeeping
@@ -462,7 +473,7 @@ def carry_turn(
     protocols = list(dict.fromkeys(protocol for _, protocol in reasons if protocol))
     attention = (
         [
-            "Leaf needs attention:",
+            ATTENTION_OPENING,
             *(f"- {line}" for line, _ in reasons),
             *(f"\n{protocol}" for protocol in protocols),
         ]

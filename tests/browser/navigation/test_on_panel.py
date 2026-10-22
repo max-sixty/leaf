@@ -449,6 +449,49 @@ def test_a_todo_on_you_ends_at_its_done_where_m_lands_and_in_the_panel(
     assert events_model.read_events(d)[-1]["todo"] == whole["id"]
 
 
+def test_show_and_m_keep_a_todo_s_words_visible_at_its_subject(browser, serve):
+    url = serve(QUEUE_PAGE)
+    for subject, title in (
+        ({"kind": "page"}, "Confirm the page-level build works"),
+        ({"kind": "element", "id": "notes"}, "Try the notes command"),
+    ):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "todo",
+                "author": "agent",
+                "agent": "Agent",
+                "session": "queue-words",
+                "owner": "user",
+                "subject": subject,
+                "title": title,
+            },
+        )
+    page = open_page(browser, url)
+
+    page.locator("#cadence").click()
+    page.keyboard.press("Shift+m")
+    expect(page.locator("#h")).to_be_focused()
+    page_words_visible = page.get_by_text(
+        "Confirm the page-level build works", exact=True
+    ).is_visible()
+
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    panel_settled(page, view="queue")
+    page.locator('.lf-fp-on-item[data-list="you"]').filter(
+        has_text="Try the notes command"
+    ).get_by_role("button", name="Show").click()
+    panel_settled(page, open=False)
+    expect(page.locator("#notes")).to_be_focused()
+    element_words_visible = page.get_by_text(
+        "Try the notes command", exact=True
+    ).is_visible()
+    assert page_words_visible and element_words_visible, (
+        f"to-do words at page and element: {page_words_visible}, {element_words_visible}"
+    )
+
+
 def test_a_finger_ends_a_todo_on_you_from_the_panel_s_row(browser, serve):
     """Under a finger, the to-do an On card's Show leaves the user on ends from that
     card's own Done; the panel's row offers no step for it, so it keeps its counts."""

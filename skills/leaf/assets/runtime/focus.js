@@ -505,8 +505,8 @@ function paintFocus(node) {
   // focus-visible (including text entry and modality changes on the same node).
   // Closed text-field roots expose their host, not the focused editor; text
   // entry always needs a cue, as it does for native editors.
-  // Reading destinations are locations, not presses: keep their location band
-  // when a pointer route takes the reader to a thread or passage.
+  // Non-press destinations are reading locations: keep their location band
+  // whenever they hold focus, including after a pointer click or route.
   const visible =
     next &&
     (next.matches(":focus-visible") || next.matches(TEXT_BOX) || !next.matches(PRESSES))

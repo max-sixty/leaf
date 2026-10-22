@@ -208,7 +208,7 @@ summary {
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 @media (forced-colors: active) {
-  .lf-page-thread:not(.lf-primary-part)[data-lf-focus-visible-within] {
+  .lf-page-thread:not(.lf-primary-part)[data-lf-focus-within] {
     outline: 2px solid Highlight;
     outline-offset: -2px;
     box-shadow: none;

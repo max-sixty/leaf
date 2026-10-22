@@ -116,8 +116,10 @@ On me navigation can reveal each record.
 widget on the page, such as a decided question collapsed with its options; `when` must
 require it to be absent. `x-awaits.encloses`, which `lf-ask` declares, makes a wrapper
 give the obligations inside it its heading and where the user lands; it asks nothing itself
-while it holds one, and with a heading it must hold at least one widget that asks or
-was retired.
+while it holds another widget declaring `x-awaits`. With `reply: true` instead of
+`value` and `answered`, a widget asks for the user's words; `lf-ask` uses this when it
+holds no answering widget. [module-reading.md, "Reading obligations and the On
+lists"](module-reading.md#reading-obligations-and-the-on-lists) describes which messages answer it.
 
 The module reads and records this state through `widgetController(owner)`
 ([module-state.md, "The widget controller"](module-state.md#the-widget-controller)),
@@ -314,8 +316,9 @@ back at that producer's error.
 A contract whose value holds keyed rows declares `records`, naming the array and each
 row's key, which must be a unique non-empty string. A row's large payload can be
 `deferred`: the file keeps it, but the page receives rows without it, and a widget
-fetches one with `loadDeferred(snapshot, key)`. That is how a collapsed `lf-diff` lists
-thousands of files without loading every patch:
+fetches one with `loadDeferred(snapshot, key)`. The widget decides when it needs that
+evidence; `lf-diff` loads and checks each patch before showing its row, and defers only
+textual rendering until the file opens:
 
 ```json
 {

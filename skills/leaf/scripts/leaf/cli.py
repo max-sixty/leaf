@@ -125,15 +125,10 @@ def _leaf_version(ctx: click.Context, _param: click.Parameter, value: bool) -> N
 
 
 def _leaf_root(ctx: click.Context, _param: click.Parameter, value: bool) -> None:
-    """Print which copy of leaf this is, and stop.
+    """Print the payload directory and stop.
 
-    A harness session runs the payload its plugin cache holds, not the checkout,
-    and the two are only ever the same by accident: the cache is a snapshot from
-    whenever the marketplace last swept, and `bin/leaf` is identical across
-    versions, so a stale copy answers exactly like a current one. The payload
-    directory is what tells them apart, so that is what this prints — the
-    version string says nothing, because a plugin is keyed on its commit rather
-    than on a number anyone bumps.
+    `--version` identifies the source; this distinguishes a harness's installed
+    plugin from a checkout of that same source.
     """
     if not value or ctx.resilient_parsing:
         return
@@ -1294,9 +1289,7 @@ def thread_resolve(dir: str, thread: str) -> dict:
     """Close THREAD, by any message in it, as the agent.
 
     The user ordinarily closes a thread; the Leaf skill's
-    references/threads.md says when the agent does. Refuses a thread
-    that asked for a version until a stamped version answers it. The panel names
-    who resolved it.
+    references/threads.md says when the agent does. The panel names who resolved it.
     """
     from leaf.thread import cmd_resolve
 

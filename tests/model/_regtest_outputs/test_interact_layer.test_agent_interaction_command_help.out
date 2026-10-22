@@ -207,8 +207,7 @@ Usage: leaf thread resolve [OPTIONS] PAGE THREAD
   Close THREAD, by any message in it, as the agent.
 
   The user ordinarily closes a thread; the Leaf skill's references/threads.md
-  says when the agent does. Refuses a thread that asked for a version until a
-  stamped version answers it. The panel names who resolved it.
+  says when the agent does. The panel names who resolved it.
 
 Options:
   --help  Show this message and exit.

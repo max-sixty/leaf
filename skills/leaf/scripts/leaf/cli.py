@@ -454,12 +454,11 @@ def package_run(name: str, script: str, arguments: tuple[str, ...]) -> None:
 def check(dir: str, render: bool) -> Reported:
     """Check PAGE/index.html.
 
-    Runs deterministic markup checks. --render also checks the drawn page in the
-    host's browser: whichever executable LEAF_BROWSER_EXECUTABLE, CHROME_PATH, or
-    CHROME_BIN names, else the installed Chrome, else the first browser on PATH.
-    A host with no browser is told why in place of each browser check. Prints one
-    object: the exit status, every finding with its code, element, measured values,
-    severity and words, and what each browser check ran in.
+    Runs the markup checks and, where the page has scripts or widgets only a
+    browser can judge, runs them in the host's browser. --render also checks the
+    drawn page. The browser is whichever executable LEAF_BROWSER_EXECUTABLE,
+    CHROME_PATH, or CHROME_BIN names, else the installed Chrome, else the first
+    browser on PATH; a host with none is told why in place of each browser check.
     """
     from leaf.validation.command import cmd_check
 
@@ -650,8 +649,7 @@ def report(dir: str, widget: str, verb: str, fields: tuple) -> dict:
     VERB is one of the widget's agent-written x-state verbs, and each NAME=VALUE one of
     its fields: `leaf page report <page> t-parser status value=review text="Ready for
     review"` moves a task. The page shows the report at once, marked provisional,
-    until a stamped version writes it into the markup or overrules it. The page's
-    watcher wakes so the agent can do that.
+    until a stamped version writes it into the markup or overrules it.
     """
     from leaf.thread import cmd_report
 
@@ -788,9 +786,7 @@ def delivery_read(delivery_id: str, part: int) -> dict:
 @click.argument("delivery_id", metavar="DELIVERY_ID")
 def delivery_ack(delivery_id: str) -> None:
     """Confirm that every part of DELIVERY_ID is in your context, so its updates
-    read Delivered. Reread any part whose output is missing first. Where an
-    earlier turn already picked it up, a note says so and names what its updates
-    still owe."""
+    read Delivered. Reread any part whose output is missing first."""
     from leaf.delivery import cmd_delivery_ack
 
     cmd_delivery_ack(delivery_id)
@@ -1040,11 +1036,9 @@ def status(dir: str, state: str, detail: str) -> dict:
 
     Use waiting with DETAIL naming the answer you want from the user; waiting
     without DETAIL invites text comments. Use idle when you are finished; it is
-    refused while the page has updates, workers' reports or page errors nobody has
-    picked up, updates you owe an answer, or to-dos of yours still open. Either one clears every
+    refused while anything on the page is still owed. Either one clears every
     `leaf task start` you made, so no update or to-do reads Working; your to-dos
-    stay open. Status has no working state: to show what you are working on, run
-    `leaf task start`.
+    stay open.
     """
     from leaf.activity import answer_command
     from leaf.findings import Finding, note
@@ -1201,12 +1195,11 @@ def response_reply(
     which waits on them until their next message in the thread. A progress line
     (--ephemeral) or a failure (--failure) takes none of them.
 
-    The reply can also set frozen HTML, the thread's title and a new anchor. It
-    publishes your saved page edits with it, checking them as `page check` does
-    without a browser: an error refuses the reply, and the first reply on a revision
-    notes the advice `page check` gives on its source. Nothing runs in a browser,
-    where `page check` runs a page's scripts and data widgets; one that fails for
-    the user arrives as an `error` event. After an answer posts,
+    The reply publishes your saved page edits with it, checking them as `page
+    check` does without a browser: an error refuses the reply, and the first reply
+    on a revision notes the advice `page check` gives on its source. It runs none
+    of the page's scripts; one that fails for the user arrives as an `error` event.
+    After an answer posts,
     your turn's final message is not posted as a second reply; an --ephemeral line
     does not change that. Rerunning a reply that already posted prints the earlier
     one; give a retried --ephemeral line an --attempt so it posts once.
@@ -1276,9 +1269,8 @@ def thread_edit(
     or with --title rename the thread MESSAGE is in, whoever opened it. --title
     alone leaves the text as it is.
 
-    The original and every revision remain in the append-only event log. Frozen
-    markup is not editable. Keep a title stable unless the thread's
-    subject changes.
+    Frozen markup is not editable. Keep a title stable unless the thread's subject
+    changes.
     """
     from leaf.thread import cmd_edit
 
@@ -1295,8 +1287,7 @@ def thread_resolve(dir: str, thread: str) -> dict:
 
     The user ordinarily closes a thread; the Leaf skill's
     references/threads.md says when the agent does. Refuses a thread
-    that asked for a version until a stamped version answers it. The panel names
-    who resolved it.
+    that asked for a version until a stamped version answers it.
     """
     from leaf.thread import cmd_resolve
 

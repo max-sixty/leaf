@@ -23,7 +23,7 @@ Every transport delivers the same immutable object:
   "format": "leaf-delivery/…",
   "id": "a1b2c3d4",
   "created_at": 0,
-  "acknowledge": "Whoever ran the `leaf wait` that printed this delivery acknowledges it; …",
+  "acknowledge": "Acknowledge this delivery before any other work: …",
   "batches": [
     {
       "page": "/absolute/page",

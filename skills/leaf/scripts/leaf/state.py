@@ -246,8 +246,7 @@ class Record:
     record readable (`layer-registry.md`, "Page protocol", says when `since`
     moves, which the browser build checks against every kind in `RECORDS`). `read`
     takes only a record at this format. A record at another format or with none
-    reads as absent, as a missing file does, and the next write replaces it;
-    one whose pages are gone is retired whatever its format (`retire_if_gone`).
+    reads as absent, as a missing file does, and the next write replaces it.
     Every write replaces the file whole, so a file that is not JSON no Leaf
     wrote, and reading it raises, naming the file."""
 

@@ -2015,8 +2015,7 @@ function moveCommandReferenceSelection(dir) {
     ...commandReferenceState,
     selectedCommandId: nextId,
     metaOverride: [
-      nextRecord.entry.title,
-      nextRecord.entry.description,
+      nextRecord.entry.description || nextRecord.entry.title,
       nextRecord.entry.steps[0],
       "\u23CE activate"
     ].filter(Boolean).join(" \xB7 ")

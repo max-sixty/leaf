@@ -3768,8 +3768,7 @@ var ReactionStripView = class {
     );
     this.#registration ??= this.#commands.registerSurface(this.node, {
       trigger: this.node.querySelector(".lf-react-trigger"),
-      palette: this.node.querySelector(".lf-react-palette"),
-      target: "the reply"
+      palette: this.node.querySelector(".lf-react-palette")
     });
     return this.node;
   }

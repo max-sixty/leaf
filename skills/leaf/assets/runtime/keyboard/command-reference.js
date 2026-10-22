@@ -23,11 +23,12 @@
    that read as a different font beside the first.
 
    A row's description is its button's tooltip, and the meta line under the search
-   repeats it for the row ↑↓ selects, so the keyboard reaches it too. As a grey line
-   under the title it made the catalog harder to scan for the few rows that have one,
-   so that line shows only where there is no hover to raise the tooltip. The meta line
-   keeps to one line, cutting a long description short, so the results never move
-   under the walk.
+   shows it in place of the title for the row ↑↓ selects, so the keyboard reaches it
+   too. As a grey line under the title it made the catalog harder to scan for the few
+   rows that have one, so that line shows only where there is no hover to raise the
+   tooltip or the reference is too narrow for the meta line to hold a description.
+   The meta line keeps to one line, cutting a long one short, so the results never
+   move under the walk.
 
    The catalog is deliberately frozen while open. A command that becomes live waits until
    the next opening; one that becomes unavailable is rejected by fresh dispatch and causes
@@ -966,8 +967,7 @@ function moveCommandReferenceSelection(dir) {
     ...commandReferenceState,
     selectedCommandId: nextId,
     metaOverride: [
-      nextRecord.entry.title,
-      nextRecord.entry.description,
+      nextRecord.entry.description || nextRecord.entry.title,
       nextRecord.entry.steps[0],
       "⏎ activate",
     ]

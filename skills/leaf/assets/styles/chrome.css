@@ -809,7 +809,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     color: var(--muted);
     font-size: var(--t-6);
   }
-  @media (hover: none) {
+  @media (hover: none), (max-width: 640px) {
     .lf-command-reference-description {
       display: block;
     }

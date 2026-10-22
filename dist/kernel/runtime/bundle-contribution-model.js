@@ -17,7 +17,7 @@ import {
   commandRoutes,
   controlAvailabilityOutput,
   elementDirective,
-  iconElement,
+  iconTemplate,
   isCommandScope,
   offer,
   pressIsKeyboardActivation,
@@ -404,7 +404,6 @@ var relationOrdinal = 0;
 var presented = /* @__PURE__ */ new WeakMap();
 var records = /* @__PURE__ */ new WeakMap();
 var controlContributions = /* @__PURE__ */ new WeakMap();
-var iconNodes = /* @__PURE__ */ new WeakMap();
 var contributorClasses = /* @__PURE__ */ new WeakMap();
 function createContributionControl(record, className = "") {
   return offer(record.behavior === "status" ? "span" : "button", className);
@@ -534,15 +533,6 @@ function syncContributionTurn(control, awaitsUser) {
 function syncContributionUnread(control, count) {
   control.toggleAttribute("data-lf-unread", Boolean(count));
 }
-function iconFor(control, icon) {
-  if (!icon) return null;
-  let node = iconNodes.get(control);
-  if (!node || node.dataset.lfIcon !== icon) {
-    node = iconElement(icon);
-    iconNodes.set(control, node);
-  }
-  return node;
-}
 function presentContributionHost(control, offered, {
   accessibleLabel = null,
   relatedControlIds = [],
@@ -635,7 +625,7 @@ function presentContributionEntry(control, offered, options = {}) {
   for (const name of nextClasses) control.classList.toggle(name, true);
   contributorClasses.set(control, nextClasses);
   const visibleLabel = visibleContributionEntryLabel(record);
-  const glyph = record.icon ? iconFor(control, record.icon) : html`<span class="lf-margin-entry-glyph" aria-hidden="true"
+  const glyph = record.icon ? iconTemplate(record.icon) : html`<span class="lf-margin-entry-glyph" aria-hidden="true"
         >${record.glyph}</span
       >`;
   render(

@@ -141,6 +141,7 @@
    exception: it draws its lists at first paint, with "Lists current" as the control.
    A fixed-height box that scrolls the rows is no answer: a scroller shows no edge until
    it is scrolled, so nothing tells the reader a row is cut off. */
+import { html, render } from "/vendor/browser-runtime.js";
 import { growthAfterIsSeen, growthIsSeen, whenNone } from "../geometry.js";
 import { offer } from "../widget-elements.js";
 import { keeps, layoutPx } from "../keeps.js";
@@ -493,13 +494,7 @@ export function newsNotice(header = false) {
     node,
     set(news) {
       if (words.textContent !== news.label) {
-        words.replaceChildren(
-          ...news.parts.map((part) => {
-            const fact = document.createElement("span");
-            fact.textContent = part;
-            return fact;
-          }),
-        );
+        render(html`${news.parts.map((part) => html`<span>${part}</span>`)}`, words);
         dropped.disconnect();
         for (const box of [words, ...words.children]) dropped.observe(box);
       }

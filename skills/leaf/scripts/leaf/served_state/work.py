@@ -99,6 +99,7 @@ def work_state(
     *,
     revisions=(),
     revision_reader=None,
+    data=None,
 ) -> WorkState:
     """Fold exact admitted inputs, then enrich once with claim and stream evidence."""
     log = TodoReading(events)
@@ -114,7 +115,9 @@ def work_state(
         if source
         else None
     )
-    durable = WorkReading(events, source.registry if source else {}, page, log=log)
+    durable = WorkReading(
+        events, source.registry if source else {}, page, log=log, data=data
+    )
     stream = live_stream or no_stream()
     reply = canonical_stream_reply(present, now, stream["reply"])
     activity = canonical_activity(

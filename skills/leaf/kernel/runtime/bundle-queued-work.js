@@ -497,8 +497,10 @@ function foldWidgetStates(authoredSnapshots, projection) {
           ids.sort(byRank(position.ranks));
   return states;
 }
-function obligationValue(widget, verb, answered) {
-  const state = widget.state[verb];
+function obligationValue(widget, verb, answered, unit) {
+  const complete = widget.state[verb];
+  const state = unit !== void 0 && complete && "units" in complete ? complete.units[unit] : complete;
+  if (unit !== void 0 && !state) return { value: null, present: false };
   const spec = widget.specs.get(verb);
   if (!state || !spec)
     throw new Error(`Missing obligation value definition for ${verb}`);
@@ -1622,16 +1624,22 @@ function normalizedObligations(view, widgets, document, projection, local) {
     }
     if (item.source.kind !== "widget") return item;
     const sourceId = item.source.id;
+    const sourceUnit = item.source.unit;
     const widget = widgets.get(sourceId);
     const declaration = document.descriptors.get(item.source.id)?.declaration["x-awaits"];
     const verb = declaration?.value;
     if (!verb || !widget) return item;
     const completed = item.status === "answered" && !(item.answer?.event && projection.pendingWithdrawals.has(item.answer.event.id));
-    const { value, present } = obligationValue(widget, verb, completed);
+    const { value, present } = obligationValue(
+      widget,
+      verb,
+      completed,
+      sourceUnit
+    );
     const pendingValue = widget.entries.some(
-      ({ e: e2 }) => e2.action === verb && !Number.isInteger(e2.seq)
+      ({ e: e2, unit }) => e2.action === verb && (sourceUnit === void 0 || unit === sourceUnit) && !Number.isInteger(e2.seq)
     ) || [...projection.pendingWithdrawals.values()].some(
-      ({ e: e2 }) => e2.widget === sourceId && (e2.action === verb || e2.id === item.answer?.event?.id)
+      ({ e: e2, unit }) => e2.widget === sourceId && (sourceUnit === void 0 || unit === sourceUnit) && (e2.action === verb || e2.id === item.answer?.event?.id)
     );
     const answer = present ? { value, event: pendingValue ? null : item.answer?.event ?? null } : null;
     return { ...item, answer };

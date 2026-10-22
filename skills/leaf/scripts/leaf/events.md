@@ -314,7 +314,7 @@ An open state-answered obligation in an unresolved thread keeps it awaiting the 
 the user writes after it: their later prose hands the obligation to the agent, still open
 and unanswered, until the agent answers that turn. A thread anchored on a page obligation,
 or on an element holding it, does the same while the agent owes it a reply
-(`obligations.sections_with_agent`), so an obligation the user has commented on leaves
+(`obligations.anchors_with_agent`), so an obligation the user has commented on leaves
 their On me list while the comment's own obligation, the reply it is owed, stands on the
 agent's. A reply that promises work (`todo`) settles the comment but leaves the obligation
 the agent's until its to-do ends, resolved thread or not, so a decision the user put off

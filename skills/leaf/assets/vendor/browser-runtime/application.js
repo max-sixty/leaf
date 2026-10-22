@@ -352,6 +352,7 @@ function normalizedObligations(
     }
     if (item.source.kind !== "widget") return item;
     const sourceId = item.source.id;
+    const sourceUnit = item.source.unit;
     const widget = widgets.get(sourceId);
     const declaration = document.descriptors.get(item.source.id)?.declaration[
       "x-awaits"
@@ -361,14 +362,23 @@ function normalizedObligations(
     const completed =
       item.status === "answered" &&
       !(item.answer?.event && projection.pendingWithdrawals.has(item.answer.event.id));
-    const { value, present } = obligationValue(widget, verb, completed);
+    const { value, present } = obligationValue(
+      widget,
+      verb,
+      completed,
+      sourceUnit,
+    );
     const pendingValue =
-      (widget.entries                  ).some(
-        ({ e }) => e.action === verb && !Number.isInteger(e.seq),
+      (widget.entries                                ).some(
+        ({ e, unit }) =>
+          e.action === verb &&
+          (sourceUnit === undefined || unit === sourceUnit) &&
+          !Number.isInteger(e.seq),
       ) ||
       [...projection.pendingWithdrawals.values()].some(
-        ({ e }) =>
+        ({ e, unit }) =>
           e.widget === sourceId &&
+          (sourceUnit === undefined || unit === sourceUnit) &&
           (e.action === verb || e.id === item.answer?.event?.id),
       );
     const answer = present

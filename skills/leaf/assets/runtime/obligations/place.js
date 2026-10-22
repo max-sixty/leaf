@@ -4,6 +4,8 @@
    The source owns its answer; the context supplies its prompt. A unique context is
    also its standing node. When several obligations share that context each stands at
    its own source, so focus, rings, markers and arrival all name the same request.
+   A record unit stands at its projected datum, even when it is the widget's only
+   obligation; the owning widget still supplies its commands and answer formatter.
    Frozen thread sources may have no node until the thread owner materializes them.
    Placement never changes the semantic inventory or its obligation identities.
 
@@ -19,6 +21,7 @@
    Which obligation holds a node the user stands in is the converse question, standing rather
    than membership (`obligationHolding`, standing-target.js), and it also falls back to an
    obligation's unique context. */
+import { projectedDatum } from "../anchor-resolution.js";
 import { elementById } from "../passages.js";
 import { under } from "../shadow.js";
 import { readObligations } from "./model.js";
@@ -26,7 +29,8 @@ import { readObligations } from "./model.js";
 export function obligationPlace(item, items = readObligations().all) {
   if (!item || item.source.kind !== "widget")
     return { source: null, context: null, node: null };
-  const source = elementById(item.source.id);
+  const owner = elementById(item.source.id);
+  const source = item.source.unit ? projectedDatum(owner, item.source.unit) : owner;
   const context = elementById(item.prompt.target);
   const shared = items.some(
     (other) =>
@@ -34,14 +38,14 @@ export function obligationPlace(item, items = readObligations().all) {
       other.source.kind === "widget" &&
       other.prompt.target === item.prompt.target,
   );
-  return { source, context, node: shared ? source : context };
+  return { source, context, node: item.source.unit || shared ? source : context };
 }
 
 // The obligations `region` holds, in the order `obligations` lists them.
 export function obligationsIn(region, items = readObligations().all) {
   return items.filter((item) => {
     if (item.source.kind !== "widget" || item.status === "withdrawn") return false;
-    const source = elementById(item.source.id);
+    const { source } = obligationPlace(item, items);
     return Boolean(source && under(source, region));
   });
 }

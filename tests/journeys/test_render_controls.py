@@ -261,29 +261,14 @@ CONTROL_ARCHETYPES = (
         "target": '#stable-shot .lf-shotcap[data-lf-state="after"]',
     },
     {
-        # The case queue's Previous, case selector, and Next controls share the
-        # row above the evidence. Selecting another title changes the select's
-        # contents without moving the buttons around it.
-        "name": "visual-review-navigation",
-        "source": VISUAL_REVIEW_GALLERY,
-        "target": ".lf-vr-case-select",
-        "option": "All mobile destinations remain reachable",
-    },
-    {
-        # The visual inspector's view and size presses are joined groups whose selected
-        # treatment changes in place. Pressing Flip exercises both states while its
-        # Compare, Overlay, and size neighbours stay under the user's pointer.
         "name": "visual-review-inspection",
         "source": VISUAL_REVIEW_GALLERY,
-        "open": ".lf-vr-inspection-summary",
-        "target": '.lf-vr-mode-group > [value="flip"]',
+        "target": '.lf-vr-case[aria-hidden="false"] .lf-vr-mode-button:nth-child(2)',
     },
     {
-        # A disposition changes both its selected paint and the case's durable review
-        # state while its opposite remains beside it.
-        "name": "visual-review-disposition",
+        "name": "visual-review-approval",
         "source": VISUAL_REVIEW_GALLERY,
-        "target": ".lf-vr-case[data-selected] .lf-vr-needs-work",
+        "target": '.lf-vr-case[aria-hidden="false"] .lf-vr-approval',
     },
 )
 

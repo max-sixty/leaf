@@ -18,7 +18,7 @@ agent that reached for the wrong id where the right one goes.
 
 from pathlib import Path
 
-from .data import read_contracts
+from .data import read_contracts, read_data
 from .files import list_revisions
 from .passages import SourceReading, enclosing_ids
 from .registry.storage import page_vocabulary
@@ -67,6 +67,10 @@ class PageView:
     def contracts(self) -> dict[str, str]:
         """Each recorded data source's contract, without reading its value."""
         return read_contracts(self._page_dir)
+
+    def data(self, registry: dict) -> dict:
+        """The validated current data publications under this admission vocabulary."""
+        return read_data(self._page_dir, registry)
 
     def responses(self, events: list) -> dict[str, dict]:
         """Where each event the log still owes work for is answered."""
@@ -149,6 +153,9 @@ class InitialPageView:
     @property
     def contracts(self) -> dict:
         return self._contracts
+
+    def data(self, registry: dict) -> dict:
+        return {"sources": {}}
 
     def responses(self, events: list) -> dict:
         return {}

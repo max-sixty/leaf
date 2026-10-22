@@ -42,4 +42,4 @@ def _validate(registry: dict, source) -> None:
     declarations = element_declarations(registry)
     validate_widget_schemas(declarations, data, path)
     validate_widget_relations(registry, declarations, data, path)
-    validate_answered_conditions(declarations, path)
+    validate_answered_conditions(declarations, data, path)

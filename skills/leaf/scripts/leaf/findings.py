@@ -1268,6 +1268,22 @@ _TEXT = {
             " chrome may only join authored prose"
         )
     ),
+    "awaits-records": _declared(
+        lambda v: (
+            "x-awaits.records must name an x-data input whose contract declares records and whose binding names only an external source attribute"
+        )
+    ),
+    "answering-record": _declared(
+        lambda v: _answering(
+            v,
+            "must use the same record unit as x-awaits.value, with custom detail and no empty condition",
+        )
+    ),
+    "answering-detail": _declared(
+        lambda v: _answering(
+            v, f"detail condition names an undeclared or invalid field `{v['field']}`"
+        )
+    ),
     "awaits-unanswered": _declared(
         lambda v: "x-awaits local obligation declares no `answered` condition"
     ),

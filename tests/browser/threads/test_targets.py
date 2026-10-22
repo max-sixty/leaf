@@ -64,20 +64,22 @@ def test_a_thread_mark_inside_a_tab_panel_opens_on_press(browser, serve):
         '<lf-tab id="first" label="First">'
         '<p id="inside">Commented words in the first tab.</p>'
         '</lf-tab><lf-tab id="second" label="Second">Other words.</lf-tab>'
-        '</lf-tabs>',
+        "</lf-tabs>",
     )
     page = open_page(
         browser,
         serve(
             source,
-            events=[{
-                "kind": "comment",
-                "id": "inside-thread",
-                "author": "user",
-                "revision": 1,
-                "text": "About this paragraph.",
-                "anchor": {"section": "inside"},
-            }],
+            events=[
+                {
+                    "kind": "comment",
+                    "id": "inside-thread",
+                    "author": "user",
+                    "revision": 1,
+                    "text": "About this paragraph.",
+                    "anchor": {"section": "inside"},
+                }
+            ],
         ),
     )
     panel = page.locator("#first")

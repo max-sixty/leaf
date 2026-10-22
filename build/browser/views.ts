@@ -7,6 +7,7 @@
  * into the same container; terminal dispose ends that owner's lifetime.
  */
 import { createSignal, createProjection, flush, runWithOwner } from "@solidjs/signals";
+import { Errored } from "solid-js";
 import { render } from "@solidjs/web";
 import type { JSX } from "@solidjs/web";
 
@@ -36,7 +37,21 @@ export function createView<T extends object>(
   let current = initial;
   let stop: (() => void) | null = null;
   let disposed = false;
+  let failure: { error: unknown } | null = null;
   let publish: (next: { current: T }) => unknown;
+  const reset = () => {
+    stop?.();
+    stop = null;
+  };
+  // Catch inside Solid, then rethrow at Leaf's imperative boundary. An uncaught
+  // binding error otherwise halts the shared scheduler, including unrelated views.
+  const checkFailure = () => {
+    if (!failure) return;
+    const { error } = failure;
+    failure = null;
+    reset();
+    throw error;
+  };
   const mount = () => {
     if (container.firstChild) container.replaceChildren();
     stop = runWithOwner(null, () =>
@@ -48,13 +63,18 @@ export function createView<T extends object>(
           null,
           { shallow: true },
         );
-        return component(() => props as T);
+        return Errored({
+          get children() {
+            return component(() => props as T);
+          },
+          fallback(error) {
+            failure = { error: error() };
+            return null;
+          },
+        });
       }, container),
     );
-  };
-  const reset = () => {
-    stop?.();
-    stop = null;
+    checkFailure();
   };
   mount();
   roots.set(container, reset);
@@ -62,8 +82,10 @@ export function createView<T extends object>(
     update(next: T) {
       if (disposed) throw new Error("Cannot update a disposed Solid view");
       current = next;
-      if (stop) flush(() => publish({ current }));
-      else mount();
+      if (stop) {
+        flush(() => publish({ current }));
+        checkFailure();
+      } else mount();
     },
     dispose() {
       if (disposed) return;

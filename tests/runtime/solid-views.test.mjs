@@ -9,7 +9,52 @@ import {
   createMemo,
   flush,
   watchReaction,
+  onCleanup,
 } from "/vendor/browser-runtime.js";
+
+test("a failed view releases its work, leaves other views live and can recover", () => {
+  const host = document.createElement("section");
+  const other = document.createElement("section");
+  const independent = createView(
+    other,
+    (read) => html`<output>${() => read().label}</output>`,
+    { label: "Ready" },
+  );
+  let cleanups = 0;
+  const component = (read) => {
+    onCleanup(() => cleanups++);
+    return html`<output
+      >${() => {
+        if (read().label === "broken") throw new Error("Cannot draw this value");
+        return read().label;
+      }}</output
+    >`;
+  };
+  try {
+    assert.throws(
+      () => createView(host, component, { label: "broken" }),
+      /Cannot draw this value/,
+    );
+    assert.equal(cleanups, 1, "a failed initial mount releases its work");
+    independent.update({ label: "Still working" });
+    assert.equal(other.textContent, "Still working");
+
+    const view = createView(host, component, { label: "Ready" });
+    try {
+      assert.throws(() => view.update({ label: "broken" }), /Cannot draw this value/);
+      assert.equal(cleanups, 2, "a failed update releases its work");
+      independent.update({ label: "Still live" });
+      assert.equal(other.textContent, "Still live");
+      view.update({ label: "Recovered" });
+      assert.equal(host.textContent, "Recovered");
+    } finally {
+      view.dispose();
+    }
+    assert.equal(cleanups, 3, "the recovered view has its own lifetime");
+  } finally {
+    independent.dispose();
+  }
+});
 
 test("an imperative draw follows completed reads without waking on a lazy first pull", () => {
   for (const memoized of [false, true]) {

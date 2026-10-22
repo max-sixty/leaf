@@ -12,7 +12,7 @@ export const initialSolidPath = "vendor/solid-initial.js";
 const sharedSolidPath = "vendor/solid-shared.js";
 const solidGlobal = "document.documentElement.lfInitial.solid";
 const signalExports =
-  "createSignal, createMemo, createRoot, createReaction, getObserver, runWithOwner, createEffect, createTrackedEffect, createProjection, flush, untrack, For, Show, onCleanup";
+  "createSignal, createMemo, createRoot, createReaction, getObserver, runWithOwner, createEffect, createTrackedEffect, createProjection, flush, untrack, For, Show, Errored, onCleanup";
 const webExports = "render, insert, spread";
 const solidExports = `${signalExports}, ${webExports}, html`;
 
@@ -269,8 +269,8 @@ export const solidMoves = () =>
 
 const solidNamespace = () =>
   [
-    'export { createSignal, createMemo, createRoot, createReaction, getObserver, runWithOwner, createEffect, createTrackedEffect, createProjection, flush, untrack, For, Show, onCleanup } from "solid-js";',
-    'export { render, insert, spread } from "@solidjs/web";',
+    `export { ${signalExports} } from "solid-js";`,
+    `export { ${webExports} } from "@solidjs/web";`,
     'export { default, default as html } from "@solidjs/html";',
     `import { ${signalExports} } from "solid-js";`,
     `import { ${webExports} } from "@solidjs/web";`,

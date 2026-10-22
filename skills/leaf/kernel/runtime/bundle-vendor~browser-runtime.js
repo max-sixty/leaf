@@ -61,6 +61,7 @@ function watchReaction(read, moved2) {
 
 // vendor/browser-runtime/views.js
 import { createSignal, createProjection, flush as flush2, runWithOwner as runWithOwner2 } from "/vendor/solid.js";
+import { Errored } from "/vendor/solid.js";
 import { render } from "/vendor/solid.js";
 var roots = /* @__PURE__ */ new WeakMap();
 function resetViewsWithin(container) {
@@ -79,7 +80,19 @@ function createView(container, component, initial) {
   let current = initial;
   let stop = null;
   let disposed = false;
+  let failure = null;
   let publish;
+  const reset = () => {
+    stop?.();
+    stop = null;
+  };
+  const checkFailure = () => {
+    if (!failure) return;
+    const { error } = failure;
+    failure = null;
+    reset();
+    throw error;
+  };
   const mount = () => {
     if (container.firstChild) container.replaceChildren();
     stop = runWithOwner2(
@@ -92,13 +105,18 @@ function createView(container, component, initial) {
           null,
           { shallow: true }
         );
-        return component(() => props);
+        return Errored({
+          get children() {
+            return component(() => props);
+          },
+          fallback(error) {
+            failure = { error: error() };
+            return null;
+          }
+        });
       }, container)
     );
-  };
-  const reset = () => {
-    stop?.();
-    stop = null;
+    checkFailure();
   };
   mount();
   roots.set(container, reset);
@@ -106,8 +124,10 @@ function createView(container, component, initial) {
     update(next) {
       if (disposed) throw new Error("Cannot update a disposed Solid view");
       current = next;
-      if (stop) flush2(() => publish({ current }));
-      else mount();
+      if (stop) {
+        flush2(() => publish({ current }));
+        checkFailure();
+      } else mount();
     },
     dispose() {
       if (disposed) return;

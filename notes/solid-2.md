@@ -24,11 +24,18 @@ otherwise have to maintain.
 | Parser-time first paint            | Shared initial/live Lit rendering on main                | Shared initial/live Solid rendering; live modules adopt the same nodes and graph       |
 | Maturity                           | Stable and already integrated                            | Release candidate, with pinned local upstream adaptations                              |
 
-Solid offers a more coherent reactive architecture for this application. It is
-not a small dependency swap: package examples, ownership and scheduling,
-first-paint delivery, focus retention, and generated bundles all change.
-Remaining risks are the prerelease runtime and the cost of maintaining its
-adaptations. There is no established startup speedup from this migration.
+Solid offers a more coherent reactive graph and selective updates within retained
+views. Leaf still needs its presentation scheduler, imperative render boundaries,
+immutable snapshots and DOM movement integration. Bindings receive snapshots from
+those boundaries; they do not read semantic state directly. The migration removes
+the Preact-to-Lit integration, not most of Leaf's lifecycle machinery.
+
+**Review recommendation: keep this as a draft experiment; the net benefit does not
+yet justify replacing Lit on main.** The implementation demonstrates a viable
+direction, but changes package authoring, scheduling, first-paint delivery and
+focus retention without an established startup speedup. The matched corpus
+comparison finds less than a one-percent reduction in total delivered HTML and
+code. This is not a performance reason to migrate.
 
 The build documents and checks the upstream seams for retained DOM movement,
 quiet form writes, detached-root event collection, template traversal,
@@ -36,6 +43,19 @@ custom-element upgrade before refs, and follow-up notification when a draw
 publishes a dependency it has already read. See [build/AGENTS.md](../build/AGENTS.md)
 and [build/solid.mjs](../build/solid.mjs). These are review and upgrade costs,
 not reasons to replace mature controls with bespoke implementations.
+
+Review also reproduced an error-isolation regression: a throwing template binding
+could halt Solid's shared scheduler and freeze unrelated views, even when Leaf
+caught the error. `createView` now uses Solid's public `Errored` boundary, releases
+the failed root and rethrows at Leaf's synchronous presentation boundary. The next
+props update can remount it. The regression test covers failed initial mounting,
+failed updates, cleanup, unrelated updates and recovery; a browser probe also
+checks recovery with the delivered shared runtime.
+
+Reconsider adoption when Solid's release and the upstream fixes reduce the cost
+of these adaptations, or when a measured interaction or maintenance improvement
+outweighs it. Ordinary native controls and retaining WebAwesome can be chosen
+independently of the rendering framework; neither is evidence for Solid itself.
 
 ## UI library evaluation
 

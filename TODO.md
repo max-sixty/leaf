@@ -82,8 +82,8 @@ has tried; settle that before building it.
   wider than its words under the pointer is acceptable; a "+1" for dropped facts is
   the other route. In a margin card the notice takes its width from the heads'
   track, and a wide one moved the head's time sideways in CI (PR #3250's first run).
-- **Stop moving live content between parents.** A thread summary and a progress fold
-  hide their messages in place, so a frame keeps its document and a selection stays.
+- **Stop moving live content between parents.** A thread summary hides the messages
+  it covers in place, so a frame keeps its document and a selection stays.
   Four places still move live nodes, which reloads a frame in WebKit (no
   `moveBefore`) and drops a selection everywhere: resolving a thread moves its card
   into the "Resolved · N" disclosure and reopening moves it back (`thread/inline.js`);

@@ -119,7 +119,13 @@ def environment(**extra: str) -> dict[str, str]:
     env = {
         key: value
         for key, value in os.environ.items()
-        if key not in (*IDENTITY_VARIABLES, APP_SERVER_ENV, "LEAF_HOST_LAUNCHER")
+        if key
+        not in (
+            *IDENTITY_VARIABLES,
+            APP_SERVER_ENV,
+            "LEAF_HOST_LAUNCHER",
+            "CODEX_INTERNAL_ORIGINATOR_OVERRIDE",
+        )
         and not (key.startswith("CLAUDE") and key != "CLAUDE_CONFIG_DIR")
     }
     if browser_model.VARIABLE not in env:

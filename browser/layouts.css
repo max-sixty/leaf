@@ -837,12 +837,15 @@
       block-size: calc(var(--lf-view-height) + var(--lf-foot-room));
     }
     html[data-lf-live][data-lf-layout~="workspace"]
-      body > main.layout-workspace
-      [data-lf-reading-role="pane"] > :not(header, footer) {
+      body
+      > main.layout-workspace
+      [data-lf-reading-role="pane"]
+      > :not(header, footer) {
       padding-block-end: calc(var(--pane-inset) + var(--lf-foot-room));
     }
     html[data-lf-live][data-lf-layout~="workspace"]
-      body > main.layout-workspace
+      body
+      > main.layout-workspace
       > :not(header, footer, [data-lf-reading-role="pane"]):not(
         :has([data-lf-reading-role="pane"])
       ) {

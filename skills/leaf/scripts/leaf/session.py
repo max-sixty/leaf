@@ -33,7 +33,14 @@ from .schema import ANSWER_INSTRUCTION
 from .served_state.reading import outside_inputs, page_input, page_reading
 from .server import read_service, running_server
 from .service import PageTransaction, owned_pages, unacknowledged
-from .state import SESSION_SUFFIX, session_claims, session_file, state_home, still_named
+from .state import (
+    SESSION_SUFFIX,
+    session_claims,
+    session_file,
+    session_record,
+    state_home,
+    still_named,
+)
 
 # How often a watch rechecks a live page's server. It is also the longest a watch goes
 # without a pass on a page whose files have not moved: nothing else a pass reads
@@ -614,7 +621,9 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
     Input already present at startup waits for the concurrent Stop hook to close
     the turn, since that hook may still continue it over what the turn owes; the
     input then gets a turn of its own (`hook_transport`). The turn's closing ends
-    that bounded grace; input arriving while the watch runs wakes immediately. A watch after Escape
+    that bounded grace; input arriving while the watch runs wakes immediately,
+    unless it arrives in a later turn than the one the watch follows
+    (`later_turn_wakes`), which takes it itself. A watch after Escape
     trusts the receipt cursor: input held outside the stopped turn's context can
     wake, while that turn's received input waits for a prompt.
     Settled thread input alone never wakes; it remains in the next receipt batch.
@@ -630,6 +639,26 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
     settled = time.monotonic() + STOP_HOOK_S
     watch = Watch(harness)
     watch.acquire(supersede=True)
+    # The turn this watch follows, and when it saw a later turn closed.
+    followed = (session_record(harness.session) or {}).get("turn")
+    later_closed: list[float] = []
+
+    def later_turn_wakes(claim: dict) -> bool:
+        """Whether input wakes the session in a turn opened after the one this
+        watch follows. While that turn runs it takes input at its next tool
+        boundary or Stop hook, so a wake would only show the user a second notice
+        of input the turn is about to read. The Stop hook that closes it starts
+        the watch that takes over from this one, so this one wakes then only if
+        no successor has come within the Stop hooks' time. Escape ends a turn
+        with no Stop hook, leaving its record open, and the harness's own `idle`
+        is the reading that moves then; a harness that gives none keeps the
+        immediate wake."""
+        if claim["turn_closed"] is not None:
+            if not later_closed:
+                later_closed.append(time.monotonic())
+            return time.monotonic() > later_closed[0] + STOP_HOOK_S
+        live = harness.live_turn()
+        return live is None or live["state"] == "idle"
 
     def ready(reading: PageTick) -> bool:
         pending = wake_inputs(reading.transaction, reading.batch)
@@ -638,6 +667,8 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
         if interrupted:
             return True
         claim = reading.transaction.active_claim
+        if claim is not None and claim["turn"] != followed:
+            return later_turn_wakes(claim)
         return (
             (claim is not None and claim["turn_closed"] is not None)
             or any(

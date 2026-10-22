@@ -66,6 +66,7 @@ class ClaudeCode:
         self.watches = queue.Queue()
         self.exits = queue.Queue()
         self.diagnostics = queue.Queue()
+        self.debug = queue.Queue()
         self.bands = queue.Queue()
         threading.Thread(target=self.route, daemon=True).start()
         loaded = self.read()
@@ -82,6 +83,8 @@ class ClaudeCode:
                 self.sent.put(record)
             elif "diagnostic" in record:
                 self.diagnostics.put(record["diagnostic"])
+            elif "debug" in record:
+                self.debug.put(record["debug"])
             elif "band" in record:
                 self.bands.put(record["band"])
             else:
@@ -315,6 +318,32 @@ def test_failed_module_processes_report_their_diagnostics(
         assert diagnostic == "Leaf: watch failed (exit code 23): watch launcher failed"
         expected = "Leaf: the pages follower exited with code 23: watch launcher failed"
         assert followers and set(followers) == {expected}, followers
+    driven.quit()
+
+
+def test_children_terminated_from_outside_stay_out_of_the_conversation(
+    spawn, sessionless, tmp_path
+):
+    """A child that something outside the module terminates, as happens to both of
+    a session's children while it sits idle, did not fail: its line goes to Claude
+    Code's debug log rather than the conversation the user reads."""
+    launcher = tmp_path / "bin" / "leaf"
+    launcher.parent.mkdir()
+    # As `bin/leaf` does when its uv is terminated.
+    launcher.write_text("#!/bin/sh\nsh -c 'kill -TERM $$'\nexit $?\n")
+    launcher.chmod(0o755)
+    driven = ClaudeCode(
+        spawn, "cc-terminated", {"hooks_module": True, "pluginRoot": str(tmp_path)}
+    )
+    driven.emit("session.start", {"cwd": str(tmp_path), "isInteractive": True})
+    lines = {driven.debug.get(timeout=STATED_TIMEOUT).split(":")[1] for _ in range(2)}
+    assert lines == {
+        " watch failed (exit code 143)",
+        " the pages follower exited with code 143",
+    }, lines
+    driven.send({"flush": True})
+    driven.read()
+    assert driven.diagnostics.empty()
     driven.quit()
 
 

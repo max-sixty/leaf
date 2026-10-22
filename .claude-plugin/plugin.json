@@ -19,7 +19,7 @@
     "hooks_module": {
       "type": "boolean",
       "title": "Wake the session from Leaf's hooks module (experimental)",
-      "description": "Keep Leaf's watch between turns in its Claude Code hooks module rather than a background Stop hook. The module goes on watching after a turn you interrupt, but each wake shows in the conversation as a prompt from the plugin. Leaf's line above the prompt shows either way.",
+      "description": "Keep Leaf's watch between turns in its Claude Code hooks module rather than a background Stop hook. Each of its wakes shows in the conversation as a prompt from the plugin, or, after you press Escape, as a message from another session. Leaf's line above the prompt shows either way.",
       "default": false
     }
   }

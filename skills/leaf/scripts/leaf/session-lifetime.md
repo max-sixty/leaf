@@ -241,8 +241,13 @@ or the host:
   it displaces ends without waking the session. Claude Code bounds a background
   command at two hours and a hook only at its own `timeout`, which is why the watch
   is a hook. Plain `--print` runs the hook in the foreground, holding the turn, so
-  there it watches nothing. An interrupted turn runs no Stop hook, so nothing
-  watches after it and its input waits on admission's nudge.
+  there it watches nothing. The watch goes on running into the user's next turn,
+  but wakes for nothing that turn could take: it takes input at its next tool
+  boundary or Stop hook, and the Stop hook that closes it starts the watch that
+  takes over (`watch_between_turns`). An interrupted turn runs no Stop hook and
+  leaves its record open; once Claude Code reads idle, that watch wakes for what
+  the turn left. A turn a wake opened has no watch from before, so input after its
+  interruption waits on admission's nudge.
 - A hook watch under Claude Code with the plugin's `hooks_module` option on: the same
   watch, which Leaf's hooks module (`hooks/claude-code.ts`) starts as the session
   starts and as each main-loop turn ends, in place of that Stop hook, which stands

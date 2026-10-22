@@ -37,7 +37,7 @@ next prompt.
 To pick up a page this session did not serve, run `leaf page claim <page>`; Leaf
 watches it from the end of the turn.
 
-When nothing was watching, as after a turn you interrupted, or Claude Code refused
+When nothing was watching, as can happen after the user interrupts a turn, or Claude Code refused
 the hooks module's wake, or a background job sat idle for an hour, new input arrives
 with a message from Leaf naming the page. It comes through Claude
 Code's session messaging, so it looks as if it came from another session.

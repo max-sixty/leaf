@@ -146,7 +146,9 @@ const $ = {
     },
   },
   ui: {
-    log: (text) => print({ diagnostic: text }),
+    // A line for Claude Code's debug log prints as `{"debug": <text>}`.
+    log: (text, options) =>
+      print(options?.to === "debug" ? { debug: text } : { diagnostic: text }),
     // Each element is its name, which `h` records with its props and children.
     resolve: () => ({ Box: "Box", Text: "Text", Link: "Link" }),
     // A redraw of the band, printed as `{"band": <its tree, or null>}`.

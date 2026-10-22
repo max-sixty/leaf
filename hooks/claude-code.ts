@@ -121,6 +121,15 @@ function launcher($: EngineInterface) {
   return `${$.plugin.root}/bin/leaf`;
 }
 
+/** Log a child's failure, to the conversation unless a signal from outside the
+ * module ended it, which the launcher's shell reports as 128 plus the signal: as
+ * SIGTERM ends both of a session's children together while it sits idle, or
+ * SIGHUP as its terminal closes. That ending is no failure of Leaf's to show the
+ * user. */
+function report($: EngineInterface, text: string, code: number | null) {
+  $.ui.log(text, code !== null && code > 128 ? { to: "debug" } : undefined);
+}
+
 /** Run Leaf's hook on `payload`, an event no registration answers. */
 async function hook($: EngineInterface, payload: Payload): Promise<void> {
   try {
@@ -144,8 +153,12 @@ async function hook($: EngineInterface, payload: Payload): Promise<void> {
 
 /** The watch owner serializes endings; the adapter supplies Claude Code's process
  * and wake operations. */
-async function ensureWatch($: EngineInterface, session: string, interrupted: boolean) {
-  const ended = Date.now() / 1000;
+async function ensureWatch(
+  $: EngineInterface,
+  session: string,
+  interrupted: boolean,
+  ended = Date.now() / 1000,
+) {
   const owner = watch;
   await owner
     .ensure(
@@ -186,8 +199,10 @@ async function ensureWatch($: EngineInterface, session: string, interrupted: boo
             const result = await stream.result;
             if (cancelled) return "";
             if (result.code !== 0 || readError) {
-              $.ui.log(
+              report(
+                $,
                 `Leaf: watch failed (${readError ?? `exit code ${result.code}`})${stderr.trim() ? `: ${stderr.trim()}` : ""}`,
+                result.code,
               );
               return "";
             }
@@ -286,8 +301,10 @@ function follow($: EngineInterface, session: string) {
       }
       const result = await stream.result;
       if (result.code !== 0 && following === current)
-        $.ui.log(
+        report(
+          $,
           `Leaf: the pages follower exited with code ${result.code}${stderr.trim() ? `: ${stderr.trim()}` : ""}`,
+          result.code,
         );
     } catch (error) {
       if (following === current) $.ui.log(`Leaf: the pages follower failed: ${error}`);
@@ -334,12 +351,14 @@ export const register: Register = (on, options) => {
   });
 
   on("turn.complete", async ($, e, next) => {
+    // Before anything awaited, so a prompt Claude Code starts meanwhile is later.
+    const ended = Date.now() / 1000;
     const completed = await next(e);
     if (e.agentId !== undefined) return completed;
     running = false;
     const session = await sessionOf($);
     follow($, session);
-    if (watching) void ensureWatch($, session, e.isAborted);
+    if (watching) void ensureWatch($, session, e.isAborted, ended);
     return completed;
   });
 

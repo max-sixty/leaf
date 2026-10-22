@@ -78,8 +78,9 @@ class Harness:
       the turn's context and confirm it (`hook_delivers`); the other Stop hook
       does only under plain `--print`, where no watch follows the turn
       (`hook_transport`). A turn that ends without its Stop hooks, as an
-      interrupt does, leaves nothing watching while the session lives on, which
-      is why this is the harness with a `nudge`. With its `hooks_module` option
+      interrupt does, starts no watch, so where no watch from before it runs,
+      nothing watches while the session lives on, which is why this is the
+      harness with a `nudge`. With its `hooks_module` option
       on, Leaf's hooks module (`hooks/claude-code.ts`) keeps the watch in place
       of that Stop hook, as Pi's extension does: it watches after an interrupted
       turn too and wakes the session with a prompt, which Claude Code drops

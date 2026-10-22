@@ -35,6 +35,8 @@ from leaf_dev.browser import (
 )
 from leaf_dev.commands.stills import DRIVERS
 from leaf_dev.example_data import named_source
+from leaf_dev.main_thread import SCRIPT as MAIN_THREAD_SCRIPT
+from leaf_dev.main_thread import reading as main_thread_reading
 from leaf_dev.recording import recording
 from leaf_dev.startup import observe_startup, startup_reading
 
@@ -197,9 +199,15 @@ def probe(
     SOURCE before it or give it one (--base=REF).
 
     Prints one JSON line per arm: startup phases, resources and diagnostic initial
-    layout shifts; what --js returned, or the error that stopped the arm;
+    layout shifts; long animation frames during startup and input steps, with script
+    entry points and forced layout; what --js returned, or the error that stopped the arm;
     the page's console errors and warnings and its uncaught exceptions; and with
     --shot the screenshot's path under .tmp/probe/.
+
+    Main-thread readings are diagnostics, not timing gates: native frames of at
+    least 50 ms, not all CPU work. Script entry points are clues for profiling,
+    not proof which widget caused a pause. Unsupported browsers say so. A journey
+    that navigates reports the current document's frames.
 
     --journey loads a Python file with run(page), using the full Playwright API
     for clicks, typing, scrolling and assertions. --record DIR saves trace.zip
@@ -273,6 +281,7 @@ def probe(
                         if record_dir:
                             reading["recording"] = str(record_dir.resolve() / arm)
                         reading["console"] = console_findings(page)
+                        page.add_init_script(path=MAIN_THREAD_SCRIPT)
                         if throttle:
                             page.context.new_cdp_session(page).send(
                                 "Emulation.setCPUThrottlingRate", {"rate": throttle}
@@ -284,15 +293,22 @@ def probe(
                             observe_startup(page)
                             load(page, address)
                             reading["startup"] = startup_reading(page)
-                        for verb, arg in steps:
-                            doing = f"{verb}:{arg}"
-                            STEPS[verb](page, arg)
-                        if run:
-                            doing = "journey"
-                            reading["journey"] = run(page)
-                        doing = "settle"
-                        if not isinstance(source, str):
-                            settle(page)
+                        reading["main_thread"] = {"startup": main_thread_reading(page)}
+                        try:
+                            for verb, arg in steps:
+                                doing = f"{verb}:{arg}"
+                                STEPS[verb](page, arg)
+                            if run:
+                                doing = "journey"
+                                reading["journey"] = run(page)
+                            doing = "settle"
+                            if not isinstance(source, str):
+                                settle(page)
+                        finally:
+                            if (steps or run) and not page.is_closed():
+                                reading["main_thread"]["interaction"] = (
+                                    main_thread_reading(page)
+                                )
                         if expression:
                             doing = "js"
                             reading["result"] = page.evaluate(expression)

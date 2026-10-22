@@ -193,9 +193,25 @@ const projectionDatum = (record) => ({
   ...(record.origin ? { origin: record.origin } : {}),
 });
 
+// Both pointer routes resolve to the same rendered record, without walking its file.
+const lineForNode = new WeakMap();
+function indexLine(line) {
+  lineForNode.set(line.node, line);
+  lineForNode.set(line.comment, line);
+  return line;
+}
+
 function renderedLines(file, rendered) {
   const records = sourceLines(file);
   const nodes = [...rendered.querySelectorAll("[data-content] [data-line]")];
+  // Pierre emits both columns together. Keep each line's gutter with its source
+  // node rather than searching every gutter again for comments and revisions.
+  const gutters = new Map(
+    [...rendered.querySelectorAll("[data-gutter] > [data-line-index]")].map((node) => [
+      node.dataset.lineIndex,
+      node,
+    ]),
+  );
   if (nodes.length !== records.length)
     throw new Error(
       `Pierre returned ${nodes.length} source lines for ${file.name}; expected ${records.length}`,
@@ -218,8 +234,25 @@ function renderedLines(file, rendered) {
       throw new Error(`Pierre returned an unexpected source line for ${file.name}`);
     // The line's identity, which its gutter's Comment carries too, so a hold across a
     // re-render finds the same line under its new node (`holdFileFocus`).
-    node.setAttribute(LINE_KEY, diffDatumKey(record));
-    return { ...record, node };
+    const key = diffDatumKey(record);
+    node.setAttribute(LINE_KEY, key);
+    const gutter = gutters.get(node.dataset.lineIndex);
+    const comment = commentButton(lineLabel(record), null, "lf-diff-line-comment");
+    // The target picker is the keyboard route; thousands of lines must not become
+    // thousands of Tab stops. Prepare these controls before connecting the file:
+    // appending each to a live gutter invalidates ancestor :has() styles repeatedly.
+    comment.tabIndex = -1;
+    comment.setAttribute(LINE_KEY, key);
+    gutter.append(comment);
+    return indexLine({
+      ...record,
+      node,
+      gutter,
+      comment,
+      // Compare Pierre's output, before focus and annotation paint can decorate it.
+      // A revision never needs to reconstruct that output from the live DOM.
+      content: node.innerHTML,
+    });
   });
 }
 
@@ -413,7 +446,7 @@ function commentButton(label, opened, className) {
     plus.textContent = "+";
     button.append(plus);
   }
-  button.addEventListener("click", opened);
+  if (opened) button.addEventListener("click", opened);
   return button;
 }
 
@@ -482,41 +515,6 @@ function outletPlaces(content, rows, outlets) {
   return { lead, after };
 }
 
-// CSS anchors and focus can add shadow parts to rendered syntax spans. They are
-// presentation on the live row, not a change to the file's evidence.
-const runtimePart = /^lf-(?:a\d+|focus|focus-within)$/;
-const sameLineChildren = (held, wanted) =>
-  held.childNodes.length === wanted.childNodes.length &&
-  [...held.childNodes].every((child, index) =>
-    sameLineContent(child, wanted.childNodes[index]),
-  );
-function sameLineContent(held, wanted) {
-  if (held.nodeType !== wanted.nodeType) return false;
-  if (held.nodeType !== Node.ELEMENT_NODE) return held.nodeValue === wanted.nodeValue;
-  const attributes = (node, live) =>
-    [...node.attributes]
-      .map(({ name, value }) => [
-        name,
-        live && name === "part"
-          ? value
-              .split(/\s+/)
-              .filter((part) => !runtimePart.test(part))
-              .join(" ")
-          : value,
-      ])
-      .filter(
-        ([name, value]) => !(live && isPagePaint(name)) && (name !== "part" || value),
-      );
-  const left = attributes(held, true);
-  const right = attributes(wanted, false);
-  if (
-    left.length !== right.length ||
-    left.some(([name, value]) => right.find(([other]) => other === name)?.[1] !== value)
-  )
-    return false;
-  return sameLineChildren(held, wanted);
-}
-
 // A file's evidence goes under its kept disclosure, whose summary the record paints.
 function replaceFileContent(entry, rendered, pairs, outlets) {
   const restore = holdFileFocus(entry);
@@ -526,31 +524,17 @@ function replaceFileContent(entry, rendered, pairs, outlets) {
   const prior = new Map(entry.lines.map((record) => [diffDatumKey(record), record]));
   const retained = new Map();
   const gutters = new Map();
-  // Read by the index each had before any is given its new one below: a hunk added
-  // above kept lines gives them indices other kept rows held.
-  const priorGutters = new Map(
-    [...(pre?.querySelectorAll("[data-gutter] > [data-line-index]") ?? [])].map(
-      (gutter) => [gutter.dataset.lineIndex, gutter],
-    ),
-  );
   for (const next of rendered.lines) {
     const previous = prior.get(diffDatumKey(next));
-    if (!previous) continue;
-    if (
-      previous.node.innerHTML !== next.node.innerHTML &&
-      !sameLineChildren(previous.node, next.node)
-    )
-      continue;
+    if (!previous || previous.content !== next.content) continue;
     retained.set(next.node, previous.node);
-    const nextGutter = nextPre.querySelector(
-      `[data-gutter] [data-line-index="${next.node.dataset.lineIndex}"]`,
-    );
-    const gutter = priorGutters.get(previous.node.dataset.lineIndex);
-    gutters.set(nextGutter, gutter);
+    gutters.set(next.gutter, previous.gutter);
     keeps(previous.node, "data-line-index", next.node.dataset.lineIndex);
-    keeps(gutter, "data-line-index", next.node.dataset.lineIndex);
+    keeps(previous.gutter, "data-line-index", next.node.dataset.lineIndex);
     next.node = previous.node;
+    next.gutter = previous.gutter;
     next.comment = previous.comment;
+    indexLine(next);
   }
   const rows = new Map(rendered.lines.map((line) => [diffDatumKey(line), line.node]));
   const { lead, after } = outletPlaces(
@@ -1182,7 +1166,6 @@ customElements.define(
               failed: false,
               refused: false,
               loading: null,
-              prepared,
             });
             keeps(entry.node, "data-lf-gen", "1");
             if (metadata) {
@@ -1190,10 +1173,12 @@ customElements.define(
               entry.renderKey = null;
               return entry;
             }
-            paintSummary(entry.details, record, !prepared?.error);
-            if (prepared) restores.push(this.applyEntry(entry));
-            else entry.details.querySelector("pre")?.toggleAttribute("hidden", true);
-            paintFileDetails(entry.details, prepared?.error ? {} : record);
+            if (prepared) restores.push(this.applyEntry(entry, prepared));
+            else {
+              paintSummary(entry.details, record);
+              entry.details.querySelector("pre")?.toggleAttribute("hidden", true);
+              paintFileDetails(entry.details, record);
+            }
             return entry;
           });
           this.snapshot = snapshot;
@@ -1352,14 +1337,10 @@ customElements.define(
           this.threadPairs.delete(content);
     }
 
-    threadPair(row) {
+    threadPair({ node: row, gutter: gutterRow }) {
       this.threadPairs ??= new Map();
       const content = row.parentElement;
-      const gutter = content.closest("pre").querySelector("[data-gutter]");
-      const lineIndex = row.dataset.lineIndex;
-      const gutterRow = [...gutter.children].find(
-        (candidate) => candidate.dataset.lineIndex === lineIndex,
-      );
+      const gutter = gutterRow.parentElement;
       let pair = this.threadPairs.get(content);
       if (!pair) {
         pair = {
@@ -1380,13 +1361,14 @@ customElements.define(
       const entry = findDiffFile(this.fileEntries, coordinate);
       if (!entry || entry.filtered) return null;
       const file = coordinate.file;
+      const line =
+        !file && entry.lines.find((line) => diffDatumKey(line) === anchor.datum);
       if (file) {
         if (placement.datumElement !== entry.node) return null;
       } else if (
         !entry.loaded ||
         (entry.details && !entry.details.open) ||
-        placement.datumElement !==
-          entry.lines.find((line) => diffDatumKey(line) === anchor.datum)?.node
+        placement.datumElement !== line?.node
       )
         return null;
 
@@ -1417,7 +1399,7 @@ customElements.define(
       if (record.row !== row) {
         if (file) move(entry.node, record.outlet, null);
         else {
-          const { gutterRow: lineGutter, pair } = this.threadPair(row);
+          const { gutterRow: lineGutter, pair } = this.threadPair(line);
           move(row.parentNode, record.outlet, row.nextSibling);
           move(lineGutter.parentNode, record.gutterRow, lineGutter.nextSibling);
           record.pair = pair;
@@ -1489,7 +1471,7 @@ customElements.define(
         if (rendering === this.sourceRendering) break;
       }
       if (!this.fileEntries?.includes(entry)) return;
-      if (entry.loaded || entry.prepared || entry.refused) return;
+      if (entry.loaded || entry.refused) return;
       // A disconnect abandons a load, and the entry stays loadable: an inline patch
       // keeps its entries across a reconnection, so a later open starts afresh.
       if (entry.loading?.rendering === this.rendering) return entry.loading.promise;
@@ -1529,10 +1511,9 @@ customElements.define(
                 this.fileEntries?.includes(entry),
             );
             for (const [entry] of ready) entry.loading = null;
-            const restores = ready.map(([entry, { prepared }]) => {
-              entry.prepared = prepared;
-              return this.applyEntry(entry);
-            });
+            const restores = ready.map(([entry, { prepared }]) =>
+              this.applyEntry(entry, prepared),
+            );
             if (ready.length) {
               this.layoutThreadOutlets();
               this.stageFiles();
@@ -1549,12 +1530,11 @@ customElements.define(
     }
 
     // Returns the focus restore for the caller to run once the file's evidence is staged.
-    applyEntry(entry) {
-      const { error, retry, file, renderKey, rendered } = entry.prepared;
-      entry.prepared = null;
+    applyEntry(entry, { error, retry, file, renderKey, rendered }) {
       if (error) {
         entry.failed = true;
         paintSummary(entry.details, entry.record, false);
+        paintFileDetails(entry.details, {});
         if (!entry.details.open) entry.details.open = true;
         entry.disclosureOpen = true;
         // Reopening retries a load; nothing loads a patch this widget refused again.
@@ -1590,7 +1570,6 @@ customElements.define(
       entry.renderKey = renderKey;
       entry.loaded = true;
       entry.details.querySelector("pre")?.toggleAttribute("hidden", false);
-      this.attachLineComments(entry);
       paintFileDetails(entry.details, entry.record);
       return restore;
     }
@@ -1650,15 +1629,22 @@ customElements.define(
     }
 
     attachEntryControls(entry) {
-      this.attachLineComments(entry);
       const hover = (event) => {
-        const line = event.target.closest("[data-content] > [data-line]");
-        const gutter = entry.lineGutters.get(line);
-        if (gutter && !line.contains(event.relatedTarget))
-          gutter.classList.toggle("lf-diff-line-hover", event.type === "pointerover");
+        const line = lineForNode.get(
+          event.target.closest("[data-content] > [data-line]"),
+        );
+        if (line && !line.node.contains(event.relatedTarget))
+          line.gutter.classList.toggle(
+            "lf-diff-line-hover",
+            event.type === "pointerover",
+          );
       };
       entry.node.addEventListener("pointerover", hover);
       entry.node.addEventListener("pointerout", hover);
+      entry.node.addEventListener("click", (event) => {
+        const line = lineForNode.get(event.target.closest(".lf-diff-line-comment"));
+        if (line) threadSurface(this).open(line.node);
+      });
       const label = entry.record.path || "file";
       entry.fileComment = commentButton(
         label,
@@ -1668,25 +1654,6 @@ customElements.define(
       entry.node
         .querySelector(":scope > .lf-diff-file-actions")
         .prepend(entry.fileComment);
-    }
-    attachLineComments(entry) {
-      entry.lineGutters ??= new WeakMap();
-      for (const line of entry.lines) {
-        const { gutterRow } = this.threadPair(line.node);
-        entry.lineGutters.set(line.node, gutterRow);
-        if (line.comment?.parentElement === gutterRow) continue;
-        line.comment = commentButton(
-          lineLabel(line),
-          () => threadSurface(this).open(line.node),
-          "lf-diff-line-comment",
-        );
-        // Thousands of lines must not become thousands of Tab stops. The page-level
-        // target picker is the keyboard route to the same exact datum; this control is
-        // the conventional pointer affordance in the line-number gutter.
-        line.comment.tabIndex = -1;
-        line.comment.setAttribute(LINE_KEY, diffDatumKey(line));
-        gutterRow.append(line.comment);
-      }
     }
 
     present(promise) {

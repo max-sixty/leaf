@@ -9,6 +9,7 @@ hooks, and agent-facing state — with one answer.
 """
 
 import json
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import NamedTuple
@@ -296,6 +297,12 @@ def started_in_turn(obligation: dict, state: dict) -> bool:
     so a start on an earlier input there covers the newest that carries the answer."""
     if state["turn_closed"] is not None or state["claim_turn"] is None:
         return False
+    return _started_by_turn(obligation, state)
+
+
+def _started_by_turn(obligation: dict, state: dict) -> bool:
+    """Whether the claimant's current turn, open or closed, wrote a start covering
+    the update since its pickup (`started_in_turn`)."""
     delivered = obligation["delivery_seq"] or obligation["seq"]
     return any(
         start["session"] == state["claim_session"]
@@ -303,6 +310,29 @@ def started_in_turn(obligation: dict, state: dict) -> bool:
         and start["seq"] >= delivered
         for start in obligation["started_by"]
     )
+
+
+def left_owed(state: dict, reminded: Callable[[str], bool]) -> list[dict]:
+    """The owed answers the claimant's turn left as it closed, which a turn of
+    their own reminds the agent of where a watch follows the turn
+    (`hook_transport.stop_continues`, `session.watch_between_turns`): the blocking
+    ones the closed turn did not start since their pickup, with a ref the owner
+    can use, that no prompt has named since their delivery (`reminded`, with an
+    update's id).
+
+    A prompt names them once, so an agent that leaves one unanswered is reminded
+    once for each delivery of it rather than after every turn. An update with no
+    usable ref is input again, which wakes a turn as input does
+    (`delivery.deliverable`)."""
+    if state["turn_closed"] is None or state["claim_turn"] is None:
+        return []
+    return [
+        obligation
+        for obligation in blocking_obligations(state, watched=True)
+        if "ref" in obligation["answer"]
+        and not _started_by_turn(obligation, state)
+        and not reminded(obligation["input"])
+    ]
 
 
 def turn_obligations(state: dict, *, watched: bool) -> list[dict]:

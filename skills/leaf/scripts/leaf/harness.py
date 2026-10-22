@@ -626,6 +626,7 @@ class CodexHarness(EnvironmentHarness):
                 plans,
                 [plan.batch for plan in plans if plan.batch],
                 repeated=bool(payload.get("stop_hook_active")),
+                reminds=self.watches_between_turns(),
             ):
                 return None, expected
         from .codex import offer_hook_delivery

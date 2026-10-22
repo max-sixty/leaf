@@ -450,10 +450,13 @@ EXTENSION_SCHEMA = {
         "x-within": ["x-owners"],
         "x-measured": ["x-data"],
     },
-    # Only an upgraded container has members its module could leave in place.
+    # An upgraded container can retain authored children, native markup included.
     "if": {"required": ["x-patch"]},
     "then": {
-        "properties": {"x-content": {"const": "members"}, "x-upgrade": {"const": True}}
+        "properties": {
+            "x-content": {"enum": ["members", "markup"]},
+            "x-upgrade": {"const": True},
+        }
     },
     "additionalProperties": False,
 }

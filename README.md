@@ -9,14 +9,14 @@ or follow live work in a page you can comment on and change. The agent responds 
 revising the page.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/ab49a4bccfecc9ef08aaf08c0f29077235a650f2/demo/session-dark.png">
-  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/ab49a4bccfecc9ef08aaf08c0f29077235a650f2/demo/session-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/84e628ad13a6414fbcf80b85b49c1ff0b3c6ba32/demo/session-dark.png">
+  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/84e628ad13a6414fbcf80b85b49c1ff0b3c6ba32/demo/session-light.png">
 </picture>
 
 <details>
 <summary>Watch the comment-and-revision loop</summary>
 
-![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/ab49a4bccfecc9ef08aaf08c0f29077235a650f2/demo/demo.gif)
+![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/84e628ad13a6414fbcf80b85b49c1ff0b3c6ba32/demo/demo.gif)
 
 </details>
 
@@ -77,8 +77,10 @@ Chrome, then the first `google-chrome`, `google-chrome-stable`, `chrome`,
 In Claude Code, a background Stop hook watches the session's pages between turns,
 and Leaf's hooks module shows a line above the prompt for each page the session
 holds: a link to the page, what is On you, its open threads with how many have
-replies you haven't read, and what the agent is doing or waiting for. Hooks modules
-are an early-access Claude Code feature.
+replies you haven't read, and what the agent is doing or waiting for. Ctrl+X Tab
+then Enter opens the first page in your browser, or, in a session you reached over
+SSH, copies its link to your clipboard. Hooks modules are an early-access Claude
+Code feature.
 
 A page messages its session when input arrives while nothing watches it, as can
 happen after you interrupt a turn. A session that bypasses permissions holds that

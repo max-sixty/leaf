@@ -259,6 +259,7 @@ summary {
 }
 .lf-thread-content {
   display: flow-root;
+  position: relative;
   min-width: 0;
   anchor-scope: --lf-thread-headline;
   --lf-thread-action-room: var(--lf-msg-head-height);
@@ -339,9 +340,6 @@ summary {
 .lf-thread-transcript > .lf-msg[data-lf-summary] {
   margin-block: 8px;
   anchor-name: var(--lf-fold-foot);
-}
-.lf-thread-transcript {
-  position: relative;
 }
 .lf-thread-checkpoint[data-expanded=true]::before {
   content: "";
@@ -1292,6 +1290,45 @@ svg[data-lf-icon] {
   outline: var(--focus-ring);
   outline-offset: 2px;
 }
+.lf-corner-mark {
+  position: absolute;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  inline-size: var(--corner-mark);
+  min-inline-size: 0;
+  block-size: var(--corner-mark);
+  min-block-size: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  font: inherit;
+  background: var(--lf-ground, var(--paper));
+  color: color-mix(in srgb, var(--ink) 72%, transparent);
+  box-shadow: 0 0 0 1px var(--lf-ring, var(--border-2)), var(--raise-1);
+  cursor: pointer;
+}
+.lf-corner-mark::before {
+  content: "";
+  position: absolute;
+  inset: calc((var(--corner-mark) - var(--aim-floor)) / 2);
+}
+.lf-corner-mark:hover {
+  color: var(--ink);
+}
+.lf-corner-mark[data-lf-focus-visible] {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+.lf-corner-mark > svg {
+  inline-size: 12px;
+  block-size: 12px;
+}
+@media (forced-colors: active) {
+  .lf-corner-mark {
+    border: 1px solid ButtonText;
+  }
+}
 
 /* browser/styles/components/response.css */
 :root {
@@ -1473,9 +1510,8 @@ svg[data-lf-icon] {
   flex-wrap: wrap;
 }
 .lf-composer-media {
-  --lf-media-mark-size: 18px;
   --lf-media-mark-overhang: 6px;
-  --lf-media-room: max( calc(var(--raise-1-drop) + var(--raise-1-blur)), calc( var(--lf-media-mark-overhang) + (var(--aim-floor) - var(--lf-media-mark-size)) / 2 ) );
+  --lf-media-room: max( calc(var(--raise-1-drop) + var(--raise-1-blur)), calc(var(--lf-media-mark-overhang) + (var(--aim-floor) - var(--corner-mark)) / 2) );
   --lf-media-h: 120px;
   display: flex;
   flex: 1 0 calc(100% + 2 * var(--lf-media-room));
@@ -1513,7 +1549,7 @@ button.lf-media-open {
 }
 .lf-composer-media-item > .lf-composer-media-open {
   border-radius: 8px;
-  box-shadow: 0 0 0 1px var(--lf-media-ring, var(--border-2)), var(--raise-1);
+  box-shadow: 0 0 0 1px var(--lf-ring, var(--border-2)), var(--raise-1);
 }
 .lf-composer-media-item:not(.lf-composer-drawing) > .lf-composer-media-open {
   height: var(--lf-media-h);
@@ -1529,59 +1565,24 @@ button.lf-media-open {
   border-radius: inherit;
   box-shadow: none;
 }
-.lf-composer-media-item > button:not(.lf-media-open) {
-  position: absolute;
-  z-index: 1;
+.lf-composer-media-item > .lf-corner-mark {
   inset-block-start: calc(-1 * var(--lf-media-mark-overhang));
   inset-inline-end: calc(-1 * var(--lf-media-mark-overhang));
-  display: grid;
-  place-items: center;
-  inline-size: var(--lf-media-mark-size);
-  min-inline-size: 0;
-  block-size: var(--lf-media-mark-size);
-  min-block-size: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  font: inherit;
-  background: color-mix(in srgb, var(--ink) 72%, var(--lf-media-ground, var(--paper)));
-  color: var(--lf-media-ground, var(--paper));
-  box-shadow: 0 0 0 2px var(--lf-media-ground, var(--paper));
-  cursor: pointer;
 }
 .lf-composer-media-item > .lf-composer-drawing-undo {
   inset-inline: calc(-1 * var(--lf-media-mark-overhang)) auto;
 }
-.lf-composer-media-item > button:not(.lf-media-open)::before {
-  content: "";
-  position: absolute;
-  inset: calc((var(--lf-media-mark-size) - var(--aim-floor)) / 2);
-}
-.lf-composer-media-item > button:not(.lf-media-open):hover {
-  background: var(--ink);
-}
-.lf-composer-media-item > button:not(.lf-media-open)[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: 2px;
-}
-.lf-composer-media-item > button:not(.lf-media-open) > svg {
-  inline-size: 10px;
-  block-size: 10px;
-}
 @media (hover: hover) {
-  .lf-composer-media-item:not(:hover, :focus-within) > button:not(.lf-media-open) {
+  .lf-composer-media-item:not(:hover, :focus-within) > .lf-corner-mark {
     opacity: 0;
   }
-  .lf-composer-media-item > button:not(.lf-media-open) {
+  .lf-composer-media-item > .lf-corner-mark {
     transition: opacity 120ms;
   }
 }
 @media (forced-colors: active) {
   .lf-composer-media-item > .lf-composer-media-open:not([data-lf-focus-visible]) {
     outline: 1px solid CanvasText;
-  }
-  .lf-composer-media-item > button:not(.lf-media-open) {
-    border: 1px solid ButtonText;
   }
 }
 .lf-composer-drawing > .lf-composer-media-open {

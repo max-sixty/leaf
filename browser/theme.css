@@ -1302,6 +1302,7 @@
   --aim-floor: 24px;
   --entry-floor: 0px;
   --margin-entry: max(32px, var(--aim-floor));
+  --corner-mark: 20px;
   --pin-inset: 4px;
   --margin-gap: 4px;
   --rail-hang: 22px;

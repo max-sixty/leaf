@@ -235,9 +235,7 @@ def read_data(page_dir: Path, registry: dict | None) -> dict:
 def data_errors(stored: dict) -> list[str]:
     """Why a published source's value fails its current contract."""
     return [
-        reading["error"]
-        for reading in stored["sources"].values()
-        if "error" in reading
+        reading["error"] for reading in stored["sources"].values() if "error" in reading
     ]
 
 

@@ -8,6 +8,7 @@ import os
 import shlex
 import shutil
 import subprocess
+import sys
 import threading
 import time
 import urllib.parse
@@ -875,6 +876,83 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     assert hooks_model.cmd_watch("claude-code", stop) is None
 
 
+@pytest.mark.parametrize("ending", ["Stop", "Escape"])
+def test_a_watch_leaves_input_to_a_later_turn_while_it_runs(
+    claimed, monkeypatch, ending
+):
+    """The watch from a turn's end goes on running into the user's next turn,
+    which takes input at its next tool boundary or Stop hook. So while Claude Code
+    says that later turn runs, input wakes nothing: a wake would only show the user
+    a second notice of input the turn is about to read. The Stop hook that closes
+    the turn starts the watch that takes over and wakes for what the turn left, so
+    the earlier one still wakes nothing and gives way to it. Escape runs no Stop
+    hook and leaves the turn's record open, so once Claude Code reads idle, the
+    earlier watch wakes."""
+    leases_model.mark_hooks("s1")
+    serving(claimed, 1)
+    session_model.cmd_waiting(claimed, "")
+    cleanup_model.close_session_turn("s1")
+    live = {"state": "busy", "since": datetime.now().astimezone().isoformat()}
+    # The watch asks Claude Code only of pending input in a turn opened after it.
+    asked = threading.Event()
+
+    def live_turn(_):
+        asked.set()
+        return live
+
+    monkeypatch.setattr(harness_model.ClaudeCodeHarness, "live_turn", live_turn)
+    passed = threading.Event()
+    await_news = session_model.Watch.await_news
+
+    def after_a_pass(watch, mark, *args, **kwargs):
+        passed.set()
+        return await_news(watch, mark, *args, **kwargs)
+
+    monkeypatch.setattr(session_model.Watch, "await_news", after_a_pass)
+    outcome = []
+    watch = threading.Thread(
+        target=lambda: outcome.append(
+            hooks_model.cmd_watch(
+                "claude-code", {"hook_event_name": "Stop", "session_id": "s1"}
+            )
+        )
+    )
+    watch.start()
+    assert passed.wait(STATED_TIMEOUT), "the watch never made a pass"
+    cleanup_model.prompt_turn("s1")
+    append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "during"}
+    )
+    assert asked.wait(STATED_TIMEOUT), "the watch never read the comment"
+    passed.clear()
+    assert passed.wait(STATED_TIMEOUT), (
+        f"the watch never went back to waiting: {outcome}"
+    )
+    assert outcome == []
+    if ending == "Stop":
+        cleanup_model.close_session_turn("s1")
+        passed.clear()
+        assert passed.wait(STATED_TIMEOUT), "the watch never read the closed turn"
+        assert outcome == []
+        successor = hooks_model.cmd_watch(
+            "claude-code", {"hook_event_name": "Stop", "session_id": "s1"}
+        )
+        assert successor.startswith(f"{claimed} has new input")
+        watch.join(timeout=STATED_TIMEOUT)
+        assert outcome == [None]
+        return
+    live["state"] = "idle"
+    # Claude Code's own record changes no file the watch follows; the next comment,
+    # or the watch's revival check, makes it look again.
+    append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "after"}
+    )
+    watch.join(timeout=STATED_TIMEOUT)
+    assert not watch.is_alive(), "the watch never woke after Escape"
+    [woke] = outcome
+    assert woke.startswith(f"{claimed} has new input")
+
+
 def test_the_newest_watch_takes_the_session_over(claimed, monkeypatch, capsys):
     """Claude Code starts a watch at every turn's end and leaves the earlier one
     running, so the newest takes the session's lease, and the watch it displaces
@@ -1465,24 +1543,46 @@ def test_a_superseded_waiter_cannot_deliver_the_new_owners_batch(
 ):
     """One page has one cursor owner even if two watcher tasks are started.
 
-    The later explicit claim transfers ownership before its wait starts. The earlier wait must then leave the
-    watch set rather than print the same event from a task that no longer owns
-    either the page or its acknowledgement cursor.
+    Transfer the claim after the old wait selects its subscription roots, before
+    it opens them. The earlier wait must leave cleanly when its claim directory
+    disappears, without printing input that belongs to the replacement.
     """
     page = codex_claimed_page
     session_model.cmd_waiting(page, "comment on the prototype")
+    selected = page.parent / "waiter-selected-roots"
+    held_subscription = """
+import sys
+from pathlib import Path
+from leaf import session
+from leaf.__main__ import main
+from leaf.service import claim_page
+
+constructor = session.FileChanges
+marker, page = map(Path, sys.argv[1:])
+def subscribing(*args, **kwargs):
+    session.FileChanges = constructor
+    marker.write_text("selected")
+    sys.stdin.readline()
+    return constructor(*args, **kwargs)
+
+session.FileChanges = subscribing
+assert claim_page(page)
+sys.argv = ["leaf", "wait", str(page)]
+main()
+"""
 
     first = under_codex(
-        claim_and_wait_command(page),
+        shlex.join([sys.executable, "-c", held_subscription, str(selected), str(page)]),
         codex_env | {"CODEX_THREAD_ID": "leaf-watcher-1"},
+        stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
     wait_for(
-        lambda: (service_model.page_claim(page) or {}, page_state(page)["listening"]),
-        lambda reading: reading[0].get("id") == "leaf-watcher-1" and reading[1],
-        failure="the first watcher never claimed the page and entered leaf wait",
+        selected.exists,
+        bool,
+        failure="the first watcher never selected its subscription roots",
     )
 
     second = under_codex(
@@ -1498,7 +1598,7 @@ def test_a_superseded_waiter_cannot_deliver_the_new_owners_batch(
         failure="the replacement watcher never claimed the page and entered leaf wait",
     )
 
-    first_out, first_err = first.communicate(timeout=STATED_TIMEOUT)
+    first_out, first_err = first.communicate(input="continue\n", timeout=STATED_TIMEOUT)
     assert (first.returncode, first_out) == (2, ""), first_err
     assert second.poll() is None
     assert page_state(page)["listening"]

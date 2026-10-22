@@ -44,11 +44,11 @@
    interrupts (thread-card.js, `newsMoves`). A reply the agent is still streaming at the thread's end is such an
    appended message, its words joining it as they come and its answer completing it
    in place, so it streams into an idle open card and a held one counts it once as a
-   new reply. So is an answer folding the progress before it into its disclosure
+   new reply. So is an answer hiding the progress before it
    where that progress is the run at the thread's end, as the agent's acknowledgement
    is, unless the user stands on a message the fold puts away, by focus or by a
-   selection reaching into it (`standsOn`, focus.js). That run is the only one an answer
-   folds: a run the user spoke after stays where it was said (`events._ephemeral_ranges`).
+   selection reaching into it (`standsOn`, focus.js). Hiding progress above a user's
+   later message changes earlier content and uses the ordinary reading hold.
    The progress itself is no reply: until that answer it joins its run's face, the
    thread's working message while the work runs, not its replies (transcript.js), and
    its messages stand behind that face. A run the work leaves keeps its face where it
@@ -62,9 +62,7 @@
    Rejected: "1 new update", since "update" names only the user's input (glossary);
    and "1 new progress message", which at about 126px cut in a phone seat's head row
    and a primary reader's 5rem notice, and squeezed a margin card's heads.
-   A run on screen stays open where
-   it stood, its group's border drawn around it (components/surfaces.css), so the fold
-   moves none of its words; a run off screen folds away. Changes to other existing
+   Completed progress disappears when the answer shows. Changes to other existing
    messages, reactions, folds and settlement use the same hold as a seat in page flow,
    and a notice calls a changed message an edit.
    A closed card holds nothing, since its title row draws at one size whatever it says.
@@ -200,15 +198,12 @@ const rewritten = (message) => (message.base === message.id ? null : message.bas
 //   such as one from another tab, or words joining the reply still streaming, which a
 //   provisional message stands for at the thread's end and which grows there as an
 //   appended turn does;
-// - "completed": the streaming reply's answer with the words already drawn, that
-//   reply's arrival, which counts only where it folds earlier progress;
 // - "rewritten": words a new revision changed, an edit;
 // - "grew": words that changed under the same revision, still that message arriving.
 function messageChange(prior, message) {
   if (!prior) return "joined";
   const reworded = JSON.stringify(prior.body) !== JSON.stringify(message.body);
-  if (prior.provisional)
-    return reworded ? "joined" : message.provisional ? null : "completed";
+  if (prior.provisional) return reworded ? "joined" : null;
   if (!reworded) return null;
   return rewritten(prior) === rewritten(message) ? "grew" : "rewritten";
 }
@@ -253,12 +248,10 @@ function difference(was, now, { progressOpen = false } = {}) {
   };
   const changed = new Set();
   const arrived = new Set();
-  const completed = new Set();
   for (const message of now.messages) {
     const prior = drawn.get(message.key);
     const change = messageChange(prior, message);
     if (!prior || prior.provisional) arrived.add(message.id);
-    if (change === "completed") completed.add(message.id);
     // A progress message joins the thread's working message, not its replies, so its
     // notice counts it, as it counts a reply; the answer that later folds it
     // is a reply. Where the step shows, because the reader opened the progress
@@ -290,37 +283,38 @@ function difference(was, now, { progressOpen = false } = {}) {
   const after = summaries(now);
   const added = [...after].filter(([at]) => !before.has(at)).map(([, each]) => each);
   const gone = [...before].filter(([at]) => !after.has(at)).map(([, each]) => each);
-  const told = (list) => list.filter(({ trigger }) => !arrived.has(trigger)).length;
-  news.summaries = told(added) || told(gone);
-  const folding = new Set([...added, ...gone].map(({ trigger }) => trigger));
-  for (const id of completed)
-    if (folding.has(id)) {
-      news.replies += 1;
-      news.appended = true;
-    }
+  news.summaries = added.length || gone.length;
+  // Completed progress leaves the presentation, but stays in the source reading.
+  // Its answer is the news; taking back a message by Undo remains no news.
+  const visible = new Set(now.messages.map(({ id }) => id));
+  const retired = new Set(
+    now.source.msgs
+      .filter((message) => visible.has(message.completed_by))
+      .map(({ key }) => key),
+  );
+  const removed = was.messages.filter(({ key }) => retired.has(key));
   const keys = new Map(
     [...was.messages, ...now.messages].map(({ id, key }) => [id, key]),
   );
-  // The arriving answer's own fold of the progress run at the thread's foot: every
-  // summary that comes is one a message arriving here triggers, none goes, and what
-  // they cover is the run of drawn messages just before that arrival, so nothing
-  // above the run changes.
+  // Replacing only the final progress run changes the same foot as an arriving
+  // answer. Earlier progress, including a run before a user interjection, also
+  // disappears, so its old position participates in the ordinary reading hold.
   const arrivals = new Set(
     now.messages.filter(({ id }) => arrived.has(id)).map(({ key }) => key),
   );
   const tail = was.messages.map(({ key }) => key).filter((key) => !arrivals.has(key));
-  const covered = new Set(
-    added.flatMap(({ covers }) => covers.map((id) => keys.get(id))).filter(Boolean),
-  );
   const footFold =
-    covered.size > 0 &&
+    removed.length > 0 &&
+    !added.length &&
     !gone.length &&
-    added.every(({ trigger }) => arrived.has(trigger)) &&
-    tail.slice(-covered.size).every((key) => covered.has(key));
+    tail.slice(-removed.length).every((key) => retired.has(key));
   const folds = {
-    messages: [...added, ...gone].flatMap(({ covers }) =>
-      covers.map((id) => keys.get(id)).filter(Boolean),
-    ),
+    messages: [
+      ...removed.map(({ key }) => key),
+      ...[...added, ...gone].flatMap(({ covers }) =>
+        covers.map((id) => keys.get(id)).filter(Boolean),
+      ),
+    ],
     summaries: gone.map(({ id }) => id),
   };
   const counts = [
@@ -335,7 +329,9 @@ function difference(was, now, { progressOpen = false } = {}) {
   if (!settled && counts.every((count) => !news[count])) return null;
   const appendedAtEnd =
     news.appended &&
-    was.messages.every((message, index) => now.messages[index]?.key === message.key);
+    was.messages
+      .filter(({ key }) => !retired.has(key))
+      .every((message, index) => now.messages[index]?.key === message.key);
   const turn = was.messages.findLastIndex(
     (message) => message.author === "user" && !message.progress,
   );
@@ -385,6 +381,9 @@ function withheld(was, now) {
         content_version,
         provisional,
         reactions,
+        // A failed stream can remain in this held reading after leaving the server's
+        // current reading. Its progress stays hidden until that stream leaves too.
+        completed_by: message.completed_by ?? prior.completed_by,
       }),
     ];
   });

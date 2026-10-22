@@ -63,14 +63,12 @@ import {
   scrollerFor,
   scrollIntoView,
   scrollLimit,
-  setChildren,
   sizeObserver,
   whileConnected,
   wrote,
   focused,
   standingIn,
 } from "/runtime/widget-api.js";
-import { drawOutline, outlineDocument } from "./toc-view.js";
 
 // The lens is never shorter than this, or than 1.2% of the map, so it stays in sight.
 const LENS_FLOOR = 14;
@@ -119,7 +117,8 @@ customElements.define(
     };
 
     connectedCallback() {
-      const main = outlineDocument(this);
+      this.#drawing ??= initialRender(this);
+      const main = this.#drawing.scope();
       if (!once(this) && main === this.#main && scrollerFor(main) === this.#scroller)
         return;
       // Moving to another reading region changes the resources, even if the
@@ -127,7 +126,6 @@ customElements.define(
       this.#stopWatching?.();
       this.#main = main;
       if (!main) return;
-      this.#drawing ??= initialRender(this);
       ({ nav: this.#nav, track: this.#rows, lens: this.#lens } = this.#drawing);
       this.#reconcile();
       this.#stopWatching = whileConnected(this, (signal) => this.#watch(signal));
@@ -141,15 +139,13 @@ customElements.define(
       const previous = this.#sections.map(({ destination }) => destination);
       const held = this.#sections.find(({ link }) => link === focused());
       const restore = held && holdFocus(this.#nav);
-      this.#sections = drawOutline(this, this.#drawing, {
+      this.#sections = this.#drawing.update({
         label: wrote,
         chrome: inChrome,
-        place: setChildren,
-        keeps,
         lends: true,
       });
       // A new key still represents the user's place when its heading or destination
-      // survives. Placing the rows already retains focus through keyed moves.
+      // survives. Restore focus if Lit moved a retained row through the DOM.
       if (restore) {
         const continuation =
           this.#sections.find(({ heading }) => heading === held.heading) ??
@@ -176,7 +172,7 @@ customElements.define(
     }
 
     #watch(signal) {
-      this.#main = outlineDocument(this);
+      this.#main = this.#drawing.scope();
       if (!this.#main) return;
       this.#scroller = scrollerFor(this.#main);
       // Root scrolling is reported on Document; nested scrollports report on the

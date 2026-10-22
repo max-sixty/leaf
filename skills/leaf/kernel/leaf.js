@@ -236,6 +236,7 @@ import {
   lightSeat,
   resolveAnchor,
   resolvedInMessage,
+  revealAddressed,
   sectionLabel,
   sectionOf,
   setAnchoringReady,
@@ -1451,7 +1452,8 @@ var commandReferenceInvoke = null;
 var EMPTY_CATALOG = Object.freeze({
   total: 0,
   entries: Object.freeze([]),
-  sections: Object.freeze([])
+  sections: Object.freeze([]),
+  describedMeta: Object.freeze([])
 });
 var commandReferenceCatalog = EMPTY_CATALOG;
 var commandReferenceState = {
@@ -1619,9 +1621,13 @@ function captureCommandReferenceCatalog() {
   return Object.freeze({
     total: entries.length,
     entries: Object.freeze(entries),
-    sections: Object.freeze(sections)
+    sections: Object.freeze(sections),
+    describedMeta: Object.freeze(
+      entries.filter((entry) => entry.actionable && entry.description).map(selectionMeta)
+    )
   });
 }
+var selectionMeta = (entry) => [entry.description || entry.title, entry.steps[0], "\u23CE activate"].filter(Boolean).join(" \xB7 ");
 function projectCommandReference(catalog, state) {
   const query = commandReferenceWords(state.query);
   const bindingQuery = commandReferenceBinding(state.query);
@@ -1748,7 +1754,7 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
     entry.keySequence ? entry.keyId : null,
     entry.description ? entry.descriptionId : null
   ].filter(Boolean).join(" ")}
-        title=${entry.available ? "Run command" : entry.unavailableMessage}
+        title=${[entry.description, entry.available ? "" : entry.unavailableMessage].filter(Boolean).join("\n") || nothing}
         @click=${() => activateCommandEntry(entry)}
         .textContent=${entry.title}
       ></button>` : entry.title;
@@ -1871,11 +1877,16 @@ function commandReferenceTemplate() {
       >
     </label>
     ${commandReferenceSearch}
-    <div
-      class="lf-command-reference-meta"
-      aria-live="polite"
-      .textContent=${commandReferenceView.metadata}
-    ></div>
+    <div class="lf-command-reference-meta-box">
+      ${commandReferenceCatalog.describedMeta.map(
+    (text) => html`<span aria-hidden="true">${text}</span>`
+  )}
+      <div
+        class="lf-command-reference-meta"
+        aria-live="polite"
+        .textContent=${commandReferenceView.metadata}
+      ></div>
+    </div>
     <div
       id="lf-command-reference-results"
       class="lf-command-reference-results"
@@ -2014,7 +2025,7 @@ function moveCommandReferenceSelection(dir) {
   commandReferenceState = {
     ...commandReferenceState,
     selectedCommandId: nextId,
-    metaOverride: `${nextRecord.entry.title} \xB7 ${nextRecord.entry.steps[0]} \xB7 \u23CE activate`
+    metaOverride: selectionMeta(nextRecord.entry)
   };
   presentCommandReference();
   const next = commandButton(nextId);
@@ -2512,7 +2523,10 @@ function createResponseSurface({
       if (handoff !== fabFocusHandoff) return;
       const taken = pageSelection();
       const words = taken ? selectionAnchor(taken) : null;
-      const landed = positioned && (!hasQuote(words) || sameAnchor(words, anchor)) && handoff.intent.handoff(() => focusDestination(fabInput, "move"));
+      const landed = positioned && (!hasQuote(words) || sameAnchor(words, anchor)) && handoff.intent.handoff(() => {
+        focusDestination(fabInput, "move");
+        if (fabInlineOutlet) scrollIntoView(fabInput, { block: "nearest" });
+      });
       if (!landed) endFabFocus();
     });
   }
@@ -7009,7 +7023,7 @@ function createFloatingPanel({
   function clearRow() {
     const before = trail.value.at(-1);
     if (prefs().rest === "mark") prefs().setRest("row");
-    trail.value = [];
+    if (trail.value.length) trail.value = [];
     setMenu(false);
     transition(before, { focus: false });
   }
@@ -9528,6 +9542,7 @@ function createObligationView({
 }) {
   const obligationNode = (item) => obligationPlace(item).node;
   const sourceNode = (item) => obligationPlace(item).source;
+  const sourceOwner = (item) => item && elementById(item.source.id);
   const hasObligation = (items2, candidate) => Boolean(candidate && items2.some((item) => item.id === candidate.id));
   const unansweredIds = () => new Set(readObligations().unanswered.map(({ id }) => id));
   const obligationNodes = (item) => ({
@@ -9621,21 +9636,21 @@ function createObligationView({
     return held === item || inChrome(held) && placeOf(held) === item || hasReviewedFocus() ? answered : null;
   }
   const standingIn2 = () => obligationNode(standingObligation());
-  const actionsFor = (source) => decisionControls(commandsWithin(source), `Obligation ${source.id}`).filter(
-    ({ source: commandSource, control }) => ownedObligationControl(source, commandSource) && control.getAttribute("aria-busy") !== "true"
+  const actionsFor = (source, owner = source) => decisionControls(commandsWithin(owner), `Obligation ${owner.id}`).filter(
+    ({ source: commandSource, control }) => ownedObligationControl(owner, commandSource) && (source === owner || under(control, source)) && control.getAttribute("aria-busy") !== "true"
   );
   const actionsOf = (item) => {
     const source = item && sourceNode(item);
-    return source ? actionsFor(source) : [];
+    return source ? actionsFor(source, sourceOwner(item)) : [];
   };
   function choicesOf(item) {
     const source = sourceNode(item);
     if (!source) return null;
-    return actionsFor(source).map(
+    return actionsFor(source, sourceOwner(item)).map(
       ({ id, label: label2, control }) => Object.freeze({
         id,
         label: label2,
-        chosen: control.getAttribute("aria-pressed") === "true" || control.getAttribute("aria-checked") === "true",
+        chosen: control.getAttribute("aria-pressed") === "true" || control.getAttribute("aria-checked") === "true" || control.localName === "input" && control.checked,
         press: () => presentedActionControl(control).click()
       })
     );
@@ -9652,9 +9667,9 @@ function createObligationView({
     return {
       root,
       declarations: () => {
-        const source = sourceNode(record);
-        return source ? commandDeclarationsWithin(source).filter(
-          ({ source: commandSource }) => ownedObligationControl(source, commandSource)
+        const owner = sourceOwner(record);
+        return owner ? commandDeclarationsWithin(owner).filter(
+          ({ source: commandSource }) => ownedObligationControl(owner, commandSource)
         ) : [];
       }
     };
@@ -9673,7 +9688,9 @@ function createObligationView({
     const item = obligationNode(record);
     const source = sourceNode(record);
     if (!item || !source) return null;
-    const target = [...item.getClientRects()].some((rect2) => rect2.width && rect2.height) ? item : source.querySelector(OBLIGATION_CONTROL) ?? actionsFor(source).map(({ control }) => presentedActionControl(control))[0] ?? source;
+    const target = [...item.getClientRects()].some((rect2) => rect2.width && rect2.height) ? item : source.querySelector(OBLIGATION_CONTROL) ?? actionsFor(source, sourceOwner(record)).map(
+      ({ control }) => presentedActionControl(control)
+    )[0] ?? source;
     reviewedThrough = review ? target : null;
     return target;
   }
@@ -9720,7 +9737,16 @@ function createObligationView({
       available: () => hasObligation(readObligations().all, next)
     });
     const arriveAtRecord2 = bindQueuedWork(arrive);
-    const { target } = next.thread ? await materializeObligation(next, mayArrive) : reachObligation(next);
+    if (next.thread) await materializeObligation(next, mayArrive);
+    if (next.source.unit) {
+      const owner = sourceOwner(next);
+      if (owner) {
+        const hydration = revealAddressed(owner, next.source.unit);
+        if (hydration?.then) await hydration;
+        if (!mayArrive()) return false;
+      }
+    }
+    const { target } = reachObligation(next);
     if (!mayArrive() || !target) return false;
     const destination = () => {
       const { node: target2, source, context: context2 } = obligationPlace(next);
@@ -10251,7 +10277,7 @@ function createDesignMode({
         keys: [],
         label: "click",
         title: "Comment on appearance",
-        description: "Click a widget, control, or picture; prose still selects"
+        description: "Click a widget, control or picture. Text still selects as usual"
       },
       {
         id: "design.mode.exit",
@@ -10272,7 +10298,7 @@ function createDesignMode({
   pageCommand({
     id: "design.mode.enter",
     keys: ["l"],
-    description: "Comment on how the page looks and works, rather than its words",
+    description: "Comment on how the page looks and works",
     title: "design mode",
     touch: "Design mode",
     menu: "annotate",
@@ -10911,7 +10937,7 @@ function createGoToSequence({
     id: "navigation.go-to.open",
     touch: false,
     keys: ["g"],
-    description: "Show hints for targets, panels, and page edges",
+    description: "Show hints for targets, panels and page edges",
     title: "go to",
     // No `when`: the window this press stands up always holds at least the page's edges.
     run: () => setGoToSequence(true)

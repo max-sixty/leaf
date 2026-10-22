@@ -4182,13 +4182,19 @@ def test_comparison_revision_reads_stay_inside_the_page_transaction(
         assert leases_model.lock_is_held(page_dir / "events.jsonl")
         return original(directory, revision)
 
+    original_data = read_context.read_data
+
+    def held_data(*args):
+        # Record obligations in the view read their bound data under the same
+        # transaction as its document and log.
+        assert leases_model.lock_is_held(page_dir / "events.jsonl")
+        return original_data(*args)
+
     def unrelated_read(*_args):
-        raise AssertionError(
-            "a document comparison needs neither data nor a news token"
-        )
+        raise AssertionError("a document comparison needs no news token")
 
     monkeypatch.setattr(read_context, "read_revision", held_revision)
-    monkeypatch.setattr(read_context, "read_data", unrelated_read)
+    monkeypatch.setattr(read_context, "read_data", held_data)
     monkeypatch.setattr(served_reading, "held_page_reading", unrelated_read)
     status, body = fetch(f"{server}/api/view?revision=1&through_seq={latest}")
     assert status == 200, body

@@ -848,18 +848,17 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
     page.locator("#package-a").click()
     round_trip(page)
     assert page.evaluate("Number(pageLocal.dataset.readings)") == readings
-    # Another widget's action leaves this one's reading as it was, so its return draws
-    # nothing again.
+    # Another widget's action leaves this one's reading as it was. Its return draws
+    # once to restore subscriptions.
     page.evaluate("document.querySelector('main').append(pageLocal)")
     rendered(page)
-    assert page.evaluate("Number(pageLocal.dataset.readings)") == readings
+    assert page.evaluate("Number(pageLocal.dataset.readings)") == readings + 1
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
 
 
-def test_a_returning_widget_draws_again_only_a_changed_reading(browser, serve):
-    """A widget follows the return rule data and projection watchers follow: a render
-    that failed stands across a departure and return, so the author is told once, and a
-    return draws nothing again while the reading is unchanged."""
+def test_a_returning_widget_repaints_to_restore_subscriptions(browser, serve):
+    """A returning widget draws once to restore subscriptions, including after a
+    failed render."""
     source = LIVE_V1.replace(
         "</main>", '<lf-local id="page-local" choice="idle"></lf-local></main>'
     )
@@ -893,7 +892,7 @@ def test_a_returning_widget_draws_again_only_a_changed_reading(browser, serve):
         pending: readApplicationPresentation().pending,
       };
     }"""
-    assert page.evaluate(leave_and_return) == {"drawn": 0, "failed": 0, "pending": []}
+    assert page.evaluate(leave_and_return) == {"drawn": 1, "failed": 0, "pending": []}
 
     # Resuming a deferral draws the same reading again, and this draw fails.
     page.evaluate(
@@ -903,11 +902,11 @@ def test_a_returning_widget_draws_again_only_a_changed_reading(browser, serve):
     expect(page.locator("#page-local .lf-error")).to_have_text(
         "<lf-local> failed: deliberate render failure"
     )
-    assert page.evaluate(leave_and_return) == {"drawn": 0, "failed": 1, "pending": []}
+    assert page.evaluate(leave_and_return) == {"drawn": 0, "failed": 2, "pending": []}
     errors = take_browser_errors(page)
     assert [said(error) for error in errors] == [
         'leaf: <lf-local id="page-local"> failed: deliberate render failure'
-    ]
+    ] * 2
 
 
 @pytest.mark.parametrize("lifetime", ["light", "shadow-child", "shadow-host"])

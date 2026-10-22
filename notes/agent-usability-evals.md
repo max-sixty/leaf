@@ -211,6 +211,13 @@ context at its own height. The three configuration pages authored after it have 
 such overlap, including one with a note after its playground;
 `test_a_playground_followed_by_a_note_keeps_its_instruction_off_the_note` holds it.
 
+Both queue pages where the judge commented on an item and cleared its answer showed
+"1 of 8 to answer" beside a disabled Next on me: the comment hands the item to the
+agent (`obligations.discussed`), and `lf-tally` counted every open obligation as to
+answer. Reproduced on a three-item queue, the tally now splits the open ones by next
+actor ("1 of 3 on Claude"), and
+`test_a_tally_counts_its_regions_obligations_and_walks_them` holds it.
+
 The other recurring Leaf-owned defects follow from recorded choices, and are open
 decisions rather than fixes:
 
@@ -221,12 +228,6 @@ decisions rather than fixes:
   `test_inline_playground_keeps_evidence_and_long_instruction_reachable_in_a_short_workspace`
   pins; at 900×700 the judge found the stage too short on 4 of 9 configuration
   pages.
-- `lf-tally` counts an obligation the user discussed and left with the agent as still
-  to answer, while Next on me walks only those waiting on the user. Both queue pages
-  where the judge commented and cleared an answer showed "1 of 8 to answer" with
-  Next on me disabled. That the comment moved the obligation to the agent is a
-  reading of `obligations.discussed`, not reproduced: clearing an answer without a
-  comment re-enables Next on me.
 
 ## Remaining evaluation gaps
 

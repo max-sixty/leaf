@@ -568,13 +568,13 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
           return {
             metaRow: {top: mr.top, bottom: mr.bottom},
             close: {top: cr.top, left: cr.left, bottom: cr.bottom},
-            closeBorder: getComputedStyle(close).borderTopWidth,
+            closeBorderColor: getComputedStyle(close).borderTopColor,
             resolveBorder: getComputedStyle(resolve, '::before').borderTopWidth,
             resolve: {top: rr.top, right: rr.right, bottom: rr.bottom},
           };
         }"""
     )
-    assert float(geometry["closeBorder"][:-2]) == 0
+    assert geometry["closeBorderColor"] == "rgba(0, 0, 0, 0)"
     assert float(geometry["resolveBorder"][:-2]) == 0
     assert geometry["resolve"]["top"] == pytest.approx(geometry["close"]["top"], abs=1)
     assert geometry["resolve"]["bottom"] == pytest.approx(

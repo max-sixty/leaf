@@ -123,7 +123,6 @@ test("locked source reproduces the complete committed output", async () => {
     "live",
     "noChange",
     "nothing",
-    "outsideReading",
     "ref",
     "render",
     "repeat",

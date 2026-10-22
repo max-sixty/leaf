@@ -6,7 +6,6 @@ import re
 import pytest
 from interact_support import append_command
 from leaf.render_checks import wait_until_ready
-from leaf_dev.commands.stills import visual_review_menu
 from playwright.sync_api import expect
 from render_cases_interaction import CHIP_PAGE
 from render_cases_layout import rings_drawn
@@ -166,6 +165,35 @@ def test_live_widget_subscription_releases_and_reconnects(browser, serve):
     )
 
 
+def library_select(browser, serve):
+    """Exercise the optional library's select without depending on a consumer's UI."""
+    page = _bound_diff(browser, serve)
+    page.evaluate("""async () => {
+      const {offer} = await window.__lfWidgetApi();
+      const select = offer('wa-select', 'library-select');
+      select.label = 'Choose file';
+      for (const value of ['first', 'second', 'third']) {
+        const option = offer('wa-option', '', value);
+        option.value = value; select.append(option);
+      }
+      select.value = 'first';
+      document.querySelector('main').prepend(select);
+      await select.updateComplete;
+    }""")
+    return page
+
+
+def open_library_select(page):
+    control = page.locator(".library-select")
+    control.evaluate("""node => {
+      node.menuShown = new Promise(resolve => node.addEventListener(
+        'wa-after-show', resolve, {once: true}));
+    }""")
+    control.get_by_role("combobox").click()
+    control.evaluate("node => node.menuShown")
+    page.mouse.move(0, 0)
+
+
 def test_webawesome_chrome_loads_without_optional_controls(browser, serve):
     plain = open_page(browser, serve(leaf_page("Plain", "<h1>Plain page</h1>")))
     assert (
@@ -184,9 +212,8 @@ def test_webawesome_chrome_loads_without_optional_controls(browser, serve):
     assert plain.evaluate("() => customElements.get('wa-input') !== undefined")
     assert plain.evaluate("() => customElements.get('wa-slider') === undefined")
 
-    source = ROOT / "examples" / "developer" / "visual-review-gallery.html"
-    page = open_page(browser, serve(source))
-    control = page.locator(".lf-vr-case-select")
+    page = library_select(browser, serve)
+    control = page.locator(".library-select")
     # A page rule granted control access and with no specificity at all can outrank
     # the shared theme's `:is(wa-select, …)` mapping.
     page.evaluate(
@@ -211,13 +238,11 @@ def test_webawesome_menu_text_stays_readable_as_the_current_option_moves(
     """Component-owned menu states remain readable through the shared theme, in both
     schemes, read in turn on one open menu.
 
-    The visual-review picker is a consumer of the same theme as the trace
-    prototype that exposed dark text on a solid blue active row.
+    The shared menu theme must keep contrasting text on a solid active row.
     """
-    source = ROOT / "examples" / "developer" / "visual-review-gallery.html"
-    page = open_page(browser, serve(source))
-    visual_review_menu(page)
-    control = page.locator(".lf-vr-case-select")
+    page = library_select(browser, serve)
+    open_library_select(page)
+    control = page.locator(".library-select")
     options = control.locator("wa-option")
 
     def contrast(option):
@@ -333,11 +358,10 @@ def test_reopening_a_library_select_keeps_its_options_visible(browser, serve, mo
 
     Upstream 3.14.0 otherwise lets that close hide the already reopened menu.
     """
-    source = ROOT / "examples" / "developer" / "visual-review-gallery.html"
-    page = open_page(browser, serve(source))
+    page = library_select(browser, serve)
     page.emulate_media(reduced_motion=motion)
-    visual_review_menu(page)
-    select = page.locator(".lf-vr-case-select")
+    open_library_select(page)
+    select = page.locator(".library-select")
     select.evaluate(
         "n => { n.reopened = new Promise(r => n.addEventListener('wa-after-show', r, {once:true})); }"
     )

@@ -1,6 +1,7 @@
 """How a container's saved website record restores a fresh release: stored chunks,
 publication dates, comments, choices, private revisions and installed layers."""
 
+import asyncio
 import base64
 import hashlib
 import io
@@ -229,8 +230,11 @@ def test_saved_website_record_keeps_an_unstamped_revisions_publication_date(
     with durable_page_store() as (store_url, _stored):
         monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
         restore(site)
-        with PageTransaction(private):
-            pass
+        async def commit_with_running_loop():
+            with PageTransaction(private):
+                pass
+
+        asyncio.run(commit_with_running_loop())
         replacement = tmp_path / "replacement"
         shutil.copytree(site, replacement)
         restore(replacement)

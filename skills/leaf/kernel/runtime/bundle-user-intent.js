@@ -2094,7 +2094,7 @@ function makeMarkdown(module, breaks) {
     module.taskLists,
     { enabled: false }
   );
-  markdown.linkify.set({ fuzzyLink: true });
+  markdown.linkify.set({ fuzzyLink: false });
   markdown.core.ruler.after("block", "blank_lines", (state) => {
     const lines = state.src.split("\n");
     for (const token of state.tokens) {

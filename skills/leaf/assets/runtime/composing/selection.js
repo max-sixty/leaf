@@ -643,8 +643,9 @@ export function createSelectionComposer({
 
   registerWritingDestination(COMPOSER_KEY, (ctx) => {
     const record = composerRecord(ctx);
-    if (!record?.text && !record?.drawing) return null;
+    if (!record) return null;
     return {
+      hasContent: Boolean(record.text || record.drawing),
       // A detached draft's destination is its native editor, not a guessed passage.
       // Arrival clears covering surfaces before this same field is materialized.
       where: anchorTravelAt(record.anchor) ?? composerInput,

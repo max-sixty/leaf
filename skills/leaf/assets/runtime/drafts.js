@@ -585,7 +585,10 @@ export function forgetWritingPlace(ctx) {
   writingPlace = null;
   while (earlierPlaces.length && !writingPlace) {
     const place = earlierPlaces.pop();
-    if (draftHasContent(place.context) || writingRoute(place.context)?.(place.context))
+    if (
+      draftHasContent(place.context) ||
+      writingRoute(place.context)?.(place.context)?.hasContent
+    )
       writingPlace = place;
   }
   storeWritingPlace();
@@ -695,6 +698,8 @@ document.addEventListener("keyup", (event) => {
 document.addEventListener("pointerup", keepWritingCaret);
 
 export function registerWritingDestination(prefix, reveal) {
+  // Availability can include an empty current editor. hasContent tells fallback
+  // selection whether its owner holds work beyond the shared draft's words.
   writingRoutes.set(prefix, reveal);
   return () => writingRoutes.delete(prefix);
 }

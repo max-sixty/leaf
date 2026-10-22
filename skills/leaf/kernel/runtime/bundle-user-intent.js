@@ -2827,7 +2827,7 @@ function forgetWritingPlace(ctx) {
   writingPlace = null;
   while (earlierPlaces.length && !writingPlace) {
     const place2 = earlierPlaces.pop();
-    if (draftHasContent(place2.context) || writingRoute(place2.context)?.(place2.context))
+    if (draftHasContent(place2.context) || writingRoute(place2.context)?.(place2.context)?.hasContent)
       writingPlace = place2;
   }
   storeWritingPlace();

@@ -90,6 +90,7 @@ from render_harness import (
     selection_field,
     sending,
     stamp_page,
+    stored_draft,
     stored_draft_text,
     told,
     wait_for_revision,
@@ -3845,13 +3846,13 @@ def test_a_withheld_draft_restores_editing_and_deliberate_dismissal(browser, ser
     judge_watches()
     assert _draft_in_view(page, words)
     assert draft_key(page, context) == saved
-    draft = json.loads(stored_draft_text(page, context))
-    assert draft["anchor"] == {"section": "bg-contents"}
+    draft = page.evaluate("([read, ctx]) => read(ctx)", [stored_draft(page), context])
+    assert draft["payload"]["anchor"] == {"section": "bg-contents"}
     assert draft["text"] == words
     page.keyboard.press("Escape")
     rendered(page)
     assert not page.locator(".lf-fab-input").is_visible()
-    assert json.loads(stored_draft_text(page, context))["text"] == words
+    assert stored_draft_text(page, context) == words
 
 
 @pytest.mark.parametrize("reopen", ["resume", "reload", "withheld", "comment"])

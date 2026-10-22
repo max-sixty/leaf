@@ -330,14 +330,14 @@ export const clearDraft = (ctx) => {
   }
   return settleDraft(ctx, current.attempt);
 };
-// The destination owner has chosen its complete value and found room for it. Store
+// The destination owner has chosen its words and payload and found room for them. Store
 // that value durably before settling the exact source generation, so a later source
 // edit is never discarded. A failed destination write keeps its local branch and the
 // persisted source. Every live destination view reads the same transferred draft.
 // This explicit content move also moves Resume writing, with the source's caret, and the
 // reply the source holds (`held`): a reply box opens no thread, so there the reply's
 // words join the moved words.
-export function transferDraft(from, to, text) {
+export function transferDraft(from, to, text, payload) {
   const source = activeDraftRecord(from);
   if (!source || from === to) return false;
   const editor =
@@ -351,8 +351,8 @@ export function transferDraft(from, to, text) {
   const held =
     [carriedHeld(to), carriedHeld(from)].filter(Boolean).join("\n\n") || null;
   const durable = isReply(to)
-    ? saveDraft(to, held ? `${text}\n\n${held}` : text, undefined, null)
-    : saveDraft(to, text, undefined, held);
+    ? saveDraft(to, held ? `${text}\n\n${held}` : text, payload, null)
+    : saveDraft(to, text, payload, held);
   keepWritingPlace({
     context: to,
     selection: selection ?? [0, 0],
@@ -360,7 +360,7 @@ export function transferDraft(from, to, text) {
   });
   if (durable && settleDraft(from, source.attempt))
     projectDraftRecord(from, draftCache.get(from).record);
-  tellDraft(to, activeDraftRecord(to)?.text ?? text);
+  tellDraft(to, activeDraftRecord(to)?.text ?? text, payload);
   return true;
 }
 export const loadDraft = (ctx) => activeDraftRecord(ctx)?.text ?? null;
@@ -556,6 +556,8 @@ let [writingPlace, earlierPlaces] = (() => {
   }
 })();
 const writingRoutes = new Map();
+const writingRoute = (ctx) =>
+  [...writingRoutes].find(([prefix]) => ctx.startsWith(prefix))?.[1];
 const editorInput = (editor) =>
   typeof editor.input === "function" ? editor.input() : editor.input;
 const storeWritingPlace = () =>
@@ -575,14 +577,16 @@ const keepWritingPlace = (place) => {
   storeWritingPlace();
 };
 // Words put away, discarded or sent, leave nowhere to resume there: Resume writing goes
-// back to the latest place written in before them that still holds words.
+// back to the latest place still holding words, or a destination its owner can resume
+// without words, as a drawing's composer.
 export function forgetWritingPlace(ctx) {
   earlierPlaces = earlierPlaces.filter(({ context }) => context !== ctx);
   if (writingPlace?.context !== ctx) return storeWritingPlace();
   writingPlace = null;
   while (earlierPlaces.length && !writingPlace) {
     const place = earlierPlaces.pop();
-    if (draftHasContent(place.context)) writingPlace = place;
+    if (draftHasContent(place.context) || writingRoute(place.context)?.(place.context))
+      writingPlace = place;
   }
   storeWritingPlace();
 }
@@ -724,7 +728,7 @@ export function createWritingResume({
   const holdsBox = (ctx) =>
     threadDraft(ctx)
       ? holdsThreadDraft(ctx)
-      : [...writingRoutes.keys()].some((prefix) => ctx.startsWith(prefix)) ||
+      : Boolean(writingRoute(ctx)) ||
         [...draftEditors].some((view) => view.ctx === ctx);
   const resume = async () => {
     const place = writingPlace;
@@ -735,13 +739,11 @@ export function createWritingResume({
     if (threadDraft(place.context)) input = await revealInThread(place.context, intent);
     else {
       const resolve = () => {
-        const route = [...writingRoutes].find(([prefix]) =>
-          place.context.startsWith(prefix),
-        );
+        const route = writingRoute(place.context);
         const editor = [...draftEditors].find(
           (view) => view.ctx === place.context && view.resume,
         );
-        return route ? route[1](place.context) : editor?.resume();
+        return route ? route(place.context) : editor?.resume();
       };
       input = await arriveEditor(resolve, { intent, caret: place.selection });
     }

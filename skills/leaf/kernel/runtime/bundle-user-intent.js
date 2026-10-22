@@ -2695,7 +2695,7 @@ var clearDraft = (ctx) => {
   }
   return settleDraft(ctx, current.attempt);
 };
-function transferDraft(from, to, text) {
+function transferDraft(from, to, text, payload) {
   const source = activeDraftRecord(from);
   if (!source || from === to) return false;
   const editor = [...draftEditors].find((view) => view.ctx === from) ?? [...draftEditors].find((view) => view.ctx === to);
@@ -2703,7 +2703,7 @@ function transferDraft(from, to, text) {
   const held = [carriedHeld(to), carriedHeld(from)].filter(Boolean).join("\n\n") || null;
   const durable = isReply(to) ? saveDraft(to, held ? `${text}
 
-${held}` : text, void 0, null) : saveDraft(to, text, void 0, held);
+${held}` : text, payload, null) : saveDraft(to, text, payload, held);
   keepWritingPlace({
     context: to,
     selection: selection ?? [0, 0],
@@ -2711,7 +2711,7 @@ ${held}` : text, void 0, null) : saveDraft(to, text, void 0, held);
   });
   if (durable && settleDraft(from, source.attempt))
     projectDraftRecord(from, draftCache.get(from).record);
-  tellDraft(to, activeDraftRecord(to)?.text ?? text);
+  tellDraft(to, activeDraftRecord(to)?.text ?? text, payload);
   return true;
 }
 var loadDraft = (ctx) => activeDraftRecord(ctx)?.text ?? null;
@@ -2804,6 +2804,7 @@ var [writingPlace, earlierPlaces] = (() => {
   }
 })();
 var writingRoutes = /* @__PURE__ */ new Map();
+var writingRoute = (ctx) => [...writingRoutes].find(([prefix]) => ctx.startsWith(prefix))?.[1];
 var editorInput = (editor) => typeof editor.input === "function" ? editor.input() : editor.input;
 var storeWritingPlace = () => draftStore.set(
   WRITING_PLACE,
@@ -2826,7 +2827,8 @@ function forgetWritingPlace(ctx) {
   writingPlace = null;
   while (earlierPlaces.length && !writingPlace) {
     const place2 = earlierPlaces.pop();
-    if (draftHasContent(place2.context)) writingPlace = place2;
+    if (draftHasContent(place2.context) || writingRoute(place2.context)?.(place2.context))
+      writingPlace = place2;
   }
   storeWritingPlace();
 }
@@ -2921,7 +2923,7 @@ function createWritingResume({
   arriveEditor,
   holdsThreadDraft
 }) {
-  const holdsBox = (ctx) => threadDraft(ctx) ? holdsThreadDraft(ctx) : [...writingRoutes.keys()].some((prefix) => ctx.startsWith(prefix)) || [...draftEditors].some((view) => view.ctx === ctx);
+  const holdsBox = (ctx) => threadDraft(ctx) ? holdsThreadDraft(ctx) : Boolean(writingRoute(ctx)) || [...draftEditors].some((view) => view.ctx === ctx);
   const resume = async () => {
     const place2 = writingPlace;
     if (!place2) return;
@@ -2930,13 +2932,11 @@ function createWritingResume({
     if (threadDraft(place2.context)) input = await revealInThread(place2.context, intent);
     else {
       const resolve = () => {
-        const route = [...writingRoutes].find(
-          ([prefix]) => place2.context.startsWith(prefix)
-        );
+        const route = writingRoute(place2.context);
         const editor = [...draftEditors].find(
           (view) => view.ctx === place2.context && view.resume
         );
-        return route ? route[1](place2.context) : editor?.resume();
+        return route ? route(place2.context) : editor?.resume();
       };
       input = await arriveEditor(resolve, { intent, caret: place2.selection });
     }
@@ -7838,6 +7838,7 @@ export {
   clearDraft,
   transferDraft,
   loadDraft,
+  loadDraftPayload,
   draftContexts,
   settleAcceptedDrafts,
   sendDraft,

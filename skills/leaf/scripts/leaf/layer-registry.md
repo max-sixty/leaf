@@ -131,7 +131,7 @@ document: every JSON record in a page directory or in the state home, which ever
 installed Leaf on the machine shares (`state.Record`), and the composer's draft in
 browser storage, which outlives a re-vendor. Each carries `leaf-<kind>/<number>`
 in its `format`, and a reader at another format leaves it alone: it reads the record
-as absent, or keeps a draft's words without its drawing. Only retirement crosses
+as absent. Only retirement crosses
 formats: every record names its pages at the same keys, so one whose pages are gone
 is removed whichever Leaf wrote it (`state.named_pages`).
 A record's number is its `since`, the protocol at which its own shape last changed,
@@ -141,7 +141,7 @@ would misread sets its `since` to the current protocol, bumping the protocol fir
 where `since` already names it. The same build check holds this: the baseline keeps
 each record's schema at its `since`, and fails a change at the same `since` that a
 reader at either end would misread, or a `since` moved anywhere but the current
-protocol. The composer's draft is held the same way: `$events.draft` declares its
+protocol. The composer's draft payload is held the same way: `$events.draft` declares its
 schema and `since`, which its format names, and the baseline keeps that schema, with
 the comment record's fields it refers to written in, beside the records.
 

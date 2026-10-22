@@ -18,6 +18,7 @@ import {
   seenRect,
   sessionIsActive,
   shownWindow,
+  tagsDeclaring,
   watchRoom
 } from "./bundle-page-paint.js";
 import "./bundle-frame-visibility.js";
@@ -98,7 +99,9 @@ function observeUserView() {
     ]);
     if (view.visible && pageReadiness() === null && (inspect || basis !== checkedBasis)) {
       if (reading) {
-        const open = Object.entries(runtime.registry).filter(([, entry]) => ["markup", "members"].includes(entry["x-content"])).map(([tag]) => tag);
+        const open = tagsDeclaring(
+          (entry) => ["markup", "members"].includes(entry["x-content"])
+        );
         checks = {
           sequence: view.sequence,
           revision: view.revision,

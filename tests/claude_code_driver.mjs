@@ -10,12 +10,13 @@
 // with the input it reached, and prints `{"event", "result"}` once they resolve. A
 // line `{"flush": true}` prints `{"flushed": true}` once the module has done what
 // it does without waiting on anything outside. Each redraw the module asks for
-// prints `{"band": <tree>}`, the band above the prompt as its render hook draws
-// it on the terminal, each element `{tag, props, children}`; a render hook of another
-// component is raised as the event `ui.render:<component>`. A line `{"press": <key>}`
-// presses the Button of that key in the band last drawn; what a press copies prints
-// as `{"copied": <text>}`, and a toast as `{"toast": <text>}`. The first line printed
-// is `{"pid"}`, the process the module's processes see as their parent.
+// prints `{"band": {terminal, desktop}}`, the band above the prompt as its render
+// hook draws it for each surface, each element `{tag, props, children}`; a render
+// hook of another component is raised as the event `ui.render:<component>`. The
+// first line printed is `{"pid"}`, the process the module's processes see as
+// their parent. A line `{"press": <key>}` presses the Button of that key in the
+// terminal's band last drawn; what a press copies prints as `{"copied": <text>}`,
+// and a toast as `{"toast": <text>}`.
 import { spawn } from "node:child_process";
 import * as path from "node:path";
 import * as readline from "node:readline";
@@ -25,7 +26,7 @@ import { register } from "../hooks/claude-code.ts";
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const [session, options] = [process.argv[2], JSON.parse(process.argv[3])];
 const print = (line) => process.stdout.write(`${JSON.stringify(line)}\n`);
-let band = null;
+let band = { terminal: null, desktop: null };
 
 function start(argv, env, input) {
   const child = spawn(argv[0], argv.slice(1), {
@@ -113,13 +114,19 @@ const $ = {
     log: (text, options) =>
       print(options?.to === "debug" ? { debug: text } : { diagnostic: text }),
     // Each element is its name, which `h` records with its props and children.
-    resolve: () => ({ Box: "Box", Text: "Text", Link: "Link", Button: "Button" }),
+    resolve: () => ({
+      Box: "Box",
+      Text: "Text",
+      Link: "Link",
+      Markdown: "Markdown",
+      Button: "Button",
+    }),
     copy: async ({ text }) => {
       print({ copied: text });
       return { isCopied: true };
     },
     toast: (text) => print({ toast: text }),
-    // A redraw of the band, printed as `{"band": <its tree, or null>}`.
+    // A redraw of the band, printed as `{"band": {<surface>: <its tree, or null>}}`.
     invalidate: () => setImmediate(drawBand),
   },
   process: {
@@ -142,23 +149,21 @@ const $ = {
 const hooks = new Map();
 globalThis.h = (tag, props, ...children) => ({ tag, props, children });
 
-/** The band above the prompt, as the module's render hooks draw it over nothing. */
+/** The band above the prompt on each surface that draws one, as the module's
+ * render hooks draw it over nothing. */
 async function drawBand() {
-  const input = {
-    component: "AbovePrompt",
-    surface: "terminal",
-    props: { hasSurvey: false },
-  };
   const chain = (hooks.get("ui.render:AbovePrompt") ?? []).reduceRight(
     (next, hook) => (input) => hook($, input, next),
     async () => null,
   );
-  band = await chain(input);
+  const draw = (surface) =>
+    chain({ component: "AbovePrompt", surface, props: { hasSurvey: false } });
+  band = { terminal: await draw("terminal"), desktop: await draw("desktop") };
   print({ band });
 }
 
-/** The element of the band last drawn whose key is `key`. */
-function drawn(key, node = band) {
+/** The element of the terminal's band last drawn whose key is `key`. */
+function drawn(key, node = band.terminal) {
   if (node === null || typeof node !== "object") return undefined;
   if (node.props?.key === key) return node;
   for (const child of node.children) {

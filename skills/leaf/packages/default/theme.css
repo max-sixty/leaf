@@ -1187,7 +1187,7 @@
 }
 @container style(--lf-joined: 0) {
   :scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option {
-    border-radius: 6px;
+    border-radius: var(--r);
   }
   :scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option[chosen] {
     background: var(--ok-tint);
@@ -1283,6 +1283,8 @@
   --lf-board-columns: 1;
   --lf-grip-room: 0px;
   --lf-grip-block: 0px;
+  --lf-grip-pad-inline: 10px;
+  --lf-grip-pad-block: 8px;
 }
 @media screen {
   :scope:is(lf-board) {
@@ -1412,28 +1414,30 @@
   content: none;
 }
 :scope:is(lf-card) {
+  --lf-card-inset-block: 12px;
+  --lf-grip-inset-block: 2px;
   display: block;
   position: relative;
   background: var(--card);
   font: var(--t-5)/1.5 var(--sans);
   border: 1px solid var(--rule);
   border-radius: var(--r);
-  padding: 12px var(--lf-card-inset);
+  padding: var(--lf-card-inset-block) var(--lf-card-inset);
   margin: 0 0 var(--sp-2);
   container-type: inline-size;
   --lf-block-frame: 1;
 }
 @media screen {
   html[data-lf-interactive] :scope:is(lf-board):not(:where([data-lf-exhibit]) *) {
-    --lf-grip-room: max(var(--aim-floor), calc(var(--t-5) + 20px));
-    --lf-grip-block: max(var(--aim-floor), calc(var(--t-5) + 16px));
+    --lf-grip-room: max( var(--aim-floor), calc(var(--t-5) + 2 * var(--lf-grip-pad-inline)) );
+    --lf-grip-block: max( var(--aim-floor), calc(var(--t-5) + 2 * var(--lf-grip-pad-block)) );
   }
   html[data-lf-interactive] :scope:is(lf-card):not(:where([data-lf-exhibit]) *)::before {
     content: "";
     float: right;
     inline-size: var(--lf-grip-room);
     block-size: var(--lf-grip-block);
-    margin-block-start: -10px;
+    margin-block-start: calc(var(--lf-grip-inset-block) - var(--lf-card-inset-block));
   }
   :scope:is(lf-card) > :not(:first-child) {
     clear: right;
@@ -1447,10 +1451,10 @@
 }
 :scope:is(lf-card) .lf-grip {
   position: absolute;
-  top: 2px;
+  top: var(--lf-grip-inset-block);
   right: 0;
   color: var(--muted);
-  padding: 8px 10px;
+  padding: var(--lf-grip-pad-block) var(--lf-grip-pad-inline);
   cursor: grab;
   box-sizing: border-box;
   inline-size: var(--lf-grip-room);
@@ -2930,10 +2934,13 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
 /* skills/leaf/packages/default/styles/code.css */
 :scope:is(lf-code) {
   contain: inline-size;
+  --lf-code-gap: 8px;
+  --lf-code-inset-inline: 14px;
+  --lf-code-inset-block: 12px;
 }
 @property --lf-code-gutter { syntax: "<length>"; inherits: true; initial-value: 38px; }
 :scope:is(lf-code).lf-rendered pre {
-  padding: 12px 0;
+  padding: var(--lf-code-inset-block) 0;
   --lf-block-frame: 1;
   --lf-code-gutter: max(38px, calc(var(--lf-code-digits, 2) * 1ch + 16px));
 }
@@ -2941,7 +2948,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   display: block;
   position: relative;
   --lf-code-hang: calc(min(var(--lf-code-indent, 0), 22) * 1ch + 2ch);
-  padding: 0 14px 0 calc(var(--lf-code-gutter) + 8px + var(--lf-code-hang));
+  padding: 0 var(--lf-code-inset-inline) 0 calc(var(--lf-code-gutter) + var(--lf-code-gap) + var(--lf-code-hang));
   text-indent: calc(-1 * var(--lf-code-hang));
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -2950,7 +2957,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   content: attr(data-line);
   display: inline-block;
   width: var(--lf-code-gutter);
-  margin-right: 8px;
+  margin-right: var(--lf-code-gap);
   padding-right: 10px;
   box-sizing: border-box;
   border-right: 1px solid var(--code-border);
@@ -2968,7 +2975,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
 :scope:is(lf-code) .lf-code-elided {
   display: flex;
   align-items: baseline;
-  padding: 0 14px 0 0;
+  padding: 0 var(--lf-code-inset-inline) 0 0;
   color: var(--code-muted);
   user-select: none;
 }
@@ -3021,7 +3028,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
 :scope:is(lf-code) > lf-note,
 :scope:is(lf-code) > pre > lf-note {
   margin: 5px 0 6px;
-  padding: 7px 14px 8px calc(var(--lf-code-gutter) + 8px);
+  padding: 7px var(--lf-code-inset-inline) 8px calc(var(--lf-code-gutter) + var(--lf-code-gap));
   background: var(--pre-bg);
   border-block: 1px solid var(--code-border);
   color: var(--code-ink);
@@ -3037,7 +3044,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
       background: var(--pre-bg);
       border: 1px solid var(--code-border);
       border-radius: var(--r);
-      padding: 12px 14px 12px calc(var(--lf-code-gutter) + 8px);
+      padding: var(--lf-code-inset-block) var(--lf-code-inset-inline) var(--lf-code-inset-block) calc(var(--lf-code-gutter) + var(--lf-code-gap));
       white-space: pre-wrap;
       overflow-wrap: anywhere;
     }

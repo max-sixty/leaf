@@ -747,7 +747,7 @@
  * cell and takes neither. */
 @container style(--lf-joined: 0) {
   :scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option {
-    border-radius: 6px;
+    border-radius: var(--r);
   }
   :scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option[chosen] {
     background: var(--ok-tint);

@@ -1,5 +1,5 @@
-"""How a thread folds earlier messages under an agent summary or behind an answer's
-progress, and how it reveals what a fold hides."""
+"""How a thread folds earlier messages under an agent summary, reveals pending
+progress, and hides progress once an answer completes it."""
 
 import re
 
@@ -217,7 +217,7 @@ def test_a_summary_folds_originals_and_reveals_them(browser, serve):
     for message in (first, middle, last):
         expect(card.locator(f'.lf-msg[data-event="{message["id"]}"]')).to_be_visible()
     expect(checkpoint.locator(".lf-summary-refold")).to_have_count(0)
-    expect(expand).to_have_accessible_name("Collapse 3 earlier messages")
+    expect(expand).to_have_accessible_name("Hide 3 earlier messages")
     expand.focus()
     page.keyboard.press("Enter")
     expect(expand).to_have_attribute("aria-expanded", "false")
@@ -231,9 +231,8 @@ def test_a_summary_folds_originals_and_reveals_them(browser, serve):
 
 
 def test_previous_progress_messages_can_fold_without_summary_prose(browser, serve):
-    """The same disclosure keeps progress available without an authored digest."""
-    # The disclosure is the same at any width; the narrow one has the least room.
-    width = 390
+    """Progress stays available without a digest, including when the readable label
+    and disclosure need separate lines on a narrow screen."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(
         serve.page_dir, "Please check the schedule.", {"section": "jobs"}
@@ -246,7 +245,6 @@ def test_previous_progress_messages_can_fold_without_summary_prose(browser, serv
     )
 
     page = open_page(browser, url)
-    resized(page, width, 900)
     card = page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
     checkpoint = card.locator(
         f'.lf-thread-checkpoint[data-summary-id="{summary["id"]}"]'
@@ -257,27 +255,39 @@ def test_previous_progress_messages_can_fold_without_summary_prose(browser, serv
     expect(checkpoint.locator(".lf-summary-text")).to_have_count(0)
     expect(card.locator(f'.lf-msg[data-event="{answer["id"]}"]')).to_be_visible()
     expect(card.locator(f'.lf-msg[data-event="{first["id"]}"]')).to_be_hidden()
-    label_box = label.bounding_box()
-    control_box = expand.bounding_box()
-    assert label_box["x"] + label_box["width"] <= control_box["x"]
-    assert control_box["y"] <= label_box["y"] < control_box["y"] + control_box["height"]
+    # Font metrics decide whether they share a line; both arrangements must remain
+    # readable and inside the checkpoint. The narrower screen exercises wrapping
+    # even with macOS's smaller text metrics.
+    for width in (390, 320):
+        resized(page, width, 900)
+        expect(label).to_be_visible()
+        label_box = label.bounding_box()
+        control_box = expand.bounding_box()
+        bounds = checkpoint.bounding_box()
+        assert (
+            label_box["x"] + label_box["width"] <= control_box["x"]
+            or label_box["y"] + label_box["height"] <= control_box["y"]
+        ), (label_box, control_box)
+        for box in (label_box, control_box):
+            assert bounds["x"] <= box["x"]
+            assert box["x"] + box["width"] <= bounds["x"] + bounds["width"]
+        assert label.evaluate(
+            "e => e.scrollWidth <= e.clientWidth && e.scrollHeight <= e.clientHeight"
+        )
     expand.focus()
     page.keyboard.press("Enter")
     expect(card.locator(f'.lf-msg[data-event="{first["id"]}"]')).to_be_visible()
     expect(card.locator(f'.lf-msg[data-event="{last["id"]}"]')).to_be_visible()
-    checkpoint.get_by_role("button", name="Collapse 2 earlier messages").click()
+    checkpoint.get_by_role("button", name="Hide 2 earlier messages").click()
     expect(card.locator(f'.lf-msg[data-event="{first["id"]}"]')).to_be_hidden()
 
 
 @pytest.mark.parametrize("interleaved", [True, False])
-def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
+def test_ephemeral_progress_hides_when_its_held_completion_is_revealed(
     browser, serve, interleaved
 ):
-    """The answer and its fold arrive together; originals remain a keyboard route.
-    Pending progress stands hidden behind its run's face. In the page thread the
-    answer would grow the thread's foot under the reader, so it waits behind the
-    thread's notice. The answer folds the run it follows; a run the user spoke after
-    stays where it was said, above their message."""
+    """Revealing a held answer hides all progress, including across an intervening
+    user reply. A fresh reading shows the same transcript without a disclosure."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Check the schedule.", {"section": "jobs"})
     progress = thread_model.post_reply(
@@ -316,7 +326,7 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     original = card.locator(f'.lf-msg[{identity}="{folded["id"]}"]')
     expect(original).to_be_hidden()
     runs = 2 if interleaved else 1
-    expect(card.locator(".lf-thread-checkpoint")).to_have_count(runs)
+    expect(card.locator(".lf-thread-working")).to_have_count(runs)
     expect(card.locator(".lf-thread-working").get_by_role("button")).to_have_count(0)
 
     answer = thread_model.post_reply(
@@ -325,53 +335,22 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     told(page)
     card.get_by_role("button", name="1 new reply", exact=True).click()
     expect(card.locator(f'.lf-msg[{identity}="{answer["id"]}"]')).to_be_visible()
-    checkpoint = card.locator(".lf-thread-checkpoint")
-    expect(checkpoint.locator(".lf-summary-label")).to_have_count(0)
-    expect(checkpoint.locator(".lf-summary-text")).to_have_count(0)
+    expect(card.locator(".lf-thread-checkpoint")).to_have_count(0)
+    expect(card.locator(".lf-thread-working")).to_have_count(0)
+    expect(original).to_be_hidden()
+    expect(
+        card.get_by_role("button", name=re.compile("progress message"))
+    ).to_have_count(0)
 
-    # A fresh reading starts folded, independent of the live reader's protected focus.
     fresh = open_page(browser, url)
     fresh_card = show(fresh)
-    fresh_original = fresh_card.locator(f'.lf-msg[{identity}="{folded["id"]}"]')
-    expect(fresh_original).to_be_hidden()
-    expand = fresh_card.get_by_role(
-        "button", name="Show 1 progress message", exact=True
-    )
-    answer_header = fresh_card.locator(
-        f'.lf-msg[{identity}="{answer["id"]}"] > .lf-msg-head'
-    )
-    expect(answer_header.get_by_role("button")).to_have_count(1)
-    expect(expand).to_have_attribute("aria-expanded", "false")
-    expect(fresh_card.locator(".lf-summary-label")).to_have_count(0)
-    time_box = answer_header.locator("time").bounding_box()
-    control_box = expand.bounding_box()
-    assert time_box is not None
-    header_box = answer_header.bounding_box()
-    assert header_box["x"] <= control_box["x"]
-    assert (
-        control_box["x"] + control_box["width"] <= header_box["x"] + header_box["width"]
-    )
+    expect(fresh_card.locator(f'.lf-msg[data-event="{answer["id"]}"]')).to_be_visible()
+    expect(fresh_card.locator(".lf-thread-checkpoint")).to_have_count(0)
+    expect(fresh_card.locator(".lf-thread-working")).to_have_count(0)
     if interleaved:
         expect(
             fresh_card.get_by_text("Check the mount too.", exact=True)
         ).to_be_visible()
-        expect(fresh_card.locator(".lf-thread-working")).to_have_text(
-            re.compile("Checking the camera$")
-        )
-    expand.focus()
-    fresh.keyboard.press("Shift+Tab")
-    fresh.keyboard.press("Tab")
-    expect(expand).to_be_focused()
-    assert expand.evaluate("node => node.matches(':focus-visible')")
-    fresh.keyboard.press("Enter")
-    expect(fresh_original).to_be_visible()
-    expect(fresh_original).to_contain_text(folded["text"])
-    collapse = fresh_card.get_by_role(
-        "button", name="Hide 1 progress message", exact=True
-    )
-    expect(collapse).to_be_in_viewport()
-    collapse.press("Enter")
-    expect(fresh_original).to_be_hidden()
 
 
 @pytest.mark.parametrize(("width", "touch"), [(390, False), (311, True)])
@@ -395,10 +374,14 @@ def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
             "The room is available until five. That leaves enough time for the break.",
         )
     ]
-    thread_model.post_reply(
+    append_command(
         serve.page_dir,
-        {"responds": root},
-        "Three sessions, a fifteen-minute break, and the closing discussion fit before five.",
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": root,
+            "text": "And does the room stay free after five?",
+        },
     )
     context = browser.new_context(
         viewport={"width": width, "height": 670}, has_touch=touch, is_mobile=touch
@@ -490,14 +473,104 @@ def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
     expect(originals[0]).to_be_in_viewport()
 
 
+@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
+def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
+    """A summary arriving over messages the user is reading, closed and opened again,
+    then retracted, leaves them where they stand: a frame in one keeps the document it
+    loaded, and words the user selected in another stay selected. Moving a message
+    reloaded its frame in WebKit, which lacks `moveBefore`, and lost the selection in
+    every engine. The checkpoint groups its messages for assistive technology by
+    `aria-owns`, since it no longer contains them."""
+    url = serve(SEATED_OBLIGATION_PAGE)
+    root = panel_comment(serve.page_dir, "Which job first?", {"section": "jobs"})
+    framed = append_agent_reply(
+        serve.page_dir,
+        root,
+        "Here is the plan.",
+        '<iframe title="Plan" srcdoc="<p>The plan</p>"></iframe>',
+    )
+    worded = append_agent_reply(serve.page_dir, root, "The mounts take an hour.")
+    edited = append_agent_reply(serve.page_dir, root, "The camera takes two.")
+    append_user_reply(serve.page_dir, root, "Keep the latest visible.")
+
+    page = open_page(request.getfixturevalue(engine), url)
+    card = page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
+    frame = card.locator(f'.lf-msg[data-event="{framed["id"]}"] iframe')
+    expect(frame).to_be_attached()
+    frame.evaluate("""frame => new Promise(loaded => {
+      const settle = () => {
+        frame.contentWindow.lfKept = true;
+        window.lfFrameLoads = 0;
+        frame.addEventListener("load", () => window.lfFrameLoads++);
+        loaded();
+      };
+      if (frame.contentDocument?.readyState === "complete") settle();
+      else frame.addEventListener("load", settle, {once: true});
+    })""")
+    words = card.locator(f'.lf-msg[data-event="{worded["id"]}"] .lf-msg-text')
+    words.evaluate("""node => {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      getSelection().removeAllRanges();
+      getSelection().addRange(range);
+    }""")
+
+    def kept():
+        assert frame.evaluate(
+            "frame => [frame.contentWindow.lfKept, window.lfFrameLoads]"
+        ) == [True, 0]
+
+    summary = summarize_thread(
+        serve.page_dir, framed["id"], edited["id"], "Mounts first, then the camera."
+    )
+    told(page)
+    show_held_news(card)
+    checkpoint = card.locator(f'[data-summary-id="{summary["id"]}"]')
+    toggle = checkpoint.locator(".lf-summary-expand")
+    expect(toggle).to_have_attribute("aria-expanded", "true")
+    kept()
+    selected = page.evaluate("getSelection().toString()")
+    assert selected.strip() == "The mounts take an hour."
+    covered = [
+        card.locator(f'.lf-msg[data-event="{message["id"]}"]')
+        for message in (framed, worded, edited)
+    ]
+    owned = checkpoint.evaluate("node => node.getAttribute('aria-owns').split(' ')")
+    assert owned == [message.evaluate("node => node.id") for message in covered]
+
+    toggle.press("Enter")
+    for message in covered:
+        expect(message).to_be_hidden()
+    toggle.press("Enter")
+    expect(covered[0]).to_be_visible()
+    kept()
+
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "edit",
+            "author": "agent",
+            "agent": "Codex",
+            "session": "pytest-summary",
+            "message": edited["id"],
+            "text": "The camera takes three.",
+        },
+    )
+    told(page)
+    show_held_news(card)
+    expect(checkpoint).to_have_count(0)
+    expect(covered[2]).to_contain_text("The camera takes three.")
+    kept()
+
+
 def test_a_summary_gathering_the_message_the_user_is_on_keeps_them_on_it(
     browser, serve
 ):
     """A checkpoint arriving over the message the user stands in opens around it.
 
-    The message moves into the checkpoint's originals, and the user, on a link in it,
-    moves with it rather than dropping to the page. The summary waits behind the
-    thread's notice until the user shows it."""
+    The message stays where it stood, now under the checkpoint, and the user stays on a
+    link in it rather than dropping to the page. The summary waits behind the thread's
+    notice until the user shows it."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Start with the measured constraint.", {"section": "how-store"}
@@ -522,10 +595,10 @@ def test_a_summary_gathering_the_message_the_user_is_on_keeps_them_on_it(
     )
     told(page)
     show_held_news(card)
-    checkpoint = card.locator(f'[data-summary-id="{summary["id"]}"]')
+    expect(card.locator(f'[data-summary-id="{summary["id"]}"]')).to_be_visible()
     expect(
-        checkpoint.locator(
-            f'.lf-summary-originals > .lf-msg[data-event="{held["id"]}"]'
+        card.locator(
+            f'.lf-msg[data-event="{held["id"]}"][data-lf-summary="{summary["id"]}"]'
         )
     ).to_be_visible()
     expect(link).to_be_focused()
@@ -590,7 +663,9 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(
     assert alignment["labelLines"] <= 1.1, alignment
     assert alignment["disclosureRight"] <= alignment["contentRight"] + 0.5, alignment
     expect(card.get_by_role("button", name="Close thread")).to_have_count(0)
-    root_message = checkpoint.locator(f'.lf-msg[data-event="{root}"]')
+    root_message = card.locator(
+        f'.lf-msg[data-event="{root}"][data-lf-summary="{summary["id"]}"]'
+    )
     expect(root_message.locator(":scope > .lf-msg-head")).to_be_hidden()
     expect(root_message.locator(":scope > .lf-msg-body")).to_be_hidden()
     activate(checkpoint.locator(".lf-summary-expand"))
@@ -702,3 +777,31 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
         "The corrected second constraint."
     )
     expect(card.locator(f'.lf-msg[data-event="{third["id"]}"]')).to_be_visible()
+
+
+def test_expanding_a_summary_keeps_completed_progress_hidden(browser, serve):
+    """A summary can cover progress and its answer without resurrecting the progress
+    when the user asks to read the original exchange."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Check the schedule.")
+    progress = thread_model.post_reply(
+        serve.page_dir,
+        {"responds": root},
+        "Checking the camera.",
+        ephemeral=True,
+    )
+    asked = append_user_reply(serve.page_dir, root, "And the mount?")
+    summarize_thread(
+        serve.page_dir, progress["id"], asked["id"], "Checking both parts."
+    )
+    answer = thread_model.post_reply(
+        serve.page_dir, {"responds": asked["id"]}, "The schedule works."
+    )
+    page = open_page(browser, url)
+    thread = open_panel_thread(page, root)
+    expect(thread.locator(".lf-summary-text")).to_have_text("Checking both parts.")
+    thread.locator(".lf-summary-expand").click()
+    expect(thread.locator(f'.lf-msg[data-event="{answer["id"]}"]')).to_be_visible()
+    expect(thread.locator(f'.lf-msg[data-event="{asked["id"]}"]')).to_be_visible()
+    expect(thread.locator(f'.lf-msg[data-event="{progress["id"]}"]')).to_be_hidden()
+    expect(thread.locator(".lf-thread-working")).to_have_count(0)

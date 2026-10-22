@@ -448,6 +448,9 @@
         ? target
         : target.importNode(sourceShells.get(source) ?? source, false);
     origins.set(copy, origins.get(source) ?? node);
+    // View geometry is read before modules start, not authored by the page. Leave
+    // it out of the baseline a revision compares with its unpainted source.
+    copy.removeAttribute?.("data-lf-views-flow");
     copy.removeAttribute?.("data-lf-opening");
     copy.removeAttribute?.("data-lf-sole-content");
     if (copy.hasAttribute?.(PLAYER)) {
@@ -996,6 +999,11 @@
   };
 
   root.lfInitial = {
+    // Parser-time producers create their first nodes before runtime modules exist.
+    // dom-move.js installs the live mover before any module uses the shared Lit.
+    move(parent, node, before) {
+      return parent.insertBefore(node, before);
+    },
     fragmentId,
     keepsAttribute,
     setRuntimeRootAttribute,

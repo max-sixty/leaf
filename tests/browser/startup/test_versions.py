@@ -403,7 +403,7 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     expect(page.locator("#sug-fix")).to_have_attribute("data-lf-state", "reject")
     expect_resolved(page, "c1", resolved=False)
     open_panel_thread(page, "c1")
-    expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Resolve")
+    expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Resolve thread")
 
     # Offered here because the log says the user made the reject; which tab they
     # were in is not something the log records, and not something a withdrawal

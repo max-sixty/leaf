@@ -1217,22 +1217,6 @@ _TEXT = {
     "predicate-attribute": _declared(
         lambda v: f"{v['key']} names undeclared attribute `{v['attr']}`"
     ),
-    "predicate-not-flag": _declared(
-        lambda v: _predicate(
-            v, f"as {_json(v['value'])}, but that attribute is not a flag"
-        )
-    ),
-    "predicate-flag": _declared(
-        lambda v: (
-            f"{v['key']} tests flag `{v['attr']}` as {_json(v['value'])};"
-            " a flag is there or it isn't"
-        )
-    ),
-    "predicate-enum": _declared(
-        lambda v: _predicate(
-            v, f"at {_json(v['value'])}, which its own enum does not admit"
-        )
-    ),
     "predicate-schema": _declared(
         lambda v: _predicate(
             v,
@@ -1266,6 +1250,22 @@ _TEXT = {
         lambda v: (
             f"declares x-work but x-content is {v['content']}; generated local"
             " chrome may only join authored prose"
+        )
+    ),
+    "awaits-records": _declared(
+        lambda v: (
+            "x-awaits.records must name an x-data input whose contract declares records and whose binding names only an external source attribute"
+        )
+    ),
+    "answering-record": _declared(
+        lambda v: _answering(
+            v,
+            "must use the same record unit as x-awaits.value, with custom detail and no empty condition",
+        )
+    ),
+    "answering-detail": _declared(
+        lambda v: _answering(
+            v, f"detail condition names an undeclared or invalid field `{v['field']}`"
         )
     ),
     "awaits-unanswered": _declared(
@@ -1848,6 +1848,17 @@ _TEXT = {
         f"{len(v['answers'])} user update{'s' if len(v['answers']) != 1 else ''} with"
         f" no answer ({'; '.join(v['answers'])}); the page reads waiting once each"
         " has one"
+    ),
+    # `delivery ack` of a delivery an earlier turn already picked up
+    # (`delivery.earlier_pickup`), with the answers its updates still owe:
+    "delivery-repeated": lambda at, v: (
+        f"an earlier turn already picked up delivery {v['delivery']}, so don't redo"
+        " the work that turn did. "
+        + (
+            f"Still unanswered: {'; '.join(v['answers'])}."
+            if v["answers"]
+            else "None of its updates still owes an answer."
+        )
     ),
     # A re-vendor a command naming the page made (`vendoring.renew_layer`), and the
     # service it held down (`hosting.restarting_server`).

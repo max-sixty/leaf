@@ -268,9 +268,9 @@ def test_a_revision_keeps_its_bytes_when_a_layer_file_is_edited_in_place(page_di
 
 
 def test_a_sample_child_stages_its_revision_without_fsync(page_dir, monkeypatch):
-    """A sample's child is Leaf's own and deleted on release, so nothing reads its
-    revision after a crash and staging it pays for no fsync, while a page's own
-    revision is still made durable."""
+    """A sample's child lives only in this server, so nothing reads its revision
+    after a crash and staging it pays for no fsync, while a page's own revision
+    is still made durable."""
     template = (
         '<template id="practice" data-sample><h1>Practice</h1>'
         "<p>Child text.</p></template>"
@@ -299,12 +299,9 @@ def test_a_sample_child_stages_its_revision_without_fsync(page_dir, monkeypatch)
     identity = samples.create(
         page_dir, artifact, document, [], {"sources": {}}, "practice", None, None
     )
-    try:
-        child = samples.pages[identity].directory
-        assert files_model.latest_revision(child) == 1
-        assert synced == []
-    finally:
-        samples.close()
+    child = samples.pages[identity].directory
+    assert files_model.latest_revision(child) == 1
+    assert synced == []
 
 
 def test_the_captured_widget_digests_say_which_widgets_a_user_may_keep(page_dir):
@@ -1153,6 +1150,33 @@ def test_page_state_names_each_bound_source_and_its_failures(page_dir):
     stored.write_text(json.dumps({**publication, "value": ["passing", 3]}))
     [error] = state_json(page_dir)["data"]["errors"]
     assert "builds" in error
+
+
+def test_page_check_and_state_name_a_source_at_an_unreadable_format(page_dir):
+    declare_data_input(
+        page_dir, "builds", {"type": "array", "items": {"type": "string"}}
+    )
+    data_model.cmd_data_set(page_dir, "builds", ["passing"])
+    stored = data_model.source_file(page_dir, "builds")
+    publication = json.loads(stored.read_text())
+    old_format = "leaf-data-source/15"
+    stored.write_text(json.dumps({**publication, "format": old_format}))
+
+    state = state_json(page_dir)
+    assert "builds" in state["data_bindings"]
+    [error] = state["data"]["errors"]
+    assert "data/builds.json" in error
+    assert old_format in error
+    assert data_model.PUBLICATION.format in error
+    _, findings = check_findings(page_dir)
+    assert any(
+        finding.code == "unreadable-data" and error in str(finding)
+        for finding in findings
+    )
+
+    data_model.cmd_data_set(page_dir, "builds", ["replaced"])
+    assert state_json(page_dir)["data"]["errors"] == []
+    assert not found(check_findings(page_dir)[1], "unreadable-data")
 
 
 def test_sample_templates_bind_the_parents_producer_sources(page_dir):
@@ -2559,7 +2583,7 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
         assert rejected.exit_code != 0
         error = json.loads(rejected.stderr)["error"]
         assert "source 'deployments' value is invalid" in error
-        assert ("false" if isinstance(invalid, list) else encoded) in error
+        assert repr(invalid[0] if isinstance(invalid, list) else invalid) in error
         assert read_page_data(page_dir) == first
 
     non_json = runner.invoke(
@@ -3754,7 +3778,7 @@ def test_page_inspection_fragments_only_the_manifest_branch_of_a_data_contract(
 @pytest.mark.parametrize(
     ("files", "refusal"),
     [
-        ([], "does not satisfy minItems: 1"),
+        ([], "should be non-empty"),
         (
             [{"path": "a.py"}] * 2,
             "record keys must be unique",
@@ -4143,16 +4167,13 @@ def test_a_page_keeps_its_readings_while_its_samples_live(page_dir):
         held = artifact_model.read_revision(page_dir, revision)
         samples = samples_model.Samples()
         artifact = artifact_model.read_artifact(page_dir, revision)
-        try:
-            for _ in range(page_memory_model.PageMemories.LIMIT):
-                samples.create(
-                    page_dir, artifact, held.document, [], {"sources": {}},
-                    "practice", None, None,
-                )  # fmt: skip
-            gc.collect()
-            assert artifact_model.read_revision(page_dir, revision) is held
-        finally:
-            samples.close()
+        for _ in range(page_memory_model.PageMemories.LIMIT):
+            samples.create(
+                page_dir, artifact, held.document, [], {"sources": {}},
+                "practice", None, None,
+            )  # fmt: skip
+        gc.collect()
+        assert artifact_model.read_revision(page_dir, revision) is held
 
 
 def test_a_reading_under_outcomes_is_the_walk_under_them():

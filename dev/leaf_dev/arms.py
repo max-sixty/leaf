@@ -36,12 +36,13 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from typing import IO, Self
+from typing import IO, NamedTuple, Self
 
 import click
 from leaf.codex import APP_SERVER_ENV
@@ -118,7 +119,13 @@ def environment(**extra: str) -> dict[str, str]:
     env = {
         key: value
         for key, value in os.environ.items()
-        if key not in (*IDENTITY_VARIABLES, APP_SERVER_ENV, "LEAF_HOST_LAUNCHER")
+        if key
+        not in (
+            *IDENTITY_VARIABLES,
+            APP_SERVER_ENV,
+            "LEAF_HOST_LAUNCHER",
+            "CODEX_INTERNAL_ORIGINATOR_OVERRIDE",
+        )
         and not (key.startswith("CLAUDE") and key != "CLAUDE_CONFIG_DIR")
     }
     if browser_model.VARIABLE not in env:
@@ -193,6 +200,20 @@ def build_source(arm: Path, state: Path, source: Path, page: Path) -> None:
     record_run_context(page, purpose="automated", run=state, authored_source=source)
 
 
+class ServedPage(NamedTuple):
+    """A page `serving_source` serves: its directory, its keyed address, and its arm's
+    launcher under its state home."""
+
+    directory: Path
+    address: str
+    leaf: Callable[..., subprocess.CompletedProcess]
+
+
+# The page `serving_source` serves while it does, for an input that writes to it from
+# outside the tab, as the agent or another tab does (stills.py, `held_news`).
+served_page: ContextVar[ServedPage] = ContextVar("served_page")
+
+
 @contextmanager
 def serving_source(arm: Path, source: Path, scratch: Path):
     """Build `source` into a page under `scratch` (`build_source`), serve it
@@ -200,7 +221,13 @@ def serving_source(arm: Path, source: Path, scratch: Path):
     state, page = scratch / "state", scratch / "page"
     build_source(arm, state, source, page)
     with serving(arm, state, page) as address:
-        yield address
+        bound = served_page.set(
+            ServedPage(page, address, partial(run_leaf, arm, state, check=True))
+        )
+        try:
+            yield address
+        finally:
+            served_page.reset(bound)
 
 
 def merge_base(ref: str = "HEAD") -> str:

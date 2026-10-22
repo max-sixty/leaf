@@ -45,6 +45,8 @@
   --lf-joined: 0;
   --lf-option-font: var(--t-4)/1.6 var(--serif);
   --lf-option-line: 1lh;
+  --lf-option-pad-min: 5px;
+  --lf-option-pad-block: var(--lf-option-pad-min);
   container-type: inline-size;
 }
 /* Options are read as lines of text, so the group keeps the reading measure as its
@@ -59,6 +61,9 @@
   --lf-option-font: var(--t-5)/1.5 var(--sans);
   font: var(--lf-option-font);
 }
+:scope:is(lf-options):has(> lf-option > strong) {
+  --lf-option-pad-min: var(--sp-3);
+}
 :scope:is(lf-option) {
   display: block;
   position: relative;
@@ -69,13 +74,10 @@
   white-space: normal;
 }
 /* Card dressing belongs to the titled form: a padded box framing the author's blocks
- * everywhere, bordered on its own ground only when not joined. The shadow carries only
- * the hover lift; chosen uses the border and the check. */
+ * everywhere, bordered on its own ground only when not joined. */
 :scope:is(lf-options):has(> lf-option > strong) > lf-option {
-  padding: var(--sp-3);
+  padding: var(--lf-option-pad-block) var(--sp-3);
   --lf-block-frame: 1;
-  --lf-lift: 0 0 #0000;
-  box-shadow: var(--lf-lift);
 }
 @container style(--lf-joined: 0) {
   :scope:is(lf-options):has(> lf-option > strong) > lf-option {
@@ -171,9 +173,7 @@
   }
 }
 /* The pick is the group's gesture (a click lands anywhere in the option), so its
- * affordances are screen-only, where a handler answers. Every option lifts on hover,
- * the pick included, since clicking it clears it; a joined cell does not lift, as it
- * would pull away from its hairlines.
+ * affordances are screen-only, where a handler answers.
  *
  * A quoted group is exhibited, not offered, so every rule granting an input affordance
  * excludes it where it is written (`:not(:where([data-lf-exhibit]) *)`), so each new
@@ -183,22 +183,6 @@
 @media screen {
   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > lf-option {
     cursor: pointer;
-  }
-  /* Only the standing-alone lift eases: a joined cell's shadow is its hairline, and a
-  * transition there would fade every line when the palette flips. */
-  @container style(--lf-joined: 0) {
-    :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > lf-option {
-      transition:
-        box-shadow 0.12s ease,
-        transform 0.12s ease;
-    }
-    :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *):has(
-        > lf-option > strong
-      )
-      > lf-option:hover {
-      transform: translateY(-1px);
-      --lf-lift: var(--raise-1);
-    }
   }
 }
 /* The mark the upgrade injects is both the keyboard path and the state. On a live card it
@@ -224,12 +208,12 @@
       padding-inline-start: var(--sp-3);
     }
     & > lf-option {
-      padding-bottom: var(--sp-3);
+      padding-bottom: var(--lf-option-pad-block);
     }
     /* The field takes the card's inset and the state band's height, so the row keeps its
     * height when the add lands. */
     & > .lf-another:not([hidden]) {
-      padding-block: var(--sp-3);
+      padding-block: var(--lf-option-pad-block);
     }
     & > .lf-another > .lf-compose-field {
       min-height: var(--lf-card-state-height);
@@ -292,11 +276,7 @@
       bottom: var(--lf-option-add-badge-end);
       margin: 0;
     }
-    /* The seat stands centred on the field's one line, above the card's inset. */
     & > .lf-another {
-      --lf-option-add-seat-end: calc(
-        var(--sp-3) + (var(--lf-option-line) - var(--lf-option-action-size)) / 2
-      );
       --lf-option-action-room: calc(
         var(--lf-option-write-badge-inset) + var(--lf-key-badge-size) + var(--sp-2)
       );
@@ -384,7 +364,7 @@
     font-weight: 700;
   }
 }
-:scope:is(lf-option) .lf-pick[data-lf-focus] {
+:scope:is(lf-option) .lf-pick[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: var(--focus-ring-gap);
   border-radius: 4px;
@@ -453,12 +433,13 @@
     overflow: clip;
     /* The authored options paint before the generated Add and Done cells, so their rows
      * are held until upgrade and the next block stays put. Add is one option line inside
-     * the inset of the option it becomes: a row's 5px, a card's --sp-3. */
-    --lf-add-cell-height: calc(var(--lf-option-line) + 2 * 5px);
+     * the same inset as the option it becomes. */
+    --lf-add-cell-height: calc(var(--lf-option-line) + 2 * var(--lf-option-pad-block));
     --lf-done-cell-height: 32px;
     &:has(> lf-option > strong) {
       --lf-add-cell-height: calc(
-        max(var(--lf-option-line), var(--lf-card-state-height)) + 2 * var(--sp-3)
+        max(var(--lf-option-line), var(--lf-card-state-height)) + 2 *
+          var(--lf-option-pad-block)
       );
     }
     &:not(:where(.lf-chrome *)):not(:has(> .lf-another)) {
@@ -502,7 +483,7 @@
     }
     /* The group clips to its frame, so a control's ring is drawn inset (theme.css,
      * --focus-ring) or the clip cuts it. */
-    & .lf-btn[data-lf-focus] {
+    & .lf-btn[data-lf-focus-visible] {
       outline-offset: calc(-1 * var(--focus-ring-w));
     }
     /* The hairline: every child rings itself with a 1px shadow that takes no room and
@@ -534,7 +515,7 @@
      * paints the shared `--fill`, so it follows both when they change. The joined control
      * owns focus at row scale: the mark's ring stays off and the row draws an inset
      * ring (below). */
-    & > lf-option > .lf-pick[data-lf-focus] {
+    & > lf-option > .lf-pick[data-lf-focus-visible] {
       outline: none;
     }
   }
@@ -581,14 +562,14 @@
    * as a widget root as well as a descendant, so an obligation at the page's top level is
    * reached too. */
   :is(:scope, :scope *)[data-lf-obligation]:has(
-      lf-options[choose]:not(:where([data-lf-exhibit]) *) [data-lf-focus]
+      lf-options[choose]:not(:where([data-lf-exhibit]) *) [data-lf-focus-visible]
     ) {
     --lf-obligation-ring: none;
   }
   /* A ringed row stands above its neighbours, so the next cell's line does not cut its
    * ring. */
   :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *)
-    > lf-option:has(> .lf-pick[data-lf-focus]) {
+    > lf-option:has(> .lf-pick[data-lf-focus-visible]) {
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w));
     z-index: 1;
@@ -597,30 +578,31 @@
   /* The add field's own outline is off, so its row answers the keyboard for it, in a
    * settled group opened by its disclosure as well. */
   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *)
-    > .lf-another:has(leaf-text[data-lf-focus]) {
+    > .lf-another:has(leaf-text[data-lf-focus-visible]) {
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w));
     z-index: 1;
     --lf-wears-ring: 1;
   }
   .lf-another {
-    --lf-option-action-size: max(28px, var(--aim-floor));
     --lf-option-add-seat-inset: var(--sp-1);
-    --lf-option-add-seat-end: var(--lf-option-add-seat-inset);
+    /* Centre Add on the last text line, using the same inset that sizes its row. */
+    --lf-option-add-seat-end: calc(
+      var(--lf-option-pad-block) + (var(--lf-option-line) - var(--lf-icon-action-hit)) /
+        2
+    );
     --lf-option-add-badge-inset: calc(
       var(--lf-option-add-seat-inset) +
-        (var(--lf-option-action-size) - var(--lf-key-badge-size)) / 2
+        (var(--lf-icon-action-hit) - var(--lf-key-badge-size)) / 2
     );
     --lf-option-add-badge-end: calc(
       var(--lf-option-add-seat-end) +
-        (var(--lf-option-action-size) - var(--lf-key-badge-size)) / 2
+        (var(--lf-icon-action-hit) - var(--lf-key-badge-size)) / 2
     );
     --lf-option-write-badge-inset: calc(
-      var(--lf-option-add-seat-inset) + var(--lf-option-action-size) + var(--sp-2)
+      var(--lf-option-add-seat-inset) + var(--lf-icon-action-hit) + var(--sp-2)
     );
-    --lf-option-action-room: calc(
-      var(--lf-option-add-seat-inset) + var(--lf-option-action-size) + var(--sp-2)
-    );
+    --lf-option-action-room: var(--lf-option-write-badge-inset);
     position: relative;
     display: flex;
     align-items: center;
@@ -641,7 +623,6 @@
    * Its submit action carries the accessible name; the empty state changes paint, not
    * layout. */
   .lf-another > .lf-compose-field {
-    --lf-icon-action-hit: var(--lf-option-action-size);
     --lf-compose-pad-block: 0px;
     --lf-compose-pad-inline-start: 0px;
     position: static;
@@ -666,7 +647,6 @@
     line-height: var(--lf-option-line);
   }
   .lf-another .lf-compose-submit {
-    --lf-icon-action-hit: var(--lf-option-action-size);
     inset-inline-end: var(--lf-option-add-seat-inset);
     inset-block-end: var(--lf-option-add-seat-end);
   }
@@ -678,6 +658,12 @@
    * and 6px before the words. It is held before the badge appears, so focusing an
    * option moves nothing. Screen only: paper gets no badge. */
   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) {
+    /* Keep the form's padding, growing it only to contain the action's hit box.
+     * The draft and the option it becomes use this same padded text line. */
+    --lf-option-pad-block: max(
+      var(--lf-option-pad-min),
+      (var(--lf-icon-action-hit) - var(--lf-option-line)) / 2
+    );
     --lf-key-badge-start: var(--sp-2);
     --lf-key-badge-col: calc(
       var(--lf-key-badge-start) + var(--lf-key-badge-size) + 6px
@@ -701,7 +687,7 @@
   width: 100%;
   box-sizing: border-box;
   border-spacing: var(--lf-row-gap) 0;
-  padding: 5px 0;
+  padding: var(--lf-option-pad-block) 0;
   --lf-block-frame: 1;
 }
 /* The mark's own 17px column, after the binding badge's: a row is one line, so the two
@@ -723,7 +709,7 @@
  * vertical inset, so the draft and the option it becomes are one row. */
 :scope:is(lf-options):not(:has(> lf-option > strong)) > .lf-another:not([hidden]) {
   gap: 0;
-  padding-block: 5px;
+  padding-block: var(--lf-option-pad-block);
   padding-inline-end: var(--lf-row-gap);
 }
 :scope:is(lf-options):not(:has(> lf-option > strong)) > .lf-another {
@@ -740,26 +726,21 @@
  * cell and takes neither. */
 @container style(--lf-joined: 0) {
   :scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option {
-    border-radius: 6px;
+    border-radius: var(--r);
   }
   :scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option[chosen] {
     background: var(--ok-tint);
   }
 }
-/* The hover wash is the row form's answer to the pointer, as the lift is a card's. */
+/* A standalone option answers the pointer with a wash, without moving its words. */
 @media screen {
   @container style(--lf-joined: 0) {
-    :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *):not(
-        :has(> lf-option > strong)
-      )
-      > lf-option:hover {
+    :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > lf-option:hover {
       background: var(--chip);
     }
-    :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *):not(
-        :has(> lf-option > strong)
-      )
+    :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *)
       > lf-option[chosen]:hover {
-      background: var(--ok-tint);
+      background: color-mix(in srgb, var(--ok-tint) 92%, var(--ink));
     }
   }
 }
@@ -796,7 +777,8 @@
  * `settled`: the decision is made, so the group reads as one disclosure row with the
  * cards behind it. The row is offered only on screen, where its handler answers; every
  * other medium gets the cards by never being handed it. Its face is the chrome's
- * (lf-ui); this states its box. Open or closed is its aria-expanded. */
+ * (lf-ui); the explicit Settled label states the outcome without a filled frame.
+ * Open or closed is its aria-expanded. */
 :scope:is(lf-options)[settled] > .lf-settled {
   display: none;
   width: 100%;
@@ -804,12 +786,12 @@
   min-height: var(--aim-floor);
   gap: var(--sp-2);
   margin: 0 0 var(--sp-2);
-  padding: 7px 12px;
+  padding: 7px 0;
   font-weight: 600;
   text-align: left;
-  background: var(--field);
+  background: transparent;
   cursor: pointer;
-  border: 1px solid var(--rule);
+  border: 1px solid transparent;
   border-radius: var(--r);
 }
 :scope:is(lf-options)[settled] > .lf-settled[aria-expanded="false"] {
@@ -818,17 +800,9 @@
 :scope:is(lf-options)[settled] > .lf-settled:hover {
   border-color: var(--border-2);
 }
-:scope:is(lf-options)[settled] > .lf-settled[data-lf-focus] {
+:scope:is(lf-options)[settled] > .lf-settled[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 1px;
-}
-.lf-settled::before {
-  content: "▸";
-  color: var(--muted);
-  font-weight: 400;
-}
-.lf-settled[aria-expanded="true"]::before {
-  content: "▾";
 }
 .lf-settled-count {
   margin-left: auto;

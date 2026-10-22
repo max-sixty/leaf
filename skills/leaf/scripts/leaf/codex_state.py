@@ -13,8 +13,9 @@ date observations, so reading an old start does not renew its activity. Transcri
 readings are disposable process memory; the session record keeps only the
 hook-provided path needed to observe that source.
 
-Codex's prompt hook records the provider turn even before a page is claimed. Once the
-session has claimed a page (`state.holds_claims`), its PostToolUse hook identifies an
+Codex's startup hook captures the native source before a page is claimed, including
+for a dispatched chat whose first input runs no prompt hook. The prompt hook records
+the provider turn. Once the session has claimed a page (`state.holds_claims`), its PostToolUse hook identifies an
 unknown session-scoped turn once, or renews only the provider turn already observed
 running, and offers one immutable envelope between steps (`codex.offer_hook_delivery`).
 The observation's revision advances on a prompt, an ending or a tool step, and the
@@ -40,6 +41,7 @@ from .leases import session_state_path
 from .state import (
     advance_turn,
     flocked,
+    new_session,
     session_lock_path,
     session_record,
     write_session,
@@ -212,11 +214,13 @@ def sync_transcript_turn(
     only to the source's latest turn, and a closed provider identity stays closed.
     Missing files and partial tails defer observation to the next pass. There is
     no transcript discovery or second durable lifecycle beside the session record.
+    A validated hook source may establish the first record without a prompt;
+    native evidence alone determines whether a turn has opened.
     """
     expected = session_record(session_id)
-    if expected is None or expected["ended"] is not None:
+    if expected is not None and expected["ended"] is not None:
         return expected
-    source = transcript_path or expected.get("transcript_path")
+    source = transcript_path or (expected.get("transcript_path") if expected else None)
     if source is None:
         return expected
     if not isinstance(source, (str, Path)):
@@ -227,17 +231,21 @@ def sync_transcript_turn(
         if (
             not reading.read(
                 path,
-                current_provider=expected["turn"] if expected["provider"] else None,
+                current_provider=(
+                    expected["turn"] if expected and expected["provider"] else None
+                ),
             )
             or reading.session != session_id
         ):
             return expected
         turn, opened, closed = reading.turn, reading.opened, reading.closed
-        ordered = expected["turn"] in reading.started
+        ordered = expected is not None and expected["turn"] in reading.started
     with flocked(session_lock_path(session_id)):
         current = session_record(session_id)
         if current != expected:
             return current
+        if current is None:
+            current = new_session(session_id, {})
         if current.get("transcript_path") != str(path):
             current = write_session({**current, "transcript_path": str(path)})
         if turn is None:
@@ -309,15 +317,27 @@ def confirm_codex_pointer(session_id: str, payload: dict) -> list[Path]:
 
     A hook reservation remains bound to its offered turn. Already queued input
     and recovery reminders have no such reservation; their explicit reader
-    confirmation records the current receiver's turn under the page lock.
+    confirmation records the current receiver's turn under the page lock. So
+    does a queue offer whose acceptance went unrecorded, as when the adapter
+    failed after `codex queue` returned: the pointer in this turn proves the
+    queue took it, and accepting it here keeps the adapter from queueing it
+    again.
     """
-    from .codex import Accepted, accept_codex_delivery, read_task_delivery
+    from .codex import (
+        Accepted,
+        Offering,
+        accept_codex_delivery,
+        read_task_delivery,
+    )
     from .delivery import ReceiptRefused, receive
 
     observation = hook_turn(session_id)
     if not observation or not observation["running"]:
         raise ReceiptRefused("the receiving provider turn has ended")
     record = read_task_delivery(session_id, payload["id"])
+    if type(record) is Offering:
+        accept_codex_delivery(session_id, payload["id"], None)
+        return receive(payload, session_id)
     if record is None or isinstance(record, Accepted):
         return receive(payload, session_id)
     received = accept_codex_delivery(

@@ -132,17 +132,18 @@ comparison.
 
 The promise runs one way: an older Leaf serving a page a newer one vendored may refuse
 a field it does not know. Every page vendored before a bump, and one vendored before the number was
-declared, is refused until `leaf page init` re-vendors it, which the first command or
-hook of the session holding the page runs itself (`vendoring.renew_layer`).
+declared, is refused until `leaf page init` re-vendors it. The first write command or
+hook of the session holding the page runs that renewal itself (`vendoring.renew_layer`);
+read commands leave its layer and service alone. A writer from another session does
+not renew when the claim or its session lifecycle has a format it cannot read.
 
 The number is also the only version of what Leaf keeps outside a page's log and
 document: every JSON record in a page directory or in the state home, which every
 installed Leaf on the machine shares (`state.Record`), and the composer's draft in
 browser storage, which outlives a re-vendor. Each carries `leaf-<kind>/<number>`
 in its `format`, and a reader at another format leaves it alone: it reads the record
-as absent, or keeps a draft's words without its drawing. Only retirement crosses
-formats: every record names its pages at the same keys, so one whose pages are gone
-is removed whichever Leaf wrote it (`state.named_pages`).
+as absent, or keeps a draft's words without its drawing. Retirement can inspect
+a record's named page paths across formats (`state.named_pages`).
 A record's number is its `since`, the protocol at which its own shape last changed,
 so a bump for another change leaves a session's claim, its deliveries and a
 page's port readable. A change to a record's shape that a reader at the same format

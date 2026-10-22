@@ -32,112 +32,122 @@ var cancelWork = (job) => announce("cancel", job);
 // vendor/browser-runtime/signals-core.js
 var j = /* @__PURE__ */ Symbol.for("preact-signals");
 function S() {
-  if (v > 1) v--;
+  if (h > 1) h--;
   else {
     var t, i = false;
     for ((function() {
-      var f = p;
-      for (p = void 0; f !== void 0; ) {
-        var w = f.S;
-        if (w.v === f.v) for (var a = w.t; a !== void 0; a = a.x) a.i === f.i && (a.i = w.i);
-        f = f.o;
+      var e = p;
+      for (p = void 0; e !== void 0; ) {
+        var w = e.S;
+        if (w.v === e.v) for (var u = w.t; u !== void 0; u = u.x) u.i === e.i && (u.i = w.i);
+        e = e.o;
       }
     })(); c !== void 0; ) {
       var o = c;
       for (c = void 0, l++; o !== void 0; ) {
-        var r = o.u;
-        if (o.u = void 0, o.f &= -3, !(8 & o.f) && g(o)) try {
+        var n = o.u;
+        if (o.u = void 0, o.f &= -3, !(8 & o.f) && U(o)) try {
           o.c();
-        } catch (f) {
-          i || (t = f, i = true);
+        } catch (e) {
+          i || (t = e, i = true);
         }
-        o = r;
+        o = n;
       }
     }
-    if (l = 0, v--, i) throw t;
+    if (l = 0, h--, i) throw t;
   }
 }
-var e;
-var n = void 0;
-function d(t) {
-  var i = n, o = e;
-  n = void 0, e = void 0;
+function W(t) {
+  if (h > 0) return t();
+  m = ++_, h++;
   try {
     return t();
   } finally {
-    n = i, e = o;
+    S();
+  }
+}
+var s;
+var r = void 0;
+function d(t) {
+  var i = r, o = s;
+  r = void 0, s = void 0;
+  try {
+    return t();
+  } finally {
+    r = i, s = o;
   }
 }
 var c = void 0;
-var v = 0;
+var h = 0;
 var l = 0;
+var _ = 0;
 var m = 0;
 var p = void 0;
 var y = 0;
-function x(t) {
-  if (n !== void 0) {
+function g(t) {
+  if (r !== void 0) {
     var i = t.n;
-    if (i === void 0 || i.t !== n) return i = { i: 0, S: t, p: n.s, n: void 0, t: n, e: void 0, x: void 0, r: i }, n.s !== void 0 && (n.s.n = i), n.s = i, t.n = i, 32 & n.f && t.S(i), i;
-    if (i.i === -1) return i.i = 0, i.n !== void 0 && (i.n.p = i.p, i.p !== void 0 && (i.p.n = i.n), i.p = n.s, i.n = void 0, n.s.n = i, n.s = i), i;
+    if (i === void 0 || i.t !== r) return i = { i: 0, S: t, p: r.s, n: void 0, t: r, e: void 0, x: void 0, r: i }, r.s !== void 0 && (r.s.n = i), r.s = i, t.n = i, 32 & r.f && t.S(i), i;
+    if (i.i === -1) return i.i = 0, i.n !== void 0 && (i.n.p = i.p, i.p !== void 0 && (i.p.n = i.n), i.p = r.s, i.n = void 0, r.s.n = i, r.s = i), i;
   }
 }
-function s(t, i) {
+function f(t, i) {
   this.v = t, this.i = 0, this.n = void 0, this.t = void 0, this.l = 0, this.W = i?.watched, this.Z = i?.unwatched, this.name = i?.name;
 }
-s.prototype.brand = j;
-s.prototype.h = function() {
+f.prototype.brand = j;
+f.prototype.h = function() {
   return true;
 };
-s.prototype.S = function(t) {
+f.prototype.S = function(t) {
   var i = this, o = this.t;
   o !== t && t.e === void 0 && (t.x = o, this.t = t, o !== void 0 ? o.e = t : d(function() {
-    var r;
-    (r = i.W) == null || r.call(i);
+    var n;
+    (n = i.W) == null || n.call(i);
   }));
 };
-s.prototype.U = function(t) {
+f.prototype.U = function(t) {
   var i = this;
   if (this.t !== void 0) {
-    var o = t.e, r = t.x;
-    o !== void 0 && (o.x = r, t.e = void 0), r !== void 0 && (r.e = o, t.x = void 0), t === this.t && (this.t = r, r === void 0 && d(function() {
-      var f;
-      (f = i.Z) == null || f.call(i);
+    var o = t.e, n = t.x;
+    o !== void 0 && (o.x = n, t.e = void 0), n !== void 0 && (n.e = o, t.x = void 0), t === this.t && (this.t = n, n === void 0 && d(function() {
+      var e;
+      (e = i.Z) == null || e.call(i);
     }));
   }
 };
-s.prototype.subscribe = function(t) {
+f.prototype.subscribe = function(t) {
   var i = this;
-  return Z(function() {
+  return x(function() {
     var o = i.value;
     d(function() {
       return t(o);
     });
   }, { name: "sub" });
 };
-s.prototype.valueOf = function() {
+f.prototype.valueOf = function() {
   return this.value;
 };
-s.prototype.toString = function() {
+f.prototype.toString = function() {
   return this.value + "";
 };
-s.prototype.toJSON = function() {
+f.prototype.toJSON = function() {
   return this.value;
 };
-s.prototype.peek = function() {
+f.prototype.peek = function() {
   var t = this;
   return d(function() {
     return t.value;
   });
 };
-Object.defineProperty(s.prototype, "value", { get: function() {
-  var t = x(this);
+Object.defineProperty(f.prototype, "value", { get: function() {
+  var t = g(this);
   return t !== void 0 && (t.i = this.i), this.v;
 }, set: function(t) {
   if (t !== this.v) {
     if (l > 100) throw new Error("Cycle detected");
     (function(o) {
-      v !== 0 && l === 0 && o.l !== m && (o.l = m, p = { S: o, v: o.v, i: o.i, o: p });
-    })(this), this.v = t, this.i++, y++, v++;
+      h !== 0 && l === 0 && o.l !== m && (o.l = m, p = { S: o, v: o.v, i: o.i, o: p });
+    })(this), this.v = t, this.i++, y++, h++;
     try {
       for (var i = this.t; i !== void 0; i = i.x) i.t.N();
     } finally {
@@ -145,14 +155,14 @@ Object.defineProperty(s.prototype, "value", { get: function() {
     }
   }
 } });
-function M(t, i) {
-  return new s(t, i);
+function Z(t, i) {
+  return new f(t, i);
 }
-function g(t) {
+function U(t) {
   for (var i = t.s; i !== void 0; i = i.n) if (i.S.i !== i.i || !i.S.h() || i.S.i !== i.i) return true;
   return false;
 }
-function E(t) {
+function C(t) {
   for (var i = t.s; i !== void 0; i = i.n) {
     var o = i.S.n;
     if (o !== void 0 && (i.r = o), i.S.n = i, i.i = -1, i.n === void 0) {
@@ -163,84 +173,84 @@ function E(t) {
 }
 function O(t) {
   for (var i = t.s, o = void 0; i !== void 0; ) {
-    var r = i.p;
-    i.i === -1 ? (i.S.U(i), r !== void 0 && (r.n = i.n), i.n !== void 0 && (i.n.p = r)) : o = i, i.S.n = i.r, i.r !== void 0 && (i.r = void 0), i = r;
+    var n = i.p;
+    i.i === -1 ? (i.S.U(i), n !== void 0 && (n.n = i.n), i.n !== void 0 && (i.n.p = n)) : o = i, i.S.n = i.r, i.r !== void 0 && (i.r = void 0), i = n;
   }
   t.s = o;
 }
-function h(t, i) {
-  s.call(this, void 0, i), this.x = t, this.s = void 0, this.g = y - 1, this.f = 4;
+function v(t, i) {
+  f.call(this, void 0, i), this.x = t, this.s = void 0, this.g = y - 1, this.f = 4;
 }
-h.prototype = new s();
-h.prototype.h = function() {
+v.prototype = new f();
+v.prototype.h = function() {
   if (this.f &= -3, 1 & this.f) return false;
   if ((36 & this.f) == 32 || (this.f &= -5, this.g === y)) return true;
-  if (this.g = y, this.f |= 1, this.i > 0 && !g(this)) return this.f &= -2, true;
-  var t = n;
+  if (this.g = y, this.f |= 1, this.i > 0 && !U(this)) return this.f &= -2, true;
+  var t = r;
   try {
-    E(this), n = this;
+    C(this), r = this;
     var i = this.x();
     (16 & this.f || this.v !== i || this.i === 0) && (this.v = i, this.f &= -17, this.i++);
   } catch (o) {
     this.v = o, this.f |= 16, this.i++;
   }
-  return n = t, O(this), this.f &= -2, true;
+  return r = t, O(this), this.f &= -2, true;
 };
-h.prototype.S = function(t) {
+v.prototype.S = function(t) {
   if (this.t === void 0) {
     this.f |= 36;
     for (var i = this.s; i !== void 0; i = i.n) i.S.S(i);
   }
-  s.prototype.S.call(this, t);
+  f.prototype.S.call(this, t);
 };
-h.prototype.U = function(t) {
-  if (this.t !== void 0 && (s.prototype.U.call(this, t), this.t === void 0)) {
+v.prototype.U = function(t) {
+  if (this.t !== void 0 && (f.prototype.U.call(this, t), this.t === void 0)) {
     this.f &= -33;
     for (var i = this.s; i !== void 0; i = i.n) i.S.U(i);
   }
 };
-h.prototype.N = function() {
+v.prototype.N = function() {
   if (!(2 & this.f)) {
     this.f |= 6;
     for (var t = this.t; t !== void 0; t = t.x) t.t.N();
   }
 };
-Object.defineProperty(h.prototype, "value", { get: function() {
+Object.defineProperty(v.prototype, "value", { get: function() {
   if (1 & this.f) throw new Error("Cycle detected");
-  var t = x(this);
+  var t = g(this);
   if (this.h(), t !== void 0 && (t.i = this.i), 16 & this.f) throw this.v;
   return this.v;
 } });
-function T(t, i) {
-  return new h(t, i);
+function J(t, i) {
+  return new v(t, i);
 }
-function U(t) {
+function k(t) {
   var i = t.m;
   if (t.m = void 0, typeof i == "function") {
-    v++;
-    var o = n;
-    n = void 0;
+    h++;
+    var o = r;
+    r = void 0;
     try {
       i();
-    } catch (r) {
-      throw t.f &= -2, t.f |= 8, b(t), r;
+    } catch (n) {
+      throw t.f &= -2, t.f |= 8, b(t), n;
     } finally {
-      n = o, S();
+      r = o, S();
     }
   }
 }
 function b(t) {
   for (var i = t.s; i !== void 0; i = i.n) i.S.U(i);
-  t.x = void 0, t.s = void 0, U(t);
+  t.x = void 0, t.s = void 0, k(t);
 }
-function W(t) {
-  if (n !== this) throw new Error("Out-of-order effect");
-  O(this), n = t, this.f &= -2, 8 & this.f && b(this), S();
+function P(t) {
+  if (r !== this) throw new Error("Out-of-order effect");
+  O(this), r = t, this.f &= -2, 8 & this.f && b(this), S();
 }
-function u(t, i) {
-  this.x = t, this.m = void 0, this.s = void 0, this.u = void 0, this.f = 32, this.name = i?.name, e && e.push(this);
+function a(t, i) {
+  this.x = t, this.m = void 0, this.s = void 0, this.u = void 0, this.f = 32, this.name = i?.name, s && s.push(this);
 }
-u.prototype.c = function() {
+a.prototype.c = function() {
   var t = this.S();
   try {
     if (8 & this.f || this.x === void 0) return;
@@ -250,30 +260,50 @@ u.prototype.c = function() {
     t();
   }
 };
-u.prototype.S = function() {
+a.prototype.S = function() {
   if (1 & this.f) throw new Error("Cycle detected");
-  this.f |= 1, this.f &= -9, U(this), E(this), v++;
-  var t = n;
-  return n = this, W.bind(this, t);
+  this.f |= 1, this.f &= -9, k(this), C(this), h++;
+  var t = r;
+  return r = this, P.bind(this, t);
 };
-u.prototype.N = function() {
+a.prototype.N = function() {
   2 & this.f || (this.f |= 2, this.u = c, c = this);
 };
-u.prototype.d = function() {
+a.prototype.d = function() {
   this.f |= 8, 1 & this.f || b(this);
 };
-u.prototype.dispose = function() {
+a.prototype.dispose = function() {
   this.d();
 };
-function Z(t, i) {
-  var o = new u(t, i);
+function x(t, i) {
+  var o = new a(t, i);
   try {
     o.c();
-  } catch (f) {
-    throw o.d(), f;
+  } catch (e) {
+    throw o.d(), e;
   }
-  var r = o.d.bind(o);
-  return r[Symbol.dispose] = r, r;
+  var n = o.d.bind(o);
+  return n[Symbol.dispose] = n, n;
+}
+function q(t) {
+  return class extends t {
+    performUpdate() {
+      var i;
+      if (this.isUpdatePending === false) return;
+      (i = this._$Oo) === null || i === void 0 || i.call(this);
+      let o = true;
+      this._$Oo = x((() => {
+        o ? (o = false, super.performUpdate()) : this.requestUpdate();
+      }));
+    }
+    connectedCallback() {
+      super.connectedCallback(), this.requestUpdate();
+    }
+    disconnectedCallback() {
+      var i;
+      super.disconnectedCallback(), (i = this._$Oo) === null || i === void 0 || i.call(this);
+    }
+  };
 }
 
 // runtime/projection/model.js
@@ -284,14 +314,14 @@ function foldedValue(event, record) {
   if (record.kind === "attribute" && Array.isArray(value)) return value.toSorted();
   return value ?? null;
 }
-var sameValue = (a, b2) => JSON.stringify(a) === JSON.stringify(b2);
-var compareProjected = (a, b2) => {
-  const aLogged = Number.isInteger(a.e.seq);
+var sameValue = (a2, b2) => JSON.stringify(a2) === JSON.stringify(b2);
+var compareProjected = (a2, b2) => {
+  const aLogged = Number.isInteger(a2.e.seq);
   const bLogged = Number.isInteger(b2.e.seq);
-  if (aLogged && bLogged) return (a.e.seq ?? 0) - (b2.e.seq ?? 0);
+  if (aLogged && bLogged) return (a2.e.seq ?? 0) - (b2.e.seq ?? 0);
   if (aLogged) return -1;
   if (bLogged) return 1;
-  return (a.localOrder ?? 0) - (b2.localOrder ?? 0);
+  return (a2.localOrder ?? 0) - (b2.localOrder ?? 0);
 };
 function foldProjection({
   entries = [],
@@ -327,9 +357,9 @@ function foldProjection({
     if (entry && !entry.terminal) desired.set(entry.coordinate, entry);
   }
   for (const record of coverage) {
-    const e2 = record.event;
-    if (e2.kind === "undo" || classified.has(e2.id)) continue;
-    classified.set(e2.id, { e: e2, terminal: record.coordinate === null });
+    const e = record.event;
+    if (e.kind === "undo" || classified.has(e.id)) continue;
+    classified.set(e.id, { e, terminal: record.coordinate === null });
   }
   const pendingActions = [];
   const withdrawn = /* @__PURE__ */ new Set();
@@ -383,10 +413,10 @@ function projectionOrigins(authoredSnapshots, projection) {
   for (const entry of projection.classified.values())
     for (const unit of entry.restated ?? []) add("restated", unit);
   for (const entry of projection.desired.values()) {
-    const { unit, e: e2, spec, value } = entry;
+    const { unit, e, spec, value } = entry;
     const overridesSource = spec.record ? !sameValue(value, authoredValue(authoredSnapshots, entry)) : true;
     if (!overridesSource) continue;
-    add(e2.kind === "action" ? "user" : "reported", unit);
+    add(e.kind === "action" ? "user" : "reported", unit);
   }
   return [...origins.values()];
 }
@@ -394,12 +424,12 @@ var DIGITS = "0123456789abcdefghijklmnopqrstuvwxyz";
 var authoredRank = (index) => "z".repeat(Math.floor(index / 35)) + DIGITS.charAt(index % 35 + 1);
 var byRank = (ranks) => (
   /** @param {string} a @param {string} b */
-  (a, b2) => {
-    const left = ranks[a];
+  (a2, b2) => {
+    const left = ranks[a2];
     const right = ranks[b2];
     if (left !== void 0 && right !== void 0 && left !== right)
       return left < right ? -1 : 1;
-    return a < b2 ? -1 : a > b2 ? 1 : 0;
+    return a2 < b2 ? -1 : a2 > b2 ? 1 : 0;
   }
 );
 function rankBetween(before, after) {
@@ -421,9 +451,9 @@ function rankBefore(key) {
 }
 function midpoint(before, after) {
   if (after !== null) {
-    let n2 = 0;
-    while ((before[n2] ?? "0") === after[n2]) n2 += 1;
-    if (n2 > 0) return after.slice(0, n2) + midpoint(before.slice(n2), after.slice(n2));
+    let n = 0;
+    while ((before[n] ?? "0") === after[n]) n += 1;
+    if (n > 0) return after.slice(0, n) + midpoint(before.slice(n), after.slice(n));
   }
   const low = before ? DIGITS.indexOf(before.charAt(0)) : 0;
   const high = after !== null ? DIGITS.indexOf(after.charAt(0)) : DIGITS.length;
@@ -475,19 +505,19 @@ function foldWidgetStates(authoredSnapshots, projection) {
   for (const entry of [...projection.desired.values()].sort(compareProjected)) {
     const owner = states.get(entry.e.widget);
     if (!owner) continue;
-    const { spec, e: e2, unit } = entry;
+    const { spec, e, unit } = entry;
     const record = spec.record;
-    const value = record ? structuredClone(e2.detail.value) : e2.action;
-    const current = { action: e2.action, value, detail: structuredClone(e2.detail) };
+    const value = record ? structuredClone(e.detail.value) : e.action;
+    const current = { action: e.action, value, detail: structuredClone(e.detail) };
     owner.entries.push(entry);
-    const target = owner.state[e2.action];
+    const target = owner.state[e.action];
     if (target && "units" in target) {
       target.units[unit] = current;
-      if ("ranks" in target && !entry.absorbed) place(target, unit, e2.detail);
+      if ("ranks" in target && !entry.absorbed) place(target, unit, e.detail);
     } else {
       if (spec.unit !== "widget")
-        throw new Error(`Missing authored units for ${e2.widget}/${e2.action}`);
-      owner.state[e2.action] = current;
+        throw new Error(`Missing authored units for ${e.widget}/${e.action}`);
+      owner.state[e.action] = current;
     }
   }
   for (const { state } of states.values())
@@ -497,14 +527,16 @@ function foldWidgetStates(authoredSnapshots, projection) {
           ids.sort(byRank(position.ranks));
   return states;
 }
-function obligationValue(widget, verb, answered) {
-  const state = widget.state[verb];
+function obligationValue(widget, verb, answered, unit) {
+  const complete = widget.state[verb];
+  const state = unit !== void 0 && complete && "units" in complete ? complete.units[unit] : complete;
+  if (unit !== void 0 && !state) return { value: null, present: false };
   const spec = widget.specs.get(verb);
   if (!state || !spec)
     throw new Error(`Missing obligation value definition for ${verb}`);
   const recorded = (value2) => spec.record?.kind === "attribute" && Array.isArray(value2) ? value2.toSorted() : value2;
   const value = "units" in state ? spec.record?.kind === "position" ? state.value : Object.fromEntries(
-    Object.entries(state.units).sort(([a], [b2]) => a < b2 ? -1 : a > b2 ? 1 : 0).map(([id, entry]) => [
+    Object.entries(state.units).sort(([a2], [b2]) => a2 < b2 ? -1 : a2 > b2 ? 1 : 0).map(([id, entry]) => [
       id,
       spec.record ? recorded(entry.value) : entry.detail
     ])
@@ -526,7 +558,7 @@ var anchorKey = (anchor) => {
     ).sort(([left], [right]) => left.localeCompare(right))
   );
 };
-var sameAnchor = (a, b2) => a === b2 || Boolean(a) && Boolean(b2) && anchorKey(a) === anchorKey(b2);
+var sameAnchor = (a2, b2) => a2 === b2 || Boolean(a2) && Boolean(b2) && anchorKey(a2) === anchorKey(b2);
 
 // runtime/thread/identity.js
 var PENDING = "pending:";
@@ -776,98 +808,28 @@ function readThreadRecords(threads, document, widgets, workflows, todos = [], ob
 }
 
 // vendor/browser-runtime/snapshot.js
-var collecting = null;
-function collected(reading, read) {
-  const outer = collecting;
-  collecting = null;
-  let value;
-  try {
-    value = read();
-  } finally {
-    collecting = outer;
-  }
-  if (outer && !outer.has(reading)) outer.set(reading, value);
-  return value;
-}
-function collectingInto(reads, run) {
-  const outer = collecting;
-  collecting = reads;
-  try {
-    return run();
-  } finally {
-    collecting = outer;
-  }
-}
-function collectReads(run) {
-  const reads = /* @__PURE__ */ new Map();
-  try {
-    return { reads, value: collectingInto(reads, run) };
-  } catch (error) {
-    return { reads, error };
-  }
-}
-function outsideReading(read, heard) {
-  const reading = Object.freeze({
-    outside: true,
-    read: () => collected(reading, read),
-    subscribe(listener) {
-      let active = true;
-      const deliver = (round) => untracked(() => listener(read(), round));
-      const stop = heard((round) => active ? deliver(round) : void 0);
-      deliver({});
-      return () => {
-        active = false;
-        stop();
-      };
-    }
-  });
-  return reading;
-}
-function untracked(run) {
-  return collectingInto(null, run);
-}
 var secured = /* @__PURE__ */ new WeakSet();
-function immutable(value, normalized = /* @__PURE__ */ new WeakMap()) {
+function immutable(value) {
   if (value !== null && typeof value === "object" && !secured.has(value)) {
-    const known = normalized.get(value);
-    if (known) return known;
-    let result = value;
-    const refuse = () => {
-      throw new TypeError("Application snapshots are read-only");
-    };
     if (value instanceof Map) {
-      const entries = [...value].map(
-        ([key, child]) => [immutable(key, normalized), immutable(child, normalized)]
-      );
-      const map = Object.isExtensible(value) ? value : /* @__PURE__ */ new Map();
-      map.clear();
-      for (const [key, child] of entries) map.set(key, child);
-      for (const name of ["set", "delete", "clear"])
-        Object.defineProperty(map, name, { value: refuse });
-      result = map;
-    } else if (value instanceof Set) {
-      const members = [...value].map((child) => immutable(child, normalized));
-      const set = Object.isExtensible(value) ? value : /* @__PURE__ */ new Set();
-      set.clear();
-      for (const child of members) set.add(child);
-      for (const name of ["add", "delete", "clear"])
-        Object.defineProperty(set, name, { value: refuse });
-      result = set;
-    } else {
-      const children = Object.entries(value).map(
-        ([key, child]) => [key, child, immutable(child, normalized)]
-      );
-      if (children.some(([, child, next]) => child !== next)) {
-        const target = Object.isFrozen(value) ? Array.isArray(value) ? [...value] : { ...value } : value;
-        for (const [key, child, next] of children)
-          if (child !== next) target[key] = next;
-        result = target;
+      for (const [key, child] of value) {
+        immutable(key);
+        immutable(child);
       }
+    } else if (value instanceof Set) {
+      for (const child of value) immutable(child);
+    } else {
+      for (const child of Object.values(value)) immutable(child);
     }
-    Object.freeze(result);
-    secured.add(result);
-    normalized.set(value, result);
-    return result;
+    if (value instanceof Map || value instanceof Set) {
+      const refuse = () => {
+        throw new TypeError("Application snapshots are read-only");
+      };
+      for (const name of value instanceof Map ? ["set", "delete", "clear"] : ["add", "delete", "clear"])
+        Object.defineProperty(value, name, { value: refuse });
+    }
+    Object.freeze(value);
+    secured.add(value);
   }
   return value;
 }
@@ -931,15 +893,9 @@ function share(prior, next) {
   return copy;
 }
 function createApplicationPublisher(initial) {
-  const root = M(immutable(initial));
+  const root = Z(immutable(initial));
   return Object.freeze({
-    read: () => {
-      if (collecting)
-        throw new Error(
-          "a collected read took the whole publication; select the part it needs"
-        );
-      return root.value;
-    },
+    read: () => root.value,
     // The root without subscribing or collecting, for the owner computing what it
     // publishes next.
     peek: () => root.peek(),
@@ -949,12 +905,13 @@ function createApplicationPublisher(initial) {
     },
     select(derive) {
       let prior;
-      const selected = T(
-        () => untracked(() => prior = immutable(share(prior, derive(root.value))))
-      );
+      const selected = J(() => {
+        const value = root.value;
+        return d(() => prior = immutable(share(prior, derive(value))));
+      });
       const reading = Object.freeze({
-        read: () => collected(reading, () => selected.value),
-        subscribe: (listener) => selected.subscribe((value) => untracked(() => listener(value)))
+        read: () => selected.value,
+        subscribe: (listener) => selected.subscribe((value) => d(() => listener(value)))
       });
       return reading;
     }
@@ -968,9 +925,9 @@ function describeFailure(reason) {
   return `${message}: ${reason.errors.map(describeFailure).join("; ")}`;
 }
 function createPresentationCoordinator({ reportFailure }) {
-  const changes = M(0);
+  const changes = Z(0);
   const changed = () => {
-    changes.value += 1;
+    changes.value = changes.peek() + 1;
   };
   let document = null;
   let documentGeneration = 0;
@@ -1299,7 +1256,7 @@ function createPresentationCoordinator({ reportFailure }) {
     whenCurrentRegionsPresented,
     currentRegionsPresented,
     subscribe: (callback) => changes.subscribe(
-      () => untracked(() => {
+      () => d(() => {
         try {
           callback();
         } catch (reason) {
@@ -1574,11 +1531,11 @@ function normalizedProjection(view) {
   for (const projection of [view?.document.projection, view?.thread.projection]) {
     if (!projection) continue;
     for (const wire of projection.entries) {
-      const e2 = wire.event;
+      const e = wire.event;
       const coordinate = stateCoordinate(...wire.coordinate);
       entries.push({
         coordinate,
-        e: e2,
+        e,
         restated: wire.restated,
         absorbed: wire.absorbed,
         stands: wire.stands,
@@ -1622,16 +1579,17 @@ function normalizedObligations(view, widgets, document, projection, local) {
     }
     if (item.source.kind !== "widget") return item;
     const sourceId = item.source.id;
+    const sourceUnit = item.source.unit;
     const widget = widgets.get(sourceId);
     const declaration = document.descriptors.get(item.source.id)?.declaration["x-awaits"];
     const verb = declaration?.value;
     if (!verb || !widget) return item;
     const completed = item.status === "answered" && !(item.answer?.event && projection.pendingWithdrawals.has(item.answer.event.id));
-    const { value, present } = obligationValue(widget, verb, completed);
+    const { value, present } = obligationValue(widget, verb, completed, sourceUnit);
     const pendingValue = widget.entries.some(
-      ({ e: e2 }) => e2.action === verb && !Number.isInteger(e2.seq)
+      ({ e, unit }) => e.action === verb && (sourceUnit === void 0 || unit === sourceUnit) && !Number.isInteger(e.seq)
     ) || [...projection.pendingWithdrawals.values()].some(
-      ({ e: e2 }) => e2.widget === sourceId && (e2.action === verb || e2.id === item.answer?.event?.id)
+      ({ e, unit }) => e.widget === sourceId && (sourceUnit === void 0 || unit === sourceUnit) && (e.action === verb || e.id === item.answer?.event?.id)
     );
     const answer = present ? { value, event: pendingValue ? null : item.answer?.event ?? null } : null;
     return { ...item, answer };
@@ -1707,9 +1665,9 @@ function currentWidgetRelations(document, widgets, projection) {
         break;
       }
     }
-    for (const { e: e2, unit, spec } of projection.desired.values())
-      if (spec.creates && named.has(e2.widget) && !document.descriptors.has(unit))
-        memberships.get(e2.widget)[attr].push(unit);
+    for (const { e, unit, spec } of projection.desired.values())
+      if (spec.creates && named.has(e.widget) && !document.descriptors.has(unit))
+        memberships.get(e.widget)[attr].push(unit);
     for (const owner of named) memberships.get(owner)[attr].sort();
   }
   return { parents, memberships };
@@ -1776,7 +1734,7 @@ function localQueues(served, workflows, todos, items, local) {
       ...reopenedFor("user").map(asOpen),
       ...local.filter((item) => item.next_actor === "user").map(localRow)
     ].toSorted(
-      (a, b2) => onUserRank(a) - onUserRank(b2) || (namesRecord(a) && namesRecord(b2) ? inventoryAt.get(a.id) - inventoryAt.get(b2.id) : 0)
+      (a2, b2) => onUserRank(a2) - onUserRank(b2) || (namesRecord(a2) && namesRecord(b2) ? inventoryAt.get(a2.id) - inventoryAt.get(b2.id) : 0)
     ),
     on_agent: [
       ...served.on_agent.filter((item) => item.kind !== "todo" && standsOpen(item)).map(current),
@@ -1871,24 +1829,24 @@ function widgetReading(inputs, descriptor) {
   const states = inputs.states ?? {};
   const desired = inputs.entries.desired;
   const durableUndo = inputs.entries.undo;
-  const localUndo = desired.map(({ e: e2 }) => e2).filter((event) => String(event.id).startsWith(PENDING));
+  const localUndo = desired.map(({ e }) => e).filter((event) => String(event.id).startsWith(PENDING));
   const actions = Object.fromEntries(
     Object.entries(actionSpecs).filter(([verb]) => states[verb]?.writer === "user").map(([verb]) => [
       verb,
       {
         available: currentDescriptor && inputs.hostAvailable && inputs.ready && !descriptor.quoted,
         unavailable: inputs.hostAvailable ? null : "no agent or server is available",
-        history: classified.filter(({ e: e2 }) => e2.action === verb).map(({ e: e2 }) => e2),
-        inForce: desired.filter(({ e: e2 }) => e2.action === verb).map(({ e: e2, unit, value }) => ({ event: e2, unit, value })),
+        history: classified.filter(({ e }) => e.action === verb).map(({ e }) => e),
+        inForce: desired.filter(({ e }) => e.action === verb).map(({ e, unit, value }) => ({ event: e, unit, value })),
         undo: inputs.hostAvailable ? [...localUndo, ...durableUndo].filter((event) => event.action === verb) : []
       }
     ])
   );
   const provenanceEntries = current?.entries ?? [];
   const provenance = Object.fromEntries(
-    provenanceEntries.map(({ e: e2, unit, value }) => [
-      `${e2.action}:${unit}`,
-      { event: e2, unit, value }
+    provenanceEntries.map(({ e, unit, value }) => [
+      `${e.action}:${unit}`,
+      { event: e, unit, value }
     ])
   );
   return {
@@ -1964,11 +1922,11 @@ function createSemanticApplication({
     const served = state?.browser.views[String(document.revision)];
     const view = served ? (({ basis: _basis, ...rest }) => rest)(served) : null;
     const admitted = normalizedProjection(view);
-    const classifiedIds = new Set(admitted.entries.map(({ e: e2 }) => e2.id));
-    const drawsAction = (e2) => {
-      const descriptor = document.descriptors.get(e2.widget);
-      const state2 = descriptor && stampedState(document.registry, descriptor.tag, e2);
-      return Boolean(state2 && sameStateDefinition(e2.meaning?.state, state2.definition));
+    const classifiedIds = new Set(admitted.entries.map(({ e }) => e.id));
+    const drawsAction = (e) => {
+      const descriptor = document.descriptors.get(e.widget);
+      const state2 = descriptor && stampedState(document.registry, descriptor.tag, e);
+      return Boolean(state2 && sameStateDefinition(e.meaning?.state, state2.definition));
     };
     const localProjections = local.flatMap((entry2) => {
       const projection2 = entry2.projection;
@@ -2307,7 +2265,7 @@ function createSemanticApplication({
     },
     markRead(items) {
       return publish({
-        markingRead: [...publisher.peek().markingRead, ...structuredClone(items)]
+        markingRead: [...publisher.peek().markingRead, ...items]
       });
     },
     settleMarkRead(items) {
@@ -2321,13 +2279,7 @@ function createSemanticApplication({
     captureDocument(document) {
       if (publisher.peek().authoritative)
         throw new Error("an admitted document changes only through adopt");
-      return publish({
-        document: {
-          ...structuredClone(document),
-          authored: new Map(structuredClone(document.authored)),
-          descriptors: new Map(structuredClone(document.descriptors))
-        }
-      });
+      return publish({ document });
     },
     setPhase(phase) {
       return publish({ phase });
@@ -2341,7 +2293,7 @@ function createSemanticApplication({
       const prior = publisher.peek();
       const values = { ...prior.outputs[widget] };
       if (reading === null) delete values[output];
-      else values[output] = structuredClone(reading);
+      else values[output] = reading;
       const outputs = { ...prior.outputs };
       if (Object.keys(values).length) outputs[widget] = values;
       else delete outputs[widget];
@@ -2355,7 +2307,7 @@ function createSemanticApplication({
       if (taken < dataTaken) return false;
       dataTaken = taken;
       if (data.version === publisher.peek().data.version) return false;
-      publish({ data: structuredClone(data) });
+      publish({ data });
       return true;
     },
     // Whether this answer could be adopted with `revision` showing, asked without
@@ -2380,7 +2332,7 @@ function createSemanticApplication({
     adopt(state, document = null) {
       const prior = publisher.peek();
       if (!adoptable(state, document)) return false;
-      const authoritative = structuredClone(state);
+      const authoritative = state;
       const { unresolved, left } = transition(
         "log",
         byAttempt(authoritative.browser.receipts)
@@ -2392,20 +2344,8 @@ function createSemanticApplication({
       for (const attempt of drawn)
         if (!unresolved.some((item) => item.event.attempt === attempt))
           drawn.delete(attempt);
-      const capture = (value, previous) => value === previous ? value : structuredClone(value);
       publish({
-        document: document ? {
-          ...document,
-          registry: capture(document.registry, prior.document.registry),
-          authored: capture(document.authored, prior.document.authored),
-          descriptors: capture(document.descriptors, prior.document.descriptors),
-          ...document.messageBodies ? {
-            messageBodies: capture(
-              document.messageBodies,
-              prior.document.messageBodies
-            )
-          } : {}
-        } : prior.document,
+        document: document ?? prior.document,
         authoritative,
         unresolved,
         settled,
@@ -2442,9 +2382,7 @@ function createSemanticApplication({
           ...event,
           id: localId,
           meaning: {
-            state: structuredClone(
-              before.document.registry.$states[widget.tag]?.[event.action]?.definition
-            )
+            state: before.document.registry.$states[widget.tag]?.[event.action]?.definition
           }
         },
         value: spec.record ? foldedValue(event, spec.record) : event.action
@@ -2557,11 +2495,12 @@ export {
   runWork,
   bindQueuedWork,
   cancelWork,
-  M,
+  W,
+  d,
   Z,
-  collectReads,
-  outsideReading,
-  untracked,
+  J,
+  x,
+  q,
   share,
   stateCoordinate,
   projectionOrigins,

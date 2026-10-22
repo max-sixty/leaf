@@ -799,10 +799,10 @@ export function createSelectionComposer({
       return count > 1 ? `1–${count}` : "1";
     },
     description: () =>
-      `Put a reaction on the response target: ${reactionTokens()
+      reactionTokens()
         .slice(0, 9)
         .map(([name, entry], index) => `${index + 1} ${entry.glyph} ${name}`)
-        .join(", ")}`,
+        .join(", "),
     title: "react",
     when: () =>
       reactionAvailable() &&
@@ -814,7 +814,6 @@ export function createSelectionComposer({
     id: "response.move",
     touch: false,
     keys: ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
-    description: "Move through other responses",
     title: "move",
     repeat: true,
     when: () => focusedResponseOption(),
@@ -824,7 +823,6 @@ export function createSelectionComposer({
     id: "response.activate",
     touch: false,
     keys: PRESS,
-    description: "Use the focused response",
     title: "choose",
     when: () =>
       focusedResponseOption() &&
@@ -835,7 +833,6 @@ export function createSelectionComposer({
     id: "response.close",
     touch: false,
     keys: ["Escape"],
-    description: "Close other responses",
     title: "close",
     // Closing the other responses hands the user back to the bar they opened them from.
     run: () =>

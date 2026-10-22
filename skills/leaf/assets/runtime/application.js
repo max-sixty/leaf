@@ -10,7 +10,8 @@ import {
   whenApplicationRegionsPresented,
   whenWidgetsPresented,
   presentDocument,
-  projectionRegionsPresented,
+  applicationPresenter,
+  PRESENTATION_ORDER,
   readPart,
 } from "./semantic-state.js";
 import { announce, notice } from "./notifications.js";
@@ -30,7 +31,6 @@ import {
 import { createAnnotationView } from "./annotation-view.js";
 import { createInlineContributions } from "./inline-contributions.js";
 import { presentingContributions, watchContributions } from "./contributions.js";
-import { watchProjection } from "./projection-watch.js";
 import { createThreadDestinations } from "./thread/destination.js";
 import { createThreadActions } from "./thread/actions.js";
 import { createQueueActions } from "./queue-api.js";
@@ -135,7 +135,7 @@ export function mountApplication(dependencies) {
     return presentDocument();
   };
 
-  const projection = createProjectionPresentation();
+  createProjectionPresentation();
   const dataProjection = createDataProjection({ invalidateDom });
 
   let delivery;
@@ -275,25 +275,30 @@ export function mountApplication(dependencies) {
     if (annotationsDrawn) renderAnnotations();
   };
   // The inventory lists the marks the projection's chrome paints, reading their nodes,
-  // which the watcher cannot track, so it reads the parts that move them itself, and
+  // which signals cannot track, so it reads the parts that move them itself, and
   // reads them once that region has committed. The ages the margin shows are followed
   // with the rest of what this paint reads, so the clock repaints them by the same
   // proof.
   const annotationInputs = readPart(annotationSelection);
   const mountAnnotations = () => {
-    const watching = watchProjection(
-      document.body,
-      () => {
-        annotationInputs();
-        renderAnnotations();
+    const presentation = applicationPresenter({
+      region: "annotations",
+      order: PRESENTATION_ORDER.annotations,
+      reading: () => annotationInputs(),
+      paint: async (_reading, current, resume) => {
+        const ready = await whenApplicationRegionsPresented(
+          ["projection:chrome"],
+          current,
+        );
+        if (ready === "presented" && current()) resume(renderAnnotations)();
       },
-      () => projectionRegionsPresented([]),
-    );
+    });
+    void presentation.present();
     document.addEventListener("lf-comparison", renderAnnotations);
     // A paint on paper read no ages, so the return to screen paints through the
-    // watcher, which follows them again.
+    // presenter, which follows them again.
     onPaper.addEventListener("change", () => {
-      if (!onPaper.matches) watching.refresh();
+      if (!onPaper.matches) void presentation.present();
     });
     watchContributions(({ immediate }) => {
       renderAnnotations();
@@ -603,7 +608,6 @@ export function mountApplication(dependencies) {
     watchThreadSurfaces,
     placePageThreads,
     consumeAnnotations,
-    retireProjectionCoverage: projection.retireProjectionCoverage,
     threadActions,
     queueActions,
     settlement: settlementView,

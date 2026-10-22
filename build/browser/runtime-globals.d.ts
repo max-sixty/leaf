@@ -41,6 +41,10 @@ type LeafInitialRenderer = (
 
 /** The prepaint's initial drawing and root-state registries (`prepaint.js`). */
 interface LeafInitial {
+  /** The single Lit namespace initialized by the classic delivery, before modules. */
+  lit?: typeof import("lit") & Record<string, any>;
+  /** Initial insertion, replaced by dom-move.js before live module rendering. */
+  move(parent: Node, node: Node, before: Node | null): Node;
   fragmentId(fragment: string): string;
   keepsAttribute(node: Element, name: string, value: unknown): void;
   setRuntimeRootAttribute(node: Element, name: string, value: unknown): void;
@@ -148,6 +152,7 @@ interface Window {
 
 /** The runtime's own elements, by tag, as each module defines it. */
 interface HTMLElementTagNameMap {
+  "leaf-floating-panel": import("../../skills/leaf/assets/runtime/floating-panel.js").FloatingPanelElement;
   "leaf-attached-media-shelf": import("../../skills/leaf/assets/runtime/composing/input.js").AttachedMediaShelfElement;
   "leaf-text": import("../../skills/leaf/assets/runtime/composing/text-field.js").LeafTextElement;
   "leaf-margin-cluster": import("../../skills/leaf/assets/runtime/annotation-overlay/margin-cluster-view.js").MarginClusterViewElement;

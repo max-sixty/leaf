@@ -1,10 +1,12 @@
 """HTTP event and service-address tests."""
 
+import builtins
 import errno
 import html
 import http.client
 import http.cookiejar
 import http.cookies
+import io
 import json
 import os
 import re
@@ -26,6 +28,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
+import anyio
 import pytest
 import tinycss2
 from click.testing import CliRunner
@@ -78,6 +81,7 @@ from leaf import document_reading as document_reading_model
 from leaf import event_log as event_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
+from leaf import gesture_words as gesture_words_model
 from leaf import harness as harness_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
@@ -298,12 +302,14 @@ def test_a_staged_write_does_not_move_the_page_reading(page_dir):
     past it, so the write moves it once, at the rename."""
     reading = served_reading.page_reading(page_dir)
 
-    (page_dir / ".0123456789abcdef.tmp").write_text("{}")
+    (page_dir / ".leaf-01234567.tmp").write_text("{}")
 
     assert served_reading.page_reading(page_dir) == reading
 
 
-def test_samples_use_captured_resources_and_independent_event_logs(server, page_dir):
+def test_samples_use_captured_resources_and_independent_event_logs(
+    server, page_dir, monkeypatch
+):
     template = '<template id="practice" data-sample><h1>Practice</h1><p id="child-copy">Child text.</p><script type="module" src="/page/sample.js"></script></template>'
     (page_dir / "page").mkdir(exist_ok=True)
     module = b'document.getElementById("child-copy").dataset.module = "captured";'
@@ -384,7 +390,21 @@ def test_samples_use_captured_resources_and_independent_event_logs(server, page_
         data=b'{"kind":"unknown","attempt":"refused"}',
     )
     assert status == 400, answer
-    assert fetch(child + "/api/release", layer=generation, data=b"{}")[0] == 200
+    serve_file = http_model.FileResponse.__call__
+
+    async def release_before_file_read(response, *args):
+        if Path(response.path).name == "icon.svg":
+            released = await anyio.to_thread.run_sync(
+                lambda: fetch(child + "/api/release", data=b"{}")
+            )
+            assert released[0] == 200
+        await serve_file(response, *args)
+
+    monkeypatch.setattr(http_model.FileResponse, "__call__", release_before_file_read)
+    assert fetch(server + child_assets + "icon.svg", token=None) == (
+        200,
+        artifact_model.read_artifact(page_dir, 1).resources["/icon.svg"].data,
+    )
     assert fetch(child + "/api/state")[0] == 404
     assert any(
         row["source"] == "client"
@@ -752,7 +772,7 @@ def test_sample_capability_authorizes_only_its_live_descendants(page_dir, routed
         )
         assert fetch(second + "/api/state", token=None)[0] == 200
         assert fetch(second + "/api/release", data=b"{}", token=None)[0] == 200
-        assert preview.httpd.samples.pages == {}
+        assert all(not samples.pages for samples in preview.httpd.samples.values())
 
 
 @pytest.mark.parametrize("explicit_revision", [False, True])
@@ -918,21 +938,14 @@ def test_document_startup_and_media_ranges_do_not_read_whole_recordings(
         f"/{serving_runtime().identity}"
     )
     reads = []
-    original_open = Path.open
+    original_open = builtins.open
 
     class ObservedFile:
         def __init__(self, stream):
             self.stream = stream
 
-        def __enter__(self):
-            self.stream.__enter__()
-            return self
-
-        def __exit__(self, *args):
-            return self.stream.__exit__(*args)
-
-        def seek(self, offset):
-            return self.stream.seek(offset)
+        def __getattr__(self, name):
+            return getattr(self.stream, name)
 
         def read(self, amount=-1):
             result = self.stream.read(amount)
@@ -941,9 +954,14 @@ def test_document_startup_and_media_ranges_do_not_read_whole_recordings(
 
     def observe(file, *args, **kwargs):
         stream = original_open(file, *args, **kwargs)
-        return ObservedFile(stream) if file.suffix == ".mp4" else stream
+        return (
+            ObservedFile(stream)
+            if isinstance(file, (str, os.PathLike)) and Path(file).suffix == ".mp4"
+            else stream
+        )
 
-    monkeypatch.setattr(Path, "open", observe)
+    monkeypatch.setattr(builtins, "open", observe)
+    monkeypatch.setattr(io, "open", observe)
     assert fetch(server)[0] == 200
     assert reads == []
     for route in (path, captured + path):
@@ -961,6 +979,15 @@ def test_document_startup_and_media_ranges_do_not_read_whole_recordings(
             assert (response.status, response.read()) == (206, data[100:132])
             assert reads == [32]
             reads.clear()
+            for requested, status in (("bytes=9999999-", 416), ("bytes=wrong", 400)):
+                conn.request("GET", route + f"?t={TOKEN}", headers={"Range": requested})
+                response = conn.getresponse()
+                assert response.status == status
+                assert response.getheader("X-Content-Type-Options") == "nosniff"
+                assert response.getheader("Cache-Control")
+                response.read()
+                trace = (page_dir / interaction_model.INTERACTIONS_FILE).read_text()
+                assert json.loads(trace.splitlines()[-1])["status"] == status
         finally:
             conn.close()
 
@@ -2270,7 +2297,9 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
 
 
 def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
-    """The DOM need not re-fold the log to know a prior action will reappear."""
+    """The DOM need not re-fold the log to know a prior action will reappear, and
+    the head `z` takes says what it did in its document's words, which no other
+    entry pays for."""
     version = page_dir / "index.html"
     version.write_text(
         version.read_text().replace(
@@ -2303,9 +2332,12 @@ def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
         )
         assert status == 200, body
 
-    latest = json.loads(body)["state"]["browser"]["views"]["1"]["undo"][0]
+    latest, prior = json.loads(body)["state"]["browser"]["views"]["1"]["undo"][:2]
     assert latest["event"]["id"] == json.loads(body)["state"]["events"][-1]["id"]
     assert latest["event"]["detail"] == {"value": ["delivery-later"]}
+    assert latest["gesture"] == {"form": "choice", "chosen": ["Later"]}
+    assert prior["event"]["detail"] == {"value": ["delivery-now"]}
+    assert "gesture" not in prior
 
 
 def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
@@ -2440,7 +2472,12 @@ def test_undo_candidates_keep_only_user_gestures_in_force():
     )
 
     candidates = served_document.browser_undo_candidates(
-        events, document, empty, undo_reading=undo_reading, stamp=None
+        events,
+        document,
+        empty,
+        undo_reading=undo_reading,
+        stamp=None,
+        words=gesture_words_model.GestureWords(events, {}, {}.__getitem__),
     )
 
     assert [candidate["event"]["id"] for candidate in candidates] == ["rx1", "r2"]
@@ -2474,6 +2511,7 @@ def test_undo_walk_ends_at_the_users_newest_gesture():
                 log, within={}, absorbed=frozenset()
             ),
             stamp=None,
+            words=gesture_words_model.GestureWords(log, {}, {}.__getitem__),
         )
         return [(item["event"]["id"], item.get("newest", False)) for item in candidates]
 
@@ -4236,13 +4274,19 @@ def test_comparison_revision_reads_stay_inside_the_page_transaction(
         assert leases_model.lock_is_held(page_dir / "events.jsonl")
         return original(directory, revision)
 
+    original_data = read_context.read_data
+
+    def held_data(*args):
+        # Record obligations in the view read their bound data under the same
+        # transaction as its document and log.
+        assert leases_model.lock_is_held(page_dir / "events.jsonl")
+        return original_data(*args)
+
     def unrelated_read(*_args):
-        raise AssertionError(
-            "a document comparison needs neither data nor a news token"
-        )
+        raise AssertionError("a document comparison needs no news token")
 
     monkeypatch.setattr(read_context, "read_revision", held_revision)
-    monkeypatch.setattr(read_context, "read_data", unrelated_read)
+    monkeypatch.setattr(read_context, "read_data", held_data)
     monkeypatch.setattr(served_reading, "held_page_reading", unrelated_read)
     status, body = fetch(f"{server}/api/view?revision=1&through_seq={latest}")
     assert status == 200, body
@@ -5555,11 +5599,7 @@ def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
 
 
 def test_one_key_reads_every_page_this_machine_serves(page_dir, tmp_path):
-    """One machine key admits each listener through its own handover link.
-
-    A keyed arrival sets that listener's cookie; other ports need their own
-    arrival even when their server takes the same machine key.
-    """
+    """One keyed arrival lets a plain link reach another page with the same key."""
     second = tmp_path / "second-page"
     assert (
         CliRunner().invoke(cli_model.cli, ["page", "init", str(second)]).exit_code == 0
@@ -5579,14 +5619,32 @@ def test_one_key_reads_every_page_this_machine_serves(page_dir, tmp_path):
         )
         with opener.open(f"{first}/api/state?t={key}") as arrival:
             assert arrival.status == 200
-        with pytest.raises(urllib.error.HTTPError) as unvisited:
-            opener.open(f"{other}/api/state")
-        assert unvisited.value.code == 401
-        with opener.open(f"{other}/api/state?t={key}") as onward:
+        with opener.open(f"{other}/api/state") as onward:
             assert onward.status == 200
         for origin in (first, other):
             with opener.open(f"{origin}/api/state") as polled:
                 assert polled.status == 200
+
+
+def test_a_different_key_does_not_replace_a_page_cookie(page_dir):
+    """A preview with its own key leaves a machine page's bare URL authorized."""
+    servers = [
+        hosting_model.LeafHTTPServer(
+            ("127.0.0.1", 0), http_model.page_endpoint(page_dir, key)
+        )
+        for key in ("machine-key", "preview-key")
+    ]
+    with running_http_server(servers[0]), running_http_server(servers[1]):
+        first, preview = (f"http://127.0.0.1:{h.server_address[1]}" for h in servers)
+        opener = urllib.request.build_opener(
+            urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
+        )
+        for origin, key in ((first, "machine-key"), (preview, "preview-key")):
+            with opener.open(f"{origin}/api/state?t={key}") as arrival:
+                assert arrival.status == 200
+        for origin in (first, preview):
+            with opener.open(f"{origin}/api/state") as revisit:
+                assert revisit.status == 200
 
 
 def test_a_claimed_page_without_a_declaration_serves_its_state(page_dir, server):

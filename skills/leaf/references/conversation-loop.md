@@ -11,11 +11,11 @@ The user follows your work on the page:
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | Leaf's panel              | one sentence for the whole page, in the empty comment field: the line of the item you started last, or what you want back; the leaf beside it takes the status's colour | `leaf task start`, `leaf status <page> waiting "<detail>"`                |
 | Beside a thread or widget | **Working** and your line: the thread's working message, where you posted it, or on the control the work answers                                                        | `leaf response reply --ephemeral`, `leaf task start <page> <id> "<line>"` |
-| Thread                    | your answer to the user's message, with the progress before it folded behind it                                                                                         | the response operation named by delivered `handling`                      |
+| Thread                    | your answer to the user's message, replacing the progress before it                                                                                                     | the response operation named by delivered `handling`                      |
 | Page                      | the revised content in place, and a stamp's changelog                                                                                                                   | saving `index.html`, `leaf page stamp`                                    |
 
 Leaf's panel floats at the foot of the window. Leaf marks each update **Sent**,
-**Queued**, and **Picked up** by itself. Your harness may add its current step to the
+**Queued**, and **Delivered** by itself. Your harness may add its current step to the
 status, which the user reads in full in the leaf's menu, or by pointing at the leaf
 when the panel is folded.
 

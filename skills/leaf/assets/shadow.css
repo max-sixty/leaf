@@ -114,7 +114,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   user-select: none;
   -webkit-user-select: none;
 }
-:where([data-lf-focus]) {
+:where([data-lf-focus-visible]) {
   outline: var(--focus-ring);
   outline-offset: var(--focus-ring-gap);
 }
@@ -140,14 +140,13 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   cursor: default;
   opacity: 0.55;
 }
-[data-lf-offer]:where(:not([data-lf-offer=""]))[data-lf-focus] {
+[data-lf-offer]:where(:not([data-lf-offer=""]))[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: var(--focus-ring-gap);
 }
 [data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer=checkbox], [data-lf-offer=radio], .lf-mark-note)),
 .lf-btn,
 .button,
-.lf-outline-chip:is(button, [role=button]),
 .lf-thread-notice:is(button),
 .lf-react,
 .lf-msg-control,
@@ -158,7 +157,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   min-width: var(--aim-floor);
 }
 [data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer=checkbox], [data-lf-offer=radio], .lf-mark-note, .lf-btn)),
-.lf-outline-chip:is(button, [role=button]),
 .lf-thread-notice:is(button),
 .lf-react,
 .lf-msg-control,
@@ -197,10 +195,10 @@ summary {
   border-radius: var(--r);
   background: var(--focus-surface);
 }
-.lf-page-thread[data-lf-focus] {
+.lf-page-thread[data-lf-focus-visible] {
   outline: none;
 }
-.lf-page-thread[data-lf-focus]::after {
+.lf-page-thread[data-lf-focus-visible]::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -229,10 +227,10 @@ summary {
 .lf-thread-seat > .lf-say {
   margin-top: 0;
 }
-.lf-page-thread:not(.lf-primary-part) + :is(.lf-page-thread:not(.lf-primary-part), .lf-resolved-threads) {
+:is(.lf-page-thread:not(.lf-primary-part, [inert]) + :is(.lf-page-thread:not(.lf-primary-part, [inert]), .lf-resolved-threads), .lf-thread-seat > .lf-page-thread:not([inert]) ~ :is(.lf-page-thread:not([inert]), .lf-resolved-threads)) {
   margin-top: var(--sp-3);
 }
-.lf-page-thread:not(.lf-primary-part) + :is(.lf-page-thread:not(.lf-primary-part), .lf-resolved-threads)::before {
+:is(.lf-page-thread:not(.lf-primary-part, [inert]) + :is(.lf-page-thread:not(.lf-primary-part, [inert]), .lf-resolved-threads), .lf-thread-seat > .lf-page-thread:not([inert]) ~ :is(.lf-page-thread:not([inert]), .lf-resolved-threads))::before {
   content: "";
   position: absolute;
   inset-inline: var(--sp-1);
@@ -252,7 +250,8 @@ summary {
   --lf-msg-edit-save: max(40px, var(--aim-floor));
   --lf-msg-edit-gap: 4px;
   --lf-msg-edit-room: calc( var(--lf-msg-edit-cancel) + var(--lf-msg-edit-gap) + var(--lf-msg-edit-save) );
-  --lf-primary-news-width: 5rem;
+  --lf-news-count-room: 16px;
+  --lf-primary-news-width: calc(5rem + var(--lf-news-count-room));
 }
 .lf-thread-transcript {
   min-width: 0;
@@ -307,6 +306,7 @@ summary {
 }
 .lf-primary-news {
   position: absolute;
+  box-sizing: border-box;
   inset-block-start: 0;
   inset-inline-end: var(--lf-msg-control-room, var(--lf-msg-control, 0px));
   max-inline-size: var(--lf-primary-news-width);
@@ -331,15 +331,25 @@ summary {
 }
 .lf-thread-checkpoint {
   margin-block: 16px;
+  anchor-name: var(--lf-fold-head);
 }
 .lf-thread-checkpoint[data-expanded=true] {
+  margin-block-end: 8px;
+}
+.lf-thread-transcript > .lf-msg[data-lf-summary] {
+  margin-block: 8px;
+  anchor-name: var(--lf-fold-foot);
+}
+.lf-thread-transcript {
   position: relative;
 }
 .lf-thread-checkpoint[data-expanded=true]::before {
   content: "";
   position: absolute;
-  inset-block: -7px;
-  inset-inline: -12px calc(-1 * var(--lf-group-ring-end));
+  inset-block-start: calc(anchor(var(--lf-fold-head) start) - 7px);
+  inset-block-end: calc(anchor(var(--lf-fold-foot) end) - 7px);
+  inset-inline-start: calc(anchor(var(--lf-fold-head) start) - 12px);
+  inset-inline-end: calc(anchor(var(--lf-fold-head) end) - var(--lf-group-ring-end));
   border: 1px solid var(--rule);
   border-radius: 5px;
   pointer-events: none;
@@ -373,6 +383,9 @@ summary {
   margin-bottom: 0;
 }
 .lf-thread-disclosure {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   min-height: var(--aim-floor);
   max-inline-size: 100%;
   flex-shrink: 0;
@@ -403,12 +416,6 @@ summary {
   margin-top: 6px;
   color: var(--turn-ink);
   font: 600 11px/1.4 var(--sans);
-}
-.lf-summary-originals {
-  min-width: 0;
-}
-.lf-summary-originals > .lf-msg {
-  margin-block: 8px;
 }
 .lf-thread-working {
   margin-top: 16px;
@@ -453,7 +460,7 @@ summary {
     }
   }
 }
-.lf-thread-disclosure[data-lf-focus] {
+.lf-thread-disclosure[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
@@ -547,7 +554,7 @@ button.lf-thread-notice {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-button.lf-thread-notice[data-lf-focus] {
+button.lf-thread-notice[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 1px;
 }
@@ -556,13 +563,14 @@ button.lf-thread-notice[data-lf-focus] {
   align-self: center;
 }
 .lf-thread-news > span {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   row-gap: 1lh;
   block-size: 1lh;
   padding-block-end: 0.5lh;
   margin-block-end: -0.5lh;
-  overflow: clip;
+  overflow: visible clip;
 }
 .lf-thread-news > span > span {
   flex: none;
@@ -575,6 +583,22 @@ button.lf-thread-notice[data-lf-focus] {
   margin-block-end: -0.5lh;
   overflow: clip;
   text-overflow: ellipsis;
+}
+.lf-thread-news[data-lf-room] > span > :first-child {
+  margin-inline-end: -1px;
+}
+.lf-thread-controls > .lf-thread-news,
+button.lf-primary-news {
+  padding-inline-end: var(--lf-news-count-room);
+}
+.lf-thread-news > span[data-lf-more]::after {
+  content: attr(data-lf-more) / "";
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 100%;
+  inline-size: var(--lf-news-count-room);
+  text-align: end;
+  font-variant-numeric: tabular-nums;
 }
 .lf-seat-news {
   display: flex;
@@ -712,7 +736,7 @@ button.lf-thread-notice[data-lf-focus] {
 :where(:root, .lf-thread-transcript) tr > :last-child {
   padding-inline-end: var(--lf-table-edge);
 }
-:where(:root, .lf-thread-transcript) :where(th, td)[data-lf-focus] {
+:where(:root, .lf-thread-transcript) :where(th, td)[data-lf-focus-visible] {
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 :where(:root, .lf-thread-transcript) th:not([scope=row]) {
@@ -733,7 +757,7 @@ button.lf-thread-notice[data-lf-focus] {
 }
 :where(:root, .lf-thread-transcript) :is(ul, ol) {
   margin: 10px 0;
-  padding-inline-start: 24px;
+  padding-inline-start: var(--list-inset);
 }
 :where(:root, .lf-thread-transcript) li {
   margin: 6px 0;
@@ -746,6 +770,7 @@ button.lf-thread-notice[data-lf-focus] {
 :is(.lf-msg-body, leaf-text) {
   --quote-inset: 10px;
   --pre-inset: 10px;
+  --pre-pad-block: 8px;
 }
 leaf-text.lf-fab-input,
 .lf-msg-body {
@@ -789,7 +814,29 @@ leaf-text.lf-fab-input,
   margin: 2px 0;
 }
 .lf-msg-body pre {
-  padding-block: 8px;
+  padding-block: var(--pre-pad-block);
+}
+@property --lf-msg-line { syntax: "<length>"; inherits: true; initial-value: 0px; }
+.lf-msg-text {
+  --lf-msg-line: 1lh;
+}
+.lf-msg-text :is([data-lf-gap], pre:has(> [data-lf-gap])) {
+  margin-block: 0;
+}
+.lf-msg-text blockquote[data-lf-gap] {
+  padding-block: 0;
+}
+.lf-msg-text pre:has(> [data-lf-gap]) {
+  padding-block: var(--code-line);
+}
+.lf-msg-text :is([data-lf-gap="1"], pre:has(> [data-lf-gap="1"])) {
+  margin-block-start: var(--lf-msg-line);
+}
+.lf-msg-text :is([data-lf-gap="2"], pre:has(> [data-lf-gap="2"])) {
+  margin-block-start: calc(2 * var(--lf-msg-line));
+}
+.lf-msg-text :is([data-lf-gap="3"], pre:has(> [data-lf-gap="3"])) {
+  margin-block-start: calc(3 * var(--lf-msg-line));
 }
 :where([data-lf-content=data]:not([data-lf-verbatim])) {
   display: block;
@@ -823,6 +870,7 @@ leaf-text.lf-fab-input,
 .lf-resolved-threads {
   position: relative;
   min-width: 0;
+  margin-block-start: 0;
 }
 .lf-resolved-threads::details-content {
   content-visibility: visible;
@@ -846,7 +894,7 @@ leaf-text.lf-fab-input,
 .lf-page-thread .lf-btn {
   font: inherit;
 }
-:is(.lf-page-thread :is(.lf-btn, summary), .lf-resolved-summary)[data-lf-focus] {
+:is(.lf-page-thread :is(.lf-btn, summary), .lf-resolved-summary)[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 1px;
 }
@@ -860,34 +908,19 @@ leaf-text.lf-fab-input,
     display: none !important;
   }
 }
-.lf-outline-chip {
+:where(.lf-react-strip) .lf-react {
   appearance: none;
   margin: 0;
   padding: var(--chip-pad);
   white-space: nowrap;
-  border: 1px solid var(--border-2);
+  border: 1px solid transparent;
   border-radius: var(--chip-r);
-  background: var(--card);
-  color: var(--ink-2);
   font: inherit;
   font-family: var(--sans);
   font-size: var(--t-6);
   line-height: var(--chip-lh);
 }
-.lf-outline-chip:is(button, [role=button]) {
-  cursor: pointer;
-}
-.lf-outline-chip:is(button, [role=button]):hover {
-  background: var(--chip);
-}
-@media (pointer: coarse) {
-  .lf-outline-chip:is(button, [role=button]) {
-    display: inline-flex;
-    align-items: center;
-  }
-}
-.lf-outline-chip[data-lf-focus] {
-  outline: var(--focus-ring);
+.lf-react-strip .lf-react[data-lf-focus-visible] {
   outline-offset: 1px;
 }
 .lf-msg-control {
@@ -917,7 +950,7 @@ leaf-text.lf-fab-input,
   border-color: var(--border-2);
   background: var(--chip);
 }
-.lf-react.lf-response-action:not([aria-pressed=true]) {
+.lf-react.lf-response-action:where(:not([aria-pressed=true])) {
   background: var(--card);
 }
 .lf-react[aria-busy=true] {
@@ -1011,6 +1044,23 @@ svg[data-lf-icon] {
   stroke-width: 1.6;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+.lf-disclosure-icon {
+  inline-size: 16px;
+  block-size: 16px;
+  flex: none;
+  align-self: center;
+  rotate: -90deg;
+  transition: rotate var(--lf-motion-disclosure) ease-out;
+}
+[aria-expanded=true] > .lf-disclosure-icon {
+  rotate: 0deg;
+}
+.lf-disclosure-icon:dir(rtl) {
+  rotate: 90deg;
+}
+[aria-expanded=true] > .lf-disclosure-icon:dir(rtl) {
+  rotate: 0deg;
 }
 .lf-msg-control-icon {
   inline-size: 16px;
@@ -1148,11 +1198,36 @@ svg[data-lf-icon] {
 :is(.lf-btn, .button) {
   padding: max(4px, (var(--aim-floor) - 1lh) / 2 - 1px) 10px;
   border: 1px solid var(--border-2);
-  border-radius: 6px;
+  border-radius: var(--r);
   background: var(--card);
   cursor: pointer;
   color: var(--ink);
   display: inline-block;
+}
+.choice {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: var(--sp-1);
+  padding: max(var(--sp-1), var(--focus-ring-room));
+  min-block-size: var(--aim-floor);
+  min-inline-size: var(--aim-floor);
+  box-sizing: border-box;
+  cursor: pointer;
+  font: var(--t-5)/var(--lf-ui-lh) var(--sans);
+}
+.choice > input {
+  flex: none;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.choice > input:is(:focus-visible, [data-lf-focus-visible]) {
+  outline: none;
+}
+.choice:has(> input:is(:focus-visible, [data-lf-focus-visible])) {
+  outline: var(--focus-ring);
+  outline-offset: calc(-1 * var(--focus-ring-w));
+  --lf-wears-ring: 1;
 }
 :where([data-lf-room]) {
   display: inline-block;
@@ -1174,8 +1249,26 @@ svg[data-lf-icon] {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-:is(.lf-btn, .button):not(:disabled, [aria-disabled=true]):hover {
+:is(.lf-btn, .button):where(:not(:disabled, [aria-disabled=true]):hover) {
   background: var(--chip);
+}
+:is(button, .lf-btn, .button).lf-quiet-action,
+.lf-quiet-action.lf-ui::part(button) {
+  border: 1px solid transparent;
+  border-radius: var(--r);
+  background: transparent;
+  color: var(--muted);
+  box-shadow: none;
+}
+:is(button, .lf-btn, .button).lf-quiet-action:where(:not(:disabled, [aria-disabled=true]):is(:hover, [data-lf-focus])),
+.lf-quiet-action.lf-ui:not(:disabled, [aria-disabled=true])::part(button):hover,
+.lf-quiet-action.lf-ui::part(lf-focus) {
+  background: var(--chip);
+  color: var(--ink);
+}
+.lf-compact-control {
+  --wa-form-control-height: var(--lf-control-compact);
+  min-block-size: var(--lf-control-compact);
 }
 :is(.lf-btn, .button).primary {
   color: var(--accent);
@@ -1195,20 +1288,24 @@ svg[data-lf-icon] {
   background: var(--paper);
   border-color: var(--border-2);
 }
-:is(.lf-btn, .button)[data-lf-focus] {
+:is(.lf-btn, .button)[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 2px;
 }
 
 /* skills/leaf/assets/styles/components/response.css */
+:root {
+  --lf-icon-action-face: 28px;
+  --lf-compose-action-inset: 6px;
+}
 :root,
 .lf-compose-field,
 .lf-icon-action {
-  --lf-icon-action-hit: max(28px, var(--aim-floor));
+  --lf-icon-action-hit: max(var(--lf-icon-action-face), var(--aim-floor));
 }
 :root,
 .lf-compose-field {
-  --lf-compose-h: calc(var(--lf-icon-action-hit) + 12px);
+  --lf-compose-h: calc(var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset));
 }
 .lf-compose-field {
   --lf-compose-pad-block: 8px;
@@ -1272,7 +1369,7 @@ svg[data-lf-icon] {
   padding-inline-end: var(--lf-compose-pad-inline-start);
 }
 .lf-compose-field:where(:has(> .lf-compose-submit)) > leaf-text:not(.lf-fab-input) {
-  --lf-field-end-room: calc( var(--lf-icon-action-hit) + 12px - var(--lf-compose-pad-inline-start) );
+  --lf-field-end-room: calc( var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset) - var(--lf-compose-pad-inline-start) );
 }
 .lf-icon-action {
   box-sizing: border-box;
@@ -1292,15 +1389,6 @@ svg[data-lf-icon] {
   block-size: 16px;
   pointer-events: none;
 }
-.lf-close-action {
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-}
-.lf-close-action:hover {
-  background: var(--chip);
-  color: var(--ink);
-}
 :is(.lf-compose-submit, .lf-compose-dictate),
 :is(.lf-resolve, .lf-reopen).lf-icon-action {
   border: 0;
@@ -1311,8 +1399,8 @@ svg[data-lf-icon] {
   content: "";
   position: absolute;
   box-sizing: border-box;
-  inline-size: 28px;
-  block-size: 28px;
+  inline-size: var(--lf-icon-action-face);
+  block-size: var(--lf-icon-action-face);
   border-radius: var(--r);
   background: transparent;
 }
@@ -1323,8 +1411,8 @@ svg[data-lf-icon] {
 :is(.lf-compose-submit, .lf-compose-dictate) {
   position: absolute;
   z-index: 1;
-  inset-inline-end: 6px;
-  inset-block-end: 6px;
+  inset-inline-end: var(--lf-compose-action-inset);
+  inset-block-end: var(--lf-compose-action-inset);
   color: var(--accent);
 }
 :is(.lf-compose-submit, .lf-compose-dictate):not(:disabled, [aria-disabled=true]):hover::before {
@@ -1385,7 +1473,9 @@ svg[data-lf-icon] {
   flex-wrap: wrap;
 }
 .lf-composer-media {
-  --lf-media-room: max( calc(var(--raise-1-drop) + var(--raise-1-blur)), calc(var(--aim-floor) / 2 - 3px) );
+  --lf-media-mark-size: 18px;
+  --lf-media-mark-overhang: 6px;
+  --lf-media-room: max( calc(var(--raise-1-drop) + var(--raise-1-blur)), calc( var(--lf-media-mark-overhang) + (var(--aim-floor) - var(--lf-media-mark-size)) / 2 ) );
   --lf-media-h: 120px;
   display: flex;
   flex: 1 0 calc(100% + 2 * var(--lf-media-room));
@@ -1393,7 +1483,7 @@ svg[data-lf-icon] {
   min-width: 0;
   overflow-x: auto;
   padding: var(--lf-media-room);
-  margin: calc(6px - var(--lf-media-room)) calc(-1 * var(--lf-media-room)) calc(4px - var(--lf-media-room));
+  margin: calc(var(--lf-media-mark-overhang) - var(--lf-media-room)) calc(-1 * var(--lf-media-room)) calc(4px - var(--lf-media-room));
   box-sizing: border-box;
 }
 .lf-composer-media-item {
@@ -1417,7 +1507,7 @@ svg[data-lf-icon] {
 button.lf-media-open {
   cursor: zoom-in;
 }
-.lf-media-open[data-lf-focus] {
+.lf-media-open[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 2px;
 }
@@ -1442,13 +1532,13 @@ button.lf-media-open {
 .lf-composer-media-item > button:not(.lf-media-open) {
   position: absolute;
   z-index: 1;
-  inset-block-start: -6px;
-  inset-inline-end: -6px;
+  inset-block-start: calc(-1 * var(--lf-media-mark-overhang));
+  inset-inline-end: calc(-1 * var(--lf-media-mark-overhang));
   display: grid;
   place-items: center;
-  inline-size: 18px;
+  inline-size: var(--lf-media-mark-size);
   min-inline-size: 0;
-  block-size: 18px;
+  block-size: var(--lf-media-mark-size);
   min-block-size: 0;
   padding: 0;
   border: 0;
@@ -1460,17 +1550,17 @@ button.lf-media-open {
   cursor: pointer;
 }
 .lf-composer-media-item > .lf-composer-drawing-undo {
-  inset-inline: -6px auto;
+  inset-inline: calc(-1 * var(--lf-media-mark-overhang)) auto;
 }
 .lf-composer-media-item > button:not(.lf-media-open)::before {
   content: "";
   position: absolute;
-  inset: calc((18px - var(--aim-floor)) / 2);
+  inset: calc((var(--lf-media-mark-size) - var(--aim-floor)) / 2);
 }
 .lf-composer-media-item > button:not(.lf-media-open):hover {
   background: var(--ink);
 }
-.lf-composer-media-item > button:not(.lf-media-open)[data-lf-focus] {
+.lf-composer-media-item > button:not(.lf-media-open)[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 2px;
 }
@@ -1487,7 +1577,7 @@ button.lf-media-open {
   }
 }
 @media (forced-colors: active) {
-  .lf-composer-media-item > .lf-composer-media-open:not([data-lf-focus]) {
+  .lf-composer-media-item > .lf-composer-media-open:not([data-lf-focus-visible]) {
     outline: 1px solid CanvasText;
   }
   .lf-composer-media-item > button:not(.lf-media-open) {
@@ -1523,8 +1613,8 @@ button.lf-media-open {
   border-radius: var(--r);
   background: var(--card);
 }
-.lf-comment-box > .lf-compose-field:has(> leaf-text[data-lf-focus]),
-.lf-response-control[data-lf-focus] {
+.lf-comment-box > .lf-compose-field:has(> leaf-text[data-lf-focus-visible]),
+.lf-response-control[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 0;
   border-color: transparent;
@@ -1543,7 +1633,7 @@ button.lf-media-open {
   max-height: 50vh;
   overflow-y: auto;
 }
-.lf-comment-box > .lf-compose-field > leaf-text[data-lf-focus] {
+.lf-comment-box > .lf-compose-field > leaf-text[data-lf-focus-visible] {
   outline: none;
 }
 .lf-thread-reply {
@@ -1739,7 +1829,7 @@ leaf-text.lf-fab-input {
   }
 }
 @media (forced-colors: active) {
-  .lf-response-control[data-lf-focus] {
+  .lf-response-control[data-lf-focus-visible] {
     outline: var(--focus-ring-w) solid Highlight;
     outline-offset: 2px;
     filter: none;
@@ -1753,7 +1843,7 @@ leaf-text.lf-fab-input {
   max-height: min(60vh, 480px);
   border-radius: var(--r);
 }
-:is(.lf-btn, .button):is(.on, [aria-pressed=true]) {
+:is(.lf-btn, .button)[aria-pressed=true] {
   border-color: var(--accent);
   color: var(--accent);
   background: var(--chip);
@@ -1821,9 +1911,6 @@ html[data-lf-draw-mode] main {
 .lf-code-copy::part(button):hover {
   color: var(--ink);
 }
-.lf-code-copy::part(lf-focus) {
-  outline: var(--focus-ring);
-}
 :root {
   --lf-video-bar-h: max(32px, var(--aim-floor));
   --lf-video-bar-inset: 4px;
@@ -1845,12 +1932,16 @@ html[data-lf-draw-mode] main {
   z-index: 1;
   opacity: 0;
   pointer-events: none;
+  &:has(> .lf-video-full-screen) {
+    padding-inline: 0;
+  }
 }
 .lf-video-controls:is(:not(.lf-video-playing), .lf-video-hover, .lf-video-keyed, :hover, :has(:focus-visible)) {
   opacity: 1;
   pointer-events: auto;
 }
-.lf-video-play {
+.lf-video-play,
+.lf-video-full-screen {
   flex: none;
   display: grid;
   place-items: center;
@@ -1864,7 +1955,7 @@ html[data-lf-draw-mode] main {
   &:hover {
     background: var(--chip);
   }
-  &[data-lf-focus] {
+  &[data-lf-focus-visible] {
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
@@ -1970,32 +2061,32 @@ wa-input::part(base),
 wa-select::part(combobox) {
   transition-property: background-color, border-color;
 }
-wa-copy-button::part(lf-focus) {
+wa-copy-button::part(lf-focus-visible) {
   outline: var(--focus-ring);
   outline-offset: var(--focus-ring-gap);
 }
-wa-comparison::part(lf-focus) {
+wa-comparison::part(lf-focus-visible) {
   outline: var(--focus-ring);
   outline-offset: var(--focus-ring-gap);
 }
-wa-radio[appearance=button][data-lf-focus] {
+wa-radio[appearance=button][data-lf-focus-visible] {
   z-index: 2;
 }
-wa-input::part(base lf-focus-within) {
+wa-input::part(base lf-focus-visible-within) {
   outline: var(--focus-ring);
 }
-wa-select::part(combobox lf-focus-within) {
+wa-select::part(combobox lf-focus-visible-within) {
   outline: var(--focus-ring);
 }
 wa-option {
   --focus-ring-gap: calc(-1 * var(--focus-ring-w));
 }
-wa-slider:not([range])[data-lf-focus-within]::part(thumb),
-wa-slider[range]::part(lf-focus) {
+wa-slider:not([range])[data-lf-focus-visible-within]::part(thumb),
+wa-slider[range]::part(lf-focus-visible) {
   outline: var(--focus-ring);
   outline-offset: 0;
 }
-wa-slider[range]::part(lf-focus) {
+wa-slider[range]::part(lf-focus-visible) {
   z-index: 4;
 }
 wa-slider::part(track) {

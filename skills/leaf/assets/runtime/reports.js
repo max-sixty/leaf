@@ -28,12 +28,10 @@
    infer prose from a field, verb, or widget name. The state boundary exposes it once.
 
    `reportSequence` filters the server-normalized report feed, and `readHistory` selects
-   the history reading; a paint reads them under `watchProjection`
-   (`projection-watch.js`), so a module connected before the first state and one a later
-   thread reconcile builds render through the same paint. `reportsPresented(target)` is
-   that watcher's proof for a paint that narrates reports: it holds until the projection
-   has committed every report coordinate its target holds, so a paint never narrates a
-   report the widget has not yet painted.
+   the history reading. A LeafElement reads them in render(), so Lit follows both
+   initial state and later publications. `reportsReady(target)` holds that render until
+   the projection has committed every report coordinate its target holds: no renderer
+   narrates a report the widget has not yet painted.
 
    Accepted and local attempts publish one complete snapshot, including reads whose
    event list did not grow and definitive refusals that restore authoritative truth.
@@ -41,8 +39,8 @@
    recorded with what else the paint read (`presence.js`), and the shared tick repaints
    only paints whose reading changed, while their owners stand, so a new widget owes no
    entry in a kernel list of clock consumers. A held state does not reset the
-   measured server clock offset. Register a watcher once, as `watchProjection` owns its
-   connection lifetime.
+   measured server clock offset. Lit owns the rendering subscription and its connection
+   lifetime.
 
    `active.revision` identifies the immutable document currently shown; `active.version`
    is its public stamp when it has one, otherwise null, and `active.label` is `vN`,
@@ -56,7 +54,6 @@ import { currentProjection } from "./projection/state.js";
 import {
   applicationRegionsPresented,
   projectionRegionsPresented,
-  proofReading,
   readPart,
 } from "./semantic-state.js";
 import { closestAcross } from "./passages.js";
@@ -134,7 +131,7 @@ const reportWidgets = (target) => {
 // preparation, the coordinate chrome, and any other widget the reports name must have
 // committed. Read in a render, the answer is followed as the time a render shows is.
 export const reportsReady = (target) =>
-  proofReading(() =>
+  target.whenReady(() =>
     applicationRegionsPresented([
       "projection:chrome",
       `widget:${target.id}:preparation`,
@@ -145,4 +142,4 @@ export const reportsReady = (target) =>
           `widget:${widget}:preparation`,
         ]),
     ]),
-  ).read();
+  );

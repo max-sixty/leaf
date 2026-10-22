@@ -10,6 +10,7 @@ exact bytes: the separately bundled public assets are a different module graph.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import os
@@ -19,6 +20,7 @@ import tarfile
 import time
 import urllib.request
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from http.client import HTTPResponse
@@ -28,6 +30,7 @@ from types import SimpleNamespace
 from typing import BinaryIO
 from urllib.parse import urlencode, urlsplit
 
+import anyio
 from leaf.data import deferred_records
 from leaf.files import latest_revision, revision_path
 from leaf.layer import running_leaf
@@ -43,6 +46,7 @@ from leaf.schema import (
 from leaf.served_state.reading import record_reading
 from leaf.service import PageTransaction
 from leaf.state import STRING, Record, described, object_schema, page_key, state_home
+from starlette.datastructures import Headers
 from starlette.requests import Request
 
 CHUNK_BYTES = 1024 * 1024
@@ -202,6 +206,17 @@ def _responses(
     source_error: str | None,
     blobs: _BlobSet,
 ) -> dict:
+    # A transaction can finish inside the website's event loop. Capture its ASGI
+    # responses in one other thread then, where anyio can own a fresh loop.
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        pass
+    else:
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            return executor.submit(
+                _responses, page, site_root, manifest, root, source_error, blobs
+            ).result()
     from leaf_website import WebsitePageEndpoint, page_routes
 
     revision = latest_revision(page.page_dir)
@@ -258,6 +273,16 @@ def _responses(
     result = {}
     for path in sorted(paths):
         address = urlsplit(f"{root.rstrip('/')}/{path}")
+        request_sent = False
+
+        async def receive():
+            nonlocal request_sent
+            if not request_sent:
+                request_sent = True
+                return {"type": "http.request", "body": b"", "more_body": False}
+            # This capture has no client to disconnect while a file streams.
+            await asyncio.Event().wait()
+
         request = Request(
             {
                 "type": "http",
@@ -267,7 +292,8 @@ def _responses(
                 "path": address.path,
                 "query_string": address.query.encode(),
                 "headers": [],
-            }
+            },
+            receive,
         )
         endpoint = WebsitePageEndpoint(
             request,
@@ -281,15 +307,21 @@ def _responses(
         )
         endpoint.page_snapshot = snapshot
         endpoint.housekeeping = True
-        response = endpoint.respond()
-        if response.status_code != 200:
+        messages = []
+
+        async def capture(message, messages=messages):
+            messages.append(message)
+
+        anyio.run(endpoint, request.scope, request.receive, capture)
+        response, *body = messages
+        if response["status"] != 200:
             raise RuntimeError(
-                f"cannot publish saved page response {path}: {response.status_code}"
+                f"cannot publish saved page response {path}: {response['status']}"
             )
         result[path] = {
-            "status": response.status_code,
-            "headers": dict(response.headers),
-            **blobs.chunks(response.body),
+            "status": response["status"],
+            "headers": dict(Headers(raw=response["headers"])),
+            **blobs.chunks(b"".join(chunk["body"] for chunk in body)),
         }
     return result
 

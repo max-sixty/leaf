@@ -70,7 +70,7 @@ import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { anchorLabel } from "./thread/messages.js";
 import { reactionsAt, tokenChoices } from "./thread/model.js";
 import { allThreads, readThreads } from "./thread/state.js";
-import { watchProjection } from "./projection-watch.js";
+import { effect, untracked } from "/vendor/browser-runtime.js";
 import { annotationSelection } from "./annotation-inventory.js";
 import { readPart } from "./semantic-state.js";
 import { raiseError } from "./errors.js";
@@ -154,8 +154,8 @@ export function createReactionController({
   let pageCommands = null;
   const marginReactionKey = (name, ordinal) =>
     `reaction:${String(ordinal).padStart(4, "0")}:${name}`;
-  function registerReactSurface(surface, { palette, target, trigger }) {
-    surfaces.set(surface, { palette, target, trigger });
+  function registerReactSurface(surface, { palette, trigger }) {
+    surfaces.set(surface, { palette, trigger });
     return {
       toggle: () => setReact(!(reactArmed && reactSurface === surface), { surface }),
       close: () => {
@@ -475,13 +475,6 @@ export function createReactionController({
     );
   }
 
-  const reactTargetWord = () =>
-    reactSurface === marginSurface
-      ? anchorWord(marginAnchor)
-      : typeof pickerFor(reactSurface)?.target === "function"
-        ? pickerFor(reactSurface).target()
-        : (pickerFor(reactSurface)?.target ?? "the target");
-
   const REACT = {
     title: "With reactions open",
     ready: savedReadingSettled,
@@ -508,10 +501,10 @@ export function createReactionController({
           return n > 1 ? `1–${n}` : "1";
         },
         description: () =>
-          `Put a reaction on ${reactTargetWord()}: ${reactionTokens()
+          reactionTokens()
             .slice(0, 9)
             .map(([name, entry], i) => `${i + 1} ${entry.glyph} ${name}`)
-            .join(", ")}`,
+            .join(", "),
         title: "react",
         when: reactionAvailable,
         run: (binding) => {
@@ -536,7 +529,6 @@ export function createReactionController({
         touch: false,
         runFromCommandReference: false,
         keys: ["Tab", "Shift+Tab", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
-        description: "Move through reactions",
         title: "move",
         repeat: true,
         run: stepResponse,
@@ -546,7 +538,6 @@ export function createReactionController({
         touch: false,
         runFromCommandReference: false,
         keys: PRESS,
-        description: "Use the focused response",
         title: "choose",
         when: () => responseChoices(reactSurface).includes(focused()),
         run: () => focused()?.click(),
@@ -555,7 +546,6 @@ export function createReactionController({
         id: "reaction.cancel",
         touch: false,
         keys: ["Escape"],
-        description: "Close response choices",
         title: "cancel",
         run: () => setReact(false),
       },
@@ -579,15 +569,17 @@ export function createReactionController({
       threads: root.effective.thread.all,
       annotations: annotationSelection(root),
     }));
-    watchProjection(document.body, () => {
+    effect(() => {
       margin();
-      if (
-        reactArmed &&
-        reactSurface === marginSurface &&
-        (!marginTarget?.isConnected || fabTargetAt() !== marginTarget)
-      )
-        setReact(false);
-      else if (reactArmed && reactSurface === marginSurface) marginOffer?.update();
+      untracked(() => {
+        if (
+          reactArmed &&
+          reactSurface === marginSurface &&
+          (!marginTarget?.isConnected || fabTargetAt() !== marginTarget)
+        )
+          setReact(false);
+        else if (reactArmed && reactSurface === marginSurface) marginOffer?.update();
+      });
     });
   }
   pageScope("reactions", REACT);
@@ -602,11 +594,7 @@ export function createReactionController({
     ready: savedReadingSettled,
     touch: false,
     keys: ["e"],
-    description: () =>
-      `Open reactions — ${reactionTokens()
-        .slice(0, 9)
-        .map(([name, entry]) => `${entry.glyph} ${name}`)
-        .join(", ")} — for the selection, the focused item, or the open reply`,
+    description: "On the selection, the focused item or the open reply",
     title: "reactions",
     when: () =>
       reactionAvailable() &&
@@ -641,14 +629,9 @@ export async function sendReaction(event, where, postReaction) {
   if (sent) announce(`${event.token} on ${where}`);
   return sent;
 }
-function reactionPlace(event) {
+// Where a reaction stands, as Threads names its anchor.
+export function reactionPlace(event) {
   if (event.kind === "reply") return "the reply";
   if (!event.anchor) return "the page";
   return anchorLabel(event.anchor, event.about);
 }
-export const undoSentence = (undoable) => {
-  const event = undoable();
-  return event?.token
-    ? `Undo: ${event.token} reaction on ${reactionPlace(event)}`
-    : "Undo the latest update";
-};

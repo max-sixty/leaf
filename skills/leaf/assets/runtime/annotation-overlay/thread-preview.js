@@ -23,12 +23,13 @@
    was carried at, so a longer line arriving wraps inside it rather than carrying the
    controls at its far edge; only a narrower room narrows it.
    Reading and draft growth hold the top; a turn joining while drafting/sending holds
-   the reply's foot, as does a card above its target; what a press in the card shows
-   in its transcript keeps the pressed spot still, until the user's next input or a
-   change they did not make. Another selection chooses afresh. Floating UI supplies
-   room at that edge; native grid tracks share it between transcript and reply, growing
-   to their words before scrolling. Reply continuity retains removed turns as flexible
-   space and lets the transcript yield writing room without losing the visible lines.
+   the reply's foot, as do a draft beside its target with no room below and a card
+   above its target; what a press in the card shows in its transcript keeps the
+   pressed spot still, until the user's next input or a change they did not make.
+   Another selection chooses afresh. Floating UI supplies room at that edge; native
+   grid tracks share it between transcript and reply, growing to their words before
+   scrolling. Reply continuity retains removed turns as flexible space and lets the
+   transcript yield writing room without losing the visible lines.
 
    Placement changes geometry, never rebuilds contents. Retained state reads hold the
    reader's message and scroll position; another thread opens at its latest message,
@@ -187,7 +188,6 @@ export function createThreadPreview({
       id: "margin.card.back",
       keys: ["Shift+Tab"],
       title: "back to the margin entry",
-      description: "Leave the thread card for the margin entry it hangs from",
       repeat: true,
       runFromCommandReference: false,
       when: () => atCardEdge(-1),
@@ -197,7 +197,6 @@ export function createThreadPreview({
       id: "margin.card.onward",
       keys: ["Tab"],
       title: "on past the margin entry",
-      description: "Leave the thread card for the stop after the margin entry",
       native: true,
       repeat: true,
       runFromCommandReference: false,
@@ -211,7 +210,6 @@ export function createThreadPreview({
       id: "margin.card.enter",
       keys: ["Tab"],
       title: "into the thread card",
-      description: "Enter the thread card the margin entry opened",
       repeat: true,
       runFromCommandReference: false,
       when: () => onOpener() && tabStops(preview).length > 0,
@@ -221,7 +219,6 @@ export function createThreadPreview({
       id: "margin.card.over",
       keys: ["Shift+Tab"],
       title: "back past the thread card",
-      description: "Go back from the margin entry to the stop before it",
       native: true,
       repeat: true,
       runFromCommandReference: false,
@@ -457,10 +454,10 @@ export function createThreadPreview({
   // place as its thread changes: it keeps the top while the user reads or writes a new
   // line, and its foot, with the reply row on it, after a turn joins the transcript as
   // the user drafts, whether one arrives or they sent it, so the box they type in stays
-  // put through subsequent sizing passes. A card over its target grows up from its
-  // foot (`holding`, comment-placement.js). The boundary caps the card at the room from
-  // its held edge. Drafting grows the editor into that room, then scrolls its words
-  // rather than carrying the card.
+  // put through subsequent sizing passes. A card over its target, or drafted in beside
+  // it against the window's foot, grows up from its foot (`holding`, comment-placement.js). The
+  // boundary caps the card at the room from its held edge. Drafting grows the editor
+  // into that room, then scrolls its words rather than carrying the card.
   function placeThreadPreview() {
     const session = previewSession;
     if (!session || !session.control?.isConnected) return false;
@@ -739,7 +736,9 @@ export function createThreadPreview({
     const replySelector =
       ":scope > .lf-margin-thread > .lf-margin-thread-body > " +
       ".lf-page-thread > .lf-thread-reply";
-    const lastShown = [...previewList.querySelectorAll(messageSelector)].at(-1);
+    const lastShown = [...previewList.querySelectorAll(messageSelector)].findLast(
+      (node) => node.checkVisibility(),
+    );
     const lastBox = lastShown?.getBoundingClientRect();
     const listBox = session.transcript?.getBoundingClientRect();
     const replyBox = previewList.querySelector(replySelector)?.getBoundingClientRect();

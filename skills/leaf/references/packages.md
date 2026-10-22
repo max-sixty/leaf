@@ -193,7 +193,9 @@ and whether it puts an obligation on On me. The merged registry's `$keys` entry 
 key; `$state` defines the members of `x-state`, and `$awaits` an obligation's answer. Every
 declaration has a `description` saying what the widget is for and when to use it, and a
 valid `x-example`. The optional `x-instructions` gives the choices and obligations of
-using it.
+using it. Guidance a workflow shares across elements, such as how to word
+alternatives, goes in the instructions that own that workflow, and the entry points to
+them: an author revising a page re-reads those instructions, not the entry.
 
 A `boolean` attribute works as in HTML. Name it for what its presence means and make
 absence the default, as in `lf-diff collapsed` or `lf-shot outlines`.

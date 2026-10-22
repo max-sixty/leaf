@@ -36,7 +36,6 @@ from interact_support import (
     published,
     refused_on,
     response_reference,
-    served_thread,
     state_json,
     words,
 )
@@ -1352,11 +1351,6 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
     assert completed["responds"] == root["id"]
     state = page_state(claimed)
     assert state["workflows"] == []
-    [thread] = served_thread(state["browser"])["threads"]
-    assert thread["summaries"][0]["covers"] == [
-        update["id"],
-        json.loads(again.output.splitlines()[0])["id"],
-    ]
     # Once nothing is owed, an update takes nothing in hand, so it may run long.
     later = progress("The clock drifts.\n\nWatching it overnight.", proactive=True)
     assert later.exit_code == 0, later.output

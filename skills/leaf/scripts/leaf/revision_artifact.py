@@ -33,7 +33,6 @@ Each is kept in the memory of the page it was read from, for as long as the proc
 keeps that page (`page_memory`).
 """
 
-import errno
 import hashlib
 import json
 import os
@@ -132,33 +131,20 @@ class Resource:
     """Exact bytes or an immutable backing file, read only when a consumer needs them.
 
     Captured files belong to the revision bundle; callers never replace them with a
-    mutable page path. A full read is explicit in `data`, while transports use `size`
-    and `read` to answer HEAD and byte ranges without materializing the whole file.
+    mutable page path. A full read is explicit in `data`; HTTP passes backing files
+    directly to Starlette for streaming and byte ranges.
     """
 
     content: bytes | Path
     mime: str
 
     @property
-    def size(self) -> int:
-        return (
-            len(self.content)
-            if isinstance(self.content, bytes)
-            else self.content.stat().st_size
-        )
-
-    def read(self, window: slice = slice(0, None)) -> bytes:
-        if isinstance(self.content, bytes):
-            return self.content[window]
-        with self.content.open("rb") as stream:
-            stream.seek(window.start or 0)
-            return stream.read(
-                -1 if window.stop is None else window.stop - (window.start or 0)
-            )
-
-    @property
     def data(self) -> bytes:
-        return self.read()
+        return (
+            self.content
+            if isinstance(self.content, bytes)
+            else self.content.read_bytes()
+        )
 
     @property
     def digest(self) -> str:
@@ -892,8 +878,10 @@ def stage_artifact(page_dir: Path, revision: int, artifact: RevisionArtifact) ->
                 target = staged / ("resources" + path)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 earlier = captured.get(resource.digest)
-                if earlier is None or not _linked(earlier, target):
+                if earlier is None:
                     _write(target, resource.data, durable)
+                else:
+                    os.link(earlier, target)
                 written.append(target)
             if durable:
                 fsync_parents(written + list(staged.rglob("*")))
@@ -913,19 +901,6 @@ def _write(target: Path, data: bytes, durable: bool) -> Path:
             stream.flush()
             os.fsync(stream.fileno())
     return target
-
-
-def _linked(earlier: Path, target: Path) -> bool:
-    """Link `target` to a file an earlier bundle captured, unless that file has as
-    many links as its filesystem allows (ext4 stops at 65,000, which a page that
-    never re-vendors reaches after as many revisions)."""
-    try:
-        os.link(earlier, target)
-    except OSError as error:
-        if error.errno != errno.EMLINK:
-            raise
-        return False
-    return True
 
 
 def _captured_files(page_dir: Path) -> dict[str, Path]:

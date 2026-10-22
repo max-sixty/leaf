@@ -535,8 +535,8 @@ containing user text.
 The outbound model handler adds `model_request_started`, `model_response_headers`,
 `model_response_first_byte`, `model_response_first_output`, and
 `model_response_completed` or `model_request_failed`, each with Codex's thread and turn
-ids, a per-request id, status, and byte count. `model_transport_http_fallback` records
-Codex falling back from its WebSocket probe to HTTP.
+ids, a per-request id, status, and byte count. The hosted Codex provider uses HTTP
+directly (`codex-config.toml`).
 
 When a hosted turn cannot answer, the user's update gets a failure receipt: a reply
 carrying `failure` in its thread for a message, or a failed pickup for an answer to an
@@ -551,8 +551,7 @@ ask, which leaves the answer in force and lets the user answer again
 | `startup_failed` | Worker, or the container for a message it took up after a turn ended | The turn could not be started                    |
 | `turn_failed`    | Container                                                            | A turn it followed ended without an answer       |
 
-`leaf-dev journey`, the deploy's last check, retries once on `startup_failed` and fails
-at once on any other failure receipt.
+`leaf-dev journey`, the deploy's last check, fails on the first failure receipt.
 
 The Worker starts each turn inside the request's `waitUntil`, which Cloudflare allows
 30 seconds. The accepted event is durable; the running turn is not, and nothing

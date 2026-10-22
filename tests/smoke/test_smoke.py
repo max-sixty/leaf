@@ -97,15 +97,19 @@ def test_a_sent_margin_reply_shows_its_words_while_delivery_is_pending(
     page.keyboard.type(words)
     pending = []
     page.route("**/api/event", lambda route: pending.append(route))
-    page.keyboard.press("ControlOrMeta+Enter")
-    holding(page, pending, 1, "the margin reply")
-    latest = card.locator(".lf-msg.user").last
-    expect(latest.locator(".lf-msg-sending")).to_have_text("Sending")
-    body = latest.locator(".lf-msg-body")
-    expect(body).to_have_text(words)
-    # Allow subpixel rounding at the transcript's scroll edge.
-    expect(body).to_be_in_viewport(ratio=0.99)
-    assert pending, "The reply POST must still be pending when its body is checked"
+    try:
+        page.keyboard.press("ControlOrMeta+Enter")
+        holding(page, pending, 1, "the margin reply")
+        latest = card.locator(".lf-msg.user").last
+        expect(latest.locator(".lf-msg-sending")).to_have_text("Sending")
+        body = latest.locator(".lf-msg-body")
+        expect(body).to_have_text(words)
+        # Allow subpixel rounding at the transcript's scroll edge.
+        expect(body).to_be_in_viewport(ratio=0.99)
+        assert pending, "The reply POST must still be pending when its body is checked"
+    finally:
+        # Cancel the held request before the page server waits for in-flight work.
+        page.context.close()
 
 
 @pytest.mark.parametrize("how", ["key", "pointer"])
@@ -165,18 +169,21 @@ def test_a_pending_reply_keeps_the_transcript_end_when_card_fitting_reduces_room
             route.continue_()
 
     page.route("**/api/event", hold_reply)
-    if how == "key":
-        page.keyboard.press("ControlOrMeta+Enter")
-    else:
-        card.locator(".lf-thread-send").click()
-    holding(page, pending, 1, "the pending reply")
-    latest = card.locator(".lf-msg.user").last
-    expect(latest.locator(".lf-msg-sending")).to_have_text("Sending")
-    rendered(page)
-    scroll_settled(page, ".lf-margin-preview .lf-thread-transcript")
-    expect(latest.locator(".lf-msg-body")).to_have_text(words)
-    expect(latest.locator(".lf-msg-body")).to_be_in_viewport(ratio=0.99)
-    assert pending, "The reply POST must still be pending after fitting"
+    try:
+        if how == "key":
+            page.keyboard.press("ControlOrMeta+Enter")
+        else:
+            card.locator(".lf-thread-send").click()
+        holding(page, pending, 1, "the pending reply")
+        latest = card.locator(".lf-msg.user").last
+        expect(latest.locator(".lf-msg-sending")).to_have_text("Sending")
+        rendered(page)
+        scroll_settled(page, ".lf-margin-preview .lf-thread-transcript")
+        expect(latest.locator(".lf-msg-body")).to_have_text(words)
+        expect(latest.locator(".lf-msg-body")).to_be_in_viewport(ratio=0.99)
+        assert pending, "The reply POST must still be pending after fitting"
+    finally:
+        page.context.close()
 
 
 def test_reading_keys_follow_a_submitted_comment_s_viewport(browser, serve):

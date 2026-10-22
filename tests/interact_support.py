@@ -221,9 +221,8 @@ class ModelPage:
     `packages` names the optional vocabularies the markup speaks, as `page init`
     would be told them; the default layer alone is the default.
 
-    What a page holds in files it has none of: no typed external data, and
-    nothing owed to anyone, neither of which markup can state. A rule about
-    either belongs on `page_dir`.
+    Typed external data can be supplied as the same validated reading the server
+    receives. File publication behavior and response delivery belong on `page_dir`.
     """
 
     def __init__(
@@ -232,6 +231,7 @@ class ModelPage:
         packages: tuple[str, ...] = (),
         documents: dict | None = None,
         registry: dict | None = None,
+        data: dict | None = None,
     ):
         """`documents` and `registry` are for a caller that has already parsed and
         composed them — `model_folds.reading` has, and states the same page to the
@@ -242,6 +242,7 @@ class ModelPage:
         }
         self._packages = packages
         self._registry = registry
+        self._data = data or {"version": "", "sources": {}}
 
     @property
     def revisions(self) -> list[int]:
@@ -260,12 +261,14 @@ class ModelPage:
 
     @property
     def contracts(self) -> dict:
-        """A stated page records no data source."""
-        return {}
+        """The contracts of the supplied data publications."""
+        return {
+            source: value["contract"] for source, value in self._data["sources"].items()
+        }
 
     def data(self, registry: dict) -> dict:
-        """A stated page binds no source, so every reading of its data is empty."""
-        return {"version": "", "sources": {}}
+        """The supplied validated data readings, empty unless a test names them."""
+        return self._data
 
     @property
     def within(self) -> dict:

@@ -80,7 +80,7 @@ import { obligationsIn, obligationPlace } from "./obligations/place.js";
 import { readQueues, queueItemKey } from "./queue-api.js";
 import { carriesObligation, itemNoun } from "./queues.js";
 import { drawnThreadId } from "./thread/selectors.js";
-import { watchProjection } from "./projection-watch.js";
+import { effect, untracked } from "/vendor/browser-runtime.js";
 import { retainUserIntent } from "./user-intent.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 import { approvalTarget, presentedApproval } from "./page-status.js";
@@ -349,11 +349,11 @@ export function createQueueWalk({
   // The m/M row stands on On me, and Done on the to-dos it holds, so the surfaces
   // reading them are repainted where the list empties or fills or those to-dos change.
   function mount() {
-    watching ??= watchProjection(document.body, () => {
+    watching ??= effect(() => {
       if (offered() === wasOffered && doneable() === wasDoneable) return;
       wasOffered = offered();
       wasDoneable = doneable();
-      paintKeys();
+      untracked(paintKeys);
     });
   }
 
@@ -368,14 +368,11 @@ export function createQueueWalk({
         id: "queue.next",
         binding: "m",
         title: "Next on me",
-        description: "Go to the next of everything waiting on me, anywhere on the page",
       },
       {
         id: "queue.previous",
         binding: "Shift+m",
         title: "Previous on me",
-        description:
-          "Go to the previous of everything waiting on me, anywhere on the page",
       },
     ],
     title: "On me",
@@ -399,7 +396,6 @@ export function createQueueWalk({
         id: "queue.todo.done",
         keys: ["x"],
         title: "done",
-        description: "Mark this to-do done",
         touch: false,
         when: () => Boolean(doneTodo()),
         run: () => {

@@ -9,15 +9,16 @@ Before writing a view's words, decide what it shows. Ask what the user would oth
 have to picture from a description, and put that thing on the page in its own form:
 
 - An existing interface is a screenshot, cropped or marked so the eye lands on the
-  point, with crops cutting through background rather than text. Leaf frames every
-  image, so capture a panel, card or menu with enough of the page around it to hold
-  its whole shadow: a clip at its bounding box cuts the shadow off and squares its
-  rounded corners against the frame. A visual change between two versions is an
+  point, with crops cutting through background rather than text. Capture a panel,
+  card or menu with enough of the page around it to hold its whole shadow: a clip
+  at its bounding box cuts the shadow off and squares its rounded corners. A visual change between two versions is an
   `lf-shot` before-and-after pair, and captures that vary along other axes go in a
   table of captures (`authoring-evidence.md`, "Source files and media").
 - A behavior, such as an interaction, a motion or a process over time, runs: in a live
-  sample the user operates (`live-samples.md`), or in a page module that draws it with
-  controls to pause and scrub, so each moment stays readable and commentable.
+  sample the user operates (`live-samples.md`), or as an authored animation in
+  `lf-motion` from the `motion` package. Its shared playback controls let the user
+  slow, pause and scrub while a page module draws each frame, so each moment stays
+  readable and commentable.
 - A proposal or mechanism nothing can show yet is drawn: where things sit, what
   contains, calls or feeds what, how a state changes, today beside the proposal, and
   alternatives in one frame at one scale.
@@ -68,6 +69,13 @@ that speaks for itself.
 Write for what the user has seen: this conversation and the page so far. Introduce the
 names a decision depends on, show evidence for any claim they could doubt, and drop the
 story of how you got there.
+
+The user knows the facts they gave you and reads the page against them, so one figure
+that differs from theirs makes them doubt the rest. Keep each supplied fact as given,
+with the measure it belongs to. A number, trend, count or consequence you work out from
+them is your claim: check it against the figures it rests on, and keep those figures
+beside it. Where your working contradicts a supplied fact, show both and say which the
+page uses, rather than correcting theirs in place.
 
 Use `lf-gloss` for a local term, acronym or premise the reader can open beside a
 phrase. Keep citations as links and keep visible any qualification the argument rests

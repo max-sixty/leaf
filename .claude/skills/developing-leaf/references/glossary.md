@@ -26,7 +26,7 @@ implementation terms keep their exact spelling where the reader needs them.
 | **Response** | Work owed to user input of unknown kind: “2 responses owed” |
 | **Answer** | The current value of an obligation, or the response that satisfies a user update. An obligation contains its answer; there is no separate Answer record |
 | **Reply** | A message in a conversation, including an answer or an unprompted message |
-| **Delivery** | How far an update has got toward the agent: **Sending**, **Sent**, **Queued**, then **Picked up**. Picked up doesn't mean work has begun |
+| **Delivery** | How far an update has got toward the agent: **Sending**, **Sent**, **Queued**, then **Delivered** (stage `picked_up`): handed into the agent's turn, and handed over again if that turn ends before reading it. Delivered doesn't mean work has begun |
 | **Sent** | An update Leaf has logged that no harness has queued or opened into a turn yet (stage `sent` in `workflows.py`); before the log accepts it, the browser shows **Sending** |
 | **Working** | The agent has explicitly started this update or to-do; page activity alone doesn't mean it has |
 | **Undo** | Taking back the user's latest update that can be taken back |
@@ -187,7 +187,7 @@ In flow it lists every included heading; where the margin has room it may show t
 | **On *agent*** | The agent's list of everything waiting on it (`queues.on_agent`), named for the agent, such as **On Claude**: the obligations the user's updates publish whose next actor is the agent, the replies and versions it owes, and its own to-dos. Prose about no particular agent writes `On <agent>` |
 | **To-do** | Explicit work owed until it ends (`todo` in the protocol), by the agent or by the user |
 | **Plan** | The agent's outline of the page's work (`plan` in the protocol): goals and steps by depth, each step plain or naming a to-do or obligation, which it arranges without owning |
-| **Tally** | `lf-tally`: how many of a region's obligations (`obligationsIn`) are still open, “7 of 8 to answer”, with an optional Next on me that walks the region's obligations waiting on the user |
+| **Tally** | `lf-tally`: how many of a region's obligations (`obligationsIn`) are still open and whose turn each is, “2 of 8 to answer · 1 on Claude”, with an optional Next on me that walks the region's obligations waiting on the user |
 | **Resend** | An update a harness handed back to the user to send again: its obligation stays in On me, next actor the user, until they do |
 | **Done** | The control with which the user ends a to-do the agent gave them; it writes `todo_end`. A widget may also call its own submit control Done |
 | **Done items** | The items that left either list, under a Done heading at the foot of the On view |

@@ -5,6 +5,30 @@
   --lf-code-del-fill: color-mix(in srgb, var(--danger) 16%, var(--pre-bg));
 }
 
+/* skills/leaf/packages/diff/styles/disclosure.css */
+@media screen and (prefers-reduced-motion: no-preference) {
+  @supports (block-size: calc-size(auto, size)) and (interactivity: inert) {
+    :is(.lf-diff-fold, .lf-call-group) {
+      interpolate-size: allow-keywords;
+    }
+    :is(.lf-diff-fold, .lf-call-group)::details-content {
+      block-size: auto;
+      overflow: clip;
+      transition: block-size var(--lf-motion-fold) ease, content-visibility var(--lf-motion-fold) allow-discrete;
+    }
+    :is(.lf-diff-fold, .lf-call-group):not([open])::details-content {
+      block-size: 0;
+    }
+    :is(.lf-diff-fold, .lf-call-group):not([open]) > :not(summary) {
+      interactivity: inert;
+    }
+    :is(.lf-diff-fold, .lf-call-group)[open]::details-content,
+    :is(.lf-diff-fold, .lf-call-group):has(> summary:focus-visible)::details-content {
+      transition-duration: 0s;
+    }
+  }
+}
+
 /* skills/leaf/packages/diff/styles/shadow.css */
 :where(:scope:host(.lf-rendered)) :where(.lf-diff-file) > details,
 :where(:scope:host(.lf-rendered)) .lf-diff-metadata {
@@ -215,23 +239,14 @@
 .lf-diff-file-actions:empty {
   display: none;
 }
-:is(.lf-diff-comment, .lf-diff-fold-all) {
-  border-color: transparent;
-  background: transparent;
-  color: var(--muted);
-}
 .lf-diff-file-comment {
   --lf-icon-action-hit: var(--lf-diff-action-h);
-}
-:is(.lf-diff-file-comment, .lf-diff-fold-all):is(:hover, [data-lf-focus]) {
-  background: var(--chip);
-  color: var(--ink);
 }
 .lf-diff-fold-all {
   --lf-icon-action-hit: max(24px, var(--aim-floor));
   margin-inline-end: -3px;
 }
-.lf-diff-fold-all[data-lf-focus] {
+.lf-diff-fold-all[data-lf-focus-visible] {
   outline: none;
 }
 .lf-diff-fold-all[inert] {
@@ -276,15 +291,15 @@
 .lf-diff-filtered {
   display: none !important;
 }
-.lf-diff-comment[data-lf-focus] {
+.lf-diff-comment[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 1px;
 }
-:scope:host(.lf-rendered) .lf-diff-file > details > summary[data-lf-focus] {
+:scope:host(.lf-rendered) .lf-diff-file > details > summary[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
-:scope:host(.lf-rendered) [data-content] > [data-line][data-lf-focus] {
+:scope:host(.lf-rendered) [data-content] > [data-line][data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
@@ -365,6 +380,9 @@
 :scope:host(.lf-rendered) pre[data-overflow=wrap] code[data-code] {
   --lf-diff-row-fill: 0;
 }
+:scope:host(.lf-rendered) .lf-diff-fold > pre code[data-code] {
+  padding-top: 0;
+}
 :scope:host(.lf-rendered) .lf-diff-fold > pre {
   margin: 0;
   border: none;
@@ -373,7 +391,7 @@
   overflow: auto hidden;
   color: var(--code-ink);
 }
-:scope:host(.lf-rendered) code[data-code][data-lf-focus] {
+:scope:host(.lf-rendered) code[data-code][data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
 }

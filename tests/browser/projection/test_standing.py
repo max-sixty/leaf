@@ -838,9 +838,9 @@ def test_escape_lets_go_of_the_obligation_the_user_is_standing_on(browser, serve
     # standing on a decision is the user holding something, with no layer over the
     # page at all.
     page.keyboard.press("?")
-    expect(page.locator(".lf-command-reference")).to_contain_text(
-        "Let go of the current item"
-    )
+    expect(
+        page.locator('.lf-command-reference tr[data-lf-command="navigation.release"]')
+    ).to_contain_text("Let go")
     page.keyboard.press("Escape")  # the reference's own rung, which hands focus back
     expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
     expect(page.locator("#live-question-decision[data-lf-obligation]")).to_have_count(1)

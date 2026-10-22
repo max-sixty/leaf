@@ -1,11 +1,13 @@
 import {
+  J,
+  W,
+  Z,
   bindQueuedWork,
-  collectReads,
   createPresentationCoordinator,
   createPresentationSchedule,
   createSemanticApplication,
-  outsideReading,
-  untracked
+  d,
+  x
 } from "./bundle-queued-work.js";
 
 // runtime/semantic-state.js
@@ -52,16 +54,16 @@ var widgetOrder = (widget) => {
   return -1 / (depth + 1);
 };
 var queueWidgetUpdate = (widget, update) => schedule.enqueue(
-  untracked(() => widgetOrder(widget)),
+  d(() => widgetOrder(widget)),
   update
 );
 var PRESENTATION_ORDER = Object.freeze({
   projection: 0,
   thread: 1,
-  obligations: 2
+  obligations: 2,
+  annotations: 3
 });
 var documentPresenters = [];
-var publications = applicationState.select((root) => root);
 var applicationPresenter = ({
   region,
   renderer = document,
@@ -70,39 +72,51 @@ var applicationPresenter = ({
   paint,
   failSoft
 }) => {
-  let readingReads = /* @__PURE__ */ new Map();
-  let paintReads = /* @__PURE__ */ new Map();
+  const revision = Z(0);
+  const selected = J(() => {
+    revision.value;
+    const epoch = d(() => readApplication().semanticEpoch);
+    const value = reading();
+    if (epoch !== d(() => readApplication().semanticEpoch))
+      throw new Error(`the ${region} region's reading moved a part it read`);
+    return value;
+  });
   let claimed;
   let owed = false;
   let following = [];
-  const follow = () => {
+  const forget = () => {
     for (const stop of following) stop();
-    following = [...paintReads].filter(([reading2]) => reading2.outside).map(
-      ([reading2, seen]) => reading2.subscribe((now) => {
-        if (owed || now === seen) return;
-        const next = read();
-        if (next !== null) void claim(next);
-      })
-    );
+    following = [];
   };
   const presenter = schedule.presenter({
     attach: () => presentation.attach(region, renderer),
     order,
     paint: (value, current) => {
       owed = false;
-      const reads = /* @__PURE__ */ new Map();
-      paintReads = reads;
+      forget();
+      const generation = following;
       const stretch = (run) => {
-        const outcome = collectReads(run);
-        if (current()) {
-          for (const [part2, seen] of outcome.reads)
-            if (!reads.has(part2)) reads.set(part2, seen);
-          if (paintReads === reads) follow();
-          if (moved(outcome.reads)) {
-            const next = read();
-            if (next !== null) void claim(next);
+        let first2 = true;
+        let outcome;
+        const stop = x(() => {
+          if (!first2) {
+            if (!owed && current()) {
+              d(() => {
+                const next = selected.value;
+                if (next !== null) void claim(next);
+              });
+            }
+            return;
           }
-        }
+          first2 = false;
+          try {
+            outcome = { value: run() };
+          } catch (error) {
+            outcome = { error };
+          }
+        });
+        if (current() && following === generation) generation.push(stop);
+        else stop();
         if ("error" in outcome) throw outcome.error;
         return outcome.value;
       };
@@ -111,57 +125,42 @@ var applicationPresenter = ({
     },
     failSoft
   });
-  const read = () => {
-    const outcome = collectReads(reading);
-    readingReads = outcome.reads;
-    if ("error" in outcome) throw outcome.error;
-    if (moved(readingReads))
-      throw new Error(`the ${region} region's reading moved a part it read`);
-    return outcome.value;
-  };
   const claim = (value) => {
     claimed = value;
     if (value === null) return schedule.passed();
     owed = true;
     return presenter.sync(value);
   };
-  const moved = (reads) => [...reads].some(([part2, seen]) => part2.read() !== seen);
-  const present = () => claim(read());
+  const present = () => d(
+    () => W(() => {
+      revision.value += 1;
+      return claim(selected.value);
+    })
+  );
   documentPresenters.push(present);
-  claimed = read();
-  publications.subscribe(() => {
-    const painted = !owed && moved(paintReads);
-    if (!painted && !moved(readingReads)) return;
-    const value = read();
-    if (value === null) claimed = null;
-    else if (painted || value !== claimed) void claim(value);
+  let first = true;
+  x(() => {
+    const value = selected.value;
+    if (first || value === null) {
+      first = false;
+      claimed = value;
+    } else if (value !== claimed) d(() => claim(value));
   });
   const disconnect = () => {
-    paintReads = /* @__PURE__ */ new Map();
-    follow();
+    forget();
     presenter.disconnect();
   };
   return Object.freeze({ present, disconnect });
 };
-var documentChanges = 0;
-var documentListeners = /* @__PURE__ */ new Set();
-var documentReading = outsideReading(
-  () => documentChanges,
-  (moved) => {
-    documentListeners.add(moved);
-    return () => documentListeners.delete(moved);
-  }
-);
-var documentChanged = () => documentReading.read();
-var presentDocument = () => {
-  documentChanges += 1;
+var documentChanges = Z(0);
+var documentChanged = () => documentChanges.value;
+var presentDocument = () => W(() => {
+  documentChanges.value += 1;
   for (const present of documentPresenters) void present();
-  const round = {};
-  for (const moved of [...documentListeners]) moved(round);
   return schedule.passed();
-};
+});
 var whenDocumentPresented = () => schedule.passed();
-var currentEpoch = () => untracked(() => readApplication().semanticEpoch);
+var currentEpoch = () => d(() => readApplication().semanticEpoch);
 var currentApplicationPresentation = () => ({
   document: documentToken,
   semanticEpoch: currentEpoch()
@@ -185,13 +184,6 @@ var whenApplicationRegionsPresented = (regions, current) => presentation.whenCur
 var applicationRegionsPresented = (regions) => presentation.currentRegionsPresented(currentApplicationPresentation, regions);
 var projectionRegionsPresented = (widgets) => applicationRegionsPresented(["projection:chrome", ...widgets.flatMap(widgetRegions)]);
 var watchPresentation = presentation.subscribe;
-var proofReadings = /* @__PURE__ */ new WeakSet();
-var proofReading = (read) => {
-  const reading = outsideReading(read, (moved) => watchPresentation(() => moved({})));
-  proofReadings.add(reading);
-  return reading;
-};
-var readsProof = (reading) => proofReadings.has(reading);
 var readApplicationPresentation = presentation.read;
 function setPresentationFailureReporter(report) {
   reportPresentationFailure = (reason) => report(reason, "Presentation failed");
@@ -367,8 +359,6 @@ export {
   applicationRegionsPresented,
   projectionRegionsPresented,
   watchPresentation,
-  proofReading,
-  readsProof,
   readApplicationPresentation,
   setPresentationFailureReporter,
   watchSemantic,

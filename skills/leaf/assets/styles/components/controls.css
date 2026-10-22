@@ -10,6 +10,8 @@
 .lf-resolved-threads {
   position: relative;
   min-width: 0;
+  /* The seat's live predecessor owns its gap, including while a card retires. */
+  margin-block-start: 0;
 }
 /* Closed, the disclosure hides its threads by display rather than by the
    content-visibility a closed details gives its content: Chrome drops scroll anchoring
@@ -37,7 +39,10 @@
 .lf-page-thread .lf-btn {
   font: inherit;
 }
-:is(.lf-page-thread :is(.lf-btn, summary), .lf-resolved-summary)[data-lf-focus] {
+:is(
+  .lf-page-thread :is(.lf-btn, summary),
+  .lf-resolved-summary
+)[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 1px;
 }
@@ -54,48 +59,21 @@
     display: none !important;
   }
 }
-/* The outline chip: the kernel's chip geometry (the chip tokens in theme.css's :root)
-   with a hairline edge on the card, the compact label the chrome and the thread
-   surfaces share, stated here and nowhere else. It is not the default package's
-   a label, whose face is the filled .tag, so it is named for the edge it adds. It
-   stands in this file because a thread seated in a declared widget tree is out of
-   every document selector's reach, and drew the platform's button instead: on the
-   dark scheme its ButtonFace grey put the muted word at 1.86:1.
-
-   The family is spelled rather than inherited. `font: inherit` clears the UA's button
-   face, which is all a chip inside a thread ever needed, but it also hands the chip
-   whatever family its holder has — the thread's sans in a widget tree, and the
-   document's serif for a chip standing in the page's own prose. */
-.lf-outline-chip {
+/* Thread reactions keep the chip's compact metrics. Their shared reaction state
+   below owns the face; no general chip wrapper supplies a second one. */
+:where(.lf-react-strip) .lf-react {
   appearance: none;
   margin: 0;
   padding: var(--chip-pad);
   white-space: nowrap;
-  border: 1px solid var(--border-2);
+  border: 1px solid transparent;
   border-radius: var(--chip-r);
-  background: var(--card);
-  color: var(--ink-2);
   font: inherit;
   font-family: var(--sans);
   font-size: var(--t-6);
   line-height: var(--chip-lh);
 }
-.lf-outline-chip:is(button, [role="button"]) {
-  cursor: pointer;
-}
-.lf-outline-chip:is(button, [role="button"]):hover {
-  background: var(--chip);
-}
-/* A finger's floor is taller than a chip's line, so a pressed chip centres its words
-   in the room the floor gives it. */
-@media (pointer: coarse) {
-  .lf-outline-chip:is(button, [role="button"]) {
-    display: inline-flex;
-    align-items: center;
-  }
-}
-.lf-outline-chip[data-lf-focus] {
-  outline: var(--focus-ring);
+.lf-react-strip .lf-react[data-lf-focus-visible] {
   outline-offset: 1px;
 }
 /* Reaction controls own their resting, selected and interactive appearance together.
@@ -134,7 +112,7 @@
   border-color: var(--border-2);
   background: var(--chip);
 }
-.lf-react.lf-response-action:not([aria-pressed="true"]) {
+.lf-react.lf-response-action:where(:not([aria-pressed="true"])) {
   background: var(--card);
 }
 .lf-react[aria-busy="true"] {
@@ -217,7 +195,7 @@
     var(--lf-msg-control-room, var(--lf-msg-control)) + var(--lf-msg-head-room, 0px)
   );
 }
-/* An open rewrite's Cancel and Save take the room its Edit control took, and more: the
+/* An open rewrite's Discard and Save take the room its Edit control took, and more: the
    head holds the author alone while it is open, its time and labels saying nothing a
    rewrite needs. */
 .lf-msg:has(> .lf-msg-body > .lf-msg-editor) {
@@ -261,6 +239,25 @@ svg[data-lf-icon] {
   stroke-width: 1.6;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+/* A disclosure's direction and motion have one face across thread history and
+   settled choices. Its fixed slot turns without delaying content or moving the label. */
+.lf-disclosure-icon {
+  inline-size: 16px;
+  block-size: 16px;
+  flex: none;
+  align-self: center;
+  rotate: -90deg;
+  transition: rotate var(--lf-motion-disclosure) ease-out;
+}
+[aria-expanded="true"] > .lf-disclosure-icon {
+  rotate: 0deg;
+}
+.lf-disclosure-icon:dir(rtl) {
+  rotate: 90deg;
+}
+[aria-expanded="true"] > .lf-disclosure-icon:dir(rtl) {
+  rotate: 0deg;
 }
 .lf-msg-control-icon {
   inline-size: 16px;
@@ -482,12 +479,43 @@ svg[data-lf-icon] {
 :is(.lf-btn, .button) {
   padding: max(4px, (var(--aim-floor) - 1lh) / 2 - 1px) 10px;
   border: 1px solid var(--border-2);
-  border-radius: 6px;
+  border-radius: var(--r);
   background: var(--card);
   cursor: pointer;
   color: var(--ink);
   display: inline-block;
 }
+/* A native radio or checkbox and its label form one compact target. The native
+ * mark carries selection; the label supplies the aim floor and focus ring without
+ * a second frame or selected fill. The target owns its ring room inside its box,
+ * so a choice at a clipped toolbar edge keeps all four sides. Used by authored
+ * controls and packages alike. */
+.choice {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: var(--sp-1);
+  padding: max(var(--sp-1), var(--focus-ring-room));
+  min-block-size: var(--aim-floor);
+  min-inline-size: var(--aim-floor);
+  box-sizing: border-box;
+  cursor: pointer;
+  font: var(--t-5)/var(--lf-ui-lh) var(--sans);
+}
+.choice > input {
+  flex: none;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.choice > input:is(:focus-visible, [data-lf-focus-visible]) {
+  outline: none;
+}
+.choice:has(> input:is(:focus-visible, [data-lf-focus-visible])) {
+  outline: var(--focus-ring);
+  outline-offset: calc(-1 * var(--focus-ring-w));
+  --lf-wears-ring: 1;
+}
+
 /* A label whose words change holds one room for all of them, so a count or a result
  * changing moves nothing beside it. `data-lf-room` lists the words the label shows,
  * one per line, on an element whose one child holds the words. Its ::before lays the
@@ -520,8 +548,34 @@ svg[data-lf-icon] {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-:is(.lf-btn, .button):not(:disabled, [aria-disabled="true"]):hover {
+:is(.lf-btn, .button):where(:not(:disabled, [aria-disabled="true"]):hover) {
   background: var(--chip);
+}
+/* Secondary actions wear one quiet face, independent of their toolbar's geometry.
+ * The vendor part and native button share this rule; the host keeps no second face.
+ * lf-ui identifies offered vendor controls, and gives this modifier precedence over
+ * the ordinary copy-button face in integration.css. */
+:is(button, .lf-btn, .button).lf-quiet-action,
+.lf-quiet-action.lf-ui::part(button) {
+  border: 1px solid transparent;
+  border-radius: var(--r);
+  background: transparent;
+  color: var(--muted);
+  box-shadow: none;
+}
+:is(button, .lf-btn, .button).lf-quiet-action:where(
+    :not(:disabled, [aria-disabled="true"]):is(:hover, [data-lf-focus])
+  ),
+.lf-quiet-action.lf-ui:not(:disabled, [aria-disabled="true"])::part(button):hover,
+.lf-quiet-action.lf-ui::part(lf-focus) {
+  background: var(--chip);
+  color: var(--ink);
+}
+/* The same compact size maps to native minimum height and the vendor's supported
+ * form-control property. Labels can still grow; icon-only tools set their width. */
+.lf-compact-control {
+  --wa-form-control-height: var(--lf-control-compact);
+  min-block-size: var(--lf-control-compact);
 }
 /* The committing action carries the accent as ink on the ordinary card, under a
    softened accent hairline, with the tint rising on hover. The selected face below is its
@@ -561,7 +615,7 @@ svg[data-lf-icon] {
    Beside the face above it, so a button inside a declared widget tree wears this ring
    too. In chrome.css, where it was, it reached neither that button nor a
    package wanting to answer it. */
-:is(.lf-btn, .button)[data-lf-focus] {
+:is(.lf-btn, .button)[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 2px;
 }

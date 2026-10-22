@@ -26,6 +26,7 @@ import os
 import secrets
 import stat
 import sys
+import tempfile
 import time
 from datetime import datetime
 from pathlib import Path
@@ -65,13 +66,10 @@ def hold_mode(path: Path, mode: int) -> None:
         path.chmod(mode)
 
 
-# A session's hook capability observations, which end with it.
+# A session's hook capability observation, which ends with its instance.
 HOOKS_SUFFIX = "hooks"
-STEP_HOOK_SUFFIX = "step-hook"
-# Its lifecycle, and the pages it has been told to reconnect (`reconnect.NOTICES`),
-# which outlive it (`_retire`).
+# Its lifecycle outlives its instance while a claim reads it (`_retire`).
 SESSION_SUFFIX = "lifecycle"
-RECONNECT_SUFFIX = "reconnect"
 
 
 def session_file(session_id: str, suffix: str) -> Path:
@@ -180,28 +178,17 @@ def replace_bytes(writes: list) -> None:
     Each write is (target, bytes, preserve_mode). The higher file boundary validates
     target identity before a multi-file replacement; a single JSON write needs no
     comparison. A caller resolving a symlink decides its target before entering.
+    New files are owner-readable and owner-writable (0600).
     Preserved modes include special permission bits. Apply them after flushing all
     data, since writing can clear set-user-ID and set-group-ID bits on POSIX files.
     """
     staged = []
     try:
         for target, data, preserve_mode in writes:
-            for _ in range(100):
-                tmp = target.with_name(f".{secrets.token_hex(8)}.tmp")
-                try:
-                    fd = os.open(
-                        tmp,
-                        os.O_WRONLY
-                        | os.O_CREAT
-                        | os.O_EXCL
-                        | getattr(os, "O_BINARY", 0),
-                        0o666,
-                    )
-                    break
-                except FileExistsError:
-                    continue
-            else:  # pragma: no cover - 64 random bits collided 100 times
-                raise FileExistsError(f"could not reserve a temp file beside {target}")
+            fd, name = tempfile.mkstemp(
+                prefix=".leaf-", suffix=".tmp", dir=target.parent
+            )
+            tmp = Path(name)
             staged.append((tmp, target))
             with os.fdopen(fd, "wb") as stream:
                 stream.write(data)
@@ -259,8 +246,7 @@ class Record:
     record readable (`layer-registry.md`, "Page protocol", says when `since`
     moves, which the browser build checks against every kind in `RECORDS`). `read`
     takes only a record at this format. A record at another format or with none
-    reads as absent, as a missing file does, and the next write replaces it;
-    one whose pages are gone is retired whatever its format (`retire_if_gone`).
+    reads as absent, as a missing file does, and the next write replaces it.
     Every write replaces the file whole, so a file that is not JSON no Leaf
     wrote, and reading it raises, naming the file."""
 
@@ -690,18 +676,16 @@ def _retire(session_id: str) -> None:
     """Remove what an ended session no longer needs, under its lock.
 
     While a claim names the session, the records that claim reads stay: its page
-    shows the session's turn from the lifecycle, and a resumed session's hooks read
-    its reconnect notices (`session-lifetime.md`, "Reconnect notices"); only the
-    observations that end with it go. Once none does, every file goes that no
-    other process holds a lock on, such as a wait lease of a watch still running:
+    shows the session's turn from the lifecycle; only the observations that end
+    with it go. Once none does, every unlocked file goes. A wait lease stays while
+    its watch is still running:
     a lease taker checks the name it locked (`leases.take_lease`), so none starts on
     a file removed under it, and a taker of the session lock held here does the same
     (`flocked`). A failed takeover that restores a claim naming the session after
     this finds it ended either way. Directories, such as a Codex task's delivery
     records, are their owner's to retire."""
     if holds_claims(session_id):
-        for suffix in (HOOKS_SUFFIX, STEP_HOOK_SUFFIX):
-            session_file(session_id, suffix).unlink(missing_ok=True)
+        session_file(session_id, HOOKS_SUFFIX).unlink(missing_ok=True)
         return
     lock = session_lock_path(session_id)
     for path in _session_paths(session_id):
@@ -744,8 +728,7 @@ def end_harness_instance(session_id: str) -> None:
         ):
             if record["ended"] is None and record["turn_closed"] is None:
                 advance_turn(session_id, record["turn"], running=False)
-            for suffix in (HOOKS_SUFFIX, STEP_HOOK_SUFFIX):
-                session_file(session_id, suffix).unlink(missing_ok=True)
+            session_file(session_id, HOOKS_SUFFIX).unlink(missing_ok=True)
             return
         _end_session(session_id)
 

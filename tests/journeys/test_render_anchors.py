@@ -426,7 +426,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
             page.keyboard.press("?")
             expect(
                 command_reference_rows(page, "On a code block").get_by_text(
-                    "Copy this block's code to the clipboard"
+                    "Copy code", exact=True
                 )
             ).to_be_visible()
             page.keyboard.press("Escape")
@@ -1143,8 +1143,8 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     with service_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(transaction, [root])
     told(page)
-    expect(inline_status).to_have_text("Picked up")
-    expect(panel_status).to_have_text("Picked up")
+    expect(inline_status).to_have_text("Delivered")
+    expect(panel_status).to_have_text("Delivered")
     expect(inline_status).to_have_attribute("data-identity-probe", "inline")
     expect(panel_status).to_have_attribute("data-identity-probe", "panel")
     reply = append_carried_log_record(

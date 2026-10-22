@@ -1,14 +1,11 @@
 import {
   LeafEditorView,
+  LeafElement,
   answerWords,
   claimTraversals,
   comparisonChanges,
   consumeAnnotations,
   currentProjection,
-  dataReader,
-  dispatchWidget,
-  invalidateDom,
-  joinDataDelivery,
   landInThread,
   loadDeferred,
   navigateToDatum,
@@ -25,12 +22,11 @@ import {
   registerThreadPresentation,
   replaceEntry,
   requireReference,
-  stagesOnly,
   threadActions,
   threadBox,
   threadInput,
   watchComparison,
-  watchProjection,
+  widgetController,
   wireInput
 } from "./bundle-document-identity.js";
 import {
@@ -99,19 +95,15 @@ import {
   aborted,
   bodyText,
   dataBody,
-  descriptorStillMatches,
   failSoft,
-  failSoftUnreported,
   inBaseLayer,
   once,
-  placesFailure,
   quoted,
   reportFailure,
   setChildLists,
   setChildren,
   setRenderedChildren,
-  shadowStage,
-  widgetDescriptor
+  shadowStage
 } from "./bundle-stylesheets.js";
 import {
   isCanonicalMediaUrl,
@@ -124,6 +116,7 @@ import {
   motion,
   onMotionPreferenceChange,
   reducedMotion,
+  returnDuration,
   scrollBehavior
 } from "./bundle-motion.js";
 import "./bundle-page-controls.js";
@@ -202,7 +195,6 @@ import {
   offer,
   offered,
   paintKeys,
-  paintKeysWithin,
   plainPress,
   pressIsKeyboardActivation,
   raiseError,
@@ -215,11 +207,11 @@ import {
   saying,
   searchField,
   selectableOffer,
+  selectableOffered,
   setRuntimeRootStyle,
   showNativeLayer,
   shownParts,
   shownWindow,
-  watchOwner,
   whileConnected,
   worksInside
 } from "./bundle-page-paint.js";
@@ -235,7 +227,6 @@ import {
   focused,
   handBack,
   holdFocus,
-  holdRendering,
   isNativeLayer,
   keeps,
   keepsHidden,
@@ -256,24 +247,18 @@ import {
   whenLeft
 } from "./bundle-frame-visibility.js";
 import {
+  agentName,
   applicationRegionsPresented,
   applicationState,
-  attachApplicationPresentation,
-  attachWidgetPresentation,
   offlineInteractive,
   pageUrl,
   projectionRegionsPresented,
-  proofReading,
-  queueWidgetUpdate,
   readPart,
-  readsProof,
   revisionLabel
 } from "./bundle-semantic-state.js";
 import {
-  LitElement,
-  M,
+  Z,
   classMap,
-  collectReads,
   createRef,
   guard,
   html,
@@ -287,464 +272,9 @@ import {
   repeat,
   styleMap,
   turns,
-  unsafeHTML,
-  untracked
+  unsafeHTML
 } from "./bundle-queued-work.js";
 import "./bundle-__export.js";
-
-// runtime/widget-controller.js
-var controllers = /* @__PURE__ */ new WeakMap();
-var ancestorRefreshes = /* @__PURE__ */ new Set();
-var ancestorRefreshQueued = false;
-var selfDrawn = /* @__PURE__ */ new WeakMap();
-var drawsItself = (owner, drawing) => selfDrawn.set(owner, drawing);
-function widgetMounted(owner, descriptor, parentChanged) {
-  if (parentChanged && applicationState.read().document.authored.has(descriptor.id))
-    refreshAncestors(owner);
-  invalidateDom();
-}
-function refreshAncestors(owner) {
-  for (let ancestor = owner.parentElement; ancestor; ancestor = ancestor.parentElement) {
-    const drawing = selfDrawn.get(ancestor);
-    if (drawing) ancestorRefreshes.add(drawing);
-  }
-  if (!ancestorRefreshes.size || ancestorRefreshQueued) return;
-  ancestorRefreshQueued = true;
-  queueMicrotask(() => {
-    ancestorRefreshQueued = false;
-    const pending = [...ancestorRefreshes];
-    ancestorRefreshes.clear();
-    for (const drawing of pending) drawing.refresh();
-  });
-}
-var immutable = (value) => {
-  if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
-    for (const child of Object.values(value)) immutable(child);
-    Object.freeze(value);
-  }
-  return value;
-};
-var unavailable = (reading) => immutable({
-  ...structuredClone(reading),
-  actions: Object.fromEntries(
-    Object.entries(reading.actions).map(([verb, entry]) => [
-      verb,
-      { ...entry, available: false, undo: [] }
-    ])
-  )
-});
-function createWidgetController(owner) {
-  const descriptor = widgetDescriptor(owner);
-  if (!descriptor)
-    throw new Error(
-      `leaf: <${owner.localName}>#${owner.id || "(missing id)"} has no captured widget descriptor`
-    );
-  const selected = applicationState.selectWidget(descriptor);
-  let deferred = false;
-  let preparationHandle = null;
-  const pendingPreparations = /* @__PURE__ */ new Map();
-  let preparation = null;
-  let preparationBatch = null;
-  const read = () => descriptorStillMatches(owner, descriptor) ? selected.read() : unavailable(selected.read());
-  const prepared = () => {
-    if (!preparationHandle && owner.isConnected)
-      preparationHandle = attachWidgetPresentation(descriptor.id, "preparation", owner);
-    return preparationHandle;
-  };
-  const holdPreparation = (promise) => {
-    if (pendingPreparations.has(promise)) {
-      if (owner.isConnected && !pendingPreparations.get(promise))
-        pendingPreparations.set(promise, holdRendering());
-      return;
-    }
-    pendingPreparations.set(promise, owner.isConnected ? holdRendering() : null);
-    const settled = () => {
-      pendingPreparations.get(promise)?.(owner.isConnected ? "settle" : "cancel");
-      pendingPreparations.delete(promise);
-    };
-    Promise.resolve(promise).then(settled, settled);
-  };
-  const presentPreparation = (handle, { value, completion }) => handle.present(value, (reason) => failSoftUnreported(owner, reason)).resolve(completion);
-  const connect = () => untracked(() => {
-    if (!owner.isConnected) return;
-    for (const promise of pendingPreparations.keys()) holdPreparation(promise);
-    if (preparation && !preparationHandle) {
-      const handle = prepared();
-      if (handle) presentPreparation(handle, preparation);
-    }
-  });
-  const disconnect = () => {
-    preparationHandle?.disconnect();
-    preparationHandle = null;
-    for (const [promise, release] of pendingPreparations) {
-      release?.("cancel");
-      pendingPreparations.set(promise, null);
-    }
-  };
-  watchOwner(owner, { connect, disconnect });
-  return Object.freeze({
-    read,
-    dispatch(command) {
-      if (!descriptorStillMatches(owner, descriptor)) return null;
-      const delivery = dispatchWidget(descriptor, command);
-      if (!delivery) return null;
-      return immutable({ reading: read(), delivery });
-    },
-    // Hold the widget's drawing through a gesture that rewrites its nodes; the release
-    // draws the newest reading at once and returns it.
-    defer() {
-      const drawing = selfDrawn.get(owner);
-      if (!drawing)
-        throw new Error(`<${owner.localName}> defers only a LeafElement's drawing`);
-      if (deferred) throw new Error("Widget presentation is already deferred");
-      deferred = true;
-      const release = drawing.hold();
-      let released = false;
-      return () => {
-        if (released) return read();
-        released = true;
-        deferred = false;
-        release();
-        invalidateDom();
-        return read();
-      };
-    },
-    present(promise) {
-      const value = read();
-      if (!preparationBatch || preparationBatch.value !== value) {
-        preparationBatch = { value, promises: [] };
-      }
-      preparationBatch.promises.push(promise);
-      const batch = preparationBatch;
-      const completion = Promise.all(batch.promises);
-      batch.completion = completion;
-      preparation = { value, completion };
-      holdPreparation(promise);
-      const handle = prepared();
-      if (handle) presentPreparation(handle, preparation);
-      const clear = () => {
-        if (preparationBatch?.completion === completion) preparationBatch = null;
-      };
-      completion.then(clear, clear);
-      return promise;
-    }
-  });
-}
-function widgetController(owner) {
-  let controller = controllers.get(owner);
-  if (!controller) {
-    let implementation = null;
-    const resolve2 = () => implementation ??= createWidgetController(owner);
-    controller = Object.freeze(
-      Object.fromEntries(
-        ["read", "dispatch", "defer", "present"].map((method) => [
-          method,
-          (...args) => resolve2()[method](...args)
-        ])
-      )
-    );
-    controllers.set(owner, controller);
-  }
-  return controller;
-}
-
-// runtime/leaf-element.js
-var regions = 0;
-var LeafElement = class extends LitElement {
-  #descriptor = null;
-  #controller = null;
-  #verbs = [];
-  #region = null;
-  #regionName = null;
-  #connected = false;
-  #connectedParent = null;
-  // What the last gate and the last render read, each with the value it read.
-  #gateReads = /* @__PURE__ */ new Map();
-  #renderReads = /* @__PURE__ */ new Map();
-  #following = [];
-  // A draw owed to the next connection: queued as it left, or a reading moved meanwhile.
-  #owed = false;
-  // The open claim the next update that draws settles.
-  #ticket = null;
-  #held = false;
-  // The fail-soft box standing until the next update that draws; a `setup()` that threw
-  // leaves the element broken, drawing nothing.
-  #box = null;
-  #broken = false;
-  // The claim the update under way draws, settled once `updated` has run too.
-  #drawing = null;
-  // The drawing that follows the update under way, which its claim waits for.
-  #work = null;
-  // The last update's drawing until it lands, which a later update replaces; a departure
-  // before then owes a draw.
-  #unfinished = null;
-  #data = /* @__PURE__ */ new Map();
-  #leaveData = null;
-  #scheduled = null;
-  createRenderRoot() {
-    return this;
-  }
-  scheduleUpdate() {
-    return this.#scheduled ?? this.#queueUpdate();
-  }
-  #queueUpdate() {
-    if (!this.#descriptor) return super.scheduleUpdate();
-    const scheduled = queueWidgetUpdate(this.#descriptor.id, () => {
-      if (this.#scheduled !== scheduled) return;
-      this.#scheduled = null;
-      return super.scheduleUpdate();
-    });
-    this.#scheduled = scheduled;
-    return scheduled;
-  }
-  connectedCallback() {
-    if (once(this)) this.#setup();
-    super.connectedCallback();
-  }
-  #setup() {
-    this.#descriptor = widgetDescriptor(this);
-    if (this.#descriptor) {
-      this.#controller = widgetController(this);
-      drawsItself(this, {
-        hold: () => this.#hold(),
-        refresh: () => this.#refresh()
-      });
-      this.#verbs = Object.keys(this.#descriptor.declaration["x-state"] ?? {});
-    }
-    this.#regionName = this.#descriptor ? null : `element:${this.localName}#${this.id}:${++regions}`;
-    placesFailure(this, (box2) => {
-      const root = this.renderRoot ?? this;
-      if (root === this && this.shadowRoot) return false;
-      if (this.#box?.parentNode === root && this.#box.textContent === box2.textContent)
-        return true;
-      this.#box?.remove();
-      this.#box = box2;
-      root.append(box2);
-      return true;
-    });
-    try {
-      this.setup();
-    } catch (error) {
-      this.#broken = true;
-      failSoft(this, error);
-    }
-    watchOwner(this, {
-      connect: () => untracked(() => this.#connect()),
-      disconnect: () => this.#disconnect()
-    });
-  }
-  /** The module's one-time build, on the first connection, before the first render. */
-  setup() {
-  }
-  /** The widget's complete reading (`widgetController(this).read()`), collected; null
-   *  for an element the registry does not declare a widget, such as a quoted one. */
-  get reading() {
-    return this.#controller?.read() ?? null;
-  }
-  /** The widget's state, with every admitted and unresolved record folded in. */
-  get state() {
-    return this.reading.state;
-  }
-  /** The widget's controller, for `dispatch` and `present`. */
-  get controller() {
-    return this.#controller;
-  }
-  /** The bound reading of a declared `x-data` input, one copy a delivery (data.js). */
-  data(input) {
-    let read = this.#data.get(input);
-    if (!read) this.#data.set(input, read = dataReader(this, input));
-    return read();
-  }
-  // The controller's `defer` for this widget, which refuses a second hold and releases
-  // once: hold its presentation through a gesture that rewrites its nodes; the release
-  // draws the newest reading at once.
-  #hold() {
-    this.#held = true;
-    return () => {
-      this.#held = false;
-      this.#refresh();
-    };
-  }
-  #complete() {
-    if (!this.#controller) return true;
-    const { state } = this.#controller.read();
-    return this.#verbs.every((verb) => verb in state);
-  }
-  shouldUpdate(changed) {
-    if (!this.#connected || !this.isConnected) {
-      this.#owed = true;
-      return false;
-    }
-    if (this.#held) return false;
-    this.#drawing = this.#ticket;
-    this.#ticket = null;
-    if (this.#broken) return false;
-    const gate = collectReads(() => this.#complete());
-    this.#gateReads = gate.reads;
-    if ("error" in gate) {
-      this.#follow();
-      throw gate.error;
-    }
-    if (!gate.value) {
-      this.#follow();
-      return false;
-    }
-    return super.shouldUpdate(changed);
-  }
-  update(changed) {
-    const outcome = collectReads(() => super.update(changed));
-    this.#renderReads = outcome.reads;
-    this.#follow();
-    if ("error" in outcome) throw outcome.error;
-    this.#box?.remove();
-    this.#box = null;
-  }
-  // An update settles its claim once all of it has run, `updated` included, and one
-  // that failed anywhere, its gate too, reports once and shows its failure; Lit has
-  // marked it done, so the next move draws again. A draw that `updated` asks for at
-  // once, as a module's own paint may, settles its own claim inside this one; with no
-  // claim of its own, its failure is the enclosing claimed update's.
-  performUpdate() {
-    const outer = this.#drawing;
-    let outerWork = this.#work;
-    this.#drawing = null;
-    this.#work = null;
-    try {
-      super.performUpdate();
-      const work = this.#work;
-      if (work && !this.#drawing) {
-        if (outer) outerWork = outerWork ? Promise.all([outerWork, work]) : work;
-        else if (this.#region) this.#drawing = this.#claim();
-      }
-      this.#unfinished = work;
-      if (work) {
-        const landed = () => {
-          if (this.#unfinished === work) this.#unfinished = null;
-        };
-        work.then(landed, landed);
-      }
-      this.#drawing?.resolve(work ?? void 0);
-    } catch (error) {
-      if (outer && !this.#drawing) throw error;
-      this.#failed(error, this.#drawing);
-    } finally {
-      this.#drawing = outer;
-      this.#work = outerWork;
-    }
-  }
-  /** Hold the update under way's claim until `work`, drawing that follows the render
-   *  asynchronously, lands: highlighting a document, say. An update no move claimed
-   *  claims the region for it. The widget's presentation, and the data version a
-   *  delivery it draws holds, wait for it. Call it from `render()` or `updated()`. */
-  drawing(work) {
-    const named = Promise.resolve(work).catch((error) => {
-      reportFailure(this, error);
-      throw error;
-    });
-    this.#work = this.#work ? Promise.all([this.#work, named]) : named;
-  }
-  /** The render drawn again at once, outside any claim and Lit's own schedule, with a
-   *  failure thrown rather than shown: the render check's replay
-   *  (render-checks/replay.js), which holds a draw of the same reading to change
-   *  nothing. `updated()` does not run, since what follows a draw may start
-   *  preparation that would claim the widget's presentation and land after the check
-   *  reads the page. An update Lit has queued stays queued, with its claim. */
-  redraw() {
-    render(this.render(), this.renderRoot, this.renderOptions);
-  }
-  updated(changed) {
-    super.updated(changed);
-    paintKeysWithin(this);
-  }
-  // Every failure is reported here, naming the widget; a claim's rejection then shows
-  // the box through the coordinator's fallback, which reports nothing again.
-  #failed(error, ticket) {
-    if (!ticket) return failSoft(this, error);
-    reportFailure(this, error);
-    ticket.reject(error);
-  }
-  #follow() {
-    for (const stop of this.#following) stop();
-    const reads = [...this.#gateReads, ...this.#renderReads];
-    this.#following = this.#connected ? reads.map(
-      ([reading, seen]) => reading.subscribe((now) => {
-        if (now === seen) return;
-        if (readsProof(reading)) {
-          if (now) this.requestUpdate();
-        } else if (stagesOnly(reading)) this.#stage();
-        else this.#moved();
-      })
-    ) : [];
-  }
-  #moved() {
-    if (!this.#connected) {
-      this.#owed = true;
-      return;
-    }
-    this.#present();
-  }
-  // A claim on the region for the reading as it stands, which a failure settles with
-  // the fail-soft box.
-  #claim() {
-    return this.#region.present(
-      untracked(() => this.#controller?.read() ?? {}),
-      (reason) => failSoftUnreported(this, reason)
-    );
-  }
-  // Claim the region for a reading that draws later, leaving the claim open.
-  #stage() {
-    if (!this.#connected || this.#ticket || !this.#region) return;
-    this.#ticket = this.#claim();
-  }
-  // Claim the region for the reading as it stands, and draw it on the next update; a
-  // claim the next update cannot draw stays open until one does.
-  #present({ now = false } = {}) {
-    if (!this.#region) return;
-    this.#ticket = this.#claim();
-    if (this.#held) return;
-    this.requestUpdate();
-    if (now) {
-      this.#scheduled = null;
-      this.performUpdate();
-    } else if (this.#descriptor) this.#queueUpdate();
-  }
-  #refresh() {
-    if (this.#connected) this.#present({ now: true });
-    else this.#owed = true;
-  }
-  #connect() {
-    this.#connected = true;
-    this.#region = this.#descriptor ? attachWidgetPresentation(this.#descriptor.id, "render", this) : attachApplicationPresentation(this.#regionName, this);
-    const parentChanged = this.#connectedParent !== this.parentElement;
-    this.#connectedParent = this.parentElement;
-    if (registry[this.localName]?.["x-data"])
-      this.#leaveData = joinDataDelivery(
-        this.#descriptor ? `widget:${this.#descriptor.id}:render` : this.#regionName
-      );
-    const moved = untracked(
-      () => [...this.#gateReads, ...this.#renderReads].some(
-        ([reading, seen]) => reading.read() !== seen
-      )
-    );
-    if (!this.hasUpdated || this.#owed || moved) {
-      this.#owed = false;
-      this.#present();
-    } else
-      this.#region.present(untracked(() => this.#controller?.read() ?? {})).resolve();
-    this.#follow();
-    if (this.#descriptor) widgetMounted(this, this.#descriptor, parentChanged);
-  }
-  #disconnect() {
-    this.#connected = false;
-    if (this.#unfinished) this.#owed = true;
-    this.#follow();
-    this.#leaveData?.();
-    this.#leaveData = null;
-    this.#ticket = null;
-    this.#region?.disconnect();
-    this.#region = null;
-  }
-};
 
 // runtime/indication.js
 var INDICATED = PAGE_PAINT_ATTRIBUTE.indicated;
@@ -829,7 +359,7 @@ var reportWidgets = (target) => {
   }
   return widgets2;
 };
-var reportsReady = (target) => proofReading(
+var reportsReady = (target) => target.whenReady(
   () => applicationRegionsPresented([
     "projection:chrome",
     `widget:${target.id}:preparation`,
@@ -838,7 +368,7 @@ var reportsReady = (target) => proofReading(
       `widget:${widget}:preparation`
     ])
   ])
-).read();
+);
 
 // runtime/work.js
 var widgets = () => layerFact("$work")?.widgets ?? {};
@@ -1106,7 +636,7 @@ async function differingRegions(a, b) {
       ] : [];
     })
   );
-  const regions2 = [
+  const regions = [
     ...outlines(before, readBefore, struck, "before", unowned, DBSCAN),
     ...outlines(after, readAfter, struck, "after", unowned, DBSCAN)
   ].sort((p, q) => p.y - q.y || p.x - q.x).map(({ x, y, width: width2, height: height2, side, kind }) => ({
@@ -1117,7 +647,7 @@ async function differingRegions(a, b) {
     side,
     kind
   }));
-  return { width, height, changed, throughout: false, regions: regions2 };
+  return { width, height, changed, throughout: false, regions };
 }
 function outlines(blocks, states, struck, side, bare, DBSCAN) {
   const marks = [];
@@ -1515,10 +1045,10 @@ function changedPixels(a, b) {
   }
   return { width, height, ...masks };
 }
-function differenceKind({ changed, throughout, regions: regions2 }) {
+function differenceKind({ changed, throughout, regions }) {
   if (!changed) return "identical";
   if (throughout) return "throughout";
-  return regions2.length ? "areas" : "slight";
+  return regions.length ? "areas" : "slight";
 }
 function describeDifference(reading) {
   const kind = differenceKind(reading);
@@ -1533,8 +1063,8 @@ function describeDifference(reading) {
   if (!changedCount) return `${areas(movedCount)} moved`;
   return `${areas(changedCount).replace(" ", " changed ")}${movedCount ? `, ${movedCount} moved` : ""}`;
 }
-function countAreas(regions2) {
-  const changes = regions2.filter((region) => region.kind === "changed");
+function countAreas(regions) {
+  const changes = regions.filter((region) => region.kind === "changed");
   const before = changes.filter((region) => region.side === "before");
   const after = changes.filter((region) => region.side === "after");
   const shared = before.filter((p) => after.some((q) => near(p, q, 0))).length;
@@ -1542,7 +1072,7 @@ function countAreas(regions2) {
     changed: before.length + after.length - shared,
     moved: Math.max(
       ...["before", "after"].map(
-        (side) => regions2.filter((region) => region.kind === "moved" && region.side === side).length
+        (side) => regions.filter((region) => region.kind === "moved" && region.side === side).length
       )
     )
   };
@@ -1643,6 +1173,7 @@ export {
   addressableWord,
   afterPresentation,
   afterScript,
+  agentName,
   ago,
   alignText,
   allButCommandReference,
@@ -1811,6 +1342,7 @@ export {
   reportsReady,
   restorePlace,
   retainUserIntent,
+  returnDuration,
   revisionLabel,
   rove,
   rowArrows,
@@ -1827,6 +1359,7 @@ export {
   scrollerFor,
   searchField,
   selectableOffer,
+  selectableOffered,
   sendDraft,
   setChildLists,
   setChildren,
@@ -1838,7 +1371,7 @@ export {
   showReadingSubject,
   shownParts,
   shownWindow,
-  M as signal,
+  Z as signal,
   sizeObserver,
   standingIn,
   styleMap,
@@ -1857,7 +1390,6 @@ export {
   unsafeHTML,
   watchComparison,
   watchDraft,
-  watchProjection,
   watchReadingRegionTransitions,
   wear,
   whenLeft,

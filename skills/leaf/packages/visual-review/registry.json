@@ -197,7 +197,8 @@
     }
   },
   "lf-visual-review": {
-    "description": "A guided review of a visual run, with before-and-after captures and the user's verdict on each case.",
+    "description": "A visual review workspace with before-and-after captures, case approvals and anchored feedback.",
+    "x-word": "review",
     "x-instructions": "Write it empty with a stable id, and bind `source` to the visual run. To open a case on its changed area, give it a `focus` rectangle in the run. Tie each case's id to the run, not to the user's inspection choices.",
     "type": "object",
     "properties": {
@@ -219,6 +220,20 @@
         "source": "source"
       }
     },
+    "x-awaits": {
+      "records": {
+        "input": "run",
+        "label": "title"
+      },
+      "value": "review",
+      "answered": {
+        "review": {
+          "detail": {
+            "approved": true
+          }
+        }
+      }
+    },
     "x-state": {
       "review": {
         "detail": {
@@ -228,11 +243,11 @@
               "type": "string",
               "pattern": "^[a-z0-9][a-z0-9-]*$"
             },
-            "disposition": {
-              "enum": ["looks-right", "needs-work"]
+            "approved": {
+              "type": "boolean"
             }
           },
-          "required": ["case", "disposition"],
+          "required": ["case", "approved"],
           "additionalProperties": false
         },
         "unit": "case"

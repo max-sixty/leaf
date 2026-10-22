@@ -123,8 +123,7 @@ export function quoteReading(thread, anchors) {
 // `withPendingProgress`. It stands where those words were said, after `after`, the
 // last message logged before them (`workingPlace`): as the face of the progress run
 // it follows, or as a face of its own (transcript.js). An answer already
-// streaming at the thread's end is the agent's next word, so the working message gives way to it
-// and the answer's head holds the disclosure, as it will once its fold arrives.
+// streaming at the thread's end replaces the working message and pending progress.
 const STOPPED = new Set(["ended", "stale", "interrupted"]);
 function workingMessage(thread, attention, messages) {
   if (thread.resolved || messages.at(-1)?.provisional) return null;
@@ -222,16 +221,21 @@ export function threadReading(thread, surface, commands) {
       : message.todo && openTodos.has(message.id)
         ? "To-do open"
         : null;
-  const messages = turns(thread).map((message) =>
-    messageReading(message, {
-      // Where a message's widgets stand when several drawings show it (messages.js,
-      // `authoredHolders`): the primary reader's, then a margin card, then a seat.
-      authoredRank: commands.authoredRank ?? (surface === "margin" ? 2 : 1),
-      reactions: surface === "outlet" ? message.reactions : null,
-      workflows: message.workflows,
-      leaves: leaves(message),
-    }),
-  );
+  // Completion comes from the server, including the provisional answer. A held
+  // reading keeps progress until its completing reply is among the messages shown.
+  const presented = new Set(thread.msgs.map(({ id }) => id));
+  const messages = turns(thread)
+    .filter((message) => !presented.has(message.completed_by))
+    .map((message) =>
+      messageReading(message, {
+        // Where a message's widgets stand when several drawings show it (messages.js,
+        // `authoredHolders`): the primary reader's, then a margin card, then a seat.
+        authoredRank: commands.authoredRank ?? (surface === "margin" ? 2 : 1),
+        reactions: surface === "outlet" ? message.reactions : null,
+        workflows: message.workflows,
+        leaves: leaves(message),
+      }),
+    );
   const summary = threadSummary(thread);
   return Object.freeze({
     key: threadKey(thread),
@@ -273,11 +277,11 @@ export class ThreadView {
   #commands;
   #messageCommands;
   #rewrites;
-  // The model this card shows. A signal, because its commands' liveness reads it, and
-  // key and button reflection follow what they read (keyboard/scopes.js).
+  // The model this card shows. Commands follow it explicitly; mechanical reads of
+  // this paint's output must not subscribe the presenter that writes it.
   #shown = signal(null);
   get #model() {
-    return this.#shown.value;
+    return this.#shown.peek();
   }
   set #model(model) {
     this.#shown.value = model;
@@ -356,11 +360,16 @@ export class ThreadView {
     this.#paint(this.#received);
   }
 
-  // What holds the card folded away: the closed Resolved disclosure its seat gathers it
-  // in (inline.js).
+  // The seat owns placement, including while the card's outgoing pixels still fold
+  // outside its Resolved disclosure. Landing and held news read that same placement.
+  #foldedInto = null;
+  #retirement = null;
+  setFoldedInto(group, retirement = null) {
+    this.#foldedInto = group;
+    this.#retirement = retirement;
+  }
   get #fold() {
-    const group = this.node.parentElement;
-    return group?.matches(".lf-resolved-threads:not([open])") ? group : null;
+    return this.#foldedInto && !this.#foldedInto.open ? this.#foldedInto : null;
   }
 
   // Where the seat's flow would grow if the card's settlement changed (inline.js), read
@@ -580,8 +589,8 @@ export class ThreadView {
       measure(this.node, () => this.#retainHeaderSlot());
     else this.#releaseHeaderSlot();
     this.#continuity?.after(bodyPlace);
-    // A summary gathering the message the user stands on moves it; a page thread whose
-    // render took their place puts them in its reply, or on the thread itself.
+    // A page thread whose render took the user's place puts them in its reply, or on
+    // the thread itself.
     // Handing it on is the card's own act, which the list holding the card defers to.
     // A progress disclosure the user stood on that this render replaced hands them to
     // its successor (transcript.js).
@@ -736,10 +745,9 @@ export class ThreadView {
         {
           id: reopen ? "thread.reopen" : "thread.resolve",
           keys: PRESS,
-          description: `${word} it`,
           title: word.toLowerCase(),
           control: button,
-          when: () => !this.#model.settlement?.pending,
+          when: () => !this.#shown.value.settlement?.pending,
           run: this.#settle,
         },
       ]);
@@ -797,13 +805,21 @@ export class ThreadView {
       source: this.node,
       available: () => this.node.isConnected,
     });
-    const land = (may = mayLand) => {
+    const land = async (may = mayLand, reverse = false) => {
+      // The summary is semantically available at once, but a long departing card
+      // still puts it below the viewport. Keep this gesture's original authority
+      // while its pixels leave; a later user move still vetoes the landing.
+      await this.#retirement?.catch(() => {});
       const place = this.#fold?.querySelector(":scope > summary") ?? this.node;
-      if (!may() || !standingIn(place)) return false;
+      if (!may()) return false;
+      // An existing resolved group survives when this card returns. Its summary
+      // cannot hand focus back by disappearing, so the reversal owns that handoff.
+      if (reverse) may.handoff(() => focusDestination(place, "return"));
+      if (!standingIn(place)) return false;
       scrollThreadIntoView(place, focused());
       return true;
     };
-    return { optimistic: () => land(), reverse: land };
+    return { optimistic: () => land(), reverse: (may) => land(may, true) };
   };
 
   #createReply(model) {

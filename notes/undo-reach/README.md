@@ -1,9 +1,11 @@
 # How far back `z` reaches
 
-This note hands over an open design question: how far back the page's undo key
-should reach, and whether Leaf should add redo or an undo panel. The design waits
-on the user's pick in the playground beside this note (`playground.html`). Delete
-the note once the chosen design lands and `events.md`'s Undo section states it.
+This note hands over the build of the page's undo key's reach, which the user
+chose on 21 October 2026 on the TODO decisions page: **Show, then take** with
+**Say what `z` takes** (both described below). **Say what `z` takes** has
+landed; **Show, then take** remains. Redo and a Changes panel stay candidates for
+later. Delete the note once Show, then take lands and `events.md`'s Undo section
+states it.
 
 ## The question
 
@@ -33,13 +35,20 @@ carries `newest`. A widget's own Undo control can still withdraw an older gestur
 it names. #1407 puts the view back where a thread settlement moved it when that
 settlement is undone, in the same tab only.
 
-The remaining problem: on a page the user left three weeks ago, the first `z`
-reopens a thread they resolved then, possibly below the fold, and the command
-reference and notice name only the gesture's kind (`undoSentence` and the per-kind words
-in `undo.js`), not which thread or how old. Since #3271 a widget's gesture is announced
-by the words its acknowledgement used ("Undid: Chose “Fast” — sent"), but only in the
-tab that made it; after a reload the undo is announced by its kind again, and no undo
-says its age.
+`z` says what it takes and its age in the command reference, the leaf's menu
+and the notice, in every tab and after a reload ("Undo: resolved “Rollout safety” ·
+21d ago"). The menu's row is 248px wide, so it cuts the words, shows the age at its
+end, and is whole on hover. The browser names a thread, to-do, approval or reaction
+from what it already holds; for an action the served undo list's head carries
+`gesture`, what the action did in its own document's words (`GestureWords.gesture`,
+the reading history rows carry too). Only the head pays for that reading: on a
+1,010-event page with 1,000 undoable actions over ten revisions, a state read took
+23.8 ms with it and 23.4 ms without, against about 2 ms more to word every candidate.
+A widget's own Undo of an older entry names only the widget after a reload.
+
+The remaining problem: on a page the user left three weeks ago, the first `z` still
+reopens a thread they resolved then, possibly below the fold; the menu now says so
+before the press, but the press itself still acts where the user may not be looking.
 
 Undo is one-way. Nothing puts back what an undo took:
 
@@ -56,9 +65,9 @@ Undo is one-way. Nothing puts back what an undo took:
 
 ## The candidates
 
-The playground lays these out, cheapest first, with a table, an operable
-simulation, and a section per cost. A reach rule decides which gesture `z` may
-take back; an add-on combines with any rule.
+A reach rule decides which gesture `z` may take back; an add-on combines with any
+rule. The playground that compared them operably is in history at `29966712b`
+(`notes/undo-reach/playground.html`).
 
 | Reach rule          | How far back `z` reaches                                  | Can `z` change what the user can't see?                                                                               | Build                  |
 | ------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------- |
@@ -75,12 +84,12 @@ take back; an add-on combines with any rule.
 | Redo on `Z`        | Puts back what an undo took, as Vim's Ctrl-R does, until the user's next change and while it would still show | Large |
 | Changes panel      | Every gesture the user made, newest first, each with Undo, and Redo once redo exists                          | Large |
 
-The recommendation on the page, which the user has not yet answered: build
-**Show, then take** with **Say what `z` takes** now, since it sets no limit and
-never acts where the user isn't looking; build redo second; build the Changes
-panel on top of both. The page's presets are "This visit only", "Vim's u and
-Ctrl-R" (newest + name + redo), "Show, then take, with redo", and "Changes panel"
-(show-then-take + name + redo + panel); each sets every control.
+The user's pick: **Show, then take** with **Say what `z` takes**, which sets no
+limit and never acts where the user isn't looking. On the decisions page it read:
+"when the gesture's target is out of view, or the agent has already acted on it,
+the first z scrolls to it and highlights it (“Press z again to undo”), and the
+second press undoes it", with the notice and the panel menu naming the gesture and
+its age after a reload too ("Undo: resolved ‘Rollout safety’ · 3 weeks ago").
 
 ## What each design changes
 
@@ -88,20 +97,15 @@ Ctrl-R" (newest + name + redo), "Show, then take, with redo", and "Changes panel
   the arbitrary limit the user wants to avoid.
 - **This visit only.** `undo.js` records the undo candidates present at the
   first reading, and `undoable()` refuses a head among them. Browser only.
-- **Say what `z` takes.** #3271 covers a widget's gesture in the tab that made it.
-  The rest: `document.py` adds each candidate's words from
-  `GestureWords.says` (`skills/leaf/scripts/leaf/gesture_words.py`). Today
-  `served_state/browser.py` builds those words only for a page
-  that shows history, so every state read would pay for them. `undoSentence` and
-  the notice read them in place of the per-kind words.
+- **Say what `z` takes.** Landed, as "What main does today" describes.
 - **Show, then take.** `document.py` marks each candidate the agent has picked up,
   from the delivery evidence the workflows already read. `undo.js` holds an
   armed state that the next gesture or key clears, and so does a scroll that takes
   the target out of view. The first press reveals the target the way an
   `lf-activity` row's link does: a thread opens, a widget scrolls into view and is
-  outlined. It needs the words above too. A target needs the reveal when it is out
-  of view or the agent has already picked it up; that second condition is what
-  covers a tab left open for weeks, where "This visit" fails.
+  outlined. It names the target in the words `z` already says. A target needs the
+  reveal when it is out of view or the agent has already picked it up; that second
+  condition is what covers a tab left open for weeks, where "This visit" fails.
 - **Only what's in view.** Every press reads each candidate's geometry, and a
   thread open in the panel counts as in view. `z` then means something different
   after every scroll.
@@ -157,50 +161,13 @@ superseded branches included, where this redo restores only what would still
 show. The Changes panel offers selective undo instead, any gesture in force in any
 order.
 
-## The playground
-
-`playground.html` is one Leaf page: the tables above, an `lf-ask` whose
-`lf-playground` (submit label "Build this undo") holds the controls `reach`
-(walk, newest, age, visit, confirm, here), `name`, `redo`, and `panel`, the
-presets, and an `<undo-sim>` preview. Its output is the instruction the user
-submits; `registerInstructionProvider` builds it from the controls and ends by
-asking for the build on this branch, an updated `events.md` Undo section and
-notice words, and a live preview of `review-a-plan`.
-
-`<undo-sim>` is a page-local custom element: a simulated review page three weeks
-in (an `lf-ask`, threads, and the user's newest move, resolving _Scope of the
-migration_ 21 days ago below the fold), its event log, and a toolbar (Reload the
-page, Agent picks up your moves, A week passes, Start over). Its `fold(log)`
-withdraws by parity newest first, so an undo naming an undo is a redo, and reads
-each effect (choose, resolve, unresolve, reply) at its own log position, so a
-later reply reopens its thread and makes Redo unavailable, as cost 1 says. The
-simulation's reach rules, words, and notices are page-local; today's notice words
-come from `undo.js`.
-
-Serve it to the user with:
-
-```sh
-uv run leaf-dev preview --source notes/undo-reach/playground.html --slot undo-reach --user
-```
-
-Start the preview from the chat that will receive feedback, then open the keyed
-URL it prints. Desktop Codex detaches the watcher and returns; other harnesses
-keep the preview running as their handoff contract requires. Follow `/developing-leaf`,
-“Preview a page”, for the harness's feedback route and handoff. A restart builds a
-fresh page and log; answer pending feedback before restarting.
-
-`bin/leaf page check --render` on the page passes on main's runtime as of
-e2fdf6ee2. Its `.sim-page` scroller is the simulated viewport the "What's in view"
-rule depends on, so it stays.
-
 ## Next steps
 
-1. The user picks a reach rule and add-ons in the playground and presses "Build
-   this undo". Their submitted instruction is the spec.
-2. Build in the task's current checkout, and read the current undo owners before
+1. Build in the task's current checkout, and read the current undo owners before
    editing them.
-3. Build the pick in the runtime and Python owners named above, with the door's
-   rule in `events.md`'s Undo section and the shortcut words in `undo.js`.
-   Every new action gets a keyboard and a touch route (root `AGENTS.md`).
-4. Hand the user a live `--user` preview of `review-a-plan` showing the new
-   behavior, then delete this note and the playground.
+2. Build **Show, then take** in the runtime and Python owners named above, with
+   the door's rule in `events.md`'s Undo section and the shortcut words in
+   `undo.js`. The reveal needs a keyboard and a touch route (root `AGENTS.md`).
+3. Hand the user a live `--user` preview of `review-a-plan` showing the new
+   behavior, then move what the redo section still holds into a TODO item and
+   delete this note.

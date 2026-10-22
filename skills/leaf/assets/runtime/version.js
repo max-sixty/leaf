@@ -1,7 +1,7 @@
 /* Version travel, comparison, and user continuity.
  *
  * The picker paints its immutable reading from what it reads of the application's
- * publication (`watchProjection`), and again for each comparison it starts or stops.
+ * publication and comparison signals.
  * `prepareActivation` installs
  * a live revision; `goActive` also returns from a pinned document, while `goVersion`
  * opens a historical `?pin` address. The controller receives application and travel
@@ -156,7 +156,7 @@ import { pointerAt, restorePointer } from "./pointer.js";
 
 import { LayerRefused, admitReading, reportPageError } from "./layer-client.js";
 import { projectView, readApplication } from "./semantic-state.js";
-import { watchProjection } from "./projection-watch.js";
+import { effect, signal } from "/vendor/browser-runtime.js";
 
 import { ADDRESSABLE, anchoringIsReady, fragmentTarget } from "./anchor-resolution.js";
 import { scrollToFragment } from "./anchor-travel.js";
@@ -430,14 +430,18 @@ function paintPicker() {
       ? "Latest edit not shown: it failed its check (see Versions)"
       : null,
   );
-  versionPicker.present(model);
   repaint();
 }
-let pickerWatch = null;
-const presentPicker = () => pickerWatch?.refresh();
+const pickerRevision = signal(0);
+const presentPicker = () => {
+  pickerRevision.value += 1;
+};
 // The picker's reading for another presentation of the same versions, the floating
 // panel's Versions view, derived where it is read so that paint follows its inputs.
-export const versionsReading = () => pickerModel(runtime.state);
+export const versionsReading = () => {
+  pickerRevision.value;
+  return pickerModel(runtime.state);
+};
 // Versions, a list of the floating panel's own, and a newer page to open, as rows of the
 // page's controls.
 registerPageControl({
@@ -505,7 +509,7 @@ const diffOpaqueSel = () =>
 let diffOn = false;
 let diffBase = null;
 // Advanced with each announced change, so a watcher knows which reading it painted.
-let comparisonGeneration = 0;
+const comparisonGeneration = signal(0);
 let diffPendingBase = null;
 const diffMarked = new Set();
 // What each marked block said in the base version, and which of those readings the
@@ -910,7 +914,7 @@ function setDiff(on, base, pendingBase = null) {
   announceComparison();
 }
 function announceComparison() {
-  comparisonGeneration += 1;
+  comparisonGeneration.value += 1;
   document.dispatchEvent(new CustomEvent("lf-comparison"));
 }
 // The one way a comparison starts, from a row's press, from the walk through the menu,
@@ -987,6 +991,7 @@ export const comparisonBase = () => (diffOn ? diffBase : null);
 const selectedBase = () => diffPendingBase ?? comparisonBase();
 
 export function comparisonChanges(owner = null) {
+  comparisonGeneration.value;
   const changes = diffOn ? [...diffMarked] : [];
   return owner
     ? changes.filter((block) => block !== owner && under(block, owner))
@@ -995,7 +1000,7 @@ export function comparisonChanges(owner = null) {
 
 export function watchComparison(owner, callback) {
   const paint = readingPaint(owner, () => callback());
-  const read = () => paint(comparisonGeneration);
+  const read = () => paint(comparisonGeneration.peek());
   const stop = whileConnected(owner, (signal) => {
     document.addEventListener("lf-comparison", read, { signal });
     read();
@@ -1040,7 +1045,6 @@ function revisionDocument(revision) {
  *   midComposition: any,
  *   hasPending: any,
  *   readAndApply: any,
- *   retireProjectionCoverage: any,
  *   syncLayout: any,
  *   captureRetainedStanding?: () => unknown,
  *   restoreRetainedStanding?: (standing: unknown) => boolean,
@@ -1055,7 +1059,6 @@ export function createVersionController({
   midComposition,
   hasPending,
   readAndApply,
-  retireProjectionCoverage,
   syncLayout,
   captureRetainedStanding = () => null,
   restoreRetainedStanding = () => false,
@@ -1087,7 +1090,6 @@ export function createVersionController({
     id: "version.open",
     ready: savedReadingSettled,
     keys: ["Shift+v"],
-    description: "The versions, and what each one changed",
     title: "versions",
     run: () => versions.press(),
     // The same predicate the menu's Escape stands on, so the key cannot open a layer the
@@ -1362,7 +1364,6 @@ export function createVersionController({
     const arrivingWidgets = documentWidgetDigests(doc);
     const arrivingRoot = layerRoot(doc);
     const rules = patchRules(doc);
-    retireProjectionCoverage();
     revisionDocuments.delete(target.revision);
 
     // A node with nothing over it is inside a template's content fragment, where a page
@@ -2357,7 +2358,10 @@ export function createVersionController({
       compare: pressComparison,
       latest: goActive,
     });
-    pickerWatch = watchProjection(document.body, paintPicker);
+    effect(() => {
+      pickerRevision.value;
+      paintPicker();
+    });
     presentPicker();
   }
 

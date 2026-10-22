@@ -68,12 +68,12 @@
     {
       "id": "missing-hunk",
       "patch": "diff --git a/example.js b/example.js\n--- a/example.js\n+++ b/example.js\n-old\n+new\n",
-      "widget": "unexpected diff metadata for example.js: --- a/example.js"
+      "widget": "diff has source headers without textual hunks"
     },
     {
       "id": "rename-with-missing-hunk",
       "patch": "diff --git a/old.js b/new.js\nsimilarity index 100%\nrename from old.js\nrename to new.js\n--- a/old.js\n+++ b/new.js\n-before\n+after\n",
-      "widget": "unexpected diff metadata for new.js: --- a/old.js"
+      "widget": "diff has source headers without textual hunks"
     },
     {
       "id": "repeated-path",

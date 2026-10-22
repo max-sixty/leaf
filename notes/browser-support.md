@@ -149,6 +149,13 @@ what fails and what still works.
   presented frame, and `anchor-size()`, which sizes the bar to the video, both run in
   both engines; MDN lists `requestVideoFrameCallback` from Chrome 83, Firefox 132 and
   Safari 15.4.
+- **Observed 2026-10-21, full screen:** in Playwright Firefox 155 and Chromium 153,
+  the bar's Full screen button and `f` put the video in full screen with the
+  browser's own controls, Space and a press on the picture each toggle playback
+  once there, and leaving gives the bar back. Not observed: an iPhone, whose Safari
+  has no `requestFullscreen` for an element (MDN, unchecked here), so the bar calls
+  the video's `webkitEnterFullscreen`, which opens the system player with its own
+  controls.
 - **Disposition:** adopted without a fallback.
 
 ## Known gaps
@@ -174,6 +181,22 @@ what fails and what still works.
   The runtime explicitly declines the animation rather than letting unsupported
   intrinsic-size interpolation jump halfway through a fade. Content, Undo and
   Reopen remain available through their ordinary paths.
+
+### Evidence disclosure motion
+
+- **Owners:** diff package `styles/disclosure.css`, shared by file and call-tree
+  disclosures. Native `details.open` governs state; supported CSS folds a closing
+  body's room while `interactivity: inert` immediately retires its controls.
+- **Observed 2026-10-21:** installed Playwright Chromium 153.0.8010.12 supports
+  intrinsic-size interpolation and `interactivity`; Firefox 155 supports neither.
+  Chromium folds a pointer close; Firefox closes immediately. Both preserve Tab
+  access outside a closed body and reopen at full size, including during a fold.
+  Summary keyboard activation and reduced motion close immediately; print
+  retains native full evidence.
+- **Disposition:** accepted visual difference. The CSS enhancement requires both
+  capabilities; other engines retain native disclosure semantics. Closing from a
+  toolbar or programmatically can fold when focus is outside the summary; every
+  opening is instant. These are installed-engine checks, not a stable-browser survey.
 
 ### Browser dictation in comment boxes
 
@@ -517,31 +540,6 @@ application. Recheck the affected Leaf journey when resolving this entry.
   and `test_touch_capture_attaches_on_lift_and_a_tap_or_cancel_attaches_nothing` in
   `tests/browser/threads/test_media.py` and `tests/journeys/test_render_threads.py`. Compare the rasterizer's same crop with a
   native screenshot in each installed engine when updating SnapDOM.
-
-### Anchoring from a shadow root to the outer document
-
-- **Disposition: blocks moving the chrome into a shadow root.** Leaf's chrome is a
-  light-DOM `div` (`runtime/chrome.js`), and its anchored surfaces (the floating
-  card, passage outlines, page-search paint, design hints, margin carriers) name
-  anchors on page elements. A spike that moved the chrome into a shadow root left
-  each of them at its fallback position.
-- **Spec:** the [anchor positioning draft](https://drafts.csswg.org/css-anchor-1/)
-  makes anchor names loosely matched tree-scoped names, so an element in a shadow
-  tree may anchor to a name declared in an outer tree.
-- **Observed, 2026-10-13:** a `position: fixed` element in an open shadow root with
-  `position-anchor` naming an `anchor-name` declared in the document stays at its
-  static position in Playwright Chromium 153.0.8010.12, installed Chrome
-  155.0.8059.40, Firefox 155 and WebKit 26.6, whether the rule is inline or in the
-  root's sheet. The same element anchors to a name declared inside its own root,
-  and a light-DOM element anchors to the document's name. In Chromium 153, a
-  document-level rule that positions the host's `::part()` does anchor, which is
-  the only bridge found.
-- **Recheck:** set `anchor-name` on a document element, attach a shadow root after
-  it, and compare a fixed child's `getBoundingClientRect()` against the anchor in
-  each engine.
-
-The reverse direction works: a box in a widget's shadow tree can be named from the
-document, and the runtime relies on it (next entry).
 
 ### Naming a shadow-tree box from the document
 

@@ -119,9 +119,9 @@ Put everything the `aside` holds in one block, as the `div` above does. While th
 sit side by side, Leaf keeps that block in view at the window's top as the body scrolls.
 Write no `position`, `top`, height or overflow for it.
 
-Draw each region as a `section.panel` with a short heading. Use one `.callout` with a
-status tone (`warn`, `danger`, `ok`) for the thing the reader must act on, and `.tag`
-chips under the lede for the page's state.
+Group a working region with a short heading; `section.panel` supplies compact heading
+and spacing without a surrounding card. Use a `.callout` when a point needs emphasis,
+with a status tone (`warn`, `danger`, `ok`) when it reports a status.
 
 ## A workspace
 
@@ -258,7 +258,10 @@ change".
 
 To make a control you write match Leaf's, give it `class="button"`,
 `class="button primary"` for the committing action, or `class="field"` for a text
-input or select.
+input or select. A native radio or checkbox uses
+`<label class="choice"><input type="radio" name="view" value="summary">Summary</label>`
+(or `type="checkbox"`). The label supplies the hit area and focus ring; the native
+mark shows selection without a surrounding box.
 
 Leaf's panel, thread cards and markers draw over everything in `main`, whatever its
 `z-index`. Open a modal or menu of the page's own in the top layer: a `<dialog>` shown

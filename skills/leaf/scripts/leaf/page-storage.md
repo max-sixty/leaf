@@ -230,7 +230,7 @@ ID PATH` (`file_bindings.BINDINGS`).
   page's own canonical activity. `server_rows.py` owns the record (`ROW`), producer and
   freshness contract. It is never read by a page's semantic fold; losing it only
   hides that neighbor until the server's next maintenance look. A neighbour
-  reading deletes a row whose server lease no process holds, at any format.
+  reading deletes a readable row whose server lease no process holds.
 
 ## Revision delivery
 
@@ -248,7 +248,7 @@ fingerprint, server identity, packages, and producer;
 error, including the refusal of a layer this Leaf cannot serve
 (`layer.incompatible_layer`). `active.file` names the immutable revision the live
 root actually shows when one exists; `data` names the contract file, the value directory, and any source whose
-value fails its contract.
+value fails its contract or whose publication format this Leaf cannot read.
 `active.executable`, shared with `/api/state`, gives the active revision's
 nullable executable digest. Delivery emits `<meta name="lf-executable">` when a
 digest is available; `../../assets/runtime/version.js` owns the resulting install choice.

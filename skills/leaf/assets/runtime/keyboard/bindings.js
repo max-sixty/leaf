@@ -21,11 +21,14 @@
      The command reference presents each route separately. A
      route may override `title`, `description` and `label` for the case where a nearer scope shadows only
      its sibling binding. A route without a description of its own lists under the
-     row's, so the row's says what every route shares ("Filter visible targets by kind"),
-     never what tells them apart ("Next / previous match").
+     row's, so a row's description repeats under every route.
    - `title` is the command's required concise name, or a function when state changes
-     it. `description` optionally explains information the title cannot carry. The obligation,
-     menu rows, reference, and announcements read these same words.
+     it. The obligation, menu rows, reference, and announcements read these same words.
+   - `description` is the row's tooltip in the reference, its meta line when the row
+     is selected, and a line under its title on a touch screen. Most rows need none. Write one only for something the title and
+     section heading leave out and a short title can't hold, such as "Keeps what is
+     typed" or the action Undo would take back. If the missing words fit in the title,
+     put them there ("discard" rather than "stop editing").
    - `label` overrides the compact keycap, independently of the action name. A keyless
      command remains named by its title in the reference.
    - `contextKeys` are explicit aliases that work inside the widget and may be forwarded
@@ -51,7 +54,10 @@
      under a finger, or a function when state chooses them, and `false` where a finger
      reaches the result directly (keyboard/AGENTS.md, "Touch routes"). Every page
      command answers it, and so, with `false`, does every page-scope row with a `run`
-     that is not its stance's `exit`: a scope row takes no words.
+     that is not its stance's `exit`: a scope row takes no words. `touchValue` is a
+     terse reading that row shows at its end, past words the row may cut, such as how
+     long ago the gesture Undo would take back was made; the row's hover reads the
+     description whole.
    - A command that enters a layer declares no way back out of it. The layer's own
      owner declares that step, against the open layer rather than against the press
      that opened it, so one state has one way out however the user reached it.

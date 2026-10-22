@@ -39,49 +39,67 @@ class _Started:
 
 
 class FileChanges:
-    """One owner's subscription, grouped by native recursive-watch semantics."""
+    """One owner's requested directories, pinned through native subscription.
+
+    Missing directories subscribe their nearest existing ancestor; if a selected
+    root disappears while installing, the whole subscription replans before it is
+    returned. Collapsed roots preserve any request for recursive notifications.
+    """
 
     def __init__(self, roots: dict[Path, bool], accepts, *, collect: bool = False):
-        self.condition = threading.Condition()
-        self.generation = 0
-        self.error = None
-        self.pending = set() if collect else None
-        self.stop = threading.Event()
-        self.threads = []
-        self.roots = {}
-        try:
-            # Keep the directory objects alive for exactly their subscription.
-            # Linux can reuse a deleted directory's inode after an inotify watch
-            # is revoked; an open descriptor prevents that identity alias.
-            for path, recursive in roots.items():
-                self.roots[path] = (
-                    recursive,
-                    os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC),
-                )
-            starts = []
-            for recursive in (False, True):
-                paths = [path for path, nested in roots.items() if nested == recursive]
-                if not paths:
-                    continue
-                started = _Started(self.stop)
-                thread = threading.Thread(
-                    target=self._run,
-                    args=(paths, recursive, accepts, started),
-                    daemon=True,
-                )
-                thread.start()
-                self.threads.append(thread)
-                starts.append(started)
-            for started in starts:
-                started.installed.wait()
-            if self.error:
-                raise self.error
-        except BaseException:
-            self.close()
-            raise
+        while True:
+            self.condition = threading.Condition()
+            self.generation = 0
+            self.error = None
+            self.pending = set() if collect else None
+            self.stop = threading.Event()
+            self.threads = []
+            self.roots = {}
+            try:
+                installed = _existing_roots(roots)
+                # Keep the directory objects alive for exactly their subscription.
+                # Linux can reuse a deleted directory's inode after an inotify watch
+                # is revoked; an open descriptor prevents that identity alias.
+                for path, recursive in installed.items():
+                    self.roots[path] = (
+                        recursive,
+                        os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC),
+                    )
+                starts = []
+                for recursive in (False, True):
+                    paths = [
+                        path
+                        for path, nested in installed.items()
+                        if nested == recursive
+                    ]
+                    if not paths:
+                        continue
+                    started = _Started(self.stop)
+                    thread = threading.Thread(
+                        target=self._run,
+                        args=(paths, recursive, accepts, started),
+                        daemon=True,
+                    )
+                    thread.start()
+                    self.threads.append(thread)
+                    starts.append(started)
+                for started in starts:
+                    started.installed.wait()
+                if self.error:
+                    raise self.error
+            except FileNotFoundError:
+                # Selecting, pinning and subscribing are one operation: a rename
+                # can retire a root between any two steps, so plan again.
+                self.close()
+            except BaseException:
+                self.close()
+                raise
+            else:
+                return
 
     def matches(self, roots: dict[Path, bool]) -> bool:
         """Whether the installed, pinned directories still occupy these paths."""
+        roots = _existing_roots(roots)
         if self.roots.keys() != roots.keys():
             return False
         for path, (recursive, descriptor) in self.roots.items():
@@ -168,11 +186,14 @@ class FileChanges:
             return paths
 
 
-def existing_root(path: Path) -> Path:
-    """The nearest directory whose notifications can discover a missing child."""
-    while not path.is_dir():
-        path = path.parent
-    return path
+def _existing_roots(requested: dict[Path, bool]) -> dict[Path, bool]:
+    """Resolve missing directories to ancestors that can announce their return."""
+    roots = {}
+    for path, recursive in requested.items():
+        while not path.is_dir():
+            path = path.parent
+        roots[path] = roots.get(path, False) or recursive
+    return roots
 
 
 def target_paths(targets: set[Path]) -> frozenset[Path]:
@@ -198,9 +219,9 @@ class _PageChanges:
 
     def connect(self, page: Path) -> FileChanges:
         targets = outside_inputs(page)
-        roots = {existing_root(target.parent): False for target in targets}
-        roots[existing_root(page.parent)] = False
-        roots[existing_root(page)] = True
+        roots = {target.parent: False for target in targets}
+        roots[page.parent] = False
+        roots[page] = True
         with self.lock:
             if (
                 self.changes is None
@@ -216,12 +237,7 @@ class _PageChanges:
                 )
                 # Threads retain FileChanges, never this memo owner. Discarding
                 # an unheld page memory therefore closes and joins its provider.
-                # Process exit releases the native watches itself and skips this
-                # finalizer. The daemon threads waiting on the subscription still
-                # run during exit, and closing it under them wakes each to
-                # subscribe again, registering another finalizer for exit to run.
                 self.release = weakref.finalize(self, self.changes.close)
-                self.release.atexit = False
                 self.targets = targets
             return self.changes
 

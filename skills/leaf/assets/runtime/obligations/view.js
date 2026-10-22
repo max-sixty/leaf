@@ -33,7 +33,7 @@ import { landingRoom } from "../landing-scroll.js";
 import { landingBand, shownBox, shownParts } from "../geometry.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "../page-controls.js";
 import { decisionControls } from "../keyboard/bindings.js";
-import { closestAcross, inChrome, showsWords } from "../passages.js";
+import { closestAcross, elementById, inChrome, showsWords } from "../passages.js";
 import { TEXT_BLOCK } from "../passage-facts.js";
 import { scrollerFor } from "../reading-regions.js";
 import { keeps } from "../keeps.js";
@@ -58,6 +58,7 @@ import { applicationPresenter, PRESENTATION_ORDER } from "../semantic-state.js";
 import { hostIn, under, upFrom } from "../shadow.js";
 import { showHeld } from "../thread/held-news.js";
 import { obligationPlace } from "./place.js";
+import { revealAddressed } from "../anchor-resolution.js";
 
 // The obligation view owns contextual action routes and navigation; the keyboard presenter owns their hints.
 export function createObligationView({
@@ -71,6 +72,7 @@ export function createObligationView({
 }) {
   const obligationNode = (item) => obligationPlace(item).node;
   const sourceNode = (item) => obligationPlace(item).source;
+  const sourceOwner = (item) => item && elementById(item.source.id);
   const hasObligation = (items, candidate) =>
     Boolean(candidate && items.some((item) => item.id === candidate.id));
   const unansweredIds = () => new Set(readObligations().unanswered.map(({ id }) => id));
@@ -235,15 +237,16 @@ export function createObligationView({
   // Widgets own context aliases. The obligation view selects declarations through the same standing
   // relation that maps a margin entry or thread back to its source; the generic
   // compiler retains original command identity and availability.
-  const actionsFor = (source) =>
-    decisionControls(commandsWithin(source), `Obligation ${source.id}`).filter(
+  const actionsFor = (source, owner = source) =>
+    decisionControls(commandsWithin(owner), `Obligation ${owner.id}`).filter(
       ({ source: commandSource, control }) =>
-        ownedObligationControl(source, commandSource) &&
+        ownedObligationControl(owner, commandSource) &&
+        (source === owner || under(control, source)) &&
         control.getAttribute("aria-busy") !== "true",
     );
   const actionsOf = (item) => {
     const source = item && sourceNode(item);
-    return source ? actionsFor(source) : [];
+    return source ? actionsFor(source, sourceOwner(item)) : [];
   };
   // The answers an obligation offers, for a surface that answers it away from where it stands,
   // as the floating panel's On view does: each Decision control's own words and
@@ -253,13 +256,14 @@ export function createObligationView({
   function choicesOf(item) {
     const source = sourceNode(item);
     if (!source) return null;
-    return actionsFor(source).map(({ id, label, control }) =>
+    return actionsFor(source, sourceOwner(item)).map(({ id, label, control }) =>
       Object.freeze({
         id,
         label,
         chosen:
           control.getAttribute("aria-pressed") === "true" ||
-          control.getAttribute("aria-checked") === "true",
+          control.getAttribute("aria-checked") === "true" ||
+          (control.localName === "input" && control.checked),
         press: () => presentedActionControl(control).click(),
       }),
     );
@@ -278,10 +282,10 @@ export function createObligationView({
     return {
       root,
       declarations: () => {
-        const source = sourceNode(record);
-        return source
-          ? commandDeclarationsWithin(source).filter(({ source: commandSource }) =>
-              ownedObligationControl(source, commandSource),
+        const owner = sourceOwner(record);
+        return owner
+          ? commandDeclarationsWithin(owner).filter(({ source: commandSource }) =>
+              ownedObligationControl(owner, commandSource),
             )
           : [];
       },
@@ -339,7 +343,9 @@ export function createObligationView({
     const target = [...item.getClientRects()].some((rect) => rect.width && rect.height)
       ? item
       : (source.querySelector(OBLIGATION_CONTROL) ??
-        actionsFor(source).map(({ control }) => presentedActionControl(control))[0] ??
+        actionsFor(source, sourceOwner(record)).map(({ control }) =>
+          presentedActionControl(control),
+        )[0] ??
         source);
     reviewedThrough = review ? target : null;
     return target;
@@ -522,11 +528,19 @@ export function createObligationView({
     // Materializing an obligation can yield before its destination opens a narrowed thread.
     // The arrival is this walk's deferred invocation; its returned tail is separate.
     const arriveAtRecord = bindQueuedWork(arrive);
+    // A frozen source must exist before its owner can reveal a projected record.
+    if (next.thread) await materializeObligation(next, mayArrive);
+    if (next.source.unit) {
+      const owner = sourceOwner(next);
+      if (owner) {
+        const hydration = revealAddressed(owner, next.source.unit);
+        if (hydration?.then) await hydration;
+        if (!mayArrive()) return false;
+      }
+    }
     // A thread obligation uses the same retained destination as every other thread
     // arrival. The selected reader may need to disclose a different conversation.
-    const { target } = next.thread
-      ? await materializeObligation(next, mayArrive)
-      : reachObligation(next);
+    const { target } = reachObligation(next);
     if (!mayArrive() || !target) return false;
     // A page obligation starts at the window's head so its context comes before its control, and
     // what counts as its context is arrivalRegion's answer: the region an author declared,

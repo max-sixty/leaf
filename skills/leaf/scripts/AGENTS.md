@@ -53,7 +53,7 @@ never prints it; `cli.LeafGroup` prints what it returns (`cli.py`'s header).
 - `delivery`, `session`, `hooks`, `hook_transport`, `harness`: the delivery envelope
   and receipt, status and the `leaf wait` watch, the harness hooks' entry, the prompt
   and Stop hooks as a session's transport, and harness declarations;
-- `reconnect`: which outages get a notice, once per outage;
+- `reconnect`: current reconnect advice for retained pages;
 - `codex_state`, `codex`, `codex_adapter`: Codex delivery eligibility and records, App
   Server reply lifecycles, and the detached adapter behind `leaf codex start`;
 - `session_runtime`: the immutable installation selected to own a developer session's delivery;

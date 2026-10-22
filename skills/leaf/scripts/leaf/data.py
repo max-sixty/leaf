@@ -26,14 +26,28 @@ import re
 from pathlib import Path
 from uuid import uuid4
 
-from .data_contracts import DataError, payload_error, working_data_bindings
+from .data_contracts import (
+    DataError,
+    payload_error,
+    record_labels,
+    working_data_bindings,
+)
 from .files import file_stamp, replace_files
 from .page_memory import memo
 from .registry.schema import json_value
 from .registry.storage import read_page_registry
 from .schema import DATA_DIR, DATA_SOURCE_NAME
 from .service import PageTransaction
-from .state import STRING, TIME, Record, described, json_bytes, now_iso, object_schema
+from .state import (
+    STRING,
+    TIME,
+    Record,
+    described,
+    json_bytes,
+    now_iso,
+    object_schema,
+    stored_record,
+)
 
 PUBLICATION = Record(
     "data-source",
@@ -111,7 +125,11 @@ _UNJUDGED = object()
 
 def _value_error(source: str, contract: str, value, revision: str, registry: dict):
     declaration = json.dumps(
-        registry.get("$data", {}).get("contracts", {}).get(contract), sort_keys=True
+        [
+            registry.get("$data", {}).get("contracts", {}).get(contract),
+            sorted(record_labels(contract, registry)),
+        ],
+        sort_keys=True,
     )
     key = source, declaration, revision
     held = _JUDGED.get(key, _UNJUDGED)
@@ -194,6 +212,19 @@ def read_data(page_dir: Path, registry: dict | None) -> dict:
         if registry is not None
         else {}
     )
+    unreadable = {}
+    for source, reading in readings.items():
+        if reading is not None:
+            continue
+        # A file at another format is not a publication this Leaf can read. Keep
+        # its value absent while making the skipped file visible to the author.
+        record = stored_record(source_file(page_dir, source))
+        if record is not None and record.get("format") != PUBLICATION.format:
+            unreadable[source] = (
+                f"data/{source}.json has format {record.get('format')!r}; "
+                f"this Leaf reads {PUBLICATION.format}. Set it again with "
+                "`leaf data set`."
+            )
     sources = {
         source: reading for source, reading in readings.items() if reading is not None
     }
@@ -212,13 +243,19 @@ def read_data(page_dir: Path, registry: dict | None) -> dict:
     return {
         "version": hashlib.sha256(identity.encode()).hexdigest()[:16],
         "sources": sources,
+        "unreadable": unreadable,
     }
 
 
 def data_errors(stored: dict) -> list[str]:
-    """Why each source whose current value fails its contract cannot be read."""
+    """Why a source's file or value cannot be read."""
     return [
-        reading["error"] for reading in stored["sources"].values() if "error" in reading
+        *stored["unreadable"].values(),
+        *(
+            reading["error"]
+            for reading in stored["sources"].values()
+            if "error" in reading
+        ),
     ]
 
 

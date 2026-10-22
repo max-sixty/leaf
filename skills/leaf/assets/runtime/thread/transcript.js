@@ -6,23 +6,30 @@
    - Each turn is one MessageView, which shows whether its version is unread and
      reports its exposure to read tracking (read.js), so a reply counts as read the same
      way in every reader.
-   - A summary the agent wrote folds the turns it covers behind its checkpoint; the
-     progress an answer folded stands behind "Show N progress messages" at that answer's
-     head; each run of progress no answer has folded stands behind its face, a dim line
-     where the run was said showing its latest step (`workingView`), opened where a
-     streaming answer's head offers it. The face of the run the agent's work in hand
+   - A summary the agent wrote folds the turns it covers behind its checkpoint.
+     Completed progress disappears when its answer shows, including a streaming answer.
+     Each pending progress run stands behind a dim line showing its latest step
+     (`workingView`). The face of the run the agent's work in hand
      speaks through is the working message; work whose words no run holds stands as a
      face of its own where those words were said (`workingPlace`). A thread reads in
      the order it was said, so a message the user sends after a face stands below it,
      and a face whose run the work leaves stays where it stood, still.
-   - The originals of each fold are retained containers whose message lists are placed
-     together with the transcript's (`setChildLists`), so a message a summary gathers or
-     releases moves straight across with its frames and focus. Rejected: nesting the
-     originals in a `repeat` inside the transcript's `repeat`, which rebuilt a gathered
-     message's row and reloaded a frame in it.
-   - A fold that arrives over a message the user stands on or reads stays open, and
-     progress the reader opened stays open when a fold takes it over or splits it. */
-import { setChildLists } from "../dom-children.js";
+   - The transcript is flat: a fold's checkpoint stands before the messages it covers,
+     which stay the transcript's own children where they were said and are hidden in
+     place while the fold is closed. A summary arriving, opening, closing or being
+     retracted moves no message, so a frame in one keeps its document and a selection
+     in one stays. The checkpoint groups its messages for assistive technology by
+     `aria-owns`, and draws the frame around the open fold from its own head to its
+     last message's foot by anchors (`--lf-fold-head`, `--lf-fold-foot`, surfaces.css),
+     since no box contains them. Rejected: moving the covered messages into a container
+     inside the checkpoint, which unloaded a frame among them in an engine without
+     `moveBefore` (WebKit reloaded it once as the summary arrived and twice as it was
+     retracted) and lost a selection inside them in every engine; and, before that,
+     nesting such a container in a `repeat` inside the transcript's `repeat`, which
+     rebuilt a gathered message's row.
+   - An explicit summary that arrives over a message the user stands on or reads stays
+     open. Completed progress disappears even if the reader had opened it. */
+import { setChildren } from "../dom-children.js";
 import { focusDestination, focused } from "../focus.js";
 import { html, render, nothing } from "/vendor/browser-runtime.js";
 import { MessageView } from "./messages.js";
@@ -31,11 +38,12 @@ import { renderMarkdown } from "../markdown.js";
 import { summaryRanges, withPendingProgress, workingPlace } from "./summary-ranges.js";
 import { growthAfterIsSeen, growthIsSeen, seenRect } from "../geometry.js";
 import { scrollThreadIntoView } from "./reply-landing.js";
+import { iconTemplate } from "../icons.js";
 
 // A progress run's face: its latest step, drawn as a message is, with who wrote it and
 // when at its head, but dimmed, and under a passing sheen while it is the working
 // message and the work runs, as a title being generated is. The earlier steps are
-// superseded, and the answer that folds them offers them behind its own disclosure. It
+// superseded, and the answer that completes them removes the run. It
 // is one of the transcript's children, so it stands at the conversation's inset on
 // every surface and scrolls with it. Its head wears a message head's face but not its
 // class, since it is no message: a message head's places (a margin's sticky head, held
@@ -95,6 +103,8 @@ export class Transcript {
   #checkpoints = new Map();
   #expandedSummaries = new Set();
   #id = ++nextTranscriptId;
+  // Counts the names this transcript gives: a covered message's id, a fold's anchors.
+  #named = 0;
 
   /**
    * @param {object} options
@@ -142,9 +152,9 @@ export class Transcript {
     return this.#checkpoints.get(id)?.node ?? null;
   }
 
-  // The last node the transcript shows. Progress behind its run's face and originals
-  // behind a closed checkpoint stand in the transcript unrendered, so the last message
-  // alone may have no box.
+  // The last node the transcript shows. The messages a closed fold covers, progress
+  // behind its run's face among them, stand in the transcript hidden, so the last
+  // message alone may have no box.
   get foot() {
     return [...this.node.children].findLast((node) => node.checkVisibility()) ?? null;
   }
@@ -234,9 +244,8 @@ export class Transcript {
     const summaries = new Set(
       describedRanges.flatMap((range) => (range.summary ? [range.summary.id] : [])),
     );
-    // Progress the reader opened stays open when a fold takes it over or splits it, the
-    // answer's or a summary's: every range that now covers one of its messages takes
-    // over the disclosure it stood behind, and so does the toggle the reader stood on.
+    // An explicit summary inherits the disclosure state of pending progress it
+    // gathers. Completed progress has no disclosure to inherit that state.
     const successors = new Map();
     for (const [id, covers] of this.#pendingCovers)
       successors.set(
@@ -267,30 +276,10 @@ export class Transcript {
         requiredText: "Messages kept open · current work",
       };
     });
-    // The progress no answer has folded stands hidden behind its run's face, open only
-    // where a streaming answer's disclosure opens it.
+    // Pending progress stays behind its run's face until the answer replaces it.
     const pendingRanges = rangeState.filter((range) => range.summary?.pending);
-    this.#pendingOpen = pendingRanges.some((range) => range.expanded);
-    // Automatic progress folds name the reply that completed them. Its header owns
-    // their disclosure. An answer still streaming at the thread's end holds the
-    // disclosure of the runs it will fold the same way, those the user has not spoken
-    // after (`events._ephemeral_ranges`), and they show no face, until the fold it
-    // brings takes the progress over.
-    const progressByReply = new Map();
-    const streaming = model.messages.at(-1);
     const spoke = model.messages.findLastIndex(({ author }) => author === "user");
-    const streamed = streaming?.provisional
-      ? pendingRanges.filter(
-          (range) => model.messages.indexOf(range.messages[0]) > spoke,
-        )
-      : [];
-    if (streamed.length) progressByReply.set(streaming.id, streamed);
-    for (const range of rangeState) {
-      if (range.kind !== "summary" || !range.summary.trigger || range.forced) continue;
-      const trigger = range.summary.trigger;
-      if (!progressByReply.has(trigger)) progressByReply.set(trigger, []);
-      progressByReply.get(trigger).push(range);
-    }
+    this.#pendingOpen = pendingRanges.some((range) => range.expanded);
     // The first message no fold holds, else the first.
     const lead =
       rangeState.find((range) => range.kind === "message")?.message ??
@@ -302,12 +291,9 @@ export class Transcript {
           message.key,
           (view = new MessageView(this.#messageCommands)),
         );
-      const toggle = progressByReply.has(message.id)
-        ? this.#summaryToggle(progressByReply.get(message.id), true)
-        : nothing;
       view.present(message, {
         arrived,
-        headerControls: notice && message === lead ? html`${notice}${toggle}` : toggle,
+        headerControls: notice && message === lead ? notice : nothing,
       });
       // A reply still streaming at the thread's end grows at its foot as its words
       // come, as the working message does with each step (shift_watch.js).
@@ -317,16 +303,18 @@ export class Transcript {
         message.provisional && message === model.messages.at(-1) ? "" : null,
       );
     }
-    // Each message, in the transcript or its checkpoint.
-    const placed = (key, summary) => {
+    // Each message where it was said, hidden while a closed fold covers it.
+    const placed = (key, summary = null, folded = false) => {
       const node = this.#messages.get(key).node;
       keeps(node, "data-lf-summary", summary);
-      return [node];
+      keepsHidden(node, folded);
+      return node;
     };
+    // The open fold's last message, which its checkpoint's frame reaches down to.
+    const feet = new Map();
     const checkpoints = new Map();
     const faces = new Map();
     const transcript = [];
-    const transcriptLists = [[this.node, transcript]];
     // The working message stands after the range holding the last message said before
     // its words: as the face of that range where it is a progress run, else as a face
     // of its own.
@@ -342,25 +330,25 @@ export class Transcript {
       return node;
     };
     for (const [at, range] of rangeState.entries()) {
-      if (range.kind === "message") transcript.push(...placed(range.message.key, null));
+      if (range.kind === "message") transcript.push(placed(range.message.key));
       else {
         const id = range.summary.id;
         const checkpoint = this.#checkpoints.get(id) ?? this.#checkpoint(id);
         checkpoints.set(id, checkpoint);
-        this.#paintCheckpoint(checkpoint, range);
-        transcript.push(checkpoint.node);
-        transcriptLists.push([
-          checkpoint.originals,
-          range.messages.flatMap((message) => placed(message.key, id)),
-        ]);
+        const covered = range.messages.map((message) =>
+          placed(message.key, id, !range.expanded),
+        );
+        for (const node of covered) node.id ||= `lf-msg-${this.#id}-${++this.#named}`;
+        this.#paintCheckpoint(checkpoint, range, covered);
+        transcript.push(checkpoint.node, ...covered);
+        feet.set(covered.at(-1), checkpoint.foot);
       }
       const hosts = at === workingAt;
-      if (range.summary?.pending && !streamed.includes(range)) {
+      if (range.summary?.pending) {
         const id = range.summary.id;
         const node = this.#faces.get(id) ?? Transcript.#face(id);
         faces.set(id, node);
-        // A run the user spoke after is one no answer will fold (`streamed`), so its
-        // face offers its earlier steps itself.
+        // A run the user spoke after offers its earlier steps until an answer comes.
         const kept =
           range.messages.length > 1 &&
           model.messages.indexOf(range.messages[0]) < spoke;
@@ -391,8 +379,13 @@ export class Transcript {
         )
       : null;
     this.#checkpoints = checkpoints;
+    for (const { node } of this.#messages.values()) {
+      const foot = feet.get(node);
+      if (foot) node.style.setProperty("--lf-fold-foot", foot);
+      else node.style.removeProperty("--lf-fold-foot");
+    }
     keeps(this.node, "data-lf-reflow", appends ? "append" : null);
-    setChildLists(transcriptLists);
+    setChildren(this.node, transcript);
     if (!standingToggle || standingToggle.isConnected) return null;
     /** @type {(id: string) => HTMLElement | null} */
     const toggleFor = (id) =>
@@ -417,24 +410,25 @@ export class Transcript {
     return node;
   }
 
-  // A summary's checkpoint: a retained section whose head the template draws, and
-  // whose originals hold the retained messages the summary covers.
+  // A summary's checkpoint: a retained section whose head the template draws, standing
+  // before the messages the summary covers. It names the anchors its frame spans: its
+  // own head, and the foot of its last message, which carries `foot`.
   #checkpoint(id) {
     const node = document.createElement("section");
     node.className = "lf-thread-checkpoint";
     node.dataset.summaryId = id;
-    const originals = document.createElement("div");
-    originals.id = `lf-summary-originals-${this.#id}-${id}`;
-    originals.className = "lf-summary-originals";
-    node.append(originals);
-    return { node, originals };
+    const name = `--lf-fold-${this.#id}-${++this.#named}`;
+    const foot = `${name}-foot`;
+    node.style.setProperty("--lf-fold-head", name);
+    node.style.setProperty("--lf-fold-foot", foot);
+    return { node, foot };
   }
 
-  #paintCheckpoint({ node, originals }, range) {
-    const progress = Boolean(range.summary.trigger || range.summary.pending);
+  #paintCheckpoint({ node }, range, covered) {
+    const progress = Boolean(range.summary.pending);
     keeps(node, "data-expanded", range.expanded);
     keepsHidden(node, progress && !range.expanded);
-    keepsHidden(originals, !range.expanded);
+    keeps(node, "aria-owns", covered.map(({ id }) => id).join(" "));
     render(
       html`${
         progress
@@ -465,7 +459,6 @@ export class Transcript {
           : nothing
       }`,
       node,
-      { renderBefore: originals },
     );
   }
 
@@ -474,21 +467,22 @@ export class Transcript {
     const expanded = ranges.every((range) => range.expanded);
     const count = ranges.reduce((total, range) => total + range.messages.length, 0);
     const subject = `${count} ${progress ? "progress" : "earlier"} message${count === 1 ? "" : "s"}`;
-    const label = `${expanded ? (progress ? "Hide" : "Collapse") : "Show"} ${subject}`;
+    const label = `${expanded ? "Hide" : "Show"} ${subject}`;
     return html`<button
       type="button"
       class="lf-thread-disclosure lf-summary-expand ${
         progress ? "lf-progress-expand" : ""
       }"
-      data-lf-room=${progress ? `Show ${subject}` : nothing}
       data-summary-toggle=${ids[0]}
       aria-expanded=${String(expanded)}
-      aria-controls=${ids
-        .map((id) => `lf-summary-originals-${this.#id}-${id}`)
+      aria-controls=${ranges
+        .flatMap((range) => range.messages.map(({ key }) => this.messageNode(key)?.id))
+        .filter(Boolean)
         .join(" ")}
       @click=${() => this.#setSummaryExpanded(ids, !expanded)}
     >
-      ${progress ? html`<span>${label}</span>` : label}
+      ${iconTemplate("down", "lf-disclosure-icon")}
+      <span data-lf-room=${`Show ${subject}`}><span>${label}</span></span>
     </button>`;
   }
 

@@ -408,7 +408,6 @@ customElements.define(
           decision: true,
           bindingBadge,
           title: label(option) || option.id,
-          description: "Toggle this option",
           when: () => this.#available("choose"),
           run: () => mark.click(),
         });
@@ -460,7 +459,6 @@ customElements.define(
           decision: true,
           bindingBadge: this.#addition.bindingBadge,
           title: "Another option",
-          description: "Write another option",
           when: () => this.#available("choose"),
           run: () => {
             focusDestination(this.#addition.input, "move");
@@ -519,12 +517,17 @@ customElements.define(
     #syncChoice(detail) {
       const options = [...this.#options()];
       const picked = new Set(detail.value);
+      let controlsChanged = false;
       for (const [option] of this.#controls)
-        if (option.parentElement !== this) this.#controls.delete(option);
+        if (option.parentElement !== this) {
+          this.#controls.delete(option);
+          controlsChanged = true;
+        }
       for (const [index, option] of options.entries()) {
         const selected = picked.has(option.id);
         option.toggleAttribute("chosen", selected);
         if (!this.#choosable && !this.#controls.has(option) && !selected) continue;
+        if (!this.#controls.has(option)) controlsChanged = true;
         const mark = this.#control(option, this.#choosable);
         const word = selected
           ? SELECTED
@@ -541,6 +544,7 @@ customElements.define(
         if (this.#choosable) keeps(mark, "aria-checked", selected);
       }
       this.#settled?.sync();
+      if (controlsChanged && this.#choosable) this.#keys();
     }
 
     #authoredChoice() {
@@ -567,10 +571,8 @@ customElements.define(
           record.detail.text,
         ]),
       );
-      const created = this.#addition.reconcile(added, this.#done);
-      for (const option of created) this.#control(option, this.#choosable);
+      this.#addition.render(added, this.#done);
       this.#syncChoice(detail);
-      if (created.length) this.#keys();
       this.#refreshAvailability();
       return nothing;
     }

@@ -1,17 +1,13 @@
 // Every timestamp the page renders was written by its server. Keep the browser's one
 // measured offset here, beside the two public readings that depend on it, so no seat can
 // accidentally render against a second clock.
-import { outsideReading } from "/vendor/browser-runtime.js";
+import { computed, signal } from "/vendor/browser-runtime.js";
 import { watchOwner } from "./arrivals.js";
 import { reportPageError } from "./layer-client.js";
 
 let clockSkew = 0;
-// Every follower of a time reading, called on each tick of the shared clock.
-const ticks = new Set();
-const onTick = (moved) => {
-  ticks.add(moved);
-  return () => ticks.delete(moved);
-};
+// A native dependency for the shared clock's temporal readings.
+const pulse = signal(0);
 const serverNow = () => Date.now() + clockSkew;
 // When a gesture was made, on the clock every other reading of a message uses. A
 // message this page paints before the log names it still has to say when it was said,
@@ -20,12 +16,15 @@ export const saidNow = () => new Date(serverNow()).toISOString();
 
 // A clock reading is a displayed value or a temporal predicate, not raw wall time. It is
 // recorded in the collection of whatever paint reads it, beside the parts of the
-// publication that paint read (`outsideReading`), so a watcher or a region follows the
+// publication that paint read, so a watcher or a region follows the
 // time it shows by the rule it follows those by, and the shared tick wakes only the
 // paints whose answers changed. The callback receives the calibrated server-now
 // milliseconds used by the comparison.
 export const clockValue = (read) =>
-  outsideReading(() => read(serverNow()), onTick).read();
+  computed(() => {
+    pulse.value;
+    return read(serverNow());
+  }).value;
 
 /** The paint of one reading at a time, kept across the owner's departures, and the one
  * rule for what a returning owner is drawn again and for a draw that fails. Calling
@@ -41,8 +40,7 @@ export const clockValue = (read) =>
  * whether a call or `refresh()` started it. `owes(key)` says whether `paint(key)` would
  * draw, `forget()` owes the next call a draw, `refresh()` redraws the last reading, at
  * once or on the return, and `stop()` retires the paint. Following what a draw reads,
- * the time included, is the caller's: `watchProjection` draws through this and follows
- * everything its paint read. */
+ * the time included, is the caller's. Lit hosts instead use their update lifecycle. */
 export function readingPaint(owner, draw) {
   let painted = false;
   let key;
@@ -124,14 +122,11 @@ export function readingPaint(owner, draw) {
 }
 
 export async function tickClock(reportError) {
-  // Package paints are independent followers. A bad clock read or repaint must not
-  // starve later followers or turn a healthy state feed back into polling.
-  const round = {};
-  const settled = await Promise.allSettled(
-    [...ticks].map(async (moved) => moved(round)),
-  );
-  for (const result of settled)
-    if (result.status === "rejected") reportError(result.reason, "clock paint failed");
+  try {
+    pulse.value += 1;
+  } catch (error) {
+    reportError(error, "clock paint failed");
+  }
 }
 
 export const observeServerNow = (now) => {

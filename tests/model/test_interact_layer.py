@@ -11,7 +11,6 @@ import tomllib
 from datetime import datetime
 from pathlib import Path
 
-import playwright
 import pytest
 import tinycss2
 from click.testing import CliRunner
@@ -299,15 +298,45 @@ def test_a_page_another_leaf_vendored_at_this_protocol_takes_its_writes(
     assert checked.returncode == 0, checked.stderr
 
 
-def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(claimed, server):
+def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
+    claimed, server, tmp_path
+):
     """A reply through a reference names no page, so it is refused on a page an older
-    Leaf vendored, naming the re-vendor. The session's next command naming the page
+    Leaf vendored, naming the re-vendor. The session's next write naming the page
     makes that re-vendor itself (`vendoring.renew_layer`), restarting the server at
     its address, and the reply then goes."""
     replied = _replying_after(claimed, server, vendored_at_another_protocol)
     assert replied.returncode != 0, replied.stdout
     assert f"leaf page init {claimed}" in replied.stderr
-    for command in (["page", "state", str(claimed)], replied.args[len(LEAF_COMMAND) :]):
+    read = subprocess.run(
+        [*LEAF_COMMAND, "page", "state", str(claimed)],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
+    )
+    assert read.returncode == 0, read.stderr
+    assert "page protocol" in json.loads(read.stdout)["source"]["error"]
+    before = interact_files.read_json(claimed / "registry.json")["$layer"]["generation"]
+    subprocess.run(
+        [
+            *LEAF_COMMAND,
+            "page",
+            "export",
+            str(claimed),
+            "--out",
+            str(tmp_path / "export.html"),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
+    )
+    assert (
+        interact_files.read_json(claimed / "registry.json")["$layer"]["generation"]
+        == before
+    )
+    for command in (["page", "claim", str(claimed)], replied.args[len(LEAF_COMMAND) :]):
         ran = subprocess.run(
             [*LEAF_COMMAND, *command],
             capture_output=True,
@@ -318,6 +347,51 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(claimed, 
         assert ran.returncode == 0, ran.stderr
         assert "re-vendor" not in ran.stderr
     assert fetch(f"{server}/api/state")[0] == 200
+
+
+@pytest.mark.parametrize("unreadable", ["claim", "lifecycle"])
+def test_read_commands_leave_an_older_page_and_its_server_alone(
+    claimed, server, unreadable
+):
+    """A read by another session cannot take a held page across a protocol bump."""
+    from leaf.service import claim_path
+
+    publish(claimed)
+    vendored = vendored_at_another_protocol(claimed)
+    record = (
+        claim_path(claimed)
+        if unreadable == "claim"
+        else cleanup_model.session_file("s1", cleanup_model.SESSION_SUFFIX)
+    )
+    stored = interact_files.read_json(record)
+    stored["format"] = "leaf-" + unreadable + "/999"
+    cleanup_model.write_json(record, stored)
+    revisions = interact_files.list_revisions(claimed)
+    registry = (claimed / "registry.json").read_bytes()
+    for command in (
+        ["page", "state", str(claimed)],
+        ["page", "events", str(claimed)],
+        ["page", "instructions", str(claimed)],
+        ["page", "check", str(claimed)],
+    ):
+        subprocess.run(
+            [*LEAF_COMMAND, *command],
+            capture_output=True,
+            text=True,
+            timeout=STATED_TIMEOUT,
+            check=False,
+            env={**os.environ, "CLAUDE_CODE_SESSION_ID": "s2"},
+        )
+        same_registry = (claimed / "registry.json").read_bytes() == registry
+        assert same_registry, command
+        assert interact_files.list_revisions(claimed) == revisions
+        assert fetch(f"{server}/api/state")[0] == 200
+    assert (
+        interact_files.read_json(claimed / "registry.json")["$events"]["protocol"]
+        == vendored
+    )
+    assert vendoring_model.renew_layer(claimed, None) is None
+    assert (claimed / "registry.json").read_bytes() == registry
 
 
 @pytest.mark.parametrize(
@@ -1050,6 +1124,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "hooks/hooks.json",
         "hooks/claude-code.ts",
         "hooks/codex.json",
+        "hooks/scripts/background-watch.py",
         "skills/leaf/SKILL.md",
         "skills/leaf/references/authoring-decisions.md",
         "skills/leaf/references/authoring-evidence.md",
@@ -2635,28 +2710,23 @@ def test_init_merges_idioms_by_complete_entry_and_facts_by_member(
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX umask and mode semantics")
-def test_staged_writes_honor_umask_without_copying_a_replaced_symlink_mode(
+def test_staged_writes_are_private_without_copying_a_replaced_symlink_mode(
     tmp_path, monkeypatch
 ):
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
-    old_umask = os.umask(0o077)
-    try:
-        customized = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
-    finally:
-        os.umask(old_umask)
+    customized = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
     assert customized.exit_code == 0, customized.output
-    custom_theme = tmp_path / ".leaf" / "theme.css"
-    assert custom_theme.stat().st_mode & 0o777 == 0o600
 
     page = tmp_path / "page"
     initialized = runner.invoke(
         cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
     )
     assert initialized.exit_code == 0, initialized.output
+    assert (page / "theme.css").stat().st_mode & 0o777 == 0o600
     external = tmp_path / "external-theme.css"
     external.write_text("external")
-    external.chmod(0o600)
+    external.chmod(0o644)
     (page / "theme.css").unlink()
     (page / "theme.css").symlink_to(external)
     old_umask = os.umask(0o022)
@@ -2669,7 +2739,7 @@ def test_staged_writes_honor_umask_without_copying_a_replaced_symlink_mode(
 
     assert revendored.exit_code == 0, revendored.output
     assert not (page / "theme.css").is_symlink()
-    assert (page / "theme.css").stat().st_mode & 0o777 == 0o644
+    assert (page / "theme.css").stat().st_mode & 0o777 == 0o600
     assert external.read_text() == "external"
 
 
@@ -4560,8 +4630,11 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     (tests/js_facts.mjs), so one wrapped across lines or registered for several
     types in a loop counts as written.
 
-    Each allowed one is named here. The dispatcher is the register's own. The aim latch
-    is not a binding at all: holding ⌥ arms nothing and answers no press, it paints what
+    Each allowed one is named here. The dispatcher has a capture listener for
+    shortcut characters, before nested libraries' typeahead, and a bubble listener
+    for other keys, after controls' own handling; both use the same register.
+    The aim latch is not a binding at all: holding ⌥ arms nothing and answers no
+    press, it paints what
     a click would take, and its keyup half has no place in a table of presses. The
     prepaint bootstrap's hold answers no press either: it keeps keys pressed before the
     page presents and hands them to the dispatcher's owner. The sample bootstrap's
@@ -4586,7 +4659,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
         name = line.split(":")[0]
         by_file[name] = by_file.get(name, 0) + 1
     assert by_file == {
-        "controller.js": 1,
+        "controller.js": 2,
         "aim.js": 1,
         "bootstrap.js": 2,
         "prepaint.js": 1,
@@ -4596,25 +4669,6 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     }, (
         f"the runtime's keydown listeners changed: {listed}. A key belongs in the "
         "register (keys(el, title, rows)), which is what lets a surface promise it."
-    )
-
-
-def test_an_unnamed_driver_node_is_the_installed_wheels_own(monkeypatch):
-    """The other half of that hint, which the subprocess above cannot reach: with the
-    variable unset the driver runs the Node bundled in the installed wheel, and the
-    line has to name that file and then the variable that would replace it. The
-    glibc host is exactly this arm — it named nothing and the bundled binary is the
-    one that would not load."""
-    monkeypatch.delenv(browser_model.DRIVER_VARIABLE, raising=False)
-    node = Path(browser_model.driver_node())
-    assert node == Path(playwright.__file__).parent / "driver" / "node"
-    hint = browser_model.driver_hint()
-    assert str(node) in hint and browser_model.DRIVER_VARIABLE in hint
-
-    monkeypatch.setenv(browser_model.DRIVER_VARIABLE, "/elsewhere/node")
-    assert browser_model.driver_node() == "/elsewhere/node"
-    assert browser_model.driver_hint() == (
-        f"{browser_model.DRIVER_VARIABLE} named /elsewhere/node."
     )
 
 

@@ -32,8 +32,6 @@ from leaf.files import read_json
 from leaf.leases import (
     adapter_is_live,
     hooks_ran,
-    mark_step_hook,
-    step_hook_ran,
     wait_is_live,
 )
 from leaf.machine import ancestry, pid_alive, process_argv
@@ -73,16 +71,16 @@ class Harness:
     envelope states what the transport decides (`../../references/event-batches.md`).
     The methods below answer for each harness's watcher and transports:
 
-    - Claude Code runs Leaf's hooks module (`hooks/claude-code.ts`), which
-      watches the session's pages as each turn ends, an interrupted one included,
-      and wakes the session with a prompt when input arrives
-      (`watches_between_turns`), as Pi's extension does. The prompt hook, which
-      runs as the turn the wake opens begins, and the tool-batch hook within a
-      turn put the input in the turn's context and confirm it (`hook_delivers`);
-      the Stop hook does only under plain `--print`, where no watch follows the
-      turn (`hook_transport`). Claude Code drops a plugin's prompt after an
-      Escape, and a Claude Code that loads no hooks module keeps no watch, which
-      is why this is the harness with a `nudge`.
+    - Claude Code runs Leaf's Stop hooks as each turn ends: one watches the
+      session's pages in the background and wakes the session when input arrives
+      (`watches_between_turns`), and the prompt hook, which runs as the turn the
+      wake opens begins, and the tool-batch hook within a turn put the input in
+      the turn's context (`hook_delivers`), which the turn's next hook confirms
+      (`commits_hook_context`); the other Stop hook does only under plain
+      `--print`, where no watch follows the turn (`hook_transport`). A turn that
+      ends without its Stop hooks, as an interrupt does, starts no watch, so
+      where no watch from before it runs, nothing watches while the session lives
+      on, which is why this is the harness with a `nudge`.
     - Pi runs Leaf's extension in its own process, which calls the same hooks at
       the same points of a run and starts the same watch as each run settles, and
       starts the turn the watch wakes itself.
@@ -103,6 +101,11 @@ class Harness:
     # hand over the whole delivery. Explicit waits carry their own envelope.
     # `hooks_carry` says whether they do for this session.
     hook_delivers: ClassVar[bool] = False
+    # Whether the context a hook hands over is in the session once the hook
+    # returns, so the hook confirms what it hands over. Where it is not, the hand-
+    # over waits for a later hook of the same turn to confirm it, and is offered
+    # again if the turn ends first (`delivery.confirm_turn`).
+    commits_hook_context: ClassVar[bool] = True
 
     @classmethod
     def from_claim(cls, claim: dict) -> Harness:
@@ -196,7 +199,7 @@ class Harness:
 
     def watches_between_turns(self) -> bool:
         """Whether this session's harness starts Leaf's watch as each turn ends, from
-        Leaf's extension or hooks module, which wakes the session when input arrives
+        a hook or extension, which wakes the session when input arrives
         (`session.watch_between_turns`); the model then starts no `leaf wait`."""
         return False
 
@@ -312,7 +315,7 @@ class EnvironmentHarness(Harness):
 
 @dataclass(frozen=True)
 class ClaudeCodeHarness(EnvironmentHarness):
-    """Claude Code: a hooks module that watches between turns and wakes the session,
+    """Claude Code: a Stop hook that watches between turns and wakes the session,
     hooks that carry input into the turn, and a socket to reach it with.
 
     `job` is the background job directory a claim rests on (`lifetime`), which
@@ -328,6 +331,12 @@ class ClaudeCodeHarness(EnvironmentHarness):
     # Claude Code runs the prompt hook on every turn a background task's end
     # opens, idle or mid-turn, and adds what it returns to that turn's context.
     hook_delivers = True
+    # It reads a hook's output only once every hook of that event has exited, and
+    # Escape before then drops the whole prompt, Leaf's context with it (measured
+    # at 2.1.304 with a second prompt hook sleeping 6 s). No hook says the output
+    # was taken, so the turn's next hook confirms it: a tool call or the turn's
+    # end means the model read the context.
+    commits_hook_context = False
 
     def lifetime(self) -> dict:
         """A session the user sits at is a process, and Claude Code states it
@@ -374,12 +383,13 @@ class ClaudeCodeHarness(EnvironmentHarness):
         return cls(session=claim["id"], agent=claim["agent"], job=claim.get("job"))
 
     def watches_between_turns(self) -> bool:
-        """Leaf's hooks module watches between turns and wakes the session with a
-        prompt, except under plain `--print`, which ends with its one turn. A
-        print session fed `--input-format stream-json` takes further prompts like
-        an interactive one; `--output-format stream-json` alone does not. Only
-        the process's own argv tells the two apart, which the module states as
-        CLAUDE_PID."""
+        """Claude Code keeps an `asyncRewake` hook in the background and wakes the
+        session when it exits 2, except under plain `--print`, where it waits on
+        the hook as on any other and the turn would hold until input came
+        (measured at 2.1.286). A print session fed `--input-format stream-json`
+        backgrounds it like an interactive one; `--output-format stream-json`
+        alone does not. Only the process's own argv tells the two apart: the
+        hook's input and environment are the same."""
         argv = process_argv(int(os.environ["CLAUDE_PID"])) or []
         printing = "-p" in argv or "--print" in argv
         streaming = "--input-format=stream-json" in argv or (
@@ -525,10 +535,12 @@ class CodexHarness(EnvironmentHarness):
         )
 
     def turn_takes_input(self) -> bool:
-        """Codex's tool hook offers input between steps once one has proven that
-        Codex runs Leaf's hooks for this task (`codex.offer_hook_delivery`), and
-        its Stop hook keeps the turn going over input nothing else will carry."""
-        return step_hook_ran(self.session)
+        """Codex's tool hook offers input between steps (`codex.offer_hook_delivery`),
+        and its Stop hook keeps the turn going over input nothing else will carry.
+        Any Leaf hook run in this task instance, such as the turn's prompt hook,
+        proves Codex runs them, so a turn takes input from its start; the queue
+        adapter leaves such a turn's input to it (`codex_adapter`)."""
+        return hooks_ran(self.session)
 
     def later_turn_takes_input(self) -> bool:
         """An adapter that starts turns over App Server opens one on a
@@ -580,8 +592,6 @@ class CodexHarness(EnvironmentHarness):
     def reconcile_turn(self, payload: dict, expected: dict | None) -> dict | None:
         """Codex's native transcript also records turns resumed without input,
         which run no prompt hook (`codex_state.sync_transcript_turn`)."""
-        if expected is None:
-            return None
         from .codex_state import sync_transcript_turn
 
         return sync_transcript_turn(self.session, payload.get("transcript_path"))
@@ -591,18 +601,15 @@ class CodexHarness(EnvironmentHarness):
     ) -> tuple[str | None, dict | None]:
         """Both the tool hook and Stop offer an envelope through Codex's one transport
         reservation (`codex.offer_hook_delivery`), since empty-input resume can
-        reach Stop without running another tool. A tool hook also proves that
-        Codex runs Leaf's hooks for this task (`turn_takes_input`). Stop offers
-        only where no adapter will start a turn of its own for the input over App
-        Server (`later_turn_takes_input`), and the turn would continue for it
+        reach Stop without running another tool. Stop offers only where no adapter
+        will start a turn of its own for the input over App Server
+        (`later_turn_takes_input`), and the turn would continue for it
         (`hook_transport.stop_continues`). The tool hook offers only input the
         cursor has not passed, and Stop also an update the session holds no usable
         reference for (`delivery.deliverable`).
         """
         if event not in {"PostToolUse", "Stop"} or not payload.get("turn_id"):
             return None, expected
-        if event == "PostToolUse":
-            mark_step_hook(self.session)
         from .service import owned_pages
 
         if not owned_pages(self.session):
@@ -617,6 +624,7 @@ class CodexHarness(EnvironmentHarness):
                 plans,
                 [plan.batch for plan in plans if plan.batch],
                 repeated=bool(payload.get("stop_hook_active")),
+                reminds=self.watches_between_turns(),
             ):
                 return None, expected
         from .codex import offer_hook_delivery

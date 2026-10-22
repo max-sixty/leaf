@@ -1,115 +1,118 @@
 (() => {
+  // leaf-initial-lit:lit
+  var { AsyncDirective, AsyncReplaceDirective, CSSResult, Directive, LitElement, PartType, ReactiveElement, TemplateResultType, UnsafeHTMLDirective, UntilDirective, _$LE, _$LH, adoptStyles, asyncAppend, asyncReplace, cache, choose, classMap, clearPart, createRef, css, customElement, defaultConverter, directive, eventOptions, getCommittedValue, getCompatibleStyle, getDirectiveClass, guard, html, ifDefined, insertPart, isCompiledTemplateResult, isDirectiveResult, isPrimitive, isServer, isSingleExpression, isTemplateResult, join, keyed, literal, live, map, mathml, noChange, notEqual, nothing, property, query, queryAll, queryAssignedElements, queryAssignedNodes, queryAsync, range, ref, removePart, render, repeat, setChildPartValue, setCommittedValue, standardProperty, state, staticHtml, staticMathml, staticSvg, styleMap, supportsAdoptingStyleSheets, svg, templateContent, unsafeCSS, unsafeHTML, unsafeMathML, unsafeSVG, unsafeStatic, until, when, withStatic } = document.documentElement.lfInitial.lit;
+
   // skills/leaf/packages/default/widgets/activity-view.js
   var ACTIVITY_VIEW = "activity-reading:";
   var lightTarget = (fragment, doc) => doc.readyState !== "loading" && doc.getElementById(decodeURIComponent(fragment.slice(1)));
-  function refreshActivityTarget(link, row, write, names = lightTarget) {
-    const doc = link.ownerDocument;
+  function refreshTarget(link, row, write, names) {
     const fragment = `#${encodeURIComponent(row.widget)}`;
-    const href = names(fragment, doc) ? fragment : null;
+    const href = names(fragment, link.ownerDocument) ? fragment : null;
     if (!href) write(link, "tabindex", "-1");
     write(link, "href", href);
     if (href) write(link, "tabindex", null);
   }
-  function target(row, offer) {
-    if (row.thread) {
-      const button = offer("button", "lf-activity-target");
-      button.textContent = row.label;
-      button.dataset.lfCarry = `row-${row.id}`;
-      return button;
-    }
-    if (!row.widget && !row.label) return null;
-    const label = row.label;
-    if (!row.widget) {
-      const span = document.createElement("span");
-      span.className = "lf-activity-target";
-      span.textContent = label;
-      return span;
-    }
-    const link = document.createElement("a");
-    link.className = "lf-activity-target";
-    link.dataset.lfCarry = `row-${row.id}`;
-    refreshActivityTarget(link, row, (node, name, value) => {
-      if (value !== null) node.setAttribute(name, value);
-    });
-    link.textContent = label;
-    return link;
-  }
-  function fillActivityRow(item, row, offer) {
-    const avatar = document.createElement("span");
-    avatar.className = "lf-activity-avatar";
-    avatar.setAttribute("aria-hidden", "true");
-    avatar.textContent = row.actor.slice(0, 1).toUpperCase();
-    const line = document.createElement("p");
-    line.className = "lf-activity-line";
-    const actor = document.createElement("strong");
-    actor.className = "lf-activity-actor";
-    actor.textContent = row.actor;
-    const what = document.createElement("span");
-    what.className = "lf-activity-what";
-    what.textContent = row.what;
-    line.append(actor, " ", what);
-    const place = target(row, offer);
-    if (place) line.append(" ", place);
-    const time = document.createElement("time");
-    time.className = "lf-activity-time";
-    time.dateTime = row.ts;
-    time.title = new Date(row.ts).toLocaleString();
-    line.append(" ", time);
-    if (row.undone) {
-      const undone = document.createElement("span");
-      undone.className = "lf-activity-undone";
-      undone.textContent = "undone";
-      line.append(" ", undone);
-    }
-    item.replaceChildren(avatar, line);
-    const excerpt = row.excerpt;
-    if (excerpt) {
-      const said = document.createElement("p");
-      said.className = "lf-activity-excerpt";
-      said.textContent = excerpt;
-      item.append(said);
-    }
-    item.toggleAttribute("data-lf-undone", row.undone);
-  }
-  function initialActivity(host, { offer, tabStore, keeps }) {
-    const saved = tabStore.get(ACTIVITY_VIEW + host.id);
+  function initialActivity(host, { offerElement, tabStore, keeps }) {
+    const storageKey = ACTIVITY_VIEW + host.id;
+    const saved = tabStore.get(storageKey);
     const reading = saved ? JSON.parse(saved) : { open: false, shown: "[]", label: "Show activity", news: false };
-    const list = document.createElement("ol");
-    list.className = "lf-activity-list";
-    list.dataset.lfGen = "1";
-    list.hidden = !reading.open;
-    const empty = document.createElement("p");
-    empty.className = "lf-activity-empty";
-    empty.dataset.lfGen = "1";
-    empty.textContent = "Nothing shown yet.";
-    const notice = offer("button", "lf-activity-news lf-thread-notice", reading.label);
-    notice.dataset.lfCarry = "notice";
-    notice.setAttribute("aria-expanded", String(reading.open));
-    notice.toggleAttribute("data-lf-news", reading.news);
-    const rows = /* @__PURE__ */ new Map();
-    const drawn = JSON.parse(reading.shown);
-    for (const row of drawn) {
-      const item = document.createElement("li");
-      item.className = "lf-activity-row";
-      item.setAttribute("data-lf-activity-author", row.author);
-      fillActivityRow(item, row, offer);
-      list.append(item);
-      rows.set(row.id, { item, key: JSON.stringify(row) });
-    }
-    if (document.readyState === "loading")
-      document.addEventListener(
-        "readystatechange",
-        () => {
-          for (const row of drawn) {
-            const link = rows.get(row.id).item.querySelector("a.lf-activity-target");
-            if (link) refreshActivityTarget(link, row, keeps);
-          }
-        },
-        { once: true }
+    const drawing = {
+      storageKey,
+      reading,
+      restored: saved !== null,
+      notice: null,
+      list: null,
+      empty: null
+    };
+    let shown = reading;
+    let capabilities = {};
+    const notice = (node) => {
+      if (!node) return;
+      drawing.notice = node;
+      offerElement(node, "lf-activity-news lf-thread-notice");
+    };
+    const target = (row) => {
+      if (row.thread)
+        return html`<button
+        ${ref((node) => node && offerElement(node, "lf-activity-target"))}
+        type="button"
+        data-lf-carry=${`row-${row.id}`}
+        data-lf-echo
+        @click=${capabilities.openThread ? () => capabilities.openThread(row.thread) : null}
+      >
+        ${row.label}
+      </button>`;
+      if (!row.widget && !row.label) return nothing;
+      if (!row.widget) return html`<span class="lf-activity-target">${row.label}</span>`;
+      return html`<a
+      class="lf-activity-target"
+      data-lf-carry=${`row-${row.id}`}
+      ${ref(
+        (node) => node && refreshTarget(node, row, keeps, capabilities.names ?? lightTarget)
+      )}
+      >${row.label}</a
+    >`;
+    };
+    const rowTemplate = (row) => html`<li class="lf-activity-row" ?data-lf-undone=${row.undone}>
+      <p class="lf-activity-line">
+        <strong class="lf-activity-actor">${row.actor}</strong>
+        <span class="lf-activity-what">${row.what}</span> ${target(row)}
+        <time
+          class="lf-activity-time"
+          datetime=${row.ts}
+          title=${new Date(row.ts).toLocaleString()}
+          >${capabilities.age?.(row.ts) ?? ""}</time
+        >${row.undone ? html` <span class="lf-activity-undone">undone</span>` : nothing}
+      </p>
+      ${row.excerpt ? html`<p class="lf-activity-excerpt">${row.excerpt}</p>` : nothing}
+    </li>`;
+    const paint = (next = shown, live2 = capabilities) => {
+      shown = next;
+      capabilities = live2;
+      const rows = JSON.parse(shown.shown);
+      const hidden = !shown.open && !capabilities.printing;
+      render(
+        html`
+        <button
+          ${ref(notice)}
+          type="button"
+          data-lf-carry="notice"
+          aria-expanded=${String(shown.open)}
+          ?data-lf-news=${shown.news}
+        >
+          ${shown.label}
+        </button>
+        <ol
+          class="lf-activity-list"
+          data-lf-gen="1"
+          ?hidden=${hidden}
+          ${ref((node) => {
+          if (node) drawing.list = node;
+        })}
+        >
+          ${repeat(rows, (row) => row.id, rowTemplate)}
+        </ol>
+        <p
+          class="lf-activity-empty"
+          data-lf-gen="1"
+          ?hidden=${hidden || rows.length > 0}
+          ${ref((node) => {
+          if (node) drawing.empty = node;
+        })}
+        >
+          Nothing shown yet.
+        </p>
+      `,
+        host
       );
-    empty.hidden = !reading.open || drawn.length > 0;
-    host.replaceChildren(notice, list, empty);
-    return { notice, list, empty, rows, reading, restored: saved !== null };
+    };
+    host.replaceChildren();
+    paint();
+    if (host.ownerDocument.readyState === "loading")
+      host.ownerDocument.addEventListener("readystatechange", () => paint(), {
+        once: true
+      });
+    return Object.assign(drawing, { paint });
   }
 
   // skills/leaf/packages/default/initial/lf-activity.js

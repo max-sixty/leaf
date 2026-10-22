@@ -41,7 +41,7 @@ def test_a_visible_datum_takes_over_pending_thread_motion(browser, serve):
     )
     page = open_page(browser, url)
     datum = page.locator('lf-diff [data-lf-datum=\'["app.py","new",1]\']')
-    expect(datum).to_be_in_viewport(timeout=5000)
+    expect(datum).to_be_in_viewport()
     page.locator("h1").click()
     page.evaluate("""async () => {
       const {navigateToDatum} = await window.__lfWidgetApi();
@@ -59,7 +59,7 @@ def test_a_visible_datum_takes_over_pending_thread_motion(browser, serve):
       };
     }""")
     page.keyboard.press("t")
-    page.wait_for_function("window.datumArrived !== undefined", timeout=10000)
+    page.wait_for_function("window.datumArrived !== undefined")
     assert page.evaluate("datumArrived")
     scroll_settled(page)
     expect(datum).to_be_focused()
@@ -106,12 +106,12 @@ def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(
     else:
         expect(page.locator("#patch .lf-diff-search")).to_have_count(0)
         expect(folds.first).to_have_attribute("open", "")
-    # Narrowing remains in place while visiting more than one related file.
+    # Search narrows the navigator until a file is opened.
     search = tree.get_by_role("textbox")
     search.fill("importer")
     row.click()
-    expect(search).to_have_value("importer")
-    expect(row).to_be_focused()
+    expect(search).to_have_value("")
+    expect(search).to_be_focused()
     expect(folds.first).to_have_attribute("open", "")
     expect(folds.first.locator("pre")).to_contain_text("keep_names = True")
     # The same selected file still has an activation route after its patch closes.
@@ -146,7 +146,7 @@ def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(
         expect(folds.first).not_to_be_visible()
         expect(folds.last).to_be_visible()
         expect(other).to_have_attribute("aria-selected", "true")
-        # Search is an activation route too, even while its text field owns focus.
+        # Trees confirms a search match onto its row; the row opens its file.
         for path, visible in [
             ("src/importer.py", folds.first),
             ("tests/importer.py", folds.last),
@@ -154,10 +154,10 @@ def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(
             search.fill(path)
             search.press("ArrowDown")
             search.press("Enter")
+            expect(search).to_have_value("")
+            expect(tree.locator(f'[data-item-path="{path}"]')).to_be_focused()
+            page.keyboard.press("Enter")
             expect(visible).to_be_visible()
-            expect(search).to_have_value(path)
-            expect(search).to_be_focused()
-        search.fill("importer")
         folds.last.locator("summary").press("{")
         expect(folds.first).to_be_visible()
         expect(folds.last).not_to_be_visible()
@@ -990,6 +990,9 @@ def test_file_tree_reads_standalone_data_without_a_diff_package(browser, serve):
     expect(row).to_be_visible()
     row.click()
     expect(row).to_have_attribute("aria-selected", "true")
+    page.keyboard.press("c")
+    expect(page.locator(".lf-composer leaf-text")).to_be_focused()
+    page.keyboard.press("Escape")
     data_model.cmd_data_set(
         serve.page_dir,
         "project",
@@ -1013,3 +1016,126 @@ def test_file_tree_reads_standalone_data_without_a_diff_package(browser, serve):
     expect(tree).to_contain_text("No matching files.")
     search.fill("")
     expect(row).to_be_visible()
+    search.fill("main")
+    search.press("Escape")
+    expect(search).to_have_value("")
+
+
+@pytest.mark.shifts_unsurveyed  # The test explicitly scrubs native CSS transitions.
+@pytest.mark.parametrize("kind", ["call", "file"])
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_evidence_close_folds_room_but_retires_controls_immediately(
+    request, serve, kind, engine
+):
+    """Closed evidence retires controls at once; every reopening reaches full size."""
+    from render_cases_navigation import call_diff, call_node
+
+    tag = "lf-call-diff" if kind == "call" else "lf-diff"
+    attributes = 'diff="patch"' if kind == "call" else ""
+    body = "" if kind == "call" else "<pre></pre>"
+    extra = (
+        '<lf-diff id="patch" source="patch-data" collapsed><pre></pre></lf-diff>'
+        if kind == "call"
+        else ""
+    )
+    url = serve(
+        leaf_page(
+            "Fold evidence",
+            f'<h1>Review</h1><div style="height:1100px"></div><{tag} id="evidence" source="change" {attributes}>{body}</{tag}>'
+            '<button id="after">Continue review</button>' + extra,
+        ),
+        packages=("diff",),
+    )
+    content = (
+        call_diff(
+            call_node("root", children=[call_node(f"step {i}") for i in range(12)])
+        )
+        if kind == "call"
+        else patch_manifest(
+            "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1,12 +1,12 @@\n"
+            + "".join(f"-old{i}\n+new{i}\n" for i in range(12))
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "change", content)
+    if kind == "call":
+        data_model.cmd_data_set(
+            serve.page_dir,
+            "patch-data",
+            patch_manifest(
+                "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-old\n+new\n"
+            ),
+        )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.emulate_media(reduced_motion="no-preference")
+    details = page.locator("#evidence details").first
+    summary = details.locator("summary")
+    expect(summary).to_be_visible()
+    # Interactive evidence can be supplied by another package. Keep a positive
+    # focus control before proving that the closing boundary retires it.
+    details.evaluate("""d => {
+      const b = document.createElement('button');
+      b.textContent = 'Inspect evidence';
+      d.append(b);
+      d.style.setProperty('--lf-motion-fold', '1000000s');
+      d.classList.add('held-evidence');
+      const style = document.createElement('style');
+      style.textContent = '.held-evidence:not([open])::details-content {transition-delay:-500000s}';
+      const root = d.getRootNode();
+      (root.head || root).append(style);
+    }""")
+    inside = details.locator("button", has_text="Inspect evidence")
+    inside.focus()
+    expect(inside).to_be_focused()
+
+    def height():
+        return details.evaluate("d=>d.getBoundingClientRect().height")
+
+    page.evaluate("scrollTo(0, document.documentElement.scrollHeight)")
+    scroll_settled(page)
+    full = height()
+    animated = page.evaluate("""() =>
+      CSS.supports('block-size', 'calc-size(auto, size)') &&
+      CSS.supports('interactivity', 'inert')""")
+    summary.click()
+    expect(details).not_to_have_attribute("open")
+    # Native details transitions live in the UA shadow tree, outside getAnimations.
+    # Stretch their real CSS timeline around its halfway point to inspect a stable
+    # intermediate frame without intercepting or rebuilding the animation.
+    page.evaluate("() => new Promise(requestAnimationFrame)")
+    middle = height()
+    assert middle < full
+    # A painted closing body is already outside focus and Tab access.
+    inside.evaluate("b => b.focus()")
+    expect(inside).not_to_be_focused()
+    page.keyboard.press("Tab")
+    expect(page.locator("#after")).to_be_focused()
+    # Reopening a partially folded body snaps to its ordinary complete geometry.
+    summary.click()
+    assert details.evaluate("d=>d.open")
+    assert height() == pytest.approx(full, abs=1)
+    summary.press("Enter")
+    assert not details.evaluate("d=>d.open")
+    closed = height()
+    assert closed < full
+    if animated:
+        assert middle > closed + 1
+    assert (
+        details.evaluate(
+            "d => getComputedStyle(d, '::details-content').contentVisibility"
+        )
+        == "hidden"
+    )
+    summary.press("Enter")
+    assert height() == pytest.approx(full, abs=1)
+    page.emulate_media(reduced_motion="reduce")
+    summary.click()
+    assert not details.evaluate("d=>d.open")
+    assert height() < full
+    assert (
+        details.evaluate(
+            "d => getComputedStyle(d, '::details-content').contentVisibility"
+        )
+        == "hidden"
+    )
+    details.evaluate("d => d.open = true")
+    assert height() == pytest.approx(full, abs=1)

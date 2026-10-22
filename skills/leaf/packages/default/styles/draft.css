@@ -52,7 +52,7 @@
   max-height: none;
   overflow: hidden;
 }
-.lf-draft-edit.lf-ui[data-lf-focus] {
+.lf-draft-edit.lf-ui[data-lf-focus-visible] {
   outline: none;
   box-shadow: none;
 }
@@ -66,7 +66,7 @@
   :scope:is(lf-draft):has(.lf-draft-edit) {
     border-color: var(--muted);
   }
-  :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus]) {
+  :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus-visible]) {
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-room));
     --lf-wears-ring: 1;
@@ -75,7 +75,7 @@
     display: none;
   }
   /* The toolbar's middle lies on the box's border at its right, so it covers the
-     border and padding and never a word: Edit and Copy at rest, Save, Cancel and Copy
+     border and padding and never a word: Edit and Copy at rest, Save, Discard and Copy
      while editing, Copy keeping the last seat, and a refused save's status before
      them. A pointer sees it on the top border while over the box or a key is in it,
      and the open editor always. A finger sees it always, on the bottom border, since
@@ -132,10 +132,6 @@
     block-size: var(--lf-draft-mark);
     min-block-size: 0;
     padding: 0;
-    border: 0;
-    border-radius: calc(var(--r) - 2px);
-    background: transparent;
-    color: var(--muted);
   }
   .lf-draft-action::before {
     content: "";
@@ -148,15 +144,9 @@
     position: absolute;
     inset: min(0px, (var(--lf-draft-mark) - var(--aim-floor)) / 2) 0;
   }
-  .lf-draft-action:hover,
-  .lf-draft-tools > .lf-code-copy::part(button):hover {
-    color: var(--ink);
-    background: var(--chip);
-    box-shadow: none;
-  }
   /* The ring stays inside its mark, off the words beside the toolbar. */
-  .lf-draft-action[data-lf-focus],
-  .lf-draft-tools > .lf-code-copy::part(lf-focus) {
+  .lf-draft-action[data-lf-focus-visible],
+  .lf-draft-tools > .lf-code-copy::part(lf-focus-visible) {
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
   /* Copy keeps the control code blocks share; in the toolbar it is one of its marks. */
@@ -173,7 +163,7 @@
   }
 }
 @media (forced-colors: active) {
-  :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus]) {
+  :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus-visible]) {
     outline-color: Highlight;
   }
 }

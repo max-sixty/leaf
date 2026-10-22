@@ -2,11 +2,11 @@ import {
   CARET_KEYS,
   TEXT_BOX,
   WORKS,
-  afterScript,
   canPlaceFocus,
   cancelRender,
   closeLayer,
   controlNavigationKeys,
+  focusRevision,
   focused,
   handBack,
   isNativeLayer,
@@ -36,7 +36,6 @@ import {
 import {
   AsyncDirective,
   Directive,
-  M,
   PartType,
   Z,
   describeFailure,
@@ -44,7 +43,8 @@ import {
   html,
   isElementName,
   nothing,
-  render
+  render,
+  x
 } from "./bundle-queued-work.js";
 
 // runtime/page-paint.js
@@ -543,22 +543,23 @@ var matchesWhen = (el2, when) => Object.entries(when ?? {}).every(
 );
 
 // runtime/pointer.js
-var x = -1;
+var x2 = -1;
 var y = -1;
 var remember = (ev) => {
-  x = ev.clientX;
+  x2 = ev.clientX;
   y = ev.clientY;
 };
 document.addEventListener("pointermove", remember, { capture: true });
 document.addEventListener("pointerdown", remember, { capture: true });
-var pointerAt = () => ({ x, y });
+var pointerAt = () => ({ x: x2, y });
 var coarsePointer = matchMedia("(pointer: coarse)");
+var hoveringPointer = matchMedia("(hover: hover)");
 var pressIsKeyboardActivation = (event) => event.type === "click" && !event.detail;
 var plainPress = (event) => event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
 function restorePointer(point) {
-  if (x !== -1 || y !== -1 || !Number.isFinite(point?.x) || !Number.isFinite(point?.y))
+  if (x2 !== -1 || y !== -1 || !Number.isFinite(point?.x) || !Number.isFinite(point?.y))
     return;
-  x = point.x;
+  x2 = point.x;
   y = point.y;
 }
 
@@ -1427,11 +1428,12 @@ function reflectButton(control, candidates) {
   const ref = new WeakRef(control);
   let reading = candidates;
   let failure = null;
-  const dispose = Z(() => {
+  const dispose = x(() => {
     if (reading) {
       const read = reading;
       reading = null;
       try {
+        focusRevision();
         const command = chosenCommand(read);
         const { scope, row, entry } = command;
         const disabled = Boolean(
@@ -1835,10 +1837,11 @@ function reflectAvailabilityReaders() {
   availabilityTracking?.();
   let first = true;
   let failure = null;
-  availabilityTracking = Z(() => {
+  availabilityTracking = x(() => {
     if (first) {
       first = false;
       try {
+        focusRevision();
         reflectCommandAvailability();
       } catch (error) {
         failure = error;
@@ -1884,10 +1887,11 @@ function reflectTracked(element) {
   const ref = new WeakRef(element);
   let first = true;
   let failure = null;
-  const dispose = Z(() => {
+  const dispose = x(() => {
     if (first) {
       first = false;
       try {
+        focusRevision();
         reflectElementShortcuts(ref.deref());
       } catch (error) {
         failure = error;
@@ -2360,12 +2364,12 @@ function frameView(frame2, within) {
   const rect = frame2.getBoundingClientRect();
   const scaleX = rect.width / frame2.offsetWidth || 1;
   const scaleY = rect.height / frame2.offsetHeight || 1;
-  const x2 = (at) => (at - rect.left) / scaleX - frame2.clientLeft;
+  const x3 = (at) => (at - rect.left) / scaleX - frame2.clientLeft;
   const y2 = (at) => (at - rect.top) / scaleY - frame2.clientTop;
   return {
-    left: x2(shown.left),
+    left: x3(shown.left),
     top: y2(shown.top),
-    right: x2(shown.right),
+    right: x3(shown.right),
     bottom: y2(shown.bottom)
   };
 }
@@ -2753,7 +2757,7 @@ function el(tag, cls, text) {
   if (text !== void 0) node.textContent = text;
   return node;
 }
-var hands = M(/* @__PURE__ */ new Set());
+var hands = Z(/* @__PURE__ */ new Set());
 var dragHeld = () => hands.value.size > 0;
 var dragging = (el2, on) => {
   const held = new Set(hands.peek());
@@ -2856,17 +2860,24 @@ function elementDirective(name, write) {
   );
 }
 var offered = elementDirective("offered", offerElement);
+function selectableOfferElement(node, role, cls) {
+  keeps(node, "role", role);
+  keeps(node, "class", cls ? `${cls} lf-ui lf-ui-face` : "lf-ui lf-ui-face");
+  keeps(node, "data-lf-gen", "1");
+  keeps(node, "data-lf-offer", role);
+  keeps(node, "data-lf-selectable-offer", "");
+}
 function selectableOffer(role, cls, label) {
   const node = document.createElement("span");
-  node.setAttribute("role", role);
+  selectableOfferElement(node, role, cls);
   node.tabIndex = 0;
-  node.className = cls ? `${cls} lf-ui lf-ui-face` : "lf-ui lf-ui-face";
-  node.dataset.lfGen = "1";
-  node.dataset.lfOffer = role;
-  node.dataset.lfSelectableOffer = "";
   if (label !== void 0) node.textContent = label;
   return node;
 }
+var selectableOffered = elementDirective(
+  "selectableOffered",
+  selectableOfferElement
+);
 var PRESSABLE = '[data-lf-offer]:not([data-lf-offer=""])';
 function reachedForWords(el2) {
   const sel = getSelection();
@@ -2902,7 +2913,7 @@ function relabel(node, label, { says } = {}) {
 function closeControl({ name, title = name, className = "" }) {
   const control = el(
     "button",
-    `lf-btn lf-icon-action lf-close-action ${className}`.trim()
+    `lf-btn lf-icon-action lf-quiet-action ${className}`.trim()
   );
   control.type = "button";
   control.append(iconElement("cross", "lf-action-icon"));
@@ -2946,20 +2957,11 @@ var showingBackground = null;
 var waitingBackground = [];
 var userContext = false;
 var userHoldTimer = 0;
-var noticePresentation = Object.freeze({ message: "", visible: false });
-var noticePresenters = /* @__PURE__ */ new Set();
-var noticeReading = () => noticePresentation;
-var noticeVisible = () => noticePresentation.visible;
-function registerNoticePresentation(invalidate) {
-  noticePresenters.add(invalidate);
-}
-var presentAll = () => {
-  for (const invalidate of noticePresenters) invalidate();
-};
+var noticePresentation = Z(Object.freeze({ message: "", visible: false }));
+var noticeReading = () => noticePresentation.value;
+var noticeVisible = () => noticePresentation.peek().visible;
 var presentNotice = (message, visible) => {
-  noticePresentation = Object.freeze({ message, visible });
-  if (visible) presentAll();
-  else afterScript(presentAll);
+  noticePresentation.value = Object.freeze({ message, visible });
 };
 function announce(msg) {
   if (liveEl.firstChild) liveEl.replaceChildren();
@@ -2975,7 +2977,7 @@ function showNotice(msg, background = null) {
   noticeTimer = setTimeout(() => {
     if (!userContext && !userHoldTimer && showBackground(waitingBackground.shift()))
       return;
-    presentNotice(noticePresentation.message, false);
+    presentNotice(noticePresentation.peek().message, false);
     showingBackground = null;
   }, NOTICE_MS);
 }
@@ -3021,7 +3023,7 @@ function notice(msg, { background = false, announce: speak = true, group = null 
 function yieldNotice() {
   if (showingBackground) queueBackground(showingBackground, true);
   clearTimeout(noticeTimer);
-  presentNotice(noticePresentation.message, false);
+  presentNotice(noticePresentation.peek().message, false);
   showingBackground = null;
 }
 function holdStatus(ms) {
@@ -3045,16 +3047,14 @@ function setNoticeContext(active) {
 var KEPT = 20;
 var raised = 0;
 var unsaid = [];
-var errors = Object.freeze([]);
-var presenters = /* @__PURE__ */ new Set();
+var errors = Z(
+  /** @type {readonly RaisedError[]} */
+  Object.freeze([])
+);
 var publish = (next) => {
-  errors = Object.freeze(next.slice(0, KEPT));
-  for (const present of presenters) present();
+  errors.value = Object.freeze(next.slice(0, KEPT));
 };
-var errorsReading = () => errors;
-function registerErrorPresentation(present) {
-  presenters.add(present);
-}
+var errorsReading = () => errors.value;
 function raiseError(message, { subject = null, announce: speak = true } = {}) {
   return raise(message, subject, speak, null);
 }
@@ -3068,34 +3068,32 @@ function raise(message, subject, speak, replaced) {
   if (speak) unsaid.push(message);
   publish([
     Object.freeze({ id, message, subject, at: Date.now(), passed: false, seen: false }),
-    ...errors.filter((entry) => entry.id !== replaced)
+    ...errors.peek().filter((entry) => entry.id !== replaced)
   ]);
   return Object.freeze({ id, clear: () => dismissError(id) });
 }
 function passErrors(ids) {
-  if (errors.some((entry) => ids.includes(entry.id) && !entry.passed))
+  if (errors.peek().some((entry) => ids.includes(entry.id) && !entry.passed))
     publish(
-      errors.map(
+      errors.peek().map(
         (entry) => ids.includes(entry.id) && !entry.passed ? Object.freeze({ ...entry, passed: true }) : entry
       )
     );
 }
 function passErrorsAt(subject) {
   passErrors(
-    errors.filter((entry) => entry.subject === subject).map((entry) => entry.id)
+    errors.peek().filter((entry) => entry.subject === subject).map((entry) => entry.id)
   );
 }
 function seeErrors() {
-  if (errors.some((entry) => !entry.seen))
+  if (errors.peek().some((entry) => !entry.seen))
     publish(
-      errors.map(
-        (entry) => entry.seen ? entry : Object.freeze({ ...entry, seen: true })
-      )
+      errors.peek().map((entry) => entry.seen ? entry : Object.freeze({ ...entry, seen: true }))
     );
 }
 function dismissError(id) {
-  if (errors.some((entry) => entry.id === id))
-    publish(errors.filter((entry) => entry.id !== id));
+  if (errors.peek().some((entry) => entry.id === id))
+    publish(errors.peek().filter((entry) => entry.id !== id));
 }
 function holdingError({ announce: speak = true } = {}) {
   let held = null;
@@ -3111,7 +3109,7 @@ function holdingError({ announce: speak = true } = {}) {
   };
 }
 function dismissErrors() {
-  if (errors.length) publish([]);
+  if (errors.peek().length) publish([]);
 }
 
 // runtime/layer-client.js
@@ -3390,6 +3388,7 @@ export {
   matchesWhen,
   pointerAt,
   coarsePointer,
+  hoveringPointer,
   pressIsKeyboardActivation,
   plainPress,
   restorePointer,
@@ -3559,6 +3558,7 @@ export {
   elementDirective,
   offered,
   selectableOffer,
+  selectableOffered,
   PRESSABLE,
   reachedForWords,
   relabel,
@@ -3567,13 +3567,11 @@ export {
   motionPreview,
   liveEl,
   noticeReading,
-  registerNoticePresentation,
   announce,
   notice,
   holdStatus,
   setNoticeContext,
   errorsReading,
-  registerErrorPresentation,
   raiseError,
   passErrors,
   passErrorsAt,

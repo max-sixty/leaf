@@ -1,6 +1,7 @@
 """How a container's saved website record restores a fresh release: stored chunks,
 publication dates, comments, choices, private revisions and installed layers."""
 
+import asyncio
 import base64
 import hashlib
 import io
@@ -12,6 +13,7 @@ import sys
 import tarfile
 import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -230,8 +232,15 @@ def test_saved_website_record_keeps_an_unstamped_revisions_publication_date(
     with durable_page_store() as (store_url, _stored):
         monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
         restore(site)
-        with PageTransaction(private):
-            pass
+
+        async def commit_with_running_loop():
+            with PageTransaction(private):
+                pass
+
+        # Playwright's session fixture may already own this thread's event loop.
+        # Give the active-loop publication case its own loop regardless of order.
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            executor.submit(asyncio.run, commit_with_running_loop()).result()
         replacement = tmp_path / "replacement"
         shutil.copytree(site, replacement)
         restore(replacement)

@@ -104,6 +104,12 @@ gesture it cannot take back, such as a sent reply, ends the walk, while bookkeep
 and gestures already withdrawn do not. An exact control, such as a widget's Undo,
 may still withdraw an older gesture it names.
 
+The undo key says what it would take back and how long ago that was made, in every
+tab and after a reload, so a gesture made weeks ago is not taken back unseen. The
+served undo list carries, for its head when that head is an action, what the action
+did in its own document's words (`GestureWords.gesture`); every other kind the
+browser names from what it already holds (`runtime/undo.js`).
+
 `undo` names the gesture and nothing else; every other field is the target's to
 state. It withdraws rather than deletes: nothing leaves the log, and the folds and
 the thread reading drop the event, so the page is what the revision says plus
@@ -314,7 +320,7 @@ An open state-answered obligation in an unresolved thread keeps it awaiting the 
 the user writes after it: their later prose hands the obligation to the agent, still open
 and unanswered, until the agent answers that turn. A thread anchored on a page obligation,
 or on an element holding it, does the same while the agent owes it a reply
-(`obligations.sections_with_agent`), so an obligation the user has commented on leaves
+(`obligations.anchors_with_agent`), so an obligation the user has commented on leaves
 their On me list while the comment's own obligation, the reply it is owed, stands on the
 agent's. A reply that promises work (`todo`) settles the comment but leaves the obligation
 the agent's until its to-do ends, resolved thread or not, so a decision the user put off
@@ -407,16 +413,12 @@ them:
   semantic turn, work settlement or reopening. Posted to an update the agent owes, it
   carries `start: {item, turn?}` naming that exact delivered update, with its text
   as the line. `todos.start_reading` reads this and explicit starts alike, so
-  progress history and work in hand are one durable fact. The next ordinary agent reply in
-  its thread derives an empty-prose “Previous progress messages” fold over each
-  preceding uncovered contiguous run of ephemeral messages, including a single message,
-  that no user message follows before it. User messages break those runs and remain
-  outside them, and a run a user message follows stays unfolded where it was said, so
-  the thread keeps reading in its order and nothing moves above the user's message.
-  Explicit summaries own
-  overlapping ranges. Each derived fold names its completing reply as `trigger`,
-  so a surface holding that reply also holds the fold; nothing is appended for
-  this presentation change.
+  progress history and work in hand are one durable fact. The next ordinary agent
+  reply in its thread supersedes the preceding progress. The browser projection names
+  that reply as each progress message's `completed_by`, including a provisional reply
+  while it streams. The transcript hides progress once its completing reply is shown,
+  including inside an explicit summary. A surface holding the reply retains the progress
+  until it shows the reply. This changes only presentation; the log retains the messages.
 - An agent `reply` may carry an `anchor` captured against its `revision`, or a null
   anchor when its subject has left that revision. The fold takes the latest such value
   as the thread's current location and exposes the prior one as `detached_from` while

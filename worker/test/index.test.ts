@@ -1619,6 +1619,60 @@ describe("product-site delivery", () => {
     expect(containerFetch).toHaveBeenCalledOnce();
   });
 
+  it("answers reads unrecorded until their page is active", async () => {
+    const sessionId = "1e".repeat(16);
+    const attempt = "read-attempt-0001";
+    const env = environment();
+    const containerFetch = vi.fn(async () =>
+      Response.json({ ok: true, state: { events: [], activity: { obligations: [] } } }),
+    );
+    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    const read = (cookie?: string) =>
+      worker.fetch(
+        new Request("https://leaf.page/examples/triage-board/api/event", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(cookie ? { Cookie: cookie } : {}),
+          },
+          body: JSON.stringify({
+            kind: "read",
+            attempt,
+            messages: [{ message: "reply-1", version: "v1" }],
+          }),
+        }),
+        env,
+      );
+    for (const cookie of [
+      undefined,
+      `__Host-leaf-page=${sessionId}`,
+      `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board", "b".repeat(64))}`,
+      `__Host-leaf-page=${sessionId}; ${activeMarker("/")}`,
+    ]) {
+      const response = await read(cookie);
+      // A final refusal, so the tab doesn't send these reads again this visit.
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        ok: false,
+        final: true,
+        error: expect.any(String),
+        findings: [],
+        attempt,
+      });
+      expect(response.headers.get("Leaf-Session")).toBe("passive");
+      expect(response.headers.get("Set-Cookie")).toBeNull();
+    }
+    expect(getContainer).not.toHaveBeenCalled();
+
+    const active = await read(
+      `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`,
+    );
+    expect(active.status).toBe(200);
+    expect(active.headers.get("Leaf-Session")).toBe("active");
+    expect(getContainer).toHaveBeenCalledWith(env.PAGES, containerId(sessionId));
+    expect(containerFetch).toHaveBeenCalledOnce();
+  });
+
   it("activates a container for a private read the edge cannot answer", async () => {
     const sessionId = "1b".repeat(16);
     const containerFetch = vi.fn(async () =>
@@ -2156,12 +2210,19 @@ describe("website page agent", () => {
       "",
       "data: [DONE]",
       "",
-    ].join("\n");
+    ].join("\r\n");
     const upstream = vi.fn(
       async () =>
-        new Response(responseBody, {
-          headers: { "x-request-id": "upstream-request" },
-        }),
+        new Response(
+          ReadableStream.from(
+            Array.from(new TextEncoder().encode(responseBody), (byte) =>
+              Uint8Array.of(byte),
+            ),
+          ),
+          {
+            headers: { "x-request-id": "upstream-request" },
+          },
+        ),
     );
     vi.stubGlobal("fetch", upstream);
     const logged = vi.spyOn(console, "log").mockImplementation(() => undefined);
@@ -2227,50 +2288,6 @@ describe("website page agent", () => {
     );
 
     expect(response.status).toBe(403);
-  });
-
-  it("immediately directs Codex websocket probes to its HTTP fallback", async () => {
-    const env = environment();
-    const upstream = vi.fn(async () => new Response("ok"));
-    vi.stubGlobal("fetch", upstream);
-    const logged = vi.spyOn(console, "log").mockImplementation(() => undefined);
-    const handler = LeafWebsiteSession.outboundByHost["api.openai.com"];
-
-    try {
-      const response = await handler(
-        new Request("https://api.openai.com/v1/responses", {
-          headers: {
-            Upgrade: "websocket",
-            "x-codex-turn-metadata": JSON.stringify({
-              request_kind: "turn",
-              thread_id: "app-thread",
-              turn_id: "app-turn",
-              workspace: "private workspace",
-            }),
-          },
-        }),
-        env,
-        { containerId: "user-container", className: "LeafWebsiteSession" },
-      );
-
-      expect(response.status).toBe(426);
-      expect(await response.text()).toBe("use the Responses HTTP transport");
-      expect(env.SOURCE_AGENT_RATE_LIMITER.limit).not.toHaveBeenCalled();
-      expect(upstream).not.toHaveBeenCalled();
-      expect(logged).toHaveBeenCalledOnce();
-      expect(logged.mock.calls[0][0]).toMatchObject({
-        component: "leaf-agent",
-        event: "model_transport_http_fallback",
-        containerId: "user-container",
-        requestKind: "turn",
-        threadId: "app-thread",
-        turnId: "app-turn",
-      });
-      expect(JSON.stringify(logged.mock.calls)).not.toContain("private");
-    } finally {
-      logged.mockRestore();
-      vi.unstubAllGlobals();
-    }
   });
 
   it("caps model calls from one user container", async () => {

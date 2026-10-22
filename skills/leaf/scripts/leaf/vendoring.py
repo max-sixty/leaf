@@ -46,7 +46,14 @@ from .service import (
     claimant_matches,
     page_claim,
 )
-from .state import EVENTS_FILE, json_bytes, remove_claim
+from .state import (
+    EVENTS_FILE,
+    SESSION_SUFFIX,
+    json_bytes,
+    remove_claim,
+    session_file,
+    session_record,
+)
 from .validation.source import check_source
 
 
@@ -109,7 +116,7 @@ def renew_layer(page_dir: Path, harness: Harness | None) -> Finding | None:
     `leaf page init` the refusal names. That re-vendor keeps the page's log, and so
     its threads and decisions, and its source, so it asks nothing of the agent's
     judgment, and the first Leaf to act for the page's session makes it instead: a
-    command naming the page (`cli.resolve_dir`) or a prompt or Stop hook
+    write command naming the page (`cli.resolve_dir`) or a prompt or Stop hook
     (`hook_transport.read_plans`). Only the session holding the page renews it, or
     any caller while no live session does: another session may still run the Leaf
     that vendored the page, which a re-vendor would lock out of it, and its own
@@ -132,7 +139,19 @@ def renew_layer(page_dir: Path, harness: Harness | None) -> Finding | None:
         if refusal is None or refusal.code != "foreign-layer":
             return False
         claim = page_claim(page_dir)
-        return not claim_is_active(claim) or claimant_matches(claim, harness)
+        # Record.read leaves another Leaf's format alone. Its file still names
+        # an owner we cannot prove ended, so automatic renewal must leave it too.
+        if claim is None and claim_path(page_dir).is_file():
+            return False
+        if claimant_matches(claim, harness):
+            return True
+        if (
+            claim is not None
+            and session_record(claim["id"]) is None
+            and session_file(claim["id"], SESSION_SUFFIX).is_file()
+        ):
+            return False
+        return not claim_is_active(claim)
 
     if not renewable():
         return None

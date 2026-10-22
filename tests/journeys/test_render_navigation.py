@@ -1,7 +1,9 @@
-"""Comment marks, Go-to addresses, keyboard navigation, and the feature gallery's
-journeys through its tabs and the core surfaces."""
+"""Comment marks, Go-to addresses, keyboard navigation, the feature gallery's
+journeys through its tabs and the core surfaces, and the keys each element names as
+the user moves through the examples."""
 
 import json
+import random
 import re
 
 import pytest
@@ -10,6 +12,7 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import server as server_model
 from leaf.render_checks import rendered, wait_until_ready
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import expect
 from render_cases_interaction import (
     OBLIGATIONS_PAGE,
@@ -30,10 +33,12 @@ from render_cases_navigation import (
 )
 from render_harness import (
     CORPUS_SOURCES,
+    DEVELOPER_PAGES,
     EXAMPLES,
     FEATURE_GALLERY,
     PANEL,
     PANEL_THREAD,
+    PUBLIC_EXAMPLES,
     RELEASE_FOCUS,
     ROOT,
     command_reference_rows,
@@ -869,12 +874,10 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
             "action": "Show only visible folds",
         },
     ]
-    expect(filters.locator(".lf-command-reference-description")).to_have_text(
-        ["Filter visible targets by kind"] * 4
-    )
+    expect(filters.locator(".lf-command-reference-description")).to_have_count(0)
     target_help = goto.locator('tr[data-lf-command="navigation.target"]')
     expect(target_help.locator("kbd")).to_have_text(["g", "letters"])
-    expect(target_help).to_contain_text("Type a visible target's hint")
+    expect(target_help).to_contain_text("Visible target")
     expect(target_help).not_to_contain_text("filter first")
     page.keyboard.press("Escape")
 
@@ -1955,13 +1958,13 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
         "thread",
         "more",
         "sent",
-        "waiting for pickup",
+        "waiting for delivery",
         "queued",
         "update stale",
         "turn ended",
         "glyph face",
         "count badge",
-        "picked up",
+        "delivered",
         "working",
         "working · fallback",
         "resting",
@@ -2003,7 +2006,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
     page.mouse.move(0, 0)
 
     resting = sample("resting")
-    picked_up = sample("picked up")
+    picked_up = sample("delivered")
     working = sample("working")
     stale = sample("update stale")
     fallback = sample("working · fallback")
@@ -2046,7 +2049,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
     )
     for name, icon in (
         ("sent", "sent"),
-        ("waiting for pickup", "waiting"),
+        ("waiting for delivery", "waiting"),
         ("queued", "pickup"),
         ("turn ended", "waiting"),
     ):
@@ -2148,7 +2151,7 @@ def _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page):
     sample = page.locator("#bg-margin-layer-status")
     sample.scroll_into_view_if_needed()
     child = sample.frame_locator("iframe")
-    # The receipt reads Sent, and Waiting for pickup two minutes after the gallery
+    # The receipt reads Sent, and Waiting for delivery two minutes after the gallery
     # opened, which a slow runner can reach by now; either pins the same way.
     status = child.locator(
         '.lf-margin-entry:is([data-lf-kinds="sent"], [data-lf-kinds="waiting"])'
@@ -2169,3 +2172,134 @@ def _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page):
                 && r.bottom <= innerHeight && board.scrollWidth <= board.clientWidth;
             }"""
         )
+
+
+# The stale-keys sweep. Every control a pointer presses or typing fills, in the top
+# document and its open shadow roots; live samples run their own runtime in an opaque
+# frame and take no part.
+_SWEPT = (
+    "button:visible, [role=button]:visible, [role=tab]:visible, [role=radio]:visible, "
+    "[role=checkbox]:visible, input[type=checkbox]:visible, input[type=radio]:visible, "
+    "summary:visible, :is(textarea, input[type=search], input[type=text], "
+    "input:not([type])):not(:disabled, [readonly]):visible"
+)
+_FILLS = ("review", "", "a b c", "zzzz")
+_SWEEP_STEPS = 40
+_DESCRIBE = """element => {
+  const classes = [...element.classList].slice(0, 3).map(name => `.${name}`).join('');
+  const id = element.id ? `#${element.id}` : '';
+  const label = (element.getAttribute('aria-label') || element.title
+    || element.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 40);
+  return `${element.localName}${id}${classes} [${label}]`;
+}"""
+_CONTROL = (
+    """element => [("""
+    + _DESCRIBE
+    + """)(element), element.localName === 'textarea'
+  || (element.localName === 'input' && !['checkbox', 'radio'].includes(element.type))]"""
+)
+# Each element's painted keys and availability, held in the page as a Map keyed by
+# the element, so the reading after the repaint is compared node by node.
+_PAINTED_KEYS = """() => {
+  const painted = new Map();
+  const walk = root => {
+    for (const element of root.querySelectorAll('*')) {
+      painted.set(element, [element.getAttribute('aria-disabled'),
+                            element.getAttribute('aria-keyshortcuts')]);
+      if (element.shadowRoot) walk(element.shadowRoot);
+    }
+  };
+  walk(document);
+  return painted;
+}"""
+_REPAINTED_KEYS = (
+    """painted => {
+  const describe = """
+    + _DESCRIBE
+    + """;
+  const stale = [];
+  for (const [element, before] of painted) {
+    if (!element.isConnected) continue;
+    ['aria-disabled', 'aria-keyshortcuts'].forEach((attribute, index) => {
+      const now = element.getAttribute(attribute);
+      if (now !== before[index])
+        stale.push({element: describe(element), attribute,
+                    painted: before[index], repainted: now});
+    });
+  }
+  return stale;
+}"""
+)
+
+
+def _stale_keys(page):
+    """What a forced repaint of every element's keys changes, once the page has
+    rendered what the input so far asked for: each change is an attribute that was
+    stale. A control a send or a load holds unavailable is ready again once that
+    finishes, so the reading waits for both: for the page's readiness, which includes
+    every live sample's arrival, and for every send to come back."""
+    wait_until_ready(page)
+    round_trip(page)
+    rendered(page)
+    painted = page.evaluate_handle(_PAINTED_KEYS)
+    page.evaluate("async () => (await window.__lfWidgetApi()).paintKeys()")
+    rendered(page)
+    stale = page.evaluate(_REPAINTED_KEYS, painted)
+    painted.dispose()
+    return stale
+
+
+@pytest.mark.parametrize(
+    "example", (*PUBLIC_EXAMPLES, *DEVELOPER_PAGES), ids=lambda path: path.stem
+)
+def test_presses_and_fills_leave_no_element_naming_stale_keys(browser, serve, example):
+    """Each element's `aria-keyshortcuts` and a button's `aria-disabled` reflect its
+    rows, and a reflection is a tracked effect: it reads again when a signal it read
+    moves. So a module's own state that a row's `when` reads must be a signal
+    (`keyboard/scopes.js`); a plain variable leaves the attributes stale, and a screen
+    reader announces keys that no longer apply, until something else repaints them.
+
+    The sweep presses or fills a random visible control, in an order seeded by the
+    example's name, and after each step forces a repaint of every element's keys. Any
+    attribute that repaint changes was stale. The keys themselves still work, since a
+    press reads the rows afresh, so no other test fails on such a row. A page change
+    reshuffles the steps; the failure names the step and the control pressed."""
+    rng = random.Random(example.stem)
+    page = open_page(browser, serve(example))
+    stale = [{"step": "arrival", **finding} for finding in _stale_keys(page)]
+    for step in range(_SWEEP_STEPS):
+        # Handles rather than a locator's nth, so a page that changes between the
+        # reading and the input still takes the input on the control it chose.
+        controls = page.locator(_SWEPT).element_handles()
+        if not controls:
+            break
+        control = rng.choice(controls)
+        did, fillable = control.evaluate(_CONTROL)
+        if fillable:
+            control.fill(rng.choice(_FILLS), force=True)
+            did = f"fill {did}"
+        else:
+            try:
+                control.click(force=True)
+            except PlaywrightError as error:
+                # A pointer cannot reach a control that fixed chrome holds outside the
+                # viewport, or one that scrolling it into view hides, as a virtualized
+                # list does to a row it recycles.
+                if not any(
+                    reason in error.message
+                    for reason in ("outside of the viewport", "not visible")
+                ):
+                    raise
+                continue
+            did = f"press {did}"
+        if rng.random() < 0.15:
+            page.keyboard.press("Escape")
+            did += ", then Escape"
+        stale += [{"step": step, "did": did, **s} for s in _stale_keys(page)]
+    assert not stale, "\n".join(
+        f"step {s['step']}"
+        + (f" ({s['did']})" if "did" in s else "")
+        + f": {s['element']} {s['attribute']} painted {s['painted']!r},"
+        f" repainted {s['repainted']!r}"
+        for s in stale
+    )

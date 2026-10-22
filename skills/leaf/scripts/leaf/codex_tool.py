@@ -156,10 +156,10 @@ def text_result(texts: list, status: int) -> dict:
 
 def call(request: dict, deadline: float) -> None:
     params = request["params"]
+    meta = params.get("_meta", {})
+    thread = meta.get("threadId")
     try:
-        result = run(
-            params["arguments"], params.get("_meta", {}).get("threadId"), deadline
-        )
+        result = run(params["arguments"], thread, deadline)
     except Exception as error:  # noqa: BLE001 - every failure answers the call
         result = text_result([f"{type(error).__name__}: {error}"], 1)
     send({"id": request["id"], "result": result})

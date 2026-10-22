@@ -18,9 +18,7 @@ window.setTimeout(() => {
   function address(token) {
     if (addresses.has(token)) return addresses.get(token);
     const resource = exported.resources[token];
-    const bytes = Uint8Array.from(window.atob(resource.base64), (character) =>
-      character.charCodeAt(0),
-    );
+    const bytes = Uint8Array.fromBase64(resource.base64);
     const body =
       resource.mime === "text/css"
         ? rebase(new window.TextDecoder().decode(bytes))

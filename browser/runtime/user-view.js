@@ -8,7 +8,7 @@ import { darkPreference, shownScheme } from "./color-scheme.js";
 import { offlineInteractive, pageUrl, runtime } from "./context.js";
 import { layoutWindow, seenRect, shownWindow, watchRoom } from "./geometry.js";
 import { randomId } from "./ids.js";
-import { sessionIsActive } from "./layer-client.js";
+import { layerHeaders, sessionIsActive } from "./layer-client.js";
 import { onMotionPreferenceChange, reducedMotion } from "./motion.js";
 import { pageReadiness } from "./presentation.js";
 import { coarsePointer } from "./pointer.js";
@@ -72,7 +72,9 @@ export function observeUserView() {
     // server; the next observation replaces it rather than queuing old geometry.
     void fetch(pageUrl("api/user-view"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      // The runtime it names keeps a tab from before an update from describing the
+      // page a newer runtime draws (`_runtime_gate`).
+      headers: layerHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ ...view, checks }),
       keepalive,
       signal: keepalive ? undefined : globalThis.AbortSignal.timeout(REPORT_MS),

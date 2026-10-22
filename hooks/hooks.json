@@ -39,7 +39,6 @@
     ],
     "SessionStart": [
       {
-        "matcher": "^resume$",
         "hooks": [
           {
             "type": "command",

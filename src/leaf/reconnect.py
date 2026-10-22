@@ -1,6 +1,6 @@
 """Read recovery advice from the pages a session still intends to serve.
 
-Resume and prompt hooks repeat the advice while ownership or serving is down.
+Session-start and prompt hooks repeat the advice while ownership or serving is down.
 The reading does not reserve delivery or change page state. Stop, release,
 persistent services, previews and another session's pages remain excluded.
 A concurrent stop, transfer or recovery may make advice obsolete before it is read;

@@ -236,7 +236,7 @@ export function createUndo({
 
   // The gesture the last press showed, which the next takes (the header's "shows,
   // then takes").
-  /** @type {{id: string, stop: () => void, inputs: number[]} | null} */
+  /** @type {{id: string, stop: () => void, inputs: number[], shown: boolean} | null} */
   let armed = null;
   function disarm() {
     armed?.stop();
@@ -256,10 +256,13 @@ export function createUndo({
     armed.inputs.push(inputCount());
     if (armed.inputs.length > 1) disarm();
   });
-  // Whether this press takes the armed gesture: nothing came between, or only the
-  // press itself.
+  // Whether this press takes the armed gesture: the press before it has finished
+  // showing it, so a quick second press can't take what never reached the screen, and
+  // nothing came between, or only the press itself.
   const armedFor = (event) =>
-    armed?.id === event.id && armed.inputs.every((input) => input === inputCount());
+    armed?.id === event.id &&
+    armed.shown &&
+    armed.inputs.every((input) => input === inputCount());
 
   // The page's own drawings of a thread: in the panel, on a seat or beside its passage.
   const drawingsOf = (id) => [
@@ -306,13 +309,15 @@ export function createUndo({
   function arm(event) {
     disarm();
     let stop = () => {};
-    const current = { id: event.id, stop: () => stop(), inputs: [] };
+    const current = { id: event.id, stop: () => stop(), inputs: [], shown: false };
     armed = current;
     notice(`Press again to undo: ${takes(event)}`);
     // What the press shows may still be on its way into view, so only leaving it after
     // it was seen clears the arm.
     void show(event).then((nodes) => {
-      if (armed !== current || !nodes.length) return;
+      if (armed !== current) return;
+      current.shown = true;
+      if (!nodes.length) return;
       let landed = false;
       stop = whenNone(
         nodes,

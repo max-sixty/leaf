@@ -417,6 +417,26 @@ def test_z_shows_an_old_resolve_out_of_view_before_taking_it(browser, serve):
     )
 
 
+def test_a_quick_second_z_waits_for_the_first_to_show_its_gesture(browser, serve):
+    """Two presses of `z` in one task, before the first has opened what it shows, take
+    nothing back: the second press arrives before the gesture reached the screen, so
+    it shows again rather than withdrawing what the user never saw."""
+    url, _thread, _resolve = _old_resolve_below_the_fold(serve)
+    page = open_page(browser, url)
+    undo_offered(page)
+    page.evaluate(
+        """() => {
+          for (let i = 0; i < 2; i++)
+            document.activeElement.dispatchEvent(
+              new KeyboardEvent("keydown", { key: "z", code: "KeyZ", bubbles: true }),
+            );
+        }"""
+    )
+    expect(page.locator(".lf-live")).to_have_text(ARMED)
+    told(page)
+    assert _undos(serve.page_dir) == []
+
+
 def test_z_takes_a_gesture_in_view_the_agent_has_not_picked_up_at_once(browser, serve):
     """A choice in front of the user, made in another tab and not yet handed to the
     agent, is taken back by one press, as before."""
@@ -2983,10 +3003,10 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
     )
     holding(page, held_states, 1, "candidate read")
     candidate = held_states[0].fetch().json()
-    assert (
-        candidate["browser"]["views"]["1"]["undo"][0]["event"]["widget"]
-        == "sug-thistle"
-    )
+    head = candidate["browser"]["views"]["1"]["undo"][0]
+    assert head["event"]["widget"] == "sug-thistle"
+    # Picked up, so `z` shows the suggestion first wherever the layout leaves it.
+    head["picked_up"] = True
     with page.expect_request("**/preparation-content"):
         held_states.pop(0).fulfill(json=candidate)
     holding(page, preparations, 1, "thread preparation")
@@ -3007,7 +3027,7 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
     expect(page.locator("#sug-thistle")).to_have_attribute("data-lf-state", "accept")
     assert not [event for event in posts if event.get("kind") == "undo"]
 
-    # The panel's thread covers the suggestion, so the first press shows it.
+    # The agent picked the gesture up, so the first press shows it.
     page.keyboard.press("z")
     expect(page.locator("#sug-thistle")).to_be_focused()
     assert not [event for event in posts if event.get("kind") == "undo"]

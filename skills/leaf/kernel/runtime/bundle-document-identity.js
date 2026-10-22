@@ -5682,7 +5682,7 @@ function createUndo({
     armed.inputs.push(inputCount());
     if (armed.inputs.length > 1) disarm();
   });
-  const armedFor = (event) => armed?.id === event.id && armed.inputs.every((input) => input === inputCount());
+  const armedFor = (event) => armed?.id === event.id && armed.shown && armed.inputs.every((input) => input === inputCount());
   const drawingsOf = (id) => [
     ...[...document.querySelectorAll(THREAD)].filter(
       (node) => drawnThreadId(
@@ -5720,11 +5720,13 @@ function createUndo({
     disarm();
     let stop = () => {
     };
-    const current = { id: event.id, stop: () => stop(), inputs: [] };
+    const current = { id: event.id, stop: () => stop(), inputs: [], shown: false };
     armed = current;
     notice(`Press again to undo: ${takes(event)}`);
     void show(event).then((nodes) => {
-      if (armed !== current || !nodes.length) return;
+      if (armed !== current) return;
+      current.shown = true;
+      if (!nodes.length) return;
       let landed = false;
       stop = whenNone(
         nodes,

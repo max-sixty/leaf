@@ -141,18 +141,30 @@ class Codex(Terminal):
 
     def record(self, message: dict) -> None:
         """Keep a notification of the task's thread as records, with where each turn
-        starts and ends and each model response's end, which App Server reports with
-        the response's token usage."""
+        starts and ends, each model response's end, which App Server reports with
+        the response's token usage, and how long each hook ran, all of them Leaf's,
+        since its plugin is the session's only one. App Server reports no request
+        or stream start, only the items a response produces, the first of them after
+        any hidden reasoning, so the model's time stays unsplit."""
         if self.task.thread and self.task.owns(message):
             normalized = records_for(message, self.task.thread, "")
+            method, params = message.get("method"), message.get("params") or {}
             marker = {
                 "turn/started": "turn_start",
                 "turn/completed": "turn_end",
-                "thread/tokenUsage/updated": "model_response",
                 "thread/closed": "thread_closed",
-            }.get(message.get("method"))
+            }.get(method)
             if marker is not None:
                 normalized.append({"type": marker})
+            elif method == "thread/tokenUsage/updated":
+                last = params["tokenUsage"]["last"]
+                normalized.append(
+                    {"type": "model_response", "outputTokens": last["outputTokens"]}
+                )
+            elif method == "hook/completed":
+                normalized.append(
+                    {"type": "leaf_hook", "ms": params["run"]["durationMs"]}
+                )
             self.trace.extend({**record, "received_at": now()} for record in normalized)
 
     def hear(self, seconds: float) -> None:

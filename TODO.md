@@ -129,10 +129,6 @@ has tried; settle that before building it.
   the coordinator's turn ends (#3370); Codex and Pi publish no such record, so their
   status stops reading Working while workers still run
   ([the note](notes/user-feedback-responsiveness.md#proposed-improvements)).
-- **Decide what the reply budget counts.** A small page change takes 21–42 s to
-  reply on every harness against a 7 s target, and Leaf's delivery and tool time is
-  0.3–2.6 s of it ([readings](notes/user-feedback-responsiveness.md#latency-targets-and-readings)).
-  Decide whether the target counts Leaf's share or the whole reply.
 - **#24 — Measure time to an initial reviewable page and the value of review.**
   Retrospective replay now proves one usable Leaf candidate and one usable HTML
   candidate before their authors finished. Their observation triggers differ;

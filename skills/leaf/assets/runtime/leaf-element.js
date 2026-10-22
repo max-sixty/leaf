@@ -25,7 +25,7 @@
    `failSoft(this, …)`. A `setup()` that throws shows its failure, and the element draws
    nothing after it. A move draws in the presentation pass the publication starts,
    parents first and every widget before the document-wide renderers
-   (`queueWidgetUpdate`, semantic-state.js): a suggestion measures the slot it folds
+   (`queueElementUpdate`, semantic-state.js): a suggestion measures the slot it folds
    before the layer marks it retired.
 
    Its readers are followed while it stands (`watchOwner`, arrivals.js), and it draws
@@ -44,7 +44,7 @@ import { watchReaction, untracked } from "/vendor/browser-runtime.js";
 import {
   attachApplicationPresentation,
   attachWidgetPresentation,
-  queueWidgetUpdate,
+  queueElementUpdate,
   watchPresentation,
 } from "./semantic-state.js";
 import { widgetDescriptor } from "./widget-descriptors.js";
@@ -97,20 +97,17 @@ export class LeafElement extends HTMLElement {
   #broken = false;
   // The claim the update under way draws, settled once `updated` has run too.
   #drawing = null;
-  #updating = false;
   // The drawing that follows the update under way, which its claim waits for.
   #work = null;
   #data = new Map();
   #leaveData = null;
-  #scheduled = null;
-  #pending = false;
-  #resolveUpdate = null;
+  #pending = null;
   hasUpdated = false;
   updateComplete = Promise.resolve(true);
   renderRoot;
 
   get isUpdatePending() {
-    return this.#pending;
+    return this.#pending !== null;
   }
 
   requestUpdate() {
@@ -123,32 +120,17 @@ export class LeafElement extends HTMLElement {
 
   #requestUpdate() {
     if (this.#pending) return;
-    this.#pending = true;
-    this.updateComplete = new Promise((resolve) => {
-      this.#resolveUpdate = resolve;
-    });
-    queueMicrotask(() => {
-      if (this.#pending) this.scheduleUpdate();
+    const pending = (this.#pending = Promise.withResolvers());
+    this.updateComplete = pending.promise;
+    // One queue owns coalescing and order for every element. A synchronous draw
+    // consumes this request; its queued callback cannot consume a later request.
+    void queueElementUpdate(this.#descriptor?.id, () => {
+      if (this.#pending === pending) this.performUpdate();
     });
   }
 
   createRenderRoot() {
     return this;
-  }
-
-  scheduleUpdate() {
-    return this.#scheduled ?? this.#queueUpdate();
-  }
-
-  #queueUpdate() {
-    if (!this.#descriptor) return this.performUpdate();
-    const scheduled = queueWidgetUpdate(this.#descriptor.id, () => {
-      if (this.#scheduled !== scheduled) return;
-      this.#scheduled = null;
-      return this.performUpdate();
-    });
-    this.#scheduled = scheduled;
-    return scheduled;
   }
 
   connectedCallback() {
@@ -272,16 +254,13 @@ export class LeafElement extends HTMLElement {
   // claim of its own, its failure is the enclosing claimed update's.
   performUpdate() {
     const outer = this.#drawing;
-    const updating = this.#updating;
     let outerWork = this.#work;
     this.#drawing = null;
     this.#work = null;
-    this.#updating = true;
     try {
       if (!this.#pending) return;
-      this.#pending = false;
-      const resolve = this.#resolveUpdate;
-      this.#resolveUpdate = null;
+      const { resolve } = this.#pending;
+      this.#pending = null;
       try {
         this.#following?.();
         let outcome;
@@ -325,7 +304,6 @@ export class LeafElement extends HTMLElement {
     } finally {
       this.#drawing = outer;
       this.#work = outerWork;
-      this.#updating = updating;
     }
   }
 
@@ -387,10 +365,7 @@ export class LeafElement extends HTMLElement {
     this.#ticket = this.#claim();
     if (this.#held) return;
     this.requestUpdate();
-    if (now) {
-      this.#scheduled = null;
-      this.performUpdate();
-    } else if (this.#descriptor) this.#queueUpdate();
+    if (now) this.performUpdate();
   }
 
   #refresh() {

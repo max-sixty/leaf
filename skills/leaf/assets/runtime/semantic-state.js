@@ -7,7 +7,7 @@ import {
   createSignal,
   flush,
   watchReaction,
-  watchEffect,
+  subscribe,
   untracked,
   createPresentationCoordinator,
   createPresentationSchedule,
@@ -86,11 +86,8 @@ const widgetOrder = (widget) => {
   }
   return -1 / (depth + 1);
 };
-export const queueWidgetUpdate = (widget, update) =>
-  schedule.enqueue(
-    untracked(() => widgetOrder(widget)),
-    update,
-  );
+export const queueElementUpdate = (widget, update) =>
+  schedule.enqueue(widget ? untracked(() => widgetOrder(widget)) : 0, update);
 
 // Where a document-wide renderer stands in one presentation pass. The projection
 // materializes provenance words and coordinate chrome inside authored elements, the
@@ -155,17 +152,30 @@ export const applicationPresenter = ({
   const selected = createMemo(
     () => {
       revision();
-      const epoch = untracked(() => readApplication().semanticEpoch);
-      const value = reading();
-      if (epoch !== untracked(() => readApplication().semanticEpoch))
-        throw new Error(`the ${region} region's reading moved a part it read`);
-      return value;
+      try {
+        const epoch = untracked(() => readApplication().semanticEpoch);
+        const value = reading();
+        if (epoch !== untracked(() => readApplication().semanticEpoch))
+          throw new Error(`the ${region} region's reading moved a part it read`);
+        return { value };
+      } catch (error) {
+        // A failed reading owes a presentation too. Leaving it to an effect's
+        // default error logger would carry the old view into the new epoch as proof.
+        return { error };
+      }
     },
-    { lazy: true },
+    {
+      lazy: true,
+      equals: (next, prior) =>
+        "error" in next
+          ? "error" in prior && Object.is(next.error, prior.error)
+          : "value" in prior && Object.is(next.value, prior.value),
+    },
   );
   // Surface a bad initial reading at registration. Eager memo construction captures
   // errors internally and can retry a self-invalidating read before a caller sees it.
-  untracked(selected);
+  const initial = untracked(selected);
+  if ("error" in initial) throw initial.error;
   let claimed;
   let owed = false;
   // A resumed asynchronous paint has one effect per synchronous stretch. A new paint
@@ -178,9 +188,11 @@ export const applicationPresenter = ({
   const presenter = schedule.presenter({
     attach: () => presentation.attach(region, renderer),
     order,
-    paint: (value, current) => {
+    paint: (outcome, current) => {
       owed = false;
       forget();
+      if ("error" in outcome) throw outcome.error;
+      const { value } = outcome;
       const generation = following;
       const stretch = (run) => {
         let outcome;
@@ -197,7 +209,7 @@ export const applicationPresenter = ({
             if (!owed && current())
               untracked(() => {
                 const next = selected();
-                if (next !== null) void claim(next);
+                void claim(next);
               });
           },
         );
@@ -215,11 +227,11 @@ export const applicationPresenter = ({
     },
     failSoft,
   });
-  const claim = (value) => {
-    claimed = value;
-    if (value === null) return schedule.passed();
+  const claim = (outcome) => {
+    claimed = outcome;
+    if ("value" in outcome && outcome.value === null) return schedule.passed();
     owed = true;
-    return presenter.sync(value);
+    return presenter.sync(outcome);
   };
   // Mechanical inputs can change without publishing. Explicit presentation invalidates
   // the computed reading and claims it in one batch, so its observer cannot duplicate it.
@@ -234,12 +246,11 @@ export const applicationPresenter = ({
   // Registration records the initial value without drawing it. Future changed values
   // synchronously claim their region; present() can request the first paint earlier.
   let first = true;
-  watchEffect(() => {
-    const value = selected();
-    if (first || value === null) {
+  subscribe(selected, (outcome) => {
+    if (first || ("value" in outcome && outcome.value === null)) {
       first = false;
-      claimed = value;
-    } else if (value !== claimed) untracked(() => claim(value));
+      claimed = outcome;
+    } else if (outcome !== claimed) untracked(() => claim(outcome));
   });
   // A document-wide region lives as long as the page; disconnect releases its renderer,
   // and a region that may mount again reads null while it is not mounted.

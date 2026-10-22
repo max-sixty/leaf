@@ -9,7 +9,7 @@ export {
   flush,
   untrack,
 } from "./solid.js";
-export { watchEffect, watchReaction } from "./browser-runtime/observe.js";
+export { subscribe, watchReaction } from "./browser-runtime/observe.js";
 export { createView, resetViewsWithin } from "./browser-runtime/views.js";
 export { For, Show, onCleanup } from "./solid.js";
 export { default as html } from "./solid.js";

@@ -21,7 +21,7 @@ import {
   runWork,
   runtime,
   untrack2 as untrack,
-  watchEffect
+  watchReaction
 } from "./bundle-vendor~browser-runtime.js";
 
 // runtime/page-paint.js
@@ -2480,8 +2480,8 @@ function reflectButton(control, candidates) {
   const ref = new WeakRef(control);
   let reading = candidates;
   let failure = null;
-  const dispose = watchEffect(() => {
-    if (reading) {
+  const dispose = watchReaction(
+    () => {
       const read2 = reading;
       reading = null;
       try {
@@ -2496,14 +2496,15 @@ function reflectButton(control, candidates) {
       } catch (error) {
         failure = error;
       }
-      return;
+    },
+    () => {
+      const moved = ref.deref();
+      if (moved) {
+        dirtyButtons.add(moved);
+        repaint();
+      }
     }
-    const moved = ref.deref();
-    if (moved) {
-      dirtyButtons.add(moved);
-      repaint();
-    } else dispose();
-  });
+  );
   buttonAvailability.set(control, dispose);
   if (failure) throw failure;
 }
@@ -2900,22 +2901,21 @@ var availabilityDirty = true;
 function reflectAvailabilityReaders() {
   availabilityDirty = false;
   availabilityTracking?.();
-  let first = true;
   let failure = null;
-  availabilityTracking = watchEffect(() => {
-    if (first) {
-      first = false;
+  availabilityTracking = watchReaction(
+    () => {
       try {
         focusRevision();
         reflectCommandAvailability();
       } catch (error) {
         failure = error;
       }
-      return;
+    },
+    () => {
+      availabilityDirty = true;
+      repaint();
     }
-    availabilityDirty = true;
-    repaint();
-  });
+  );
   if (failure) throw failure;
 }
 function reflectButtonsTracked() {
@@ -2950,25 +2950,24 @@ function reflectButtonsTracked() {
 function reflectTracked(element) {
   tracked.get(element)?.();
   const ref = new WeakRef(element);
-  let first = true;
   let failure = null;
-  const dispose = watchEffect(() => {
-    if (first) {
-      first = false;
+  const dispose = watchReaction(
+    () => {
       try {
         focusRevision();
         reflectElementShortcuts(ref.deref());
       } catch (error) {
         failure = error;
       }
-      return;
+    },
+    () => {
+      const moved = ref.deref();
+      if (moved) {
+        dirtyElements.add(moved);
+        repaint();
+      }
     }
-    const moved = ref.deref();
-    if (moved) {
-      dirtyElements.add(moved);
-      repaint();
-    } else dispose();
-  });
+  );
   tracked.set(element, dispose);
   if (failure) throw failure;
 }

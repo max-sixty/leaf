@@ -636,6 +636,40 @@ test("a check's redraw leaves the update a move queued, and its claim", async ()
   element.remove();
 });
 
+test("a synchronous draw leaves later queued draws in their own order", async () => {
+  const order = [];
+  const first = probe(function () {
+    order.push(`first:${this.label}`);
+    return this.label;
+  }).element;
+  const second = probe(function () {
+    order.push(`second:${this.label}`);
+    return this.label;
+  }).element;
+  first.label = second.label = "initial";
+  document.body.append(first, second);
+  try {
+    await settled(first);
+    await settled(second);
+    order.length = 0;
+    first.label = "immediate";
+    first.requestUpdate();
+    first.performUpdate();
+    assert.equal(first.textContent, "immediate");
+    second.label = "queued";
+    second.requestUpdate();
+    first.label = "later";
+    first.requestUpdate();
+    await Promise.all([first.updateComplete, second.updateComplete]);
+    assert.deepEqual(order, ["first:immediate", "second:queued", "first:later"]);
+    assert.equal(first.textContent, "later");
+    assert.equal(second.textContent, "queued");
+  } finally {
+    first.remove();
+    second.remove();
+  }
+});
+
 test("a draw's claim waits for the drawing it holds it for", async () => {
   let finish;
   const tag = `lf-probe-drawing-${++tags}`;

@@ -23,7 +23,7 @@
    activation checks the current command. Withdrawal returns both original attributes.
    Preserve the order of that list because the dispatcher and hints walk inward to
    outward while the full reference groups the same scopes for reading. */
-import { createEffect, watchEffect, onCleanup } from "/vendor/browser-runtime.js";
+import { createEffect, watchReaction, onCleanup } from "/vendor/browser-runtime.js";
 import { focusRevision } from "../focus.js";
 import { watchOwner } from "../arrivals.js";
 import {
@@ -166,10 +166,9 @@ function releaseButtons(declarations) {
     forgetScopedElement(control);
   }
 }
-// One button's availability, as a tracked watchEffect: a signal its command's predicates read
-// moving marks this button alone for the next frame. The watchEffect stays subscribed to
-// those signals, so it holds the button and its declarations only while it first reads
-// them, and a later run that finds the button gone disposes it.
+// One button's availability is read once per reflection. A native reaction marks
+// only that button dirty when its inputs change, then releases those subscriptions.
+// The next reflection follows its current declarations again.
 const buttonAvailability = new WeakMap();
 // The declarations each button's availability was last read from, so a pass reads a
 // button again when what names it changed.
@@ -188,8 +187,8 @@ function reflectButton(control, candidates) {
   const ref = new WeakRef(control);
   let reading = candidates;
   let failure = null;
-  const dispose = watchEffect(() => {
-    if (reading) {
+  const dispose = watchReaction(
+    () => {
       const read = reading;
       reading = null;
       try {
@@ -205,14 +204,15 @@ function reflectButton(control, candidates) {
       } catch (error) {
         failure = error;
       }
-      return;
-    }
-    const moved = ref.deref();
-    if (moved) {
-      dirtyButtons.add(moved);
-      repaint();
-    } else dispose();
-  });
+    },
+    () => {
+      const moved = ref.deref();
+      if (moved) {
+        dirtyButtons.add(moved);
+        repaint();
+      }
+    },
+  );
   buttonAvailability.set(control, dispose);
   if (failure) throw failure;
 }
@@ -400,7 +400,7 @@ function contextRows(declarations) {
 }
 
 // A contextual owner relates the current focus to an original command region.
-// Resolve that relation as part of the scope reading, never as a paint watchEffect:
+// Resolve that relation as part of the scope reading, never as a paint effect:
 // restoring focus and invoking a command in the same turn sees the same routes.
 const contextScopeReaders = new Set();
 export function contextScopes(title, resolve) {
@@ -790,7 +790,7 @@ export function reflectFirstScopes() {
 //
 // An element's reflection reads its rows' liveness, and that reads two kinds of input.
 // What it reads from the semantic root or from a signal is tracked: each reflection runs
-// as a signals watchEffect, and a publication or signal that moves something it read marks
+// as a native reaction, and a publication or signal that moves something it read marks
 // that element alone for the next frame. So a module's own state that a row reads is a
 // signal: a plain variable is read once, and a change to it reaches the element only
 // when something else marks it. What it reads from the document is a mechanical
@@ -804,7 +804,7 @@ const tracked = new WeakMap();
 // Native buttons read the same predicates for their availability. Which button a
 // command names is gathered across every scope on each pass, since a command may name a
 // control outside the element declaring it; each button's availability is its own
-// tracked watchEffect (`reflectButton`), read again when a signal it read moves or a key
+// native reaction (`reflectButton`), read again when a signal it read moves or a key
 // paint reaches it; where the user stands is such a signal (focus.js, `focusRevision`). Every
 // button is read again when a declaration is attached or withdrawn, a command reader
 // registers, and on `paintKeys()`. Contribution projections read the same predicates,
@@ -815,22 +815,21 @@ let availabilityDirty = true;
 function reflectAvailabilityReaders() {
   availabilityDirty = false;
   availabilityTracking?.();
-  let first = true;
   let failure = null;
-  availabilityTracking = watchEffect(() => {
-    if (first) {
-      first = false;
+  availabilityTracking = watchReaction(
+    () => {
       try {
         focusRevision();
         reflectCommandAvailability();
       } catch (error) {
         failure = error;
       }
-      return;
-    }
-    availabilityDirty = true;
-    repaint();
-  });
+    },
+    () => {
+      availabilityDirty = true;
+      repaint();
+    },
+  );
   if (failure) throw failure;
 }
 function reflectButtonsTracked() {
@@ -879,25 +878,24 @@ function reflectButtonsTracked() {
 function reflectTracked(element) {
   tracked.get(element)?.();
   const ref = new WeakRef(element);
-  let first = true;
   let failure = null;
-  const dispose = watchEffect(() => {
-    if (first) {
-      first = false;
+  const dispose = watchReaction(
+    () => {
       try {
         focusRevision();
         reflectElementShortcuts(ref.deref());
       } catch (error) {
         failure = error;
       }
-      return;
-    }
-    const moved = ref.deref();
-    if (moved) {
-      dirtyElements.add(moved);
-      repaint();
-    } else dispose();
-  });
+    },
+    () => {
+      const moved = ref.deref();
+      if (moved) {
+        dirtyElements.add(moved);
+        repaint();
+      }
+    },
+  );
   tracked.set(element, dispose);
   if (failure) throw failure;
 }

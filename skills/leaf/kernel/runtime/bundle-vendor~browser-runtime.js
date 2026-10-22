@@ -15,7 +15,6 @@ import {
   createEffect,
   createRoot,
   createReaction,
-  createTrackedEffect,
   flush,
   runWithOwner
 } from "/vendor/solid.js";
@@ -27,17 +26,6 @@ function subscribe(read, notify) {
         createEffect(read, (value) => {
           notify(value);
         });
-        return dispose;
-      })
-    )
-  );
-}
-function watchEffect(run) {
-  return flush(
-    () => runWithOwner(
-      null,
-      () => createRoot((dispose) => {
-        createTrackedEffect(run);
         return dispose;
       })
     )
@@ -2398,10 +2386,7 @@ var widgetOrder = (widget) => {
   }
   return -1 / (depth + 1);
 };
-var queueWidgetUpdate = (widget, update) => schedule.enqueue(
-  untrack(() => widgetOrder(widget)),
-  update
-);
+var queueElementUpdate = (widget, update) => schedule.enqueue(widget ? untrack(() => widgetOrder(widget)) : 0, update);
 var PRESENTATION_ORDER = Object.freeze({
   projection: 0,
   thread: 1,
@@ -2420,15 +2405,23 @@ var applicationPresenter = ({
   const selected = createMemo2(
     () => {
       revision();
-      const epoch = untrack(() => readApplication().semanticEpoch);
-      const value = reading();
-      if (epoch !== untrack(() => readApplication().semanticEpoch))
-        throw new Error(`the ${region} region's reading moved a part it read`);
-      return value;
+      try {
+        const epoch = untrack(() => readApplication().semanticEpoch);
+        const value = reading();
+        if (epoch !== untrack(() => readApplication().semanticEpoch))
+          throw new Error(`the ${region} region's reading moved a part it read`);
+        return { value };
+      } catch (error) {
+        return { error };
+      }
     },
-    { lazy: true }
+    {
+      lazy: true,
+      equals: (next, prior) => "error" in next ? "error" in prior && Object.is(next.error, prior.error) : "value" in prior && Object.is(next.value, prior.value)
+    }
   );
-  untrack(selected);
+  const initial = untrack(selected);
+  if ("error" in initial) throw initial.error;
   let claimed;
   let owed = false;
   let following = [];
@@ -2439,43 +2432,45 @@ var applicationPresenter = ({
   const presenter = schedule.presenter({
     attach: () => presentation.attach(region, renderer),
     order,
-    paint: (value, current) => {
+    paint: (outcome, current) => {
       owed = false;
       forget();
+      if ("error" in outcome) throw outcome.error;
+      const { value } = outcome;
       const generation = following;
       const stretch = (run) => {
-        let outcome;
+        let outcome2;
         const stop = watchReaction(
           () => {
             try {
-              outcome = { value: run() };
+              outcome2 = { value: run() };
             } catch (error) {
-              outcome = { error };
+              outcome2 = { error };
             }
           },
           () => {
             if (!owed && current())
               untrack(() => {
                 const next = selected();
-                if (next !== null) void claim(next);
+                void claim(next);
               });
           }
         );
         if (current() && following === generation) generation.push(stop);
         else stop();
-        if ("error" in outcome) throw outcome.error;
-        return outcome.value;
+        if ("error" in outcome2) throw outcome2.error;
+        return outcome2.value;
       };
       const resume = (run) => (...args) => stretch(() => run(...args));
       return stretch(() => paint(value, current, resume));
     },
     failSoft
   });
-  const claim = (value) => {
-    claimed = value;
-    if (value === null) return schedule.passed();
+  const claim = (outcome) => {
+    claimed = outcome;
+    if ("value" in outcome && outcome.value === null) return schedule.passed();
     owed = true;
-    return presenter.sync(value);
+    return presenter.sync(outcome);
   };
   const present = () => untrack(
     () => flush5(() => {
@@ -2485,12 +2480,11 @@ var applicationPresenter = ({
   );
   documentPresenters.push(present);
   let first = true;
-  watchEffect(() => {
-    const value = selected();
-    if (first || value === null) {
+  subscribe(selected, (outcome) => {
+    if (first || "value" in outcome && outcome.value === null) {
       first = false;
-      claimed = value;
-    } else if (value !== claimed) untrack(() => claim(value));
+      claimed = outcome;
+    } else if (outcome !== claimed) untrack(() => claim(outcome));
   });
   const disconnect = () => {
     forget();
@@ -2683,7 +2677,6 @@ export {
   runWork,
   bindQueuedWork,
   cancelWork,
-  watchEffect,
   watchReaction,
   resetViewsWithin,
   createView,
@@ -2745,7 +2738,7 @@ export {
   selectWidgets,
   attachApplicationPresentation,
   attachWidgetPresentation,
-  queueWidgetUpdate,
+  queueElementUpdate,
   PRESENTATION_ORDER,
   applicationPresenter,
   documentChanged,

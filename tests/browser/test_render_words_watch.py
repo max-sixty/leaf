@@ -1211,6 +1211,8 @@ def test_words_a_slow_send_retains_its_input(browser, delay):
         ("nextRender", "passive-first"),
         ("afterScript", "input-first"),
         ("presenter", "passive-first"),
+        ("element", "passive-first"),
+        ("element", "input-first"),
     ],
 )
 def test_coalesced_rendering_jobs_keep_their_own_input_source(
@@ -1238,6 +1240,19 @@ def test_coalesced_rendering_jobs_keep_their_own_input_source(
             // This test observes scheduling, so a ticket that accepts the paint is enough.
             const attach=()=>({present:()=>({resolve:()=>{},ready:Promise.resolve()})});
             schedule=callback=>presentations.presenter({attach,paint:callback}).sync(null);
+          }
+          if(scheduler==='element') {
+            customElements.define('lf-render-job', class extends module.LeafElement {
+              render() { this.job?.(); }
+            });
+            const elements=Array.from({length:2},()=>document.createElement('lf-render-job'));
+            document.body.append(...elements);
+            await Promise.all(elements.map(element=>element.updateComplete));
+            schedule=callback=>{
+              const element=elements.shift();
+              element.job=callback;
+              element.requestUpdate();
+            };
           }
           const passive=lfInputWork.capture(()=>schedule(()=>{
             document.getElementById('passive').remove();window.passiveDone=true;

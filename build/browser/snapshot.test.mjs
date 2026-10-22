@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createSignal } from "@solidjs/signals";
-import { watchEffect } from "./observe.ts";
+import { watchReaction } from "./observe.ts";
 import { createApplicationPublisher } from "./snapshot.ts";
 import { createPresentationCoordinator } from "./presentation.ts";
 
@@ -39,10 +39,13 @@ for (const kind of ["semantic", "presentation"]) {
     };
     let subscriptions = 0;
     let stopSource;
-    const stop = watchEffect(() => {
-      subscriptions++;
-      stopSource = source.subscribe(observe);
-    });
+    const stop = watchReaction(
+      () => {
+        subscriptions++;
+        stopSource = source.subscribe(observe);
+      },
+      () => subscriptions++,
+    );
     if (kind === "semantic") {
       app.publish({ ...initial, effective: { count: 1 }, semanticEpoch: 1 });
     } else {

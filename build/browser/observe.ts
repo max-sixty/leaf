@@ -9,7 +9,6 @@ import {
   createEffect,
   createRoot,
   createReaction,
-  createTrackedEffect,
   flush,
   runWithOwner,
 } from "@solidjs/signals";
@@ -21,18 +20,6 @@ export function subscribe<T>(read: () => T, notify: (value: T) => unknown): () =
         createEffect(read, (value) => {
           notify(value);
         });
-        return dispose;
-      }),
-    ),
-  );
-}
-
-/** Track an imperative owner's reads, ending the effect with that owner. */
-export function watchEffect(run: () => void | (() => void)): () => void {
-  return flush(() =>
-    runWithOwner(null, () =>
-      createRoot((dispose) => {
-        createTrackedEffect(run);
         return dispose;
       }),
     ),

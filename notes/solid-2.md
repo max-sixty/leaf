@@ -57,6 +57,43 @@ of these adaptations, or when a measured interaction or maintenance improvement
 outweighs it. Ordinary native controls and retaining WebAwesome can be chosen
 independently of the rendering framework; neither is evidence for Solid itself.
 
+## Rendering ownership after review
+
+Elements now use the shared presentation queue directly. The extra element
+microtask, separate scheduled handle and unused reentrancy flag are removed.
+An immediate draw consumes its request without letting its old queued callback
+consume a newer request. The queue preserves each job's input attribution, so
+passive work cannot acquire permission to discard a draft from a nearby gesture.
+
+The deprecated `createTrackedEffect` adapter is also removed. Continuous
+subscriptions use Solid's separate compute/effect phases; command reflections
+use its one-shot reactions and re-arm when the reflection runs. A failed region
+reading is an explicit memo outcome that claims presentation and reaches the
+existing failure path. It can no longer silently carry old content as proof of
+a new revision. Equal successful readings still suppress redundant painting.
+
+The remaining boundary has a tested reason. In a native Solid effect, calling
+`view.update({label: "after"})` and then reading its DOM still returns the
+previous label; the DOM changes after that effect finishes. Moving Leaf's paints
+into such effects would make their immediate focus and geometry reads stale.
+Removing this boundary requires splitting those renderers into derivation,
+DOM commit, and post-commit measurement, including third-party widget callbacks.
+It is not accomplished by replacing the queue with an effect.
+
+Presentation proof also includes work outside Solid's graph: gesture holds,
+external-data delivery, asynchronous widget preparation and superseded renderers.
+The coordinator owns which semantic revision is actually visible; Solid owns
+reactive dependency tracking and retained bindings. The ordered pass ensures
+parent widget movement precedes dependent widget and document projection work.
+These are product contracts to preserve in any further rendering redesign.
+
+Regression coverage lives in `tests/runtime/leaf-element.test.mjs`,
+`tests/runtime/region-presenter.test.mjs`, and
+`test_coalesced_rendering_jobs_keep_their_own_input_source` in
+`tests/browser/test_render_words_watch.py`. The last exercises element jobs in
+both passive-first and input-first order. Browser checks also cover parent/child
+ordering, connection lifetimes, readiness and initial/live node adoption.
+
 ## UI library evaluation
 
 Versions and package source were inspected, rather than assuming a permissive

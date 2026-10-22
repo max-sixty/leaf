@@ -273,7 +273,7 @@ import {
   onCleanup,
   pageUrl,
   projectionRegionsPresented,
-  queueWidgetUpdate,
+  queueElementUpdate,
   rankAt,
   readPart,
   revisionLabel,
@@ -475,19 +475,16 @@ var LeafElement = class extends HTMLElement {
   #broken = false;
   // The claim the update under way draws, settled once `updated` has run too.
   #drawing = null;
-  #updating = false;
   // The drawing that follows the update under way, which its claim waits for.
   #work = null;
   #data = /* @__PURE__ */ new Map();
   #leaveData = null;
-  #scheduled = null;
-  #pending = false;
-  #resolveUpdate = null;
+  #pending = null;
   hasUpdated = false;
   updateComplete = Promise.resolve(true);
   renderRoot;
   get isUpdatePending() {
-    return this.#pending;
+    return this.#pending !== null;
   }
   requestUpdate() {
     if (this.#rendering) return;
@@ -496,29 +493,14 @@ var LeafElement = class extends HTMLElement {
   }
   #requestUpdate() {
     if (this.#pending) return;
-    this.#pending = true;
-    this.updateComplete = new Promise((resolve2) => {
-      this.#resolveUpdate = resolve2;
-    });
-    queueMicrotask(() => {
-      if (this.#pending) this.scheduleUpdate();
+    const pending = this.#pending = Promise.withResolvers();
+    this.updateComplete = pending.promise;
+    void queueElementUpdate(this.#descriptor?.id, () => {
+      if (this.#pending === pending) this.performUpdate();
     });
   }
   createRenderRoot() {
     return this;
-  }
-  scheduleUpdate() {
-    return this.#scheduled ?? this.#queueUpdate();
-  }
-  #queueUpdate() {
-    if (!this.#descriptor) return this.performUpdate();
-    const scheduled = queueWidgetUpdate(this.#descriptor.id, () => {
-      if (this.#scheduled !== scheduled) return;
-      this.#scheduled = null;
-      return this.performUpdate();
-    });
-    this.#scheduled = scheduled;
-    return scheduled;
   }
   connectedCallback() {
     if (once(this)) this.#setup();
@@ -619,16 +601,13 @@ var LeafElement = class extends HTMLElement {
   // claim of its own, its failure is the enclosing claimed update's.
   performUpdate() {
     const outer = this.#drawing;
-    const updating = this.#updating;
     let outerWork = this.#work;
     this.#drawing = null;
     this.#work = null;
-    this.#updating = true;
     try {
       if (!this.#pending) return;
-      this.#pending = false;
-      const resolve2 = this.#resolveUpdate;
-      this.#resolveUpdate = null;
+      const { resolve: resolve2 } = this.#pending;
+      this.#pending = null;
       try {
         this.#following?.();
         let outcome;
@@ -670,7 +649,6 @@ var LeafElement = class extends HTMLElement {
     } finally {
       this.#drawing = outer;
       this.#work = outerWork;
-      this.#updating = updating;
     }
   }
   /** Hold the update under way's claim until `work`, drawing that follows the render
@@ -723,10 +701,7 @@ var LeafElement = class extends HTMLElement {
     this.#ticket = this.#claim();
     if (this.#held) return;
     this.requestUpdate();
-    if (now) {
-      this.#scheduled = null;
-      this.performUpdate();
-    } else if (this.#descriptor) this.#queueUpdate();
+    if (now) this.performUpdate();
   }
   #refresh() {
     if (this.#connected) this.#present({ now: true });

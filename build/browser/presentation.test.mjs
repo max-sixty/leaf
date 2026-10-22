@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { watchEffect } from "./observe.ts";
+import { watchReaction } from "./observe.ts";
 import {
   createPresentationCoordinator,
   createPresentationSchedule,
@@ -954,12 +954,15 @@ test("a paint creating a child presentation does not subscribe to proof changes"
   const publication = coordinator.begin({}, 0);
   let paints = 0;
   let child;
-  const stop = watchEffect(() => {
-    paints += 1;
-    // A widget can connect while its containing region paints. Its own presentation
-    // belongs to that widget, and resolving it must not repaint the containing region.
-    if (paints === 1) child = coordinator.attach("child", {}).present("drawn");
-  });
+  const stop = watchReaction(
+    () => {
+      paints += 1;
+      // A widget can connect while its containing region paints. Its own presentation
+      // belongs to that widget, and resolving it must not repaint the containing region.
+      if (paints === 1) child = coordinator.attach("child", {}).present("drawn");
+    },
+    () => paints++,
+  );
   try {
     coordinator.seal(publication);
     child.resolve("ready");

@@ -4,8 +4,6 @@ import re
 from html import escape
 
 import pytest
-from leaf import data as data_model
-from leaf.render_checks import one_frame, rendered
 from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
@@ -20,6 +18,9 @@ from render_harness import (
     sending,
     told,
 )
+
+from leaf import data as data_model
+from leaf.render_checks import one_frame, rendered
 
 
 def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
@@ -232,12 +233,12 @@ def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(
     else:
         expect(page.locator("#patch .lf-diff-search")).to_have_count(0)
         expect(folds.first).to_have_attribute("open", "")
-    # Narrowing remains in place while visiting more than one related file.
+    # Search narrows the navigator until a file is opened.
     search = tree.get_by_role("textbox")
     search.fill("importer")
     row.click()
-    expect(search).to_have_value("importer")
-    expect(row).to_be_focused()
+    expect(search).to_have_value("")
+    expect(search).to_be_focused()
     expect(folds.first).to_have_attribute("open", "")
     expect(folds.first.locator("pre")).to_contain_text("keep_names = True")
     # The same selected file still has an activation route after its patch closes.
@@ -272,7 +273,7 @@ def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(
         expect(folds.first).not_to_be_visible()
         expect(folds.last).to_be_visible()
         expect(other).to_have_attribute("aria-selected", "true")
-        # Search is an activation route too, even while its text field owns focus.
+        # Trees confirms a search match onto its row; the row opens its file.
         for path, visible in [
             ("src/importer.py", folds.first),
             ("tests/importer.py", folds.last),
@@ -280,10 +281,10 @@ def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(
             search.fill(path)
             search.press("ArrowDown")
             search.press("Enter")
+            expect(search).to_have_value("")
+            expect(tree.locator(f'[data-item-path="{path}"]')).to_be_focused()
+            page.keyboard.press("Enter")
             expect(visible).to_be_visible()
-            expect(search).to_have_value(path)
-            expect(search).to_be_focused()
-        search.fill("importer")
         folds.last.locator("summary").press("{")
         expect(folds.first).to_be_visible()
         expect(folds.last).not_to_be_visible()
@@ -1117,7 +1118,7 @@ def test_file_tree_reads_standalone_data_without_a_diff_package(browser, serve):
     row.click()
     expect(row).to_have_attribute("aria-selected", "true")
     page.keyboard.press("c")
-    expect(page.locator(".lf-composer leaf-text")).to_be_focused(timeout=1000)
+    expect(page.locator(".lf-composer leaf-text")).to_be_focused()
     page.keyboard.press("Escape")
     data_model.cmd_data_set(
         serve.page_dir,

@@ -9,14 +9,14 @@ or follow live work in a page you can comment on and change. The agent responds 
 revising the page.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/febcbccbd9f9601b53455f5b266b262f0698c31f/demo/session-dark.png">
-  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/febcbccbd9f9601b53455f5b266b262f0698c31f/demo/session-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/84e628ad13a6414fbcf80b85b49c1ff0b3c6ba32/demo/session-dark.png">
+  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/84e628ad13a6414fbcf80b85b49c1ff0b3c6ba32/demo/session-light.png">
 </picture>
 
 <details>
 <summary>Watch the comment-and-revision loop</summary>
 
-![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/febcbccbd9f9601b53455f5b266b262f0698c31f/demo/demo.gif)
+![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/84e628ad13a6414fbcf80b85b49c1ff0b3c6ba32/demo/demo.gif)
 
 </details>
 
@@ -31,6 +31,10 @@ browser that can reach the machine the agent runs on. No Leaf account or
 configuration is required.
 Users and package authors never need to build Leaf or run a package manager;
 custom widgets are ordinary browser JavaScript.
+
+Install the Leaf plugin, which includes the application, harness integration and
+the Leaf skill. The skill supplies the agent's instructions; copying its directory
+alone does not install the application.
 
 Claude Code:
 

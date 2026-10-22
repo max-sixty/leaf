@@ -38,6 +38,7 @@ from interact_support import (
     working,
     yaml_document,
 )
+
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
@@ -667,8 +668,50 @@ def test_a_handover_its_turn_never_confirmed_is_offered_again(
     assert acknowledged_through(claimed) == resolve["seq"]
 
 
+def test_a_turn_ends_on_its_answer_and_a_turn_of_its_own_names_what_it_owes(
+    claimed, interactive, capsys
+):
+    """Claude Code's focus view shows a turn's last message alone, so a Stop that
+    continued a turn over an unanswered comment had the agent's note about it stand
+    in place of the answer the turn had written. Where a watch follows the turn,
+    Stop lets it end, and the watch wakes a turn of its own whose prompt names the
+    owed answer. That prompt is the reminder on record, so a turn that ends owing
+    the same answer again wakes nothing more."""
+    serving(claimed, 1)
+    session_model.cmd_waiting(claimed, "")
+    asked = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "which ships first?"}
+    )
+    prompt = {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    stop = {"hook_event_name": "Stop", "session_id": "s1"}
+
+    def left_owed() -> list[str]:
+        with service_model.PageTransaction(claimed) as page:
+            return [event["id"] for event in session_model.left_owed(page)]
+
+    hooks_model.cmd_hook("claude-code", prompt)
+    capsys.readouterr()
+    assert left_owed() == []
+    hooks_model.cmd_hook("claude-code", stop)
+    assert capsys.readouterr().out == ""
+    assert service_model.page_claim(claimed)["turn_closed"]
+    assert left_owed() == [asked["id"]]
+
+    woke = hooks_model.cmd_watch("claude-code", stop)
+    assert woke.startswith(f"{claimed} has an update still owed an answer")
+    hooks_model.cmd_hook("claude-code", prompt)
+    reminder = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
+    assert asked["id"] in reminder["additionalContext"]
+    assert left_owed() == []
+
+    hooks_model.cmd_hook("claude-code", stop)
+    assert capsys.readouterr().out == ""
+    assert service_model.page_claim(claimed)["turn_closed"]
+    assert left_owed() == []
+
+
 def test_a_prompt_reopens_the_acknowledged_move_it_carries_into_the_new_turn(
-    claimed, capsys
+    claimed, printing, capsys
 ):
     """The prompt hook's reminder is delivery evidence, not only prose.
 
@@ -704,7 +747,8 @@ def test_a_prompt_reopens_the_acknowledged_move_it_carries_into_the_new_turn(
 def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot):
     """The real hook and CLI outputs, from the move's arrival through settlement:
     the Stop hook's watch wakes the session, and the prompt hook of the turn that
-    opens hands the move over."""
+    opens hands the move over. That turn ends without answering it, so the watch
+    wakes another, whose prompt names the answer it owes."""
     page = claimed
     source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
     (page / "index.html").write_text(source)
@@ -758,7 +802,15 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
     lease = leases_model.take_lease(leases_model.waiter_lease_path(page, session["id"]))
     assert lease
     try:
+        # The turn ends on its own answer, and the watch wakes a turn of its own
+        # whose prompt names what the comment is owed.
         observations["acknowledged at stop"] = hook("Stop")
+        observations["the watch wakes the session to remind it"] = (
+            hooks_model.cmd_watch(
+                "claude-code", {"hook_event_name": "Stop", "session_id": "s1"}
+            )
+        )
+        observations["reminded at prompt"] = hook("UserPromptSubmit")
         observations["idle before answer"] = idle()
         result = CliRunner().invoke(
             cli_model.cli,
@@ -795,7 +847,9 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
     )
 
 
-def test_prompt_and_stop_reuse_the_original_unanswered_delivery(claimed, capsys):
+def test_prompt_and_stop_reuse_the_original_unanswered_delivery(
+    claimed, printing, capsys
+):
     """A reminder recovers immutable input without capturing it again."""
     asked = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "why B?"}
@@ -967,9 +1021,9 @@ def test_newer_prompt_supersedes_hook_policy_before_effects(
     policy = hook_transport_model.stop_continues
     newer = []
 
-    def supersede(plans, handing, *, repeated):
+    def supersede(plans, handing, **policy_input):
         newer.append(cleanup_model.prompt_turn("s1", turn))
-        return policy(plans, handing, repeated=repeated)
+        return policy(plans, handing, **policy_input)
 
     monkeypatch.setattr(hook_transport_model, "stop_continues", supersede)
     hooks_model.cmd_hook(

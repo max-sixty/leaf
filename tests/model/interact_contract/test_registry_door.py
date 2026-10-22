@@ -24,6 +24,7 @@ from interact_support import (
     queue_board_registry,
     registry_refusal,
 )
+
 from leaf.registry import contract as registry_contract
 from leaf.registry import schema as registry_schema
 from leaf.registry import validation as registry_validation

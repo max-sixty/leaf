@@ -28,7 +28,7 @@ vars:
     The user reads the proposal and the reasoning after trying the panel, and comes
     back to the playground while they read.
 
-    Read packages/playground/instructions/author.md inside the leaf skill's base
+    Read ../../packages/playground/instructions/author.md relative to the leaf skill's base
     directory. The page directory is not reachable here, so reply with the page's
     complete `<main>` element and any `<style>` it needs; stub the playground's
     preview content and the long prose with short placeholders.

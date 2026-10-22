@@ -71,6 +71,9 @@ from interact_support import (
     write_record,
     write_row,
 )
+from leaf_dev.example_data import patch_manifest
+from leaf_dev.page_fixtures import example_media
+
 from leaf import activity as activity_model
 from leaf import cli as cli_model
 from leaf import codex_adapter as codex_adapter_model
@@ -112,8 +115,6 @@ from leaf.served_state import document as served_document
 from leaf.served_state import page as served_page
 from leaf.served_state import reading as served_reading
 from leaf.served_state import service as served_service
-from leaf_dev.example_data import patch_manifest
-from leaf_dev.page_fixtures import example_media
 
 
 def browser_observation(kind, sequence=1, **fields):
@@ -301,7 +302,7 @@ def test_a_staged_write_does_not_move_the_page_reading(page_dir):
     past it, so the write moves it once, at the rename."""
     reading = served_reading.page_reading(page_dir)
 
-    (page_dir / ".0123456789abcdef.tmp").write_text("{}")
+    (page_dir / ".leaf-01234567.tmp").write_text("{}")
 
     assert served_reading.page_reading(page_dir) == reading
 
@@ -3318,8 +3319,9 @@ def test_a_reader_retires_rows_no_server_lease_holds(page_dir, tmp_path):
 
 def test_native_watcher_failure_reaches_its_owner(tmp_path, monkeypatch):
     import watchfiles.main
-    from leaf import file_changes
     from watchfiles._rust_notify import WatchfilesRustInternalError
+
+    from leaf import file_changes
 
     def exhausted(*_args, **_kwargs):
         raise WatchfilesRustInternalError(

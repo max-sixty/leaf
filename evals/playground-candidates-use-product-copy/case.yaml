@@ -24,8 +24,8 @@ vars:
     \n\nLeaf's current composer has an editable message and Send. Its thread has the\npassage being discussed,\
     \ the message, a reaction, Undo, Resolve, and Reply.\nTry smooth outward growth and a piece-by-piece\
     \ build, with slow motion and\nreplay so the user can inspect the transition.\n\nThe page uses the\
-    \ playground package; read its author instructions at\n`packages/playground/instructions/author.md`\
-    \ inside the leaf skill's base\ndirectory, the directory that holds its `references/`.\nThe first\
+    \ playground package; read its author instructions at\n`../../packages/playground/instructions/author.md`\
+    \ relative to the leaf skill's base\ndirectory, the directory that holds its `references/`.\nThe first\
     \ draft has been written. The two motions work and a browser check\nmeasured zero text movement. Its\
     \ preview markup is:\n\n<lf-playground-preview>\n  <div class=\"stage\" id=\"animation-stage\">\n\
     \    <p class=\"passage\">A comment starts small.\n      <mark>The thread needs room for context and\

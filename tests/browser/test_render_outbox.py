@@ -331,6 +331,36 @@ def test_z_names_what_it_takes_and_how_long_ago_in_a_fresh_tab(browser, serve):
     )
 
 
+def test_the_undo_rows_age_follows_the_clock_while_the_page_stays_open(browser, serve):
+    """The age Undo's row says, at its end and whole in its hover, is read where the
+    menu paints, so a page left open keeps it true: a gesture made just now reads
+    minutes old once minutes pass, with no new reading of the log."""
+    url = serve(UNDO_PAGE, comments=1)
+    [comment] = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "resolve",
+            "author": "user",
+            "parent": comment,
+            "ts": datetime.now(UTC).isoformat(),
+        },
+    )
+    page = open_page(browser, url)
+    row = panel_control(page, "command:history.undo")
+    expect(row.locator(".lf-fp-value")).to_have_text("just now")
+    # The page's clock ticks on the interval it set before the clock was installed, and
+    # a paused clock fires no later timer, so only that tick can move the age.
+    page.clock.install()
+    page.clock.pause_at(datetime.now(UTC) + timedelta(minutes=5))
+    expect(row.locator(".lf-fp-value")).to_have_text("5m ago")
+    expect(row).to_have_attribute("title", re.compile(r" · 5m ago$"))
+
+
 def test_z_puts_a_card_back_where_the_version_had_it(browser, serve):
     """A withdrawal leaves the log holding one gesture and one word taking it back,
     and the page derives the rest. What it derives here is the placement this

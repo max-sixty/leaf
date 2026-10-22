@@ -34,10 +34,12 @@ function place(press) {
     key: `command:${press.id}`,
     rank: PAGE_CONTROL_RANK.commands,
     label: () => face()?.label ?? "",
-    value: () => face()?.value ?? "",
-    // The command's description, as the reference's tooltip says it, whole where the
-    // menu's row cuts its words, such as what Undo would take back.
-    title: () => face()?.title ?? "",
+    // The row's value and its description, as the reference's tooltip says it, whole
+    // where the menu's row cuts its words, are read where the menu paints, so one that
+    // says how long ago, as Undo's does, follows the page's clock (presence.js,
+    // `clockValue`) rather than standing as the repaint frame last read it.
+    value: () => (face() ? (word(presses.get(press.id).row.touchValue) ?? "") : ""),
+    title: () => (face() ? descriptionOf(presses.get(press.id).row) : ""),
     shortcut: () => face()?.shortcut ?? [],
     // A page command says which of a menu's groups it belongs with (`menu`).
     group: press.row.menu ?? "page",
@@ -78,8 +80,6 @@ const sameStance = (a, b) => a?.label === b?.label && a?.disabled === b?.disable
 
 const same = (a, b) =>
   a?.label === b?.label &&
-  a?.title === b?.title &&
-  a?.value === b?.value &&
   a?.disabled === b?.disabled &&
   a?.shortcut.join(" ") === b?.shortcut.join(" ");
 
@@ -103,8 +103,6 @@ export function paintTouchControls() {
     const next = shown.has(id)
       ? {
           label: word(press.words),
-          value: word(press.row.touchValue) ?? "",
-          title: descriptionOf(press.row),
           shortcut: binding ? [spell(binding)] : [],
           disabled: !live(press.row),
         }

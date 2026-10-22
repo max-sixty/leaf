@@ -113,7 +113,7 @@
     "runtime/keyboard/scopes.js": "5258bcafafd33823a3e2555c4dceac09a81a4e96a12e91d48f5745d95cd14f54",
     "runtime/keyboard/status-context.js": "2c2d0083b1ce347162b347a16ac83d53a5949b190e9dee340568e435e80e399a",
     "runtime/keyboard/text-entry.js": "3e063ce61d4085e4a847cb1e712265025c698379a9332211f238399de5481ce2",
-    "runtime/keyboard/touch-controls.js": "eeecbdb125fe01ad678ef58f6fb4eb273f5aa8b0735bcb4e15c294183904017e",
+    "runtime/keyboard/touch-controls.js": "a3510e4b36998612b37638b4f74e1d0e90d11f5f70ca44726fa4244c9d11f2df",
     "runtime/landing-scroll.js": "0c936c0f9df58d4b1510cabf2c1d790c731798c783a2b1d2369a1d84fb878961",
     "runtime/layer-client.js": "49311afe99bcc622f81909942635fd4bc7e1788e89485f8bfe27dab86707fceb",
     "runtime/layer-generation.js": "9300945652bb515716c2e75d59925dd48d772d6b9140c800f7b2fb44768eb01e",

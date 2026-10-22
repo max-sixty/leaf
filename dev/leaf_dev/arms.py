@@ -45,11 +45,11 @@ from pathlib import Path
 from typing import IO, NamedTuple, Self
 
 import click
+
 from leaf.codex import APP_SERVER_ENV
 from leaf.delivery import opened_input_ids
 from leaf.harness import IDENTITY_VARIABLES, ClaudeCodeHarness, CodexHarness
 from leaf.render_gate import browser as browser_model
-
 from leaf_dev import ROOT
 from leaf_dev.browser import shell_executable
 from leaf_dev.page_fixtures import prepare_page, read_fixture, record_run_context
@@ -68,6 +68,10 @@ PAYLOAD = (
     "bin",
     "hooks",
     "skills",
+    "src",
+    "browser",
+    "packages",
+    "dist",
     "package.json",
     "leaf-distribution.json",
     "pyproject.toml",

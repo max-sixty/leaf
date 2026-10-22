@@ -6,9 +6,6 @@ from io import BytesIO
 
 import pytest
 from interact_support import append_carried_log_record, wait_for
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
 from PIL import Image, ImageChops
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -31,6 +28,9 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread, paste_image
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

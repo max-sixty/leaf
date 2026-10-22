@@ -6,10 +6,6 @@ import re
 
 import pytest
 from interact_support import wait_for
-from leaf import data as data_model
-from leaf import user_views as user_views_model
-from leaf.render_checks import wait_until_ready
-from leaf.schema import ELEMENT_ID
 from playwright.sync_api import expect
 from render_cases_interaction import SHORT_SUGGESTION, live_url
 from render_cases_navigation import data_projection_page
@@ -22,6 +18,11 @@ from render_harness import (
     wait_for_revision,
     watched,
 )
+
+from leaf import data as data_model
+from leaf import user_views as user_views_model
+from leaf.render_checks import wait_until_ready
+from leaf.schema import ELEMENT_ID
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

@@ -19,14 +19,15 @@ from browser.test_widget_quality import (
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from known_widget_findings import KNOWN, PACKAGES
+from model_folds import leaf_page
+from playwright.sync_api import expect
+from render_harness import displayed
+
 from leaf import cli as cli_model
 from leaf import layer as layer_model
 from leaf import schema as schema_model
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate.widget_quality import widget_findings
-from model_folds import leaf_page
-from playwright.sync_api import expect
-from render_harness import displayed
 
 
 @pytest.mark.parametrize("package", PACKAGES, ids=lambda package: package.name)

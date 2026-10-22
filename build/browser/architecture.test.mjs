@@ -3,7 +3,7 @@ import test from "node:test";
 import { parse } from "acorn";
 import { semanticStoreOwnershipRule } from "../../eslint.config.mjs";
 
-function reportsFor(source, filename = "skills/leaf/assets/runtime/example-store.js") {
+function reportsFor(source, filename = "browser/runtime/example-store.js") {
   const reports = [];
   const visitors = semanticStoreOwnershipRule.create({
     filename,
@@ -54,7 +54,7 @@ test("semantic publisher ownership closes every browser framework import path", 
   assert.deepEqual(
     reportsFor(
       "import {createSemanticApplication} from '/vendor/browser-runtime.js'",
-      "skills/leaf/assets/runtime/semantic-state.js",
+      "browser/runtime/semantic-state.js",
     ),
     [],
   );
@@ -81,10 +81,7 @@ test("a module behind the browser framework's facade is not an import path", () 
     "const {createSemanticApplication} = await import('../vendor/browser-runtime/application.js')",
   ]) {
     assert.deepEqual(reportsFor(source), [facade]);
-    assert.deepEqual(
-      reportsFor(source, "skills/leaf/assets/runtime/semantic-state.js"),
-      [facade],
-    );
+    assert.deepEqual(reportsFor(source, "browser/runtime/semantic-state.js"), [facade]);
   }
 });
 

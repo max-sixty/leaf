@@ -4,7 +4,6 @@ digit bindings and badges an obligation projects, and the ring around a decision
 import re
 
 import pytest
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     OBLIGATION_IN_A_CARD_PAGE,
@@ -43,6 +42,7 @@ from browser.widgets import (
     observe_live_region,
     put_menu_away,
 )
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

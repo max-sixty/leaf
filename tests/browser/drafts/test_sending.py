@@ -5,7 +5,6 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import event_log as events_model
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import SEATED_OBLIGATION_PAGE, panel_comment
@@ -38,6 +37,7 @@ from render_harness import (
 
 from browser.drafts import PANEL_SAYS, expect_panel_says
 from browser.threads import PANEL_REPLY, open_panel_thread, seed_panel_threads
+from leaf import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

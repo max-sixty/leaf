@@ -34,7 +34,7 @@ COPY worker/codex-config.toml /codex-home/config.toml
 RUN codex plugin marketplace add /app --json \
     && codex plugin add leaf@leaf --json
 RUN uv sync --frozen --no-dev --package leaf-website --compile-bytecode \
-    && /app/.venv/bin/python -m compileall -q /app/skills/leaf/scripts/leaf \
+    && /app/.venv/bin/python -m compileall -q /app/src/leaf \
     && /app/.venv/bin/leaf --version \
     && ln -s /app/.venv/bin/leaf /usr/local/bin/leaf
 

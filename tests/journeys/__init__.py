@@ -1,9 +1,10 @@
 """Whole journeys through a served page, with the helpers several of them share."""
 
 from browser.threads import open_panel_thread
-from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_harness import PANEL, panel_menu, panel_settled
+
+from leaf import event_log as events_model
 
 THREADS_VIEW = '.lf-fp-view[data-view="threads"]:not([data-leaving])'
 

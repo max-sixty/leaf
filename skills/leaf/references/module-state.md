@@ -163,8 +163,7 @@ records each datum's source and revision. A datum that knows its place in the JS
 
 ### Time readings
 
-Reading the time synchronously in a `LeafElement`'s `render()` or a `watchProjection`
-paint makes Leaf repaint it when the time's reading changes; time read after an `await`
+Reading the time synchronously in a `LeafElement`'s `render()` makes Leaf repaint it when the time's reading changes; time read after an `await`
 isn't watched. `ago(ts)` words a server timestamp as the page does everywhere: "just
 now", then "2m ago", "2h ago", "2d ago". `shortAgo(ts)` is the short form ("now", "2h").
 `quietSince(ts)` says whether work last heard at `ts` has been quiet longer than the

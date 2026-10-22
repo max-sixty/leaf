@@ -414,8 +414,10 @@ class PageTransaction:
         ended.
 
         `presence.nudge_unwatched` sends at most one such message per ending of a
-        turn (`session-lifetime.md`, Watchers), from browser-event admission or
-        from a watch giving up its lease. `ending` names the claim's turn id
+        turn (`session-lifetime.md`, Watchers), from browser-event admission, from
+        a watch giving up its lease, or from the page's server reading a turn
+        interrupted, and a watch that wakes the session marks the ending too
+        (`session.woke_after`). `ending` names the claim's turn id
         and its close stamp, or for an interrupted turn its last opening, so a
         later ending, whether a close under a new id or an interrupt after a new
         prompt renewed the same one, never matches the ending a message already

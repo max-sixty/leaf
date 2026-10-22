@@ -48,12 +48,12 @@ import {
   loadMarkdown,
   markdownReady,
   markdownWords,
-  once,
+  LeafElement,
+  noChange,
   threadActions,
   readThreads,
   readHistory,
   threadSummary,
-  watchProjection,
   whileConnected,
   excerptWords,
 } from "/runtime/widget-api.js";
@@ -156,7 +156,7 @@ function describe(row) {
 
 customElements.define(
   "lf-activity",
-  class extends HTMLElement {
+  class extends LeafElement {
     #list = null;
     #empty = null;
     #paint = null;
@@ -168,10 +168,8 @@ customElements.define(
     #closedReading = null;
     #restored = null;
     #ready = false;
-    #watching = null;
 
-    connectedCallback() {
-      if (!once(this)) return;
+    setup() {
       const drawing = initialRender(this);
       this.#storageKey = drawing.storageKey;
       this.#list = drawing.list;
@@ -195,32 +193,38 @@ customElements.define(
       this.#reading = new HeldReading(
         this,
         () => [this.#notice, this.#list, this.#empty],
-        () => this.#watching.refresh(),
+        () => this.requestUpdate(),
       );
       this.#notice.addEventListener("click", () => {
         if (this.#notice.hasAttribute("data-lf-news")) this.#opened = true;
         else this.#opened = !this.#opened;
         this.#reading.release();
-        this.#watching.refresh();
+        this.requestUpdate();
+        this.performUpdate();
       });
       const paper = matchMedia("print");
       const printing = () => {
         this.#printing = paper.matches;
-        this.#watching.refresh();
+        this.requestUpdate();
+        this.performUpdate();
       };
       whileConnected(this, (signal) => {
+        this.#printing = paper.matches;
         paper.addEventListener("change", printing, { signal });
       });
-      this.#watching = watchProjection(this, () => {
-        const history = readHistory();
-        this.#ready = history.phase === "ready";
-        this.#render(history.events);
-        // Excerpts painted from the source take the parser's words once it lands.
-        if (!markdownReady())
-          loadMarkdown().then((loaded) => {
-            if (loaded) this.#watching.refresh();
-          });
-      });
+    }
+
+    render() {
+      const history = readHistory();
+      this.#ready = history.phase === "ready";
+      this.#render(history.events);
+      // A failed parser import can retry on the next reading, including a return.
+      if (!markdownReady())
+        loadMarkdown().then((loaded) => {
+          if (loaded) this.requestUpdate();
+        });
+      // The initial producer retains the template closure and its existing Lit root.
+      return noChange;
     }
 
     #render(history) {
@@ -242,7 +246,7 @@ customElements.define(
         undone: served.undone,
       }));
       // Hold the complete drawn reading, including an undo or a changed title:
-      // those may wrap too. The watcher supplies the authoritative history.
+      // those may wrap too. The reactive reading supplies the authoritative history.
       for (const row of current) {
         if (row.widget || row.label) row.label ??= nameOf(row.widget);
       }

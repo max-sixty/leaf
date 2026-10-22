@@ -9,7 +9,7 @@
  * A command's words and liveness are read in the repaint frame (`paintTouchControls`),
  * where the register is read, rather than in a presentation's paint: a liveness
  * predicate may read the whole log, which a paint that follows what it reads must not
- * (projection-watch.js). A change in what stands is said with `pageControlsChanged`.
+ * (leaf-element.js). A change in what stands is said with `pageControlsChanged`.
  */
 import {
   PAGE_CONTROL_RANK,

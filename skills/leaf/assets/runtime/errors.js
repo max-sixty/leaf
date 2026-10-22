@@ -27,6 +27,7 @@
    A screen reader hears each error as it is raised, unless its producer already says
    it aloud, as page-status.js does a change of status. News and acknowledgements stay
    notices (notifications.js); an error is never one. */
+import { signal } from "/vendor/browser-runtime.js";
 import { announce } from "./notifications.js";
 
 /**
@@ -47,22 +48,14 @@ let raised = 0;
 // Errors raised in one task are announced together: the live region keeps only the
 // last of several words written to it at once (notifications.js, `announce`).
 let unsaid = [];
-/** @type {readonly RaisedError[]} */
-let errors = Object.freeze([]);
-const presenters = new Set();
+const errors = signal(/** @type {readonly RaisedError[]} */ (Object.freeze([])));
 
 const publish = (next) => {
-  errors = Object.freeze(next.slice(0, KEPT));
-  for (const present of presenters) present();
+  errors.value = Object.freeze(next.slice(0, KEPT));
 };
 
 /** The standing errors, newest first. */
-export const errorsReading = () => errors;
-
-// The chrome registers how it repaints when the errors change.
-export function registerErrorPresentation(present) {
-  presenters.add(present);
-}
+export const errorsReading = () => errors.value;
 
 /**
  * Tell the user something failed. `subject` is the text field it concerns, if any;
@@ -86,43 +79,48 @@ function raise(message, subject, speak, replaced) {
   if (speak) unsaid.push(message);
   publish([
     Object.freeze({ id, message, subject, at: Date.now(), passed: false, seen: false }),
-    ...errors.filter((entry) => entry.id !== replaced),
+    ...errors.peek().filter((entry) => entry.id !== replaced),
   ]);
   return Object.freeze({ id, clear: () => dismissError(id) });
 }
 
 /** The user edited past these errors where the field said them. */
 export function passErrors(ids) {
-  if (errors.some((entry) => ids.includes(entry.id) && !entry.passed))
+  if (errors.peek().some((entry) => ids.includes(entry.id) && !entry.passed))
     publish(
-      errors.map((entry) =>
-        ids.includes(entry.id) && !entry.passed
-          ? Object.freeze({ ...entry, passed: true })
-          : entry,
-      ),
+      errors
+        .peek()
+        .map((entry) =>
+          ids.includes(entry.id) && !entry.passed
+            ? Object.freeze({ ...entry, passed: true })
+            : entry,
+        ),
     );
 }
 
 /** The user came back to the words in `subject`, so every error about it is passed. */
 export function passErrorsAt(subject) {
   passErrors(
-    errors.filter((entry) => entry.subject === subject).map((entry) => entry.id),
+    errors
+      .peek()
+      .filter((entry) => entry.subject === subject)
+      .map((entry) => entry.id),
   );
 }
 
 /** The user opened the Errors list, so none it shows is news any more. */
 export function seeErrors() {
-  if (errors.some((entry) => !entry.seen))
+  if (errors.peek().some((entry) => !entry.seen))
     publish(
-      errors.map((entry) =>
-        entry.seen ? entry : Object.freeze({ ...entry, seen: true }),
-      ),
+      errors
+        .peek()
+        .map((entry) => (entry.seen ? entry : Object.freeze({ ...entry, seen: true }))),
     );
 }
 
 export function dismissError(id) {
-  if (errors.some((entry) => entry.id === id))
-    publish(errors.filter((entry) => entry.id !== id));
+  if (errors.peek().some((entry) => entry.id === id))
+    publish(errors.peek().filter((entry) => entry.id !== id));
 }
 
 /**
@@ -145,5 +143,5 @@ export function holdingError({ announce: speak = true } = {}) {
 }
 
 export function dismissErrors() {
-  if (errors.length) publish([]);
+  if (errors.peek().length) publish([]);
 }

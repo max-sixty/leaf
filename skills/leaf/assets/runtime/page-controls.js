@@ -19,9 +19,10 @@
  * does on what the gesture acts on (keyboard/AGENTS.md, "Touch routes").
  *
  * Each field may be a value or a function read when the rows are read, so a paint that
- * reads them through `watchProjection` (projection-watch.js) follows what they read.
+ * reads them follows their native signals.
  * A row whose answer moves outside the page's readings, such as a stance's way out, says
- * so with `pageControlsChanged`, and `watchPageControls` hears it. */
+ * so with `pageControlsChanged`, which publishes that invalidation as a signal. */
+import { signal } from "/vendor/browser-runtime.js";
 import { afterScript } from "./rendering.js";
 
 const EMPTY = Object.freeze([]);
@@ -54,7 +55,7 @@ const GROUPS = Object.freeze(["page", "navigate", "annotate", "about", "keys"]);
 
 const rows = new Map();
 let sequence = 0;
-const listeners = new Set();
+const revision = signal(0);
 
 const read = (value) => (typeof value === "function" ? value() : value);
 
@@ -89,6 +90,7 @@ export function registerPageControl(row) {
 
 /** The rows offered now, in rank order, each read as it reads now. */
 export function pageControls() {
+  revision.value;
   return [...rows.values()]
     .sort((a, b) => a.rank - b.rank || a.sequence - b.sequence)
     .filter((row) => read(row.offered) ?? true)
@@ -118,12 +120,5 @@ export function pageControls() {
  * heard once, when it ends. */
 export const pageControlsChanged = () => afterScript(tell);
 function tell() {
-  for (const listener of listeners) listener();
-}
-
-/** Call `listener` after each change `pageControlsChanged` reports; returns the way to
- * stop. */
-export function watchPageControls(listener) {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
+  revision.value = revision.peek() + 1;
 }

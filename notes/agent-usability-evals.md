@@ -166,16 +166,43 @@ How far to trust these numbers:
   "about 550k" sessions where the request says 312k, "holding keeps half its
   checkouts timing out" where 50% is the rollout stage and the error rate is 0.91%,
   errors that "held at 0.91% since the pause" though the buckets after it read 0.97,
-  0.95 and 0.93, and a fifth contact called the fourth. The judge is a Codex model and no
-  second judge read the pages, so the gap between Claude Code's 17 of 19 and Codex's
-  0 of 18 is unconfirmed. Codex pages restated the supplied facts more nearly word
-  for word, and Claude Code pages added derived claims; the "half of eu-west's
-  checkouts" claim appeared on 5 of 6 Claude Code dashboards.
+  0.95 and 0.93, and a fifth contact called the fourth. Codex pages restated the
+  supplied facts more nearly word for word, and Claude Code pages added derived
+  claims; the "half of eu-west's checkouts" claim appeared on 5 of 6 Claude Code
+  dashboards.
+- A second reading of the same 37 pages confirmed the gap, though not through a
+  second live judge. Opus 5.5 given the same pages and prompt reported a fact defect
+  on 6 of 19 Claude Code pages and 3 of 18 Codex pages, catching 6 of the 26 real
+  ones on Claude Code pages; it spent its turn on layout. A text-only audit that sets
+  the request beside the page's source, run once with Opus 5.5 and once with Sol
+  6.1, flagged 16 and 18 of the 19 Claude Code pages and 8 and 10 of the 18 Codex
+  pages, most Codex flags being rewordings a reader wouldn't notice. Reading every
+  flag by hand, a supplied fact was misstated on 12 of 19 Claude Code pages (41–81%)
+  and 0 of 18 Codex pages (0–18%; 1 counting a reworded recommendation), and
+  misstated or left out on 17 of 19 and 1 of 18. The Codex live judge caught 23 of
+  the 26 on Claude Code pages, and 3 of its 24 fact reports were not real (a
+  discrepancy the page had labelled, a disputable date, a phone layout), so it shows
+  no bias toward Codex pages. Five Codex dashboards also said errors "remain at
+  0.91%" after the pause, but only in a chart's screen-reader label.
 - The 3 render-reported defects match the check messages the matching turn quoted.
   A second matching turn, given each check's whole output and each tool call whole
   where the first had cut them, read 65 of the 66 defects the same way; it found that
   the author of the faint labels had changed them after a check reported them shrunk.
   The other readings were not checked by hand.
+
+A paragraph in `skills/leaf/references/page-authoring.md`, "Reading cost", now asks
+the author to keep supplied facts as given and to keep the figures a derived claim
+rests on beside it. Over two batches of Claude Code pages from the document,
+dashboard, queue and configuration requests (the second without the document,
+whose pages misstated nothing in either arm), labelled by hand without knowing the
+arm, pages misstating a supplied fact fell from 22 of 37 to 12 of 36 (−26 points,
+95% interval −45 to −3), and pages where the Codex judge reported a fact defect from
+26 of 37 to 17 of 36 (−23, −43 to −1). Configuration pages improved most (5 of 10 to
+1 of 10). Dashboards still misstate (9 of 11 to 7 of 11), mostly as "half of
+eu-west's checkouts" and errors that "sat at 0.91%" after the pause, and queues
+still count Orbis's contacts one short (8 of 11 to 4 of 10). The second batch ran
+because the first alone (−29 points, −53 to +1) did not exclude no change. Six Codex
+pages per arm showed no change.
 
 The overlap from a playground followed by a note came from `lf-ask`: its full-height
 rule gave every child the height signal, so a playground that was not the last child

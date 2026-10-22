@@ -333,6 +333,19 @@ When pages keep failing the same way, improve the guidance the author reads whil
 writing, and measure it in `evals/`, where a judge reading the page cold can stand in
 for the user.
 
+## Change a shipped instruction
+
+Put a rule where the agent reads it while making the choice the rule governs. A
+choice a workflow makes across several elements, such as how to word a decision's
+options, belongs in the reference that owns the workflow, since an agent revising a
+page re-reads that reference rather than the registry. A registry entry's
+`x-instructions` keeps what is particular to its element, such as its markup and the
+order of its parts, and points to the reference for the rest.
+
+When a fix lands in a passage that has grown into a list of instructions, rewrite the
+passage around the goals it serves instead of adding a clause
+(`/improving-instructions`, "Authoring the change").
+
 ## Score an instruction change
 
 Score an instruction change when you can't be sure how an agent will read it: a new or
@@ -361,6 +374,12 @@ pnpm run eval:view
 `evals/README.md` owns selection, arms, the case format, where results go and how far
 a pass can be trusted. Read the outputs as well as the pass counts.
 
+Run every case that covers the passage you changed, not only the case for the failure,
+since a rewrite can drop text an untouched case relies on; `metadata.tags` groups the
+cases by area, such as `asks` for decisions. Count a run only when it opened the file
+you changed (`/improving-instructions`, "Confirming each arm loaded what you edited");
+each result's `response.metadata.toolCalls` lists what it read.
+
 Use an existing case wherever one fits, extending its assertions or prompt if it nearly
 does, since every case costs time and money on each later run. Add a case only when no
 existing one can carry the behavior, and keep it small: one prompt with only the
@@ -368,7 +387,9 @@ context the behavior needs, and a few assertions. Explore freely, but keep only 
 that cover distinct failures or necessary controls. The case's leading comment records
 where it came from and whether it told the two versions apart.
 
-The prompt never states the behavior under test. Grade what the agent wrote with an
+The prompt never states the behavior under test, nor names the file that holds its
+rule: a case that sends the agent to the rule's home passes wherever the rule lives,
+so it can't show that agents find it. Grade what the agent wrote with an
 `llm-rubric` assertion whose `value` describes the passing behavior without requiring
 particular wording; use `regex` only for a literal such as a command or URL
 (`evals/README.md`, "Case format").

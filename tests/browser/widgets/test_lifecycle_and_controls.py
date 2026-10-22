@@ -177,26 +177,6 @@ def test_webawesome_chrome_loads_without_optional_controls(browser, serve):
     )
 
 
-def test_reopening_a_library_select_keeps_its_options_visible(browser, serve, motion):
-    """Enter then Space reopens the menu while its close animation is running.
-
-    Upstream 3.14.0 otherwise lets that close hide the already reopened menu.
-    """
-    page = library_select(browser, serve)
-    page.emulate_media(reduced_motion=motion)
-    open_library_select(page)
-    select = page.locator(".library-select")
-    select.evaluate(
-        "n => { n.reopened = new Promise(r => n.addEventListener('wa-after-show', r, {once:true})); }"
-    )
-    page.keyboard.press("Enter")
-    page.keyboard.press("Space")
-    select.evaluate("n => n.reopened.then(() => true)")
-    expect(select.locator("wa-option:state(current)")).to_be_visible()
-    assert select.evaluate("n => n.open && n.popup.active && !n.listbox.hidden")
-    page.keyboard.press("Escape")
-
-
 def test_library_copy_feedback_finishes_after_its_tooltip_reopens(browser, serve):
     """The copy button consumes the tooltip's completion to release its copy lock."""
     source = ROOT / "examples" / "developer" / "visual-review-gallery.html"

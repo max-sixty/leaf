@@ -52,15 +52,17 @@ export function drawToc(host) {
               </div>
               <ol>
                 ${For({
-            get each() {
-              return state().items;
-            },
-            keyed: (item) => item.key,
-            children: (item) =>
-              html`<li data-lf-depth=${() => item().depth}>
-                <a href=${() => href(item().destination)}>${() => item().label}</a>
-              </li>`,
-          })}
+                  get each() {
+                    return state().items;
+                  },
+                  keyed: (item) => item.key,
+                  children: (item) =>
+                    html`<li data-lf-depth=${() => item().depth}>
+                      <a href=${() => href(item().destination)}
+                        >${() => item().label}</a
+                      >
+                    </li>`,
+                })}
               </ol>
             </div>
           </details>

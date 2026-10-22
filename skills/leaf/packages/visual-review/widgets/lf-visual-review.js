@@ -342,43 +342,43 @@ customElements.define(
                       ref=${(node) => this.#placeQueue(node)}
                     >
                       ${For({
-                  get each() {
-                    return read().entries;
-                  },
-                  keyed: (item) => item.record.id,
-                  children: (item) =>
-                    html` <button
-                      type="button"
-                      ref=${offered("lf-vr-case-button")}
-                      aria-current=${() => (item().selected ? "true" : null)}
-                      aria-controls=${() => `${this.id}-${item().record.id}`}
-                      onClick=${() => this.#select(item().record.id)}
-                    >
-                      <span class="lf-vr-case-number" aria-hidden="true"
-                        >${() => String(item().index + 1).padStart(2, "0")}</span
-                      >
-                      <span class="lf-vr-case-label"
-                        ><span class="lf-vr-case-name"
-                          >${() => item().record.title}</span
-                        >
-                        <span
-                          class="lf-vr-case-status"
-                          data-approved=${() => String(item().approved)}
-                          >${() => (item().approved ? "Looks right" : "Unchecked")}</span
-                        >
-                      </span>
-                    </button>`,
-                })}
+                        get each() {
+                          return read().entries;
+                        },
+                        keyed: (item) => item.record.id,
+                        children: (item) =>
+                          html` <button
+                            type="button"
+                            ref=${offered("lf-vr-case-button")}
+                            aria-current=${() => (item().selected ? "true" : null)}
+                            aria-controls=${() => `${this.id}-${item().record.id}`}
+                            onClick=${() => this.#select(item().record.id)}
+                          >
+                            <span class="lf-vr-case-number" aria-hidden="true"
+                              >${() => String(item().index + 1).padStart(2, "0")}</span
+                            >
+                            <span class="lf-vr-case-label"
+                              ><span class="lf-vr-case-name"
+                                >${() => item().record.title}</span
+                              >
+                              <span
+                                class="lf-vr-case-status"
+                                data-approved=${() => String(item().approved)}
+                                >${() => (item().approved ? "Looks right" : "Unchecked")}</span
+                              >
+                            </span>
+                          </button>`,
+                      })}
                     </div>
                   </nav>
                   <div class="lf-vr-detail">
                     ${For({
-              get each() {
-                return read().entries;
-              },
-              keyed: (item) => item.record.id,
-              children: (item) => this.#case(item),
-            })}
+                      get each() {
+                        return read().entries;
+                      },
+                      keyed: (item) => item.record.id,
+                      children: (item) => this.#case(item),
+                    })}
                   </div>
                 </div>
               </div>`,
@@ -536,53 +536,56 @@ customElements.define(
               Add feedback
             </button>
             ${Show({
-            get when() {
-              return read().threads.length;
-            },
-            children: (_visible) =>
-              html` <button
-                  type="button"
-                  ref=${offered("lf-btn lf-quiet-action lf-compact-control lf-vr-open-threads")}
-                  popovertarget=${() => `${this.id}-${record().id}-threads`}
-                >
-                  ${() => read().threads.length}
-                  ${() => (read().threads.length === 1 ? "thread" : "threads")}
-                </button>
-                <div
-                  class="lf-vr-thread-list"
-                  id=${() => `${this.id}-${record().id}-threads`}
-                  popover
-                >
-                  <header class="lf-vr-inspection-heading">
-                    <h4>Threads on this case</h4>
-                    <button
-                      type="button"
-                      ref=${offered("lf-btn lf-quiet-action lf-compact-control")}
-                      popovertarget=${() => `${this.id}-${record().id}-threads`}
-                      popovertargetaction="hide"
-                    >
-                      Close
-                    </button>
-                  </header>
-                  ${For({
-                get each() {
-                  return read().threads;
-                },
-                keyed: (thread) => thread.key,
-                children: (thread) =>
-                  html` <button
+              get when() {
+                return read().threads.length;
+              },
+              children: (_visible) =>
+                html` <button
                     type="button"
-                    ref=${offered("lf-btn lf-quiet-action lf-vr-thread-link")}
-                    onClick=${(event) => {
-                    closeNativeLayer(event.currentTarget.closest("[popover]"));
-                    threadActions.open(thread().key, { part: "thread", travel: false });
-                  }}
+                    ref=${offered("lf-btn lf-quiet-action lf-compact-control lf-vr-open-threads")}
+                    popovertarget=${() => `${this.id}-${record().id}-threads`}
                   >
-                    ${() => threadSummary(thread()).topic}${() => (thread().resolved ? " · Resolved" : "")}
-                  </button>`,
-              })}
-                </div>`,
-          })}
+                    ${() => read().threads.length}
+                    ${() => (read().threads.length === 1 ? "thread" : "threads")}
+                  </button>
+                  <div
+                    class="lf-vr-thread-list"
+                    id=${() => `${this.id}-${record().id}-threads`}
+                    popover
+                  >
+                    <header class="lf-vr-inspection-heading">
+                      <h4>Threads on this case</h4>
+                      <button
+                        type="button"
+                        ref=${offered("lf-btn lf-quiet-action lf-compact-control")}
+                        popovertarget=${() => `${this.id}-${record().id}-threads`}
+                        popovertargetaction="hide"
+                      >
+                        Close
+                      </button>
+                    </header>
+                    ${For({
+                    get each() {
+                      return read().threads;
+                    },
+                    keyed: (thread) => thread.key,
+                    children: (thread) =>
+                      html` <button
+                        type="button"
+                        ref=${offered("lf-btn lf-quiet-action lf-vr-thread-link")}
+                        onClick=${(event) => {
+                      closeNativeLayer(event.currentTarget.closest("[popover]"));
+                      threadActions.open(thread().key, {
+                        part: "thread",
+                        travel: false,
+                      });
+                    }}
+                      >
+                        ${() => threadSummary(thread()).topic}${() => (thread().resolved ? " · Resolved" : "")}
+                      </button>`,
+                  })}
+                  </div>`,
+            })}
           </div>
           <button
             type="button"
@@ -594,16 +597,16 @@ customElements.define(
         <div class="lf-vr-tools">
           <div class="lf-vr-view" role="group" aria-label="Comparison view">
             ${Object.entries(MODES).map(
-            ([value, text]) =>
-              html`<button
-                type="button"
-                ref=${offered("lf-btn lf-quiet-action lf-compact-control lf-vr-mode-button")}
-                aria-pressed=${() => (entry().mode === value ? "true" : "false")}
-                onClick=${() => this.#change(entry(), "mode", value)}
-              >
-                ${text}
-              </button>`,
-          )}
+              ([value, text]) =>
+                html`<button
+                  type="button"
+                  ref=${offered("lf-btn lf-quiet-action lf-compact-control lf-vr-mode-button")}
+                  aria-pressed=${() => (entry().mode === value ? "true" : "false")}
+                  onClick=${() => this.#change(entry(), "mode", value)}
+                >
+                  ${text}
+                </button>`,
+            )}
           </div>
           <button
             type="button"

@@ -86,19 +86,19 @@ export function initialActivity(host, { offerElement, tabStore, keeps }) {
           >${() => state().live.age?.(row().ts) ?? ""}</time
         >
         ${Show({
-        get when() {
-          return row().undone;
-        },
-        children: (_visible) => html` <span class="lf-activity-undone">undone</span>`,
-      })}
+          get when() {
+            return row().undone;
+          },
+          children: (_visible) => html` <span class="lf-activity-undone">undone</span>`,
+        })}
       </p>
       ${Show({
-      get when() {
-        return row().excerpt;
-      },
-      children: (_visible) =>
-        html`<p class="lf-activity-excerpt">${() => row().excerpt}</p>`,
-    })}
+        get when() {
+          return row().excerpt;
+        },
+        children: (_visible) =>
+          html`<p class="lf-activity-excerpt">${() => row().excerpt}</p>`,
+      })}
     </li>`;
   const paint = (next = state().shown, live = state().live) => {
     flush(() => setState({ shown: next, live, rows: JSON.parse(next.shown) }));
@@ -109,9 +109,9 @@ export function initialActivity(host, { offerElement, tabStore, keeps }) {
       () =>
         html` <button
             ref=${(node) => {
-      drawing.notice = node;
-      offerElement(node, "lf-activity-news lf-thread-notice");
-    }}
+              drawing.notice = node;
+              offerElement(node, "lf-activity-news lf-thread-notice");
+            }}
             type="button"
             data-lf-carry="notice"
             aria-expanded=${() => String(state().shown.open)}
@@ -126,12 +126,12 @@ export function initialActivity(host, { offerElement, tabStore, keeps }) {
             ref=${(node) => (drawing.list = node)}
           >
             ${For({
-        get each() {
-          return state().rows;
-        },
-        keyed: (row) => row.id,
-        children: rowTemplate,
-      })}
+              get each() {
+                return state().rows;
+              },
+              keyed: (row) => row.id,
+              children: rowTemplate,
+            })}
           </ol>
           <p
             class="lf-activity-empty"

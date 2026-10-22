@@ -9,7 +9,7 @@ import { adapt, seam } from "./vendor.mjs";
 
 export const solidPath = "vendor/solid.js";
 export const initialSolidPath = "vendor/solid-initial.js";
-export const sharedSolidPath = "vendor/solid-shared.js";
+const sharedSolidPath = "vendor/solid-shared.js";
 const solidGlobal = "document.documentElement.lfInitial.solid";
 const signalExports =
   "createSignal, createMemo, createRoot, createReaction, getObserver, runWithOwner, createEffect, createTrackedEffect, createProjection, flush, untrack, For, Show, onCleanup";

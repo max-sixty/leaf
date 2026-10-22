@@ -38,8 +38,10 @@
           },
           keyed: (item) => item.key,
           children: (item) => html`<li data-lf-depth=${() => item().depth}>
-                <a href=${() => href(item().destination)}>${() => item().label}</a>
-              </li>`
+                      <a href=${() => href(item().destination)}
+                        >${() => item().label}</a
+                      >
+                    </li>`
         })}
               </ol>
             </div>

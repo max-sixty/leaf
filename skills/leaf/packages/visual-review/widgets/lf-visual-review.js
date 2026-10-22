@@ -261,8 +261,9 @@ customElements.define(
       const previous = this.#entries.get(this.#selected)?.article;
       const active = focused();
       const leaveHiddenControl = previous?.contains(active);
-      const popup = previous?.querySelector("[popover]:popover-open");
-      if (popup && isNativeLayer(popup)) closeNativeLayer(popup);
+      for (const popup of previous?.querySelectorAll("[popover]") ?? []) {
+        if (isNativeLayer(popup)) closeNativeLayer(popup);
+      }
       return preserveReadingRegions(this, () => {
         this.#selected = id;
         this.requestUpdate();
@@ -503,54 +504,58 @@ customElements.define(
             >
               Add feedback
             </button>
-            ${threads.length
-              ? html`<button
-                    type="button"
-                    ${offered(
-                      "lf-btn lf-quiet-action lf-compact-control lf-vr-open-threads",
-                    )}
-                    popovertarget=${`${this.id}-${record.id}-threads`}
-                  >
-                    ${threads.length} ${threads.length === 1 ? "thread" : "threads"}
-                  </button>
-                  <div
-                    class="lf-vr-thread-list"
-                    id=${`${this.id}-${record.id}-threads`}
-                    popover
-                  >
-                    <header class="lf-vr-inspection-heading">
-                      <h4>Threads on this case</h4>
-                      <button
-                        type="button"
-                        ${offered("lf-btn lf-quiet-action lf-compact-control")}
-                        popovertarget=${`${this.id}-${record.id}-threads`}
-                        popovertargetaction="hide"
-                      >
-                        Close
-                      </button>
-                    </header>
-                    ${repeat(
-                      threads,
-                      (thread) => thread.key,
-                      (thread) =>
-                        html`<button
+            ${
+              threads.length
+                ? html`<button
+                      type="button"
+                      ${offered(
+                        "lf-btn lf-quiet-action lf-compact-control lf-vr-open-threads",
+                      )}
+                      popovertarget=${`${this.id}-${record.id}-threads`}
+                    >
+                      ${threads.length} ${threads.length === 1 ? "thread" : "threads"}
+                    </button>
+                    <div
+                      class="lf-vr-thread-list"
+                      id=${`${this.id}-${record.id}-threads`}
+                      popover
+                    >
+                      <header class="lf-vr-inspection-heading">
+                        <h4>Threads on this case</h4>
+                        <button
                           type="button"
-                          ${offered("lf-btn lf-quiet-action lf-vr-thread-link")}
-                          @click=${(event) => {
-                            closeNativeLayer(event.currentTarget.closest("[popover]"));
-                            threadActions.open(thread.key, {
-                              part: "thread",
-                              travel: false,
-                            });
-                          }}
+                          ${offered("lf-btn lf-quiet-action lf-compact-control")}
+                          popovertarget=${`${this.id}-${record.id}-threads`}
+                          popovertargetaction="hide"
                         >
-                          ${threadSummary(thread).topic}${thread.resolved
-                            ? " · Resolved"
-                            : ""}
-                        </button>`,
-                    )}
-                  </div>`
-              : nothing}
+                          Close
+                        </button>
+                      </header>
+                      ${repeat(
+                        threads,
+                        (thread) => thread.key,
+                        (thread) =>
+                          html`<button
+                            type="button"
+                            ${offered("lf-btn lf-quiet-action lf-vr-thread-link")}
+                            @click=${(event) => {
+                              closeNativeLayer(
+                                event.currentTarget.closest("[popover]"),
+                              );
+                              threadActions.open(thread.key, {
+                                part: "thread",
+                                travel: false,
+                              });
+                            }}
+                          >
+                            ${threadSummary(thread).topic}${
+                              thread.resolved ? " · Resolved" : ""
+                            }
+                          </button>`,
+                      )}
+                    </div>`
+                : nothing
+            }
           </div>
           <button
             type="button"
@@ -598,17 +603,19 @@ customElements.define(
               </button>
             </header>
             <div class="lf-vr-inspection">
-              ${record.focus
-                ? html`<label
-                    ><input
-                      ${offered("lf-vr-full")}
-                      type="checkbox"
-                      .checked=${live(entry.full)}
-                      @change=${(event) =>
-                        this.#change(entry, "full", event.currentTarget.checked)}
-                    />Full frame</label
-                  >`
-                : nothing}
+              ${
+                record.focus
+                  ? html`<label
+                      ><input
+                        ${offered("lf-vr-full")}
+                        type="checkbox"
+                        .checked=${live(entry.full)}
+                        @change=${(event) =>
+                          this.#change(entry, "full", event.currentTarget.checked)}
+                      />Full frame</label
+                    >`
+                  : nothing
+              }
               <label
                 ><input
                   ${offered("lf-vr-actual")}
@@ -636,15 +643,19 @@ customElements.define(
                 "Before revision",
                 run.base.revision,
               )}${fact("After revision", run.candidate.revision)}
-              ${record.focus
-                ? fact(
-                    "Focus",
-                    `${record.focus.x}, ${record.focus.y} · ${record.focus.width} × ${record.focus.height} CSS px`,
-                  )
-                : nothing}
-              ${entry.difference
-                ? fact("Full-frame difference", describeDifference(entry.difference))
-                : nothing}
+              ${
+                record.focus
+                  ? fact(
+                      "Focus",
+                      `${record.focus.x}, ${record.focus.y} · ${record.focus.width} × ${record.focus.height} CSS px`,
+                    )
+                  : nothing
+              }
+              ${
+                entry.difference
+                  ? fact("Full-frame difference", describeDifference(entry.difference))
+                  : nothing
+              }
             </dl>
             <div class="lf-vr-sources">
               ${link("Open before page", destination(run.base, record.path))}${link(

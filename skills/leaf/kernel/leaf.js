@@ -9650,7 +9650,7 @@ function createObligationView({
       ({ id, label: label2, control }) => Object.freeze({
         id,
         label: label2,
-        chosen: control.getAttribute("aria-pressed") === "true" || control.getAttribute("aria-checked") === "true" || control instanceof HTMLInputElement && control.checked,
+        chosen: control.getAttribute("aria-pressed") === "true" || control.getAttribute("aria-checked") === "true" || control.localName === "input" && control.checked,
         press: () => presentedActionControl(control).click()
       })
     );

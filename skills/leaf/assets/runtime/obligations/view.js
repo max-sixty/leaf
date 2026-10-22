@@ -263,7 +263,7 @@ export function createObligationView({
         chosen:
           control.getAttribute("aria-pressed") === "true" ||
           control.getAttribute("aria-checked") === "true" ||
-          (control instanceof HTMLInputElement && control.checked),
+          (control.localName === "input" && control.checked),
         press: () => presentedActionControl(control).click(),
       }),
     );

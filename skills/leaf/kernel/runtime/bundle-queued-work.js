@@ -1585,12 +1585,7 @@ function normalizedObligations(view, widgets, document, projection, local) {
     const verb = declaration?.value;
     if (!verb || !widget) return item;
     const completed = item.status === "answered" && !(item.answer?.event && projection.pendingWithdrawals.has(item.answer.event.id));
-    const { value, present } = obligationValue(
-      widget,
-      verb,
-      completed,
-      sourceUnit
-    );
+    const { value, present } = obligationValue(widget, verb, completed, sourceUnit);
     const pendingValue = widget.entries.some(
       ({ e, unit }) => e.action === verb && (sourceUnit === void 0 || unit === sourceUnit) && !Number.isInteger(e.seq)
     ) || [...projection.pendingWithdrawals.values()].some(

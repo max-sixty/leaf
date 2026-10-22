@@ -364,12 +364,7 @@ function normalizedObligations(
     const completed =
       item.status === "answered" &&
       !(item.answer?.event && projection.pendingWithdrawals.has(item.answer.event.id));
-    const { value, present } = obligationValue(
-      widget,
-      verb,
-      completed,
-      sourceUnit,
-    );
+    const { value, present } = obligationValue(widget, verb, completed, sourceUnit);
     const pendingValue =
       (widget.entries                                ).some(
         ({ e, unit }) =>

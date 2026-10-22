@@ -272,3 +272,5 @@ export { renderRetired, textNodesUnder } from "./passages.js";
 export { isPagePaint } from "./declared-words.js";
 export { heldGrowth } from "./thread/held-news.js";
 export { PRESSABLE } from "./widget-elements.js";
+// What the page calls its agent, as On <agent> names it, for `lf-tally`'s words.
+export { agentName } from "./semantic-state.js";

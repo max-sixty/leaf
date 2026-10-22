@@ -1,12 +1,19 @@
-/* lf-tally: how many of a region's obligations are still to answer, and the way to the next.
+/* lf-tally: how many of a region's obligations are still open, whose turn each is, and the
+ * way to the next one waiting on the user.
  *
  * The region is the element `for` names, and which obligations it holds is `obligationsIn`
- * (runtime/obligations/place.js), the rule a side list's rows read too, so "7 of 8 to
- * answer" counts the obligations whose open marks the queue shows. An obligation counts as to answer
- * until the log admits its answer, including one the user discussed and left with the
- * agent; it leaves the count when the page adopts the answering reading, never on a
- * guess. Until the page's first reading is in, the tally says nothing rather than a
- * count of an inventory it has not seen.
+ * (runtime/obligations/place.js), the rule a side list's rows read too, so the total
+ * counts the obligations whose marks the queue shows. An obligation stays open until the
+ * page adopts the reading that admits its answer, never on a guess. The count splits the
+ * open ones by the server's next actor. Those waiting on the user, which Next on me walks
+ * (`readObligations().user`), are "to answer". Those whose next actor is the agent, such
+ * as one the user commented on and whose reply the agent owes (`obligations.discussed`),
+ * are counted under the agent's name, as its On list names it (`agentName`):
+ * "7 of 8 to answer", "2 of 8 to answer · 1 on Claude", "1 of 8 on Claude". So the words
+ * say something is the user's to answer exactly when Next on me is enabled. An earlier
+ * tally counted every open obligation as to answer and read "1 of 8 to answer" beside a
+ * disabled Next on me once the last one went to the agent. Until the page's first reading
+ * is in, the tally says nothing rather than a count of an inventory it has not seen.
  *
  * With `next`, a Next on me control steps to the next obligation waiting on the user inside
  * the region (`obligationActions.next`), from where the user stands, so a press keeps
@@ -17,9 +24,11 @@
  * else the region's start (queue-walk.js says how). With none waiting it is disabled.
  *
  * The structure is the registry's `x-prepaint`, which delivery writes for the first
- * paint and this module fills in. Its room holds the widest count two digits wide, so
- * the words change without moving the control beside them or what follows. */
+ * paint and this module fills in. Its room holds the widest words, both sides two digits
+ * wide and the agent called "the agent", so the words change without moving the control
+ * beside them or what follows. A longer count or agent name widens the room once. */
 import {
+  agentName,
   obligationsIn,
   declarationFor,
   elementById,
@@ -33,17 +42,21 @@ import {
   render,
 } from "/runtime/widget-api.js";
 
-// The count's words: what remains of the whole, or that nothing does.
-function words(open, total) {
+// The count's words: how many of the region's obligations wait on the user and how many
+// on the agent, of all it holds, or that none is open.
+function words(onUser, onAgent, total, agent) {
   if (!total) return "Nothing to answer";
-  if (open) return `${open} of ${total} to answer`;
+  if (onUser && onAgent)
+    return `${onUser} of ${total} to answer · ${onAgent} on ${agent}`;
+  if (onUser) return `${onUser} of ${total} to answer`;
+  if (onAgent) return `${onAgent} of ${total} on ${agent}`;
   return total === 1 ? "Answered" : `All ${total} answered`;
 }
 
 customElements.define(
   "lf-tally",
   class extends LeafElement {
-    #room = null;
+    #rooms = [];
     #words = null;
     #next = null;
 
@@ -52,8 +65,8 @@ customElements.define(
       drawing.innerHTML = declarationFor(this, "x-prepaint");
       const face = /** @type {HTMLElement} */ (drawing.content.firstElementChild);
       face.dataset.lfGen = "1";
-      this.#room = face.querySelector(".lf-tally-room");
-      this.#room.replaceChildren();
+      this.#rooms = [...face.querySelectorAll(".lf-tally-room")];
+      for (const room of this.#rooms) room.replaceChildren();
       this.#words = face.querySelector(".lf-tally-words");
       const seat = face.querySelector(".lf-tally-next");
       if (this.hasAttribute("next")) {
@@ -82,18 +95,20 @@ customElements.define(
       const ready = items.phase === "ready" && Boolean(region);
       const held = ready ? obligationsIn(region, items.all) : [];
       const open = held.filter((item) => item.status === "open").length;
+      const onUser = ready ? obligationsIn(region, items.user).length : 0;
       keeps(this, "data-lf-ready", ready ? "" : null);
       keeps(this, "data-lf-done", held.length && !open ? "" : null);
-      // Two digits are in the drawing; a longer count widens its room once.
+      // The drawing's two rooms hold the widest words, one calling the agent "the
+      // agent" and one by its name; a longer count widens them once.
       const digits = "0".repeat(Math.max(2, String(held.length).length));
-      render(words(digits, digits), this.#room);
-      render(ready ? words(open, held.length) : "", this.#words);
-      if (this.#next)
-        keeps(
-          this.#next,
-          "disabled",
-          !ready || obligationsIn(region, items.user).length === 0 ? "" : null,
-        );
+      const [generic, named] = this.#rooms;
+      render(words(digits, digits, digits, "the agent"), generic);
+      render(words(digits, digits, digits, agentName()), named);
+      render(
+        ready ? words(onUser, open - onUser, held.length, agentName()) : "",
+        this.#words,
+      );
+      if (this.#next) keeps(this.#next, "disabled", onUser ? null : "");
       return nothing;
     }
   },

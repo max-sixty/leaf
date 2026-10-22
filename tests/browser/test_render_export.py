@@ -204,6 +204,42 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     assert external == []
 
 
+def test_a_visual_review_export_keeps_its_captures_and_keyboard_inspection(
+    browser, serve, tmp_path
+):
+    """Declared data media travels with a review; inspection works without a host."""
+    serve(ROOT / "examples" / "developer" / "visual-review-gallery.html")
+    interactive = tmp_path / "visual-review.html"
+    exporting_model.cmd_export(serve.page_dir, interactive, None)
+    with browser.new_context(offline=True) as context:
+        page = context.new_page()
+        external = []
+        page.on(
+            "request",
+            lambda request: (
+                external.append(request.url)
+                if request.url.startswith(("http:", "https:"))
+                else None
+            ),
+        )
+        page.goto(interactive.as_uri(), wait_until="load")
+        expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+        review = page.locator("#visual-review-run")
+        cases = review.locator(".lf-vr-case-button")
+        cases.nth(1).click()
+        expect(cases.nth(1)).to_have_attribute("aria-current", "true")
+        active = review.locator('.lf-vr-case[aria-hidden="false"]')
+        expect(active.locator("img").first).to_have_js_property("complete", True)
+        assert active.locator("img").first.evaluate("image => image.naturalWidth > 0")
+        active.get_by_role("button", name="Slider", exact=True).click()
+        grip = active.get_by_role("scrollbar")
+        grip.press("Home")
+        expect(grip).to_have_attribute("aria-valuenow", "0")
+        grip.press("End")
+        expect(grip).to_have_attribute("aria-valuenow", "100")
+        assert external == []
+
+
 def test_interactive_export_hydrates_captured_deferred_values_offline(
     browser, serve, tmp_path
 ):

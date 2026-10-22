@@ -111,9 +111,15 @@ tests, plus 24 focused Chromium cases. Independent browser review covers delayed
 image loads and acknowledgements during editing, disconnects, command-hub
 save/discard/undo, keyboard navigation and narrow dark layouts. The matched corpus
 load has no console errors or startup layout shifts in either arm. HTML plus
-external code is 7,183,889 bytes on Lit and 7,165,849 bytes on this candidate
+external code is about 7.184 MB on Lit and 7.166 MB on this candidate
 (0.25% smaller); external JavaScript requests fall from 115 to 113. These single
 loads do not establish a timing improvement.
+
+An offline handoff check also found that the visual-review data contract omitted
+its capture resource declarations on both Lit and Solid. Declaring the before/after
+images now makes the standard snapshot/export capture them. An offline browser
+regression checks decoded captures, case selection and the keyboard slider without
+HTTP requests.
 
 ## UI library evaluation
 

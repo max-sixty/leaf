@@ -6,11 +6,10 @@
    - Each turn is one MessageView, which shows whether its version is unread and
      reports its exposure to read tracking (read.js), so a reply counts as read the same
      way in every reader.
-   - A summary the agent wrote folds the turns it covers behind its checkpoint; the
-     progress an answer folded stands behind "Show N progress messages" at that answer's
-     head; each run of progress no answer has folded stands behind its face, a dim line
-     where the run was said showing its latest step (`workingView`), opened where a
-     streaming answer's head offers it. The face of the run the agent's work in hand
+   - A summary the agent wrote folds the turns it covers behind its checkpoint.
+     Completed progress disappears when its answer shows, including a streaming answer.
+     Each pending progress run stands behind a dim line showing its latest step
+     (`workingView`). The face of the run the agent's work in hand
      speaks through is the working message; work whose words no run holds stands as a
      face of its own where those words were said (`workingPlace`). A thread reads in
      the order it was said, so a message the user sends after a face stands below it,
@@ -28,8 +27,8 @@
      retracted) and lost a selection inside them in every engine; and, before that,
      nesting such a container in a `repeat` inside the transcript's `repeat`, which
      rebuilt a gathered message's row.
-   - A fold that arrives over a message the user stands on or reads stays open, and
-     progress the reader opened stays open when a fold takes it over or splits it. */
+   - An explicit summary that arrives over a message the user stands on or reads stays
+     open. Completed progress disappears even if the reader had opened it. */
 import { setChildren } from "../dom-children.js";
 import { focusDestination, focused } from "../focus.js";
 import { html, render, nothing } from "/vendor/browser-runtime.js";
@@ -44,7 +43,7 @@ import { iconTemplate } from "../icons.js";
 // A progress run's face: its latest step, drawn as a message is, with who wrote it and
 // when at its head, but dimmed, and under a passing sheen while it is the working
 // message and the work runs, as a title being generated is. The earlier steps are
-// superseded, and the answer that folds them offers them behind its own disclosure. It
+// superseded, and the answer that completes them removes the run. It
 // is one of the transcript's children, so it stands at the conversation's inset on
 // every surface and scrolls with it. Its head wears a message head's face but not its
 // class, since it is no message: a message head's places (a margin's sticky head, held
@@ -245,9 +244,8 @@ export class Transcript {
     const summaries = new Set(
       describedRanges.flatMap((range) => (range.summary ? [range.summary.id] : [])),
     );
-    // Progress the reader opened stays open when a fold takes it over or splits it, the
-    // answer's or a summary's: every range that now covers one of its messages takes
-    // over the disclosure it stood behind, and so does the toggle the reader stood on.
+    // An explicit summary inherits the disclosure state of pending progress it
+    // gathers. Completed progress has no disclosure to inherit that state.
     const successors = new Map();
     for (const [id, covers] of this.#pendingCovers)
       successors.set(
@@ -278,30 +276,10 @@ export class Transcript {
         requiredText: "Messages kept open · current work",
       };
     });
-    // The progress no answer has folded stands hidden behind its run's face, open only
-    // where a streaming answer's disclosure opens it.
+    // Pending progress stays behind its run's face until the answer replaces it.
     const pendingRanges = rangeState.filter((range) => range.summary?.pending);
-    this.#pendingOpen = pendingRanges.some((range) => range.expanded);
-    // Automatic progress folds name the reply that completed them. Its header owns
-    // their disclosure. An answer still streaming at the thread's end holds the
-    // disclosure of the runs it will fold the same way, those the user has not spoken
-    // after (`events._ephemeral_ranges`), and they show no face, until the fold it
-    // brings takes the progress over.
-    const progressByReply = new Map();
-    const streaming = model.messages.at(-1);
     const spoke = model.messages.findLastIndex(({ author }) => author === "user");
-    const streamed = streaming?.provisional
-      ? pendingRanges.filter(
-          (range) => model.messages.indexOf(range.messages[0]) > spoke,
-        )
-      : [];
-    if (streamed.length) progressByReply.set(streaming.id, streamed);
-    for (const range of rangeState) {
-      if (range.kind !== "summary" || !range.summary.trigger || range.forced) continue;
-      const trigger = range.summary.trigger;
-      if (!progressByReply.has(trigger)) progressByReply.set(trigger, []);
-      progressByReply.get(trigger).push(range);
-    }
+    this.#pendingOpen = pendingRanges.some((range) => range.expanded);
     // The first message no fold holds, else the first.
     const lead =
       rangeState.find((range) => range.kind === "message")?.message ??
@@ -313,12 +291,9 @@ export class Transcript {
           message.key,
           (view = new MessageView(this.#messageCommands)),
         );
-      const toggle = progressByReply.has(message.id)
-        ? this.#summaryToggle(progressByReply.get(message.id), true)
-        : nothing;
       view.present(message, {
         arrived,
-        headerControls: notice && message === lead ? html`${notice}${toggle}` : toggle,
+        headerControls: notice && message === lead ? notice : nothing,
       });
       // A reply still streaming at the thread's end grows at its foot as its words
       // come, as the working message does with each step (shift_watch.js).
@@ -369,12 +344,11 @@ export class Transcript {
         feet.set(covered.at(-1), checkpoint.foot);
       }
       const hosts = at === workingAt;
-      if (range.summary?.pending && !streamed.includes(range)) {
+      if (range.summary?.pending) {
         const id = range.summary.id;
         const node = this.#faces.get(id) ?? Transcript.#face(id);
         faces.set(id, node);
-        // A run the user spoke after is one no answer will fold (`streamed`), so its
-        // face offers its earlier steps itself.
+        // A run the user spoke after offers its earlier steps until an answer comes.
         const kept =
           range.messages.length > 1 &&
           model.messages.indexOf(range.messages[0]) < spoke;
@@ -456,7 +430,7 @@ export class Transcript {
   }
 
   #paintCheckpoint({ node }, range, covered) {
-    const progress = Boolean(range.summary.trigger || range.summary.pending);
+    const progress = Boolean(range.summary.pending);
     keeps(node, "data-expanded", range.expanded);
     keepsHidden(node, progress && !range.expanded);
     keeps(node, "aria-owns", covered.map(({ id }) => id).join(" "));

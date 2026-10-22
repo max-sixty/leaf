@@ -213,9 +213,6 @@ def stage(
 
 # Where a clone keeps the change it publishes, so a retry replays the same change.
 CHANGE = "refs/leaf-assets/change"
-# Pushes a publication tries before reporting the last rejection: another publisher
-# may move the head between one attempt's fetch and its push.
-PUSH_ATTEMPTS = 3
 
 
 def replay(checkout: Checkout, branch: str) -> None:
@@ -254,7 +251,8 @@ def publish(checkout: Checkout, message: str) -> str:
     push it, then advance the pin the checkout was cloned from. Media also updates the
     README's image links. Where another writer changed or removed the same file
     since the pin, this change's copy stands, as it would have on the pin. A rejected
-    push replays the change onto the head again; an unchanged checkout keeps its pin."""
+    push leaves its change available for an explicit retry; an unchanged checkout
+    keeps its pin."""
     path, revision_key = checkout.path, checkout.revision_key
     repository, pinned = specification(ROOT, revision_key=revision_key)
     branch = run(
@@ -265,18 +263,11 @@ def publish(checkout: Checkout, message: str) -> str:
         run("git", "commit", "-m", message, cwd=path)
         run("git", "update-ref", CHANGE, "HEAD", cwd=path)
     has_change = bool(run("git", "for-each-ref", CHANGE, cwd=path))
-    for attempt in range(PUSH_ATTEMPTS):
-        if has_change:
-            replay(checkout, branch)
-        revision = run("git", "rev-parse", "HEAD", cwd=path)
-        if revision == pinned:
-            break
-        try:
-            run("git", "push", "origin", f"HEAD:refs/heads/{branch}", cwd=path)
-            break
-        except RuntimeError:
-            if attempt + 1 == PUSH_ATTEMPTS:
-                raise
+    if has_change:
+        replay(checkout, branch)
+    revision = run("git", "rev-parse", "HEAD", cwd=path)
+    if revision != pinned:
+        run("git", "push", "origin", f"HEAD:refs/heads/{branch}", cwd=path)
     lock = ROOT / LOCK
     locked = json.loads(lock.read_text(encoding="utf-8"))
     locked[revision_key] = revision

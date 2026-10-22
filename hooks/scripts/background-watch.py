@@ -13,14 +13,8 @@ the child's stderr and become nonblocking exit 1; cancellation stays quiet.
 The harness's timeout signal is forwarded to the child, allowing the watch to
 release its lease. Only Claude Code's registrations run it: Codex
 ignores asyncRewake and would wait on this long-running command.
-
-Where the plugin's `hooks_module` option is on, Leaf's hooks module keeps the
-session's watch instead (`hooks/claude-code.ts`), and this ends at once without
-starting a second watch. Claude Code states the option to every hook of the plugin
-as `CLAUDE_PLUGIN_OPTION_HOOKS_MODULE`, and to the module as its options.
 """
 
-import os
 import signal
 import subprocess
 import sys
@@ -73,6 +67,4 @@ def watch(args: list[str], payload: str) -> None:
 
 
 if __name__ == "__main__":
-    payload = sys.stdin.read()
-    if os.environ.get("CLAUDE_PLUGIN_OPTION_HOOKS_MODULE") != "true":
-        watch(sys.argv[1:], payload)
+    watch(sys.argv[1:], sys.stdin.read())

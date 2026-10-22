@@ -40,6 +40,7 @@ import {
   marks,
   nameAnchor,
   nameable,
+  projectedDatum,
   refreshAnchorView,
   resolveAnchor,
   scrollAxes,
@@ -1055,17 +1056,18 @@ var approvalBlockingObligations = readPart((root) => {
 function obligationPlace(item, items = readObligations().all) {
   if (!item || item.source.kind !== "widget")
     return { source: null, context: null, node: null };
-  const source = elementById(item.source.id);
+  const owner = elementById(item.source.id);
+  const source = item.source.unit ? projectedDatum(owner, item.source.unit) : owner;
   const context = elementById(item.prompt.target);
   const shared = items.some(
     (other) => other.id !== item.id && other.source.kind === "widget" && other.prompt.target === item.prompt.target
   );
-  return { source, context, node: shared ? source : context };
+  return { source, context, node: item.source.unit || shared ? source : context };
 }
 function obligationsIn(region, items = readObligations().all) {
   return items.filter((item) => {
     if (item.source.kind !== "widget" || item.status === "withdrawn") return false;
-    const source = elementById(item.source.id);
+    const { source } = obligationPlace(item, items);
     return Boolean(source && under(source, region));
   });
 }
@@ -2504,7 +2506,7 @@ async function installDocument(scope) {
     const prior = readApplication().document;
     applicationState.captureDocument({
       ...prior,
-      registry,
+      registry: { ...registry },
       authored: new Map([...prior.authored, ...authored]),
       descriptors: new Map([...prior.descriptors, ...descriptors.descriptors])
     });
@@ -5239,8 +5241,7 @@ var rewritten = (message) => message.base === message.id ? null : message.base;
 function messageChange(prior, message) {
   if (!prior) return "joined";
   const reworded = JSON.stringify(prior.body) !== JSON.stringify(message.body);
-  if (prior.provisional)
-    return reworded ? "joined" : message.provisional ? null : "completed";
+  if (prior.provisional) return reworded ? "joined" : null;
   if (!reworded) return null;
   return rewritten(prior) === rewritten(message) ? "grew" : "rewritten";
 }
@@ -5259,12 +5260,10 @@ function difference(was, now, { progressOpen = false } = {}) {
   };
   const changed2 = /* @__PURE__ */ new Set();
   const arrived = /* @__PURE__ */ new Set();
-  const completed = /* @__PURE__ */ new Set();
   for (const message of now.messages) {
     const prior = drawn3.get(message.key);
     const change = messageChange(prior, message);
     if (!prior || prior.provisional) arrived.add(message.id);
-    if (change === "completed") completed.add(message.id);
     if (change === "joined" && message.progress && !progressOpen && !now.resolved) {
       news.progress += 1;
       continue;
@@ -5291,14 +5290,12 @@ function difference(was, now, { progressOpen = false } = {}) {
   const after = summaries(now);
   const added = [...after].filter(([at]) => !before.has(at)).map(([, each]) => each);
   const gone = [...before].filter(([at]) => !after.has(at)).map(([, each]) => each);
-  const told = (list) => list.filter(({ trigger }) => !arrived.has(trigger)).length;
-  news.summaries = told(added) || told(gone);
-  const folding = new Set([...added, ...gone].map(({ trigger }) => trigger));
-  for (const id of completed)
-    if (folding.has(id)) {
-      news.replies += 1;
-      news.appended = true;
-    }
+  news.summaries = added.length || gone.length;
+  const visible = new Set(now.messages.map(({ id }) => id));
+  const retired = new Set(
+    now.source.msgs.filter((message) => visible.has(message.completed_by)).map(({ key }) => key)
+  );
+  const removed = was.messages.filter(({ key }) => retired.has(key));
   const keys2 = new Map(
     [...was.messages, ...now.messages].map(({ id, key }) => [id, key])
   );
@@ -5306,14 +5303,14 @@ function difference(was, now, { progressOpen = false } = {}) {
     now.messages.filter(({ id }) => arrived.has(id)).map(({ key }) => key)
   );
   const tail = was.messages.map(({ key }) => key).filter((key) => !arrivals.has(key));
-  const covered2 = new Set(
-    added.flatMap(({ covers }) => covers.map((id) => keys2.get(id))).filter(Boolean)
-  );
-  const footFold = covered2.size > 0 && !gone.length && added.every(({ trigger }) => arrived.has(trigger)) && tail.slice(-covered2.size).every((key) => covered2.has(key));
+  const footFold = removed.length > 0 && !added.length && !gone.length && tail.slice(-removed.length).every((key) => retired.has(key));
   const folds = {
-    messages: [...added, ...gone].flatMap(
-      ({ covers }) => covers.map((id) => keys2.get(id)).filter(Boolean)
-    ),
+    messages: [
+      ...removed.map(({ key }) => key),
+      ...[...added, ...gone].flatMap(
+        ({ covers }) => covers.map((id) => keys2.get(id)).filter(Boolean)
+      )
+    ],
     summaries: gone.map(({ id }) => id)
   };
   const counts = [
@@ -5326,7 +5323,7 @@ function difference(was, now, { progressOpen = false } = {}) {
     "summaries"
   ];
   if (!settled && counts.every((count) => !news[count])) return null;
-  const appendedAtEnd = news.appended && was.messages.every((message, index) => now.messages[index]?.key === message.key);
+  const appendedAtEnd = news.appended && was.messages.filter(({ key }) => !retired.has(key)).every((message, index) => now.messages[index]?.key === message.key);
   const turn = was.messages.findLastIndex(
     (message) => message.author === "user" && !message.progress
   );
@@ -5348,7 +5345,10 @@ function withheld(was, now) {
         edited,
         content_version,
         provisional,
-        reactions
+        reactions,
+        // A failed stream can remain in this held reading after leaving the server's
+        // current reading. Its progress stays hidden until that stream leaves too.
+        completed_by: message.completed_by ?? prior.completed_by
       })
     ];
   });
@@ -6303,20 +6303,8 @@ var Transcript = class _Transcript {
       };
     });
     const pendingRanges = rangeState.filter((range) => range.summary?.pending);
-    this.#pendingOpen = pendingRanges.some((range) => range.expanded);
-    const progressByReply = /* @__PURE__ */ new Map();
-    const streaming = model.messages.at(-1);
     const spoke = model.messages.findLastIndex(({ author }) => author === "user");
-    const streamed = streaming?.provisional ? pendingRanges.filter(
-      (range) => model.messages.indexOf(range.messages[0]) > spoke
-    ) : [];
-    if (streamed.length) progressByReply.set(streaming.id, streamed);
-    for (const range of rangeState) {
-      if (range.kind !== "summary" || !range.summary.trigger || range.forced) continue;
-      const trigger = range.summary.trigger;
-      if (!progressByReply.has(trigger)) progressByReply.set(trigger, []);
-      progressByReply.get(trigger).push(range);
-    }
+    this.#pendingOpen = pendingRanges.some((range) => range.expanded);
     const lead = rangeState.find((range) => range.kind === "message")?.message ?? model.messages[0];
     for (const message of model.messages) {
       let view = this.#messages.get(message.key);
@@ -6325,10 +6313,9 @@ var Transcript = class _Transcript {
           message.key,
           view = new MessageView(this.#messageCommands)
         );
-      const toggle2 = progressByReply.has(message.id) ? this.#summaryToggle(progressByReply.get(message.id), true) : nothing;
       view.present(message, {
         arrived,
-        headerControls: notice2 && message === lead ? html`${notice2}${toggle2}` : toggle2
+        headerControls: notice2 && message === lead ? notice2 : nothing
       });
       keeps(
         view.node,
@@ -6370,7 +6357,7 @@ var Transcript = class _Transcript {
         feet.set(covered2.at(-1), checkpoint.foot);
       }
       const hosts = at === workingAt;
-      if (range.summary?.pending && !streamed.includes(range)) {
+      if (range.summary?.pending) {
         const id = range.summary.id;
         const node = this.#faces.get(id) ?? _Transcript.#face(id);
         faces.set(id, node);
@@ -6439,7 +6426,7 @@ var Transcript = class _Transcript {
     return `lf-fold-${this.#id}-${id}`;
   }
   #paintCheckpoint({ node }, range, covered2) {
-    const progress = Boolean(range.summary.trigger || range.summary.pending);
+    const progress = Boolean(range.summary.pending);
     keeps(node, "data-expanded", range.expanded);
     keepsHidden(node, progress && !range.expanded);
     keeps(node, "aria-owns", covered2.map(({ id }) => id).join(" "));
@@ -6594,7 +6581,8 @@ function threadReading(thread, surface, commands2) {
   );
   const openTodos = new Set(thread.todos.map(({ id }) => id));
   const leaves = (message) => asking.has(message.id) ? "Waiting on me" : message.todo && openTodos.has(message.id) ? "To-do open" : null;
-  const messages = turns(thread).map(
+  const presented = new Set(thread.msgs.map(({ id }) => id));
+  const messages = turns(thread).filter((message) => !presented.has(message.completed_by)).map(
     (message) => messageReading(message, {
       // Where a message's widgets stand when several drawings show it (messages.js,
       // `authoredHolders`): the primary reader's, then a margin card, then a seat.

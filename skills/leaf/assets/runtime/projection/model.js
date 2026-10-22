@@ -361,9 +361,14 @@ export function foldWidgetStates(authoredSnapshots, projection) {
    undo removes its action. Python's projection.obligation_value owns the same reading;
    the shared obligation-value cases exercise both runtimes. */
 /** @param {import("../../../../../build/browser/snapshot.ts").Immutable<Pick<import("../../../../../build/browser/domain.ts").AuthoredWidget, "state" | "specs">>} widget
- * @param {string} verb @param {boolean} answered */
-export function obligationValue(widget, verb, answered) {
-  const state = widget.state[verb];
+ * @param {string} verb @param {boolean} answered @param {string | undefined} [unit] */
+export function obligationValue(widget, verb, answered, unit) {
+  const complete = widget.state[verb];
+  const state =
+    unit !== undefined && complete && "units" in complete
+      ? complete.units[unit]
+      : complete;
+  if (unit !== undefined && !state) return { value: null, present: false };
   const spec = widget.specs.get(verb);
   if (!state || !spec)
     throw new Error(`Missing obligation value definition for ${verb}`);

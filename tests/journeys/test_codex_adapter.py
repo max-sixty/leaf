@@ -304,6 +304,24 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         reason = json.loads(capsys.readouterr().out)["reason"]
         assert "1 acknowledged user update with no answer" in reason
 
+        # The blocked Stop kept this turn running. Answer the update and let the
+        # turn end before testing that a later delivery starts on the same adapter.
+        def answer(comment, text):
+            response = next(
+                key
+                for key, expected in delivery_model.current_responses(
+                    page, events_model.read_events(page)
+                ).items()
+                if expected["kind"] == "reply" and expected["parent"] == comment["id"]
+            )
+            thread_model.post_reply(page, {"responds": response}, text)
+
+        answer(comments[0], "The prototype is ready.")
+        hooks_model.cmd_hook(
+            "codex", {"hook_event_name": "Stop", "session_id": "codex-thread"}
+        )
+        assert capsys.readouterr().out == ""
+
         for text in ("second click", "third click"):
             append_carried_log_record(
                 page, {"kind": "comment", "author": "user", "text": text}
@@ -366,8 +384,8 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         assert acknowledged_through(page) == comments[-1]["seq"]
         assert codex_adapter_model.adapter_is_live("codex-thread")
 
-        for comment in comments:
-            thread_model.post_reply(page, {"responds": comment["id"]}, "received")
+        for comment in comments[1:]:
+            answer(comment, "received")
         declare_idle(page)
     finally:
         cleanup_model.end_session("codex-thread")

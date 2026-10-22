@@ -41,37 +41,6 @@ interface SnapshotReading<T> {
   subscribe(listener: (value: T, round?: object) => unknown): () => void;
 }
 
-/** Bridge an event source into native signal tracking. The source is followed only
- * while a consumer observes the value. An unobserved read still samples the source
- * now; a notification updates observers only when its answer actually changed. */
-export function outsideReading<T>(
-  read: () => T,
-  heard: (moved: (round: object) => unknown) => () => void,
-): SnapshotReading<T> {
-  let stop: (() => void) | undefined;
-  const value = signal(signalUntracked(read), {
-    watched() {
-      value.value = signalUntracked(read);
-      stop = heard(() => {
-        value.value = signalUntracked(read);
-      });
-    },
-    unwatched() {
-      stop?.();
-      stop = undefined;
-    },
-  });
-  const reading = Object.freeze({
-    read: (): T => {
-      value.value = signalUntracked(read);
-      return value.value;
-    },
-    subscribe: (listener: (value: T) => unknown) =>
-      value.subscribe((value) => signalUntracked(() => listener(value))),
-  });
-  return reading;
-}
-
 export { signalUntracked as untracked };
 
 // Publications take ownership of mutable producer values; previously secured

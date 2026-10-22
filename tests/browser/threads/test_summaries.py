@@ -1,5 +1,5 @@
-"""How a thread folds earlier messages under an agent summary or behind an answer's
-progress, and how it reveals what a fold hides."""
+"""How a thread folds earlier messages under an agent summary, reveals pending
+progress, and hides progress once an answer completes it."""
 
 import re
 
@@ -283,14 +283,11 @@ def test_previous_progress_messages_can_fold_without_summary_prose(browser, serv
 
 
 @pytest.mark.parametrize("interleaved", [True, False])
-def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
+def test_ephemeral_progress_hides_when_its_held_completion_is_revealed(
     browser, serve, interleaved
 ):
-    """The answer and its fold arrive together; originals remain a keyboard route.
-    Pending progress stands hidden behind its run's face. In the page thread the
-    answer would grow the thread's foot under the reader, so it waits behind the
-    thread's notice. The answer folds the run it follows; a run the user spoke after
-    stays where it was said, above their message."""
+    """Revealing a held answer hides all progress, including across an intervening
+    user reply. A fresh reading shows the same transcript without a disclosure."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Check the schedule.", {"section": "jobs"})
     progress = thread_model.post_reply(
@@ -329,7 +326,7 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     original = card.locator(f'.lf-msg[{identity}="{folded["id"]}"]')
     expect(original).to_be_hidden()
     runs = 2 if interleaved else 1
-    expect(card.locator(".lf-thread-checkpoint")).to_have_count(runs)
+    expect(card.locator(".lf-thread-working")).to_have_count(runs)
     expect(card.locator(".lf-thread-working").get_by_role("button")).to_have_count(0)
 
     answer = thread_model.post_reply(
@@ -338,53 +335,22 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     told(page)
     card.get_by_role("button", name="1 new reply", exact=True).click()
     expect(card.locator(f'.lf-msg[{identity}="{answer["id"]}"]')).to_be_visible()
-    checkpoint = card.locator(".lf-thread-checkpoint")
-    expect(checkpoint.locator(".lf-summary-label")).to_have_count(0)
-    expect(checkpoint.locator(".lf-summary-text")).to_have_count(0)
+    expect(card.locator(".lf-thread-checkpoint")).to_have_count(0)
+    expect(card.locator(".lf-thread-working")).to_have_count(0)
+    expect(original).to_be_hidden()
+    expect(
+        card.get_by_role("button", name=re.compile("progress message"))
+    ).to_have_count(0)
 
-    # A fresh reading starts folded, independent of the live reader's protected focus.
     fresh = open_page(browser, url)
     fresh_card = show(fresh)
-    fresh_original = fresh_card.locator(f'.lf-msg[{identity}="{folded["id"]}"]')
-    expect(fresh_original).to_be_hidden()
-    expand = fresh_card.get_by_role(
-        "button", name="Show 1 progress message", exact=True
-    )
-    answer_header = fresh_card.locator(
-        f'.lf-msg[{identity}="{answer["id"]}"] > .lf-msg-head'
-    )
-    expect(answer_header.get_by_role("button")).to_have_count(1)
-    expect(expand).to_have_attribute("aria-expanded", "false")
-    expect(fresh_card.locator(".lf-summary-label")).to_have_count(0)
-    time_box = answer_header.locator("time").bounding_box()
-    control_box = expand.bounding_box()
-    assert time_box is not None
-    header_box = answer_header.bounding_box()
-    assert header_box["x"] <= control_box["x"]
-    assert (
-        control_box["x"] + control_box["width"] <= header_box["x"] + header_box["width"]
-    )
+    expect(fresh_card.locator(f'.lf-msg[data-event="{answer["id"]}"]')).to_be_visible()
+    expect(fresh_card.locator(".lf-thread-checkpoint")).to_have_count(0)
+    expect(fresh_card.locator(".lf-thread-working")).to_have_count(0)
     if interleaved:
         expect(
             fresh_card.get_by_text("Check the mount too.", exact=True)
         ).to_be_visible()
-        expect(fresh_card.locator(".lf-thread-working")).to_have_text(
-            re.compile("Checking the camera$")
-        )
-    expand.focus()
-    fresh.keyboard.press("Shift+Tab")
-    fresh.keyboard.press("Tab")
-    expect(expand).to_be_focused()
-    assert expand.evaluate("node => node.matches(':focus-visible')")
-    fresh.keyboard.press("Enter")
-    expect(fresh_original).to_be_visible()
-    expect(fresh_original).to_contain_text(folded["text"])
-    collapse = fresh_card.get_by_role(
-        "button", name="Hide 1 progress message", exact=True
-    )
-    expect(collapse).to_be_in_viewport()
-    collapse.press("Enter")
-    expect(fresh_original).to_be_hidden()
 
 
 @pytest.mark.parametrize(("width", "touch"), [(390, False), (311, True)])
@@ -408,10 +374,14 @@ def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
             "The room is available until five. That leaves enough time for the break.",
         )
     ]
-    thread_model.post_reply(
+    append_command(
         serve.page_dir,
-        {"responds": root},
-        "Three sessions, a fifteen-minute break, and the closing discussion fit before five.",
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": root,
+            "text": "And does the room stay free after five?",
+        },
     )
     context = browser.new_context(
         viewport={"width": width, "height": 670}, has_touch=touch, is_mobile=touch
@@ -807,3 +777,31 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
         "The corrected second constraint."
     )
     expect(card.locator(f'.lf-msg[data-event="{third["id"]}"]')).to_be_visible()
+
+
+def test_expanding_a_summary_keeps_completed_progress_hidden(browser, serve):
+    """A summary can cover progress and its answer without resurrecting the progress
+    when the user asks to read the original exchange."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Check the schedule.")
+    progress = thread_model.post_reply(
+        serve.page_dir,
+        {"responds": root},
+        "Checking the camera.",
+        ephemeral=True,
+    )
+    asked = append_user_reply(serve.page_dir, root, "And the mount?")
+    summarize_thread(
+        serve.page_dir, progress["id"], asked["id"], "Checking both parts."
+    )
+    answer = thread_model.post_reply(
+        serve.page_dir, {"responds": asked["id"]}, "The schedule works."
+    )
+    page = open_page(browser, url)
+    thread = open_panel_thread(page, root)
+    expect(thread.locator(".lf-summary-text")).to_have_text("Checking both parts.")
+    thread.locator(".lf-summary-expand").click()
+    expect(thread.locator(f'.lf-msg[data-event="{answer["id"]}"]')).to_be_visible()
+    expect(thread.locator(f'.lf-msg[data-event="{asked["id"]}"]')).to_be_visible()
+    expect(thread.locator(f'.lf-msg[data-event="{progress["id"]}"]')).to_be_hidden()
+    expect(thread.locator(".lf-thread-working")).to_have_count(0)

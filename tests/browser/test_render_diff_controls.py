@@ -990,6 +990,9 @@ def test_file_tree_reads_standalone_data_without_a_diff_package(browser, serve):
     expect(row).to_be_visible()
     row.click()
     expect(row).to_have_attribute("aria-selected", "true")
+    page.keyboard.press("c")
+    expect(page.locator(".lf-composer leaf-text")).to_be_focused(timeout=1000)
+    page.keyboard.press("Escape")
     data_model.cmd_data_set(
         serve.page_dir,
         "project",
@@ -1013,15 +1016,18 @@ def test_file_tree_reads_standalone_data_without_a_diff_package(browser, serve):
     expect(tree).to_contain_text("No matching files.")
     search.fill("")
     expect(row).to_be_visible()
+    search.fill("main")
+    search.press("Escape")
+    expect(search).to_have_value("")
 
 
-@pytest.mark.shifts_unsurveyed  # The test explicitly scrubs held animation frames.
+@pytest.mark.shifts_unsurveyed  # The test explicitly scrubs native CSS transitions.
 @pytest.mark.parametrize("kind", ["call", "file"])
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_evidence_close_folds_room_but_retires_controls_immediately(
-    browser, serve, kind
+    request, serve, kind, engine
 ):
-    """Closed evidence cannot take focus while its old room folds; reversal stays continuous."""
-    from render_cases_interaction import HOLD_MOTION
+    """Closed evidence retires controls at once; every reopening reaches full size."""
     from render_cases_navigation import call_diff, call_node
 
     tag = "lf-call-diff" if kind == "call" else "lf-diff"
@@ -1059,51 +1065,77 @@ def test_evidence_close_folds_room_but_retires_controls_immediately(
                 "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-old\n+new\n"
             ),
         )
-    page = open_page(browser, url, init_script=HOLD_MOTION)
+    page = open_page(request.getfixturevalue(engine), url)
     page.emulate_media(reduced_motion="no-preference")
     details = page.locator("#evidence details").first
     summary = details.locator("summary")
     expect(summary).to_be_visible()
-    # Include a focusable body control to prove the disclosure's semantic boundary,
-    # including a package composition with interactive evidence.
-    details.evaluate(
-        "d => {const b=document.createElement('button'); b.textContent='Inspect evidence'; d.append(b)}"
-    )
-    height = lambda: details.evaluate("d=>d.getBoundingClientRect().height")
+    # Interactive evidence can be supplied by another package. Keep a positive
+    # focus control before proving that the closing boundary retires it.
+    details.evaluate("""d => {
+      const b = document.createElement('button');
+      b.textContent = 'Inspect evidence';
+      d.append(b);
+      d.style.setProperty('--lf-motion-fold', '1000000s');
+      d.classList.add('held-evidence');
+      const style = document.createElement('style');
+      style.textContent = '.held-evidence:not([open])::details-content {transition-delay:-500000s}';
+      const root = d.getRootNode();
+      (root.head || root).append(style);
+    }""")
+    inside = details.locator("button", has_text="Inspect evidence")
+    inside.focus()
+    expect(inside).to_be_focused()
+
+    def height():
+        return details.evaluate("d=>d.getBoundingClientRect().height")
+
     page.evaluate("scrollTo(0, document.documentElement.scrollHeight)")
     scroll_settled(page)
     full = height()
-    scroll_before = page.evaluate("scrollY")
+    animated = page.evaluate("""() =>
+      CSS.supports('block-size', 'calc-size(auto, size)') &&
+      CSS.supports('interactivity', 'inert')""")
     summary.click()
     expect(details).not_to_have_attribute("open")
-    assert height() == pytest.approx(full, abs=1)
-    assert page.evaluate("scrollY") == pytest.approx(scroll_before, abs=1)
-    details.evaluate(
-        "d=>{const a=__lfHeld.find(a=>a.effect.target===d && a.effect.pseudoElement==='::details-content' && a.playState!=='idle');a.currentTime=110;a.play=()=>{}}"
-    )
+    # Native details transitions live in the UA shadow tree, outside getAnimations.
+    # Stretch their real CSS timeline around its halfway point to inspect a stable
+    # intermediate frame without intercepting or rebuilding the animation.
+    page.evaluate("() => new Promise(requestAnimationFrame)")
     middle = height()
-    assert 30 < middle < full
+    assert middle < full
+    # A painted closing body is already outside focus and Tab access.
+    inside.evaluate("b => b.focus()")
+    expect(inside).not_to_be_focused()
     page.keyboard.press("Tab")
     expect(page.locator("#after")).to_be_focused()
-    # Reopening during the held fold uses the browser's own reverse interpolation.
+    # Reopening a partially folded body snaps to its ordinary complete geometry.
     summary.click()
     assert details.evaluate("d=>d.open")
-    assert height() == pytest.approx(middle, abs=2)
+    assert height() == pytest.approx(full, abs=1)
     summary.press("Enter")
     assert not details.evaluate("d=>d.open")
+    closed = height()
+    assert closed < full
+    if animated:
+        assert middle > closed + 1
     assert (
         details.evaluate(
-            "d=>__lfHeld.filter(a=>a.effect.target===d && a.effect.pseudoElement==='::details-content' && a.playState!=='idle').length"
+            "d => getComputedStyle(d, '::details-content').contentVisibility"
         )
-        == 0
+        == "hidden"
     )
     summary.press("Enter")
+    assert height() == pytest.approx(full, abs=1)
     page.emulate_media(reduced_motion="reduce")
     summary.click()
+    assert not details.evaluate("d=>d.open")
+    assert height() < full
     assert (
         details.evaluate(
-            "d=>__lfHeld.filter(a=>a.effect.target===d && a.effect.pseudoElement==='::details-content' && a.playState!=='idle').length"
+            "d => getComputedStyle(d, '::details-content').contentVisibility"
         )
-        == 0
+        == "hidden"
     )
-    assert height() < middle
+    details.evaluate("d => d.open = true")
+    assert height() == pytest.approx(full, abs=1)

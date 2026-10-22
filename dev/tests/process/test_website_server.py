@@ -84,12 +84,11 @@ class _StateReads:
         return _Read(state)
 
 
-class _FailedFirstTurn:
-    """A deployed page whose first startup fails and whose second ask succeeds."""
+class _FailedTurn:
+    """A deployed page whose turn ends with a failure receipt."""
 
-    def __init__(self, recorded: str, failure: str = "startup_failed"):
+    def __init__(self, failure: str = "startup_failed"):
         self.failure = failure
-        self.recorded = recorded
         self.request = self
         self.keyboard = self
         self.comments: list[dict] = []
@@ -170,7 +169,7 @@ class _FailedFirstTurn:
     def get(self, url: str, **kwargs) -> _Read:
         if url.endswith("/api/state"):
             return _Read(self.state())
-        return _Read({}, f"<main><h1>{self.recorded}</h1></main>")
+        raise AssertionError(f"unexpected document request: {url}")
 
     def state(self) -> dict:
         events = [
@@ -184,23 +183,8 @@ class _FailedFirstTurn:
                 "failure": self.failure,
             },
         ]
-        if len(self.comments) < 2:
-            return {
-                "active": {"revision": 1, "url": "revisions/1.html"},
-                "activity": {"kind": "away", "obligations": []},
-                "events": events,
-            }
-        events.append(
-            {
-                "kind": "reply",
-                "author": "agent",
-                "parent": "comment-2",
-                "responds": "comment-2",
-                "text": "deployment verified",
-            }
-        )
         return {
-            "active": {"revision": 2, "url": "revisions/2.html"},
+            "active": {"revision": 1, "url": "revisions/1.html"},
             "activity": {"kind": "away", "obligations": []},
             "events": events,
         }
@@ -877,16 +861,15 @@ def test_the_deploy_gate_reads_a_durable_harness_failure(page_dir, failure):
     contract = load_registry(page_dir)["$events"]["kinds"]["reply"]
     assert event_record_error(contract, replies[0]) is None
     assert journey.turn_failed(replies)
-    assert journey.startup_failed(replies) == (failure == "startup_failed")
     assert journey.deployment_answer(replies, comment["id"]) is None
     assert not owed_answers(page_dir)
     assert harness.attach(page_dir, comment["id"]) is None
 
 
 @pytest.mark.parametrize("failure", ["startup_failed", "rate_limited"])
-def test_the_deploy_gate_retries_only_startup_failures(failure):
-    """A startup retry gets a fresh attempt; a rate limit ends the pass immediately."""
-    context = _FailedFirstTurn("Deployment abcd1234 verified", failure)
+def test_the_deploy_gate_stops_on_the_first_failure(failure):
+    """Failure receipts are evidence; the verifier sends no second model task."""
+    context = _FailedTurn(failure)
     session = journey.Session(
         context,
         context,
@@ -898,18 +881,10 @@ def test_the_deploy_gate_retries_only_startup_failures(failure):
         None,
     )
     asked = journey.ask_until_answered(journey.BrowserEnd(session), "abcd1234")
-    if failure == "rate_limited":
-        assert asked.asks == 1
-        assert asked.turn.answer is None
-        assert len(context.comments) == 1
-        return
-    assert asked.asks == 2
-    assert asked.turn.answer["text"] == "deployment verified"
-    assert asked.turn.published["revision"] == 2
-    first, second = context.comments
-    assert first["attempt"] != second["attempt"]
-    # The second ask continues the page the first turn left rather than an older one.
-    assert second["revision"] == 1
+    assert asked.asks == 1
+    assert asked.turn.answer is None
+    assert asked.turn.replies[0]["failure"] == failure
+    assert len(context.comments) == 1
 
 
 def test_the_deploy_gate_reads_outcomes_independently_of_reply_wording():
@@ -997,13 +972,7 @@ def test_startup_line_distinguishes_an_unobserved_first_paint():
 def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed(
     failure,
 ):
-    """A harness failure receipt is terminal, so the wait ends where it lands.
-
-    Every other reading the wait takes is one a live turn can still be passing
-    through, which is why they run to `TURN_PATIENCE`. This one is posted from where
-    the container closes the turn, and waiting the budget out on it would spend five
-    minutes before the second ask that follows it could even start.
-    """
+    """A failure receipt ends the wait without spending a live turn's patience."""
     comment = {"id": "comment-id"}
     working = {
         "active": {"revision": 1, "url": "revisions/1.html"},

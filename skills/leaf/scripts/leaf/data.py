@@ -26,7 +26,12 @@ import re
 from pathlib import Path
 from uuid import uuid4
 
-from .data_contracts import DataError, payload_error, working_data_bindings
+from .data_contracts import (
+    DataError,
+    payload_error,
+    record_labels,
+    working_data_bindings,
+)
 from .files import file_stamp, replace_files
 from .page_memory import memo
 from .registry.schema import json_value
@@ -120,7 +125,11 @@ _UNJUDGED = object()
 
 def _value_error(source: str, contract: str, value, revision: str, registry: dict):
     declaration = json.dumps(
-        registry.get("$data", {}).get("contracts", {}).get(contract), sort_keys=True
+        [
+            registry.get("$data", {}).get("contracts", {}).get(contract),
+            sorted(record_labels(contract, registry)),
+        ],
+        sort_keys=True,
     )
     key = source, declaration, revision
     held = _JUDGED.get(key, _UNJUDGED)

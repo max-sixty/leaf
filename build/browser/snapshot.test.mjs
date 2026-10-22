@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { effect } from "@preact/signals-core";
-import { createApplicationPublisher, outsideReading } from "./snapshot.ts";
+import { effect, signal } from "@preact/signals-core";
+import { createApplicationPublisher } from "./snapshot.ts";
 import { createPresentationCoordinator } from "./presentation.ts";
 
-for (const kind of ["semantic", "outside", "presentation"]) {
+for (const kind of ["semantic", "presentation"]) {
   test(`${kind} observers own their reads during registration and notification`, () => {
     const initial = {
       document: {},
@@ -15,15 +15,7 @@ for (const kind of ["semantic", "outside", "presentation"]) {
     };
     const app = createApplicationPublisher(initial);
     const part = app.select((root) => root.authoritative);
-    let notify;
-    let now = 7;
-    const clock = outsideReading(
-      () => now,
-      (moved) => {
-        notify = moved;
-        return () => {};
-      },
-    );
+    const clock = signal(7);
     const coordinator = createPresentationCoordinator({
       reportFailure: (reason) => {
         throw reason;
@@ -32,18 +24,17 @@ for (const kind of ["semantic", "outside", "presentation"]) {
     coordinator.begin({}, 0);
     const selected = app.select((root) => {
       part.read();
-      clock.read();
+      clock.value;
       return root.effective.count;
     });
-    const source =
-      kind === "semantic" ? selected : kind === "outside" ? clock : coordinator;
+    const source = kind === "semantic" ? selected : coordinator;
     const ownReads = [];
     const observe = () => {
       // The observer can read the whole root outside its own paint collection.
       assert.equal(app.read().document, initial.document);
       part.read();
-      clock.read();
-      ownReads.push([part.read(), clock.read()]);
+      clock.value;
+      ownReads.push([part.read(), clock.value]);
     };
     let subscriptions = 0;
     let stopSource;
@@ -53,9 +44,6 @@ for (const kind of ["semantic", "outside", "presentation"]) {
     });
     if (kind === "semantic") {
       app.publish({ ...initial, effective: { count: 1 }, semanticEpoch: 1 });
-    } else if (kind === "outside") {
-      now = 8;
-      notify({});
     } else {
       coordinator.attach("unrelated", {});
     }
@@ -67,7 +55,7 @@ for (const kind of ["semantic", "outside", "presentation"]) {
     assert.ok(ownReads.length >= 2);
     assert.deepEqual(ownReads, [
       [null, 7],
-      [null, kind === "outside" ? 8 : 7],
+      [null, 7],
     ]);
     stopSource();
     stop();

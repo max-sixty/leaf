@@ -82,7 +82,7 @@
     "runtime/event-kinds.js": "8d116cd0afc5f4567c7a3867b49dc9494c0c3b1ba05752384e6a433657904fba",
     "runtime/file-api.js": "af36963ca334ff08322458ecc092f783285b566a856583e27cbeeb0390953af8",
     "runtime/floating-panel.js": "8b0953d8ae63976fea025086cf33d7dbc10146b146fc64856624900ba70ba0b6",
-    "runtime/focus.js": "e45d2a5e2dbebc82c828f6f7701d317e78cdd7f85ceeb1635c732a52cc113a2b",
+    "runtime/focus.js": "aba2faeaffe2ea30b9ec66be9125b4c4469a555df08e2e919ef5a5e22933d43e",
     "runtime/frame-visibility.js": "bf7a4b7783b0b7c55dccb59d89863ba6e5252b63c3c43331493c59e510d3c0a1",
     "runtime/geometry.js": "9595b1b2ae60f4b41822c075c3e0a4ed32409ffe71804a4f4440b9ec9437ea14",
     "runtime/held-word.js": "f058ce90e0157c999fa8d3b7a04eddcdf9e68132d83541ff0fe68c82b06f7724",

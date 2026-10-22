@@ -81,10 +81,6 @@ happen after you interrupt a turn. A session that bypasses permissions holds tha
 message for your approval unless Claude Code's `crossSessionInbound` setting is
 `"accept"`.
 
-Leaf's "Wake the session from Leaf's hooks module" option, in `/config`, moves the
-watch into the hooks module, which shows each wake in the conversation as a prompt
-from the plugin, or, after you press Escape, as a message from another session.
-
 </details>
 
 <details>

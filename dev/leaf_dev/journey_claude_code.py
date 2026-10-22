@@ -1,15 +1,13 @@
 """The `claude-code` journey: a real interactive Claude Code session with Leaf's
 plugin, and the steps a user takes at its terminal.
 
-    uv run leaf-dev journey claude-code [--hooks-module]
+    uv run leaf-dev journey claude-code
 
 The suite stands in for Claude Code around Leaf's hooks (`hooks.json`, and
 `tests/claude_code_driver.mjs` for the hooks module); this runs Claude Code itself,
 in its terminal interface, with this working tree's payload as its plugin
 (`--plugin-dir`) under a throwaway home (`arms.claude_home`) whose only content is
-the host's login. `--hooks-module` turns the plugin's `hooks_module` option on, so
-Leaf's hooks module keeps the watch in place of `hooks.json`'s background Stop hook.
-`--sandbox` runs the session's shell commands in Claude Code's sandbox, configured
+the host's login. `--sandbox` runs the session's shell commands in Claude Code's sandbox, configured
 as the README asks a sandboxed user to configure it.
 The journey is then the user: it types into the session through a tmux pane,
 presses Escape, answers its permission prompts, and sends its comments at the
@@ -48,17 +46,16 @@ Between steps every comment sent so far has exactly one reply and a pickup, the
 page's claim names the session with its turn closed, no Stop hook has continued a
 turn with input, so each turn ends on its own answer, no delivery shows in the
 terminal, and Leaf put no empty wake or notice in the conversation (`leaf_rows`).
-Escape leaves a watch running: the hooks module's, which also closes the turn, or
-the background Stop hook's from before the user's turn, which waits while a later
-turn runs.
+Escape runs no Stop hook, so it leaves the turn open, and the background Stop
+hook's watch from before the user's turn, which waits while a later turn runs,
+still running.
 
 Each step also prints whether the page nudged the session, the rows Leaf put in the
 conversation the user reads, and, with an Escape, whether it left the turn open, a
 watch running, and what the page's status read; the sample keeps the rows as each
-step's `shown`. That is the reading that compares the two watchers. The session's
-screen at the end of each step and Claude Code's debug log join the run's evidence.
-It needs tmux, and spends a few model turns on the host's Claude Code login, so CI
-does not run it.
+step's `shown`. The session's screen at the end of each step and Claude Code's
+debug log join the run's evidence. It needs tmux, and spends a few model turns on
+the host's Claude Code login, so CI does not run it.
 """
 
 import json
@@ -255,7 +252,7 @@ def runs(pid: int, command: str) -> bool:
     return False
 
 
-def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:
+def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
     """The steps after setup, as the module docstring lists them."""
     page, sent = place.page, []
     # The native records the steps so far have counted (`leaf_rows`).
@@ -333,14 +330,9 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:
         cc.escape(lambda: cc.idle() or closed(turn))
 
     def after_escape(name: str, turn: str) -> str:
-        """What an Escape that ended `turn` left. Only the hooks module closes it,
-        since Escape runs no Stop hook. The watch after Escape may already have
-        woken a turn of its own, which opens only once `turn` has closed."""
-        cc.until(
-            lambda: closed(turn) or not module,
-            f"{name}: Escape left the turn open",
-            30,
-        )
+        """What an Escape that ended `turn` left: the turn open, since Escape runs no
+        Stop hook, and a watch running, which may already have woken a turn of its
+        own."""
         cc.until(
             lambda: watched() or page_claim(page)["turn"] != turn,
             f"{name}: no watch after Escape",
@@ -465,9 +457,8 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:
 def leaf_rows(records: list[dict]) -> dict[str, int]:
     """How many rows of each kind Leaf put in the conversation the user reads, among
     native `records`: a wake (`hooks.json`'s background Stop hook, whose task
-    notification Claude Code draws as "Stop hook feedback", or the hooks module's
-    prompt), a nudge through session messaging, a notice the hooks module logged,
-    and a hook's error. A wake or nudge no hook delivery follows before the next
+    notification Claude Code draws as "Stop hook feedback"), a nudge through
+    session messaging, a notice the hooks module logged, and a hook's error. A wake or nudge no hook delivery follows before the next
     one, or the user's next prompt, also counts as `empty`: a turn opened for
     input another turn had already taken."""
     rows: dict[str, int] = {}
@@ -495,9 +486,6 @@ def leaf_rows(records: list[dict]) -> dict[str, int]:
         kind = (
             "Stop hook wake"
             if "Stop hook feedback" in text and "Leaf:" in text
-            else "prompt wake"
-            if origin == {"kind": "plugin", "name": "leaf"}
-            or text.startswith("The leaf plugin sent a message:")
             else "nudge"
             # The words of `ClaudeCodeHarness.nudge`.
             if "has new input, which arrives with this message." in text
@@ -536,9 +524,7 @@ def native_records(home: Path, session: str) -> list[dict]:
 
 
 @contextmanager
-def answering(
-    browser, *, hooks_module: bool, sandbox: bool
-) -> Iterator[tuple[User, Callable]]:
+def answering(browser, *, sandbox: bool) -> Iterator[tuple[User, Callable]]:
     """The user at the page an interactive Claude Code session serves, once it has,
     and the steps that follow."""
     require(shutil.which("tmux") is not None, "the claude-code journey drives tmux")
@@ -560,11 +546,7 @@ def answering(
 
     with isolated("claude-code", environment) as place:
         prepare(ROOT, place.state, place.page)
-        settings = {
-            "pluginConfigs": {
-                "leaf@inline": {"options": {"hooks_module": hooks_module}}
-            }
-        }
+        settings: dict[str, object] = {}
         if sandbox:
             # The README's settings ("Agent sandboxes"), which let Leaf's sandboxed
             # commands reach the bridge its hooks keep outside the sandbox.
@@ -613,7 +595,7 @@ def answering(
             )
             cc.keep("setup")
             with user_at(browser, place, cc, started) as user:
-                yield user, lambda: steps(cc, user, place, hooks_module)
+                yield user, lambda: steps(cc, user, place)
         finally:
             # A failed step's screen; once Claude Code exits there is none.
             cc.keep("end")

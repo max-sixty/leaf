@@ -26,6 +26,10 @@
     --lf-fp-quiet: color-mix(in srgb, var(--ink) 62%, transparent);
     --lf-fp-faint: color-mix(in srgb, var(--ink) 8%, transparent);
     --lf-fp-hover: color-mix(in srgb, var(--ink) 5%, transparent);
+    /* What the panel raises, its corner marks and attached pictures, meets its ground
+       (controls.css, `.lf-corner-mark`; response.css, `.lf-composer-media`). */
+    --lf-ground: var(--lf-fp-surface);
+    --lf-ring: var(--lf-fp-ring);
     --lf-fp-radius: 12px;
     --lf-fp-folded: 42px;
     /* The narrowest a mark or the leaf stands, larger under a finger. A mark with a
@@ -126,11 +130,12 @@
      reset (chrome.css) and the layer's focus band at no weight (surfaces.css). It
      stops at the components the panel holds, which bring faces of their own: what
      Leaf's reader draws in a view's outlet (controls.css), the comment box seated in
-     the row, and the attachment shelf (response.css). Unlayered and reaching them, it
-     took the fill off a chosen reaction in a thread, drew the shelf's × as a panel
-     press and stood the seated box's Send on a line under its field. */
+     the row, the attachment shelf (response.css) and the panel's corner mark
+     (controls.css). Unlayered and reaching them, it took the fill off a chosen reaction
+     in a thread, drew the shelf's × as a panel press and stood the seated box's Send on
+     a line under its field. */
   @layer lf-base {
-    @scope (.lf-floating-panel) to (.lf-fp-outlet, .lf-fp-response, .lf-composer-media) {
+    @scope (.lf-floating-panel) to (.lf-fp-outlet, .lf-fp-response, .lf-composer-media, .lf-corner-mark) {
       :is(button, input, textarea) {
         font: inherit;
         color: inherit;
@@ -313,8 +318,6 @@
      which kept the box whole but made each picture a chip. */
   :is(.lf-fp-field, .lf-fp-response) {
     anchor-name: --lf-fp-field;
-    --lf-media-ground: var(--lf-fp-surface);
-    --lf-media-ring: var(--lf-fp-ring);
   }
   /* The shelf's padding holds its pictures' shadows and removal reach (response.css),
      so the offsets take that padding back. */
@@ -707,25 +710,12 @@
       opacity: 0;
     }
   }
-  /* The pointer's fold: a small round button riding the box's top-right corner, shown
-     while the pointer is near that corner (floating-panel.js, `data-corner`). It fades
-     rather than moves, so nothing shifts under the pointer. */
+  /* The pointer's fold: a corner mark (controls.css) riding the box's top-right corner,
+     shown while the pointer is near that corner (floating-panel.js, `data-corner`). It
+     fades rather than moves, so nothing shifts under the pointer. */
   .lf-fp-minimize {
-    position: absolute;
     top: -9px;
     right: -9px;
-    display: grid;
-    place-items: center;
-    width: 20px;
-    height: 20px;
-    min-height: 0;
-    padding: 0;
-    border-radius: 50%;
-    background: var(--lf-fp-surface);
-    box-shadow:
-      0 0 0 1px var(--lf-fp-ring),
-      var(--raise-1);
-    color: var(--lf-fp-muted);
     opacity: 0;
     visibility: hidden;
     transition:
@@ -738,14 +728,6 @@
       visibility: visible;
       transition: opacity 120ms;
     }
-  }
-  .lf-fp-minimize:hover {
-    background: var(--lf-fp-surface);
-    color: var(--ink);
-  }
-  .lf-fp-minimize-icon {
-    width: 12px;
-    height: 12px;
   }
   /* What waits on the user, on the folded leaf: a count, and a dot for news. */
   .lf-fp-badge,
@@ -823,7 +805,7 @@
     display: none;
   }
   .lf-fp-crumb {
-    flex: 1;
+    flex: 1 1 auto;
     min-width: 0;
     display: flex;
     align-items: baseline;
@@ -883,19 +865,25 @@
     font-size: 12px;
   }
   .lf-fp-aux {
-    flex: none;
+    flex: 0 1 auto;
+    min-width: 0;
     display: flex;
     align-items: center;
     gap: 2px;
   }
+  /* Filter strips share the available width with the crumb and fixed actions. Their
+     tabs scroll at full size when space runs out, keeping Search and Close reachable. */
   .lf-fp-filters {
     display: flex;
+    min-width: 0;
+    overflow-x: auto;
     gap: 2px;
   }
   .lf-fp-filters button {
+    flex-shrink: 0;
     color: var(--lf-fp-muted);
     font-size: 12px;
-    min-height: 26px;
+    min-height: max(26px, var(--aim-floor));
   }
   .lf-fp-filters button:hover,
   .lf-fp-filters [aria-pressed="true"] {

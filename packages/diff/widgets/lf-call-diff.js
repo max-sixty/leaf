@@ -15,7 +15,7 @@
 import {
   announce,
   html,
-  iconElement,
+  iconTemplate,
   render,
   el,
   keeps,
@@ -105,8 +105,7 @@ function updateDisclosureControl(owner) {
   if (!button) return;
   const expand = groups.some((group) => !group.open);
   const icon = expand ? "unfold" : "fold";
-  if (button.firstElementChild?.dataset.lfIcon !== icon)
-    button.replaceChildren(iconElement(icon, "lf-action-icon"));
+  render(iconTemplate(icon, "lf-action-icon"), button);
   const label = `${expand ? "Expand" : "Collapse"} all ${groups.length} call-tree ${groups.length === 1 ? "root" : "roots"}`;
   keeps(button, "aria-label", label);
   keeps(button, "title", label);

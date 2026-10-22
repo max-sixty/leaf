@@ -78,7 +78,7 @@ export { setChildLists, setChildren, setRenderedChildren } from "./dom-children.
 export { answeredInWords, readObligations } from "./obligations/model.js";
 // The obligations a region of the page holds, by the rule every count and walk of them reads.
 export { obligationsIn } from "./obligations/place.js";
-export { comparisonChanges, watchComparison } from "./version.js";
+export { comparisonChanges } from "./version.js";
 export { answerWords } from "./obligations/answer.js";
 export {
   readWork,
@@ -179,7 +179,7 @@ export { announce, notice } from "./notifications.js";
 export { raiseError } from "./errors.js";
 export { alignText } from "./text-alignment.js";
 export { inChrome, says, wrote } from "./passages.js";
-export { ago, clockValue, quietSince, readingPaint, shortAgo } from "./presence.js";
+export { ago, clockValue, quietSince, shortAgo } from "./presence.js";
 export { shadowStage } from "./shadow-stage.js";
 export { inBaseLayer } from "./stylesheets.js";
 export { revisionLabel } from "./context.js";

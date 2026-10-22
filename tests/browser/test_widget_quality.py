@@ -21,7 +21,7 @@ from leaf.revision_delivery import json_script
 
 
 def test_package_render_check_refuses_a_failed_async_paint(tmp_path, browser):
-    """A settled example whose public reading paint rejected was not drawn."""
+    """A settled example whose asynchronous drawing rejected was not drawn."""
     package = tmp_path / "package"
     made = CliRunner().invoke(
         cli_model.cli,
@@ -29,15 +29,14 @@ def test_package_render_check_refuses_a_failed_async_paint(tmp_path, browser):
     )
     assert made.exit_code == 0, made.output
     (package / "widgets/lf-async-panel.js").write_text("""\
-import { once, readingPaint, whileConnected } from "/runtime/widget-api.js";
-customElements.define("lf-async-panel", class extends HTMLElement {
-  connectedCallback() {
-    if (!once(this)) return;
-    const paint = readingPaint(this, async () => {
-      await Promise.resolve();
+import { LeafElement, html } from "/runtime/widget-api.js";
+customElements.define("lf-async-panel", class extends LeafElement {
+  render() { return html`Instrument`; }
+  updated(changed) {
+    super.updated(changed);
+    this.drawing(Promise.resolve().then(() => {
       throw new Error("The instrument paint failed");
-    });
-    whileConnected(this, () => { paint("instrument"); });
+    }));
   }
 });
 """)

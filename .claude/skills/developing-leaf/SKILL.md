@@ -375,8 +375,8 @@ context the behavior needs, and a few assertions. Explore freely, but keep only 
 that cover distinct failures or necessary controls. The case's leading comment records
 where it came from and whether it told the two versions apart.
 
-The prompt never states the behavior under test, or names the file that holds its
-rule. Grade what the agent wrote with an
+The prompt never states the behavior under test, or sends the agent to the file that
+holds its rule; a replay may still say what the failing session had read. Grade what the agent wrote with an
 `llm-rubric` assertion whose `value` describes the passing behavior without requiring
 particular wording; use `regex` only for a literal such as a command or URL
 (`evals/README.md`, "Case format").

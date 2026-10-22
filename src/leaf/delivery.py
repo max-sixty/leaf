@@ -930,6 +930,21 @@ def pickup_receipts(
     ]
 
 
+def reminded(events: list[dict], input_id: str) -> bool:
+    """Whether a prompt has named `input_id` to the agent since its newest
+    delivery: an opened pickup without its `answer.ref`, which the prompt hook
+    records as it re-presents an update already received and still owed
+    (`hook_transport.pick_up_acknowledged`), after the newest pickup that carried
+    one."""
+    delivered = named = 0
+    for pickup in pickup_receipts(events, phase="opened", input_id=input_id):
+        if input_id in pickup.get("refs", {}):
+            delivered = pickup["seq"]
+        else:
+            named = pickup["seq"]
+    return named > delivered
+
+
 def opened_input_ids(events: list[dict]) -> set[str]:
     """The exact attention inputs recorded as entering a harness's context."""
     return {

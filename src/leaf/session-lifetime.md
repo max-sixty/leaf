@@ -288,7 +288,8 @@ binds a turn's reply.
 ### The hook
 
 The `hook` command keeps a turn from ending while the turn leaves one of this
-session's pages unwatched or a delivered update unanswered and unstarted. It is
+session's pages unwatched, or, where no watch follows the turn, a delivered update
+unanswered and unstarted. It is
 registered on SessionStart/resume, Stop, UserPromptSubmit, SessionEnd,
 Claude Code's PostToolBatch, and Codex's PostToolUse and Interrupt, and Leaf's Pi extension (`hooks/pi.ts`) calls it at the
 accepted run boundaries. An unwatched page is one whose watcher is a process of its
@@ -310,6 +311,13 @@ message alone, would show in place of the answer the turn had written. Under pla
 `--print`, a Codex task that waits with `leaf wait`, or Codex's queue adapter, whose
 turn opens on a pointer Codex shows as the user's own message, the hook hands the
 input over.
+Where a watch follows the turn (`Harness.watches_between_turns`), an obligation the
+turn leaves unanswered and unstarted ends it too, on the answer it wrote. The watch
+then wakes a turn of its own whose prompt hook names the owed answer
+(`session.left_owed`). That prompt records the reminder as an opened pickup without
+the update's `answer.ref` (`delivery.reminded`), and the watch wakes for an update
+only until a prompt has named it since its delivery, so an agent that leaves it
+unanswered is reminded once, not after every turn.
 Input that owes nothing, such as a resolve, a report or a page error, waits for the watcher and
 rides along when the turn goes on anyway. A repeated Stop (`stop_hook_active`) has
 named its obligations once and lets the turn end; only newly arrived owed input

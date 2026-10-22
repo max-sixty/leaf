@@ -885,7 +885,7 @@ def test_a_widget_reply_does_not_settle_newer_thread_input(page_dir):
 
 
 def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
-    claimed, capsys
+    claimed, printing, capsys
 ):
     page_dir = claimed
     session_model.cmd_waiting(page_dir, "")

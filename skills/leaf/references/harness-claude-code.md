@@ -31,8 +31,8 @@ so `acknowledge` is null and you run no acknowledgement command; if the turn is
 interrupted before then, the same input comes again in the next one. A delivery the hook could not
 confirm, or one too large for the context, arrives as a pointer instead: read every
 part with `leaf delivery read <id>` before working, then follow the confirmation
-instruction on the last part. An update a turn left unanswered comes back with the
-next prompt.
+instruction on the last part. An update a turn left unanswered comes back once,
+in a turn of its own, and again with the next prompt the user types.
 
 To pick up a page this session did not serve, run `leaf page claim <page>`; Leaf
 watches it from the end of the turn.

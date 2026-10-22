@@ -14,11 +14,11 @@ from interact_support import (
     model_layer,
     refused_on,
 )
+
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf.registry import contract as registry_contract
 from leaf.registry import validation as registry_validation
-
 from model.interact_contract import (
     _stateful_page_declaration,
     _value_verb,

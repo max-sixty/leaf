@@ -9,10 +9,11 @@
 // with the input it reached, and prints `{"event", "result"}` once they resolve. A
 // line `{"flush": true}` prints `{"flushed": true}` once the module has done what
 // it does without waiting on anything outside. Each redraw the module asks for
-// prints `{"band": <tree>}`, the band above the prompt as its render hook draws
-// it, each element `{tag, props, children}`; a render hook of another component is
-// raised as the event `ui.render:<component>`. The first line printed is `{"pid"}`,
-// the process the module's processes see as their parent.
+// prints `{"band": {terminal, desktop}}`, the band above the prompt as its render
+// hook draws it for each surface, each element `{tag, props, children}`; a render
+// hook of another component is raised as the event `ui.render:<component>`. The
+// first line printed is `{"pid"}`, the process the module's processes see as
+// their parent.
 import { spawn } from "node:child_process";
 import * as path from "node:path";
 import * as readline from "node:readline";
@@ -106,8 +107,8 @@ const $ = {
     log: (text, options) =>
       print(options?.to === "debug" ? { debug: text } : { diagnostic: text }),
     // Each element is its name, which `h` records with its props and children.
-    resolve: () => ({ Box: "Box", Text: "Text", Link: "Link" }),
-    // A redraw of the band, printed as `{"band": <its tree, or null>}`.
+    resolve: () => ({ Box: "Box", Text: "Text", Link: "Link", Markdown: "Markdown" }),
+    // A redraw of the band, printed as `{"band": {<surface>: <its tree, or null>}}`.
     invalidate: () => setImmediate(drawBand),
   },
   process: {
@@ -130,14 +131,16 @@ const $ = {
 const hooks = new Map();
 globalThis.h = (tag, props, ...children) => ({ tag, props, children });
 
-/** The band above the prompt, as the module's render hooks draw it over nothing. */
+/** The band above the prompt on each surface that draws one, as the module's
+ * render hooks draw it over nothing. */
 async function drawBand() {
-  const band = { component: "AbovePrompt", props: { hasSurvey: false } };
   const chain = (hooks.get("ui.render:AbovePrompt") ?? []).reduceRight(
     (next, hook) => (input) => hook($, input, next),
     async () => null,
   );
-  print({ band: await chain(band) });
+  const draw = (surface) =>
+    chain({ component: "AbovePrompt", surface, props: { hasSurvey: false } });
+  print({ band: { terminal: await draw("terminal"), desktop: await draw("desktop") } });
 }
 
 // The driver raises each event it is given, so a matcher selects nothing here but

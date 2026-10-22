@@ -24,6 +24,9 @@ from pathlib import Path
 from uuid import uuid4
 
 import click
+from PIL import Image
+from playwright.sync_api import Page
+
 from leaf.delivery import freeze_delivery, receive_held
 from leaf.harness import detached_environment, session_harness
 from leaf.hook_transport import read_plans
@@ -40,9 +43,6 @@ from leaf.state import session_record
 from leaf.thread import post_reply
 from leaf.todos import cmd_start
 from leaf.vendoring import cmd_init
-from PIL import Image
-from playwright.sync_api import Page
-
 from leaf_dev import LEAF_COMMAND
 from leaf_dev.browser import headless_shell, settle, tab
 from leaf_dev.leaf_assets import publish, stage

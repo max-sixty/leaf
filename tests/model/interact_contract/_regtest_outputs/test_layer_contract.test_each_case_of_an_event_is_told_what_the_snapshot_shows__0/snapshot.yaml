@@ -221,7 +221,7 @@
 # ----------------------
 #
 # Step 3, for one example of every case, using the clauses in
-# skills/leaf/assets/registry.json (the file `leaf page init` copies into a page).
+# browser/registry.json (the file `leaf page init` copies into a page).
 # Each top-level key below names a case and holds:
 #
 #   event:  the input: a log line's `kind`, the kind of answer its delivery

@@ -15,13 +15,14 @@ server.
 """
 
 import pytest
-from leaf.render_checks import wait_until_ready
 
 # The suite's own page primitives, so a navigation here waits on what every other
 # navigation waits on. tests/AGENTS.md, "Waits".
 from render_harness import (
     holding,
 )
+
+from leaf.render_checks import wait_until_ready
 
 # The module-scoped build and host are one shared setup, so they belong to one
 # xdist work unit rather than being rebuilt independently on every worker.

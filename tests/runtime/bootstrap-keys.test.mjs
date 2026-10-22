@@ -16,7 +16,7 @@ test("an empty bootstrap handover preserves native Space", () => {
   try {
     (0, eval)(
       readFileSync(
-        new URL("../../skills/leaf/assets/runtime/bootstrap.js", import.meta.url),
+        new URL("../../browser/runtime/bootstrap.js", import.meta.url),
         "utf8",
       ),
     );

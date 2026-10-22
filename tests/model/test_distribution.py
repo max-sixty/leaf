@@ -4,9 +4,10 @@ import shutil
 import subprocess
 
 import pytest
+from leaf_dev import ROOT
+
 from leaf import layer as layer_model
 from leaf.refusals import Refused
-from leaf_dev import ROOT
 
 
 def test_pages_vendor_the_kernel_only_while_it_matches_the_tree(tmp_path, monkeypatch):

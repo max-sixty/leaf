@@ -69,7 +69,7 @@ from leaf_dev.browser import (
 
 OUT = ROOT / ".tmp" / "stills"
 CROP_MARGIN = 32
-DIFFERENCE = ROOT / "skills" / "leaf" / "assets" / "runtime" / "image-difference.js"
+DIFFERENCE = ROOT / "browser" / "runtime" / "image-difference.js"
 # Where `differences` serves the stills and the module that compares them.
 ORIGIN = "http://stills.invalid"
 OPEN_CARD = "() => document.querySelector('.lf-margin-preview:not([hidden])')"
@@ -2073,7 +2073,7 @@ def differences(browser, out: Path):
         if path == "/image-difference.js":
             route.fulfill(path=DIFFERENCE, content_type="text/javascript")
         elif path.startswith("/vendor/"):
-            route.fulfill(path=ROOT / "skills/leaf/assets" / path.lstrip("/"))
+            route.fulfill(path=ROOT / "browser" / path.lstrip("/"))
         elif path.endswith(".png"):
             route.fulfill(path=out / path.lstrip("/"))
         else:

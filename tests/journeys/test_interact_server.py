@@ -31,6 +31,8 @@ from interact_support import (
     wait_for,
     write_record,
 )
+from leaf_dev.page_fixtures import package_selection_args
+
 from leaf import cli as cli_model
 from leaf import event_log as event_model
 from leaf import files as files_model
@@ -47,7 +49,6 @@ from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
-from leaf_dev.page_fixtures import package_selection_args
 
 
 def test_authored_recordings_are_served_with_seekable_captured_bytes(

@@ -77,8 +77,10 @@ Chrome, then the first `google-chrome`, `google-chrome-stable`, `chrome`,
 In Claude Code, a background Stop hook watches the session's pages between turns,
 and Leaf's hooks module shows a line above the prompt for each page the session
 holds: a link to the page, what is On you, its open threads with how many have
-replies you haven't read, and what the agent is doing or waiting for. Hooks modules
-are an early-access Claude Code feature.
+replies you haven't read, and what the agent is doing or waiting for. Ctrl+X Tab
+then Enter opens the first page in your browser, or, in a session you reached over
+SSH, copies its link to your clipboard. Hooks modules are an early-access Claude
+Code feature.
 
 A page messages its session when input arrives while nothing watches it, as can
 happen after you interrupt a turn. A session that bypasses permissions holds that

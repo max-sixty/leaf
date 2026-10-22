@@ -82,6 +82,17 @@ def test_only_controls_and_boxes_with_something_out_of_sight_take_a_tab_stop(
     page.keyboard.press("Escape")
 
 
+def test_a_first_keyboard_opening_wires_the_references_close_control(browser, serve):
+    """A first render's retained Close invokes the command its Escape key names."""
+    page = open_page(browser, serve(CONTROL_LABEL_PAGE))
+    page.keyboard.press("?")
+    reference = page.locator(".lf-command-reference")
+    expect(reference).to_be_visible()
+    page.get_by_role("combobox", name="Search commands").fill("comment")
+    page.get_by_role("button", name="Close the command reference").click()
+    expect(reference).to_be_hidden()
+
+
 def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     """The reference has a visible close control and keeps Tab off the page behind it.
 

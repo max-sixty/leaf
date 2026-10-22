@@ -903,7 +903,10 @@ export function createFloatingPanel({
   function clearRow() {
     const before = trail.value.at(-1);
     if (prefs().rest === "mark") prefs().setRest("row");
-    trail.value = [];
+    // Thread presentation may nominate this seat again after its own commit. An
+    // already empty route must keep its signal identity or that commit reads the
+    // new route as an input and starts the same presentation again.
+    if (trail.value.length) trail.value = [];
     setMenu(false);
     transition(before, { focus: false });
   }

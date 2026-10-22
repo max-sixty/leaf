@@ -636,8 +636,8 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     expect(search_command.locator(".lf-command-reference-description")).to_have_count(0)
     expect(select_command.locator("kbd")).to_have_text("s")
     expect(select_command.get_by_role("button")).to_have_text("Select element")
-    expect(select_command.locator(".lf-command-reference-description")).to_have_text(
-        "Choose an element by pressing it or typing its hint, then comment"
+    expect(select_command.get_by_role("button")).to_have_attribute(
+        "title", "Choose an element by pressing it or typing its hint, then comment"
     )
     page.keyboard.press("Escape")
     page.keyboard.press("/")

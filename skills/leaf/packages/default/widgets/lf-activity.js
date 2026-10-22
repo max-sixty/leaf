@@ -238,7 +238,6 @@ customElements.define(
           : null,
         id: served.id,
         ts: served.ts,
-        author: served.author,
         actor: actorOf(served),
         undone: served.undone,
       }));

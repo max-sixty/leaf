@@ -52,7 +52,9 @@ export function initialActivity(host, { offerElement, tabStore, keeps }) {
         type="button"
         data-lf-carry=${`row-${row.id}`}
         data-lf-echo
-        @click=${capabilities.openThread ? () => capabilities.openThread(row.thread) : null}
+        @click=${
+          capabilities.openThread ? () => capabilities.openThread(row.thread) : null
+        }
       >
         ${row.label}
       </button>`;
@@ -61,19 +63,15 @@ export function initialActivity(host, { offerElement, tabStore, keeps }) {
     return html`<a
       class="lf-activity-target"
       data-lf-carry=${`row-${row.id}`}
-      ${ref((node) => node && refreshTarget(node, row, keeps, capabilities.names ?? lightTarget))}
+      ${ref(
+        (node) =>
+          node && refreshTarget(node, row, keeps, capabilities.names ?? lightTarget),
+      )}
       >${row.label}</a
     >`;
   };
   const rowTemplate = (row) =>
-    html`<li
-      class="lf-activity-row"
-      data-lf-activity-author=${row.author}
-      ?data-lf-undone=${row.undone}
-    >
-      <span class="lf-activity-avatar" aria-hidden="true"
-        >${row.actor.slice(0, 1).toUpperCase()}</span
-      >
+    html`<li class="lf-activity-row" ?data-lf-undone=${row.undone}>
       <p class="lf-activity-line">
         <strong class="lf-activity-actor">${row.actor}</strong>
         <span class="lf-activity-what">${row.what}</span> ${target(row)}

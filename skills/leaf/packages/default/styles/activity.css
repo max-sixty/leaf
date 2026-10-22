@@ -1,4 +1,4 @@
-/* lf-activity: the page's history, newest first. One row is an initial, a sentence, and
+/* lf-activity: the page's history, newest first. One row is a sentence and
  * an optional excerpt under it. The sentence's place is its link or thread button, drawn
  * as a link either way because both take the user there; the time sits after it in
  * the muted voice. A row taken back keeps its place, struck through and marked undone. */
@@ -54,34 +54,11 @@
   }
 }
 :scope:is(lf-activity) .lf-activity-row {
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
-  column-gap: 10px;
   padding: 7px 0;
   border-top: 1px solid var(--rule);
 }
 :scope:is(lf-activity) .lf-activity-row:first-child {
   border-top: 0;
-}
-:scope:is(lf-activity) .lf-activity-avatar {
-  grid-row: span 2;
-  align-self: start;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font: 600 var(--t-6) var(--sans);
-  background: var(--accent-tint);
-  color: var(--accent);
-}
-:scope:is(lf-activity) [data-lf-activity-author="user"] > .lf-activity-avatar {
-  background: var(--chip);
-  color: var(--ink-2);
-}
-:scope:is(lf-activity) [data-lf-activity-author="page"] > .lf-activity-avatar {
-  background: var(--field);
-  color: var(--muted);
 }
 :scope:is(lf-activity) .lf-activity-line {
   margin: 0;
@@ -144,7 +121,6 @@
   text-decoration-color: var(--muted);
 }
 :scope:is(lf-activity) .lf-activity-excerpt {
-  grid-column: 2;
   margin: 2px 0 0;
   color: var(--muted);
   overflow: hidden;

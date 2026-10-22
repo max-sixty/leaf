@@ -307,6 +307,14 @@ def source_advice(page_dir: Path, checked: SourceCheck) -> list[Finding]:
         *(
             Finding(
                 "unreadable-data",
+                values={"source": source, "error": error},
+                severity="advice",
+            )
+            for source, error in stored_data["unreadable"].items()
+        ),
+        *(
+            Finding(
+                "unreadable-data",
                 values={"source": source, "error": reading["error"]},
                 severity="advice",
             )

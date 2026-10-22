@@ -119,7 +119,7 @@ def test_authored_module_entry_exports_through_its_one_import_map_url(tmp_path, 
         "runtime/widget-api.js": "export {};",
         "runtime/offline-delivery.js": "",
         "runtime/prepaint.js": "",
-        "vendor/lit-initial.js": "",
+        "vendor/solid-initial.js": "",
         "runtime/annotation-overlay/annotation-theme.css": "",
         "runtime/annotation-overlay/annotation-chrome.css": "",
         "runtime/annotation-overlay/annotation-marks.css": "",
@@ -166,11 +166,11 @@ def test_authored_module_entry_exports_through_its_one_import_map_url(tmp_path, 
     assert entry["attrs"]["src"] == import_map[f"leaf:{logical}"] == modules[logical]
 
 
-@pytest.mark.parametrize("early_lit", [False, True])
-def test_export_selects_one_lit_implementation_from_the_initial_document(
-    tmp_path, early_lit
+@pytest.mark.parametrize("early_solid", [False, True])
+def test_export_selects_one_solid_implementation_from_the_initial_document(
+    tmp_path, early_solid
 ):
-    """A later message producer uses normal module Lit; an early one uses the facade."""
+    """A later message producer uses normal module Solid; an early one uses the facade."""
     import base64
 
     from leaf.exporting import _module_urls
@@ -178,24 +178,24 @@ def test_export_selects_one_lit_implementation_from_the_initial_document(
     from leaf.structure import SourceDocument
 
     files = {
-        "leaf.js": 'import { render } from "/vendor/lit.js";',
-        "vendor/lit.js": 'export const render = "module implementation";',
-        "vendor/lit-shared.js": 'export const render = "shared facade";',
-        "vendor/lit-initial.js": "window.classicLit = true;",
+        "leaf.js": 'import { render } from "/vendor/solid.js";',
+        "vendor/solid.js": 'export const render = "module implementation";',
+        "vendor/solid-shared.js": 'export const render = "shared facade";',
+        "vendor/solid-initial.js": "window.classicSolid = true;",
         "vendor/producer.js": "window.producer = true;",
         "vendor/initial-dependencies.json": json.dumps(
             {
-                "/vendor/producer.js": ["/vendor/lit-initial.js"],
+                "/vendor/producer.js": ["/vendor/solid-initial.js"],
             }
         ),
-        "widgets/lf-early.js": 'import { render } from "/vendor/lit.js";',
+        "widgets/lf-early.js": 'import { render } from "/vendor/solid.js";',
     }
     for filename, source in files.items():
         target = tmp_path / filename
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(source)
     document = SourceDocument(
-        "<main><lf-early></lf-early></main>" if early_lit else "<main>Plain</main>"
+        "<main><lf-early></lf-early></main>" if early_solid else "<main>Plain</main>"
     )
     artifact = capture_artifact(
         tmp_path,
@@ -208,13 +208,13 @@ def test_export_selects_one_lit_implementation_from_the_initial_document(
         artifact, [document, SourceDocument("<lf-early></lf-early>")]
     )
     implementation = base64.b64decode(
-        modules["/vendor/lit.js"].split(",", 1)[1]
+        modules["/vendor/solid.js"].split(",", 1)[1]
     ).decode()
     assert (
         implementation
-        == files["vendor/lit-shared.js" if early_lit else "vendor/lit.js"]
+        == files["vendor/solid-shared.js" if early_solid else "vendor/solid.js"]
     )
-    assert "/vendor/lit-shared.js" not in modules
-    assert "/vendor/lit-initial.js" not in modules
+    assert "/vendor/solid-shared.js" not in modules
+    assert "/vendor/solid-initial.js" not in modules
     widget = base64.b64decode(modules["/widgets/lf-early.js"].split(",", 1)[1]).decode()
-    assert '"leaf:/vendor/lit.js"' in widget
+    assert '"leaf:/vendor/solid.js"' in widget

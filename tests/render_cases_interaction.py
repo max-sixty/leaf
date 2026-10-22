@@ -1119,7 +1119,7 @@ ACTIONS_IN_FORCE = [
     (
         "ab-visual",
         "review",
-        {"case": "status-column", "disposition": "looks-right"},
+        {"case": "status-column", "approved": True},
     ),
     (
         "ab-card",

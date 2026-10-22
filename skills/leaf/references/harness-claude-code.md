@@ -22,24 +22,24 @@ URL the user cannot reach.
 Once the page is handed over, end the turn; do not run `leaf wait`. When a turn ends,
 Claude Code runs Leaf's Stop hook in the background to watch every page this session
 holds. New input wakes the session: it opens a turn, or joins a running one at its
-next tool result. If the user turned on Leaf's hooks module, the module watches
-instead, and its wake arrives as a message from the leaf plugin.
+next tool result.
 
 Leaf's prompt hook, or the tool-batch boundary while you work, puts the whole
 delivery in your context; input that arrives after your last tool call opens the
-next turn. The delivering hook confirms receipt, so `acknowledge`
-is null and you run no acknowledgement command. A delivery the hook could not
+next turn. Leaf confirms receipt itself once your turn goes on past the delivery,
+so `acknowledge` is null and you run no acknowledgement command; if the turn is
+interrupted before then, the same input comes again in the next one. A delivery the hook could not
 confirm, or one too large for the context, arrives as a pointer instead: read every
 part with `leaf delivery read <id>` before working, then follow the confirmation
-instruction on the last part. An update a turn left unanswered comes back with the
-next prompt.
+instruction on the last part. An update a turn left unanswered comes back once,
+in a turn of its own, and again with the next prompt the user types.
 
 To pick up a page this session did not serve, run `leaf page claim <page>`; Leaf
 watches it from the end of the turn.
 
-When nothing was watching, as after a turn you interrupted, or Claude Code refused
-the hooks module's wake, or a background job sat idle for an hour, new input arrives
-with a message from Leaf naming the page. It comes through Claude
+When nothing was watching, as can happen after the user interrupts a turn or a
+background job sat idle for an hour, new input arrives with a message from Leaf
+naming the page. It comes through Claude
 Code's session messaging, so it looks as if it came from another session.
 
 ## Session list

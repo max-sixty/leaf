@@ -104,6 +104,9 @@ export function createProjectionPresentation() {
 
   // The stamp keeps the last complete coverage. It waits only for the widgets whose
   // events it covers to paint, so another widget's preparation cannot hold it back.
+  // A live revision keeps that reading until its next projection completes. Current
+  // document readiness belongs to the presentation coordinator, whose document:patch
+  // region holds the installation, rather than to erasing and restoring this count.
   const coverage = () => {
     const root = applicationState.read();
     if (
@@ -136,13 +139,6 @@ export function createProjectionPresentation() {
   };
   watchPresentation(updateCoverage);
 
-  // The coverage stamp says how much of the log the last complete projection covered,
-  // and it is what a waiter outside the page reads to know the page has caught up. A
-  // revision arriving in this document has not been projected at all yet, so the stamp
-  // describes a reading nobody can still be looking at.
-  const retireProjectionCoverage = () =>
-    document.body.removeAttribute(PAGE_PAINT_ATTRIBUTE.applied);
-
   function presentCurrent() {
     const projection = currentProjection();
     // Until the server's first state or the offline fallback arrives, the page cannot
@@ -173,9 +169,6 @@ export function createProjectionPresentation() {
   // from `presentDocument` when a caller has changed the document. Handing one caller
   // a third way in is how the obligation inventory once got left out of a document-wide
   // repaint.
-  return {
-    retireProjectionCoverage,
-  };
 }
 
 export function shallowSigs(root) {

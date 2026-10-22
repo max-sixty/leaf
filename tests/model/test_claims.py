@@ -738,8 +738,8 @@ def test_a_new_claim_cannot_borrow_the_previous_sessions_wait_lease(
 
 def test_page_claim_takes_a_page_without_watching_it(page_dir, monkeypatch):
     """A Claude Code session picks up a page another session served by claiming
-    it, and Leaf's hooks module watches the page from the end of the turn: a `leaf
-    wait` there would hold the lease that watch needs."""
+    it, and Leaf's background Stop hook watches the page from the end of the turn: a
+    `leaf wait` there would hold the lease that watch needs."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s7")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     record_claim(page_dir, id="s2")

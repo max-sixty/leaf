@@ -2491,6 +2491,53 @@ def test_an_unread_codex_hook_pointer_falls_back_to_the_idle_queue(
         leases_model.release_lease(waiter)
 
 
+@pytest.mark.parametrize("wake", ["ok", "failed", "terminal"])
+def test_desktop_wake_follows_queue_acceptance_without_resending(
+    page_dir, codex_loop, monkeypatch, capsys, wake
+):
+    codex_loop(page_dir)
+    cleanup_model.prompt_turn("codex-thread", "user-turn")
+    cleanup_model.open_session_turn("codex-thread", "user-turn")
+    append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Wake the chat"}
+    )
+    codex_model.offer_hook_delivery(
+        "codex-thread", cleanup_model.session_record("codex-thread")
+    )
+    [(path, _)] = codex_records("codex-thread")
+    cleanup_model.close_session_turn("codex-thread", "user-turn")
+    queued, opened = [], []
+    monkeypatch.setattr(
+        codex_adapter_model, "queue_delivery", lambda *args: queued.append(args)
+    )
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setenv(
+        "CODEX_INTERNAL_ORIGINATOR_OVERRIDE",
+        "codex_exec" if wake == "terminal" else "Codex Desktop",
+    )
+
+    def open_app(arguments, **kwargs):
+        # A failed wake must leave the accepted delivery intact, so the next
+        # adapter pass cannot send its pointer a second time.
+        record = files_model.read_json(path.parent / "history" / path.name)
+        assert record["state"] == "queued"
+        opened.append(arguments)
+        if wake == "failed":
+            raise subprocess.CalledProcessError(1, arguments)
+        return subprocess.CompletedProcess(arguments, 0)
+
+    monkeypatch.setattr(subprocess, "run", open_app)
+    assert codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+    assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+    assert len(queued) == 1
+    assert opened == (
+        []
+        if wake == "terminal"
+        else [["open", "-g", "codex://threads/wake/codex-thread"]]
+    )
+    assert ("input remains queued" in capsys.readouterr().err) == (wake == "failed")
+
+
 def test_codex_serializes_later_input_behind_the_offered_delivery(
     codex_claimed_page, monkeypatch
 ):
@@ -3474,9 +3521,9 @@ def test_a_codex_stop_cannot_adopt_a_prompt_renewed_during_its_policy(
     policy = hook_transport_model.stop_continues
     newer = []
 
-    def supersede(plans, handing, *, repeated):
+    def supersede(plans, handing, **policy_input):
         newer.append(cleanup_model.prompt_turn("codex-thread", "provider"))
-        return policy(plans, handing, repeated=repeated)
+        return policy(plans, handing, **policy_input)
 
     monkeypatch.setattr(hook_transport_model, "stop_continues", supersede)
     try:

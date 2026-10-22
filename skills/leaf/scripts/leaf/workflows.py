@@ -23,7 +23,7 @@ settled, and emits two readings of them, each the one home of its facts:
   an owed update holds the agent's turn.
 
 - A **workflow** for each unsettled update: its delivery. `stage` says how far it has
-  reached the agent (Sent, Queued, Picked up, Working, Replying), which the margin, the
+  reached the agent (Sent, Queued, Delivered, Working, Replying), which the margin, the
   Page Map and a thread's receipt show. `obligation` names the record it serves, or is
   null for an update that owes nothing. `receipt_refs` maps each claim the update was
   delivered under to the newest `answer.ref` a pickup recorded for it
@@ -198,7 +198,9 @@ def page_action_unsettled(
     """
     widget, unit, _verb = coordinate
     byid = page.document.by_id
-    if unit not in byid:
+    if widget not in byid or (
+        (spec.get("record") or spec.get("creates")) and unit not in byid
+    ):
         return False
     document = (byid, page.spoken)
     reading = recorded_state(
@@ -259,7 +261,7 @@ def handed_over(
 
     This is one interaction-scoped projection over the document and log: append
     means Sent, queue acceptance means Queued, entry into an exact agent turn
-    means Picked up, and a `start` naming the update means Working
+    means Delivered (stage `picked_up`), and a `start` naming the update means Working
     (`todos.item_starts`). Replies
     and authored state settle the source update, so the workflow disappears instead
     of becoming a second outcome surface; a failed response instead keeps an
@@ -550,7 +552,7 @@ def handed_over(
         widget_messages(thread_reading.structure) if thread_reading is not None else {}
     )
     obligation_by_source = {
-        item["source"]["id"]: item
+        (item["source"]["id"], item["source"].get("unit")): item
         for item in items["all"]
         if item["source"]["kind"] == "widget"
     }
@@ -569,7 +571,9 @@ def handed_over(
         for coordinate, (source, spec) in projection.actions.items():
             if source["author"] != "user":
                 continue
-            item = obligation_by_source.get(source["widget"])
+            item = obligation_by_source.get(
+                (source["widget"], coordinate[1])
+            ) or obligation_by_source.get((source["widget"], None))
             if item is not None and item["status"] == "open":
                 continue
             owed = item is not None and item["status"] == "answered"

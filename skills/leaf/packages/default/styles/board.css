@@ -303,7 +303,7 @@
    clips a pixel outside the last column's cards, so the ring's right run and both
    corners on that side fell outside the clip while the grip itself stayed whole. An
    inset ring cannot leave the box it names, at any scroll position. */
-:scope:is(lf-card) .lf-grip[data-lf-focus] {
+:scope:is(lf-card) .lf-grip[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
   color: var(--ink-2);

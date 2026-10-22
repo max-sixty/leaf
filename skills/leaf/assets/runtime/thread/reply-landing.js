@@ -84,16 +84,16 @@ const landingTarget = (held, control) => {
   return { node: control };
 };
 
-// The turn a user comes back to a thread for: its latest message, or the summary
-// standing for earlier ones.
 // Whether the user has scrolled a reply row away: none of it in front of them
 // (geometry.js, `seenRect`).
 const onScreen = (node) => seenRect(node, new Map()) !== null;
 
+// The turn a user comes back to a thread for: its latest message shown, or the summary
+// standing for earlier ones.
 const latestTurn = (transcript) =>
-  [...transcript.querySelectorAll(":scope > :is(.lf-msg, .lf-thread-checkpoint)")].at(
-    -1,
-  ) ?? null;
+  [
+    ...transcript.querySelectorAll(":scope > :is(.lf-msg, .lf-thread-checkpoint)"),
+  ].findLast((node) => node.checkVisibility()) ?? null;
 
 // A separate transcript opened for reading shows its latest turn: the transcript's end,
 // or that turn's head where it alone is taller than the transcript, as a long thread

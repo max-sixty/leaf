@@ -179,23 +179,20 @@ def test_every_carrying_hook_has_time_to_confirm_what_it_hands_over():
                 if not hook.get("asyncRewake")
             ]
             assert hook["timeout"] >= floor, (harness, event)
-    # The modules that run the hook themselves bound it with their own copy.
-    for module in ("pi.ts", "claude-code.ts"):
-        [timeout] = re.findall(
-            r"const HOOK_TIMEOUT_MS = ([\d_]+);?$",
-            (PLUGIN_ROOT / "hooks" / module).read_text(),
-            re.MULTILINE,
-        )
-        assert int(timeout.replace("_", "")) >= floor * 1000, module
+    # Pi's extension runs the hook itself and bounds it with its own copy.
+    [timeout] = re.findall(
+        r"const HOOK_TIMEOUT_MS = ([\d_]+);?$",
+        (PLUGIN_ROOT / "hooks" / "pi.ts").read_text(),
+        re.MULTILINE,
+    )
+    assert int(timeout.replace("_", "")) >= floor * 1000
 
 
 def test_the_registered_watch_hook_wakes_the_session(claimed, tmp_path):
     """Claude Code's background Stop registration runs the watch, and its exit 2
-    with stderr is the whole wake. It stands down, starting no watch, where the
-    plugin's `hooks_module` option has the hooks module keep the watch. Driven the
-    way Claude Code drives it, through a shell with the payload on stdin and the
-    plugin's options in the environment, because the wiring (the watch
-    supervisor, uv, the exit status it passes through) is the subject."""
+    with stderr is the whole wake. Driven the way Claude Code drives it, through a
+    shell with the payload on stdin, because the wiring (the watch supervisor, uv,
+    the exit status it passes through) is the subject."""
     command = _registered_watch()["command"]
     env = os.environ | {"CLAUDE_PLUGIN_ROOT": str(PLUGIN_ROOT)}
     leases_model.mark_hooks("s1")  # its harness runs Leaf's hooks
@@ -217,10 +214,7 @@ def test_the_registered_watch_hook_wakes_the_session(claimed, tmp_path):
             check=False,
         )
 
-    module = run(env | {"CLAUDE_PLUGIN_OPTION_HOOKS_MODULE": "true"})
-    assert (module.returncode, module.stdout, module.stderr) == (0, "", "")
-
-    woke = run(env | {"CLAUDE_PLUGIN_OPTION_HOOKS_MODULE": "false"})
+    woke = run(env)
     assert (woke.returncode, woke.stdout) == (2, ""), woke.stderr
     assert woke.stderr.startswith(f"{claimed} has new input")
 
@@ -677,3 +671,69 @@ print(json.dumps(imported))
     )
     for loaded in json.loads(done.stdout):
         assert [module for module in heavy if module in loaded] == []
+
+
+@pytest.mark.parametrize(
+    ("native_session", "started"),
+    [("dispatched-chat", True), ("dispatched-chat", False), ("another-chat", True)],
+)
+def test_codex_startup_can_claim_its_first_page_without_a_prompt(
+    page_dir, tmp_path, monkeypatch, native_session, started
+):
+    """A dispatched desktop chat begins with tool input, not a user prompt.
+
+    Run its registered startup hooks with no prior lifecycle or claim. Only a
+    native transcript naming this chat can establish the first page's owner.
+    """
+    from leaf.hooks import cmd_hook
+    from leaf.refusals import Refused
+
+    sid = "dispatched-chat"
+    source = tmp_path / "native.jsonl"
+    opened = cleanup_model.now_iso()
+    source.write_text(
+        json.dumps({"type": "session_meta", "payload": {"id": native_session}})
+        + "\n"
+        + (
+            json.dumps(
+                {
+                    "type": "event_msg",
+                    "timestamp": opened,
+                    "payload": {"type": "task_started", "turn_id": "first-turn"},
+                }
+            )
+            + "\n"
+            if started
+            else ""
+        )
+    )
+    assert cleanup_model.session_record(sid) is None
+    for registration in _registrations("codex")["SessionStart"]:
+        if re.search(registration.get("matcher", ""), "startup"):
+            cmd_hook(
+                "codex",
+                {
+                    "hook_event_name": "SessionStart",
+                    "source": "startup",
+                    "session_id": sid,
+                    "transcript_path": str(source),
+                },
+            )
+    harness = harness_model.CodexHarness(sid, "Codex")
+    monkeypatch.setattr(harness_model.CodexHarness, "process_pid", lambda _: 123)
+    monkeypatch.setattr(
+        harness_model, "process_argv", lambda _: ["codex", "app-server"]
+    )
+    if native_session != sid:
+        assert cleanup_model.session_record(sid) is None
+        with pytest.raises(Refused, match="validated native transcript"):
+            harness.lifetime()
+        return
+    with service_model.PageTransaction(page_dir) as page:
+        page.take_claim(harness)
+    claim = service_model.page_claim(page_dir)
+    assert service_model.claim_is_active(claim)
+    assert claim["turn"] == ("first-turn" if started else None)
+    assert claim["turn_opened"] == (opened if started else None)
+    assert claim["turn_closed"] is None
+    assert cleanup_model.session_record(sid)["transcript_path"] == str(source)

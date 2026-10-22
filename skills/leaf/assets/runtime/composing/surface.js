@@ -32,7 +32,9 @@
    The editor has one native seat, whether a widget, page or selected presentation
    holds it. Seating and restoring move that same node while retaining its draft,
    caret and focus. Readiness resolves only when the actual seat or presentation
-   commits it; creating a composer does not claim that it has a place.
+   commits it; creating a composer does not claim that it has a place. An explicit
+   opening reveals an inline seat after it has landed and taken focus; a floating
+   presentation owns its own placement and reveal.
 
    `showFab` places the bar; `openComposer` (composing/selection.js) binds its field to
    the durable draft and takes the focus decision. Every explicit item and visual route
@@ -62,6 +64,7 @@ import { sameAnchor } from "../anchor-coordinate.js";
 import { CARET_KEYS, selectsAll, WORKS } from "../control-selectors.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { seenRect, underOccluder } from "../geometry.js";
+import { scrollIntoView } from "../landing-scroll.js";
 import { cancelRender, nextRender } from "../rendering.js";
 import {
   targetElement,
@@ -742,7 +745,10 @@ export function createResponseSurface({
       const landed =
         positioned &&
         (!hasQuote(words) || sameAnchor(words, anchor)) &&
-        handoff.intent.handoff(() => focusDestination(fabInput, "move"));
+        handoff.intent.handoff(() => {
+          focusDestination(fabInput, "move");
+          if (fabInlineOutlet) scrollIntoView(fabInput, { block: "nearest" });
+        });
       if (!landed) endFabFocus();
     });
   }

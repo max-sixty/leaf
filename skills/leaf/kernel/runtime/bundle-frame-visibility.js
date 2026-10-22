@@ -513,6 +513,8 @@ var readings2 = 0;
 var paintDestination = null;
 var paintedFocus = null;
 var paintedWithin = /* @__PURE__ */ new Set();
+var paintedVisible = null;
+var paintedVisibleWithin = /* @__PURE__ */ new Set();
 function markFocus(node, name, present) {
   keeps(node, `data-lf-${name}`, present ? "" : null);
   if (!present) {
@@ -537,6 +539,21 @@ function paintFocus(node) {
     if (!paintedWithin.has(owner)) markFocus(owner, "focus-within", true);
   }
   paintedWithin = within;
+  const visible = next && (next.matches(":focus-visible") || next.matches(TEXT_BOX) || !next.matches(PRESSES)) ? next : null;
+  if (visible !== paintedVisible) {
+    if (paintedVisible) markFocus(paintedVisible, "focus-visible", false);
+    if (visible) markFocus(visible, "focus-visible", true);
+    paintedVisible = visible;
+  }
+  const visibleWithin = visible ? within : /* @__PURE__ */ new Set();
+  for (const owner of paintedVisibleWithin) {
+    if (!visibleWithin.has(owner)) markFocus(owner, "focus-visible-within", false);
+  }
+  for (const owner of visibleWithin) {
+    if (!paintedVisibleWithin.has(owner))
+      markFocus(owner, "focus-visible-within", true);
+  }
+  paintedVisibleWithin = visibleWithin;
 }
 var refreshFocusPaint = () => {
   const node = paintDestination?.deref();
@@ -682,7 +699,10 @@ addEventListener(
   "click",
   () => {
     const pressed = pressedPath;
-    setTimeout(() => reconcile(null, pressed));
+    setTimeout(() => {
+      reconcile(null, pressed);
+      queueFocusPaint();
+    });
   },
   { capture: true, passive: true }
 );
@@ -808,6 +828,7 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
         setTimeout(() => {
           if (step && stepping === step) stepping = null;
           reconcile(step, pressed);
+          queueFocusPaint();
         });
       }
       const at = deepFocus();

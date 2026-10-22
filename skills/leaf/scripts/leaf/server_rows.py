@@ -7,14 +7,17 @@ threads with unread words), which neighbors and Leaf's Claude Code band show. Th
 incarnation cannot inherit it; the server lease decides whether any row exists.
 Deleting every row only hides neighbors until their next maintenance look. No
 server removes its own row, since a server can die without a last word; the reader
-that finds the row's server lease unheld deletes it, whatever its format
-(`presence.other_leaves`, `presence._row_reading`).
+that finds a readable row's server lease unheld deletes it
+(`presence.other_leaves`).
 
 A per-page producer subscribes to this page's application writes and checks live harness,
 process and waiter facts every presence-cache interval. Changed inputs or the fold's next
 transition trigger a local transaction and fold; quiet looks never reread the
 log or document. Only changed row content is replaced. Neighbor consumers read
 this small output and server liveness, without folding any neighboring page.
+A change in those facts is also how the server learns that the claimant's turn was
+interrupted, which runs no hook, so the producer then messages a claimant whose
+interrupted turn left input nothing will carry (`presence.nudge_interrupted`).
 The lifetime supervisor runs independently: a page writer holding the transaction
 must never prevent a stop. A failed producer ends the serving process, so its
 lease withdraws the row. The enabled service remains eligible for the existing
@@ -28,7 +31,7 @@ from pathlib import Path
 
 from .file_changes import page_changes
 from .page_memory import memory_of
-from .presence import PRESENCE_CACHE_S, live_facts
+from .presence import PRESENCE_CACHE_S, live_facts, nudge_interrupted
 from .served_state.reading import page_reading
 from .served_state.service import PageStateService
 from .server import exit_serving
@@ -179,6 +182,10 @@ class RowPublisher:
             and self.path.is_file()
         ):
             return
+        # Only an idle harness record with no watcher can mean an interrupted turn
+        # left input nothing carries; `nudge_interrupted` decides from there.
+        if (live["live_turn"] or {}).get("state") == "idle" and not live["listening"]:
+            nudge_interrupted(self.page_dir)
         row, self.reading, self.live = self.service.activity_row()
         deadline = row["activity"]["next_transition_at"]
         self.transition = (

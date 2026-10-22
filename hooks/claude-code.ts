@@ -1,41 +1,26 @@
 /**
  * Leaf's Claude Code hooks module: the band above the prompt that shows the
- * session's pages and, while the plugin's `hooks_module` option is on, the
- * session's watch between turns. Claude Code loads it from the installed plugin
- * (measured at 2.1.305). With the option off, `hooks.json`'s background Stop
- * registration keeps the watch (`hooks/scripts/background-watch.py`), which stands
- * down while the option is on.
+ * session's pages, and the drawing of Leaf's own rows in the conversation. Claude
+ * Code loads it from the installed plugin (measured at 2.1.305). It neither
+ * watches nor wakes the session: `hooks.json`'s background Stop registration
+ * keeps the watch between turns. A watch here would wake with a prompt, which
+ * Claude Code drops from an Escape until the user next types, so every wake after
+ * an Escape became a cross-session nudge (measured at 2.1.307 with the
+ * claude-code journey).
  *
- * With the option on, it keeps the watch as `hooks/pi.ts` does for a Pi session
- * (`ClaudeCodeHarness` in `skills/leaf/scripts/leaf/harness.py`):
- *
- * - the session's start and each main-loop turn's end start the watch (`bin/leaf
- *   hook --harness claude-code --if-claimed --watch`), which prints a line and
- *   exits once one of the session's pages has input;
- * - a turn the user interrupts ends with no Stop hook, so the module starts the
- *   watch with the Interrupt payload, which closes the turn. Receipt distinguishes
- *   input that entered that turn from input held outside its context;
- * - a watch that wakes an idle session submits its line as a prompt, whose
- *   prompt hook hands the input over. From an Escape until the user next types,
- *   Claude Code drops every prompt a plugin submits but still takes a message
- *   from another session (measured at 2.1.300), so for a dropped prompt the
- *   module sends Leaf a WakeRefused payload, and Leaf nudges the session through
- *   that message, as admission does for a session nothing watches. A watch that
- *   wakes during a turn leaves pending input to the native PostToolBatch
- *   registration. A wake while Stop hooks run leaves its input to the watch
- *   started at turn completion. The module never makes a second mid-turn delivery.
- *
- * The prompt, tool-batch, Stop, SessionStart and SessionEnd registrations in
- * `hooks.json` carry and confirm input; the module only watches and wakes. A
- * native spawn handle does not prove startup: a watch that fails later reports its
- * error and releases the owner's slot.
+ * Starting an idle turn always draws a row, and no hook or exit code wakes the
+ * session without one (read in 2.1.307's source). The watch's wake is a task
+ * notification whose summary `hooks.json` names (`rewakeSummary`, an internal
+ * field of Claude Code's hook schema), and the module draws that row as nothing,
+ * leaving the band to show the agent at work; a nudge, which comes as another
+ * session's message, it draws as one dim line. The model reads both whole, and
+ * ctrl+o shows them as Claude Code draws them.
  *
  * A module's processes inherit Claude Code's own environment, which names no
  * session of its own, so every call states the session and Claude Code's process
  * as a hook's environment does. That process is the parent of every process the
- * module starts (measured at Claude Code 2.1.291). Failed hooks and watches report
- * their diagnostics through Claude Code's UI log. Replacing or closing a watch
- * cancels it quietly, after waiting for its process to exit.
+ * module starts (measured at Claude Code 2.1.291). A follower that fails reports
+ * its diagnostics through Claude Code's UI log.
  *
  * The band has a line for each live page the session holds: the word Leaf in the
  * tone the page's Leaf panel gives its leaf, a link to the page, what is On the
@@ -71,20 +56,17 @@ import type {
   RenderSurface,
   UiPressArgument,
 } from "claude-code";
-import { WatchOwner } from "./watch.ts";
-
-// `hooks.json`'s timeout for Leaf's hooks.
-const HOOK_TIMEOUT_MS = 20_000;
-
-type Payload = { hook_event_name: string; session_id: string; ended_at?: number };
 
 // Claude Code's process, read once by `sessionOf`.
 let claudePid = "";
 // Whether the user reached this machine over SSH, read once by the band.
 let remote: boolean | undefined;
-let watch = new WatchOwner();
-// Whether a main-loop turn is going, from its start until turn.complete.
-let running = false;
+
+// The summary `hooks.json` gives the background watch's wake, which Claude Code
+// draws as a task notification's row, and the words of the nudge Leaf sends
+// through session messaging (`ClaudeCodeHarness.nudge`).
+const WAKE_SUMMARY = "Leaf: new input";
+const NUDGE_WORDS = "has new input, which arrives with this message.";
 
 // A live page the session holds, as the follower prints it (`hooks.cmd_pages`).
 type Leaf = {
@@ -139,121 +121,12 @@ function launcher($: EngineInterface) {
   return `${$.plugin.root}/bin/leaf`;
 }
 
-/** Run Leaf's hook on `payload`, an event no registration answers. */
-async function hook($: EngineInterface, payload: Payload): Promise<void> {
-  try {
-    const ran = await $.process.run(
-      [launcher($), "hook", "--harness", "claude-code", "--if-claimed"],
-      {
-        env: environment(payload.session_id),
-        stdin: JSON.stringify(payload),
-        timeoutMs: HOOK_TIMEOUT_MS,
-      },
-    );
-    if (ran.exitCode !== 0) {
-      $.ui.log(
-        `Leaf: ${payload.hook_event_name} hook exited with code ${ran.exitCode}${ran.stderr.trim() ? `: ${ran.stderr.trim()}` : ""}`,
-      );
-    }
-  } catch (error) {
-    $.ui.log(`Leaf: ${payload.hook_event_name} hook failed: ${error}`);
-  }
-}
-
-/** The watch owner serializes endings; the adapter supplies Claude Code's process
- * and wake operations. */
-async function ensureWatch($: EngineInterface, session: string, interrupted: boolean) {
-  const ended = Date.now() / 1000;
-  const owner = watch;
-  await owner
-    .ensure(
-      interrupted,
-      () => {
-        const payload: Payload = {
-          hook_event_name: interrupted ? "Interrupt" : "Stop",
-          session_id: session,
-          ended_at: ended,
-        };
-        const stream = $.process.spawn({
-          argv: [
-            launcher($),
-            "hook",
-            "--harness",
-            "claude-code",
-            "--if-claimed",
-            "--watch",
-          ],
-          env: environment(session),
-          input: JSON.stringify(payload),
-        });
-        let cancelled = false;
-        const done = (async () => {
-          let out = "";
-          let stderr = "";
-          let readError: unknown;
-          try {
-            for await (const chunk of stream) {
-              if (chunk.stream === "stdout") out += chunk.text;
-              else if (chunk.stream === "stderr") stderr += chunk.text;
-            }
-          } catch (error) {
-            // Cancellation can abort output before the process releases its lease.
-            readError = error;
-          }
-          try {
-            const result = await stream.result;
-            if (cancelled) return "";
-            if (result.code !== 0 || readError) {
-              $.ui.log(
-                `Leaf: watch failed (${readError ?? `exit code ${result.code}`})${stderr.trim() ? `: ${stderr.trim()}` : ""}`,
-              );
-              return "";
-            }
-            return out.trim();
-          } catch (error) {
-            if (!cancelled)
-              $.ui.log(
-                `Leaf: watch failed: ${error}${stderr.trim() ? `: ${stderr.trim()}` : ""}`,
-              );
-            return "";
-          }
-        })();
-        return {
-          stop: () => {
-            cancelled = true;
-            return stream.return(undefined as never);
-          },
-          done,
-        };
-      },
-      (output, live) => wake($, session, output, live),
-    )
-    .catch((error) => {
-      $.ui.log(`Leaf: watch could not start: ${error}`);
-    });
-}
-
-async function wake(
-  $: EngineInterface,
-  session: string,
-  woke: string,
-  live: () => boolean,
-) {
-  if (!woke) return;
-  try {
-    // Claude Code refuses a plugin's prompt that starts with `/`, as the watch's
-    // line, a page's path, does.
-    const prompt = `Leaf: ${woke}`;
-    if (!live() || running) return;
-    // Claude Code drops a plugin's prompt from an Escape until the user next types,
-    // and drops one queued when they press it; Claude Code's debug log says why.
-    const submitted = await $.prompt.submit({ text: prompt });
-    if (submitted?.drop !== undefined)
-      await hook($, { hook_event_name: "WakeRefused", session_id: session });
-  } catch (error) {
-    // A wake that fails outright leaves the input to the next turn's prompt hook.
-    $.ui.log(`Leaf: the watch's wake was refused: ${error}`, { to: "debug" });
-  }
+/** Log the follower's failure, to the conversation unless a signal from outside
+ * the module ended it, which the launcher's shell reports as 128 plus the signal:
+ * as SIGTERM ends it while a session sits idle, or SIGHUP as its terminal closes.
+ * That ending is no failure of Leaf's to show the user. */
+function report($: EngineInterface, text: string, code: number | null) {
+  $.ui.log(text, code !== null && code > 128 ? { to: "debug" } : undefined);
 }
 
 // The command that opens its first argument in this machine's browser.
@@ -331,8 +204,10 @@ function follow($: EngineInterface, session: string) {
       }
       const result = await stream.result;
       if (result.code !== 0 && following === current)
-        $.ui.log(
+        report(
+          $,
           `Leaf: the pages follower exited with code ${result.code}${stderr.trim() ? `: ${stderr.trim()}` : ""}`,
+          result.code,
         );
     } catch (error) {
       if (following === current) $.ui.log(`Leaf: the pages follower failed: ${error}`);
@@ -347,14 +222,11 @@ function follow($: EngineInterface, session: string) {
   })();
 }
 
-export const register: Register = (on, options) => {
-  const watching = options.hooks_module === true;
-
+export const register: Register = (on) => {
   on("session.start", async ($, e, next) => {
     const started = await next(e);
     const session = await sessionOf($);
     follow($, session);
-    if (watching) void ensureWatch($, session, false);
     return started;
   });
 
@@ -373,7 +245,6 @@ export const register: Register = (on, options) => {
   // A resumed or cleared session raises no session.start, so its first turn follows.
   on("turn.start", ($, e, next) => {
     if (e.agentId !== undefined) return next(e);
-    running = true;
     void sessionOf($).then((session) => follow($, session));
     return next(e);
   });
@@ -381,14 +252,24 @@ export const register: Register = (on, options) => {
   on("turn.complete", async ($, e, next) => {
     const completed = await next(e);
     if (e.agentId !== undefined) return completed;
-    running = false;
-    const session = await sessionOf($);
-    follow($, session);
-    if (watching) void ensureWatch($, session, e.isAborted);
+    follow($, await sessionOf($));
     return completed;
   });
 
   // The band is shared: Leaf's lines go above whatever the plugins beneath draw.
+  // Leaf's own rows in the conversation stay quiet, unless ctrl+o expands them; the
+  // model reads them whole either way.
+  on("ui.render", { component: "UserMessage" }, async ($, e, next) => {
+    if (e.props.isExpanded) return next(e);
+    const { origin, text } = e.props;
+    const { Box, Text } = $.ui.resolve(e);
+    if (origin.kind === "task-notification" && text === WAKE_SUMMARY)
+      return h(Box, {}) as RenderElement;
+    if (origin.kind === "peer" && text.includes(NUDGE_WORDS))
+      return h(Text, { dimColor: true }, "Leaf: new input") as RenderElement;
+    return next(e);
+  });
+
   on("ui.render", { component: "AbovePrompt" }, async ($, e, next) => {
     const beneath = await next(e);
     if (leaves.length === 0 || e.props.hasSurvey) return beneath;
@@ -455,14 +336,10 @@ export const register: Register = (on, options) => {
   });
 
   on("session.end", async ($, e, next) => {
-    const owner = watch;
     const current = following;
     following = undefined;
     show($, []);
-    await Promise.all([owner.close(), current?.stop()]);
-    const ended = await next(e);
-    // /clear and resume keep the module loaded without another session.start.
-    if (watch === owner) watch = new WatchOwner();
-    return ended;
+    await current?.stop();
+    return next(e);
   });
 };

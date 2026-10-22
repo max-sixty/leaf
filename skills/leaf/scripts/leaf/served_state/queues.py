@@ -17,7 +17,7 @@ agent, which are the answers it owes, then the agent's to-dos. A widget's obliga
 is the agent's only while a thread about it awaits the agent's word, and that thread's
 newest unanswered turn already publishes an update record there; so On <agent> lists
 update records alone, and the comment's row stands for the widget's side
-(`obligations.sections_with_agent`, `thread_obligation_readings`).
+(`obligations.anchors_with_agent`, `thread_obligation_readings`).
 
 A row names its kind (its record's `source.kind`, or `todo`), its subject, the list it
 stands on (`owner`), the thread it stands in, and whether the agent has it in hand now

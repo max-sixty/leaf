@@ -18,7 +18,8 @@ A `LiveChild` keeps its session open across turns, so a driver can post
 user moves to a served page (`PageClient`) as a tab would; a `LiveSession` is how
 every live driver holds one: it records the stream, sends chat messages, and tells
 when the session has gone quiet. On macOS a Claude Code child runs under
-`private_tmp`, so concurrent children share no file in `/tmp`.
+`claude_sandbox`, so concurrent children share no file in `/tmp` and cannot
+launch desktop applications through macOS `open`.
 """
 
 import base64
@@ -534,9 +535,12 @@ def scratch(payload: Path | None = None, *, state: Path | None = None):
                 retire_sessions(payload, state if state is not None else work / "state")
 
 
-def private_tmp(*owned: Path) -> str:
-    """The macOS sandbox profile a Claude Code child runs under, so that two
-    children never share a file under `/tmp`.
+def claude_sandbox(*owned: Path) -> str:
+    """Keep a Claude Code child's temporary writes and handoffs off the host.
+
+    Eval authors hand pages to a simulated user, so macOS `open` must not launch
+    the real user's default browser. Deny execution in the sandbox, including
+    when a script or compound shell command invokes it; headless browsers still run.
 
     Its `TMPDIR` and zsh's `TMPPREFIX` are already its own (`claude_child`), but
     authoring agents also write fixed names such as `/tmp/chk.py`, which a
@@ -557,6 +561,7 @@ def private_tmp(*owned: Path) -> str:
         [
             "(version 1)",
             "(allow default)",
+            '(deny process-exec (literal "/usr/bin/open"))',
             '(deny file-write* (subpath "/private/tmp"))',
             f'(allow file-write* (regex #"^/private/tmp/({names})"))',
             *(
@@ -580,7 +585,7 @@ def claude_child(
 
     `args` follow `-p`, so a prompt goes first. `dirs` are what the child may read
     beyond `cwd`, and `env` adds to `environment()`. Output is verbose stream-json.
-    On macOS the child runs under `private_tmp`, owning `cwd`, its home and
+    On macOS the child runs under `claude_sandbox`, owning `cwd`, its home and
     `dirs`, unless `sandbox` is False, as a child that drives the harness's own
     browser is. Its private-home CLAUDE.md names the sandbox's scratch directory
     and restriction; an unsandboxed launch retires that generated file."""
@@ -600,7 +605,7 @@ def claude_child(
             f"Writable scratch directory: `{cwd / 'tmp'}` (`$TMPDIR`).\n"
             "The sandbox rejects arbitrary writes under shared `/tmp`.\n"
         )
-        profile = private_tmp(cwd, home, *dirs)
+        profile = claude_sandbox(cwd, home, *dirs)
         command = ["sandbox-exec", "-p", profile, *command]
     else:
         instructions.unlink(missing_ok=True)

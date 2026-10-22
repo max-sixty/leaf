@@ -1,67 +1,36 @@
-/* lf-shot: registered before/after screenshots under one draggable divider.
+/* lf-shot owns screenshot inspection: paired frames, slider, pixel difference,
+ * outlines, scale, crop and scrolling. A containing package supplies only capture
+ * metadata through inspect({pixelRatio, captureWidth, focus, labels}) and allocates
+ * its box. Fit keeps both frames in the allocated box. Actual size pans their
+ * images together inside those same windows, keeping both labels and views visible.
+ * Both frames always share one source scale. The retained header belongs to the
+ * allocated viewport, outside the image canvas. Labels and controls never move
+ * when views or scale change; only allocation width chooses its one- or two-row
+ * layout. Source labels are passive, and images never change comparison modes.
+ * In Slider, a plain image click alternates the divider's Before/After endpoints;
+ * dragging and the divider's keyboard controls retain continuous adjustment.
+ * A stacked pair also labels each frame, since the header's left/right bookends
+ * cannot identify vertically arranged images.
  *
- * The rail's Before/After labels choose their endpoint by click, Enter or Space;
- * comparison controls stay in that rail or in the native divider, leaving captured
- * image content clear of an additional floating action. After the page presents
- * the static flip, Web Awesome upgrades it with pointer dragging and Arrow,
- * Home, and End adjustment. `afterPresentation` keeps that bundle off the
- * presentation path while the page answers for its upgrade as its own arrival.
- * Clicking either image keeps the quick endpoint toggle; clicking the handle
- * only puts the user on it.
- * A small expand link beside each rail label inspects that full-size image in the
- * shared media viewer; modified presses keep their native link destination. The
- * rail reserves its rows before upgrade, with inspection actions below the
- * endpoints on narrow pairs. Print stacks both frames.
+ * A bounded pair chooses the orientation that gives the images the larger scale;
+ * in ordinary flow, wide frames stack instead of shrinking below half scale.
+ * Fit recalculates for that layout; 100% retains the captured CSS
+ * scale, or bitmap pixels when no capture ratio is supplied. Inspection choices
+ * belong to this element's lifetime, not the document's application state.
  *
- * Once the page has presented, the widget compares the two images pixel for pixel
- * (`runtime/image-difference.js` owns what counts as a difference) and puts its
- * `describeDifference` reading in the rail or Outlines tooltip. Every pair says when
- * it is identical, only slightly changed, or changed throughout, so a reader of one
- * side of the divider, or of a screenshot of the page, still learns it. With `outlines`, each frame also
- * outlines its own regions, what changed and what moved, where they sit in that frame,
- * and Outlines selects them together, with the full count on hover, focus or a held
- * press. `difference` is that reading, in the images' own pixels, or null for a pair the widget refused;
- * a parent that hides the rail states it from there. Plain, Outlines and Pixels are
- * mutually exclusive comparison views, offered where available. Outlines is the
- * default where authored and regions exist; Pixels is where authored alone, since an
- * author who asked for pixels and not outlines is showing a change that one picture
- * of both images says best, such as a mark that moved; otherwise Plain is. With
- * `pixels`, Pixels shows the after image greyed with each changed pixel painted
- * through `changedPixels`' masks: what only before drew there in the theme's danger
- * colour, what only after drew in its accent, and what both drew, as a recolour, in its
- * warning colour, so a moved mark reads as where it was and where it went in one
- * picture. Beside Outlines, the masks are built on the first press, since most readers
- * never open them. An inspector's `inspect()` leaves Pixels for the last comparison
- * view, and a shot it inspects does not open in Pixels. Selecting the active view
- * is idempotent. Clicking the pixel picture or choosing an endpoint returns to the
- * last comparison view and retains the divider. The view group has one Tab stop;
- * arrows move and select, while Enter and Space select the focused view.
- * Pairs compare one per frame, so a page of large captures does not hold input for the
- * whole batch.
- *
- * One two-ended rail sticks above the visible frames while CSS moves its active rule. Its
- * labels are generated page words, available to selection, and become the order key
- * above the two stacked frames on paper.
- * A containing inspector calls `inspect({mode, layout, scale, pixelRatio, focus,
- * crop, opacity, labels, captureWidth})`. Mode is compare, overlay or flip; layout is
- * side or stack; scale is the image's CSS-pixel scale; pixelRatio maps the captured
- * CSS pixels to bitmap pixels. Focus is a rectangle in captured CSS pixels, and
- * crop chooses that rectangle instead of marking it on the complete image. Labels
- * name the before and after frames. Optional captureWidth reserves their
- * CSS-pixel width until decode when delivery has supplied no media dimensions.
- * lf-shot owns the frames, labels, crop, outlines, opacity, controls and print view.
- * The containing inspector owns its available box and chooses the scale/layout.
- * `captureGeometry` returns the decoded image dimensions, completion flags and
- * resolved frame border, comparison gap, label and rail heights. `captureload`
- * announces a completed decode; consumers never inspect or restyle frame nodes.
- * `supportsCrop` states whether this browser can crop without distortion.
- * These are local inspection choices, never authored application state.
- * Accessible descriptions update in place when alt changes, retaining the current
- * comparison choice and its focused control. A different image pair is a new shot.
- * Commentary about the change belongs in authored prose around the widget. */
+ * Images and their source-coordinate marks share one clipped plane. Cropping moves
+ * that plane, including pixel masks, rather than having each renderer reinterpret
+ * the focus rectangle. Pixel comparison runs after presentation, one pair per
+ * frame. The expensive pixel masks and Web Awesome slider load only on selection.
+ * The native image planes remain visible while either prepares. The divider's exact
+ * position survives switching views. Replacing either capture refreshes evidence
+ * inside the retained controls and viewports, preserving the reader's inspection.
+ * `difference` reads the requested pair; a superseded or refused load resolves null.
+ * Original-image links use the shared viewer.
+ * Print shows both complete original images. */
+// A containing widget can create a pair absent from the authored document.
+import "/vendor/lf-shot-initial.js";
 import {
-  HOLDS_WORD,
-  PRESS,
   afterPresentation,
   announce,
   compareImagePixels,
@@ -71,9 +40,13 @@ import {
   once,
   offer,
   failSoft,
+  placesFailure,
   focusDestination,
-  focused,
+  showNativeLayer,
+  closeNativeLayer,
+  isNativeLayer,
   iconElement,
+  initialRender,
   nextFrame,
   isCanonicalMediaUrl,
   layoutChanged,
@@ -82,12 +55,13 @@ import {
   paintKeys,
   plainPress,
   relabel,
-  rove,
-  rowArrows,
   scopedMediaUrl,
-  selectableOffer,
   widgetController,
   move,
+  whileConnected,
+  sizeObserver,
+  registerReadingRegion,
+  compoundReadingRegionId,
 } from "/runtime/widget-api.js";
 
 let comparing = Promise.resolve();
@@ -98,342 +72,386 @@ const inTurn = (work) => {
   comparing = turn.catch(() => {});
   return turn;
 };
-
 let comparisonReady;
 const loadComparison = () => (comparisonReady ??= import("/vendor/webawesome.esm.js"));
-const VIEW_READINGS = {
-  plain: "plain comparison",
-  outlines: "change outlines",
-  pixels: "changed pixels",
-};
+import {
+  SHOT_VIEWS as VIEWS,
+  fitShotGeometry,
+  applyShotGeometry,
+} from "./shot-view.js";
 
 customElements.define(
   "lf-shot",
   class extends HTMLElement {
-    #box;
-    #alt;
+    #stage;
+    #canvas;
+    #toolbar;
+    #delta;
+    #legend;
+    #scaleReading;
+    #scaleTrigger;
+    #options;
+    #outlinesButton;
+    #fullInput;
+    #fullLabel;
+    #viewButtons = new Map();
+    #scaleButtons = new Map();
+    #frames = [];
+    #viewports = [];
+    #shots = [];
+    #captions = new Map();
+    #frameCaptions = new Map();
+    #openers = new Map();
     #comparison;
-    #chromeState;
-    #endpointChosen = false;
-    #view = "plain";
-    #returnView = "plain";
+    #position = 50;
+    #view = "compare";
+    #outlines = false;
+    #actual = false;
+    #full = false;
+    #metadata = {};
+    #reading;
     #pixelsView;
     #pixelsPainted;
-    #viewOptions = new Map();
-    #frames = [];
-    #inspection;
-    #frameLabels = new Map();
-    #captions = new Map();
-    #openers = new Map();
-    #difference = Promise.withResolvers();
-    difference = this.#difference.promise;
+    #pixelUrls = [];
+    #capture;
+    #error;
+    static observedAttributes = ["alt", "before", "after"];
 
-    static observedAttributes = ["alt"];
-
-    get #controlsEnabled() {
-      return !this.#inspection || this.#inspection.mode === "flip";
+    get difference() {
+      return this.#capture.difference;
     }
 
-    get supportsCrop() {
-      return globalThis.CSS?.supports?.("object-view-box", "inset(0px)") === true;
-    }
-
-    get captureGeometry() {
-      const style = getComputedStyle(this);
-      const length = (name) => parseFloat(style.getPropertyValue(name));
-      const rail = this.querySelector(".lf-shotrail");
-      const railStyle = rail && getComputedStyle(rail);
-      const railHeight = railStyle
-        ? parseFloat(railStyle.height) +
-          (railStyle.boxSizing === "border-box"
-            ? 0
-            : parseFloat(railStyle.paddingTop) +
-              parseFloat(railStyle.paddingBottom) +
-              parseFloat(railStyle.borderTopWidth) +
-              parseFloat(railStyle.borderBottomWidth))
-        : 0;
-      return {
-        images: this.#frames.map((frame) => {
-          const image = frame.querySelector("img");
-          return {
-            width: image.naturalWidth,
-            height: image.naturalHeight,
-            complete: image.complete,
-          };
-        }),
-        frameBorder: length("--lf-shot-frame-border"),
-        labelHeight: length("--lf-shot-label-height"),
-        gap: length("--lf-shot-gap"),
-        railHeight,
-      };
-    }
-
-    inspect(configuration) {
-      if (this.#view === "pixels") {
-        this.#setView(this.#returnView, { quiet: true });
-        this.#paint();
-      }
-      const next = { ...this.#inspection, ...configuration };
-      const controlsChanged = this.#controlsEnabled !== (next.mode === "flip");
-      this.#inspection = next;
-      keeps(this, "data-lf-shot-controls", next.mode === "flip" ? null : "off");
-      if (this.#box && controlsChanged) {
-        this.#syncComparison();
-        this.#requestComparison();
-        paintKeys();
-      }
-      this.#paintInspection();
-    }
-
-    #paintInspection() {
-      if (!this.#inspection || !this.#frames.length) return;
-      const {
-        mode,
-        layout = "side",
-        scale = 1,
-        pixelRatio = 1,
-        focus = null,
-        crop = false,
-        opacity = 0.5,
-        labels = { before: "Before", after: "After" },
-        captureWidth,
-      } = this.#inspection;
-      const images = this.captureGeometry.images;
-      const decoded = images.every((image) => image.width && image.height);
-      let error;
-      if (focus && !decoded && images.every((image) => image.complete))
-        error = "focus needs two decoded images";
-      else if (
-        focus &&
-        decoded &&
-        images.some(
-          (image) =>
-            focus.x + focus.width > image.width / pixelRatio ||
-            focus.y + focus.height > image.height / pixelRatio,
-        )
-      )
-        error = `focus ${focus.x},${focus.y} ${focus.width}×${focus.height} CSS px falls outside its captured images`;
-      if (error) {
-        this.#frames = [];
-        failSoft(this, new Error(error));
+    inspect(metadata) {
+      if (!this.#capture) {
+        this.#metadata = metadata;
         return;
       }
-      const activeFocus = focus && crop && this.supportsCrop;
-      const previous = [
-        "data-lf-shot-mode",
-        "data-lf-shot-layout",
-        "data-lf-shot-crop",
-      ].map((name) => this.getAttribute(name));
-      let changed = false;
-      keeps(this, "data-lf-shot-mode", mode);
-      keeps(this, "data-lf-shot-layout", layout);
-      keeps(this, "data-lf-shot-focus", Boolean(focus));
-      keeps(this, "data-lf-shot-crop", Boolean(activeFocus));
-      const set = (name, value) => {
-        if (this.style.getPropertyValue(name) !== value) {
-          this.style.setProperty(name, value);
-          changed = true;
-        }
-      };
-      const sourceWidth =
-        this.#frames[0].querySelector("img").naturalWidth / pixelRatio ||
-        Number(this.dataset.lfMediaWidth) / pixelRatio ||
-        captureWidth;
-      const width = activeFocus ? focus.width : sourceWidth;
-      if (width) set("--lf-shot-frame-width", `${Math.max(1, width * scale)}px`);
-      set("--lf-shot-opacity", String(opacity));
-      for (const frame of this.#frames) {
-        const state = frame.dataset.lfState;
-        let label = this.#frameLabels.get(state);
-        if (mode === "compare") {
-          if (!label) {
-            label = document.createElement("span");
-            label.className = "lf-shot-frame-label lf-ui";
-            label.dataset.lfGen = "1";
-            label.ariaHidden = "true";
-            this.#frameLabels.set(state, label);
-          }
-          keeps(
-            label,
-            "data-label",
-            state === "before" && layout === "stack"
-              ? `${labels.before} · ${labels.after} below`
-              : labels[state],
-          );
-          if (label.parentNode !== frame) move(frame, label, frame.firstChild);
-        } else label?.remove();
-        if (focus) {
-          const image = frame.querySelector("img");
-          const width = image.naturalWidth;
-          const height = image.naturalHeight;
-          const view =
-            `inset(${focus.y * pixelRatio}px ${width - (focus.x + focus.width) * pixelRatio}px ` +
-            `${height - (focus.y + focus.height) * pixelRatio}px ${focus.x * pixelRatio}px)`;
-          if (frame.style.getPropertyValue("--lf-shot-focus-view") !== view)
-            frame.style.setProperty("--lf-shot-focus-view", view);
-        }
+      if (JSON.stringify(metadata) === JSON.stringify(this.#capture.metadata)) return;
+      this.#prepare(this.#capture.images, this.#capture.loaded, metadata);
+      if (!this.#reading) {
+        this.#metadata = metadata;
+        this.#fit();
+        this.#paintAlt();
       }
-      if (focus) {
-        for (const key of ["x", "y", "width", "height"])
-          set(`--lf-shot-focus-${key}`, `${focus[key] * scale}px`);
-      }
-      const decodedWidth =
-        this.#frames[0].querySelector("img").naturalWidth / pixelRatio;
-      if (decodedWidth) set("--lf-shot-capture-width", `${decodedWidth}px`);
-      const current = [
-        "data-lf-shot-mode",
-        "data-lf-shot-layout",
-        "data-lf-shot-crop",
-      ].map((name) => this.getAttribute(name));
-      if (changed || previous.some((value, index) => value !== current[index]))
-        layoutChanged(this);
     }
 
     connectedCallback() {
       if (!once(this)) return;
-      const shots = [];
-
-      const rail = document.createElement("div");
-      rail.className = "lf-shotrail";
-      rail.dataset.lfGen = "1";
-      for (const state of ["before", "after"]) {
-        const caption = selectableOffer("button", "lf-shotcap lf-label");
-        caption.dataset.lfState = state;
-        relabel(caption, state, { says: true });
-        this.#captions.set(state, caption);
-        rail.append(caption);
-      }
-      this.append(rail);
-
-      for (const state of ["before", "after"]) {
-        const frame = document.createElement("div");
-        frame.className = "lf-shotframe";
-        frame.dataset.lfGen = "1";
-        frame.dataset.lfState = state;
-
-        const img = document.createElement("img");
-        // Opaque samples need CORS mode to keep pixels readable for comparison.
-        img.crossOrigin = "anonymous";
-        const source = this.getAttribute(state);
-        img.src = isCanonicalMediaUrl(source) ? scopedMediaUrl(source) : source;
-        shots.push(img);
-        frame.append(img);
-        this.#frames.push(frame);
-        this.append(frame);
-
-        // Each label's link sits on its inner side, so the rail reads
-        // BEFORE ⤢ … ⤢ AFTER in document and visual order alike.
-        const open = offer("a", "lf-media-open lf-shot-open");
-        open.dataset.lfShotOpen = state;
-        open.href = img.src;
-        open.dataset.lfMediaUrl = img.src;
-        open.append(iconElement("expand", "lf-action-icon"));
-        this.#openers.set(state, open);
-        const caption = this.#captions.get(state);
-        if (state === "before") caption.after(open);
-        else caption.before(open);
-      }
-
-      const box = offer("input", "lf-shotflip", undefined, "checkbox");
-      this.#box = box;
-      box.name = "comparison";
-      for (const [state, caption] of this.#captions) {
-        caption.addEventListener("click", () => this.#show(state));
-        commands(caption, "On a screenshot", [
-          {
-            id: `screenshot.${state}`,
-            keys: PRESS,
-            title: `show ${state}`,
-
-            // Selectable captions own activation even at the selected endpoint:
-            // Space must not fall through to the browser's page scrolling.
-            when: () => this.#controlsEnabled,
-            run: () => caption.click(),
-          },
-        ]);
-      }
-      box.addEventListener("change", () => {
-        this.#endpointChosen = true;
-        this.#leavePixels();
+      placesFailure(this, (box) => {
+        if (this.#error?.textContent === box.textContent) return true;
+        this.#error?.remove();
+        this.#error = box;
+        this.append(box);
+        return true;
+      });
+      const drawing = initialRender(this);
+      this.#toolbar = drawing.toolbar;
+      this.#viewButtons = drawing.views.choices;
+      this.#scaleButtons = drawing.scale.choices;
+      this.#outlinesButton = drawing.outlines;
+      this.#scaleTrigger = drawing.scaleTrigger;
+      this.#options = drawing.options;
+      this.#fullInput = drawing.full.input;
+      this.#fullLabel = drawing.full.label;
+      this.#scaleReading = drawing.scaleReading;
+      this.#stage = drawing.stage;
+      this.#canvas = drawing.canvas;
+      this.#frames = drawing.frames;
+      this.#viewports = drawing.viewports;
+      this.#shots = drawing.shots;
+      this.#captions = drawing.captions;
+      this.#frameCaptions = drawing.frameCaptions;
+      this.#openers = drawing.openers;
+      this.#delta = drawing.delta;
+      this.#legend = drawing.legend;
+      for (const [view, button] of this.#viewButtons)
+        button.addEventListener("click", () => this.#chooseView(view));
+      for (const [scale, button] of this.#scaleButtons)
+        button.addEventListener("click", () => {
+          this.#actual = scale === "actual";
+          this.#fit();
+          this.#paint();
+          closeNativeLayer(this.#options);
+          focusDestination(this.#scaleTrigger, "move");
+        });
+      drawing.scaleIcon.append(iconElement("down", "lf-action-icon"));
+      this.#scaleTrigger.addEventListener("click", (event) => {
+        event.preventDefault();
+        if (isNativeLayer(this.#options)) closeNativeLayer(this.#options);
+        else {
+          focusDestination(this.#scaleTrigger, "press");
+          showNativeLayer(this.#options, { source: this.#scaleTrigger });
+          focusDestination(
+            this.#scaleButtons.get(this.#actual ? "actual" : "fit"),
+            "move",
+          );
+        }
+      });
+      this.#options.addEventListener("toggle", () => {
+        keeps(this.#scaleTrigger, "aria-expanded", isNativeLayer(this.#options));
+        paintKeys();
+      });
+      this.#outlinesButton.addEventListener("click", () => {
+        this.#outlines = !this.#outlines;
         this.#paint();
       });
-      // The native checkbox owns endpoint toggling until the divider upgrades.
-      commands(box, "On a screenshot", [
-        {
-          id: "screenshot.toggle",
-          keys: [" "],
-          title: () => `show ${this.#nextState()}`,
-          when: () => this.#controlsEnabled,
-          run: () => this.#show(this.#nextState()),
-        },
-      ]);
-      this.append(box);
+      this.#fullInput.addEventListener("change", () => {
+        this.#full = this.#fullInput.checked;
+        this.#fit();
+        this.#paint();
+      });
+      for (const [index, state] of ["before", "after"].entries()) {
+        const viewport = this.#viewports[index];
+        viewport.addEventListener(
+          "scroll",
+          () => {
+            if (this.#view !== "compare" || !this.#actual) return;
+            const peer = this.#viewports[1 - index];
+            if (
+              peer.scrollLeft !== viewport.scrollLeft ||
+              peer.scrollTop !== viewport.scrollTop
+            )
+              peer.scrollTo({
+                left: viewport.scrollLeft,
+                top: viewport.scrollTop,
+                behavior: "instant",
+              });
+          },
+          { passive: true },
+        );
+        const open = this.#openers.get(state);
+        open.prepend(iconElement("expand", "lf-action-icon"));
+      }
       this.#paintAlt();
-      this.#paintInspection();
+      this.#fit();
+      this.#paint();
+      whileConnected(this, () => {
+        const observer = sizeObserver(() => this.#fit());
+        observer.observe(this.#stage);
+        const unregister = [
+          registerReadingRegion({
+            id: compoundReadingRegionId(this, "capture"),
+            host: this,
+            body: this.#stage,
+          }),
+          ...this.#viewports.map((body, index) =>
+            registerReadingRegion({
+              id: compoundReadingRegionId(this, index === 0 ? "before" : "after"),
+              host: this.#frames[index],
+              body,
+            }),
+          ),
+        ];
+        return () => {
+          observer.disconnect();
+          for (const release of unregister) release();
+        };
+      });
+      this.#loadImages();
+    }
 
-      // A visual-review run creates shots after authored descriptor capture. Its
-      // authored controller explicitly owns that generated child's preparation;
-      // standalone authored shots own their presentation themselves.
+    #loadImages() {
+      const images = [];
+      const loaded = Promise.all(
+        ["before", "after"].map((state) => {
+          const image = document.createElement("img");
+          image.crossOrigin = "anonymous";
+          images.push(image);
+          return new Promise((resolve) => {
+            image.onload = () => resolve(true);
+            image.onerror = () => resolve(false);
+            const source = this.getAttribute(state);
+            image.src = isCanonicalMediaUrl(source) ? scopedMediaUrl(source) : source;
+          });
+        }),
+      ).then((loaded) => loaded.every(Boolean));
+      this.#prepare(images, loaded, this.#capture?.metadata ?? this.#metadata);
+    }
+
+    #prepare(images, loaded, metadata) {
+      // A requested capture owns its metadata snapshot. A metadata revision reuses
+      // this pair's load; it cannot mutate validation already in flight or retry a
+      // failed network request as a side effect of an unrelated presentation.
+      const capture = { images, loaded, metadata, difference: null };
+      this.#capture = capture;
       const present =
         /** @type {{_lfPresentGenerated?: (promise: Promise<unknown>) => void}} */ (
           this
         )._lfPresentGenerated ?? ((promise) => widgetController(this).present(promise));
-      const registered = this.register(shots);
+      const registered = loaded.then((loaded) => {
+        if (capture !== this.#capture) return false;
+        if (!loaded) {
+          failSoft(
+            this,
+            new Error(
+              metadata.focus
+                ? "focus needs two decoded images"
+                : "could not load the capture pair",
+            ),
+          );
+          return false;
+        }
+        if (!this.#validImages(images, metadata)) return false;
+        // First arrival can show its images before deferred comparison. A refresh
+        // keeps the complete outgoing evidence until its replacement reading is ready.
+        if (!this.#reading) this.#commitImages(capture);
+        return true;
+      });
       present(registered);
-      void registered.then(() => this.#requestComparison());
-      this.#difference.resolve(
-        registered.then((aligned) =>
+      capture.difference = registered
+        .then((aligned) =>
           aligned
-            ? afterPresentation(() => inTurn(() => this.#markDifference(shots)))
+            ? afterPresentation(() => inTurn(() => this.#markDifference(capture)))
             : null,
-        ),
-      );
-      void this.difference.catch((reason) => failSoft(this, reason));
+        )
+        .catch((reason) => {
+          if (capture === this.#capture) failSoft(this, reason);
+          return null;
+        });
+    }
+
+    #commitImages(capture, pixels = null) {
+      const changed = this.#shots !== capture.images;
+      for (const [index, state] of ["before", "after"].entries()) {
+        const image = capture.images[index];
+        if (this.#shots[index].src === image.src)
+          capture.images[index] = this.#shots[index];
+        else this.#shots[index].replaceWith(image);
+        const open = this.#openers.get(state);
+        keeps(open, "href", image.src);
+        keeps(open, "data-lf-media-url", image.src);
+      }
+      this.#shots = capture.images;
+      this.#metadata = capture.metadata;
+      this.#error?.remove();
+      this.#error = null;
+      if (changed) {
+        this.#paintPixels(pixels ?? []);
+        this.#pixelsPainted = pixels ? Promise.resolve() : null;
+      }
+      this.#fit();
+      this.#paintAlt();
+    }
+
+    attributeChangedCallback(name, before, after) {
+      if (!this.#toolbar || before === after) return;
+      if (name === "alt") this.#paintAlt();
+      else this.#loadImages();
     }
 
     #paintAlt() {
-      this.#alt = this.getAttribute("alt");
-      for (const state of ["before", "after"])
-        keeps(this.#captions.get(state), "aria-label", `${state} — ${this.#alt}`);
-      if (this.#pixelsView)
-        keeps(this.#pixelsView, "aria-label", `changed pixels: ${this.#alt}`);
-      for (const frame of this.#frames) {
-        const state = frame.dataset.lfState;
-        const alt = `${state}: ${this.#alt}`;
-        frame.querySelector("img").alt = alt;
+      if (!this.#toolbar) return;
+      const alt = this.getAttribute("alt");
+      const labels = this.#metadata.labels ?? { before: "Before", after: "After" };
+      for (const [index, state] of ["before", "after"].entries()) {
+        relabel(this.#captions.get(state), labels[state], { says: true });
+        relabel(this.#frameCaptions.get(state), labels[state], { says: false });
+        keeps(this.#captions.get(state), "aria-label", `${labels[state]} — ${alt}`);
+        keeps(this.#captions.get(state), "title", labels[state]);
+        keeps(this.#frameCaptions.get(state), "title", labels[state]);
+        keeps(this.#shots[index], "alt", `${state}: ${alt}`);
+        keeps(this.#viewports[index], "aria-label", `${labels[state]} — ${alt}`);
         const open = this.#openers.get(state);
-        open.dataset.lfMediaAlt = alt;
-        open.dataset.lfMediaCaption = alt;
-        keeps(open, "aria-label", `Open ${state} image — ${this.#alt}`);
+        keeps(open, "data-lf-media-alt", `${state}: ${alt}`);
+        keeps(open, "data-lf-media-caption", `${state}: ${alt}`);
+        keeps(open, "aria-label", `Open ${state} image — ${alt}`);
         keeps(open, "title", `Open ${state} image`);
       }
-      keeps(this.#box, "aria-label", `Compare before and after — ${this.#alt}`);
-      this.#paint();
+      if (this.#pixelsView)
+        keeps(this.#pixelsView, "aria-label", `changed pixels: ${alt}`);
+      keeps(this.#stage, "aria-label", `Screenshot comparison — ${alt}`);
+      this.#paintHandle();
     }
 
-    attributeChangedCallback(name) {
-      if (!this.isConnected || !this.#box) return;
-      if (name === "alt") this.#paintAlt();
+    #fit() {
+      if (!this.#stage || !this.#frames.length) return;
+      // The mode sets the stage's overflow and classic-scrollbar gutter. Apply it
+      // before measuring; fitting the previous mode would resize this observed
+      // stage again during ResizeObserver delivery.
+      keeps(this, "data-lf-shot-mode", this.#shownView);
+      const available = this.#stage.clientWidth;
+      if (!available) return; // Hidden cases retain their last inspection until shown.
+      const ratio = this.#metadata.pixelRatio ?? 1;
+      const sourceWidth =
+        this.#shots[0].naturalWidth / ratio ||
+        Number(this.dataset.lfMediaWidth) / ratio ||
+        this.#metadata.captureWidth;
+      const sourceHeight =
+        Math.max(...this.#shots.map((image) => image.naturalHeight)) / ratio ||
+        Number(this.dataset.lfMediaHeight) / ratio;
+      const focus = this.#metadata.focus;
+      const crop = focus && !this.#full;
+      // Capture metadata fixes the cropped viewport before images decode; source
+      // dimensions become available independently and size only its inner plane.
+      if (!(crop || (sourceWidth && sourceHeight))) return;
+      const geometry = fitShotGeometry({
+        available,
+        availableHeight:
+          getComputedStyle(this).getPropertyValue("--lf-holds-height").trim() === "1"
+            ? this.#stage.clientHeight
+            : undefined,
+        labelHeight: parseFloat(
+          getComputedStyle(this.#frameCaptions.get("before").parentElement).blockSize,
+        ),
+        sourceWidth,
+        sourceHeight,
+        focus,
+        full: this.#full,
+        actual: this.#actual,
+        view: this.#shownView,
+        gap: parseFloat(getComputedStyle(this).getPropertyValue("--lf-shot-gap")),
+      });
+      if (!geometry) return;
+      applyShotGeometry(this, geometry, keeps);
+      this.#fullLabel.toggleAttribute("hidden", !focus);
+      this.#fullInput.checked = this.#full;
+      const fitDescription = `Fit · ${Math.round(geometry.fitScale * 100)}%`;
+      keeps(this.#scaleButtons.get("fit"), "title", fitDescription);
+      keeps(this.#scaleTrigger, "title", this.#actual ? "100%" : fitDescription);
+      keeps(
+        this.#scaleButtons.get("actual"),
+        "title",
+        this.#metadata.pixelRatio
+          ? "Captured CSS size"
+          : "One image pixel per CSS pixel",
+      );
+      layoutChanged(this);
+    }
+
+    #chooseView(view) {
+      if (view === this.#view) return;
+      if (view === "pixels") void this.#showPixels();
+      else {
+        this.#view = view;
+        this.#syncComparison();
+        this.#fit();
+        this.#paint();
+        if (view === "flip") this.#requestComparison();
+      }
+      announce(`Showing ${VIEWS[view].toLowerCase()}`);
     }
 
     #syncComparison() {
-      const enabled =
-        this.#controlsEnabled &&
-        this.#box.parentNode === this &&
-        customElements.get("wa-comparison");
-      if (enabled && !this.#comparison) {
-        const comparison = document.createElement("wa-comparison");
-        comparison.className = "lf-shotcomparison";
-        comparison.dataset.lfGen = "1";
-        comparison.position = 100 - (this.#endpointChosen ? this.#position() : 50);
-        const handle = document.createElement("span");
-        handle.className = "lf-shot-handle";
+      if (this.#view !== "flip" && this.#comparison) {
+        this.#position = this.#comparison.position;
+        for (const frame of this.#frames) {
+          frame.removeAttribute("slot");
+          move(this.#canvas, frame);
+        }
+        this.#comparison.remove();
+        this.#comparison = null;
+      }
+      if (
+        this.#view === "flip" &&
+        !this.#comparison &&
+        customElements.get("wa-comparison")
+      ) {
+        const comparison = offer("wa-comparison", "lf-shotcomparison");
+        comparison.position = this.#position;
+        const handle = offer("span", "lf-shot-handle");
         handle.slot = "handle";
         handle.ariaHidden = "true";
         comparison.append(handle);
-        // Web Awesome draws its `after` slot on the inline-start side of the divider,
-        // which is the side the rail labels before, so each frame takes the other's
-        // slot and the component's position is the before frame's share.
         for (const frame of this.#frames) {
           frame.slot = frame.dataset.lfState === "before" ? "after" : "before";
           comparison.append(frame);
@@ -449,28 +467,25 @@ customElements.define(
             );
         comparison.addEventListener("change", () => {
           dragged = true;
-          this.#endpointChosen = true;
-          this.#leavePixels();
+          this.#position = comparison.position;
           this.#paint();
         });
         comparison.addEventListener("pointerdown", (event) => {
           if (!event.isPrimary || event.button !== 0) return;
           dragged = false;
-          // The vendor cancels native focus when it starts dragging. The handle
-          // remains the input destination, so arrows can continue the adjustment.
-          const target = handleOf(event);
-          if (target) focusDestination(target, "press");
+          const handle = handleOf(event);
+          if (handle) focusDestination(handle, "press");
         });
         comparison.addEventListener("click", (event) => {
-          const onHandle = handleOf(event);
-          if (!dragged && !onHandle && plainPress(event)) this.#show(this.#nextState());
+          if (dragged || handleOf(event) || !plainPress(event)) return;
+          comparison.position = comparison.position > 50 ? 0 : 100;
         });
         commands(comparison, "On a screenshot divider", [
           {
             id: "screenshot.adjust",
             keys: ["ArrowLeft", "ArrowRight"],
-            title: "adjust the comparison",
             repeat: true,
+            title: "adjust the comparison",
           },
           {
             id: "screenshot.edge",
@@ -478,304 +493,202 @@ customElements.define(
             title: "show before or after",
           },
         ]);
-        move(this, comparison, this.#box);
+        this.#canvas.append(comparison);
         this.#comparison = comparison;
-        void comparison.updateComplete?.then(() => this.#paint());
-      } else if (!enabled && this.#comparison) {
-        for (const frame of this.#frames) {
-          frame.removeAttribute("slot");
-          move(this, frame, this.#comparison);
-        }
-        this.#comparison.remove();
-        this.#comparison = null;
-        this.#chromeState = null;
-        this.#paint();
+        void comparison.updateComplete.then(() => this.#paintHandle());
       }
     }
 
-    async #upgradeComparison() {
-      if (!this.isConnected || this.#box.parentNode !== this || !this.#controlsEnabled)
-        return;
-      await loadComparison();
-      if (this.isConnected) this.#syncComparison();
+    #requestComparison() {
+      void afterPresentation(async () => {
+        await loadComparison();
+        if (this.isConnected && this.#view === "flip") {
+          this.#syncComparison();
+          this.#fit();
+          this.#paint();
+        }
+      }).catch((reason) => failSoft(this, reason));
     }
 
-    #requestComparison() {
-      if (!this.#controlsEnabled) return;
-      void afterPresentation(() => this.#upgradeComparison()).catch((reason) =>
-        failSoft(this, reason),
+    #paintHandle() {
+      const handle = this.#comparison?.shadowRoot?.querySelector('[role="scrollbar"]');
+      if (!handle) return;
+      keeps(handle, "aria-label", `Before and after — ${this.getAttribute("alt")}`);
+      keeps(
+        handle,
+        "aria-valuetext",
+        `Before ${this.#position}%, after ${100 - this.#position}%`,
       );
     }
 
-    // Each region is placed in shares of the pair's frame, the natural width by the
-    // taller image's height that `--lf-shot-ratio` sizes, so the marks scale with the
-    // images at every width.
-    async #markDifference(shots) {
-      const reading = await compareImages(...shots);
+    get #shownView() {
+      // Until the optional divider is mounted, keep the usable pair and its
+      // matching geometry. Requested view buttons still reflect the user's choice.
+      return this.#view === "flip" && !this.#comparison ? "compare" : this.#view;
+    }
+
+    #paint() {
+      if (!this.#toolbar) return;
+      keeps(this, "data-lf-shot-outlines", this.#outlines);
+      this.#viewButtons.get("pixels").toggleAttribute("disabled", !this.#reading);
+      for (const [view, button] of this.#viewButtons)
+        keeps(button, "aria-pressed", view === this.#view);
+      for (const [scale, button] of this.#scaleButtons)
+        keeps(button, "aria-pressed", (scale === "actual") === this.#actual);
+      relabel(this.#scaleReading, this.#actual ? "100%" : "Fit", { says: false });
+      keeps(this.#outlinesButton, "aria-pressed", this.#outlines);
+      this.#outlinesButton.toggleAttribute(
+        "disabled",
+        this.#view === "pixels" || !this.#reading?.regions.length,
+      );
+      this.#legend.toggleAttribute("hidden", this.#view !== "pixels");
+      this.#syncComparison();
+      this.#paintHandle();
+      paintKeys();
+    }
+
+    async #markDifference(capture) {
+      if (capture !== this.#capture) return null;
+      const reading = await compareImages(...capture.images);
+      const pixels =
+        this.#view === "pixels" && this.#shots !== capture.images
+          ? await this.#pixelMasks(capture.images)
+          : null;
+      if (capture !== this.#capture) {
+        for (const url of pixels ?? []) URL.revokeObjectURL(url);
+        return null;
+      }
+      this.#commitImages(capture, pixels);
+      this.#reading = reading;
       const { width, height, regions } = reading;
-      const share = (length, whole) => `${(100 * length) / whole}%`;
       for (const frame of this.#frames) {
-        const marks = document.createElement("div");
-        marks.className = "lf-shotdiff";
-        marks.dataset.lfGen = "1";
+        const marks = offer("div", "lf-shotdiff");
         marks.ariaHidden = "true";
         for (const region of regions) {
           if (region.side !== frame.dataset.lfState) continue;
           const mark = document.createElement("span");
           mark.dataset.lfShotMark = region.kind;
-          mark.style.setProperty("--lf-shot-x", share(region.x, width));
-          mark.style.setProperty("--lf-shot-y", share(region.y, height));
-          mark.style.setProperty("--lf-shot-w", share(region.width, width));
-          mark.style.setProperty("--lf-shot-h", share(region.height, height));
+          for (const [key, value, whole] of [
+            ["x", region.x, width],
+            ["y", region.y, height],
+            ["w", region.width, width],
+            ["h", region.height, height],
+          ])
+            mark.style.setProperty(`--lf-shot-${key}`, `${(100 * value) / whole}%`);
           marks.append(mark);
         }
-        frame.append(marks);
+        const plane = frame.querySelector(".lf-shotplane");
+        const previous = plane.querySelector(".lf-shotdiff");
+        if (!previous) plane.append(marks);
+        else if (!previous.isEqualNode(marks)) previous.replaceWith(marks);
       }
-      const kind = differenceKind(reading);
-      const count = document.createElement("span");
-      count.className = "lf-shotdelta";
-      count.dataset.lfShotDelta = kind;
       const description = describeDifference(reading);
-      if (kind !== "areas") relabel(count, description, { says: false });
-      const outlines = this.hasAttribute("outlines") && kind === "areas";
-      this.#view = outlines ? "outlines" : "plain";
-      this.#returnView = this.#view;
-      if (outlines || this.hasAttribute("pixels")) {
-        const views = document.createElement("span");
-        views.className = "lf-shotviews";
-        views.role = "radiogroup";
-        views.ariaLabel = "Comparison view";
-        const chooseNeighbour = (binding) => {
-          const [, ahead] = rowArrows(views);
-          const options = [...this.#viewOptions.values()];
-          const step = [ahead, "ArrowDown"].includes(binding) ? 1 : -1;
-          const index = options.indexOf(focused());
-          const next = options[(index + step + options.length) % options.length];
-          focusDestination(next, "move");
-          next.click();
-        };
-        for (const [view, label] of [
-          ["plain", "Plain"],
-          ...(outlines ? [["outlines", "Outlines"]] : []),
-          ...(this.hasAttribute("pixels") ? [["pixels", "Pixels"]] : []),
-        ]) {
-          const option = offer("button", "lf-shotview", label);
-          option.role = "radio";
-          option.ariaLabel = label;
-          if (view === "outlines") {
-            option.classList.add("lf-shotoutlines", HOLDS_WORD);
-            keeps(option, "aria-description", description);
-          } else option.title = `Show ${VIEW_READINGS[view]}`;
-          option.addEventListener("click", () => this.#selectView(view, shots));
-          commands(option, "On a screenshot", [
-            {
-              id: `screenshot.${view}`,
-              keys: PRESS,
-              title: `show ${VIEW_READINGS[view]}`,
-              when: () => this.#controlsEnabled,
-              run: () => option.click(),
-            },
-            // A radio owns arrows at the focused control, ahead of ancestor scopes.
-            // Each option routes that claim to the group's one walk.
-            {
-              id: "screenshot.view",
-              keys: ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
-              title: "choose the comparison view",
-              when: () => this.#controlsEnabled,
-              run: chooseNeighbour,
-            },
-          ]);
-          this.#viewOptions.set(view, option);
-          views.append(option);
-        }
-        count.append(views);
-      }
-      this.#openers.get("before").after(count);
-      // An inspector chooses its own presentation, so only a shot standing on its own
-      // opens in Pixels, and the reading waits for that paint.
-      if (
-        this.hasAttribute("pixels") &&
-        !this.hasAttribute("outlines") &&
-        !this.#inspection
-      )
-        await this.#showPixels(shots, { quiet: true });
-      else this.#paint();
+      keeps(this.#delta, "data-lf-shot-delta", differenceKind(reading));
+      relabel(this.#delta, description, { says: false });
+      keeps(this.#outlinesButton, "aria-description", description);
+      this.#paint();
       return reading;
     }
 
-    #selectView(view, shots) {
-      if (view === this.#view) return;
-      if (view === "pixels") this.#showPixels(shots);
-      else {
-        this.#setView(view);
-        this.#paint();
+    #showPixels() {
+      this.#view = "pixels";
+      if (!this.#pixelsView) {
+        const view = offer("div", "lf-shotpixels lf-shotimage");
+        view.role = "img";
+        view.ariaLabel = `changed pixels: ${this.getAttribute("alt")}`;
+        const plane = offer("div", "lf-shotplane");
+        const ground = document.createElement("img");
+        ground.alt = "";
+        ground.src = this.#shots[1].src;
+        const paints = ["both", "before", "after"].map((side) => {
+          const paint = document.createElement("span");
+          paint.dataset.lfShotSide = side;
+          return paint;
+        });
+        plane.append(ground, ...paints);
+        view.append(plane);
+        this.#canvas.append(view);
+        this.#pixelsView = view;
       }
-    }
-
-    #setView(view, { quiet = false } = {}) {
-      this.#view = view;
-      if (!quiet) announce(`Showing ${VIEW_READINGS[view]}`);
-    }
-
-    #leavePixels() {
-      if (this.#view === "pixels") this.#setView(this.#returnView);
-    }
-
-    // The Pixels view: the after image greyed, under the changed pixels that three masks
-    // paint in the theme's colours: what only before drew, what only after drew, and
-    // what both did. The view stands in the press's turn; the masks are read on the
-    // next frame, and the promise this returns settles once their paint is set.
-    #showPixels(shots, { quiet = false } = {}) {
-      this.#returnView = this.#view;
-      this.#setView("pixels", { quiet });
-      if (this.#pixelsView) {
-        this.#paint();
-        return this.#pixelsPainted;
+      if (!this.#pixelsPainted) {
+        const images = this.#shots;
+        this.#pixelsPainted = inTurn(async () => {
+          const urls = await this.#pixelMasks(images);
+          if (images !== this.#shots) {
+            for (const url of urls) URL.revokeObjectURL(url);
+            return;
+          }
+          this.#paintPixels(urls);
+        });
+        void this.#pixelsPainted.catch((reason) => {
+          if (images === this.#shots) failSoft(this, reason);
+        });
       }
-      const view = document.createElement("div");
-      view.className = "lf-shotpixels";
-      view.dataset.lfGen = "1";
-      view.role = "img";
-      keeps(view, "aria-label", `changed pixels: ${this.#alt}`);
-      const ground = document.createElement("img");
-      ground.alt = "";
-      ground.crossOrigin = "anonymous";
-      ground.src = shots[1].src;
-      const paints = ["both", "before", "after"].map((side) => {
-        const paint = document.createElement("span");
-        paint.dataset.lfShotSide = side;
-        return paint;
-      });
-      view.append(ground, ...paints);
-      view.addEventListener("click", (event) => {
-        if (!plainPress(event)) return;
-        this.#leavePixels();
-        this.#paint();
-      });
-      // Before the rail in the tree, so the sticky rail, at the same z-index, stands
-      // over it.
-      this.prepend(view);
-      this.#pixelsView = view;
+      this.#syncComparison();
+      this.#fit();
       this.#paint();
-      this.#pixelsPainted = new Promise((read) => nextFrame(read)).then(() => {
-        const { width, height, ...masks } = compareImagePixels(...shots);
-        return Promise.all(
-          paints.map(async (paint) => {
-            const canvas = new OffscreenCanvas(width, height);
-            canvas
-              .getContext("2d")
-              .putImageData(
-                new ImageData(masks[paint.dataset.lfShotSide], width, height),
-                0,
-                0,
-              );
-            const blob = await canvas.convertToBlob({ type: "image/png" });
-            paint.style.setProperty(
-              "--lf-shot-pixels",
-              `url("${URL.createObjectURL(blob)}")`,
-            );
-          }),
-        );
-      });
-      void this.#pixelsPainted.catch((reason) => failSoft(this, reason));
       return this.#pixelsPainted;
     }
 
-    #show(state) {
-      this.#endpointChosen = true;
-      this.#leavePixels();
-      if (this.#comparison) {
-        const position = state === "after" ? 0 : 100;
-        if (this.#comparison.position !== position)
-          this.#comparison.position = position;
-        else this.#paint();
-        return;
-      }
-      const checked = state === "after";
-      if (this.#box.checked === checked) {
-        this.#paint();
-        return;
-      }
-      this.#box.checked = checked;
-      this.#box.dispatchEvent(new Event("change", { bubbles: true }));
-    }
-
-    #nextState() {
-      return this.#position() > 50 ? "before" : "after";
-    }
-
-    // The after frame's share of the pair: 0 shows before whole, 100 after.
-    #position() {
-      if (this.#comparison) return Number((100 - this.#comparison.position).toFixed(2));
-      return this.#box.checked ? 100 : 0;
-    }
-
-    #paint() {
-      const position = this.#position();
-      const handle = this.#comparison?.shadowRoot?.querySelector('[role="scrollbar"]');
-      if (handle) {
-        const before = Number((100 - position).toFixed(2));
-        keeps(handle, "aria-label", `Before and after — ${this.#alt}`);
-        keeps(handle, "aria-valuetext", `Before ${before}%, after ${position}%`);
-      }
-      const pixelsShown = this.#view === "pixels";
-      const chromeState = pixelsShown
-        ? "pixels"
-        : position === 0
-          ? "before"
-          : position === 100
-            ? "after"
-            : position > 50
-              ? "after-side"
-              : "before-side";
-      // The covered comparison leaves the tab order while the view stands over it,
-      // including a comparison that upgrades under it.
-      for (const node of [this.#comparison, this.#box])
-        node?.toggleAttribute("inert", pixelsShown);
-      keeps(this, "data-lf-shot-view", this.#view);
-      for (const [view, option] of this.#viewOptions)
-        keeps(option, "aria-checked", view === this.#view);
-      rove(this.#viewOptions.values(), this.#viewOptions.get(this.#view));
-      if (chromeState === this.#chromeState) return;
-      this.#chromeState = chromeState;
-      this.#box.checked = position > 50;
-      for (const [state, caption] of this.#captions)
-        keeps(
-          caption,
-          "aria-pressed",
-          !pixelsShown && position === (state === "after" ? 100 : 0),
+    async #pixelMasks(images) {
+      const { width, height, ...masks } = compareImagePixels(...images);
+      const blobs = await Promise.all(
+        ["both", "before", "after"].map(async (side) => {
+          const canvas = new OffscreenCanvas(width, height);
+          canvas
+            .getContext("2d")
+            .putImageData(new ImageData(masks[side], width, height), 0, 0);
+          return canvas.convertToBlob({ type: "image/png" });
+        }),
+      );
+      const urls = blobs.map((blob) => URL.createObjectURL(blob));
+      try {
+        await Promise.all(
+          urls.map((url) => {
+            const image = document.createElement("img");
+            image.src = url;
+            return image.decode();
+          }),
         );
-      paintKeys();
+        return urls;
+      } catch (reason) {
+        for (const url of urls) URL.revokeObjectURL(url);
+        throw reason;
+      }
     }
 
-    // Both frames render at the frame's width, so a pair shot at two different
-    // viewports is scaled by two different factors and every line in it lands
-    // somewhere new. The flip then says the whole page changed, which is the one
-    // failure this widget cannot afford: it is silent, it is convincing, and the
-    // user has no way to tell it from the truth. Heights may differ freely —
-    // content reflowing taller is a real thing to see, and it stays registered.
-    // Answers whether the pair decoded at one width, which is when comparing it
-    // pixel for pixel means anything.
-    async register(shots) {
-      await Promise.all(shots.map((img) => img.decode().catch(() => {})));
-      this.#paintInspection();
-      this.dispatchEvent(new Event("captureload"));
-      if (!this.#frames.length) return false;
-      const [before, after] = shots.map((img) => img.naturalWidth);
-      if (before && after && before !== after) {
-        failSoft(
-          this,
-          new Error(
-            `before is ${before}px wide and after is ${after}px — a pair has to be shot ` +
-              `at one viewport, or the flip moves everything`,
-          ),
-        );
-        return false;
+    #paintPixels(urls) {
+      if (this.#pixelsView) {
+        keeps(this.#pixelsView.querySelector("img"), "src", this.#shots[1].src);
+        for (const [index, paint] of [
+          ...this.#pixelsView.querySelectorAll("[data-lf-shot-side]"),
+        ].entries()) {
+          if (urls[index])
+            paint.style.setProperty("--lf-shot-pixels", `url("${urls[index]}")`);
+          else paint.style.removeProperty("--lf-shot-pixels");
+        }
       }
-      const height = Math.max(...shots.map((img) => img.naturalHeight));
-      if (before && height)
-        this.style.setProperty("--lf-shot-ratio", `${before} / ${height}`);
-      return Boolean(before && after);
+      for (const url of this.#pixelUrls) URL.revokeObjectURL(url);
+      this.#pixelUrls = urls;
+    }
+
+    #validImages(images, { focus = undefined, pixelRatio = 1 }) {
+      const [before, after] = images.map((image) => image.naturalWidth);
+      let error;
+      if (before && after && before !== after)
+        error = `before is ${before}px wide and after is ${after}px — a pair has to be shot at one viewport, or the flip moves everything`;
+      else if (
+        focus &&
+        images.some(
+          (image) =>
+            focus.x + focus.width > image.naturalWidth / pixelRatio ||
+            focus.y + focus.height > image.naturalHeight / pixelRatio,
+        )
+      )
+        error = `focus ${focus.x},${focus.y} ${focus.width}×${focus.height} CSS px falls outside its captured images`;
+      if (!error) return true;
+      failSoft(this, new Error(error));
+      return false;
     }
   },
 );

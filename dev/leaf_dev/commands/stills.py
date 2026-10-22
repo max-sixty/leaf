@@ -1115,9 +1115,7 @@ def page_end(page: Page) -> None:
 
 def visual_review_inspection(page: Page) -> None:
     """Capture the artifact inspection popover beside the selected comparison."""
-    page.locator('.lf-vr-case[aria-hidden="false"]').get_by_role(
-        "button", name="More inspection"
-    ).click()
+    page.locator('.lf-vr-case[aria-hidden="false"] .lf-vr-inspect').click()
     page.mouse.move(0, 0)
 
 

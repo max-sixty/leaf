@@ -10,11 +10,6 @@ from weakref import WeakKeyDictionary
 
 from axe_playwright_python.sync_playwright import Axe
 from browser_sources import browser_function
-from leaf import render_checks as render_checks_model
-from leaf.registry import storage as registry_storage
-from leaf.registry.contract import element_declarations
-from leaf.render_checks import rendered
-from leaf.render_gate import scheme as render_gate_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_harness import (
@@ -22,6 +17,12 @@ from render_harness import (
     leaf_page,
     panel_settled,
 )
+
+from leaf import render_checks as render_checks_model
+from leaf.registry import storage as registry_storage
+from leaf.registry.contract import element_declarations
+from leaf.render_checks import rendered
+from leaf.render_gate import scheme as render_gate_model
 
 CUSTOM_WIDGET_PAGE = leaf_page(
     "custom widget",
@@ -769,7 +770,7 @@ def displaced(before, boxes, news=False):
     A control that is hidden or removed reads None and is left out: it was put away
     rather than moved, which is a thing both sweeps below deliberately allow.
 
-    `news` reads the rule for a change nobody gestured (`skills/leaf/assets/AGENTS.md`,
+    `news` reads the rule for a change nobody gestured (`browser/AGENTS.md`,
     "Stability"): a box whose own words changed may grow or shrink into free room, so its
     width is its own, but its place is not, and no other box may move or resize. The
     free room may lie on either side: a box packed against the run to its right grows

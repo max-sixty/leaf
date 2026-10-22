@@ -2,7 +2,6 @@
 settles or grows, and the reader pages through a landed section."""
 
 import pytest
-from leaf.render_checks import one_frame, rendered
 from playwright.sync_api import expect
 from render_harness import (
     LANDING_TOP,
@@ -11,6 +10,8 @@ from render_harness import (
     resized,
     scroll_settled,
 )
+
+from leaf.render_checks import one_frame, rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

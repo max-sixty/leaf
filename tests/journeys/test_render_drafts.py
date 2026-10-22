@@ -4,8 +4,6 @@ import json
 
 import pytest
 from browser.threads import open_panel_thread, seed_panel_threads
-from leaf import event_log as events_model
-from leaf.render_checks import wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
     SEATED_OBLIGATION_PAGE,
@@ -38,6 +36,9 @@ from render_harness import (
     wait_for_revision,
     write,
 )
+
+from leaf import event_log as events_model
+from leaf.render_checks import wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

@@ -2,7 +2,7 @@
  * Runtime modules generated from the layer registry.
  *
  * A fact Python reads from `registry.json` reaches the browser as a module generated
- * from the same declaration (`skills/leaf/assets/AGENTS.md`, "Facts both runtimes
+ * from the same declaration (`browser/AGENTS.md`, "Facts both runtimes
  * know"), so the two runtimes cannot disagree about it. Each row names its module, the
  * registry value it reads, and the code that value becomes; a new fact is one row.
  * `build/browser/build.mjs` writes and checks these outputs with its own.
@@ -12,7 +12,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-const assets = "skills/leaf/assets";
+const assets = "browser";
 
 const modules = [
   {

@@ -6,7 +6,6 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
     LIVE_KEYS_APPARATUS,
@@ -46,6 +45,7 @@ from render_harness import (
 )
 
 from browser.threads import PANEL_REPLY, open_panel_thread, thread_row
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

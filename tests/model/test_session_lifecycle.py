@@ -20,6 +20,7 @@ from interact_support import (
     wait_for,
     write_record,
 )
+
 from leaf import codex as codex_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -457,7 +458,7 @@ def test_cold_session_end_does_not_wait_for_a_page_transaction(claimed):
             [
                 sys.executable,
                 "-S",
-                str(PLUGIN_ROOT / "skills/leaf/scripts/leaf/state.py"),
+                str(PLUGIN_ROOT / "src/leaf/state.py"),
             ],
             input=json.dumps({"hook_event_name": "SessionEnd", "session_id": "s1"}),
             text=True,

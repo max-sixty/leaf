@@ -871,14 +871,16 @@ def test_a_browser_image_becomes_content_addressed_page_media(server, page_dir):
     """A paste sends bytes once, while drafts and events carry only the stable path.
 
     Retrying the raw upload is safe before the Markdown reference exists: identical
-    pixels return the same name and leave one file, and that exact file is what the
-    page serves back.
+    pixels return the same name and leave one file, whether the body declares its
+    length or arrives in chunks, and that exact file is what the page serves back.
     """
     pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
     headers = {"Content-Type": "image/png"}
 
     first = fetch(f"{server}/api/media", data=pixels, headers=headers)
-    second = fetch(f"{server}/api/media", data=pixels, headers=headers)
+    second = fetch(
+        f"{server}/api/media", data=iter((pixels[:9], pixels[9:])), headers=headers
+    )
 
     assert first == second
     status, body = first
@@ -968,6 +970,7 @@ def test_the_browser_media_door_refuses_untrusted_or_unbounded_bytes(server, pag
     """
     png = b"\x89PNG\r\n\x1a\n" + b"browser pixels"
     refusals = [
+        ({"Content-Type": "image/png"}, b"", "image body is empty"),
         ({"Content-Type": "video/mp4"}, b"video", "image type must be one of:"),
         ({"Content-Type": "audio/mpeg"}, b"audio", "image type must be one of:"),
         (

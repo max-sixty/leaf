@@ -423,25 +423,32 @@ class PageEndpoint:
                 # transport failure: the browser would retry an action that landed.
                 await run_in_threadpool(self.record_fault, error)
 
-    def read_body(self, limit: int | None = None) -> bytes | None:
+    def read_body(self, limit: int) -> bytes | None:
         """The request body, read from inside the route that has earned it, and
         never past a bound the route states — `None` says the peer went past it.
 
         Deliberately not read on arrival: the key gate is upstream of every read
         here, so an unauthenticated peer can neither choose an allocation nor park
-        a request on bytes it never sends. The bound belongs to the read rather
-        than to `Content-Length`, which a chunked body does not carry at all.
+        a request on bytes it never sends. A declared oversized body is refused before
+        waiting for it; the read keeps the same bound when the peer streams without
+        `Content-Length`.
         """
 
         async def read() -> bytes | None:
             body = bytearray()
             async for chunk in self.request.stream():
                 body += chunk
-                if limit is not None and len(body) > limit:
+                if len(body) > limit:
                     return None
             return bytes(body)
 
-        return anyio.from_thread.run(read)
+        body = (
+            None
+            if int(self.headers.get("Content-Length", 0)) > limit
+            else anyio.from_thread.run(read)
+        )
+        self.body_unread = body is None
+        return body
 
     def _state_service(self) -> PageStateService:
         return PageStateService(
@@ -663,15 +670,8 @@ class PageEndpoint:
             return {}, None
         if selected[0].body == "media":
             return self._read_uploaded_media()
-        # A declared length the door will not take, refused before the read rather
-        # than after it: an event is prose, markup and passages, and a body past this
-        # bound is a peer choosing what this process waits for and holds in memory.
-        # A chunked body declares no length, so the read carries the same bound.
-        body = None
-        if int(self.headers.get("Content-Length", 0)) <= MAX_MEDIA_UPLOAD_BYTES:
-            body = self.read_body(MAX_MEDIA_UPLOAD_BYTES)
+        body = self.read_body(MAX_MEDIA_UPLOAD_BYTES)
         if body is None:
-            self.body_unread = True
             return {}, "event exceeds the 10 MiB limit"
         try:
             posted = json.loads(
@@ -693,21 +693,11 @@ class PageEndpoint:
 
     def _read_uploaded_media(self) -> tuple[bytes, str | None]:
         """Read one bounded image body without allocating from an untrusted length."""
-        try:
-            length = int(self.headers.get("Content-Length", ""))
-        except (TypeError, ValueError):
-            self.body_unread = True
-            return b"", "invalid Content-Length"
-        if length < 1:
-            self.body_unread = True
-            return b"", "image body is empty"
-        if length > MAX_MEDIA_UPLOAD_BYTES:
-            self.body_unread = True
+        body = self.read_body(MAX_MEDIA_UPLOAD_BYTES)
+        if body is None:
             return b"", "image exceeds the 10 MiB limit"
-        body = self.read_body()
-        if len(body) != length:
-            self.body_unread = True
-            return b"", "incomplete image body"
+        if not body:
+            return b"", "image body is empty"
         return body, None
 
     def _speaks_events(self) -> bool:

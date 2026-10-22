@@ -681,8 +681,8 @@ var AttachedMediaShelf = class extends LitElement {
     super();
     this.model = { drawing: null, media: [] };
     this.actions = null;
-    this.undoIcon = iconElement("undo", "lf-action-icon");
-    this.removeIcon = iconElement("cross", "lf-action-icon");
+    this.undoIcon = iconElement("undo", "lf-corner-mark-icon");
+    this.removeIcon = iconElement("cross", "lf-corner-mark-icon");
     this.pictured = { drawing: null, target: null, node: null };
   }
   picture(drawing2) {
@@ -738,7 +738,7 @@ var AttachedMediaShelf = class extends LitElement {
               </button>
               <button
                 type="button"
-                class="lf-composer-drawing-undo"
+                class="lf-corner-mark lf-composer-drawing-undo"
                 aria-label="Undo last stroke"
                 title="Undo last stroke"
                 @mousedown=${(event) => event.preventDefault()}
@@ -748,6 +748,7 @@ var AttachedMediaShelf = class extends LitElement {
               </button>
               <button
                 type="button"
+                class="lf-corner-mark"
                 aria-label="Remove drawing"
                 title="Remove drawing"
                 @mousedown=${(event) => event.preventDefault()}
@@ -770,11 +771,11 @@ var AttachedMediaShelf = class extends LitElement {
             </button>
             <button
               type="button"
-              class="lf-composer-media-remove"
+              class="lf-corner-mark lf-composer-media-remove"
               aria-label=${`Remove attached image ${index + 1}`}
               @click=${() => this.actions.removeMedia(index)}
             >
-              ${iconTemplate("cross", "lf-action-icon")}
+              ${iconTemplate("cross", "lf-corner-mark-icon")}
             </button>
           </span>
         `
@@ -6701,12 +6702,12 @@ function createFloatingPanel({
   inner.append(opened, context2, row);
   card.append(inner);
   host.append(card, menu, badge, newsDot, peek);
-  const minimize = el("button", "lf-fp-minimize");
+  const minimize = el("button", "lf-corner-mark lf-fp-minimize");
   minimize.type = "button";
   minimize.tabIndex = -1;
   minimize.title = "Fold to the leaf";
   minimize.setAttribute("aria-label", "Fold to the leaf");
-  minimize.append(iconElement("subtract", "lf-fp-minimize-icon"));
+  minimize.append(iconElement("subtract", "lf-corner-mark-icon"));
   minimize.addEventListener(
     "click",
     () => rows().find((entry) => entry.key === `command:${FOLD}`).press(null)

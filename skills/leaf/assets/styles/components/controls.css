@@ -614,3 +614,55 @@ svg[data-lf-icon] {
   outline: var(--focus-ring);
   outline-offset: 2px;
 }
+/* A corner mark: a small round press riding a corner of the thing it acts on, such as
+   the floating panel's fold and an attachment's removal and Undo last stroke. Every
+   one wears this face, which the user chose on 22 October from the panel's fold: a
+   disc of the ground the thing stands on, set off by that ground's ring and a lift,
+   with its icon in the dim ink, full ink under the pointer. An attachment's marks
+   were a dark disc with a light cross, which read as a second kind of control for
+   the same gesture. The icon says the meaning (icons.js): `subtract` folds, `cross`
+   removes. A surface whose ground is not the paper sets `--lf-ground` and `--lf-ring`
+   for what it raises; each surface places its marks and says when they show. The
+   reach is the aim floor on both axes, since a corner leaves room on both sides. */
+.lf-corner-mark {
+  position: absolute;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  inline-size: var(--corner-mark);
+  min-inline-size: 0;
+  block-size: var(--corner-mark);
+  min-block-size: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  font: inherit;
+  background: var(--lf-ground, var(--paper));
+  color: color-mix(in srgb, var(--ink) 72%, transparent);
+  box-shadow:
+    0 0 0 1px var(--lf-ring, var(--border-2)),
+    var(--raise-1);
+  cursor: pointer;
+}
+.lf-corner-mark::before {
+  content: "";
+  position: absolute;
+  inset: calc((var(--corner-mark) - var(--aim-floor)) / 2);
+}
+.lf-corner-mark:hover {
+  color: var(--ink);
+}
+.lf-corner-mark[data-lf-focus] {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+.lf-corner-mark > svg {
+  inline-size: 12px;
+  block-size: 12px;
+}
+/* A forced palette drops the disc's ring and lift, so it takes a system edge. */
+@media (forced-colors: active) {
+  .lf-corner-mark {
+    border: 1px solid ButtonText;
+  }
+}

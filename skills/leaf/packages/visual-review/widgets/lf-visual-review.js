@@ -7,6 +7,7 @@ import "/widgets/lf-shot.js";
 import {
   LeafElement,
   html,
+  iconTemplate,
   nothing,
   repeat,
   keyed,
@@ -41,6 +42,19 @@ import {
 } from "/runtime/widget-api.js";
 
 const MODES = { compare: "Before & after", flip: "Slider" };
+// A popover's way out wears the face of every surface's close control in Leaf: the
+// cross, named for what it closes (runtime/widget-elements.js, `closeControl`).
+const closeButton = (popover, name) =>
+  html`<button
+    type="button"
+    ${offered("lf-btn lf-icon-action lf-quiet-action")}
+    popovertarget=${popover}
+    popovertargetaction="hide"
+    aria-label=${name}
+    title=${`${name} (Esc)`}
+  >
+    ${iconTemplate("cross", "lf-action-icon")}
+  </button>`;
 const READABLE_SCALE = 0.7;
 const fact = (name, value) =>
   html`<div>
@@ -522,14 +536,10 @@ customElements.define(
                     >
                       <header class="lf-vr-inspection-heading">
                         <h4>Threads on this case</h4>
-                        <button
-                          type="button"
-                          ${offered("lf-btn lf-quiet-action lf-compact-control")}
-                          popovertarget=${`${this.id}-${record.id}-threads`}
-                          popovertargetaction="hide"
-                        >
-                          Close
-                        </button>
+                        ${closeButton(
+                          `${this.id}-${record.id}-threads`,
+                          "Close threads on this case",
+                        )}
                       </header>
                       ${repeat(
                         threads,
@@ -590,17 +600,10 @@ customElements.define(
           <div class="lf-vr-details" id=${`${this.id}-${record.id}-inspection`} popover>
             <header class="lf-vr-inspection-heading">
               <h4>Inspection settings</h4>
-              <button
-                type="button"
-                ${offered(
-                  "lf-btn lf-quiet-action lf-compact-control lf-vr-inspection-close",
-                )}
-                popovertarget=${`${this.id}-${record.id}-inspection`}
-                popovertargetaction="hide"
-                aria-label="Close inspection"
-              >
-                Close
-              </button>
+              ${closeButton(
+                `${this.id}-${record.id}-inspection`,
+                "Close inspection settings",
+              )}
             </header>
             <div class="lf-vr-inspection">
               ${

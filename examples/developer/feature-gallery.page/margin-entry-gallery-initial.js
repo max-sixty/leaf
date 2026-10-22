@@ -61,7 +61,7 @@
     },
     {
       heading: "Turn and agent workflow",
-      summary: "My turn · awaiting agent · picked up · working · awaiting continuation",
+      summary: "My turn · awaiting agent · delivered · working · awaiting continuation",
       samples: [
         {
           name: "My turn",
@@ -79,7 +79,7 @@
           rank: "reading",
         },
         {
-          name: "Waiting for pickup",
+          name: "Waiting for delivery",
           detail: "unaccepted after the grace period",
           icon: "waiting",
           behavior: "status",
@@ -93,7 +93,7 @@
           rank: "reading",
         },
         {
-          name: "Picked up",
+          name: "Delivered",
           detail: "Thread · agent turn opened",
           icon: "comment",
           behavior: "disclosure",

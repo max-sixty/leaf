@@ -37,7 +37,7 @@ Every transport delivers the same immutable object:
 }
 ```
 
-`DELIVERY` in `scripts/leaf/delivery.py` declares every field, with the thread
+`DELIVERY` in the plugin’s `src/leaf/delivery.py` declares every field, with the thread
 digests. Some harnesses put it in your context; others give a pointer, which
 `leaf delivery read <id>` resolves. A large envelope reads in numbered parts
 instead: each reading names its `part` of `parts` and holds a slice of the
@@ -90,7 +90,7 @@ Confirm a delivery only once every part is in context, by following its
 does not confirm it. Input your harness already confirmed arrives with
 `acknowledge: null`; Codex hook input still requires your explicit confirmation.
 
-Confirming marks the user's updates **Picked up**; it does not answer them.
+Confirming marks the user's updates **Delivered**; it does not answer them.
 
 `leaf wait` waits only on pages this session holds; to take over a page, run
 `leaf page claim <page>` first. A wait exits 0 with input, or 2 with a diagnostic

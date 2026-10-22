@@ -124,10 +124,7 @@ function resolve(file, specifier) {
   const path = specifier.startsWith(".")
     ? join(dirname(file), specifier)
     : specifier.startsWith("/checks/")
-      ? join(
-          "skills/leaf/scripts/leaf/render-checks",
-          specifier.slice("/checks/".length),
-        )
+      ? join("src/leaf/render-checks", specifier.slice("/checks/".length))
       : served(specifier);
   if (!path) return null;
   const found = [

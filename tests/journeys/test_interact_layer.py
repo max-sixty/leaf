@@ -17,7 +17,6 @@ from interact_support import (
     COMMAND_HUB_PACKAGE,
     PAGE,
     ROOT,
-    SKILL_ROOT,
     STATED_TIMEOUT,
     add_test_widget,
     append_carried_log_record,
@@ -26,12 +25,14 @@ from interact_support import (
     page_packages,
     publish,
 )
+from leaf_dev.page_fixtures import package_selection_args
+
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as interact_files
 from leaf import layer as layer_model
 from leaf import packages as packages_model
-from leaf_dev.page_fixtures import package_selection_args
+from leaf import schema as schema_model
 
 
 def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(
@@ -97,7 +98,7 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(
     installed_registry = json.loads((page / "registry.json").read_text())
     assert "lf-test-plan" in installed_registry
     assert installed_registry["$layer"]["packages"] == list(selected)
-    copied = installed / "skills" / "leaf" / "scripts" / "leaf" / "layer.py"
+    copied = installed / "src" / "leaf" / "layer.py"
     assert installed_registry["$layer"]["producer"] == {
         "commit": commit,
         "dirty": False,
@@ -578,7 +579,7 @@ def test_init_revendors_a_page_an_earlier_leaf_left_behind(page_dir):
 
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert revendored.exit_code == 0, revendored.output
-    kernel = json.loads((SKILL_ROOT / "assets" / "registry.json").read_text())
+    kernel = json.loads((schema_model.ASSETS / "registry.json").read_text())
     vendored = json.loads((page_dir / "registry.json").read_text())
     assert vendored["$events"]["kinds"] == kernel["$events"]["kinds"]
     recovered = check(page_dir)

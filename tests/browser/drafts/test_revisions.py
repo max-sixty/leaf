@@ -3,11 +3,6 @@ focus and session, and the revision a draft aims at."""
 
 import pytest
 from interact_support import append_carried_log_record, append_command
-from leaf import event_log as events_model
-from leaf import hosting as hosting_model
-from leaf import revisioning as revisioning_model
-from leaf import vendoring as vendoring_model
-from leaf.render_checks import one_frame, rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import live_url, panel_comment
 from render_cases_navigation import JOURNEY_V1, NOTED_PAGE, _publish
@@ -39,6 +34,11 @@ from browser.drafts import (
     replace_editing_document,
 )
 from browser.threads import open_panel_thread
+from leaf import event_log as events_model
+from leaf import hosting as hosting_model
+from leaf import revisioning as revisioning_model
+from leaf import vendoring as vendoring_model
+from leaf.render_checks import one_frame, rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -429,8 +429,28 @@ def test_a_mechanical_revision_failure_leaves_accepted_publication_ready(
     def hold_later_readings(route):
         later_readings.append(route)
 
+    # The interface event can precede Lit's editor paint. Hold its preparation until
+    # that editor exists so the mechanical caret failure is installed before landing.
     page.evaluate(
-        "() => document.addEventListener('lf-page-interface',event=>{\n      event.detail.present(Promise.resolve().then(()=>{\n        const editor=document.querySelector('#draft-root leaf-text');\n        if(!editor)throw new Error('failure arrangement did not create its editor');\n        editor.setSelectionRange=()=>{window.__mechanicalCaretFailure=true;throw new Error('mechanical caret fixture failed')};\n      }));\n    },{once:true})"
+        """() => document.addEventListener('lf-page-interface', event => {
+          event.detail.present(new Promise(resolve => {
+            const install = () => {
+              const editor = document.querySelector('#draft-root leaf-text');
+              if (!editor) return false;
+              editor.setSelectionRange = () => {
+                window.__mechanicalCaretFailure = true;
+                throw new Error('mechanical caret fixture failed');
+              };
+              resolve();
+              return true;
+            };
+            if (install()) return;
+            const observer = new MutationObserver(() => {
+              if (install()) observer.disconnect();
+            });
+            observer.observe(document.body, { childList: true, subtree: true });
+          }));
+        }, { once: true })"""
     )
     stamp_page(
         serve.page_dir,

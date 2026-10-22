@@ -2,10 +2,11 @@
 
 from click.testing import CliRunner
 from interact_support import PAGE, publish
-from leaf import cli as cli_model
 from render_harness import (
     leaf_page,
 )
+
+from leaf import cli as cli_model
 
 
 def test_export_refuses_an_unstamped_version_without_replacing_the_destination(

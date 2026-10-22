@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { adoptRegistry } from "/runtime/registry.js";
 import { acceptData, notifyDataSubscribers } from "/runtime/data.js";
-import { LeafElement, nothing } from "/runtime/widget-api.js";
+import { LeafElement, nothing, html } from "/runtime/widget-api.js";
 
 let fixtureSequence = 0;
 async function scene() {
@@ -96,112 +96,69 @@ test("a widget reads its own binding, captured at its first read", async () => {
   assert.deepEqual(unbound, [null]);
 });
 
-test("projection subscriptions follow their owner and cancel queued reads", async () => {
+test("a Lit renderer follows conditional clock reads and its owner lifetime", async () => {
   await scene();
-  const result = await (async () => {
-    const { watchProjection } = await import("/runtime/projection-watch.js");
-    const { clockValue, tickClock } = await import("/runtime/presence.js");
-    const owner = document.createElement("div");
-    document.body.append(owner);
-    const changed = (action) =>
-      new Promise((resolve) => {
-        const observer = new MutationObserver(() => {
-          observer.disconnect();
-          resolve();
-        });
-        observer.observe(document.body, { childList: true, subtree: true });
-        action();
-      });
-    let clock = 0;
-    let cancelled = 0;
-    const cancel = watchProjection(owner, () => {
-      cancelled += 1;
-      clockValue(() => clock);
-    });
-    cancel();
-    await Promise.resolve();
+  const { clockValue, tickClock } = await import("/runtime/presence.js");
+  let clock = 0;
+  let calls = 0;
+  let trackClock = false;
+  customElements.define(
+    "leaf-conditional-clock",
+    class extends LeafElement {
+      render() {
+        calls += 1;
+        if (trackClock) clockValue(() => clock);
+        return html`<span>Clock</span>`;
+      }
+    },
+  );
+  const owner = document.createElement("leaf-conditional-clock");
+  const settle = async () => {
+    await new Promise((resolve) => setTimeout(resolve));
+    if (owner.isConnected) await owner.updateComplete;
+  };
+  const tick = async () => {
     clock += 1;
-    await tickClock((message) => {
-      throw new Error(message);
+    await tickClock((reason) => {
+      throw reason;
     });
-    let calls = 0;
-    let trackClock = false;
-    const stop = watchProjection(owner, () => {
-      calls += 1;
-      if (trackClock) clockValue(() => clock);
-    });
-    await Promise.resolve();
-    const initial = calls;
-    clock += 1;
-    await tickClock((message) => {
-      throw new Error(message);
-    });
-    const untracked = calls;
+    await settle();
+  };
+  document.body.append(owner);
+  try {
+    await settle();
+    assert.equal(calls, 1);
+    await tick();
+    assert.equal(calls, 1, "an unread clock does not repaint");
     trackClock = true;
-    stop.refresh();
-    const subscribed = calls;
-    clock += 1;
-    await tickClock((message) => {
-      throw new Error(message);
-    });
-    const clocked = calls;
-    await changed(() => {
-      owner.remove();
-      document.body.append(owner);
-    });
-    const moved = calls;
-    await changed(() => owner.remove());
-    clock += 1;
-    await tickClock((message) => {
-      throw new Error(message);
-    });
-    const detached = calls;
-    await changed(() => document.body.append(owner));
-    await Promise.resolve();
-    const resumed = calls;
-    await tickClock((message) => {
-      throw new Error(message);
-    });
-    const ticked = calls;
-    stop.refresh();
-    const refreshed = calls;
-    stop();
-    stop.refresh();
-    await changed(() => owner.remove());
-    await changed(() => document.body.append(owner));
-    clock += 1;
-    await tickClock((message) => {
-      throw new Error(message);
-    });
+    owner.requestUpdate();
+    owner.performUpdate();
+    assert.equal(calls, 2, "a mechanical redraw establishes its current dependencies");
+    await tick();
+    assert.equal(calls, 3);
+    // Native connection callbacks redraw on a move; Lit retains the rendered nodes.
+    const content = owner.querySelector("span");
     owner.remove();
-    return {
-      cancelled,
-      initial,
-      untracked,
-      subscribed,
-      clocked,
-      moved,
-      detached,
-      resumed,
-      ticked,
-      refreshed,
-      stopped: calls,
-    };
-  })();
-  assert.deepEqual(result, {
-    cancelled: 0,
-    initial: 1,
-    untracked: 1,
-    subscribed: 2,
-    clocked: 3,
-    moved: 3,
-    detached: 3,
-    // The time it shows aged while it was away, so its return paints it at once.
-    resumed: 4,
-    ticked: 4,
-    refreshed: 5,
-    stopped: 5,
-  });
+    document.body.append(owner);
+    await settle();
+    assert.equal(calls, 4);
+    assert.equal(owner.querySelector("span"), content);
+    owner.remove();
+    await settle();
+    await tick();
+    assert.equal(calls, 4, "a disconnected element does not repaint");
+    document.body.append(owner);
+    await settle();
+    assert.equal(calls, 5, "reconnection draws the reading that aged while away");
+    trackClock = false;
+    owner.requestUpdate();
+    owner.performUpdate();
+    assert.equal(calls, 6);
+    await tick();
+    assert.equal(calls, 6, "a conditional read that ends releases its dependency");
+  } finally {
+    owner.remove();
+  }
 });
 
 test("a superseded async data render cannot stamp the newer version", async () => {
@@ -349,87 +306,6 @@ test("data readiness does not wait for an unrelated widget region", async () => 
     return beforeRelease;
   })();
   assert.equal(result, true);
-});
-
-test("a projection watcher repaints for what its paint read, however it read it", async () => {
-  const { watchProjection } = await import("/runtime/projection-watch.js");
-  const { applicationState, readPart } = await import("/runtime/semantic-state.js");
-  const host = readPart((root) => root.effective.hostAvailable);
-  const revision = readPart((root) => root.document.revision);
-  // Read through a helper, as a widget reads through `readWork`: the watcher is never
-  // told which part it draws.
-  const describe = () => (host() ? "online" : "offline");
-  const settle = () => new Promise((resolve) => setTimeout(resolve));
-  const owner = document.createElement("div");
-  document.body.append(owner);
-  const drawn = [];
-  const stop = watchProjection(owner, () => drawn.push(describe()));
-  await settle();
-  const initial = drawn.length;
-  applicationState.identify(revision() === 41 ? 42 : 41);
-  await settle();
-  const unread = drawn.length;
-  applicationState.setHostAvailable(!host());
-  await settle();
-  const read = drawn.length;
-  // Returning paints once to reestablish the native effect, including when no input
-  // moved while the effect was disconnected.
-  owner.remove();
-  await settle();
-  applicationState.setHostAvailable(!host());
-  await settle();
-  document.body.append(owner);
-  await settle();
-  const returned = drawn.length;
-  owner.remove();
-  await settle();
-  document.body.append(owner);
-  await settle();
-  const unchanged = drawn.length;
-  stop();
-  applicationState.setHostAvailable(!host());
-  await settle();
-  owner.remove();
-  assert.deepEqual(
-    { initial, unread, read, returned, unchanged, stopped: drawn.length },
-    { initial: 1, unread: 1, read: 2, returned: 3, unchanged: 4, stopped: 4 },
-  );
-});
-
-test("a projection watcher repaints for a part its own paint published after reading it", async () => {
-  const { watchProjection } = await import("/runtime/projection-watch.js");
-  const { applicationState, readPart } = await import("/runtime/semantic-state.js");
-  const host = readPart((root) => root.effective.hostAvailable);
-  const owner = document.createElement("div");
-  document.body.append(owner);
-  const drawn = [];
-  const stop = watchProjection(owner, () => {
-    drawn.push(host());
-    if (drawn.length === 1) applicationState.setHostAvailable(!host());
-  });
-  await new Promise((resolve) => setTimeout(resolve));
-  stop();
-  owner.remove();
-  assert.deepEqual(drawn, [drawn[0], !drawn[0]]);
-});
-
-test("a projection watcher repaints for a signal its own paint moved", async () => {
-  const { watchProjection } = await import("/runtime/projection-watch.js");
-  const { signal } = await import("/vendor/browser-runtime.js");
-  const flag = signal(false);
-  const owner = document.createElement("div");
-  document.body.append(owner);
-  const drawn = [];
-  const stop = watchProjection(owner, () => {
-    drawn.push(flag.value);
-    if (drawn.length === 1) {
-      flag.value = true;
-    }
-  });
-  await new Promise((resolve) => setTimeout(resolve));
-  stop();
-  owner.remove();
-  assert.deepEqual(drawn, [false, true]);
 });
 
 // Mounted outputs use the same LeafElement reader and presentation region as sources.

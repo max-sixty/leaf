@@ -37,7 +37,6 @@ from pathlib import Path
 
 import pytest
 from interact_support import wait_for
-from leaf.render_checks import rendered, wait_until_ready
 from model_folds import leaf_page
 from PIL import Image, ImageDraw
 from playwright.sync_api import expect
@@ -60,6 +59,8 @@ from render_harness import (
     sending,
     write,
 )
+
+from leaf.render_checks import rendered, wait_until_ready
 
 # One source line, so a phrase's offset in the source is its offset in the text node.
 LONG = (

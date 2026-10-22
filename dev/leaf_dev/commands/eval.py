@@ -176,6 +176,7 @@ def native_provider(
             "working_dir": str(work),
             "skip_git_repo_check": True,
             "turn_timeout_ms": TURN_LIMIT * 1000,
+            "inherit_process_env": True,
             "cli_env": cli_env,
         },
     }, installed / "skills/leaf/SKILL.md"

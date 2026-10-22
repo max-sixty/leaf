@@ -58,6 +58,7 @@ def native_config(home: Path, config: dict) -> dict:
         **config,
         "working_dir": str(home),
         "skip_git_repo_check": True,
+        "inherit_process_env": True,
         "cli_env": {
             "HOME": str(home),
             "CODEX_HOME": str(codex),

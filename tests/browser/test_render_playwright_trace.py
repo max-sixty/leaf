@@ -23,6 +23,32 @@ from render_harness import (
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def test_trace_moments_keep_their_distinguishing_words_on_a_phone(browser, serve):
+    """The before/after result names differ at their ends, which must remain readable."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True
+    )
+    page = open_page(
+        browser, serve(ROOT / "examples/review-a-fix.html"), context=context
+    )
+    for recording, label in [("before", "Before the fix"), ("after", "After the fix")]:
+        page.get_by_role("radio", name=label, exact=True).tap()
+        moment = page.locator(f"#fix-{recording} .lf-trace-bookmark").last
+        moment.scroll_into_view_if_needed()
+        measured = moment.evaluate("""row => {
+          const label = row.querySelector('.lf-trace-moment-label');
+          const box = row.getBoundingClientRect();
+          const range = document.createRange();
+          range.selectNodeContents(label);
+          return {horizontal: label.scrollWidth - label.clientWidth,
+            words: [...range.getClientRects()].every(r =>
+              r.left >= box.left && r.right <= box.right &&
+              r.top >= box.top && r.bottom <= box.bottom)};
+        }""")
+        assert measured["horizontal"] <= 1, measured
+        assert measured["words"], measured
+
+
 def test_trace_bookmarks_leave_the_image_allocation(browser, serve):
     """Saved moments follow the evidence; their number never consumes its viewport."""
     source = ROOT / "examples/developer/playwright-trace-gallery.data.json"

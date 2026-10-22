@@ -3,15 +3,16 @@
 import re
 
 from interact_support import record_claim
-from leaf import leases as leases_model
-from leaf import service as service_model
-from leaf import thread as thread_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
     panel_comment,
 )
 from render_harness import open_page, panel_field, told
+
+from leaf import leases as leases_model
+from leaf import service as service_model
+from leaf import thread as thread_model
 
 
 def said(page):

@@ -33,7 +33,7 @@ vars:
 
     The page was initialized with the `playground` package, whose author
     instructions `page init` copied into the page; the same file is
-    `packages/playground/instructions/author.md` inside the leaf skill's base
+    `../../packages/playground/instructions/author.md` relative to the leaf skill's base
     directory, the directory that holds its `references/`. Read that file and
     `references/page-authoring.md` and `references/live-samples.md` from that
     same skill directory.

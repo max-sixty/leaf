@@ -3,10 +3,11 @@
 import json
 
 from click.testing import CliRunner
+from leaf_dev.cli import cli
+
 from leaf import interaction_log
 from leaf.event_log import append_event
 from leaf.interaction_log import append_interactions, client_records
-from leaf_dev.cli import cli
 
 
 def test_query_keeps_input_identity_and_missing_observations(tmp_path, monkeypatch):

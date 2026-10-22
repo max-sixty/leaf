@@ -31,23 +31,20 @@ from pathlib import Path
 from leaf.media import media_name
 from leaf.schema import MEDIA_DIR
 from leaf.structure import SourceDocument
-
 from leaf_dev import ROOT, declared_records
 from leaf_dev.example_data import document_metadata
 from leaf_dev.leaf_assets import pinned_assets
 
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
-ASSETS = ROOT / "skills" / "leaf" / "assets"
-PACKAGES = ROOT / "skills" / "leaf" / "packages"
-SCRIPTS = ROOT / "skills" / "leaf" / "scripts" / "leaf"
+ASSETS = ROOT / "browser"
+PACKAGES = ROOT / "packages"
+SCRIPTS = ROOT / "src" / "leaf"
 SERVED_SCHEMA = SCRIPTS / "served_state" / "state.schema.json"
 INTERACTION_SCHEMA = SCRIPTS / "interaction-batch.schema.json"
 # Where each event kind's meaning is written: its row of the kinds table that opens
 # the file, at the anchor `kind-<kind>`.
-EVENTS_REFERENCE = (
-    "https://github.com/max-sixty/leaf/blob/main/skills/leaf/scripts/leaf/events.md"
-)
+EVENTS_REFERENCE = "https://github.com/max-sixty/leaf/blob/main/src/leaf/events.md"
 
 # The site's route bar, the brand first.
 SITE_NAV = (

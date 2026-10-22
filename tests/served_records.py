@@ -16,12 +16,13 @@ import json
 from pathlib import Path
 
 from interact_support import model_layer, served_thread
+from model_folds import NOW, UNCLAIMED, leaf_page, served_reading
+
 from leaf.event_log import EventRefused
 from leaf.passages import SourceReading
 from leaf.projection import StateProjection, authored_rank, obligation_value
 from leaf.registry.contract import state_definition
 from leaf.structure import SourceDocument
-from model_folds import NOW, UNCLAIMED, leaf_page, served_reading
 
 PAGE = leaf_page("Served records", '<h1 id="h">Steps</h1><p id="p">Two steps.</p>')
 

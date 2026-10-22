@@ -2786,22 +2786,21 @@ def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
     )
 
 
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_the_leaf_paints_inside_its_moving_focus_ring(request, engine, serve):
-    """Natural frames keep the mark centered in its focus ring in both directions.
+def test_the_leaf_paints_inside_its_moving_focus_ring(browser, serve):
+    """The mark stays visible through pointer motion and inside its keyboard ring.
 
     Held animations and computed geometry conceal compositor translation advancing
     ahead of the painted clip, so read the pixels without seeking the animations.
+    Firefox screencasts can omit the entire panel, also before this repair; see
+    browser-support.md. This strict all-frame regression runs in Chromium.
     """
     from io import BytesIO
 
     from PIL import Image, ImageChops, ImageColor
 
-    browser = request.getfixturevalue(engine)
     page = floating(browser, serve(leaf_page("fold", '<h1 id="title">Fold</h1>')))
     page.emulate_media(reduced_motion="no-preference")
     leaf = page.locator(".lf-fp-leaf")
-    leaf.focus()
     colours = leaf.evaluate("""node => ({
       ring: getComputedStyle(node).outlineColor,
       mark: getComputedStyle(node.querySelector('.lf-dot')).backgroundColor
@@ -2819,14 +2818,22 @@ def test_the_leaf_paints_inside_its_moving_focus_ring(request, engine, serve):
             ImageChops.darker(*channels[:2]), channels[2]
         ).getbbox()
 
-    card = page.locator(".lf-fp-card").bounding_box()
-    page.mouse.move(card["x"] + card["width"] - 20, card["y"] + 6)
-    corner = page.locator(".lf-fp-minimize").bounding_box()
-    corner_center = (
-        corner["x"] + corner["width"] / 2,
-        corner["y"] + corner["height"] / 2 - (viewport["height"] - 70),
-    )
-    for selector in (".lf-fp-minimize", ".lf-fp-leaf"):
+    for route, action in (
+        ("pointer", ".lf-fp-minimize"),
+        ("pointer", ".lf-fp-leaf"),
+        ("keyboard", "."),
+        ("keyboard", "Enter"),
+    ):
+        if action == ".lf-fp-minimize":
+            card = page.locator(".lf-fp-card").bounding_box()
+            page.mouse.move(card["x"] + card["width"] - 20, card["y"] + 6)
+        if route == "keyboard" and action == ".":
+            field(page).click()
+            page.keyboard.press("Shift+Tab")
+            expect(leaf).to_be_focused()
+            colours["ring"] = ImageColor.getrgb(
+                leaf.evaluate("node => getComputedStyle(node).outlineColor")
+            )
         before = leaf.bounding_box()
         frames = []
         with page.screencast.start(
@@ -2834,13 +2841,17 @@ def test_the_leaf_paints_inside_its_moving_focus_ring(request, engine, serve):
             quality=100,
             size=viewport,
         ):
-            page.locator(selector).hover()
-            page.mouse.down()
-            # A real press may span a frame before its click activates the control.
-            one_frame(page)
-            page.mouse.up()
+            if route == "keyboard":
+                page.keyboard.press(action)
+            else:
+                page.locator(action).hover()
+                page.mouse.down()
+                # A press may settle before its click activates the control.
+                one_frame(page)
+                page.mouse.up()
             one_frame(page)
             settled(page)
+        expect(leaf).to_be_focused()
         after = leaf.bounding_box()
         ends = sorted(box["x"] + box["width"] / 2 for box in (before, after))
         centers = []
@@ -2849,27 +2860,23 @@ def test_the_leaf_paints_inside_its_moving_focus_ring(request, engine, serve):
             pixels = pixels.crop(
                 (0, viewport["height"] - 70, viewport["width"], viewport["height"])
             )
-            ring = ink_box(pixels, colours["ring"])
-            if ring is None:
-                continue
-            ring_center = ((ring[0] + ring[2]) / 2, (ring[1] + ring[3]) / 2)
-            # Pointer-down focuses the corner before pointer-up folds the panel.
-            # Its ring is above the leaf's path, and says nothing about leaf motion.
-            if ring_center == pytest.approx(corner_center, abs=2):
-                continue
             mark = ink_box(pixels, colours["mark"])
-            assert mark is not None, selector
+            assert mark is not None, (route, action)
             mark_center = ((mark[0] + mark[2]) / 2, (mark[1] + mark[3]) / 2)
-            assert mark_center == pytest.approx(ring_center, abs=2), (
-                selector,
-                mark,
-                ring,
-            )
-            centers.append(ring_center[0])
+            if route == "keyboard":
+                ring = ink_box(pixels, colours["ring"])
+                assert ring is not None, action
+                ring_center = ((ring[0] + ring[2]) / 2, (ring[1] + ring[3]) / 2)
+                assert mark_center == pytest.approx(ring_center, abs=2), (
+                    action,
+                    mark,
+                    ring,
+                )
+            centers.append(mark_center[0])
         intermediate = {
             center for center in centers if ends[0] + 2 < center < ends[1] - 2
         }
-        assert intermediate, (selector, ends, centers)
+        assert intermediate, (route, action, ends, centers)
 
 
 def test_a_new_line_past_the_field_s_height_scrolls_into_view(browser, serve):

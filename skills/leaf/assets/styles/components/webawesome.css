@@ -89,33 +89,31 @@ wa-select::part(combobox) {
   transition-property: background-color, border-color;
 }
 
-/* Public parts carry the same focus band for pointer and keyboard arrival. Native
-   shadow hosts only retarget their internal focus; Leaf's focus owner marks the actual
-   input owner with data-lf-focus and the public lf-focus part, and its composed ancestry
-   with data-lf-focus-within and the public lf-focus-within part. Each control draws
-   one band at that logical destination, including while a label press temporarily
-   moves native focus elsewhere. */
-wa-copy-button::part(lf-focus) {
+/* Public parts carry the visible band at the logical input destination. The focus
+   owner projects the browser's focus-visible reading onto the destination and its
+   composed ancestry, so a field can ring its frame without ringing a retargeting
+   shadow host or a label press's intermediate node. */
+wa-copy-button::part(lf-focus-visible) {
   outline: var(--focus-ring);
   outline-offset: var(--focus-ring-gap);
 }
-wa-comparison::part(lf-focus) {
+wa-comparison::part(lf-focus-visible) {
   outline: var(--focus-ring);
   outline-offset: var(--focus-ring-gap);
 }
 
 /* A radio's actual focus owner is its host, rather than a native shadow control.
    The generic band surrounds its full face, label included, for both appearances. */
-wa-radio[appearance="button"][data-lf-focus] {
+wa-radio[appearance="button"][data-lf-focus-visible] {
   z-index: 2;
 }
 
 /* Text and select frames cover their editor and auxiliary controls, including Clear.
    Their native input/button outlines stay off so a group has one focus carrier. */
-wa-input::part(base lf-focus-within) {
+wa-input::part(base lf-focus-visible-within) {
   outline: var(--focus-ring);
 }
-wa-select::part(combobox lf-focus-within) {
+wa-select::part(combobox lf-focus-visible-within) {
   outline: var(--focus-ring);
 }
 /* An open select's options fill its listbox, which clips what it holds, so the ring on
@@ -128,12 +126,12 @@ wa-option {
 
 /* A single slider focuses its rail and paints the thumb; a range slider focuses
    each thumb independently. The public parts express that same ownership. */
-wa-slider:not([range])[data-lf-focus-within]::part(thumb),
-wa-slider[range]::part(lf-focus) {
+wa-slider:not([range])[data-lf-focus-visible-within]::part(thumb),
+wa-slider[range]::part(lf-focus-visible) {
   outline: var(--focus-ring);
   outline-offset: 0;
 }
-wa-slider[range]::part(lf-focus) {
+wa-slider[range]::part(lf-focus-visible) {
   z-index: 4;
 }
 

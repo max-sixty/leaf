@@ -13,10 +13,11 @@
  * - A part that kept its size is carried: drawn where it stood, and moved by a
  *   transform to where it stands.
  * - A part that changed size and holds parts of its own leaves each of them to these
- *   rules. If it paints, a face or a ring, that grows from where it stood with it: a
- *   ring drawn by the surface, a face by cutting the part to its outline growing,
- *   unless the part holds something placed against the window, which any cut on it
- *   would cut too.
+ *   rules. A ring is drawn by the surface. A painted face travels by its start
+ *   corner, clipped in that moving frame; its children subtract that carry from
+ *   their own translation, so the face never clips children travelling independently
+ *   from another place. A part holding something placed against the window cannot
+ *   carry or clip it, so leaves its face at rest.
  * - A part that changed size and holds only its own content, such as words, carries
  *   that content by its start corner, cut to its outline growing from where it stood.
  *   An editor carries its words inside its own box (`--lf-field-carry`,
@@ -144,28 +145,22 @@ export function boxMotion({
     return false;
   };
 
-  // How far the parts carrying an element have it drawn from its rest now, it among
-  // them, on the clock every motion shares.
+  // The nearest carrier's global offset includes every carrying ancestor: each
+  // nested translation subtracts its parent's offset, so the local offsets telescope.
   function carriedBy(progress) {
     const offsets = new Map();
     const offset = (carrier) => {
       if (!offsets.has(carrier)) {
-        const { from, to } = motions.get(carrier);
+        const { from, to, carries: edge } = motions.get(carrier);
         const now = between(from, to, progress);
-        offsets.set(carrier, [now.left - to.left, now.top - to.top]);
+        offsets.set(carrier, [now[edge] - to[edge], now.top - to.top]);
       }
       return offsets.get(carrier);
     };
     return (element) => {
-      let dx = 0;
-      let dy = 0;
       for (let up = element; up && up !== root; up = up.parentElement)
-        if (motions.get(up)?.carries) {
-          const [x, y] = offset(up);
-          dx += x;
-          dy += y;
-        }
-      return [dx, dy];
+        if (motions.get(up)?.carries) return offset(up);
+      return [0, 0];
     };
   }
 
@@ -324,6 +319,11 @@ export function boxMotion({
       start(element, [{ [property]: value }, { [property]: value }]);
     const translated = new Set();
     const move = (element, dx, dy) => {
+      // From/to stay in window coordinates; nested translations are relative to the
+      // nearest carrying ancestor, so their local offsets add to this global one.
+      const [carriedX, carriedY] = carriedBy(0)(element.parentElement);
+      dx -= carriedX;
+      dy -= carriedY;
       if (!translations.has(element))
         translations.set(element, {
           value: element.style.getPropertyValue("translate"),
@@ -343,8 +343,9 @@ export function boxMotion({
     function carry(part, from) {
       const dx = from.left - part.box.left;
       const dy = from.top - part.box.top;
-      if (near(dx, 0) && near(dy, 0)) return;
-      motions.set(part.element, { from, to: part.box, carries: true });
+      const [carriedX, carriedY] = carriedBy(0)(part.element.parentElement);
+      if (near(dx, carriedX) && near(dy, carriedY)) return;
+      motions.set(part.element, { from, to: part.box, carries: "left" });
       move(part.element, dx, dy);
     }
 
@@ -355,8 +356,10 @@ export function boxMotion({
       if (part.scrolls && !part.element.matches(TEXT_FIELD)) return grow(part, from);
       let dx = rtl ? from.right - to.right : from.left - to.left;
       let dy = from.top - to.top;
-      const end = Math.max(0, width(to) - width(from));
-      const foot = Math.max(0, height(to) - height(from));
+      // A shrinking frame starts outside its final box, so children remain visible
+      // in the larger outline they occupied before the change.
+      const end = width(to) - width(from);
+      const foot = height(to) - height(from);
       const cut = rtl ? [0, 0, foot, end] : [0, end, foot, 0];
       // The editor's own box cuts its words off at its edges, so it carries them
       // inside itself only as far as that box holds them. Where its start moved up or
@@ -365,9 +368,9 @@ export function boxMotion({
       const editor = part.element.matches(TEXT_FIELD);
       const inside = (rtl ? dx <= 0 : dx >= 0) && dy >= 0;
       if (!editor || (!inside && gesture !== "typing")) {
-        motions.set(part.element, { from, to, carries: true });
+        motions.set(part.element, { from, to, carries: rtl ? "right" : "left" });
         move(part.element, dx, dy);
-        cutFrom(part.element, cut);
+        cutFrom(part.element, cut, radiusOf(part.style));
         return;
       }
       motions.set(part.element, { from, to });
@@ -410,13 +413,14 @@ export function boxMotion({
         for (const inner of part.parts) reveal(inner, frame, siblings);
         return;
       }
+      const carriedTo = shifted(to, ...carriedBy(0)(part.element.parentElement));
       const side = (inset, beyond) => (beyond ? 0 : Math.max(0, inset));
       /** @type {[number, number, number, number]} */
       const from = [
-        side(frame.from.top - to.top, to.top < frame.to.top - 0.5),
-        side(to.right - frame.from.right, to.right > frame.to.right + 0.5),
-        side(to.bottom - frame.from.bottom, to.bottom > frame.to.bottom + 0.5),
-        side(frame.from.left - to.left, to.left < frame.to.left - 0.5),
+        side(frame.from.top - carriedTo.top, to.top < frame.to.top - 0.5),
+        side(carriedTo.right - frame.from.right, to.right > frame.to.right + 0.5),
+        side(carriedTo.bottom - frame.from.bottom, to.bottom > frame.to.bottom + 0.5),
+        side(frame.from.left - carriedTo.left, to.left < frame.to.left - 0.5),
       ];
       /** @type {[number, number, number, number]} */
       const end = [0, 0, 0, 0];
@@ -430,10 +434,10 @@ export function boxMotion({
         // On each side the part stands beside it, how far in it reaches, then and at
         // rest.
         [
-          along && { then: then.bottom - to.top, rest: at.bottom - to.top },
-          across && { then: to.right - then.left, rest: to.right - at.left },
-          along && { then: to.bottom - then.top, rest: to.bottom - at.top },
-          across && { then: then.right - to.left, rest: at.right - to.left },
+          along && { then: then.bottom - carriedTo.top, rest: at.bottom - to.top },
+          across && { then: carriedTo.right - then.left, rest: to.right - at.left },
+          along && { then: carriedTo.bottom - then.top, rest: to.bottom - at.top },
+          across && { then: then.right - carriedTo.left, rest: at.right - to.left },
         ].forEach((reach, index) => {
           if (reach && reach.rest <= 0.5 && reach.then > from[index]) {
             from[index] = reach.then;
@@ -464,22 +468,24 @@ export function boxMotion({
         if (!same(from, to)) within = { from, to };
         if (!sized && rings(style)) {
           // The surface draws the ring while it moves, in the ring's own colour.
-          const reach =
-            Number.parseFloat(style.outlineWidth) +
-            Number.parseFloat(style.outlineOffset);
+          const offset = Number.parseFloat(style.outlineOffset);
+          const reach = Number.parseFloat(style.outlineWidth) + offset;
           const radius = radiusOf(style);
           keeps(ringLayer, "style", `background: ${style.outlineColor}`);
           hold(element, "outlineColor", "transparent");
           for (const [layer, grown] of [
             [ringLayer, reach],
-            [ringFill, 0],
+            // The fill meets the outline's inner edge, including an inward ring.
+            [ringFill, offset],
           ])
             start(layer, [
               clipFrame(...outline(from, grown, radius)),
               clipFrame(...outline(to, grown, radius)),
             ]);
-        } else if (!sized && paints(style) && !part.holdsWindow) grow(part, from);
-        if (!same(from, to)) motions.set(element, { from, to, frames: true });
+        } else if (!sized && paints(style) && !part.holdsWindow)
+          carries ? carryContent(part, from) : grow(part, from);
+        if (!same(from, to))
+          motions.set(element, { ...motions.get(element), from, to, frames: true });
       }
       // What carries is placed first, so what is new beside it is revealed from it.
       const placed = [...part.parts].sort(

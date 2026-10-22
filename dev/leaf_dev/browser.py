@@ -60,7 +60,6 @@ def headless_shell(**options):
     Not the host's browser that `launch_browser` finds for a user's `page check`:
     leaf-dev runs on a developer's machine or CI, where `leaf-dev setup` installs the
     shell, so it needs no discovery, and a run reads the same build on every host.
-    Installed Chrome also costs more per launch (`shell_executable` says how much).
     """
     with (
         sync_playwright() as playwright,
@@ -80,59 +79,27 @@ def headless_firefox():
 
 @cache
 def shell_executable() -> str:
-    """The pinned headless shell's executable, which leaf-dev and the suite name as
-    the host's browser (LEAF_BROWSER_EXECUTABLE) for every `leaf` they run, so each
-    `page check` that runs a page's code or takes `--render` draws with the build
-    `headless_shell` drives. Left unnamed, each would launch installed Google Chrome
-    afresh: about three seconds apiece against the shell's 0.3 (measured over the
-    suite in #1488). On macOS each Google Chrome launch also runs a Secure Enclave
-    self-test that creates two keychain keys and deletes them when it finishes, and a
-    Chrome that ends first leaves both behind for every later launch to make `secd`
-    read back. The shell has no keychain access and creates none.
+    """Ask the installed Playwright registry for its pinned headless shell.
 
-    Playwright reports where its full Chromium build (Chrome for Testing) would be,
-    and `leaf-dev setup` installs it beside the shell for the evals that need full
-    Chrome. Both sit under one registry root at one build number, so the shell's path
-    follows from Chromium's; where a developer installed only the full build, that is
-    the browser to hand over. The `chromium-<build>` directory is found by name rather
-    than by depth, because macOS nests the executable inside an app bundle and Linux
-    does not.
+    A subprocess works even while the caller already holds sync_playwright open.
+    """
+    from playwright._impl._driver import compute_driver_executable
 
-    Asked in a subprocess because the answer is a path and the question is not free:
-    a second `sync_playwright()` raises in a process that already holds one open."""
-    read = subprocess.run(
+    node, cli = compute_driver_executable()
+    return subprocess.run(
         [
-            sys.executable,
-            "-c",
+            node,
+            "-e",
             (
-                "from playwright.sync_api import sync_playwright\n"
-                "with sync_playwright() as p: print(p.chromium.executable_path)"
+                "console.log(require(process.argv[1]).registry.registry"
+                ".findExecutable('chromium-headless-shell').executablePathOrDie('python'))"
             ),
+            str(Path(cli).parent / "lib/coreBundle.js"),
         ],
-        capture_output=True,
-        text=True,
         check=True,
-    )
-    chromium = Path(read.stdout.strip())
-    versioned = next(
-        (p for p in chromium.parents if p.name.startswith("chromium-")), None
-    )
-    if versioned is None:
-        raise RuntimeError(f"{chromium} is not under a Playwright chromium build")
-    root, build = versioned.parent, versioned.name.rsplit("-", 1)[1]
-    shell = root / f"chromium_headless_shell-{build}"
-    shell_executables = sorted(shell.glob("*/chrome-headless-shell*")) + sorted(
-        shell.glob("*/headless_shell")
-    )
-    executable = next(
-        (str(c) for c in (*shell_executables, chromium) if c.is_file()), None
-    )
-    if executable is None:
-        raise RuntimeError(
-            f"no Playwright Chromium under {root}; run `uv run playwright install "
-            "chromium --only-shell`"
-        )
-    return executable
+        stdout=subprocess.PIPE,
+        text=True,
+    ).stdout.strip()
 
 
 @contextmanager

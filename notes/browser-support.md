@@ -726,3 +726,27 @@ container: "nearest"})` on a button in a sideways strip whose foot stands 1 px
   and outline in natural captured frames in both directions; the neighboring
   `test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands` covers
   interruption, both color schemes and reduced motion.
+
+### Fixed layers missing from Firefox screencast frames
+
+- **Investigation boundary:** Firefox's headless compositor/capture path; the
+  precise cause remains unresolved. No observed Leaf visibility or geometry change
+  explains the missing pixels.
+- **Observed 2026-10-22, Playwright Firefox 155:** natural panel fold/unfold
+  screencasts occasionally omit the whole panel and an independent, stationary
+  fixed marker appended directly to the body. The document heading remains.
+  This also reproduces before the logo motion repair. Starting one persistent
+  capture still omitted both in 2 of 31 frames; separate captures omitted both
+  in 5 of 51. All frames retained their 1200 × 900 dimensions. Native screenshots
+  sampled 48 frames, including intermediate positions, with neither missing.
+  Another capture lost the whole panel and ground while retaining the marker,
+  so that marker cannot reliably distinguish affected frames.
+- **Disposition:** unresolved rendering-versus-capture gap. Do not claim Firefox
+  all-frame visibility from these recordings. The motion regression requires every
+  Chromium frame to show the mark and its keyboard outline to enclose it. Firefox
+  remains manual diagnostic coverage, with this visibility limitation unresolved;
+  no missing frames are filtered from the automated test. Container, clipping,
+  shadow, layer-promotion and disabled-APZ experiments did not remove the omission.
+- **Recheck:** record the same pointer and keyboard fold/unfold routes with
+  `page.screencast`, keeping a stationary fixed marker outside `.lf-chrome`;
+  compare with native screenshots and, when available, a native-window recording.

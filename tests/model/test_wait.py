@@ -8,6 +8,7 @@ import os
 import shlex
 import shutil
 import subprocess
+import sys
 import threading
 import time
 import urllib.parse
@@ -1465,24 +1466,46 @@ def test_a_superseded_waiter_cannot_deliver_the_new_owners_batch(
 ):
     """One page has one cursor owner even if two watcher tasks are started.
 
-    The later explicit claim transfers ownership before its wait starts. The earlier wait must then leave the
-    watch set rather than print the same event from a task that no longer owns
-    either the page or its acknowledgement cursor.
+    Transfer the claim after the old wait selects its subscription roots, before
+    it opens them. The earlier wait must leave cleanly when its claim directory
+    disappears, without printing input that belongs to the replacement.
     """
     page = codex_claimed_page
     session_model.cmd_waiting(page, "comment on the prototype")
+    selected = page.parent / "waiter-selected-roots"
+    held_subscription = """
+import sys
+from pathlib import Path
+from leaf import session
+from leaf.__main__ import main
+from leaf.service import claim_page
+
+constructor = session.FileChanges
+marker, page = map(Path, sys.argv[1:])
+def subscribing(*args, **kwargs):
+    session.FileChanges = constructor
+    marker.write_text("selected")
+    sys.stdin.readline()
+    return constructor(*args, **kwargs)
+
+session.FileChanges = subscribing
+assert claim_page(page)
+sys.argv = ["leaf", "wait", str(page)]
+main()
+"""
 
     first = under_codex(
-        claim_and_wait_command(page),
+        shlex.join([sys.executable, "-c", held_subscription, str(selected), str(page)]),
         codex_env | {"CODEX_THREAD_ID": "leaf-watcher-1"},
+        stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
     wait_for(
-        lambda: (service_model.page_claim(page) or {}, page_state(page)["listening"]),
-        lambda reading: reading[0].get("id") == "leaf-watcher-1" and reading[1],
-        failure="the first watcher never claimed the page and entered leaf wait",
+        selected.exists,
+        bool,
+        failure="the first watcher never selected its subscription roots",
     )
 
     second = under_codex(
@@ -1498,7 +1521,7 @@ def test_a_superseded_waiter_cannot_deliver_the_new_owners_batch(
         failure="the replacement watcher never claimed the page and entered leaf wait",
     )
 
-    first_out, first_err = first.communicate(timeout=STATED_TIMEOUT)
+    first_out, first_err = first.communicate(input="continue\n", timeout=STATED_TIMEOUT)
     assert (first.returncode, first_out) == (2, ""), first_err
     assert second.poll() is None
     assert page_state(page)["listening"]

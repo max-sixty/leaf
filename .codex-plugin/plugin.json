@@ -17,6 +17,7 @@
       "env_vars": [
         "XDG_STATE_HOME",
         "CODEX_HOME",
+        "CODEX_INTERNAL_ORIGINATOR_OVERRIDE",
         "LEAF_CODEX_APP_SERVER",
         "LEAF_SESSION_ID",
         "LEAF_AGENT",

@@ -3,6 +3,7 @@
 import json
 
 import pytest
+
 from leaf.findings import Finding
 from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import version as render_gate_model

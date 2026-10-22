@@ -3,8 +3,6 @@ and an obligation's digits and thread."""
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import event_log as events_model
-from leaf.render_checks import one_frame, rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     OBLIGATIONS_PAGE,
@@ -40,6 +38,8 @@ from render_harness import (
 
 from browser.navigation import expect_walk_position, walk_position
 from browser.threads import open_panel_thread
+from leaf import event_log as events_model
+from leaf.render_checks import one_frame, rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

@@ -66,12 +66,12 @@ from pathlib import Path
 from typing import NamedTuple
 
 import click
+
 from leaf.file_changes import FileChanges
 from leaf.locations import canonical_path
 from leaf.publishing import authored_digest, authored_files, write_authored_files
 from leaf.refusals import Refused
 from leaf.schema import BROWSER_DIRS, VENDORED_FILES
-
 from leaf_dev import ROOT
 from leaf_dev.commands.distribution import (
     COMPILER_INPUTS,
@@ -588,7 +588,7 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path]) -> Watched:
     from leaf.layer import input_paths, payload_server_inputs
 
     runtime = runtime.resolve()
-    scripts = runtime / "skills" / "leaf" / "scripts"
+    scripts = runtime / "src"
     resolved_roots = {root.resolve() for root in roots}
     # The layer reading follows a link inside a package as well as one at its root,
     # so a vendored file can resolve outside every package root.

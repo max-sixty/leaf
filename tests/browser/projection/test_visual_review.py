@@ -2,8 +2,6 @@
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import data as data_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
@@ -18,6 +16,9 @@ from render_harness import (
     told,
     undo,
 )
+
+from leaf import data as data_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 VISUAL_REVIEW_GALLERY = next(

@@ -18,8 +18,8 @@ vars:
     the resulting retry schedule against the 30-second outage window, and submits the
     policy to adopt.
 
-    Read references/page-authoring.md and packages/playground/instructions/author.md
-    inside the leaf skill's base directory. The page directory is not reachable from
+    Read references/page-authoring.md and ../../packages/playground/instructions/author.md
+    relative to the leaf skill's base directory. The page directory is not reachable from
     here, so reply with the complete `index.html`, rather than writing a file.
 assert:
   - type: llm-rubric

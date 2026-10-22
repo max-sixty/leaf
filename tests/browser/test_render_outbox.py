@@ -12,11 +12,6 @@ from interact_support import (
     append_command,
     refused_on,
 )
-from leaf import event_log as events_model
-from leaf import schema as schema_model
-from leaf.registry.contract import RANK
-from leaf.render_checks import rendered
-from leaf.render_gate.scheme import console_finding
 from playwright.sync_api import expect
 from render_cases_interaction import (
     HOLD_MOTION,
@@ -81,6 +76,11 @@ from render_harness import (
 
 from browser.test_render_application_boundary import long_thread
 from browser.threads import open_panel_thread
+from leaf import event_log as events_model
+from leaf import schema as schema_model
+from leaf.registry.contract import RANK
+from leaf.render_checks import rendered
+from leaf.render_gate.scheme import console_finding
 
 DRAG_HELD = "async () => (await window.__lfCheckApi()).dragHeld()"
 

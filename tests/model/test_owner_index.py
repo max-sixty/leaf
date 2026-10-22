@@ -1,6 +1,6 @@
 """Every owner the browser's question index names is an export of the module it names.
 
-The index ("One answer for each question" in `skills/leaf/assets/AGENTS.md`) is
+The index ("One answer for each question" in `browser/AGENTS.md`) is
 where an author looks before writing a predicate, so a row naming an owner that was
 renamed or removed sends them to write a second copy. A rename fails here and points
 at the row.
@@ -11,7 +11,7 @@ import re
 
 from interact_support import PLUGIN_ROOT, js_facts
 
-ASSETS = PLUGIN_ROOT / "skills/leaf/assets"
+ASSETS = PLUGIN_ROOT / "browser"
 
 
 def test_each_owner_in_the_question_index_is_exported_by_its_module():

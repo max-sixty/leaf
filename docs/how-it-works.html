@@ -1633,7 +1633,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 <code>leaf wait --ack &lt;delivery-id&gt;</code>. Until then, the events
                 remain available to the next wait, in case output was lost or cut off.
                 <a href="#stages-picked">Stages of an update</a> names the evidence for
-                Picked up on each route.
+                Delivered on each route.
               </li>
             </ol>
             <table id="host-routes">
@@ -3541,7 +3541,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                     <td>Workflow</td>
                     <td>
                       An unsettled update's delivery and work stage: Sent, Queued,
-                      Picked up, Working, Replying or Answered. Conditions report
+                      Delivered, Working, Replying or Answered. Conditions report
                       interruptions or failures. The workflow names its thread and owed
                       answer, if any.
                     </td>
@@ -4099,9 +4099,10 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               </li>
               <li id="progress-picked">
                 <time>1s</time> <small>observation</small>
-                <strong>Picked up</strong> The hook puts the comment into the agent’s
-                turn and confirms receipt. Until the agent names its work, the page
-                reads <em>Claude working — picked up the comment</em>.
+                <strong>Delivered</strong> The hook puts the comment into the agent’s
+                turn, and the turn's next hook confirms the agent read it. Until the
+                agent names its work, the page reads
+                <em>Claude working — has the comment</em>.
               </li>
               <li id="progress-reply">
                 <time>5s</time> <small>intervention</small> <strong>Working</strong> The
@@ -4159,13 +4160,16 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   </td>
                 </tr>
                 <tr id="stages-picked">
-                  <td>Picked up</td>
+                  <td>Delivered</td>
                   <td>
                     <p>
                       <strong>Claude Code and Pi.</strong> The prompt hook, or a hook
                       between the agent's steps, put the delivery in the agent's turn,
                       or the agent confirmed the complete pointer reading with
-                      <code>leaf delivery ack</code>.
+                      <code>leaf delivery ack</code>. Claude Code reads a hook's output
+                      only once the hook exits, and Escape before then drops it, so the
+                      turn's next hook confirms the delivery; if the turn ends first,
+                      Leaf delivers the update again.
                     </p>
                     <p>
                       <strong>A <code>leaf wait</code> loop.</strong> The agent's next
@@ -4212,14 +4216,14 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   <th colspan="2">Delayed, interrupted, or unanswered</th>
                 </tr>
                 <tr id="stages-pickup-late">
-                  <td>Waiting for pickup</td>
+                  <td>Waiting for delivery</td>
                   <td>The update is still Sent two minutes after the user sent it.</td>
                 </tr>
                 <tr id="stages-ended">
                   <td>Turn ended</td>
                   <td>
-                    The turn that picked up the update ended, or was interrupted, before
-                    the agent answered it.
+                    The turn the update was delivered into ended, or was interrupted,
+                    before the agent answered it.
                   </td>
                 </tr>
                 <tr id="stages-stale">
@@ -4227,7 +4231,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   <td>
                     The agent's start on the update is 15 minutes old, or the turn that
                     wrote it ended more than two minutes ago, and the agent has not
-                    started the update again since. A Picked up update reads the same
+                    started the update again since. A Delivered update reads the same
                     once nothing shows its turn still running (no status, start, or step
                     for 15 minutes), or once the agent is in a later turn. On Codex App
                     Server, so does a Replying update whose stream disconnects.
@@ -4402,11 +4406,11 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               </thead>
               <tbody>
                 <tr id="updates-reading-held">
-                  <td>Claude working — picked up the comment</td>
+                  <td>Claude working — has the comment</td>
                   <td>
-                    The agent's running turn picked up the user's comment, or their
-                    answer to an obligation, and the agent has not yet said what it is
-                    doing.
+                    The user's comment, or their answer to an obligation, was delivered
+                    into the agent's running turn, and the agent has not yet said what
+                    it is doing.
                   </td>
                 </tr>
                 <tr id="updates-reading-steps">

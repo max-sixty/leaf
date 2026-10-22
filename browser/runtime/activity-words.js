@@ -31,9 +31,9 @@ const countResponses = (count) => `${count} response${count === 1 ? "" : "s"}`;
 // What each canonical count says the agent owes, in the order a reader is told.
 const COUNT_PHRASES = {
   active: "being worked on",
-  handling: "owed on picked-up updates",
+  handling: "owed on delivered updates",
   queued: "owed on queued updates",
-  picked_up: "owed on picked-up updates; no current turn observed",
+  picked_up: "owed on delivered updates; no current turn observed",
   pending: "owed on updates awaiting delivery",
 };
 const phrased = (counts, kinds) =>
@@ -95,9 +95,9 @@ const publicationWords = (published) => [
   "Install Leaf",
 ];
 
-// The updates an open turn picked up, by kind: a comment in a thread, or an answer to an
+// The updates delivered into an open turn, by kind: a comment in a thread, or an answer to an
 // obligation. A lone update is the user's own; several are counted.
-function pickedUpWords({ comments, answers }) {
+function deliveredWords({ comments, answers }) {
   if (comments + answers === 1) return comments ? "the comment" : "the answer";
   const counted = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
   return [
@@ -154,22 +154,22 @@ function statusWords({
   // reading this row must not give.
   //
   // Until the agent writes that sentence, what Leaf knows is which of the user's
-  // updates its open turn picked up, so the row names them, in the words of their
-  // Picked up stage, rather than standing on a bare "working", and the disclosure
-  // says the agent's own words are still to come.
+  // updates were delivered into its open turn, so the row names them, in the words of
+  // their Delivered stage, rather than standing on a bare "working", and the
+  // disclosure says the agent's own words are still to come.
   if (kind === "working") {
-    const picked = pickedUpWords(handling);
+    const delivered = deliveredWords(handling);
     const said = detail
       ? [" — ", { text: detail, source: detailSource }]
-      : picked
-        ? [" — picked up " + picked]
+      : delivered
+        ? [" — has " + delivered]
         : [];
     return [
       [`${agent} ${work}${age && age !== JUST_NOW ? " · " + age : ""}`, ...said],
-      detail || !picked
+      detail || !delivered
         ? [`${agent} is ${work}`, ...said]
-        : `${agent} picked up ${picked} and hasn't said what it's doing yet`,
-      detail || !picked ? "" : "It hasn't said what it's doing yet.",
+        : `${agent} has ${delivered} and hasn't said what it's doing yet`,
+      detail || !delivered ? "" : "It hasn't said what it's doing yet.",
     ];
   }
   // A declared request tells the user what to do. Preserve it on the row when

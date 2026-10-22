@@ -8,6 +8,8 @@ import re
 import shutil
 import threading
 import time
+from datetime import datetime
+from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
@@ -49,11 +51,22 @@ from leaf import hooks as hooks_model
 from leaf import leases as leases_model
 from leaf import presence as presence_model
 from leaf import schema as schema_model
+from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
+
+
+def handed(page_dir, input_id: str) -> bool:
+    """Whether a hook handed `input_id` into a turn: its opened pickup, which the page
+    shows as Delivered whether or not a later hook has confirmed it."""
+    return bool(
+        delivery_model.pickup_receipts(
+            events_model.read_events(page_dir), phase="opened", input_id=input_id
+        )
+    )
 
 
 def test_pages_follower_without_owned_pages_does_not_open_a_watcher(
@@ -391,6 +404,11 @@ def test_a_repeated_stop_is_held_open_only_by_the_users_input(
     envelope = json.loads(continued(answer).split("\n")[1])
     [batch] = envelope["batches"]
     assert [event["id"] for event in batch["events"]] == [error["id"], comment["id"]]
+    assert handed(claimed, error["id"]) and handed(claimed, comment["id"])
+    assert acknowledged_through(claimed) == 0
+    # The Stop that follows the continued turn confirms what it read.
+    hooks_model.cmd_hook("claude-code", repeated)
+    assert capsys.readouterr().out == ""
     assert acknowledged_through(claimed) == last_deliverable_seq(claimed)
 
 
@@ -432,6 +450,12 @@ def test_a_page_that_changed_hands_before_receipt_keeps_its_input(
     assert service_model.page_claim(moved)["id"] == "s2"
     assert acknowledged_through(moved) == 0
     assert all(e["kind"] != "pickup" for e in events_model.read_events(moved))
+    assert handed(claimed, comments[claimed]["id"])
+    # The continued turn reads it, and its next tool boundary confirms it.
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "PostToolBatch", "session_id": "s1"}
+    )
+    assert capsys.readouterr().out == ""
     assert acknowledged_through(claimed) >= comments[claimed]["seq"]
 
     monkeypatch.setattr(hook_transport_model, "freeze_delivery", freeze)
@@ -449,7 +473,7 @@ def test_a_page_that_changed_hands_before_receipt_keeps_its_input(
         str(moved),
         [comments[moved]["id"]],
     )
-    assert acknowledged_through(moved) >= comments[moved]["seq"]
+    assert handed(moved, comments[moved]["id"])
 
 
 def test_input_too_large_for_the_turn_goes_as_a_pointer_its_reader_confirms(
@@ -506,12 +530,14 @@ def test_hook_drops_a_page_transferred_after_ownership_discovery(claimed, monkey
     assert hook_transport_model.remedies(hook_transport_model.read_plans("s1")) == []
 
 
-def test_claude_codes_hook_confirms_the_input_it_hands_over(claimed, capsys):
+def test_claude_codes_turn_confirms_what_its_hooks_hand_over(claimed, capsys):
     """Claude Code's prompt hook runs as every turn begins, including the one a
     background wait's ending opens, and its PostToolBatch hook between steps; each hands
-    the turn the whole pending delivery inline and confirms it itself, so the move
-    reads Picked up as the hook hands it over, the envelope names no
-    acknowledgement, and the model runs none."""
+    the turn the whole pending delivery inline, so the move reads Delivered as the
+    hook hands it over, the envelope names no acknowledgement, and the model runs
+    none. Claude Code reads that output only once the hook exits and may still drop
+    it, so the turn's next hook, which runs only once the model has read it,
+    records the receipt; until then nothing offers the move again."""
     working(claimed, "revising")
     comment = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "hi"}
@@ -537,9 +563,11 @@ def test_claude_codes_hook_confirms_the_input_it_hands_over(claimed, capsys):
     assert payload["acknowledge"] is None
     [batch] = payload["batches"]
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
-    assert page_state(claimed)["pending"] == 0
     [workflow] = page_state(claimed)["workflows"]
     assert workflow["stage"] == "picked_up"
+    assert page_state(claimed)["pending"] == 1
+    with service_model.PageTransaction(claimed) as page:
+        assert delivery_model.deliverable(page) == []
     *_, pickup = (e for e in events_model.read_events(claimed) if e["kind"] == "pickup")
     claim = service_model.page_claim(claimed)
     assert (pickup["kind"], pickup["phase"], pickup["events"]) == (
@@ -562,13 +590,82 @@ def test_claude_codes_hook_confirms_the_input_it_hands_over(claimed, capsys):
     assert later_delivery["acknowledge"] is None
     [batch] = later_delivery["batches"]
     assert [event["id"] for event in batch["events"]] == [later["id"]]
-    assert page_state(claimed)["pending"] == 0
+    # The boundary confirmed the prompt's handover and left its own to the next hook.
+    assert acknowledged_through(claimed) == comment["seq"]
     *_, pickup = (e for e in events_model.read_events(claimed) if e["kind"] == "pickup")
     assert (pickup["kind"], pickup["events"], pickup["turn"]) == (
         "pickup",
         [later["id"]],
         claim["turn"],
     )
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
+    capsys.readouterr()
+    assert page_state(claimed)["pending"] == 0
+
+
+def test_a_handover_its_turn_never_confirmed_is_offered_again(
+    claimed, interactive, monkeypatch, capsys
+):
+    """Escape while another plugin's prompt hook still runs drops the whole prompt,
+    Leaf's context with it, after Leaf's hook has handed its delivery over. Claude
+    Code's record then reads idle with no hook having run since, so the turn reads
+    ended and what it was handed is input again, both an update that owes a reply
+    and one that owes none. With no watch from before that turn, the page's server
+    nudges the session, and the turn that opens is handed it again."""
+    asked = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "which ships first?"}
+    )
+    withdrawn = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "never mind"}
+    )
+    resolve = append_carried_log_record(
+        claimed, {"kind": "resolve", "author": "user", "parent": withdrawn["id"]}
+    )
+    live = {"state": "busy", "since": datetime.now().astimezone().isoformat()}
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness, "live_turn", lambda harness: dict(live)
+    )
+    nudged = []
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness,
+        "nudge",
+        lambda harness, page: nudged.append(page) or True,
+    )
+    prompt = {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+
+    def handed_over() -> list[str]:
+        hooks_model.cmd_hook("claude-code", prompt)
+        context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+            "additionalContext"
+        ]
+        [batch] = json.loads(context.split("\n")[1])["batches"]
+        return [event["id"] for event in batch["events"]]
+
+    updates = [asked["id"], withdrawn["id"], resolve["id"]]
+    assert handed_over() == updates
+    # The page's server reads the harness's record among its live facts, and while
+    # the turn runs it finds nothing to nudge for.
+    server = server_rows_model.RowPublisher(claimed, "fixture-server")
+    server.refresh()
+    assert nudged == []
+
+    time.sleep(0.01)
+    live.update(state="idle", since=datetime.now().astimezone().isoformat())
+    with service_model.PageTransaction(claimed) as page:
+        assert [event["id"] for event in delivery_model.deliverable(page)] == updates
+    server.live_until = 0
+    server.refresh()
+    assert nudged == [claimed]
+
+    assert handed_over() == updates
+    # The model's first `leaf` command shows it read them: its PreToolUse confirms.
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness, "escape_sandbox", lambda harness: None
+    )
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "PreToolUse", "session_id": "s1"}
+    )
+    assert acknowledged_through(claimed) == resolve["seq"]
 
 
 def test_a_prompt_reopens_the_acknowledged_move_it_carries_into_the_new_turn(
@@ -907,7 +1004,7 @@ def test_a_hook_stopped_before_receipt_has_confirmed_nothing(
         )
     receive = hook_transport_model.receive_held
 
-    def stopped_before_receipt(delivery, session_id, expected, *, deadline):
+    def stopped_before_receipt(delivery, session_id, expected, **_):
         raise SystemExit("the harness's timeout")
 
     monkeypatch.setattr(hook_transport_model, "receive_held", stopped_before_receipt)
@@ -928,7 +1025,12 @@ def test_a_hook_stopped_before_receipt_has_confirmed_nothing(
         ].split("\n")[1]
     )
     assert [len(batch["events"]) for batch in retry["batches"]] == [1, 1]
-    assert all(acknowledged_through(page) > 0 for page in (claimed, sibling))
+    assert all(
+        handed(page, event["id"])
+        for batch in retry["batches"]
+        for page in [Path(batch["page"])]
+        for event in batch["events"]
+    )
 
 
 def test_a_hook_confirms_nothing_into_a_turn_that_replaced_its_own(
@@ -942,10 +1044,10 @@ def test_a_hook_confirms_nothing_into_a_turn_that_replaced_its_own(
     )
     receive = hook_transport_model.receive_held
 
-    def prompted_first(delivery, session_id, expected, *, deadline):
+    def prompted_first(delivery, session_id, expected, **kwargs):
         cleanup_model.close_session_turn(session_id)
         assert cleanup_model.prompt_turn(session_id) != expected
-        return receive(delivery, session_id, expected, deadline=deadline)
+        return receive(delivery, session_id, expected, **kwargs)
 
     monkeypatch.setattr(hook_transport_model, "receive_held", prompted_first)
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
@@ -1023,7 +1125,7 @@ def test_a_prompt_re_vendors_a_page_an_older_leaf_vendored_and_hands_over_its_in
     ]
     assert context.startswith(hook_transport_model.INLINE_OPENING)
     assert "page protocol" not in context
-    assert acknowledged_through(claimed) >= comment["seq"]
+    assert handed(claimed, comment["id"])
     assert event_contracts_model.write_refusal(claimed) is None
 
 
@@ -1135,7 +1237,7 @@ def test_a_prompt_offers_no_new_input_from_a_page_its_leaf_cannot_write(
 
     cleanup_model.write_json(stamp, json.loads(vendored))
     assert prompt().startswith(hook_transport_model.INLINE_OPENING)
-    assert acknowledged_through(claimed) >= comment["seq"]
+    assert handed(claimed, comment["id"])
 
 
 def test_a_hook_waits_on_no_receipt_lock_past_its_deadline(
@@ -1180,7 +1282,7 @@ def test_a_hook_waits_on_no_receipt_lock_past_its_deadline(
         ]
     finally:
         held.__exit__(None, None, None)
-    assert acknowledged_through(claimed) > 0
+    assert any(e["kind"] == "pickup" for e in events_model.read_events(claimed))
     assert acknowledged_through(sibling) == 0
     assert not any(e["kind"] == "pickup" for e in events_model.read_events(sibling))
     # Past the deadline even a free lock is not taken, so nothing is confirmed late.
@@ -1232,7 +1334,7 @@ def test_a_hook_too_slow_to_confirm_hands_over_a_pointer(
     )
 
 
-def test_a_hooks_receipt_commits_pickup_and_cursor_before_session_end(
+def test_a_hooks_handover_commits_its_pickup_before_session_end(
     claimed, printing, monkeypatch, capsys
 ):
     event = append_carried_log_record(
@@ -1271,4 +1373,4 @@ def test_a_hooks_receipt_commits_pickup_and_cursor_before_session_end(
     thread.join(STATED_TIMEOUT)
     assert not thread.is_alive(), "the session end never finished"
     assert ended.is_set()
-    assert acknowledged_through(claimed) == event["seq"]
+    assert handed(claimed, event["id"])

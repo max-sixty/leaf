@@ -39,6 +39,16 @@ The steps, in order:
   Escape ends that turn while the command still runs, before the turn reads the
   comment at its next tool boundary. The watch after Escape wakes for that comment
   and a turn of its own answers it; a comment sent afterwards is answered too;
+- `dropped`: another prompt hook, the session's own setting, sleeps 6 s while a
+  comment's wake runs its prompt hooks, and Escape lands once Leaf's has handed the
+  comment over, so Claude Code drops what Leaf's hook returned. It submits the wake
+  again, whose prompt hook hands the comment over anew, and a turn answers it;
+- `withdrawn`: the same for an update that owes nothing, a resolve of a thread whose
+  comment had no answer yet, which must still reach a hook's context after Escape;
+- `boundary`: a comment that arrives while a wake's turn runs, handed over at a tool
+  boundary whose other hook sleeps, and Escape then ends that turn. No watch runs
+  after a turn a wake opened, so the page's server nudges the session, and a turn
+  answers both comments;
 - `quit`: `/exit` ends the session, so its claim on the page is inactive and its
   watch has ended.
 
@@ -50,8 +60,8 @@ Escape runs no Stop hook, so it leaves the turn open, and the background Stop
 hook's watch from before the user's turn, which waits while a later turn runs,
 still running.
 
-Each step also prints whether the page nudged the session, the rows Leaf put in the
-conversation the user reads, and, with an Escape, whether it left the turn open, a
+Each step also prints the rows Leaf put in the conversation the user reads, a nudge
+among them, and, with an Escape, whether it left the turn open, a
 watch running, and what the page's status read; the sample keeps the rows as each
 step's `shown`. The session's screen at the end of each step and Claude Code's
 debug log join the run's evidence. It needs tmux, and spends a few model turns on
@@ -81,13 +91,21 @@ from leaf.server import running_server
 from leaf.service import claim_is_active, page_claim
 from leaf.state import session_record
 from leaf_dev import ROOT
-from leaf_dev.arms import MODELS, claude_environment, claude_home, run_leaf
+from leaf_dev.arms import (
+    MODELS,
+    PageClient,
+    claude_environment,
+    claude_home,
+    run_leaf,
+)
 from leaf_dev.commands.journey import Isolation, Terminal, User, isolated, user_at
 from leaf_dev.reply_phases import claude_code_records
 from leaf_dev.review_scenario import (
     REQUEST,
     SLEEP,
     USER_TURN,
+    attempt,
+    post,
     prepare,
     require,
     settled,
@@ -269,14 +287,10 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
     def watched() -> bool:
         return wait_is_live(None, cc.session)
 
-    def nudged() -> object:
-        return page_claim(page).get("messaged_ending")
-
     def step(
         name: str,
         started: float,
         *names: str,
-        before: object = None,
         escaped: str | None = None,
     ) -> None:
         sent.extend(names)
@@ -302,8 +316,6 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         # The turn that answers ends with a watch running.
         cc.until(watched, f"{name}: no watch holds the session's pages", 60)
         details = [escaped] if escaped else []
-        if names:
-            details.append("nudged" if nudged() != before else "not nudged")
         records = native_records(cc.home, cc.session)
         rows = leaf_rows(records[len(read) :])
         read[:] = records
@@ -345,15 +357,12 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         )
 
     started = time.monotonic()
-    before = nudged()
     user.release()
     cc.until(cc.idle, "release: the turn that answered did not end")
-    step("release", started, "release", before=before)
-
+    step("release", started, "release")
     started = time.monotonic()
     cc.work()
     turn = page_claim(page)["turn"]
-    before = nudged()
     mid_turn = user.comment("mid-turn")
     cc.until(answered("mid-turn"), "mid-turn: the comment was not answered")
     require(
@@ -378,12 +387,11 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         ),
         "mid-turn: PostToolBatch did not hand the exact input to the model",
     )
-    step("mid-turn", started, "mid-turn", before=before)
+    step("mid-turn", started, "mid-turn")
 
     started = time.monotonic()
     cc.work()
     turn = page_claim(page)["turn"]
-    before = nudged()
     first = user.comment("first")
     cc.until(
         lambda: bool(
@@ -403,17 +411,16 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         turn in picked,
         "ending: the running turn did not pick up `ending`",
     )
-    step("ending", started, "first", "ending", before=before)
+    step("ending", started, "first", "ending")
 
     started = time.monotonic()
     cc.work()
     turn = page_claim(page)["turn"]
     escape(turn)
     escaped = after_escape("escape", turn)
-    before = nudged()
     user.comment("escape")
     cc.until(answered("escape"), "escape: the comment was not answered")
-    step("escape", started, "escape", before=before, escaped=escaped)
+    step("escape", started, "escape", escaped=escaped)
 
     started = time.monotonic()
     cc.work()
@@ -429,7 +436,6 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         and not pickup_receipts(read_events(page), phase="opened", input_id=woken),
         "woken: the comment did not wait for the running turn",
     )
-    before = nudged()
     escape(turn)
     escaped = after_escape("woken", turn)
     # The stopped turn never read the comment, so the watch after Escape wakes for
@@ -437,7 +443,92 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
     cc.until(answered("woken"), "woken: the watch after Escape did not answer it")
     user.comment("after-wake")
     cc.until(answered("woken", "after-wake"), "woken: the comments were not answered")
-    step("woken", started, "woken", "after-wake", before=before, escaped=escaped)
+    step("woken", started, "woken", "after-wake", escaped=escaped)
+
+    def drop(update: str) -> int:
+        """Slow the session's other prompt and tool-batch hooks, and press Escape
+        once Leaf's hook has handed `update` over and while the other still runs, so
+        Claude Code drops what Leaf's hook returned. Returns how many records the
+        conversation held as Escape was pressed."""
+        slow_prompt(place).touch()
+        try:
+            cc.until(
+                lambda: bool(
+                    pickup_receipts(read_events(page), phase="opened", input_id=update)
+                ),
+                f"{update}: no hook handed it over",
+                90,
+            )
+        finally:
+            slow_prompt(place).unlink()
+        require(
+            cc.state() == "busy",
+            f"{update}: the slow hook ended before Escape could land",
+        )
+        held = len(native_records(cc.home, cc.session))
+        cc.tmux("send-keys", "-t", cc.pane, "Escape")
+        return held
+
+    def delivered(update: str, since: int) -> int:
+        """How many inline deliveries a hook put in the conversation, from record
+        `since` on, carry `update`: a reminder naming it does not."""
+        return sum(
+            event["id"] == update
+            for record in native_records(cc.home, cc.session)[since:]
+            if (attachment := record.get("attachment", {})).get("type")
+            == "hook_additional_context"
+            for content in attachment.get("content") or []
+            if content.startswith(INLINE_OPENING + "\n")
+            for batch in json.loads(content.split("\n")[1])["batches"]
+            for event in batch["events"]
+        )
+
+    started = time.monotonic()
+    dropped = user.comment("dropped")
+    since = drop(dropped)
+    # Claude Code submits the queued wake again, and that attempt's prompt hook hands
+    # the comment over anew.
+    cc.until(answered("dropped"), "dropped: the comment was not answered", 120)
+    require(
+        delivered(dropped, since) > 0,
+        "dropped: no hook delivered the comment again after Escape",
+    )
+    step("dropped", started, "dropped")
+
+    started = time.monotonic()
+    url = running_server(page)["url"]
+    comment = post(url, "withdrawn", "Never mind, I'll check this myself.")
+    resolve = PageClient(url).post(
+        {"kind": "resolve", "parent": comment, "attempt": attempt("resolve")}
+    )
+    resolved = next(
+        event["id"]
+        for event in resolve["events"]
+        if event.get("attempt") == attempt("resolve")
+    )
+    since = drop(resolved)
+    cc.until(
+        lambda: delivered(resolved, since) > 0 and cc.idle(),
+        "withdrawn: the resolve Escape dropped never reached the agent",
+        120,
+    )
+    step("withdrawn", started)
+
+    started = time.monotonic()
+    first = user.comment("first-wake")
+    cc.until(
+        lambda: bool(
+            pickup_receipts(read_events(page), phase="opened", input_id=first)
+        ),
+        "boundary: the wake was not handed its comment",
+    )
+    drop(user.comment("boundary"))
+    cc.until(
+        answered("first-wake", "boundary"),
+        "boundary: the comment Escape dropped was not answered",
+        150,
+    )
+    step("boundary", started, "first-wake", "boundary")
 
     started = time.monotonic()
     cc.say("/exit")
@@ -518,6 +609,11 @@ def leaf_rows(records: list[dict]) -> dict[str, int]:
     return rows
 
 
+def slow_prompt(place: Isolation) -> Path:
+    """The file whose presence holds the session's other prompt hook for 6 s."""
+    return place.root / "slow-prompt"
+
+
 def native_records(home: Path, session: str) -> list[dict]:
     """The native session record, including hook context attachments."""
     [path] = (home / ".claude" / "projects").glob(f"*/{session}.jsonl")
@@ -547,7 +643,26 @@ def answering(browser, *, sandbox: bool) -> Iterator[tuple[User, Callable]]:
 
     with isolated("claude-code", environment) as place:
         prepare(ROOT, place.state, place.page)
-        settings: dict[str, object] = {}
+        # Another plugin's prompt hook, slower than Leaf's while the `dropped` steps
+        # ask it to be, so an Escape can land after Leaf's hook has handed an
+        # update over and before Claude Code reads its output.
+        slow = shlex.quote(str(slow_prompt(place)))
+        settings: dict[str, object] = {
+            "hooks": {
+                event: [
+                    {
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": f"if [ -e {slow} ]; then sleep 6; fi",
+                                "timeout": 20,
+                            }
+                        ]
+                    }
+                ]
+                for event in ("UserPromptSubmit", "PostToolBatch")
+            }
+        }
         if sandbox:
             # The README's settings ("Agent sandboxes"), which let Leaf's sandboxed
             # commands reach the bridge its hooks keep outside the sandbox.

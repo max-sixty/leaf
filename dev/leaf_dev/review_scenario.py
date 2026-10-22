@@ -37,6 +37,9 @@ COMMENTS = {
     ),
     "woken": ("triage-lede", "Which item would you cut if we had to ship today?"),
     "after-wake": ("triage-why", "And which one would you keep at any cost?"),
+    "dropped": ("triage-why", "Does the export bug block the release too?"),
+    "first-wake": ("triage-lede", "Which card should I read first?"),
+    "boundary": ("triage-why", "Is the timezone bug a regression?"),
     "first": ("triage-lede", "Who owns the migration fix?"),
     "ending": ("triage-why", "When could that fix land?"),
     # Real author intent exercises the rich interface without naming its commands.

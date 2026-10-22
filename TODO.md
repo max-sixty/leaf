@@ -315,16 +315,6 @@ that changes size after first paint, with its cause.
   then move them, since each row's share is the module's measurement of the document
   (`#measure` in `lf-toc.js`); taking that measurement once the document has parsed
   would put them in place.
-- **Fold a thread summary without moving the messages it covers.** Folding moves
-  the covered messages into `.lf-summary-originals` (`thread-card.js`), so a text
-  selection inside them is lost in Chromium, Firefox and WebKit, and WebKit, which
-  lacks `moveBefore`, reloads any frame among them: once when the summary arrives
-  and twice when it is retracted. A prototype of a flat transcript, which folds by
-  hiding the covered messages where they stand, kept both in every engine and drew
-  the same picture. It changes how screen readers group the folded messages and how
-  a checkpoint's frame is drawn, so it needs the user's go-ahead. Build it on current
-  `main`, move the tests off `.lf-summary-originals`, and check margin and page
-  captures and a screen reader.
 - **Let the shift watch see the runtime's own scrolls.** `tests/shift_watch.js`
   measures in layout coordinates, which remove scrolling, so a scroll the runtime
   makes during a gesture can move the control under the user's aim and fail

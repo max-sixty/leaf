@@ -387,7 +387,7 @@ def test_an_idle_card_shows_an_answer_folding_the_progress_at_its_end(
     with service_model.PageTransaction(serve.page_dir) as transaction:
         transaction.clear_stream_reply("codex-thread", "leaf-turn")
     told(page)
-    answer = thread.locator(".lf-msg.agent:not(.lf-summary-originals *)")
+    answer = thread.locator(".lf-msg.agent:not([data-lf-summary])")
     expect(answer.locator(".lf-msg-text")).to_have_text(
         "Recorded the release on the board."
     )

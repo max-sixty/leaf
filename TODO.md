@@ -82,6 +82,21 @@ has tried; settle that before building it.
   wider than its words under the pointer is acceptable; a "+1" for dropped facts is
   the other route. In a margin card the notice takes its width from the heads'
   track, and a wide one moved the head's time sideways in CI (PR #3250's first run).
+- **Stop moving live content between parents.** A thread summary hides the messages
+  it covers in place, so a frame keeps its document and a selection stays.
+  Four places still move live nodes, which reloads a frame in WebKit (no
+  `moveBefore`) and drops a selection everywhere: resolving a thread moves its card
+  into the "Resolved · N" disclosure and reopening moves it back (`thread/inline.js`);
+  re-rendering a file in `lf-diff` moves its comment threads beside the new rows
+  (`lf-diff.js`); a modal dialog moves into its opener's popover for top-layer order
+  (`keyboard/layer-stack.js`); and a reply's widgets move to whichever view shows
+  them (see "A reply's widgets in every view of it"). Hiding resolved cards in place
+  would show them among open ones unless CSS reorders them, so it needs the user's
+  say; the `lf-diff` fix is keeping rows stable or the containers outside them.
+- **A summary's fold button ignores a press while words are selected.** With text
+  selected in a thread message, pressing "Show/Hide N earlier messages" does nothing,
+  even twice; Enter works. Reproduced in Chromium with a selection set by script,
+  before the flat transcript too.
 
 ### Agent and author experience
 
@@ -312,16 +327,6 @@ that changes size after first paint, with its cause.
   then move them, since each row's share is the module's measurement of the document
   (`#measure` in `lf-toc.js`); taking that measurement once the document has parsed
   would put them in place.
-- **Fold a thread summary without moving the messages it covers.** Folding moves
-  the covered messages into `.lf-summary-originals` (`thread-card.js`), so a text
-  selection inside them is lost in Chromium, Firefox and WebKit, and WebKit, which
-  lacks `moveBefore`, reloads any frame among them: once when the summary arrives
-  and twice when it is retracted. A prototype of a flat transcript, which folds by
-  hiding the covered messages where they stand, kept both in every engine and drew
-  the same picture. It changes how screen readers group the folded messages and how
-  a checkpoint's frame is drawn, so it needs the user's go-ahead. Build it on current
-  `main`, move the tests off `.lf-summary-originals`, and check margin and page
-  captures and a screen reader.
 - **Let the shift watch see the runtime's own scrolls.** `tests/shift_watch.js`
   measures in layout coordinates, which remove scrolling, so a scroll the runtime
   makes during a gesture can move the control under the user's aim and fail

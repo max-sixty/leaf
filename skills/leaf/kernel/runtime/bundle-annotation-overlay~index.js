@@ -763,7 +763,9 @@ function createThreadPreview({
     const latest = turns(sourceItem(selected).thread).at(-1);
     const messageSelector = ":scope > .lf-margin-thread > .lf-margin-thread-body > .lf-page-thread > .lf-thread-transcript > .lf-msg";
     const replySelector = ":scope > .lf-margin-thread > .lf-margin-thread-body > .lf-page-thread > .lf-thread-reply";
-    const lastShown = [...previewList.querySelectorAll(messageSelector)].at(-1);
+    const lastShown = [...previewList.querySelectorAll(messageSelector)].findLast(
+      (node) => node.checkVisibility()
+    );
     const lastBox = lastShown?.getBoundingClientRect();
     const listBox = session.transcript?.getBoundingClientRect();
     const replyBox = previewList.querySelector(replySelector)?.getBoundingClientRect();

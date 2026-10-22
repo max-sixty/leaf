@@ -37,11 +37,12 @@ The steps, in order:
   the Stop hook leaves input to the adapter's own turn, and is answered in a turn of
   its own. On `codex-queue` it enters the resumed turn, starting no turn of its own,
   since a queued turn would open on a message in the user's name;
-- `rejoin`: the user's next turn holds its first shell command at a checkpoint.
+- `unload`: the user's next turn holds its first shell command at a checkpoint.
   A comment sent there must enter that turn, starting no turn of its own. On
-  `codex-queue` the user first leaves and rejoins the task. Unsubscribing does not
-  end its instance: Codex keeps idle unsubscribed threads loaded for 30 minutes.
-  The lifecycle suite separately covers a native instance ending;
+  `codex-queue` the user first leaves the task; the isolated server expires idle
+  instances immediately, and the journey waits for native closure and Leaf's
+  SessionEnd evidence before resuming it. Over App Server the adapter's own
+  subscription keeps the task loaded;
 - `restart`: with the adapter killed, the user's next turn ends with the agent having
   started it again, and a comment sent afterwards is answered.
 
@@ -76,7 +77,7 @@ import psutil
 from leaf.codex import private_app_server
 from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
-from leaf.leases import adapter_is_live, lock_is_held
+from leaf.leases import adapter_is_live, hooks_ran, lock_is_held
 from leaf.server import running_server
 from leaf.service import page_claim
 from leaf_dev import ROOT
@@ -120,9 +121,9 @@ RESUME_TURN = (
 )
 # The driver releases this command only after admitting the comment. Model prose
 # and host scheduling therefore cannot make the first command finish too early.
-REJOIN_READY = ".leaf-rejoin-ready"
-REJOIN_TURN = (
-    f"Run `while [ ! -e {REJOIN_READY} ]; do sleep 0.1; done; printf 'verified\\n'` "
+UNLOAD_READY = ".leaf-unload-ready"
+UNLOAD_TURN = (
+    f"Run `while [ ! -e {UNLOAD_READY} ]; do sleep 0.1; done; printf 'verified\\n'` "
     "in the shell in the foreground, with yield_time_ms 30000. "
     "Then reply with the single word done."
 )
@@ -150,6 +151,7 @@ class Codex(Terminal):
                 "turn/started": "turn_start",
                 "turn/completed": "turn_end",
                 "thread/tokenUsage/updated": "model_response",
+                "thread/closed": "thread_closed",
             }.get(message.get("method"))
             if marker is not None:
                 normalized.append({"type": marker})
@@ -459,22 +461,38 @@ def steps(
 
     started = time.monotonic()
     if transport == "queue":
+        previous_records = len(codex.trace)
         task.request("thread/unsubscribe", {"threadId": task.thread})
+        # SessionEnd runs before shutdown completes; only thread/closed makes
+        # the unloaded thread ready to resume.
+        codex.until(
+            lambda: any(
+                record["type"] == "thread_closed"
+                for record in codex.trace[previous_records:]
+            ),
+            "the task left by its last client did not close",
+        )
+        # The instance's SessionEnd retires the evidence that Leaf's hooks run in
+        # it (`state.end_harness_instance`).
+        require(
+            not hooks_ran(task.thread),
+            "the task left by its last client did not end its instance",
+        )
         task.request("thread/resume", {"threadId": task.thread, **codex.settings})
     previous_turns = len(task.started)
-    early = task.say(REJOIN_TURN)
-    codex.await_command(REJOIN_READY, "the rejoined turn did not reach its checkpoint")
+    early = task.say(UNLOAD_TURN)
+    codex.await_command(UNLOAD_READY, "the resumed turn did not reach its checkpoint")
     codex.until(
         lambda: page_claim(page)["turn"] == early,
         f"the claim never named the user's turn {early}",
     )
-    during = user.comment("rejoin")
-    (Path(codex.settings["cwd"]) / REJOIN_READY).touch()
+    during = user.comment("unload")
+    (Path(codex.settings["cwd"]) / UNLOAD_READY).touch()
     codex.settle(
-        lambda: user.answered("rejoin"),
-        "the comment sent at the rejoined turn's checkpoint was not answered",
+        lambda: user.answered("unload"),
+        "the comment sent at the resumed turn's checkpoint was not answered",
     )
-    sent.append("rejoin")
+    sent.append("unload")
     details = check_step()
     require(
         any(
@@ -489,7 +507,7 @@ def steps(
         task.started[previous_turns:] == [early],
         "the comment sent at the checkpoint started a turn of its own",
     )
-    step("rejoin", started, details)
+    step("unload", started, details)
 
     started = time.monotonic()
     for process in adapter_processes(executable):
@@ -602,7 +620,9 @@ def answering(
         nonlocal executable
         # Keep the journey's isolated executable on PATH; a login shell would
         # replace it with the user's Codex and bypass the queue wrapper.
-        config = "allow_login_shell = false\n"
+        # Expire idle, unsubscribed instances immediately so the unload step
+        # observes native SessionEnd without the host's inactivity wait.
+        config = "allow_login_shell = false\nthread_unload_delay_secs = 0\n"
         if sandbox:
             # The journey's state home is under TMPDIR, which the sandbox otherwise
             # lets a command write, where a user's is not. And the journey cannot

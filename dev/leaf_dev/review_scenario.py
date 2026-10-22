@@ -30,7 +30,7 @@ COMMENTS = {
     "reconnect": ("triage-lede", "Is the same review still connected?"),
     "escape": ("triage-why", "Did the interrupted check change anything?"),
     "resume": ("triage-why", "Did resuming the check change anything?"),
-    "rejoin": ("triage-lede", "Who signs off once the migration is fixed?"),
+    "unload": ("triage-lede", "Who signs off once the migration is fixed?"),
     "held-escape": (
         "triage-lede",
         "If the migration slips, which work can still ship?",

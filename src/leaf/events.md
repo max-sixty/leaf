@@ -104,6 +104,12 @@ gesture it cannot take back, such as a sent reply, ends the walk, while bookkeep
 and gestures already withdrawn do not. An exact control, such as a widget's Undo,
 may still withdraw an older gesture it names.
 
+The undo key says what it would take back and how long ago that was made, in every
+tab and after a reload, so a gesture made weeks ago is not taken back unseen. The
+served undo list carries, for its head when that head is an action, what the action
+did in its own document's words (`GestureWords.gesture`); every other kind the
+browser names from what it already holds (`runtime/undo.js`).
+
 `undo` names the gesture and nothing else; every other field is the target's to
 state. It withdraws rather than deletes: nothing leaves the log, and the folds and
 the thread reading drop the event, so the page is what the revision says plus

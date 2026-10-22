@@ -7,9 +7,9 @@ Write a caption saying what the recording shows, which outcomes the reader shoul
 and what the captures establish. Make each of those outcomes reachable with a named
 `lf-trace-bookmark`, preferably at a successful expectation's After checkpoint, whose
 target you read from the imported source (the `lf-trace-bookmark` entry gives the id
-forms). Label it with the result, such as "Settings saved", rather than the browser operation. The viewer has its
-own playback, timeline, keyboard and zoom controls, so the prose explains the evidence
-and its limits, not how to operate the viewer.
+forms). Label it with the result, such as "Settings saved", rather than the browser
+operation. The viewer has its own playback, timeline, keyboard and zoom controls, so the
+prose explains the evidence and its limits, not how to operate the viewer.
 
 State timing only as precisely as the recording does. Playwright records when each call
 starts and ends, but not the moment an input inside it happened or how long a key was
@@ -17,13 +17,14 @@ held. A caption can say what came before or after a capture, but not the instant
 click.
 
 Images and saved accessibility trees are separate captures taken one after another, so
-don't place an element from the tree at a particular spot in an image. A comment on a saved element names its action phase and its
-path in the accessibility tree, which tells apart two controls with the same name.
+don't place an element from the tree at a particular spot in an image. A comment on a
+saved element names its action phase and its path in the accessibility tree, which tells
+apart two controls with the same name.
 
-To compare recordings, import each under its own source and put their viewers inside
-one `lf-trace-compare`, with a `label` on each. Give bookmarks for corresponding steps the same `key`.
-An input can produce different results across versions, so name its identity separately
-from the outcome the reader should inspect.
+To compare recordings, import each under its own source and put their viewers inside one
+`lf-trace-compare`, with a `label` on each. Give bookmarks for corresponding steps the
+same `key`. An input can produce different results across versions, so name its identity
+separately from the outcome the reader should inspect.
 
 ### Record comparable journeys
 

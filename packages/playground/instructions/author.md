@@ -19,15 +19,15 @@ item's controls inside `lf-playground-preview` beside that item, and leave only 
 settings every item shares in the rail. A control in the preview still belongs to the
 playground. Its value is submitted, and presets and Reset set it.
 
-Give the `lf-playground` `data-width="available"` wherever it stands.
-Where the playground is the page's subject, make the page a workspace (`<main
+Give the `lf-playground` `data-width="available"` wherever it stands. Where the
+playground is the page's subject, make the page a workspace (`<main
 class="layout-workspace density-working">`) whose body is that `lf-ask`. When the page
 also carries reading that supports the playground, make it a page of parts instead: the
 first part is that workspace, `<div class="layout-workspace density-working">` holding
 the `lf-ask`, and the reading goes in later parts, each a column
-(`references/page-layout.md`, "A page of parts"). Where the playground is one exhibit in a document, it breaks out of the
-document's column. Draw the candidates directly in the preview, without a card around
-each.
+(`references/page-layout.md`, "A page of parts"). Where the playground is one exhibit in
+a document, it breaks out of the document's column. Draw the candidates directly in the
+preview, without a card around each.
 
 In a workspace, every line between the question and the playground pushes the
 instruction and its Send button further below the window. Keep that premise to one or
@@ -228,10 +228,10 @@ what is shown, never which items or decisions exist, and the instruction reports
 item's decision (accepted, rejected or undecided) in an order that doesn't depend on the
 display. Store a map's nodes and relations as ids and endpoints, never as positions or
 colors alone. To critique a document or source, use Leaf's comments, suggestions,
-`lf-diff` or `lf-visual-review` rather than a playground. A canvas or SVG explorer uses one Pointer Events controller with pointer
-capture and a keyboard route; it converts the input to model coordinates once and draws
-both candidates and their measurements from them. Call `layoutChanged` after a gesture
-changes geometry.
+`lf-diff` or `lf-visual-review` rather than a playground. A canvas or SVG explorer uses
+one Pointer Events controller with pointer capture and a keyboard route; it converts the
+input to model coordinates once and draws both candidates and their measurements from
+them. Call `layoutChanged` after a gesture changes geometry.
 
 Before handoff, operate every custom gesture, control and preset, then Reset, reload,
 copy and submit. Check that both candidates reach the same state, the measurements

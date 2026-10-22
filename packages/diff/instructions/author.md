@@ -1,7 +1,7 @@
 Use `lf-worktree-diffs` when the reader needs to inspect a supplied set of worktrees.
-Give it one `lf-worktree` per snapshot, in review order. There is no limit on how many. Wrap each member’s evidence in one
-native `details` with a stable id. Leaf supplies its summary; set `open` on the first
-useful disclosure.
+Give it one `lf-worktree` per snapshot, in review order. There is no limit on how many.
+Wrap each member’s evidence in one native `details` with a stable id. Leaf supplies its
+summary; set `open` on the first useful disclosure.
 
 Each member supplies `label`, `path`, `status`, and the known snapshot's `files`,
 `additions`, and `deletions`. Use `branch` when attached and `head` for the full current

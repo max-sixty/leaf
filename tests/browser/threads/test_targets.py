@@ -57,6 +57,42 @@ def open_from_threads(page, root):
     return view if view.filter(visible=True).count() else margin
 
 
+def test_a_thread_mark_inside_a_tab_panel_opens_on_press(browser, serve):
+    source = leaf_page(
+        "Thread in tabs",
+        '<lf-tabs id="views">'
+        '<lf-tab id="first" label="First">'
+        '<p id="inside">Commented words in the first tab.</p>'
+        '</lf-tab><lf-tab id="second" label="Second">Other words.</lf-tab>'
+        "</lf-tabs>",
+    )
+    page = open_page(
+        browser,
+        serve(
+            source,
+            events=[
+                {
+                    "kind": "comment",
+                    "id": "inside-thread",
+                    "author": "user",
+                    "revision": 1,
+                    "text": "About this paragraph.",
+                    "anchor": {"section": "inside"},
+                }
+            ],
+        ),
+    )
+    panel = page.locator("#first")
+    expect(panel).to_have_attribute("tabindex", "0")
+    passage = page.locator("#inside")
+    passage.hover()
+    expect(passage).to_have_css("cursor", "pointer")
+    passage.click()
+    expect(
+        page.locator('.lf-margin-preview .lf-page-thread[data-thread="inside-thread"]')
+    ).to_be_visible()
+
+
 def test_a_thread_on_words_a_widget_renders_stands_where_the_widget_does(
     browser, serve
 ):

@@ -740,7 +740,7 @@
     }
     :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *)
       > lf-option[chosen]:hover {
-      background: var(--ok-tint);
+      background: color-mix(in srgb, var(--ok-tint) 92%, var(--ink));
     }
   }
 }

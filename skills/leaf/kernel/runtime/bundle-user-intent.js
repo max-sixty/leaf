@@ -225,8 +225,8 @@ import {
   whenWidgetsPresented
 } from "./bundle-semantic-state.js";
 import {
-  M,
   PENDING,
+  Z,
   bindQueuedWork,
   editable,
   html,
@@ -2408,20 +2408,20 @@ function registeredTags(scope, registry3) {
   return [...tags].filter((tag) => isElementName(tag) && Object.hasOwn(registry3, tag));
 }
 function widgetImports(scope, registry3) {
-  const initializers2 = [];
-  const modules2 = [];
+  const initializers = [];
+  const modules = [];
   const tags = registeredTags(scope, registry3);
   for (const tag of tags) {
     const entry = registry3[tag];
-    if (entry?.["x-initial"]) initializers2.push({ tag, path: entry["x-initial"] });
-    if (entry?.["x-upgrade"]) modules2.push(tag);
+    if (entry?.["x-initial"]) initializers.push({ tag, path: entry["x-initial"] });
+    if (entry?.["x-upgrade"]) modules.push(tag);
   }
   const shadow = tags.some(
     (tag) => registry3[tag]["x-shadow"] || Object.values(registry3[tag]["x-state"] ?? {}).some(
       (state) => state.creates && registry3[state.creates.child]["x-shadow"]
     )
   );
-  return { initializers: initializers2, modules: modules2, shadow };
+  return { initializers, modules, shadow };
 }
 
 // runtime/widget-loader.js
@@ -2468,8 +2468,6 @@ function reindexPassageOwners(scope = document, source = ["page", null]) {
   for (const [ownerIndex, root] of preservingOwners(initialSource(scope)).entries())
     identifyPreserving(root, [...source, ownerIndex]);
 }
-var modules = /* @__PURE__ */ new Map();
-var initializers = /* @__PURE__ */ new Map();
 var registryUrl = () => runtimeResource("/registry.json");
 var widgetUrl = (tag) => offlineInteractive ? runtimeModule(`/widgets/${tag}.js`) : runtimeResource(`/widgets/${tag}.js`);
 async function loadWidgetDependencies(scope) {
@@ -2483,20 +2481,10 @@ async function importWidgetModules(scope) {
   await Promise.all(
     required.initializers.map(({ tag, path }) => {
       if (document.documentElement.lfInitial.has(tag)) return;
-      if (!initializers.has(path))
-        initializers.set(
-          path,
-          offlineInteractive ? import(runtimeModule(path)) : import(runtimeResource(path))
-        );
-      return initializers.get(path);
+      return offlineInteractive ? import(runtimeModule(path)) : import(runtimeResource(path));
     })
   );
-  await Promise.all(
-    required.modules.map((tag) => {
-      if (!modules.has(tag)) modules.set(tag, import(widgetUrl(tag)));
-      return modules.get(tag);
-    })
-  );
+  await Promise.all(required.modules.map((tag) => import(widgetUrl(tag))));
 }
 async function preloadWidgets(scope) {
   await loadWidgetDependencies(scope);
@@ -6641,11 +6629,11 @@ var ThreadView = class {
   #commands;
   #messageCommands;
   #rewrites;
-  // The model this card shows. A signal, because its commands' liveness reads it, and
-  // key and button reflection follow what they read (keyboard/scopes.js).
-  #shown = M(null);
+  // The model this card shows. Commands follow it explicitly; mechanical reads of
+  // this paint's output must not subscribe the presenter that writes it.
+  #shown = Z(null);
   get #model() {
-    return this.#shown.value;
+    return this.#shown.peek();
   }
   set #model(model) {
     this.#shown.value = model;
@@ -6998,7 +6986,7 @@ var ThreadView = class {
           keys: PRESS,
           title: word.toLowerCase(),
           control: button,
-          when: () => !this.#model.settlement?.pending,
+          when: () => !this.#shown.value.settlement?.pending,
           run: this.#settle
         }
       ]);

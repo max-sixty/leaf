@@ -1,39 +1,23 @@
-/* The one watcher of the page's readings, for chrome and packages alike.
+/* The watcher of the page's readings, for chrome and packages alike.
 
-   `watchProjection(owner, paint, ready)` calls `paint()` on the microtask after it
-   subscribes, then once per microtask in which something the last paint read has
-   moved: several in one task make one call. What a paint reads is collected as it runs
-   (`collectReads`, snapshot.ts), into one record: every part of the publication it
-   reads through a reader that selects its part (`readPart`, `readObligations`, a widget's
-   controller, the runtime getters), and every reading of something outside the
-   publication (`outsideReading`): the time it shows (`clockValue`, `ago`), how many
-   times a caller has said the document changed (`documentChanged`), which a reading of
-   the page's own nodes keys on, and how many times the page has announced
-   `PRESENTATION`. Every paint reads the last, since a
-   paint may draw from nodes it decides. The watcher follows each entry by the same rule, and a change that
-   moves none of them paints nothing. So a paint never names its inputs, and none it
-   reads can go unwatched. Only reads made synchronously count: a read after an `await`
-   in an asynchronous paint, or of the document's nodes by a reading that keys on
-   nothing of these, is the caller's to watch, and
-   so is a private signal such as where the user stands, which a paint may also write.
-   A read of the whole root (`readApplication()`) throws, so a paint reads the parts it
-   draws.
+   `watchProjection(owner, paint, ready)` draws on the next microtask and follows the
+   values that paint reads through native Preact effects: selected application parts,
+   widget controllers and outside readings such as the shared clock, document changes
+   and PRESENTATION. Several changes in one task owe one paint. Reads after an await
+   need their own owner; mechanical focus reads are untracked so restoring focus cannot
+   subscribe a paint to its own output.
 
-   Its subscriptions pause when `owner` leaves; a return paints again only when
-   something it read changed while it was away, or when the departure cut short a paint
-   whose returned promise had not settled (`readingPaint` in `presence.js`, the rule
-   data subscriptions follow too). A paint that throws or rejects is reported once and
-   keeps its subscriptions, to what it read before it threw. An optional synchronous
-   proof predicate withholds every paint, including clock paints; a withheld paint stays
-   owed, and completion wakes only an owed paint, so repainting cannot create a
-   presentation feedback loop. The returned function permanently ends the subscription,
-   including queued paints. Its `refresh()` reruns the same paint synchronously for
-   mechanical changes such as revealing held news, or on the return when the owner is
-   away, while retaining the owner's lifetime and readiness proof; before the first
-   paint it draws that one at once. A reading has no watcher of its own: a paint calls
-   its reader (`readObligations`, `readQueues`, `readThreads`, `readWork`, `reportSequence`,
-   `readHistory`), and one watcher serves a paint that reads several. */
-import { collectReads, outsideReading } from "/vendor/browser-runtime.js";
+   Effects live only while the owner is connected. A return paints once to reestablish
+   dependencies and reflect anything that moved while it was away. A paint that throws
+   or rejects is reported once and retains its dependencies, allowing changed input to
+   recover it. An optional synchronous proof withholds even clock paints; completion
+   wakes only an owed paint, avoiding a presentation feedback loop.
+
+   The returned function permanently ends the watcher, including queued paints.
+   `refresh()` draws synchronously for mechanical changes, such as revealing held news,
+   while retaining the owner's lifetime and proof. A refresh while away owes the return
+   a paint; before the first paint it draws that one at once. */
+import { effect, outsideReading, untracked } from "/vendor/browser-runtime.js";
 import { watchPresentation } from "./semantic-state.js";
 import { PRESENTATION } from "./presentation.js";
 import { watchOwner } from "./arrivals.js";
@@ -57,69 +41,64 @@ const presented = outsideReading(
 );
 
 export function watchProjection(owner, paint, ready = null) {
-  // What the last paint read, each entry with the value it read. A paint is owed when
-  // any of them has moved since.
-  let read = null;
-  const moved = () =>
-    read === null || [...read].some(([reading, value]) => reading.read() !== value);
-  // `readingPaint` draws a key it has not drawn; the key advances when an input moves.
+  // An effect follows the last paint. Its next run marks that paint stale; only the
+  // queued draw reads again, preserving the owner's microtask and readiness boundary.
   let key = 0;
   let queued = false;
-  let subscribed = [];
-  let unsubscribe = null;
+  let following = null;
+  let connected = false;
   const update = () => {
     if (queued) return;
     queued = true;
     queueMicrotask(() => {
       queued = false;
-      if (!unsubscribe || !owner.isConnected) return;
-      if (moved()) key += 1;
-      draw(key);
+      if (connected && owner.isConnected) draw(key);
     });
   };
-  // Follow what the last paint read, while the owner is here. A subscriber hears its
-  // value at once, which differs from the value read only where the paint itself, or
-  // the time since, moved it.
-  const follow = () => {
-    for (const stop of subscribed) stop();
-    subscribed =
-      unsubscribe && read
-        ? [...read].map(([reading, value]) =>
-            reading.subscribe((now) => now !== value && update()),
-          )
-        : [];
-  };
-  // Every route, including the shared clock, checks this synchronous proof.
   const draw = readingPaint(owner, () => {
-    if (ready !== null && !ready()) return draw.forget();
-    const outcome = collectReads(() => {
-      presented.read();
-      return paint();
+    if (ready !== null && !untracked(ready)) return draw.forget();
+    following?.();
+    let first = true;
+    let outcome;
+    following = effect(() => {
+      if (!first) {
+        key += 1;
+        update();
+        return;
+      }
+      first = false;
+      // Keep the effect alive after a failed paint, so a later input can recover it.
+      try {
+        presented.read();
+        outcome = { value: paint() };
+      } catch (error) {
+        outcome = { error };
+      }
     });
-    read = outcome.reads;
-    follow();
+    if (!connected) {
+      following();
+      following = null;
+    }
     if ("error" in outcome) throw outcome.error;
     return outcome.value;
   });
+  let stopProof = null;
   const stopLifetime = watchOwner(owner, {
     connect() {
-      const stops = [];
+      connected = true;
       // Ready reads may invalidate their own presentation. Only an owed paint retries,
       // so finishing a paint cannot feed another paint.
       if (ready)
-        stops.push(
-          watchPresentation(() => (moved() || draw.owes(key)) && ready() && update()),
-        );
-      unsubscribe = () => {
-        for (const stop of stops) stop();
-      };
-      follow();
+        stopProof = watchPresentation(() => draw.owes(key) && ready() && update());
+      draw.forget();
       update();
     },
     disconnect() {
-      unsubscribe();
-      unsubscribe = null;
-      follow();
+      connected = false;
+      stopProof?.();
+      stopProof = null;
+      following?.();
+      following = null;
     },
   });
   const stop = () => {

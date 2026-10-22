@@ -6337,6 +6337,14 @@ function boxMotion({
   let rests = null;
   let motions = /* @__PURE__ */ new Map();
   let running = [];
+  const translations = /* @__PURE__ */ new Map();
+  const restoreTranslations = (keep = /* @__PURE__ */ new Set()) => {
+    for (const [element, { value, priority }] of translations) {
+      if (keep.has(element)) continue;
+      element.style.setProperty("translate", value, priority);
+      translations.delete(element);
+    }
+  };
   let observed = /* @__PURE__ */ new Set();
   let wholes = /* @__PURE__ */ new WeakSet();
   const insideWhole = (node) => {
@@ -6443,6 +6451,7 @@ function boxMotion({
     for (const animation of running) animation.cancel();
     running = [];
     if (!next.has(box)) {
+      restoreTranslations();
       rests = null;
       motions = /* @__PURE__ */ new Map();
       return;
@@ -6473,15 +6482,28 @@ function boxMotion({
         "style",
         `clip-path: ${insetOf(...outline(boxAt, reach2, boxRadius))}`
       );
-    if (!was?.has(box)) return;
+    if (!was?.has(box)) {
+      restoreTranslations();
+      return;
+    }
     const boxFrom = was.get(box);
     const rtl = getComputedStyle(box).direction === "rtl";
     const start = (element, keyframes) => running.push(element.animate(keyframes, timing));
     const hold = (element, property, value) => start(element, [{ [property]: value }, { [property]: value }]);
-    const move2 = (element, dx, dy) => start(element, [
-      { translate: "var(--lf-box-carry)", "--lf-box-carry": `${dx}px ${dy}px` },
-      { translate: "var(--lf-box-carry)", "--lf-box-carry": "0px 0px" }
-    ]);
+    const translated = /* @__PURE__ */ new Set();
+    const move2 = (element, dx, dy) => {
+      if (!translations.has(element))
+        translations.set(element, {
+          value: element.style.getPropertyValue("translate"),
+          priority: element.style.getPropertyPriority("translate")
+        });
+      translated.add(element);
+      element.style.setProperty("translate", "var(--lf-box-carry)");
+      start(element, [
+        { "--lf-box-carry": `${dx}px ${dy}px` },
+        { "--lf-box-carry": "0px 0px" }
+      ]);
+    };
     const cutFrom = (element, cut, radius = 0) => start(element, [clipFrame(cut, radius), clipFrame([0, 0, 0, 0], radius)]);
     function carry(part, from) {
       const dx = from.left - part.box.left;
@@ -6604,6 +6626,7 @@ function boxMotion({
       for (const inner of placed) place3(inner, within, part.parts);
     }
     for (const part of parts) place3(part, { from: boxFrom, to: boxAt });
+    restoreTranslations(translated);
     if (running.length === 0 && same3(boxFrom, boxAt)) return;
     motions.set(box, { from: boxFrom, to: boxAt });
     for (const [layer, reach2] of surface())
@@ -6613,6 +6636,10 @@ function boxMotion({
       ]);
     hold(box, "backgroundColor", "transparent");
     hold(box, "overflow", "visible");
+    const animations = running;
+    animations.at(-1).onfinish = () => {
+      if (running === animations) restoreTranslations();
+    };
   }
   return {
     follow,

@@ -718,7 +718,9 @@ container: "nearest"})` on a button in a sideways strip whose foot stands 1 px
   first frame with the compositor-driven clip ahead of the mark.
 - **Disposition:** both translation and clip insets interpolate registered length
   properties, so the mark, outline, reveals and surface paint from the same sample.
-  Their `translate` and `clip-path` expressions stay constant. This trades independent
+  The translation expression lives in ordinary style while it moves: Firefox can
+  still composite a constant `translate` keyframe independently of the property it
+  reads. The clip expression stays constant. This trades independent
   compositor advancement for the visual coherence the shared motion requires.
 - **Recheck:** `test_the_leaf_paints_inside_its_moving_focus_ring` compares the mark
   and outline in natural captured frames in both directions; the neighboring

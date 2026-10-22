@@ -39,6 +39,9 @@
  * Translation and clips are animated through registered properties so they paint
  * together. Direct translate or clip-path animations can advance independently on the
  * compositor and leave content outside its focus ring despite identical clocks.
+ * Translation's consumer stays in ordinary style: Firefox can composite even a
+ * constant translate keyframe that reads an animated property. Restore that temporary
+ * declaration when its part stops moving, retaining it across a reversal.
  *
  * Whose change it is decides what travels. The user's own change, a key, a press or
  * typing, owns what it sets going until that rendering settles, and carries what it
@@ -124,6 +127,14 @@ export function boxMotion({
   // Each part moving, from the box it was drawn at to its rest, on one clock.
   let motions = new Map();
   let running = [];
+  const translations = new Map();
+  const restoreTranslations = (keep = new Set()) => {
+    for (const [element, { value, priority }] of translations) {
+      if (keep.has(element)) continue;
+      element.style.setProperty("translate", value, priority);
+      translations.delete(element);
+    }
+  };
   let observed = new Set();
   // The parts read whole, whose insides no reading reads.
   let wholes = new WeakSet();
@@ -264,6 +275,7 @@ export function boxMotion({
     // A box not drawn at all, as in print, has nothing to move, and its next reading
     // takes it as it stands.
     if (!next.has(box)) {
+      restoreTranslations();
       rests = null;
       motions = new Map();
       return;
@@ -297,7 +309,10 @@ export function boxMotion({
         "style",
         `clip-path: ${insetOf(...outline(boxAt, reach, boxRadius))}`,
       );
-    if (!was?.has(box)) return;
+    if (!was?.has(box)) {
+      restoreTranslations();
+      return;
+    }
     const boxFrom = was.get(box);
 
     const rtl = getComputedStyle(box).direction === "rtl";
@@ -305,11 +320,20 @@ export function boxMotion({
       running.push(element.animate(keyframes, timing));
     const hold = (element, property, value) =>
       start(element, [{ [property]: value }, { [property]: value }]);
-    const move = (element, dx, dy) =>
+    const translated = new Set();
+    const move = (element, dx, dy) => {
+      if (!translations.has(element))
+        translations.set(element, {
+          value: element.style.getPropertyValue("translate"),
+          priority: element.style.getPropertyPriority("translate"),
+        });
+      translated.add(element);
+      element.style.setProperty("translate", "var(--lf-box-carry)");
       start(element, [
-        { translate: "var(--lf-box-carry)", "--lf-box-carry": `${dx}px ${dy}px` },
-        { translate: "var(--lf-box-carry)", "--lf-box-carry": "0px 0px" },
+        { "--lf-box-carry": `${dx}px ${dy}px` },
+        { "--lf-box-carry": "0px 0px" },
       ]);
+    };
     const cutFrom = (element, cut, radius = 0) =>
       start(element, [clipFrame(cut, radius), clipFrame([0, 0, 0, 0], radius)]);
 
@@ -463,6 +487,7 @@ export function boxMotion({
     }
 
     for (const part of parts) place(part, { from: boxFrom, to: boxAt });
+    restoreTranslations(translated);
     if (running.length === 0 && same(boxFrom, boxAt)) return;
     motions.set(box, { from: boxFrom, to: boxAt });
     for (const [layer, reach] of surface())
@@ -474,6 +499,10 @@ export function boxMotion({
     // and lets what it carries stand past its rest outline on the way.
     hold(box, "backgroundColor", "transparent");
     hold(box, "overflow", "visible");
+    const animations = running;
+    animations.at(-1).onfinish = () => {
+      if (running === animations) restoreTranslations();
+    };
   }
 
   return {

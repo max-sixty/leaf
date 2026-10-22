@@ -2744,7 +2744,8 @@ def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
     )
 
 
-def test_the_leaf_paints_inside_its_moving_focus_ring(browser, serve):
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_the_leaf_paints_inside_its_moving_focus_ring(request, engine, serve):
     """Natural frames keep the mark centered in its focus ring in both directions.
 
     Held animations and computed geometry conceal compositor translation advancing
@@ -2754,6 +2755,7 @@ def test_the_leaf_paints_inside_its_moving_focus_ring(browser, serve):
 
     from PIL import Image, ImageChops, ImageColor
 
+    browser = request.getfixturevalue(engine)
     page = floating(browser, serve(leaf_page("fold", '<h1 id="title">Fold</h1>')))
     page.emulate_media(reduced_motion="no-preference")
     leaf = page.locator(".lf-fp-leaf")

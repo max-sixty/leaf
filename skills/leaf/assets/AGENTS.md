@@ -517,7 +517,7 @@ no deferred paint; the immutable application selection stays the authority.
 A watcher's paint subscribes to every selection it reads (`projection-watch.js`), so a
 reader called from a paint selects exactly what it returns (`readPart`) rather than
 selecting more and narrowing it. The paint then reruns only when that answer changes.
-Reading the whole root inside a paint throws.
+Read selected parts so unrelated publications leave the paint alone.
 
 Test what one module decides on its own under `tests/runtime/` (`pnpm run
 test:runtime`). `pnpm run check:browser` type-checks the runtime and widget modules,

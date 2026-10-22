@@ -660,7 +660,7 @@ def test_nested_markdown_decoration_uses_the_renderers_block_markers(browser, se
                 "functionDeclaration": """function() {
               return [...this.querySelectorAll('.cm-line')].map(line => ({
                 text: line.textContent, heading: line.classList.contains('lf-md-heading'),
-                muted: [...line.querySelectorAll('.lf-md-mark')].map(mark => mark.textContent),
+                syntax: [...line.querySelectorAll('.lf-md-mark, .lf-md-unseen')].map(mark => mark.textContent),
                 strong: line.querySelector('strong')?.textContent,
               }));
             }""",
@@ -669,8 +669,8 @@ def test_nested_markdown_decoration_uses_the_renderers_block_markers(browser, se
 
     lines = reading()
     assert lines[0]["heading"] and "Heading" in lines[0]["text"], lines
-    assert lines[3]["text"] == "```" and not lines[3]["muted"], lines
-    assert lines[2]["muted"] == ["````"] and lines[5]["muted"] == ["````"], lines
+    assert lines[3]["text"] == "```" and not lines[3]["syntax"], lines
+    assert lines[2]["syntax"] == ["````"] and lines[5]["syntax"] == ["````"], lines
     assert lines[-1]["strong"] == "**end**", lines
     # Native caret movement and undo preserve the exact source, including the
     # delimiter the renderer reads as literal code.

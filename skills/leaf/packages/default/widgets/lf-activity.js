@@ -255,7 +255,6 @@ customElements.define(
           : null,
         id: served.id,
         ts: served.ts,
-        author: served.author,
         actor: actorOf(served),
         undone: served.undone,
       }));
@@ -303,7 +302,6 @@ customElements.define(
           this.#rows.set(row.id, seat);
         }
         const { item } = seat;
-        keeps(item, "data-lf-activity-author", row.author);
         if (seat.key !== key) {
           const restoreFocus = holdFocus(item);
           fillActivityRow(item, row, offer);

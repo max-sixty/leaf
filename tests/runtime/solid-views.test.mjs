@@ -1,7 +1,68 @@
 /* A Solid view tracks the fields it draws while preserving native editing state. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createView, html, For } from "/vendor/browser-runtime.js";
+import {
+  createView,
+  html,
+  For,
+  createSignal,
+  createMemo,
+  flush,
+  watchReaction,
+} from "/vendor/browser-runtime.js";
+
+test("an imperative draw follows completed reads without waking on a lazy first pull", () => {
+  for (const memoized of [false, true]) {
+    const [value, setValue] = createSignal(0);
+    const memo = createMemo(() => value() * 2, { lazy: true });
+    let wakes = 0;
+    const stop = watchReaction(
+      () => {
+        assert.equal(memoized ? memo() : value(), 0);
+        flush(() => setValue(1));
+      },
+      () => {
+        wakes++;
+      },
+    );
+    flush();
+    assert.equal(wakes, 1, "the completed read was changed by its own draw");
+    stop();
+    flush(() => setValue(2));
+    assert.equal(wakes, 1, "a disposed draw no longer follows its inputs");
+    const stopLazy = watchReaction(
+      () => {
+        assert.equal(memo(), 4);
+      },
+      () => {
+        wakes++;
+      },
+    );
+    flush();
+    assert.equal(wakes, 1, "the first pull returns fresh data and owes no second draw");
+    stopLazy();
+  }
+});
+
+test("a retained native view outlives the imperative draw that first mounts it", () => {
+  const host = document.createElement("section");
+  const [value, setValue] = createSignal(0);
+  let view;
+  const stop = watchReaction(
+    () => {
+      value();
+      view = createView(host, (read) => html`<output>${() => read().value}</output>`, {
+        value: "first",
+      });
+    },
+    () => {},
+  );
+  flush(() => setValue(1));
+  view.update({ value: "second" });
+  assert.equal(host.textContent, "second");
+  stop();
+  view.dispose();
+});
 
 test("updating one field leaves an independent binding and native editor alone", () => {
   const host = document.createElement("section");
@@ -12,9 +73,9 @@ test("updating one field leaves an independent binding and native editor alone",
     (props) =>
       html` <label
           >${() => {
-      labelReads++;
-      return props().label;
-    }}<input
+            labelReads++;
+            return props().label;
+          }}<input
         /></label>
         <output>${() => props().count}</output>`,
     { label: "Notes", count: 0 },

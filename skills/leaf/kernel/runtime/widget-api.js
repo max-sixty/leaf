@@ -25,7 +25,6 @@ import {
   registerThreadPresentation,
   replaceEntry,
   requireReference,
-  stagesOnly,
   threadActions,
   threadBox,
   threadInput,
@@ -262,7 +261,6 @@ import {
   applicationState,
   attachApplicationPresentation,
   attachWidgetPresentation,
-  collectReads,
   createEffect,
   createMemo,
   createRoot,
@@ -274,15 +272,15 @@ import {
   onCleanup,
   pageUrl,
   projectionRegionsPresented,
-  proofReading,
   queueWidgetUpdate,
   rankAt,
   readPart,
-  readsProof,
   revisionLabel,
   turns,
   untrack,
-  untracked
+  untrack2,
+  watchPresentation,
+  watchReaction
 } from "./bundle-vendor~browser-runtime.js";
 import "./bundle-__export.js";
 
@@ -359,7 +357,7 @@ function createWidgetController(owner) {
     Promise.resolve(promise).then(settled, settled);
   };
   const presentPreparation = (handle, { value, completion }) => handle.present(value, (reason) => failSoftUnreported(owner, reason)).resolve(completion);
-  const connect = () => untracked(() => {
+  const connect = () => untrack(() => {
     if (!owner.isConnected) return;
     for (const promise of pendingPreparations.keys()) holdPreparation(promise);
     if (preparation && !preparationHandle) {
@@ -445,6 +443,21 @@ function widgetController(owner) {
 // runtime/leaf-element.js
 var regions = 0;
 var LeafElement = class extends HTMLElement {
+  #following = null;
+  #stopReadiness = null;
+  #rendering = false;
+  /** Complete a waiting render without claiming the proof it waits for again. */
+  whenReady(read) {
+    if (untrack(read)) return true;
+    if (!this.#stopReadiness)
+      this.#stopReadiness = watchPresentation(() => {
+        if (!untrack(read)) return;
+        this.#stopReadiness?.();
+        this.#stopReadiness = null;
+        this.#requestUpdate();
+      });
+    return false;
+  }
   #descriptor = null;
   #controller = null;
   #verbs = [];
@@ -452,12 +465,6 @@ var LeafElement = class extends HTMLElement {
   #regionName = null;
   #connected = false;
   #connectedParent = null;
-  // What the last gate and the last render read, each with the value it read.
-  #gateReads = /* @__PURE__ */ new Map();
-  #renderReads = /* @__PURE__ */ new Map();
-  #following = [];
-  // A draw owed to the next connection: queued as it left, or a reading moved meanwhile.
-  #owed = false;
   // The open claim the next update that draws settles.
   #ticket = null;
   #held = false;
@@ -467,11 +474,9 @@ var LeafElement = class extends HTMLElement {
   #broken = false;
   // The claim the update under way draws, settled once `updated` has run too.
   #drawing = null;
+  #updating = false;
   // The drawing that follows the update under way, which its claim waits for.
   #work = null;
-  // The last update's drawing until it lands, which a later update replaces; a departure
-  // before then owes a draw.
-  #unfinished = null;
   #data = /* @__PURE__ */ new Map();
   #leaveData = null;
   #scheduled = null;
@@ -480,7 +485,15 @@ var LeafElement = class extends HTMLElement {
   hasUpdated = false;
   updateComplete = Promise.resolve(true);
   renderRoot;
+  get isUpdatePending() {
+    return this.#pending;
+  }
   requestUpdate() {
+    if (this.#rendering) return;
+    if (this.hasUpdated) untrack(() => this.#stage());
+    this.#requestUpdate();
+  }
+  #requestUpdate() {
     if (this.#pending) return;
     this.#pending = true;
     this.updateComplete = new Promise((resolve2) => {
@@ -539,7 +552,7 @@ var LeafElement = class extends HTMLElement {
       failSoft(this, error);
     }
     watchOwner(this, {
-      connect: () => untracked(() => this.#connect()),
+      connect: () => untrack(() => this.#connect()),
       disconnect: () => this.#disconnect()
     });
   }
@@ -564,7 +577,8 @@ var LeafElement = class extends HTMLElement {
   /** The bound reading of a declared `x-data` input, one copy a delivery (data.js). */
   data(input) {
     let read = this.#data.get(input);
-    if (!read) this.#data.set(input, read = dataReader(this, input));
+    if (!read)
+      this.#data.set(input, read = dataReader(this, input, () => this.#stage()));
     return read();
   }
   // The controller's `defer` for this widget, which refuses a second hold and releases
@@ -584,30 +598,16 @@ var LeafElement = class extends HTMLElement {
   }
   shouldUpdate(changed) {
     if (!this.#connected || !this.isConnected) {
-      this.#owed = true;
       return false;
     }
     if (this.#held) return false;
     this.#drawing = this.#ticket;
     this.#ticket = null;
     if (this.#broken) return false;
-    const gate = collectReads(() => this.#complete());
-    this.#gateReads = gate.reads;
-    if ("error" in gate) {
-      this.#follow();
-      throw gate.error;
-    }
-    if (!gate.value) {
-      this.#follow();
-      return false;
-    }
-    return true;
+    return this.#complete();
   }
   update(changed) {
-    const outcome = collectReads(() => this.render());
-    this.#renderReads = outcome.reads;
-    this.#follow();
-    if ("error" in outcome) throw outcome.error;
+    this.render();
     this.#box?.remove();
     this.#box = null;
   }
@@ -618,20 +618,42 @@ var LeafElement = class extends HTMLElement {
   // claim of its own, its failure is the enclosing claimed update's.
   performUpdate() {
     const outer = this.#drawing;
+    const updating = this.#updating;
     let outerWork = this.#work;
     this.#drawing = null;
     this.#work = null;
+    this.#updating = true;
     try {
       if (!this.#pending) return;
       this.#pending = false;
       const resolve2 = this.#resolveUpdate;
       this.#resolveUpdate = null;
       try {
-        if (this.shouldUpdate()) {
-          this.update();
-          this.hasUpdated = true;
-          this.updated();
+        this.#following?.();
+        let outcome;
+        this.#rendering = true;
+        try {
+          this.#following = watchReaction(
+            () => {
+              try {
+                if (this.shouldUpdate()) {
+                  this.update();
+                  this.hasUpdated = true;
+                  outcome = { drawn: true };
+                } else outcome = { drawn: false };
+              } catch (error) {
+                outcome = { error };
+              }
+            },
+            () => {
+              if (this.#connected) this.#present();
+            }
+          );
+        } finally {
+          this.#rendering = false;
         }
+        if ("error" in outcome) throw outcome.error;
+        if (outcome.drawn) this.updated();
       } finally {
         resolve2?.(!this.#pending);
       }
@@ -640,13 +662,6 @@ var LeafElement = class extends HTMLElement {
         if (outer) outerWork = outerWork ? Promise.all([outerWork, work]) : work;
         else if (this.#region) this.#drawing = this.#claim();
       }
-      this.#unfinished = work;
-      if (work) {
-        const landed = () => {
-          if (this.#unfinished === work) this.#unfinished = null;
-        };
-        work.then(landed, landed);
-      }
       this.#drawing?.resolve(work ?? void 0);
     } catch (error) {
       if (outer && !this.#drawing) throw error;
@@ -654,6 +669,7 @@ var LeafElement = class extends HTMLElement {
     } finally {
       this.#drawing = outer;
       this.#work = outerWork;
+      this.#updating = updating;
     }
   }
   /** Hold the update under way's claim until `work`, drawing that follows the render
@@ -677,7 +693,7 @@ var LeafElement = class extends HTMLElement {
     this.render();
   }
   updated(changed) {
-    paintKeysWithin(this);
+    untrack(() => paintKeysWithin(this));
   }
   // Every failure is reported here, naming the widget; a claim's rejection then shows
   // the box through the coordinator's fallback, which reports nothing again.
@@ -686,31 +702,11 @@ var LeafElement = class extends HTMLElement {
     reportFailure(this, error);
     ticket.reject(error);
   }
-  #follow() {
-    for (const stop of this.#following) stop();
-    const reads = [...this.#gateReads, ...this.#renderReads];
-    this.#following = this.#connected ? reads.map(
-      ([reading, seen]) => reading.subscribe((now) => {
-        if (now === seen) return;
-        if (readsProof(reading)) {
-          if (now) this.requestUpdate();
-        } else if (stagesOnly(reading)) this.#stage();
-        else this.#moved();
-      })
-    ) : [];
-  }
-  #moved() {
-    if (!this.#connected) {
-      this.#owed = true;
-      return;
-    }
-    this.#present();
-  }
   // A claim on the region for the reading as it stands, which a failure settles with
   // the fail-soft box.
   #claim() {
     return this.#region.present(
-      untracked(() => this.#controller?.read() ?? {}),
+      untrack(() => this.#controller?.read() ?? {}),
       (reason) => failSoftUnreported(this, reason)
     );
   }
@@ -733,7 +729,6 @@ var LeafElement = class extends HTMLElement {
   }
   #refresh() {
     if (this.#connected) this.#present({ now: true });
-    else this.#owed = true;
   }
   #connect() {
     this.#connected = true;
@@ -744,23 +739,15 @@ var LeafElement = class extends HTMLElement {
       this.#leaveData = joinDataDelivery(
         this.#descriptor ? `widget:${this.#descriptor.id}:render` : this.#regionName
       );
-    const moved = untracked(
-      () => [...this.#gateReads, ...this.#renderReads].some(
-        ([reading, seen]) => reading.read() !== seen
-      )
-    );
-    if (!this.hasUpdated || this.#owed || moved) {
-      this.#owed = false;
-      this.#present();
-    } else
-      this.#region.present(untracked(() => this.#controller?.read() ?? {})).resolve();
-    this.#follow();
+    this.#present();
     if (this.#descriptor) widgetMounted(this, this.#descriptor, parentChanged);
   }
   #disconnect() {
     this.#connected = false;
-    if (this.#unfinished) this.#owed = true;
-    this.#follow();
+    this.#following?.();
+    this.#following = null;
+    this.#stopReadiness?.();
+    this.#stopReadiness = null;
     this.#leaveData?.();
     this.#leaveData = null;
     this.#ticket = null;
@@ -852,7 +839,7 @@ var reportWidgets = (target) => {
   }
   return widgets2;
 };
-var reportsReady = (target) => proofReading(
+var reportsReady = (target) => target.whenReady(
   () => applicationRegionsPresented([
     "projection:chrome",
     `widget:${target.id}:preparation`,
@@ -861,7 +848,7 @@ var reportsReady = (target) => proofReading(
       `widget:${widget}:preparation`
     ])
   ])
-).read();
+);
 
 // runtime/work.js
 var widgets = () => layerFact("$work")?.widgets ?? {};
@@ -1874,7 +1861,7 @@ export {
   turns as threadTurns,
   tokenLines,
   under,
-  untrack,
+  untrack2 as untrack,
   watchComparison,
   watchDraft,
   watchProjection,

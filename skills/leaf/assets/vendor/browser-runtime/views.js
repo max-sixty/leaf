@@ -6,7 +6,7 @@
  * Failure replacement releases affected roots. A retained owner can publish again
  * into the same container; terminal dispose ends that owner's lifetime.
  */
-import { createSignal, createProjection, flush } from "../solid.js";
+import { createSignal, createProjection, flush, runWithOwner } from "../solid.js";
 import { render } from "../solid.js";
 
 
@@ -39,16 +39,18 @@ export function createView                  (
   let publish                                   ;
   const mount = () => {
     if (container.firstChild) container.replaceChildren();
-    stop = render(() => {
-      const [snapshot, setSnapshot] = createSignal({ current }, { ownedWrite: true });
-      publish = setSnapshot;
-      const props = createProjection                         (
-        () => ({ ...snapshot().current })                           ,
-        null,
-        { shallow: true },
-      );
-      return component(() => props     );
-    }, container);
+    stop = runWithOwner(null, () =>
+      render(() => {
+        const [snapshot, setSnapshot] = createSignal({ current }, { ownedWrite: true });
+        publish = setSnapshot;
+        const props = createProjection                         (
+          () => ({ ...snapshot().current })                           ,
+          null,
+          { shallow: true },
+        );
+        return component(() => props     );
+      }, container),
+    );
   };
   const reset = () => {
     stop?.();

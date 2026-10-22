@@ -9,28 +9,56 @@ import {
 } from "/vendor/solid.js";
 
 // vendor/browser-runtime/observe.js
-import { createEffect, createRoot, createTrackedEffect, flush } from "/vendor/solid.js";
+import {
+  createEffect,
+  createRoot,
+  createReaction,
+  createTrackedEffect,
+  flush,
+  runWithOwner
+} from "/vendor/solid.js";
 function subscribe(read, notify) {
   return flush(
-    () => createRoot((dispose) => {
-      createEffect(read, (value) => {
-        notify(value);
-      });
-      return dispose;
-    })
+    () => runWithOwner(
+      null,
+      () => createRoot((dispose) => {
+        createEffect(read, (value) => {
+          notify(value);
+        });
+        return dispose;
+      })
+    )
   );
 }
 function watchEffect(run) {
   return flush(
+    () => runWithOwner(
+      null,
+      () => createRoot((dispose) => {
+        createTrackedEffect(run);
+        return dispose;
+      })
+    )
+  );
+}
+function watchReaction(read, moved2) {
+  return runWithOwner(
+    null,
     () => createRoot((dispose) => {
-      createTrackedEffect(run);
+      let first = true;
+      const track = createReaction(moved2);
+      track(() => {
+        if (!first) return;
+        first = false;
+        read();
+      });
       return dispose;
     })
   );
 }
 
 // vendor/browser-runtime/views.js
-import { createSignal, createProjection, flush as flush2 } from "/vendor/solid.js";
+import { createSignal, createProjection, flush as flush2, runWithOwner as runWithOwner2 } from "/vendor/solid.js";
 import { render } from "/vendor/solid.js";
 var roots = /* @__PURE__ */ new WeakMap();
 function resetViewsWithin(container) {
@@ -52,16 +80,19 @@ function createView(container, component, initial) {
   let publish;
   const mount = () => {
     if (container.firstChild) container.replaceChildren();
-    stop = render(() => {
-      const [snapshot, setSnapshot] = createSignal({ current }, { ownedWrite: true });
-      publish = setSnapshot;
-      const props = createProjection(
-        () => ({ ...snapshot().current }),
-        null,
-        { shallow: true }
-      );
-      return component(() => props);
-    }, container);
+    stop = runWithOwner2(
+      null,
+      () => render(() => {
+        const [snapshot, setSnapshot] = createSignal({ current }, { ownedWrite: true });
+        publish = setSnapshot;
+        const props = createProjection(
+          () => ({ ...snapshot().current }),
+          null,
+          { shallow: true }
+        );
+        return component(() => props);
+      }, container)
+    );
   };
   const reset = () => {
     stop?.();
@@ -90,99 +121,67 @@ import { For, Show, onCleanup } from "/vendor/solid.js";
 import { default as default2 } from "/vendor/solid.js";
 
 // vendor/browser-runtime/snapshot.js
-import { createMemo, createSignal as createSignal2, flush as flush3, untrack } from "/vendor/solid.js";
-var collecting = null;
-function collected(reading, read) {
-  const outer = collecting;
-  collecting = null;
-  let value;
-  try {
-    value = read();
-  } finally {
-    collecting = outer;
-  }
-  if (outer && !outer.has(reading)) outer.set(reading, value);
-  return value;
-}
-function collectingInto(reads, run) {
-  const outer = collecting;
-  collecting = reads;
-  try {
-    return run();
-  } finally {
-    collecting = outer;
-  }
-}
-function collectReads(run) {
-  const reads = /* @__PURE__ */ new Map();
-  try {
-    return { reads, value: collectingInto(reads, run) };
-  } catch (error) {
-    return { reads, error };
-  }
-}
+import {
+  createMemo,
+  createSignal as createSignal2,
+  flush as flush3,
+  getObserver,
+  runWithOwner as runWithOwner3,
+  untrack
+} from "/vendor/solid.js";
 function outsideReading(read, heard) {
-  const reading = Object.freeze({
-    outside: true,
-    read: () => collected(reading, read),
-    subscribe(listener) {
-      let active = true;
-      const deliver = (round) => untracked(() => listener(read(), round));
-      const stop = heard((round) => active ? deliver(round) : void 0);
-      deliver({});
-      return () => {
-        active = false;
-        stop();
-      };
+  let stop;
+  let seen;
+  const [revision, setRevision] = createSignal2(0, {
+    ownedWrite: true,
+    unobserved() {
+      stop?.();
+      stop = void 0;
     }
   });
-  return reading;
-}
-function untracked(run) {
-  return collectingInto(null, run);
+  const sample = () => untrack(read);
+  const current = () => {
+    revision();
+    if (getObserver() && !stop) {
+      seen = sample();
+      stop = untrack(
+        () => heard(() => {
+          const next = sample();
+          if (Object.is(seen, next)) return;
+          seen = next;
+          flush3(() => setRevision((value) => value + 1));
+        })
+      );
+    }
+    return sample();
+  };
+  return Object.freeze({
+    read: current,
+    subscribe: (listener) => subscribe(current, (value) => untrack(() => listener(value)))
+  });
 }
 var secured = /* @__PURE__ */ new WeakSet();
-function immutable(value, normalized = /* @__PURE__ */ new WeakMap()) {
+function immutable(value) {
   if (value !== null && typeof value === "object" && !secured.has(value)) {
-    const known = normalized.get(value);
-    if (known) return known;
-    let result = value;
-    const refuse = () => {
-      throw new TypeError("Application snapshots are read-only");
-    };
     if (value instanceof Map) {
-      const entries = [...value].map(
-        ([key, child]) => [immutable(key, normalized), immutable(child, normalized)]
-      );
-      const map = Object.isExtensible(value) ? value : /* @__PURE__ */ new Map();
-      map.clear();
-      for (const [key, child] of entries) map.set(key, child);
-      for (const name of ["set", "delete", "clear"])
-        Object.defineProperty(map, name, { value: refuse });
-      result = map;
-    } else if (value instanceof Set) {
-      const members = [...value].map((child) => immutable(child, normalized));
-      const set = Object.isExtensible(value) ? value : /* @__PURE__ */ new Set();
-      set.clear();
-      for (const child of members) set.add(child);
-      for (const name of ["add", "delete", "clear"])
-        Object.defineProperty(set, name, { value: refuse });
-      result = set;
-    } else {
-      const children = Object.entries(value).map(
-        ([key, child]) => [key, child, immutable(child, normalized)]
-      );
-      if (children.some(([, child, next]) => child !== next)) {
-        const target = Object.isFrozen(value) ? Array.isArray(value) ? [...value] : { ...value } : value;
-        for (const [key, child, next] of children)
-          if (child !== next) target[key] = next;
-        result = target;
+      for (const [key, child] of value) {
+        immutable(key);
+        immutable(child);
       }
+    } else if (value instanceof Set) {
+      for (const child of value) immutable(child);
+    } else {
+      for (const child of Object.values(value)) immutable(child);
     }
-    Object.freeze(result);
-    secured.add(result);
-    normalized.set(value, result);
-    return result;
+    if (value instanceof Map || value instanceof Set) {
+      const refuse = () => {
+        throw new TypeError("Application snapshots are read-only");
+      };
+      for (const name of value instanceof Map ? ["set", "delete", "clear"] : ["add", "delete", "clear"])
+        Object.defineProperty(value, name, { value: refuse });
+    }
+    Object.freeze(value);
+    secured.add(value);
   }
   return value;
 }
@@ -248,13 +247,7 @@ function share(prior, next) {
 function createApplicationPublisher(initial) {
   const [root, setRoot] = createSignal2(() => immutable(initial), { ownedWrite: true });
   return Object.freeze({
-    read: () => {
-      if (collecting)
-        throw new Error(
-          "a collected read took the whole publication; select the part it needs"
-        );
-      return root();
-    },
+    read: () => root(),
     // The root without subscribing or collecting, for the owner computing what it
     // publishes next.
     peek: () => untrack(root),
@@ -264,13 +257,16 @@ function createApplicationPublisher(initial) {
     },
     select(derive) {
       let prior;
-      const selected = createMemo(() => {
-        const snapshot = root();
-        return untracked(() => prior = immutable(share(prior, derive(snapshot))));
-      });
+      const selected = runWithOwner3(
+        null,
+        () => createMemo(() => {
+          const snapshot = root();
+          return untrack(() => prior = immutable(share(prior, derive(snapshot))));
+        })
+      );
       const reading = Object.freeze({
-        read: () => collected(reading, selected),
-        subscribe: (listener) => subscribe(selected, (value) => untracked(() => listener(value)))
+        read: () => selected(),
+        subscribe: (listener) => subscribe(selected, (value) => untrack(() => listener(value)))
       });
       return reading;
     }
@@ -2242,7 +2238,7 @@ function createPresentationCoordinator({ reportFailure }) {
     currentRegionsPresented,
     subscribe: (callback) => subscribe(
       changes,
-      () => untracked(() => {
+      () => untrack(() => {
         try {
           callback();
         } catch (reason) {
@@ -2430,7 +2426,7 @@ var widgetOrder = (widget) => {
   return -1 / (depth + 1);
 };
 var queueWidgetUpdate = (widget, update) => schedule.enqueue(
-  untracked(() => widgetOrder(widget)),
+  untrack(() => widgetOrder(widget)),
   update
 );
 var PRESENTATION_ORDER = Object.freeze({
@@ -2439,7 +2435,6 @@ var PRESENTATION_ORDER = Object.freeze({
   obligations: 2
 });
 var documentPresenters = [];
-var publications = applicationState.select((root) => root);
 var applicationPresenter = ({
   region,
   renderer = document,
@@ -2448,39 +2443,53 @@ var applicationPresenter = ({
   paint,
   failSoft
 }) => {
-  let readingReads = /* @__PURE__ */ new Map();
-  let paintReads = /* @__PURE__ */ new Map();
+  const [revision, setRevision] = createSignal4(0, { ownedWrite: true });
+  const selected = createMemo2(
+    () => {
+      revision();
+      const epoch = untrack(() => readApplication().semanticEpoch);
+      const value = reading();
+      if (epoch !== untrack(() => readApplication().semanticEpoch))
+        throw new Error(`the ${region} region's reading moved a part it read`);
+      return value;
+    },
+    { lazy: true }
+  );
+  untrack(selected);
   let claimed;
   let owed = false;
   let following = [];
-  const follow = () => {
+  const forget = () => {
     for (const stop of following) stop();
-    following = [...paintReads].filter(([reading2]) => reading2.outside).map(
-      ([reading2, seen]) => reading2.subscribe((now) => {
-        if (owed || now === seen) return;
-        const next = read();
-        if (next !== null) void claim(next);
-      })
-    );
+    following = [];
   };
   const presenter = schedule.presenter({
     attach: () => presentation.attach(region, renderer),
     order,
     paint: (value, current) => {
       owed = false;
-      const reads = /* @__PURE__ */ new Map();
-      paintReads = reads;
+      forget();
+      const generation = following;
       const stretch = (run) => {
-        const outcome = collectReads(run);
-        if (current()) {
-          for (const [part2, seen] of outcome.reads)
-            if (!reads.has(part2)) reads.set(part2, seen);
-          if (paintReads === reads) follow();
-          if (moved2(outcome.reads)) {
-            const next = read();
-            if (next !== null) void claim(next);
+        let outcome;
+        const stop = watchReaction(
+          () => {
+            try {
+              outcome = { value: run() };
+            } catch (error) {
+              outcome = { error };
+            }
+          },
+          () => {
+            if (!owed && current())
+              untrack(() => {
+                const next = selected();
+                if (next !== null) void claim(next);
+              });
           }
-        }
+        );
+        if (current() && following === generation) generation.push(stop);
+        else stop();
         if ("error" in outcome) throw outcome.error;
         return outcome.value;
       };
@@ -2489,34 +2498,29 @@ var applicationPresenter = ({
     },
     failSoft
   });
-  const read = () => {
-    const outcome = collectReads(reading);
-    readingReads = outcome.reads;
-    if ("error" in outcome) throw outcome.error;
-    if (moved2(readingReads))
-      throw new Error(`the ${region} region's reading moved a part it read`);
-    return outcome.value;
-  };
   const claim = (value) => {
     claimed = value;
     if (value === null) return schedule.passed();
     owed = true;
     return presenter.sync(value);
   };
-  const moved2 = (reads) => [...reads].some(([part2, seen]) => part2.read() !== seen);
-  const present = () => claim(read());
+  const present = () => untrack(
+    () => flush5(() => {
+      setRevision((value) => value + 1);
+      return claim(selected());
+    })
+  );
   documentPresenters.push(present);
-  claimed = read();
-  publications.subscribe(() => {
-    const painted = !owed && moved2(paintReads);
-    if (!painted && !moved2(readingReads)) return;
-    const value = read();
-    if (value === null) claimed = null;
-    else if (painted || value !== claimed) void claim(value);
+  let first = true;
+  watchEffect(() => {
+    const value = selected();
+    if (first || value === null) {
+      first = false;
+      claimed = value;
+    } else if (value !== claimed) untrack(() => claim(value));
   });
   const disconnect = () => {
-    paintReads = /* @__PURE__ */ new Map();
-    follow();
+    forget();
     presenter.disconnect();
   };
   return Object.freeze({ present, disconnect });
@@ -2539,7 +2543,7 @@ var presentDocument = () => {
   return schedule.passed();
 };
 var whenDocumentPresented = () => schedule.passed();
-var currentEpoch = () => untracked(() => readApplication().semanticEpoch);
+var currentEpoch = () => untrack(() => readApplication().semanticEpoch);
 var currentApplicationPresentation = () => ({
   document: documentToken,
   semanticEpoch: currentEpoch()
@@ -2563,13 +2567,6 @@ var whenApplicationRegionsPresented = (regions, current) => presentation.whenCur
 var applicationRegionsPresented = (regions) => presentation.currentRegionsPresented(currentApplicationPresentation, regions);
 var projectionRegionsPresented = (widgets) => applicationRegionsPresented(["projection:chrome", ...widgets.flatMap(widgetRegions)]);
 var watchPresentation = presentation.subscribe;
-var proofReadings = /* @__PURE__ */ new WeakSet();
-var proofReading = (read) => {
-  const reading = outsideReading(read, (moved2) => watchPresentation(() => moved2({})));
-  proofReadings.add(reading);
-  return reading;
-};
-var readsProof = (reading) => proofReadings.has(reading);
 var readApplicationPresentation = presentation.read;
 function setPresentationFailureReporter(report) {
   reportPresentationFailure = (reason) => report(reason, "Presentation failed");
@@ -2724,11 +2721,11 @@ export {
   bindQueuedWork,
   cancelWork,
   watchEffect,
+  watchReaction,
   resetViewsWithin,
   createView,
-  collectReads,
+  untrack,
   outsideReading,
-  untracked,
   share,
   stateCoordinate,
   projectionOrigins,
@@ -2769,7 +2766,7 @@ export {
   createRoot2 as createRoot,
   createEffect2 as createEffect,
   flush5 as flush,
-  untrack2 as untrack,
+  untrack2,
   For,
   Show,
   onCleanup,
@@ -2797,8 +2794,6 @@ export {
   applicationRegionsPresented,
   projectionRegionsPresented,
   watchPresentation,
-  proofReading,
-  readsProof,
   readApplicationPresentation,
   setPresentationFailureReporter,
   watchSemantic,

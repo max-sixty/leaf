@@ -164,6 +164,8 @@ export function createPresentationCoordinator<
   // Changes wake a blocked reading; they never publish a semantic epoch.
   const [changes, setChanges] = createSignal(0, { ownedWrite: true });
   const changed = () => {
+    // A renderer may attach a child while painting. The functional setter publishes
+    // proof without subscribing that paint to its own completion.
     flush(() => setChanges((value) => value + 1));
   };
   let document: DocumentToken | null = null;

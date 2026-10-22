@@ -522,6 +522,9 @@ function sourcePositions(markdown) {
   });
 }
 
+// The blocks the parser emits whole, with no opening and closing pair.
+const BLOCK_LEAVES = new Set(["fence", "code_block", "hr"]);
+
 function makeMarkdown(module, breaks) {
   const markdown = new module.MarkdownIt({ html: false, breaks, linkify: true }).use(
     module.taskLists,
@@ -529,6 +532,22 @@ function makeMarkdown(module, breaks) {
   );
   // Linkify 6 leaves bare domains unlinked by default; page prose keeps them clickable.
   markdown.linkify.set({ fuzzyLink: true });
+  // Each block says how many blank lines stand before it in the source, a quote's `>`
+  // aside, so a message can space its blocks as the draft it was typed in showed them
+  // (reading.css, `data-lf-gap`). Three stand for any more.
+  markdown.core.ruler.after("block", "blank_lines", (state) => {
+    const lines = state.src.split("\n");
+    for (const token of state.tokens) {
+      if (!token.map || !(token.nesting === 1 || BLOCK_LEAVES.has(token.type)))
+        continue;
+      let gap = 0;
+      for (let at = token.map[0] - 1; at >= 0 && gap < 3; at--) {
+        if (lines[at].replace(/^[\s>]*/, "")) break;
+        gap++;
+      }
+      token.attrSet("data-lf-gap", String(gap));
+    }
+  });
   // Message paragraphs preserve typed spaces. A break has one visible carrier:
   // MarkdownIt's formatting newline after <br> would become a second line there.
   markdown.renderer.rules.softbreak = (_tokens, _at, options) =>

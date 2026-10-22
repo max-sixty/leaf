@@ -48,3 +48,5 @@ Solid 2's exact release candidate is pinned with its signals, renderer and HTML
 packages. `solid.mjs` documents each adaptation and refuses a changed upstream seam.
 Its tests hold immediate events, upgrade-before-ref, independent template traversal,
 native form state, focus-safe keyed movement and collection of detached view roots.
+The signal integration also distinguishes a dependency read still in flight from one
+the draw completed, so a draw that publishes its own input receives a follow-up draw.

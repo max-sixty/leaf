@@ -205,8 +205,49 @@ function solidTemplates(source) {
   );
 }
 
+/** RC.16 treats the last dependency link as a read still in flight. A draw can
+ * finish reading that input and then publish it; suppressing its wake loses the
+ * second draw. Mark the actual read's lifetime on its link, including thrown reads,
+ * so a lazy memo's first pull still cannot invalidate the consumer awaiting it. */
+function solidReadingLinks(source) {
+  const node = parse(source, { ecmaVersion: "latest", sourceType: "module" }).body.find(
+    (node) => node.type === "FunctionDeclaration" && node.id.name === "read",
+  );
+  if (!node) throw new Error("Solid dependency read function moved");
+  let body = source.slice(node.start, node.end);
+  const links = body.match(/link\(e, t\);/g);
+  if (links?.length !== 3) throw new Error("Solid dependency linking changed");
+  body = body.replaceAll(
+    "link(e, t);",
+    "(link(e, t), leafLink = t._, leafLink.leafReading = true);",
+  );
+  body = seam(
+    body,
+    "function read(e) {",
+    "function read(e) { let leafLink; try {",
+    "Solid read lifetime",
+  );
+  body =
+    body.slice(0, -1) + "} finally { if (leafLink) leafLink.leafReading = false; } }";
+  return source.slice(0, node.start) + body + source.slice(node.end);
+}
+
 export const solidMoves = () =>
   adapt([
+    {
+      file: /@solidjs[/\\]signals[/\\]dist[/\\]prod[/\\]core[/\\]core\.js$/,
+      edit: solidReadingLinks,
+    },
+    {
+      file: /@solidjs[/\\]signals[/\\]dist[/\\]prod[/\\]core[/\\]scheduler\.js$/,
+      edit: (source) =>
+        seam(
+          source,
+          "n.Te === e.Ne && n !== e._",
+          "n.Te === e.Ne && !n.leafReading",
+          "Solid completed dependency wake",
+        ),
+    },
     {
       file: /@solidjs[/\\]web[/\\]dist[/\\]web\.js$/,
       edit: (source) =>
@@ -220,7 +261,7 @@ export const solidMoves = () =>
 
 const solidNamespace = () =>
   [
-    'export { createSignal, createMemo, createRoot, createEffect, createTrackedEffect, createProjection, flush, untrack, For, Show, onCleanup } from "solid-js";',
+    'export { createSignal, createMemo, createRoot, createReaction, getObserver, runWithOwner, createEffect, createTrackedEffect, createProjection, flush, untrack, For, Show, onCleanup } from "solid-js";',
     'export { render, insert, spread } from "@solidjs/web";',
     'export { default, default as html } from "@solidjs/html";',
   ].join("\n");

@@ -24,6 +24,7 @@
    Preserve the order of that list because the dispatcher and hints walk inward to
    outward while the full reference groups the same scopes for reading. */
 import { createEffect, watchEffect, onCleanup } from "/vendor/browser-runtime.js";
+import { focusRevision } from "../focus.js";
 import { watchOwner } from "../arrivals.js";
 import {
   activeRows,
@@ -192,6 +193,7 @@ function reflectButton(control, candidates) {
       const read = reading;
       reading = null;
       try {
+        focusRevision();
         const command = chosenCommand(read);
         const { scope, row, entry } = command;
         const disabled = Boolean(
@@ -803,7 +805,7 @@ const tracked = new WeakMap();
 // command names is gathered across every scope on each pass, since a command may name a
 // control outside the element declaring it; each button's availability is its own
 // tracked watchEffect (`reflectButton`), read again when a signal it read moves or a key
-// paint reaches it; where the user stands is such a signal (focus.js, `focused`). Every
+// paint reaches it; where the user stands is such a signal (focus.js, `focusRevision`). Every
 // button is read again when a declaration is attached or withdrawn, a command reader
 // registers, and on `paintKeys()`. Contribution projections read the same predicates,
 // as one tracked reader beside them.
@@ -819,6 +821,7 @@ function reflectAvailabilityReaders() {
     if (first) {
       first = false;
       try {
+        focusRevision();
         reflectCommandAvailability();
       } catch (error) {
         failure = error;
@@ -882,6 +885,7 @@ function reflectTracked(element) {
     if (first) {
       first = false;
       try {
+        focusRevision();
         reflectElementShortcuts(ref.deref());
       } catch (error) {
         failure = error;

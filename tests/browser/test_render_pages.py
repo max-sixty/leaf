@@ -559,7 +559,7 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
     expect(draft).to_have_js_property("value", "keep this unfinished reply")
     news.click()
     expect(view).to_be_visible()
-    expect(page.locator(".lf-fp-settle")).to_have_text("Reopen", use_inner_text=True)
+    expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Reopen")
     expect(draft).to_have_js_property("value", "keep this unfinished reply")
 
 

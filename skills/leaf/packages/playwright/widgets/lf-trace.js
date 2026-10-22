@@ -207,7 +207,7 @@ const playbackLayer = () =>
 // A command row owns each transport button's activation and availability.
 const transport = (target, label, icon, disabled, title = label) =>
   html`<button
-    ref=${[offered("lf-trace-transport-button"), target]}
+    ref=${[offered("lf-btn lf-quiet-action lf-trace-transport-button"), target]}
     aria-label=${label}
     title=${title}
     disabled=${disabled}
@@ -1912,7 +1912,9 @@ customElements.define(
                   )}
                   <button
                     ref=${[
-                      offered("lf-trace-transport-button lf-trace-play"),
+                      offered(
+                        "lf-btn lf-quiet-action lf-trace-transport-button lf-trace-play",
+                      ),
                       (node) => {
                         this.#play = node;
                         // Capture precedes the command's click listener. Only the
@@ -2091,7 +2093,7 @@ customElements.define(
                   },
                   keyed: (choice) => choice[0],
                   children: (choice) =>
-                    html` <label class="lf-radio-choice lf-trace-source">
+                    html` <label class="choice lf-trace-source">
                       <input
                         ref=${offered("")}
                         type="radio"
@@ -2135,7 +2137,7 @@ customElements.define(
                   keyed: (moment) => moment.index,
                   children: (moment) =>
                     html` <button
-                      ref=${offered("lf-trace-bookmark")}
+                      ref=${offered("lf-btn lf-quiet-action lf-trace-bookmark")}
                       hidden=${() => moment().hidden}
                       disabled=${() => !moment().scope || read().quoted}
                       aria-label=${() => `Moment ${moment().number} · ${moment().label} · ${moment().timeLabel}`}

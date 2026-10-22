@@ -4,18 +4,27 @@
  * The application owner prepares complete, validated serializable candidates and
  * assigns their semantic epochs. Publication takes ownership of those values,
  * shares every subtree equal to the current reading's, freezes them, and replaces one
- * private signal synchronously. This module does not derive activity, reconcile
- * receipts, or perform transport and rendering.
+ * private signal synchronously. Producers leave Map/Set values extensible so this
+ * owner can secure their mutation methods in place. This module does not derive
+ * activity, reconcile receipts, or perform transport and rendering.
  *
  * Sharing is what makes identity mean "unchanged": a fold rebuilds its whole result on
  * every publication, and a subtree whose contents did not move comes back as the
  * object the last reading held. So a selection is a `computed` compared by identity,
  * and a reader subscribed to one part of the reading hears only that part change. A
  * selection shares its own derived value against its previous one by the same rule.
- * Derivations and subscriber callbacks own their reads: they run outside a notifier's
- * collection, while an explicit collection inside either still records its own reads.
+ * Native Solid memos and effects own dependency tracking. Derivations read
+ * their supplied immutable root, and subscriber callbacks run untracked so notifying
+ * a consumer cannot make its reads dependencies of the publisher.
  */
-import { createMemo, createSignal, flush, untrack } from "@solidjs/signals";
+import {
+  createMemo,
+  createSignal,
+  flush,
+  getObserver,
+  runWithOwner,
+  untrack,
+} from "@solidjs/signals";
 import { subscribe } from "./observe.ts";
 
 export type Immutable<T> =
@@ -38,161 +47,75 @@ interface ApplicationSnapshot {
 interface SnapshotReading<T> {
   read(): T;
   subscribe(listener: (value: T, round?: object) => unknown): () => void;
-  readonly outside?: true;
 }
 
-// The readings a caller is collecting, each with the first value it gave: the parts
-// of the publication and the readings outside it (`outsideReading`). A reading records
-// itself when read, after its own derivation, whose reads of the root are the
-// selection's rather than the caller's.
-type Reads = Map<SnapshotReading<unknown>, unknown>;
-let collecting: Reads | null = null;
-function collected<T>(reading: SnapshotReading<T>, read: () => T): T {
-  const outer = collecting;
-  collecting = null;
-  let value: T;
-  try {
-    value = read();
-  } finally {
-    collecting = outer;
-  }
-  if (outer && !outer.has(reading)) outer.set(reading, value);
-  return value;
-}
-// Run `run` with this collection, putting back the caller's after.
-function collectingInto<T>(reads: Reads | null, run: () => T): T {
-  const outer = collecting;
-  collecting = reads;
-  try {
-    return run();
-  } finally {
-    collecting = outer;
-  }
-}
-
-/**
- * Run `run`, collecting every selection of a publication it reads synchronously, with
- * the value it read. A watcher or a region follows exactly these, so it repaints when a
- * part its paint read moves and for nothing else.
- * Only reads of the publication, and the readings outside it that record themselves
- * (`outsideReading`), count: a paint also reads and writes private signals, such as
- * where the user stands, and subscribing it to those would have a paint that moves
- * focus repaint itself. Reading the root whole inside `run` throws, since every
- * publication moves the root: a paint that read it would repaint on every publication,
- * however little of it the paint draws, so it reads its parts through selections. A
- * failure still returns what was read before it.
- */
-export function collectReads<T>(
-  run: () => T,
-): { reads: Reads } & ({ value: T } | { error: unknown }) {
-  const reads: Reads = new Map();
-  try {
-    return { reads, value: collectingInto(reads, run) };
-  } catch (error) {
-    return { reads, error };
-  }
-}
-
-/**
- * A reading of a value outside the publication, which a collection records as it
- * records a part: the clock's answer to a paint's question, how many times the page
- * has presented. `read` computes the value now, and
- * `heard` registers a callback for each moment it may have moved, returning the way to
- * stop; the source passes the callback one object per round of notifications, such as
- * a clock tick, so a follower of several readings answers a round once. A watcher or a
- * region follows it with the parts its paint read, by one rule: a reading whose value
- * moved since the paint read it owes a paint. As a part's does, its subscription calls
- * the listener at once with the value now, so a follower subscribing after its paint
- * hears what that paint, or the time since, moved. A listener whose subscription has
- * stopped is not called, even in a round already under way. `outside` tells it from a
- * part.
- */
+/** Bridge an event source into native signal tracking. The source is followed only
+ * while a consumer observes the value. An unobserved read still samples the source
+ * now; a notification updates observers only when its answer actually changed. */
 export function outsideReading<T>(
   read: () => T,
   heard: (moved: (round: object) => unknown) => () => void,
-): SnapshotReading<T> & { readonly outside: true } {
-  const reading = Object.freeze({
-    outside: true as const,
-    read: (): T => collected(reading, read),
-    subscribe(listener: (value: T, round?: object) => unknown) {
-      let active = true;
-      const deliver = (round: object) => untracked(() => listener(read(), round));
-      const stop = heard((round) => (active ? deliver(round) : undefined));
-      deliver({});
-      return () => {
-        active = false;
-        stop();
-      };
+): SnapshotReading<T> {
+  let stop: (() => void) | undefined;
+  let seen: T;
+  const [revision, setRevision] = createSignal(0, {
+    ownedWrite: true,
+    unobserved() {
+      stop?.();
+      stop = undefined;
     },
   });
-  return reading;
-}
-
-/**
- * Run `run` outside any collection. An owner nested in a collected run, such as a widget
- * a paint mounts, which connects and reads its own reading inside that paint, follows
- * what it reads itself; collecting those reads would have the paint repaint for every
- * nested owner's state, and throw where the owner reads the root whole.
- */
-export function untracked<T>(run: () => T): T {
-  return collectingInto(null, run);
-}
-
-// Object.freeze says nothing about descendants or Map/Set entries. Only values this
-// owner has secured can skip traversal when a publication reuses an existing subtree.
-const secured = new WeakSet<object>();
-
-function immutable<T>(
-  value: T,
-  normalized = new WeakMap<object, object>(),
-): Immutable<T> {
-  if (value !== null && typeof value === "object" && !secured.has(value)) {
-    const known = normalized.get(value);
-    if (known) return known as Immutable<T>;
-    let result: object = value;
-    const refuse = () => {
-      throw new TypeError("Application snapshots are read-only");
-    };
-    if (value instanceof Map) {
-      const entries = [...value].map(
-        ([key, child]) =>
-          [immutable(key, normalized), immutable(child, normalized)] as const,
+  const sample = () => untrack(read);
+  const current = () => {
+    revision();
+    if (getObserver() && !stop) {
+      seen = sample();
+      stop = untrack(() =>
+        heard(() => {
+          const next = sample();
+          if (Object.is(seen, next)) return;
+          seen = next;
+          flush(() => setRevision((value) => value + 1));
+        }),
       );
-      const map = Object.isExtensible(value) ? value : new Map();
-      map.clear();
-      for (const [key, child] of entries) map.set(key, child);
-      for (const name of ["set", "delete", "clear"])
-        Object.defineProperty(map, name, { value: refuse });
-      result = map;
-    } else if (value instanceof Set) {
-      const members = [...value].map((child) => immutable(child, normalized));
-      const set = Object.isExtensible(value) ? value : new Set();
-      set.clear();
-      for (const child of members) set.add(child);
-      for (const name of ["add", "delete", "clear"])
-        Object.defineProperty(set, name, { value: refuse });
-      result = set;
-    } else {
-      const children = Object.entries(value).map(
-        ([key, child]) => [key, child, immutable(child, normalized)] as const,
-      );
-      if (children.some(([, child, next]) => child !== next)) {
-        // A frozen collection needs replacement; copy its frozen ancestors only
-        // where that replacement cannot be written into the original wrapper.
-        const target = Object.isFrozen(value)
-          ? Array.isArray(value)
-            ? [...value]
-            : { ...value }
-          : value;
-        for (const [key, child, next] of children)
-          if (child !== next) (target as Record<string, unknown>)[key] = next;
-        result = target;
-      }
     }
-    Object.freeze(result);
-    secured.add(result);
-    normalized.set(value, result);
-    return result as Immutable<T>;
+    return sample();
+  };
+  return Object.freeze({
+    read: current,
+    subscribe: (listener: (value: T) => unknown) =>
+      subscribe(current, (value) => untrack(() => listener(value))),
+  });
+}
+
+export { untrack as untracked };
+
+// Publications take ownership of mutable producer values; previously secured
+// subtrees retain identity and need no further traversal.
+const secured = new WeakSet<object>();
+function immutable<T>(value: T): Immutable<T> {
+  if (value !== null && typeof value === "object" && !secured.has(value)) {
+    if (value instanceof Map) {
+      for (const [key, child] of value) {
+        immutable(key);
+        immutable(child);
+      }
+    } else if (value instanceof Set) {
+      for (const child of value) immutable(child);
+    } else {
+      for (const child of Object.values(value)) immutable(child);
+    }
+    if (value instanceof Map || value instanceof Set) {
+      const refuse = () => {
+        throw new TypeError("Application snapshots are read-only");
+      };
+      for (const name of value instanceof Map
+        ? ["set", "delete", "clear"]
+        : ["add", "delete", "clear"])
+        Object.defineProperty(value, name, { value: refuse });
+    }
+    Object.freeze(value);
+    secured.add(value);
   }
   return value as Immutable<T>;
 }
@@ -299,13 +222,7 @@ export function share<T>(prior: unknown, next: T): T {
 export function createApplicationPublisher<S extends ApplicationSnapshot>(initial: S) {
   const [root, setRoot] = createSignal(() => immutable(initial), { ownedWrite: true });
   return Object.freeze({
-    read: (): Immutable<S> => {
-      if (collecting)
-        throw new Error(
-          "a collected read took the whole publication; select the part it needs",
-        );
-      return root();
-    },
+    read: (): Immutable<S> => root(),
     // The root without subscribing or collecting, for the owner computing what it
     // publishes next.
     peek: (): Immutable<S> => untrack(root),
@@ -315,14 +232,16 @@ export function createApplicationPublisher<S extends ApplicationSnapshot>(initia
     },
     select<T>(derive: (snapshot: Immutable<S>) => T): SnapshotReading<Immutable<T>> {
       let prior: unknown;
-      const selected = createMemo(() => {
-        const snapshot = root();
-        return untracked(() => (prior = immutable(share(prior, derive(snapshot)))));
-      });
+      const selected = runWithOwner(null, () =>
+        createMemo(() => {
+          const snapshot = root();
+          return untrack(() => (prior = immutable(share(prior, derive(snapshot)))));
+        }),
+      );
       const reading: SnapshotReading<Immutable<T>> = Object.freeze({
-        read: (): Immutable<T> => collected(reading, selected),
+        read: (): Immutable<T> => selected(),
         subscribe: (listener: (value: Immutable<T>) => void) =>
-          subscribe(selected, (value) => untracked(() => listener(value))),
+          subscribe(selected, (value) => untrack(() => listener(value))),
       });
       return reading;
     },

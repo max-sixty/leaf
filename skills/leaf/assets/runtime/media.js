@@ -185,7 +185,6 @@ keys(
       id: "image.close",
       keys: ["Escape"],
       title: "close image",
-      description: "Close image preview",
       control: viewerClose,
       run: () => closeLayer(() => closeNativeLayer(mediaViewer)),
     },
@@ -193,7 +192,6 @@ keys(
       id: "image.zoom",
       keys: ["z"],
       title: "zoom / fit",
-      description: "Toggle actual size and fitted image",
       control: viewerZoom,
       when: () => {
         const slide = inspector?.currSlide;
@@ -209,7 +207,6 @@ keys(
       id: "image.pan",
       keys: ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
       title: "pan image",
-      description: "Pan the enlarged image",
       repeat: true,
       when: () => Boolean(inspector),
       // PhotoSwipe owns the native key's directional panning.

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { watchEffect } from "./observe.ts";
 import {
   createPresentationCoordinator,
   createPresentationSchedule,
@@ -946,4 +947,25 @@ test("a failing proof observer cannot fail or starve renderer completion", async
   assert.ok(failures.length > 0);
   stopFailed();
   stopHealthy();
+});
+
+test("a paint creating a child presentation does not subscribe to proof changes", async () => {
+  const { coordinator } = setup();
+  const publication = coordinator.begin({}, 0);
+  let paints = 0;
+  let child;
+  const stop = watchEffect(() => {
+    paints += 1;
+    // A widget can connect while its containing region paints. Its own presentation
+    // belongs to that widget, and resolving it must not repaint the containing region.
+    if (paints === 1) child = coordinator.attach("child", {}).present("drawn");
+  });
+  try {
+    coordinator.seal(publication);
+    child.resolve("ready");
+    await child.ready;
+    assert.equal(paints, 1);
+  } finally {
+    stop();
+  }
 });

@@ -5,24 +5,52 @@
  * first delivery is synchronous, as are deliveries inside a publication's flush,
  * so presentation regions claim their work before that publication is sealed.
  */
-import { createEffect, createRoot, createTrackedEffect, flush } from "../solid.js";
+import {
+  createEffect,
+  createRoot,
+  createReaction,
+  createTrackedEffect,
+  flush,
+  runWithOwner,
+} from "../solid.js";
 
 export function subscribe   (read         , notify                       )             {
   return flush(() =>
-    createRoot((dispose) => {
-      createEffect(read, (value) => {
-        notify(value);
-      });
-      return dispose;
-    }),
+    runWithOwner(null, () =>
+      createRoot((dispose) => {
+        createEffect(read, (value) => {
+          notify(value);
+        });
+        return dispose;
+      }),
+    ),
   );
 }
 
 /** Track an imperative owner's reads, ending the effect with that owner. */
 export function watchEffect(run                           )             {
   return flush(() =>
+    runWithOwner(null, () =>
+      createRoot((dispose) => {
+        createTrackedEffect(run);
+        return dispose;
+      }),
+    ),
+  );
+}
+
+/** Follow one imperative draw. Its first invalidation claims another scheduled draw;
+ * it never paints inside Solid's effect phase, where a draw cannot publish state. */
+export function watchReaction(read            , moved            )             {
+  return runWithOwner(null, () =>
     createRoot((dispose) => {
-      createTrackedEffect(run);
+      let first = true;
+      const track = createReaction(moved);
+      track(() => {
+        if (!first) return;
+        first = false;
+        read();
+      });
       return dispose;
     }),
   );

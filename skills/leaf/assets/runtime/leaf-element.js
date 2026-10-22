@@ -5,12 +5,10 @@
    `render()` reads whatever it shows through readers: the widget's own reading
    (`this.reading`, `this.state`), a bound data source (`this.data(input)`), obligations,
    reports, work, the time (`ago`, `clockValue`). Every reader it calls synchronously is
-   collected (`collectReads`, snapshot.ts), and a move of any of them updates the element
-   again, as a watcher's or a region's paint is followed; nothing else is. Solid views follow the mechanical state the widget keeps itself. A reading of
-   presentation proof (`proofReading`, semantic-state.js), such as `reportsReady`,
-   updates it without claiming its region, since the claim would move that proof, and
-   only when the proof rises: a render that reads it false holds what it would say, so
-   its fall, which every claim on a region it waits for brings, owes no draw.
+   tracked by a native Solid reaction, as a watcher's or a region's paint is followed.
+   Presentation readiness (`reportsReady`) instead waits once for prerequisites to
+   finish, then requests an unclaimed update: claiming another presentation for
+   readiness would invalidate the proof it just received.
 
    The element owns one presentation region: its widget's render region when the
    registry declares it a widget, so startup, thread readers, gesture release and report
@@ -31,10 +29,9 @@
    before the layer marks it retired.
 
    Its readers are followed while it stands (`watchOwner`, arrivals.js), and it draws
-   nothing while away, so a draw queued as it left, or one whose drawing had not landed,
-   is owed to its return; a return draws again only where that is owed or something it
-   read moved meanwhile, and claims its region either way, so a returning widget never
-   leaves its epoch waiting. A widget whose reading lacks a declared verb, as a revision's
+   nothing while away. A return requests an update to reconnect its dependencies
+   and draw the current reading; unchanged template parts keep their nodes. It claims
+   its region on every return, so a returning widget never leaves its epoch waiting. A widget whose reading lacks a declared verb, as a revision's
    replacement does before its document is adopted, draws nothing until it has them all
    (before the first state read, the authored state supplies every verb); its claim
    settles with nothing drawn. While its controller's `defer()` holds it, its claim stays
@@ -43,12 +40,12 @@
    version while it stands, until it has drawn what was delivered, and any drawing that
    draw held it for (`drawing()`), such as highlighting or a loading frame, has landed.
    `setup()` runs once, on the first connection, before the first render. */
-import { collectReads, untracked } from "/vendor/browser-runtime.js";
+import { watchReaction, untracked } from "/vendor/browser-runtime.js";
 import {
   attachApplicationPresentation,
   attachWidgetPresentation,
   queueWidgetUpdate,
-  readsProof,
+  watchPresentation,
 } from "./semantic-state.js";
 import { widgetDescriptor } from "./widget-descriptors.js";
 import { drawsItself, widgetController, widgetMounted } from "./widget-controller.js";
@@ -61,12 +58,29 @@ import {
 } from "./widget-upgrade.js";
 import { watchOwner } from "./arrivals.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
-import { dataReader, joinDataDelivery, stagesOnly } from "./data.js";
+import { dataReader, joinDataDelivery } from "./data.js";
 import { registry } from "./registry.js";
 
 let regions = 0;
 
 export class LeafElement extends HTMLElement {
+  #following = null;
+  #stopReadiness = null;
+  #rendering = false;
+
+  /** Complete a waiting render without claiming the proof it waits for again. */
+  whenReady(read) {
+    if (untracked(read)) return true;
+    if (!this.#stopReadiness)
+      this.#stopReadiness = watchPresentation(() => {
+        if (!untracked(read)) return;
+        this.#stopReadiness?.();
+        this.#stopReadiness = null;
+        this.#requestUpdate();
+      });
+    return false;
+  }
+
   #descriptor = null;
   #controller = null;
   #verbs = [];
@@ -74,12 +88,6 @@ export class LeafElement extends HTMLElement {
   #regionName = null;
   #connected = false;
   #connectedParent = null;
-  // What the last gate and the last render read, each with the value it read.
-  #gateReads = new Map();
-  #renderReads = new Map();
-  #following = [];
-  // A draw owed to the next connection: queued as it left, or a reading moved meanwhile.
-  #owed = false;
   // The open claim the next update that draws settles.
   #ticket = null;
   #held = false;
@@ -89,11 +97,9 @@ export class LeafElement extends HTMLElement {
   #broken = false;
   // The claim the update under way draws, settled once `updated` has run too.
   #drawing = null;
+  #updating = false;
   // The drawing that follows the update under way, which its claim waits for.
   #work = null;
-  // The last update's drawing until it lands, which a later update replaces; a departure
-  // before then owes a draw.
-  #unfinished = null;
   #data = new Map();
   #leaveData = null;
   #scheduled = null;
@@ -103,7 +109,19 @@ export class LeafElement extends HTMLElement {
   updateComplete = Promise.resolve(true);
   renderRoot;
 
+  get isUpdatePending() {
+    return this.#pending;
+  }
+
   requestUpdate() {
+    // Requests made by the active render are fulfilled by that render. A request
+    // from updated() belongs to a new draw and claims its own presentation.
+    if (this.#rendering) return;
+    if (this.hasUpdated) untracked(() => this.#stage());
+    this.#requestUpdate();
+  }
+
+  #requestUpdate() {
     if (this.#pending) return;
     this.#pending = true;
     this.updateComplete = new Promise((resolve) => {
@@ -204,7 +222,8 @@ export class LeafElement extends HTMLElement {
   /** The bound reading of a declared `x-data` input, one copy a delivery (data.js). */
   data(input) {
     let read = this.#data.get(input);
-    if (!read) this.#data.set(input, (read = dataReader(this, input)));
+    if (!read)
+      this.#data.set(input, (read = dataReader(this, input, () => this.#stage())));
     return read();
   }
 
@@ -229,7 +248,6 @@ export class LeafElement extends HTMLElement {
     // A draw queued as the element left waits for its return, whether or not the arrival
     // batch has told it yet.
     if (!this.#connected || !this.isConnected) {
-      this.#owed = true;
       return false;
     }
     if (this.#held) return false;
@@ -238,25 +256,11 @@ export class LeafElement extends HTMLElement {
     this.#drawing = this.#ticket;
     this.#ticket = null;
     if (this.#broken) return false;
-    const gate = collectReads(() => this.#complete());
-    this.#gateReads = gate.reads;
-    if ("error" in gate) {
-      this.#follow();
-      throw gate.error;
-    }
-    if (!gate.value) {
-      // Nothing to draw until every declared verb has arrived.
-      this.#follow();
-      return false;
-    }
-    return true;
+    return this.#complete();
   }
 
   update(changed) {
-    const outcome = collectReads(() => this.render());
-    this.#renderReads = outcome.reads;
-    this.#follow();
-    if ("error" in outcome) throw outcome.error;
+    this.render();
     this.#box?.remove();
     this.#box = null;
   }
@@ -268,20 +272,42 @@ export class LeafElement extends HTMLElement {
   // claim of its own, its failure is the enclosing claimed update's.
   performUpdate() {
     const outer = this.#drawing;
+    const updating = this.#updating;
     let outerWork = this.#work;
     this.#drawing = null;
     this.#work = null;
+    this.#updating = true;
     try {
       if (!this.#pending) return;
       this.#pending = false;
       const resolve = this.#resolveUpdate;
       this.#resolveUpdate = null;
       try {
-        if (this.shouldUpdate()) {
-          this.update();
-          this.hasUpdated = true;
-          this.updated();
+        this.#following?.();
+        let outcome;
+        this.#rendering = true;
+        try {
+          this.#following = watchReaction(
+            () => {
+              try {
+                if (this.shouldUpdate()) {
+                  this.update();
+                  this.hasUpdated = true;
+                  outcome = { drawn: true };
+                } else outcome = { drawn: false };
+              } catch (error) {
+                outcome = { error };
+              }
+            },
+            () => {
+              if (this.#connected) this.#present();
+            },
+          );
+        } finally {
+          this.#rendering = false;
         }
+        if ("error" in outcome) throw outcome.error;
+        if (outcome.drawn) this.updated();
       } finally {
         resolve?.(!this.#pending);
       }
@@ -292,13 +318,6 @@ export class LeafElement extends HTMLElement {
         if (outer) outerWork = outerWork ? Promise.all([outerWork, work]) : work;
         else if (this.#region) this.#drawing = this.#claim();
       }
-      this.#unfinished = work;
-      if (work) {
-        const landed = () => {
-          if (this.#unfinished === work) this.#unfinished = null;
-        };
-        work.then(landed, landed);
-      }
       this.#drawing?.resolve(work ?? undefined);
     } catch (error) {
       if (outer && !this.#drawing) throw error;
@@ -306,6 +325,7 @@ export class LeafElement extends HTMLElement {
     } finally {
       this.#drawing = outer;
       this.#work = outerWork;
+      this.#updating = updating;
     }
   }
 
@@ -334,7 +354,7 @@ export class LeafElement extends HTMLElement {
 
   updated(changed) {
     // The render may have changed what this widget's commands read from its nodes.
-    paintKeysWithin(this);
+    untracked(() => paintKeysWithin(this));
   }
 
   // Every failure is reported here, naming the widget; a claim's rejection then shows
@@ -343,32 +363,6 @@ export class LeafElement extends HTMLElement {
     if (!ticket) return failSoft(this, error);
     reportFailure(this, error);
     ticket.reject(error);
-  }
-
-  #follow() {
-    for (const stop of this.#following) stop();
-    const reads = [...this.#gateReads, ...this.#renderReads];
-    this.#following = this.#connected
-      ? reads.map(([reading, seen]) =>
-          reading.subscribe((now) => {
-            if (now === seen) return;
-            // Proof rising draws again without a claim, which would move proof again;
-            // accepted data claims and waits for its delivery to draw.
-            if (readsProof(reading)) {
-              if (now) this.requestUpdate();
-            } else if (stagesOnly(reading)) this.#stage();
-            else this.#moved();
-          }),
-        )
-      : [];
-  }
-
-  #moved() {
-    if (!this.#connected) {
-      this.#owed = true;
-      return;
-    }
-    this.#present();
   }
 
   // A claim on the region for the reading as it stands, which a failure settles with
@@ -401,7 +395,6 @@ export class LeafElement extends HTMLElement {
 
   #refresh() {
     if (this.#connected) this.#present({ now: true });
-    else this.#owed = true;
   }
 
   #connect() {
@@ -415,25 +408,16 @@ export class LeafElement extends HTMLElement {
       this.#leaveData = joinDataDelivery(
         this.#descriptor ? `widget:${this.#descriptor.id}:render` : this.#regionName,
       );
-    const moved = untracked(() =>
-      [...this.#gateReads, ...this.#renderReads].some(
-        ([reading, seen]) => reading.read() !== seen,
-      ),
-    );
-    if (!this.hasUpdated || this.#owed || moved) {
-      this.#owed = false;
-      this.#present();
-    } else
-      this.#region.present(untracked(() => this.#controller?.read() ?? {})).resolve();
-    this.#follow();
+    this.#present();
     if (this.#descriptor) widgetMounted(this, this.#descriptor, parentChanged);
   }
 
   #disconnect() {
     this.#connected = false;
-    // A drawing the departure cut short is drawn again on return.
-    if (this.#unfinished) this.#owed = true;
-    this.#follow();
+    this.#following?.();
+    this.#following = null;
+    this.#stopReadiness?.();
+    this.#stopReadiness = null;
     this.#leaveData?.();
     this.#leaveData = null;
     this.#ticket = null;

@@ -426,7 +426,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
             page.keyboard.press("?")
             expect(
                 command_reference_rows(page, "On a code block").get_by_text(
-                    "Copy this block's code to the clipboard"
+                    "Copy code", exact=True
                 )
             ).to_be_visible()
             page.keyboard.press("Escape")

@@ -20,7 +20,7 @@ import {
   pageUrl,
   runWork,
   runtime,
-  untrack,
+  untrack2 as untrack,
   watchEffect
 } from "./bundle-vendor~browser-runtime.js";
 
@@ -559,8 +559,8 @@ function landLabelPress() {
   });
 }
 var [standing, setStanding] = createSignal(0, { ownedWrite: true });
+var focusRevision = standing;
 var focused = (tree = null) => {
-  void standing();
   let at = heldByLabel() ?? deepFocus();
   if (tree) while (at && at.getRootNode() !== tree) at = shadowHost(at.getRootNode());
   return at;
@@ -2483,6 +2483,7 @@ function reflectButton(control, candidates) {
       const read2 = reading;
       reading = null;
       try {
+        focusRevision();
         const command = chosenCommand(read2);
         const { scope, row, entry } = command;
         const disabled = Boolean(
@@ -2903,6 +2904,7 @@ function reflectAvailabilityReaders() {
     if (first) {
       first = false;
       try {
+        focusRevision();
         reflectCommandAvailability();
       } catch (error) {
         failure = error;
@@ -2952,6 +2954,7 @@ function reflectTracked(element) {
     if (first) {
       first = false;
       try {
+        focusRevision();
         reflectElementShortcuts(ref.deref());
       } catch (error) {
         failure = error;
@@ -3942,7 +3945,7 @@ function relabel(node, label, { says } = {}) {
 function closeControl({ name, title = name, className = "" }) {
   const control = el(
     "button",
-    `lf-btn lf-icon-action lf-close-action ${className}`.trim()
+    `lf-btn lf-icon-action lf-quiet-action ${className}`.trim()
   );
   control.type = "button";
   control.append(iconElement("cross", "lf-action-icon"));

@@ -422,6 +422,23 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     expect(rail).to_have_count(1)
     expect(rail.locator(".lf-shotcap")).to_have_text(["before", "after"])
     comparison.scroll_into_view_if_needed()
+    handle_face = """async node => {
+      const divider = node.querySelector('.lf-shot-divider');
+      getComputedStyle(divider, '::after').opacity;
+      await Promise.all(divider.getAnimations({subtree:true}).map(animation => animation.finished));
+      const face = getComputedStyle(divider, '::after');
+      return {opacity: parseFloat(face.opacity), background: face.backgroundColor};
+    }"""
+    page.mouse.move(0, 0)
+    assert 0.45 < comparison.evaluate(handle_face)["opacity"] < 0.6
+    bounds = comparison.bounding_box()
+    page.mouse.move(bounds["x"] + bounds["width"] / 4, bounds["y"] + 80)
+    assert 0.45 < comparison.evaluate(handle_face)["opacity"] < 0.6
+    page.mouse.move(
+        bounds["x"] + bounds["width"] / 2,
+        bounds["y"] + bounds["height"] / 2,
+    )
+    assert comparison.evaluate(handle_face)["opacity"] == 1
     under_captions = page.evaluate("""() => {
       const box = document.querySelector('lf-shot .lf-shotcomparison').getBoundingClientRect();
       return [...document.querySelectorAll('lf-shot .lf-shotcap')].map(cap => {
@@ -476,6 +493,13 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     assert shown_frames(page) == ["before", "after"]
     frames = page.locator("lf-shot .lf-shotframe")
     assert frames.nth(0).bounding_box()["y"] < frames.nth(1).bounding_box()["y"]
+    for state, direction in (("before", "top"), ("after", "bottom")):
+        assert (
+            rail.locator(f'[data-lf-state="{state}"]').evaluate(
+                "cap => getComputedStyle(cap, '::after').content"
+            )
+            == f'" · {direction}"'
+        )
 
 
 def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path, headless_shell):

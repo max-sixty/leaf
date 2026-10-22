@@ -329,7 +329,7 @@ RING_CASES = (
             "heat-loss": ((".lf-visual-action", ".lf-visual-action"),),
             # Working density, where a choice's gap is narrowest beside the next face.
             "notification-playground": (
-                (".lf-playground-radio", ".lf-playground-choice-face"),
+                ("lf-playground input[type=radio]", ".choice:has"),
             ),
             "review-a-plan": (("main details > summary", ":where([data-lf-focus])"),),
             "pr-walkthrough": (
@@ -445,7 +445,7 @@ RING_CASES = (
         (),
         {
             "ship-review": (
-                (".lf-react-palette:popover-open .lf-react", ".lf-outline-chip"),
+                (".lf-react-palette:popover-open .lf-react", "[data-lf-offer]"),
             )
         },
     ),
@@ -692,7 +692,7 @@ AIM_BOXES = browser_function("aims.js", "offeredAims")
 AIM_SURFACES = (
     ".lf-fp-settle",
     '[data-row="preview"]',
-    ".lf-outline-chip",
+    ".lf-react-strip .lf-react",
     ".lf-fp-compare",
     ".lf-command-reference-command",
     ".lf-quote",
@@ -864,7 +864,11 @@ def test_live_sample_full_view_keeps_the_child_and_returns_after_inner_escape(
     resized(page, 390, 720)
     expect(back).to_be_in_viewport()
     assert root_overflow(page) <= 1
-    child.locator(".lf-fp-threads").click()
+    # The held draft gives the field the quick chips' room. Open Threads through
+    # the child's Go-to route while the same frame stands in Full view.
+    child.locator("h1").click()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
     panel_settled(child, view="threads")
     page.keyboard.press("Escape")
     panel_settled(child, open=False)

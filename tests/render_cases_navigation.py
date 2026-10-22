@@ -929,7 +929,7 @@ def live_watcher(page_dir, page):
 # paints it the shade it already was, and a reading that took the first rule it found
 # agreed with the leaf on the one state where nothing had to have happened.
 TAB_TONE = """(want) => {
-    const el = document.querySelector('.lf-fp-leaf-paint .lf-dot');
+    const el = document.querySelector('.lf-fp-leaf .lf-dot');
     const judged = el.className.replace('lf-dot', '').trim();
     const prefix = 'data:image/svg+xml,';
     const href = document.querySelector('link[rel=icon]').getAttribute('href');

@@ -705,6 +705,11 @@ customElements.define(
         const share = `${before}%`;
         if (this.#comparison.style.getPropertyValue("--lf-shot-before") !== share)
           this.#comparison.style.setProperty("--lf-shot-before", share);
+        keeps(
+          this.#comparison,
+          "data-lf-endpoint",
+          before === 0 || before === 100 ? "" : null,
+        );
       }
       const pixelsShown = this.#view === "pixels";
       const chromeState = pixelsShown

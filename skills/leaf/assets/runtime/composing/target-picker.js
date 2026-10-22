@@ -81,7 +81,10 @@ pageSearchStatus.append(pageSearchWords);
 // in the field, so a phone's keyboard stays up and the next letter still edits the query.
 // Tab is their key, so they are no stop of its own.
 const matchStep = (icon, name) => {
-  const control = el("button", "lf-btn lf-icon-action lf-page-search-step");
+  const control = el(
+    "button",
+    "lf-btn lf-icon-action lf-quiet-action lf-page-search-step",
+  );
   control.type = "button";
   control.tabIndex = -1;
   control.append(iconElement(icon, "lf-action-icon"));
@@ -630,7 +633,6 @@ export function createTargetPicker({
     touch: "Search page",
     menu: "navigate",
     keys: ["/"],
-    description: "Search all the text on the page",
     title: "search page",
     when: () => anchoringIsReady() && !pageSearchOpen,
     run: openPageSearch,
@@ -661,14 +663,6 @@ export function createTargetPicker({
   const TARGETING_BACK = {
     id: "targeting.back",
     keys: ["Escape"],
-    description: () =>
-      pageSearchOpen
-        ? searchReturnsToHints
-          ? "Return to the visible target hints"
-          : "Close page search"
-        : hints.prefix()
-          ? "Remove the last hint letter"
-          : "Close the target picker",
     title: () =>
       pageSearchOpen
         ? searchReturnsToHints
@@ -692,7 +686,6 @@ export function createTargetPicker({
     touch: false,
     keys: HINT_KEYS,
     label: "a–z",
-    description: "Type the hint for a target",
     title: "type hint",
     when: () => hints.candidates().length > 0,
     run: hints.type,
@@ -711,7 +704,6 @@ export function createTargetPicker({
       ...hints.walkRows({
         id: "target.picker.hint",
         choose: {
-          description: "Choose the target just announced",
           title: "choose target",
         },
       }),
@@ -728,7 +720,6 @@ export function createTargetPicker({
       {
         id: "page.search.match.select",
         keys: ["Enter"],
-        description: "Select the current search match",
         title: "select match",
         // A finger presses the marked match itself (`pressMatch`).
         touch: false,

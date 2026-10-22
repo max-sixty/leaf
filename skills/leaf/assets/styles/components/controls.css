@@ -56,48 +56,21 @@
     display: none !important;
   }
 }
-/* The outline chip: the kernel's chip geometry (the chip tokens in theme.css's :root)
-   with a hairline edge on the card, the compact label the chrome and the thread
-   surfaces share, stated here and nowhere else. It is not the default package's
-   a label, whose face is the filled .tag, so it is named for the edge it adds. It
-   stands in this file because a thread seated in a declared widget tree is out of
-   every document selector's reach, and drew the platform's button instead: on the
-   dark scheme its ButtonFace grey put the muted word at 1.86:1.
-
-   The family is spelled rather than inherited. `font: inherit` clears the UA's button
-   face, which is all a chip inside a thread ever needed, but it also hands the chip
-   whatever family its holder has — the thread's sans in a widget tree, and the
-   document's serif for a chip standing in the page's own prose. */
-.lf-outline-chip {
+/* Thread reactions keep the chip's compact metrics. Their shared reaction state
+   below owns the face; no general chip wrapper supplies a second one. */
+:where(.lf-react-strip) .lf-react {
   appearance: none;
   margin: 0;
   padding: var(--chip-pad);
   white-space: nowrap;
-  border: 1px solid var(--border-2);
+  border: 1px solid transparent;
   border-radius: var(--chip-r);
-  background: var(--card);
-  color: var(--ink-2);
   font: inherit;
   font-family: var(--sans);
   font-size: var(--t-6);
   line-height: var(--chip-lh);
 }
-.lf-outline-chip:is(button, [role="button"]) {
-  cursor: pointer;
-}
-.lf-outline-chip:is(button, [role="button"]):hover {
-  background: var(--chip);
-}
-/* A finger's floor is taller than a chip's line, so a pressed chip centres its words
-   in the room the floor gives it. */
-@media (pointer: coarse) {
-  .lf-outline-chip:is(button, [role="button"]) {
-    display: inline-flex;
-    align-items: center;
-  }
-}
-.lf-outline-chip[data-lf-focus] {
-  outline: var(--focus-ring);
+.lf-react-strip .lf-react[data-lf-focus] {
   outline-offset: 1px;
 }
 /* Reaction controls own their resting, selected and interactive appearance together.
@@ -136,7 +109,7 @@
   border-color: var(--border-2);
   background: var(--chip);
 }
-.lf-react.lf-response-action:not([aria-pressed="true"]) {
+.lf-react.lf-response-action:where(:not([aria-pressed="true"])) {
   background: var(--card);
 }
 .lf-react[aria-busy="true"] {
@@ -219,7 +192,7 @@
     var(--lf-msg-control-room, var(--lf-msg-control)) + var(--lf-msg-head-room, 0px)
   );
 }
-/* An open rewrite's Cancel and Save take the room its Edit control took, and more: the
+/* An open rewrite's Discard and Save take the room its Edit control took, and more: the
    head holds the author alone while it is open, its time and labels saying nothing a
    rewrite needs. */
 .lf-msg:has(> .lf-msg-body > .lf-msg-editor) {
@@ -503,12 +476,41 @@ svg[data-lf-icon] {
 :is(.lf-btn, .button) {
   padding: max(4px, (var(--aim-floor) - 1lh) / 2 - 1px) 10px;
   border: 1px solid var(--border-2);
-  border-radius: 6px;
+  border-radius: var(--r);
   background: var(--card);
   cursor: pointer;
   color: var(--ink);
   display: inline-block;
 }
+/* A native radio or checkbox and its label form one compact target. The native
+ * mark carries selection; the label supplies the aim floor and focus ring without
+ * a second frame or selected fill. Used by authored controls and packages alike. */
+.choice {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: var(--sp-1);
+  padding-block: var(--sp-1);
+  min-block-size: var(--aim-floor);
+  min-inline-size: var(--aim-floor);
+  box-sizing: border-box;
+  cursor: pointer;
+  font: var(--t-5)/var(--lf-ui-lh) var(--sans);
+}
+.choice > input {
+  flex: none;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.choice > input:is(:focus-visible, [data-lf-focus]) {
+  outline: none;
+}
+.choice:has(> input:is(:focus-visible, [data-lf-focus])) {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-gap);
+  --lf-wears-ring: 1;
+}
+
 /* A label whose words change holds one room for all of them, so a count or a result
  * changing moves nothing beside it. `data-lf-room` lists the words the label shows,
  * one per line, on an element whose one child holds the words. Its ::before lays the
@@ -541,7 +543,7 @@ svg[data-lf-icon] {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-:is(.lf-btn, .button):not(:disabled, [aria-disabled="true"]):hover {
+:is(.lf-btn, .button):where(:not(:disabled, [aria-disabled="true"]):hover) {
   background: var(--chip);
 }
 /* Secondary native actions share one quiet face across toolbars. */
@@ -552,9 +554,8 @@ svg[data-lf-icon] {
   color: var(--muted);
   box-shadow: none;
 }
-:is(button, .lf-btn, .button).lf-quiet-action:not(:disabled, [aria-disabled="true"]):is(
-    :hover,
-    [data-lf-focus]
+:is(button, .lf-btn, .button).lf-quiet-action:where(
+    :not(:disabled, [aria-disabled="true"]):is(:hover, [data-lf-focus])
   ) {
   background: var(--chip);
   color: var(--ink);
@@ -659,7 +660,7 @@ input.lf-search-field,
   block-size: 100%;
 }
 
-/* Native segmented radios share the browser's selection and arrow-key model. */
+/* Native radio groups share the browser's selection and arrow-key model. */
 .lf-radio-group {
   min-width: 0;
   margin: 0;
@@ -668,6 +669,7 @@ input.lf-search-field,
 }
 .lf-radio-group:not([hidden]) {
   display: flex;
+  gap: var(--sp-2);
 }
 .lf-radio-group > legend {
   position: absolute;
@@ -675,53 +677,4 @@ input.lf-search-field,
   height: 1px;
   overflow: hidden;
   clip-path: inset(50%);
-}
-.lf-radio-choice {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: var(--aim-floor);
-  min-inline-size: var(--aim-floor);
-  box-sizing: border-box;
-  padding: var(--sp-1) var(--sp-2);
-  border: 1px solid var(--border-2);
-  background: var(--field);
-  color: var(--ink-2);
-  font: var(--t-6) / var(--lf-ui-lh) var(--sans);
-  cursor: pointer;
-}
-.lf-radio-choice + .lf-radio-choice {
-  border-inline-start: 0;
-}
-.lf-radio-choice:first-of-type {
-  border-start-start-radius: var(--r);
-  border-end-start-radius: var(--r);
-}
-.lf-radio-choice:last-child {
-  border-start-end-radius: var(--r);
-  border-end-end-radius: var(--r);
-}
-.lf-radio-choice:has(:checked) {
-  background: var(--chip);
-  color: var(--ink);
-}
-.lf-radio-choice:has(:focus-visible, [data-lf-focus]) {
-  outline: var(--focus-ring);
-  outline-offset: 1px;
-  z-index: 1;
-}
-.lf-radio-choice > input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  opacity: 0;
-  cursor: inherit;
-}
-
-.lf-radio-choice:has(:disabled) {
-  opacity: 0.5;
-  cursor: default;
 }

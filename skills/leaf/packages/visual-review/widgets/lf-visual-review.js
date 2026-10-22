@@ -224,9 +224,7 @@ customElements.define(
         <legend>${label}</legend>
         ${Object.entries(values).map(
           ([value, text]) =>
-            html`<label
-              class="lf-radio-choice lf-vr-inspector-choice lf-compact-control"
-            >
+            html`<label class="choice lf-vr-inspector-choice lf-compact-control">
               <input
                 type="radio"
                 name=${`${this.id}-${kind}`}

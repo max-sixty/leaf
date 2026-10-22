@@ -103,9 +103,14 @@ has tried; settle that before building it.
   Judging now separates making decisions from reading the final record; the
   decision-authoring reference also distinguishes user requests from agent-proposed
   decisions.
-  [Test compositions where evidence supports them](notes/workspace-followups.md#item-20),
-  using current code and an unfamiliar author; two samples per task do not settle
-  which compositions work generally.
+  Test compositions where evidence supports them, using current code and an
+  unfamiliar author; two samples per task do not settle which compositions work
+  generally. Reproduce remaining authoring failures on current code before testing
+  short composition suggestions; the older plain HTML configuration advantage
+  preceded per-item playground controls and does not by itself justify more
+  instructions. Keep widget-specific advice in `x-instructions`, cross-widget
+  compositions in package instructions, and general selection principles in the
+  authoring reference.
 - **Keep delegated work in the panel's status on Codex and Pi.** Claude Code's
   `busy` session record keeps the status reading Working in the background after
   the coordinator's turn ends (#3370); Codex and Pi publish no such record, so their
@@ -147,12 +152,12 @@ has tried; settle that before building it.
   in Slack, Discord and Telegram, so an accidental press loses a long rewrite. Offer a
   way back, such as `g D` restoring the last discarded rewrite into its editor (the
   user's suggestion, 2026-10-06).
-- **Decide how far back `z` reaches.** `z` takes back the user's newest gesture
-  however old, so on a page left for weeks it can reopen a thread resolved then,
-  below the fold, and nothing puts back what an undo took. The
-  [undo-reach playground](notes/undo-reach/README.md) compares limits on that reach
-  with additions such as redo and a panel of the user's changes, and waits on the
-  user's pick.
+- **Show what `z` takes before it takes it.** `z` takes back the user's newest
+  gesture however old, so on a page left for weeks it can reopen a thread resolved
+  then, below the fold, and the notice names only the gesture's kind. The user chose
+  (2026-10-21) to keep the reach unlimited, name the gesture and its age, and spend
+  the first press revealing a target that is out of view or already picked up by
+  the agent. [The undo-reach note](notes/undo-reach/README.md) has the build.
 - **Decide when a page merits a separate phone composition.** Many pages are
   ephemeral and authored for a user reading on a large screen, so a bespoke phone
   animation may not repay its cost. Decide how the agent weighs the user's viewing
@@ -479,11 +484,6 @@ on 2026-10-07.
   in `notes/user-feedback-responsiveness.md`. Uploading a CI artifact needs no extra
   token but keeps 90 days; a file in `max-sixty/leaf-assets` keeps history but needs
   a token that can push there.
-- **Decide whether `leaf-dev` should draw charts.** `leaf-dev journey-chart` prints
-  an `lf-chart` of the kept journey samples, so a reading needs no numbers copied
-  into a page by hand. It is an experiment: the alternative is for the command to
-  print the samples' rows and leave the chart to the agent writing the page. Keep it
-  if it gets used for later readings; otherwise reduce it to the rows.
 
 ## Etc
 
@@ -557,8 +557,6 @@ Revisit these when their stated trigger becomes real; they are not an active que
   them all at once, yet a page-level key spent on that alone seems wasteful. Think
   about which surface should own it, such as one command on the panel. Trigger: a
   user steps through notices one by one to catch up.
-- **#23 — Workspace persistence:** use repeated real tasks to decide whether
-  users return and how much customization Leaf should own.
 - **Let a user add, remove and edit table rows.** A creating action carries only the
   new child's id and words, not a record of several fields. The
   [datastore review](notes/datastore-review.md) lists what a row feature must
@@ -580,10 +578,7 @@ export` writes a file that boots the page's own runtime offline, and that file
   in `leaf.js`), so a reader of the file sees no comments or agent replies.
   Decide whether an export is the page alone or the page with its discussion; the
   likely answer is threads shown read-only, with the composer and sends off.
-- **Favicon count:** keep a pending count only if it reads clearly at 16px.
 - **Character bindings:** let users disable them when real use calls for it.
-- **Authoring vocabulary:** add tabbed sections only when root and embedded
-  placement cannot express a real page.
 - **Replacement diffs and visual masks:** add them when repeated reviews need
   more than plain replacement and focused inspection.
 - **Motion evidence:** define video, caption, and transcript handling when core
@@ -646,18 +641,11 @@ export` writes a file that boots the page's own runtime offline, and that file
   A disposable full-history rewrite saved about 27 MiB. Coordinate the rewrite
   across remote refs and local worktrees, retaining the commit mapping and testing
   that updates preserve active work without restoring the removed history.
-- **Calibrate agent-driven UI diagnosis.** Try one known miss and one intentional or
-  invalid control with a bounded explorer and cold user. The
-  [quality brief](notes/agent-driven-ui-quality.md) also proposes a Tend acceptance-policy
-  change; review that proposal with its owner before changing the policy.
 - **Set interaction-trace privacy before sharing pages.** Define who can inspect
   traces, consent or opt-out, sensitive-field redaction (including passwords,
   pasted text, and selection), and retention/deletion for page-local files and
   hosted Workers Logs. Page-local traces currently record raw input for this
   single-user stage; the public site keeps interaction metadata only.
-- **#26 — Codex supervision:** separate hosted and local turn supervision only
-  if hosted delivery becomes a product priority; the App Server protocol is
-  already shared.
 - **Make a leaf.page dispatch survive its container.** The Worker acknowledges an
   accepted event and hands its Codex turn to `waitUntil` (`worker/src/agent.ts`,
   `dispatchAgentTask`). Nothing records the event and turn identity in the
@@ -718,8 +706,6 @@ export` writes a file that boots the page's own runtime offline, and that file
   (`file_changes.page_changes`), which runs only in a serving process. Trigger:
   hosted replies visibly lag, or a page streams an agent's reply as it is
   written, which polling would show in 250 ms jumps of whole-state reads.
-- **#27 — Runtime fold tests:** add focused Node tests as rules change; extend
-  `tests/runtime/dom.mjs` only when a test needs another module.
 - **Claude Code tool observation:** consider a cheap hook for sessions holding
   pages if status evaluations show that agent declarations are insufficient.
 - **Leaf hook cost with owned pages:** Stop, prompt, and Codex tool-result
@@ -731,8 +717,17 @@ export` writes a file that boots the page's own runtime offline, and that file
   the current dialog and popover handlers. At a Chromium floor of at least 135,
   test `command` and `commandfor`; Leaf still owns layer ordering, semantic state
   and focus restoration.
-- **MCP Apps:** rebuild inline hosting as the direct-resource design when a host
-  the user runs renders MCP Apps. See [notes/mcp-apps/PROJECT.md](notes/mcp-apps/PROJECT.md).
+- **MCP Apps:** when a host the user runs renders MCP Apps, rebuild inline hosting
+  as a direct resource: Leaf's runtime in the host's `ui://` resource, with reads and
+  gestures carried by MCP tools to `PageStateService` and the event append boundary,
+  one renderer and one log. Accept it once, in that host, its renderer allows the
+  content security policy Leaf needs, including evaluating `lf-chart` bodies, a
+  keyboard choice and an anchored comment reach the page log and show in Threads,
+  reopening rebuilds the same state, versions, new layer assets and external data
+  use the same transport, and delivery wakes an idle task (accepting `ui/message`
+  doesn't show that). The
+  removed transport and its probe are at `a8ed55e68` (`notes/mcp-apps/probe`); its
+  last run rendered a page in the reference host but failed to save a choice.
 - **Release labels:** prefer an exact tag when Leaf adopts named releases.
 - **Diff controls:** consider author-configurable wrapping and per-file review tracking
   when a page needs them. Keep their controls optional.

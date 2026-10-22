@@ -53,7 +53,7 @@
     "@solidjs/signals": "2.0.0-rc.16",
     "@solidjs/web": "2.0.0-rc.16",
     "@types/node": "26.6.4",
-    "@zumer/snapdom": "3.3.0",
+    "@zumer/snapdom": "3.3.6",
     "acorn": "8.19.0",
     "amaro": "1.2.1",
     "d3": "7.9.0",

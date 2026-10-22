@@ -127,12 +127,9 @@ export function reindexPassageOwners(scope = document, source = ["page", null]) 
 // name what it needs; a MutationObserver could only import after the element was
 // already connected, which is the one order the startup contract forbids.
 //
-// A tag is asked for once per tab and the same promise answers every later caller, so
-// a version that keeps a tag, a second diff in a second reply, and a poll that sees
-// the same thread again all cost nothing. A failed import stays rejected:
-// startup and activation must not present markup whose required module is absent.
-const modules = new Map();
-const initializers = new Map();
+// Native ESM imports share the module's loading and evaluation across callers.
+// Rejections reach startup and activation, which must not present markup whose
+// required module is absent.
 const registryUrl = () => runtimeResource("/registry.json");
 const widgetUrl = (tag) =>
   offlineInteractive
@@ -156,20 +153,10 @@ async function importWidgetModules(scope) {
   await Promise.all(
     required.initializers.map(({ tag, path }) => {
       if (document.documentElement.lfInitial.has(tag)) return;
-      if (!initializers.has(path))
-        initializers.set(
-          path,
-          import(offlineInteractive ? runtimeModule(path) : runtimeResource(path)),
-        );
-      return initializers.get(path);
+      return import(offlineInteractive ? runtimeModule(path) : runtimeResource(path));
     }),
   );
-  await Promise.all(
-    required.modules.map((tag) => {
-      if (!modules.has(tag)) modules.set(tag, import(widgetUrl(tag)));
-      return modules.get(tag);
-    }),
-  );
+  await Promise.all(required.modules.map((tag) => import(widgetUrl(tag))));
 }
 
 // Source-only preparation must not consume authored body records. Live revisions

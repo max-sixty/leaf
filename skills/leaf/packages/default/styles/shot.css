@@ -76,6 +76,7 @@
   pointer-events: none;
   background: color-mix(in srgb, var(--ink-2) 48%, transparent);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--card) 72%, transparent);
+  transition: background-color 120ms ease;
 }
 /* Only the thumb takes pointer input. Clicking the remaining image keeps the
    endpoint toggle; dragging and native range keys adjust the same comparison. */
@@ -139,7 +140,7 @@
   position: absolute;
   left: 50%;
   top: 50%;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, -50%) scale(0.88);
   box-sizing: border-box;
   width: var(--handle-size);
   height: var(--handle-size);
@@ -153,16 +154,36 @@
   );
   box-shadow: var(--raise-1);
   opacity: 0.52;
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
 }
 :scope:is(lf-shot)
   .lf-shotcomparison:is(:hover, [data-lf-focus-within])
   .lf-shot-divider {
   background: var(--ink-2);
 }
+/* The handle stays faint while the reader looks at the frames, pointer included,
+ * since it stands over them; it comes up fully only under the pointer itself, with
+ * focus or while dragging. At an endpoint it covers the frame's edge, so it fades
+ * further until the pointer enters the comparison. */
 :scope:is(lf-shot)
-  .lf-shotcomparison:is(:hover, [data-lf-focus-within])
+  .lf-shotcomparison:has(.lf-shot-divider-input:is(:hover, :active, [data-lf-focus]))
   .lf-shot-divider::after {
   opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+:scope:is(lf-shot)
+  .lf-shotcomparison[data-lf-endpoint]:not(:hover, [data-lf-focus-within])
+  .lf-shot-divider::after {
+  opacity: 0.18;
+  transform: translate(-50%, -50%) scale(0.68);
+}
+@media (prefers-reduced-motion: reduce) {
+  :scope:is(lf-shot) .lf-shot-divider,
+  :scope:is(lf-shot) .lf-shot-divider::after {
+    transition: none;
+  }
 }
 :scope:is(lf-shot)
   .lf-shotcomparison:has(.lf-shot-divider-input[data-lf-focus])

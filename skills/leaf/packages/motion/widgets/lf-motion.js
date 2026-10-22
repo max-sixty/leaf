@@ -75,14 +75,6 @@ customElements.define(
           when: () => Boolean(this.#draw),
           run: () => this.#toggle(),
         },
-        {
-          id: "motion.reset",
-          title: "Reset",
-          control: this.#ui.reset,
-          run: () => {
-            this.currentTime = 0;
-          },
-        },
       ]);
       whileConnected(this, (signal) => {
         this.#ui.time.addEventListener(
@@ -134,7 +126,9 @@ customElements.define(
     }
 
     #playLabel() {
-      return this.#playing ? "Pause" : reducedMotion() ? "Show end" : "Play";
+      if (this.#playing) return "Pause";
+      if (reducedMotion()) return "Show end";
+      return this.#time >= this.duration ? "Replay" : "Play";
     }
 
     #pause() {

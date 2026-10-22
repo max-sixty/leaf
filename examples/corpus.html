@@ -9351,11 +9351,24 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               >
                 Progress messages
               </button>
-              <label for="bg-panel-width">Sample width</label>
-              <select id="bg-panel-width" class="field">
-                <option value="30rem">Wide</option>
-                <option value="20rem">Narrow</option>
-              </select>
+              <span id="bg-panel-width-label">Sample width</span>
+              <div
+                id="bg-panel-width"
+                role="radiogroup"
+                aria-labelledby="bg-panel-width-label"
+              >
+                <label class="choice"
+                  ><input
+                    type="radio"
+                    name="panel-width"
+                    value="30rem"
+                    checked
+                  />Wide</label
+                >
+                <label class="choice"
+                  ><input type="radio" name="panel-width" value="20rem" />Narrow</label
+                >
+              </div>
             </div>
             <lf-sample id="bg-panel-sample" label="workshop threads">
               <template
@@ -9672,9 +9685,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 agent owes the message, as it now reads, an answer.
               </li>
               <li>
-                Press <kbd>Escape</kbd> or Cancel instead: the message stays as it was
+                Press <kbd>Escape</kbd> or Discard instead: the message stays as it was
                 and your words are dropped. Words a reload interrupts wait as an
-                "unsaved edit". Saving, Escape, and Cancel each put you back in the
+                "unsaved edit". Saving, Escape, and Discard each put you back in the
                 reply box.
               </li>
             </ul>
@@ -9869,10 +9882,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
           <section id="bg-theme-hierarchy">
             <h2><strong>Callouts carry emphasis; disclosures hold support</strong></h2>
             <p id="bg-theme-hierarchy-guide">
-              Compare the filled conclusion with its unfilled supporting detail in
-              either color scheme. Open the disclosure by click, tap, or Tab and Enter:
-              its hairline and chevron remain, and the conclusion keeps the stronger
-              fill. Click or Tab between the summaries: the same focus ring follows the
+              Compare the tinted conclusion with its plain supporting detail in either
+              color scheme. Open the disclosure by click, tap, or Tab and Enter: its
+              chevron identifies the disclosure, and the conclusion keeps the tint.
+              Click or Tab between the summaries: the same focus ring follows the
               summary that receives keyboard input.
             </p>
             <details id="bg-theme-support">
@@ -10240,7 +10253,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </p>
             <p id="bg-button-status-guide">
               <strong>Edit and hand off.</strong> Opening the draft above replaces
-              “Edit” with “Save” and “Cancel” controls; “Save” dims while it sends.
+              “Edit” with “Save” and “Discard” controls; “Save” dims while it sends.
               Delivery and agent work share one workflow reading. Pickup adds its status
               to the draft's “Edit” control; current work adds one arrival pulse. An
               uncertain or ended turn loses the active treatment. Hover for the
@@ -11953,7 +11966,7 @@ switch --readers checkout-api,orders-api</code></pre>
         <summary>Author a motion study</summary>
         <p>
           The optional <code>motion</code> package supplies the clock, Play/Pause,
-          Reset, scrubbing and playback speed. The page draws the subject from the
+          Replay, scrubbing and playback speed. The page draws the subject from the
           supplied time in milliseconds. Scrubbing changes only the view; it writes no
           decision to the page’s log.
         </p>

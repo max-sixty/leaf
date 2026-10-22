@@ -57,7 +57,7 @@ export class ReactionStripView {
                 children: (choice) =>
                   html`<button
                     type="button"
-                    class=${`lf-outline-chip lf-react ${HOLDS_WORD} lf-ui`}
+                    class=${`lf-react ${HOLDS_WORD} lf-ui`}
                     data-lf-gen="1"
                     data-lf-offer="button"
                     data-token=${() => choice().name}

@@ -840,20 +840,23 @@ def test_a_repaint_unsettles_the_rendering_until_it_lands(browser, serve):
     toggle = page.locator(".lf-fp-threads")
     toggle.hover()
     rendered(page)
-    # The reading on either side of the press: as it goes down, before any listener has
-    # answered it, and once its click has passed every listener.
+    # Read before dispatch: an earlier pointerdown capture listener may already have
+    # queued the repaint by the time a listener installed here receives the event.
+    assert page.evaluate(
+        "() => Object.values(document.querySelector('script[data-lf-entry]').lfRenderingState()).every(Boolean)"
+    )
+    # Once the click has passed every listener, its repaint is pending.
     page.evaluate(
         """() => {
           const state = document.querySelector('script[data-lf-entry]').lfRenderingState;
           const settled = () => Object.values(state()).every(Boolean);
           window.__lfPress = [];
           const read = () => window.__lfPress.push(settled());
-          addEventListener('pointerdown', read, {capture: true, once: true});
           addEventListener('click', read, {once: true});
         }"""
     )
     toggle.click()
-    assert page.evaluate("window.__lfPress") == [True, False]
+    assert page.evaluate("window.__lfPress") == [False]
     rendered(page)
     # Completion is the reading rendered waited on. A later slide-end scan can
     # queue new work, so a second reading need not still be settled.
@@ -878,5 +881,8 @@ def test_send_room_moves_to_every_line_only_while_the_field_scrolls(
     write(field, "A long draft scrolls inside its field. " * 120)
     assert field.evaluate(scrolls)
     expect(field).to_have_js_property("endRoom", "every-line")
+    # Let its scroll and size observers land before replacing the draft; a second
+    # edit during that layout pass tests the editor's transition, not Send's room.
+    rendered(page)
     write(field, "Short again.")
     expect(field).to_have_js_property("endRoom", "last-line")

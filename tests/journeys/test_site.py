@@ -1468,7 +1468,7 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
     page.locator(".lf-fp-leaf").click()
     expect(page.locator(".sitenote")).to_have_count(0)
     # Unclaimed, the copy's agent is still on call: a comment starts it.
-    assert page.locator(".lf-fp-leaf-paint .lf-dot").evaluate(
+    assert page.locator(".lf-fp-leaf .lf-dot").evaluate(
         "dot => [...dot.classList]"
     ) == ["lf-dot", "listening"]
     state = page.evaluate("() => fetch('api/state').then(r => r.json())")

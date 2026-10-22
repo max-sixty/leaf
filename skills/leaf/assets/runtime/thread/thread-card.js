@@ -43,6 +43,7 @@ import {
   share,
   createSignal,
   flush,
+  untracked,
 } from "/vendor/browser-runtime.js";
 import { turns, threadKey } from "./model.js";
 import { anchorLabel, messageReading, threadSummary } from "./messages.js";
@@ -285,7 +286,7 @@ export class ThreadView {
   // key and button reflection follow what they read (keyboard/scopes.js).
   #shown = createSignal(null, { ownedWrite: true });
   get #model() {
-    return this.#shown[0]();
+    return untracked(this.#shown[0]);
   }
   set #model(model) {
     flush(() => this.#shown[1](() => model));
@@ -764,10 +765,9 @@ export class ThreadView {
         {
           id: reopen ? "thread.reopen" : "thread.resolve",
           keys: PRESS,
-          description: `${word} it`,
           title: word.toLowerCase(),
           control: button,
-          when: () => !this.#model.settlement?.pending,
+          when: () => !this.#shown[0]().settlement?.pending,
           run: this.#settle,
         },
       ]);

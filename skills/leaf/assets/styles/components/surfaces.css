@@ -417,10 +417,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    size from chrome.css only when focus reveals it.
    Native and selectable choice marks keep their enclosing labelled target; squeezing-prone button
    faces and version rows keep the padding floor described above. Inline offered words
-   remain inline: like links in prose, their words determine their target.
-
-   .lf-outline-chip is halved on how it is spelled, because the class dresses a plain
-   chip as well as a press and a chip is not something to aim at. */
+   remain inline: like links in prose, their words determine their target. */
 [data-lf-offer]:where(
   :not(
     [data-lf-offer=""],
@@ -431,7 +428,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 ),
 .lf-btn,
 .button,
-.lf-outline-chip:is(button, [role="button"]),
 .lf-thread-notice:is(button),
 .lf-react,
 .lf-msg-control,
@@ -450,7 +446,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     .lf-btn
   )
 ),
-.lf-outline-chip:is(button, [role="button"]),
 .lf-thread-notice:is(button),
 .lf-react,
 .lf-msg-control,
@@ -583,7 +578,7 @@ summary {
   --lf-group-ring-end: 6px;
   --lf-msg-head-height: max(28px, var(--aim-floor));
   --lf-msg-body-gap: 4px;
-  /* A message's control, and the Cancel and Save an open rewrite stands in its place:
+  /* A message's control, and the Discard and Save an open rewrite stands in its place:
      the head keeps their room (controls.css), and so does the thread's own controls'
      row beside a first message (below). */
   --lf-msg-control-size: max(26px, var(--aim-floor));

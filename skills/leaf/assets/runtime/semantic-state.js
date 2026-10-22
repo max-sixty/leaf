@@ -3,7 +3,11 @@
    network promises stay out of the root, in the modules that own them. Importing this
    module mounts no view and starts no delivery. */
 import {
-  collectReads,
+  createMemo,
+  createSignal,
+  flush,
+  watchReaction,
+  watchEffect,
   outsideReading,
   untracked,
   createPresentationCoordinator,
@@ -38,9 +42,9 @@ export const applicationState = createSemanticApplication({
 export const readApplication = applicationState.read;
 // A reader of one part of the root, through its own selection. A key or button
 // reflection tracks what it reads (keyboard/scopes.js), and a watcher's or a region's
-// paint collects it (projection-watch.js, `applicationPresenter`), so each reads again
+// paint follows it (projection-watch.js, `applicationPresenter`), so each reads again
 // only when that part moves. An accessor that reads the whole root would make every
-// reflection read again on every publication, and inside a paint it throws.
+// reflection read again on every publication.
 /**
  * @template T
  * @param {(root: ReturnType<typeof readApplication>) => T} derive
@@ -104,26 +108,23 @@ export const PRESENTATION_ORDER = Object.freeze({
 // caller reaches for when it has changed something every region may be showing and has
 // no business knowing which those are.
 const documentPresenters = [];
-// Every publication, which each region checks its parts against.
-const publications = applicationState.select((root) => root);
-
 // `applicationPresenter` registers one region of the page, such as `projection:chrome`
 // in projection/presentation.js, that repaints when the parts of the application state
 // it reads change.
 //
-// `reading()` runs synchronously on each publication and returns the value to paint, or
+// `reading()` runs when its selected inputs move and returns the value to paint, or
 // null when the region has nothing to paint (before the page has read the log, or while
 // its renderer is not mounted). `paint(value, current, resume)` runs on the next
 // presentation pass, after every region with a lower `order` has painted, and reads the
 // state as it is then.
 //
 // No one lists a region's dependencies. Both functions read through `readPart`
-// selectors, and the presenter records what each read (`collectReads`). A publication
+// selectors; native Solid computed values and effects follow those reads. A publication
 // that changes a part `paint` read schedules a paint. One that changes only parts
 // `reading` read schedules a paint only if `reading` now returns a different value. One
 // that changes neither carries the region's last paint into the new epoch
-// (presentation.ts, `begin`). Reading the whole root throws, since every publication
-// changes it.
+// (presentation.ts, `begin`). Reading the whole root subscribes to every publication,
+// so renderers select the parts they draw.
 //
 // Recording sees only synchronous code. A paint that awaits wraps each continuation in
 // `resume`, as a `.then` callback or a function it calls after an `await`; reads in a
@@ -149,50 +150,60 @@ export const applicationPresenter = ({
   paint,
   failSoft,
 }) => {
-  // The parts the last reading and the last paint read, each with the value it read.
-  let readingReads = new Map();
-  let paintReads = new Map();
-  // The value last claimed, and whether its paint has yet to start.
+  // Reading identity decides whether a region needs new content. Solid owns its
+  // dependencies, including subscriptions to values outside the application state.
+  const [revision, setRevision] = createSignal(0, { ownedWrite: true });
+  const selected = createMemo(
+    () => {
+      revision();
+      const epoch = untracked(() => readApplication().semanticEpoch);
+      const value = reading();
+      if (epoch !== untracked(() => readApplication().semanticEpoch))
+        throw new Error(`the ${region} region's reading moved a part it read`);
+      return value;
+    },
+    { lazy: true },
+  );
+  // Surface a bad initial reading at registration. Eager memo construction captures
+  // errors internally and can retry a self-invalidating read before a caller sees it.
+  untracked(selected);
   let claimed;
   let owed = false;
-  // The paint's outside readings, followed while it is current: one that moves owes a
-  // paint, as a moved part does on a publication.
+  // A resumed asynchronous paint has one effect per synchronous stretch. A new paint
+  // releases the whole generation; a superseded continuation keeps no subscriptions.
   let following = [];
-  const follow = () => {
+  const forget = () => {
     for (const stop of following) stop();
-    following = [...paintReads]
-      .filter(([reading]) => reading.outside)
-      .map(([reading, seen]) =>
-        reading.subscribe((now) => {
-          if (owed || now === seen) return;
-          const next = read();
-          if (next !== null) void claim(next);
-        }),
-      );
+    following = [];
   };
   const presenter = schedule.presenter({
     attach: () => presentation.attach(region, renderer),
     order,
     paint: (value, current) => {
       owed = false;
-      const reads = new Map();
-      paintReads = reads;
-      // One stretch of this paint run synchronously: its start, or a continuation after
-      // a wait that the paint resumes through `resume`. While the paint is current, what
-      // the stretch reads joins the paint's parts. A publication the stretch made after
-      // reading a part checked the parts as they were before it, so a part it read first
-      // and moved itself owes another paint.
+      forget();
+      const generation = following;
       const stretch = (run) => {
-        const outcome = collectReads(run);
-        if (current()) {
-          for (const [part, seen] of outcome.reads)
-            if (!reads.has(part)) reads.set(part, seen);
-          if (paintReads === reads) follow();
-          if (moved(outcome.reads)) {
-            const next = read();
-            if (next !== null) void claim(next);
-          }
-        }
+        let outcome;
+        const stop = watchReaction(
+          () => {
+            try {
+              outcome = { value: run() };
+            } catch (error) {
+              outcome = { error };
+            }
+          },
+          () => {
+            // Claim before the publication seals; painting belongs to the ordered pass.
+            if (!owed && current())
+              untracked(() => {
+                const next = selected();
+                if (next !== null) void claim(next);
+              });
+          },
+        );
+        if (current() && following === generation) generation.push(stop);
+        else stop();
         if ("error" in outcome) throw outcome.error;
         return outcome.value;
       };
@@ -205,44 +216,36 @@ export const applicationPresenter = ({
     },
     failSoft,
   });
-  const read = () => {
-    const outcome = collectReads(reading);
-    readingReads = outcome.reads;
-    if ("error" in outcome) throw outcome.error;
-    // A reading decides; the paint is what may publish. A value read before the reading
-    // itself published would be claimed as current.
-    if (moved(readingReads))
-      throw new Error(`the ${region} region's reading moved a part it read`);
-    return outcome.value;
-  };
   const claim = (value) => {
     claimed = value;
     if (value === null) return schedule.passed();
     owed = true;
     return presenter.sync(value);
   };
-  const moved = (reads) => [...reads].some(([part, seen]) => part.read() !== seen);
-  const present = () => claim(read());
+  // Mechanical inputs can change without publishing. Explicit presentation invalidates
+  // the computed reading and claims it in one batch, so its observer cannot duplicate it.
+  const present = () =>
+    untracked(() =>
+      flush(() => {
+        setRevision((value) => value + 1);
+        return claim(selected());
+      }),
+    );
   documentPresenters.push(present);
-  // A region claims on the publications after this first reading; a renderer that owes
-  // its first value earlier asks with `present`. One subscription, made here, hears
-  // every publication, so each region claims at the same point in a publication as it
-  // always has, before anything that publication starts waits on presentation.
-  claimed = read();
-  publications.subscribe(() => {
-    // A paint's part moved, which owes a paint unless one is already owed, or the
-    // reading's part moved, which owes one only where the value changed.
-    const painted = !owed && moved(paintReads);
-    if (!painted && !moved(readingReads)) return;
-    const value = read();
-    if (value === null) claimed = null;
-    else if (painted || value !== claimed) void claim(value);
+  // Registration records the initial value without drawing it. Future changed values
+  // synchronously claim their region; present() can request the first paint earlier.
+  let first = true;
+  watchEffect(() => {
+    const value = selected();
+    if (first || value === null) {
+      first = false;
+      claimed = value;
+    } else if (value !== claimed) untracked(() => claim(value));
   });
-  // A document-wide region lives as long as the page; `disconnect` releases its renderer,
+  // A document-wide region lives as long as the page; disconnect releases its renderer,
   // and a region that may mount again reads null while it is not mounted.
   const disconnect = () => {
-    paintReads = new Map();
-    follow();
+    forget();
     presenter.disconnect();
   };
   return Object.freeze({ present, disconnect });
@@ -315,17 +318,6 @@ export const applicationRegionsPresented = (regions) =>
 export const projectionRegionsPresented = (widgets) =>
   applicationRegionsPresented(["projection:chrome", ...widgets.flatMap(widgetRegions)]);
 export const watchPresentation = presentation.subscribe;
-// A reading of presentation proof itself, such as whether the regions a report waits
-// on have committed. A paint that follows one draws again when it rises without
-// claiming its own region for it: a claim moves presentation, and the reading with it.
-// Its fall owes no paint, since a paint that reads it false holds what it would say.
-const proofReadings = new WeakSet();
-export const proofReading = (read) => {
-  const reading = outsideReading(read, (moved) => watchPresentation(() => moved({})));
-  proofReadings.add(reading);
-  return reading;
-};
-export const readsProof = (reading) => proofReadings.has(reading);
 export const readApplicationPresentation = presentation.read;
 export function setPresentationFailureReporter(report) {
   reportPresentationFailure = (reason) => report(reason, "Presentation failed");

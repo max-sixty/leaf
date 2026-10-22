@@ -50,14 +50,14 @@ customElements.define(
         (read) =>
           html` <fieldset
             role="radiogroup"
-            ref=${offered("lf-trace-sources lf-radio-group")}
+            ref=${offered("lf-btn lf-quiet-action lf-trace-sources lf-radio-group")}
             disabled=${quoted(this)}
           >
             <legend>Recording</legend>
             ${For({
               each: options,
               children: (option) =>
-                html` <label class="lf-radio-choice lf-trace-source">
+                html` <label class="choice lf-trace-source">
                   <input
                     ref=${offered("")}
                     type="radio"

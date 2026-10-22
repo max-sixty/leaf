@@ -147,7 +147,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 [data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer=checkbox], [data-lf-offer=radio], .lf-mark-note)),
 .lf-btn,
 .button,
-.lf-outline-chip:is(button, [role=button]),
 .lf-thread-notice:is(button),
 .lf-react,
 .lf-msg-control,
@@ -158,7 +157,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   min-width: var(--aim-floor);
 }
 [data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer=checkbox], [data-lf-offer=radio], .lf-mark-note, .lf-btn)),
-.lf-outline-chip:is(button, [role=button]),
 .lf-thread-notice:is(button),
 .lf-react,
 .lf-msg-control,
@@ -755,7 +753,7 @@ button.lf-primary-news {
 }
 :where(:root, .lf-thread-transcript) :is(ul, ol) {
   margin: 10px 0;
-  padding-inline-start: 24px;
+  padding-inline-start: var(--list-inset);
 }
 :where(:root, .lf-thread-transcript) li {
   margin: 6px 0;
@@ -768,6 +766,7 @@ button.lf-primary-news {
 :is(.lf-msg-body, leaf-text) {
   --quote-inset: 10px;
   --pre-inset: 10px;
+  --pre-pad-block: 8px;
 }
 leaf-text.lf-fab-input,
 .lf-msg-body {
@@ -811,7 +810,29 @@ leaf-text.lf-fab-input,
   margin: 2px 0;
 }
 .lf-msg-body pre {
-  padding-block: 8px;
+  padding-block: var(--pre-pad-block);
+}
+@property --lf-msg-line { syntax: "<length>"; inherits: true; initial-value: 0px; }
+.lf-msg-text {
+  --lf-msg-line: 1lh;
+}
+.lf-msg-text :is([data-lf-gap], pre:has(> [data-lf-gap])) {
+  margin-block: 0;
+}
+.lf-msg-text blockquote[data-lf-gap] {
+  padding-block: 0;
+}
+.lf-msg-text pre:has(> [data-lf-gap]) {
+  padding-block: var(--code-line);
+}
+.lf-msg-text :is([data-lf-gap="1"], pre:has(> [data-lf-gap="1"])) {
+  margin-block-start: var(--lf-msg-line);
+}
+.lf-msg-text :is([data-lf-gap="2"], pre:has(> [data-lf-gap="2"])) {
+  margin-block-start: calc(2 * var(--lf-msg-line));
+}
+.lf-msg-text :is([data-lf-gap="3"], pre:has(> [data-lf-gap="3"])) {
+  margin-block-start: calc(3 * var(--lf-msg-line));
 }
 :where([data-lf-content=data]:not([data-lf-verbatim])) {
   display: block;
@@ -883,34 +904,19 @@ leaf-text.lf-fab-input,
     display: none !important;
   }
 }
-.lf-outline-chip {
+:where(.lf-react-strip) .lf-react {
   appearance: none;
   margin: 0;
   padding: var(--chip-pad);
   white-space: nowrap;
-  border: 1px solid var(--border-2);
+  border: 1px solid transparent;
   border-radius: var(--chip-r);
-  background: var(--card);
-  color: var(--ink-2);
   font: inherit;
   font-family: var(--sans);
   font-size: var(--t-6);
   line-height: var(--chip-lh);
 }
-.lf-outline-chip:is(button, [role=button]) {
-  cursor: pointer;
-}
-.lf-outline-chip:is(button, [role=button]):hover {
-  background: var(--chip);
-}
-@media (pointer: coarse) {
-  .lf-outline-chip:is(button, [role=button]) {
-    display: inline-flex;
-    align-items: center;
-  }
-}
-.lf-outline-chip[data-lf-focus] {
-  outline: var(--focus-ring);
+.lf-react-strip .lf-react[data-lf-focus] {
   outline-offset: 1px;
 }
 .lf-msg-control {
@@ -940,7 +946,7 @@ leaf-text.lf-fab-input,
   border-color: var(--border-2);
   background: var(--chip);
 }
-.lf-react.lf-response-action:not([aria-pressed=true]) {
+.lf-react.lf-response-action:where(:not([aria-pressed=true])) {
   background: var(--card);
 }
 .lf-react[aria-busy=true] {
@@ -1188,11 +1194,36 @@ svg[data-lf-icon] {
 :is(.lf-btn, .button) {
   padding: max(4px, (var(--aim-floor) - 1lh) / 2 - 1px) 10px;
   border: 1px solid var(--border-2);
-  border-radius: 6px;
+  border-radius: var(--r);
   background: var(--card);
   cursor: pointer;
   color: var(--ink);
   display: inline-block;
+}
+.choice {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: var(--sp-1);
+  padding-block: var(--sp-1);
+  min-block-size: var(--aim-floor);
+  min-inline-size: var(--aim-floor);
+  box-sizing: border-box;
+  cursor: pointer;
+  font: var(--t-5)/var(--lf-ui-lh) var(--sans);
+}
+.choice > input {
+  flex: none;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.choice > input:is(:focus-visible, [data-lf-focus]) {
+  outline: none;
+}
+.choice:has(> input:is(:focus-visible, [data-lf-focus])) {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-gap);
+  --lf-wears-ring: 1;
 }
 :where([data-lf-room]) {
   display: inline-block;
@@ -1214,7 +1245,7 @@ svg[data-lf-icon] {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-:is(.lf-btn, .button):not(:disabled, [aria-disabled=true]):hover {
+:is(.lf-btn, .button):where(:not(:disabled, [aria-disabled=true]):hover) {
   background: var(--chip);
 }
 :is(button, .lf-btn, .button).lf-quiet-action {
@@ -1224,7 +1255,7 @@ svg[data-lf-icon] {
   color: var(--muted);
   box-shadow: none;
 }
-:is(button, .lf-btn, .button).lf-quiet-action:not(:disabled, [aria-disabled=true]):is(:hover, [data-lf-focus]) {
+:is(button, .lf-btn, .button).lf-quiet-action:where(:not(:disabled, [aria-disabled=true]):is(:hover, [data-lf-focus])) {
   background: var(--chip);
   color: var(--ink);
 }
@@ -1311,6 +1342,7 @@ input.lf-search-field,
 }
 .lf-radio-group:not([hidden]) {
   display: flex;
+  gap: var(--sp-2);
 }
 .lf-radio-group > legend {
   position: absolute;
@@ -1319,64 +1351,20 @@ input.lf-search-field,
   overflow: hidden;
   clip-path: inset(50%);
 }
-.lf-radio-choice {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: var(--aim-floor);
-  min-inline-size: var(--aim-floor);
-  box-sizing: border-box;
-  padding: var(--sp-1) var(--sp-2);
-  border: 1px solid var(--border-2);
-  background: var(--field);
-  color: var(--ink-2);
-  font: var(--t-6) / var(--lf-ui-lh) var(--sans);
-  cursor: pointer;
-}
-.lf-radio-choice + .lf-radio-choice {
-  border-inline-start: 0;
-}
-.lf-radio-choice:first-of-type {
-  border-start-start-radius: var(--r);
-  border-end-start-radius: var(--r);
-}
-.lf-radio-choice:last-child {
-  border-start-end-radius: var(--r);
-  border-end-end-radius: var(--r);
-}
-.lf-radio-choice:has(:checked) {
-  background: var(--chip);
-  color: var(--ink);
-}
-.lf-radio-choice:has(:focus-visible, [data-lf-focus]) {
-  outline: var(--focus-ring);
-  outline-offset: 1px;
-  z-index: 1;
-}
-.lf-radio-choice > input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  opacity: 0;
-  cursor: inherit;
-}
-.lf-radio-choice:has(:disabled) {
-  opacity: 0.5;
-  cursor: default;
-}
 
 /* skills/leaf/assets/styles/components/response.css */
+:root {
+  --lf-icon-action-face: 28px;
+  --lf-compose-action-inset: 6px;
+}
 :root,
 .lf-compose-field,
 .lf-icon-action {
-  --lf-icon-action-hit: max(28px, var(--aim-floor));
+  --lf-icon-action-hit: max(var(--lf-icon-action-face), var(--aim-floor));
 }
 :root,
 .lf-compose-field {
-  --lf-compose-h: calc(var(--lf-icon-action-hit) + 12px);
+  --lf-compose-h: calc(var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset));
 }
 .lf-compose-field {
   --lf-compose-pad-block: 8px;
@@ -1440,7 +1428,7 @@ input.lf-search-field,
   padding-inline-end: var(--lf-compose-pad-inline-start);
 }
 .lf-compose-field:where(:has(> .lf-compose-submit)) > leaf-text:not(.lf-fab-input) {
-  --lf-field-end-room: calc( var(--lf-icon-action-hit) + 12px - var(--lf-compose-pad-inline-start) );
+  --lf-field-end-room: calc( var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset) - var(--lf-compose-pad-inline-start) );
 }
 .lf-icon-action {
   box-sizing: border-box;
@@ -1460,15 +1448,6 @@ input.lf-search-field,
   block-size: 16px;
   pointer-events: none;
 }
-.lf-close-action {
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-}
-.lf-close-action:hover {
-  background: var(--chip);
-  color: var(--ink);
-}
 :is(.lf-compose-submit, .lf-compose-dictate),
 :is(.lf-resolve, .lf-reopen).lf-icon-action {
   border: 0;
@@ -1479,8 +1458,8 @@ input.lf-search-field,
   content: "";
   position: absolute;
   box-sizing: border-box;
-  inline-size: 28px;
-  block-size: 28px;
+  inline-size: var(--lf-icon-action-face);
+  block-size: var(--lf-icon-action-face);
   border-radius: var(--r);
   background: transparent;
 }
@@ -1491,8 +1470,8 @@ input.lf-search-field,
 :is(.lf-compose-submit, .lf-compose-dictate) {
   position: absolute;
   z-index: 1;
-  inset-inline-end: 6px;
-  inset-block-end: 6px;
+  inset-inline-end: var(--lf-compose-action-inset);
+  inset-block-end: var(--lf-compose-action-inset);
   color: var(--accent);
 }
 :is(.lf-compose-submit, .lf-compose-dictate):not(:disabled, [aria-disabled=true]):hover::before {
@@ -1553,7 +1532,9 @@ input.lf-search-field,
   flex-wrap: wrap;
 }
 .lf-composer-media {
-  --lf-media-room: max( calc(var(--raise-1-drop) + var(--raise-1-blur)), calc(var(--aim-floor) / 2 - 3px) );
+  --lf-media-mark-size: 18px;
+  --lf-media-mark-overhang: 6px;
+  --lf-media-room: max( calc(var(--raise-1-drop) + var(--raise-1-blur)), calc( var(--lf-media-mark-overhang) + (var(--aim-floor) - var(--lf-media-mark-size)) / 2 ) );
   --lf-media-h: 120px;
   display: flex;
   flex: 1 0 calc(100% + 2 * var(--lf-media-room));
@@ -1561,7 +1542,7 @@ input.lf-search-field,
   min-width: 0;
   overflow-x: auto;
   padding: var(--lf-media-room);
-  margin: calc(6px - var(--lf-media-room)) calc(-1 * var(--lf-media-room)) calc(4px - var(--lf-media-room));
+  margin: calc(var(--lf-media-mark-overhang) - var(--lf-media-room)) calc(-1 * var(--lf-media-room)) calc(4px - var(--lf-media-room));
   box-sizing: border-box;
 }
 .lf-composer-media-item {
@@ -1610,13 +1591,13 @@ button.lf-media-open {
 .lf-composer-media-item > button:not(.lf-media-open) {
   position: absolute;
   z-index: 1;
-  inset-block-start: -6px;
-  inset-inline-end: -6px;
+  inset-block-start: calc(-1 * var(--lf-media-mark-overhang));
+  inset-inline-end: calc(-1 * var(--lf-media-mark-overhang));
   display: grid;
   place-items: center;
-  inline-size: 18px;
+  inline-size: var(--lf-media-mark-size);
   min-inline-size: 0;
-  block-size: 18px;
+  block-size: var(--lf-media-mark-size);
   min-block-size: 0;
   padding: 0;
   border: 0;
@@ -1628,12 +1609,12 @@ button.lf-media-open {
   cursor: pointer;
 }
 .lf-composer-media-item > .lf-composer-drawing-undo {
-  inset-inline: -6px auto;
+  inset-inline: calc(-1 * var(--lf-media-mark-overhang)) auto;
 }
 .lf-composer-media-item > button:not(.lf-media-open)::before {
   content: "";
   position: absolute;
-  inset: calc((18px - var(--aim-floor)) / 2);
+  inset: calc((var(--lf-media-mark-size) - var(--aim-floor)) / 2);
 }
 .lf-composer-media-item > button:not(.lf-media-open):hover {
   background: var(--ink);
@@ -1921,7 +1902,7 @@ leaf-text.lf-fab-input {
   max-height: min(60vh, 480px);
   border-radius: var(--r);
 }
-:is(.lf-btn, .button):is(.on, [aria-pressed=true]) {
+:is(.lf-btn, .button)[aria-pressed=true] {
   border-color: var(--accent);
   color: var(--accent);
   background: var(--chip);
@@ -1988,9 +1969,6 @@ html[data-lf-draw-mode] main {
 }
 .lf-code-copy:hover {
   color: var(--ink);
-}
-.lf-code-copy[data-lf-focus] {
-  outline: var(--focus-ring);
 }
 :root {
   --lf-video-bar-h: max(32px, var(--aim-floor));

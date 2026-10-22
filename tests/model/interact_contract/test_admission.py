@@ -545,9 +545,9 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
         ),
         (
             {"kind": "comment", "revision": 1, "token": "keep", "text": "and"},
-            "must match exactly one of",
+            "is valid under each of",
         ),
-        ({"kind": "comment", "revision": 1}, "must match exactly one of"),
+        ({"kind": "comment", "revision": 1}, "is not valid under any of"),
         (
             {"kind": "comment", "revision": 1, "token": "keep", "suggestion": True},
             "suggestion",

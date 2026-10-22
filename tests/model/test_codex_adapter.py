@@ -3521,9 +3521,9 @@ def test_a_codex_stop_cannot_adopt_a_prompt_renewed_during_its_policy(
     policy = hook_transport_model.stop_continues
     newer = []
 
-    def supersede(plans, handing, *, repeated):
+    def supersede(plans, handing, **policy_input):
         newer.append(cleanup_model.prompt_turn("codex-thread", "provider"))
-        return policy(plans, handing, repeated=repeated)
+        return policy(plans, handing, **policy_input)
 
     monkeypatch.setattr(hook_transport_model, "stop_continues", supersede)
     try:

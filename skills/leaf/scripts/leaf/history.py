@@ -48,27 +48,6 @@ def wants_history(readings) -> bool:
     )
 
 
-def _gesture(event: dict, words: GestureWords) -> dict:
-    """What an action did, in its record form's terms and its own document's words."""
-    spec = words.declaration(event).get("x-state", {}).get(event["action"], {})
-    record = spec.get("record") or {}
-    detail = event["detail"]
-    if record.get("kind") == "attribute":
-        chosen = detail["value"]
-        return {"form": "choice", "chosen": [words.name(event, i) for i in chosen]}
-    if record.get("kind") == "position":
-        return {
-            "form": "move",
-            "unit": words.name(event, detail[spec["unit"]]),
-            "to": words.name(event, detail["value"]),
-        }
-    if record.get("kind") == "body":
-        return {"form": "edit"}
-    if spec.get("creates"):
-        return {"form": "add", "words": words.name(event, detail[spec["unit"]])}
-    return {"form": "verb", "verb": event["action"]}
-
-
 def _report(event: dict, words: GestureWords) -> dict:
     spec = words.declaration(event).get("x-state", {}).get(event["action"], {})
     record = spec.get("record") or {}
@@ -131,7 +110,7 @@ def history(
             row["thread"] = thread_of(event)
         elif kind == "action":
             row["widget"] = event["widget"]
-            row["gesture"] = _gesture(event, words)
+            row["gesture"] = words.gesture(event)
         elif kind == "report":
             row.update(_report(event, words))
         elif kind == "note":

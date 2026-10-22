@@ -57,6 +57,7 @@ import subprocess
 import sys
 import threading
 import time
+from http.client import HTTPConnection
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
@@ -305,30 +306,21 @@ def pour(stdin: queue.Queue, pipe) -> None:
 def connect(port: int) -> socket.socket:
     """A connection to the bridge: through the sandbox's proxy, which Claude Code
     names in HTTP_PROXY, as a CONNECT tunnel, so stdin and output flow both ways.
-    Raises ConnectionError with the proxy's answer where it refuses."""
+    Raises OSError with the proxy's answer where it refuses."""
     proxy = os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy")
     if not proxy:
         return socket.create_connection(("127.0.0.1", port))
     via = urlsplit(proxy)
-    tunnel = socket.create_connection((via.hostname, via.port))
-    request = f"CONNECT 127.0.0.1:{port} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n"
+    tunnel = HTTPConnection(via.hostname, via.port)
+    headers = {}
     if via.username:
         credentials = f"{unquote(via.username)}:{unquote(via.password or '')}"
-        request += (
-            "Proxy-Authorization: Basic "
-            f"{base64.b64encode(credentials.encode()).decode()}\r\n"
+        headers["Proxy-Authorization"] = (
+            "Basic " + base64.b64encode(credentials.encode()).decode()
         )
-    tunnel.sendall(f"{request}\r\n".encode())
-    answer = b""
-    while b"\r\n\r\n" not in answer:
-        if not (chunk := tunnel.recv(4096)):
-            break
-        answer += chunk
-    status = answer.split(b"\r\n", 1)[0].decode(errors="replace")
-    if status.split()[1:2] != ["200"]:
-        tunnel.close()
-        raise ConnectionError(status or "the proxy closed the connection")
-    return tunnel
+    tunnel.set_tunnel("127.0.0.1", port, headers)
+    tunnel.connect()
+    return tunnel.sock
 
 
 def run(argv: list[str]) -> int:

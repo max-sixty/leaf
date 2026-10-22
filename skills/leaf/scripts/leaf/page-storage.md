@@ -230,7 +230,7 @@ ID PATH` (`file_bindings.BINDINGS`).
   page's own canonical activity. `server_rows.py` owns the record (`ROW`), producer and
   freshness contract. It is never read by a page's semantic fold; losing it only
   hides that neighbor until the server's next maintenance look. A neighbour
-  reading deletes a row whose server lease no process holds, at any format.
+  reading deletes a readable row whose server lease no process holds.
 
 ## Revision delivery
 

@@ -167,8 +167,10 @@ export function boxMotion({
       parts: [],
     };
     part.scrolls = /auto|scroll/.test(`${style.overflowX} ${style.overflowY}`);
+    // The motion owner exposes its own parts, even when its host is a custom element.
+    // Descendant widgets keep their independent rendering opaque.
     part.whole =
-      element.localName.includes("-") ||
+      (element !== root && element.localName.includes("-")) ||
       element instanceof SVGElement ||
       part.scrolls ||
       element.childElementCount === 0 ||

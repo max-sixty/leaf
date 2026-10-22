@@ -6,7 +6,8 @@ widget gets a widget controller. Then read the sections your behavior needs in t
 files beside this one:
 
 - [module-reading.md](module-reading.md): the page's words, elements and declarations,
-  content helpers, and page readings such as obligations and history;
+  content helpers for Markdown, code, images and icons, and page readings such as
+  obligations and history;
 - [module-state.md](module-state.md): the widget controller, declared state, data
   subscriptions, and editing a bound file;
 - [module-input.md](module-input.md): commands and keyboard routes, focus, pointer

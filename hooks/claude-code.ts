@@ -30,6 +30,24 @@
  * prompt (measured at 2.1.306); a negative margin to close it hides the band.
  * `leaf-dev claude-code-session` runs a session that draws it from this tree.
  *
+ * In the terminal a click on the link opens the page wherever the terminal runs,
+ * SSH included. No escape sequence makes a terminal open a URL without a click,
+ * and no `$` call reaches the user's browser, so each line ends with a button for
+ * the keyboard, the first focused once ctrl+x tab takes the band, for Enter to
+ * press. Where the user sits at this machine, which Leaf's server judges by
+ * SSH_CONNECTION (`page_access`), it opens the page in the browser; over SSH a
+ * browser started here would open on the wrong machine, so it copies the link to
+ * the user's own clipboard, which OSC 52 reaches. Other surfaces draw the link as
+ * an anchor their keyboard reaches.
+ *
+ * In the terminal one link runs from the word Leaf through the title. The desktop
+ * app draws a `Link` as plain text unless it goes to https or localhost, but links
+ * any http URL in `Markdown`, which takes no color, so there the title alone is a
+ * markdown link (measured at the app's Claude Code 2.1.304). Linking to localhost
+ * instead would open the page at another origin than every other link to it,
+ * with its own cookie jar and drafts, and send the host key's cookie to whatever
+ * else the user serves on localhost.
+ *
  * A follower (`bin/leaf hook --harness claude-code
  * --if-claimed --pages`) prints that list whenever it changes and exits once the
  * session holds no page; the launcher answers it without starting uv in a session
@@ -39,10 +57,18 @@
  * running; a request while one runs starts another once it exits.
  */
 
-import type { EngineInterface, Register, RenderElement } from "claude-code";
+import type {
+  EngineInterface,
+  Register,
+  RenderElement,
+  RenderSurface,
+  UiPressArgument,
+} from "claude-code";
 
 // Claude Code's process, read once by `sessionOf`.
 let claudePid = "";
+// Whether the user reached this machine over SSH, read once by the band.
+let remote: boolean | undefined;
 
 // The summary `hooks.json` gives the background watch's wake, which Claude Code
 // draws as a task notification's row, and the words of the nudge Leaf sends
@@ -109,6 +135,33 @@ function launcher($: EngineInterface) {
  * That ending is no failure of Leaf's to show the user. */
 function report($: EngineInterface, text: string, code: number | null) {
   $.ui.log(text, code !== null && code > 128 ? { to: "debug" } : undefined);
+}
+
+// The command that opens its first argument in this machine's browser.
+const OPENER = '[ "$(uname)" = Darwin ] && exec open "$1"; exec xdg-open "$1"';
+
+/** What a line's button does: open the page here, or over SSH copy its link to
+ * the clipboard of the surface pressed on. */
+async function openPage(
+  $: EngineInterface,
+  { url, title }: Leaf,
+  surface: RenderSurface,
+) {
+  try {
+    if (remote) {
+      const copied = await $.ui.copy({ text: url, surface });
+      if (copied.isCopied) $.ui.toast(`Copied the link to ${title}`);
+      else $.ui.log(`Leaf: the link to ${title} was not copied (${copied.reason})`);
+      return;
+    }
+    const ran = await $.process.run(["/bin/sh", "-c", OPENER, "sh", url]);
+    if (ran.exitCode !== 0)
+      $.ui.log(
+        `Leaf: opening ${title} exited with code ${ran.exitCode}${ran.stderr.trim() ? `: ${ran.stderr.trim()}` : ""}`,
+      );
+  } catch (error) {
+    $.ui.log(`Leaf: opening ${title} failed: ${error}`);
+  }
 }
 
 function show($: EngineInterface, listed: Leaf[]) {
@@ -228,28 +281,21 @@ export const register: Register = (on) => {
   on("ui.render", { component: "AbovePrompt" }, async ($, e, next) => {
     const beneath = await next(e);
     if (leaves.length === 0 || e.props.hasSurvey) return beneath;
-    const { Box, Text, Link } = $.ui.resolve(e);
+    const { Box, Text, Link, Markdown, Button } = $.ui.resolve(e);
+    if (e.surface === "terminal") remote ??= Boolean(await $.env.get("SSH_CONNECTION"));
     // What JSX would type; the module stays `.ts` for Node, which runs it in tests.
     const dim = (text: string) => h(Text, { dimColor: true }, text);
     // A line keeps one row, its status cut first; only the counts that aren't zero
     // show, and what waits on the user takes a color.
-    const line = ({ url, title, on_user, threads, activity }: Leaf) => {
+    const line = (page: Leaf, index: number) => {
+      const { url, title, on_user, threads, activity } = page;
       const status = statusOf(activity);
-      return h(
+      const leaf = h(
         Text,
-        { wrap: "truncate-end" },
-        // One link from the word Leaf through the title, so either opens the page.
-        h(
-          Link,
-          { href: url },
-          h(
-            Text,
-            { color: TONES[activity.kind] ?? "inactive", weight: "semibold" },
-            "Leaf",
-          ),
-          " ",
-          h(Text, { underline: true }, title),
-        ),
+        { color: TONES[activity.kind] ?? "inactive", weight: "semibold" },
+        "Leaf",
+      );
+      const counts = [
         ...(on_user
           ? [dim(" · "), h(Text, { color: "warning" }, `On me ${on_user}`)]
           : []),
@@ -259,6 +305,44 @@ export const register: Register = (on) => {
           ? [dim(", "), h(Text, { color: "suggestion" }, `${threads.unread} new`)]
           : []),
         ...(status ? [dim(` · ${status}`)] : []),
+      ];
+      if (e.surface === "terminal") {
+        // The button stays whole at the line's end while the text before it is cut.
+        return h(
+          Box,
+          { gap: 1 },
+          h(
+            Text,
+            { wrap: "truncate-end" },
+            h(Link, { href: url }, leaf, " ", h(Text, { underline: true }, title)),
+            ...counts,
+          ),
+          h(
+            Box,
+            { flexShrink: 0 },
+            h(Button, {
+              key: page.page_key,
+              label: remote ? "copy link" : "open",
+              plain: true,
+              dimColor: true,
+              ...(index === 0 ? { autoFocus: true } : {}),
+              onPress: (press: UiPressArgument) =>
+                void openPage($, page, press.surface),
+            }),
+          ),
+        );
+      }
+      // The title keeps its width and the counts are cut, as the terminal's
+      // truncation cuts them.
+      const escaped = title.replace(/[!-/:-@[-`{-~]/g, "\\$&");
+      return h(
+        Box,
+        { flexDirection: "row", overflow: "hidden" },
+        h(Box, { flexShrink: 0 }, h(Text, {}, leaf, " ")),
+        h(Box, { flexShrink: 0 }, h(Markdown, { text: `[${escaped}](${url})` })),
+        ...(counts.length
+          ? [h(Box, { minWidth: 0 }, h(Text, { wrap: "truncate-end" }, ...counts))]
+          : []),
       );
     };
     return h(

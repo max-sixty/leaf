@@ -6,9 +6,6 @@ import re
 import pytest
 from click.testing import CliRunner
 from interact_support import append_carried_log_record
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
 from PIL import Image, ImageChops
 from playwright.sync_api import expect
 from render_cases_navigation import (
@@ -25,6 +22,10 @@ from render_harness import (
     told,
     write,
 )
+
+from leaf import cli as cli_model
+from leaf import event_log as events_model
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

@@ -4,6 +4,7 @@ boundary, and a record whose pages are gone retires whichever Leaf wrote it."""
 from copy import deepcopy
 
 from interact_support import append_carried_log_record, published
+
 from leaf import codex as codex_model
 from leaf.delivery import batch_data, freeze_delivery
 from leaf.service import PageTransaction

@@ -6,12 +6,6 @@ from datetime import datetime, timedelta
 
 import pytest
 from click.testing import CliRunner
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf.event_log import read_events
-from leaf.passages import page_passages, section_span
-from leaf.render_checks import wait_until_ready
-from leaf.structure import SourceDocument
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import COMMAND_HUB_EXAMPLE, live_url
@@ -26,6 +20,13 @@ from render_harness import (
     wait_for_revision,
     write,
 )
+
+from leaf import cli as cli_model
+from leaf import data as data_model
+from leaf.event_log import read_events
+from leaf.passages import page_passages, section_span
+from leaf.render_checks import wait_until_ready
+from leaf.structure import SourceDocument
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

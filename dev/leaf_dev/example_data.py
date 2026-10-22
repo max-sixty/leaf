@@ -7,8 +7,8 @@ import sys
 from pathlib import Path
 
 from jsonschema import Draft202012Validator
-from leaf.structure import SourceDocument
 
+from leaf.structure import SourceDocument
 from leaf_dev import ROOT
 from leaf_dev.leaf_assets import pinned_copy
 

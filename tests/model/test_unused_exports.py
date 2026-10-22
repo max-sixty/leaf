@@ -41,12 +41,12 @@ from interact_support import PLUGIN_ROOT, js_facts, shipped_payload
 
 SOURCES = (".js", ".mjs", ".ts")
 WORDED = (".py", ".html", ".md")
-BUNDLED = re.compile(r"(^|/)vendor/|^skills/leaf/kernel/")
+BUNDLED = re.compile(r"(^|/)vendor/|^dist/kernel/")
 # A third-party bundle's own input under `build/` exports the surface of the package
 # it stands in for, which the bundled dependency reads and this tree never names
 # (`build/AGENTS.md`). Its own imports are still readers. `contract.d.ts` exports a
 # type for each definition its schemas declare, whichever a reader selects.
-UNCHECKED = re.compile(r"^build/(?!browser/)[^/]+/|^build/browser/contract\.d\.ts$")
+UNCHECKED = re.compile(r"^build/(?!browser/)[^/]+/|^browser/framework/contract\.d\.ts$")
 # An escape is consumed whole, so `"\ndefine(…)"` in a Python string reads `define`.
 WORD = re.compile(r"\\[a-z]|([A-Za-z_$][\w$]*)")
 WORKER = "worker/wrangler.toml"

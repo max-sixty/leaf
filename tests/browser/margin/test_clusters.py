@@ -7,9 +7,6 @@ import re
 import pytest
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, newest_move
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import render_checks as render_checks_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
@@ -43,6 +40,9 @@ from browser.margin import (
     _unfold,
     _unfold_suggestion_undo,
 )
+from leaf import cli as cli_model
+from leaf import event_log as events_model
+from leaf import render_checks as render_checks_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

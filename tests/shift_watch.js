@@ -811,10 +811,7 @@
   const observedStates = new WeakMap();
   const readMotion = (at, ending = null) => {
     const effects = [
-      ...new Set([
-        ...allAnimations(),
-        ...(ending?.playState === "finished" ? [ending] : []),
-      ]),
+      ...new Set([...allAnimations(), ...(ending?.effect?.target ? [ending] : [])]),
     ].filter((animation) => animation.effect?.target && moves(animation));
     const uses = new Map();
     for (const animation of effects) {
@@ -887,6 +884,23 @@
       pruneSamples(readings);
       animated.set(animation, readings);
     }
+  };
+  // A cancelled no-fill effect returns to its underlying style before the next
+  // frame. Keep both sides of that native change while the effect still names its
+  // target; getAnimations() no longer includes it after cancel().
+  const cancel = Animation.prototype.cancel;
+  Animation.prototype.cancel = function (...args) {
+    const applied =
+      this.effect?.target &&
+      moves(this) &&
+      this.effect.getComputedTiming().progress !== null;
+    if (applied) readMotion(nativePerformance.now());
+    const result = cancel.apply(this, args);
+    if (applied) {
+      readMotion(nativePerformance.now(), this);
+      announce();
+    }
+    return result;
   };
   // Unchanged frames: the last complete reading's population, the ledger entries
   // appended so far, the unannounced frames in a row, and what the last read saw.
